@@ -29,7 +29,9 @@ def digest(value):
 
 
 def _json(value):
-    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    # JSON string values may contain literal marker introducers. Escaping angle
+    # brackets keeps those values inert while json.loads restores exact text.
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def _encoded(value):
@@ -179,11 +181,11 @@ class Runner:
                 raise
         return len(logins) <= 10
 
-    def label_plan(self, repo, names, pair):
+    def label_plan(self, repo, names, pair, definition_repo):
         for name in names:
             if name in self.labels[repo]: continue
-            definition = next((labels[name] for labels in self.labels.values() if name in labels), None)
-            if not definition: raise linked.SyncError(f"{pair}: label definition unavailable for {name}")
+            definition = self.labels[definition_repo].get(name)
+            if not definition: raise linked.SyncError(f"{pair}: paired source label definition unavailable for {name}")
             payload = {key: definition.get(key) for key in ("name", "color", "description")}
             payload["color"] = payload["color"] or "ededed"
             self.write("label-create", pair, "POST", f"/repos/{repo}/labels", payload)
@@ -259,8 +261,10 @@ class Runner:
             current = self.api.request("GET", f"/repos/{repo}/issues/comments/{comment['id']}")
             if current["body"] != comment["body"]: raise linked.SyncError("comment changed after planning; preserve competing edits")
         value = self.write("comment-update", pair, "PATCH", f"/repos/{repo}/issues/comments/{comment['id']}", {"body": body})
-        if self.execute and (not value or value.get("body") != body):
-            raise linked.SyncError("comment write not confirmed; baseline retained")
+        if self.execute:
+            value = self.api.request("GET", f"/repos/{repo}/issues/comments/{comment['id']}")
+            if not value or value.get("body") != body:
+                raise linked.SyncError("comment write not confirmed; baseline retained")
         comment["body"] = body
 
     def comment_sync(self, app, number, tracker, state, pair):
@@ -332,26 +336,43 @@ class Runner:
         if not self.execute: return state["shards"]
         # The durable index is separate from deletable carriers. Bound both count and
         # encoded byte size, retaining full last content in one or more bot-owned shards.
-        chunks, chunk = [], []
+        # Existing membership is durable: a failed append must never remove the
+        # sole last-content/tombstone record from an already committed shard.
+        chunks, assigned = [], set()
+        for i in range(len(owned)):
+            chunk = []
+            for old in owned[i][1]["entries"]:
+                key = self._entry_key(old)
+                chunk.append(entries[key])
+                assigned.add(key)
+            chunks.append(chunk)
         for _, entry in sorted(entries.items()):
-            trial = [*chunk, entry]
+            if self._entry_key(entry) in assigned: continue
+            if not chunks: chunks.append([])
+            trial = [*chunks[-1], entry]
             if len(trial) > SHARD_ENTRIES or len(_json(trial)) > LIMIT - 400:
-                if not chunk: raise linked.SyncError("one comment index entry exceeds GitHub size; last content retained")
-                chunks.append(chunk); chunk = [entry]
-            else: chunk = trial
-        if chunk: chunks.append(chunk)
-        # Keep historical empty shards instead of deleting global/user content.
-        while len(chunks) < len(owned): chunks.append([])
-        ids = []
+                chunks.append([entry])
+            else:
+                chunks[-1] = trial
+        bodies = []
         for i, values in enumerate(chunks):
             body = STATE_PREFIX + _json({"version": 1, "source": pair, "shard": i, "entries": values}) + " -->"
+            # Validate every shard before modifying any durable index object.
+            # A growing existing record is an explicit size blocker, never an
+            # instruction to move or discard its previous confirmed content.
             if len(body) > LIMIT: raise linked.SyncError("comment index shard too large; no content discarded")
+            bodies.append(body)
+        ids = []
+        for i, body in enumerate(bodies):
             if i in owned:
                 comment = owned[i][0]
                 self._comment_patch(self.central, comment, body, pair)
             else:
                 comment = self.write("index-create", pair, "POST", f"/repos/{self.central}/issues/{tracker['number']}/comments", {"body": body})
                 if not _bot(comment, self.login) or comment.get("body") != body: raise linked.SyncError("index authority not confirmed")
+                comment = self.api.request("GET", f"/repos/{self.central}/issues/comments/{comment['id']}")
+                if not _bot(comment, self.login) or comment.get("body") != body:
+                    raise linked.SyncError("index readback not confirmed; prior manifest retained")
             ids.append(comment["id"])
         return ids
 
@@ -364,7 +385,7 @@ class Runner:
             if not self.eligible(self.central, target["assignees"]):
                 _conflict(self.result, pair, "assignees", "target cannot assign intended users; no access granted")
                 target["assignees"] = []
-            self.label_plan(self.central, target["labels"], pair)
+            self.label_plan(self.central, target["labels"], pair, source_repo)
             initial_base = _base(src)
             # GitHub can silently ignore assignments without sufficient permission.
             # Empty common sets cannot turn an unconfirmed create into removals on
@@ -404,7 +425,7 @@ class Runner:
             else:
                 _conflict(self.result, pair, field, "competing edits preserved on both sides")
         for repo, values in ((source_repo, desired_src), (self.central, desired_core)):
-            self.label_plan(repo, values["labels"], pair)
+            self.label_plan(repo, values["labels"], pair, self.central if repo == source_repo else source_repo)
         app_payload = {f: v for f, v in desired_src.items() if v != src[f]}
         core_payload = {f: v for f, v in desired_core.items() if v != current[f] and f != "body"}
         if "title" in core_payload: core_payload["title"] = _title(app, source["number"], desired_core["title"], self.reg)
@@ -434,20 +455,14 @@ def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]"):
         if not re.fullmatch(r"[A-Za-z0-9_-]+\[bot\]", bot_login): raise linked.SyncError("a configured sync App bot identity is required")
         runner = Runner(reg, api, execute, bot_login, result)
         central = linked.inventory(api, runner.central)
-        mirrors, blocked = {}, set()
+        mirrors = {}
         for tracker in central:
-            try:
-                identity = linked.parse_link(tracker.get("body"), reg)
-            except linked.SyncError:
-                if _bot(tracker, bot_login): raise
-                # Native Core reports can quote arbitrary marker syntax. Their
-                # author supplies no sync authority and they remain untouched.
-                continue
+            # Unowned Core text has no routing, pair-selection or write authority,
+            # even when it quotes a structurally valid authenticated marker.
+            if not _bot(tracker, bot_login): continue
+            identity = linked.parse_link(tracker.get("body"), reg)
             if not identity: continue
             key = identity["app"], identity["number"]
-            if not _bot(tracker, bot_login):
-                _conflict(result, f"{key[0]}#{key[1]}", "identity", "central marker was not created by the configured sync App")
-                blocked.add(key); continue
             if key in mirrors: raise linked.SyncError("duplicate authenticated central trackers")
             mirrors[key] = tracker
         sources = {}
@@ -455,7 +470,7 @@ def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]"):
             for item in linked.inventory(api, repo): sources[app, item["number"]] = item
         if set(mirrors) - set(sources): raise linked.SyncError("a tracked original is missing; deletion/transfer/visibility needs review")
         pairs = [(app, item, mirrors.get((app, number))) for (app, number), item in sorted(sources.items())
-                 if (app, number) not in blocked and ((app, number) in mirrors or item["state"] == "open")]
+                 if (app, number) in mirrors or item["state"] == "open"]
         # Complete all read inventories before any write, so partial API reads never
         # masquerade as empty threads, deleted comments or missing label definitions.
         for repo in [runner.central, *runner.apps.values()]:

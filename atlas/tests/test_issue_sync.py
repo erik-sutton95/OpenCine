@@ -222,11 +222,17 @@ class TwoWay(unittest.TestCase):
 
     def test_public_forged_marker_cannot_authorize_reverse_writes(self):
         tracker = self.created()
-        tracker["user"] = {"login": "attacker", "type": "User"}
-        tracker["title"] = "[app#12] Forged reverse title"
+        forged = copy.deepcopy(tracker)
+        forged.update(number=70, html_url="https://github.com/o/OpenCine/issues/70",
+                      user={"login": "attacker", "type": "User"}, title="[app#12] Forged reverse title")
+        self.api.issues["o/OpenCine"].append(forged)
+        self.api.source["title"] = "Legitimate source update"
         result = self.run_sync()
-        self.assertFalse(result["complete"])
-        self.assertEqual(self.api.source["title"], "Feed freezes")
+        self.assertTrue(result["complete"], result)
+        self.assertEqual(self.api.source["title"], "Legitimate source update")
+        self.assertEqual(tracker["title"], "[app#12] Legitimate source update")
+        self.assertEqual(forged["title"], "[app#12] Forged reverse title")
+        self.assertFalse(any(method != "GET" and path.endswith("/issues/70") for method, path, _ in self.api.calls))
 
     def test_paginated_threads_and_state_shards_with_missing_shard_are_honest(self):
         for n in range(102): self.api.comment("o/App", 12, f"Comment {n}")
@@ -340,6 +346,133 @@ class TwoWay(unittest.TestCase):
         self.api.source["body"] = "New report"
         self.assertTrue(self.run_sync()["complete"])
         self.assertTrue(tracker["body"].startswith("<pre>Operator notes</pre>\n"))
+
+    def test_quoted_index_marker_roundtrips_and_cannot_poison_durable_state(self):
+        text = 'Parser report quoting <!-- atlas-sync-index: and <!-- atlas-sync-comment: with "quotes" & entities'
+        self.api.comment("o/App", 12, text)
+        tracker = self.created()
+        thread = self.api.comments["o/OpenCine", tracker["number"]]
+        index = next(c for c in thread if c["body"].startswith(sync.STATE_PREFIX))
+        self.assertEqual(index["body"].count(sync.STATE_PREFIX), 1)
+        self.assertEqual(sync._one_json(index["body"], sync.STATE_PREFIX)["entries"][0]["last_body"], text)
+        count = len(self.api.writes)
+        self.assertTrue(self.run_sync()["complete"])
+        self.assertEqual(len(self.api.writes), count)
+
+        central_text = "Core report quoting <!-- atlas-sync-index: and <!-- atlas-sync-metadata:"
+        self.api.comment("o/OpenCine", tracker["number"], central_text)
+        self.assertTrue(self.run_sync()["complete"])
+        indexes = [c for c in thread if c["body"].startswith(sync.STATE_PREFIX)]
+        self.assertTrue(all(c["body"].count(sync.STATE_PREFIX) == 1 for c in indexes))
+        self.assertTrue(any(e["last_body"] == central_text for c in indexes for e in sync._one_json(c["body"], sync.STATE_PREFIX)["entries"]))
+        count = len(self.api.writes)
+        self.assertTrue(self.run_sync()["complete"])
+        self.assertEqual(len(self.api.writes), count)
+
+    def test_failed_shard_rollover_retains_deleted_both_text_and_recovers(self):
+        reg = registry()
+        app_repo = "o/OpenPocketCine"
+        reg["app"]["repository"]["url"] = "https://github.com/" + app_repo
+        del self.api.issues["o/App"]
+        self.api.issues[app_repo] = [issue(12, app_repo)]
+        def run(): return sync.reconcile(reg, self.api, execute=True, bot_login=BOT)
+        self.assertTrue(run()["complete"])
+        number = self.api.tracker["number"]
+        for n in range(49): self.api.comment("o/OpenCine", number, f"Core original {n}")
+        sentinel = "Unique last content after both endpoints are deleted"
+        original = self.api.comment(app_repo, 12, sentinel)
+        self.assertTrue(run()["complete"])
+        thread = self.api.comments["o/OpenCine", number]
+        peer = next(c for c in thread if original["html_url"] in c["body"])
+        self.api.comments[app_repo, 12] = [c for c in self.api.comments[app_repo, 12] if c["id"] != original["id"]]
+        thread.remove(peer)
+        self.assertTrue(run()["complete"])
+        self.assertIn(sentinel, json.dumps(list(self.api.comments.values())))
+        self.api.comment("o/OpenCine", number, "New Core comment must not move the sole tombstone")
+        self.api.fail = lambda method, path, payload: (method == "POST" and path.endswith("/comments") and payload
+            and payload["body"].startswith(sync.STATE_PREFIX) and '"shard":1' in payload["body"])
+        result = run()
+        self.assertFalse(result["complete"])
+        self.assertIsNotNone(result["uncertain"])
+        self.assertIn(sentinel, json.dumps(list(self.api.comments.values())))
+        self.api.fail = None
+        self.assertTrue(run()["complete"])
+        self.assertIn(sentinel, json.dumps(list(self.api.comments.values())))
+        count = len(self.api.writes)
+        self.assertTrue(run()["complete"])
+        self.assertEqual(len(self.api.writes), count)
+
+    def test_label_definition_comes_only_from_paired_field_source(self):
+        self.api.issues["o/Future"] = [issue(3, "o/Future", labels=[{"name": "triage"}])]
+        self.api.labels = {"o/OpenCine": [],
+                           "o/App": [{"name": "triage", "color": "ff0000", "description": "Unrelated app definition"}],
+                           "o/Future": [{"name": "triage", "color": "0000ff", "description": "Actual source definition"}]}
+        result = self.run_sync()
+        self.assertTrue(result["complete"], result)
+        definition = next(v for v in self.api.labels["o/OpenCine"] if v["name"] == "triage")
+        self.assertEqual(definition, self.api.labels["o/Future"][0])
+
+    def test_every_index_failure_boundary_preserves_deleted_both_content(self):
+        for mode in ("before_patch", "after_patch", "after_new_post"):
+            with self.subTest(mode=mode):
+                self.api = API()
+                reg, app_repo = registry(), "o/OpenPocketCine"
+                reg["app"]["repository"]["url"] = "https://github.com/" + app_repo
+                del self.api.issues["o/App"]
+                self.api.issues[app_repo] = [issue(12, app_repo)]
+                def run(): return sync.reconcile(reg, self.api, execute=True, bot_login=BOT)
+                self.assertTrue(run()["complete"])
+                tracker = self.api.tracker
+                number = tracker["number"]
+                originals = [self.api.comment("o/OpenCine", number, f"Core {n}") for n in range(49)]
+                sentinel = "Only surviving deleted-both content"
+                original = self.api.comment(app_repo, 12, sentinel)
+                self.assertTrue(run()["complete"])
+                thread = self.api.comments["o/OpenCine", number]
+                copied = next(c for c in thread if original["html_url"] in c["body"])
+                thread.remove(copied)
+                self.api.comments[app_repo, 12] = [c for c in self.api.comments[app_repo, 12] if c["id"] != original["id"]]
+                self.assertTrue(run()["complete"])
+                index = next(c for c in thread if c["body"].startswith(sync.STATE_PREFIX))
+                first = next(c for c in thread if c["id"] == originals[0]["id"])
+                first["body"] = "Confirmed new content forces existing shard patch"
+                self.api.comment("o/OpenCine", number, "Appended entry forces a new shard")
+                request, triggered = self.api.request, [False]
+                def fail_once(method, path, payload=None):
+                    old_patch = method == "PATCH" and path.endswith(f"/comments/{index['id']}")
+                    new_post = method == "POST" and path.endswith("/comments") and payload and payload["body"].startswith(sync.STATE_PREFIX) and '"shard":1' in payload["body"]
+                    hit = not triggered[0] and (old_patch if mode != "after_new_post" else new_post)
+                    if hit and mode == "before_patch":
+                        triggered[0] = True
+                        raise linked.SyncError("SIMULATED before index patch")
+                    value = request(method, path, payload)
+                    if hit:
+                        triggered[0] = True
+                        raise linked.SyncError("SIMULATED lost index write response")
+                    return value
+                self.api.request = fail_once
+                result = run()
+                self.assertTrue(triggered[0])
+                self.assertFalse(result["complete"], result)
+                self.assertIn(sentinel, json.dumps(list(self.api.comments.values())))
+                self.api.request = request
+                self.assertTrue(run()["complete"])
+                self.assertIn(sentinel, json.dumps(list(self.api.comments.values())))
+
+    def test_growing_index_record_preflights_all_shards_before_any_index_write(self):
+        tracker = self.created()
+        number = tracker["number"]
+        originals = [self.api.comment("o/OpenCine", number, f"Core {n}") for n in range(51)]
+        self.assertTrue(self.run_sync()["complete"])
+        thread = self.api.comments["o/OpenCine", number]
+        before = {c["id"]: c["body"] for c in thread if c["body"].startswith(sync.STATE_PREFIX)}
+        next(c for c in thread if c["id"] == originals[0]["id"])["body"] = "First shard would change"
+        next(c for c in thread if c["id"] == originals[-1]["id"])["body"] = chr(0x1F4A1) * 6000
+        result = self.run_sync()
+        self.assertFalse(result["complete"], result)
+        self.assertTrue(any("index shard too large" in e["error"] for e in result["errors"]))
+        after = {c["id"]: c["body"] for c in thread if c["id"] in before}
+        self.assertEqual(after, before, "size failure must preserve every existing durable shard")
 
 
 if __name__ == "__main__":

@@ -414,6 +414,13 @@ class Hub(AtlasCase):
             code, out = self.run_atlas("task", "start", "opencine#70", "--orca")
             self.assertEqual(code, 0, out)
             self.assertEqual(sum(a[:2] == ["worktree", "set"] for a in calls), sets)
+            for flags in (("--with", "opencine"), ()):
+                code, out = self.run_atlas("task", "start", "App#12", "--orca", *flags)
+                self.assertEqual(code, 0, out)
+                self.assertEqual(sum(a[:2] == ["worktree", "set"] for a in calls), sets)
+                saved = json.loads((task / ".atlas-orca.json").read_text())
+                self.assertEqual(saved["tracking"]["number"], 70)
+                self.assertEqual(sh(task / "OpenCine", "branch", "--show-current"), "issue/app-12")
             self.assertFalse((fresh_root / ".local" / "checkouts.json").exists(), "bootstrap stays in memory")
 
     # -- graph build --all

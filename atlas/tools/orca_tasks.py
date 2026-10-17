@@ -87,6 +87,25 @@ class OrcaTasks:
     def _list(self, rid):
         return self.run(["worktree", "list", "--repo", "id:" + self.repo(rid)["id"]]).get("worktrees", [])
 
+    def task_tracking(self, folder, rid, number, pid, requested=None):
+        """The original and tracker are two entry points into one owned task."""
+        path = Path(folder) / ".atlas-orca.json"
+        saved = json.loads(path.read_text()) if path.exists() else {}
+        if saved and saved.get("source") != f"{rid}#{number}":
+            raise OrcaError("task custody receipt belongs to another original issue")
+        previous = saved.get("tracking")
+        for value in (requested, previous):
+            if value is None: continue
+            import linked_issues
+            core_repo = linked_issues.github_repo(self.reg[pid])
+            if not isinstance(value, dict) or set(value) != {"repo", "number", "url"} or value["repo"] != pid \
+                    or type(value["number"]) is not int or value["number"] < 1 or not core_repo \
+                    or value["url"] != f"https://github.com/{core_repo}/issues/{value['number']}":
+                raise OrcaError("invalid saved tracking identity; preserve the task receipt")
+        if requested and previous and requested != previous:
+            raise OrcaError("task already belongs to a different tracking issue")
+        return requested or previous
+
     def _plan(self, rows, rid, number, pid, tracking):
         source = f"{rid}#{number}"
         receipt_path = Path(rows[0]["path"]).parent / ".atlas-orca.json"
@@ -96,6 +115,7 @@ class OrcaTasks:
         prior = {}
         for record in saved.get("adopted", []) + saved.get("prior_adopted", []):
             prior.setdefault(record["id"], record)
+        tracking = self.task_tracking(receipt_path.parent, rid, number, pid, tracking)
         core = next((r for r in rows if r["repo"] == pid), None)
         expected_core_issue = tracking["number"] if tracking else number if rid == pid else None
         caller = self.caller
@@ -149,6 +169,7 @@ class OrcaTasks:
         folder = Path(folder)
         state_path = folder / ".atlas-orca.json"
         source = f"{rid}#{number}"
+        tracking = self.task_tracking(folder, rid, number, pid, tracking)
         previous = json.loads(state_path.read_text()) if state_path.exists() else {}
         if previous and previous.get("source") != source:
             raise OrcaError("task custody receipt belongs to another original issue")

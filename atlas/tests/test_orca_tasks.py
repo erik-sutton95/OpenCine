@@ -163,3 +163,22 @@ class OrcaTasks(AtlasCase):
         self.api.worktrees["opencine"][0]["parentWorktreeId"] = "unrelated::parent"
         with self.assertRaises(orca_tasks.OrcaError): self.adopt()
         self.assertEqual(len(self.api.writes), count)
+
+    def test_direct_original_reuses_validated_tracker_identity_without_clearing_core(self):
+        self.assertTrue(self.adopt()["complete"])
+        count = len(self.api.writes)
+        for caller in ("app", "opencine"):
+            self.api.caller = copy.deepcopy(self.api.worktrees[caller][0])
+            session = self.session()
+            session.preflight(self.rows, "app", 12, "opencine", None)
+            receipt = session.adopt(self.rows, self.folder, "app", 12, "opencine", None)
+            self.assertTrue(receipt["complete"], receipt)
+            self.assertEqual(receipt["tracking"], self.tracking)
+            self.assertEqual(self.api.worktrees["opencine"][0]["linkedIssue"], 70)
+        self.assertEqual(len(self.api.writes), count)
+        state_path = self.folder / ".atlas-orca.json"
+        state = json.loads(state_path.read_text())
+        state["tracking"]["url"] = "https://github.com/foreign/repo/issues/70"
+        state_path.write_text(json.dumps(state))
+        with self.assertRaises(orca_tasks.OrcaError): self.session().preflight(self.rows, "app", 12, "opencine", None)
+        self.assertEqual(len(self.api.writes), count)

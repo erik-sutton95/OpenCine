@@ -483,6 +483,10 @@ def cmd_task_start(args, reg, root):
 
 
 def _start_task_worktrees(args, reg, root, cfg, session, rid, number, pid, repos, branch, folder, issue, why, tracking):
+    if session:
+        tracking = session.task_tracking(folder, rid, number, pid, tracking)
+        if tracking and pid not in repos:
+            repos = [*repos, pid]
     rows, pins = [], {}
     for r in repos:
         m = reg[r]

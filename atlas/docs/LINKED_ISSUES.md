@@ -43,6 +43,12 @@ pair after a logical deletion. Missing/altered index shards require review and b
 pair before field writes; they never mean an empty history. Index comments are internal
 state, not operator comments to mirror or manually remove.
 
+Existing records retain their shard membership, including tombstones whose two endpoints
+are gone. New records append without moving existing history; all prospective shard sizes
+are checked before any index object is written, and writes are read back before checkpoint.
+A growing record that exceeds its shard's limit leaves prior durable content intact and
+reports incomplete; it is never moved or truncated to force success.
+
 ## Identity and failure recovery
 
 A versioned marker names exactly the registered app, positive issue number and canonical
