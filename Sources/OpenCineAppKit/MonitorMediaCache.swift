@@ -167,6 +167,12 @@ public struct MonitorMediaCacheEntry: Sendable {
     public var isPlayableOffline: Bool { originalURL != nil || proxyURL != nil }
 }
 
+/// A selective clear reports confirmed removals and every selected file that remains retryable.
+public struct MonitorMediaCacheRemoval: Equatable, Sendable {
+    public let removedBytes: UInt64
+    public let remainingFiles: [String]
+}
+
 /// Root lifetime shared explicitly by the cache/library owners for that namespace. No globals.
 /// One caller-owned declared media root. Gallery and settings reuse each namespace's write lifetime.
 @MainActor public final class MonitorMediaCacheRoot {
@@ -384,6 +390,70 @@ public struct MonitorMediaCacheEntry: Sendable {
         }.value
     }
 
+    /// Counts only the host's declared files, off the main actor. Missing files count as zero;
+    /// failed observations throw so Settings can retain an unknown readout.
+    public func selectedByteCount(_ addresses: [String]) async throws -> UInt64 {
+        try Task.checkCancellation()
+        let selected = try selectedFiles(addresses)
+        let root = root
+        let access = MediaCacheFileAccess(manager: manager)
+        let worker = Task.detached(priority: .utility) {
+            var bytes: UInt64 = 0
+            for address in selected {
+                try Task.checkCancellation()
+                bytes += try access.selectedFileSize(root: root, address: address) ?? 0
+            }
+            return bytes
+        }
+        return try await withTaskCancellationHandler {
+            let bytes = try await worker.value
+            try Task.checkCancellation()
+            return bytes
+        } onCancel: {
+            worker.cancel()
+        }
+    }
+
+    /// Retires this directory's writers and removes only declared regular files in place.
+    /// No suspension can admit a successor writer between retirement and removal. The caller
+    /// retains its operation deadline; cancellation stops before the next filesystem mutation.
+    public func removeFiles(_ addresses: [String]) throws -> MonitorMediaCacheRemoval {
+        try Task.checkCancellation()
+        let selected = try selectedFiles(addresses)
+        // Retire the captured root access, retaining every unnamed staging file. A selective
+        // clear cannot infer that an unfinished import is disposable cache.
+        let retired = writes.withLock {
+            writes.generation &+= 1
+            writes.current.removeAll()
+            let resources = Array(writes.resources.values)
+            writes.resources.removeAll()
+            return resources
+        }
+        defer { for resource in retired { resource.requestClose() } }
+        let access = MediaCacheFileAccess(manager: manager)
+        var bytes: UInt64 = 0
+        var remaining: [String] = []
+        for address in selected {
+            try Task.checkCancellation()
+            do {
+                guard let size = try access.selectedFileSize(root: root, address: address) else {
+                    continue
+                }
+                try manager.removeItem(at: url(address))
+                bytes += size
+            } catch let error as CocoaError where MediaCacheFileAccess.isMissing(error) {
+                continue
+            } catch { remaining.append(address) }
+        }
+        return .init(removedBytes: bytes, remainingFiles: remaining)
+    }
+
+    private func selectedFiles(_ addresses: [String]) throws -> [String] {
+        let selected = Array(Set(addresses)).sorted()
+        for address in selected { _ = try url(address) }
+        return selected
+    }
+
     private nonisolated static func totalBytes(
         root: URL, manager: FileManager,
         accountLegacyUnpreparedRoots: Bool
@@ -473,7 +543,38 @@ enum MonitorMediaCacheNamespaces {
 
 /// Immutable access to Foundation's thread-safe path operations. No delegate or configuration
 /// mutation is performed after construction; transfer/root authority stays in MediaCacheWrites.
-private struct MediaCacheFileAccess: @unchecked Sendable { let manager: FileManager }
+private struct MediaCacheFileAccess: @unchecked Sendable {
+    let manager: FileManager
+
+    static func isMissing(_ error: CocoaError) -> Bool {
+        error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile
+    }
+
+    func selectedFileSize(root: URL, address: String) throws -> UInt64? {
+        do {
+            guard
+                try manager.attributesOfItem(atPath: root.path)[.type] as? FileAttributeType
+                    == .typeDirectory
+            else { throw MonitorMediaCacheError.invalidAddress }
+            let pieces = address.split(separator: "/")
+            var location = root
+            for (index, piece) in pieces.enumerated() {
+                location.appendPathComponent(String(piece))
+                let info = try manager.attributesOfItem(atPath: location.path)
+                let last = index == pieces.count - 1
+                guard info[.type] as? FileAttributeType == (last ? .typeRegular : .typeDirectory)
+                else { throw MonitorMediaCacheError.invalidAddress }
+                if last {
+                    guard let bytes = (info[.size] as? NSNumber)?.uint64Value else {
+                        throw CocoaError(.fileReadUnknown)
+                    }
+                    return bytes
+                }
+            }
+            throw MonitorMediaCacheError.invalidAddress
+        } catch let error as CocoaError where Self.isMissing(error) { return nil }
+    }
+}
 
 private final class MediaCacheWrites: @unchecked Sendable {
     final class Resource: @unchecked Sendable {

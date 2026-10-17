@@ -18,6 +18,8 @@ import kotlin.coroutines.EmptyCoroutineContext
 
 public enum class MonitorMediaCacheFailure { RETIRED, INVALID_ADDRESS, EMPTY, INVALID_RECEIPT }
 public class MonitorMediaCacheException(public val failure: MonitorMediaCacheFailure) : IOException(failure.name)
+/** Confirmed selective removals and every selected file that remains retryable. */
+public data class MonitorMediaCacheRemoval(public val removedBytes: Long, public val remainingFiles: List<String>)
 public data class MonitorMediaCacheAddress(
     public val thumbnail: String?,
     public val representations: Map<MediaRepresentationID, String>,
@@ -259,6 +261,67 @@ public class MonitorMediaCacheDirectory(public val root: File,
                         .mapToLong { Files.size(it) }.sum()
                 }
         }
+    }
+    /** Missing declared files count as zero; failed observations throw and retain an unknown readout. */
+    public suspend fun selectedByteCount(addresses: List<String>): Long = withContext(Dispatchers.IO) {
+        currentCoroutineContext().ensureActive()
+        selectedFiles(addresses).sumOf { address ->
+            currentCoroutineContext().ensureActive()
+            selectedFileSize(address) ?: 0L
+        }
+    }
+    /**
+     * Retires writers and removes only declared regular files. Each mutation retains the captured
+     * directory generation under its existing lock; the caller owns cancellation and deadlines.
+     */
+    public suspend fun removeFiles(addresses: List<String>): MonitorMediaCacheRemoval = withContext(Dispatchers.IO) {
+        val context = currentCoroutineContext()
+        context.ensureActive()
+        val selected = selectedFiles(addresses)
+        val (captured, retired) = synchronized(lock) {
+            context.ensureActive()
+            revision += 1; current.clear()
+            val values = resources.values.toList(); resources.clear()
+            revision to values
+        }
+        // A selective clear cannot infer that unnamed staging bytes are disposable cache.
+        retired.forEach { it.requestClose() }
+        var bytes = 0L
+        val remaining = mutableListOf<String>()
+        for (address in selected) synchronized(lock) {
+            context.ensureActive()
+            if (revision != captured) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+            try {
+                val size = selectedFileSize(address)
+                if (size != null && Files.deleteIfExists(file(address).toPath())) bytes += size
+            } catch (_: NoSuchFileException) {
+                // Another owner already removed this selected file.
+            } catch (_: IOException) { remaining += address }
+        }
+        MonitorMediaCacheRemoval(bytes, remaining.toList())
+    }
+    private fun selectedFiles(addresses: List<String>): List<String> = addresses.distinct().sorted().also {
+        it.forEach(::file)
+    }
+    private fun selectedFileSize(address: String): Long? {
+        try {
+            val rootAttributes = Files.readAttributes(root.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java,
+                LinkOption.NOFOLLOW_LINKS)
+            if (!rootAttributes.isDirectory) throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_ADDRESS)
+            var location = root.toPath()
+            val pieces = address.split('/')
+            pieces.forEachIndexed { index, piece ->
+                location = location.resolve(piece)
+                val info = Files.readAttributes(location, java.nio.file.attribute.BasicFileAttributes::class.java,
+                    LinkOption.NOFOLLOW_LINKS)
+                val last = index == pieces.lastIndex
+                if (if (last) !info.isRegularFile else !info.isDirectory) {
+                    throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_ADDRESS)
+                }
+                if (last) return info.size()
+            }
+            throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_ADDRESS)
+        } catch (_: NoSuchFileException) { return null }
     }
     private fun retiredRoots(includeUnprepared: Boolean): List<File> = root.parentFile?.listFiles().orEmpty().filter {
         MonitorMediaCacheNamespaces.isDirectory(it) && (isRetirementName(it.name, ".clearing-${root.name}-") ||
