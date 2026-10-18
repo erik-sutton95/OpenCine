@@ -391,7 +391,7 @@
         public static func fieldMonitor(
             size: CGSize, safeArea: EdgeInsets, sourceAspect: CGFloat,
             fill: Bool, showsValues: Bool, showsBottomBars: Bool,
-            topControlInset: CGFloat = 0, joystick: MonitorJoystickSize = .medium
+            topControlInset: CGFloat = 0, joystick: MonitorJoystickSize = .medium, valueCount: Int? = nil
         ) -> Self {
             let p = FieldMonitorLayout(
                 width: size.width, height: size.height,
@@ -399,7 +399,7 @@
                     top: safeArea.top, leading: safeArea.leading,
                     bottom: safeArea.bottom, trailing: safeArea.trailing),
                 sourceAspect: sourceAspect, fill: fill, showsValues: showsValues,
-                topControlInset: topControlInset, joystick: joystick)
+                topControlInset: topControlInset, joystick: joystick, valueCount: valueCount)
             return Self(
                 presentation: p, viewport: size, feed: p.picture.cgRect, picture: p.picture.cgRect,
                 lock: p.lock.cgRect, battery: p.telemetry.cgRect, topDeck: p.status.cgRect,

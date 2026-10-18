@@ -146,11 +146,13 @@ public struct MonitorOperatorCapturePreview<Key: Hashable, NativeIdentity: Hasha
         self.commitAdmission = commitAdmission; self.presentationOwner = presentationOwner
     }
 
+    /// Values the strip shows; a layout given it as `valueCount` sizes the portrait band to fit.
+    public var valueCount: Int { readouts.count + supplementaryReadouts.count }
+
     /// The caller's explicit count, else the shared camera-value rule for this layout.
     public func columns(portrait: Bool, tablet: Bool) -> Int {
-        let count = readouts.count + supplementaryReadouts.count
-        return max(1, columns ?? FieldMonitorLayout.valueColumns(
-            count: count, portrait: portrait, tablet: tablet))
+        max(1, columns ?? FieldMonitorLayout.valueColumns(
+            count: valueCount, portrait: portrait, tablet: tablet))
     }
 }
 

@@ -109,7 +109,7 @@ object MonitorLayoutPolicy {
 
     fun portrait(
         width: Float, height: Float, safeTop: Float, safeBottom: Float,
-        fill: Boolean, valuesVisible: Boolean, sourceAspect: Float,
+        fill: Boolean, valuesVisible: Boolean, sourceAspect: Float, valueCount: Int? = null,
     ): MonitorPortraitLayout {
         val vw = max(0f, width)
         val vh = max(0f, height)
@@ -121,7 +121,7 @@ object MonitorLayoutPolicy {
         // Record still clears the navigation handle; the whole portrait stack sits low.
         val systemY = max(0f, vh - max(0f, safeBottom - 30f) - systemH)
         val system = MonitorRect(0f, systemY, vw, systemH)
-        val valuesH = if (!valuesVisible) 0f else if (tablet) 43f else 74f
+        val valuesH = if (valuesVisible) portraitValuesHeight(valueCount, tablet) else 0f
         val valuesY = max(0f, systemY - 8f - valuesH)
         val floor = max(0f, valuesY - if (valuesVisible) 8f else 0f)
         val frameRatio = if (fill) min(ratio, 9f / 16f) else ratio
@@ -256,7 +256,7 @@ object MonitorLayoutPolicy {
         safeTop: Float = 0f, safeLeading: Float = 0f, safeBottom: Float = 0f, safeTrailing: Float = 0f,
         sourceAspect: Float = 16f / 9f, fill: Boolean = false, showsValues: Boolean = true,
         topControlInset: Float = 0f, hasDisplayCutout: Boolean = false,
-        joystick: MonitorJoystickSize = MonitorJoystickSize.MEDIUM,
+        joystick: MonitorJoystickSize = MonitorJoystickSize.MEDIUM, valueCount: Int? = null,
     ): MonitorFieldLayout {
         val w = max(1f, width)
         val h = max(1f, height)
@@ -269,7 +269,7 @@ object MonitorLayoutPolicy {
         val button = systemButtonSize(tablet)
         val edge = 8f
         if (portrait) {
-            val layout = portrait(w, h, safeTop, safeBottom, fill, showsValues, aspect)
+            val layout = portrait(w, h, safeTop, safeBottom, fill, showsValues, aspect, valueCount)
             val headerLift = if (tablet) 0f else 6f
             val headerSafeTop = portraitHeaderSafeTop(w, h, safeTop)
             val headerLeading = if (tablet) edge else max(16f, safeLeading + 8f)
@@ -467,14 +467,23 @@ object MonitorLayoutPolicy {
         return Panel((width - panelWidth) / 2f, top, panelWidth, room)
     }
 
+    /** Camera values per row: three on a phone in portrait, else one row. Mirrors Swift `FieldMonitorLayout.valueColumns`. */
+    fun valueColumns(count: Int, portrait: Boolean, tablet: Boolean): Int =
+        if (portrait && !tablet) 3 else count.coerceAtLeast(1)
+
+    /** Space one more row of camera values adds: a 32 dp tile and the grid's 10 dp gap. */
+    const val VALUE_ROW_PITCH = 42f
+
     /**
-     * Camera values per row. A phone in portrait holds three and widens only so the values
-     * still fit the band's two rows; elsewhere they share one row.
-     * Mirrors Swift `FieldMonitorLayout.valueColumns`.
+     * The portrait camera-value band. A phone holds two rows and grows a row pitch for each
+     * further row; a tablet keeps one row. A null count keeps the two-row band.
+     * Mirrors Swift `FieldMonitorLayout.portraitValuesHeight`.
      */
-    fun valueColumns(count: Int, portrait: Boolean, tablet: Boolean): Int {
-        val values = count.coerceAtLeast(1)
-        return if (portrait && !tablet) maxOf(3, (values + 1) / 2) else values
+    fun portraitValuesHeight(count: Int?, tablet: Boolean): Float {
+        if (tablet) return 43f
+        val columns = valueColumns(count ?: 0, portrait = true, tablet = false)
+        val rows = count?.let { (it.coerceAtLeast(1) + columns - 1) / columns } ?: 2
+        return 74f + maxOf(0, rows - 2) * VALUE_ROW_PITCH
     }
 
     fun readoutValueSize(tablet: Boolean): Float = if (tablet) 18f else 16f
