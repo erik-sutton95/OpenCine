@@ -57,6 +57,9 @@ jobs:
   swift:
     name: Swift package (macOS host tests, iOS builds)
     runs-on: macos-latest
+    env:
+      # Surface the crashing frame if a test process aborts; failure-only reports are uploaded below.
+      SWIFT_BACKTRACE: enable=yes,interactive=no
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,6 +126,36 @@ jobs:
       # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
       - name: Build Insta360Apple (iOS devices)
         run: xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+      - name: Collect Swift crash reports
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p swift-crash-reports
+          root="$HOME/Library/Logs/DiagnosticReports"
+          if [ -d "$root" ]; then
+            while IFS= read -r -d '' report; do
+              case "$(basename "$report")" in
+                *swiftpm-testing-helper*|*OpenCinePackageTests*|*xctest*|*swift-testing*|*swift-frontend*|*swiftc*)
+                  relative="${report#"$root/"}"
+                  mkdir -p "swift-crash-reports/$(dirname "$relative")"
+                  cp "$report" "swift-crash-reports/$relative"
+                  ;;
+              esac
+            done < <(find "$root" -type f -print0)
+          fi
+      - name: Upload Swift test diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: swift-test-diagnostics
+          path: |
+            test-cache.log
+            test.log
+            test-luna.log
+            swift-crash-reports/**/*.ips
+            swift-crash-reports/**/*.crash
+            swift-crash-reports/**/*.txt
+          if-no-files-found: warn
 
   android:
     name: Android (test, lint, assemble, Vulkan regression)
