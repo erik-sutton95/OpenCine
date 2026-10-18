@@ -28,4 +28,6 @@ public data class NikonDescriptorEvidence(
     public val observation: NikonDescriptorObservation = NikonDescriptorObservation(),
     public val latestAttempt: NikonDescriptorObservation = observation,
     public val optionOrigin: NikonDescriptorOptionOrigin = NikonDescriptorOptionOrigin.UNKNOWN,
+    /** Latest actually parsed owner/property fact, also retained across abandoned generations. */
+    public val lastValidObservation: NikonDescriptorObservation? = null,
 )

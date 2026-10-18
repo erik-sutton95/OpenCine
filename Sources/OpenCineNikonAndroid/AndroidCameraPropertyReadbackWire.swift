@@ -456,18 +456,22 @@ public enum AndroidCameraPropertyReadbackWire {
         to fields: inout [(key: String, value: String)]
     ) {
         appendDescriptorObservation(
-            key, observation: evidence.observation, latest: false, to: &fields)
+            key, observation: evidence.observation, to: &fields)
         appendDescriptorObservation(
-            key, observation: evidence.latestAttempt, latest: true, to: &fields)
+            key, observation: evidence.latestAttempt, prefix: "latest", to: &fields)
+        if let valid = evidence.lastValidObservation {
+            appendDescriptorObservation(key, observation: valid, prefix: "lastValid", to: &fields)
+        }
         append(key + ".origin", value: evidence.optionOrigin.rawValue, to: &fields)
     }
 
     private static func appendDescriptorObservation(
-        _ key: String, observation: NikonDescriptorObservation, latest: Bool,
+        _ key: String, observation: NikonDescriptorObservation, prefix: String = "",
         to fields: inout [(key: String, value: String)]
     ) {
         func field(_ name: String) -> String {
-            key + "." + (latest ? "latest" + name.prefix(1).uppercased() + name.dropFirst() : name)
+            key + "."
+                + (prefix.isEmpty ? name : prefix + name.prefix(1).uppercased() + name.dropFirst())
         }
         let capability = observation.capability
         append(field("outcome"), value: observation.outcome.rawValue, to: &fields)

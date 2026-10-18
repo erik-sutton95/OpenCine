@@ -9,6 +9,29 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CameraPropertySnapshotWireTest {
+    @Test fun lastValidDescriptorIsIndependentAndDefaultsUnknown() {
+        val prefix = "descriptor.vibrationReduction"
+        val payload = listOf(
+            "result\taccepted", "$prefix.outcome\tdescribed", "$prefix.support\tsupported",
+            "$prefix.access\treadWrite", "$prefix.form\tenumeration", "$prefix.choices\tOFF",
+            "$prefix.latestOutcome\tnotAttempted", "$prefix.lastValidOutcome\tdescribed",
+            "$prefix.lastValidSupport\tsupported", "$prefix.lastValidAccess\treadOnly",
+            "$prefix.lastValidForm\tenumeration", "$prefix.lastValidChoices\tSPORT",
+        ).joinToString("\n")
+        val facts = CameraPropertySnapshotWire.decode(payload).snapshot.controlCapabilities.vibrationReductionDescriptor
+        assertEquals(listOf("OFF"), facts.observation.capability.offer)
+        assertEquals(NikonDescriptorReadOutcome.NOT_ATTEMPTED, facts.latestAttempt.outcome)
+        assertEquals(listOf("SPORT"), facts.lastValidObservation?.capability?.offer)
+        assertEquals(com.opencapture.opencine.core.SettingAccess.READ_ONLY, facts.lastValidObservation?.capability?.access)
+        assertNull(CameraPropertySnapshotWire.decode(validPayload()).snapshot.controlCapabilities.vibrationReductionDescriptor.lastValidObservation)
+        for (invalid in listOf(
+            payload.replace("lastValidOutcome\tdescribed", "lastValidOutcome\tfutureOutcome"),
+            payload.replace("lastValidAccess\treadOnly", "lastValidAccess\tfutureAccess"),
+        )) {
+            assertNull(CameraPropertySnapshotWire.decode(invalid).snapshot.controlCapabilities.vibrationReductionDescriptor.lastValidObservation)
+        }
+    }
+
     @Test fun retainedDescriptorSurvivesTransientLatestAttemptWithoutInventingLatestMetadata() {
         val payload = validPayload() + "\n" + """
             descriptor.vibrationReduction.outcome	described

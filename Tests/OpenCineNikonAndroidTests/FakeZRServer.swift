@@ -113,6 +113,10 @@ final class FakeZRServer: @unchecked Sendable {
         var disconnectDescriptorCodesAfterFirstRead: Set<UInt32> = []
         /// Exact describe refusals, including explicit DevicePropNotSupported.
         var descriptorResponseOverrides: [UInt32: UInt16] = [:]
+        var descriptorResponseOverridesAfterFirstRead: [UInt32: UInt16] = [:]
+        var readOnlyDescriptorCodesAfterFirstRead: Set<UInt32> = []
+        /// Complete malformed operation responses preserve the socket while failing a transaction.
+        var malformedOperationResponseOnDescriptorReads: [UInt32: Set<Int>] = [:]
         /// A parsed scalar descriptor whose form is explicitly absent.
         var noFormDescriptorCodes: Set<UInt32> = []
         /// Properties that return valid bytes once, then an accepted short payload.
@@ -953,6 +957,18 @@ final class FakeZRServer: @unchecked Sendable {
                 sendResponse(connection, code: 0x2002, transactionID: transactionID)
                 return
             }
+            lock.lock()
+            let priorReads = descriptorReadCounts[propertyCode] ?? 0
+            lock.unlock()
+            if priorReads > 0,
+                let response = options.descriptorResponseOverridesAfterFirstRead[propertyCode]
+            {
+                lock.lock()
+                descriptorReadCounts[propertyCode] = priorReads + 1
+                lock.unlock()
+                sendResponse(connection, code: response, transactionID: transactionID)
+                return
+            }
             if let response = options.descriptorResponseOverrides[propertyCode] {
                 sendResponse(connection, code: response, transactionID: transactionID)
                 return
@@ -975,6 +991,12 @@ final class FakeZRServer: @unchecked Sendable {
                 && options.disconnectDescriptorCodesAfterFirstRead.contains(propertyCode)
             {
                 shutdown(connection, Int32(SHUT_RDWR))
+                return
+            }
+            if options.malformedOperationResponseOnDescriptorReads[propertyCode]?.contains(
+                readCount) == true
+            {
+                send(connection, PTPIPPacket(type: .operationResponse, payload: Data()))
                 return
             }
             sendDataIn(
@@ -1380,7 +1402,14 @@ final class FakeZRServer: @unchecked Sendable {
         bytes += ByteCoding.uint16LE(
             options.descriptorDataTypeOverrides[property.rawValue]
                 ?? unsignedDataType(for: valueByteCount))
-        bytes.append(options.readOnlyDescriptorCodes.contains(property.rawValue) ? 0 : 1)
+        lock.lock()
+        let previouslyDescribed = (descriptorReadCounts[property.rawValue] ?? 0) > 0
+        lock.unlock()
+        let readOnly =
+            options.readOnlyDescriptorCodes.contains(property.rawValue)
+            || (previouslyDescribed
+                && options.readOnlyDescriptorCodesAfterFirstRead.contains(property.rawValue))
+        bytes.append(readOnly ? 0 : 1)
         bytes += [UInt8](repeating: 0, count: valueByteCount * 2)
         if options.noFormDescriptorCodes.contains(property.rawValue) {
             bytes.append(0)

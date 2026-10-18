@@ -1843,6 +1843,13 @@ public final class PTPIPClientSession: @unchecked Sendable {
         let previousCatalog = androidControlCatalog
         let previousTint = androidWhiteBalanceTint
         androidControlCatalog = AndroidRawControlCatalog()
+        // Preserve only the last valid source fact across generations. Effective domains and
+        // their origins still rebuild exactly as before, independently of this UI access evidence.
+        for property in [PTPPropertyCode.movieVibrationReduction, .electronicVR] {
+            androidControlCatalog.stabilizationDescriptors[property] = NikonDescriptorEvidence(
+                lastValidObservation: previousCatalog.stabilizationDescriptors[property]?
+                    .lastValidObservation)
+        }
         androidWhiteBalanceTint = nil
         // Descriptors relevant to the connected mode: a rejection here is a real capability
         // gap and counts toward the aggregate result.
@@ -1938,6 +1945,12 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 androidControlCatalog.stabilizationDescriptors[property, default: .init()]
                     .latestAttempt =
                     attempted[property]?.latestAttempt ?? .init(outcome: .notAttempted)
+                // A successful parsed read in an abandoned generation remains an actual access
+                // fact, even when a later failure restores an older effective catalog.
+                if let valid = attempted[property]?.lastValidObservation {
+                    androidControlCatalog.stabilizationDescriptors[property, default: .init()]
+                        .lastValidObservation = valid
+                }
             }
         } else {
             androidControlCatalog.isComplete = true

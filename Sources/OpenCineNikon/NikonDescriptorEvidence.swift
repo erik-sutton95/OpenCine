@@ -71,20 +71,32 @@ public struct NikonDescriptorEvidence: Equatable, Sendable {
     public var observation: NikonDescriptorObservation
     public var latestAttempt: NikonDescriptorObservation
     public var optionOrigin: NikonDescriptorOptionOrigin
+    /// Most recent actually parsed descriptor for this owner/property, including aborted generations.
+    /// This is separate from the catalog's retained observation and the latest failed/skipped attempt.
+    public var lastValidObservation: NikonDescriptorObservation?
 
     public init(
         observation: NikonDescriptorObservation = .init(outcome: .notAttempted),
         latestAttempt: NikonDescriptorObservation? = nil,
-        optionOrigin: NikonDescriptorOptionOrigin = .unknown
+        optionOrigin: NikonDescriptorOptionOrigin = .unknown,
+        lastValidObservation: NikonDescriptorObservation? = nil
     ) {
         self.observation = observation
         self.latestAttempt = latestAttempt ?? observation
         self.optionOrigin = optionOrigin
+        let latest = latestAttempt ?? observation
+        let valid = latest.outcome == .described && latest.descriptor != nil ? latest : observation
+        self.lastValidObservation =
+            lastValidObservation
+            ?? (valid.outcome == .described && valid.descriptor != nil ? valid : nil)
     }
 
     /// A failed or pending read never relabels retained descriptor evidence as a fresh success.
     public mutating func record(_ attempt: NikonDescriptorObservation) {
         latestAttempt = attempt
+        if attempt.outcome == .described, attempt.descriptor != nil {
+            lastValidObservation = attempt
+        }
         switch attempt.outcome {
         case .pending, .notAttempted, .transportFailed, .mediaBusy: break
         case .rejected, .malformed, .missing:

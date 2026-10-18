@@ -1,6 +1,7 @@
 package com.opencapture.opencine.nikon
 
 import com.opencapture.opencine.core.SettingAccess
+import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.vocabulary.ControlCapability
 
 /** Stable semantic outcomes emitted by the Swift property-readback wire. */
@@ -168,7 +169,11 @@ object CameraPropertySnapshotWire {
     private fun Map<String, String>.descriptor(key: String): NikonDescriptorEvidence =
         NikonDescriptorEvidence(
             observation = descriptorObservation(key),
-            latestAttempt = descriptorObservation(key, latest = true),
+            latestAttempt = descriptorObservation(key, prefix = "latest"),
+            lastValidObservation = descriptorObservation(key, prefix = "lastValid").takeIf {
+                it.outcome == NikonDescriptorReadOutcome.DESCRIBED &&
+                    it.form != NikonDescriptorForm.UNKNOWN && it.capability.support == SupportStatus.SUPPORTED
+            },
             optionOrigin = when (get("$key.origin")) {
                 "descriptor" -> NikonDescriptorOptionOrigin.DESCRIPTOR
                 "legacyFallback" -> NikonDescriptorOptionOrigin.LEGACY_FALLBACK
@@ -177,10 +182,10 @@ object CameraPropertySnapshotWire {
         )
 
     private fun Map<String, String>.descriptorObservation(
-        key: String, latest: Boolean = false,
+        key: String, prefix: String = "",
     ): NikonDescriptorObservation {
         // Each attempt owns its metadata, even when its outcome matches the retained generation.
-        fun field(name: String): String = "$key." + if (latest) "latest" + name.replaceFirstChar { it.uppercase() } else name
+        fun field(name: String): String = "$key." + if (prefix.isEmpty()) name else prefix + name.replaceFirstChar { it.uppercase() }
         val form = when (get(field("form"))) {
             "none" -> NikonDescriptorForm.NONE
             "range" -> NikonDescriptorForm.RANGE
