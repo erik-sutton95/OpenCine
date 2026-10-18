@@ -4,7 +4,7 @@
 [versions]
 androidCompileSdk = "37"
 agp = "9.4.1"
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 coroutines = "1.11.0"
 composeBom = "2026.09.00"
 androidxCore = "1.19.1"
@@ -14,7 +14,7 @@ androidxTestCore = "1.7.0"
 androidxTestRunner = "1.7.0"
 androidxTestExtJunit = "1.3.0"
 # The optional reporting adapter (:appkit-sentry) only.
-sentry = "8.58.0"
+sentry = "8.60.0"
 okhttp = "5.5.0"
 # AndroidX Media3, the apps' catalog version (OpenPocketCine and OpenInstaCine).
 media3 = "1.11.1"
