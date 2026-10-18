@@ -30,7 +30,7 @@ SYSTEM_MODE = "native-system-popover-dismissal"
 SYSTEM_SCHEME = "OpenCinePlaybackNativeSystemDismissal"
 SYSTEM_TARGET = "OpenCinePlaybackNativeSystemDismissalUITests"
 SYSTEM_DIRECTORY = Path(__file__).resolve().with_name("ios-playback-label-native-system-dismissal")
-PARITY = Path("/Users/eriksutton/Work/OpenCine-Parity-20261012")
+PARITY = Path(os.environ.get("OPENCINE_PARITY_ROOT", str(Path.home() / "Work/OpenCine-Parity-20261012"))).expanduser().resolve()
 SYSTEM_SCRATCH = (PARITY / "scratch/testinfra-system-dismiss").resolve()
 
 
@@ -199,7 +199,7 @@ def working_source_binding(root: Path) -> dict[str, str]:
 
 def require_native_ui_admission() -> None:
     """Normal heavy queue only; source preparation does not admit native execution."""
-    parity = Path("/Users/eriksutton/Work/OpenCine-Parity-20261012")
+    parity = PARITY
     assert not os.environ.get("HEAVY_PHYSICAL") and not os.environ.get("HEAVY_PRIORITY")
     assert not (parity / "evidence/codex-takeover-20261017/load-throttle-0214/admission-paused").exists()
     assert max(os.getloadavg()) < 600, os.getloadavg()
@@ -656,7 +656,7 @@ def observe_typed_request(text: str, nonce: str, simulator: str, out: Path, qual
                    "requestAgeAtObservation": time.time() - data["createdAt"], "commands": []}
 
     def observe(command: list[str], name: str) -> subprocess.CompletedProcess:
-        marker = Path("/Users/eriksutton/Work/OpenCine-Parity-20261012/evidence/codex-takeover-20261017/load-throttle-0214/admission-paused")
+        marker = PARITY / "evidence/codex-takeover-20261017/load-throttle-0214/admission-paused"
         assert not marker.exists() and max(os.getloadavg()) < 600, "Stop new diagnostic probes during admission pause"
         os.kill(65300, 0)
         start = time.time()
