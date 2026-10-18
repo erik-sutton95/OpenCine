@@ -73,6 +73,22 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public static func landscapeGaugeGap(tablet: Bool) -> Double {
         max(6, (minimumTapTarget - telemetryGaugeHeight(tablet: tablet)) / 2)
     }
+    /// Camera values per row: three on a phone in portrait, else one row.
+    /// Mirrors Kotlin `MonitorLayoutPolicy.valueColumns`.
+    public static func valueColumns(count: Int, portrait: Bool, tablet: Bool) -> Int {
+        portrait && !tablet ? 3 : max(1, count)
+    }
+    /// Space one more row of camera values adds: a 34 pt tile and the grid's 8 pt gap.
+    public static let valueRowPitch = 42.0
+    /// The portrait camera-value band. A phone holds two rows and grows a row pitch for each
+    /// further row; a tablet keeps one row. A nil count keeps the two-row band.
+    /// Mirrors Kotlin `MonitorLayoutPolicy.portraitValuesHeight`.
+    public static func portraitValuesHeight(count: Int?, tablet: Bool) -> Double {
+        if tablet { return 43 }
+        let columns = valueColumns(count: count ?? 0, portrait: true, tablet: false)
+        let rows = count.map { (max(1, $0) + columns - 1) / columns } ?? 2
+        return 74 + Double(max(0, rows - 2)) * valueRowPitch
+    }
 
     public let viewport: MonitorRect
     public let picture: MonitorRect
@@ -113,7 +129,7 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public init(
         width: Double, height: Double, safeArea: MonitorSafeArea = .init(),
         sourceAspect: Double = 16 / 9, fill: Bool = false, showsValues: Bool = true,
-        topControlInset: Double = 0, joystick: MonitorJoystickSize = .medium
+        topControlInset: Double = 0, joystick: MonitorJoystickSize = .medium, valueCount: Int? = nil
     ) {
         let stickSide = joystick.side
         let w = max(1, width.isFinite ? width : 1)
@@ -133,7 +149,7 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             // Record still clears the home indicator; the whole portrait stack sits low.
             let systemY = max(0, h - max(0, safeArea.bottom - 24) - systemH)
             system = .init(y: systemY, width: w, height: h - systemY)
-            let valuesH = showsValues ? (tablet ? 43.0 : 74.0) : 0
+            let valuesH = showsValues ? Self.portraitValuesHeight(count: valueCount, tablet: tablet) : 0
             let valuesY = systemY - 8 - valuesH
             values = .init(x: edge, y: valuesY + 4, width: w - 28, height: valuesH)
             floor = valuesY - (showsValues ? 8 : 0)

@@ -94,7 +94,7 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val rowWidth = maxWidth
         val columnCount = columns?.coerceIn(1, values.size.coerceAtLeast(1))
-            ?: MonitorLayoutPolicy.valueColumns(maxWidth.value, portrait, values.size)
+            ?: MonitorLayoutPolicy.valueColumns(values.size, portrait, tablet)
         val grid = portrait && !tablet
         val gap = if (grid) 14f else ((maxWidth.value - intrinsic.sum()) / (values.size - 1).coerceAtLeast(1)).coerceIn(16f, 34f)
         Column(verticalArrangement = Arrangement.spacedBy(if (grid) 10.dp else 8.dp)) {

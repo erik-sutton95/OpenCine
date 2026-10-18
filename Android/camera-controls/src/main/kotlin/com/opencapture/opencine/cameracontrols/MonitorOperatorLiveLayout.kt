@@ -21,7 +21,7 @@ public data class MonitorOperatorViewport(public val width: Float, public val he
 public fun monitorOperatorLiveLayout(viewport: MonitorOperatorViewport, assist: MonitorAssistState,
     mounts: (MonitorDisplaySection) -> Boolean, portraitAspect: PortraitFeedAspect,
     pictureAspect: Float, verticalPicture: Boolean, joystick: MonitorJoystickSize,
-    focusResetAvailable: Boolean): MonitorOperatorLiveLayout {
+    focusResetAvailable: Boolean, valueCount: Int? = null): MonitorOperatorLiveLayout {
     val portrait = viewport.height > viewport.width
     val desqueezed = assist.isVisible(MonitorAssistTool.DESQ)
     val fill = verticalPicture || (!desqueezed && portraitAspect == PortraitFeedAspect.FILL)
@@ -29,11 +29,12 @@ public fun monitorOperatorLiveLayout(viewport: MonitorOperatorViewport, assist: 
     val showsValues = mounts(MonitorDisplaySection.CAMERA_VALUES)
     val zones = if (portrait) portraitZones(viewport.width, viewport.height, viewport.top, viewport.bottom,
         assist.clean, fill, if (!assist.clean && !fill && showsToolbar) LivePortraitMetrics.ASSIST else 0f,
-        if (verticalPicture) 9f / 16f else 16f / 9f) else null
+        if (verticalPicture) 9f / 16f else 16f / 9f, valueCount) else null
     val base = LiveMonitorLayout.fieldMonitor(viewportWidth = viewport.width, viewportHeight = viewport.height,
         safeLeading = viewport.leading, safeTrailing = viewport.trailing, safeTop = viewport.top, safeBottom = viewport.bottom,
         showsBottomBars = showsToolbar || showsValues, chromeScale = viewport.chromeScale, pictureAspect = pictureAspect,
-        hasDisplayCutout = viewport.hasDisplayCutout, fill = fill, showsValues = showsValues, joystick = joystick)
+        hasDisplayCutout = viewport.hasDisplayCutout, fill = fill, showsValues = showsValues, joystick = joystick,
+        valueCount = valueCount)
     val layout = if (zones == null) base else base.copy(feed = zones.feed,
         picture = if (verticalPicture && zones.feed.height > 1f) portraitVerticalPicture(zones.feed) else zones.feed,
         usesFieldMonitor = true)
@@ -64,7 +65,7 @@ public fun monitorOperatorLiveLayout(viewport: MonitorOperatorViewport, assist: 
  */
 public fun monitorOperatorFieldLayout(viewport: MonitorOperatorViewport, assist: MonitorAssistState,
     mounts: (MonitorDisplaySection) -> Boolean, portraitAspect: PortraitFeedAspect?, pictureAspect: Float,
-    verticalPicture: Boolean): MonitorOperatorLiveLayout {
+    verticalPicture: Boolean, valueCount: Int? = null): MonitorOperatorLiveLayout {
     val desqueezed = assist.isVisible(MonitorAssistTool.DESQ)
     val fill = verticalPicture || (!desqueezed && portraitAspect == PortraitFeedAspect.FILL)
     val showsToolbar = mounts(MonitorDisplaySection.TOOL_BAR)
@@ -72,7 +73,8 @@ public fun monitorOperatorFieldLayout(viewport: MonitorOperatorViewport, assist:
     val layout = LiveMonitorLayout.fieldMonitor(viewportWidth = viewport.width, viewportHeight = viewport.height,
         safeLeading = viewport.leading, safeTrailing = viewport.trailing, safeTop = viewport.top,
         safeBottom = viewport.bottom, showsBottomBars = showsToolbar || showsValues, chromeScale = viewport.chromeScale,
-        pictureAspect = pictureAspect, hasDisplayCutout = viewport.hasDisplayCutout, fill = fill, showsValues = showsValues)
+        pictureAspect = pictureAspect, hasDisplayCutout = viewport.hasDisplayCutout, fill = fill, showsValues = showsValues,
+        valueCount = valueCount)
     val field = checkNotNull(layout.field)
     val picture = if (desqueezed) layout.onFeed.fittedContent(assist.presentedAspect(pictureAspect)) else layout.onFeed
     val right = if (field.portrait) viewport.width - viewport.trailing else field.settings.x - 6f
