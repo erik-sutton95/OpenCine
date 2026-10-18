@@ -2,10 +2,39 @@
 import copy
 import json
 from pathlib import Path
+import subprocess
+import unittest
+from unittest import mock
 
 from support import AtlasCase, make_repo, meta, sh
 
 import orca_tasks
+
+
+class CommandResponses(unittest.TestCase):
+    def command(self, value, returncode=0):
+        response = subprocess.CompletedProcess([], returncode, json.dumps(value), "")
+        with mock.patch.object(orca_tasks.subprocess, "run", return_value=response):
+            return orca_tasks.orca_run(["repo", "list"])
+
+    def test_non_object_envelopes_use_recoverable_error(self):
+        for value in (None, [], "unexpected", 7, False):
+            with self.subTest(value=value), self.assertRaises(orca_tasks.OrcaError):
+                self.command(value)
+
+    def test_malformed_failure_details_use_recoverable_error(self):
+        for value in (None, "failure", ["failure"], 7):
+            with self.subTest(error=value), self.assertRaises(orca_tasks.OrcaError):
+                self.command({"ok": False, "error": value}, returncode=1)
+
+    def test_missing_or_non_object_results_use_recoverable_error(self):
+        for value in ({"ok": True}, {"ok": True, "result": None},
+                      {"ok": True, "result": []}, {"ok": True, "result": "unexpected"}):
+            with self.subTest(value=value), self.assertRaises(orca_tasks.OrcaError):
+                self.command(value)
+
+    def test_valid_command_result_remains_usable(self):
+        self.assertEqual(self.command({"ok": True, "result": {"repos": []}}), {"repos": []})
 
 
 class Catalog:

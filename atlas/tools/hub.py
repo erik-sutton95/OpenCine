@@ -429,7 +429,11 @@ def cmd_task_start(args, reg, root):
         link = None
         # Ordinary Core reports can quote any marker syntax. Creator authority
         # precedes parsing; only sync-owned trackers can redirect to an app.
-        if (issue.get("author") or {}).get("login") == bot:
+        author = issue.get("author") or {}
+        login = author.get("login") or ""
+        if author.get("is_bot") is True and login.startswith("app/"):
+            login = login.removeprefix("app/") + "[bot]"
+        if login == bot:
             try:
                 link = linked_issues.parse_link(issue.get("body"), reg)
             except linked_issues.SyncError as exc:

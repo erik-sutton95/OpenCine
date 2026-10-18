@@ -32,8 +32,14 @@ def orca_run(args):
         value = json.loads(result.stdout)
     except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
         raise OrcaError(f"Orca {' '.join(args[:2])} unavailable or returned no JSON; preserve work and retry the same command") from exc
+    if not isinstance(value, dict):
+        raise OrcaError(f"Orca {' '.join(args[:2])} returned malformed JSON; preserve work and retry the same command")
     if result.returncode or not value.get("ok"):
-        raise OrcaError(f"Orca {' '.join(args[:2])} failed ({(value.get('error') or {}).get('code', 'unknown')}); preserve work and rerun task start")
+        error = value.get("error")
+        code = error.get("code", "unknown") if isinstance(error, dict) else "unknown"
+        raise OrcaError(f"Orca {' '.join(args[:2])} failed ({code}); preserve work and rerun task start")
+    if not isinstance(value.get("result"), dict):
+        raise OrcaError(f"Orca {' '.join(args[:2])} returned no result object; preserve work and retry the same command")
     return value["result"]
 
 

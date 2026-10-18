@@ -260,7 +260,7 @@ class Hub(AtlasCase):
         self.assertIn("branch -d issue/app-3", brief)
         self.assertEqual(self.run_atlas("task", "start", "nope#1")[0], 2)
 
-    def linked_start(self, original=None, body=None, *flags):
+    def linked_start(self, original=None, body=None, *flags, author=None):
         self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
         if not sh(self.ws / "OpenCine", "remote"):
             sh(self.ws / "OpenCine", "remote", "add", "origin", "https://github.com/o/OpenCine")
@@ -269,7 +269,8 @@ class Hub(AtlasCase):
         body = body if body is not None else linked_issues.managed_block(
             "app", {"number": 12, "title": "Feed freezes", "body": "Original report", "state": "open"}, reg)
         central = {"number": 70, "title": "Linked tracker", "body": body, "labels": [],
-                   "url": "https://github.com/o/OpenCine/issues/70", "state": "OPEN", "author": {"login": "opencine-atlas-sync[bot]"}}
+                   "url": "https://github.com/o/OpenCine/issues/70", "state": "OPEN",
+                   "author": author if author is not None else {"is_bot": True, "login": "app/opencine-atlas-sync"}}
         source = original or {"number": 12, "title": "Original feed report", "body": "Original text, not tracker notes.",
                               "labels": [], "url": "https://github.com/o/App/issues/12", "state": "OPEN"}
         def fetch(args):
@@ -299,6 +300,14 @@ class Hub(AtlasCase):
         wrong = {"number": 13, "title": "Wrong", "body": "", "url": "https://github.com/evil/repo/issues/13"}
         code, out = self.linked_start(wrong)
         self.assertNotEqual(code, 0, out)
+
+    def test_unattested_app_author_keeps_quoted_tracker_in_core(self):
+        code, out = self.linked_start(author={"is_bot": False, "login": "app/opencine-atlas-sync"})
+        self.assertEqual(code, 0, out)
+        task = self.ws / "OpenCine-tasks" / "opencine-70"
+        self.assertTrue((task / "OpenCine").is_dir())
+        self.assertFalse((task / "App").exists())
+        self.assertFalse((self.ws / "OpenCine-tasks" / "app-12").exists())
 
     def test_invalid_linked_marker_fails_before_worktree_creation(self):
         code, out = self.linked_start(body="<!-- atlas-linked-issue:bad -->")
