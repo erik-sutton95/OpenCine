@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -25,6 +26,8 @@ import com.opencapture.opencine.vocabulary.MediaFile
 import com.opencapture.opencine.vocabulary.MediaKind
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 /** Where the gallery finds a clip's thumbnail and original on the phone, and how it asks the camera. */
@@ -40,6 +43,36 @@ public interface MonitorMediaThumbnailSource {
     public suspend fun cameraThumbnailBytes(file: MediaFile): ByteArray? = null
 }
 
+/**
+ * The catalog's artwork and admitted async publication. Native loaders and placeholder content
+ * arrive from the source; Swift twin: `MonitorMediaCatalogArtwork`.
+ * [identity] retains the image for one source; [reload] restarts loading without discarding it.
+ * [afterLoad] reads metadata only after the image has been published for the current admission.
+ */
+@Composable
+public fun <Identity, Reload> MonitorMediaCatalogArtwork(
+    identity: Identity,
+    reload: Reload,
+    isCurrent: () -> Boolean,
+    load: suspend () -> ImageBitmap?,
+    modifier: Modifier = Modifier,
+    afterLoad: suspend () -> Unit = {},
+    placeholder: @Composable () -> Unit,
+) {
+    var thumbnail by remember(identity) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(identity, reload) {
+        if (!isCurrent()) return@LaunchedEffect
+        val image = load()
+        if (!isCurrent() || !currentCoroutineContext().isActive) return@LaunchedEffect
+        thumbnail = image
+        afterLoad()
+    }
+    val image = thumbnail
+    if (image != null) Image(image, contentDescription = null,
+        contentScale = ContentScale.Crop, modifier = modifier)
+    else placeholder()
+}
+
 /** The gallery cell's picture: a bounded thumbnail decode, else the photo or film glyph. */
 @Composable
 public fun <P> BoxScope.MonitorMediaCatalogPicture(
@@ -47,22 +80,22 @@ public fun <P> BoxScope.MonitorMediaCatalogPicture(
     file: MediaFile,
     source: MonitorMediaThumbnailSource,
 ) {
-    var thumbnail by remember(source, context.record.asset.id, context.admission) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(source, context.record.asset.id, context.admission, context.entry?.thumbnail?.path,
-        context.entry?.original?.path, context.list) {
-        if (!context.isCurrent) return@LaunchedEffect
-        val edge = if (context.list) MonitorBitmapDecoder.LIST_THUMBNAIL_EDGE else MonitorBitmapDecoder.THUMBNAIL_EDGE
-        val image = MonitorMediaThumbnails.load(file, source, maxPx = edge)
-        if (!context.isCurrent) return@LaunchedEffect
-        thumbnail = image
-        val duration = MonitorMediaThumbnails.durationLabel(file, source)
-        if (context.isCurrent && duration != null) context.duration(duration)
+    MonitorMediaCatalogArtwork(
+        identity = Triple(source, context.record.asset.id, context.admission),
+        reload = Triple(context.entry?.thumbnail?.path, context.entry?.original?.path, context.list),
+        isCurrent = { context.isCurrent },
+        load = {
+            val edge = if (context.list) MonitorBitmapDecoder.LIST_THUMBNAIL_EDGE else MonitorBitmapDecoder.THUMBNAIL_EDGE
+            MonitorMediaThumbnails.load(file, source, maxPx = edge)?.asImageBitmap()
+        }, modifier = Modifier.fillMaxSize(),
+        afterLoad = {
+            val duration = MonitorMediaThumbnails.durationLabel(file, source)
+            if (context.isCurrent && duration != null) context.duration(duration)
+        },
+    ) {
+        MonitorIcon(if (file.kind == MediaKind.PHOTO) MonitorIcon.IMAGE else MonitorIcon.FILM, null,
+            Modifier.size(if (context.list) 20.dp else 28.dp).align(Alignment.Center), MonitorPalette.faint)
     }
-    val image = thumbnail
-    if (image != null) Image(image.asImageBitmap(), contentDescription = null,
-        contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-    else MonitorIcon(if (file.kind == MediaKind.PHOTO) MonitorIcon.IMAGE else MonitorIcon.FILM, null,
-        Modifier.size(if (context.list) 20.dp else 28.dp).align(Alignment.Center), MonitorPalette.faint)
 }
 
 /** Thumbnail and duration reads for gallery cells, cheapest first. */

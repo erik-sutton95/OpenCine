@@ -471,7 +471,7 @@ private fun PairingPane(
                 PairingInstructionCard(instruction)
             }
             presentation.checks.forEach { check ->
-                PairingCheckRow(check)
+                MonitorPairingCheckRow(check)
             }
             if (presentation.summary.isNotEmpty()) {
                 val columns = if (portrait || tablet) 2 else 3
@@ -591,8 +591,9 @@ private fun PairingInstructionCard(instruction: MonitorPairingInstruction) {
     }
 }
 
+/** Passive pairing status row shared by the pairing page and host-owned permission steps. */
 @Composable
-private fun PairingCheckRow(check: MonitorPairingCheck) {
+public fun MonitorPairingCheckRow(check: MonitorPairingCheck) {
     Row(
         Modifier.fillMaxWidth()
             .background(Color.White.copy(alpha = 0.03f), RoundedCornerShape(11.dp))

@@ -44,6 +44,15 @@ public class MonitorWatcherConnectionLabels(public val requestControl: String, p
     public val passcodeTitle: String, public val passcodeWrong: String, public val passcodeBody: String,
     public val passcodeHint: String, public val connect: String, public val cancel: String)
 
+/** Explicit host grant confirmation; request admission remains in the supplied callbacks. */
+@Composable
+public fun MonitorRelayControlRequest(title: String, grantLabel: String, denyLabel: String,
+    onGrant: () -> Unit, onDeny: () -> Unit): Unit {
+    AlertDialog(onDismissRequest = onDeny, title = { Text(title) },
+        confirmButton = { TextButton(onClick = onGrant) { Text(grantLabel) } },
+        dismissButton = { TextButton(onClick = onDeny) { Text(denyLabel) } })
+}
+
 /**
  * Complete watcher connection/control presentation over the same common live surface that owns
  * the native picture, scopes, assists and settings. Only the pill/dialog hit-test over that surface.
@@ -58,7 +67,7 @@ public fun MonitorOperatorWatcherOverlay(value: MonitorWatcherConnectionOverlayV
     Box(modifier.fillMaxSize()) {
         when (value.phase) {
             MonitorWatcherConnectionPhase.WATCHING -> if (value.canControl || value.canRequestControl) {
-                WatcherConnectionKey(text = if (value.canControl) labels.releaseControl else labels.requestControl,
+                MonitorWatcherControlKey(text = if (value.canControl) labels.releaseControl else labels.requestControl,
                     accented = value.canControl, onClick = if (value.canControl) onGiveBackControl else onAskForControl,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = value.controlBottomInset.toFloat().dp))
             }
@@ -71,8 +80,8 @@ public fun MonitorOperatorWatcherOverlay(value: MonitorWatcherConnectionOverlayV
                 Text(value.failureReason ?: labels.failureFallback, color = Color.White.copy(alpha = .9f),
                     fontSize = 14.sp, textAlign = TextAlign.Center)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    WatcherConnectionKey(labels.retry, true, onRetry)
-                    WatcherConnectionKey(labels.leave, false, onLeave)
+                    MonitorWatcherControlKey(labels.retry, true, onRetry)
+                    MonitorWatcherControlKey(labels.leave, false, onLeave)
                 }
             }
             MonitorWatcherConnectionPhase.DENIED -> Unit
@@ -100,12 +109,20 @@ public fun MonitorOperatorWatcherOverlay(value: MonitorWatcherConnectionOverlayV
     }
 }
 
+/** A relay token action over the picture; the host retains source and control admission. */
 @Composable
-private fun WatcherConnectionKey(text: String, accented: Boolean, onClick: () -> Unit,
-    modifier: Modifier = Modifier): Unit {
+public fun MonitorWatcherControlKey(text: String, accented: Boolean, onClick: () -> Unit,
+    modifier: Modifier = Modifier, holderName: String? = null): Unit {
     val accent = Color(0xFFE0A73A)
-    Text(text, color = if (accented) accent else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-        letterSpacing = .8.sp, modifier = modifier.background(Color.Black.copy(alpha = .55f), CircleShape)
+    Row(modifier = modifier.background(Color.Black.copy(alpha = .55f), CircleShape)
             .border(1.dp, if (accented) accent else Color.White.copy(alpha = .25f), CircleShape)
-            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp))
+            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, color = if (accented) accent else Color.White, fontSize = 12.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
+        if (holderName != null) {
+            Text(holderName, color = Color.White.copy(alpha = .7f), fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
 }

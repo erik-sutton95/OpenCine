@@ -30,6 +30,54 @@ extension MonitorMediaThumbnailSource {
     public func thumbnailBytes(for file: MediaFile) async -> Data? { nil }
 }
 
+/// The catalog's artwork and admitted async publication. Native loaders and placeholder content
+/// arrive from the source; Kotlin twin: `MonitorMediaCatalogArtwork`.
+public struct MonitorMediaCatalogArtwork<Identity: Hashable, Reload: Hashable, Placeholder: View>: View {
+    private struct Request: Equatable {
+        let identity: Identity
+        let reload: Reload
+    }
+    private let identity: Identity
+    private let reload: Reload
+    private let isCurrent: @MainActor () -> Bool
+    private let load: @MainActor () async -> UIImage?
+    private let afterLoad: @MainActor () async -> Void
+    private let placeholder: @MainActor () -> Placeholder
+    @State private var thumbnail: UIImage?
+    @State private var presentedIdentity: Identity?
+
+    /// `identity` retains an image for one source; `reload` restarts loading without discarding it.
+    /// `afterLoad` reads metadata only after the image is published for the current admission.
+    public init(identity: Identity, reload: Reload, isCurrent: @escaping @MainActor () -> Bool,
+        load: @escaping @MainActor () async -> UIImage?,
+        afterLoad: @escaping @MainActor () async -> Void = {},
+        @ViewBuilder placeholder: @escaping @MainActor () -> Placeholder) {
+        self.identity = identity; self.reload = reload; self.isCurrent = isCurrent; self.load = load
+        self.afterLoad = afterLoad; self.placeholder = placeholder
+    }
+
+    public var body: some View {
+        ZStack {
+            MonitorTheme.surface
+            if let thumbnail {
+                Image(uiImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
+            } else { placeholder() }
+        }
+        .clipped()
+        .task(id: Request(identity: identity, reload: reload)) {
+            if presentedIdentity != identity {
+                thumbnail = nil
+                presentedIdentity = identity
+            }
+            guard isCurrent(), !Task.isCancelled else { return }
+            let loaded = await load()
+            guard isCurrent(), !Task.isCancelled else { return }
+            thumbnail = loaded
+            await afterLoad()
+        }
+    }
+}
+
 /// The gallery cell's picture: a bounded thumbnail decode, else the photo or film glyph. The
 /// common catalog owns its admission. Kotlin twin: `MonitorMediaCatalogPicture`.
 public struct MonitorMediaCatalogThumbnail: View {
@@ -43,7 +91,6 @@ public struct MonitorMediaCatalogThumbnail: View {
     let isCurrent: () -> Bool
     let onDuration: (String) -> Void
     let source: @MainActor () -> any MonitorMediaThumbnailSource
-    @State private var thumbnail: UIImage?
 
     public init(
         cameraID: String, assetID: String, file: MediaFile, cacheGrade: MediaCacheGrade,
@@ -66,73 +113,59 @@ public struct MonitorMediaCatalogThumbnail: View {
     private var isDownloaded: Bool { cacheGrade == .original }
 
     public var body: some View {
-        ZStack {
-            MonitorTheme.surface
-            if let thumbnail {
-                Image(uiImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
-            } else {
-                (isPhoto ? MonitorIcon.image : MonitorIcon.film)
-                    .frame(width: 28, height: 28).foregroundStyle(MonitorTheme.faint)
-            }
-        }
-        .clipped()
-        .task(
-            id:
-                "\(cameraID)#\(assetID)#\(thumbnailURL?.path ?? "")#\(localURL?.path ?? "")#\(cacheGrade.rawValue)"
+        MonitorMediaCatalogArtwork(
+            identity: "\(cameraID)#\(assetID)#\(thumbnailURL?.path ?? "")#\(localURL?.path ?? "")#\(cacheGrade.rawValue)",
+            reload: 0,
+            isCurrent: isCurrent, load: loadThumbnail, afterLoad: loadDuration
         ) {
-            thumbnail = nil
-            await loadThumbnail()
-            await loadDuration()
+            (isPhoto ? MonitorIcon.image : MonitorIcon.film)
+                .frame(width: 28, height: 28).foregroundStyle(MonitorTheme.faint)
         }
     }
 
-    private func loadThumbnail() async {
+    private func loadThumbnail() async -> UIImage? {
         let cacheKey = "\(cameraID)#\(assetID)#grid" as NSString
-        guard isCurrent(), !Task.isCancelled else { return }
+        guard isCurrent(), !Task.isCancelled else { return nil }
         if let cached = MediaCellThumbnailCache.shared.object(forKey: cacheKey) {
-            thumbnail = cached
-            return
+            return cached
         }
-        func present(_ image: UIImage) {
-            guard isCurrent(), !Task.isCancelled else { return }
+        func present(_ image: UIImage) -> UIImage? {
+            guard isCurrent(), !Task.isCancelled else { return nil }
             MediaCellThumbnailCache.shared.setObject(image, forKey: cacheKey)
-            thumbnail = image
+            return image
         }
         if let thumbnailURL,
             let image = await MediaCellImageLoader.shared.downsampled(
                 at: thumbnailURL, maxPixelSize: 640)
         {
-            present(image)
-            return
+            return present(image)
         }
         if isPhoto, isDownloaded, let localURL,
             let image = await MediaCellImageLoader.shared.downsampled(
                 at: localURL, maxPixelSize: 640)
         {
-            present(image)
-            return
+            return present(image)
         }
-        guard isCurrent(), !Task.isCancelled else { return }
+        guard isCurrent(), !Task.isCancelled else { return nil }
         await source().ensureThumbnail(for: file)
-        guard isCurrent(), !Task.isCancelled else { return }
+        guard isCurrent(), !Task.isCancelled else { return nil }
         if let cachedURL = source().thumbnailURL(for: file),
             let image = await MediaCellImageLoader.shared.downsampled(
                 at: cachedURL, maxPixelSize: 640)
         {
-            present(image)
-            return
+            return present(image)
         }
-        guard isCurrent(), !Task.isCancelled else { return }
+        guard isCurrent(), !Task.isCancelled else { return nil }
         if let data = await source().thumbnailBytes(for: file),
             let image = await MediaCellImageLoader.shared.downsampled(data: data, maxPixelSize: 640)
         {
-            present(image)
-            return
+            return present(image)
         }
-        guard isCurrent(), !Task.isCancelled, isDownloaded, !isPhoto, let localURL else { return }
+        guard isCurrent(), !Task.isCancelled, isDownloaded, !isPhoto, let localURL else { return nil }
         if let image = await MediaCellVideoFrames.poster(at: localURL) {
-            present(image)
+            return present(image)
         }
+        return nil
     }
 
     private func loadDuration() async {

@@ -3,6 +3,74 @@ import MonitorPresentation
 import MonitorUI
 import SwiftUI
 
+extension View {
+    /// The host's explicit grant decision, using the same native confirmation as the watcher hosts.
+    /// Dismissal declines through the supplied request; the host retains request admission.
+    public func monitorRelayControlRequest(_ request: MonitorSettingsWatchersSource.Request?) -> some View {
+        confirmationDialog(
+            "Allow \(request?.name ?? "a watcher") to control the camera?",
+            isPresented: Binding(
+                get: { request != nil },
+                set: { if !$0 { request?.decline() } }),
+            titleVisibility: .visible
+        ) {
+            Button("Grant") { request?.grant() }
+            Button("Deny", role: .cancel) { request?.decline() }
+        }
+    }
+}
+
+/// A relay token action, inline in watcher chrome or over the monitor picture.
+/// The host retains source and control admission and supplies the action.
+public struct MonitorWatcherControlKey<Palette: LiveChromePalette>: View {
+    private let title: LocalizedStringKey
+    private let accented: Bool
+    private let holderName: String?
+    private let prominent: Bool
+    private let action: () -> Void
+
+    public init(title: LocalizedStringKey, accented: Bool = false, holderName: String? = nil,
+        prominent: Bool = true, palette: Palette.Type, action: @escaping () -> Void) {
+        self.title = title; self.accented = accented; self.holderName = holderName
+        self.prominent = prominent; self.action = action
+    }
+
+    public var body: some View {
+        if prominent {
+            key.buttonStyle(.monitorTapTarget)
+                .transition(.scale(scale: 0.9).combined(with: .opacity))
+        } else {
+            key
+        }
+    }
+
+    private var key: some View {
+        Button(action: action) {
+            if prominent {
+                HStack(spacing: 8) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .kerning(0.8)
+                        .foregroundStyle(accented ? Palette.accent : Palette.text)
+                    if let holderName {
+                        Text(holderName)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Palette.text.opacity(0.7))
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 9)
+                .background(.black.opacity(0.55), in: Capsule())
+                .overlay(Capsule().strokeBorder(
+                    accented ? Palette.accent : Palette.hairline, lineWidth: 1))
+            } else {
+                Text(title)
+            }
+        }
+    }
+}
+
 /// Common watcher controls; the app supplies decoded picture and transport facts separately.
 public struct MonitorWatcherChrome<Palette: LiveChromePalette, Tools: View>: View {
     private let value: MonitorWatcherPresentation
@@ -91,12 +159,15 @@ public struct MonitorWatcherChrome<Palette: LiveChromePalette, Tools: View>: Vie
                             }
                         }
                     }
-                    Button("Release") { interaction.cancel(); send(.releaseControl) }
+                    MonitorWatcherControlKey(title: "Release", prominent: false, palette: palette) {
+                        interaction.cancel(); send(.releaseControl)
+                    }
                     Button(value.context.recording ? "Stop REC" : "REC") {
                         if let command = interaction.requestRecording(context: value.context, confirm: confirmRecording) { send(command) }
                     }.foregroundStyle(Palette.rec)
                 } else if value.canRequestControl {
-                    Button(value.controlRequested ? "Requested…" : "Request control") { send(.requestControl) }
+                    MonitorWatcherControlKey(title: value.controlRequested ? "Requested…" : "Request control",
+                        prominent: false, palette: palette) { send(.requestControl) }
                         .disabled(value.controlRequested)
                 }
             }.padding(.horizontal, 12).padding(.vertical, 8)
