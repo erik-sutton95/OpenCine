@@ -42,9 +42,10 @@ open class AccessibilityTraversal: SharedAppUITestCase {
         let clear = app.buttons["Clear"]
         let settings = app.scrollViews.containing(NSPredicate(format: "label == 'Clear'"))
             .firstMatch
+        let clearDeadline = Date().addingTimeInterval(15)
         XCTAssertTrue(settings.waitForExistence(timeout: 15))
         for _ in 0..<6 where !clear.isHittable { settings.swipeUp() }
-        clear.tap()
+        guard tapWhenReady(clear, in: app, deadline: clearDeadline) else { return }
         XCTAssertTrue(app.staticTexts["Clear cache?"].waitForExistence(timeout: 5))
         assertTree("clear-cache-confirmation")
     }

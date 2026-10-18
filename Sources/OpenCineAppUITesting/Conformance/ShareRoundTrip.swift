@@ -35,18 +35,20 @@ open class ShareRoundTrip: SharedAppUITestCase {
         guard let anchor = gallery.settledAnchor() else {
             return XCTFail("No visible clip after the selection")
         }
-        app.buttons["Share selected"].tap()
+        guard tapWhenReady(app.buttons["Share selected"], in: app, timeout: 5) else { return }
         let close = app.buttons["monitor.share.close"]
+        var closeDeadline = Date().addingTimeInterval(5)
         XCTAssertTrue(close.waitForExistence(timeout: 5), "The selection share must open")
         checkpoint("selection-share")
-        close.tap()
+        guard tapWhenReady(close, in: app, deadline: closeDeadline) else { return }
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
         XCTAssertEqual(
             gallery.settledAnchor()?.id, anchor.id, "The selection share must not move the gallery")
         XCTAssertTrue(count.exists, "The selection share must keep the selection")
         XCTAssertTrue(
-            app.buttons["Clear selection"].exists, "The selection share must keep selection mode")
-        app.buttons["Clear selection"].tap()
+            app.buttons["Clear selection"].exists,
+            "The selection share must keep selection mode")
+        guard tapWhenReady(app.buttons["Clear selection"], in: app, timeout: 5) else { return }
 
         // The clip share from playback, with Loop on, then back to the gallery.
         guard let opened = gallery.settledAnchor() else {
@@ -59,28 +61,37 @@ open class ShareRoundTrip: SharedAppUITestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         let clipTitle = title.label
         let loop = app.buttons[MonitorPlaybackCopy.loop]
-        if loop.value as? String != MonitorPlaybackCopy.on { loop.tap() }
+        let loopDeadline = Date().addingTimeInterval(3)
+        if loop.value as? String != MonitorPlaybackCopy.on {
+            guard tapWhenReady(loop, in: app, deadline: loopDeadline) else { return }
+        }
         // A player owner may publish the new state a beat after the tap.
         let on = NSPredicate(format: "value == %@", MonitorPlaybackCopy.on)
         XCTAssertEqual(
-            XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: on, object: loop)], timeout: 3),
+            XCTWaiter().wait(
+                for: [XCTNSPredicateExpectation(predicate: on, object: loop)],
+                timeout: 3),
             .completed, "Loop playback turns on")
-        app.buttons[MonitorPlaybackCopy.share].tap()
+        guard tapWhenReady(app.buttons[MonitorPlaybackCopy.share], in: app, timeout: 5) else {
+            return
+        }
         let destination = app.buttons["monitor.share.destination.nativeShare"]
+        let destinationDeadline = Date().addingTimeInterval(5)
         XCTAssertTrue(destination.waitForExistence(timeout: 5))
         XCTAssertTrue(destination.isEnabled, "A cached staged clip can be shared")
-        destination.tap()
+        guard tapWhenReady(destination, in: app, deadline: destinationDeadline) else { return }
         // The destination opens its options; an app without export options shows no summary line.
+        closeDeadline = Date().addingTimeInterval(5)
         XCTAssertTrue(app.buttons["monitor.share.begin"].waitForExistence(timeout: 5))
         checkpoint("clip-share-summary")
-        close.tap()
+        guard tapWhenReady(close, in: app, deadline: closeDeadline) else { return }
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
         XCTAssertEqual(title.label, clipTitle, "Closing the share must keep the same clip")
         XCTAssertEqual(
             loop.value as? String, MonitorPlaybackCopy.on,
             "Closing the share must keep the player's state")
         checkpoint("after-share")
-        back.tap()
+        guard tapWhenReady(back, in: app, timeout: 10) else { return }
         XCTAssertTrue(back.waitForNonExistence(timeout: 10))
         XCTAssertEqual(
             gallery.settledAnchor()?.id, opened.id, "Back must return to the same gallery place")
