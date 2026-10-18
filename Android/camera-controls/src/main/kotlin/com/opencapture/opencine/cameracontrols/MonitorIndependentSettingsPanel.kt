@@ -65,16 +65,22 @@ fun <RowID, Request> MonitorIndependentSettingsPanel(
                         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(row.title, style = LiveType.ui(12f, FontWeight.SemiBold), color = LiveDesign.muted,
                             modifier = Modifier.width(44.dp).semantics { heading() }.testTag("$identifier.title"))
-                        if (row.options.isNotEmpty()) {
-                            Row(Modifier.weight(1f).monitorTabStrip()) {
-                                row.options.forEachIndexed { index, option ->
-                                    val selected = row.current == option
-                                    MonitorTab(selected,
-                                        { row.select(option, interactionEnabled, currentSource, onSelect, onUnavailable) },
-                                        modifier = Modifier.weight(1f).testTag("$identifier.option.$index"),
-                                        enabled = interactionEnabled, accessibilityLabel = option, horizontalPadding = 14.dp) {
-                                        Text(option, style = LiveType.ui(13f, FontWeight.SemiBold),
-                                            color = if (selected) LiveDesign.accent else LiveDesign.text)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.current?.takeUnless { it in row.options }?.let { current ->
+                                Text(current, style = LiveType.ui(13f, FontWeight.SemiBold), color = LiveDesign.text,
+                                    modifier = Modifier.testTag("$identifier.current"))
+                            }
+                            if (row.options.isNotEmpty()) {
+                                Row(Modifier.fillMaxWidth().monitorTabStrip()) {
+                                    row.options.forEachIndexed { index, option ->
+                                        val selected = row.current == option
+                                        MonitorTab(selected,
+                                            { row.select(option, interactionEnabled, currentSource, onSelect, onUnavailable) },
+                                            modifier = Modifier.weight(1f).testTag("$identifier.option.$index"),
+                                            enabled = interactionEnabled, accessibilityLabel = option, horizontalPadding = 14.dp) {
+                                            Text(option, style = LiveType.ui(13f, FontWeight.SemiBold),
+                                                color = if (selected) LiveDesign.accent else LiveDesign.text)
+                                        }
                                     }
                                 }
                             }

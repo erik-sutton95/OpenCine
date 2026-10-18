@@ -84,34 +84,45 @@ extension IndependentSettingRow: Sendable where RowID: Sendable, Request: Sendab
                         .frame(width: 44, alignment: .leading)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier(identifier + ".title")
-                    if !row.options.isEmpty {
-                        MonitorTabStrip {
-                            ForEach(Array(row.options.enumerated()), id: \.offset) {
-                                index, option in
-                                let selected = row.current == option
-                                Button {
-                                    row.select(
-                                        option, interactionEnabled: interactionEnabled,
-                                        currentSource: currentSource, onSelect: onSelect,
-                                        onUnavailable: onUnavailable)
-                                } label: {
-                                    Text(option)
-                                        .font(MonitorTheme.font(13, weight: .semibold))
-                                        .foregroundStyle(
-                                            selected ? MonitorTheme.accent : MonitorTheme.text
-                                        )
-                                        .padding(.horizontal, 14)
-                                        .frame(maxWidth: .infinity, minHeight: 44)
-                                        .monitorTabSurface(selected: selected)
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let current = row.current, !row.options.contains(current) {
+                            Text(current)
+                                .font(MonitorTheme.font(13, weight: .semibold))
+                                .foregroundStyle(MonitorTheme.text)
+                                .accessibilityIdentifier(identifier + ".current")
+                        }
+                        if !row.options.isEmpty {
+                            MonitorTabStrip {
+                                ForEach(Array(row.options.enumerated()), id: \.offset) {
+                                    index, option in
+                                    let selected = row.current == option
+                                    Button {
+                                        row.select(
+                                            option, interactionEnabled: interactionEnabled,
+                                            currentSource: currentSource, onSelect: onSelect,
+                                            onUnavailable: onUnavailable)
+                                    } label: {
+                                        Text(option)
+                                            .font(MonitorTheme.font(13, weight: .semibold))
+                                            .foregroundStyle(
+                                                selected ? MonitorTheme.accent : MonitorTheme.text
+                                            )
+                                            .padding(.horizontal, 14)
+                                            // Reserve a point so native pixel-edge rounding cannot
+                                            // reduce the observed target below the 44pt floor.
+                                            .frame(maxWidth: .infinity, minHeight: 45)
+                                            .monitorTabSurface(selected: selected)
+                                    }
+                                    .buttonStyle(MonitorTabButtonStyle())
+                                    .disabled(!interactionEnabled)
+                                    .accessibilityLabel(option)
+                                    .accessibilityAddTraits(selected ? .isSelected : [])
+                                    .accessibilityIdentifier(identifier + ".option.\(index)")
                                 }
-                                .buttonStyle(MonitorTabButtonStyle())
-                                .disabled(!interactionEnabled)
-                                .accessibilityLabel(option)
-                                .accessibilityAddTraits(selected ? .isSelected : [])
-                                .accessibilityIdentifier(identifier + ".option.\(index)")
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 // A row without a request stays tappable so its host can explain the refusal.
                 .opacity(row.request == nil ? 0.35 : 1)
