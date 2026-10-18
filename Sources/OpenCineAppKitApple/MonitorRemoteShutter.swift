@@ -119,8 +119,10 @@ public final class MonitorRemoteShutter {
         // the notification below merely supplements it at the 0/1 rails. Both feed the same
         // debounce, so an OS that emits both still produces exactly one record toggle.
         let log = log
+        // The audio session reports `outputVolume` on its own thread: no main-actor isolation, or
+        // Swift 6 traps on entry where the SDK does not import the KVO handler as @Sendable.
         volumeObservation = session.observe(\.outputVolume, options: [.old, .new]) {
-            [weak self] session, change in
+            @Sendable [weak self] session, change in
             let newValue = change.newValue ?? session.outputVolume
             let oldText = change.oldValue.map { String($0) } ?? "nil"
             log.info(
