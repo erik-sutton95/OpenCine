@@ -1088,6 +1088,151 @@ struct PTPIPClientSessionTests {
         #expect(server.receivedPropertyWrites().isEmpty)
     }
 
+    @Test func stabilizationProvenanceSurvivesOwnerFallbackAndSemanticBridge() throws {
+        for readOnly in [false, true] {
+            var options = FakeZRServer.Options()
+            options.descriptorEnumOverrides[.movieVibrationReduction] = []
+            options.descriptorEnumOverrides[.electronicVR] = [0, 1, 99]
+            if readOnly {
+                options.readOnlyDescriptorCodes = [PTPPropertyCode.movieVibrationReduction.rawValue]
+            }
+            let server = try FakeZRServer(options: options)
+            defer { server.stop() }
+            let session = try connect(to: server)
+            defer { session.disconnect() }
+            let initial = session.refreshAndroidPropertySnapshot(.propertyChanged(0xDEAD))
+            #expect(
+                initial.controls.vibrationReductionDescriptor.observation.outcome == .notAttempted)
+            let readback = session.refreshAndroidPropertySnapshot(.bootstrap)
+            let vr = readback.controls.vibrationReductionDescriptor
+            #expect(vr.observation.outcome == .described)
+            #expect(vr.observation.descriptor?.form == .enumeration([]))
+            #expect(vr.observation.capability.offer == [])
+            #expect(vr.observation.capability.access == (readOnly ? .readOnly : .readWrite))
+            #expect(vr.optionOrigin == (readOnly ? .unknown : .legacyFallback))
+            #expect(
+                readback.controls.vibrationReduction == (readOnly ? [] : ["OFF", "ON", "SPORT"]))
+            let evr = readback.controls.electronicVRDescriptor
+            #expect(evr.observation.descriptor?.form == .enumeration([[0], [1], [99]]))
+            #expect(evr.observation.capability.offer == ["OFF", "ON"])
+            #expect(evr.optionOrigin == .descriptor)
+            let wire = AndroidCameraPropertyReadbackWire.encode(readback)
+            #expect(wire.contains("descriptor.vibrationReduction.outcome\tdescribed"))
+            #expect(
+                wire.contains(
+                    "descriptor.vibrationReduction.access\t" + (readOnly ? "readOnly" : "readWrite")
+                ))
+            #expect(wire.contains("descriptor.vibrationReduction.choices\t\n"))
+            #expect(server.receivedPropertyWrites().isEmpty)
+        }
+    }
+
+    @Test func stabilizationNegativeFactsNeverBecomeAdvertisedFallbackChoices() throws {
+        let property = PTPPropertyCode.movieVibrationReduction
+        for scenario in ["none", "rejected", "unsupported", "malformed", "unknownRaw"] {
+            var options = FakeZRServer.Options()
+            switch scenario {
+            case "none": options.noFormDescriptorCodes = [property.rawValue]
+            case "rejected": options.descriptorResponseOverrides = [property.rawValue: 0x2002]
+            case "unsupported": options.descriptorResponseOverrides = [property.rawValue: 0x200A]
+            case "malformed": options.descriptorDataTypeOverrides = [property.rawValue: 0x0004]
+            default: options.descriptorEnumOverrides[property] = [99]
+            }
+            let server = try FakeZRServer(options: options)
+            defer { server.stop() }
+            let session = try connect(to: server)
+            defer { session.disconnect() }
+            let controls = session.refreshAndroidPropertySnapshot(.bootstrap).controls
+            let evidence = controls.vibrationReductionDescriptor
+            let observed = evidence.observation
+            switch scenario {
+            case "none":
+                #expect(
+                    observed.outcome == .described
+                        && observed.descriptor?.form == NikonScalarPropertyDescriptor.Form.none)
+                #expect(
+                    observed.capability.support == .supported && observed.capability.offer == nil)
+                #expect(controls.vibrationReduction.isEmpty)
+                #expect(evidence.optionOrigin == .unknown)
+            case "rejected", "unsupported":
+                #expect(observed.outcome == .rejected)
+                #expect(observed.operation == .getDevicePropDesc)
+                #expect(observed.response == (scenario == "rejected" ? 0x2002 : 0x200A))
+                #expect(
+                    observed.capability.support == .unknown)
+                #expect(observed.capability.offer == nil)
+                #expect(evidence.optionOrigin == .legacyFallback)
+                #expect(controls.vibrationReduction == ["OFF", "ON", "SPORT"])
+            case "malformed":
+                #expect(observed.outcome == .malformed && observed.descriptor == nil)
+                #expect(observed.capability.support == .unknown)
+                #expect(evidence.optionOrigin == .legacyFallback)
+            default:
+                #expect(observed.descriptor?.form == .enumeration([[99]]))
+                #expect(
+                    observed.capability.support == .supported && observed.capability.offer == [])
+                #expect(evidence.optionOrigin == .legacyFallback)
+            }
+            #expect(server.receivedPropertyWrites().isEmpty)
+        }
+    }
+
+    @Test func realDescriptorTransportFailureRetainsPriorFactsWithSeparateLatestAttempt() throws {
+        var options = FakeZRServer.Options()
+        options.disconnectDescriptorCodesAfterFirstRead = [
+            PTPPropertyCode.movieVibrationReduction.rawValue
+        ]
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        let first = session.refreshAndroidPropertySnapshot(.bootstrap)
+        #expect(first.result == .accepted)
+        let second = session.refreshAndroidPropertySnapshot(.bootstrap)
+        #expect(second.result == .transportFailed)
+        let retained = second.controls.vibrationReductionDescriptor
+        #expect(retained.observation == first.controls.vibrationReductionDescriptor.observation)
+        #expect(retained.optionOrigin == first.controls.vibrationReductionDescriptor.optionOrigin)
+        #expect(retained.latestAttempt.outcome == .transportFailed)
+        #expect(second.controls.vibrationReduction == first.controls.vibrationReduction)
+        #expect(
+            second.controls.electronicVRDescriptor.observation
+                == first.controls.electronicVRDescriptor.observation)
+        #expect(second.controls.electronicVRDescriptor.latestAttempt.outcome == .notAttempted)
+        let wire = AndroidCameraPropertyReadbackWire.encode(second)
+        #expect(wire.contains("descriptor.vibrationReduction.outcome\tdescribed"))
+        #expect(wire.contains("descriptor.vibrationReduction.latestOutcome\ttransportFailed"))
+        #expect(server.receivedPropertyWrites().isEmpty)
+    }
+
+    @Test func abortedGenerationKeepsDistinctSuccessfulLatestDescriptorFacts() throws {
+        var options = FakeZRServer.Options()
+        options.descriptorEnumOverrides[.movieVibrationReduction] = [0, 1]
+        options.descriptorEnumOverridesAfterFirstRead[.movieVibrationReduction] = [2, 99]
+        options.disconnectDescriptorCodesAfterFirstRead = [PTPPropertyCode.electronicVR.rawValue]
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        let first = session.refreshAndroidPropertySnapshot(.bootstrap)
+        let second = session.refreshAndroidPropertySnapshot(.bootstrap)
+        #expect(second.result == .transportFailed)
+        let evidence = second.controls.vibrationReductionDescriptor
+        #expect(evidence.observation == first.controls.vibrationReductionDescriptor.observation)
+        #expect(
+            evidence.observation.outcome == .described
+                && evidence.latestAttempt.outcome == .described)
+        #expect(evidence.observation.capability.offer == ["OFF", "ON"])
+        #expect(evidence.latestAttempt.capability.offer == ["SPORT"])
+        #expect(evidence.latestAttempt.descriptor?.form == .enumeration([[2], [99]]))
+        #expect(second.controls.vibrationReduction == ["OFF", "ON"])
+        #expect(second.controls.electronicVRDescriptor.latestAttempt.outcome == .transportFailed)
+        let wire = AndroidCameraPropertyReadbackWire.encode(second)
+        #expect(wire.contains("descriptor.vibrationReduction.choices\tOFF\u{1F}ON\n"))
+        #expect(wire.contains("descriptor.vibrationReduction.latestChoices\tSPORT\n"))
+        #expect(server.receivedPropertyWrites().isEmpty)
+    }
+
     @Test func readOnlyDescriptorNeverAuthorizesItsFallbackWrite() throws {
         var options = FakeZRServer.Options()
         options.readOnlyDescriptorCodes = [PTPPropertyCode.movieFNumber.rawValue]

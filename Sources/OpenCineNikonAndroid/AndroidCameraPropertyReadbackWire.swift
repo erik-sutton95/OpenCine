@@ -82,7 +82,9 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         movieTone: String? = nil,
         movieToneEditable: Bool = false,
         advertisedIrisValues: [String] = [],
-        recordingFormats: [NikonRecordingFormatPresentation] = []
+        recordingFormats: [NikonRecordingFormatPresentation] = [],
+        vibrationReductionDescriptor: NikonDescriptorEvidence = .init(),
+        electronicVRDescriptor: NikonDescriptorEvidence = .init()
     ) {
         self.resolutionFrameRate = resolutionFrameRate
         self.codec = codec
@@ -106,6 +108,8 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         self.whiteBalanceTints = whiteBalanceTints
         self.resolutionFrameRates = resolutionFrameRates
         self.recordingFormats = recordingFormats
+        self.vibrationReductionDescriptor = vibrationReductionDescriptor
+        self.electronicVRDescriptor = electronicVRDescriptor
         self.codecs = codecs
         self.vibrationReduction = vibrationReduction
         self.electronicVR = electronicVR
@@ -173,6 +177,9 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
     public let vibrationReduction: [String]
     /// Electronic-VR values from the camera descriptor.
     public let electronicVR: [String]
+    /// Retained scalar facts and the latest describe attempt, separate from effective options.
+    public let vibrationReductionDescriptor: NikonDescriptorEvidence
+    public let electronicVRDescriptor: NikonDescriptorEvidence
     /// Photo image sizes from the camera's string enumeration, verbatim.
     public let imageSizes: [String]
     /// Exposure programs the body advertises, in its order. Empty means the body did not
@@ -376,17 +383,26 @@ public enum AndroidCameraPropertyReadbackWire {
         appendOptions(
             "options.resolutionFrameRate", values: controls.resolutionFrameRates, to: &fields)
         append("codecBitDepth", value: controls.codecBitDepth, to: &fields)
-        appendOptions("options.recordingFormat", values: controls.recordingFormats.map {
-            [$0.token, $0.imageArea ?? "", $0.resolution, $0.frameRate].joined(separator: "\u{1E}")
-        }, to: &fields)
+        appendOptions(
+            "options.recordingFormat",
+            values: controls.recordingFormats.map {
+                [$0.token, $0.imageArea ?? "", $0.resolution, $0.frameRate].joined(
+                    separator: "\u{1E}")
+            }, to: &fields)
         appendOptions("options.codec", values: controls.codecs, to: &fields)
         appendOptions("options.codecBitDepth", values: controls.codecBitDepths, to: &fields)
         append("movieTone", value: controls.movieTone, to: &fields)
-        append("movieToneEditable", value: controls.movieToneEditable ? "true" : "false", to: &fields)
+        append(
+            "movieToneEditable", value: controls.movieToneEditable ? "true" : "false", to: &fields)
         appendOptions("options.movieTone", values: controls.movieTones, to: &fields)
         appendOptions(
             "options.vibrationReduction", values: controls.vibrationReduction, to: &fields)
         appendOptions("options.electronicVr", values: controls.electronicVR, to: &fields)
+        appendDescriptor(
+            "descriptor.vibrationReduction", evidence: controls.vibrationReductionDescriptor,
+            to: &fields)
+        appendDescriptor(
+            "descriptor.electronicVr", evidence: controls.electronicVRDescriptor, to: &fields)
         appendOptions("options.imageSize", values: controls.imageSizes, to: &fields)
         appendOptions("options.exposureMode", values: controls.exposureModes, to: &fields)
         appendOptions(
@@ -433,6 +449,51 @@ public enum AndroidCameraPropertyReadbackWire {
         }
         append("storageSlotCount", value: String(slots.count), to: &fields)
         fields.append(contentsOf: encoded)
+    }
+
+    private static func appendDescriptor(
+        _ key: String, evidence: NikonDescriptorEvidence,
+        to fields: inout [(key: String, value: String)]
+    ) {
+        appendDescriptorObservation(
+            key, observation: evidence.observation, latest: false, to: &fields)
+        appendDescriptorObservation(
+            key, observation: evidence.latestAttempt, latest: true, to: &fields)
+        append(key + ".origin", value: evidence.optionOrigin.rawValue, to: &fields)
+    }
+
+    private static func appendDescriptorObservation(
+        _ key: String, observation: NikonDescriptorObservation, latest: Bool,
+        to fields: inout [(key: String, value: String)]
+    ) {
+        func field(_ name: String) -> String {
+            key + "." + (latest ? "latest" + name.prefix(1).uppercased() + name.dropFirst() : name)
+        }
+        let capability = observation.capability
+        append(field("outcome"), value: observation.outcome.rawValue, to: &fields)
+        append(field("support"), value: String(describing: capability.support), to: &fields)
+        if capability.support != .unknown {
+            append(
+                field("access"), value: capability.access == .readOnly ? "readOnly" : "readWrite",
+                to: &fields)
+        }
+        if let descriptor = observation.descriptor {
+            let form: String
+            switch descriptor.form {
+            case .none: form = "none"
+            case .range: form = "range"
+            case .enumeration: form = "enumeration"
+            }
+            append(field("form"), value: form, to: &fields)
+        }
+        // Unlike effective options, a present empty declared enumeration is meaningful.
+        if let offer = capability.offer {
+            fields.append((field("choices"), offer.joined(separator: optionSeparator)))
+        }
+        append(
+            field("operation"), value: observation.operation.map { String(describing: $0) },
+            to: &fields)
+        append(field("response"), value: observation.response.map(String.init), to: &fields)
     }
 
     private static func appendOptions(

@@ -18,8 +18,9 @@
 // bytes-on-the-wire behavior that ships in the Android `.so`.
 
 import Foundation
-import struct OpenCineCameraVocabulary.CaptureCodecColorChoices
 import OpenCineNikon
+
+import struct OpenCineCameraVocabulary.CaptureCodecColorChoices
 
 /// PTP-IP initiator identity for Android; deliberately the *same* identity iOS presents.
 ///
@@ -279,6 +280,7 @@ private struct AndroidRawControlCatalog: Sendable {
     var whiteBalanceTints: [(label: String, amberBlue: Int, greenMagenta: Int)] = []
     var vibrationReduction: [AndroidRawControlMode<UInt8>] = []
     var electronicVR: [AndroidRawControlMode<UInt8>] = []
+    var stabilizationDescriptors: [PTPPropertyCode: NikonDescriptorEvidence] = [:]
     var allowsApertureFallback = false
     var apertureDescriptorProperty: PTPPropertyCode?
     // Photo-mode descriptor domains (iOS `cameraControlOptions` stills equivalents).
@@ -302,7 +304,12 @@ private struct AndroidRawControlCatalog: Sendable {
         isScreenSizeReadbackCurrent: Bool,
         usesNikonZRFallbacks: Bool
     ) -> AndroidCameraControlCapabilities {
-        guard isComplete else { return .empty }
+        guard isComplete else {
+            return AndroidCameraControlCapabilities(
+                vibrationReductionDescriptor: stabilizationDescriptors[.movieVibrationReduction]
+                    ?? .init(),
+                electronicVRDescriptor: stabilizationDescriptors[.electronicVR] ?? .init())
+        }
         // Descriptor-recognized short codec only; crop labels and e-VR gating stay fail-closed
         // for unknown file types. ISO may also use the live readback short label when the enum
         // domain has not listed the active codec yet.
@@ -464,9 +471,13 @@ private struct AndroidRawControlCatalog: Sendable {
                 == PTPIPClientSession.apertureDescriptorProperty(
                     captureSelector: properties.captureSelector) ? apertures.map(\.label) : [],
             recordingFormats: screenSizes.map {
-                NikonRecordingFormatPresentation(mode: $0, currentCodec: recognizedCodec,
+                NikonRecordingFormatPresentation(
+                    mode: $0, currentCodec: recognizedCodec,
                     isNikonZR: usesNikonZRFallbacks)
-            }
+            },
+            vibrationReductionDescriptor: stabilizationDescriptors[.movieVibrationReduction]
+                ?? .init(),
+            electronicVRDescriptor: stabilizationDescriptors[.electronicVR] ?? .init()
         )
     }
 
@@ -474,9 +485,10 @@ private struct AndroidRawControlCatalog: Sendable {
     func movieToneChoices(_ properties: PTPCameraPropertySnapshot) -> CaptureCodecColorChoices {
         let raw = PTPCameraPropertyDecoders.fileTypeMode(
             forFileType: properties.fileType, in: fileTypes)?.raw
-        let offered = raw.flatMap(NikonMovieToneCapability.toneProperty(forFileType:)).flatMap {
-            movieTones[$0]
-        } ?? []
+        let offered =
+            raw.flatMap(NikonMovieToneCapability.toneProperty(forFileType:)).flatMap {
+                movieTones[$0]
+            } ?? []
         return NikonMovieToneCapability.codecColorChoices(
             codecs: fileTypes, fileType: raw, offered: offered,
             current: raw.flatMap(properties.movieTone(forFileType:)))
@@ -1353,11 +1365,59 @@ public final class PTPIPClientSession: @unchecked Sendable {
             property.rawValue <= UInt32(UInt16.max)
             ? .getDevicePropDesc
             : .getDevicePropDescEx
-        return try transactExpectingOK(
-            operation,
-            parameters: [property.rawValue],
-            dataPhase: .dataIn
-        ).data
+        guard Self.tracksStabilizationDescriptor(property) else {
+            return try transactExpectingOK(
+                operation, parameters: [property.rawValue], dataPhase: .dataIn
+            ).data
+        }
+        recordStabilizationDescriptor(
+            .init(outcome: .pending, operation: operation), property: property)
+        do {
+            let result = try executeTransaction(
+                operation, parameters: [property.rawValue], dataPhase: .dataIn)
+            guard result.operationResponse.responseCode == .ok else {
+                recordStabilizationDescriptor(
+                    .rejected(
+                        operation: operation, response: result.operationResponse.rawResponseCode),
+                    property: property)
+                throw PTPIPClientSessionError.operationRejected(
+                    operation, result.operationResponse.responseCode)
+            }
+            return result.data
+        } catch {
+            if androidControlCatalog.stabilizationDescriptors[property]?.latestAttempt.outcome
+                == .pending
+            {
+                let busy: Bool
+                if let error = error as? PTPIPClientSessionError {
+                    busy = error == .mediaModeActive || error == .mediaModeRequired
+                } else {
+                    busy = false
+                }
+                recordStabilizationDescriptor(
+                    .init(outcome: busy ? .mediaBusy : .transportFailed, operation: operation),
+                    property: property)
+            }
+            throw error
+        }
+    }
+
+    private static func tracksStabilizationDescriptor(_ property: PTPPropertyCode) -> Bool {
+        property == .movieVibrationReduction || property == .electronicVR
+    }
+
+    private func recordStabilizationDescriptor(
+        _ observation: NikonDescriptorObservation, property: PTPPropertyCode
+    ) {
+        androidControlCatalog.stabilizationDescriptors[property, default: .init()].record(
+            observation)
+    }
+
+    private func setStabilizationOptionOrigin(
+        _ origin: NikonDescriptorOptionOrigin, property: PTPPropertyCode
+    ) {
+        androidControlCatalog.stabilizationDescriptors[property, default: .init()].optionOrigin =
+            origin
     }
 
     private func descriptorEnumValues(
@@ -1390,6 +1450,13 @@ public final class PTPIPClientSession: @unchecked Sendable {
         valueByteCount: Int
     ) throws -> AndroidWritableDescriptorForm {
         let descriptor = try readPropertyDescriptor(property)
+        if Self.tracksStabilizationDescriptor(property) {
+            let observed = NikonScalarPropertyDescriptor.parse(
+                descriptor, property: property.rawValue, valueByteCount: valueByteCount)
+            recordStabilizationDescriptor(
+                .init(outcome: observed == nil ? .malformed : .described, descriptor: observed),
+                property: property)
+        }
         return try Self.writableDescriptorForm(
             descriptor,
             property: property,
@@ -1857,12 +1924,20 @@ public final class PTPIPClientSession: @unchecked Sendable {
         if result == .transportFailed || result == .mediaBusy {
             // Prefer the last complete catalog over a blank generation so open pickers keep working
             // across a transient GetDevicePropDescEx glitch while live view holds the channel.
+            let attempted = androidControlCatalog.stabilizationDescriptors
             if previousCatalog.isComplete {
                 androidControlCatalog = previousCatalog
                 androidWhiteBalanceTint = previousTint
             } else {
                 androidControlCatalog = AndroidRawControlCatalog()
                 androidWhiteBalanceTint = nil
+            }
+            // Roll back domain and provenance together. Latest attempts are explicitly separate
+            // and cannot turn an abandoned partial generation into newly advertised evidence.
+            for property in [PTPPropertyCode.movieVibrationReduction, .electronicVR] {
+                androidControlCatalog.stabilizationDescriptors[property, default: .init()]
+                    .latestAttempt =
+                    attempted[property]?.latestAttempt ?? .init(outcome: .notAttempted)
             }
         } else {
             androidControlCatalog.isComplete = true
@@ -2312,9 +2387,14 @@ public final class PTPIPClientSession: @unchecked Sendable {
     private func refreshAndroidVibrationReductionDescriptor() throws {
         androidControlCatalog.vibrationReduction = []
         androidControlCatalog.vibrationReduction = try descriptorModesWithZRFallback(
-            fallback: AndroidNikonZRControlFallback.vibrationReduction
+            fallback: AndroidNikonZRControlFallback.vibrationReduction,
+            onFallback: {
+                self.setStabilizationOptionOrigin(
+                    .legacyFallback, property: .movieVibrationReduction)
+            }
         ) {
             let raw = try descriptorEnumValues(.movieVibrationReduction, valueByteCount: 1)
+            setStabilizationOptionOrigin(.descriptor, property: .movieVibrationReduction)
             return uniqueUInt8Modes(raw) { value in
                 let label = PTPCameraPropertyDecoders.movieVibrationReduction(value)
                 return label.hasPrefix("0x") ? nil : label
@@ -2325,9 +2405,13 @@ public final class PTPIPClientSession: @unchecked Sendable {
     private func refreshAndroidElectronicVRDescriptor() throws {
         androidControlCatalog.electronicVR = []
         androidControlCatalog.electronicVR = try descriptorModesWithZRFallback(
-            fallback: AndroidNikonZRControlFallback.onOff
+            fallback: AndroidNikonZRControlFallback.onOff,
+            onFallback: {
+                self.setStabilizationOptionOrigin(.legacyFallback, property: .electronicVR)
+            }
         ) {
             let raw = try descriptorEnumValues(.electronicVR, valueByteCount: 1)
+            setStabilizationOptionOrigin(.descriptor, property: .electronicVR)
             return uniqueUInt8Modes(raw) { value in
                 guard value == 0 || value == 1 else { return nil }
                 return PTPCameraPropertyDecoders.onOffLabel(value)
@@ -2353,17 +2437,20 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// its descriptor is omitted, rejected, or temporarily empty. Other models fail closed.
     private func descriptorModesWithZRFallback<Value>(
         fallback: [AndroidRawControlMode<Value>],
+        onFallback: () -> Void = {},
         load: () throws -> [AndroidRawControlMode<Value>]
     ) throws -> [AndroidRawControlMode<Value>]
     where Value: FixedWidthInteger & Sendable {
         do {
             let advertised = try load()
             if !advertised.isEmpty || !usesNikonZRFallbacks { return advertised }
+            onFallback()
             return fallback
         } catch let error as PTPIPClientSessionError {
             guard usesNikonZRFallbacks, isDescriptorFallbackEligible(error) else {
                 throw error
             }
+            onFallback()
             return fallback
         }
     }
@@ -2983,7 +3070,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
         case .movieTone:
             guard
                 let raw = PTPCameraPropertyDecoders.fileTypeMode(
-                    forFileType: androidPropertySnapshot.fileType, in: androidControlCatalog.fileTypes)?.raw,
+                    forFileType: androidPropertySnapshot.fileType,
+                    in: androidControlCatalog.fileTypes)?.raw,
                 let tone = NikonMovieTone(rawValue: label),
                 let write = NikonMovieToneCapability.write(tone, forFileType: raw)
             else { return [] }

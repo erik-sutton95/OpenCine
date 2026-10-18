@@ -482,6 +482,10 @@ public data class CameraControlCapabilities(
     val advertisedIrisValues: List<String> = emptyList(),
     /** Native mode axes from Swift, with the exact advertised write token. */
     val recordingFormats: List<NikonRecordingFormatPresentation> = emptyList(),
+    /** Actual movie-VR descriptor evidence, separate from the effective option list. */
+    val vibrationReductionDescriptor: NikonDescriptorEvidence = NikonDescriptorEvidence(),
+    /** Actual electronic-VR descriptor evidence, separate from the effective option list. */
+    val electronicVrDescriptor: NikonDescriptorEvidence = NikonDescriptorEvidence(),
 ) {
     /** Returns the advertised labels for one descriptor-dependent control. */
     public fun options(control: CameraControl): List<String> =

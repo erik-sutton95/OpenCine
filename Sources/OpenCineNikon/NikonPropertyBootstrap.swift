@@ -11,10 +11,20 @@ public protocol NikonBootstrapLink {
     func readStorageInfo() async throws -> PTPStorageInfo?
     func describeCameraPropertyEnum(_ property: PTPPropertyCode, valueByteCount: Int) async throws
         -> [UInt32]
+    func observeCameraPropertyDescriptor(
+        _ property: PTPPropertyCode, valueByteCount: Int
+    ) async -> NikonDescriptorObservation
     func screenSizeModes() async throws -> [PTPCameraScreenSizeMode]
     func fileTypeModes() async throws -> [PTPCameraFileTypeMode]
     func controlOptions(for property: PTPPropertyCode, valueByteCount: Int) async throws -> [String]
     func stringEnumOptions(for property: PTPPropertyCode) async throws -> [String]
+}
+
+extension NikonBootstrapLink {
+    /// Existing links without scalar observations remain unknown; labels cannot recover metadata.
+    public func observeCameraPropertyDescriptor(
+        _ property: PTPPropertyCode, valueByteCount: Int
+    ) async -> NikonDescriptorObservation { .init(outcome: .notAttempted) }
 }
 
 /// Camera-authored bootstrap values. A consumer caches them for its own display; no value is
@@ -26,6 +36,8 @@ public enum NikonBootstrapObservation: Sendable {
     case screenModes([PTPCameraScreenSizeMode])
     case fileTypes([PTPCameraFileTypeMode])
     case options(PTPPropertyCode, [String])
+    /// Exact scalar observation, including unsuccessful attempts; never a substitute option list.
+    case descriptor(PTPPropertyCode, NikonDescriptorObservation)
     /// The movie tones one per-codec tone property offers (`NikonMovieToneCapability`).
     case movieTones(PTPPropertyCode, [NikonMovieTone])
     case photographyReady
@@ -147,6 +159,7 @@ public final class NikonPropertyBootstrap {
             let options = raw.filter { $0 != "Color temp" }
             if options.count > 1 { receive(.options(.whiteBalance, options)) }
         }
+        await observeStabilizationDescriptors(isCurrent: isCurrent, receive: receive)
         guard isCurrent(), !Task.isCancelled else { return }
         receive(.descriptorsReady)
         clockStaged = false
@@ -155,6 +168,28 @@ public final class NikonPropertyBootstrap {
                 cameraPayload: data, phoneNow: CameraClockSync.phoneNow(), isRecording: false)
         {
             clockStaged = true
+        }
+    }
+
+    /// Reuses the connected link and its transaction serialization. This observation pass does
+    /// not change the legacy option cache, probe writes, retry reads or change discovery policy.
+    public func observeStabilizationDescriptors(
+        isCurrent: @MainActor () -> Bool,
+        receive: @MainActor (NikonBootstrapObservation) -> Void
+    ) async {
+        for property in [PTPPropertyCode.movieVibrationReduction, .electronicVR] {
+            guard isCurrent(), !Task.isCancelled else { return }
+            // A known discovery omission is not proof of unsupported camera behavior. Empty
+            // discovery lists remain pollable via supportsProperty and still perform the read.
+            guard link.supportsProperty(property) else {
+                receive(.descriptor(property, .init(outcome: .missing)))
+                continue
+            }
+            receive(.descriptor(property, .init(outcome: .pending)))
+            let observation = await link.observeCameraPropertyDescriptor(
+                property, valueByteCount: 1)
+            guard isCurrent(), !Task.isCancelled else { return }
+            receive(.descriptor(property, observation))
         }
     }
 

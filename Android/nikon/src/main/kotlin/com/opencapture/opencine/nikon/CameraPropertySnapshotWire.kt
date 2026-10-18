@@ -1,5 +1,7 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.SettingAccess
+import com.opencapture.opencine.vocabulary.ControlCapability
 
 /** Stable semantic outcomes emitted by the Swift property-readback wire. */
 enum class NativePropertyRefreshResult {
@@ -157,8 +159,67 @@ object CameraPropertySnapshotWire {
                     movieTones = value.options("options.movieTone"),
                     movieToneEditable = value.optionalBoolean("movieToneEditable") == true,
                     recordingFormats = value.recordingFormats("options.recordingFormat"),
+                    vibrationReductionDescriptor = value.descriptor("descriptor.vibrationReduction"),
+                    electronicVrDescriptor = value.descriptor("descriptor.electronicVr"),
                 ),
         )
+    }
+
+    private fun Map<String, String>.descriptor(key: String): NikonDescriptorEvidence =
+        NikonDescriptorEvidence(
+            observation = descriptorObservation(key),
+            latestAttempt = descriptorObservation(key, latest = true),
+            optionOrigin = when (get("$key.origin")) {
+                "descriptor" -> NikonDescriptorOptionOrigin.DESCRIPTOR
+                "legacyFallback" -> NikonDescriptorOptionOrigin.LEGACY_FALLBACK
+                else -> NikonDescriptorOptionOrigin.UNKNOWN
+            },
+        )
+
+    private fun Map<String, String>.descriptorObservation(
+        key: String, latest: Boolean = false,
+    ): NikonDescriptorObservation {
+        // Each attempt owns its metadata, even when its outcome matches the retained generation.
+        fun field(name: String): String = "$key." + if (latest) "latest" + name.replaceFirstChar { it.uppercase() } else name
+        val form = when (get(field("form"))) {
+            "none" -> NikonDescriptorForm.NONE
+            "range" -> NikonDescriptorForm.RANGE
+            "enumeration" -> NikonDescriptorForm.ENUMERATION
+            else -> NikonDescriptorForm.UNKNOWN
+        }
+        val access = when (get(field("access"))) {
+            "readOnly" -> SettingAccess.READ_ONLY
+            "readWrite" -> SettingAccess.READ_WRITE
+            else -> null
+        }
+        val choices = if (form == NikonDescriptorForm.ENUMERATION) {
+            get(field("choices"))?.split(OPTION_SEPARATOR)?.filter(String::isNotBlank)?.distinct()
+        } else null
+        val capability: ControlCapability<List<String>> = when (get(field("support"))) {
+            "supported" -> if (access != null) ControlCapability.supported(choices, access) else ControlCapability.unknown()
+            "unsupported" -> ControlCapability.unsupported()
+            else -> ControlCapability.unknown()
+        }
+        return NikonDescriptorObservation(
+            outcome = descriptorOutcome(get(field("outcome"))),
+            capability = capability,
+            form = form,
+            operation = get(field("operation")),
+            response = optionalInt(field("response"))?.takeIf { it in 0..65_535 },
+        )
+    }
+
+    private fun descriptorOutcome(value: String?): NikonDescriptorReadOutcome = when (value) {
+        "notAttempted" -> NikonDescriptorReadOutcome.NOT_ATTEMPTED
+        "pending" -> NikonDescriptorReadOutcome.PENDING
+        "described" -> NikonDescriptorReadOutcome.DESCRIBED
+        "missing" -> NikonDescriptorReadOutcome.MISSING
+        "unsupported" -> NikonDescriptorReadOutcome.UNSUPPORTED
+        "rejected" -> NikonDescriptorReadOutcome.REJECTED
+        "malformed" -> NikonDescriptorReadOutcome.MALFORMED
+        "transportFailed" -> NikonDescriptorReadOutcome.TRANSPORT_FAILED
+        "mediaBusy" -> NikonDescriptorReadOutcome.MEDIA_BUSY
+        else -> NikonDescriptorReadOutcome.UNKNOWN
     }
 
     private data class OptionalStorage(val value: CameraStorageStatus?)
