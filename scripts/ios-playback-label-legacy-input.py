@@ -123,7 +123,165 @@ import XCTest
 # SIMULATED native cancellation host's delegate pair (SimulatedNativeCancelHost.swift).
 HOST_SOURCE = r'''import UIKit
 
+// DIAGNOSTIC (round 4): records every event the application receives, the touched window, its
+// hit chain, gesture recognizer states and the presentation state, so a failed run shows whether
+// the reader's native tap reached UIKit and what consumed it. It never changes routing.
 @main
+struct OpenCinePlaybackLabelsMain {
+    static func main() {
+        UIApplicationMain(
+            CommandLine.argc, CommandLine.unsafeArgv,
+            NSStringFromClass(OpenCinePlaybackLabelsDiagnosticApplication.self),
+            NSStringFromClass(OpenCinePlaybackLabelsSimulated.self))
+    }
+}
+
+@MainActor
+final class OpenCinePlaybackLabelsDiagnosticApplication: UIApplication {
+    private let logURL = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("SIMULATED-touch-diagnostics.jsonl")
+    private var otherEvents = 0
+
+    override func sendEvent(_ event: UIEvent) {
+        let touches = Array(event.allTouches ?? [])
+        if event.type != .touches {
+            otherEvents += 1
+            if otherEvents <= 400 {
+                log(["kind": "event", "type": event.type.rawValue, "subtype": event.subtype.rawValue])
+            }
+            super.sendEvent(event)
+            return
+        }
+        let before = touches.map(describe)
+        let windows = allWindows()
+        super.sendEvent(event)
+        log([
+            "kind": "touches", "before": before, "after": touches.map(describe),
+            "windows": windows, "presentations": presentations(),
+        ])
+        if touches.contains(where: { $0.phase == .ended || $0.phase == .cancelled }) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.log(["kind": "afterEnd", "windows": self.allWindows(),
+                              "presentations": self.presentations()])
+                }
+            }
+        }
+    }
+
+    private func id(_ object: AnyObject?) -> String {
+        object.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+    }
+
+    private func name(_ object: AnyObject?) -> String {
+        object.map { String(describing: type(of: $0)) } ?? "nil"
+    }
+
+    private func rect(_ value: CGRect) -> [Double] {
+        [value.origin.x, value.origin.y, value.size.width, value.size.height].map { Double($0) }
+    }
+
+    private func chain(_ view: UIView?) -> [String] {
+        var result: [String] = []
+        var current = view
+        while let node = current, result.count < 40 {
+            result.append(name(node) + "#" + id(node) + (node.accessibilityIdentifier.map { "[" + $0 + "]" } ?? ""))
+            current = node.superview
+        }
+        return result
+    }
+
+    private func recognizers(_ list: [UIGestureRecognizer]?) -> [[String: Any]] {
+        (list ?? []).map {
+            ["class": name($0), "state": $0.state.rawValue, "enabled": $0.isEnabled,
+             "view": name($0.view) + "#" + id($0.view), "cancelsTouches": $0.cancelsTouchesInView]
+        }
+    }
+
+    private func describe(_ touch: UITouch) -> [String: Any] {
+        let window = touch.window
+        let point = touch.location(in: window)
+        var row: [String: Any] = [
+            "phase": touch.phase.rawValue, "type": touch.type.rawValue, "tapCount": touch.tapCount,
+            "timestamp": touch.timestamp, "window": name(window) + "#" + id(window),
+            "windowScene": window?.windowScene?.session.persistentIdentifier ?? "nil",
+            "pointInWindow": [Double(point.x), Double(point.y)],
+            "pointOnScreen": window.map {
+                let screen = $0.convert(point, to: $0.screen.coordinateSpace)
+                return [Double(screen.x), Double(screen.y)]
+            } ?? [],
+            "view": chain(touch.view), "recognizers": recognizers(touch.gestureRecognizers),
+        ]
+        if let window { row["hitTest"] = chain(window.hitTest(point, with: nil)) }
+        return row
+    }
+
+    private func allWindows() -> [[String: Any]] {
+        connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { scene in
+            scene.windows.map {
+                ["window": name($0) + "#" + id($0), "scene": scene.session.persistentIdentifier,
+                 "activation": scene.activationState.rawValue, "key": $0.isKeyWindow,
+                 "hidden": $0.isHidden, "alpha": Double($0.alpha), "level": Double($0.windowLevel.rawValue),
+                 "interactive": $0.isUserInteractionEnabled, "frame": rect($0.frame),
+                 "root": name($0.rootViewController)] as [String: Any]
+            }
+        }
+    }
+
+    private func presentations() -> [[String: Any]] {
+        var rows: [[String: Any]] = []
+        for scene in connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for window in scene.windows {
+                var controller = window.rootViewController
+                while let current = controller.flatMap({ $0.presentedViewController }) {
+                    let presentation = current.presentationController
+                    var row: [String: Any] = [
+                        "window": id(window), "presented": name(current) + "#" + id(current),
+                        "beingDismissed": current.isBeingDismissed,
+                        "beingPresented": current.isBeingPresented,
+                        "presentation": name(presentation),
+                        "modalInPresentation": current.isModalInPresentation,
+                    ]
+                    if let container = presentation?.containerView {
+                        row["container"] = name(container) + "#" + id(container)
+                        row["containerWindow"] = id(container.window)
+                        row["containerSubviews"] = container.subviews.map {
+                            ["view": name($0) + "#" + id($0), "frame": rect($0.frame),
+                             "hidden": $0.isHidden, "alpha": Double($0.alpha),
+                             "interactive": $0.isUserInteractionEnabled,
+                             "identifier": $0.accessibilityIdentifier ?? "",
+                             "recognizers": recognizers($0.gestureRecognizers)] as [String: Any]
+                        }
+                        row["containerRecognizers"] = recognizers(container.gestureRecognizers)
+                    }
+                    if let popover = current.popoverPresentationController {
+                        row["passthrough"] = (popover.passthroughViews ?? []).map { name($0) }
+                        row["popoverDelegate"] = name(popover.delegate)
+                    }
+                    rows.append(row)
+                    controller = current
+                }
+            }
+        }
+        return rows
+    }
+
+    private func log(_ row: [String: Any]) {
+        var row = row
+        row["at"] = Date().timeIntervalSince1970
+        guard JSONSerialization.isValidJSONObject(row),
+            var data = try? JSONSerialization.data(withJSONObject: row, options: [.sortedKeys])
+        else { return }
+        data.append(0x0A)
+        if let handle = try? FileHandle(forWritingTo: logURL) {
+            handle.seekToEndOfFile(); handle.write(data); try? handle.close()
+        } else {
+            try? data.write(to: logURL)
+        }
+    }
+}
+
 @MainActor
 final class OpenCinePlaybackLabelsSimulated: UIResponder, UIApplicationDelegate {
     func application(
@@ -489,6 +647,14 @@ def run(args, root):
     device_info = next(d for group in devices.values() for d in group if d['udid'] == args.simulator_id)
     if device_info['state'] != 'Shutdown':
         subprocess.run(['xcrun', 'simctl', 'shutdown', args.simulator_id], check=True)
+    # DIAGNOSTIC (round 4): keep the application's own touch log beside the receipts.
+    import plistlib
+    for child in validator.private_root.iterdir():
+        metadata = child / '.com.apple.mobile_container_manager.metadata.plist'
+        touch_log = child / 'tmp' / 'SIMULATED-touch-diagnostics.jsonl'
+        if metadata.is_file() and touch_log.is_file() and not touch_log.is_symlink() \
+                and plistlib.loads(metadata.read_bytes()).get('MCMMetadataIdentifier') == prepared['bundleID']:
+            shutil.copy2(touch_log, out / 'app-touch-diagnostics.jsonl')
     after = {str(p): sha256(p.read_bytes()).hexdigest() for p in inputs}
     original_log = (out / 'original-three.log').read_text(errors='replace') if 'original-three' in readers else ''
     outcomes = {name: re.findall(r"Test Case '[^\n]*\b" + re.escape(name) + r"\]' (passed|failed|skipped)", original_log) for name in NAMES}
