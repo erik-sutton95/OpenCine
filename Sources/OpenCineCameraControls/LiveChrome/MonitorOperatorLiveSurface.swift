@@ -551,9 +551,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             let color = status.color.flatMap { value in
                 (value.section.map(mounts) ?? true) && !(inline && codecVisible) ? value : nil
             }
-            // A color-only camera keeps its existing control without exposing the selected profile.
+            // A color-only camera shows its selected profile through the same combined codec/color
+            // control; the value stays the reported profile and only the display label changes.
             func displayValue(_ value: MonitorOperatorLiveReadout<Key, Section>) -> String {
-                inline && value.id == color?.id ? "COLOR" : value.value
+                value.value
             }
             let details = visibleFormat.dropFirst(visibleFormat.first?.section == .codec ? 0 : 1)
                 .filter { $0.id != primary?.id }

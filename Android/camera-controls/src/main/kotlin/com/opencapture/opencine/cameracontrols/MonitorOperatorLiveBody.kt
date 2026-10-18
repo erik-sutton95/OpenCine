@@ -319,9 +319,9 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             val inline = layout.portrait && !photo
             val codecVisible = visibleFormat.any { it.section == MonitorDisplaySection.CODEC }
             val shownColor = status.color?.takeIf { (it.section == null || it.section in mounted) && !(inline && codecVisible) }
-            // A color-only camera keeps its existing control without exposing the selected profile.
-            fun displayValue(value: MonitorOperatorLiveReadout<K, S>): String =
-                if (inline && value.id == shownColor?.id) "COLOR" else value.value ?: "--"
+            // A color-only camera shows its selected profile through the same combined codec/color
+            // control; the value stays the reported profile and only the display label changes.
+            fun displayValue(value: MonitorOperatorLiveReadout<K, S>): String = value.value ?: "--"
             val details = visibleFormat.drop(if (visibleFormat.firstOrNull()?.section == MonitorDisplaySection.CODEC) 0 else 1)
                 .filter { it.id != shownPrimary?.id }
             // Portrait stacks resolution/frame rate above codec, or the neutral color-only entry.
