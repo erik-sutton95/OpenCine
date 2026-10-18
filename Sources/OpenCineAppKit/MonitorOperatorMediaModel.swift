@@ -132,7 +132,7 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
 
     public convenience init(library: MonitorMediaLibraryModel<Payload>,
         recordAdmission: (@MainActor (MonitorMediaRecord<Payload>) -> MonitorPlaybackAdmission)? = nil,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
         makePlayback: @escaping @MainActor (MonitorMediaLibraryModel<Payload>)
             -> MonitorMediaPlaybackModel<Payload, Look>) {
         self.init(library: library, recordAdmission: recordAdmission, sleep: sleep,
@@ -142,7 +142,7 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
     /// The same open request qualifies cleanup, native construction and publication in its adapter.
     public init(library: MonitorMediaLibraryModel<Payload>,
         recordAdmission: (@MainActor (MonitorMediaRecord<Payload>) -> MonitorPlaybackAdmission)? = nil,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
         makeAdmittedPlayback: @escaping @MainActor (MonitorMediaLibraryModel<Payload>, MonitorPlaybackAdmission)
             -> MonitorMediaPlaybackModel<Payload, Look>?) {
         self.library = library; self.makePlayback = makeAdmittedPlayback; self.recordAdmission = recordAdmission

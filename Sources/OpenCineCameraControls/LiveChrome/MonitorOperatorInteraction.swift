@@ -3,6 +3,7 @@ import MonitorPresentation
 import MonitorUI
 import Observation
 import OpenCineAppKit
+import OpenCineCore
 import SwiftUI
 
 /// Owns mutually exclusive live panels and the delayed zoom dismissal for camera-vocabulary
@@ -17,9 +18,9 @@ public final class MonitorOperatorInteraction {
     @ObservationIgnored private var lifecycle = MonitorInteractionLifecycle()
     @ObservationIgnored private let sleep: @MainActor (Duration) async throws -> Void
 
-    public init(sleep: @escaping @MainActor (Duration) async throws -> Void = {
-        try await Task.sleep(for: $0)
-    }) { self.sleep = sleep }
+    public init(sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)) {
+        self.sleep = sleep
+    }
 
     public enum Panel: Equatable { case top, capture, drum, assist, motion, zoom }
 

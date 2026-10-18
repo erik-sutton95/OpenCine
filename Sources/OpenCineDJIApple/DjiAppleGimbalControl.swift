@@ -109,7 +109,7 @@ import OpenCineMotion
         host: any DjiAppleGimbalHost,
         uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         wall: @escaping () -> Date = { Date() },
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping (Duration) async throws -> Void = hostSleep(for:)
     ) {
         self.host = host
         self.uptime = uptime

@@ -35,9 +35,7 @@ import OpenCineMotion
     /// `session` is the connection's current session; tests inject `sleep` and `now`.
     public init(
         session: @escaping @MainActor () -> LunaCameraSession?,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        },
+        sleep: @escaping @Sendable (Duration) async throws -> Void = hostSleep(for:),
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
     ) {
         self.session = session

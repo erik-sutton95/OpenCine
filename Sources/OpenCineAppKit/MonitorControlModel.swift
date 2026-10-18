@@ -98,9 +98,7 @@ public final class MonitorControlModel {
     /// `sleep` waits out the coalescing window; tests pass a manual clock.
     public init(
         coalescing: Duration = .milliseconds(120),
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        }
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)
     ) {
         self.coalescing = coalescing
         self.sleep = sleep
@@ -119,11 +117,10 @@ public final class MonitorControlModel {
 
     /// The existing initializer remains available; this overload supplies deterministic timing.
     public convenience init(now: @escaping @MainActor () -> MonotonicInstant,
-        recordingSleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        recordingSleep:
+            @escaping @MainActor (Duration) async -> Void = hostSleepUntilCancelled(for:),
         coalescing: Duration = .milliseconds(120),
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        }) {
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)) {
         self.init(coalescing: coalescing, sleep: sleep)
         self.recordingNow = now
         self.recordingSleep = recordingSleep
@@ -341,9 +338,9 @@ public final class MonitorControlModel {
         guard scheduled.insert(key).inserted else { return }
         let current = binding
         let revision = editRevisions[key, default: 0]
-        // Hosted Swift 6.3.3 aborted in the task allocator awaiting a non-throwing stored
-        // `@MainActor` async closure here; `sleep` is throwing like the other injected waits.
-        // Capturing it first also leaves the model free during the window.
+        // The hosted task-allocator aborts here came from the default `sleep` closure literal
+        // (swiftlang/swift#92017; see `hostSleep(for:)`). Capturing `sleep` first leaves the
+        // model free during the window.
         let sleep = sleep, coalescing = coalescing
         Task { [weak self] in
             try? await sleep(coalescing)

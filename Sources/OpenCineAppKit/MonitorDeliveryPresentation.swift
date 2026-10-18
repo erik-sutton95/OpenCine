@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OpenCineCore
 
 /// Captured native task facts; this value never schedules or chooses an operation.
 @MainActor public struct MonitorDeliveryExternalOperation: Sendable {
@@ -59,9 +60,7 @@ public final class MonitorDeliveryPresentation<Progress: Sendable> {
     @ObservationIgnored private var closed = false
     public init(
         isCaching: @escaping (Progress) -> Bool, isExternalDelivery: @escaping (Progress) -> Bool,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        }
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)
     ) {
         self.isCaching = isCaching
         self.isExternalDelivery = isExternalDelivery

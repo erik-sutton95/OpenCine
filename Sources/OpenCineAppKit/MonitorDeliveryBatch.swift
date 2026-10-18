@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 @MainActor private final class MonitorDeliveryStep {
     var active = true
@@ -20,9 +21,7 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
         records: [Record], destination: MonitorDeliveryDestination,
         admission: MonitorDeliveryAdmission, originals: MonitorDeliveryOriginalService<Record>,
         filename: @escaping @MainActor (Record) -> String, uploadCaption: String? = nil,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        },
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
         progress: @escaping @MainActor (MonitorDeliveryBatchProgress) -> Void
     ) async -> MonitorDeliveryCachedOriginals<Record>? {
         func accepts() -> Bool { admission.isCurrent() }
@@ -120,9 +119,7 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
         artifactFilename: @escaping @MainActor (Artifact) -> String? = { _ in nil },
         metadata: @escaping @MainActor ([Record]) -> String? = { _ in nil },
         noPrepared: @escaping @MainActor ([Record]) -> String? = { _ in nil },
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        },
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
         progress: @escaping @MainActor (MonitorDeliveryBatchProgress) -> Void
     ) async -> MonitorDeliveryBatchOutcome<Artifact> {
         typealias Policy = MonitorDeliveryBatchPolicy

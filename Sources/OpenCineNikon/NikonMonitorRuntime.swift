@@ -87,9 +87,8 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     public init(
         link: any NikonMonitorLink, ownsLink: Bool = true,
         facts: NikonControlFacts = NikonControlFacts(),
-        backgroundSleep: @escaping @MainActor (Duration) async -> Void = {
-            try? await Task.sleep(for: $0)
-        },
+        backgroundSleep:
+            @escaping @MainActor (Duration) async -> Void = hostSleepUntilCancelled(for:),
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
     ) {
         self.link = link

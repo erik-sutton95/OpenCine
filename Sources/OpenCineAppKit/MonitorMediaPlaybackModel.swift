@@ -262,9 +262,11 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     candidates:
       @escaping @MainActor @Sendable (MonitorMediaRecord<Payload>) ->
       [MonitorPlaybackCandidate],
+    // Optional rather than a closure-literal default, which each client would compile again
+    // with a different async context size (swiftlang/swift#92017; see `hostSleep(for:)`).
     resolveLook:
-      @escaping @MainActor @Sendable (MonitorMediaRecord<Payload>, MonitorPlaybackItem) async
-      -> MonitorPlaybackLook<Look>? = { _, _ in nil },
+      (@MainActor @Sendable (MonitorMediaRecord<Payload>, MonitorPlaybackItem) async
+      -> MonitorPlaybackLook<Look>?)? = nil,
     now: @escaping @MainActor @Sendable () -> MonotonicInstant = { .now() },
     seekEndClearance: Double = 0.05,
     sceneLossPolicy: MonitorPlaybackSceneLossPolicy = .preserveRequest
@@ -273,7 +275,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     libraryLifetime = library.lifetimeToken
     self.native = native
     self.candidates = candidates
-    self.resolveLook = resolveLook
+    self.resolveLook = resolveLook ?? { _, _ in nil }
     self.now = now
     self.readyTimeout = readyTimeout
     self.retryNativeFailures = retryNativeFailures

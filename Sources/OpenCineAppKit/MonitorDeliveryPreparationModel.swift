@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OpenCineCore
 
 /// Only the popup's typed options, project lookup and approved route lease. The accepted batch
 /// belongs to MonitorDeliveryModel; cache/native preparation never runs in this owner.
@@ -46,7 +47,7 @@ public final class MonitorDeliveryPreparationModel<
         remote: MonitorDeliveryRemoteService<Project, Context, Lease>? = nil,
         preferredDestination: MonitorDeliveryDestination? = nil,
         sourceCurrent: @escaping () -> Bool,
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping (Duration) async throws -> Void = hostSleep(for:)
     ) {
         self.init(
             selection: selection, configuration: configuration, exportOptions: exportOptions,
@@ -62,7 +63,7 @@ public final class MonitorDeliveryPreparationModel<
         preferredDestination: MonitorDeliveryDestination? = nil,
         sourceCurrent: @escaping () -> Bool,
         beforeInternetHop: (() async throws -> Void)?,
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping (Duration) async throws -> Void = hostSleep(for:)
     ) {
         observeSelection = selection
         self.selection = selection()

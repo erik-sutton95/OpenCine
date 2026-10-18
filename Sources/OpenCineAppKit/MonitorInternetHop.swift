@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Observation
+import OpenCineCore
 
 /// The app's one approved departure from the camera network for the internet (A2-16): leave
 /// the camera's Wi-Fi, wait for an internet route, come back. Only one hop runs at a time; a
@@ -57,7 +58,7 @@ public final class MonitorInternetHop<Route> {
 
     public init(
         port: Port,
-        sleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+        sleep: @escaping @MainActor (Duration) async -> Void = hostSleepUntilCancelled(for:)
     ) {
         self.port = port
         self.sleep = sleep

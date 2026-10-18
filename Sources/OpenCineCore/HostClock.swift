@@ -31,3 +31,18 @@ public struct HostClock: Sendable {
         now: { MonotonicInstant.now() }, date: { Date() },
         sleep: { try await Task.sleep(for: $0) })
 }
+
+/// `Task.sleep(for:)` as a named function: the default of a public injected wait parameter.
+///
+/// A closure literal in a public default argument is compiled again into each client module, and
+/// at -Onone those copies disagree with the library's on the async context size. The linker can
+/// pair one copy's body with another copy's size, so the closure writes past its task allocation
+/// (swiftlang/swift#92017). A reference to this function has one definition and no copies.
+public func hostSleep(for duration: Duration) async throws {
+    try await Task.sleep(for: duration)
+}
+
+/// `hostSleep(for:)` for a non-throwing wait: cancellation ends the wait early without an error.
+public func hostSleepUntilCancelled(for duration: Duration) async {
+    try? await Task.sleep(for: duration)
+}

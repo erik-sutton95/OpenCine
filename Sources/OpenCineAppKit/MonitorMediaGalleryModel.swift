@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OpenCineCore
 import OpenCineMedia
 
 /// A coherent captured deletion port; its executor uses the existing Library scheduler.
@@ -141,7 +142,7 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     @ObservationIgnored private var noticeID = UUID()
     public init(library: MonitorMediaLibraryModel<Payload>,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)) {
         self.library = library; self.sleep = sleep
     }
     public func snapshot(projection: MonitorMediaProjectionResult? = nil) -> MonitorMediaGallerySnapshot<Payload> {

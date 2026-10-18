@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OpenCineCore
 import OpenCineMedia
 
 public enum MonitorMediaPictureLoadPolicy: Equatable, Sendable {
@@ -73,7 +74,7 @@ public final class MonitorMediaPictureModel<Payload: Sendable, Picture> {
     public init(library: MonitorMediaLibraryModel<Payload>, record: MonitorMediaRecord<Payload>,
         admission: MonitorMediaLibraryActionToken? = nil,
         variants: [MonitorMediaPictureVariant<Payload>] = [],
-        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
         sourceCurrent: @escaping @MainActor () -> Bool = { true }) {
         self.library = library; baseRecord = record; self.record = record
         self.variants = variants; self.admission = admission ?? library.actionToken

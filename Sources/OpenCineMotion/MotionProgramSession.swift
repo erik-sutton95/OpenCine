@@ -55,7 +55,7 @@ public final class MotionProgramSession {
     private let sleep: @MainActor (Duration) async throws -> Void
 
     public init(now: @escaping @MainActor () -> MonotonicInstant = MonotonicInstant.now,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)) {
         self.now = now; self.sleep = sleep
     }
 
