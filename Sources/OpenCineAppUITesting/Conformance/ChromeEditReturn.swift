@@ -18,18 +18,20 @@ open class ChromeEditReturn: SharedAppUITestCase {
     func testDoneReturnsToDisplaySettingsAndCloseToTheMonitor() {
         launch(ReviewLaunch(screen: .live))
         XCTAssertTrue(app.buttons["monitor.system.record"].waitForExistence(timeout: 15))
-        tapWhenReady(app.buttons["monitor.system.settings"], in: app)
+        guard tapWhenReady(app.buttons["monitor.system.settings"], in: app) else { return }
         let display = app.buttons["monitor.settings.tab.Display"]
         reveal(display, in: app.scrollViews["monitor.settings.tabs"])
-        display.tap()
+        guard tapWhenReady(display, in: app, timeout: 5) else { return }
         let edit = editButton()
-        XCTAssertTrue(edit.waitForExistence(timeout: 5), "Display settings offer Edit view")
+        XCTAssertTrue(
+            edit.exists || edit.waitForExistence(timeout: 5),
+            "Display settings offer Edit view")
         let editID = edit.identifier
         reveal(
             edit,
             in: app.scrollViews.containing(NSPredicate(format: "identifier == %@", editID))
                 .firstMatch)
-        edit.tap()
+        guard tapWhenReady(edit, in: app, timeout: 5) else { return }
 
         let done = app.buttons["monitor.chromeEdit.done"]
         XCTAssertTrue(done.waitForExistence(timeout: 5), "Edit view opens the chrome editor")
@@ -47,33 +49,40 @@ open class ChromeEditReturn: SharedAppUITestCase {
         }
         let eyeID = eye.identifier
         let before = eye.value as? String
-        eye.tap()
+        guard tapWhenReady(eye, in: app, timeout: 5) else { return }
         let after = app.buttons[eyeID].value as? String
         XCTAssertNotEqual(after, before, "The eye toggles its element")
-        done.tap()
+        guard tapWhenReady(done, in: app, timeout: 5) else { return }
 
         XCTAssertTrue(display.waitForExistence(timeout: 5), "Done returns to Settings")
         XCTAssertTrue(display.isSelected, "Done returns to the Display tab")
         XCTAssertTrue(
             app.buttons[editID].waitForExistence(timeout: 5), "The edited section is in view")
         checkpoint("after-done")
-        app.buttons["monitor.page.back"].tap()
+        guard tapWhenReady(app.buttons["monitor.page.back"], in: app, timeout: 10) else {
+            return
+        }
 
         let record = app.buttons["monitor.system.record"]
         XCTAssertTrue(
             waitUntilReady(record, in: app, timeout: 10), "Closing Settings returns to the monitor")
         XCTAssertTrue(app.buttons["monitor.system.settings"].isHittable)
         checkpoint("monitor")
-        tapWhenReady(app.buttons["monitor.system.settings"], in: app)
+        guard tapWhenReady(app.buttons["monitor.system.settings"], in: app) else { return }
         reveal(display, in: app.scrollViews["monitor.settings.tabs"])
-        display.tap()
-        editButton(editID).tap()
+        guard tapWhenReady(display, in: app, timeout: 5) else { return }
+        let reopenedEdit = editButton(editID)
+        reveal(
+            reopenedEdit,
+            in: app.scrollViews.containing(NSPredicate(format: "identifier == %@", editID))
+                .firstMatch)
+        guard tapWhenReady(reopenedEdit, in: app, timeout: 5) else { return }
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons[eyeID].value as? String, after, "The edit persists")
         // The edit outlives the app: undo it, or every later suite on this device inherits it.
-        app.buttons[eyeID].tap()
+        guard tapWhenReady(app.buttons[eyeID], in: app, timeout: 5) else { return }
         XCTAssertEqual(app.buttons[eyeID].value as? String, before)
-        done.tap()
+        guard tapWhenReady(done, in: app, timeout: 5) else { return }
     }
 
     /// A Display section's Edit view (`id`, else the first). Apps that fold each mode's section
@@ -81,7 +90,7 @@ open class ChromeEditReturn: SharedAppUITestCase {
     private func editButton(_ id: String? = nil) -> XCUIElement {
         let prefix = "monitor.settings.display.edit."
         let edit = id.map { app.buttons[$0] } ?? firstButton(prefix: prefix)
-        if !edit.waitForExistence(timeout: 2) {
+        if !edit.exists && !edit.waitForExistence(timeout: 2) {
             let sections = app.descendants(matching: .any)
             let section =
                 id.map {
@@ -91,7 +100,11 @@ open class ChromeEditReturn: SharedAppUITestCase {
                     NSPredicate(format: "identifier BEGINSWITH 'monitor.settings.display.section.'")
                 ).firstMatch
             // A folded card is its header alone.
-            if section.exists { section.buttons.firstMatch.tap() }
+            if section.exists {
+                guard tapWhenReady(section.buttons.firstMatch, in: app, timeout: 2) else {
+                    return edit
+                }
+            }
         }
         return edit
     }

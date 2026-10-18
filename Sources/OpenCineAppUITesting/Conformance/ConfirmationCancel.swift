@@ -20,11 +20,13 @@ open class ConfirmationCancel: SharedAppUITestCase {
         try requireClipDelete()
         launch(ReviewLaunch(screen: .playback, source: .camera, connected: true))
         let delete = app.buttons[MonitorPlaybackCopy.delete]
+        let deleteDeadline = Date().addingTimeInterval(15)
         XCTAssertTrue(
-            delete.waitForExistence(timeout: 15), "Connected camera playback offers Delete")
+            waitUntilReady(delete, in: app, deadline: deleteDeadline),
+            "Connected camera playback offers Delete")
         let title = app.staticTexts["monitor.playback.title"]
         let clipTitle = title.label
-        delete.tap()
+        guard tapWhenReady(delete, in: app, deadline: deleteDeadline) else { return }
         let confirm = app.buttons["Delete"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Delete asks for confirmation")
         checkpoint("playback-delete-confirmation")
@@ -53,7 +55,13 @@ open class ConfirmationCancel: SharedAppUITestCase {
         let listed = gallery.visibleClips().map(\.id)
         let deleteSelected = app.buttons["Delete selected"]
         XCTAssertTrue(deleteSelected.isEnabled, "Connected camera clips can be deleted")
-        deleteSelected.tap()
+        let toolbar = app.scrollViews.containing(NSPredicate(format: "label == 'Delete selected'"))
+            .firstMatch
+        for _ in 0..<6 where !deleteSelected.isHittable && toolbar.exists {
+            toolbar.swipeLeft()
+        }
+        let deleteDeadline = Date().addingTimeInterval(5)
+        guard tapWhenReady(deleteSelected, in: app, deadline: deleteDeadline) else { return }
         let confirm = app.buttons["Delete"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Delete asks for confirmation")
         checkpoint("gallery-delete-confirmation")
@@ -69,9 +77,11 @@ open class ConfirmationCancel: SharedAppUITestCase {
         let clear = app.buttons["Clear"]
         let settings = app.scrollViews.containing(NSPredicate(format: "label == 'Clear'"))
             .firstMatch
-        XCTAssertTrue(settings.waitForExistence(timeout: 15), "Storage settings show Clear cache")
+        let clearDeadline = Date().addingTimeInterval(15)
+        XCTAssertTrue(
+            settings.waitForExistence(timeout: 15), "Storage settings show Clear cache")
         for _ in 0..<6 where !clear.isHittable { settings.swipeUp() }
-        clear.tap()
+        guard tapWhenReady(clear, in: app, deadline: clearDeadline) else { return }
         let title = app.staticTexts["Clear cache?"]
         XCTAssertTrue(title.waitForExistence(timeout: 5), "Clear cache asks for confirmation")
         checkpoint("clear-cache-confirmation")

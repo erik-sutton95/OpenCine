@@ -161,13 +161,16 @@ open class SharedAppUITestCase: XCTestCase {
         _ action: XCUIElement, file: StaticString = #filePath, line: UInt = #line
     ) {
         let app = self.app!
+        let deadline = Date().addingTimeInterval(5)
         let cancel = app.buttons.matching(NSPredicate(format: "label == 'Cancel'"))
             .allElementsBoundByIndex.first(where: \.isHittable)
         let outside = app.otherElements["PopoverDismissRegion"]
         if let cancel {
-            cancel.tap()
+            guard tapWhenReady(cancel, in: app, deadline: deadline, file: file, line: line)
+            else { return }
         } else if outside.exists {
-            outside.tap()
+            guard tapWhenReady(outside, in: app, deadline: deadline, file: file, line: line)
+            else { return }
         } else {
             let tree = XCTAttachment(string: app.debugDescription)
             tree.name = "confirmation-without-cancel"
@@ -176,7 +179,8 @@ open class SharedAppUITestCase: XCTestCase {
             return XCTFail("The confirmation offers no way to cancel", file: file, line: line)
         }
         XCTAssertTrue(
-            action.waitForNonExistence(timeout: 5), "The confirmation must close", file: file,
+            action.waitForNonExistence(timeout: 5),
+            "The confirmation must close", file: file,
             line: line)
     }
 }
