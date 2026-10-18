@@ -869,7 +869,7 @@
                 XCTAssertGreaterThanOrEqual(target.accessibilityFrame.height, 44 - monitorFloorMeasurementTolerance)
             }
             XCTAssertLessThanOrEqual(format.accessibilityFrame.maxY, detail.accessibilityFrame.minY + 0.5)
-            XCTAssertEqual(detail.accessibilityValue, colorOnly ? "COLOR" : "R3D NE")
+            XCTAssertEqual(detail.accessibilityValue, colorOnly ? "D-Log2" : "R3D NE")
             XCTAssertTrue(detail.accessibilityActivate())
             XCTAssertEqual(colorOnly ? probe.colorCalls : probe.codecCalls, 1)
         }
@@ -949,7 +949,7 @@
                 "canvasWidth": sample.width, "rawSafeTop": sample.safeTop, "sideSafe": sample.sideSafe,
                 "scale": availabilityImage.scale, "statusAnchorPoints": live.presentation!.status.y,
                 "expectedPicturePoints": [live.picture.minX, live.picture.minY, live.picture.width, live.picture.height],
-                "expectedColor": "COLOR", "expectedCodec": "R3D NE",
+                "expectedColor": "D-Log2", "expectedCodec": "R3D NE",
                 "actualNativeNodes": nodes.map {
                     ["label": ($0.accessibilityLabel as Any?) ?? NSNull(),
                         "value": ($0.accessibilityValue as Any?) ?? NSNull(),
@@ -979,7 +979,7 @@
                 "scale": image.scale, "statusAnchorPoints": live.presentation!.status.y,
                 "expectedPicturePoints": [live.picture.minX, live.picture.minY, live.picture.width, live.picture.height],
                 "recording": probe.status.recordingLabel, "elapsed": probe.status.elapsedLabel,
-                "clock": (probe.status.timecode as Any?) ?? NSNull(), "primary": "[FX] 6K · 25p", "color": "COLOR", "codec": "R3D NE",
+                "clock": (probe.status.timecode as Any?) ?? NSNull(), "primary": "[FX] 6K · 25p", "color": "D-Log2", "codec": "R3D NE",
                 "nativeTopTolerancePoints": 0.5,
                 "actualNativeNodes": [recording, clock, format, color, codec, picture].map {
                     ["label": ($0.accessibilityLabel as Any?) ?? NSNull(), "value": ($0.accessibilityValue as Any?) ?? NSNull(),
@@ -994,7 +994,7 @@
             XCTAssertEqual(recording.accessibilityFrame.minY, clock.accessibilityFrame.minY, accuracy: 0.5)
             XCTAssertEqual(clock.accessibilityFrame.minY, live.presentation!.status.y, accuracy: 0.5)
             XCTAssertEqual(format.accessibilityValue, "[FX] 6K · 25p")
-            XCTAssertEqual(color.accessibilityValue, "COLOR")
+            XCTAssertEqual(color.accessibilityValue, "D-Log2")
             XCTAssertEqual(codec.accessibilityValue, "R3D NE")
             XCTAssertEqual(recording.accessibilityValue, probe.status.elapsedLabel)
             for target in [format, color, codec] {
@@ -1257,7 +1257,7 @@
             XCTAssertEqual(probe.codecCalls, 1); XCTAssertEqual(probe.formatCalls, 0); XCTAssertEqual(probe.colorCalls, 0)
         }
         private func nativeFontReferences() async throws -> [CGFloat] {
-            let values = ["00:48:03:23", "00:48:03:23", "[FX] 6K · 25p", "[FX] 6K · 25p", "R3D NE", "R3D NE", "COLOR", "COLOR"]
+            let values = ["00:48:03:23", "00:48:03:23", "[FX] 6K · 25p", "[FX] 6K · 25p", "R3D NE", "R3D NE", "D-Log2", "D-Log2"]
             // Codec and color share the detail line, so both use the detail size range.
             let sizes: [CGFloat] = [10, 23, 10, live.presentation!.tablet ? 22 : 20, 10, 13, 10, 13]
             let reference = try HeaderWindow(rootView: AnyView(
@@ -1351,7 +1351,7 @@
         }
         private func assertCompletePaint(_ image: UIImage, nodes: [NSObject], expected: [String]? = nil) throws {
             let expected = expected ?? [probe.status.recordingLabel + " " + probe.status.elapsedLabel,
-                probe.status.timecode!, "[FX] 6K · 25p", "COLOR", "R3D NE"]
+                probe.status.timecode!, "[FX] 6K · 25p", "D-Log2", "R3D NE"]
             var diagnostics: [String] = []
             // A stacked primary's target reaches under its glyphs; crop it at the detail line.
             let detailTop = nodes.map(\.accessibilityFrame.minY).filter {
@@ -1390,7 +1390,7 @@
                         let fit = MonitorPortraitPrimarySizer().fitRow(width: CGFloat(field.status.width),
                             scale: image.scale, typeSize: .large,
                             recording: [probe.status.recordingLabel, probe.status.elapsedLabel],
-                            clock: probe.status.timecode, primary: value, details: ["R3D NE"], color: "COLOR",
+                            clock: probe.status.timecode, primary: value, details: ["R3D NE"], color: "D-Log2",
                             maximumPrimarySize: live.presentation!.tablet ? 22 : 20, maximumDetailSize: 13)
                         let reference = try NativeOriginalSpaceControls.originalReference(
                             fontSize: fit.primarySize, tracking: fit.tracking)

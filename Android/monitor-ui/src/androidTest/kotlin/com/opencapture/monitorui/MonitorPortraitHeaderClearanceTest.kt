@@ -455,7 +455,7 @@ class MonitorPortraitHeaderClearanceTest {
                         fontReferences = listOf("00:48:03:23" to 10f, "00:48:03:23" to mainMaximum,
                             "[FX] 6K · 25p" to 10f, "[FX] 6K · 25p" to (if (field.tablet) 22f else 20f), "R3D NE" to 10f, "R3D NE" to 13f,
                             // Codec and color share the detail line, so both use the detail size range.
-                            "COLOR" to 10f, "COLOR" to 13f).map { (value, size) ->
+                            "D-Log2" to 10f, "D-Log2" to 13f).map { (value, size) ->
                             nativeMeasurer.measure(androidx.compose.ui.text.AnnotatedString(value),
                                 style = MonitorTypography.readout(size, androidx.compose.ui.text.font.FontWeight.Medium))
                         }
@@ -583,11 +583,15 @@ class MonitorPortraitHeaderClearanceTest {
                             assertEquals(colorOnly, nodes.any {
                                 it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull() == "Color mode"
                             })
-                            assertEquals(if (colorOnly) "COLOR" else "R3D NE", detail.config[SemanticsProperties.StateDescription])
-                            assertTrue("Selected profile and FX/DX stay out of the portrait header", nodes.none {
+                            assertEquals(if (colorOnly) "D-Log2" else "R3D NE", detail.config[SemanticsProperties.StateDescription])
+                            assertEquals("Selected profile belongs in the color-only portrait header", colorOnly, nodes.any {
                                 val text = it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text
                                 val value = it.config.getOrNull(SemanticsProperties.StateDescription)
-                                text == "D-Log2" || value == "D-Log2" || text?.contains("[FX]") == true || text?.contains("[DX]") == true
+                                text == "D-Log2" || value == "D-Log2"
+                            })
+                            assertTrue("FX/DX stay out of the portrait header", nodes.none {
+                                val text = it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text
+                                text?.contains("[FX]") == true || text?.contains("[DX]") == true
                             })
                             assertRenderedBands(activity.window.decorView, width, top, emptyList(), listOf(
                                 "status" to recording.boundsInRoot, "clock" to clock.boundsInRoot,
@@ -599,7 +603,7 @@ class MonitorPortraitHeaderClearanceTest {
                             }
                             assertTrue("Primary/detail targets stay separate", format.boundsInRoot.bottom <= detail.boundsInRoot.top + .5f)
                             assertTrue("Clock clears both header lines", clock.boundsInRoot.right <= minOf(format.boundsInRoot.left, detail.boundsInRoot.left) + .5f)
-                            for ((value, maximum) in listOf("6K · 25p" to 20f, (if (colorOnly) "COLOR" else "R3D NE") to 13f)) {
+                            for ((value, maximum) in listOf("6K · 25p" to 20f, (if (colorOnly) "D-Log2" else "R3D NE") to 13f)) {
                                 val node = nodes.single { it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == value }
                                 val results = mutableListOf<TextLayoutResult>()
                                 assertTrue(node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results))
@@ -689,7 +693,7 @@ class MonitorPortraitHeaderClearanceTest {
                             it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull() == "Color mode"
                         }
                         android.util.Log.i("B5FiveReadoutInventory", JSONObject()
-                            .put("expectedColor", "COLOR").put("expectedCodec", "R3D NE")
+                            .put("expectedColor", "D-Log2").put("expectedCodec", "R3D NE")
                             .put("canvasWidth", width).put("rawSafeTop", top).put("sideSafe", side)
                             .put("elapsedSeconds", duration ?: JSONObject.NULL)
                             .put("nodeCount", nodes.size).toString())
@@ -724,7 +728,7 @@ class MonitorPortraitHeaderClearanceTest {
                         // Diagnostics precede unchanged geometry guards; a failing width remains a failing case.
                         val nativeParagraphs = nodes.mapNotNull { node ->
                             val value = node.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text
-                            if (value !in listOf("[FX] 6K · 25p", "COLOR", "R3D NE")) null
+                            if (value !in listOf("[FX] 6K · 25p", "D-Log2", "R3D NE")) null
                             else {
                                 val results = mutableListOf<TextLayoutResult>()
                                 val supplied = node.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(results) == true
@@ -743,7 +747,7 @@ class MonitorPortraitHeaderClearanceTest {
                             .put("density", density).put("actualFontScale", activity.resources.configuration.fontScale)
                             .put("canvasBoundsPixels", canvas.toString()).put("nativeStatusRectDp", field.status.toString())
                             .put("statusWidthDp", field.status.width).put("paragraphs", org.json.JSONArray(nativeParagraphs)).toString())
-                        val color = requireNotNull(availableColor) { "Production Color mode must remain present with COLOR" }
+                        val color = requireNotNull(availableColor) { "Production Color mode must remain present with its profile" }
                         assertEquals(recording.boundsInRoot.top, clock.boundsInRoot.top, .5f)
                         val primaryText = nodes.single {
                             it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == "[FX] 6K · 25p"
@@ -811,7 +815,7 @@ class MonitorPortraitHeaderClearanceTest {
                         // Clock intentionally clears its Text semantics. Its full eleven-character
                         // paint is independently validated from the original PNG and bounded native frame.
                         val mainFonts = mutableMapOf("clockNativeHeightPixels" to clock.boundsInRoot.height)
-                        for (value in listOf("[FX] 6K · 25p", "COLOR", "R3D NE")) {
+                        for (value in listOf("[FX] 6K · 25p", "D-Log2", "R3D NE")) {
                             val textNode = nodes.single { it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == value }
                             val results = mutableListOf<TextLayoutResult>()
                             assertTrue("Actual native paragraph required", textNode.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results))
@@ -836,8 +840,8 @@ class MonitorPortraitHeaderClearanceTest {
                             assertEquals(value.length, result.getLineEnd(0, visibleEnd = false))
                             // Actual paragraph glyphs supplement the retained native layout input.
                             assertTrue("Native glyphs must have positive height", result.getBoundingBox(0).height > 0f)
-                            val floorIndex = when (value) { "R3D NE" -> 4; "COLOR" -> 6; else -> 2 }
-                            val upperIndex = when (value) { "R3D NE" -> 5; "COLOR" -> 7; else -> 3 }
+                            val floorIndex = when (value) { "R3D NE" -> 4; "D-Log2" -> 6; else -> 2 }
+                            val upperIndex = when (value) { "R3D NE" -> 5; "D-Log2" -> 7; else -> 3 }
                             assertTrue("Actual native paragraph font floor",
                                 result.getBoundingBox(0).height >= fontReferences[floorIndex].getBoundingBox(0).height - .5f)
                             assertTrue("Actual native paragraph font maximum",
