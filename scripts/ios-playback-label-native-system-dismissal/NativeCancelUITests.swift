@@ -386,14 +386,25 @@ final class NativeCancelUITests: XCTestCase {
             .switch, .slider, .textField, .secureTextField, .textView, .link,
             .picker, .pickerWheel, .segmentedControl, .stepper, .cell,
         ]
-        for element in window.descendants(matching: .any).allElementsBoundByIndex
-        where unexpected.contains(element.elementType) {
+        guard let descendants = descendantSnapshots(of: window) else { return false }
+        for element in descendants where unexpected.contains(element.elementType) {
             guard ContinuousClock().now < deadline else { return false }
-            if element.exists && !proof.presentationFrameOnScreen.rect.contains(element.frame) {
-                return false
-            }
+            if !proof.presentationFrameOnScreen.rect.contains(element.frame) { return false }
         }
         return ContinuousClock().now < deadline
+    }
+
+    // Walk one atomic automation-tree snapshot. Resolving descendants by index costs an AX round
+    // trip per element (beyond the thirty-second budget on hosted runners) and fails outright
+    // when the tree shrinks between indices. Every snapshotted element is checked; none is skipped.
+    private func descendantSnapshots(of window: XCUIElement) -> [XCUIElementSnapshot]? {
+        guard let root = try? window.snapshot() else { return nil }
+        var pending = root.children, result: [XCUIElementSnapshot] = []
+        while let next = pending.popLast() {
+            result.append(next)
+            pending += next.children
+        }
+        return result
     }
 
     private func exactFrameObservation(_ frame: CGRect) -> [String: Any] {
@@ -442,10 +453,10 @@ final class NativeCancelUITests: XCTestCase {
             .button, .switch, .slider, .textField, .secureTextField, .textView, .link,
             .picker, .pickerWheel, .segmentedControl, .stepper,
         ]
-        for element in window.descendants(matching: .any).allElementsBoundByIndex
-        where controls.contains(element.elementType) {
+        guard let descendants = descendantSnapshots(of: window) else { return nil }
+        for element in descendants where controls.contains(element.elementType) {
             guard ContinuousClock().now < deadline else { return nil }
-            if element.exists && element.frame.contains(proof.pointOnScreen.point) { return nil }
+            if element.frame.contains(proof.pointOnScreen.point) { return nil }
         }
         let coordinate = region.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(
             CGVector(

@@ -24,7 +24,7 @@ NAMES = [
 ]
 FROZEN = {
     'NativeCancelReceipt.swift': '748421482fd6f26e78293f9a9b1071237edd5332079169fbf52b3305bfd2af63',
-    'NativeCancelUITests.swift': 'e5137f000f1c7886d023eef2dbc5f5a4649e50786ae18769f36af35d9f11be2c',
+    'NativeCancelUITests.swift': 'e055cb956f243b6fd47ea5e06560899c830da1795856b171a33aeb669f067bb2',
     'SimulatedNativeCancelHost.swift': '181554d188ea52679ef0ec90ff45fd6615515d229d3a92d26120b9b72395b364',
 }
 
