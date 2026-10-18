@@ -324,7 +324,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             fun displayValue(value: MonitorOperatorLiveReadout<K, S>): String = value.value ?: "--"
             val details = visibleFormat.drop(if (visibleFormat.firstOrNull()?.section == MonitorDisplaySection.CODEC) 0 else 1)
                 .filter { it.id != shownPrimary?.id }
-            // Portrait stacks resolution/frame rate above codec, or the neutral color-only entry.
+            // Portrait stacks resolution/frame rate above codec, or the color-only profile entry.
             // Without a primary, the first lower readout takes the top line.
             val lower = details + listOfNotNull(shownColor)
             val top = shownPrimary ?: lower.firstOrNull()

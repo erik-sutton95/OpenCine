@@ -558,7 +558,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             }
             let details = visibleFormat.dropFirst(visibleFormat.first?.section == .codec ? 0 : 1)
                 .filter { $0.id != primary?.id }
-            // Portrait stacks resolution/frame rate above codec, or the neutral color-only entry.
+            // Portrait stacks resolution/frame rate above codec, or the color-only profile entry.
             // Without a primary, the first lower readout takes the top line.
             let lower = Array(details) + [color].compactMap { $0 }
             let top = primary ?? lower.first
