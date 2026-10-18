@@ -161,7 +161,6 @@ public fun MonitorOperatorScreen(
                 itemModifier = Modifier.testTag("monitor.capture.${captured.key.name.lowercase()}")) },
             panel = field?.let { MonitorOperatorCameraPanel(MonitorOperatorSceneCaptureKey.Setting(it.key), false,
                 title = it.title, subtitle = it.label ?: "Not set", field = it) },
-            columns = if (layout.portrait && !layout.tablet) 3 else maxOf(1, fields.size),
             open = { key -> if (!locked && !covered && session.interactive && !session.isEditing &&
                 key is MonitorOperatorSceneCaptureKey.Setting) field = shell.control.captureField(key.key) },
             dismiss = { field = null }, commitAdmission = { !locked && !covered && session.interactive && !session.isEditing })

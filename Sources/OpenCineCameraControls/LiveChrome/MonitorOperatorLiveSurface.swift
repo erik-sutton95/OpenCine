@@ -717,7 +717,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var captureChrome: some View {
         MonitorOperatorCaptureStrip(inputs: captureInputs, control: control, state: captureState,
             source: captureSource, enabled: presentationAdmitted, commandEnabled: !readOnly,
-            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name)
+            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
+            portrait: layout.portrait, tablet: layout.tablet)
             .modifier(ChromeEditableModifier<Host>(section: .cameraValues, mode: editing))
     }
     private func frameReader(_ key: Key) -> some View {

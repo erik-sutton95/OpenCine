@@ -97,7 +97,6 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
                 enabled: meter.face != nil, isCurrent: meter.isCurrent,
                 action: { if let face = meter.face { meter.setFace(!face) } })]
         } else { supplementary = [] }
-        let visibleCount = readouts.count + supplementary.count
         let presented = presentedSheet.map { $0() } ?? host.captureSheet
         let panel = presented.map { sheet in
             let ev = sheet == .shutter && automatic
@@ -108,7 +107,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         }
         var ownedPreview: UUID?
         return Self(readouts: readouts, panel: panel,
-            columns: columns == 3 ? 3 : max(1, visibleCount), haptics: host.hapticsEnabled,
+            columns: columns, haptics: host.hapticsEnabled,
             open: { sheet in
                 guard !host.sessionLocked, !host.operatorPanelOpen, !host.coverOpen, host.captureDrum == nil else { return }
                 if let open { open(sheet); return }

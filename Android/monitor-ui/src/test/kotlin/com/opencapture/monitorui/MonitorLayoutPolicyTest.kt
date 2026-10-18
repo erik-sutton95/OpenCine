@@ -82,10 +82,19 @@ class MonitorLayoutPolicyTest {
 
     @Test
     fun phoneReadoutsUseThreeColumnsEvenWhenOneCapabilityIsAbsent() {
-        assertEquals(3, MonitorLayoutPolicy.valueColumns(320f, true, 6))
-        assertEquals(3, MonitorLayoutPolicy.valueColumns(393f, true, 5))
-        assertEquals(6, MonitorLayoutPolicy.valueColumns(716f, true, 6))
-        assertEquals(6, MonitorLayoutPolicy.valueColumns(420f, false, 6))
+        assertEquals(3, MonitorLayoutPolicy.valueColumns(6, portrait = true, tablet = false))
+        assertEquals(3, MonitorLayoutPolicy.valueColumns(5, portrait = true, tablet = false))
+        assertEquals(6, MonitorLayoutPolicy.valueColumns(6, portrait = true, tablet = true))
+        assertEquals(6, MonitorLayoutPolicy.valueColumns(6, portrait = false, tablet = false))
+    }
+
+    @Test
+    fun phonePortraitReadoutsWidenToStayInTwoRows() {
+        assertEquals(4, MonitorLayoutPolicy.valueColumns(7, portrait = true, tablet = false))
+        assertEquals(5, MonitorLayoutPolicy.valueColumns(9, portrait = true, tablet = false))
+        assertEquals(9, MonitorLayoutPolicy.valueColumns(9, portrait = false, tablet = false))
+        assertEquals(3, MonitorLayoutPolicy.valueColumns(0, portrait = true, tablet = false))
+        assertEquals(1, MonitorLayoutPolicy.valueColumns(0, portrait = false, tablet = false))
     }
 
     @Test

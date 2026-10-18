@@ -467,8 +467,15 @@ object MonitorLayoutPolicy {
         return Panel((width - panelWidth) / 2f, top, panelWidth, room)
     }
 
-    fun valueColumns(width: Float, portrait: Boolean, count: Int): Int =
-        if (portrait && width < 600f) 3 else count.coerceAtLeast(1)
+    /**
+     * Camera values per row. A phone in portrait holds three and widens only so the values
+     * still fit the band's two rows; elsewhere they share one row.
+     * Mirrors Swift `FieldMonitorLayout.valueColumns`.
+     */
+    fun valueColumns(count: Int, portrait: Boolean, tablet: Boolean): Int {
+        val values = count.coerceAtLeast(1)
+        return if (portrait && !tablet) maxOf(3, (values + 1) / 2) else values
+    }
 
     fun readoutValueSize(tablet: Boolean): Float = if (tablet) 18f else 16f
     const val READOUT_LABEL_SIZE = 9f

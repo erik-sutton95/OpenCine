@@ -2,6 +2,34 @@ import MonitorPresentation
 import Testing
 
 struct FieldMonitorLayoutTests {
+    /// Same table as Kotlin `MonitorLayoutPolicyTest`: three per row on a portrait phone,
+    /// widened only to keep two rows; one row elsewhere.
+    @Test(arguments: [
+        (6, true, false, 3), (5, true, false, 3), (7, true, false, 4), (9, true, false, 5),
+        (0, true, false, 3), (6, true, true, 6), (9, false, false, 9), (0, false, false, 1),
+    ])
+    func valueColumns(count: Int, portrait: Bool, tablet: Bool, expected: Int) {
+        #expect(
+            FieldMonitorLayout.valueColumns(count: count, portrait: portrait, tablet: tablet)
+                == expected)
+    }
+
+    /// Up to ten values keep the two rows six values use on every portrait phone, each tile a
+    /// full touch target wide (8 pt grid gap).
+    @Test func phonePortraitValuesStayInTwoRows() {
+        for width in [320.0, 393, 440] {
+            let layout = FieldMonitorLayout(
+                width: width, height: width * 2.17, safeArea: .init(top: 59, bottom: 34))
+            for count in 1...10 {
+                let columns = FieldMonitorLayout.valueColumns(
+                    count: count, portrait: true, tablet: false)
+                #expect((count + columns - 1) / columns <= 2, "\(width) \(count)")
+                let cell = (layout.values.width - Double(columns - 1) * 8) / Double(columns)
+                #expect(cell >= FieldMonitorLayout.minimumTapTarget, "\(width) \(count)")
+            }
+        }
+    }
+
     @Test func portraitRevisionRestoresTopPlacementAndKeepsFocusOnTheLeft() {
         for (width, height, top) in [
             (320.0, 568.0, 24.0), (393, 852, 59), (440, 956, 62), (744, 1133, 24),

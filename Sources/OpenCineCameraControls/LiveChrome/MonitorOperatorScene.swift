@@ -230,7 +230,7 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
         }
         return .init(readouts: values, panel: opened.map {
             .init(key: .setting($0.key), title: $0.title, subtitle: $0.label ?? "Not set", field: $0)
-        }, columns: layout.presentation?.portrait == true && layout.presentation?.tablet == false ? 3 : max(1, fields.count), haptics: preferences.haptics,
+        }, haptics: preferences.haptics,
             open: { key in
                 guard !operatorSession.locked, shell.cover == nil, operatorSession.interactive, !operatorSession.isEditing,
                     case .setting(let setting) = key else { return }

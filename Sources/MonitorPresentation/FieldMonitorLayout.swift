@@ -73,6 +73,13 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public static func landscapeGaugeGap(tablet: Bool) -> Double {
         max(6, (minimumTapTarget - telemetryGaugeHeight(tablet: tablet)) / 2)
     }
+    /// Camera values per row. A phone in portrait holds three and widens only so the values
+    /// still fit the band's two rows; elsewhere they share one row.
+    /// Mirrors Kotlin `MonitorLayoutPolicy.valueColumns`.
+    public static func valueColumns(count: Int, portrait: Bool, tablet: Bool) -> Int {
+        let count = max(1, count)
+        return portrait && !tablet ? max(3, (count + 1) / 2) : count
+    }
 
     public let viewport: MonitorRect
     public let picture: MonitorRect

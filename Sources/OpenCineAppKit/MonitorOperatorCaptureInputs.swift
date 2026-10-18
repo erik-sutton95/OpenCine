@@ -145,6 +145,13 @@ public struct MonitorOperatorCapturePreview<Key: Hashable, NativeIdentity: Hasha
         self.previewChanged = previewChanged
         self.commitAdmission = commitAdmission; self.presentationOwner = presentationOwner
     }
+
+    /// The caller's explicit count, else the shared camera-value rule for this layout.
+    public func columns(portrait: Bool, tablet: Bool) -> Int {
+        let count = readouts.count + supplementaryReadouts.count
+        return max(1, columns ?? FieldMonitorLayout.valueColumns(
+            count: count, portrait: portrait, tablet: tablet))
+    }
 }
 
 extension MonitorOperatorCaptureInputs where NativeIdentity == Never {
@@ -206,18 +213,22 @@ public struct MonitorOperatorCaptureStrip<Key: Hashable, Section: Hashable,
     private let commandEnabled: Bool
     private let currentSource: () -> Bool
     private let coordinateSpace: String
+    private let portrait: Bool
+    private let tablet: Bool
     public init(inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>, control: MonitorControlModel,
         state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity,
         enabled: Bool, commandEnabled: Bool = true, currentSource: @escaping () -> Bool,
-        coordinateSpace: String = "monitor.canvas") {
+        coordinateSpace: String = "monitor.canvas", portrait: Bool = false, tablet: Bool = false) {
         self.inputs = inputs; self.control = control; self.state = state; self.source = source
         self.enabled = enabled; self.commandEnabled = commandEnabled; self.currentSource = currentSource
-        self.coordinateSpace = coordinateSpace
+        self.coordinateSpace = coordinateSpace; self.portrait = portrait; self.tablet = tablet
     }
 
     public var body: some View {
-        let columns = max(1, inputs.columns ?? (inputs.readouts.count + inputs.supplementaryReadouts.count))
-        MonitorControlGrid(columns: columns, spacing: columns == 3 ? 8 : 12, equalColumns: columns == 3) {
+        let columns = inputs.columns(portrait: portrait, tablet: tablet)
+        // A phone in portrait lays values out as an even grid; one row spreads by label width.
+        let grid = portrait && !tablet || columns == 3
+        MonitorControlGrid(columns: columns, spacing: grid ? 8 : 12, equalColumns: grid) {
             ForEach(inputs.readouts) { readout in
                 CaptureStripReadout(inputs: inputs, readout: readout, control: control, state: state,
                     source: source, enabled: enabled, commandEnabled: commandEnabled,
