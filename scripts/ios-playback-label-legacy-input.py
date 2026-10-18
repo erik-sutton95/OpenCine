@@ -160,6 +160,78 @@ final class OpenCinePlaybackLabelsDiagnosticApplication: UIApplication {
                 method_exchangeImplementations(a, b)
             }
         }
+        hookDismissalChain()
+    }
+
+    // Wraps each private link of UIKit's outside-tap popover dismissal so the log shows the
+    // first one that does not run, with its inputs. Pure observation: every original runs.
+    private func hookDismissalChain() {
+        typealias ObjectFn = @convention(c) (AnyObject, Selector, AnyObject?) -> Void
+        typealias ReasonFn = @convention(c) (AnyObject, Selector, Int, CGPoint) -> Void
+        typealias PointFn = @convention(c) (AnyObject, Selector, AnyObject?, CGPoint) -> Void
+        typealias PairFn = @convention(c) (AnyObject, Selector, AnyObject?, AnyObject?) -> Void
+        typealias BoolFn = @convention(c) (AnyObject, Selector) -> Bool
+        hook("_UIPassthroughScrollInteraction", "_handlePassthroughRecognizer:") { imp, sel in
+            let original = unsafeBitCast(imp, to: ObjectFn.self)
+            let block: @convention(block) (AnyObject, AnyObject?) -> Void = { object, recognizer in
+                trace("handleRecognizer", object, [
+                    "state": recognizer.map { flag($0, "state") } ?? "nil",
+                    "endReason": recognizer.map { flag($0, "endReason") } ?? "nil",
+                    "eatsTouches": flag(object, "eatsTouches"),
+                    "inactiveOnly": flag(object, "configuredForInactiveInteractionEventsOnly"),
+                ])
+                original(object, sel, recognizer)
+            }
+            return block
+        }
+        hook("_UIPassthroughScrollInteraction", "_handlePassthroughGestureRecognizerEndWithReason:atLocation:") { imp, sel in
+            let original = unsafeBitCast(imp, to: ReasonFn.self)
+            let block: @convention(block) (AnyObject, Int, CGPoint) -> Void = { object, reason, point in
+                trace("endWithReason", object, ["reason": reason, "point": [Double(point.x), Double(point.y)],
+                                                "eatsTouches": flag(object, "eatsTouches")])
+                original(object, sel, reason, point)
+            }
+            return block
+        }
+        for (owner, selector) in [
+            ("_UIPopoverDimmingView", "passthroughScrollInteractionDidRecognize:atLocation:"),
+            ("UIPopoverPresentationController", "popoverDimmingViewDidReceiveDismissalInteraction:atLocation:"),
+        ] {
+            hook(owner, selector) { imp, sel in
+                let original = unsafeBitCast(imp, to: PointFn.self)
+                let block: @convention(block) (AnyObject, AnyObject?, CGPoint) -> Void = { object, argument, point in
+                    trace(selector, object, ["point": [Double(point.x), Double(point.y)]])
+                    original(object, sel, argument, point)
+                }
+                return block
+            }
+        }
+        hook("_UIAlertControllerActionSheetRegularPresentationController", "dimmingViewWasTapped:withDismissCompletion:") { imp, sel in
+            let original = unsafeBitCast(imp, to: PairFn.self)
+            let block: @convention(block) (AnyObject, AnyObject?, AnyObject?) -> Void = { object, view, completion in
+                trace("dimmingViewWasTapped", object, [
+                    "dismissingBecauseInteraction": flag(object, "_popoverIsDismissingBecauseDismissInteractionOccurred")])
+                original(object, sel, view, completion)
+            }
+            return block
+        }
+        hook("UIPopoverPresentationController", "_attemptDismissalWithCompletion:") { imp, sel in
+            let original = unsafeBitCast(imp, to: ObjectFn.self)
+            let block: @convention(block) (AnyObject, AnyObject?) -> Void = { object, completion in
+                trace("attemptDismissal", object, ["presented": flag(object, "presented")])
+                original(object, sel, completion)
+            }
+            return block
+        }
+        hook("UIPopoverPresentationController", "_shouldDismiss") { imp, sel in
+            let original = unsafeBitCast(imp, to: BoolFn.self)
+            let block: @convention(block) (AnyObject) -> Bool = { object in
+                let result = original(object, sel)
+                trace("shouldDismiss", object, ["result": result])
+                return result
+            }
+            return block
+        }
     }
 
     func record(_ kind: String, _ object: AnyObject) {
@@ -293,7 +365,7 @@ final class OpenCinePlaybackLabelsDiagnosticApplication: UIApplication {
         return rows
     }
 
-    private func log(_ row: [String: Any]) {
+    fileprivate func log(_ row: [String: Any]) {
         var row = row
         row["at"] = Date().timeIntervalSince1970
         guard JSONSerialization.isValidJSONObject(row),
@@ -306,6 +378,26 @@ final class OpenCinePlaybackLabelsDiagnosticApplication: UIApplication {
             try? data.write(to: logURL)
         }
     }
+}
+
+private func hook(_ owner: String, _ selector: String, _ make: (IMP, Selector) -> Any) {
+    let sel = Selector(selector)
+    guard let cls = NSClassFromString(owner), let method = class_getInstanceMethod(cls, sel)
+    else { trace("hookMissing", NSNull(), ["owner": owner, "selector": selector]); return }
+    method_setImplementation(
+        method, imp_implementationWithBlock(make(method_getImplementation(method), sel)))
+}
+
+private func trace(_ link: String, _ object: AnyObject, _ fields: [String: Any] = [:]) {
+    var row = fields
+    row["kind"] = "chain"; row["link"] = link
+    row["object"] = String(describing: type(of: object))
+    nonisolated(unsafe) let value = row
+    MainActor.assumeIsolated { OpenCinePlaybackLabelsDiagnosticApplication.current?.log(value) }
+}
+
+private func flag(_ object: AnyObject, _ key: String) -> Any {
+    object.responds(to: Selector(key)) ? ((object as? NSObject)?.value(forKey: key) ?? "nil") : "n/a"
 }
 
 extension UIViewController {
