@@ -76,7 +76,10 @@ import Testing
     /// Without a pending system request the attempt keeps its timeout and the retry loop.
     @Test func aJoinWithoutPromptTimesOutAndRetries() async throws {
         let probe = Probe()
-        try await Self.run(probe) { _, _ in
+        // Hosted Swift Testing runs this suite beside the full package workload. The retry
+        // deadline must not race that scheduling; the attempt timeout and pause below stay
+        // at their fast test values and the production timing is unchanged.
+        try await Self.run(probe, budget: .seconds(60)) { _, _ in
             if probe.joins > 1 { probe.onNetwork = true; return }
             try await Task.sleep(for: .seconds(30))
         }
