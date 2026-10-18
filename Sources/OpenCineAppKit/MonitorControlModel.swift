@@ -337,12 +337,14 @@ public final class MonitorControlModel {
         guard scheduled.insert(key).inserted else { return }
         let current = binding
         let revision = editRevisions[key, default: 0]
+        // Hosted Swift 6.3.3 aborts in the task allocator when the stored closure is called
+        // through `self` here; capturing it first also leaves the model free during the window.
+        let sleep = sleep, coalescing = coalescing
         Task { [weak self] in
-            guard let self else { return }
-            await self.sleep(self.coalescing)
-            guard self.binding == current, self.editRevisions[key, default: 0] == revision else {
-                return
-            }
+            await sleep(coalescing)
+            guard let self, self.binding == current,
+                self.editRevisions[key, default: 0] == revision
+            else { return }
             self.scheduled.remove(key)
             self.submit(key)
         }
