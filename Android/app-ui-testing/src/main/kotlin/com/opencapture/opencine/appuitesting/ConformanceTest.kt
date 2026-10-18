@@ -13,6 +13,7 @@ import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.Display
@@ -55,6 +56,7 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
     private val target: String = instrumentation.targetContext.packageName
     private val tags = HashMap<AccessibilityNodeInfo, String?>()
     private var scenario: ActivityScenario<out Activity>? = null
+    private var snapshotStages = ""
 
     /** The profile the app's androidTest source set declared. */
     public val profile: ConformanceProfile get() = subject.profile
@@ -114,14 +116,28 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
      * container, the way XCUITest's snapshot does.
      */
     public fun snapshot(bound: Int = 5_000): UiSnapshot {
+        if (Looper.myLooper() == Looper.getMainLooper()) return readSnapshot(bound)
+        var observed: Result<UiSnapshot>? = null
+        // The native accessibility client dispatches same-process UI-thread queries directly.
+        // The caller still owns the original deadline and the gap between fresh observations.
+        instrumentation.runOnMainSync { observed = runCatching { readSnapshot(bound) } }
+        return checkNotNull(observed).getOrThrow()
+    }
+
+    private fun readSnapshot(bound: Int): UiSnapshot {
+        val began = SystemClock.uptimeMillis()
         // Native cache entries can outlive Compose layout updates; every observation is current.
         if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        val cacheCleared = SystemClock.uptimeMillis()
         val windows = automation.windows.mapNotNull { window ->
             val root = window.root ?: return@mapNotNull null
             if (root.packageName?.toString() != target) return@mapNotNull null
             val bounds = Rect().also(window::getBoundsInScreen)
             UiWindow(window.id, window.layer, bounds.box(), root)
         }
+        val windowsRead = SystemClock.uptimeMillis()
+        var childMs = 0L
+        var tagMs = 0L
         val nodes = ArrayList<UiNode>()
         var complete = true
         for (window in windows.sortedBy { it.layer }) {
@@ -133,14 +149,26 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
                 }
                 val (info, parent, scrolling) = pending.removeFirst()
                 val index = nodes.size
-                nodes += UiNode(info, tagOf(info), labelOf(info), window, parent, scrolling)
+                val tagBegan = SystemClock.uptimeMillis()
+                val tag = tagOf(info)
+                tagMs += SystemClock.uptimeMillis() - tagBegan
+                nodes += UiNode(info, tag, labelOf(info), window, parent, scrolling)
                 val inScroll = scrolling || info.isScrollable
                 for (child in 0 until info.childCount) {
-                    info.getChild(child)?.let { pending.addLast(Triple(it, index, inScroll)) }
+                    val childBegan = SystemClock.uptimeMillis()
+                    val descendant = info.getChild(child)
+                    childMs += SystemClock.uptimeMillis() - childBegan
+                    descendant?.let { pending.addLast(Triple(it, index, inScroll)) }
                 }
             }
         }
-        return UiSnapshot(spoken(nodes), windows, complete)
+        val walked = SystemClock.uptimeMillis()
+        val labelled = spoken(nodes)
+        val finished = SystemClock.uptimeMillis()
+        snapshotStages = "cacheMs=${cacheCleared - began} windowsMs=${windowsRead - cacheCleared} " +
+            "walkMs=${walked - windowsRead} childMs=$childMs tagMs=$tagMs " +
+            "spokenMs=${finished - walked} nodes=${nodes.size} windows=${windows.size} complete=$complete"
+        return UiSnapshot(labelled, windows, complete)
     }
 
     /**
@@ -248,18 +276,47 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
     }
 
     private fun settled(node: UiNode, timeoutMs: Long = 2_000): UiNode {
-        fun find(): UiNode? = snapshot().nodes.filter {
-            it.visible && if (node.tag != null) it.tag == node.tag else it.label == node.label
-        }.minByOrNull { abs(it.bounds.centerX - node.bounds.centerX) + abs(it.bounds.centerY - node.bounds.centerY) }
-        var last = find() ?: return node
         val deadline = SystemClock.uptimeMillis() + timeoutMs
-        while (SystemClock.uptimeMillis() < deadline) {
-            pause(120)
-            val now = find() ?: return last
-            if (now.bounds == last.bounds) return now
-            last = now
+        val observations = ArrayList<String>()
+        observations += "target tag=${node.tag} label=${node.label} bounds=${node.bounds} timeoutMs=$timeoutMs"
+        fun readinessFailure(message: String): Nothing {
+            evidence("${javaClass.simpleName}-tap-readiness-${SystemClock.uptimeMillis()}.txt",
+                observations.joinToString("\n"))
+            fail(message)
         }
-        return last
+        var previous: Box? = null
+        while (SystemClock.uptimeMillis() < deadline) {
+            val snapshotStarted = SystemClock.uptimeMillis()
+            val current = snapshot()
+            val snapshotFinished = SystemClock.uptimeMillis()
+            val stages = snapshotStages
+            val now = current.nodes.filter {
+                it.visible && if (node.tag != null) it.tag == node.tag else it.label == node.label
+            }.minByOrNull { abs(it.bounds.centerX - node.bounds.centerX) + abs(it.bounds.centerY - node.bounds.centerY) }
+            if (now == null) {
+                observations += "startMs=${snapshotStarted - (deadline - timeoutMs)} " +
+                    "endMs=${snapshotFinished - (deadline - timeoutMs)} " +
+                    "snapshotMs=${snapshotFinished - snapshotStarted} $stages target=missing previous=$previous"
+                readinessFailure("The target disappeared before input")
+            }
+            val viewport = current.viewport(now)
+            val admitted = now.enabled && now.bounds.width > 0 && now.bounds.height > 0 &&
+                now.window.bounds.containsPoint(now.bounds.centerX, now.bounds.centerY) &&
+                (viewport == null || viewport.shows(now.bounds)) && !current.covers(now)
+            if (admitted && now.bounds == previous && SystemClock.uptimeMillis() < deadline) return now
+            observations += "startMs=${snapshotStarted - (deadline - timeoutMs)} " +
+                "endMs=${snapshotFinished - (deadline - timeoutMs)} snapshotMs=${snapshotFinished - snapshotStarted} $stages " +
+                "tag=${now.tag} label=${now.label} bounds=${now.bounds} window=${now.window.id} " +
+                "layer=${now.window.layer} windowBounds=${now.window.bounds} enabled=${now.enabled} " +
+                "positive=${now.bounds.width > 0 && now.bounds.height > 0} " +
+                "centerInside=${now.window.bounds.containsPoint(now.bounds.centerX, now.bounds.centerY)} " +
+                "viewport=$viewport viewportAdmitted=${viewport == null || viewport.shows(now.bounds)} " +
+                "covered=${current.covers(now)} admitted=$admitted previous=$previous stable=${now.bounds == previous} " +
+                "elapsedMs=${SystemClock.uptimeMillis() - (deadline - timeoutMs)}"
+            previous = if (admitted) now.bounds else null
+            pause(minOf(120, maxOf(0, deadline - SystemClock.uptimeMillis())))
+        }
+        readinessFailure("The target never became enabled, uncovered and stable before input")
     }
 
     public fun tapAt(x: Int, y: Int) {
