@@ -1289,19 +1289,37 @@
         }
         /// Find the primary's actual painted line anywhere inside its complete target. A moved
         /// line is measured where it really appears; no status-row y is used to trim its paint.
+        ///
+        /// The 44pt target reaches up over the telemetry chips, whose own paint (cut at the crop
+        /// edge) can make Vision's rotation-aware recognizer read the whole crop upside down
+        /// ("dgzg]" for the primary at width 440, raw top 59, side 20). Only the paint of other
+        /// native elements is blanked, by their own frames, so the search still covers the full
+        /// target; a primary that moved under another element is hidden and fails here.
         private func primaryPaintFrame(_ image: UIImage, target: CGRect) throws -> CGRect {
             let frame = native.window.convert(target, from: nil)
             let pixels = CGRect(x: floor(frame.minX * image.scale), y: floor(frame.minY * image.scale),
                 width: ceil(frame.maxX * image.scale) - floor(frame.minX * image.scale),
                 height: ceil(frame.maxY * image.scale) - floor(frame.minY * image.scale))
-            let tokens = try Self.paintedTokens(image, pixels: pixels)
+            let foreign = native.nodes().filter { $0.accessibilityLabel != "Recording format" }
+                .map(\.accessibilityFrame).filter { !$0.intersection(target).isEmpty }
+                .map { native.window.convert($0, from: nil).intersection(frame) }
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = image.scale
+            format.opaque = true
+            format.preferredRange = .standard
+            let searched = UIGraphicsImageRenderer(size: image.size, format: format).image { context in
+                image.draw(at: .zero)
+                UIColor.black.setFill()
+                foreign.forEach { context.fill($0) }
+            }
+            let tokens = try Self.paintedTokens(searched, pixels: pixels)
             let anchor = try XCTUnwrap(tokens.first { $0.0.contains("25p") },
-                "The complete original primary must be recognized inside its full native target")
+                "The complete original primary must be recognized inside its full native target \(target); blanked foreign native frames \(foreign); raw Vision \(tokens)")
             let line = tokens.filter { $0.1.minY < anchor.1.maxY && $0.1.maxY > anchor.1.minY }
                 .map(\.1).reduce(CGRect.null) { $0.union($1) }
             let measured = CGRect(x: pixels.minX, y: pixels.minY + (1 - line.maxY) * pixels.height,
                 width: pixels.width, height: line.height * pixels.height)
-            let evidence = XCTAttachment(string: "full target \(target); raw Vision \(tokens); actual primary line pixels \(measured)")
+            let evidence = XCTAttachment(string: "full target \(target); blanked foreign native frames \(foreign); raw Vision \(tokens); actual primary line pixels \(measured)")
             evidence.name = "SIMULATED primary paint located independently of touch expansion"
             evidence.lifetime = .keepAlways
             XCTContext.runActivity(named: "Full-target primary paint measurement") { $0.add(evidence) }
