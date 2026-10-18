@@ -152,7 +152,8 @@ private struct CompactTelemetryRowLayout: Layout {
             minimumLinkWidth: Double(minimumLink.width))
         let link = subviews[1].sizeThatFits(
             ProposedViewSize(width: budget.performanceWidth, height: 48))
-        let extraHeight = (budget.wrapsPower ? 56 : 0) + max(0, power.height - powerHeight)
+        let extraHeight = CGFloat(budget.wrapsPower ? 56 : 0)
+            + max(0, power.height - CGFloat(powerHeight))
         return (storage: storage, link: link, power: power, budget: budget, extraHeight: extraHeight)
     }
 }
