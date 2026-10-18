@@ -68,12 +68,15 @@ def primary_ref(m, pid):
 
 
 def ref_tip(path, ref):
-    """Current commit of a ref: local branch, else origin's, else the registered commit."""
+    """Current ref tip, without rewinding a registered revision to a stale local branch."""
+    recorded = resolver.rev(path, ref.get("commit")) if ref.get("commit") else None
     for cand in (f"refs/heads/{ref['name']}", f"refs/remotes/origin/{ref['name']}", ref.get("commit")):
         sha = cand and resolver.rev(path, cand)
         if sha:
+            if recorded and sha != recorded and resolver.git(path, "merge-base", sha, recorded, check=False) == sha:
+                continue
             return sha
-    return None
+    return recorded
 
 
 def github_repo(m):

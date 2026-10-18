@@ -216,7 +216,7 @@ private fun LiveControlSheetContent(
     }
 
     fun reseatIso() {
-        applyIsoSeat(IsoSheetLogic.reseat(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor))
+        applyIsoSeat(IsoSheetLogic.reseat(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.controlCapabilities.nativeISO.ceiling == true))
     }
 
     fun applySeat(seat: CaptureLists.ShutterSeat) {
@@ -325,7 +325,7 @@ private fun LiveControlSheetContent(
         if (!enabled) return
         when {
             sheet == LiveSheet.ISO && offersIsoAuto -> {
-                val (state, cmd) = IsoSheetLogic.handleModeChange(index, status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor)
+                val (state, cmd) = IsoSheetLogic.handleModeChange(index, status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.controlCapabilities.nativeISO.ceiling == true)
                 applyIsoSeat(state)
                 when (cmd) {
                     is IsoSheetLogic.Command.SetIndex -> host.commit(CaptureSetting.IsoIndex(cmd.index), commonField, status)
@@ -358,7 +358,7 @@ private fun LiveControlSheetContent(
         lastApplied = value
         when (sheet) {
             LiveSheet.ISO -> {
-                when (val cmd = IsoSheetLogic.applyDrum(value, status, selectedMode, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor)) {
+                when (val cmd = IsoSheetLogic.applyDrum(value, status, selectedMode, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.controlCapabilities.nativeISO.ceiling == true)) {
                     is IsoSheetLogic.Command.SetLimit ->
                         commitDrumValue { host.commit(CaptureSetting.IsoLimitRaw(cmd.raw), commonField, status) }
                     is IsoSheetLogic.Command.SetIndex ->
@@ -423,7 +423,8 @@ private fun LiveControlSheetContent(
     // Effects also guard reseating so a future caller cannot accidentally persist an angle.
     if (preview == null) {
         LaunchedEffect(sheet) {
-            effects.mount(sheet, status, session.focusModeSupported, host::refresh, ::seed, ::reseatIso)
+            effects.mount(sheet, status, session.controlCapabilities.focus.isOffered, host::refresh, ::seed, ::reseatIso,
+                ceilingSupported = session.controlCapabilities.nativeISO.ceiling == true)
         }
         // Match iOS CaptureControlSheets onChange keys. Do not reseat ISO/shutter drums
         // on every live isoIndex / shutterDenom tick: that snaps Manual back to Auto
@@ -497,7 +498,8 @@ private fun LiveControlSheetContent(
         verticalArrangement = Arrangement.spacedBy(MonitorAssistPanelMetrics.PANEL_GAP_DP.dp),
     ) {
             if (showsHeader) SheetHeader(
-                title = CaptureLists.headerTitle(sheet, status.expoMode, status.shootingMode),
+                title = if (sheet == LiveSheet.COLOR) host.recordingCodecColor(status).title
+                    else CaptureLists.headerTitle(sheet, status.expoMode, status.shootingMode),
                 subtitle =
                     if (compact) "drag to set"
                     else
@@ -511,6 +513,8 @@ private fun LiveControlSheetContent(
                 onClose = onDismiss,
                 showsClose = !compact,
             )
+            // Composed once: a host panel keeps one slot group per recomposition.
+            val nativePanel = host.nativeCapturePanel(sheet, enabled)
             if (preview != null) {
                 CaptureDrumWheel(
                     options = preview.control.options,
@@ -519,6 +523,8 @@ private fun LiveControlSheetContent(
                     interactive = false,
                     onSelect = {},
                 )
+            } else if (nativePanel != null && sheet != LiveSheet.COLOR) {
+                nativePanel()
             } else when (sheet) {
                 LiveSheet.ISO -> {
                     Column(
@@ -528,7 +534,7 @@ private fun LiveControlSheetContent(
                         Box(Modifier.fillMaxWidth()) {
                             if (isIsoAutoTab) {
                                 CaptureDrumWheel(
-                                    options = CaptureLists.isoAutoLabels(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor),
+                                    options = IsoSheetLogic.autoLabels(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.controlCapabilities.nativeISO.ceiling == true),
                                     selection = drumSelection,
                                     interactive = enabled,
 
@@ -541,7 +547,7 @@ private fun LiveControlSheetContent(
                                 host.CommonDrum(sheet, status, commonField, enabled, CaptureWheelState(drumSelection) { drumSelection = it; applyDrum(it) })
                             }
                         }
-                        if (session.nativeIsoHopSupported) PrefToggle(
+                        if (session.controlCapabilities.nativeISO.hop == true) PrefToggle(
                             title = CaptureLists.NATIVE_ISO_HOP_TITLE,
                             help = CaptureLists.NATIVE_ISO_HOP_HELP,
                             checked = prefs.nativeIsoHop,
@@ -622,7 +628,7 @@ private fun LiveControlSheetContent(
                     }
                 }
                 LiveSheet.FOCUS -> {
-                    if (session.focusModeSupported) {
+                    if (session.controlCapabilities.focus.isOffered) {
                         FocusBody(
                             status = status,
                             labels = host.labelProfile.focusLabels,
@@ -632,7 +638,7 @@ private fun LiveControlSheetContent(
                     }
                 }
                 LiveSheet.APERTURE -> {
-                    if (session.irisSupported) {
+                    if (session.controlCapabilities.iris.isOffered) {
                         CheckedRows(
                             options = CaptureLists.apertureLabels(status),
                             selected = ApertureStrategy.label(status.apertureStrategy),
@@ -654,16 +660,24 @@ private fun LiveControlSheetContent(
                 }
                 LiveSheet.AUDIO -> AudioBody(status, enabled, selectedMode, host)
                 LiveSheet.COLOR ->
-                    CaptureDrumWheel(
-                        options = CaptureLists.colorWheelLabels(status, bodyFamily, bodyName, host.labelProfile),
-                        selection = drumSelection,
-                        interactive = enabled,
+                    // One popup for codec and colour: the codec choices the camera offers, then
+                    // its colour choices. The colour drum keeps each camera's existing behaviour.
+                    CaptureCodecColorPanel(
+                        choices = host.recordingCodecColor(status),
+                        enabled = enabled && !status.isRecording,
+                        onSelectCodec = { id -> if (enabled && !status.isRecording) host.commitRecordingCodec(id) },
+                    ) {
+                        if (nativePanel != null) nativePanel() else CaptureDrumWheel(
+                            options = CaptureLists.colorWheelLabels(status, bodyFamily, bodyName, host.labelProfile),
+                            selection = drumSelection,
+                            interactive = enabled,
 
-                        onSelect = {
-                            drumSelection = it
-                            applyDrum(it)
-                        },
-                    )
+                            onSelect = {
+                                drumSelection = it
+                                applyDrum(it)
+                            },
+                        )
+                    }
                 LiveSheet.FORMAT -> {
                     if (CameraCommands.isPhotoMode(status.shootingMode)) {
                         CaptureDrumWheel(listOf(CaptureLists.PHOTO_FORMAT_READOUT), drumSelection, interactive = false, onSelect = {})

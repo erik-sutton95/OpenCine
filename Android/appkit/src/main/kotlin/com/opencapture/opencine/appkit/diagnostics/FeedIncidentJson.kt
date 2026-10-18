@@ -7,6 +7,7 @@ import com.opencapture.opencine.media.FeedIncidentBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentBreadcrumbKind
 import com.opencapture.opencine.media.FeedIncidentBuildIdentity
 import com.opencapture.opencine.media.FeedIncidentBundle
+import com.opencapture.opencine.media.FeedIncidentDecodeErrorContext
 import com.opencapture.opencine.media.FeedIncidentDecoder
 import com.opencapture.opencine.media.FeedIncidentErrorCount
 import com.opencapture.opencine.media.FeedIncidentFailingStage
@@ -17,9 +18,11 @@ import com.opencapture.opencine.media.FeedIncidentLifecycle
 import com.opencapture.opencine.media.FeedIncidentOutcome
 import com.opencapture.opencine.media.FeedIncidentQueue
 import com.opencapture.opencine.media.FeedIncidentRates
+import com.opencapture.opencine.media.FeedIncidentRateObservation
 import com.opencapture.opencine.media.FeedIncidentSchema
 import com.opencapture.opencine.media.FeedIncidentSnapshot
 import com.opencapture.opencine.media.FeedIncidentTestSource
+import com.opencapture.opencine.media.FeedIncidentWatchdogGate
 import com.opencapture.opencine.media.FeedRepairPhase
 import com.opencapture.opencine.media.FeedRepairRecord
 import com.opencapture.opencine.media.PrivacyRedactor
@@ -102,7 +105,8 @@ public object FeedIncidentJson {
                     .put("decodedOutputHz", snap.rates.decodedOutputHz)
                     .put("assistOutputHz", snap.rates.assistOutputHz)
                     .put("presentHz", snap.rates.presentHz)
-                    .put("ackHz", snap.rates.ackHz),
+                    .put("ackHz", snap.rates.ackHz)
+                    .put("observed", snap.rates.observed?.let(::observedRatesJson)),
             )
             .put("ages", agesJson(snap.ages))
             .put(
@@ -136,6 +140,7 @@ public object FeedIncidentJson {
                         snap.decoder.lastIrapAge?.let { obj.put("lastIrapAge", it) }
                         snap.decoder.lastSuccessfulOutputAge?.let { obj.put("lastSuccessfulOutputAge", it) }
                         snap.decoder.rebuildReason?.let { obj.put("rebuildReason", it) }
+                        snap.decoder.firstError?.let { obj.put("firstError", firstErrorJson(it)) }
                     },
             )
             .put(
@@ -158,6 +163,48 @@ public object FeedIncidentJson {
             .put("diagnoserFailure", snap.diagnoserFailure)
             .put("diagnoserRepair", snap.diagnoserRepair)
             .also { obj -> snap.ingress?.let { obj.put("ingress", ingressJson(it)) } }
+            .also { obj -> snap.watchdogGate?.let { obj.put("watchdogGate", watchdogGateJson(it.closed())) } }
+
+    private fun watchdogGateJson(gate: FeedIncidentWatchdogGate): JSONObject =
+        JSONObject().also { obj ->
+            gate.pathReady?.let { obj.put("pathReady", it) }
+            gate.repairReady?.let { obj.put("repairReady", it) }
+            gate.outputExpected?.let { obj.put("outputExpected", it) }
+            gate.hold?.let { obj.put("hold", it) }
+        }
+
+    private fun parseWatchdogGate(json: JSONObject): FeedIncidentWatchdogGate =
+        FeedIncidentWatchdogGate(
+            pathReady = json.opt("pathReady") as? Boolean,
+            repairReady = json.opt("repairReady") as? Boolean,
+            outputExpected = json.opt("outputExpected") as? Boolean,
+            hold = json.opt("hold") as? String,
+        ).closed()
+
+    private fun firstErrorJson(context: FeedIncidentDecodeErrorContext): JSONObject =
+        JSONObject()
+            .put("status", context.status)
+            .put("nalTypes", JSONArray(context.nalTypes))
+            .put("accessUnitBytes", context.accessUnitBytes)
+            .put("inputHz", context.inputHz)
+            .also { obj ->
+                context.irapAge?.let { obj.put("irapAge", it) }
+                context.parameterSetChangeAge?.let { obj.put("parameterSetChangeAge", it) }
+            }
+
+    private fun firstError(json: JSONObject?): FeedIncidentDecodeErrorContext? {
+        json ?: return null
+        val status = json.optIntOrNull("status") ?: return null
+        val types = json.optJSONArray("nalTypes") ?: return null
+        return FeedIncidentDecodeErrorContext(
+            status = status,
+            nalTypes = (0 until minOf(types.length(), FeedIncidentDecodeErrorContext.MAX_NAL_TYPES)).map { types.optInt(it) },
+            accessUnitBytes = json.optInt("accessUnitBytes"),
+            irapAge = json.optDoubleOrNull("irapAge")?.takeIf { it >= 0.0 },
+            parameterSetChangeAge = json.optDoubleOrNull("parameterSetChangeAge")?.takeIf { it >= 0.0 },
+            inputHz = json.optDouble("inputHz", 0.0),
+        )
+    }
 
     private fun ingressJson(ingress: FeedIncidentIngress): JSONObject =
         JSONObject()
@@ -233,6 +280,22 @@ public object FeedIncidentJson {
         }
         return array
     }
+
+    private fun observedRatesJson(rates: FeedIncidentRateObservation): JSONObject = JSONObject()
+        .put("packetHz", rates.packetHz ?: JSONObject.NULL)
+        .put("accessUnitHz", rates.accessUnitHz ?: JSONObject.NULL)
+        .put("decodeSubmitHz", rates.decodeSubmitHz ?: JSONObject.NULL)
+        .put("decodeAcceptHz", rates.decodeAcceptHz ?: JSONObject.NULL)
+        .put("decodedOutputHz", rates.decodedOutputHz ?: JSONObject.NULL)
+        .put("assistOutputHz", rates.assistOutputHz ?: JSONObject.NULL)
+        .put("presentHz", rates.presentHz ?: JSONObject.NULL)
+        .put("ackHz", rates.ackHz ?: JSONObject.NULL)
+
+    private fun observedRates(json: JSONObject): FeedIncidentRateObservation = FeedIncidentRateObservation(
+        json.optDoubleOrNull("packetHz"), json.optDoubleOrNull("accessUnitHz"),
+        json.optDoubleOrNull("decodeSubmitHz"), json.optDoubleOrNull("decodeAcceptHz"),
+        json.optDoubleOrNull("decodedOutputHz"), json.optDoubleOrNull("assistOutputHz"),
+        json.optDoubleOrNull("presentHz"), json.optDoubleOrNull("ackHz"))
 
     private fun agesJson(ages: FeedIncidentAges): JSONObject {
         val json = JSONObject()
@@ -310,6 +373,7 @@ public object FeedIncidentJson {
                         assistOutputHz = rates.optDouble("assistOutputHz"),
                         presentHz = rates.optDouble("presentHz"),
                         ackHz = rates.optDouble("ackHz"),
+                        observed = rates.optJSONObject("observed")?.let(::observedRates),
                     ),
                 ages =
                     FeedIncidentAges(
@@ -349,6 +413,7 @@ public object FeedIncidentJson {
                         lastIrapAge = decoder.optDoubleOrNull("lastIrapAge"),
                         lastSuccessfulOutputAge = decoder.optDoubleOrNull("lastSuccessfulOutputAge"),
                         rebuildReason = decoder.optStringOrNull("rebuildReason"),
+                        firstError = firstError(decoder.optJSONObject("firstError")),
                     ),
                 lifecycle =
                     FeedIncidentLifecycle(
@@ -369,6 +434,7 @@ public object FeedIncidentJson {
                 diagnoserFailure = json.optString("diagnoserFailure", "none"),
                 diagnoserRepair = json.optString("diagnoserRepair", "none"),
                 ingress = json.optJSONObject("ingress")?.let(::parseIngress),
+                watchdogGate = json.optJSONObject("watchdogGate")?.let(::parseWatchdogGate),
             )
         }
     }
@@ -394,7 +460,7 @@ public object FeedIncidentJson {
                 action = json.optString("action"),
                 phase = FeedRepairPhase.fromWire(json.optString("phase")),
                 reason = json.optStringOrNull("reason"),
-            )
+            ).closed()
         }
     }
 

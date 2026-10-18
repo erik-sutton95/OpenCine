@@ -72,36 +72,39 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
         return .init(ready: ready, uncached: uncached)
     }
 
-    /// Ordering and progress use this existing delivery run. Original bytes, native preparation,
-    /// OS transactions and route leases remain in their existing bounded owners.
-    public static func runBatch<Record: Sendable, Artifact: Sendable, Lease: Sendable>(
-        records: [Record], destination: MonitorDeliveryDestination,
-        action: MonitorDeliveryPostExportAction,
-        admission: MonitorDeliveryAdmission, originals: MonitorDeliveryOriginalService<Record>,
-        exporter: MonitorDeliveryExportService<Record, Artifact>,
-        share: (@MainActor ([Artifact]) throws -> MonitorDeliveryShareFiles<Artifact>)?,
-        photos: MonitorDeliveryPhotosService<Artifact>?,
-        upload: MonitorDeliveryUploadService<Artifact>? = nil,
-        internet: MonitorDeliveryInternetService<Lease>? = nil, lease initialLease: Lease? = nil,
-        filename: @escaping @MainActor (Record) -> String,
-        artifactFilename: @escaping @MainActor (Artifact) -> String? = { _ in nil },
-        metadata: @escaping @MainActor ([Record]) -> String? = { _ in nil },
-        noPrepared: @escaping @MainActor ([Record]) -> String? = { _ in nil },
-        policy: MonitorDeliveryBatchPolicy = .init(),
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        },
-        progress: @escaping @MainActor (MonitorDeliveryBatchProgress) -> Void
-    ) async -> MonitorDeliveryBatchOutcome<Artifact> {
-        await runBatch(
-            records: records, destination: destination, action: action,
-            admission: admission, originals: originals, exporter: exporter,
-            share: share, photos: photos, photosAuthorization: nil, upload: upload,
-            internet: internet, lease: initialLease, filename: filename,
-            artifactFilename: artifactFilename, metadata: metadata, noPrepared: noPrepared,
-            policy: policy, sleep: sleep, progress: progress)
+    /// Remote delivery from the camera network needs every original first. This caches them as a
+    /// captured run of this owner (same chrome and cancel) and throws unless all are cached, so a
+    /// caller never leaves the camera network with clips still on the camera (A2-05). A caller
+    /// that tracks an earlier captured run passes it as `outgoing`; it is joined first.
+    public func cacheBeforeInternetHop<Record: Sendable>(
+        records: [Record], originals: MonitorDeliveryOriginalService<Record>,
+        after outgoing: MonitorDeliveryRunHandle? = nil,
+        source: MonitorDeliveryAdmission, filename: @escaping @MainActor (Record) -> String,
+        completion: Outcome, uploadCaption: String? = nil,
+        progress: @escaping @MainActor (MonitorDeliveryBatchProgress) -> Progress,
+        onStarted: (MonitorDeliveryRunHandle) -> Void = { _ in }
+    ) async throws {
+        let run = beginCaptured { report, admission in
+            await outgoing?.cancelAndJoin()
+            _ = await Self.cacheOriginals(
+                records: records, destination: .remoteUpload,
+                admission: .init { admission.isCurrent() && source.isCurrent() },
+                originals: originals, filename: filename, uploadCaption: uploadCaption
+            ) { report(progress($0)) }
+            return .init(completion)
+        }
+        guard let run else { throw CancellationError() }
+        onStarted(run)
+        await run.awaitEnteredCleanup()
+        guard source.isCurrent() else { throw CancellationError() }
+        // The cache itself is the truth: a cancelled or superseded run leaves clips uncached.
+        let missing = records.filter { !originals.available($0) }.count
+        if missing > 0 { throw MonitorDeliveryCacheError.uncached(missing) }
     }
 
+    /// Ordering and progress use this existing delivery run. Original bytes, native preparation,
+    /// OS transactions and route leases remain in their existing bounded owners. Every app runs
+    /// the one `MonitorDeliveryBatchPolicy`.
     public static func runBatch<Record: Sendable, Artifact: Sendable, Lease: Sendable>(
         records: [Record], destination: MonitorDeliveryDestination,
         action: MonitorDeliveryPostExportAction,
@@ -109,19 +112,20 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
         exporter: MonitorDeliveryExportService<Record, Artifact>,
         share: (@MainActor ([Artifact]) throws -> MonitorDeliveryShareFiles<Artifact>)?,
         photos: MonitorDeliveryPhotosService<Artifact>?,
-        photosAuthorization: MonitorDeliveryPhotosAuthorizationService?,
+        photosAuthorization: MonitorDeliveryPhotosAuthorizationService? = nil,
         upload: MonitorDeliveryUploadService<Artifact>? = nil,
+        uploadHistory: MonitorDeliveryUploadHistory<Record>? = nil, reupload: Bool = false,
         internet: MonitorDeliveryInternetService<Lease>? = nil, lease initialLease: Lease? = nil,
         filename: @escaping @MainActor (Record) -> String,
         artifactFilename: @escaping @MainActor (Artifact) -> String? = { _ in nil },
         metadata: @escaping @MainActor ([Record]) -> String? = { _ in nil },
         noPrepared: @escaping @MainActor ([Record]) -> String? = { _ in nil },
-        policy: MonitorDeliveryBatchPolicy = .init(),
         sleep: @escaping @MainActor (Duration) async throws -> Void = {
             try await Task.sleep(for: $0)
         },
         progress: @escaping @MainActor (MonitorDeliveryBatchProgress) -> Void
     ) async -> MonitorDeliveryBatchOutcome<Artifact> {
+        typealias Policy = MonitorDeliveryBatchPolicy
         var lease = initialLease
         var retainedArtifacts: [Artifact] = []
         @MainActor func execute() async -> MonitorDeliveryBatchOutcome<Artifact> {
@@ -152,9 +156,26 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                 }
                 guard accepts() else { return cancelled() }
             }
+            // Already uploaded records are skipped before any cache or export work (A2-53).
+            var deliverable: [Record] = []
+            var alreadyUploaded = 0
+            for record in records {
+                guard accepts() else { return cancelled() }
+                if destination == .remoteUpload, !reupload, let uploadHistory,
+                    uploadHistory.wasUploaded(record)
+                {
+                    alreadyUploaded += 1
+                } else {
+                    deliverable.append(record)
+                }
+            }
+            guard accepts() else { return cancelled() }
+            if deliverable.isEmpty, alreadyUploaded > 0 {
+                return .uploaded(summary: "\(alreadyUploaded) skipped")
+            }
             guard
                 let cached = await cacheOriginals(
-                    records: records, destination: destination, admission: admission,
+                    records: deliverable, destination: destination, admission: admission,
                     originals: originals, filename: filename,
                     uploadCaption: upload?.progressCaption,
                     sleep: sleep, progress: progress)
@@ -163,7 +184,7 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
             let uncached = cached.uncached
             guard !ready.isEmpty else {
                 return .failed(
-                    message: uncached > 0 ? policy.cacheFailure(uncached) : policy.emptySelection)
+                    message: uncached > 0 ? Policy.cacheFailure(uncached) : Policy.emptySelection)
             }
             if destination == .remoteUpload {
                 guard upload != nil else { return .failed(message: "Upload is unavailable.") }
@@ -172,8 +193,9 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                     let needsHop = internet.needsHop()
                     guard accepts() else { return cancelled() }
                     if needsHop {
-                        let next: Lease
-                        if let existing = lease { next = existing } else { next = internet.begin() }
+                        guard let next = lease ?? internet.begin() else {
+                            return .failed(message: Policy.internetFailure)
+                        }
                         lease = next
                         guard accepts(), internet.owns(next), accepts() else { return cancelled() }
                         var value = MonitorDeliveryBatchProgress(
@@ -189,13 +211,13 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                         value.stage = .preparing
                         progress(value)
                         guard accepts() else { return cancelled() }
-                        if !online { return .failed(message: policy.internetFailure) }
+                        if !online { return .failed(message: Policy.internetFailure) }
                     }
                 }
             }
             var prepared: [Artifact] = []
             var uploaded = 0
-            var skipped = 0
+            var skipped = alreadyUploaded
             var failed = 0
             var firstFailure: String?
             for (index, record) in ready.enumerated() {
@@ -208,16 +230,22 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                 progress(value)
                 guard accepts() else { return cancelled() }
                 do {
-                    let artifact = try await exporter.prepare(record) { fraction in
-                        guard gate.active, accepts() else { return }
-                        var next = value
-                        next.stage = .exporting
-                        next.clipFraction =
-                            destination == .remoteUpload ? fraction * 0.45 : fraction
-                        gate.latestProgress = next
-                        progress(next)
+                    let artifact: Artifact?
+                    if let original = exporter.original?(record) {
+                        // A still travels as its cached original: borrowed, never released.
+                        artifact = original
+                    } else {
+                        artifact = try await exporter.prepare(record) { fraction in
+                            guard gate.active, accepts() else { return }
+                            var next = value
+                            next.stage = .exporting
+                            next.clipFraction =
+                                destination == .remoteUpload ? fraction * 0.45 : fraction
+                            gate.latestProgress = next
+                            progress(next)
+                        }
+                        if let artifact { retainedArtifacts.append(artifact) }
                     }
-                    if let artifact { retainedArtifacts.append(artifact) }
                     gate.active = false
                     guard accepts() else { return cancelled() }
                     guard let artifact else {
@@ -236,6 +264,7 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                         }
                         guard accepts() else { return cancelled() }
                         uploaded += 1
+                        uploadHistory?.recordUploaded(record)
                     } else {
                         prepared.append(artifact)
                         var completed = gate.latestProgress ?? value
@@ -245,19 +274,13 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                 } catch {
                     gate.active = false
                     guard accepts(), !(error is CancellationError) else { return cancelled() }
-                    if destination == .nativeShare, policy.behavior.nativeFailures == .stop {
-                        return .failed(message: error.localizedDescription)
-                    }
                     failed += 1
                     if firstFailure == nil { firstFailure = error.localizedDescription }
                 }
             }
             guard accepts() else { return cancelled() }
             if destination == .remoteUpload {
-                if policy.behavior.singleUploadFailureUsesDetail, ready.count == 1, let firstFailure
-                {
-                    return .failed(message: firstFailure)
-                }
+                if ready.count == 1, let firstFailure { return .failed(message: firstFailure) }
                 var parts: [String] = []
                 if uploaded > 0 { parts.append("\(uploaded) uploaded") }
                 if skipped > 0 { parts.append("\(skipped) skipped") }
@@ -265,56 +288,43 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                 if failed > 0 { parts.append("\(failed) failed") }
                 let message = parts.joined(separator: ", ")
                 if failed > 0 { return .failed(message: message) }
-                if uploaded == 0 && !policy.behavior.emptyUploadSucceeds {
-                    return .failed(
-                        message: skipped > 0
-                            ? noPrepared(ready) ?? policy.noPrepared ?? policy.emptySelection
-                            : message.isEmpty ? "Nothing to upload." : message)
-                }
                 return .uploaded(summary: message.isEmpty ? "Nothing to upload." : message)
             }
             guard !prepared.isEmpty else {
-                return .failed(
-                    message: firstFailure ?? noPrepared(ready) ?? policy.noPrepared
-                        ?? policy.emptySelection)
+                return .failed(message: firstFailure ?? noPrepared(ready) ?? Policy.emptySelection)
             }
             do {
                 if action == .saveToPhotos {
                     guard let photos else {
                         return .failed(message: "Saving to Photos is unavailable.")
                     }
-                    let count: Int
-                    switch photos {
-                    case .batch(let save): count = try await save(prepared)
-                    case .perItem(let save):
-                        var saved = 0
-                        var rejected = 0
-                        for (index, artifact) in prepared.enumerated() {
-                            guard accepts() else { return cancelled() }
-                            var value = MonitorDeliveryBatchProgress(
-                                destination: destination, totalClips: prepared.count,
-                                clipIndex: index + 1, clipFraction: 1,
-                                filename: artifactFilename(artifact))
-                            value.stage = .saving
-                            progress(value)
-                            guard accepts() else { return cancelled() }
-                            do {
-                                let accepted = try await save(artifact)
-                                guard accepts() else { return cancelled() }
-                                if accepted { saved += 1 } else { rejected += 1 }
-                            } catch {
-                                guard accepts(), !(error is CancellationError) else {
-                                    return cancelled()
-                                }
-                                if policy.behavior.photosFailures == .stop { throw error }
-                                rejected += 1
-                            }
-                        }
-                        let failure = policy.photosFailure(saved, rejected)
+                    var saved = 0
+                    var rejected = 0
+                    for (index, artifact) in prepared.enumerated() {
                         guard accepts() else { return cancelled() }
-                        if let failure { return .failed(message: failure) }
-                        count = saved
+                        var value = MonitorDeliveryBatchProgress(
+                            destination: destination, totalClips: prepared.count,
+                            clipIndex: index + 1, clipFraction: 1,
+                            filename: artifactFilename(artifact))
+                        value.stage = .saving
+                        progress(value)
+                        guard accepts() else { return cancelled() }
+                        do {
+                            let accepted = try await photos.save(artifact)
+                            guard accepts() else { return cancelled() }
+                            if accepted { saved += 1 } else { rejected += 1 }
+                        } catch {
+                            guard accepts(), !(error is CancellationError) else {
+                                return cancelled()
+                            }
+                            rejected += 1
+                        }
                     }
+                    guard accepts() else { return cancelled() }
+                    if let failure = Policy.photosFailure(saved: saved, failed: rejected) {
+                        return .failed(message: failure)
+                    }
+                    let count = saved
                     guard accepts() else { return cancelled() }
                     return .savedToPhotos(count: count)
                 }
@@ -324,7 +334,7 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                 // replaced it. MonitorDeliveryModel then releases only that explicit old lease.
                 var text: String?
                 if accepts() {
-                    let note = policy.nativeSummary(
+                    let note = Policy.nativeSummary(
                         .init(
                             prepared: prepared.count, uploaded: uploaded,
                             skipped: skipped, failed: failed, uncached: uncached))

@@ -17,10 +17,13 @@ import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.PowerStatus
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.MotionAxis
@@ -50,6 +53,60 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DjiCameraSessionAdapterTest {
+    @Test fun recordingFactsUseReportedDimensionsAndNeverPreviewCodec() = runTest {
+        val port = FakePort()
+        port.capture = DjiCaptureControlState(CameraStatus(resolutionCode = 0x67, fps = 25,
+            colorMode = CameraCommands.COLOR_DLOG2, expoMode = CameraCommands.EXPO_MANUAL), port.state.model)
+        val seam = adapter(port)
+        val format = seam.current.recordingFormat
+        assertEquals(com.opencapture.opencine.core.CameraExposureProgram.MANUAL, seam.current.exposureProgram.value)
+        assertEquals(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(3840, 2880), format.dimensions.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, format.dimensions.origin)
+        assertEquals("D-Log2", format.profile.value)
+        assertNull(format.codec.value, "The preview codec does not declare the recording codec")
+        port.capture = DjiCaptureControlState(CameraStatus(resolutionCode = 0xFF), port.state.model)
+        assertEquals(com.opencapture.opencine.core.CameraRecordingObservations.unknown, seam.current.recordingFormat)
+        assertNull(seam.current.exposureProgram.value)
+        assertTrue(port.fired.isEmpty())
+    }
+
+    /** SIMULATED Nano and Pocket reports: the recording profile reads in each body's colour names. */
+    @Test fun recordingProfileUsesTheBodyColourNames() = runTest {
+        for ((family, expected) in listOf("nano" to "D-Log M 10-bit", "pocket" to "D-Log M")) {
+            val port = FakePort()
+            val base = CameraModel(name = "SIMULATED $family", family = family)
+            val model = base.copy(captureProfile = DjiCaptureCapabilityProfile.make(base))
+            port.state = port.state.copy(model = model)
+            port.capture = DjiCaptureControlState(CameraStatus(colorMode = CameraCommands.COLOR_DLOG_M), model)
+            assertEquals(expected, adapter(port).current.recordingFormat.profile.value, family)
+        }
+    }
+
+    /** SIMULATED existing captured report: a known true charge flag must reach common power. */
+    @Test fun batteryChargingReportsReachCommonPower() = runTest {
+        val port = FakePort()
+        port.state = port.state.copy(batteryPercent = 68)
+        port.capture = DjiCaptureControlState(CameraStatus(charging = true, batteryPercent = 68), port.state.model)
+        val seam = adapter(port)
+        assertEquals(true, seam.current.power.charging.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, seam.current.power.charging.origin)
+        for (reported in listOf(false, true, null)) {
+            port.capture = DjiCaptureControlState(CameraStatus(charging = true, batteryPercent = 68,
+                chargingObservation = reported, chargingObservationDeclared = true), port.state.model)
+            assertEquals(reported, seam.current.power.charging.value)
+        }
+    }
+
+    @Test fun legacyTimecodeHelpersRetainSupportAndCompleteFrames() {
+        val support: SupportStatus = DjiCameraSessionAdapter.timecodeSupport(null)
+        assertEquals(SupportStatus.UNKNOWN, support)
+        assertEquals(TimecodeCapability.unknown, DjiCameraSessionAdapter.timecodeCapability(null))
+        val value = assertNotNull(DjiCameraSessionAdapter.timecode("05:22:47:18"))
+        val frames: Int = value.frames
+        assertEquals(18, frames)
+        assertNull(DjiCameraSessionAdapter.timecode("05:22:47"))
+    }
+
     @Test
     fun everyDeclaredCapabilityReachesTheWire() = runTest {
         val keys = adapter(FakePort()).current.capabilities.descriptors.keys
@@ -176,6 +233,20 @@ class DjiCameraSessionAdapterTest {
         assertEquals(SettingValue.Aperture(2.8), seam.current.value(SettingKey.APERTURE).value)
         assertEquals(CommandStage.Rejected(CommandRejection.ReadOnly),
             seam.request(CameraCommandIntent.Set(SettingValue.Aperture(2.0))).stage)
+        assertTrue(port.fired.isEmpty())
+    }
+
+    /** A5-09: the recording rate is a typed read-only Rational from the wire index, never written. */
+    @Test
+    fun recordingFrameRateIsAReadOnlyRational() = runTest {
+        val port = capturePort()
+        val seam = adapter(port)
+        assertEquals(SettingAccess.READ_ONLY, seam.current.capabilities[SettingKey.FRAME_RATE]?.access)
+        assertNull(seam.current.value(SettingKey.FRAME_RATE).value, "no report is unknown")
+        port.capture = port.capture?.let { it.copy(reported = it.reported.copy(fps = 25)) }
+        assertEquals(SettingValue.FrameRate(Rational(25)), seam.current.value(SettingKey.FRAME_RATE).value)
+        assertEquals(CommandStage.Rejected(CommandRejection.ReadOnly),
+            seam.request(CameraCommandIntent.Set(SettingValue.FrameRate(Rational(24)))).stage)
         assertTrue(port.fired.isEmpty())
     }
 
@@ -384,25 +455,26 @@ class DjiCameraSessionAdapterTest {
         fun expected(gimbal: Boolean, zoom: Boolean, focus: Boolean, iris: Boolean, timecode: Boolean) = base.copy(
             gimbal = gimbal, headTracking = gimbal, zoom = zoom, focus = focus, iris = iris, timecode = timecode, audio = true,
         )
+        val seconds = TimecodeCapability.supported(TimecodePrecision.Seconds)
         val bodies = listOf(
-            Triple(body("Osmo Pocket 4 Pro", "pocket"), expected(true, true, true, false, true), SupportStatus.SUPPORTED),
-            Triple(body("Osmo Pocket 3", "pocket"), expected(true, true, true, false, true), SupportStatus.SUPPORTED),
-            Triple(body("Osmo Action 6", "other", aperture = true), expected(false, false, false, true, true), SupportStatus.SUPPORTED),
-            Triple(body("Osmo Nano", "nano"), expected(false, false, false, false, false), SupportStatus.UNSUPPORTED),
+            Triple(body("Osmo Pocket 4 Pro", "pocket"), expected(true, true, true, false, true), seconds),
+            Triple(body("Osmo Pocket 3", "pocket"), expected(true, true, true, false, true), seconds),
+            Triple(body("Osmo Action 6", "other", aperture = true), expected(false, false, false, true, true), seconds),
+            Triple(body("Osmo Nano", "nano"), expected(false, false, false, false, false), TimecodeCapability.unsupported),
         )
         for ((model, layout, timecode) in bodies) {
             val port = FakePort()
             port.state = port.state.copy(model = model)
             val seam = adapter(port)
             assertEquals(layout, seam.layout(base), model.name)
-            assertEquals(timecode, seam.current.capabilities.timecode, model.name)
+            assertEquals(timecode, seam.current.capabilities.timecodeCapability, model.name)
             assertEquals(SupportStatus.SUPPORTED, seam.current.capabilities.audioLevels, model.name)
             assertEquals(layout.gimbal, model.motion != null, model.name)
         }
         // No camera: nothing is claimed, so the layout is the base.
         val seam = adapter(FakePort())
         assertEquals(base, seam.layout(base))
-        assertEquals(SupportStatus.UNKNOWN, seam.current.capabilities.timecode)
+        assertEquals(TimecodeCapability.unknown, seam.current.capabilities.timecodeCapability)
         assertEquals(SupportStatus.UNKNOWN, seam.current.capabilities.audioLevels)
     }
 
@@ -421,17 +493,19 @@ class DjiCameraSessionAdapterTest {
         assertEquals(ObservedValue.unknown, seam.current.timecode)
         assertEquals(ObservedValue.unknown, seam.current.audioLevels, "no report is unknown, never silence")
         val reported = CameraStatus(
-            timecode = "05:22:47:18", audioMetersLeft = -18.0, audioPeakLeft = -12.0,
+            audioMetersLeft = -18.0, audioPeakLeft = -12.0,
             audioMetersRight = -20.0, audioPeakRight = -14.0, audioMetersReported = true,
-        )
-        port.state = port.state.copy(timecode = reported.timecode, audioLevels = DjiCameraSessionAdapter.audioLevels(reported))
+        ).withTimecodeValue(CameraTimecode(5, 22, 47, 18))
+        port.state = port.state.copy(timecode = reported.timecodeValue, audioLevels = DjiCameraSessionAdapter.audioLevels(reported))
         val snapshot = seam.current
         assertEquals(CameraTimecode(5, 22, 47, 18), snapshot.timecode.value)
         assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.timecode.origin)
         assertEquals(AudioLevels(AudioLevels.Channel(-18.0, -12.0), AudioLevels.Channel(-20.0, -14.0)), snapshot.audioLevels.value)
         assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.audioLevels.origin)
-        port.state = port.state.copy(timecode = "--:--")
+        port.state = port.state.copy(timecode = null)
         assertEquals(ObservedValue.unknown, seam.current.timecode)
+        // The facade JSON carries the decoded fields, never a display string to re-parse.
+        assertEquals(CameraTimecode(5, 22, 47, 18), CameraStatus.fromJson(reported.toJson()).timecodeValue)
         // The status JSON the session round-trips through the facade keeps "not reported" apart from silence.
         assertNull(DjiCameraSessionAdapter.audioLevels(CameraStatus.fromJson(CameraStatus().toJson())))
         assertEquals(
@@ -482,7 +556,7 @@ class DjiCameraSessionAdapterTest {
         }
 
     /** A linked Pocket in Video reporting ISO 400, Auto WB and the given record state. */
-    private class FakePort(recording: Boolean? = false) : PocketControlPort {
+    internal class FakePort(recording: Boolean? = false) : PocketControlPort {
         var state =
             PocketControlState(
                 linkReady = true,

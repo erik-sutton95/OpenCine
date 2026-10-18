@@ -18,6 +18,14 @@ extension MonitorTransfer {
         }
     }
 
+    /// The source curve a reported mode names, or nil before the first colour report and in Dolby
+    /// Vision, which names no curve the tools can read (product ruling 2026-10-16). False colour,
+    /// zebra and LUT exposure wait for it.
+    public static func known(_ colorMode: ColorMode?) -> MonitorTransfer? {
+        guard let colorMode, colorMode != .dolbyVision else { return nil }
+        return MonitorTransfer(colorMode)
+    }
+
     /// Curve for LUT exposure compensation and export bakes. D-Log M keeps the D-Log
     /// curve while its exposure model is uncalibrated, so the empirical scope estimate
     /// never silently changes baked images.

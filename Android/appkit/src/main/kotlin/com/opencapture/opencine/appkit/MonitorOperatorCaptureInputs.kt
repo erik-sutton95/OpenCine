@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -41,6 +42,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -140,7 +142,7 @@ private data class CaptureReadoutSource<K, N>(val context: MonitorCaptureSourceI
     val key: K, val field: MonitorCaptureField?, val native: MonitorOperatorNativeCaptureQuick<N>?)
 
 private class CaptureReadoutActions(
-    val quick: MonitorQuickControl?, val open: () -> Unit,
+    val quick: MonitorQuickControl?, val inert: Boolean, val open: () -> Unit,
     val commit: (MonitorQuickControl, String) -> Unit,
     val preview: @Composable (MonitorQuickPreview, Float) -> Unit,
 )
@@ -159,7 +161,10 @@ private class CaptureReadoutActions(
         it.copy(enabled = it.enabled && commandEnabled && readout.quickEnabled,
             identity = CaptureReadoutSource(source, revision, readout.id, field, native))
     }
-    val admitted by rememberUpdatedState(enabled && currentSource())
+    // An unreported value with nothing to edit stays inert rather than opening an empty panel.
+    val inert = MonitorCapturePresentation.readoutIsInert(readout.value, field, native?.control?.enabled,
+        readout.quickEnabled, readout.action != null)
+    val admitted by rememberUpdatedState(enabled && currentSource() && !inert)
     val commands by rememberUpdatedState(commandEnabled)
     val currentInputs by rememberUpdatedState(inputs)
     val currentReadout by rememberUpdatedState(readout)
@@ -167,10 +172,10 @@ private class CaptureReadoutActions(
     val currentNative by rememberUpdatedState(native)
     val sourceCurrent by rememberUpdatedState(currentSource)
     fun current(): Boolean = admitted && sourceCurrent() && state.revision == revision && state.gestureOwner === owner
-    return CaptureReadoutActions(quick, open = {
+    return CaptureReadoutActions(quick, inert, open = {
         if (current() && state.preview == null && (owner.owner == null || owner.owner == ownerId)) {
             if (currentReadout.action != null) {
-                if (!currentReadout.actionIsCommand || commands) currentReadout.action?.invoke()
+                if (!currentReadout.actionIsCommand || (commands && currentInputs.panel == null && currentInputs.commitAdmission())) currentReadout.action?.invoke()
             } else currentInputs.open(currentReadout.id)
         }
     }, commit = { captured, label ->
@@ -211,7 +216,7 @@ private class CaptureReadoutActions(
     readout: MonitorOperatorLiveReadout<K, S>, enabled: Boolean, commandEnabled: Boolean = true,
     currentSource: () -> Boolean, portrait: Boolean, modifier: Modifier = Modifier,
     fromTop: Boolean = true, ceilingY: Float? = null, bottomClearanceDp: Float = 0f,
-    content: @Composable () -> Unit,
+    displayValue: String? = null, content: @Composable () -> Unit,
 ): Unit {
     val owner = state.gestureOwner
     val ownerId = "header:${readout.id}"
@@ -235,12 +240,13 @@ private class CaptureReadoutActions(
             }
         }
         Box(modifier.monitorReadoutGesture(actions.quick,
-            enabled && currentSource() && (owner.owner == null || owner.owner == ownerId),
+            enabled && currentSource() && !actions.inert && (owner.owner == null || owner.owner == ownerId),
             actions.open, actions.commit, bottomClearanceDp, owner, ownerId, actions.preview,
             fromTop = fromTop, ceilingY = ceilingY,
             onPreviewBegin = { if (state.gestureOwner === owner) currentInputs.quickActiveChanged(true) }).clearAndSetSemantics {
             contentDescription = readout.title
-            readout.value?.let { stateDescription = it }
+            (displayValue ?: readout.value)?.let { stateDescription = it }
+            if (actions.inert) disabled()
         }) {
             content()
         }
@@ -257,6 +263,9 @@ private class CaptureReadoutActions(
 ): Unit {
     val owner = state.gestureOwner
     key(owner) {
+        val hideReadouts = state.preview?.let { !inputs.isTop(it.key) } == true
+        val stripModifier = modifier.alpha(if (hideReadouts) 0f else 1f)
+            .then(if (hideReadouts) Modifier.clearAndSetSemantics { } else Modifier)
         val density = LocalDensity.current
         val admitted by rememberUpdatedState(enabled && currentSource())
         val currentInputs by rememberUpdatedState(inputs)
@@ -279,8 +288,9 @@ private class CaptureReadoutActions(
         }
         MonitorCameraValues(inputs.readouts.map { MonitorValue(it.id.toString(), it.title, it.value ?: "--",
             selected = inputs.panel?.key == it.id || state.preview?.key == it.id,
-            annotation = it.annotation, valueIcon = it.icon, badgeIcon = it.badgeIcon) },
-            admitted, layout.portrait, modifier.onGloballyPositioned { coordinates ->
+            annotation = it.annotation, valueIcon = it.icon, badgeIcon = it.badgeIcon,
+            enabled = actions[it.id.toString()]?.inert != true) },
+            admitted, layout.portrait, stripModifier.onGloballyPositioned { coordinates ->
                 if (currentSource()) {
                     val r = coordinates.boundsInRoot()
                     onCaptureFrame(with(density) { MonitorRect(r.left.toDp().value, r.top.toDp().value,

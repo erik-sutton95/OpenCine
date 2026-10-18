@@ -135,7 +135,7 @@ fixtures, not evidence that the old assist UI owner is still required.
 | `RelayBitrateAdaptation`, relay/watch protocols and facade aliases | Original API wrappers delegate shared adaptation/framing/control owners. Distinct deployed `_openzcine-mon._tcp`, monitor v2 and watch v1/JPEG/HEVC payloads survive; runtime convergence did not change wire schema |
 | 25 `SwiftCore` JNI declarations/exports and `AndroidLiveViewPolicyWire` | Real integration/facade contract. Source-side names match; no new binary-symbol proof asserted. `feedEffectsScalars` has no actual shipping invocation found but remains both-side ABI; ignored/dead surfaces await synchronized qualified removal |
 | Native media/picture/export/Photos/share/OAuth/network-hop leaves and Frame.io secure/history adapters | Actual OS/integration IO and persisted provider keys. Existing shared playback/delivery/cache owners schedule and retire them; account card/consent/busy/error is shared. K browser launch restores the captured lease on Settings retirement; Swift auth completion restores on finish |
-| Closed diagnostics journal, historical exit reader, Sentry/OkHttp adapters | Existing Nikon event/file/report contract and external SDK IO. Bounded report formatting/runtime is shared; no third-party dependency was added to OpenCine |
+| Closed diagnostics journal, historical exit reader | Existing Nikon event/file/report contract. Bounded report formatting/runtime is shared. The Sentry/OkHttp adapters moved to OpenCine's optional adapter products (`OpenCineSentryApple`, `:appkit-sentry`, 2026-10-12) |
 | Frozen Vulkan/Media3/Nikon donors and original parity tests | Independent pixel/wire/native oracles and app-hosted assertions. Retain them through actual qualified comparison; shared source/test success alone does not authorize deleting original assertions |
 
 The previous reasons that common Catalog would need no-op operations, Settings would need a
@@ -147,7 +147,7 @@ Account/Cache owners are exercised by actual adopters. Unsupported features stay
 
 | Retained group | Audited reason |
 |---|---|
-| Swift/Kotlin Sentry sink, OkHttp upload and reliability transport tests | Actual third-party SDK calls and app namespaces. Shared reliability policy/formatting does not import these dependencies |
+| Swift/Kotlin Sentry sink, OkHttp upload and reliability transport tests | Moved to OpenCine's optional adapter products and their tests (2026-10-12); the apps keep holder tests only. Shared reliability policy/formatting still does not import these dependencies |
 | DiscoveryPermissions, app crash-guard preference adapter and associated tests | OS permission/storage/log values; guard behavior is shared native-runtime |
 | App backdrop/preview factories, native Bitmap/ImageIO/Media3 audio/picture bridges | Real native acquisition/render/API bridge. App `Media3GlBackend` production copy is gone; the original donor lives only in pixel-conformance tests |
 | BackdropRenderActivity, MonitorMotionInputTest and app-hosted UI instrumentation | Developer activity/device/test setup, actual app bindings and original interaction assertions; not production common-owner substitutes |

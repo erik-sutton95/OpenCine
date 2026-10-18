@@ -17,7 +17,7 @@ import Testing
         var owned: Int?, revision = 0, restored: [Int] = [], persisted: [String] = []
         var network: Bool? = false, configured: Bool? = true, connected: Bool? = true
         var savedID: String?, sourceHook: (() -> Bool)?, persistHook: (() -> Void)?, restoreHook: (() -> Void)?
-        var lut: Bool? = true, convert: Bool? = true
+        var lut: Bool? = true, convert: Bool? = true, skipsUploaded = true
         var nativeWaits: [Int] = []
         func model(preferred: MonitorDeliveryDestination? = .remoteUpload, export: Bool = true) -> Model {
             var configuration = MonitorDeliveryExportConfiguration(logTransform: 1, exportFormat: 1); configuration.bakeLUT = false
@@ -35,7 +35,8 @@ import Testing
                         self.revision += 1; self.owned = self.revision; return self.revision
                     }, owns: { self.owned == $0 }, wait: { self.nativeWaits.append($0); return await self.waits.value() },
                     restore: { if self.owned == $0 { self.restored.append($0); self.owned = nil; self.restoreHook?() } }),
-                    transfer: { if self.owned != $0 { return nil }; self.revision += 1; self.owned = self.revision; return self.revision }),
+                    transfer: { if self.owned != $0 { return nil }; self.revision += 1; self.owned = self.revision; return self.revision },
+                    skipsUploaded: self.skipsUploaded),
                 preferredDestination: preferred, sourceCurrent: { self.sourceHook?() ?? true },
                 sleep: { duration in #expect(duration == .seconds(1)); await self.clock.value() })
         }
@@ -50,6 +51,32 @@ import Testing
     private func settle(_ predicate: () -> Bool) async {
         for _ in 0..<1000 { if predicate() { return }; await Task.yield() }
         Issue.record("SIMULATED delivery popup did not reach the manual gate")
+    }
+    /// A2-72: the request carries the project picked in this popup, so a later pick elsewhere
+    /// never redirects the run; a native request carries none.
+    @Test func remoteRequestCarriesTheSelectedProjectAndItsContext() async {
+        let fixture = Fixture(); let model = fixture.model()
+        model.start(); await settle { fixture.loads.count == 1 }
+        fixture.loads.release(listing("SIMULATED project"))
+        await settle { !model.projectsLoading }
+        let request = model.takeRequest()
+        #expect(request?.project?.id == "SIMULATED project" && request?.project?.payload == "SIMULATED project")
+        #expect(request?.projectContext == "SIMULATED account")
+        fixture.finish(model)
+        let native = fixture.model(preferred: .nativeShare)
+        native.start()
+        let shared = native.takeRequest()
+        #expect(shared?.destination == .nativeShare && shared?.project == nil && shared?.projectContext == nil)
+        fixture.finish(native)
+    }
+    /// A2-53: re-upload is offered only where the remote keeps an upload history.
+    @Test func reuploadIsOfferedOnlyWithAnUploadHistory() {
+        for history in [true, false] {
+            let fixture = Fixture(); fixture.skipsUploaded = history
+            let model = fixture.model()
+            #expect(model.offersReupload == history)
+            fixture.finish(model)
+        }
     }
     @Test func optionalRemoteServiceCarriesOnlyItsDeclaredPresentation() {
         let fixture = Fixture(); let model = fixture.model()

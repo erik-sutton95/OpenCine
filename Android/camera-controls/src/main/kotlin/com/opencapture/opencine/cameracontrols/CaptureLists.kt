@@ -9,11 +9,12 @@ import com.opencapture.opencine.vocabulary.CaptureWheels
 import com.opencapture.opencine.vocabulary.EvComp
 import com.opencapture.opencine.vocabulary.IsoLimit
 import com.opencapture.opencine.vocabulary.ShutterAngle
+import com.opencapture.opencine.vocabulary.StorageReadout
 import com.opencapture.opencine.vocabulary.VideoAspect
 import com.opencapture.opencine.vocabulary.VideoFormat
 import com.opencapture.opencine.vocabulary.VideoFrameRate
 import com.opencapture.opencine.vocabulary.VideoResolution
-import kotlin.math.max
+import com.opencapture.opencine.vocabulary.storageReadout
 import kotlin.math.roundToInt
 
 object CaptureLists {
@@ -89,6 +90,8 @@ object CaptureLists {
         shootingMode: Int = CameraCommands.SHOOT_VIDEO,
     ): String =
         when {
+            sheet == LiveSheet.SHUTTER && !isEvSheet(sheet, expoMode) ->
+                if (CameraCommands.isPhotoMode(shootingMode)) "Speed" else sheet.subtitle
             sheet == LiveSheet.SHUTTER ->
                 shutterHeaderSubtitle(
                     isEvSheet(sheet, expoMode),
@@ -629,7 +632,10 @@ object CaptureLists {
         family: String = "pocket",
         name: String = "",
         profile: CameraLabelProfile = CameraLabelProfile.standard,
-    ): List<String> = colorWheel(family, status.availableColorModes, name, profile).map { it.second }
+    ): List<String> =
+        // The drum keeps the reported current mode the body list lacks; [applyColorDrum] never sends it.
+        CaptureWheels.colorDrum(colorWheel(family, status.availableColorModes, name, profile), status.colorMode, family, profile)
+            .map { it.second }
 
     fun colorModeFromLabel(label: String, family: String = "pocket", name: String = "", profile: CameraLabelProfile = CameraLabelProfile.standard): Int? {
         val codes = profile.colorModes ?: listOf(CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_HDR,
@@ -675,24 +681,13 @@ object CaptureLists {
         if (CameraCommands.isPhotoMode(status.shootingMode)) PHOTO_FORMAT_READOUT
         else VideoFormat.chipLabel(status)
 
-    /** Remaining storage. Source order is `storage*` then `sd*`, matching iOS. */
+    /** Remaining storage through the shared [StorageReadout] and its volume rule, or the remaining minutes. */
     fun storageLabel(status: CameraStatus, showDuration: Boolean): String {
         if (showDuration && !CameraCommands.isPhotoMode(status.shootingMode)) {
-            return if (status.recordRemainingSec > 0) {
-                "${status.recordRemainingSec / 60} Min"
-            } else {
-                "— Min"
-            }
+            return com.opencapture.monitorui.MonitorStorageReadoutFormat.remainingMinutes(
+                status.recordRemainingSec.takeIf { it > 0 }?.div(60))
         }
-        val free = if (status.storageFreeMb > 0) status.storageFreeMb else status.sdFreeMb
-        val total = if (status.storageTotalMb > 0) status.storageTotalMb else status.sdTotalMb
-        if (total > 0) {
-            val gb = max(0, free) / 1024
-            val pct = ((max(0, free).toDouble() / total.toDouble()) * 100.0).roundToInt()
-            return "$gb GB · $pct%"
-        }
-        if (free > 0) return "${free / 1024} GB"
-        return "—"
+        return status.storageReadout?.label ?: StorageReadout.UNAVAILABLE
     }
 
     fun isoChipValue(status: CameraStatus): String =

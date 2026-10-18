@@ -10,6 +10,8 @@ import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.testing.FakeCameraBehavior
 import com.opencapture.opencine.core.testing.FakeCameraSession
 import com.opencapture.opencine.core.testing.FakeDevice
@@ -145,7 +147,7 @@ class SharedMonitorControlContractTest {
         audioLevels: AudioLevels? = null): FakeCameraSession {
         val mode = FakeMode(CaptureMode(CaptureMode.Role.VIDEO, "contract.video", "SIMULATED"),
             listOf(SettingDescriptor(SettingKey.ISO, access = access, domain = domain)), emptySet(),
-            timecode = SupportStatus.SUPPORTED, audioLevels = SupportStatus.SUPPORTED)
+            timecodeCapability = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SupportStatus.SUPPORTED)
         return FakeCameraSession(FakeCameraBehavior(IntegrationID("contract"), 3.seconds,
             5.seconds, FakeCameraBehavior.RecordWire.EXPLICIT, modes = mapOf(1 to mode)),
             FakeDevice(1, mapOf(SettingKey.ISO to iso(200)), recording = recording,

@@ -5,8 +5,6 @@ import XCTest
 /// Opt-in device proof using the existing connection and cached media. Never
 /// records, moves a camera, deletes media, exports, or downloads an uncached file.
 open class PhysicalDesqueezeTests: SharedAppUITestCase {
-    private var app: XCUIApplication!
-
     override open func setUpWithError() throws {
         guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_UI_REVIEW"] == "1" else {
             throw XCTSkip("Run the opted-in physical UI recipe with an attached iPhone")
@@ -175,13 +173,6 @@ open class PhysicalDesqueezeTests: SharedAppUITestCase {
                 let parts = token.split(separator: "=", maxSplits: 1)
                 return parts.count == 2 ? (String(parts[0]), String(parts[1])) : nil
             }, uniquingKeysWith: { _, new in new })
-    }
-
-    private func capture(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
     }
 }
 #endif

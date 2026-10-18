@@ -26,17 +26,37 @@ class MonitorWatcherLayoutTest {
         assertEquals(192.0, MonitorWatcherControlPlacement.bottomInset(true))
         assertEquals(84.0, MonitorWatcherControlPlacement.bottomInset(false))
     }
-    @Test fun passcodeEntryRetainsFourDecimalDigitsAndRequiresACompleteDraft() {
-        val draft = MonitorWatcherPasscodeDraft()
-        draft.update("a1 b2 c3")
-        assertEquals("123", draft.digits)
-        assertNull(draft.complete)
-        draft.update("a1 b2 c3 d4 e5")
-        assertEquals("1234", draft.digits)
-        assertEquals("1234", draft.complete)
-        draft.update("١٢٣٤")
-        assertEquals("١٢٣٤", draft.complete)
-        draft.update("")
-        assertNull(draft.complete)
+    @Test fun passcodeRuleTakesAnyTextOfFourCharactersTrimmed() {
+        val rule = MonitorWatcherPasscodeRule
+        assertEquals(4, rule.MINIMUM_LENGTH)
+        assertEquals(MonitorWatcherPasscodeRule.Entry.Open, rule.entry(""))
+        assertEquals(MonitorWatcherPasscodeRule.Entry.Open, rule.entry(" \t\n\u00A0"))
+        assertEquals(MonitorWatcherPasscodeRule.Entry.TooShort, rule.entry("abc"))
+        assertEquals(MonitorWatcherPasscodeRule.Entry.TooShort, rule.entry("  abc  "))
+        assertEquals(MonitorWatcherPasscodeRule.Entry.Code("abcd"), rule.entry("abcd"))
+        assertEquals(MonitorWatcherPasscodeRule.Entry.Code("set pass"), rule.entry(" set pass\n"))
+        assertEquals(MonitorWatcherPasscodeRule.Entry.Code("a1 b2 c3"), rule.entry("a1 b2 c3"))
+        assertEquals(MonitorWatcherPasscodeRule.Entry.Code("pässwörd"), rule.entry("\u2003pässwörd\u0085"))
+        // Code points, so Swift's Unicode-scalar count agrees.
+        assertEquals(MonitorWatcherPasscodeRule.Entry.TooShort, rule.entry("🎬🎬"))
+        assertEquals(MonitorWatcherPasscodeRule.Entry.Code("🎬🎬🎬🎬"), rule.entry("🎬🎬🎬🎬"))
+        // Swift's whitespacesAndNewlines set, not Java's isWhitespace (U+001F is not trimmed).
+        assertEquals("\u001Fabcd", rule.normalized("\u001Fabcd"))
+        assertEquals("", MonitorWatcherPasscodeRule.Entry.Open.passcode)
+        assertEquals("abcd", MonitorWatcherPasscodeRule.Entry.Code("abcd").passcode)
+        assertNull(MonitorWatcherPasscodeRule.Entry.TooShort.passcode)
+    }
+    @Test fun everySavedPasscodeFormStaysUsable() {
+        // OpenZCine saved four decimal digits (the only app with a relay on Android). Each still
+        // takes effect when chosen again and is always a valid watcher answer.
+        for (saved in listOf("0000", "4821", "١٢٣٤", "set pass", "pässwörd", "abcdefghijklmnopqrstuvwxyz0123456789")) {
+            assertEquals(MonitorWatcherPasscodeRule.Entry.Code(saved), MonitorWatcherPasscodeRule.entry(saved), saved)
+            assertEquals(saved, MonitorWatcherPasscodeRule.answer(saved), saved)
+        }
+        for (saved in listOf("a", "ab1", " abc ")) {
+            assertEquals(MonitorWatcherPasscodeRule.normalized(saved), MonitorWatcherPasscodeRule.answer(saved))
+        }
+        assertEquals("1234", MonitorWatcherPasscodeRule.answer(" 1234 "))
+        assertNull(MonitorWatcherPasscodeRule.answer("  "))
     }
 }

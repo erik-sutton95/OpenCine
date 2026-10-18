@@ -29,7 +29,7 @@ private class PreHopFacts {
             calls += "begin"; revision++; owned = revision; onCameraNetwork = false; revision
         }, owns = { owned == it }, wait = { calls += "wait"; true }, restore = {
             if (owned == it) { calls += "restore $it"; owned = null }
-        }), transfer = { it })
+        }), transfer = { it }, skipsUploaded = false)
 }
 
 /** SIMULATED cache completions use the existing popup task and actual shared request owner. */
@@ -106,6 +106,34 @@ class MonitorDeliveryPreHopTest {
         model.start(); runCurrent(); model.hopToInternet()
         assertEquals(listOf("begin"), facts.calls); assertEquals(1, facts.owned)
         runCurrent(); assertEquals(listOf("begin", "wait", "projects", "persist"), facts.calls); model.close()
+    }
+
+    @Test fun aHopHeldElsewhereLeavesThePopupWithItsReason() = runTest {
+        val facts = PreHopFacts()
+        val busy = MonitorDeliveryRemoteService(facts.service.presentation, facts.service.observe, facts.service.load,
+            facts.service.create, facts.service.persist, MonitorDeliveryInternetService<Int>(needsHop = { true },
+                begin = { facts.calls += "begin"; null }, owns = { false }, wait = { facts.calls += "wait"; true }, restore = { }),
+            transfer = { it }, skipsUploaded = false)
+        val model = PreHopModel(backgroundScope, ::selection, null, null, busy, MonitorDeliveryDestination.REMOTE_UPLOAD,
+            { facts.current }) { throw CancellationException("manual poll retired") }.also { it.start() }
+        runCurrent(); model.hopToInternet(); runCurrent()
+        assertEquals(listOf("begin"), facts.calls); assertFalse(model.state.value.hopping)
+        assertEquals("Couldn't leave the camera's Wi-Fi while another network switch is running.", model.state.value.projectsError)
+        model.close()
+    }
+
+    @Test fun aRouteRefusalWithAReasonIsShownInsteadOfThrown() = runTest {
+        val facts = PreHopFacts()
+        val refused = MonitorDeliveryRemoteService(facts.service.presentation, facts.service.observe, facts.service.load,
+            facts.service.create, facts.service.persist, MonitorDeliveryInternetService<Int>(needsHop = { true },
+                begin = { throw IllegalStateException("Save this camera's Wi-Fi profile first.") }, owns = { false },
+                wait = { true }, restore = { }), transfer = { it }, skipsUploaded = false)
+        val model = PreHopModel(backgroundScope, ::selection, null, null, refused, MonitorDeliveryDestination.REMOTE_UPLOAD,
+            { facts.current }) { throw CancellationException("manual poll retired") }.also { it.start() }
+        runCurrent(); model.hopToInternet(); runCurrent()
+        assertFalse(model.state.value.hopping)
+        assertEquals("Save this camera's Wi-Fi profile first.", model.state.value.projectsError)
+        model.close()
     }
 
     private fun make(scope: CoroutineScope, facts: PreHopFacts, preflight: suspend () -> Unit): PreHopModel =

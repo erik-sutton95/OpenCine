@@ -81,7 +81,7 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     }
     override fun openSession(): CameraSession = FakeCameraSession.lunaLike()
     override fun mediaService(session: CameraSessionID): CameraMediaService? = makeMediaService?.invoke(session)
-    override fun forget(id: String) { forgotten += id }
+    override suspend fun forget(id: String) { forgotten += id }
 }
 
 /** Swift suite `LunaIntegrationTests`, same method names. */
@@ -210,6 +210,12 @@ class LunaIntegrationTest {
         assertEquals(ConnectionFailure.Reason.NotApproved, LunaFailures.connect(ConnectionPhase.AWAITING_APPROVAL).reason)
         assertEquals(ConnectionFailure.Reason.JoinFailed, LunaFailures.connect(ConnectionPhase.JOINING_WIFI).reason)
         assertEquals("com.opencapture.insta360.luna.approval.incomplete", LunaFailures.connect(ConnectionPhase.AWAITING_APPROVAL).code)
+        // Device cell 7d: a camera that is off is named as missing, not as a busy camera.
+        val missing = LunaFailures.connect(ConnectionPhase.CONNECTING_GATT, advertising = false)
+        assertEquals(ConnectionFailure.Reason.NotFound, missing.reason)
+        assertEquals("The camera did not answer. Make sure it is turned on and nearby, then try again.", missing.message)
+        assertEquals("com.opencapture.insta360.luna.bluetooth.camera-missing", missing.code)
+        assertEquals(ConnectionFailure.Reason.Other, LunaFailures.connect(ConnectionPhase.CONNECTING_GATT, advertising = true).reason)
         assertEquals("Allow Nearby devices and location access to discover your camera.", LunaFailures.discoveryDenied.message)
         assertEquals(listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry), LunaFailures.discoveryDenied.actions)
         assertEquals("Bluetooth scanning could not start (2). Check Nearby devices permission.", LunaFailures.scanFailed(2).message)

@@ -224,43 +224,48 @@ object ScopeSampler {
         previous: ScopeAssistBundle = ScopeAssistBundle.EMPTY,
         ceiling: ScopeExposureCeiling = ScopeExposureCeiling.UNOBSERVED,
         iso: Int? = ceiling.resolvedISO(),
+    ): ScopeAssistBundle =
+        bundle(sampleRaw(bytes, width, height, bytesPerRow, transfer, includePoints || includeVectorPoints),
+            transfer, includePoints, includeVectorPoints, look, trafficThreshold, previous,
+            ScopeClipSnapshot(transfer, ceiling.clipByte(transfer, iso)), iso)
+
+    /**
+     * One published tick from raw samples a source already took (its own stride or tap), on the
+     * shared traffic lights, histogram display and clip: Swift `ScopeSampler.bundle(samples:)`.
+     */
+    fun bundle(
+        samples: ScopeSamples,
+        transfer: MonitorTransfer,
+        includePoints: Boolean,
+        includeVectorPoints: Boolean = false,
+        look: MonitorLUTCube? = null,
+        trafficThreshold: Double = ScopeTrafficLights.DEFAULT_THRESHOLD,
+        previous: ScopeAssistBundle = ScopeAssistBundle.EMPTY,
+        ceiling: ScopeClipSnapshot = ScopeClipSnapshot(transfer),
+        iso: Int? = null,
     ): ScopeAssistBundle {
-        val raw = sampleRaw(bytes, width, height, bytesPerRow, transfer, includePoints || includeVectorPoints)
-        val histY = raw.histogramLuma
-        val histR = raw.histogramRed
-        val histG = raw.histogramGreen
-        val histB = raw.histogramBlue
-        val points = raw.points
-        val samples =
-            ScopeSamples(
-                histogramLuma = histY,
-                histogramRed = histR,
-                histogramGreen = histG,
-                histogramBlue = histB,
-                points = if (includePoints) points else emptyList(),
-            )
-        val vectorPoints = if (includeVectorPoints) monitorPoints(points, look) else emptyList()
+        val kept = if (includePoints) samples else samples.copy(points = emptyList())
         return ScopeAssistBundle(
             revision = previous.revision + 1,
-            samples = samples,
-            vectorscopePoints = vectorPoints,
+            samples = kept,
+            vectorscopePoints = if (includeVectorPoints) monitorPoints(samples.points, look) else emptyList(),
             trailSamples = previous.samples,
             trailVectorscopePoints = previous.vectorscopePoints,
             traffic =
                 ScopeTrafficLights.reading(
-                    red = histR,
-                    green = histG,
-                    blue = histB,
+                    red = samples.histogramRed,
+                    green = samples.histogramGreen,
+                    blue = samples.histogramBlue,
                     transfer = transfer,
                     threshold = trafficThreshold,
                     previous = previous.traffic,
-                    luma = histY,
-                    ceiling = ScopeClipSnapshot(transfer, ceiling.clipByte(transfer, iso)),
+                    luma = samples.histogramLuma,
+                    ceiling = ceiling,
                 ),
-            histogramDisplay = histogramDisplay(samples, previous.histogramDisplay, transfer, iso, ceiling),
+            histogramDisplay = histogramDisplay(kept, previous.histogramDisplay, transfer, iso, ceiling),
             transfer = transfer,
             iso = iso,
-            ceiling = ScopeClipSnapshot(transfer, ceiling.clipByte(transfer, iso)),
+            ceiling = ceiling,
         )
     }
 

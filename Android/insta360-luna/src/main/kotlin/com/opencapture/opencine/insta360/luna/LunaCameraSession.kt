@@ -7,7 +7,10 @@ import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CameraRecordingFormat
+import com.opencapture.opencine.core.CameraExposureProgram
 import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.core.CapabilitySnapshot
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.CommandFailure
@@ -32,16 +35,27 @@ import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingSemantics
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
+import com.opencapture.opencine.media.HostShutterAngle
+import com.opencapture.opencine.media.HostShutterPresentation
 import com.opencapture.opencine.core.StorageVolume
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
+import com.opencapture.opencine.vocabulary.CameraCaptureProfile
+import com.opencapture.opencine.vocabulary.CameraZoomProfile
+import com.opencapture.opencine.vocabulary.CaptureCodecColorChoices
+import com.opencapture.opencine.vocabulary.CaptureNativeISOCapabilities
+import com.opencapture.opencine.vocabulary.ControlCapabilities
+import com.opencapture.opencine.vocabulary.ControlFamily
 import com.opencapture.opencine.core.rejection
 import com.opencapture.opencine.motion.MonitorLayoutCapabilities
 import com.opencapture.opencine.motion.MotionAxis
@@ -66,6 +80,9 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import com.opencapture.opencine.insta360.shell.ConnectionPhase as LinkPhase
+import com.opencapture.opencine.insta360.shell.CameraCapability
+import com.opencapture.opencine.vocabulary.ControlStatus
+import com.opencapture.opencine.vocabulary.ControlCapability
 
 /** The camera answered 500: it refused the request. */
 internal class LunaRefused(code: Int) : IllegalStateException("Camera rejected command $code")
@@ -91,6 +108,7 @@ class LunaCameraSession internal constructor(
     private val scope: CoroutineScope,
     private val timing: Timing = Timing.LUNA,
     private val now: () -> MonotonicInstant = { MonotonicInstant(System.nanoTime().nanoseconds) },
+    private val backendCapabilities: () -> Set<CameraCapability>? = { null },
     private val noteGimbalCommand: () -> Unit = {},
 ) : CameraSession {
     /**
@@ -109,7 +127,8 @@ class LunaCameraSession internal constructor(
         }
     }
 
-    private data class Awaiting(val intent: CameraCommandIntent, val acceptedAt: MonotonicInstant, val deadline: MonotonicInstant)
+    private data class Awaiting(val intent: CameraCommandIntent, val acceptedAt: MonotonicInstant,
+        val deadline: MonotonicInstant, val shutterDenominator: Int?)
 
     override val id: CameraSessionID = CameraSessionID()
     private val lock = Any()
@@ -157,6 +176,9 @@ class LunaCameraSession internal constructor(
         private set
 
     private var shootingMode: LunaShootingMode? = null
+    private var shutterPresentation = HostShutterPresentation.CAMERA_VALUE
+    private var reportedShutter: ObservedValue<ShutterValue> = ObservedValue.unknown
+    private var reportedCadence: ObservedValue<Double> = ObservedValue.unknown
     private var zoomDomain: ClosedFloatingPointRange<Double>? = null
     private val reportedAt = mutableMapOf<SettingKey, MonotonicInstant>()
     private val receipts = mutableMapOf<OperationID, CommandReceipt>()
@@ -174,6 +196,17 @@ class LunaCameraSession internal constructor(
     }
 
     // Link and telemetry (from the backend).
+
+    /** The operator's display choice changes no camera setting; emulation requires reported inputs. */
+    fun configureShutter(presentation: HostShutterPresentation) {
+        synchronized(lock) {
+            if (closed || shutterPresentation == presentation) return
+            shutterPresentation = presentation
+            projectShutter()
+            refreshCapabilities()
+            publish()
+        }
+    }
 
     /** Configured connection lens range; absent/invalid ranges leave zoom undescribed. */
     fun configureLens(zoomDomain: ClosedFloatingPointRange<Double>?) {
@@ -211,6 +244,8 @@ class LunaCameraSession internal constructor(
                     connection = ConnectionState.Ready, authority = ControlAuthority.Owner, epoch = current.epoch.next(),
                 )
             }
+            // Frame-derived clock observations belong to this link, never its predecessor.
+            current = current.withTimecodeReading(ObservedValue.unknown)
             publish()
         }
     }
@@ -239,6 +274,7 @@ class LunaCameraSession internal constructor(
             if (volumes.isNotEmpty()) {
                 current = current.copy(storage = ObservedValue(volumes.map { volume(it, at) }, ObservationOrigin.CAMERA_REPORTED, at))
             }
+            projectShutter()
             refreshCapabilities()
             publish()
         }
@@ -251,15 +287,28 @@ class LunaCameraSession internal constructor(
             settings.functionMode?.let { if (it != functionMode()) return }
             val at = now()
             fun carries(type: Int) = settings.types.isEmpty() || type in settings.types
+            if (carries(31) && (settings.recordResolution != null || 31 in settings.types)) {
+                val cadence = settings.videoResolution?.framesPerSecond
+                if (reportedCadence.value != cadence) {
+                    current = current.copy(capabilities = current.capabilities.copy(revision = current.capabilities.revision.next()))
+                }
+                reportedCadence = cadence?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) }
+                    ?: ObservedValue.unknown
+            }
             val still = settings.stillExposure.takeIf { carries(20) }
             val video = settings.videoExposure.takeIf { carries(21) }
             val exposure = if (shootingMode?.isPhoto == true) still ?: video else video ?: still
             val values = current.settings.toMutableMap()
-            if (exposure != null) {
-                values[SettingKey.ISO] = ObservedValue(SettingValue.Iso(iso(exposure)), ObservationOrigin.CAMERA_REPORTED, at)
-                values[SettingKey.SHUTTER] = ObservedValue(SettingValue.Shutter(shutter(exposure)), ObservationOrigin.CAMERA_REPORTED, at)
-                reportedAt[SettingKey.ISO] = at
-                reportedAt[SettingKey.SHUTTER] = at
+            var recordingFormat = current.recordingFormat
+            var program = current.exposureProgram
+            if (exposure != null || 20 in settings.types || 21 in settings.types) {
+                val iso = exposure?.let(::iso)
+                val shutter = exposure?.let(::shutter)
+                values[SettingKey.ISO] = iso?.let { ObservedValue(SettingValue.Iso(it), ObservationOrigin.CAMERA_REPORTED, at) } ?: ObservedValue.unknown
+                reportedShutter = shutter?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) } ?: ObservedValue.unknown
+                program = exposure?.let(::exposureProgram)?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) } ?: ObservedValue.unknown
+                if (iso == null) reportedAt.remove(SettingKey.ISO) else reportedAt[SettingKey.ISO] = at
+                if (shutter == null) reportedAt.remove(SettingKey.SHUTTER) else reportedAt[SettingKey.SHUTTER] = at
             }
             if (carries(39)) {
                 // proto3 may omit a zero: a requested type 39 without a value is Auto.
@@ -271,8 +320,26 @@ class LunaCameraSession internal constructor(
                     reportedAt[SettingKey.WHITE_BALANCE] = at
                 }
             }
-            if (carries(35)) {
-                settings.colorMode?.let(::profileID)?.let { recordingProfile = ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) }
+            // Option 31 declares recording dimensions and cadence, not the preview's encoding.
+            if (carries(31) && (settings.recordResolution != null || 31 in settings.types)) {
+                val resolution = settings.videoResolution
+                val rate = resolution?.let { Rational.frameRate(it.framesPerSecond) }
+                values[SettingKey.FRAME_RATE] = rate?.let {
+                    ObservedValue(SettingValue.FrameRate(it), ObservationOrigin.CAMERA_REPORTED, at)
+                } ?: ObservedValue.unknown
+                if (rate == null) reportedAt.remove(SettingKey.FRAME_RATE) else reportedAt[SettingKey.FRAME_RATE] = at
+                val dimensions = resolution?.let { CameraRecordingFormat.Dimensions.measured(it.width, it.height) }
+                recordingFormat = recordingFormat.copy(dimensions = dimensions?.let {
+                    ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at)
+                } ?: ObservedValue.unknown)
+            }
+            if (carries(35) && (settings.colorMode != null || 35 in settings.types)) {
+                recordingProfile = settings.colorMode?.let(::profileID)?.let {
+                    ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at)
+                } ?: ObservedValue.unknown
+                recordingFormat = recordingFormat.copy(profile = settings.colorMode?.let(::recordingProfileLabel)?.let {
+                    ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at)
+                } ?: ObservedValue.unknown)
             }
             if (carries(53) && (settings.zoom != null || 53 in settings.types)) {
                 val zoom = settings.zoom?.takeIf { it.isFinite() && it in 1.0..LunaControl.MAXIMUM_ZOOM }
@@ -292,10 +359,16 @@ class LunaCameraSession internal constructor(
                 } ?: ObservedValue.unknown
                 if (focus != null) reportedAt[SettingKey.FOCUS_MODE] = at else reportedAt.remove(SettingKey.FOCUS_MODE)
             }
-            current = current.copy(settings = values)
+            current = current.copy(settings = values, recordingFormat = recordingFormat, exposureProgram = program)
+            projectShutter()
             refreshCapabilities()
-            settle()
+            // The waiters this settle finishes must not run before the snapshot that
+            // carries the reported values is published; otherwise an eager awaiter sees
+            // the previous feed. Publish exactly once, then complete the captured waiters.
+            val finished = mutableListOf<Pair<CompletableDeferred<CommandReceipt>, CommandReceipt>>()
+            settle(finished)
             publish()
+            for ((waiter, receipt) in finished) waiter.complete(receipt)
         }
     }
 
@@ -311,8 +384,11 @@ class LunaCameraSession internal constructor(
             }
             current = current.copy(recording = state?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) } ?: ObservedValue.unknown)
             if (state != null) reportedAt[SettingKey.RECORDING] = at
-            settle()
+            // Same publish-before-waiter order as the settings ingest above.
+            val finished = mutableListOf<Pair<CompletableDeferred<CommandReceipt>, CommandReceipt>>()
+            settle(finished)
             publish()
+            for ((waiter, receipt) in finished) waiter.complete(receipt)
         }
     }
 
@@ -320,21 +396,32 @@ class LunaCameraSession internal constructor(
      * Time of day the host derives for the live picture: the phone sets the camera clock and pins
      * frame stamps to its own, so the value is `CLOCK_DERIVED`, never a camera counter.
      */
-    fun ingest(timecode: CameraTimecode) {
+    fun ingest(timecode: CameraTimecode) = ingest(CameraTimecodeReading(timecode))
+
+    fun ingest(timecode: CameraTimecodeReading) {
         synchronized(lock) {
-            if (closed) return
-            current = current.copy(timecode = ObservedValue(timecode, ObservationOrigin.CLOCK_DERIVED, now()))
+            if (closed || current.connection != ConnectionState.Ready) return
+            current = current.withTimecodeReading(ObservedValue(timecode, ObservationOrigin.CLOCK_DERIVED, now()))
             publish()
         }
     }
 
     /**
-     * What a monitor lays out for this camera (Swift `layout(base:)`): the Core projection of the
-     * snapshot plus the Luna gimbal ([MOTION]). [base] carries what Core has no vocabulary for yet.
+     * What a monitor lays out for this camera (Swift `layout(base:)`): a view of the one control
+     * model ([controlCapabilities]), so the zoom chip follows Luna's declared zoom before the live
+     * range arrives. [base] carries what Core has no vocabulary for yet.
      */
-    fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities {
+    fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities =
+        com.opencapture.opencine.vocabulary.MonitorLayoutCapabilities(controlCapabilities(), base)
+
+    /**
+     * The one control model for this camera (Swift `controlCapabilities(codecColor:)`):
+     * [CAPTURE_PROFILE] and [MOTION] merged with the live capabilities. [codecColor] is what the
+     * codec and colour popup lists now, when the host has it.
+     */
+    fun controlCapabilities(codecColor: CaptureCodecColorChoices? = null): ControlCapabilities {
         val capabilities = synchronized(lock) { current.capabilities }
-        return MonitorLayoutCapabilities(capabilities, MOTION, base)
+        return Companion.controlCapabilities(capabilities, backendCapabilities(), codecColor)
     }
 
     // CameraSession.
@@ -343,6 +430,7 @@ class LunaCameraSession internal constructor(
         val operation = command.operation
         val key = command.intent.key
         val request: LunaControl.Request
+        val expectedShutter: Int?
         synchronized(lock) {
             receipts[operation]?.let { return it }
             receipts[operation] = CommandReceipt(
@@ -362,6 +450,8 @@ class LunaCameraSession internal constructor(
             } catch (_: IllegalArgumentException) {
                 return transition(operation, CommandStage.Rejected(CommandRejection.OutOfDomain))
             }
+            val angle = ((command.intent as? CameraCommandIntent.Set)?.value as? SettingValue.Shutter)?.value as? ShutterValue.Angle
+            expectedShutter = angle?.let { HostShutterAngle.denominator(it.degrees, reportedCadence.value, SHUTTER_DENOMINATORS) }
             (command.intent as? CameraCommandIntent.Set)?.let { set ->
                 // An older unfinished write to the same setting may or may not have landed
                 // before this one; only the newest receipt can confirm.
@@ -391,7 +481,7 @@ class LunaCameraSession internal constructor(
             val acceptedAt = now()
             var deadline = acceptedAt + (timing.settle[key] ?: 4.seconds)
             command.preconditions.deadline?.let { if (it < deadline) deadline = it }
-            awaiting[operation] = Awaiting(command.intent, acceptedAt, deadline)
+            awaiting[operation] = Awaiting(command.intent, acceptedAt, deadline, expectedShutter)
             transition(operation, CommandStage.AwaitingObservation)
             settle()
             if (pump?.isActive != true) pump = scope.launch { readBackUntilSettled() }
@@ -457,9 +547,20 @@ class LunaCameraSession internal constructor(
     /** The newest unfinished write for [key], else the reported value. */
     private fun target(key: SettingKey): SettingValue? = targets[key]?.second ?: current.value(key).value
 
-    private fun exposure(iso: ISOValue?, shutter: ShutterValue?, bank: Int): LunaControl.Request {
+    private fun exposure(iso: ISOValue?, shutter: ShutterValue?, bank: Int): LunaControl.Request? {
         val manualIso = (iso as? ISOValue.Manual)?.iso?.toLong()
-        val seconds = (shutter as? ShutterValue.Duration)?.seconds?.doubleValue
+        val seconds = when (val value = shutter ?: reportedShutter.value) {
+            is ShutterValue.Angle -> {
+                if (shutterPresentation != HostShutterPresentation.EMULATED_ANGLE ||
+                    shootingMode?.isPhoto != false || reportedShutter.value !is ShutterValue.Duration) return null
+                val denominator = HostShutterAngle.denominator(value.degrees, reportedCadence.value, SHUTTER_DENOMINATORS)
+                    ?: return null
+                1.0 / denominator
+            }
+            is ShutterValue.Duration -> value.seconds.doubleValue
+            ShutterValue.Auto -> null
+            null -> return null
+        }
         return LunaControl.videoExposure(LunaControl.exposureProgram(manualIso, seconds), manualIso, seconds, bank)
     }
 
@@ -471,11 +572,14 @@ class LunaCameraSession internal constructor(
         else -> false
     }
 
-    private fun reportShows(intent: CameraCommandIntent) = when (intent) {
+    private fun reportShows(intent: CameraCommandIntent, shutterDenominator: Int?) = when (intent) {
         is CameraCommandIntent.Set -> when (val target = intent.value) {
             is SettingValue.Zoom -> (current.value(SettingKey.ZOOM).value as? SettingValue.Zoom)?.let {
                 abs(target.ratio - it.ratio) < 0.05
             } == true
+            is SettingValue.Shutter -> if (target.value is ShutterValue.Angle) {
+                shutterDenominator != null && (reportedShutter.value as? ShutterValue.Duration)?.seconds == Rational(1, shutterDenominator)
+            } else current.value(target.key).value == target
             else -> current.value(target.key).value == target
         }
         CameraCommandIntent.StartRecording -> current.recording.value == RecordingState.RECORDING
@@ -484,14 +588,14 @@ class LunaCameraSession internal constructor(
     }
 
     /** Confirms what a readback shows; ends what its settle window has closed on. */
-    private fun settle() {
+    private fun settle(finished: MutableList<Pair<CompletableDeferred<CommandReceipt>, CommandReceipt>>? = null) {
         val at = now()
         for ((operation, write) in awaiting.toList()) {
-            if (reportShows(write.intent)) {
-                transition(operation, CommandStage.Confirmed)
+            if (reportShows(write.intent, write.shutterDenominator)) {
+                transition(operation, CommandStage.Confirmed, finished)
             } else if (at >= write.deadline) {
                 val heard = reportedAt[write.intent.key]?.let { it > write.acceptedAt } == true
-                transition(operation, if (heard) CommandStage.Failed(CommandFailure.NOT_APPLIED) else CommandStage.TimedOut)
+                transition(operation, if (heard) CommandStage.Failed(CommandFailure.NOT_APPLIED) else CommandStage.TimedOut, finished)
             }
         }
     }
@@ -538,7 +642,8 @@ class LunaCameraSession internal constructor(
         )
     }
 
-    private fun transition(operation: OperationID, stage: CommandStage): CommandReceipt {
+    private fun transition(operation: OperationID, stage: CommandStage,
+        finished: MutableList<Pair<CompletableDeferred<CommandReceipt>, CommandReceipt>>? = null): CommandReceipt {
         val receipt = receipts.getValue(operation)
         // A late completion never rewrites a finished outcome.
         if (receipt.isFinished) return receipt
@@ -547,7 +652,13 @@ class LunaCameraSession internal constructor(
         if (next.isFinished) {
             awaiting.remove(operation)
             if (targets[next.intent.key]?.first == operation) targets.remove(next.intent.key)
-            waiters.remove(operation)?.complete(next)
+            val waiter = waiters.remove(operation)
+            if (waiter != null) {
+                // A reporting caller publishes before completing its waiters, so an eager
+                // awaiter observes the snapshot the outcome belongs to; other callers keep
+                // the immediate completion.
+                if (finished != null) finished.add(waiter to next) else waiter.complete(next)
+            }
         }
         return next
     }
@@ -559,9 +670,35 @@ class LunaCameraSession internal constructor(
 
     // Capabilities and mapping.
 
+    private fun projectShutter() {
+        val value = reportedShutter.value
+        val projected: ObservedValue<SettingValue> = when {
+            value == null -> ObservedValue.unknown
+            shutterPresentation == HostShutterPresentation.EMULATED_ANGLE && value is ShutterValue.Duration -> {
+                val cadence = reportedCadence.value
+                val angle = if (shootingMode?.isPhoto == false && cadence != null && value.seconds.numerator > 0)
+                    HostShutterAngle.reported(value.seconds.denominator, cadence) else null
+                angle?.let { ObservedValue(SettingValue.Shutter(ShutterValue.Angle(it)), ObservationOrigin.PROTOCOL_DERIVED,
+                    listOfNotNull(reportedShutter.observedAt, reportedCadence.observedAt).minOrNull()) }
+                    ?: ObservedValue.unknown
+            }
+            else -> ObservedValue(SettingValue.Shutter(value), reportedShutter.origin, reportedShutter.observedAt)
+        }
+        current = current.copy(settings = current.settings + (SettingKey.SHUTTER to projected))
+    }
+
     private fun refreshCapabilities() {
-        // A write carries ISO and shutter together, so neither is safe before both are known.
-        val exposure = if (SettingKey.ISO in current.settings) Availability.Available else Availability.Unavailable(UnavailableReason.NotReady)
+        // A write carries ISO and shutter together, so neither is safe before both are known. A
+        // withdrawn report keeps its key with an unknown value, so the value decides.
+        val exposure = if (current.value(SettingKey.ISO).value != null) Availability.Available else Availability.Unavailable(UnavailableReason.NotReady)
+        val emulated = shutterPresentation == HostShutterPresentation.EMULATED_ANGLE
+        val shutterAvailability = when {
+            !emulated -> exposure
+            shootingMode == null || reportedCadence.value == null -> Availability.Unavailable(UnavailableReason.NotReady)
+            shootingMode?.isPhoto == true -> Availability.Unavailable(UnavailableReason.Mode)
+            reportedShutter.value is ShutterValue.Duration -> exposure
+            else -> Availability.Unavailable(UnavailableReason.Mode)
+        }
         val recording = when {
             shootingMode == null -> Availability.Unavailable(UnavailableReason.NotReady)
             shootingMode?.isPhoto == true -> Availability.Unavailable(UnavailableReason.Mode)
@@ -573,9 +710,10 @@ class LunaCameraSession internal constructor(
                 domain = SettingDomain(listOf<SettingValue>(SettingValue.Iso(ISOValue.Auto)) + ISO_VALUES.map { SettingValue.Iso(ISOValue.Manual(it)) }),
             ),
             SettingDescriptor(
-                SettingKey.SHUTTER, availability = exposure,
+                SettingKey.SHUTTER, availability = shutterAvailability,
+                semantics = SettingSemantics(implementation = if (emulated) SettingSemantics.Implementation.EMULATED else SettingSemantics.Implementation.NATIVE),
                 domain = SettingDomain(
-                    listOf<SettingValue>(SettingValue.Shutter(ShutterValue.Auto)) +
+                    if (emulated) HostShutterAngle.choices else listOf<SettingValue>(SettingValue.Shutter(ShutterValue.Auto)) +
                         SHUTTER_DENOMINATORS.map { SettingValue.Shutter(ShutterValue.Duration(Rational(1, it))) },
                 ),
             ),
@@ -588,18 +726,51 @@ class LunaCameraSession internal constructor(
                 SettingKey.FOCUS_MODE,
                 domain = SettingDomain(listOf(SettingValue.FocusMode(FocusMode.SINGLE), SettingValue.FocusMode(FocusMode.CONTINUOUS))),
             ),
+            // The record rate is a common read-only observation; the format picker stays native.
+            SettingDescriptor(SettingKey.FRAME_RATE, access = SettingAccess.READ_ONLY),
         )
         zoomDomain?.let { descriptors += SettingDescriptor(SettingKey.ZOOM, domain = SettingDomain(range = it)) }
         // Timecode is host-derived time of day ([ingest]); Luna reports no audio levels.
         val declared = CapabilitySnapshot(
-            current.capabilities.revision, descriptors,
-            timecode = SupportStatus.SUPPORTED, audioLevels = SupportStatus.UNSUPPORTED,
+            revision = current.capabilities.revision, descriptors = descriptors,
+            timecodeCapability = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SupportStatus.UNSUPPORTED,
         )
         if (declared == current.capabilities) return
         current = current.copy(capabilities = declared.copy(revision = declared.revision.next()))
     }
 
     companion object {
+        /**
+         * Derives controls from camera facts and the backend's current verified operation domains.
+         * Null means no backend declaration. Video/audio transport and the host clock are not controls.
+         * Swift: `controlCapabilities(snapshot:backendCapabilities:codecColor:)`.
+         */
+        fun controlCapabilities(snapshot: CapabilitySnapshot, backendCapabilities: Set<CameraCapability>?,
+            codecColor: CaptureCodecColorChoices? = null): ControlCapabilities {
+            val controls = ControlCapabilities.derive(snapshot, CAPTURE_PROFILE, MOTION, codecColor)
+            if (backendCapabilities == null) return controls
+            val domains = listOf(
+                CameraCapability.CAMERA_SETTINGS to listOf(ControlFamily.ISO, ControlFamily.SHUTTER,
+                    ControlFamily.WHITE_BALANCE, ControlFamily.TINT, ControlFamily.FOCUS,
+                    ControlFamily.EXPOSURE_COMPENSATION, ControlFamily.FACE_METERING,
+                    ControlFamily.RECORDING_FORMAT, ControlFamily.CODEC_COLOR),
+                CameraCapability.FOCUS to listOf(ControlFamily.TAP_FOCUS),
+                CameraCapability.ZOOM to listOf(ControlFamily.ZOOM),
+                CameraCapability.GIMBAL to listOf(ControlFamily.GIMBAL, ControlFamily.HEAD_TRACKING),
+                CameraCapability.RECORD to listOf(ControlFamily.RECORDING),
+                CameraCapability.CAMERA_MEDIA to listOf(ControlFamily.MEDIA, ControlFamily.MEDIA_DELETE),
+            )
+            val inputs = domains.flatMap { (domain, families) ->
+                val status = ControlStatus(if (domain in backendCapabilities) SupportStatus.SUPPORTED else SupportStatus.UNSUPPORTED)
+                families.map { it to status }
+            }.toMap()
+            val restricted = controls.restricting(inputs)
+            // Preserve the existing shell declaration for this native extension, in its typed offer.
+            return restricted.copy(iso = ControlCapability(restricted.iso.support, restricted.iso.access,
+                restricted.iso.offer?.copy(nativeISO = restricted.nativeISO.copy(
+                    hop = CameraCapability.NATIVE_ISO_HOP in backendCapabilities))))
+        }
+
         /**
          * What Luna Ultra (fw 1.1.15) declares to shared motion (Swift `LunaCameraSession.motion`):
          * handle-frame pan and tilt (cmd 226 SET_ANGLE), pitch -57...90, yaw one arc from about
@@ -613,6 +784,28 @@ class LunaCameraSession internal constructor(
             maxRateDegPerSec = null, feedbackMaxAge = 300.milliseconds, arrivalToleranceDeg = 0.5,
             pose = SupportStatus.SUPPORTED,
         )
+        /**
+         * Luna's static control facts (fw 1.1.15; Swift `LunaCameraSession.captureProfile`): focus
+         * modes and tap focus, a fixed aperture, the gimbal, zoom presets 1/2/3/6/15, face
+         * metering, native exposure compensation, no native ISO hop or ISO ceiling, no ND, photo
+         * modes, the camera's media served and deleted over its access point. Multiview is not
+         * declared (unknown).
+         */
+        val CAPTURE_PROFILE = CameraCaptureProfile(
+            supportsFocusMode = true, supportsTapFocus = true, supportsAperture = false, hasGimbal = true,
+            supportsZoom = true, zoom = CameraZoomProfile(stops = listOf(1.0, 2.0, 3.0, 6.0, 15.0)),
+            nativeISO = CaptureNativeISOCapabilities(hop = false, ceiling = false),
+            controls = mapOf(
+                ControlFamily.ND_FILTER to SupportStatus.UNSUPPORTED,
+                ControlFamily.FACE_METERING to SupportStatus.SUPPORTED,
+                ControlFamily.EXPOSURE_COMPENSATION to SupportStatus.SUPPORTED,
+                ControlFamily.RECORDING_FORMAT to SupportStatus.SUPPORTED,
+                ControlFamily.CODEC_COLOR to SupportStatus.SUPPORTED,
+                ControlFamily.PHOTO to SupportStatus.SUPPORTED,
+                ControlFamily.MEDIA to SupportStatus.SUPPORTED,
+                ControlFamily.MEDIA_DELETE to SupportStatus.SUPPORTED,
+            ),
+        )
         internal val INTEGRATION = IntegrationID("com.opencapture.insta360.luna")
         /** Official Video ISO wheel. */
         internal val ISO_VALUES = listOf(100, 160, 200, 400, 800, 1600, 3200, 6400)
@@ -622,17 +815,38 @@ class LunaCameraSession internal constructor(
             200, 160, 125, 100, 80, 60, 50, 40, 30, 25, 15, 10, 5,
         )
 
-        /** Programs 1 and 3 hold the reported ISO; the rest choose it. */
-        internal fun iso(exposure: LunaExposure): ISOValue =
-            if (exposure.program in setOf(1L, 3L) && exposure.iso > 0) ISOValue.Manual(exposure.iso.toInt()) else ISOValue.Auto
+        private fun exposureProgram(exposure: LunaExposure): CameraExposureProgram? = when (exposure.program) {
+            0L, 4L, 5L -> CameraExposureProgram.AUTOMATIC
+            1L -> CameraExposureProgram.ISO_PRIORITY
+            2L -> CameraExposureProgram.SHUTTER_PRIORITY
+            3L -> CameraExposureProgram.MANUAL
+            else -> null
+        }
 
-        /** Programs 2 and 3 hold the reported shutter; the rest choose it. */
-        internal fun shutter(exposure: LunaExposure): ShutterValue =
-            if (exposure.program in setOf(2L, 3L) && exposure.shutterSeconds > 0) {
-                ShutterValue.Duration(Rational(1, (1 / exposure.shutterSeconds).roundToInt()))
-            } else {
-                ShutterValue.Auto
-            }
+        internal fun iso(exposure: LunaExposure): ISOValue? {
+            if (exposureProgram(exposure) == null) return null
+            if (exposure.program !in setOf(1L, 3L)) return ISOValue.Auto
+            if (exposure.iso !in 0..Int.MAX_VALUE.toLong()) return null
+            return if (exposure.iso > 0) ISOValue.Manual(exposure.iso.toInt()) else ISOValue.Auto
+        }
+
+        internal fun shutter(exposure: LunaExposure): ShutterValue? {
+            if (exposureProgram(exposure) == null) return null
+            if (exposure.program !in setOf(2L, 3L) || exposure.shutterSeconds == 0.0) return ShutterValue.Auto
+            return duration(exposure.shutterSeconds)?.let(ShutterValue::Duration)
+        }
+
+        /** Same positive measured-duration construction as Swift, bounded to Rational's integers. */
+        private fun duration(seconds: Double): Rational? {
+            if (!seconds.isFinite() || seconds <= 0 || seconds >= Int.MAX_VALUE.toDouble()) return null
+            if (seconds == Math.round(seconds).toDouble()) return Rational(seconds.toInt())
+            val reciprocal = 1 / seconds
+            if (reciprocal.isFinite() && reciprocal >= 1 && reciprocal < Int.MAX_VALUE.toDouble() &&
+                kotlin.math.abs(reciprocal - Math.round(reciprocal)) < 1e-7) return Rational(1, Math.round(reciprocal).toInt())
+            val scaled = Math.round(seconds * 1_000_000).toDouble()
+            if (scaled < 1 || scaled >= Int.MAX_VALUE.toDouble()) return null
+            return Rational(scaled.toInt(), 1_000_000)
+        }
 
         internal fun captureMode(mode: LunaShootingMode): CaptureMode {
             val (name, title) = when (mode) {
@@ -646,6 +860,16 @@ class LunaCameraSession internal constructor(
             }
             val role = if (mode.isPhoto) CaptureMode.Role.PHOTO else CaptureMode.Role.VIDEO
             return CaptureMode(role, "${INTEGRATION.rawValue}.mode.$name", title)
+        }
+
+        /** Native recording content; a profile never declares the preview curve or its codec. */
+        private fun recordingProfileLabel(color: Long): String? = when (color) {
+            1L -> "Standard"
+            2L -> "I-Log"
+            3L -> "Vivid"
+            4L -> "HDR"
+            5L -> "Dolby Vision"
+            else -> null
         }
 
         internal fun profileID(color: Long): String? =
@@ -665,6 +889,7 @@ class LunaCameraSession internal constructor(
                 media = media?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) } ?: ObservedValue.unknown,
                 // Free space only means something on a usable card.
                 freeBytes = if (storage.isUsable) ObservedValue(storage.freeBytes, ObservationOrigin.CAMERA_REPORTED, at) else ObservedValue.unknown,
+                totalBytes = if (storage.isUsable && storage.totalBytes > 0) ObservedValue(storage.totalBytes, ObservationOrigin.CAMERA_REPORTED, at) else ObservedValue.unknown,
             )
         }
     }

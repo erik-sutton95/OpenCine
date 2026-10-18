@@ -201,9 +201,9 @@ object WaveformIre {
  * transfer builds it from its anchors; a source that owns a measured placement supplies the table
  * and grey line itself. iOS `ScopeLevelAxis`.
  */
-class ScopeLevelAxis(val table: FloatArray, val middleGrayIre: Double) {
+class ScopeLevelAxis(val table: FloatArray, val middleGrayIre: Double, val supportsCalibratedReferences: Boolean = true) {
     init {
-        require(table.size == 256) { "ScopeLevelAxis needs one IRE per tap code" }
+        require(table.size == 256) { "ScopeLevelAxis needs one axis value per tap code" }
     }
 
     /** Native-code histogram counts onto this axis. Conserves total count. */
@@ -219,11 +219,14 @@ class ScopeLevelAxis(val table: FloatArray, val middleGrayIre: Double) {
     }
 
     override fun equals(other: Any?): Boolean =
-        other is ScopeLevelAxis && middleGrayIre == other.middleGrayIre && table.contentEquals(other.table)
+        other is ScopeLevelAxis && middleGrayIre == other.middleGrayIre &&
+            supportsCalibratedReferences == other.supportsCalibratedReferences && table.contentEquals(other.table)
 
-    override fun hashCode(): Int = 31 * table.contentHashCode() + middleGrayIre.hashCode()
+    override fun hashCode(): Int = 31 * (31 * table.contentHashCode() + middleGrayIre.hashCode()) + supportsCalibratedReferences.hashCode()
 
     companion object {
+        /** Encoded-code percentage. The unused grey field cannot supply a calibrated reference. */
+        val rawCodes: ScopeLevelAxis get() = ScopeLevelAxis(FloatArray(256) { it / 255f * 100f }, 0.0, false)
         fun of(
             transfer: MonitorTransfer,
             iso: Int? = null,

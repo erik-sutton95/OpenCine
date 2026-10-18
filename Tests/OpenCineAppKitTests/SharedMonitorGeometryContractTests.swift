@@ -27,16 +27,17 @@ struct SharedMonitorGeometryContractTests {
         }
     }
 
-    @Test func landscapeRecordingCategoriesStayAtTheScreenEdgeAcrossCutoutRotation() {
+    /// Landscape recording categories float under the one popup top margin, every corner rounded.
+    @Test func landscapeRecordingCategoriesKeepThePopupTopMarginAcrossCutoutRotation() {
         for safe in [MonitorSafeArea(leading: 62, bottom: 21),
                      MonitorSafeArea(bottom: 21, trailing: 62)] {
             let layout = FieldMonitorLayout(width: 874, height: 402, safeArea: safe)
             let popup = MonitorCapturePopupContainer(layout: layout, safeArea: safe, top: true) { _ in EmptyView() }
             let placement = popup.placement
-            #expect(placement.edge == .top && placement.top == 0)
+            #expect(placement.edge == .top && placement.top == MonitorCapturePopupLayout.topMargin(safeTop: 0))
             #expect(placement.bottom == 402)
             #expect(placement.centerX == 437 && placement.width == 480)
-            #expect(placement.topCornerRadius == 0 && placement.bottomCornerRadius == 16)
+            #expect(placement.topCornerRadius == 16 && placement.bottomCornerRadius == 16)
         }
     }
 

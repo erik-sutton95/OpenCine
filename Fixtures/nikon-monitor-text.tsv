@@ -1,0 +1,46 @@
+# Golden vectors for the Nikon monitor text, the media status and the remaining-time estimate,
+# shared by both shells.
+#
+# Swift owns them in `Sources/OpenCineNikon` (`MonitorTextFormat`, `MediaStatus`,
+# `RecordDurationEstimator`); Kotlin re-implements them in `Android/nikon` under the same names.
+# Nothing links the two, so `NikonMonitorTextVectorTests` (Swift) and `NikonMonitorTextVectorTest`
+# (Kotlin) both read this file and a rule edited on one side only fails a test.
+#
+# Rows (tab separated; "-" is an absent value):
+#   resolution   <WxH property>  <fps>  <label>         resolutionLabel(fromProperty:frameRate:fallback: "held")
+#   codec        <camera name>  <short label>  <compact label>  <RAW: true|false>
+#   estimate     <short codec>  <width>  <height>  <fps>  <decimal GB free>  <minutes>
+#   media        <free bytes>  <total bytes>  <camera codec>  <WxH>  <fps>  <capacity label>  <duration label>
+#                MediaStatus from a storage readback; "-" labels when the readback has no usable capacity
+resolution	6048x3402	25	6K · 25p
+resolution	4032x2268	24	4K · 24p
+resolution	7680x4320	30	8K · 30p
+resolution	1920x1080	50	1920 · 50p
+resolution	3840x2160	0	4K
+resolution	garbage	24	held
+resolution	-	24	held
+resolution	x6048x3402	25	6K · 25p
+codec	R3D NE 12-bit R3D	R3D NE	R3D NE	true
+codec	ProRes RAW HQ	ProRes RAW HQ	PR RAW HQ	true
+codec	ProRes RAW HQ 12-bit MOV	ProRes RAW HQ	PR RAW HQ	true
+codec	ProRes 422 HQ 10-bit MOV	ProRes 422 HQ	PR 422 HQ	false
+codec	H.265 10-bit	H.265 10-bit	H.265	false
+codec	H.265 10-bit MP4	H.265	H.265	false
+codec	H.264 8-bit MP4	H.264	H.264	false
+codec	N-RAW 12-bit NEV	N-RAW	N-RAW	true
+estimate	R3D NE	6048	3402	25	429	36
+estimate	R3D NE	6048	3402	25	470	40
+estimate	N-RAW	3840	2160	24	521	147
+estimate	ProRes RAW HQ	3840	2160	60	100	3
+estimate	ProRes 422 HQ	3840	2160	24	521	98
+estimate	H.265	3840	2160	24	521	365
+estimate	H.264	1920	1080	30	64	364
+estimate	Mystery	3840	2160	25	100	51
+estimate	R3D NE	0	0	0	440	0
+estimate	R3D NE	6048	3402	25	0	0
+estimate	R3D NE	7680	4320	25	521	27
+media	470000000000	1000000000000	R3D NE 12-bit R3D	6048x3402	25	470 GB · 47%	~40 Min
+media	60000000000	128000000000	H.265 10-bit MP4	3840x2160	24	60 GB · 47%	~42 Min
+media	59600000000	128000000000	-	-	-	59.6 GB · 47%	-- Min
+media	1000	0	H.265 10-bit MP4	3840x2160	24	-	-
+media	2000	1000	H.265 10-bit MP4	3840x2160	24	-	-

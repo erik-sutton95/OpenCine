@@ -3,6 +3,7 @@ import Testing
 
 /// SIMULATED route publication; the original end remains the only cleanup admission.
 @Suite struct FrameioInternetHopABATests {
+    @available(*, deprecated, message: "Exercises the retained FrameioInternetHop compatibility contract")
     @Test func currentEndCanPublishButCannotEndTwice() {
         var route = FrameioInternetHop()
         let captured = route.begin()
@@ -12,6 +13,7 @@ import Testing
         let repeated = route.end(captured)
         #expect(!repeated && route.ended(captured))
     }
+    @available(*, deprecated, message: "Exercises the retained FrameioInternetHop compatibility contract")
     @Test func successorBeginAndEndCannotReviveTheOldPublication() {
         var route = FrameioInternetHop()
         let old = route.begin()
@@ -22,6 +24,7 @@ import Testing
         let successorAccepted = route.end(successor)
         #expect(successorAccepted && route.ended(successor) && !route.ended(old))
     }
+    @available(*, deprecated, message: "Exercises the retained FrameioInternetHop compatibility contract")
     @Test func transferAndIndependentOwnerCannotBorrowEndedPublication() throws {
         var route = FrameioInternetHop()
         var other = FrameioInternetHop()

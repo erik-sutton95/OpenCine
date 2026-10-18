@@ -4,17 +4,7 @@ import Foundation
 import Metal
 import OpenCineMedia
 
-/// the original renderer `Peaking` constants used by the Core Image filter-chain detector (no fused kernel).
-private enum Peak {
-    static let reblurRadius = 1.0
-    static let ratioScale = 0.25
-    static let antialiasWidth = 0.12
-    static let underRampOffset = 0.5
-    static let under = (red: 0.04, green: 0.04, blue: 0.05)
-    static let gateRampFloor = 0.7
-    static let edgeInset = 6.0
-    static let maskClosingRadius = 1.0
-}
+private typealias Peak = Peaking
 
 /// Additional analysis-window admission after the fused detector passes its runtime probe.
 /// This is an Apple Core Image graph policy; renderer calibration and source settings stay values.
@@ -546,7 +536,7 @@ public enum MonitorImageCompositor {
         extent: CGRect
     ) -> CIImage {
         let dark = CIImage(
-            color: CIColor(red: Peak.under.red, green: Peak.under.green, blue: Peak.under.blue)
+            color: CIColor(red: Peak.underColor.red, green: Peak.underColor.green, blue: Peak.underColor.blue)
         )
         .cropped(to: extent)
         let rgb = color.rgb
@@ -572,51 +562,16 @@ public enum MonitorImageCompositor {
 
     // MARK: - Zebra (`ScopeDisplayScale.signalNative` thresholds)
 
+    /// The source's encoded codes against the shared zones for its curve and live ceiling
+    /// (``MonitorCodeZebraSpec/init(_:transfer:clipByte:)``). Unit is editor-only: both zones
+    /// read the monitor percentage here.
     public static func applyZebra(
         over base: CIImage, source: CIImage, extent: CGRect,
         zebra: MonitorZebraSpec, transfer: MonitorTransfer, clipByte: Int
     ) -> CIImage {
-        // Measure **source** encoded luma; monitor-percent thresholds map to curve
-        // codes (0 = paper black, 100 = live-tap EI ceiling). The old
-        // `encodedValue(ire100:)` ran a 48-step bisection up to 3× per frame.
-        // Curve-encoded 18% grey stays on its paper IRE axis - never a highlight zebra.
-        // Unit is editor-only (the original renderer `ZebraSettings.unit`) - both zones read IRE here.
-        // Highlight reads the max channel: WAVE 100 and the ceiling ratchet
-        // are `LiveFrameTap.maxRGB`, and a blue-led sky has luma well under
-        // its hot channel, so a luma compare never reached the 100 line (#136).
-        // Midtone stays luma (skin band, the original renderer).
-        let hot = source.applyingFilter("CIMaximumComponent")
-        let luma = source.applyingFilter(
-            "CIColorMatrix",
-            parameters: [
-                "inputRVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
-                "inputGVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
-                "inputBVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
-                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-                "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-            ])
-        var output = base
-        if zebra.highlightEnabled {
-            let rgb = zebra.highlightColor.rgb
-            let threshold = ScopeDisplayScale.zebraHighlightNative(
-                monitorPercent: zebra.highlightIRE, transfer: transfer, clipByte: clipByte)
-            output = blendStripedZebra(
-                over: output, mask: thresholdMask(hot, above: threshold),
-                color: CIColor(red: rgb.0, green: rgb.1, blue: rgb.2), extent: extent)
-        }
-        if zebra.midtoneEnabled {
-            let rgb = zebra.midtoneColor.rgb
-            let half = LiveZebra.midtoneHalfWidthIRE
-            let lo = ScopeDisplayScale.signalNative(
-                monitorPercent: zebra.midtoneIRE - half, transfer: transfer, clipByte: clipByte)
-            let hi = ScopeDisplayScale.signalNative(
-                monitorPercent: zebra.midtoneIRE + half, transfer: transfer, clipByte: clipByte)
-            let mid = bandMask(luma, centre: (lo + hi) * 0.5, halfWidth: abs(hi - lo) * 0.5)
-            output = blendStripedZebra(
-                over: output, mask: mid,
-                color: CIColor(red: rgb.0, green: rgb.1, blue: rgb.2), extent: extent)
-        }
-        return output
+        applyResolvedZebra(
+            over: base, source: source, extent: extent,
+            zebra: MonitorCodeZebraSpec(zebra, transfer: transfer, clipByte: clipByte))
     }
 
     /// Render already calibrated code-value zones without inventing a source transfer.
@@ -671,10 +626,6 @@ public enum MonitorImageCompositor {
                     w: 1),
             ]
         ).applyingFilter("CIColorClamp")
-    }
-
-    private static func bandMask(_ luma: CIImage, centre: Double, halfWidth: Double) -> CIImage {
-        bandMask(luma, lower: centre - halfWidth, upper: centre + halfWidth, bias: 1)
     }
 
     private static func bandMask(_ luma: CIImage, lower: Double, upper: Double, bias: Double) -> CIImage {

@@ -1,5 +1,8 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.SettingAccess
+import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.vocabulary.ControlCapability
 
 /** Stable semantic outcomes emitted by the Swift property-readback wire. */
 enum class NativePropertyRefreshResult {
@@ -83,6 +86,7 @@ object CameraPropertySnapshotWire {
             resolutionFrameRate = value.optionalString("resolutionFrameRate"),
             codecSelection = value.optionalString("codecSelection"),
             codecBitDepth = value.optionalString("codecBitDepth"),
+            movieTone = value.optionalString("movieTone"),
             whiteBalanceTint = value.optionalString("whiteBalanceTint"),
             batteryPercent = value.optionalInt("batteryPercent"),
             externalPower = value.optionalBoolean("externalPower"),
@@ -108,7 +112,7 @@ object CameraPropertySnapshotWire {
             cameraGrid = value.optionalString("cameraGrid"),
             captureSelector = value.optionalString("captureSelector"),
             stillCaptureMode = value.optionalString("stillCaptureMode"),
-            stillToneMode = value.optionalString("stillToneMode"),
+            stillToneMode = value.optionalString("stillToneMode")?.takeIf { it == "SDR" || it == "HLG" },
             imageSize = value.optionalString("imageSize"),
             compression = value.optionalString("compression"),
             meteringMode = value.optionalString("meteringMode"),
@@ -153,8 +157,74 @@ object CameraPropertySnapshotWire {
                     pictureControls = value.options("options.pictureControl"),
                     rawCompressions = value.options("options.rawCompression"),
                     codecBitDepths = value.codecBitDepths("options.codecBitDepth"),
+                    movieTones = value.options("options.movieTone"),
+                    movieToneEditable = value.optionalBoolean("movieToneEditable") == true,
+                    recordingFormats = value.recordingFormats("options.recordingFormat"),
+                    vibrationReductionDescriptor = value.descriptor("descriptor.vibrationReduction"),
+                    electronicVrDescriptor = value.descriptor("descriptor.electronicVr"),
                 ),
         )
+    }
+
+    private fun Map<String, String>.descriptor(key: String): NikonDescriptorEvidence =
+        NikonDescriptorEvidence(
+            observation = descriptorObservation(key),
+            latestAttempt = descriptorObservation(key, prefix = "latest"),
+            lastValidObservation = descriptorObservation(key, prefix = "lastValid").takeIf {
+                it.outcome == NikonDescriptorReadOutcome.DESCRIBED &&
+                    it.form != NikonDescriptorForm.UNKNOWN && it.capability.support == SupportStatus.SUPPORTED
+            },
+            optionOrigin = when (get("$key.origin")) {
+                "descriptor" -> NikonDescriptorOptionOrigin.DESCRIPTOR
+                "legacyFallback" -> NikonDescriptorOptionOrigin.LEGACY_FALLBACK
+                else -> NikonDescriptorOptionOrigin.UNKNOWN
+            },
+        )
+
+    private fun Map<String, String>.descriptorObservation(
+        key: String, prefix: String = "",
+    ): NikonDescriptorObservation {
+        // Each attempt owns its metadata, even when its outcome matches the retained generation.
+        fun field(name: String): String = "$key." + if (prefix.isEmpty()) name else prefix + name.replaceFirstChar { it.uppercase() }
+        val form = when (get(field("form"))) {
+            "none" -> NikonDescriptorForm.NONE
+            "range" -> NikonDescriptorForm.RANGE
+            "enumeration" -> NikonDescriptorForm.ENUMERATION
+            else -> NikonDescriptorForm.UNKNOWN
+        }
+        val access = when (get(field("access"))) {
+            "readOnly" -> SettingAccess.READ_ONLY
+            "readWrite" -> SettingAccess.READ_WRITE
+            else -> null
+        }
+        val choices = if (form == NikonDescriptorForm.ENUMERATION) {
+            get(field("choices"))?.split(OPTION_SEPARATOR)?.filter(String::isNotBlank)?.distinct()
+        } else null
+        val capability: ControlCapability<List<String>> = when (get(field("support"))) {
+            "supported" -> if (access != null) ControlCapability.supported(choices, access) else ControlCapability.unknown()
+            "unsupported" -> ControlCapability.unsupported()
+            else -> ControlCapability.unknown()
+        }
+        return NikonDescriptorObservation(
+            outcome = descriptorOutcome(get(field("outcome"))),
+            capability = capability,
+            form = form,
+            operation = get(field("operation")),
+            response = optionalInt(field("response"))?.takeIf { it in 0..65_535 },
+        )
+    }
+
+    private fun descriptorOutcome(value: String?): NikonDescriptorReadOutcome = when (value) {
+        "notAttempted" -> NikonDescriptorReadOutcome.NOT_ATTEMPTED
+        "pending" -> NikonDescriptorReadOutcome.PENDING
+        "described" -> NikonDescriptorReadOutcome.DESCRIBED
+        "missing" -> NikonDescriptorReadOutcome.MISSING
+        "unsupported" -> NikonDescriptorReadOutcome.UNSUPPORTED
+        "rejected" -> NikonDescriptorReadOutcome.REJECTED
+        "malformed" -> NikonDescriptorReadOutcome.MALFORMED
+        "transportFailed" -> NikonDescriptorReadOutcome.TRANSPORT_FAILED
+        "mediaBusy" -> NikonDescriptorReadOutcome.MEDIA_BUSY
+        else -> NikonDescriptorReadOutcome.UNKNOWN
     }
 
     private data class OptionalStorage(val value: CameraStorageStatus?)
@@ -287,6 +357,15 @@ object CameraPropertySnapshotWire {
             } else {
                 CodecBitDepthOption(codec = parts[0], label = parts[1], writeValue = parts[2])
             }
+        }
+
+    /** Grouping is transported as source-decoded axes; labels are never parsed to recover facts. */
+    private fun Map<String, String>.recordingFormats(key: String): List<NikonRecordingFormatPresentation> =
+        options(key).mapNotNull { entry ->
+            val parts = entry.split(FIELD_SEPARATOR)
+            if (parts.size != 4 || parts[0].isBlank()) null else
+                NikonRecordingFormatPresentation(parts[0], parts[1].takeIf(String::isNotBlank),
+                    parts[2].takeIf(String::isNotBlank), parts[3].takeIf(String::isNotBlank))
         }
 
     /** Record separator between the fields of one `options.codecBitDepth` entry. */

@@ -27,10 +27,17 @@ public enum RelayJoinPolicy {
         if requiresVersionMatch && hello.version != profile.version {
             return Refusal(reason: versionMismatchReason, passcodeRequired: false)
         }
-        if !requiredPasscode.isEmpty && hello.passcode != requiredPasscode {
+        let required = normalizedPasscode(requiredPasscode)
+        if !required.isEmpty && hello.passcode.map(normalizedPasscode) != required {
             return Refusal(reason: passcodeReason, passcodeRequired: true)
         }
         return nil
+    }
+
+    /// Both sides of a join compare passcodes without surrounding whitespace: the same trim as the
+    /// watcher passcode rule (MonitorPresentation `MonitorWatcherPasscodeRule.normalized`).
+    public static func normalizedPasscode(_ code: String) -> String {
+        code.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

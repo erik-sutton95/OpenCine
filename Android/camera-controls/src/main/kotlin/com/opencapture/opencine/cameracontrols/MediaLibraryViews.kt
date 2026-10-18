@@ -13,18 +13,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,7 +52,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -156,8 +165,8 @@ fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean
     onAll: () -> Unit, onClear: () -> Unit, onCache: () -> Unit, onStar: () -> Unit,
     onDelete: () -> Unit, onShare: () -> Unit, shareEnabled: Boolean = true) {
     com.opencapture.monitorui.MonitorSelectionTray(count) {
-        TrayTextChip(MonitorIcon.CIRCLE_CHECK, "All", LiveDesign.accent, onAll)
-        TrayTextChip(MonitorIcon.X, "Clear", LiveDesign.muted, onClear)
+        TrayTextChip(MonitorIcon.CIRCLE_CHECK, "All", "Select all", LiveDesign.accent, onAll)
+        TrayTextChip(MonitorIcon.X, "Clear", "Clear selection", LiveDesign.muted, onClear)
         MediaCircleIconButton(MonitorIcon.DOWNLOAD, "Cache selected clips", onCache, enabled = cacheEnabled, size = 34.dp)
         MediaCircleIconButton(MonitorIcon.STAR, "Favorite selected clips", onStar, enabled = count > 0, size = 34.dp)
         MediaCircleIconButton(MonitorIcon.TRASH, "Delete selected clips", onDelete, enabled = deleteEnabled, size = 34.dp)
@@ -165,12 +174,21 @@ fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean
     }
 }
 
+/**
+ * One button to TalkBack, announced by [contentDescription] alone (iOS: one "Clear selection" button):
+ * the visible [label] and glyph are its drawing, not separate nodes read after it. The click stays the
+ * clickable's own, so TalkBack's ACTION_CLICK runs the same handler as a tap.
+ */
 @Composable
-private fun TrayTextChip(icon: MonitorIcon, label: String, tint: Color, onClick: () -> Unit) {
-    Row(Modifier.height(34.dp).chromeClickable(onClick = onClick).padding(horizontal = 7.dp),
+private fun TrayTextChip(icon: MonitorIcon, label: String, contentDescription: String, tint: Color, onClick: () -> Unit) {
+    Row(Modifier.height(34.dp).chromeClickable(onClick = onClick)
+        .semantics(mergeDescendants = true) {
+            this.contentDescription = contentDescription
+            role = Role.Button
+        }.padding(horizontal = 7.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         MonitorIcon(icon, null, Modifier.size(13.dp), tint)
-        Text(label, color = tint, style = LiveType.ui(11f, FontWeight.SemiBold))
+        Text(label, Modifier.clearAndSetSemantics {}, color = tint, style = LiveType.ui(11f, FontWeight.SemiBold))
     }
 }
 
@@ -545,7 +563,9 @@ interface MediaLibraryPageActions {
 /**
  * The media library page: heading, category rail or strip, display controls, header, cache bar, the app's
  * [gallery], the selection tray and the filter popup; [overlays] (player, photo viewer, delivery, confirms)
- * draw above it.
+ * draw above it. [close] is the page's own Close (`monitor.page.back`), placed like everything else on the
+ * page inside the system bars and beside the display cutout (Swift twin: `MonitorPage`'s back button over
+ * the resolved safe area); in landscape the content keeps a column free for it.
  */
 @Composable
 fun MediaLibraryPage(
@@ -556,7 +576,12 @@ fun MediaLibraryPage(
     overlays: @Composable BoxScope.() -> Unit,
     storageCards: List<MonitorMediaGalleryStorage> = emptyList(),
     selectStorage: (String) -> Unit = {},
+    close: (() -> Unit)? = null,
 ) {
+    // The system bars on every side, and the cutout only where it takes a side (a landscape punch hole);
+    // a portrait punch hole leaves the corners beside it usable, as before.
+    val safe = WindowInsets.statusBars.union(WindowInsets.navigationBars)
+        .union(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
     Box(
         Modifier
             .fillMaxSize()
@@ -570,7 +595,8 @@ fun MediaLibraryPage(
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val portrait = maxHeight > maxWidth
             com.opencapture.monitorui.MonitorPageScaffold(
-                modifier = Modifier.statusBarsPadding().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier.windowInsetsPadding(safe).padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(end = if (close != null && !portrait) MEDIA_PAGE_CLOSE_SLOT else 0.dp),
                 navigationWidth = 206f,
                 heading = {
                     com.opencapture.monitorui.MonitorPageHeading("Media", state.cameraName)
@@ -658,6 +684,13 @@ fun MediaLibraryPage(
             )
         }
 
+        close?.let { onClose ->
+            MediaCloseButton(onClose, Modifier.align(Alignment.TopEnd).windowInsetsPadding(safe).padding(8.dp)
+                .testTag("monitor.page.back"))
+        }
         overlays()
     }
 }
+
+/** The landscape column the page keeps free for its Close: the button and its 8 dp margin, past the 12 dp page margin. */
+private val MEDIA_PAGE_CLOSE_SLOT = 37.dp + 8.dp

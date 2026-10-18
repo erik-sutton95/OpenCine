@@ -22,6 +22,8 @@ FOV = "FOV"
 DLog = "DLog"
 HEVC = "HEVC"
 THM = "THM"
+# Core Audio Format extension and MIME subtype used by playback fixtures.
+caf = "caf"
 Osmo = "Osmo"
 Mimo = "Mimo"
 SoftAP = "SoftAP"

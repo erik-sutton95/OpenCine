@@ -9,6 +9,51 @@
 
     /// Real native decode coverage. Polls wait for AVFoundation, not a portable policy clock.
     @MainActor @Suite(.serialized) struct MonitorAppleProgressivePlaybackTests {
+        #if canImport(UIKit)
+            @Test func actualPreparedOwnerPublishesNativeTimeRangeAndRejectsRetirementReentry()
+                async throws
+            {
+                let directory = try fixtureDirectory()
+                defer { try? FileManager.default.removeItem(at: directory) }
+                let url = directory.appendingPathComponent("buffer-observation.mov")
+                try await writeMovie(at: url)
+                let native = MonitorApplePlaybackOwner(
+                    feed: MonitorPlaybackFeedSession(
+                        configuration: .init(), hdrDisplay: { false }))
+                let token = MonitorPlaybackItemToken(owner: UUID(), revision: 0)
+                native.retireItem(for: token)
+                defer { native.close(token: token) }
+                _ = try await native.prepare(
+                    .init(url: url, mimeType: "video/quicktime", sourceKey: "SIMULATED-buffer"),
+                    token: token, readyTimeout: .seconds(8))
+                let end = ContinuousClock.now.advanced(by: .seconds(8))
+                while native.bufferedThroughSeconds(token: token) == nil, ContinuousClock.now < end
+                {
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                let item = try #require(native.player.currentItem)
+                let observed = try #require(native.bufferedThroughSeconds(token: token))
+                let expected = try #require(
+                    item.loadedTimeRanges.map {
+                        CMTimeGetSeconds(CMTimeRangeGetEnd($0.timeRangeValue))
+                    }.filter { $0.isFinite && $0 >= 0 }.max())
+                #expect(abs(observed - expected) < 0.001)
+                native.sourceAdmission = { false }
+                #expect(native.bufferedThroughSeconds(token: token) == nil)
+                native.sourceAdmission = { true }
+                let successor = MonitorPlaybackItemToken(owner: token.owner, revision: 1)
+                native.sourceAdmission = {
+                    native.sourceAdmission = nil
+                    native.retireItem(for: successor)
+                    return true
+                }
+                #expect(native.bufferedThroughSeconds(token: token) == nil)
+                #expect(native.player.currentItem == nil)
+                native.close(token: successor)
+                #expect(native.bufferedThroughSeconds(token: successor) == nil)
+            }
+        #endif
+
         @Test func growingPrefixStopsClockAndRecoversChangedPixelsAfterCompletionRename()
             async throws
         {

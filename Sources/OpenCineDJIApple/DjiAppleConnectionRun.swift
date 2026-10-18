@@ -311,7 +311,8 @@ public final class DjiAppleConnectionRun {
         journal("wifi: switch to \(pair.0) kicking \(others.joined(separator: ","))"); try check(attempt)
         do {
             try await transport.network.joinAccessPoint(.init(ssid: pair.0, password: pair.1,
-                wpa3: camera.model.wpa3, otherSSIDs: others, persist: policy.persist))
+                wpa3: camera.model.wpa3, otherSSIDs: others, persist: policy.persist,
+                isCurrent: { [weak attempt] in attempt?.isCurrent == true }))
         } catch is CancellationError { throw CancellationError()
         } catch {
             try check(attempt)
@@ -382,7 +383,8 @@ public final class DjiAppleConnectionRun {
         attempt.path.stationSSID = network.ssid
         try pathChanged(attempt)
         if let joined = attempt.path.joinedSSID {
-            transport.network.leave(joined); try check(attempt)
+            transport.network.leaveIfCurrent(joined, { [weak attempt] in attempt?.isCurrent == true })
+            try check(attempt)
             attempt.path.joinedSSID = nil; try pathChanged(attempt)
         }
         if !hotspot {

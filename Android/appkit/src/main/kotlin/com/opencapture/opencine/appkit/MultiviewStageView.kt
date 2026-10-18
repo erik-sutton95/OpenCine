@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,17 +57,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.MonitorAssistIcon
 import com.opencapture.monitorui.MonitorAssistPalette
 import com.opencapture.monitorui.MonitorAuxCircleButton
 import com.opencapture.monitorui.MonitorBatteryOutlineRow
+import com.opencapture.monitorui.MonitorGaugeBars
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorLayoutPolicy
 import com.opencapture.monitorui.MonitorMaterial
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorRecordLamp
 import com.opencapture.monitorui.MonitorRect
-import com.opencapture.monitorui.MonitorToolUsageState
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.MultiviewArrangement
 import com.opencapture.monitorui.MultiviewPresentationLayout
@@ -171,15 +175,19 @@ public fun MultiviewStage(
     network: MultiviewStageButton? = null,
     picture: @Composable (slot: Int) -> Unit,
 ) {
-    var clean by remember { mutableStateOf(false) }
+    val fallback = remember(tiles.size) { MultiviewStageState(maxOf(1, tiles.size)) }
+    val presentation = LocalMultiviewStageState.current ?: fallback
+    val clean = presentation.clean
+    val stageInteractive = interactive && LocalMultiviewStageVisible.current
+    LaunchedEffect(stageInteractive) { if (!stageInteractive) actions.popupsClosed() }
     Box(
         // Hidden from TalkBack while an app overlay covers it.
-        modifier.fillMaxSize().then(if (interactive) Modifier else Modifier.clearAndSetSemantics { }),
+        modifier.fillMaxSize().then(if (stageInteractive) Modifier else Modifier.clearAndSetSemantics { }),
     ) {
         MultiviewTileCanvas(tiles.indices.map { it.toString() }, layout) { index, compact ->
             val overlay = layout.readoutsOverlay && index == selected
             TileView(
-                tiles, index, compact, clean, interactive, selected, arrangement, busy, groupBusy, confirmsRecord,
+                tiles, index, compact, clean, stageInteractive, selected, arrangement, busy, groupBusy, confirmsRecord,
                 actions,
                 // The View Assist palette floats over the main tile's lower left; its footer
                 // starts where the stage value row does.
@@ -201,11 +209,12 @@ public fun MultiviewStage(
                 tools, tiles, arrangement, fill, lut, closing, selected, actions, layout.controlCellSize,
                 Modifier.at(layout.assists), horizontal = layout.assistsHorizontal,
                 fixed = layout.portrait && arrangement == MultiviewArrangement.CENTER_STAGE,
+                presentation = presentation,
                 maxExpandedHeight = if (layout.assistsHorizontal) null else layout.assists.height,
             )
             network?.let { NetworkButton(it, Modifier.at(layout.network), actions.feedback) }
         }
-        DisplayButton(clean, Modifier.at(layout.display), actions.feedback) { clean = !clean }
+        DisplayButton(clean, Modifier.at(layout.display), actions.feedback) { presentation.clean = !clean }
         RecordAllButton(recording, groupBusy, confirmsRecord, layout.record.width, Modifier.at(layout.record), actions)
     }
 }
@@ -264,6 +273,8 @@ private fun ReadoutValue(
     valueSize: Float, titleSize: Float,
 ) {
     var open by remember { mutableStateOf(false) }
+    val visible = LocalMultiviewStageVisible.current
+    LaunchedEffect(visible) { if (!visible) open = false }
     Column(
         modifier.then(
             if (readout.choices.isEmpty()) Modifier else Modifier
@@ -276,7 +287,7 @@ private fun ReadoutValue(
             style = MonitorTypography.readout(valueSize, FontWeight.SemiBold), maxLines = 1)
         Text(readout.title, color = MonitorPalette.muted,
             style = MonitorTypography.text(titleSize, FontWeight.SemiBold), maxLines = 1)
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open && LocalMultiviewStageVisible.current, onDismissRequest = { open = false }) {
             readout.choices.forEach { name ->
                 DropdownMenuItem(text = { Text(name) }, onClick = {
                     open = false
@@ -291,13 +302,26 @@ private fun ReadoutValue(
 private fun AssistPalette(
     tools: List<MultiviewTool>, tiles: List<MultiviewTile?>, arrangement: MultiviewArrangement, fill: Boolean,
     lut: Boolean, closing: Boolean, selected: Int, actions: MultiviewStageActions, cell: Float, modifier: Modifier,
-    horizontal: Boolean, fixed: Boolean, maxExpandedHeight: Float?,
+    horizontal: Boolean, fixed: Boolean, maxExpandedHeight: Float?, presentation: MultiviewStageState,
 ) {
-    val cameras = tiles.any { it != null }
+    val services = LocalMultiviewStageServices.current
+    val occupied = tiles.indices.filter { tiles[it] != null }.toSet()
+    val offered = services?.availability?.offeredTools(tools, occupied) ?: tools
+    val cameras = occupied.isNotEmpty()
     val grid = arrangement == MultiviewArrangement.GRID
-    var usage by remember { mutableStateOf(MonitorToolUsageState()) }
+    val nowClosing by rememberUpdatedState(closing)
+    val expansion = remember(presentation) {
+        object : androidx.compose.runtime.MutableState<Boolean> {
+            override var value: Boolean
+                // A temporary close lock collapses the surface, not the operator's saved preference.
+                get() = !nowClosing && presentation.toolsExpanded
+                set(value) { if (!nowClosing) presentation.toolsExpanded = value }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
     fun title(tool: MultiviewTool) = when (tool) {
-        MultiviewTool.LUT -> "Toggle Auto LUT for all cameras"
+        MultiviewTool.LUT -> if (services?.automaticLUT == false) "Toggle LUT for all cameras" else "Toggle Auto LUT for all cameras"
         MultiviewTool.FIT -> if (fill) "Fit feed in frame" else "Fill frame with feed"
         MultiviewTool.LAYOUT -> if (grid) "Show Focused stage" else "Show Grid"
         MultiviewTool.CAMERA -> "Camera settings"
@@ -310,16 +334,25 @@ private fun AssistPalette(
         MultiviewTool.LAYOUT -> "multiview.layout"
         MultiviewTool.CAMERA -> "multiview.settings"
     }
+    fun configure(tool: MultiviewTool) {
+        if (tool != MultiviewTool.LUT) return
+        val slot = services?.availability?.pictureLUTSlot(selected, occupied) ?: return
+        services.configureLUT?.invoke(slot)
+    }
     fun toggle(tool: MultiviewTool) {
         actions.feedback()
         when (tool) {
-            MultiviewTool.LUT -> actions.toggleLut()
+            MultiviewTool.LUT -> {
+                if (services != null && services.availability.pictureLUTSlot(selected, occupied) == null) return
+                actions.toggleLut()
+            }
             MultiviewTool.FIT -> actions.setFill(!fill)
             MultiviewTool.LAYOUT ->
                 actions.arrange(if (grid) MultiviewArrangement.CENTER_STAGE else MultiviewArrangement.GRID)
             MultiviewTool.CAMERA -> {
-                val slot = selected.takeIf { tiles.getOrNull(it) != null } ?: tiles.indexOfFirst { it != null }
-                if (slot >= 0) actions.openSettings(slot)
+                val slot = if (services != null) services.availability.cameraSettingsSlot(selected, occupied)
+                    else selected.takeIf { it in occupied } ?: occupied.minOrNull()
+                if (slot != null) actions.openSettings(slot)
             }
         }
     }
@@ -338,7 +371,7 @@ private fun AssistPalette(
         // Portrait Center stage: the same tools as a plain, always-visible column spanning
         // the secondary feeds. No chevron, drag or collapse.
         Column(modifier.glass(ControlShape).padding(4.dp)) {
-            tools.forEach { tool ->
+            offered.forEach { tool ->
                 val available = isAvailable(tool) && !closing
                 Box(
                     Modifier.weight(1f).fillMaxWidth().heightIn(min = 44.dp)
@@ -349,7 +382,8 @@ private fun AssistPalette(
                             if (tool == MultiviewTool.LUT) stateDescription = if (isOn(tool)) "On" else "Off"
                             role = Role.Button
                         }
-                        .monitorChromeClickable(enabled = available, onClickFeedback = actions.feedback) {
+                        .monitorChromeClickable(enabled = available, onClickFeedback = actions.feedback,
+                            onLongClick = if (tool == MultiviewTool.LUT && services?.configureLUT != null) ({ configure(tool) }) else null) {
                             toggle(tool)
                         },
                     contentAlignment = Alignment.Center,
@@ -362,9 +396,10 @@ private fun AssistPalette(
         return
     }
     // Landscape stages mount the palette as Live View does: horizontal, bottom-leading.
+    androidx.compose.runtime.CompositionLocalProvider(com.opencapture.monitorui.LocalMonitorAssistExpansion provides expansion) {
     Box(modifier, contentAlignment = if (horizontal) Alignment.BottomStart else Alignment.BottomCenter) {
         MonitorAssistPalette(
-            tools = tools, portrait = !horizontal, locked = closing,
+            tools = offered, portrait = !horizontal, locked = closing,
             isOn = ::isOn,
             title = ::title, label = { tool -> when (tool) {
                 MultiviewTool.LUT -> "LUT"
@@ -372,14 +407,14 @@ private fun AssistPalette(
                 MultiviewTool.LAYOUT -> if (grid) "FOCUS" else "GRID"
                 MultiviewTool.CAMERA -> "CAM"
             } },
-            hasOptions = { false }, onOptions = {},
+            hasOptions = { it == MultiviewTool.LUT && services?.configureLUT != null }, onOptions = ::configure,
             isAvailable = ::isAvailable,
             accessibilityLabel = ::title,
             accessibilityIdentifier = ::identifier,
             accessibilityValue = { if (it == MultiviewTool.LUT) { if (lut) "On" else "Off" } else null },
             expansionAccessibilityName = "Multiview tools", expansionAccessibilityIdentifier = "multiview.tools.expand",
             cellSize = cell, maxExpandedHeight = maxExpandedHeight,
-            idOf = { it.name }, usage = usage, onUsageChange = { usage = it },
+            idOf = { it.name }, usage = presentation.toolUsage, onUsageChange = { presentation.toolUsage = it },
             onToggle = ::toggle,
             glyph = glyph,
             chevron = { expanded, vertical ->
@@ -388,6 +423,7 @@ private fun AssistPalette(
                 MonitorIcon(icon, null, Modifier.size(14.dp), MonitorPalette.muted)
             },
         )
+    }
     }
 }
 
@@ -420,6 +456,8 @@ private fun DisplayButton(clean: Boolean, modifier: Modifier, feedback: () -> Un
     }
 }
 
+private class GroupRecordApproval(val plan: RecordPlan)
+
 @Composable
 private fun RecordAllButton(
     recording: Boolean, groupBusy: Boolean, confirm: Boolean, diameter: Float, modifier: Modifier,
@@ -430,20 +468,40 @@ private fun RecordAllButton(
     val context = actions.recordContext(null)
     val plan = context.plan
     val enabled = context.canConfirm
-    var pending by remember { mutableStateOf<RecordPlan?>(null) }
-    LaunchedEffect(plan, enabled) { pending = null }
-    pending?.let { approved ->
-        MultiviewRecordConfirmation(approved, null, context.prompt, onDismiss = { pending = null }) {
+    val visible = LocalMultiviewStageVisible.current
+    val latestVisible by rememberUpdatedState(visible)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var pending by remember { mutableStateOf<GroupRecordApproval?>(null) }
+    LaunchedEffect(plan, enabled, visible) { pending = null }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) pending = null
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
             pending = null
-            val now = actions.recordContext(null)
-            if (now.canConfirm && approved == now.plan) actions.record(approved, null)
+        }
+    }
+    pending?.takeIf { visible }?.let { approved ->
+        MultiviewRecordConfirmation(approved.plan, null, context.prompt,
+            onDismiss = { if (pending === approved) pending = null }) {
+            if (pending === approved) {
+                pending = null
+                val now = actions.recordContext(null)
+                if (latestVisible && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+                    now.canConfirm && approved.plan == now.plan) actions.record(approved.plan, null)
+            }
         }
     }
     val refusal = context.refusal
     Box(
         modifier.alpha(if (enabled || groupBusy) 1f else 0.4f)
             .monitorChromeClickable(enabled = enabled, onClickFeedback = actions.feedback) {
-                if (confirm) pending = plan else actions.record(plan, null)
+                val now = actions.recordContext(null)
+                if (latestVisible && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && now.canConfirm) {
+                    if (confirm) pending = GroupRecordApproval(now.plan) else actions.record(now.plan, null)
+                }
             }
             .semantics {
                 contentDescription = if (recording) "Stop all recording" else "Record all"
@@ -516,7 +574,10 @@ private fun TileView(
     var optionsOpen by remember { mutableStateOf(false) }
     var confirmRecord by remember { mutableStateOf<RecordPlan?>(null) }
     val context = if (tile != null) actions.recordContext(index) else null
-    LaunchedEffect(clean, enabled, tile == null) { if (clean || !enabled || tile == null) optionsOpen = false }
+    LaunchedEffect(clean, enabled, tile == null) {
+        if (clean || !enabled || tile == null) optionsOpen = false
+        if (!enabled || tile == null) confirmRecord = null
+    }
     LaunchedEffect(context?.plan, context?.closing) { confirmRecord = null }
     Box(Modifier.fillMaxSize().background(MonitorPalette.surface, TileShape)) {
         if (tile != null) {
@@ -526,7 +587,7 @@ private fun TileView(
                 Modifier.fillMaxSize().pointerInput(index, enabled) {
                     if (!enabled) return@pointerInput
                     detectTapGestures(
-                        onDoubleTap = { current.openLiveView(index) },
+                        onDoubleTap = { current.popupsClosed(); current.openLiveView(index) },
                         onTap = { current.select(index) },
                     )
                 }.semantics {
@@ -569,7 +630,7 @@ private fun TileView(
                                 record -> context?.plan?.let { plan ->
                                     if (confirmRecording) confirmRecord = plan else actions.record(plan, index)
                                 }
-                                action.id == MultiviewCameraAction.LIVE_VIEW -> actions.openLiveView(index)
+                                action.id == MultiviewCameraAction.LIVE_VIEW -> { actions.popupsClosed(); actions.openLiveView(index) }
                                 else -> actions.perform(action.id, index)
                             }
                         }
@@ -630,7 +691,7 @@ private fun CameraMenuHeader(tile: MultiviewTile) {
         Text(tile.model, style = MonitorTypography.text(12f))
         Text("TC ${tile.timecode ?: MultiviewTally.UNAVAILABLE}", style = MonitorTypography.readout(12f))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            MonitorBatteryOutlineRow(tile.battery ?: -1, tile.charging, camera = true)
+            MonitorBatteryOutlineRow(tile.battery ?: -1, tile.charging, camera = true, tile.batteryBars, tile.batteryBarCount)
             Text(tile.storage, style = MonitorTypography.text(12f))
         }
         Text("${tile.format} · ${tile.tally}", style = MonitorTypography.text(12f))
@@ -807,7 +868,7 @@ private fun TileChrome(
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                BatteryPill(tile.battery)
+                BatteryPill(tile.battery, tile.batteryBars, tile.batteryBarCount)
                 Text(tile.storage, color = Color.White, style = MonitorTypography.readout(small), maxLines = 1,
                     modifier = (if (values == null) Modifier.weight(1f) else Modifier)
                         .semantics { contentDescription = "Storage ${tile.storage}" })
@@ -847,23 +908,29 @@ private fun Tally(tile: MultiviewTile, size: Float) {
     )
 }
 
-/** The camera battery pill without its glyph; one width fits "100%" so values never jitter. */
+/**
+ * The camera battery pill without its glyph; one width fits "100%" so values never jitter.
+ * A camera that reports a coarse gauge shows its [bars], never a percent it did not report.
+ */
 @Composable
-private fun BatteryPill(percent: Int?) {
+private fun BatteryPill(percent: Int?, bars: Int?, barCount: Int) {
+    val level = bars?.let { it * 100 / barCount.coerceAtLeast(1) } ?: percent
     val tint = when {
-        percent == null -> MonitorPalette.text
-        percent <= 20 -> MonitorPalette.recording
-        percent <= 40 -> Amber
+        level == null -> MonitorPalette.text
+        level <= 20 -> MonitorPalette.recording
+        level <= 40 -> Amber
         else -> Good
     }
     Row(
         Modifier.size(40.dp, 20.dp).glass(RoundedCornerShape(7.dp)).padding(horizontal = 6.dp)
             .semantics {
-                contentDescription = percent?.let { "Camera battery $it percent" } ?: "Camera battery unavailable"
+                contentDescription = bars?.let { "Camera battery $it of $barCount bars" }
+                    ?: percent?.let { "Camera battery $it percent" } ?: "Camera battery unavailable"
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(percent?.let { "$it%" } ?: MultiviewTally.UNAVAILABLE, color = tint,
+        if (bars != null) MonitorGaugeBars(bars.toFloat() / barCount.coerceAtLeast(1), barCount, tint)
+        else Text(percent?.let { "$it%" } ?: MultiviewTally.UNAVAILABLE, color = tint,
             style = MonitorTypography.readout(10f, FontWeight.Bold), maxLines = 1)
     }
 }

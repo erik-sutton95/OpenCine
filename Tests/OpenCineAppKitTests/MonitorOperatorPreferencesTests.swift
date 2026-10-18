@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Testing
 import OpenCineAppKit
 
@@ -61,5 +62,57 @@ import OpenCineAppKit
         third.haptics = true
         #expect(!first.haptics)
         #expect(third.haptics)
+    }
+
+    /// Remote shutter (A2-32): on until the operator turns it off, like OpenZCine, stored under the
+    /// app's own key; a root that arms the shutter follows the Settings write.
+    @Test func remoteShutterIsOnByDefaultAndAnExplicitOffSurvivesReload() throws {
+        guard #available(macOS 14, *) else { return }
+        let domain = "opencine-preferences-tests." + UUID().uuidString
+        let storage = try #require(UserDefaults(suiteName: domain))
+        defer { storage.removePersistentDomain(forName: domain) }
+        let withKey = MonitorOperatorPreferences.Keys(keepScreenAwake: "operator.awake", hdrDisplay: "operator.hdr",
+            recordConfirmation: "operator.confirm", haptics: "operator.haptics",
+            cacheOriginals: "operator.originals", remoteShutter: "operator.remote")
+        let store = MonitorOperatorPreferences(storage: storage, keys: withKey)
+        #expect(store.remoteShutter)
+        #expect(storage.object(forKey: "operator.remote") == nil)
+        final class Fired: @unchecked Sendable { var count = 0 }
+        let armed = Fired()
+        withObservationTracking { _ = store.remoteShutter } onChange: { armed.count += 1 }
+        store.remoteShutter = false
+        #expect(armed.count == 1, "The Settings write reaches the root that arms the shutter")
+        #expect(!MonitorOperatorPreferences(storage: storage, keys: withKey).remoteShutter)
+        #expect(storage.object(forKey: "operator.remote") as? Bool == false)
+    }
+
+    /// An app that offers no remote shutter names no key: it reads the default and stores nothing.
+    @Test func anAppWithoutARemoteShutterKeyStoresNoRemoteChoice() throws {
+        let domain = "opencine-preferences-tests." + UUID().uuidString
+        let storage = try #require(UserDefaults(suiteName: domain))
+        defer { storage.removePersistentDomain(forName: domain) }
+        let store = MonitorOperatorPreferences(storage: storage, keys: keys(),
+            defaults: .init(remoteShutter: false))
+        #expect(keys().remoteShutter == nil)
+        #expect(!store.remoteShutter)
+        #expect(storage.persistentDomain(forName: domain)?.isEmpty != false)
+    }
+
+    /// A2-18 for generated apps: the root that reads Keep screen awake (the shared scene's screen
+    /// wake) is invalidated by a Settings write to it, and only by a write to what it read.
+    @Test func aRootReadingAChoiceFollowsWritesToThatChoice() throws {
+        guard #available(macOS 14, *) else { return }
+        let domain = "opencine-preferences-tests." + UUID().uuidString
+        let storage = try #require(UserDefaults(suiteName: domain))
+        defer { storage.removePersistentDomain(forName: domain) }
+        let store = MonitorOperatorPreferences(storage: storage, keys: keys())
+        final class Fired: @unchecked Sendable { var count = 0 }
+        let awake = Fired()
+        withObservationTracking { _ = store.keepScreenAwake } onChange: { awake.count += 1 }
+        store.haptics = false
+        #expect(awake.count == 0, "A write to another choice leaves the wake reader alone")
+        store.keepScreenAwake = false
+        #expect(awake.count == 1, "The Settings write reaches the root that reads Keep screen awake")
+        #expect(!store.keepScreenAwake)
     }
 }

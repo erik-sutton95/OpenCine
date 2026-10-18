@@ -39,4 +39,21 @@ class DiagnosticJournalTest {
         assertEquals(listOf("b", "c", "d"), journal.snapshot())
         assertEquals(0, journal.droppedCount())
     }
+
+    @Test
+    fun restoredLinesSitBeforeNewerOnesAndAreNeverPersistedAgain() {
+        val persisted = mutableListOf<String>()
+        val journal = DiagnosticJournal(cap = 3)
+        journal.append("live")
+        journal.restore(listOf("old-1", "old-2", "old-3"))
+        assertEquals(listOf("old-2", "old-3", "live"), journal.snapshot())
+        assertEquals(0, journal.pendingCount())
+        journal.startWriter { batch -> synchronized(persisted) { persisted += batch } }
+        journal.restore(listOf("older"))
+        assertEquals(0, journal.pendingCount())
+        // Restored lines are the oldest, so a full ring evicts them first.
+        assertEquals(listOf("old-2", "old-3", "live"), journal.snapshot())
+        journal.shutdownWriter()
+        assertTrue(synchronized(persisted) { persisted.isEmpty() })
+    }
 }

@@ -59,6 +59,8 @@ public enum CameraStatusDecoder {
                 status.batteryMilliAmps = Int(Int32(bitPattern: u32(p, 5)))  // signed mA
                 status.docked = p[27] != 0
                 status.charging = p[32] == 1
+                status.chargingObservationDeclared = true
+                status.chargingObservation = p[32] <= 1 ? p[32] == 1 : nil
                 if (2000...5000).contains(mv) { status.batteryMilliVolts = mv }
             }
             let bp = Int(p[20])
@@ -142,7 +144,7 @@ public enum CameraStatusDecoder {
         guard let item = SubscribePush.parse(payload) else { return false }
         switch item.name {
         case "timecode_info" where item.value.count >= 8:
-            status.timecode = Self.timecodeString(item.value)
+            status.timecodeValue = Self.timecodeValue(item.value)
             return true
         case CamCapShutter.subscribeKey:
             let denoms = CamCapShutter.parseDenoms(item.value)
@@ -233,11 +235,16 @@ public enum CameraStatusDecoder {
 
     /// `timecode_info` 8 B: `@3–6` = HH MM SS FF (2026-08-14 Mimo: `00 00 00 05 16 2f 12 00` → `05:22:47:18`).
     /// `@0–2` stay 0; `@7` unused. Older live1 decode used `@4–7` and showed 22:xx as hours.
+    @available(*, deprecated, message: "Use timecodeValue for decoded components")
     public static func timecodeString(_ value: [UInt8]) -> String {
-        let hh = Int(value[3])
-        let mm = Int(value[4])
-        let ss = Int(value[5])
-        return String(format: "%02d:%02d:%02d:%02d", hh, mm, ss, Int(value[6]))
+        let decoded = timecodeValue(value)
+        return String(format: "%02d:%02d:%02d:%02d", decoded.hours, decoded.minutes,
+            decoded.seconds, decoded.frames)
+    }
+    /// Retains the typed decoder name introduced during migration.
+    public static func timecode(_ value: [UInt8]) -> CameraTimecode { timecodeValue(value) }
+    public static func timecodeValue(_ value: [UInt8]) -> CameraTimecode {
+        CameraTimecode(hours: Int(value[3]), minutes: Int(value[4]), seconds: Int(value[5]), frames: Int(value[6]))
     }
 
     /// Osmosis `VideoFrameRate` table (Nano / Pocket share the index).

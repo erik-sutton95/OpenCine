@@ -9,6 +9,9 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.io.File
+import java.nio.file.Path
+import java.nio.file.Files
+import java.util.Collections
 import java.util.UUID
 import kotlin.test.*
 
@@ -74,6 +77,45 @@ class MonitorMediaCacheTest {
             assertTrue(worker.awaitTermination(5, TimeUnit.SECONDS))
             parent.deleteRecursively()
         }
+    }
+
+    @Test fun retirementScanningChecksOwnershipBeforeMetadata() = runTest {
+        val parent = Files.createTempDirectory("opencine-retirement-metadata-").toFile()
+        try {
+            val unrelated = setOf("other", ".clearing-camera-invalid", ".clearing-camera-extra-${UUID.randomUUID()}")
+            val lookups = Collections.synchronizedList(mutableListOf<String>())
+            val observedParent = object : File(parent.path) {
+                override fun listFiles(): Array<File>? = super.listFiles()?.map { child ->
+                    object : File(child.path) {
+                        override fun toPath(): Path {
+                            if (name in unrelated) lookups.add(path)
+                            return super.toPath()
+                        }
+                    }
+                }?.toTypedArray()
+            }
+            val root = object : File(parent, "camera") {
+                override fun getParentFile(): File = observedParent
+            }
+            val directory = MonitorMediaCacheDirectory(root)
+            val prepared = File(parent, ".clearing-camera-${UUID.randomUUID()}")
+            val unprepared = File(parent, ".retiring-camera-${UUID.randomUUID()}")
+            for ((location, count) in listOf(root to 2, prepared to 3, unprepared to 5)) {
+                assertTrue(location.mkdirs())
+                File(location, "take.mov").writeBytes(ByteArray(count) { 1 })
+            }
+            unrelated.forEach { assertTrue(File(parent, it).mkdirs()) }
+            val linked = File(parent, ".clearing-camera-${UUID.randomUUID()}")
+            Files.createSymbolicLink(linked.toPath(), File(parent, "other").toPath())
+            assertEquals(10L, directory.totalByteCount())
+            assertTrue(lookups.isEmpty(), "Accounting must reject unrelated names before metadata: $lookups")
+            directory.clear(emptyList())
+            assertTrue(lookups.isEmpty(), "Clear must reject unrelated names before metadata: $lookups")
+            assertFalse(prepared.exists())
+            assertContentEquals(ByteArray(5) { 1 }, File(unprepared, "take.mov").readBytes())
+            assertEquals(File(parent, "other").toPath(), Files.readSymbolicLink(linked.toPath()))
+            unrelated.forEach { assertTrue(File(parent, it).isDirectory) }
+        } finally { parent.deleteRecursively() }
     }
 
     @Test fun retiringWritesPreservesResumableFilesAndFencesOldFinally() = runTest {

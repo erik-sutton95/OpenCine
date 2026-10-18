@@ -118,6 +118,19 @@ class ShellModelTest {
     }
 
     @Test
+    fun leavingTheMonitorCanRetainItsCover() = runTest {
+        val shell = shell()
+        val camera = Counted(FakeCameraSession.lunaLike())
+        connect(shell, Values.camera, camera)
+        shell.open(ShellModel.Cover.MEDIA)
+        shell.close(ShellModel.CoverRetention.RETAIN)
+        runCurrent()
+        assertTrue(shell.monitor == null && shell.route == ShellModel.Route.CAMERAS)
+        assertEquals(ShellModel.Cover.MEDIA, shell.cover, "the cover is never cleared, so its page keeps its identity")
+        assertEquals(listOf(SessionCloseReason.REQUESTED), camera.closes)
+    }
+
+    @Test
     fun closeOnce() = runTest {
         val shell = shell()
         val camera = Counted(FakeCameraSession.lunaLike())
@@ -168,6 +181,20 @@ class ShellModelTest {
         assertEquals(listOf(SessionCloseReason.REQUESTED), camera.closes)
         assertEquals(listOf("record-start"), camera.fake.wire)
         assertEquals(true, camera.fake.device.recording, "the camera keeps recording")
+    }
+
+    @Test
+    fun cameraGalleryOpensAndClosesOnlyTheMediaCover() = runTest {
+        val shell = shell()
+        shell.followCameraGallery(open = true)
+        assertEquals(ShellModel.Cover.MEDIA, shell.state.value.cover)
+        shell.followCameraGallery(open = false)
+        assertNull(shell.state.value.cover)
+        shell.open(ShellModel.Cover.SETTINGS)
+        shell.followCameraGallery(open = true)
+        assertEquals(ShellModel.Cover.SETTINGS, shell.state.value.cover)
+        shell.followCameraGallery(open = false)
+        assertEquals(ShellModel.Cover.SETTINGS, shell.state.value.cover)
     }
 
     @Test

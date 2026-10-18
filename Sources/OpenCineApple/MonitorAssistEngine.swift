@@ -27,7 +27,9 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     }
 
     private struct Frame: @unchecked Sendable { let buffer: CVPixelBuffer }
-    private let queue = DispatchQueue(label: "opencine.monitor-assist", qos: .userInitiated)
+    private struct Still: @unchecked Sendable { let image: CGImage }
+    private let queue: DispatchQueue
+    private let scopeNow: @Sendable () -> CFAbsoluteTime
     private let configuration: MonitorAssistConfiguration
     private let log: Logger
     private let raster = MonitorWorkingRaster()
@@ -37,6 +39,8 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     private var pendingTransfer = MonitorTransfer.rec709
     private var pendingTimeNs: Int64?
     private var pendingCompletion: (@Sendable (Result) -> Void)?
+    /// False for a still a source presents itself: only its scope tap runs.
+    private var pendingPresents = true
     private var busy = false
     private var nextScopeAt: CFAbsoluteTime = 0
     /// Rolling tap maximum for the 10 s `scope max:` journal cadence.
@@ -51,7 +55,17 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     /// Shared tap: 25 Hz, 10 Hz with three or more scopes, shed further by
     /// thermal tier (×3 serious, ×5 critical). Deadline cannot catch up.
 
-    public init(configuration: MonitorAssistConfiguration = .init()) {
+    public convenience init(configuration: MonitorAssistConfiguration = .init()) {
+        self.init(configuration: configuration, scopeNow: { CFAbsoluteTimeGetCurrent() })
+    }
+
+    /// Keep cadence time and queue readiness controllable without changing the public host API.
+    init(configuration: MonitorAssistConfiguration = .init(),
+        scopeNow: @escaping @Sendable () -> CFAbsoluteTime,
+        queue: DispatchQueue = DispatchQueue(label: "opencine.monitor-assist", qos: .userInitiated)
+    ) {
+        self.queue = queue
+        self.scopeNow = scopeNow
         self.configuration = configuration
         self.log = Logger(subsystem: configuration.logSubsystem, category: "scope-tap")
         self.exposureCeiling = ScopeExposureCeiling(profile: configuration.clipProfile)
@@ -92,6 +106,29 @@ public final class MonitorAssistEngine: @unchecked Sendable {
             if let transfer { pendingTransfer = transfer }
             pendingTimeNs = timeNs
             pendingCompletion = completion
+            pendingPresents = true
+            drain()
+        }
+    }
+
+    /// A source that presents its own decoded pictures (motion JPEG) feeds only the scope tap.
+    /// A still arriving before the tap is due is dropped unconverted; a due one is copied onto
+    /// the working raster on this queue. `completion` receives each sampled bundle.
+    public func sample(
+        _ image: CGImage, effects: MonitorAssistPolicy, transfer: MonitorTransfer,
+        completion: @escaping @Sendable (Result) -> Void
+    ) {
+        let still = Still(image: image)
+        queue.async { [self] in
+            guard effects.needsScopes, scopeNow() >= nextScopeAt,
+                let buffer = raster.prepared(still.image)
+            else { return }
+            pendingBuffer = buffer
+            pendingEffects = effects
+            pendingTransfer = transfer
+            pendingTimeNs = nil
+            pendingCompletion = completion
+            pendingPresents = false
             drain()
         }
     }
@@ -148,6 +185,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         var fx = pendingEffects
         var transfer = pendingTransfer
         let timeNs = pendingTimeNs
+        let presents = pendingPresents
         fx.stamp(transfer: transfer, ceiling: exposureCeiling)
         busy = true
         var imageEffects = fx.image
@@ -163,7 +201,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         // The histogram walk still runs after present so it cannot hold 25 fps.
         var packed: (bytes: [UInt8], width: Int, height: Int, bytesPerRow: Int)?
         if fx.needsScopes {
-            let now = CFAbsoluteTimeGetCurrent()
+            let now = scopeNow()
             let interval = Self.minInterval(activeScopeCount: fx.activeScopeCount)
             if now >= nextScopeAt {
                 nextScopeAt = now + interval
@@ -182,7 +220,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         let output: CIImage
         let overlayOnly: Bool
         let unmanagedBake: Bool
-        if fx.needsGPUFeed {
+        if fx.needsGPUFeed && presents {
             identity = CIImage(cvPixelBuffer: buffer)
             let cameraCodes = CIImage(
                 cvPixelBuffer: buffer, options: MonitorWorkingSpace.imageOptions)
@@ -210,18 +248,20 @@ public final class MonitorAssistEngine: @unchecked Sendable {
             unmanagedBake = false
         }
 
-        completion(
-            Result(
-                output: output,
-                identity: identity,
-                source: buffer,
-                needsGPU: fx.needsGPUFeed,
-                overlayOnly: overlayOnly,
-                unmanagedBake: unmanagedBake,
-                bundle: nil,
-                transfer: transfer,
-                shouldPresent: true,
-                timeNs: timeNs))
+        if presents {
+            completion(
+                Result(
+                    output: output,
+                    identity: identity,
+                    source: buffer,
+                    needsGPU: fx.needsGPUFeed,
+                    overlayOnly: overlayOnly,
+                    unmanagedBake: unmanagedBake,
+                    bundle: nil,
+                    transfer: transfer,
+                    shouldPresent: true,
+                    timeNs: timeNs))
+        }
 
         if let packed {
             let tapMin = LiveFrameTap.minRGB(packed.bytes)

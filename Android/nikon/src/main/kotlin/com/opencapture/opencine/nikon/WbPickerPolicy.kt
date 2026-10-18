@@ -53,8 +53,11 @@ object WbPickerPolicy {
     const val KELVIN_BASE: String = "5560K"
     const val PRESET_BASE: String = "Auto"
 
-    /** Header subtitle (iOS `CameraPicker.whiteBalance.subtitle`). */
-    const val SUBTITLE: String = "Kelvin / preset / tint"
+    /** Canonical popup title (the readout keeps its short WB label). */
+    const val TITLE: String = "WHITE BALANCE"
+
+    /** Canonical popup subtitle: the Mode tab holds the body's presets, Auto among them. */
+    const val SUBTITLE: String = "Kelvin · auto · tint"
 
     /**
      * Kelvin drum: use a denser camera-advertised enum when present; otherwise
@@ -124,5 +127,15 @@ object WbPickerPolicy {
         val current = kelvin(from = from) ?: return false
         val next = current + delta
         return next in MINIMUM_KELVIN..MAXIMUM_KELVIN && next != current
+    }
+
+    /**
+     * The preset drum for the active codec: R3D clips record no auto white balance, so Auto and
+     * Natural auto are left off while the body records R3D. Twin of the Swift
+     * `whiteBalanceOptions(advertised:codec:)`.
+     */
+    fun whiteBalanceOptions(advertised: List<String>, codec: String?): List<String> {
+        if (codec == null || !codec.uppercase().contains("R3D")) return advertised
+        return advertised.filter { it != "Auto" && it != "Natural auto" }
     }
 }

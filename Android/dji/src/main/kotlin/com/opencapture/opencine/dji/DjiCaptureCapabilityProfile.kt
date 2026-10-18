@@ -1,5 +1,6 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.vocabulary.*
 
 fun CameraModel.Companion.looksLikePocket3(name: String): Boolean {
@@ -146,7 +147,39 @@ object DjiCaptureCapabilityProfile {
             isoAutoRangeFloor = CameraModel.isoAutoRangeFloorFor(model.name), videoFormatFallbacks = fallbacks,
             zoom = CameraZoomProfile(stops = model.zoomStops, restrictedModes = restricted,
                 restrictedStops = if (CameraModel.looksLikePocket4Pro(model.name)) listOf(1.0, 3.0) else listOf(1.0),
-                resolutionCeilings = ceilings), looks = DjiCameraLUTProfile.make(model))
+                resolutionCeilings = ceilings), looks = DjiCameraLUTProfile.make(model),
+            controls = controls(model))
+    }
+
+    /**
+     * Families no setting descriptor carries (Swift `DJICaptureCapabilityProfile.controls`). Every
+     * Osmo body records video in a format and colour mode the camera lists, takes photos, serves
+     * its card and deletes from it, and has no built-in ND. Face metering and audio input follow
+     * nothing declared here. Multiview lists the bodies the captured preview policy qualifies
+     * (Swift `MulticamSupport.appears` and `hasPreview`); a listed body without a captured preview
+     * is experimental, so unknown.
+     */
+    fun controls(model: CameraModel): Map<ControlFamily, SupportStatus> {
+        if (model.isDrone) return emptyMap()
+        val appears = model.name.lowercase().contains("osmo") || model.family != "other"
+        val compact = model.name.lowercase().replace(" ", "")
+        val preview = appears && model.usesCapturedLiveEnable &&
+            (CameraModel.looksLikePocket3(model.name) || compact.contains("pocket4") || model.family == "nano")
+        val multiview = when {
+            !appears -> SupportStatus.UNSUPPORTED
+            preview -> SupportStatus.SUPPORTED
+            else -> SupportStatus.UNKNOWN
+        }
+        return mapOf(
+            ControlFamily.ND_FILTER to SupportStatus.UNSUPPORTED,
+            ControlFamily.RECORDING_FORMAT to SupportStatus.SUPPORTED,
+            ControlFamily.CODEC_COLOR to
+                if (CameraModel.colorModesFor(model.name, model.family).isEmpty()) SupportStatus.UNKNOWN else SupportStatus.SUPPORTED,
+            ControlFamily.PHOTO to SupportStatus.SUPPORTED,
+            ControlFamily.MEDIA to SupportStatus.SUPPORTED,
+            ControlFamily.MEDIA_DELETE to SupportStatus.SUPPORTED,
+            ControlFamily.MULTIVIEW to multiview,
+        )
     }
         /** Accepted Pocket 3 Video `0x02/0x18` pairs. 9:16 was body Lock Portrait only. */
         private val pocket3VideoFormats = listOf(

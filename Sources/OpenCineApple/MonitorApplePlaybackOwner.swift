@@ -161,6 +161,22 @@
         private func current(_ token: MonitorPlaybackItemToken, request: UUID) -> Bool {
             !closed && admitsSource() && self.token == token && preparation == request
         }
+        /// Actual native temporal extent for this prepared item, independent of transfer bytes.
+        public func bufferedThroughSeconds(token: MonitorPlaybackItemToken) -> Double? {
+            let request = preparation
+            guard preparationReturned, current(token, request: request), let item,
+                player.currentItem === item, item.status == .readyToPlay
+            else { return nil }
+            guard current(token, request: request), self.item === item,
+                player.currentItem === item
+            else { return nil }
+            let ranges = item.loadedTimeRanges
+            guard current(token, request: request), self.item === item,
+                player.currentItem === item
+            else { return nil }
+            return ranges.map { CMTimeGetSeconds(CMTimeRangeGetEnd($0.timeRangeValue)) }
+                .filter { $0.isFinite && $0 >= 0 }.max()
+        }
         private func completeReadiness(
             _ item: AVPlayerItem, token: MonitorPlaybackItemToken, request: UUID
         ) {

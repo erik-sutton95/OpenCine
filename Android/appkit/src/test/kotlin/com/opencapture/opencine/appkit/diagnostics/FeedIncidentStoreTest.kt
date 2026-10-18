@@ -4,6 +4,7 @@ import com.opencapture.opencine.media.FeedIncidentAges
 import com.opencapture.opencine.media.FeedIncidentBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentBreadcrumbKind
 import com.opencapture.opencine.media.FeedIncidentBundle
+import com.opencapture.opencine.media.FeedIncidentDecodeErrorContext
 import com.opencapture.opencine.media.FeedIncidentDecoder
 import com.opencapture.opencine.media.FeedIncidentIngress
 import com.opencapture.opencine.media.FeedIncidentFailingStage
@@ -15,6 +16,7 @@ import com.opencapture.opencine.media.FeedIncidentOutcome
 import com.opencapture.opencine.media.FeedIncidentPersistenceJob
 import com.opencapture.opencine.media.FeedIncidentRates
 import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedIncidentWatchdogGate
 import com.opencapture.opencine.media.PrivacyRedactor
 import java.io.File
 import kotlin.test.Test
@@ -26,6 +28,21 @@ import org.json.JSONObject
 import kotlin.test.assertTrue
 
 class FeedIncidentStoreTest {
+    @Test fun optionalRatesRoundTripWithoutInventingUnavailableStages() {
+        val sampler = com.opencapture.opencine.media.FeedIncidentRateSampler()
+        sampler.sample(1.0, com.opencapture.opencine.media.FeedIncidentStageCounts(accessUnit = 0))
+        val rates = sampler.sample(2.0, com.opencapture.opencine.media.FeedIncidentStageCounts(accessUnit = 3))
+        val bundle = sampleBundle("observed-rates").let { it.copy(prelude = listOf(it.prelude.single().copy(rates = rates))) }
+        val encoded = FeedIncidentJson.encode(bundle)
+        val decoded = assertNotNull(FeedIncidentJson.decode(encoded)).prelude.single().rates
+        assertEquals(rates, decoded)
+        assertNull(decoded.observed?.packetHz)
+        val json = org.json.JSONObject(String(encoded, Charsets.UTF_8))
+        json.getJSONArray("prelude").getJSONObject(0).getJSONObject("rates").remove("observed")
+        val legacy = assertNotNull(FeedIncidentJson.decode(json.toString().toByteArray())).prelude.single().rates
+        assertEquals(3.0, legacy.accessUnitHz)
+        assertNull(legacy.observed)
+    }
     private companion object {
         const val PRODUCT = "Host"
         val REDACT: (String) -> String = { PrivacyRedactor.redact(it) }
@@ -210,6 +227,67 @@ class FeedIncidentStoreTest {
         val bundle = sampleBundle("ingress-json").copy(prelude = listOf(snapshot))
         val decoded = assertNotNull(FeedIncidentJson.decode(FeedIncidentJson.encode(bundle)))
         assertEquals(snapshot, decoded.prelude.single())
+    }
+
+    /** PI-2E: the watchdog's gating inputs ride the incident; unknown inputs stay absent (Swift twin). */
+    @Test
+    fun watchdogGateSurvivesJsonRoundTripAndUnknownInputsStayAbsent() {
+        val gate = FeedIncidentWatchdogGate(pathReady = true, repairReady = false, outputExpected = false, hold = "repairNotReady")
+        val snapshot = sampleSnapshot(5.0).copy(watchdogGate = gate)
+        val bundle = sampleBundle("watchdog-gate").copy(prelude = listOf(snapshot))
+        val decoded = assertNotNull(FeedIncidentJson.decode(FeedIncidentJson.encode(bundle)))
+        assertEquals(snapshot, decoded.prelude.single())
+
+        val partial = sampleBundle("partial-gate").copy(
+            prelude = listOf(sampleSnapshot(5.0).copy(watchdogGate = FeedIncidentWatchdogGate(hold = " " + "x".repeat(80)))),
+        )
+        val json = JSONObject(String(FeedIncidentJson.encode(partial), Charsets.UTF_8))
+        val encodedGate = json.getJSONArray("prelude").getJSONObject(0).getJSONObject("watchdogGate")
+        assertEquals(listOf("hold"), encodedGate.keys().asSequence().toList())
+        assertEquals(32, encodedGate.getString("hold").length)
+
+        val legacy = JSONObject(String(FeedIncidentJson.encode(sampleBundle("legacy-gate")), Charsets.UTF_8))
+        val legacySnapshot = legacy.getJSONArray("prelude").getJSONObject(0)
+        assertFalse(legacySnapshot.has("watchdogGate"))
+        assertNull(assertNotNull(FeedIncidentJson.decode(legacy.toString().toByteArray(Charsets.UTF_8))).prelude.single().watchdogGate)
+        legacySnapshot.put("watchdogGate", JSONObject().put("pathReady", "yes").put("hold", ""))
+        val malformed = assertNotNull(FeedIncidentJson.decode(legacy.toString().toByteArray(Charsets.UTF_8))).prelude.single()
+        assertEquals(FeedIncidentWatchdogGate(), malformed.watchdogGate, "Wrong types and empty holds are unknown")
+    }
+
+    @Test
+    fun firstDecodeErrorContextBoundsMatchSwift() {
+        val context = FeedIncidentDecodeErrorContext(
+            status = 0, nalTypes = List(40) { 99 }, accessUnitBytes = -1,
+            irapAge = -1.0, parameterSetChangeAge = Double.POSITIVE_INFINITY,
+            inputHz = Double.NaN,
+        )
+        assertEquals(List(16) { 63 }, context.nalTypes)
+        assertEquals(0, context.accessUnitBytes)
+        assertEquals(null, context.irapAge)
+        assertEquals(null, context.parameterSetChangeAge)
+        assertEquals(0.0, context.inputHz)
+        val bundle = sampleBundle("bounded-first-error").copy(
+            prelude = listOf(sampleSnapshot(5.0).copy(decoder = FeedIncidentDecoder(firstError = context))),
+        )
+        val decoded = assertNotNull(FeedIncidentJson.decode(FeedIncidentJson.encode(bundle)))
+        assertEquals(context, decoded.prelude.single().decoder.firstError)
+    }
+
+    @Test
+    fun firstDecodeErrorContextSurvivesJsonRoundTripAndIsAbsentOnLegacyRecords() {
+        val context = FeedIncidentDecodeErrorContext(
+            status = -12909, nalTypes = listOf(1), accessUnitBytes = 1_234,
+            irapAge = 0.5, parameterSetChangeAge = null, inputHz = 37.4,
+        )
+        val snapshot = sampleSnapshot(5.0).copy(
+            decoder = FeedIncidentDecoder(lastStatus = -12909, firstError = context),
+        )
+        val bundle = sampleBundle("first-error-json").copy(prelude = listOf(snapshot))
+        val decoded = assertNotNull(FeedIncidentJson.decode(FeedIncidentJson.encode(bundle)))
+        assertEquals(snapshot, decoded.prelude.single())
+        val legacy = JSONObject(String(FeedIncidentJson.encode(sampleBundle("legacy-first-error")), Charsets.UTF_8))
+        assertFalse(legacy.getJSONArray("prelude").getJSONObject(0).getJSONObject("decoder").has("firstError"))
     }
 
     @Test

@@ -40,7 +40,11 @@ import kotlin.math.min
 data class MonitorTrackingRect(val x: Double, val y: Double, val width: Double, val height: Double)
 data class MonitorTrackingBracketValue(val normalizedRect: MonitorTrackingRect, val color: Color, val lineWidth: Float = 2f)
 data class MonitorFocusMark(val point: Offset, val color: Color, val aeLocked: Boolean = false,
-    val focusLocked: Boolean = false)
+    val focusLocked: Boolean = false,
+    /** The camera-reported AF area, normalized like [point] (its centre); null draws the standard tap box. */
+    val area: MonitorTrackingRect? = null,
+    /** Hold-to-lock feedback in 0..1: the box outline fills in the accent until the lock engages. */
+    val lockProgress: Float = 0f)
 
 object MonitorTrackingGeometry {
     const val FOCUS_BOX_SIDE_FRACTION = 0.14f
@@ -51,12 +55,36 @@ object MonitorTrackingGeometry {
         val minGap = max(8f, along * 0.28f)
         return min(max(10f, proposed), max(10f, (along - minGap) / 2f))
     }
+
+    /**
+     * The focus box in feed pixels (twin of the SwiftUI `focusBoxFrame`): the camera-reported area at
+     * its own size and centre, else the standard square of the short side around the mark's point.
+     */
+    fun focusBoxFrame(mark: MonitorFocusMark, width: Float, height: Float): Rect {
+        val area = mark.area
+        if (area != null && area.width > 0 && area.height > 0) {
+            return Rect((area.x * width).toFloat(), (area.y * height).toFloat(),
+                ((area.x + area.width) * width).toFloat(), ((area.y + area.height) * height).toFloat())
+        }
+        val side = min(width, height) * FOCUS_BOX_SIDE_FRACTION
+        val cx = mark.point.x * width
+        val cy = mark.point.y * height
+        return Rect(cx - side / 2f, cy - side / 2f, cx + side / 2f, cy + side / 2f)
+    }
+
+    /** A camera-reported area keeps its own corner (at most [areaCornerCap]); the standard tap box keeps 6 px. */
+    fun focusCornerRadius(frame: Rect, reportedArea: Boolean, areaCornerCap: Float): Float {
+        val side = min(frame.width, frame.height)
+        return if (reportedArea) min(side * 0.12f, areaCornerCap) else max(6f, side * 0.12f)
+    }
 }
 
 /** Drawing owns no camera report selection, tap policy or coordinate flip. */
 @Composable
 fun MonitorTrackingLayer(brackets: List<MonitorTrackingBracketValue>, focus: MonitorFocusMark?,
-    modifier: Modifier = Modifier) {
+    modifier: Modifier = Modifier,
+    /** Further camera-reported AF areas (a body that reports several), drawn as boxes without tags. */
+    areas: List<MonitorFocusMark> = emptyList()) {
     val visibleMarks = brackets.toList()
     val measurer = rememberTextMeasurer()
     val lockIcon = if (focus?.focusLocked == true) painterResource(MonitorIcon.LOCK.drawableRes) else null
@@ -67,6 +95,7 @@ fun MonitorTrackingLayer(brackets: List<MonitorTrackingBracketValue>, focus: Mon
                 ((rect.x + rect.width) * size.width).toFloat(), ((rect.y + rect.height) * size.height).toFloat()),
                 mark.color, mark.lineWidth.dp.toPx())
         }
+        areas.forEach { drawFocusBox(it, null, null) }
         if (focus != null) {
             val aeTag = if (focus.aeLocked) measurer.measure("AE-L",
                 MonitorTypography.text(9f, FontWeight.SemiBold).copy(color = focus.color,
@@ -95,35 +124,51 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusBox(
     aeTag: TextLayoutResult?,
     lockIcon: Painter?,
 ) {
-    val nx = focus.point.x
-    val ny = focus.point.y
-    val side = min(size.width, size.height) * MonitorTrackingGeometry.FOCUS_BOX_SIDE_FRACTION
-    val cx = nx * size.width
-    val cy = ny * size.height
+    val frame = MonitorTrackingGeometry.focusBoxFrame(focus, size.width, size.height)
+    val boxWidth = frame.width
+    val boxHeight = frame.height
+    val cx = frame.center.x
+    val cy = frame.center.y
+    val halfWidth = boxWidth / 2f
+    val halfHeight = boxHeight / 2f
     val tint = focus.color
     // Tags sit right of the box, or left near the right edge.
     val tagGap = 3.dp.toPx()
     val tagWidth = aeTag?.size?.width?.toFloat() ?: (23.dp.toPx() - tagGap)
-    val leading = cx + side / 2f + tagGap + tagWidth > size.width
+    val leading = cx + halfWidth + tagGap + tagWidth > size.width
     if (aeTag != null) {
-        val x = if (leading) cx - side / 2f - tagGap - tagWidth else cx + side / 2f + tagGap
-        drawText(aeTag, topLeft = Offset(x, cy - side / 2f + 6.dp.toPx() - aeTag.size.height / 2f))
+        val x = if (leading) cx - halfWidth - tagGap - tagWidth else cx + halfWidth + tagGap
+        drawText(aeTag, topLeft = Offset(x, cy - halfHeight + 6.dp.toPx() - aeTag.size.height / 2f))
     }
     if (lockIcon != null) {
         val icon = 10.dp.toPx()
         val gap = 5.dp.toPx()
-        val x = if (leading) cx - side / 2f - gap - icon else cx + side / 2f + gap
-        translate(x, cy + side / 2f - 6.dp.toPx() - icon / 2f) {
+        val x = if (leading) cx - halfWidth - gap - icon else cx + halfWidth + gap
+        translate(x, cy + halfHeight - 6.dp.toPx() - icon / 2f) {
             with(lockIcon) { draw(Size(icon, icon), colorFilter = ColorFilter.tint(tint)) }
         }
     }
+    val radius = MonitorTrackingGeometry.focusCornerRadius(frame, focus.area != null, 7.dp.toPx())
     drawRoundRect(
         tint,
-        topLeft = Offset(cx - side / 2f, cy - side / 2f),
-        size = Size(side, side),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(max(6f, side * 0.12f)),
+        topLeft = Offset(cx - halfWidth, cy - halfHeight),
+        size = Size(boxWidth, boxHeight),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius),
         style = Stroke(1.5.dp.toPx()),
     )
+    val progress = focus.lockProgress.coerceIn(0f, 1f)
+    if (!focus.focusLocked && progress > 0.001f) {
+        val outline = Path().apply {
+            addRoundRect(androidx.compose.ui.geometry.RoundRect(cx - halfWidth, cy - halfHeight, cx + halfWidth,
+                cy + halfHeight, androidx.compose.ui.geometry.CornerRadius(radius)))
+        }
+        val measure = androidx.compose.ui.graphics.PathMeasure().apply { setPath(outline, false) }
+        val segment = Path()
+        measure.getSegment(0f, measure.length * progress, segment, true)
+        // The hold to lock traces the outline in the accent until the lock engages, as on iOS.
+        drawPath(segment, MonitorPalette.accent,
+            style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBracket(

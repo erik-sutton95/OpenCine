@@ -31,6 +31,13 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
     /** A page over the current route. Covering is not leaving. */
     public enum class Cover { SETTINGS, MEDIA }
 
+    /**
+     * What leaving the monitor does to its cover (A2-07). DISMISS (the default): the cover leaves
+     * with the monitor. RETAIN: the cover stays, with its view state, over the cameras page, as
+     * when an internet hop leaves the camera with the gallery still open.
+     */
+    public enum class CoverRetention { DISMISS, RETAIN }
+
     /** Who owns the monitor's session. */
     public sealed interface Ownership {
         /** This shell closes it. */
@@ -102,8 +109,11 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
     }
 
     /** Leaves the monitor for the cameras page. Closes the session only when owned. */
-    public fun close() {
-        val monitor = leave() ?: return
+    public fun close(): Unit = close(CoverRetention.DISMISS)
+
+    /** [close], keeping the cover over the cameras page when [cover] is RETAIN. */
+    public fun close(cover: CoverRetention) {
+        val monitor = leave(cover) ?: return
         end(monitor, SessionCloseReason.REQUESTED)
     }
 
@@ -120,10 +130,10 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
         end(monitor, null)
     }
 
-    private fun leave(): Monitor? {
+    private fun leave(retention: CoverRetention = CoverRetention.DISMISS): Monitor? {
         val monitor = state.value.monitor ?: return null
         control.unbind()
-        mutable.update { it.copy(monitor = null, cover = null) }
+        mutable.update { it.copy(monitor = null, cover = if (retention == CoverRetention.RETAIN) it.cover else null) }
         return monitor
     }
 
@@ -160,6 +170,20 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
 
     public fun dismissCover() {
         mutable.update { it.copy(cover = null) }
+    }
+
+    /**
+     * The camera body's own gallery, as a camera maker's app shows it: the body entering it
+     * opens Media, and the body leaving it closes Media (which returns the camera to live).
+     * Another cover the operator opened stays. Swift `followCameraGallery(open:)`.
+     */
+    public fun followCameraGallery(open: Boolean) {
+        val shown = state.value.cover
+        if (open && shown == null) {
+            open(Cover.MEDIA)
+        } else if (!open && shown == Cover.MEDIA) {
+            dismissCover()
+        }
     }
 
     // Scene

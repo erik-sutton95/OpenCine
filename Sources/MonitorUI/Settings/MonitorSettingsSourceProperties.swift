@@ -28,16 +28,33 @@ public struct MonitorSettingsSourceGroup: Identifiable {
     }
 }
 
+/// The remote shutter row: the host's stored choice with the owner's title and help
+/// (`MonitorSettingsRemoteShutter.volumeButtons(enabled:)` in OpenCineAppKitApple).
+public struct MonitorSettingsRemoteShutter {
+    public let enabled: Binding<Bool>
+    public let title: String
+    public let help: String
+    public init(enabled: Binding<Bool>, title: String, help: String) {
+        self.enabled = enabled; self.title = title; self.help = help
+    }
+}
+
+/// The auto-rotate row, for a source that reports the camera body's orientation.
+public struct MonitorSettingsAutoRotate {
+    public let enabled: Binding<Bool>
+    public let help: String
+    public init(enabled: Binding<Bool>, help: String) {
+        self.enabled = enabled; self.help = help
+    }
+}
+
+/// Input and orientation: each capability is declared on its own (A2-32), so an app offers a
+/// remote shutter without inventing a rotation choice, and the reverse.
 public struct MonitorSettingsInputSource {
-    public let remoteShutter: Binding<Bool>
-    public let remoteTitle: String
-    public let remoteHelp: String
-    public let autoRotateFeed: Binding<Bool>
-    public let rotationHelp: String
-    public init(remoteShutter: Binding<Bool>, remoteTitle: String, remoteHelp: String,
-        autoRotateFeed: Binding<Bool>, rotationHelp: String) {
-        self.remoteShutter = remoteShutter; self.remoteTitle = remoteTitle; self.remoteHelp = remoteHelp
-        self.autoRotateFeed = autoRotateFeed; self.rotationHelp = rotationHelp
+    public let remoteShutter: MonitorSettingsRemoteShutter?
+    public let autoRotate: MonitorSettingsAutoRotate?
+    public init(remoteShutter: MonitorSettingsRemoteShutter? = nil, autoRotate: MonitorSettingsAutoRotate? = nil) {
+        self.remoteShutter = remoteShutter; self.autoRotate = autoRotate
     }
 }
 

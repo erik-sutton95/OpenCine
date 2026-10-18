@@ -1,5 +1,6 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CameraTimecode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -69,7 +70,7 @@ internal interface SwiftCoreSessionBridge {
         connectionOwner: Long,
         listener: NikonNative.SessionListener,
     ) {
-        listener.onFailed("USB-C camera support is unavailable in this core build.")
+        listener.onFailed(CameraConnectionFailure.OTHER.wireCode, "USB-C camera support is unavailable in this core build.")
     }
 
     /** Starts USB PTP using the same strategy vocabulary as Wi-Fi PTP-IP. */
@@ -360,6 +361,7 @@ private val CameraControl.nativeSelector: Int
             CameraControl.STILL_RAW_COMPRESSION -> 34
             CameraControl.STILL_USER_MODE_PROGRAM -> 35
             CameraControl.STILL_PICTURE_CONTROL -> 36
+            CameraControl.MOVIE_TONE -> 37
         }
 
 /**
@@ -484,6 +486,9 @@ class SwiftCoreCameraSession internal constructor(
     private val _reportedRecording = MutableStateFlow<Boolean?>(null)
     override val reportedRecording: StateFlow<Boolean?> = _reportedRecording.asStateFlow()
 
+    private val _liveTimecode = MutableStateFlow<CameraTimecode?>(null)
+    override val liveTimecode: StateFlow<CameraTimecode?> = _liveTimecode.asStateFlow()
+
     private val _cameraProperties = MutableStateFlow(CameraPropertySnapshot())
     override val cameraProperties: StateFlow<CameraPropertySnapshot> = _cameraProperties.asStateFlow()
 
@@ -568,6 +573,7 @@ class SwiftCoreCameraSession internal constructor(
                 connectionOwner?.let { core.configureLiveView(it, request) } ?: false
             },
             onRecordingState = ::applyCameraRecordingState,
+            onTimecode = ::applyLiveTimecode,
             onCommandRoundTrip = { updateRoundTripMeasurement() },
             onStreamExhausted = ::markLiveViewStreamExhausted,
             onFailurePhase = { phase -> phaseLogger(phase, "") },
@@ -607,6 +613,7 @@ class SwiftCoreCameraSession internal constructor(
                             cameraRecordingEventVersion = 0L
                             _recordingState.value = CameraRecordingState.STANDBY
                             _reportedRecording.value = null
+                            _liveTimecode.value = null
                             _cameraProperties.value = CameraPropertySnapshot()
                             _reportedCameraProperties.value = CameraPropertySnapshot()
                             _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
@@ -619,16 +626,21 @@ class SwiftCoreCameraSession internal constructor(
                         }
                     }
 
-                    override fun onFailed(message: String) {
+                    override fun onFailed(failure: Int, message: String) {
                         if (updateAttempt(attempt, CameraSessionState.Disconnected)) {
                             ignoreLiveRecordingStateUntilNanos = 0L
                             cameraRecordingEventVersion = 0L
                             _recordingState.value = CameraRecordingState.STANDBY
                             _reportedRecording.value = null
+                            _liveTimecode.value = null
                             stopPropertyRefresh(clearSnapshot = true)
                             _latestCommandRoundTripMilliseconds.value = null
                             _connectionProgress.value =
-                                CameraConnectionProgress(CameraConnectionPhase.FAILED, message)
+                                CameraConnectionProgress(
+                                    CameraConnectionPhase.FAILED,
+                                    message,
+                                    CameraConnectionFailure.fromWire(failure),
+                                )
                             // Closed failure token only; free-form [message] never enters
                             // the diagnostic event store (mapped by AndroidDiagnosticEvent.fromPhase).
                             phaseLogger(sessionFailurePhaseToken(), message)
@@ -1123,6 +1135,7 @@ class SwiftCoreCameraSession internal constructor(
                     cameraRecordingEventVersion = 0L
                     _recordingState.value = CameraRecordingState.STANDBY
                     _reportedRecording.value = null
+                    _liveTimecode.value = null
                     _cameraProperties.value = CameraPropertySnapshot()
                     _reportedCameraProperties.value = CameraPropertySnapshot()
                     _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
@@ -1143,6 +1156,12 @@ class SwiftCoreCameraSession internal constructor(
         if (!force && System.nanoTime() < ignoreLiveRecordingStateUntilNanos) return
         _recordingState.value =
             if (recording) CameraRecordingState.RECORDING else CameraRecordingState.STANDBY
+    }
+
+    /** Publishes a live-view header's timecode while connected (A5-04); off reads as unknown. */
+    private fun applyLiveTimecode(timecode: LiveFrameTimecode?) {
+        if (_state.value !is CameraSessionState.Connected) return
+        _liveTimecode.value = timecode?.running
     }
 
     /** Starts the native event drain after the current connection is established. */
@@ -1232,6 +1251,7 @@ class SwiftCoreCameraSession internal constructor(
         cameraRecordingEventVersion = 0L
         _recordingState.value = CameraRecordingState.STANDBY
         _reportedRecording.value = null
+        _liveTimecode.value = null
         stopPropertyRefresh(clearSnapshot = true)
         _connectionProgress.value = CameraConnectionProgress(CameraConnectionPhase.FAILED, message)
         phaseLogger("eventChannelEnded", message)

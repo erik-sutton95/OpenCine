@@ -217,11 +217,5 @@ class NikonDiscovery(
     }
 
     /** The `a.b.c` of a private (RFC 1918) IPv4 address, else `null`. */
-    private fun subnetBase(host: String): String? {
-        val octets = host.trim().split('.')
-        if (octets.size != 4) return null
-        val values = octets.map { octet -> octet.toIntOrNull()?.takeIf { it in 0..255 && octet.all(Char::isDigit) } ?: return null }
-        val private = values[0] == 10 || (values[0] == 172 && values[1] in 16..31) || (values[0] == 192 && values[1] == 168)
-        return if (private) values.take(3).joinToString(".") else null
-    }
+    private fun subnetBase(host: String): String? = host.trim().takeIf(NikonHosts::isPrivateIPv4)?.let(NikonHosts::subnetBase)
 }

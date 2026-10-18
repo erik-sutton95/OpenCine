@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineMedia
 
 /// Camera controls currently backed by known Nikon movie property writes.
 ///
@@ -60,6 +61,11 @@ extension PTPPropertyCode {
         .movieWBColorTemp,
         .movieRecordScreenSize,
         .movieFileType,
+        // Movie tone per codec family; bodies without them skip them by their advertisement.
+        .movieH265ToneMode,
+        .movieProResToneMode,
+        .movieNRawToneMode,
+        .movieProResRawToneMode,
         .exposureProgramMode,
         .exposureIndicateStatus,
         .exposureIndicateLightup,
@@ -1423,8 +1429,7 @@ public enum PTPCameraPropertyDecoders {
         if abs(ev) > 5 {
             return hex(UInt32(UInt16(bitPattern: raw)))
         }
-        if ev == 0 { return "±0.0" }
-        return String(format: "%+.1f", ev)
+        return ExposureCompensation.label(stops: ev)
     }
 
     /// Best-effort decode of a PTP string property (ImageSize and similar).
@@ -1566,14 +1571,19 @@ extension PTPCameraPropertyDecoders {
         }
     }
 
-    /// Infers the automatic tone/gamma label used by exposure assists from the reported codec.
+    /// Returns a positively identified log label, never a tone inferred from a container.
+    /// ProRes, N-RAW and H.265 can record more than one tone mode; their codec is insufficient.
     public static func toneLabel(fromCodec codec: String) -> String? {
-        guard !codec.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return isRedLog3G10Codec(codec) ? "Log3G10" : "N-Log"
+        if isRedLog3G10Codec(codec) { return "Log3G10" }
+        let upper = codec.uppercased()
+        if upper.contains("N-LOG") || upper.contains("N LOG") || upper.contains("NLOG") {
+            return "N-Log"
+        }
+        return nil
     }
 
-    /// R3D (or a codec label naming Log3G10) records REDWideGamutRGB/Log3G10; every other codec
-    /// monitors as N-Log on the log path. `ExposureToneCurve.forCameraCodec` reads this.
+    /// Identifies the fixed R3D recording tone or an explicit Log3G10 label.
+    /// A recording tone does not establish the transfer of live-view or decoded proxy pixels.
     public static func isRedLog3G10Codec(_ codec: String) -> Bool {
         let upper = codec.uppercased()
         return upper.contains("R3D") || upper.contains("LOG3G10")
@@ -1822,8 +1832,10 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         pictureControl: String? = nil,
         stillToneMode: String? = nil,
         evIndicatorSixths: Int? = nil,
-        evIndicatorLit: Bool? = nil
+        evIndicatorLit: Bool? = nil,
+        movieTones: [PTPPropertyCode: NikonMovieTone] = [:]
     ) {
+        self.movieTones = movieTones
         self.iso = iso
         self.baseISO = baseISO
         self.isoAuto = isoAuto
@@ -1988,6 +2000,9 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
     /// Stills tone mode ("SDR" / "HLG") — selects the photo exposure-assist transfer curve.
     /// Bodies without the property never fill it; `nil` reads as SDR.
     public let stillToneMode: String?
+    /// The movie tone each per-codec tone property reported (`NikonMovieToneCapability`). A
+    /// missing entry is unknown; `movieTone(forFileType:)` reads the one for the active codec.
+    public let movieTones: [PTPPropertyCode: NikonMovieTone]
     /// The body's exposure-indicator needle in 1/6 EV steps (±60 == ±10 EV).
     public let evIndicatorSixths: Int?
     /// Whether the body's exposure indicator is lit — its value is undefined while unlit.
@@ -2152,8 +2167,14 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             return replacing(
                 pictureControl: PTPCameraPropertyDecoders.pictureControl(
                     ByteCoding.readUInt16LE(bytes, at: 0)))
-        case .stillToneMode where bytes.count >= 1:
-            return replacing(stillToneMode: bytes[0] == 2 ? "HLG" : "SDR")
+        case .movieH265ToneMode, .movieProResToneMode, .movieNRawToneMode, .movieProResRawToneMode:
+            // Unknown or malformed readback retires the older tone rather than becoming SDR.
+            return replacing(movieTone: (property, NikonMovieToneCapability.tone(readback: bytes)))
+        case .stillToneMode:
+            // Only the existing integration's named enum values are observed facts.
+            // Unknown/malformed readback retires an older tone rather than becoming SDR.
+            let tone: String? = bytes.count == 1 ? [UInt8(0): "SDR", 2: "HLG"][bytes[0]] : nil
+            return replacing(stillToneMode: tone, clearsStillToneMode: tone == nil)
         case .wbColorTemp where bytes.count >= 2:
             // Stills colour temperature shares the movie Kelvin field — the active selector
             // decides which property the poll fills it from.
@@ -2270,9 +2291,13 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         pictureControl: String? = nil,
         stillToneMode: String? = nil,
         evIndicatorSixths: Int? = nil,
-        evIndicatorLit: Bool? = nil
+        evIndicatorLit: Bool? = nil,
+        clearsStillToneMode: Bool = false,
+        movieTone: (property: PTPPropertyCode, tone: NikonMovieTone?)? = nil
     ) -> PTPCameraPropertySnapshot {
-        PTPCameraPropertySnapshot(
+        var tones = movieTones
+        if let movieTone { tones[movieTone.property] = movieTone.tone }
+        return PTPCameraPropertySnapshot(
             iso: iso ?? self.iso,
             baseISO: baseISO ?? self.baseISO,
             isoAuto: isoAuto ?? self.isoAuto,
@@ -2322,9 +2347,10 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             rawCompression: rawCompression ?? self.rawCompression,
             userModeProgram: userModeProgram ?? self.userModeProgram,
             pictureControl: pictureControl ?? self.pictureControl,
-            stillToneMode: stillToneMode ?? self.stillToneMode,
+            stillToneMode: clearsStillToneMode ? nil : stillToneMode ?? self.stillToneMode,
             evIndicatorSixths: evIndicatorSixths ?? self.evIndicatorSixths,
-            evIndicatorLit: evIndicatorLit ?? self.evIndicatorLit
+            evIndicatorLit: evIndicatorLit ?? self.evIndicatorLit,
+            movieTones: tones
         )
     }
 }
@@ -2359,7 +2385,6 @@ extension CameraDisplayState {
             media: media,
             liveFPS: liveFPS,
             cameraBatteryPercent: properties.batteryPercent ?? cameraBatteryPercent,
-            phoneBatteryPercent: phoneBatteryPercent,
             cameraName: cameraName,
             lens: properties.lens ?? lens,
             // Real warning state (OK / CHECK / HOT) once 0xD102 is polled — never a fabricated
@@ -2528,6 +2553,28 @@ public enum WhiteBalanceTint {
                 (gm > 0 ? "G" : "M") + trimmed(Double(abs(gm)) * greenMagentaUnitsPerCell))
         }
         return parts.isEmpty ? "Neutral" : parts.joined(separator: " · ")
+    }
+
+    /// Grid cells for an operator readout `label(amberBlueCell:greenMagentaCell:)` produced;
+    /// nil for text that is not such a readout.
+    public static func cells(label: String) -> (amberBlue: Int, greenMagenta: Int)? {
+        if label == "Neutral" { return (0, 0) }
+        var amberBlue = 0
+        var greenMagenta = 0
+        var parts = 0
+        for part in label.split(separator: "\u{00B7}") {
+            let token = part.trimmingCharacters(in: .whitespaces)
+            guard let prefix = token.first, let units = Double(token.dropFirst()) else { return nil }
+            switch prefix {
+            case "A": amberBlue = Int((units / amberBlueUnitsPerCell).rounded())
+            case "B": amberBlue = -Int((units / amberBlueUnitsPerCell).rounded())
+            case "G": greenMagenta = Int((units / greenMagentaUnitsPerCell).rounded())
+            case "M": greenMagenta = -Int((units / greenMagentaUnitsPerCell).rounded())
+            default: return nil
+            }
+            parts += 1
+        }
+        return parts == 0 ? nil : (amberBlue, greenMagenta)
     }
 
     private static func trimmed(_ value: Double) -> String {

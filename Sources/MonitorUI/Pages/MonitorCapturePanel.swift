@@ -264,6 +264,65 @@
         }
     }
 
+    /// A whole-number setting under a capture drum (a shot count): the same row as
+    /// `MonitorCaptureToggle`, with decrease and increase buttons around the value.
+    public struct MonitorCaptureStepper: View {
+        private let title: String
+        private let help: String
+        private let value: Int
+        private let range: ClosedRange<Int>
+        private let onStep: (Int) -> Void
+
+        /// `onStep` receives the next value, already inside `range`.
+        public init(
+            _ title: String, help: String, value: Int, range: ClosedRange<Int>,
+            onStep: @escaping (Int) -> Void
+        ) {
+            self.title = title
+            self.help = help
+            self.value = value
+            self.range = range
+            self.onStep = onStep
+        }
+
+        public var body: some View {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(MonitorTheme.font(11.5, weight: .semibold))
+                        .foregroundStyle(MonitorTheme.text)
+                    Text(help).font(MonitorTheme.font(9.5)).lineSpacing(2)
+                        .foregroundStyle(MonitorTheme.faint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                step("\u{2212}", to: value - 1, description: "Decrease \(title)")
+                Text("\(value)").font(MonitorTheme.font(15, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(MonitorTheme.text).frame(minWidth: 24)
+                    .accessibilityHidden(true)
+                step("+", to: value + 1, description: "Increase \(title)")
+            }
+            .padding(.top, 9)
+            .overlay(alignment: .top) { Color.white.opacity(0.08).frame(height: 1) }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(title)
+            .accessibilityValue("\(value)")
+        }
+
+        private func step(_ glyph: String, to next: Int, description: String) -> some View {
+            let enabled = range.contains(next)
+            return Button {
+                if enabled { onStep(next) }
+            } label: {
+                Text(glyph).font(MonitorTheme.font(15, weight: .semibold))
+                    .foregroundStyle(enabled ? MonitorTheme.accent : MonitorTheme.faint)
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(MonitorButtonStyle())
+            .disabled(!enabled)
+            .accessibilityLabel(description)
+        }
+    }
+
     private struct CaptureSwitchStyle: ToggleStyle {
         let label: String
         let animation: Animation?

@@ -2,6 +2,35 @@ import MonitorPresentation
 import Testing
 
 struct FieldMonitorLayoutTests {
+    @Test func portraitRevisionRestoresTopPlacementAndKeepsFocusOnTheLeft() {
+        for (width, height, top) in [
+            (320.0, 568.0, 24.0), (393, 852, 59), (440, 956, 62), (744, 1133, 24),
+        ] {
+            let layout = FieldMonitorLayout(
+                width: width, height: height, safeArea: .init(top: top, bottom: 34))
+            #expect(
+                layout.status.y
+                    == max(0, (layout.tablet ? top : max(44, top)) - (layout.tablet ? 0 : 6)))
+            #expect(layout.focusReset.maxX < layout.viewport.midX)
+            #expect(layout.focusReset.maxY + 8 <= layout.assists.y)
+            if !layout.tablet { #expect(layout.telemetry.y == max(4, max(44, top) - 40) + 7) }
+        }
+    }
+
+    @Test func immersivePortraitInsetsReserveSeparateHeaderRowsWithoutMovingTheFeed() {
+        for top in [0.0, 24.0, 30.333333, 44.0, 59.0, 62.0] {
+            let layout = FieldMonitorLayout(width: 360, height: 800, safeArea: .init(top: top))
+            #expect(layout.status.y >= 38)
+            #expect(layout.telemetry.maxY + 2 <= layout.status.y)
+            #expect(
+                FieldMonitorLayout.portraitHeaderSafeTop(width: 800, height: 360, safeTop: top)
+                    == top)
+            #expect(
+                FieldMonitorLayout.portraitHeaderSafeTop(width: 744, height: 1133, safeTop: top)
+                    == top)
+        }
+    }
+
     @Test func orientationsKeepReadoutsAndRecordClear() {
         for (width, height) in [
             (667.0, 375.0), (844, 390), (852, 393), (956, 440), (976, 448),
@@ -126,8 +155,14 @@ struct FieldMonitorLayoutTests {
                 #expect(layout.lock.height == layout.settings.height)
                 #expect(layout.media.width == layout.settings.width)
                 #expect(layout.media.height == layout.settings.height)
-                #expect(layout.media.y == layout.settings.maxY + FieldMonitorLayout.settingsMediaGap)
+                #expect(
+                    layout.media.y == layout.settings.maxY + FieldMonitorLayout.settingsMediaGap)
                 #expect(layout.gauges.y >= layout.lock.maxY + 6)
+                // The link pill's padded touch target clears the lock's.
+                let pad =
+                    (FieldMonitorLayout.minimumTapTarget
+                        - FieldMonitorLayout.telemetryGaugeHeight(tablet: layout.tablet)) / 2
+                #expect(layout.gauges.y - pad >= layout.lock.maxY)
                 #expect(layout.status.midY > layout.picture.y)
                 #expect(
                     layout.status.maxX - layout.recordingReadoutTrailingInset <= layout.picture.maxX
@@ -262,7 +297,7 @@ struct FieldMonitorLayoutTests {
             if aspect < 1 {
                 // A vertical camera stays whole: nothing under the opaque system bar.
                 #expect(layout.picture.maxY <= layout.system.y + 0.001)
-                #expect(layout.picture.y >= layout.status.y - 0.001)
+                #expect(layout.picture.y >= safeTop - 0.001)
                 #expect(abs(layout.picture.width / layout.picture.height - aspect) < 0.001)
             } else {
                 #expect(abs(layout.picture.midY - height / 2) < 0.001)
@@ -270,23 +305,26 @@ struct FieldMonitorLayoutTests {
         }
     }
 
-    @Test func portraitStatusRowSitsBelowTheSafeTopAndTheFeedCentersOnTheCanvas() {
+    @Test func portraitStatusRowRestoresTheSafeTopAndTheFeedCentersOnTheCanvas() {
         let notched = FieldMonitorLayout(
             width: 393, height: 852, safeArea: .init(top: 59, bottom: 34))
-        #expect(abs(notched.status.y - 59) < 0.05)
+        #expect(abs(notched.status.y - 53) < 0.05)
         #expect(notched.status.height == 44)
+        #expect(notched.telemetry.y == 26)
+        #expect(notched.telemetry.midY < notched.status.midY)
+        #expect(notched.status.x >= 16)
         #expect(notched.status.maxY <= notched.picture.y + 0.05)
         #expect(abs(notched.picture.midY - notched.viewport.height / 2) < 0.5)
         #expect(notched.picture.maxY < notched.values.y)
 
         let classic = FieldMonitorLayout(
             width: 375, height: 667, safeArea: .init(top: 20, bottom: 0))
-        #expect(abs(classic.status.y - 20) < 0.05)
+        #expect(abs(classic.status.y - 38) < 0.05)
         #expect(classic.status.maxY <= classic.picture.y + 0.05)
 
         let maxPhone = FieldMonitorLayout(
             width: 440, height: 956, safeArea: .init(top: 62, bottom: 34))
-        #expect(abs(maxPhone.status.y - 62) < 0.05)
+        #expect(abs(maxPhone.status.y - 56) < 0.05)
         #expect(maxPhone.status.maxY <= maxPhone.picture.y + 0.05)
         #expect(abs(maxPhone.picture.midY - maxPhone.viewport.height / 2) < 0.5)
         #expect(maxPhone.picture.maxY < maxPhone.values.y)

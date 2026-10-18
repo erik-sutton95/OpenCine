@@ -198,6 +198,18 @@
             let colorChanged = CaptureQuickSnapshot.primary(.color, status: status)
             XCTAssertNil(color.changedValue(translation: -56, current: colorChanged))
 
+            // The drum opens on the reported value even when the offered list lacks it.
+            var reported = status
+            reported.colorMode = .dLog2
+            reported.availableColorModes = [.normal, .hdr]
+            let current = try XCTUnwrap(CaptureQuickSnapshot.primary(.color, status: reported))
+            XCTAssertEqual(current.options, ["Normal", "HDR", "D-Log2"])
+            XCTAssertEqual(current.selection, "D-Log2")
+            XCTAssertEqual(
+                CaptureLists.colorDrumLabels(
+                    offered: [.normal, .hdr], current: .dLog2, family: .other, profile: .standard),
+                ["Normal", "HDR", "D-Log2"])
+
             status.shootingMode = Int(ShootingMode.video.rawValue)
             let mode = try XCTUnwrap(CaptureQuickSnapshot.primary(.mode, status: status))
             XCTAssertEqual(

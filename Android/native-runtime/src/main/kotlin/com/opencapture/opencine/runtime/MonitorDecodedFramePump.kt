@@ -2,11 +2,15 @@ package com.opencapture.opencine.runtime
 
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.max
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.withContext
 
 /** Counters retain actual accepted source timing; missing/future timestamps stay unknown. */
 class MonitorFramePacingStats(
@@ -126,6 +130,24 @@ suspend fun <F : Any, T : Any> monitorPumpFramesWithSourceFrame(
     timestampNanos: (F) -> Long?, decode: (F) -> T?, present: (F, T) -> Unit,
     isCurrent: () -> Boolean = { true }, nowNanos: () -> Long = System::nanoTime,
     publish: suspend (F, T) -> Unit = { _, _ -> },
+) = pumpFrames(frames, stats, timestampNanos, decode, present,
+    EmptyCoroutineContext, isCurrent, nowNanos, publish)
+
+/** Decodes on the caller's worker and delivers the actual source/value pair on its picture owner.
+ * Retirement and cancellation are checked again after dispatch, before any publication. */
+suspend fun <F : Any, T : Any> monitorPumpFramesWithSourceFrame(
+    frames: Flow<F>, stats: MonitorFramePacingStats,
+    timestampNanos: (F) -> Long?, decode: (F) -> T?, present: (F, T) -> Unit,
+    presentationDispatcher: CoroutineDispatcher,
+    isCurrent: () -> Boolean = { true }, nowNanos: () -> Long = System::nanoTime,
+) = pumpFrames(frames, stats, timestampNanos, decode, present,
+    presentationDispatcher, isCurrent, nowNanos, { _, _ -> })
+
+private suspend fun <F : Any, T : Any> pumpFrames(
+    frames: Flow<F>, stats: MonitorFramePacingStats,
+    timestampNanos: (F) -> Long?, decode: (F) -> T?, present: (F, T) -> Unit,
+    presentationContext: CoroutineContext, isCurrent: () -> Boolean, nowNanos: () -> Long,
+    publish: suspend (F, T) -> Unit,
 ) {
     frames.onEach { stats.frameReceived() }.conflate().collect { frame ->
         currentCoroutineContext().ensureActive()
@@ -138,7 +160,14 @@ suspend fun <F : Any, T : Any> monitorPumpFramesWithSourceFrame(
         publish(frame, decoded)
         currentCoroutineContext().ensureActive()
         if (!isCurrent()) return@collect
-        present(frame, decoded)
+        val presented = withContext(presentationContext) {
+            currentCoroutineContext().ensureActive()
+            if (!isCurrent()) false else {
+                present(frame, decoded)
+                true
+            }
+        }
+        if (!presented) return@collect
         val done = nowNanos()
         currentCoroutineContext().ensureActive()
         if (!isCurrent()) return@collect

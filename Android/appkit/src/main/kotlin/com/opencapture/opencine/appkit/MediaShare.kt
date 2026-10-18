@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appkit
 
+import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -7,71 +8,67 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
+import com.opencapture.opencine.media.MonitorMediaShareIntentSpec
+import com.opencapture.opencine.media.MonitorStagedMediaShare
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
- * Shares and saves cached media files: the share sheet through the app's FileProvider (authority
- * `<package>.mediafileprovider`, declared in the app manifest), the gallery through MediaStore in
- * the [album] folder.
+ * Shares and saves delivered media files for every app: the share sheet through the app's
+ * FileProvider (authority `<package>[authoritySuffix]`, declared in the app manifest over the
+ * directories delivered files live in), the gallery through MediaStore in the [album] folder.
  */
-public class MediaShare(album: String) {
+public class MediaShare(
+    album: String,
+    private val authoritySuffix: String = ".mediafileprovider",
+    private val batchLabel: String = "$album media",
+) {
     public val insertPolicy: MediaStoreInsertPolicy = MediaStoreInsertPolicy(album)
 
-    public fun shareCachedFile(context: Context, file: File, mime: String): Boolean {
-        val uri = uriFor(context, file, mime) ?: return false
-        val intent =
-            Intent(Intent.ACTION_SEND).apply {
-                type = mime
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        val chooser = Intent.createChooser(intent, null)
-        if (context !is android.app.Activity) {
-            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    /**
+     * The chooser for already-delivered files, with read grants on every URI and the "Include
+     * metadata" summary as `EXTRA_TEXT` when not blank (A2-51). [displayName] is the title a
+     * file is shared under (a staged copy may carry a private name). Null when no file has a URI.
+     */
+    public fun chooserIntent(context: Context, files: List<File>, mimeType: (File) -> String,
+        metadataText: String? = null, displayName: (File) -> String = { it.name }): Intent? {
+        val shared = files.mapNotNull { file ->
+            val mime = mimeType(file)
+            val uri = runCatching { FileProvider.getUriForFile(context, providerAuthority(context), file) }.getOrNull()
+                // A single file outside the provider paths is shared through its gallery copy.
+                ?: if (files.size == 1) insertIntoGallery(context, file, mime) else null
+            uri?.let { MonitorStagedMediaShare(file.toPath(), displayName(file), mime) to it }
         }
-        context.startActivity(chooser)
-        return true
+        if (shared.isEmpty()) return null
+        val spec = MonitorMediaShareIntentSpec.forShares(shared.map { it.first }, batchLabel, metadataText)
+        val uris = shared.map { it.second }
+        val clipData = ClipData.newRawUri(spec.clipDataLabel, uris.first())
+        uris.drop(1).forEach { clipData.addItem(ClipData.Item(it)) }
+        val send = Intent(spec.action).apply {
+            type = spec.mimeType
+            if (uris.size == 1) {
+                putExtra(Intent.EXTRA_STREAM, uris.single())
+                putExtra(Intent.EXTRA_TITLE, shared.single().first.displayName)
+            } else {
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+                putExtra(Intent.EXTRA_TITLE, batchLabel)
+            }
+            spec.text?.let { putExtra(Intent.EXTRA_TEXT, it) }
+            this.clipData = clipData
+            if (spec.grantsReadUriPermission) addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        return Intent.createChooser(send, spec.chooserTitle).apply {
+            if (spec.grantsReadUriPermission) addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (context !is android.app.Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
     }
 
-    /** One file goes through [shareCachedFile]; several share as one multiple-stream intent. */
-    public fun shareFiles(context: Context, files: List<File>, mimeType: (String) -> String): Boolean {
-        if (files.size == 1) {
-            return shareCachedFile(
-                context,
-                files.first(),
-                mimeType(files.first().name),
-            )
+    /** Photos for delivered files: one gallery insert per file, off the main thread. */
+    public fun photos(context: Context, mimeType: (File) -> String): MonitorDeliveryPhotosService<File> =
+        MonitorDeliveryPhotosService { file ->
+            withContext(Dispatchers.IO) { insertIntoGallery(context, file, mimeType(file)) != null }
         }
-        val uris = ArrayList<Uri>()
-        for (file in files) {
-            val uri =
-                runCatching { FileProvider.getUriForFile(context, authority(context), file) }.getOrNull()
-                    ?: continue
-            uris.add(uri)
-        }
-        if (uris.isEmpty()) {
-            val first = files.firstOrNull() ?: return false
-            return shareCachedFile(context, first, mimeType(first.name))
-        }
-        val mime = if (uris.size == 1) mimeType(files.first().name) else "*/*"
-        val intent =
-            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = mime
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        val chooser = Intent.createChooser(intent, null)
-        if (context !is android.app.Activity) chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(chooser)
-        return true
-    }
-
-    private fun uriFor(context: Context, file: File, mime: String): Uri? {
-        runCatching {
-            return FileProvider.getUriForFile(context, authority(context), file)
-        }
-        return insertIntoGallery(context, file, mime)
-    }
 
     public fun insertIntoGallery(context: Context, file: File, mime: String): Uri? {
         val isImage = MediaStoreInsertPolicy.isImage(mime)
@@ -129,7 +126,10 @@ public class MediaShare(album: String) {
         return uri
     }
 
+    private fun providerAuthority(context: Context): String = "${context.packageName}$authoritySuffix"
+
     public companion object {
+        /** The default provider authority (also used for diagnostics shares). */
         public fun authority(context: Context): String = "${context.packageName}.mediafileprovider"
     }
 }

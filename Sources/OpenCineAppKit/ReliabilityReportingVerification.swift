@@ -32,6 +32,12 @@
             self.isActive = isActive
         }
 
+        /// The camera path a `gatedIncident` run holds for its first 30 seconds.
+        private final class Hold: @unchecked Sendable {
+            var lease: ReliabilityCameraPathLease?
+        }
+        private let hold = Hold()
+
         public func prepareIfRequested() {
             guard Self.mode != nil,
                 let defaults = UserDefaults(suiteName: "opc.reliability.verification")
@@ -41,7 +47,7 @@
             reporting.sdkCacheRoot = reporting.sdkCacheRoot
                 .appendingPathComponent("verification", isDirectory: true)
             if Self.mode == "gatedIncident" {
-                reporting.gate.setCameraSessionActive(true)
+                hold.lease = reporting.beginCameraPath()
             }
         }
 
@@ -59,7 +65,7 @@
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 MainActor.assumeIsolated {
                     if mode == "gatedIncident", remaining == 30 {
-                        reporting.setCameraSessionActive(false)
+                        hold.lease?.end()
                     }
                     let ready = sdkEnabled()
                     var submitted = captured

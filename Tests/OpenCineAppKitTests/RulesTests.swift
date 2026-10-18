@@ -50,6 +50,10 @@ struct AppKitRules {
         let system: Set<String> = [
             "Foundation", "Observation", "Network", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
             "Metal", "MetalKit", "QuartzCore", "AVFoundation", "Photos",
+            // The delivery share sheet's typed file items.
+            "LinkPresentation", "UniformTypeIdentifiers",
+            // The remote shutter's volume view, which hides the system volume overlay (A2-32).
+            "MediaPlayer",
         ]
         let directory = root.appending(path: "Sources/OpenCineAppKitApple")
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
@@ -71,6 +75,30 @@ struct AppKitRules {
         #expect(!dependencies.isEmpty && Set(dependencies).isSubset(of: package))
     }
 
+    /// The reporting adapter is optional and its own package (`Packages/OpenCineSentryApple`), so
+    /// the OpenCine package names no third-party package and no OpenCine module imports the SDK or
+    /// the adapter (Kotlin: `AdapterIsolationTest` in `appkit-sentry`).
+    @Test func sentryAdapterStaysOutOfThePackageGraph() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let manifest = try String(contentsOf: root.appending(path: "Package.swift"), encoding: .utf8)
+        #expect(!manifest.contains(".package("))
+        let adapter = try String(
+            contentsOf: root.appending(path: "Packages/OpenCineSentryApple/Package.swift"), encoding: .utf8)
+        #expect(adapter.contains(#".package(url: "https://github.com/getsentry/sentry-cocoa", exact: "#))
+        for directory in ["Sources", "Tests"] {
+            let files = (FileManager.default.enumerator(
+                at: root.appending(path: directory), includingPropertiesForKeys: nil)?
+                .allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+            for file in files {
+                let text = try String(contentsOf: file, encoding: .utf8)
+                for line in text.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+                    #expect(line != "import Sentry" && line != "import OpenCineSentryApple", "\(file.lastPathComponent)")
+                }
+            }
+        }
+    }
+
     /// Camera controls are app composition over the camera vocabulary: never OpenCineDJI or another
     /// integration, an app or a third-party package (AGENTS.md, camera controls).
     @Test func cameraControlsImportOnlyTheVocabularyAppShellAndUI() throws {
@@ -79,6 +107,8 @@ struct AppKitRules {
         let package: Set<String> = [
             "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit",
             "OpenCineAppKitApple", "OpenCineCore", "OpenCineMedia", "OpenCineMotion",
+            // The shared clip delivery exports through the Apple media exporter.
+            "OpenCineApple",
         ]
         let system: Set<String> = [
             "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit",

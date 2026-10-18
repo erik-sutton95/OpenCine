@@ -41,21 +41,36 @@ public fun MonitorAssistState.falseColorRaster(transfer: MonitorTransfer, clipBy
         falseColorWeight = lattice.packedCube(MonitorFalseColorCubeComponent.WEIGHT))
 }
 
+/**
+ * False colour and zebra read the source curve (product ruling 2026-10-16; Swift twin
+ * `MonitorAssistSelection.readsSourceCurve`). While it is unknown they are neither offered nor drawn.
+ */
+public val MonitorAssistTool.readsSourceCurve: Boolean
+    get() = this == MonitorAssistTool.FALSE || this == MonitorAssistTool.ZEBRA
+
+/** Whether a surface offers this tool for a source whose curve is [sourceTransfer] (null: unknown). */
+public fun MonitorAssistTool.offered(sourceTransfer: MonitorTransfer?): Boolean =
+    sourceTransfer != null || !readsSourceCurve
+
 /** The same visibility rule is used by cube producers and the shader/sampling plan. */
 public fun MonitorAssistState.renderToolVisible(tool: MonitorAssistTool,
     playback: Boolean = false, previewTool: MonitorAssistTool? = null): Boolean =
     if (previewTool != null) tool == previewTool else if (playback) isPlaybackVisible(tool) else isVisible(tool)
 
-/** Complete assist option projection. The retained native picture applies this immutable plan. */
+/**
+ * Complete assist option projection. The retained native picture applies this immutable plan. A null
+ * [transfer] is an unknown source curve: false colour and zebra stay off (the operator's choices are kept)
+ * and scopes read the legacy Rec.709 fallback.
+ */
 public fun MonitorAssistState.renderPlan(
-    transfer: MonitorTransfer,
+    transfer: MonitorTransfer?,
     iso: Int? = null,
     playback: Boolean = false,
     previewTool: MonitorAssistTool? = null,
     isPhoto: Boolean = false,
     raster: MonitorAssistRasterValues = MonitorAssistRasterValues(),
 ): FeedEffectsRenderPlan {
-    fun shown(tool: MonitorAssistTool): Boolean = renderToolVisible(tool, playback, previewTool)
+    fun shown(tool: MonitorAssistTool): Boolean = renderToolVisible(tool, playback, previewTool) && tool.offered(transfer)
     val inspectorDemand = inspectorScopeDemand?.takeIf { it.playback == playback && previewTool == null }
     val inspector = inspectorDemand?.tool
     val ev = !playback && evMeterFromPicture && shown(MonitorAssistTool.EV)
@@ -94,7 +109,7 @@ public fun MonitorAssistState.renderPlan(
             trafficLights = shown(MonitorAssistTool.LIGHTS) || inspector == MonitorAssistTool.LIGHTS,
             ndMeter = shown(MonitorAssistTool.ND), evMeter = ev,
             trafficThreshold = crushClipCompensation.pixelFractionThreshold,
-            transfer = transfer, iso = iso, allowsTransferInference = playback || !isPhoto,
+            transfer = transfer ?: MonitorTransfer.REC709, iso = iso, allowsTransferInference = playback || !isPhoto,
             vectorLut = (lut ?: raster.vectorLook).takeIf { shown(MonitorAssistTool.VECTOR) || inspector == MonitorAssistTool.VECTOR }),
     )
 }

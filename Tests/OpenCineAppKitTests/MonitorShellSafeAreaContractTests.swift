@@ -32,12 +32,23 @@ final class MonitorShellSafeAreaContractTests: XCTestCase {
         XCTAssertEqual(sample, EdgeInsets())
     }
 
-    private func pageInsets(windowInsets: EdgeInsets, explicit: EdgeInsets? = nil) async throws -> EdgeInsets {
+    /// A2-08: the default pages mirror the landscape cutout exactly like the cover page.
+    /// iOS reports the island lane on both short edges in landscape; the clean short edge
+    /// zeroes so the surface hugs that bezel while clearing the island on the side it sits.
+    func testDefaultPagesMirrorTheLandscapeCutoutLikeTheCoverPage() async throws {
+        let physical = EdgeInsets(top: 0, leading: 59, bottom: 21, trailing: 59)
+        let sample = try await pageInsets(windowInsets: physical, size: CGSize(width: 852, height: 393))
+        XCTAssertEqual(sample, EdgeInsets(top: 0, leading: 59, bottom: 21, trailing: 0))
+    }
+
+    private func pageInsets(
+        windowInsets: EdgeInsets, explicit: EdgeInsets? = nil, size: CGSize = CGSize(width: 393, height: 852)
+    ) async throws -> EdgeInsets {
         let store = SavedCamerasStore(document: Defaults([:]).at("contract.cameras"))
         let model = ShellModel(cameras: CamerasModel(integrations: [], store: store))
         let probe = ShellSafeAreaProbe()
         let actions = ShellActions(diagnostics: {}, reportProblem: {})
-        let windowGeometry = MonitorWindowGeometry(size: CGSize(width: 393, height: 852), safeArea: windowInsets)
+        let windowGeometry = MonitorWindowGeometry(size: size, safeArea: windowInsets)
         let shell: AnyView
         if let explicit {
             shell = AnyView(AppShell(model: model, brand: ShellBrand(name: "SIMULATED"), actions: actions,
@@ -51,7 +62,7 @@ final class MonitorShellSafeAreaContractTests: XCTestCase {
         }
         let host = UIHostingController(rootView: shell.environment(\.monitorWindowGeometry, windowGeometry))
         host.safeAreaRegions = []
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+        let window = UIWindow(frame: CGRect(origin: .zero, size: size))
         window.rootViewController = host
         window.makeKeyAndVisible()
         host.view.frame = window.bounds

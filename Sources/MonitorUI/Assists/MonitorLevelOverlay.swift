@@ -6,6 +6,9 @@
         case unavailable
         case gauges(rollDeg: Double, tiltDeg: Double)
         case bubble(xDeg: Double, yDeg: Double)
+        /// A horizon line through the picture's centre, rotated by the roll (a camera that
+        /// declares the `MonitorLevelStyle.horizon` style).
+        case horizon(rollDeg: Double)
     }
 
     public enum MonitorLevelGeometry {
@@ -40,6 +43,7 @@
             case .unavailable: noDataLabel
             case .gauges(let roll, let tilt): String(format: "Roll %+.1f°, tilt %+.1f°", roll, tilt)
             case .bubble(let x, let y): String(format: "Off plumb %+.1f° / %+.1f°", x, y)
+            case .horizon(let roll): String(format: "Horizon roll %+.1f°", roll)
             }
         }
     }
@@ -84,6 +88,9 @@
                     feed.intersection(viewport).isNull ? feed : feed.intersection(viewport)
                 MonitorLevelBubble(xDeg: x, yDeg: y)
                     .position(x: visible.midX, y: visible.midY)
+            case .horizon(let roll):
+                MonitorLevelHorizon(rollDeg: roll)
+                    .position(x: feed.midX, y: feed.midY)
             case .gauges(let roll, let tilt):
                 strips(roll: roll, tilt: tilt, frames: frames, caption: nil)
             case .unavailable:
@@ -110,6 +117,27 @@
                         .position(x: frames.tilt.midX, y: frames.tilt.midY)
                 }
             }
+        }
+    }
+
+    /// Two wings around a centre ring, rotating with the roll; green when level.
+    struct MonitorLevelHorizon: View {
+        /// Kotlin `MonitorLevelGeometry.HORIZON_THRESHOLD`.
+        static let levelDeg = 0.8
+        let rollDeg: Double
+
+        var body: some View {
+            let level = abs(rollDeg) < Self.levelDeg
+            let good = MonitorTheme.edrSRGB(
+                red: 0.18, green: 0.78, blue: 0.42, gain: MonitorTheme.hdrGain)
+            let color = level ? good : MonitorTheme.accent
+            HStack(spacing: 10) {
+                Capsule().fill(color).frame(width: 64, height: 2)
+                Circle().stroke(color, lineWidth: 1.6).frame(width: 10, height: 10)
+                Capsule().fill(color).frame(width: 64, height: 2)
+            }
+            .rotationEffect(.degrees(rollDeg))
+            .animation(.easeOut(duration: 0.18), value: level)
         }
     }
 

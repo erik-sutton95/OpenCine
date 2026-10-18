@@ -5,6 +5,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 
 class MonitorPlaybackChromeTest {
+    // These existing consumer forms must compile without binding to the new composable slot.
+    private val legacyTrailingSlots = MonitorPlaybackPageSlots { _: Boolean -> }
+    private val legacySingleSlot = MonitorPlaybackPageSlots({})
+    private val legacyPositionalSlots = MonitorPlaybackPageSlots({}, {}, {}, {})
+
     @Test fun narrowLandscapeKeepsTransportClearOfTrailingOptions() {
         for (width in listOf(370f, 400f, 500f, 630f, 860f)) {
             val start = MonitorPlaybackLayout.transportStart(width)

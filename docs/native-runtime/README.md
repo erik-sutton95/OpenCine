@@ -6,6 +6,11 @@ Core, Media and platform codec/renderer modules, and have no UI, integration or 
 UI takes immutable scope/image values and actions. App composition supplies native owners and
 the camera's source profile.
 
+The optional Android `appkit-native` module composes these native picture owners above
+camera controls, decoder and native-runtime. Apps supply source epochs, calibration and
+callbacks; UI consumes values and actions. Face readback binds pixels to the requesting
+source and composition lifetime. Cache proof helpers compile only in androidTest.
+
 Android `NativeGlBackend` and `NativeGlProgram` preserve the consuming app's existing graphics
 helpers through a small typed adapter. Shader selection, effects passes, texture upload and
 target lifetime belong in the shared runtime. The platform adds no graphics library dependency.
@@ -19,6 +24,16 @@ remain theme bindings. Unknown source aspect stays absent in the common helper.
 The Android source adapter retains its previous fallback geometry and Float
 aspect arithmetic, while Apple uses Double geometry. Sampling is unchanged by
 desqueeze, which corrects presentation only.
+
+Media owns the portable `Peaking` reference detector, measured kernel constants and transfer
+correction, together with zebra zone/stripe math. Peaking paint and sensitivity are aliases of
+`MonitorPeakingColor` and `MonitorPeakingSense`, preserving their stored values. Apple rendering
+and the vocabulary's Android feed-effects wire consume this calibration; app compatibility names
+resolve to the same types. Frozen camera-frame corpus tests remain with the camera parser.
+
+`ThermalTier` preserves the cosmetic 1/1/1.5/2 cadence policy used by non-program multicam
+polling. The existing Android live-view wire validates its raw tiers but retains fixed cadence. Native scope sampling retains its separate, existing 1/1/3/5 load
+policy. Neither policy changes recording commands or stream settings.
 
 Media also owns the portable stereo meter values and `MonitorAudioMeterBallistics`.
 The source passes linear peaks and elapsed seconds; the pure step returns a new
@@ -55,6 +70,13 @@ must reject its late frames and clear only its own publications. Covers and rota
 the picture host. Codec, frame leases, renderer scheduling and sampling demand retain one owner
 through that host's lifetime. A captured frame is not permission to send a camera command.
 
+`MonitorUIImageGraphProcessor` qualifies its baked-image memo with the prepared cube request
+keys as well as source image identity and equal settings. A same-name stored LUT replacement
+can therefore repaint a held source on its next render, while an unchanged cube still reuses
+the memo. The retained Multiview fixtures exercise actual replacement pixels on both platforms;
+Android already includes the shared library's render generation in its native renderer key.
+These are simulated native checks; physical replacement behavior remains untested.
+
 Android JPEG decoding stays on the source's decode worker. The frame pump awaits its optional
 `publish` callback before synchronous frame observers or another decode. Bitmap Vulkan state
 and UI frame publication belong on Main; the app rechecks source admission after that dispatch.
@@ -83,6 +105,15 @@ delivery, GPU/window threads, presentation synchronization and source sampling. 
 crash-guard, diagnostic and display-policy callbacks. The renderer's legacy `OpcVulkan` JNI class
 and exports stay unchanged. Shared UI consumes immutable Media scope/traffic/axis values and
 imports no native owner or sample bus. `atlas check` derives these downward edges from manifests.
+
+Bitmap delivery keeps JPEG decoding on `MonitorFrameDecodeWorker`. A consumer whose picture
+owner is confined to a different context supplies an awaited `publish` callback to
+`monitorPumpFramesWithSourceFrame`; the source event and decoded bitmap cross together without
+copying or resampling. OpenZCine publishes Bitmap presentation and Vulkan submission on Main,
+then observes glass and relay frames on its decode worker. Retirement and cancellation are
+checked again after publication. The dispatcher overload retains its existing delivery contract,
+and the original overload defaults to caller-context delivery for existing consumers. This is
+Android scheduling infrastructure; Apple retains its existing native presentation ownership.
 
 Apple `MonitorLiveVideoRuntime` owns Annex-B format admission, the retained display layer,
 one sticky VideoToolbox decoder, assist/decoded-source/preview demand and layer/Metal handoff.
@@ -235,3 +266,19 @@ does not change those render/export policies.
 
 See the [CI workflow](../../.github/workflows/ci.yml) and
 [package manifest](../../Package.swift) for the exact targets and checks.
+
+## First decoder-error context
+
+The Apple monitor runtime captures the first access unit behind each decoder-error
+episode. An optional `FeedIncidentDecodeErrorContext` records its numeric status,
+ordered NAL types, byte count, IRAP and parameter-set-change ages, and recent input
+rate. Later errors retain that context until native output starts a new episode;
+source reset clears it and retired callbacks cannot publish it. It contains no
+compressed payload, camera identifiers or user data.
+
+PocketCine and InstaCine include that value in their shared decoder incident
+snapshots. Kotlin uses the same bounded optional payload and JSON representation.
+MediaCodec errors describe the codec rather than a particular access unit, so
+Android producers leave this field absent. The Nikon JPEG source has no corresponding
+access-unit producer. Existing incident records decode with the optional field
+absent; its presence does not identify the field origin of damaged references.

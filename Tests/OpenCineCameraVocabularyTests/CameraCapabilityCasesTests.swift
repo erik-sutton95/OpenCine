@@ -19,6 +19,16 @@ import Testing
         #expect(IsoIndex.stepped(from: .iso800, stops: 1, available: cameraOrder) == .iso100)
     }
 
+    /// Product ruling 2026-10-16: the curve the curve-reading tools need is known only for a
+    /// reported mode that names one. Dolby Vision and an unreported mode stay unknown.
+    @Test func theKnownSourceCurveLeavesDolbyVisionAndAnUnreportedModeUnknown() {
+        #expect(MonitorTransfer.known(nil) == nil)
+        #expect(MonitorTransfer.known(.dolbyVision) == nil)
+        for mode in ColorMode.allCases where mode != .dolbyVision {
+            #expect(MonitorTransfer.known(mode) == MonitorTransfer(mode), "\(mode)")
+        }
+    }
+
     @Test func iLogAndDolbyVisionNameTheirCurveAndFormat() {
         #expect(MonitorTransfer(ColorMode.iLog) == .ilog)
         #expect(MonitorTransfer(ColorMode.dolbyVision) == .rec709)

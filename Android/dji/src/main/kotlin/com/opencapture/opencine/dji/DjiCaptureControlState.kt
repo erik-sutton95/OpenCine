@@ -8,6 +8,9 @@ import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
+import com.opencapture.opencine.core.SettingSemantics
+import com.opencapture.opencine.media.HostShutterAngle
+import com.opencapture.opencine.media.HostShutterPresentation
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
@@ -18,19 +21,27 @@ import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.EvComp
 
 /** Actual decoded camera reports, before any pending UI value is applied. */
-data class DjiCaptureControlState(val reported: CameraStatus, val model: CameraModel?) {
+data class DjiCaptureControlState(
+    val reported: CameraStatus, val model: CameraModel?,
+    val shutterPresentation: HostShutterPresentation = HostShutterPresentation.CAMERA_VALUE,
+) {
     internal val descriptors: List<SettingDescriptor>
         get() {
             val body = model ?: return emptyList()
             val shutter = reported.availableShutterDenoms.filter { it > 0 }.map {
                 SettingValue.Shutter(ShutterValue.Duration(Rational(1, it)))
             }
+            val emulated = shutterPresentation == HostShutterPresentation.EMULATED_ANGLE
+            val video = reported.shootingMode in setOf(0x00, 0x01, 0x02, 0x0A, 0x28)
+            val ready = reported.expoMode == CameraCommands.EXPO_MANUAL &&
+                (!emulated || (video && reported.fps > 0 && reported.shutterDenom > 0))
             return buildList {
                 add(SettingDescriptor(
                     SettingKey.SHUTTER,
                     access = if (shutter.isEmpty()) SettingAccess.READ_ONLY else SettingAccess.READ_WRITE,
-                    domain = SettingDomain(choices = shutter),
-                    availability = if (reported.expoMode == CameraCommands.EXPO_MANUAL) Availability.Available
+                    domain = SettingDomain(choices = if (emulated) HostShutterAngle.choices else shutter),
+                    semantics = SettingSemantics(implementation = if (emulated) SettingSemantics.Implementation.EMULATED else SettingSemantics.Implementation.NATIVE),
+                    availability = if (ready) Availability.Available
                         else Availability.Unavailable(UnavailableReason.Mode),
                 ))
                 add(SettingDescriptor(SettingKey.EXPOSURE_COMPENSATION,
@@ -48,6 +59,8 @@ data class DjiCaptureControlState(val reported: CameraStatus, val model: CameraM
                 }
                 // Auto/Starburst strategy stays typed; measured iris is a read-only common f-number.
                 if (body.supportsAperture) add(SettingDescriptor(SettingKey.APERTURE, access = SettingAccess.READ_ONLY))
+                // The recording rate is a common read-only observation; the format picker stays native.
+                add(SettingDescriptor(SettingKey.FRAME_RATE, access = SettingAccess.READ_ONLY))
             }
         }
 
@@ -56,8 +69,13 @@ data class DjiCaptureControlState(val reported: CameraStatus, val model: CameraM
             fun report(value: SettingValue) {
                 put(value.key, ObservedValue(value, ObservationOrigin.CAMERA_REPORTED, null))
             }
-            if (reported.shutterDenom > 0)
+            if (shutterPresentation == HostShutterPresentation.EMULATED_ANGLE) {
+                HostShutterAngle.reported(reported.shutterDenom, reported.fps.takeIf { it > 0 }?.toDouble())?.let {
+                    put(SettingKey.SHUTTER, ObservedValue(SettingValue.Shutter(ShutterValue.Angle(it)), ObservationOrigin.PROTOCOL_DERIVED, null))
+                }
+            } else if (reported.shutterDenom > 0) {
                 report(SettingValue.Shutter(ShutterValue.Duration(Rational(1, reported.shutterDenom))))
+            }
             EvComp.fromRaw(reported.evComp)?.let {
                 report(SettingValue.ExposureCompensation(Rational(it.thirds, 3)))
             }
@@ -70,5 +88,7 @@ data class DjiCaptureControlState(val reported: CameraStatus, val model: CameraM
             }
             if (reported.irisHundredths in 100..2_200)
                 report(SettingValue.Aperture(reported.irisHundredths / 100.0))
+            // `cam_video_param_v2` carries an index into whole rates (`VideoFrameRate`).
+            if (reported.fps > 0) report(SettingValue.FrameRate(Rational(reported.fps)))
         }
 }

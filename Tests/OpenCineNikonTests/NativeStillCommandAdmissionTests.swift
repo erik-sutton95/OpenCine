@@ -1,5 +1,6 @@
 #if canImport(Darwin) && canImport(os)
     import Foundation
+    import OpenCineCore
     import Testing
 
     @testable import OpenCineNikon
@@ -113,6 +114,74 @@
             }
         }
 
+        @Test func memberRetirementAtNativeFirstSendPreservesEnteredWriteAndReadback() async throws {
+            for hold in [Transport.Hold.beforeSend, .afterSend] {
+                let transport = Transport()
+                let session = try await makeSession(transport)
+                let gate = ReceiptGate()
+                let admission = NikonCommandAdmission(owner: try #require(session.commandOwner), isCurrent: { gate.isCurrent })
+                let member = NikonMemberControl(serialNumber: "SIMULATED-MEMBER",
+                    facts: NikonCameraSessionTests.movieFacts(), commandOwner: session.commandOwner,
+                    isCameraRefusal: NativeCameraSessionError.isCameraRefusal)
+                await transport.clear(hold: hold)
+                let approved = member.session.request(.set(.iso(.manual(1600))), admission: admission)
+                #expect(approved.stage == .admitted)
+                let service = Task { await member.service(session) }
+                await transport.waitUntilHeld()
+                #expect(await transport.calls.count == (hold == .beforeSend ? 0 : 1))
+                gate.revoke()
+                await transport.release()
+                _ = await service.value
+                let calls = await transport.calls
+                #expect(calls.map(\.operation) == (hold == .beforeSend ? [] : [.setDevicePropValue, .getDevicePropValue]))
+                if hold == .afterSend {
+                    #expect(calls[0].parameters == [0xD1AA] && calls[1].parameters == [0xD1AA])
+                }
+                #expect(member.session.receipt(of: approved.operation)?.stage ==
+                    (hold == .beforeSend ? .rejected(.authorityExpired) : .confirmed))
+                #expect(!member.hasQueuedCommands)
+                session.close()
+            }
+        }
+
+        @Test func memberNativeWaiterRechecksPublishedAuthorityDomainEpochAndClose() async throws {
+            for change in ["authority", "domain", "epoch", "close"] {
+                let transport = Transport()
+                let native = try await makeSession(transport)
+                let member = NikonMemberControl(serialNumber: "SIMULATED-MEMBER",
+                    facts: NikonCameraSessionTests.movieFacts(), commandOwner: native.commandOwner,
+                    isCameraRefusal: NativeCameraSessionError.isCameraRefusal)
+                let source = try #require(member.session)
+                let command = CameraCommand(.set(.whiteBalance(.preset("Sunny"))),
+                    preconditions: CommandPreconditions(source.refresh()))
+                let admission = NikonCommandAdmission(owner: try #require(native.commandOwner)) {
+                    source.commandSnapshot.rejection(of: command, at: .now()) == nil
+                }
+                let approved = source.submit(command, admission: admission)
+                #expect(approved.stage == .admitted)
+                await transport.clear(hold: .beforeSend)
+                let service = Task { await member.service(native) }
+                await transport.waitUntilHeld()
+                #expect(await transport.calls.isEmpty)
+                switch change {
+                case "authority": member.update { $0.holdsControl = false }
+                case "domain": member.update { $0.whiteBalancePresets = ["Auto"] }
+                case "epoch":
+                    member.update { $0.connection = .recovering(ConnectionAttemptID()) }
+                    member.update { $0.connection = .ready }
+                default: source.close(.replaced)
+                }
+                #expect(source.commandSnapshot.rejection(of: command, at: .now()) != nil)
+                await transport.release()
+                _ = await service.value
+                #expect(await transport.calls.isEmpty)
+                let final = source.receipt(of: approved.operation)?.stage
+                #expect(final == (change == "epoch" || change == "close" ? .outcomeUnknown : .rejected(.authorityExpired)))
+                #expect(!member.hasQueuedCommands)
+                native.close()
+            }
+        }
+
         private func makeSession(_ transport: Transport) async throws -> NativeCameraSession {
             try await NativeCameraSession.establish(
                 transport: transport, host: "usb:watch-admission", cameraName: "Same name",
@@ -155,6 +224,7 @@
         nonisolated let kind: CameraTransportKind = .usb
         private let captureOperation: UInt16
         private(set) var calls: [Call] = []
+        private var propertyBytes: [UInt32: Data] = [:]
         private var hold: Hold?
         private var held = false
         private var waiting: CheckedContinuation<Void, Never>?
@@ -173,13 +243,24 @@
                 .init(
                     operation: operationCode, parameters: parameters, phase: dataPhase,
                     deadline: deadline))
+            if operationCode == .setDevicePropValue || operationCode == .setDevicePropValueEx,
+                let property = parameters.first, let dataOut {
+                propertyBytes[property] = dataOut
+            }
+            let data: Data
+            if operationCode == .getDeviceInfo {
+                data = deviceInfo(captureOperation: captureOperation)
+            } else if operationCode == .getDevicePropValue || operationCode == .getDevicePropValueEx {
+                data = parameters.first.flatMap { propertyBytes[$0] } ?? Data()
+            } else {
+                data = Data()
+            }
             let payload =
                 ByteCoding.uint16LE(PTPResponseCode.ok.rawValue)
                 + ByteCoding.uint32LE(transactionID ?? 1)
             return PTPIPTransactionResult(
                 operationResponse: try PTPOperationResponse(payloadBytes: payload),
-                data: operationCode == .getDeviceInfo
-                    ? deviceInfo(captureOperation: captureOperation) : Data())
+                data: data)
         }
         func executeTransaction(
             operationCode: PTPOperationCode, transactionID: UInt32?, parameters: [UInt32],

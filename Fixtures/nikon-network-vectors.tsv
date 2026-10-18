@@ -1,0 +1,89 @@
+# Golden vectors for the Nikon network policies, shared by both shells.
+#
+# Swift owns `CameraWiFiSSID`, `CameraDiscovery` and `InfrastructureDiscovery` in
+# `Sources/OpenCineNikon`; Kotlin re-implements them in `Android/nikon` (`NikonNetworkPolicy.kt`)
+# so discovery stays JVM-testable without the Swift library. Nothing links the two, so they
+# drift silently (Android once excluded 10/8 while iOS scanned it). Both suites read these rows:
+# a change on one side and not the other fails a test instead of shipping.
+#
+# Columns: kind, inputs..., expected (last). <nil> is no value, <empty> the empty string.
+# apSsid      ssid                                   isNikonZAccessPoint
+# dialable    host                                   isDialableHost
+# apHostKey   ssid                                   pendingAccessPointHostKey
+# isApHostKey host                                   isAccessPointHostKey
+# subnetBase  address                                subnetBase
+# privateIPv4 address                                isPrivateIPv4 (the default scan filter)
+# tally       host=verdict,...                       open,occupied,timeout,refused,noRoute,denied,other,probed|occupied hosts|open hosts
+# classify    preflight  onCameraAP  tally-or-<nil>  holder  miss reason
+apSsid	NIKON_ZR_01234	true
+apSsid	 nikon_zr_01234 	true
+apSsid	NIKONZ_8_X12345	true
+apSsid	nikon-z-9-98765	true
+apSsid	nikon_zr_abcde	false
+apSsid	NIKON_Z	false
+apSsid	NIKON_Z9 AP!	false
+apSsid	HomeWifi	false
+apSsid	<empty>	false
+apSsid	NIKON_CAMERA_12345	false
+apSsid	NIKONZ@8@12345	false
+apSsid	NIKONZ_CAMERA	false
+apSsid	NIKON_ZR_0123456789012345678901234	false
+apSsid	NIKON_ZR_ÄB12	false
+apSsid	NIKONZ1X	true
+dialable	192.168.1.1	true
+dialable	 192.168.1.1 	true
+dialable	10.0.0.5	true
+dialable	172.20.1.2	true
+dialable	8.8.8.8	true
+dialable	ap:NIKON_ZR_01234	false
+dialable	ap:pending	false
+dialable	usb:abcdef	false
+dialable	USB:ABCDEF	false
+dialable	<empty>	false
+dialable	camera.local	false
+dialable	192.168.1	false
+dialable	192.168.1.256	false
+dialable	192.168.-1.2	false
+apHostKey	NIKON_ZR_01234	ap:NIKON_ZR_01234
+apHostKey	 NIKON_ZR_01234 	ap:NIKON_ZR_01234
+apHostKey	<nil>	ap:pending
+apHostKey	  	ap:pending
+isApHostKey	ap:pending	true
+isApHostKey	ap:NIKON_ZR_01234	true
+isApHostKey	192.168.1.1	false
+isApHostKey	AP:X	false
+subnetBase	192.168.1.20	192.168.1
+subnetBase	10.0.0.5	10.0.0
+subnetBase	8.8.8.8	8.8.8
+subnetBase	usb:abc	<nil>
+subnetBase	192.168.1	<nil>
+subnetBase	300.1.1.1	<nil>
+subnetBase	ap:pending	<nil>
+privateIPv4	10.0.0.1	true
+privateIPv4	172.16.0.1	true
+privateIPv4	172.31.255.255	true
+privateIPv4	172.32.0.1	false
+privateIPv4	172.15.0.1	false
+privateIPv4	192.168.0.1	true
+privateIPv4	192.169.0.1	false
+privateIPv4	8.8.8.8	false
+privateIPv4	169.254.1.1	false
+privateIPv4	fe80::1	false
+privateIPv4	<empty>	false
+tally	10.0.0.2=open,10.0.0.3=refused,10.0.0.4=timeout,10.0.0.5=noRoute,10.0.0.6=noNetwork,10.0.0.7=denied,10.0.0.8=unreachableOther	1,2,1,1,2,1,1,7|10.0.0.2,10.0.0.3|10.0.0.2
+tally	<empty>	0,0,0,0,0,0,0,0|<empty>|<empty>
+tally	192.168.1.9=refused,192.168.1.3=open,192.168.1.20=refused	1,3,0,2,0,0,0,3|192.168.1.20,192.168.1.3,192.168.1.9|192.168.1.3
+classify	localNetworkDenied	true	0,1,0,1,0,0,0,1	<nil>	localNetworkDenied
+classify	noScannableInterface	true	<nil>	<nil>	noScannableInterface
+classify	ready	true	<nil>	Erik's iPad	onCameraAccessPoint
+classify	ready	false	<nil>	Erik's iPad	heldByOtherDevice:Erik's iPad
+classify	ready	false	<nil>	<empty>	cameraNotFound
+classify	ready	false	<nil>	<nil>	cameraNotFound
+classify	ready	false	0,0,0,0,0,0,0,0	<nil>	cameraNotFound
+classify	ready	false	0,0,0,0,0,3,0,3	<nil>	localNetworkDenied
+classify	ready	false	0,0,200,0,10,0,44,254	<nil>	networkUnreachable
+classify	ready	false	0,0,10,0,0,0,244,254	<nil>	cameraNotFound
+classify	ready	false	0,0,1,0,0,0,0,1	<nil>	networkUnreachable
+classify	ready	false	0,5,249,5,0,0,0,254	<nil>	hostsVisibleNoPTP
+classify	ready	false	0,1,0,1,0,2,0,3	<nil>	hostsVisibleNoPTP
+classify	ready	false	1,1,253,0,0,0,0,254	<nil>	cameraNotFound

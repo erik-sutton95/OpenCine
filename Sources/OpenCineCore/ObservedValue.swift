@@ -7,6 +7,9 @@ public enum ObservationOrigin: String, Hashable, Codable, Sendable {
     case imageEstimated
     case clockDerived
     case operatorProvided
+    /// Computed by the integration from other reported values (a model, not a reading), e.g. the
+    /// remaining recording time from codec bitrate and free bytes.
+    case estimated
     case unknown
 }
 
@@ -67,6 +70,17 @@ public struct ObservedValue<Value: Sendable>: Sendable {
     public static var unknown: Self { Self() }
 
     public var isKnown: Bool { value != nil }
+
+    /// Convert only representable values, retaining every provenance and validity field.
+    public func compactMap<Mapped: Sendable>(_ transform: (Value) -> Mapped?) -> ObservedValue<Mapped> {
+        var result: ObservedValue<Mapped> = .unknown
+        result.value = value.flatMap(transform)
+        result.origin = origin
+        result.observedAt = observedAt
+        result.validity = validity
+        result.precision = precision
+        return result
+    }
 
     public func freshness(at now: MonotonicInstant, maxAge: Duration) -> Freshness {
         guard value != nil, let observedAt else { return .unknown }

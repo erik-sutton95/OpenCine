@@ -23,9 +23,7 @@ public enum LUTExposureCompensation: Sendable {
 
     /// Operator chrome: `0.0`, `+1.5`, `−2.0`.
     public static func label(_ stops: Double) -> String {
-        let value = snap(stops)
-        if value == 0 { return "0.0" }
-        return String(format: "%+.1f", value).replacingOccurrences(of: "-", with: "−")
+        ExposureCompensation.label(stops: snap(stops))
     }
 
     public static func linearGain(_ stops: Double) -> Double {

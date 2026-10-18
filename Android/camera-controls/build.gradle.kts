@@ -10,10 +10,29 @@ plugins {
 group = "com.opencapture.opencine"
 version = "0.1.0-SNAPSHOT"
 
+// The platform's third-party notices and the shared UI's font and icon license texts, staged as
+// Java resources from the repository files the Swift twin bundles (MonitorUI Resources), so every
+// app's Licenses page shows those files themselves. Concrete path so the SourceSet API accepts it.
+val repositoryRoot: File = projectDir.resolve("../..")
+val stagedLegalResourcesDirectory: File = layout.buildDirectory.get().asFile.resolve("generated/legalResources")
+val stageLegalResources = tasks.register<Copy>("stageLegalResources") {
+    group = "build"
+    description = "Stage OpenCine's third-party notices and UI license texts into the library resources."
+    into(stagedLegalResourcesDirectory.resolve("opencine/legal"))
+    from(repositoryRoot.resolve("THIRD-PARTY-NOTICES.md"))
+    from(repositoryRoot.resolve("Sources/MonitorUI/Resources")) {
+        include("Fonts/OFL-Sora.txt", "Icons/lucide/LICENSE.txt", "Icons/assist/LICENSE-Tabler.txt")
+    }
+}
+
 android {
+    sourceSets { getByName("main").resources.srcDir(stagedLegalResourcesDirectory) }
     namespace = "com.opencapture.opencine.cameracontrols"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
-    defaultConfig { minSdk = 29 }
+    defaultConfig {
+        minSdk = 29
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -32,4 +51,20 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
+    // GalleryOpeningAdmissionTest: the shared gallery hosted in a real activity on a device.
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(testFixtures(project(":core")))
+}
+
+// The link chip vectors are shared with the Swift OpenCineCameraVocabularyTests (Fixtures/ at the
+// repository root).
+tasks.named("preBuild").configure { dependsOn(stageLegalResources) }
+
+tasks.withType<Test>().configureEach {
+    systemProperty("opencine.repositoryRoot", repositoryRoot.canonicalPath)
+    val fixtures = rootDir.resolve("../Fixtures")
+    inputs.dir(fixtures)
+    systemProperty("opencine.fixtures", fixtures.absolutePath)
 }

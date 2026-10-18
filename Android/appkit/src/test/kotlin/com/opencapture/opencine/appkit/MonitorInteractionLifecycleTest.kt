@@ -27,9 +27,14 @@ class MonitorInteractionLifecycleTest {
         val owner = MonitorInteractionLifecycle()
         owner.update(MonitorInteractionContext())
         val cover = owner.update(MonitorInteractionContext(covered = true))
-        assertTrue(cover.dismissTransients)
+        // The cover keeps an open picker for the return; only held input retires.
+        assertFalse(cover.dismissTransients)
+        assertTrue(cover.retireReadout)
+        assertFalse(cover.collapseAssists)
         assertEquals(MonitorInputAdmission.Blocked(MonitorInputBlock.COVER), cover.inputAdmission)
-        assertEquals(MonitorInputAdmission.Resumed, owner.update(MonitorInteractionContext()).inputAdmission)
+        val back = owner.update(MonitorInteractionContext())
+        assertEquals(MonitorInputAdmission.Resumed, back.inputAdmission)
+        assertFalse(back.dismissTransients)
         assertNull(owner.update(MonitorInteractionContext()).inputAdmission)
     }
     @Test fun rotationRetiresReadoutWhileCleanAndEditingRetireAllTransients() {
@@ -55,5 +60,7 @@ class MonitorInteractionLifecycleTest {
         val reentry = owner.update(MonitorInteractionContext(covered = true, camera = b))
         assertTrue(reentry.dismissTransients)
         assertEquals(MonitorInputAdmission.Blocked(MonitorInputBlock.COVER), reentry.inputAdmission)
+        // A lock under a cover still dismisses.
+        assertTrue(owner.update(MonitorInteractionContext(locked = true, covered = true, camera = b)).dismissTransients)
     }
 }

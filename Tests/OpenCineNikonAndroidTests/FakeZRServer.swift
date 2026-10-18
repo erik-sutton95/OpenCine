@@ -99,6 +99,8 @@ final class FakeZRServer: @unchecked Sendable {
         /// Per-property descriptor enums used to prove the app never exposes values outside the
         /// connected body's current advertised domain.
         var descriptorEnumOverrides: [PTPPropertyCode: [UInt32]] = [:]
+        /// A distinct later domain proves retained evidence is not aliased to the latest read.
+        var descriptorEnumOverridesAfterFirstRead: [PTPPropertyCode: [UInt32]] = [:]
         /// Descriptor properties reported as readable but not writable.
         var readOnlyDescriptorCodes: Set<UInt32> = []
         /// Per-property wire identity overrides used to exercise descriptor validation.
@@ -107,6 +109,16 @@ final class FakeZRServer: @unchecked Sendable {
         var descriptorDataTypeOverrides: [UInt32: UInt16] = [:]
         /// Descriptor properties that return an accepted malformed payload after their first read.
         var malformedDescriptorCodesAfterFirstRead: Set<UInt32> = []
+        /// Deterministic real command-channel failure during a later descriptor generation.
+        var disconnectDescriptorCodesAfterFirstRead: Set<UInt32> = []
+        /// Exact describe refusals, including explicit DevicePropNotSupported.
+        var descriptorResponseOverrides: [UInt32: UInt16] = [:]
+        var descriptorResponseOverridesAfterFirstRead: [UInt32: UInt16] = [:]
+        var readOnlyDescriptorCodesAfterFirstRead: Set<UInt32> = []
+        /// Complete malformed operation responses preserve the socket while failing a transaction.
+        var malformedOperationResponseOnDescriptorReads: [UInt32: Set<Int>] = [:]
+        /// A parsed scalar descriptor whose form is explicitly absent.
+        var noFormDescriptorCodes: Set<UInt32> = []
         /// Properties that return valid bytes once, then an accepted short payload.
         var shortPropertyCodesAfterFirstRead: Set<UInt32> = []
         /// Deterministic command-response latency used to prove RTT is measured, not synthesized.
@@ -945,6 +957,22 @@ final class FakeZRServer: @unchecked Sendable {
                 sendResponse(connection, code: 0x2002, transactionID: transactionID)
                 return
             }
+            lock.lock()
+            let priorReads = descriptorReadCounts[propertyCode] ?? 0
+            lock.unlock()
+            if priorReads > 0,
+                let response = options.descriptorResponseOverridesAfterFirstRead[propertyCode]
+            {
+                lock.lock()
+                descriptorReadCounts[propertyCode] = priorReads + 1
+                lock.unlock()
+                sendResponse(connection, code: response, transactionID: transactionID)
+                return
+            }
+            if let response = options.descriptorResponseOverrides[propertyCode] {
+                sendResponse(connection, code: response, transactionID: transactionID)
+                return
+            }
             guard !options.unsupportedPropertyCodes.contains(propertyCode),
                 let property = PTPPropertyCode(rawValue: propertyCode),
                 let descriptor = cameraPropertyDescriptor(for: property)
@@ -959,6 +987,18 @@ final class FakeZRServer: @unchecked Sendable {
                 readCount > 1
                 && options.malformedDescriptorCodesAfterFirstRead.contains(propertyCode)
             lock.unlock()
+            if readCount > 1
+                && options.disconnectDescriptorCodesAfterFirstRead.contains(propertyCode)
+            {
+                shutdown(connection, Int32(SHUT_RDWR))
+                return
+            }
+            if options.malformedOperationResponseOnDescriptorReads[propertyCode]?.contains(
+                readCount) == true
+            {
+                send(connection, PTPIPPacket(type: .operationResponse, payload: Data()))
+                return
+            }
             sendDataIn(
                 connection,
                 data: sendsMalformedPayload ? Data() : descriptor,
@@ -1195,6 +1235,16 @@ final class FakeZRServer: @unchecked Sendable {
                 valueByteCount: 8,
                 values: modes.map(ByteCoding.uint64LE))
         }
+        lock.lock()
+        let wasDescribed = (descriptorReadCounts[property.rawValue] ?? 0) > 0
+        lock.unlock()
+        if wasDescribed, let values = options.descriptorEnumOverridesAfterFirstRead[property],
+            let byteCount = descriptorValueByteCount(property)
+        {
+            return enumDescriptor(
+                property: property, valueByteCount: byteCount,
+                values: values.map { descriptorBytes($0, byteCount: byteCount) })
+        }
         if let values = options.descriptorEnumOverrides[property],
             let byteCount = descriptorValueByteCount(property)
         {
@@ -1324,7 +1374,8 @@ final class FakeZRServer: @unchecked Sendable {
         case .movieFocusMode, .movieAFSubjectDetection, .movieAudioInputSensitivity,
             .audioInputSelection, .movWindNoiseReduction, .movieAttenuator,
             .movie32BitFloatAudioRecording, .movieBaseISO, .movieShutterMode,
-            .movieTVLockSetting, .movieVibrationReduction, .electronicVR:
+            .movieTVLockSetting, .movieVibrationReduction, .electronicVR, .movieH265ToneMode,
+            .movieProResToneMode, .movieNRawToneMode, .movieProResRawToneMode:
             1
         case .movieFileType, .movieShutterAngle, .movieShutterSpeed:
             4
@@ -1351,8 +1402,19 @@ final class FakeZRServer: @unchecked Sendable {
         bytes += ByteCoding.uint16LE(
             options.descriptorDataTypeOverrides[property.rawValue]
                 ?? unsignedDataType(for: valueByteCount))
-        bytes.append(options.readOnlyDescriptorCodes.contains(property.rawValue) ? 0 : 1)
+        lock.lock()
+        let previouslyDescribed = (descriptorReadCounts[property.rawValue] ?? 0) > 0
+        lock.unlock()
+        let readOnly =
+            options.readOnlyDescriptorCodes.contains(property.rawValue)
+            || (previouslyDescribed
+                && options.readOnlyDescriptorCodesAfterFirstRead.contains(property.rawValue))
+        bytes.append(readOnly ? 0 : 1)
         bytes += [UInt8](repeating: 0, count: valueByteCount * 2)
+        if options.noFormDescriptorCodes.contains(property.rawValue) {
+            bytes.append(0)
+            return Data(bytes)
+        }
         bytes.append(2)  // Enumeration form
         bytes += ByteCoding.uint16LE(UInt16(values.count))
         for value in values {

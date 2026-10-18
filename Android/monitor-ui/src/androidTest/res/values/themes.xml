@@ -1,0 +1,8 @@
+<resources>
+    <!-- The screenshot host has no starting window: Android's splash screen would otherwise stay over
+        the test window through its exit animation, after the open transition, and a display
+        screenshot taken then shows the splash, not the test content. -->
+    <style name="MonitorTestHost" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+</resources>

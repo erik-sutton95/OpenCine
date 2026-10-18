@@ -1,5 +1,7 @@
 package com.opencapture.opencine.nikonwire
 
+import com.opencapture.opencine.core.BatteryReading
+import com.opencapture.opencine.nikon.NikonCameraBatteryGauge
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
@@ -157,7 +159,8 @@ public data class WatchTimecode(
     /** Frame component. */
     public val frame: Int,
 ) {
-    /** Renders the fixed-width monitor readout. */
+    /** Compatibility readout for existing consumers; migrate presentation before retiring it. */
+    @Deprecated("Format reported components at the presentation boundary")
     public fun label(): String =
         String.format(Locale.ROOT, "%02d:%02d:%02d:%02d", hour, minute, second, frame)
 
@@ -176,10 +179,14 @@ public data class WatchMediaStatus(
     public val percentFree: Int,
     /** Remaining record time when available; Android currently leaves this unavailable. */
     public val minutesRemaining: Int,
+    /** Exact bytes from newer phones; absent in older payloads. */
+    public val freeBytes: Long? = null,
 )
 
 /** Phone-to-watch monitor/camera snapshot. */
-public data class WatchRelayState(
+// The deployed DTO keeps its public copy API while codecs own presence metadata.
+@ExposedCopyVisibility
+public data class WatchRelayState internal constructor(
     /** Camera-owned record state. */
     public val recordState: WatchRecordState,
     /** Current authoritative timecode, or explicit unavailable placeholder. */
@@ -200,8 +207,76 @@ public data class WatchRelayState(
     public val feedLive: Boolean,
     /** Measured camera live FPS when Android has it, otherwise an unavailable label. */
     public val liveFPS: String,
+    private val reportedBatteryReading: BatteryReading?,
+    private val reportedBatteryExhausted: Boolean?,
+    private val readingDeclared: Boolean,
+    private val exhaustionDeclared: Boolean,
 ) : WatchRelayPayload {
     override val kind: WatchRelayKind = WatchRelayKind.STATE
+    /** Original deployed constructor retained alongside the typed overload. */
+    public constructor(
+        recordState: WatchRecordState,
+        timecode: WatchTimecode,
+        mediaStatus: WatchMediaStatus?,
+        media: String,
+        cameraBatteryPercent: Int,
+        cameraName: String,
+        isRecording: Boolean,
+        connection: WatchConnectionState,
+        feedLive: Boolean,
+        liveFPS: String,
+    ) : this(
+            recordState = recordState,
+            timecode = timecode,
+            mediaStatus = mediaStatus,
+            media = media,
+            cameraBatteryPercent = cameraBatteryPercent,
+            cameraName = cameraName,
+            isRecording = isRecording,
+            connection = connection,
+            feedLive = feedLive,
+            liveFPS = liveFPS,
+        reportedBatteryReading = null, reportedBatteryExhausted = null,
+        readingDeclared = false, exhaustionDeclared = false,
+    )
+
+    public constructor(
+        recordState: WatchRecordState,
+        timecode: WatchTimecode,
+        mediaStatus: WatchMediaStatus?,
+        media: String,
+        cameraBatteryPercent: Int,
+        cameraName: String,
+        isRecording: Boolean,
+        connection: WatchConnectionState,
+        feedLive: Boolean,
+        liveFPS: String,
+        batteryReading: BatteryReading?, batteryExhausted: Boolean? = null,
+    ) : this(
+            recordState = recordState,
+            timecode = timecode,
+            mediaStatus = mediaStatus,
+            media = media,
+            cameraBatteryPercent = cameraBatteryPercent,
+            cameraName = cameraName,
+            isRecording = isRecording,
+            connection = connection,
+            feedLive = feedLive,
+            liveFPS = liveFPS,
+        reportedBatteryReading = batteryReading, reportedBatteryExhausted = batteryExhausted,
+        readingDeclared = true, exhaustionDeclared = true,
+    )
+
+    /** Explicit null remains unknown; only an old missing field uses the raw integration boundary. */
+    public val batteryReading: BatteryReading?
+        get() = if (readingDeclared) reportedBatteryReading else
+            NikonCameraBatteryGauge.gauge(cameraBatteryPercent).batteryReading
+    public val batteryExhausted: Boolean?
+        get() = if (exhaustionDeclared) reportedBatteryExhausted else if (readingDeclared) null else
+            NikonCameraBatteryGauge.gauge(cameraBatteryPercent).exhaustion
+    internal val hasDeclaredBatteryReading: Boolean get() = readingDeclared
+    internal val hasDeclaredBatteryExhaustion: Boolean get() = exhaustionDeclared
+
 }
 
 /** Phone-to-watch preview image, bounded before it reaches this wire. */
@@ -329,6 +404,10 @@ public object WatchRelayEnvelope {
             .put("connection", state.connection.wireValue)
             .put("feedLive", state.feedLive)
             .put("liveFPS", state.liveFPS)
+            .apply {
+                if (state.hasDeclaredBatteryReading) put("batteryReading", BatteryRelayJSON.encode(state.batteryReading))
+                if (state.hasDeclaredBatteryExhaustion) put("batteryExhausted", state.batteryExhausted ?: JSONObject.NULL)
+            }
 
     private fun encodeFrame(frame: WatchRelayFrame): JSONObject {
         require(frame.jpeg.size <= MAX_PREVIEW_JPEG_BYTES) { "Watch preview is too large." }
@@ -357,6 +436,7 @@ public object WatchRelayEnvelope {
             .put("gigabytesFree", status.gigabytesFree)
             .put("percentFree", status.percentFree)
             .put("minutesRemaining", status.minutesRemaining)
+            .put("freeBytes", status.freeBytes ?: JSONObject.NULL)
 
     private fun decodeState(value: JSONObject): WatchRelayState =
         WatchRelayState(
@@ -370,7 +450,21 @@ public object WatchRelayEnvelope {
             connection = enumValue(value.requireString("connection"), WatchConnectionState::fromWire),
             feedLive = value.requireBoolean("feedLive"),
             liveFPS = value.requireString("liveFPS"),
+            reportedBatteryReading = decodeBatteryReading(value),
+            reportedBatteryExhausted = value.optionalValue("batteryExhausted")?.let {
+                it as? Boolean ?: throw WatchRelayWireException.MalformedPayload("batteryExhausted is not a boolean")
+            },
+            readingDeclared = value.has("batteryReading"),
+            exhaustionDeclared = value.has("batteryExhausted"),
         )
+
+    private fun decodeBatteryReading(value: JSONObject): BatteryReading? = try {
+        BatteryRelayJSON.decode(value.opt("batteryReading"))
+    } catch (error: JSONException) {
+        throw WatchRelayWireException.MalformedPayload(error.message ?: "invalid battery reading")
+    } catch (error: IllegalArgumentException) {
+        throw WatchRelayWireException.MalformedPayload(error.message ?: "invalid battery reading")
+    }
 
     private fun decodeFrame(value: JSONObject): WatchRelayFrame {
         val jpeg =
@@ -411,6 +505,7 @@ public object WatchRelayEnvelope {
             gigabytesFree = value.requireInt("gigabytesFree"),
             percentFree = value.requireInt("percentFree"),
             minutesRemaining = value.requireInt("minutesRemaining"),
+            freeBytes = if (!value.has("freeBytes") || value.isNull("freeBytes")) null else value.getLong("freeBytes").takeIf { it >= 0 },
         )
 
     private fun decodeJSON(payload: ByteArray): Any {

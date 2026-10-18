@@ -128,7 +128,7 @@ public class FakeCameraSession(
                         // Settling the drum on a depth-choice ROW lands the body on a real
                         // depth, exactly as a camera's readback would report one.
                         ?: depths.firstOrNull { option -> option.codec == label }
-                    if (depth == null) {
+                    val next = if (depth == null) {
                         it.copy(codec = label, codecSelection = label, codecBitDepth = null)
                     } else {
                         it.copy(
@@ -137,6 +137,14 @@ public class FakeCameraSession(
                             codecBitDepth = depth.label,
                         )
                     }
+                    next.withDemoMovieTones()
+                }
+            CameraControl.MOVIE_TONE ->
+                mutableProperties.update {
+                    if (!it.controlCapabilities.movieToneEditable || label !in it.controlCapabilities.movieTones) {
+                        throw CameraControlException.UnsupportedSelection
+                    }
+                    it.copy(movieTone = label)
                 }
             CameraControl.WHITE_BALANCE ->
                 mutableProperties.update {
@@ -162,6 +170,26 @@ public class FakeCameraSession(
         mutableProperties.value = DEMO_PROPERTIES
     }
 
+    /**
+     * SIMULATED tone domain per codec, shaped like the core's `NikonMovieToneCapability`: R3D NE
+     * is Log3G10 only, an 8-bit H.26x codec is SDR only, every other codec offers SDR, HLG and
+     * N-Log. Demo only; a real body reports its own descriptor.
+     */
+    private fun CameraPropertySnapshot.withDemoMovieTones(): CameraPropertySnapshot {
+        val codec = codec.orEmpty()
+        val tones = when {
+            codec.startsWith("R3D") -> listOf("Log3G10")
+            codec.contains("8-bit") || codec.startsWith("H.264") -> listOf("SDR")
+            // ZR 1.11: H.265 10-bit offers HLG too; ProRes and the RAW codecs offer SDR and N-Log.
+            codec.startsWith("H.265") -> listOf("SDR", "HLG", "N-Log")
+            else -> listOf("SDR", "N-Log")
+        }
+        return copy(
+            movieTone = movieTone?.takeIf { it in tones } ?: tones.last(),
+            controlCapabilities = controlCapabilities.copy(movieTones = tones, movieToneEditable = tones.size > 1),
+        )
+    }
+
     private companion object {
         /**
          * Mirrors iOS `CameraDisplayState.preview` + `CameraPicker.options` so
@@ -183,6 +211,7 @@ public class FakeCameraSession(
                 resolutionFrameRate = "6K · 25p",
                 codec = "R3D NE",
                 codecSelection = "R3D NE",
+                movieTone = "Log3G10",
                 whiteBalanceMode = "Color temp",
                 whiteBalanceKelvin = 5_560,
                 whiteBalanceTint = "Neutral",
@@ -268,6 +297,9 @@ public class FakeCameraSession(
                                 CodecBitDepthOption("H.265", "8-bit", "H.265 8-bit"),
                                 CodecBitDepthOption("H.265", "10-bit", "H.265 10-bit"),
                             ),
+                        // SIMULATED: R3D NE records Log3G10 only (shown, not a choice).
+                        movieTones = listOf("Log3G10"),
+                        movieToneEditable = false,
                         // Nikon K dial steps (~10 mired; 5560 not 5600) + presets.
                         whiteBalanceValues =
                             listOf(

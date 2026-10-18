@@ -61,18 +61,6 @@
             )
         }
 
-        /// Prefer the larger of SwiftUI's report and the window insets. A parent
-        /// `ignoresSafeArea` (or a GeometryReader that is already inset) can report 0.
-        public static func resolvedSafeArea(_ reported: EdgeInsets, scene: EdgeInsets) -> EdgeInsets
-        {
-            EdgeInsets(
-                top: max(reported.top, scene.top),
-                leading: max(reported.leading, scene.leading),
-                bottom: max(reported.bottom, scene.bottom),
-                trailing: max(reported.trailing, scene.trailing)
-            )
-        }
-
         public static func shouldMirror(
             leading: CGFloat, trailing: CGFloat,
             orientation: MonitorDeviceOrientation? = nil
@@ -269,14 +257,14 @@
         }
 
         /// Recenter key. Landscape: just past the battery, toward the feed,
-        /// above the assist bar. Portrait: bottom-right of the feed.
+        /// above the assist bar. Portrait: left of the feed.
         public var focusReset: CGRect {
             if let presentation { return presentation.focusReset.cgRect }
             let size = LiveChromeMetrics.focusResetSize
             if viewport.height > viewport.width {
                 let well = onFeed
                 return CGRect(
-                    x: well.maxX - size - 10,
+                    x: well.minX + 10,
                     y: well.maxY - size - 10,
                     width: size,
                     height: size
@@ -414,7 +402,7 @@
                 topControlInset: topControlInset, joystick: joystick)
             return Self(
                 presentation: p, viewport: size, feed: p.picture.cgRect, picture: p.picture.cgRect,
-                lock: p.lock.cgRect, battery: p.gauges.cgRect, topDeck: p.status.cgRect,
+                lock: p.lock.cgRect, battery: p.telemetry.cgRect, topDeck: p.status.cgRect,
                 assist: p.assists.cgRect, capture: p.values.cgRect,
                 rail: p.system.cgRect, settings: p.settings.cgRect, media: p.media.cgRect,
                 record: p.record.cgRect, disp: p.display.cgRect,

@@ -23,6 +23,22 @@ import kotlinx.coroutines.test.runTest
 /** SIMULATED native scheduling through the actual public common Nikon submission port. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NikonOpenCineAdmissionTest {
+    @Test fun authorityCaptureSurvivesReadbackButNotSurrenderAndRegrant() = runTest {
+        val native = Native()
+        val session = NikonOpenCineSession(native, backgroundScope)
+        val captured = session.captureCommandAuthority()
+        native.reportedRecording.value = true
+        session.refresh()
+        assertTrue(captured(), "Unrelated camera observations do not retire source authority")
+        session.setHoldsControl(false)
+        session.setHoldsControl(true)
+        assertFalse(captured(), "A held native job must not revive after authority returns")
+        val current = session.captureCommandAuthority()
+        assertTrue(current())
+        session.closeNow(SessionCloseReason.REQUESTED)
+        assertFalse(current())
+    }
+
     @Test fun currentAndDirectOperationsPreserveNativeLabelsAndRecordingObservation() = runTest {
         val native = Native()
         val session = NikonOpenCineSession(native, backgroundScope)

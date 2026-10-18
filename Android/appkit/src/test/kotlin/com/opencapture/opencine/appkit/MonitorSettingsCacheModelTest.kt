@@ -73,8 +73,26 @@ class MonitorSettingsCacheModelTest {
         assertEquals(1, io.clears.size)
         io.clears[0].completeExceptionally(IllegalStateException("captured IO failed")); runCurrent()
         assertTrue(model.state.value.clearFailed); assertFalse(model.state.value.clearing)
+        io.counts.drop(1).forEach { it.complete(8) }; runCurrent()
         model.retire(); assertFalse(model.state.value.clearFailed)
     }
+    @Test fun failedClearRecountsRemainingBytesAndRetainsTheFailure() = runTest {
+        val model = MonitorSettingsCacheModel(backgroundScope); val io = IO()
+        model.refresh(io.source(MonitorSettingsCacheIdentity("original-cache", "first"))); runCurrent()
+        io.counts[0].complete(800); runCurrent()
+        model.requestClear(); model.clear(); runCurrent()
+        io.clears[0].completeExceptionally(IllegalStateException("remaining bucket failed")); runCurrent()
+        try {
+            assertEquals(2, io.counts.size)
+            assertTrue(model.state.value.clearFailed); assertNull(model.state.value.bytes)
+            assertEquals("remaining bucket failed", model.state.value.failure)
+            io.counts[1].complete(300); runCurrent()
+            assertEquals(300L, model.state.value.bytes)
+            assertTrue(model.state.value.clearFailed)
+            assertEquals("remaining bucket failed", model.state.value.failure)
+        } finally { io.counts.drop(1).forEach { it.complete(300) }; model.retire() }
+    }
+
     @Test fun successfulClearRecountsTheCapturedNamespaceWithoutAContentReport() = runTest {
         val model = MonitorSettingsCacheModel(backgroundScope); val io = IO()
         model.refresh(io.source(MonitorSettingsCacheIdentity("original-cache", "first"))); runCurrent()

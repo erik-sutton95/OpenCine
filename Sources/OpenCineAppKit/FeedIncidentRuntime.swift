@@ -1,4 +1,5 @@
 import Foundation
+import MonitorPresentation
 import OpenCineMedia
 
 // The app's feed-incident journal: the current run's origin, the on-device spool and the runtime
@@ -48,7 +49,8 @@ public final class FeedIncidentOrigin: @unchecked Sendable {
     public static func isAutomationLaunch(_ environment: [String: String]) -> Bool {
         if environment["OPV_FEED_STRESS"] == "1" { return true }
         if environment["OPV_PHYSICAL_UI_REVIEW"] == "1" { return true }
-        if let screen = environment["OPV_UI_REVIEW_SCREEN"], !screen.isEmpty { return true }
+        // Any staged screen, the shared review contract's or an app-only one.
+        if let screen = environment[ReviewLaunch.Key.screen], !screen.isEmpty { return true }
         if environment["XCTestConfigurationFilePath"] != nil { return true }
         return false
     }
@@ -197,6 +199,28 @@ public struct FeedIncidentStore: Sendable {
     }
 }
 
+/// Captured authority for one incident session. Reusing a context ID creates a new source.
+public final class FeedIncidentSessionSource: @unchecked Sendable {
+    public let sessionID: String
+    private weak var runtime: FeedIncidentRuntime?
+    public var isCurrent: Bool { runtime?.isCurrent(self) ?? false }
+
+    fileprivate init(runtime: FeedIncidentRuntime, sessionID: String) {
+        self.runtime = runtime
+        self.sessionID = sessionID
+    }
+
+    public func ingestSnapshot(_ snapshot: FeedIncidentSnapshot) { runtime?.ingest(snapshot, source: self) }
+    public func recordBreadcrumb(_ breadcrumb: FeedIncidentBreadcrumb) { runtime?.breadcrumb(breadcrumb, source: self) }
+    public func recordRepair(_ repair: FeedRepairRecord) { runtime?.repair(repair, source: self) }
+    public func noteTestSource(_ origin: FeedIncidentTestSource) { runtime?.origin(origin, source: self) }
+    public func noteDecoderGeneration(_ generation: Int) { runtime?.decoderGeneration(generation, source: self) }
+    public func noteSocketGeneration(_ generation: Int) { runtime?.socketGeneration(generation, source: self) }
+    public func noteExhausted(now: TimeInterval) { runtime?.exhausted(now: now, source: self) }
+    public func noteUnexpectedDisconnect(now: TimeInterval) { runtime?.disconnected(now: now, source: self) }
+    public func endSession(now: TimeInterval) { runtime?.end(now: now, source: self) }
+}
+
 /// Shell owner for feed-incident persistence. Core records in memory; this type
 /// writes on a utility queue. Never call from a receive, decode, display, or
 /// fatal-signal handler except via the ingest methods, which return immediately.
@@ -217,15 +241,22 @@ public struct FeedIncidentStore: Sendable {
 public final class FeedIncidentRuntime: @unchecked Sendable {
     private let reporting: ReliabilityReporting
     private let directory: URL?
-    private let queue = DispatchQueue(label: "opv.feed-incident", qos: .utility)
+    private let queue: DispatchQueue
+    private let clock: @Sendable () -> TimeInterval
     private let gate = NSLock()
     private let extrasLock = NSLock()
     private var recorder = FeedIncidentRecorder()
     private var store: FeedIncidentStore?
-    private var latestSnapshot: FeedIncidentSnapshot?
-    private var snapshotScheduled = false
-    private var pendingDecoderGeneration: Int?
-    private var pendingSocketGeneration: Int?
+    private struct Pending {
+        let source: FeedIncidentSessionSource
+        var snapshot: FeedIncidentSnapshot?
+        var decoderGeneration: Int?
+        var socketGeneration: Int?
+    }
+    // Submission-confined authority and mailbox; writer-confined active source below.
+    private var submittedSource: FeedIncidentSessionSource?
+    private var pending: Pending?
+    private var activeSource: FeedIncidentSessionSource?
     private var sessionContext: FeedIncidentSessionContext?
     private var lastSummaryCheckpoint: TimeInterval = 0
     private var extrasCache: [(name: String, body: String)] = []
@@ -233,9 +264,28 @@ public final class FeedIncidentRuntime: @unchecked Sendable {
     private var storeExtras: [(name: String, body: String)]?
 
     /// `directory` holds the incident spool (nil when the app has no documents directory).
-    public init(reporting: ReliabilityReporting, directory: URL?) {
+    public convenience init(reporting: ReliabilityReporting, directory: URL?) {
+        self.init(reporting: reporting, directory: directory,
+            writerQueue: DispatchQueue(label: "opv.feed-incident", qos: .utility))
+    }
+
+    public convenience init(
+        reporting: ReliabilityReporting, directory: URL?,
+        clock: @escaping @Sendable () -> TimeInterval
+    ) {
+        self.init(
+            reporting: reporting, directory: directory,
+            writerQueue: DispatchQueue(label: "opv.feed-incident", qos: .utility), clock: clock)
+    }
+
+    internal init(
+        reporting: ReliabilityReporting, directory: URL?, writerQueue: DispatchQueue,
+        clock: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.reporting = reporting
         self.directory = directory
+        queue = writerQueue
+        self.clock = clock
     }
 
     public func install() {
@@ -260,78 +310,134 @@ public final class FeedIncidentRuntime: @unchecked Sendable {
         }
     }
 
-    public func beginSession(_ context: FeedIncidentSessionContext) {
+    /// Legacy callers capture the current source at each call. Retain the returned bound source
+    /// when asynchronous producers can outlive their session.
+    public func beginSession(_ context: FeedIncidentSessionContext) { _ = beginBoundSession(context) }
+
+    public func sessionContext(
+        sessionID: String = UUID().uuidString, cameraFamily: String,
+        cameraFirmware: String? = nil, decoderGeneration: Int = 0, socketGeneration: Int = 0
+    )
+        -> FeedIncidentSessionContext
+    {
+        FeedIncidentProducerContext(host: reporting.host).make(
+            sessionID: sessionID,
+            cameraFamily: cameraFamily, cameraFirmware: cameraFirmware,
+            decoderGeneration: decoderGeneration, socketGeneration: socketGeneration,
+            testSource: reporting.origin.currentTestSource(),
+            buildIdentity: reporting.origin.currentBuildIdentity())
+    }
+
+    public func beginBoundSession(_ context: FeedIncidentSessionContext) -> FeedIncidentSessionSource {
+        gate.lock()
+        defer { gate.unlock() }
+        let source = FeedIncidentSessionSource(runtime: self, sessionID: context.sessionID)
+        let replacedAt = clock()
+        submittedSource = source
+        pending = nil
+        // Enqueue under the submission lock before exposing the source to a producer.
         queue.async { [self] in
+            if activeSource != nil {
+                persist(recorder.endSession(now: replacedAt))
+                persistSessionSummary(
+                    outcome: Self.summaryOutcome(
+                        incidentCount: recorder.incidentCount,
+                        exposure: recorder.healthyExposureSeconds))
+            }
             persist(recorder.beginSession(context))
             reporting.enqueueFinalizedFromSpool()
+            activeSource = source
             sessionContext = context
             lastSummaryCheckpoint = 0
             persistSessionSummary(outcome: "live")
         }
+        return source
     }
 
-    public func endSession(now: TimeInterval) {
+    public func endSession(now: TimeInterval) { currentSource()?.endSession(now: now) }
+    public func ingestSnapshot(_ snapshot: FeedIncidentSnapshot) { currentSource()?.ingestSnapshot(snapshot) }
+    public func recordBreadcrumb(_ breadcrumb: FeedIncidentBreadcrumb) { currentSource()?.recordBreadcrumb(breadcrumb) }
+    public func recordRepair(_ repair: FeedRepairRecord) { currentSource()?.recordRepair(repair) }
+    public func noteTestSource(_ source: FeedIncidentTestSource) { currentSource()?.noteTestSource(source) }
+    public func noteDecoderGeneration(_ generation: Int) { currentSource()?.noteDecoderGeneration(generation) }
+    public func noteSocketGeneration(_ generation: Int) { currentSource()?.noteSocketGeneration(generation) }
+    public func noteExhausted(now: TimeInterval) { currentSource()?.noteExhausted(now: now) }
+    public func noteUnexpectedDisconnect(now: TimeInterval) { currentSource()?.noteUnexpectedDisconnect(now: now) }
+
+    private func currentSource() -> FeedIncidentSessionSource? {
+        gate.lock()
+        defer { gate.unlock() }
+        return submittedSource
+    }
+
+    fileprivate func isCurrent(_ source: FeedIncidentSessionSource) -> Bool {
+        gate.lock()
+        defer { gate.unlock() }
+        return submittedSource === source
+    }
+
+    private func enqueue(_ source: FeedIncidentSessionSource, work: @escaping @Sendable () -> Void) {
+        gate.lock()
+        defer { gate.unlock() }
+        guard submittedSource === source else { return }
         queue.async { [self] in
+            guard activeSource === source else { return }
+            work()
+        }
+    }
+
+    fileprivate func end(now: TimeInterval, source: FeedIncidentSessionSource) {
+        gate.lock()
+        defer { gate.unlock() }
+        guard submittedSource === source else { return }
+        submittedSource = nil
+        // A previously admitted drain runs before this end event, under its original source.
+        queue.async { [self] in
+            guard activeSource === source else { return }
             persist(recorder.endSession(now: now))
-            persistSessionSummary(
-                outcome: Self.summaryOutcome(
-                    incidentCount: recorder.incidentCount,
-                    exposure: recorder.healthyExposureSeconds))
+            persistSessionSummary(outcome: Self.summaryOutcome(
+                incidentCount: recorder.incidentCount, exposure: recorder.healthyExposureSeconds))
             reporting.enqueueFinalizedFromSpool()
             sessionContext = nil
+            activeSource = nil
         }
     }
 
-    /// Latest-wins 1 Hz ingest. Does not enqueue one disk write per snapshot.
-    public func ingestSnapshot(_ snapshot: FeedIncidentSnapshot) {
-        gate.lock()
-        latestSnapshot = snapshot
-        let schedule = !snapshotScheduled
-        snapshotScheduled = true
-        gate.unlock()
-        if schedule {
-            queue.async { [self] in drainSnapshot() }
-        }
+    fileprivate func ingest(_ snapshot: FeedIncidentSnapshot, source: FeedIncidentSessionSource) {
+        updatePending(source) { $0.snapshot = snapshot }
     }
-
-    public func recordBreadcrumb(_ breadcrumb: FeedIncidentBreadcrumb) {
-        queue.async { [self] in
+    fileprivate func decoderGeneration(_ generation: Int, source: FeedIncidentSessionSource) {
+        updatePending(source) { $0.decoderGeneration = generation }
+    }
+    fileprivate func socketGeneration(_ generation: Int, source: FeedIncidentSessionSource) {
+        updatePending(source) { $0.socketGeneration = generation }
+    }
+    fileprivate func breadcrumb(_ breadcrumb: FeedIncidentBreadcrumb, source: FeedIncidentSessionSource) {
+        enqueue(source) { [self] in
             recorder.recordBreadcrumb(breadcrumb)
             reporting.noteBreadcrumb(breadcrumb)
         }
     }
-
-    public func recordRepair(_ repair: FeedRepairRecord) {
-        queue.async { [self] in
+    fileprivate func repair(_ repair: FeedRepairRecord, source: FeedIncidentSessionSource) {
+        enqueue(source) { [self] in
             persist(recorder.recordRepair(repair))
             reporting.noteRepair(repair)
         }
     }
-
-    public func noteTestSource(_ source: FeedIncidentTestSource) {
-        queue.async { [self] in
-            recorder.noteTestSource(source)
-            if var context = sessionContext, source.rank > context.testSource.rank {
-                context.testSource = source
+    fileprivate func origin(_ origin: FeedIncidentTestSource, source: FeedIncidentSessionSource) {
+        enqueue(source) { [self] in
+            recorder.noteTestSource(origin)
+            if var context = sessionContext, origin.rank > context.testSource.rank {
+                context.testSource = origin
                 sessionContext = context
             }
         }
     }
-
-    public func noteDecoderGeneration(_ generation: Int) {
-        scheduleGeneration { pendingDecoderGeneration = generation }
+    fileprivate func exhausted(now: TimeInterval, source: FeedIncidentSessionSource) {
+        enqueue(source) { [self] in persist(recorder.noteExhausted(now: now)) }
     }
-
-    public func noteSocketGeneration(_ generation: Int) {
-        scheduleGeneration { pendingSocketGeneration = generation }
-    }
-
-    public func noteExhausted(now: TimeInterval) {
-        queue.async { [self] in persist(recorder.noteExhausted(now: now)) }
-    }
-
-    public func noteUnexpectedDisconnect(now: TimeInterval) {
-        queue.async { [self] in persist(recorder.noteUnexpectedDisconnect(now: now)) }
+    fileprivate func disconnected(now: TimeInterval, source: FeedIncidentSessionSource) {
+        enqueue(source) { [self] in persist(recorder.noteUnexpectedDisconnect(now: now)) }
     }
 
     /// Memory snapshot of extras. Does not wait on disk.
@@ -371,30 +477,27 @@ public final class FeedIncidentRuntime: @unchecked Sendable {
         extrasLock.unlock()
     }
 
-    private func scheduleGeneration(_ update: () -> Void) {
+    private func updatePending(_ source: FeedIncidentSessionSource, update: (inout Pending) -> Void) {
         gate.lock()
-        update()
-        let schedule = !snapshotScheduled
-        snapshotScheduled = true
-        gate.unlock()
-        if schedule {
-            queue.async { [self] in drainSnapshot() }
-        }
+        defer { gate.unlock() }
+        guard submittedSource === source else { return }
+        let schedule = pending?.source !== source
+        var value = schedule ? Pending(source: source) : pending!
+        update(&value)
+        pending = value
+        if schedule { queue.async { [self] in drainSnapshot(source) } }
     }
 
-    private func drainSnapshot() {
+    private func drainSnapshot(_ source: FeedIncidentSessionSource) {
         gate.lock()
-        let snapshot = latestSnapshot
-        latestSnapshot = nil
-        let decoderGen = pendingDecoderGeneration
-        pendingDecoderGeneration = nil
-        let socketGen = pendingSocketGeneration
-        pendingSocketGeneration = nil
-        snapshotScheduled = false
+        guard pending?.source === source else { gate.unlock(); return }
+        let drained = pending
+        pending = nil
         gate.unlock()
-        if let decoderGen { recorder.noteDecoderGeneration(decoderGen) }
-        if let socketGen { recorder.noteSocketGeneration(socketGen) }
-        if let snapshot {
+        guard activeSource === source, let drained else { return }
+        if let generation = drained.decoderGeneration { recorder.noteDecoderGeneration(generation) }
+        if let generation = drained.socketGeneration { recorder.noteSocketGeneration(generation) }
+        if let snapshot = drained.snapshot {
             persist(recorder.recordSnapshot(snapshot))
             if snapshot.monotonicNow - lastSummaryCheckpoint >= 30 {
                 lastSummaryCheckpoint = snapshot.monotonicNow

@@ -1,4 +1,5 @@
 import Testing
+import OpenCineCore
 @testable import OpenCineWatch
 
 @Suite("Common watch presentation and preview inspection")
@@ -113,4 +114,29 @@ struct WatchMonitorPresentationTests {
             battery: battery, recording: recording, photography: photography, feedAspectRatio: aspect,
             canCapture: canCapture, placeholder: nil, commandMessage: nil)
     }
+    @Test func commonReadingPreservesDeclaredPrecisionAndIndependentExhaustion() throws {
+        let fraction = try #require(WatchMonitorBattery.measured(.fraction(0.68)))
+        #expect(fraction.reading == .fraction(0.68))
+        #expect(fraction.barCount == 0)
+        #expect(fraction.accessibilityLabel == "Camera battery 68 percent")
+        #expect(fraction.exhausted == nil)
+        for exhausted in [false, true] {
+            let gauge = try #require(WatchMonitorBattery.measured(.steps(filled: 1, of: 4), exhausted: exhausted))
+            #expect(gauge.filledBars == 1)
+            #expect(gauge.barCount == 4)
+            #expect(gauge.exhausted == exhausted)
+            #expect(gauge.accessibilityLabel == "Camera battery 1 of 4 bars")
+        }
+        for count in [11, 1_000_000] {
+            let dense = try #require(WatchMonitorBattery.measured(.steps(filled: 1, of: count)))
+            #expect(dense.reading == .steps(filled: 1, of: count))
+            #expect(dense.barCount == count)
+            #expect(dense.accessibilityLabel == "Camera battery 1 of \(count) bars")
+        }
+        #expect(WatchMonitorBattery.measured(.fraction(0))?.reading == .fraction(0))
+        #expect(WatchMonitorBattery.measured(nil) == nil)
+        #expect(WatchMonitorBattery.measured(.fraction(.nan)) == nil)
+        #expect(WatchMonitorBattery.measured(.steps(filled: 1, of: 0)) == nil)
+    }
+
 }

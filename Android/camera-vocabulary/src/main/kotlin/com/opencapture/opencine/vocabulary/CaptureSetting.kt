@@ -44,7 +44,15 @@ interface CaptureSessionState {
     val awbLockOffered: Boolean
     /** The FORMAT sheet does not reseat while a format change waits for the camera. */
     val formatPinned: Boolean
-    val focusModeSupported: Boolean
-    val irisSupported: Boolean
-    val nativeIsoHopSupported: Boolean
+    /** Compatibility views over the same required model; no host flags reconstruct support. */
+    val focusModeSupported: Boolean get() = controlCapabilities.focus.isOffered
+    val irisSupported: Boolean get() = controlCapabilities.iris.isOffered
+    val nativeIsoHopSupported: Boolean get() = nativeISO.hop == true
+    val nativeISO: CaptureNativeISOCapabilities
+        get() = controlCapabilities.nativeISO
+    /**
+     * The integration's one control model for the connected camera (its static body facts merged
+     * with the live snapshot). The host supplies its known-model declaration before connection.
+     */
+    val controlCapabilities: ControlCapabilities
 }

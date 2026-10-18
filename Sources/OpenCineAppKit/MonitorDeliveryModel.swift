@@ -63,7 +63,17 @@ public struct MonitorDeliveryState<Progress: Sendable, Share: Sendable>: Sendabl
     public fileprivate(set) var localOverlayDepth = 0
     public var showsLocalOverlay: Bool { localOverlayDepth > 0 }
     public var showsGlobalChrome: Bool { progress != nil && !showsLocalOverlay }
+    /// The root chrome yields while any media surface is mounted; a surface always shows its run.
+    public func progress(in scope: MonitorDeliveryChromeScope) -> Progress? {
+        scope == .root && showsLocalOverlay ? nil : progress
+    }
+    public func toast(in scope: MonitorDeliveryChromeScope) -> String? {
+        scope == .root && showsLocalOverlay ? nil : toast
+    }
 }
+
+/// Where a delivery chrome is mounted: once at the app root, or on a media surface.
+public enum MonitorDeliveryChromeScope: Sendable { case root, surface }
 
 /// One app-scoped delivery lifetime, including cancellation and presentation resource leases.
 /// Export, transfer, network admission and OS presentation stay in the supplied operation.
@@ -130,6 +140,21 @@ public final class MonitorDeliveryModel<Progress: Sendable, Outcome: Sendable, S
             async
             -> MonitorDeliveryCompletion<Outcome, Share>
     ) -> MonitorDeliveryRunHandle? {
+        beginCaptured(onCancel: onCancel, onComplete: onComplete,
+            cleanupWhenRetired: false, operation: operation)
+    }
+
+    /// A resource-owning operation must reach cleanup even if it retires before task entry.
+    /// It receives stale admission and must check it before entering source or native work.
+    @discardableResult public func beginCaptured(
+        onCancel: (() -> Void)? = nil,
+        onComplete: ((Outcome) -> String?)? = nil,
+        cleanupWhenRetired: Bool,
+        operation:
+            @escaping @MainActor (@escaping @MainActor (Progress) -> Void, MonitorDeliveryAdmission)
+            async
+            -> MonitorDeliveryCompletion<Outcome, Share>
+    ) -> MonitorDeliveryRunHandle? {
         guard !closed else { return nil }
         let previous = work
         let token = UUID()
@@ -137,9 +162,10 @@ public final class MonitorDeliveryModel<Progress: Sendable, Outcome: Sendable, S
         pendingShareAcknowledgement = nil
         cancelHandler = onCancel
         previous?.cancel()
-        guard current(token) else { return nil }
+        guard cleanupWhenRetired || current(token) else { return nil }
+        let releaseCapturedShare = releaseShare
         let next = Task { [weak self] in
-            guard let self, self.current(token) else { return }
+            guard cleanupWhenRetired || self?.current(token) == true else { return }
             let cancellation = MonitorDeliveryCancellation()
             let completion = await withTaskCancellationHandler {
                 await operation(
@@ -155,18 +181,22 @@ public final class MonitorDeliveryModel<Progress: Sendable, Outcome: Sendable, S
             } onCancel: {
                 cancellation.cancel()
             }
-            if Task.isCancelled, self.current(token) { self.cancel() }
-            guard self.current(token), self.state.running else {
-                if let share = completion.share { self.releaseShare(share) }
+            if Task.isCancelled, self?.current(token) == true { self?.cancel() }
+            guard let self, self.current(token), self.state.running else {
+                if let share = completion.share { releaseCapturedShare(share) }
                 return
             }
             self.finish(completion, token: token, onComplete: onComplete)
         }
-        work = next
-        publish(token) {
-            $0.running = true
-            $0.progress = nil
-            $0.expanded = false
+        if current(token) {
+            work = next
+            publish(token) {
+                $0.running = true
+                $0.progress = nil
+                $0.expanded = false
+            }
+        } else {
+            next.cancel()
         }
         return MonitorDeliveryRunHandle(work: next) { [weak self] in
             guard let self, self.current(token), self.state.running else { return }

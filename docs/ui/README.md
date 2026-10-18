@@ -79,12 +79,25 @@ CGRect live layout built from `FieldMonitorLayout` (`LiveMonitorLayout.fieldMoni
 `LivePopupPlacement`, `LiveChromeMetrics`, `InterfaceOrientationObserver`, `liveModuleFrame`
 and the `interfaceLocked` environment value). The Compose twin is `MonitorLiveLayout.kt`.
 
-Live app composition uses `MonitorOperatorLiveBody` in `OpenCineCameraControls` /
-`camera-controls` through the existing live surface, descriptor surface or generated-app Scene
-adapter. One owner places the canvas, status, system rail, palette, inspector and capture popup.
+Live app composition uses `MonitorOperatorLiveSurface` in `OpenCineCameraControls` /
+`camera-controls`, fed by a typed source, the vocabulary adapter or the generated-app Scene. One
+owner places the canvas, status, system rail, palette, inspector and capture popup.
 The lower UI primitives continue to take values and actions; app-specific native content enters
 bounded typed slots. See [monitor composition and capture](../appkit/README.md#monitor-composition-and-capture)
 for adapter boundaries, capture ownership and regression guards.
+
+Every camera's control popup (ISO, shutter, white balance, focus and the other drum controls)
+is the one common drawer, `MonitorCapturePanel`, placed by the live surface. Inside it,
+`CaptureSheetPanel` (status-reporting cameras) and `LadderSheet` (cameras that advertise label
+ladders, such as Nikon) draw the same parts: the typed `MonitorCaptureDrum` or the label
+`MonitorValueDrum`, the one `ModeBar` tab strip (tabs carry `monitor.capture.tab.<index>`),
+and `MonitorCaptureToggle` / `MonitorCaptureStepper` rows. Neither draws its own glass, header
+or close control. Camera differences (lock banners, Kelvin and bit-depth step buttons, a
+two-axis tint pad) arrive as typed tab values: the ladder presentation types live in
+`OpenCineCameraVocabulary` (`CaptureLadderSheet.swift`), and `NikonCapturePopupState`
+(`OpenCineNikon`) builds them from session values, so an app adapter only reads its session
+and routes writes. The shared `CapturePopupUITests`
+(`OpenCineAppUITesting`) opens each popup in both orientations in every app.
 
 Grouped movie-format controls live in `OpenCineCameraControls` /
 `camera-controls`, above the lower UI primitives. [`CaptureFormatPicker` and
@@ -123,17 +136,58 @@ touch targets: iOS uses 44 points; Compose reads `LocalViewConfiguration` (norma
 keeps Android touch expansion inside the measured header. Typed header readouts expose
 their title, optional value and presentation action as one accessible control.
 
+Phone portrait telemetry uses separate `telemetry` bounds below the safe top,
+with eight points/dp of clearance and side reserves for rounded corners. The
+existing `gauges` corner contract remains available to other compositions.
+Storage shares a bounded row with link performance before the power readouts:
+its text shrinks from 14 to 11 points/sp, then ellipsizes while accessibility
+retains the full supplied value. Portrait video format/FPS and its supplied
+detail form one trailing column; actionable details keep independent targets,
+and a static caption retains its primary editor section. Photography, tablet
+and landscape compositions retain their existing arrangement.
+
 `MonitorFocusResetButton` owns the common circular `rotateCw` glyph and target on both
 platforms. Legacy and canonical live surfaces delegate to it; apps supply visibility
 and reset actions.
 
+## Look libraries and inspector previews
+
+`MonitorLUTPickerView<Looks, Palette, Footer>` accepts any `MonitorLookProvider` and
+`LUTPickerLibrary` descriptors. Apps supply catalogue entries, optional filters, imports,
+deletions and download actions. Embedded pickers leave comparison to the shared inspector
+footer; standalone sheets include it once. Exposure is shown only when the provider's
+`appliesLUTExposure` capability is true. The published `LUTPickerView` remains available.
+Compose uses the existing `LutPickerLibrary` and `LUTPicker` equivalents.
+
+`MonitorLookInspectorPreview<Looks>` shares image marks, scopes and audio rendering over
+that same provider. Existing `MonitorOperatorInspectorPreview` source calls retain their
+concrete type, defaults and contextual invalidation. A host with a calibrated native image
+graph may borrow `MonitorInspectorRenderedPictureSource`: its source/presentation identity
+scopes a cancellable task, and its main-actor read returns only the current immutable image
+and geometry. The host retains native admission, calibration and stale-source rejection.
+Audio remains an optional observation and uses the same shared meter.
+
+`CustomLUTStore.category(named:)` retains existing root-level slots and creates isolated,
+path-safe category stores. `importArchive` streams platform-decoded entries with default
+limits of 16 MiB per cube, 512 MiB total and 512 cubes. It counts actual output bytes,
+validates every cube before installation, rejects duplicate flattened names and unsafe
+paths/symlinks, and atomically installs replacements. Platform adapters keep ZIP decoding
+and checksum verification. Existing usable destinations survive malformed or rejected
+input. Filesystem installation failures roll back earlier replacements; if recovery itself
+fails, the typed error retains the backup directory. Android's existing `MonitorLutLibrary`
+already owns category maps, bounded reads, validation and atomic storage; platform archive
+decoders remain outside the shared UI.
+
 ## Operator settings
 
-Android's deployed, configured and generated-session settings adapters delegate to the sole
+Android's deployed, configured and generated-session settings entries each build one
+`MonitorOperatorSettingsConfiguration` and delegate to the sole
 [`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
 That owner supplies the cover input barrier, safe-drawing clearance, page margins, Back action,
-tab dispatch and legal/LUT overlays. Existing typed settings sources supply real values and
-native content; they cannot replace the common page frame. SwiftUI uses its existing complete
+one row recipe per tab and legal/LUT overlays. Capabilities an app lacks (sharing, motion, account,
+cache, diagnostics, legal) are absent optional sections; only View Assist and Display still take a
+per-entry picture source. Legal pages come from one typed `MonitorLegalDocuments` value (bundled
+text or a web page per page) shown by `MonitorLegalDocumentScreen`. SwiftUI uses its existing complete
 `MonitorOperatorSettingsScreen` and the same lower `MonitorSettingsPage` primitive.
 
 `MonitorSettingsPage` owns tab navigation, selected headings, session status/disconnect and
@@ -280,6 +334,23 @@ does not imply relay or account availability where the host supplies none.
   sampling, compensation and source calibration stay outside the UI. Existing
   Swift width spreading and Compose native Canvas typography remain explicit
   platform behavior. Empty/neutral successors remove the previous colored bars.
+- `MonitorCommandDashboard` and `MonitorCommandGrid` are the command dashboard (DISP 3) on
+  both platforms, with the same names, values (`MonitorCommandTile<Kind, Request>`,
+  `MonitorCommandSection`, `MonitorCommandHealth`), constants (three columns, 9 point/dp
+  spacing, 44 minimum and 76 portrait row, 42/44 side cells, 12 corner radius), order math
+  (`monitorCommandTileOrder`, `moveMonitorCommandTile`, in MonitorPresentation on Swift) and
+  reorder rules: a long press lifts only a painted tile that has a kind, the held tile follows
+  the finger inside the grid, a move is reported as (kind, slot) only when the slot changes,
+  and a drop or cancel keeps taps from opening a tile for 150 ms
+  (`MonitorCommandGridDrag`). Read-only and locked tiles stay reorderable. Apps supply tile
+  kinds, values, requests and the trailing health chip; `MonitorCommandTileOrderPreferences`
+  (appkit) stores the order under the app's key. Swift keeps the donor iOS drawing: rows cap
+  at 150 points on a tablet with a 34 point value, values shrink by `minimumScaleFactor`
+  instead of Compose's length steps, read-only values keep the text color (Compose mutes them),
+  the health strip spans the full width above grid and side column (Compose puts it over the
+  grid only) and the side column is 27 percent of the picture, at least 160 points (Compose
+  weights 2.35 to 0.85), with the masked fade and "More" hint. Swift spells accessibility as
+  label, value and hint; Compose as one content description.
 - `MonitorFeedGrid`, `MonitorFeedCrosshair` and `MonitorAspectGuideFrames` own native
   picture framing. Guide labels and enum identities retain the persisted app values;
   apps keep selection, storage and source geometry. The guide mask dims only the
@@ -298,6 +369,24 @@ does not imply relay or account availability where the host supplies none.
   calculation and Canvas tag layout. These inherited native differences remain
   explicit pending physical qualification. Compose `monitorChromeClickable`
   owns press/tap/hold input and animation, with feedback supplied by the host.
+- `MonitorFocusMark` takes the camera-reported AF `area` (normalized; the mark takes
+  its size and centre, with a corner of at most 7 points/dp) or draws the standard
+  square, and traces the hold-to-lock progress in the accent until the lock engages
+  (`MonitorTrackingGeometry.focusBoxFrame` and `focusCornerRadius`, same cases on both
+  platforms). `MonitorTrackingLayer` also draws further reported areas without tags.
+  `MonitorOperatorFocusLayer` (OpenCineCameraControls, both platforms) resolves the
+  mark's ink with `MonitorOperatorFocusInk` (AE lock, camera-confirmed, unconfirmed,
+  accent) and draws group-AF areas in the confirmed green; Z feeds it on both shells.
+- `MonitorOperatorLivePicture.notice` (`MonitorOperatorPictureNotice`) puts a source's
+  own words on the waiting plate's look (`plate`: notice, else waiting), on both
+  platforms. `LadderSheet` takes `formats`, drawing the shared `CaptureFormatPicker`
+  for a recording-format tab (`ladderFormatWrite` admits only ladder values), on both
+  platforms.
+- Compose quick previews keep the capture strip placed while hiding its readouts
+  and accessibility. The existing gesture owner admits the held pointer and
+  refuses sibling input; full bottom sheets still hide and disable the slot.
+  SwiftUI already retains its capture slot through opacity changes. Physical
+  pointer qualification remains separate from source and simulated checks.
 - Assist menus now own the actual audio, ND notation, peaking, false-color, zebra,
   desqueeze, guide, grid, mirror and help assemblies. They reuse the shared settings
   controls and receive current values/bindings, action closures and host feedback.
@@ -336,6 +425,31 @@ xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
 xcodebuild test -scheme OpenCine-Package -destination <private simulator> -only-testing:MonitorUITests
 python3 scripts/vendor-lucide-icons.py          # refresh pinned Lucide SVGs (iOS + Android)
 ```
+
+Playback labels and values come from the Swift and Kotlin `MonitorPlaybackCopy` twins,
+bound to the same `Fixtures/playback-copy.tsv` vectors. The picture gesture well has a test tag
+and no screen-reader action. The hide-controls hint is iOS-only; TalkBack supplies its own action hint.
+
+The native confirmation-label contracts require a foreground application scene and mounted UIKit
+controls. `scripts/ios-playback-label-hosted-test.py --simulator-id <private simulator> --derived-data
+<scratch directory> --output <new evidence directory>` generates a developer-only SIMULATED host and
+runs all three named contracts. It requires XcodeGen and an accessibility-enabled private simulator;
+the caller owns simulator setup and cleanup. The iOS conformance-kit CI job runs this beside the
+package-hosted walk tests. The generated host is never a package product or a camera app.
+
+The three original methods keep the 900x420 transport fixture and both deletion contracts.
+An attaching native UI reader supplies one guarded outside-popover event for each deletion;
+the original fixture publishes observations and checks its actual callbacks and native disappearance
+before teardown. Both readers must exit before simulator shutdown. Local admission requires the
+external backing mount; GitHub CI checks its own filesystem, with the same 20 GiB storage floor.
+
+`scripts/ios-playback-label-ci.py --output <new directory>` prepares the standard native UI
+target from the same shared-screen host and guarded system-dismissal driver. Its explicit
+`--run` mode belongs to a caller-owned GitHub CI simulator, records the actual app-authored
+callback bytes and all twenty native predicates, and retains its private data and Products.
+The `playback-native-ios` job follows the original three-case `kit-ios` gate. Both gates must
+pass; the typed native counterpart cannot waive an original fixture failure. Local qualification
+continues to use the separately reviewed lifecycle runner and retained evidence packets.
 
 ## License
 

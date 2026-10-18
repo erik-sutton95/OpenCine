@@ -105,6 +105,8 @@ struct WatchRelayProtocolTests {
     }
 
     @Test("Storage label prefers GB and percent, then remaining minutes")
+    // Keep the retained legacy formatter's original compatibility assertions under WAE.
+    @available(*, deprecated, message: "Exercises the retained legacy WatchRelayMedia formatter")
     func storageLabelMatchesPhoneHUD() {
         #expect(
             WatchRelayMedia.label(
@@ -162,6 +164,16 @@ struct WatchRelayProtocolTests {
                 WatchMonitorPlaceholder.resolve(
                     isReachable: reachable, state: noCamera, hasFeed: true) == .noCamera)
         }
+    }
+
+    @Test("Every app's wrist placeholder names that app the same way")
+    func openOnIPhoneNamesTheApp() {
+        #expect(WatchRelayCopy.openOnIPhone(appName: "OpenPocketCine") == "Open OpenPocketCine on iPhone")
+        #expect(WatchRelayCopy.openOnIPhone(appName: "OpenInstaCine") == "Open OpenInstaCine on iPhone")
+        #expect(
+            WatchMonitorPlaceholder.openOnIPhone.copy(
+                openOnIPhone: WatchRelayCopy.openOnIPhone(appName: "OpenZCine"))
+                == "Open OpenZCine on iPhone")
     }
 
     @Test("Operator copy never names a sister app")

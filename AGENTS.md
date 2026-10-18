@@ -83,7 +83,17 @@ moves to OpenCine.
 Import rules ([plan](atlas/docs/architecture/platform-plan.md) 3.4). The target edges in
 `Package.swift` and the `project(":x")` edges in `Android/` encode them; the per-area import tests
 and `atlas check` enforce them. Never add an edge that breaks them, and never add a third-party
-package dependency.
+package dependency, with one exception: an optional telemetry adapter may take its vendor SDK.
+Today that is the reporting adapter: the Swift package `Packages/OpenCineSentryApple` (product
+`OpenCineSentryApple`, sentry-cocoa at an exact version) and Android `:appkit-sentry`
+(sentry-android and OkHttp), appkit's reporting sink, its transport and the problem report upload
+on that SDK. The Swift adapter is a separate package so the OpenCine package itself keeps no
+dependencies (resolving OpenCine never fetches the SDK). Only the adapter and its tests name the
+SDK; no other module depends on the adapter or imports it (`AppKitRules`, `AdapterIsolationTest`),
+so an app that links no adapter links no SDK. An app links the adapter beside the app shell and
+keeps only host values (names, DSN, Sentry project, CI secrets). On Android the DSN reaches
+`BuildConfig.SENTRY_DSN_ANDROID` through the `com.opencapture.opencine.reporting` Gradle plugin
+(`Android/build-logic`, included by each app's `pluginManagement`).
 
 - Core (`OpenCineCore`) imports Foundation only and names no manufacturer; it never imports UI, an
   integration, Multicam or an app. `OpenCineMedia`, `OpenCineMotion`, `OpenCineFrameIO`,
@@ -91,7 +101,7 @@ package dependency.
   `OpenCineApple`. `OpenCineRelayApple` (the relay's Bonjour, socket and encoder shell) depends on
   `OpenCineRelay` and Apple frameworks only, never on UI, an integration or an app.
   `OpenCineWatch` (the watch companion: the phone's WatchConnectivity relay and the wrist
-  monitor) depends on `OpenCineRelay`, on iOS also `OpenCineApple`, and Apple frameworks only,
+  monitor) depends on `OpenCineCore`, `OpenCineRelay`, on iOS also `OpenCineApple`, and Apple frameworks only,
   never on the shared UI, an integration or an app.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
@@ -115,14 +125,24 @@ package dependency.
   a native sample bus or runtime owner. Views take values and actions; brand variation is a theme value.
 - The app shell (`OpenCineAppKit`, `appkit`) builds on Core, Media, Multicam and UI, never on an
   integration or an app: apps list their integrations and fill its typed slots.
-- `OpenCineAppKitApple` (the Apple composition layer of the app shell: code both camera apps share
-  on iOS, such as head tracking) builds on `OpenCineAppKit`, `MonitorUI`, `MonitorPresentation`,
-  `OpenCineApple`, `OpenCineMotion`, `OpenCineRelay` and `OpenCineRelayApple` only: never an
-  integration, an app or a third-party package. Same no-brand and no-mutable-global rules as the
-  app shell; app differences arrive as host values and protocols.
+- `OpenCineAppKitApple` (the Apple composition layer of the app shell: code the camera apps share
+  on iOS, such as head tracking, the delivery coordinator and the share presenter) builds on
+  `OpenCineAppKit`, `MonitorUI`, `MonitorPresentation`, `OpenCineApple`, `OpenCineMotion`,
+  `OpenCineRelay` and `OpenCineRelayApple` only: never an integration, an app or a third-party
+  package. Same no-brand and no-mutable-global rules as the app shell; app differences arrive as
+  host values and protocols.
+- `OpenCineFrameIOApple` (Frame.io's Apple host every app composes: keychain token, Info.plist
+  configuration, web sign-in, saved destination, upload history, the Frame.io mark and the
+  delivery remote services) builds on `OpenCineFrameIO`, `OpenCineAppKit` and
+  `OpenCineAppKitApple` only. The keychain service, defaults keys and bundle are app values.
+- Android `appkit-native` is optional native app composition above `camera-controls`,
+  `decoder` and `native-runtime`, its only project dependencies. It composes retained picture
+  hosts and face readback using host values and callbacks, never an integration or an app.
+  Portable appkit, camera controls and monitor UI keep their existing import boundaries;
+  native-runtime remains UI-free. Native cache proof helpers belong to androidTest only.
 - Camera controls (`OpenCineCameraControls`, `camera-controls`) hold the capture sheets, live chrome,
-  gimbal, LUT and assist views and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
-  the camera vocabulary, UI, the app shell, Core, Media and Motion, never on DJI or another
+  gimbal, LUT and assist views, the log-camera clip delivery and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
+  the camera vocabulary, UI, the app shell, Core, Media, Motion and `OpenCineApple` (the clip exporter), never on DJI or another
   integration, an app or a third-party package. App differences arrive as host values (label
   profile, state, theme), never as brand branches. Their edge to the camera vocabulary (one per
   platform) is listed in atlas `allowed_target_edges`; UI itself still never builds on an
@@ -155,6 +175,9 @@ Never grow the common command interface into an enum of vendor features.
   `Fixtures/live-video-nal-vectors.tsv` is regenerated with
   `OPENCINE_WRITE_FIXTURES=1 swift test --filter LiveVideoNalVectorTests`, never by hand.
   `OpenCineFrameIO` holds no credential namespace, keychain or bundle lookup.
+  Battery consumers use `PowerStatus.batteryReading` and the separately observed exhaustion fact.
+  Relay decoding converts legacy missing battery fields at the integration boundary; explicit
+  null stays unknown. Exhaustion is never inferred from the charge level.
 - Vulkan (`Android/vulkan`): keep the JNI class `com.opencapture.openpocketcine.feed.OpcVulkan`
   and its exported symbols unless every consuming app changes in step; run
   `scripts/android-vulkan-sync-test.sh` after touching the submit/present path.
@@ -182,6 +205,8 @@ Never grow the common command interface into an enum of vendor features.
   exports `Java_com_opencapture_opencine_nikon_NikonNative_*`, so change both sides in step and
   compare `llvm-nm -D` of an app's `.so` with the `external fun`s. Every session call names its
   connection owner (owner-keyed registry); never add an unowned one.
+  The portable battery gauge lives in `:nikon-wire` under its original public package and class;
+  that module depends on Core values only and contains no camera owner, JNI or UI.
 - DJI, Nikon: behavior changes need the consumer checks (the app's `swift test`, iOS
   build-for-testing and Android with Swift core staging). Nikon passive discovery and the
   per-operation admission rules change only with a hardware-qualified reason.

@@ -167,6 +167,12 @@ public struct MonitorMediaCacheEntry: Sendable {
     public var isPlayableOffline: Bool { originalURL != nil || proxyURL != nil }
 }
 
+/// A selective clear reports confirmed removals and every selected file that remains retryable.
+public struct MonitorMediaCacheRemoval: Equatable, Sendable {
+    public let removedBytes: UInt64
+    public let remainingFiles: [String]
+}
+
 /// Root lifetime shared explicitly by the cache/library owners for that namespace. No globals.
 /// One caller-owned declared media root. Gallery and settings reuse each namespace's write lifetime.
 @MainActor public final class MonitorMediaCacheRoot {
@@ -194,6 +200,15 @@ public struct MonitorMediaCacheEntry: Sendable {
         directories[namespace] = value
         return value
     }
+
+    /// Every live or valid retired camera namespace on disk, once each in stable order.
+    /// Settings can account for interrupted Clear operations and retry prepared deletions.
+    public func cachedDirectories() -> [MonitorMediaCacheDirectory] {
+        MonitorMediaCacheNamespaces.names(under: root, manager: manager).compactMap {
+            try? directory(namespace: $0)
+        }
+    }
+
 }
 
 @MainActor public final class MonitorMediaCacheDirectory {
@@ -314,7 +329,7 @@ public struct MonitorMediaCacheEntry: Sendable {
             for resource in retired where manager.fileExists(atPath: resource.temporary.path) {
                 try manager.removeItem(at: resource.temporary)
             }
-            if manager.fileExists(atPath: root.path) {
+            if MonitorMediaCacheNamespaces.isDirectory(root, manager: manager) {
                 let suffix = root.lastPathComponent + "-" + UUID().uuidString
                 let retired = root.deletingLastPathComponent().appendingPathComponent(
                     ".retiring-" + suffix)
@@ -375,6 +390,99 @@ public struct MonitorMediaCacheEntry: Sendable {
         }.value
     }
 
+    /// Counts only the host's declared files, off the main actor. Missing files count as zero;
+    /// failed observations throw so Settings can retain an unknown readout.
+    public func selectedByteCount(_ addresses: [String]) async throws -> UInt64 {
+        try Task.checkCancellation()
+        let selected = try selectedFiles(addresses)
+        let root = root
+        let access = MediaCacheFileAccess(manager: manager)
+        let worker = Task.detached(priority: .utility) {
+            var bytes: UInt64 = 0
+            for address in selected {
+                try Task.checkCancellation()
+                bytes += try access.selectedFileSize(root: root, address: address) ?? 0
+            }
+            return bytes
+        }
+        return try await withTaskCancellationHandler {
+            let bytes = try await worker.value
+            try Task.checkCancellation()
+            return bytes
+        } onCancel: {
+            worker.cancel()
+        }
+    }
+
+    /// Retires writers and removes declared files and real descendants of declared directories.
+    /// Only empty directories are removed; links, successors and unnamed staging stay intact.
+    /// The caller retains its deadline; cancellation stops before the next filesystem mutation.
+    public func removeFiles(_ addresses: [String]) throws -> MonitorMediaCacheRemoval {
+        try Task.checkCancellation()
+        let selected = try selectedFiles(addresses)
+        let access = MediaCacheFileAccess(manager: manager)
+        let selections = try selected.map { ($0, try access.selectedRemovalFiles(root: root, address: $0)) }
+        let paths = try selectedFiles(selections.flatMap { $0.1 })
+        let reservations = try Dictionary(uniqueKeysWithValues: paths.map { (try url($0).path, UUID()) })
+        // Retire the captured root access, retaining every unnamed staging file. A selective
+        // clear cannot infer that an unfinished import is disposable cache.
+        let (captured, retired) = try writes.withLock {
+            try Task.checkCancellation()
+            writes.generation &+= 1
+            writes.current.removeAll()
+            let resources = Array(writes.resources.values)
+            writes.resources.removeAll()
+            writes.current.merge(reservations) { _, token in token }
+            return (writes.generation, resources)
+        }
+        defer {
+            writes.withLock {
+                for (path, token) in reservations where writes.current[path] == token {
+                    writes.current[path] = nil
+                }
+            }
+            for resource in retired { resource.requestClose() }
+        }
+        var bytes: UInt64 = 0
+        var remaining: [String] = []
+        for (declared, paths) in selections {
+            var failed = false
+            for address in paths {
+                try Task.checkCancellation()
+                do {
+                    guard let info = try access.selectedItem(root: root, address: address) else { continue }
+                    let destination = try url(address)
+                    try writes.withLock {
+                        guard writes.generation == captured else { throw MonitorMediaCacheError.retired }
+                        guard let token = reservations[destination.path], writes.current[destination.path] == token else { return }
+                        if info.isDirectory {
+                            // rmdir is nonrecursive, so a new or unselected child is never swept away.
+                            if rmdir(destination.path) != 0 {
+                                let code = errno
+                                if code != ENOENT { throw NSError(domain: NSPOSIXErrorDomain, code: Int(code)) }
+                            }
+                        } else {
+                            try manager.removeItem(at: destination)
+                            bytes += info.size
+                        }
+                        writes.current[destination.path] = nil
+                    }
+                } catch MonitorMediaCacheError.retired { throw MonitorMediaCacheError.retired
+                } catch let error as CocoaError where MediaCacheFileAccess.isMissing(error) {
+                    continue
+                } catch { failed = true }
+            }
+            if failed { remaining.append(declared) }
+        }
+        return .init(removedBytes: bytes, remainingFiles: remaining)
+    }
+
+    private func selectedFiles(_ addresses: [String]) throws -> [String] {
+        let selected = Array(Set(addresses)).sorted()
+        for address in selected { _ = try url(address) }
+        return selected
+    }
+
     private nonisolated static func totalBytes(
         root: URL, manager: FileManager,
         accountLegacyUnpreparedRoots: Bool
@@ -385,7 +493,7 @@ public struct MonitorMediaCacheEntry: Sendable {
                 root: root, manager: manager, includeUnprepared: true,
                 accountLegacyUnpreparedRoots: accountLegacyUnpreparedRoots)
         {
-            guard
+            guard MonitorMediaCacheNamespaces.isDirectory(directory, manager: manager),
                 let files = manager.enumerator(
                     at: directory,
                     includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey])
@@ -406,7 +514,8 @@ public struct MonitorMediaCacheEntry: Sendable {
         ((try? manager.contentsOfDirectory(
             at: root.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? [])
             .filter {
-                isRetirementName(
+                // Reject unrelated siblings before asking the filesystem for metadata.
+                let owned = isRetirementName(
                     $0.lastPathComponent, prefix: ".clearing-" + root.lastPathComponent + "-")
                     || (includeUnprepared
                         && (isRetirementName(
@@ -415,6 +524,7 @@ public struct MonitorMediaCacheEntry: Sendable {
                             || (accountLegacyUnpreparedRoots
                                 && $0.lastPathComponent.hasPrefix(
                                     ".retiring-" + root.lastPathComponent + "-"))))
+                return owned && MonitorMediaCacheNamespaces.isDirectory($0, manager: manager)
             }
     }
     private nonisolated static func isRetirementName(_ name: String, prefix: String) -> Bool {
@@ -426,9 +536,94 @@ public struct MonitorMediaCacheEntry: Sendable {
     }
 }
 
+/// Discover only actual child directories. A retirement encodes its namespace followed by one
+/// canonical UUID; malformed or unrelated hidden paths never become cache ownership.
+enum MonitorMediaCacheNamespaces {
+    static func names(under parent: URL, manager: FileManager) -> [String] {
+        let children = (try? manager.contentsOfDirectory(
+            at: parent, includingPropertiesForKeys: nil)) ?? []
+        return Set(children.compactMap { child -> String? in
+            guard isDirectory(child, manager: manager) else { return nil }
+            let name = child.lastPathComponent
+            if !name.hasPrefix(".") { return validNamespace(name) ? name : nil }
+            for prefix in [".clearing-", ".retiring-"] where name.hasPrefix(prefix) {
+                let encoded = String(name.dropFirst(prefix.count))
+                guard encoded.count > 37 else { return nil }
+                let suffix = String(encoded.suffix(36))
+                guard let id = UUID(uuidString: suffix),
+                    id.uuidString.caseInsensitiveCompare(suffix) == .orderedSame,
+                    encoded.dropLast(36).last == "-"
+                else { return nil }
+                let namespace = String(encoded.dropLast(37))
+                return validNamespace(namespace) ? namespace : nil
+            }
+            return nil
+        }).sorted()
+    }
+
+    private static func validNamespace(_ name: String) -> Bool {
+        !name.isEmpty && !name.hasPrefix(".") && !name.contains("/") && !name.contains("\\")
+    }
+
+    nonisolated static func isDirectory(_ url: URL, manager: FileManager) -> Bool {
+        // attributesOfItem inspects the link itself; fileExists(isDirectory:) follows it.
+        (try? manager.attributesOfItem(atPath: url.path)[.type]) as? FileAttributeType == .typeDirectory
+    }
+}
+
 /// Immutable access to Foundation's thread-safe path operations. No delegate or configuration
 /// mutation is performed after construction; transfer/root authority stays in MediaCacheWrites.
-private struct MediaCacheFileAccess: @unchecked Sendable { let manager: FileManager }
+private struct MediaCacheFileAccess: @unchecked Sendable {
+    let manager: FileManager
+
+    static func isMissing(_ error: CocoaError) -> Bool {
+        error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile
+    }
+
+    func selectedFileSize(root: URL, address: String) throws -> UInt64? {
+        guard let info = try selectedItem(root: root, address: address) else { return nil }
+        guard !info.isDirectory else { throw MonitorMediaCacheError.invalidAddress }
+        return info.size
+    }
+
+    func selectedRemovalFiles(root: URL, address: String) throws -> [String] {
+        try Task.checkCancellation()
+        do {
+            guard try selectedItem(root: root, address: address)?.isDirectory == true else { return [address] }
+            let children = try manager.contentsOfDirectory(atPath: root.appendingPathComponent(address).path)
+            return try children.sorted().flatMap { try selectedRemovalFiles(root: root, address: address + "/" + $0) } + [address]
+        } catch is CancellationError { throw CancellationError()
+        } catch { return [address] }
+    }
+
+    func selectedItem(root: URL, address: String) throws -> (isDirectory: Bool, size: UInt64)? {
+        do {
+            guard
+                try manager.attributesOfItem(atPath: root.path)[.type] as? FileAttributeType
+                    == .typeDirectory
+            else { throw MonitorMediaCacheError.invalidAddress }
+            let pieces = address.split(separator: "/")
+            var location = root
+            for (index, piece) in pieces.enumerated() {
+                location.appendPathComponent(String(piece))
+                let info = try manager.attributesOfItem(atPath: location.path)
+                let last = index == pieces.count - 1
+                let type = info[.type] as? FileAttributeType
+                guard type == .typeDirectory || (last && type == .typeRegular) else {
+                    throw MonitorMediaCacheError.invalidAddress
+                }
+                if last {
+                    if type == .typeDirectory { return (true, 0) }
+                    guard let bytes = (info[.size] as? NSNumber)?.uint64Value else {
+                        throw CocoaError(.fileReadUnknown)
+                    }
+                    return (false, bytes)
+                }
+            }
+            throw MonitorMediaCacheError.invalidAddress
+        } catch let error as CocoaError where Self.isMissing(error) { return nil }
+    }
+}
 
 private final class MediaCacheWrites: @unchecked Sendable {
     final class Resource: @unchecked Sendable {
@@ -703,6 +898,13 @@ struct MonitorMediaCatalogAuthority: Equatable, Sendable {
         try await readPlan(records).read()
     }
     public func clear() async throws { try await directory.clear(preserving: preservedMetadata) }
+
+    /// Clear for the settings scope, which removes the camera indexes with the clips (A2-33):
+    /// dropping the preserved metadata keeps a formatted card from leaving thumbnail-less ghost
+    /// rows behind, and the camera re-enumerates the truth on the next connected pass.
+    public func clear(preservingMetadata: Bool) async throws {
+        try await directory.clear(preserving: preservingMetadata ? preservedMetadata : [])
+    }
 }
 
 /// Admission identity accompanies a snapshot; owners reject another plan or retired directory.

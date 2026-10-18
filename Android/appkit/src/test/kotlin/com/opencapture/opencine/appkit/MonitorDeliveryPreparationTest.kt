@@ -29,7 +29,7 @@ class MonitorDeliveryPreparationTest {
         var network: Boolean? = false; var configured: Boolean? = true; var connected: Boolean? = true
         var savedID: String? = null; var sourceHook: (() -> Boolean)? = null
         var persistHook: (() -> Unit)? = null; var restoreHook: (() -> Unit)? = null
-        var lut: Boolean? = true; var convert: Boolean? = true
+        var lut: Boolean? = true; var convert: Boolean? = true; var skips = true
         val nativeWaits = mutableListOf<Int>()
         fun model(scope: CoroutineScope, preferred: MonitorDeliveryDestination? = MonitorDeliveryDestination.REMOTE_UPLOAD,
             export: Boolean = true, missingConfiguration: Boolean = false) = MonitorDeliveryPreparationModel<Int, Int, String, String, Int>(scope,
@@ -45,7 +45,7 @@ class MonitorDeliveryPreparationTest {
                 internet = MonitorDeliveryInternetService({ network == true }, { revision++; owned = revision; revision },
                     { owned == it }, { nativeWaits += it; waits.value() },
                     { if (owned == it) { restored += it; owned = null; restoreHook?.invoke() } }),
-                transfer = { if (owned != it) null else { revision++; owned = revision; revision } }),
+                transfer = { if (owned != it) null else { revision++; owned = revision; revision } }, skipsUploaded = skips),
             preferredDestination = preferred, sourceCurrent = { sourceHook?.invoke() ?: true },
             sleep = { assertEquals(1.seconds, it); clock.value() })
         fun finish(model: MonitorDeliveryPreparationModel<Int, Int, String, String, Int>) {
@@ -128,6 +128,33 @@ class MonitorDeliveryPreparationTest {
         fixture.finish(model); fixture.creates.release(MonitorDeliveryProject("late", "late", true, "late")); runCurrent()
         assertEquals(listOf("known"), model.state.value.listing!!.projects.map { it.id })
         assertEquals(listOf("known"), fixture.persisted); assertEquals("known", model.state.value.selectedProjectID); assertFalse(model.canContinue)
+    }
+    @Test fun preparedRemoteRequestCarriesTheSelectedProjectAndListingContext() = runTest {
+        val fixture = Fixture(); val model = fixture.model(backgroundScope)
+        model.start(); runCurrent()
+        fixture.loads.release(MonitorDeliveryProjectListing("SIMULATED account", listOf(
+            MonitorDeliveryProject("first", "First", true, "first payload"),
+            MonitorDeliveryProject("second", "Second", true, "second payload")))); runCurrent()
+        model.selectProject("second")
+        val request = model.takeRequest()
+        assertEquals(MonitorDeliveryDestination.REMOTE_UPLOAD, request!!.destination)
+        assertEquals("second payload", request.project?.payload)
+        assertEquals("SIMULATED account", request.projectContext)
+        fixture.finish(model); runCurrent()
+        val native = fixture.model(backgroundScope, MonitorDeliveryDestination.NATIVE_SHARE)
+        native.start(); runCurrent()
+        val share = native.takeRequest()
+        assertNull(share!!.project); assertNull(share.projectContext)
+        fixture.finish(native); runCurrent()
+    }
+    @Test fun reuploadIsOfferedOnlyForARemoteThatSkipsUploadedRecords() = runTest {
+        val fixture = Fixture(); val model = fixture.model(backgroundScope)
+        assertTrue(model.offersReupload)
+        model.start(); runCurrent(); model.selectDestination(MonitorDeliveryDestination.NATIVE_SHARE); assertFalse(model.offersReupload)
+        fixture.finish(model)
+        fixture.skips = false; val plain = fixture.model(backgroundScope)
+        assertFalse(plain.offersReupload)
+        fixture.finish(plain); runCurrent()
     }
     @Test fun acceptedDeliveryTransfersLeaseBeforePopupClose() = runTest {
         val fixture = Fixture(); fixture.network = true; fixture.savedID = "saved"

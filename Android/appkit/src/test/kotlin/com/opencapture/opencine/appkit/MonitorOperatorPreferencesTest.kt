@@ -54,6 +54,43 @@ class MonitorOperatorPreferencesTest {
         assertFalse(first.haptics)
         assertTrue(third.haptics)
     }
+
+    /** Remote shutter (A2-32): on until the operator turns it off, like OpenZCine, under the app's key. */
+    @Test fun remoteShutterIsOnByDefaultAndAnExplicitOffSurvivesReload() {
+        val memory = PreferencesMemory()
+        val withKey = keys().copy(remoteShutter = "operator.remote")
+        val store = MonitorOperatorPreferences(memory.storage, withKey)
+        assertTrue(store.remoteShutter)
+        assertFalse(memory.values.containsKey("operator.remote"))
+        var heard = 0
+        store.addChangeListener { heard++ }
+        store.remoteShutter = false
+        assertTrue(heard == 1, "The Settings write reaches the monitor that arms the shutter")
+        assertFalse(MonitorOperatorPreferences(memory.storage, withKey).remoteShutter)
+        assertTrue(memory.values["operator.remote"] == false)
+    }
+
+    /** An app that offers no remote shutter names no key: it reads the default and stores nothing. */
+    @Test fun anAppWithoutARemoteShutterKeyStoresNoRemoteChoice() {
+        val memory = PreferencesMemory()
+        val store = MonitorOperatorPreferences(memory.storage, keys(),
+            MonitorOperatorPreferences.Defaults(remoteShutter = false))
+        assertTrue(keys().remoteShutter == null)
+        assertFalse(store.remoteShutter)
+        assertTrue(memory.values.isEmpty())
+    }
+
+    /** A2-18 for generated apps: the scene root that applies screen wake hears each Settings write. */
+    @Test fun aChangeListenerHearsEachWriteUntilItCloses() {
+        val store = MonitorOperatorPreferences(PreferencesMemory().storage, keys())
+        var heard = 0
+        val listening = store.addChangeListener { heard++ }
+        store.keepScreenAwake = false
+        assertTrue(heard == 1 && !store.keepScreenAwake)
+        listening.close()
+        store.keepScreenAwake = true
+        assertTrue(heard == 1, "A closed listener hears nothing")
+    }
 }
 
 /** Exercises the real SharedPreferences calls without requiring a native Android test host. */

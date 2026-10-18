@@ -1,0 +1,28 @@
+# Golden vectors for the one storage readout (A5-11), read by both shells.
+#
+# Swift owns them in `StorageReadout` (`Sources/OpenCineCameraVocabulary/StorageReadout.swift`);
+# Kotlin re-implements them in `StorageReadout` (`Android/camera-vocabulary/.../StorageReadout.kt`).
+# `StorageReadoutVectorTests` (Swift) and `StorageReadoutVectorTest` (Kotlin) both read this file.
+#
+# Free space uses the shared decimal byte formatter; the percentage of
+# the capacity rounds half up too. The shared case is 60,000,000,000 free bytes of 128e9.
+#
+# Rows (tab separated; "-" is an absent value):
+#   bytes  <free bytes>  <total bytes>  <free label>  <label>      StorageReadout(freeBytes:totalBytes:)
+#   mib    <storageFreeMb>  <storageTotalMb>  <sdFreeMb>  <sdTotalMb>  <label>
+#          CameraStatus.storageReadout: the DJI-wire fields (MiB), aggregate first, then the SD card
+bytes	60000000000	128000000000	60 GB	60 GB · 47%
+bytes	60000000000	-	60 GB	60 GB
+bytes	59499999999	128000000000	59.5 GB	59.5 GB · 46%
+bytes	59500000000	128000000000	59.5 GB	59.5 GB · 46%
+bytes	0	128000000000	0 B	0 B · 0%
+bytes	64000000000	64000000000	64 GB	64 GB · 100%
+bytes	999999999999	2000000000000	1 TB	1 TB · 50%
+mib	57220	122070	0	0	60 GB · 47%
+mib	0	0	57220	122070	60 GB · 47%
+mib	2048	4096	512	1024	2.15 GB · 50%
+mib	0	0	1024	2048	1.07 GB · 50%
+mib	8192	16384	0	0	8.59 GB · 50%
+mib	57220	0	0	0	60 GB
+mib	0	1024	0	0	0 B · 0%
+mib	0	0	0	0	-

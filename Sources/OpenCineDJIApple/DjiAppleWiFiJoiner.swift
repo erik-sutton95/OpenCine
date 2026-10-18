@@ -3,6 +3,7 @@ import Darwin
 import Foundation
 import Network
 import NetworkExtension
+import OpenCineCore
 import OpenCineDJI
 
 /// Joins the camera's SoftAP with the credentials read over BLE. Requires the
@@ -56,12 +57,68 @@ public enum DjiAppleWiFiJoiner {
         wpa3: Bool,
         knownOtherSSIDs: [String],
         persist: Bool = false,
-        host: DjiAppleTransportHost = .init()
+        host: DjiAppleTransportHost = .init(),
+        isCurrent: @escaping CameraNetworkIsCurrent = { true }
+    ) async throws {
+        guard let hotspot = host.hotspot else {
+            // Compatibility for clients without a host-owned hotspot owner: the original calls.
+            try await joinCameraAP(ssid: ssid, passphrase: passphrase, wpa3: wpa3,
+                knownOtherSSIDs: knownOtherSSIDs, persist: persist, host: host, mutations: .legacy(host))
+            return
+        }
+        try await hotspot.withAttempt(isCurrent) { operations in
+            try await joinCameraAP(ssid: ssid, passphrase: passphrase, wpa3: wpa3,
+                knownOtherSSIDs: knownOtherSSIDs, persist: persist, host: host,
+                mutations: .shared(hotspot, operations, host: host))
+        }
+    }
+
+    /// The hotspot actions of one join workflow: the host's retained owner (serialized behind any
+    /// still pending native apply) or the original direct calls.
+    @MainActor struct Mutations {
+        var apply: (_ ssid: String, _ passphrase: String, _ wpa3: Bool, _ persist: Bool,
+            _ timeout: Duration) async throws -> Void
+        var remove: (String) -> Void
+        var currentSSID: () async -> String?
+        var configuredSSIDs: () async -> [String]
+
+        static func legacy(_ host: DjiAppleTransportHost) -> Self {
+            .init(apply: { ssid, passphrase, wpa3, persist, timeout in
+                try await join(ssid: ssid, passphrase: passphrase, wpa3: wpa3, persist: persist,
+                    timeout: timeout, host: host)
+            }, remove: { leave(ssid: $0) }, currentSSID: { await DjiAppleWiFiJoiner.currentSSID() },
+                configuredSSIDs: { await DjiAppleWiFiJoiner.configuredSSIDs() })
+        }
+
+        static func shared(_ hotspot: CameraHotspotHost, _ operations: CameraHotspotOperations,
+            host: DjiAppleTransportHost) -> Self {
+            .init(apply: { ssid, passphrase, _, persist, timeout in
+                do {
+                    // Join-once drops the hotspot when the app leaves the foreground; saved
+                    // cameras need the config to survive Control Center / background.
+                    try await operations.apply(.init(selection: .ssid(ssid),
+                        security: .personal(passphrase: passphrase), joinOnce: !persist, timeout: timeout))
+                    try applyOutcome(nil, ssid: ssid, persist: persist, host: host).get()
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch CameraHotspotError.timedOut {
+                    throw JoinError.timedOut
+                } catch {
+                    try applyOutcome(error as NSError, ssid: ssid, persist: persist, host: host).get()
+                }
+            }, remove: { operations.remove($0) }, currentSSID: { await DjiAppleWiFiJoiner.currentSSID(hotspot) },
+                configuredSSIDs: { await hotspot.configuredSSIDs() })
+        }
+    }
+
+    private static func joinCameraAP(
+        ssid: String, passphrase: String, wpa3: Bool, knownOtherSSIDs: [String], persist: Bool,
+        host: DjiAppleTransportHost, mutations: Mutations
     ) async throws {
         try Task.checkCancellation()
         var kick = Set(knownOtherSSIDs.filter { !$0.isEmpty && $0 != ssid })
-        leave(ssids: Array(kick))
-        await leaveOtherOsmoSoftAPs(except: ssid, host: host)
+        leave(ssids: Array(kick), mutations: mutations)
+        await leaveOtherOsmoSoftAPs(except: ssid, host: host, mutations: mutations)
 
         let deadline = Date().addingTimeInterval(CameraSoftAPSwitch.joinDeadlineSeconds)
         var lastError: Error = JoinError.pathNotReady
@@ -69,26 +126,26 @@ public enum DjiAppleWiFiJoiner {
         while true {
             attempt += 1
             try Task.checkCancellation()
-            let current = await currentSSID()
+            let current = await mutations.currentSSID()
             try Task.checkCancellation()
             if let foreign = CameraSoftAPSwitch.ssidToKick(
                 currentSSID: current, target: ssid, knownCameraSSIDs: knownOtherSSIDs)
             {
                 host.journal("wifi: kick \(foreign) then join \(ssid) #\(attempt)")
-                leave(ssid: foreign)
+                mutations.remove(foreign)
                 kick.insert(foreign)
             }
-            leave(ssids: Array(kick))
-            await leaveOtherOsmoSoftAPs(except: ssid, host: host)
+            leave(ssids: Array(kick), mutations: mutations)
+            await leaveOtherOsmoSoftAPs(except: ssid, host: host, mutations: mutations)
             try await Task.sleep(for: .milliseconds(250))
             do {
-                try await join(
-                    ssid: ssid, passphrase: passphrase, wpa3: wpa3, persist: persist,
-                    timeout: .seconds(min(20, max(0, deadline.timeIntervalSinceNow))), host: host)
+                try await mutations.apply(
+                    ssid, passphrase, wpa3, persist,
+                    .seconds(min(20, max(0, deadline.timeIntervalSinceNow))))
                 try Task.checkCancellation()
                 try await waitUntilCameraPathReady(
                     timeout: min(15, max(0, deadline.timeIntervalSinceNow)), host: host)
-                let now = await currentSSID()
+                let now = await mutations.currentSSID()
                 try Task.checkCancellation()
                 if CameraSoftAPSwitch.isOnTarget(currentSSID: now, target: ssid) {
                     host.journal("wifi: on \(ssid) (ssid=\(now ?? "nil")) #\(attempt)")
@@ -98,7 +155,7 @@ public enum DjiAppleWiFiJoiner {
                 if let now,
                     CameraSoftAPSwitch.isCameraNetwork(now, knownCameraSSIDs: knownOtherSSIDs)
                 {
-                    leave(ssid: now)
+                    mutations.remove(now)
                 }
                 lastError = JoinError.stillOnOtherBody(now ?? "other camera")
             } catch is CancellationError {
@@ -120,9 +177,23 @@ public enum DjiAppleWiFiJoiner {
             host.journal(
                 "wifi: join \(ssid) #\(attempt) missed (\(lastError.localizedDescription)) \u{2014} retry, \(Int(left)) s left"
             )
-            leave(ssid: ssid)
+            mutations.remove(ssid)
             try await Task.sleep(for: .seconds(CameraSoftAPSwitch.joinRetryPauseSeconds))
         }
+    }
+
+    /// The SSID through the host's retained owner when it supplies one.
+    public static func currentSSID(host: DjiAppleTransportHost) async -> String? {
+        guard let hotspot = host.hotspot else { return await currentSSID() }
+        return await currentSSID(hotspot)
+    }
+
+    private static func currentSSID(_ hotspot: CameraHotspotHost) async -> String? {
+        #if targetEnvironment(simulator)
+            return nil
+        #else
+            return await hotspot.currentSSID()
+        #endif
     }
 
     public static func currentSSID() async -> String? {
@@ -143,8 +214,17 @@ public enum DjiAppleWiFiJoiner {
         wpa3: Bool,
         persist: Bool = false,
         timeout: Duration = .seconds(20),
-        host: DjiAppleTransportHost = .init()
+        host: DjiAppleTransportHost = .init(),
+        isCurrent: @escaping CameraNetworkIsCurrent = { true }
     ) async throws {
+        if let hotspot = host.hotspot {
+            // One apply, serialized behind any join of this host's owner still pending natively.
+            try await hotspot.withAttempt(isCurrent) { operations in
+                try await Mutations.shared(hotspot, operations, host: host)
+                    .apply(ssid, passphrase, wpa3, persist, timeout)
+            }
+            return
+        }
         let config = NEHotspotConfiguration(ssid: ssid, passphrase: passphrase, isWEP: false)
         // Join-once drops the hotspot when the app leaves the foreground; saved
         // cameras need the config to survive Control Center / background.
@@ -152,27 +232,29 @@ public enum DjiAppleWiFiJoiner {
         try await awaitCallback(timeout: timeout) {
             (completion: @escaping @Sendable (Result<Void, Error>) -> Void) in
             NEHotspotConfigurationManager.shared.apply(config) { error in
-                if let error = error as NSError? {
-                    // "already associated" is success, not a failure.
-                    if error.domain == NEHotspotConfigurationErrorDomain,
-                        error.code == NEHotspotConfigurationError.alreadyAssociated.rawValue
-                    {
-                        host.journal("wifi: apply \(ssid) already associated")
-                        completion(.success(()))
-                        return
-                    }
-                    host.journal(
-                        "wifi: apply \(ssid) failed \(error.domain) \(error.code) \(error.localizedDescription)"
-                    )
-                    completion(.failure(JoinError.failed(error.localizedDescription)))
-                } else {
-                    // nil error is "config applied", not "associated" - a wrong
-                    // passphrase still returns here and iOS shows Unable to join.
-                    host.journal("wifi: apply \(ssid) ok persist=\(persist)")
-                    completion(.success(()))
-                }
+                completion(applyOutcome(error as NSError?, ssid: ssid, persist: persist, host: host))
             }
         }
+    }
+
+    private nonisolated static func applyOutcome(
+        _ error: NSError?, ssid: String, persist: Bool, host: DjiAppleTransportHost
+    ) -> Result<Void, Error> {
+        guard let error else {
+            // nil error is "config applied", not "associated" - a wrong
+            // passphrase still returns here and iOS shows Unable to join.
+            host.journal("wifi: apply \(ssid) ok persist=\(persist)")
+            return .success(())
+        }
+        // "already associated" is success, not a failure.
+        if error.domain == NEHotspotConfigurationErrorDomain,
+            error.code == NEHotspotConfigurationError.alreadyAssociated.rawValue
+        {
+            host.journal("wifi: apply \(ssid) already associated")
+            return .success(())
+        }
+        host.journal("wifi: apply \(ssid) failed \(error.domain) \(error.code) \(error.localizedDescription)")
+        return .failure(JoinError.failed(error.localizedDescription))
     }
 
     /// True when this phone has a DHCP address on the camera AP.
@@ -204,7 +286,7 @@ public enum DjiAppleWiFiJoiner {
             }
             try await Task.sleep(for: .milliseconds(100))
         }
-        let current = await currentSSID() ?? "nil"
+        let current = await currentSSID(host: host) ?? "nil"
         host.journal(
             "wifi: no 192.168.2.x after \(Int(timeout)) s ssid=\(current) ipv4=\(CameraSoftAP.describe(interfaceAddresses()))"
         )
@@ -221,18 +303,39 @@ public enum DjiAppleWiFiJoiner {
         }
     }
 
+    /// Leaves through the host's retained owner, which drops the removal if `isCurrent` turns
+    /// false while a native join is still pending. Without an owner, the original direct call.
+    public static func leave(
+        ssid: String, host: DjiAppleTransportHost, isCurrent: @escaping CameraNetworkIsCurrent = { true }
+    ) {
+        if let hotspot = host.hotspot { hotspot.remove(ssid, isCurrent) }
+        else if isCurrent() { leave(ssid: ssid) }
+    }
+
+    private static func leave(ssids: [String], mutations: Mutations) {
+        for ssid in Set(ssids) where !ssid.isEmpty {
+            mutations.remove(ssid)
+        }
+    }
+
     /// Pocket and Nano SoftAPs are both `192.168.2.1`. Drop every configured
     /// Osmo hotspot except the one we are about to join so iOS cannot stay
     /// on the other body. The other camera can stay powered on.
     public static func leaveOtherOsmoSoftAPs(except keep: String, host: DjiAppleTransportHost = .init()) async {
-        let configured = await configuredSSIDs()
+        await leaveOtherOsmoSoftAPs(except: keep, host: host, mutations: .legacy(host))
+    }
+
+    private static func leaveOtherOsmoSoftAPs(
+        except keep: String, host: DjiAppleTransportHost, mutations: Mutations
+    ) async {
+        let configured = await mutations.configuredSSIDs()
         guard !Task.isCancelled else { return }
         let extras = configured.filter { $0 != keep && CameraSoftAP.isOsmoSoftAPSSID($0) }
         if !extras.isEmpty {
             host.journal(
                 "wifi: removing other Osmo SoftAPs \(extras.joined(separator: ","))"
             )
-            leave(ssids: extras)
+            leave(ssids: extras, mutations: mutations)
         }
     }
 

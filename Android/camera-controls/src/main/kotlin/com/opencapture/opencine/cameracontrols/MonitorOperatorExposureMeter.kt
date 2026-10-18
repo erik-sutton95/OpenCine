@@ -16,21 +16,27 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.monitorReadoutShadow
+import com.opencapture.opencine.media.ExposureCompensation
 import com.opencapture.opencine.vocabulary.EvComp
 import kotlin.math.cos
 import kotlin.math.sin
 import com.opencapture.opencine.appkit.MonitorDisplayMode
 import com.opencapture.monitorui.MonitorRect
 
-/** Camera telemetry only; this never reads the configured compensation or sampled picture. */
-public class MonitorOperatorExposureReading(raw: Int, available: Boolean = true) {
-    private val value = EvComp.fromRaw(raw).takeIf { available }
-    public val stops: Double? = value?.thirds?.div(3.0)
-    public val label: String = value?.label ?: "\u2014"
-    /** Top is +3, bottom is −3. */
-    public val needleFraction: Float? = value?.thirds?.let { (9 - it) / 18f }
+/**
+ * Camera telemetry only; this never reads the configured compensation or sampled picture. [stops] is
+ * the metered exposure (a camera meters in thirds or sixths), null while unknown.
+ */
+public class MonitorOperatorExposureReading(stops: Double?, available: Boolean = true) {
+    /** The vocabulary's raw metered byte, `0x10` plus thirds. */
+    public constructor(raw: Int, available: Boolean = true) : this(EvComp.fromRaw(raw)?.thirds?.div(3.0), available)
+
+    public val stops: Double? = stops?.takeIf { available && it.isFinite() }
+    public val label: String = this.stops?.let(ExposureCompensation::label) ?: "\u2014"
+    /** Top is +3, bottom is −3. Scaled through thirds so a reported third lands exactly. */
+    public val needleFraction: Float? = this.stops?.let { (9f - (it.coerceIn(-3.0, 3.0) * 3).toFloat()) / 18f }
     public val accessibilityLabel: String =
-        if (value == null) "Camera exposure meter, unavailable" else "Camera exposure meter, $label EV"
+        if (this.stops == null) "Camera exposure meter, unavailable" else "Camera exposure meter, $label EV"
 
     public companion object {
         public fun frame(feed: MonitorRect, mode: MonitorDisplayMode, avoid: MonitorRect? = null): MonitorRect? {
@@ -58,7 +64,7 @@ public class MonitorOperatorExposureReading(raw: Int, available: Boolean = true)
 /** Fixed to the visible feed's left edge in DISP 1; it has no pointer handlers or saved placement. */
 @Composable
 public fun MonitorOperatorExposureMeter(
-    raw: Int,
+    stops: Double?,
     available: Boolean,
     feed: MonitorRect,
     mode: MonitorDisplayMode,
@@ -66,7 +72,7 @@ public fun MonitorOperatorExposureMeter(
     avoid: MonitorRect? = null,
 ): Unit {
     val frame = MonitorOperatorExposureReading.frame(feed, mode, avoid) ?: return
-    val reading = MonitorOperatorExposureReading(raw, available)
+    val reading = MonitorOperatorExposureReading(stops, available)
     val measurer = rememberTextMeasurer()
     Canvas(
         modifier.offset(frame.x.dp, frame.y.dp).size(frame.width.dp, frame.height.dp)
@@ -113,3 +119,12 @@ public fun MonitorOperatorExposureMeter(
         }
     }
 }
+
+/** Original raw-byte API retained while hosts adopt metered stops. */
+@Deprecated("Use metered stops")
+@Composable
+public fun MonitorOperatorExposureMeter(
+    raw: Int, available: Boolean, feed: MonitorRect, mode: MonitorDisplayMode,
+    modifier: Modifier = Modifier, avoid: MonitorRect? = null,
+): Unit = MonitorOperatorExposureMeter(EvComp.fromRaw(raw)?.thirds?.div(3.0), available,
+    feed, mode, modifier, avoid)

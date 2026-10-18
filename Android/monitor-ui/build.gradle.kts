@@ -34,7 +34,16 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.activity.compose)
     androidTestImplementation(libs.kotlin.test.junit)
+    androidTestImplementation(project(":camera-controls"))
+    // The test host hides the system bars; this library's run listener keeps Android's full
+    // screen tutorial from covering it.
+    androidTestImplementation(project(":system-hints-testing"))
 }
 
-// SharedUIRulesTest also scans the app shell sources.
-tasks.withType<Test>().configureEach { inputs.dir(rootDir.resolve("appkit/src/main")) }
+// SharedUIRulesTest scans the app shell; all fixture vectors share the Swift test inputs.
+tasks.withType<Test>().configureEach {
+    inputs.dir(rootDir.resolve("appkit/src/main"))
+    val fixtures = rootDir.resolve("../Fixtures")
+    inputs.dir(fixtures)
+    systemProperty("opencine.fixtures", fixtures.absolutePath)
+}

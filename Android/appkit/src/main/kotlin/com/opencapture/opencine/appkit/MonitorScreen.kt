@@ -70,7 +70,7 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
                 status(commonInteractive && presentation.statusInteractive)
             }
         }
-        if (presentation.powerMounted) Box(Modifier.frame(layout.gauges).visible(commonVisible, dim).then(commonAccessibility),
+        if (presentation.powerMounted) Box(Modifier.frame(layout.telemetry).visible(commonVisible, dim).then(commonAccessibility),
             contentAlignment = if (layout.portrait && !layout.tablet) Alignment.TopEnd else Alignment.TopStart) { power(commonInteractive) }
         if (presentation.captureMounted) Box(Modifier.frame(layout.values)
             .wrapContentHeight(align = Alignment.Bottom, unbounded = true)

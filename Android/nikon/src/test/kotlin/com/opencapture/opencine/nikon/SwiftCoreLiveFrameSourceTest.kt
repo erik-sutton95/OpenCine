@@ -1,5 +1,6 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CameraTimecode
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -204,12 +205,14 @@ class SwiftCoreLiveFrameSourceTest {
     @Test
     fun `full callback carries camera timecode with its frame`() = runTest {
         lateinit var listener: NikonNative.LiveFrameListener
+        val observed = mutableListOf<LiveFrameTimecode?>()
         val source =
             SwiftCoreLiveFrameSource(
                 available = { true },
                 start = { listener = it },
                 stop = {},
                 configurePreview = { true },
+                onTimecode = { observed += it },
                 sharingScope = backgroundScope,
             )
 
@@ -250,6 +253,10 @@ class SwiftCoreLiveFrameSourceTest {
         assertEquals(2, frame.timecode?.minute)
         assertEquals(3, frame.timecode?.second)
         assertEquals(4, frame.timecode?.frame)
+        runCurrent()
+        // A5-04: the same header reaches the session callback, running with its frame field; the
+        // pump stopping with the last collector reads unknown, never a frozen counter.
+        assertEquals(listOf(CameraTimecode(1, 2, 3, frames = 4), null), observed.map { it?.running })
         assertNull(frame.measuredFramesPerSecond)
         // Older callbacks never carry a body rotation; the frame stays landscape.
         assertEquals(LiveFeedRotation.LANDSCAPE, frame.rotation)
@@ -308,12 +315,14 @@ class SwiftCoreLiveFrameSourceTest {
     @Test
     fun `full callback preserves the camera timecode off state`() = runTest {
         lateinit var listener: NikonNative.LiveFrameListener
+        val observed = mutableListOf<LiveFrameTimecode?>()
         val source =
             SwiftCoreLiveFrameSource(
                 available = { true },
                 start = { listener = it },
                 stop = {},
                 configurePreview = { true },
+                onTimecode = { observed += it },
                 sharingScope = backgroundScope,
             )
 
@@ -351,6 +360,9 @@ class SwiftCoreLiveFrameSourceTest {
         val timecode = result.await().timecode
         assertEquals(false, timecode?.on)
         assertEquals(0, timecode?.frame)
+        // An off header is observed, but it never runs: no frozen 00:00:00:00.
+        assertEquals(timecode, observed.first())
+        assertNull(timecode?.running)
     }
 
     @Test

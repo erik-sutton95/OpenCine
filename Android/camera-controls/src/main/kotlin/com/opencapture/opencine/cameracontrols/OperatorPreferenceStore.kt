@@ -6,6 +6,7 @@ import com.opencapture.monitorui.MonitorJoystickSize
 import com.opencapture.opencine.appkit.MonitorClipShotColorPreferences
 import com.opencapture.opencine.appkit.MonitorDisplayChrome
 import com.opencapture.opencine.appkit.MonitorDisplayPreferences
+import com.opencapture.opencine.appkit.MonitorMotionPreferences
 import com.opencapture.opencine.appkit.MonitorOperatorPreferences
 import com.opencapture.opencine.appkit.MonitorToolUsagePreferences
 import com.opencapture.opencine.vocabulary.CameraCommands
@@ -35,14 +36,7 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
     private val AWAKE_LEGACY = "keep-screen-awake"
     private val RECORD_CONFIRM = key("RecordConfirmation")
     private val HAPTICS = key("HapticsEnabled")
-    private val GIMBAL = key("GimbalStickSensitivity")
-    private val VIRTUAL_INVERT_PAN = key("VirtualJoystickInvertPan")
-    private val VIRTUAL_INVERT_TILT = key("VirtualJoystickInvertTilt")
-    private val VIRTUAL_DEADZONE_PERCENT = key("VirtualJoystickDeadzonePercent")
-    private val VIRTUAL_RESPONSE_CURVE = key("VirtualJoystickResponseCurve")
-    private val VIRTUAL_SIZE = key("VirtualJoystickSize")
-    private val GIMBAL_RAMP = key("GimbalRamp")
-    private val GIMBAL_DOUBLE_TAP = key("GimbalDoubleTap")
+    private val REMOTE_SHUTTER = key("RemoteShutter")
     private val DISP_LIVE = key("DispChrome.Live")
     private val DISP_CLEAN = key("DispChrome.Clean")
     private val CLEAN_PINS = key("CleanViewPins.v1")
@@ -76,7 +70,7 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
     private fun common(context: Context) = MonitorOperatorPreferences(
         storage = prefs(context),
         keys = MonitorOperatorPreferences.Keys(AWAKE, HDR_DISPLAY, RECORD_CONFIRM, HAPTICS,
-            CACHE_FULL_RESOLUTION, AWAKE_LEGACY),
+            CACHE_FULL_RESOLUTION, AWAKE_LEGACY, REMOTE_SHUTTER),
     )
 
     fun keepScreenAwake(context: Context): Boolean = common(context).keepScreenAwake
@@ -87,62 +81,64 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
     fun setRecordConfirmationEnabled(context: Context, value: Boolean) { common(context).recordConfirmation = value }
     fun hapticsEnabled(context: Context): Boolean = common(context).haptics
     fun setHapticsEnabled(context: Context, value: Boolean) { common(context).haptics = value }
+    /** Volume and media presses toggle recording while the live view is in front (A2-32); on by default. */
+    fun remoteShutterEnabled(context: Context): Boolean = common(context).remoteShutter
+    fun setRemoteShutterEnabled(context: Context, value: Boolean) { common(context).remoteShutter = value }
 
-    fun gimbalStickSensitivity(context: Context): Int =
-        prefs(context).getInt(GIMBAL, DEFAULT_GIMBAL_SENSITIVITY).coerceIn(1, 5)
+    /** The shared motion owner over this file's existing keys, defaults and ranges. */
+    fun motionPreferences(context: Context) = MonitorMotionPreferences(
+        prefs(context), MonitorMotionPreferences.Keys.prefixed(keyPrefix),
+        MonitorMotionPreferences.Defaults(
+            gimbalStickSensitivity = DEFAULT_GIMBAL_SENSITIVITY,
+            virtualJoystickDeadzonePercent = CameraCommands.GIMBAL_STICK_DEFAULT_DEADZONE_PERCENT,
+            virtualJoystickResponseCurve = CameraCommands.VirtualJoystickCurve.parse(null).raw,
+            virtualJoystickSize = MonitorJoystickSize.parse(null).raw,
+            gimbalRamp = com.opencapture.opencine.vocabulary.GimbalRamp.OFF.raw,
+            gimbalDoubleTap = com.opencapture.opencine.vocabulary.GimbalDoubleTap.RECENTER.raw,
+        ),
+        MonitorMotionPreferences.Limits(sensitivity = 1..5, deadzonePercent = 0..25),
+    )
+
+    fun gimbalStickSensitivity(context: Context): Int = motionPreferences(context).gimbalStickSensitivity
 
     fun setGimbalStickSensitivity(context: Context, value: Int) {
-        prefs(context).edit { putInt(GIMBAL, value.coerceIn(1, 5)) }
+        motionPreferences(context).gimbalStickSensitivity = value
     }
 
-    fun virtualJoystickInvertPan(context: Context): Boolean =
-        prefs(context).getBoolean(VIRTUAL_INVERT_PAN, false)
+    fun virtualJoystickInvertPan(context: Context): Boolean = motionPreferences(context).virtualJoystickInvertPan
 
     fun setVirtualJoystickInvertPan(context: Context, value: Boolean) {
-        prefs(context).edit { putBoolean(VIRTUAL_INVERT_PAN, value) }
+        motionPreferences(context).virtualJoystickInvertPan = value
     }
 
-    fun virtualJoystickInvertTilt(context: Context): Boolean =
-        prefs(context).getBoolean(VIRTUAL_INVERT_TILT, false)
+    fun virtualJoystickInvertTilt(context: Context): Boolean = motionPreferences(context).virtualJoystickInvertTilt
 
     fun setVirtualJoystickInvertTilt(context: Context, value: Boolean) {
-        prefs(context).edit { putBoolean(VIRTUAL_INVERT_TILT, value) }
+        motionPreferences(context).virtualJoystickInvertTilt = value
     }
 
-    fun virtualJoystickDeadzonePercent(context: Context): Int {
-        val stored = prefs(context)
-        val raw =
-            if (stored.contains(VIRTUAL_DEADZONE_PERCENT)) stored.getInt(VIRTUAL_DEADZONE_PERCENT, 8)
-            else null
-        return CameraCommands.VirtualJoystickMapping.resolvedDeadzonePercent(raw)
-    }
+    fun virtualJoystickDeadzonePercent(context: Context): Int =
+        motionPreferences(context).virtualJoystickDeadzonePercent
 
     fun setVirtualJoystickDeadzonePercent(context: Context, value: Int) {
-        prefs(context).edit {
-            putInt(
-                VIRTUAL_DEADZONE_PERCENT,
-                CameraCommands.VirtualJoystickMapping.clampedDeadzonePercent(value),
-            )
-        }
+        motionPreferences(context).virtualJoystickDeadzonePercent = value
     }
 
     fun virtualJoystickResponseCurve(context: Context): CameraCommands.VirtualJoystickCurve =
-        CameraCommands.VirtualJoystickCurve.parse(
-            prefs(context).getString(VIRTUAL_RESPONSE_CURVE, null),
-        )
+        CameraCommands.VirtualJoystickCurve.parse(motionPreferences(context).virtualJoystickResponseCurve)
 
     fun setVirtualJoystickResponseCurve(
         context: Context,
         value: CameraCommands.VirtualJoystickCurve,
     ) {
-        prefs(context).edit { putString(VIRTUAL_RESPONSE_CURVE, value.raw) }
+        motionPreferences(context).virtualJoystickResponseCurve = value.raw
     }
 
     fun virtualJoystickSize(context: Context): MonitorJoystickSize =
-        MonitorJoystickSize.parse(prefs(context).getString(VIRTUAL_SIZE, null))
+        MonitorJoystickSize.parse(motionPreferences(context).virtualJoystickSize)
 
     fun setVirtualJoystickSize(context: Context, value: MonitorJoystickSize) {
-        prefs(context).edit { putString(VIRTUAL_SIZE, value.raw) }
+        motionPreferences(context).virtualJoystickSize = value.raw
     }
 
     fun virtualJoystickMapping(context: Context): CameraCommands.VirtualJoystickMapping =
@@ -156,18 +152,18 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
         )
 
     fun gimbalRamp(context: Context): com.opencapture.opencine.vocabulary.GimbalRamp =
-        com.opencapture.opencine.vocabulary.GimbalRamp.fromRaw(prefs(context).getInt(GIMBAL_RAMP, 0))
+        com.opencapture.opencine.vocabulary.GimbalRamp.fromRaw(motionPreferences(context).gimbalRamp)
 
     fun setGimbalRamp(context: Context, value: com.opencapture.opencine.vocabulary.GimbalRamp) {
-        prefs(context).edit { putInt(GIMBAL_RAMP, value.raw) }
+        motionPreferences(context).gimbalRamp = value.raw
     }
 
     /** Stick double-tap / gamepad Circle/B. Absent key is Recenter (iOS parity). */
     fun gimbalDoubleTap(context: Context): com.opencapture.opencine.vocabulary.GimbalDoubleTap =
-        com.opencapture.opencine.vocabulary.GimbalDoubleTap.fromRaw(prefs(context).getInt(GIMBAL_DOUBLE_TAP, 0))
+        com.opencapture.opencine.vocabulary.GimbalDoubleTap.fromRaw(motionPreferences(context).gimbalDoubleTap)
 
     fun setGimbalDoubleTap(context: Context, value: com.opencapture.opencine.vocabulary.GimbalDoubleTap) {
-        prefs(context).edit { putInt(GIMBAL_DOUBLE_TAP, value.raw) }
+        motionPreferences(context).gimbalDoubleTap = value.raw
     }
 
     fun displayPreferences(context: Context) = MonitorDisplayPreferences(

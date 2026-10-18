@@ -16,6 +16,7 @@ import Testing
     var owned: Int?
     var revision = 0
     var polls = 0
+    var refuses = false
     var service: MonitorDeliveryRemoteService<String, Int, Int> {
         .init(
             presentation: .init(displayName: "Remote", progressCaption: "Uploading"),
@@ -37,6 +38,10 @@ import Testing
             internet: .init(
                 needsHop: { self.onCameraNetwork },
                 begin: {
+                    if self.refuses {
+                        self.calls.append("refused")
+                        return nil
+                    }
                     self.calls.append("begin")
                     self.revision += 1
                     self.owned = self.revision
@@ -52,7 +57,7 @@ import Testing
                     self.calls.append("restore \(lease)")
                     self.owned = nil
                 }),
-            transfer: { $0 })
+            transfer: { $0 }, skipsUploaded: false)
     }
 }
 
@@ -130,6 +135,21 @@ import Testing
         model.close()
     }
 
+    /// A2-16: while another hop holds the route, begin refuses; the popup says why, stays on the
+    /// camera network and lists nothing.
+    @Test func aRefusedRouteSaysWhyAndNeverLeaves() async {
+        let facts = PreHopFacts()
+        facts.refuses = true
+        let model = make(facts) { facts.calls.append("cache") }
+        await settle { facts.polls == 1 }
+        model.hopToInternet()
+        await settle { model.projectsError != nil }
+        #expect(model.projectsError == "Couldn't leave the camera's Wi‑Fi while another network switch is running.")
+        #expect(!model.hopping && model.listing == nil && facts.owned == nil)
+        #expect(facts.calls == ["cache", "refused"] && facts.onCameraNetwork)
+        model.close()
+    }
+
     @Test func oldPreflightCannotReleaseOrPublishTheSuccessorHop() async {
         let facts = PreHopFacts()
         let gate = PreHopGate()
@@ -191,6 +211,52 @@ import Testing
         await settle { model.listing != nil }
         #expect(facts.calls == ["begin", "wait", "projects", "persist"])
         model.close()
+    }
+
+    /// A2-05: the shared delivery owner's preflight caches every original before the route
+    /// leaves the camera network, as one captured run of the app's delivery model.
+    @Test func deliveryOwnerCachesEveryOriginalBeforeTheRouteLeaves() async {
+        let facts = PreHopFacts()
+        let delivery = MonitorDeliveryModel<MonitorDeliveryBatchProgress, String, Int>()
+        var cached: Set<String> = []
+        let originals = MonitorDeliveryOriginalService<String>(
+            available: { cached.contains($0) },
+            acquire: {
+                facts.calls.append("acquire \($0)")
+                cached.insert($0)
+            }, progress: { _ in nil })
+        let model = make(facts) {
+            try await delivery.cacheBeforeInternetHop(
+                records: ["A", "B"], originals: originals, source: .init { facts.current },
+                filename: { $0 }, completion: "cached", progress: { $0 })
+        }
+        await settle { facts.polls == 1 }
+        model.hopToInternet()
+        await settle { model.listing != nil }
+        #expect(facts.calls == ["acquire A", "acquire B", "begin", "wait", "projects", "persist"])
+        #expect(!delivery.state.running && delivery.state.toast == nil)
+        model.close()
+        delivery.close()
+    }
+
+    @Test func uncachedOriginalKeepsTheRouteOnTheCameraNetwork() async {
+        let facts = PreHopFacts()
+        let delivery = MonitorDeliveryModel<MonitorDeliveryBatchProgress, String, Int>()
+        let originals = MonitorDeliveryOriginalService<String>(
+            available: { _ in false }, acquire: { facts.calls.append("acquire \($0)") },
+            progress: { _ in nil })
+        let model = make(facts) {
+            try await delivery.cacheBeforeInternetHop(
+                records: ["A"], originals: originals, source: .init { facts.current },
+                filename: { $0 }, completion: "cached", progress: { $0 })
+        }
+        await settle { facts.polls == 1 }
+        model.hopToInternet()
+        await settle { model.projectsError != nil }
+        #expect(model.projectsError == MonitorDeliveryCacheError.uncached(1).errorDescription)
+        #expect(facts.calls == ["acquire A"] && facts.owned == nil && !model.hopping)
+        model.close()
+        delivery.close()
     }
 
     private func make(_ facts: PreHopFacts, preflight: @escaping () async throws -> Void) -> Model {

@@ -99,9 +99,12 @@
         private let backdrop: Backdrop
         private let viewport: CGSize
         private let safeArea: EdgeInsets
-        @State private var clean = false
-        @State private var toolsExpanded = false
-        @State private var toolUsage = MonitorToolUsage()
+        @Environment(\.multiviewStageServices) private var services
+        @Environment(\.multiviewStageVisible) private var stageVisible
+        @Environment(\.multiviewStageState) private var sharedState
+        @State private var fallbackState: MultiviewStageState
+        private var presentation: MultiviewStageState { sharedState ?? fallbackState }
+        private var clean: Bool { presentation.clean }
         @State private var optionsSlot: Int?
         @Environment(\.scenePhase) private var scenePhase
 
@@ -125,6 +128,8 @@
             actions: MultiviewStageActions, @ViewBuilder picture: @escaping (Int) -> Picture,
             backdrop: Backdrop
         ) {
+            _fallbackState = State(
+                initialValue: MultiviewStageState(slotCount: max(1, tiles.count)))
             self.tiles = tiles
             self.layout = layout
             self.viewport = viewport
@@ -197,6 +202,7 @@
                     for: UIApplication.willResignActiveNotification)
             ) { _ in closePopups() }
             .onDisappear { closePopups() }
+            .onChange(of: stageVisible) { _, visible in if !visible { closePopups() } }
             // A removed camera takes its options with it.
             .onChange(of: optionsSlot.map { tiles.indices.contains($0) && tiles[$0] != nil }) {
                 _, open in
@@ -290,9 +296,12 @@
             }
         }
 
+        private var occupiedSlots: Set<Int> { Set(tiles.indices.filter { tiles[$0] != nil }) }
+
         private var toolItems: [MonitorToolItem] {
-            let cameras = tiles.contains { $0 != nil }
-            return tools.map { tool in
+            let cameras = !occupiedSlots.isEmpty
+            let offered = services?.availability.offeredTools(from: tools, occupiedSlots: occupiedSlots) ?? tools
+            return offered.map { tool in
                 switch tool {
                 case .layout:
                     MonitorToolItem(
@@ -315,8 +324,10 @@
                         accessibilityIdentifier: "multiview.fitFill")
                 case .lut:
                     MonitorToolItem(
-                        id: tool.rawValue, title: "LUT", enabled: lut, hasOptions: false,
-                        available: cameras, accessibilityLabel: "Toggle Auto LUT for all cameras")
+                        id: tool.rawValue, title: "LUT", enabled: lut,
+                        hasOptions: services?.configureLUT != nil,
+                        available: cameras, accessibilityLabel: services?.automaticLUT == false
+                            ? "Toggle LUT for all cameras" : "Toggle Auto LUT for all cameras")
                 }
             }
         }
@@ -349,6 +360,7 @@
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(MonitorButtonStyle())
+                    .modifier(ToolOptionsMenu(enabled: tool.hasOptions) { configureTool(tool.id) })
                     .disabled(!tool.available)
                     .opacity(tool.available ? 1 : 0.4)
                     .accessibilityLabel(tool.accessibilityLabel ?? tool.title)
@@ -383,8 +395,12 @@
             return MonitorAssistPalette(
                 tools: items, layout: palette,
                 usageSeed: ["LAYOUT": 4, "CAMERA": 3, "FIT": 2, "LUT": 1],
-                usage: $toolUsage, expanded: $toolsExpanded, onToggle: activate,
-                onOptions: { _ in },
+                usage: Binding(
+                    get: { presentation.toolUsage }, set: { presentation.toolUsage = $0 }),
+                expanded: Binding(
+                    get: { presentation.toolsExpanded }, set: { presentation.toolsExpanded = $0 }),
+                onToggle: activate,
+                onOptions: configureTool,
                 accessibilityName: "Multiview tools", accessibilityPrefix: "multiview.toolbar"
             ) { id in
                 toolIcon(id)
@@ -395,17 +411,30 @@
 
         private func activate(_ id: String) {
             switch MultiviewTool(rawValue: id) {
-            case .lut: actions.toggleLUT()
+            case .lut:
+                if let services, services.availability.pictureLUTSlot(selected: selected, occupiedSlots: occupiedSlots) == nil { return }
+                actions.toggleLUT()
             case .fit: fill.toggle()
             case .layout: arrangement = arrangement == .grid ? .centerStage : .grid
             case .camera:
                 optionsSlot = nil
-                let slot =
-                    tiles.indices.contains(selected) && tiles[selected] != nil
-                    ? selected : tiles.firstIndex { $0 != nil }
+                let slot: Int?
+                if let services {
+                    slot = services.availability.cameraSettingsSlot(selected: selected, occupiedSlots: occupiedSlots)
+                } else {
+                    slot = tiles.indices.contains(selected) && tiles[selected] != nil
+                        ? selected : tiles.firstIndex { $0 != nil }
+                }
                 if let slot { actions.openSettings(slot) }
             case nil: break
             }
+        }
+
+        private func configureTool(_ id: String) {
+            guard MultiviewTool(rawValue: id) == .lut, let services,
+                let slot = services.availability.pictureLUTSlot(selected: selected, occupiedSlots: occupiedSlots)
+            else { return }
+            services.configureLUT?(slot)
         }
 
         // MARK: Chrome buttons
@@ -425,7 +454,7 @@
 
         private var displayButton: some View {
             Button {
-                clean.toggle()
+                presentation.clean.toggle()
             } label: {
                 VStack(spacing: 4) {
                     Text("DISP").font(MonitorTheme.font(12, weight: .bold)).tracking(0.4)
@@ -790,31 +819,47 @@
 
         /// The camera battery pill without its glyph.
         private var battery: some View {
-            MultiviewBatteryPill(percent: tile.battery)
+            MultiviewBatteryPill(
+                percent: tile.battery, bars: tile.batteryBars, barCount: tile.batteryBarCount)
         }
     }
 
-    /// One glass pill with the camera's battery percent, colored by charge.
+    /// One glass pill with the camera's battery percent, or the bars of a coarse gauge, colored by
+    /// charge.
     struct MultiviewBatteryPill: View {
         let percent: Int?
+        var bars: Int? = nil
+        var barCount: Int = 5
 
         var body: some View {
             let tablet = UIDevice.current.userInterfaceIdiom == .pad
-            Text(percent.map { "\($0)%" } ?? MultiviewTally.unavailable)
+            Group {
+                if let bars {
+                    MonitorGaugeBars(
+                        filled: bars, count: barCount, tint: color)
+                } else {
+                    Text(percent.map { "\($0)%" } ?? MultiviewTally.unavailable)
+                }
+            }
                 .font(MonitorTheme.font(tablet ? 11 : 10, weight: .semibold)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .foregroundStyle(color)
                 .padding(.horizontal, 6)
-                .frame(width: tablet ? 44 : 40, height: tablet ? 22 : 20, alignment: .leading)
+                .frame(width: bars.map { MonitorGaugeBars.readoutWidth(filled: $0, count: barCount,
+                    minimum: tablet ? 44 : 40, inset: 12) } ?? (tablet ? 44 : 40),
+                    height: tablet ? 22 : 20, alignment: .leading)
                 .monitorGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
-                    percent.map { "Camera battery \($0) percent" } ?? "Camera battery unavailable")
+                    bars.map { "Camera battery \($0) of \(barCount) bars" }
+                        ?? percent.map { "Camera battery \($0) percent" } ?? "Camera battery unavailable")
         }
 
         /// Phone and camera batteries share one scale.
         private var color: Color {
-            guard let percent else { return MonitorTheme.text }
+            guard let percent = bars.map({ (Double($0) * 100 / Double(max(1, barCount))).rounded(.towardZero) }) ?? percent.map(Double.init) else {
+                return MonitorTheme.text
+            }
             return percent <= 20
                 ? MonitorTheme.recording
                 : percent <= 40
@@ -843,7 +888,9 @@
                     HStack {
                         Text(tile.format)
                         Spacer()
-                        MultiviewBatteryRow(percent: tile.battery, charging: tile.charging)
+                        MultiviewBatteryRow(
+                            percent: tile.battery, charging: tile.charging, bars: tile.batteryBars,
+                            barCount: tile.batteryBarCount)
                         Text(tile.storage)
                     }.font(MonitorTheme.font(11))
                     if let timecode = tile.timecode {
@@ -904,6 +951,8 @@
     struct MultiviewBatteryRow: View {
         let percent: Int?
         let charging: Bool
+        var bars: Int? = nil
+        var barCount: Int = 5
 
         var body: some View {
             HStack(spacing: 5) {
@@ -914,14 +963,24 @@
                     if charging {
                         MonitorIcon.zap.frame(width: 7, height: 7).foregroundStyle(tint)
                     }
-                    Text(readout)
+                    Group {
+                        if let bars {
+                            MonitorGaugeBars(
+                                filled: bars, count: barCount, tint: tint,
+                                barHeight: 7
+                            ).padding(.horizontal, 2)
+                        } else {
+                            Text(readout)
+                        }
+                    }
                         .font(.system(size: 10, weight: .medium, design: .default))
                         .monospacedDigit()
                         .foregroundStyle(tint)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.65)
+                        .minimumScaleFactor(barCount > 10 ? 0.5 : 0.65)
                 }
-                .frame(width: 26, height: 15)
+                .frame(width: bars.map { MonitorGaugeBars.readoutWidth(filled: $0, count: barCount,
+                    minimum: 26, inset: charging ? 13 : 6) } ?? 26, height: 15)
                 .overlay {
                     RoundedRectangle(cornerRadius: 3.5, style: .continuous)
                         .strokeBorder(tint.opacity(0.85), lineWidth: 1.2)
@@ -934,17 +993,33 @@
                 }
             }
             .accessibilityLabel("Camera battery")
-            .accessibilityValue(readout)
+            .accessibilityValue(bars.map { "\($0) of \(barCount) bars" } ?? readout)
         }
 
         private var readout: String { percent.map(String.init) ?? MultiviewTally.unavailable }
 
         /// Three or more of five bars (41 and up) green, two (21 to 40) yellow, one red.
         private var tint: Color {
-            guard let percent else { return MonitorTheme.faint }
+            guard let percent = bars.map({ (Double($0) * 100 / Double(max(1, barCount))).rounded(.towardZero) }) ?? percent.map(Double.init) else {
+                return MonitorTheme.faint
+            }
             if percent <= 20 { return .red }
             if percent <= 40 { return .yellow }
             return MonitorTheme.linkHealthColor(.stable)
+        }
+    }
+
+    /// The long-press options menu a tool offers only when its host supplies a working adapter.
+    private struct ToolOptionsMenu: ViewModifier {
+        let enabled: Bool
+        let action: @MainActor () -> Void
+
+        func body(content: Content) -> some View {
+            if enabled {
+                content.contextMenu { Button("Configure LUT") { action() } }
+            } else {
+                content
+            }
         }
     }
 
@@ -957,8 +1032,15 @@
         let context: () -> MultiviewRecordContext
         let record: (RecordPlan) async -> Void
         @ViewBuilder let label: () -> Label
+        @Environment(\.multiviewStageVisible) private var stageVisible
+        @Environment(\.scenePhase) private var scenePhase
+        @State private var approvalRevision = UUID()
         @State private var showingConfirmation = false
-        @State private var pending: MultiviewRecordContext?
+        private struct Approval {
+            let id = UUID()
+            let context: MultiviewRecordContext
+        }
+        @State private var pending: Approval?
 
         public init(
             confirmationEnabled: Bool, single: String? = nil,
@@ -977,9 +1059,9 @@
             let now = context()
             return Button {
                 let current = context()
-                guard current.canConfirm else { return }
+                guard stageVisible, current.canConfirm else { return }
                 if confirmationEnabled {
-                    pending = current
+                    pending = Approval(context: current)
                     showingConfirmation = true
                 } else {
                     perform(current)
@@ -987,31 +1069,44 @@
             } label: {
                 label()
             }
-            .disabled(!now.canConfirm)
+            .disabled(!stageVisible || !now.canConfirm)
             .accessibilityHint(now.refusal ?? "")
             .confirmationDialog(
                 now.prompt ?? now.question(single: single != nil), isPresented: $showingConfirmation,
                 titleVisibility: .visible
             ) {
-                Button(now.stopping ? "Stop" : "Start", role: now.stopping ? .destructive : nil) {
-                    guard let pending else { return }
-                    self.pending = nil
-                    perform(pending)
+                if let approved = pending {
+                    Button(now.stopping ? "Stop" : "Start", role: now.stopping ? .destructive : nil) {
+                        guard pending?.id == approved.id else { return }
+                        pending = nil
+                        perform(approved.context)
+                    }
                 }
                 Button("Cancel", role: .cancel) { pending = nil }
             } message: {
                 Text(single ?? MultiviewRecordContext.groupNote)
             }
-            .onChange(of: now) { _, _ in
-                pending = nil
-                showingConfirmation = false
+            .onChange(of: now) { _, _ in retireApproval() }
+            .onChange(of: stageVisible) { _, visible in if !visible { retireApproval() } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { retireApproval() } }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                retireApproval()
             }
+            .onDisappear { retireApproval() }
+        }
+
+        private func retireApproval() {
+            approvalRevision = UUID()
+            pending = nil
+            showingConfirmation = false
         }
 
         private func perform(_ approved: MultiviewRecordContext) {
+            let revision = approvalRevision
             Task { @MainActor in
                 let current = context()
-                guard approved == current, current.canConfirm else { return }
+                guard stageVisible, approvalRevision == revision,
+                    approved == current, current.canConfirm else { return }
                 await record(approved.plan)
             }
         }

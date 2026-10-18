@@ -27,6 +27,18 @@ class DiagnosticJournal(
         if (!pending.offer(line)) dropped.incrementAndGet()
     }
 
+    /**
+     * Seeds the ring with lines an earlier process persisted, oldest first, ahead of anything
+     * appended since. They are never queued for the writer: they are already on disk.
+     */
+    fun restore(lines: List<String>) {
+        synchronized(ringLock) {
+            val newer = ring.toList()
+            ring.clear()
+            (lines.takeLast(cap) + newer).takeLast(cap).forEach(ring::addLast)
+        }
+    }
+
     fun snapshot(): List<String> = synchronized(ringLock) { ring.toList() }
 
     fun droppedCount(): Int = dropped.get()

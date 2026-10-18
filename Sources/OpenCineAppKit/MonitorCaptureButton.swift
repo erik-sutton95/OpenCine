@@ -11,7 +11,6 @@
         private let photo: Bool
         private let confirm: Bool
         private let haptics: Bool
-        private let confirmationPolicy: MonitorControlModel.RecordConfirmationPolicy
         private let takePhoto: () -> Void
         private let openMode: (() -> Void)?
         @State private var confirmOpen = false
@@ -20,7 +19,6 @@
         public init(
             control: MonitorControlModel, diameter: CGFloat, enabled: Bool, photo: Bool = false,
             confirm: Bool = false, haptics: Bool = true,
-            confirmationPolicy: MonitorControlModel.RecordConfirmationPolicy = .unchangedRecording,
             takePhoto: @escaping () -> Void = {},
             openMode: (() -> Void)? = nil
         ) {
@@ -30,13 +28,12 @@
             self.photo = photo
             self.confirm = confirm
             self.haptics = haptics
-            self.confirmationPolicy = confirmationPolicy
             self.takePhoto = takePhoto
             self.openMode = openMode
         }
 
         private var editor: MonitorControlModel.RecordEditor? {
-            control.recordEditor(policy: confirmationPolicy)
+            control.recordEditor()
         }
         private var interactive: Bool {
             enabled && !control.recordPending && (photo || editor != nil)
@@ -80,7 +77,6 @@
                 }
                 .onChange(of: enabled) { _, _ in retireApproval() }
                 .onChange(of: photo) { _, _ in retireApproval() }
-                .onChange(of: confirmationPolicy) { _, _ in retireApproval() }
                 .accessibilityHidden(false)
                 .accessibilityLabel(accessibility)
                 .accessibilityAddTraits(.isButton)
@@ -103,8 +99,6 @@
             } else if confirm {
                 approved = editor
                 confirmOpen = approved != nil
-            } else if confirmationPolicy == .explicitTarget, let editor {
-                control.commitRecord(from: editor)
             } else {
                 control.record(start: nil)
             }

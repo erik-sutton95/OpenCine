@@ -2,12 +2,15 @@ package com.opencapture.opencine.nikon
 
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CommandFailure
 import com.opencapture.opencine.core.CommandPreconditions
 import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.Rational
@@ -16,6 +19,8 @@ import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import kotlin.test.Test
@@ -37,6 +42,29 @@ import kotlinx.coroutines.test.runTest
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NikonOpenCineSessionTest {
+    @Test fun recordingFactsUseReportedDimensionsAndNeverPreviewCodec() = runTest {
+        val native = FakeNikon(movie().copy(exposureMode = "S", resolution = "6048x3402", frameRate = 25,
+            codec = "R3D NE 12-bit R3D", tone = "Log3G10"))
+        val at = com.opencapture.opencine.core.MonotonicInstant(42.seconds)
+        val seam = NikonOpenCineSession(native, backgroundScope, clock = { at })
+        val snapshot = seam.refresh()
+        assertEquals(com.opencapture.opencine.core.CameraExposureProgram.SHUTTER_PRIORITY, snapshot.exposureProgram.value)
+        assertEquals(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(6048, 3402), snapshot.recordingFormat.dimensions.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.recordingFormat.dimensions.origin)
+        assertEquals(at, snapshot.recordingFormat.dimensions.observedAt)
+        assertEquals("R3D NE 12-bit R3D", snapshot.recordingFormat.codec.value)
+        assertEquals("Log3G10", snapshot.recordingFormat.profile.value)
+        assertEquals(ObservationOrigin.PROTOCOL_DERIVED, snapshot.recordingFormat.profile.origin)
+        native.cameraProperties.value = native.cameraProperties.value.copy(resolution = "0x3402",
+            frameRate = 0, codec = "H.265 10-bit MOV", tone = null)
+        val unknown = seam.refresh()
+        assertNull(unknown.recordingFormat.dimensions.value)
+        assertNull(unknown.recordingFormat.profile.value, "A selectable codec does not establish tone")
+        assertEquals("H.265 10-bit MOV", unknown.recordingFormat.codec.value)
+        assertTrue(native.writes.isEmpty() && native.records.isEmpty())
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
     @Test
     fun `movie exposure preserves native labels and only writes the active circuit`() = runTest {
         val properties = movie().copy(
@@ -108,13 +136,14 @@ class NikonOpenCineSessionTest {
         seam.closeNow(SessionCloseReason.REQUESTED)
     }
 
-    private class FakeNikon(properties: CameraPropertySnapshot, reported: Boolean? = false) : CameraSession {
+    internal class FakeNikon(properties: CameraPropertySnapshot, reported: Boolean? = false) : CameraSession {
         override val state =
             MutableStateFlow<CameraSessionState>(
                 CameraSessionState.Connected(CameraIdentity("ZR", "ZR", "3000123")),
             )
         override val recordingState = MutableStateFlow(CameraRecordingState.STANDBY)
         override val reportedRecording = MutableStateFlow(reported)
+        override val liveTimecode = MutableStateFlow<CameraTimecode?>(null)
         override val cameraProperties = MutableStateFlow(properties)
         val writes = mutableListOf<Pair<CameraControl, String>>()
         val records = mutableListOf<Boolean>()
@@ -147,6 +176,49 @@ class NikonOpenCineSessionTest {
         }
     }
 
+    /** A5-12: the integration publishes the card, with its remaining recording time as an estimate. */
+    @Test
+    fun storagePublishesRemainingRecordingTimeAsAnEstimate() = runTest {
+        val properties = movie(codec = "R3D NE 12-bit R3D").copy(
+            resolution = "6048x3402", frameRate = 25,
+            storage = CameraStorageStatus(totalCapacityBytes = 1_000_000_000_000, freeSpaceBytes = 470_000_000_000),
+        )
+        val seam = NikonOpenCineSession(FakeNikon(properties), backgroundScope)
+        val volume = seam.refresh().storage.value?.singleOrNull()
+        assertEquals(470_000_000_000L, volume?.freeBytes?.value)
+        assertEquals("ESTIMATED", volume?.remainingRecordingTime?.origin?.name)
+        assertEquals(40L * 60, volume?.remainingRecordingTime?.value?.inWholeSeconds)
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
+    @Test
+    fun storageEstimateRequiresKnownFormatAndRetainsZeroAndOrigin() = runTest {
+        val properties = movie(codec = "R3D NE 12-bit R3D").copy(
+            resolution = "6048x3402", frameRate = 25,
+            storage = CameraStorageStatus(1_000_000_000_000, 470_000_000_000),
+        )
+        val seam = NikonOpenCineSession(FakeNikon(properties), backgroundScope)
+        val at = seam.refresh().storage.observedAt
+        val volume = seam.refresh().storage.value!!.single()
+        for ((codec, resolution, fps) in listOf(
+            Triple("Mystery Codec", "6048x3402", 25), Triple("R3D NE 12-bit R3D", "-1x-1", 25),
+            Triple("R3D NE 12-bit R3D", "6048x3402", 0), Triple("R3D NE 12-bit R3D", "6048xgarbage", 25),
+        )) {
+            assertEquals(null, NikonOpenCineSession.storageVolumes(properties.copy(
+                codec = codec, resolution = resolution, frameRate = fps,
+            ))?.single()?.remainingRecordingTime?.value)
+        }
+        assertEquals(2400.seconds, NikonOpenCineSession.storageVolumes(properties.copy(
+            storage = CameraStorageStatus(0, 470_000_000_000),
+        ))?.single()?.remainingRecordingTime?.value)
+        assertEquals(0.seconds, NikonOpenCineSession.storageVolumes(properties.copy(
+            storage = CameraStorageStatus(1_000_000_000_000, 0),
+        ))?.single()?.remainingRecordingTime?.value)
+        assertEquals(null, NikonOpenCineSession.storageVolumes(properties.copy(storage = null)))
+        assertEquals(at, volume.remainingRecordingTime.observedAt)
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
     /** A ZR in movie mode, exposure M, H.265, with the Swift-authorized domains. */
     private fun movie(codec: String = "H.265 10-bit MOV") =
         CameraPropertySnapshot(
@@ -164,6 +236,82 @@ class NikonOpenCineSessionTest {
                     whiteBalanceValues = listOf("Auto", "Natural auto", "Sunny", "2500K", "5560K", "10000K"),
                 ),
         )
+
+    /** A5-09: the movie rate is a typed read-only Rational, the same one the timecode counts at. */
+    @Test
+    fun movieRatePublishesAsAReadOnlyRational() =
+        runTest {
+            val camera = FakeNikon(movie().copy(frameRate = 25))
+            val seam = NikonOpenCineSession(camera, backgroundScope)
+            val snapshot = seam.snapshots.value
+            assertEquals(SettingValue.FrameRate(Rational(25)), snapshot.value(SettingKey.FRAME_RATE).value)
+            assertEquals(SettingAccess.READ_ONLY, snapshot.capabilities[SettingKey.FRAME_RATE]?.access)
+            assertEquals(
+                CommandStage.Rejected(CommandRejection.ReadOnly),
+                seam.request(CameraCommandIntent.Set(SettingValue.FrameRate(Rational(24)))).stage,
+            )
+            camera.cameraProperties.value = movie().copy(frameRate = 0)
+            assertNull(seam.refresh().value(SettingKey.FRAME_RATE).value, "no rate is unknown")
+            seam.closeNow(SessionCloseReason.REQUESTED)
+        }
+
+    /**
+     * A5-04: the header sequence reaches the common snapshot with frames at the body's movie rate. A
+     * per-frame change moves only the timecode and the revision; off, absent, or off the link is
+     * unknown, never a frozen counter.
+     */
+    @Test
+    fun headerTimecodePublishesFramesAndNeverFreezes() =
+        runTest {
+            val camera = FakeNikon(movie().copy(frameRate = 25))
+            val seam = NikonOpenCineSession(camera, backgroundScope)
+            val idle = seam.snapshots.value
+            assertNull(idle.timecode.value)
+            assertEquals(TimecodeCapability.supported(TimecodePrecision.Frames(Rational(25))), idle.capabilities.timecodeCapability)
+
+            camera.liveTimecode.value = CameraTimecode(1, 2, 3, frames = 17)
+            runCurrent()
+            val first = seam.snapshots.value
+            assertEquals(CameraTimecode(1, 2, 3, frames = 17), first.timecode.value)
+            assertEquals(ObservationOrigin.CAMERA_REPORTED, first.timecode.origin)
+            camera.liveTimecode.value = CameraTimecode(1, 2, 3, frames = 18)
+            runCurrent()
+            val advanced = seam.snapshots.value
+            assertEquals(CameraTimecode(1, 2, 3, frames = 18), advanced.timecode.value)
+            assertEquals(first.revision.next(), advanced.revision)
+            assertTrue(advanced.capabilities === first.capabilities)
+            assertEquals(first, advanced.copy(revision = first.revision, timecode = first.timecode))
+
+            // The runtime publishes an off header (digits or zeros) and a header-less frame as null.
+            camera.liveTimecode.value = null
+            runCurrent()
+            assertNull(seam.snapshots.value.timecode.value)
+
+            camera.liveTimecode.value = CameraTimecode(1, 2, 3, frames = 19)
+            runCurrent()
+            camera.state.value = CameraSessionState.Disconnected
+            runCurrent()
+            assertNull(seam.snapshots.value.timecode.value, "unknown off the link even if the source lags")
+
+            camera.cameraProperties.value = movie().copy(frameRate = 0)
+            assertEquals(TimecodeCapability.supported(null), seam.refresh().capabilities.timecodeCapability)
+            seam.closeNow(SessionCloseReason.REQUESTED)
+        }
+
+    /** A5-01: Nikon `BatteryLevel` is a five-step gauge, so the reading declares fifths. */
+    @Test
+    fun batteryDeclaresFiveSteps() =
+        runTest {
+            val seam = NikonOpenCineSession(FakeNikon(movie()), backgroundScope)
+            val battery = seam.refresh().power.battery
+            assertEquals(0.8, battery.value)
+            assertEquals(ObservationPrecision.Quantized(0.2), battery.precision)
+            seam.closeNow(SessionCloseReason.REQUESTED)
+            // The value sits on the body's steps: an undocumented level rounds up, no reading is unknown.
+            assertEquals(0.6, NikonOpenCineSession.batteryFraction(58))
+            assertEquals(0.2, NikonOpenCineSession.batteryFraction(1))
+            assertNull(NikonOpenCineSession.batteryFraction(0))
+        }
 
     @Test
     fun ownedCloseHookRunsOnceWithoutRecordCommands() = runTest {
@@ -360,4 +508,25 @@ class NikonOpenCineSessionTest {
             assertNull(seam.outcome(OperationID()))
             assertFailsWith<CameraRecordingException.NotConnected> { seam.setRecording(false) }
         }
+    @Test fun exhaustionAndExternalPowerRemainIndependentReportedFacts() = runTest {
+        val camera = FakeNikon(movie().copy(batteryPercent = 1))
+        val seam = NikonOpenCineSession(camera, backgroundScope)
+        val critical = seam.refresh()
+        camera.cameraProperties.value = movie().copy(batteryPercent = 20)
+        val ordinary = seam.refresh()
+        assertEquals(com.opencapture.opencine.core.BatteryReading.Steps(1, 5), critical.power.batteryReading)
+        assertEquals(critical.power.batteryReading, ordinary.power.batteryReading)
+        assertEquals(true, critical.power.exhausted.value)
+        assertEquals(false, ordinary.power.exhausted.value)
+        assertTrue(critical.revision != ordinary.revision)
+        for (external in listOf(null, false, true)) {
+            camera.cameraProperties.value = movie().copy(batteryPercent = 20, externalPower = external)
+            val power = seam.refresh().power
+            assertEquals(external, power.externalPower.value)
+            assertNull(power.charging.value)
+            assertEquals(false, power.exhausted.value)
+        }
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
 }

@@ -81,6 +81,8 @@ public class MonitorMediaLibraryModel<P>(
     private val readSnapshot: suspend (MonitorMediaCacheReadPlan) -> MonitorMediaCacheSnapshot = { it.read() },
     private val sleep: suspend (Long) -> Unit = { delay(it) },
     private val catalogBase: MonitorMediaCatalogBase = MonitorMediaCatalogBase.RETAIN_OBSERVED,
+    /** Restores and keeps the operator's gallery view options; preferences with a view prefix supply it. */
+    private val viewOptions: MonitorMediaViewOptionsStore? = favoritesStore as? MonitorMediaViewOptionsStore,
 ) {
     /** Original constructor, including positional and trailing sleep lambda compatibility. */
     public constructor(cache: MonitorMediaCache<P>, favoritesStore: MonitorMediaFavoritesStore,
@@ -88,7 +90,10 @@ public class MonitorMediaLibraryModel<P>(
         this(cache, favoritesStore, service, scope, cacheScanning = MonitorMediaCacheScanning.IMMEDIATE, sleep = sleep)
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
     private var favorites = favoritesStore.favorites()
-    private val mutable = MutableStateFlow(MonitorMediaLibraryState(records = (initialRecords ?: cache.load()).map { projected(it, favorites) }))
+    private val mutable = MutableStateFlow((viewOptions?.viewOptions() ?: MonitorMediaViewOptions()).let { view ->
+        MonitorMediaLibraryState(records = (initialRecords ?: cache.load()).map { projected(it, favorites) },
+            category = view.category, sort = view.sort, layout = view.layout, thumbnailSize = view.thumbnailSize)
+    })
     public val state: StateFlow<MonitorMediaLibraryState<P>> = mutable.asStateFlow()
     private val retirementTasks = mutableSetOf<Job>()
     private var disposed = false
@@ -184,9 +189,17 @@ public class MonitorMediaLibraryModel<P>(
         dateStart: String? = state.value.dateStart, dateEnd: String? = state.value.dateEnd) {
         mutate { it.copy(category = category, formats = formats.toSet(), resolutions = resolutions.toSet(),
             colors = colors.toSet(), dateStart = dateStart, dateEnd = dateEnd) }
+        saveViewOptions()
     }
     public fun display(sort: MonitorMediaSort = state.value.sort, layout: MonitorMediaLayout = state.value.layout,
-        thumbnailSize: MonitorThumbnailSize = state.value.thumbnailSize) { mutate { it.copy(sort = sort, layout = layout, thumbnailSize = thumbnailSize) } }
+        thumbnailSize: MonitorThumbnailSize = state.value.thumbnailSize) {
+        mutate { it.copy(sort = sort, layout = layout, thumbnailSize = thumbnailSize) }
+        saveViewOptions()
+    }
+    private fun saveViewOptions() {
+        val value = state.value
+        viewOptions?.saveViewOptions(MonitorMediaViewOptions(value.category, value.sort, value.layout, value.thumbnailSize))
+    }
     public fun resetFilters() { filter(formats = emptySet(), resolutions = emptySet(), colors = emptySet(), dateStart = null, dateEnd = null) }
     public fun select(ids: Set<MediaAssetID>, selecting: Boolean = true) { mutate { it.copy(selecting = selecting, selectedIDs = ids.toSet()) } }
     public fun selectAll() { select(displayedRecords.map { it.asset.id }.toSet()) }
@@ -599,6 +612,11 @@ public class MonitorMediaLibraryModel<P>(
                             authority.beginCompletion { finishingCurrent(finish) }
                             if (authority.isCompleting && finishingDeletions[authority.id] === finish) {
                                 port.finish()
+                                // A retired gallery returns to browsing by default (R-01); a caller that
+                                // already relisted from finish makes this a refused repeat.
+                                if (preparation == MonitorMediaDeletionPreparation.RETIRE_GALLERY && !finish.relisted &&
+                                    currentCoroutineContext().isActive && authority.isCompleting && finishingDeletions[authority.id] === finish)
+                                    relist(authority)
                                 if (currentCoroutineContext().isActive && authority.isCompleting && finishingDeletions[authority.id] === finish) {
                                     val admission = actionToken
                                     finish.admission = admission
@@ -1029,11 +1047,13 @@ public class MonitorMediaLibraryModel<P>(
         // This optimistic local change does not mutate the reported source catalog.
         applyLocalRemoval(accepted, token, removeLocalFavorites = false); return results
     }
-    public suspend fun clearCache() {
+    public suspend fun clearCache() { clearCache(preservingMetadata = true) }
+    /** Settings may drop cached camera metadata; the original no-argument API preserves it. */
+    public suspend fun clearCache(preservingMetadata: Boolean) {
         val token = actionToken; retireOperations()
         currentCoroutineContext().ensureActive()
         if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
-        cache.clear()
+        cache.clear(preservingMetadata)
         currentCoroutineContext().ensureActive()
         if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
         reloadEntries()

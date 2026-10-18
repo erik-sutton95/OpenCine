@@ -63,6 +63,11 @@
         }
         public var selection: LUTSelection { lutSelection }
         public var transfer: MonitorTransfer { MonitorTransfer(monitorColorMode ?? .normal) }
+        /// Unknown before the camera's first colour report and in Dolby Vision (product ruling
+        /// 2026-10-16); `syncLUT` updates it, so the curve tools return without operator action.
+        public var sourceTransfer: MonitorTransfer? { MonitorTransfer.known(monitorColorMode) }
+        /// LUT input exposure is in stops of the source curve, so it waits for a known one.
+        public var appliesLUTExposure: Bool { sourceTransfer != nil }
         public func statusLabel(enabled: Bool) -> String {
             if liveIsPhoto, enabled, lutSelection == .auto || lutSelection == .officialAuto {
                 return "Auto · Rec.709"

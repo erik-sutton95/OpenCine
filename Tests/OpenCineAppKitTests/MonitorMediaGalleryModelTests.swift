@@ -31,6 +31,17 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
     }
 }
 
+@MainActor private final class GalleryTransferGate {
+    var entered: [String] = []
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    var waiting: Int { waiters.count }
+    func enter(_ id: String) async {
+        entered.append(id)
+        await withCheckedContinuation { waiters.append($0) }
+    }
+    func release() { if !waiters.isEmpty { waiters.removeFirst().resume() } }
+}
+
 @MainActor @Suite struct MonitorMediaGalleryModelTests {
     @available(macOS 14, *) private func fixture(ids: [String] = ["A", "B"]) throws -> (URL, MonitorMediaLibraryModel<String>, MonitorMediaGalleryModel<String>) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("opencine-gallery-" + UUID().uuidString)
@@ -199,7 +210,9 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         gallery.confirmDelete(admitted: gallery.deleteRequestID)
         #expect(await settled { deleted == ["B"] })
     }
-    @Test func retiringARealPendingBulkOperationStopsTheNextRecordAndLateUICompletion() async throws {
+    /// A2-03 changed this contract: gallery retirement (a cover, Back) no longer ends the
+    /// library's bulk cache. A late completion still cannot touch the successor's selection.
+    @Test func retiringTheGalleryKeepsThePendingBulkCacheAndTheSuccessorSelection() async throws {
         guard #available(macOS 14, *) else { return }
         let (root, library, gallery) = try fixture()
         defer { gallery.retire(); library.close(); try? FileManager.default.removeItem(at: root) }
@@ -212,8 +225,10 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         #expect(await settled { pending != nil })
         gallery.retire(); gallery.activate(); library.select([.init("A")])
         pending?.resume(); pending = nil
+        #expect(await settled { requested.count == 2 && pending != nil })
+        pending?.resume(); pending = nil
         for _ in 0..<20 { await Task.yield() }
-        #expect(requested.count == 1 && library.selectedIDs == [.init("A")])
+        #expect(requested.count == 2 && library.selectedIDs == [.init("A")])
     }
     @Test func sourceLossRejectsOldOpenAndUnknownPermissionsStayAbsent() throws {
         guard #available(macOS 14, *) else { return }
@@ -399,6 +414,38 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         #expect(gallery.deleteRequestID == successorID && successorID != nil)
         gallery.confirmDelete(admitted: successorID)
         #expect(await settled { deleted == ["A"] })
+    }
+
+    /// A2-03: a playback cover (or Back) retires the gallery presentation, never the library's
+    /// bulk cache. Only the library lifetime (close, rebind, source change) ends the batch.
+    @Test func bulkCacheSurvivesGalleryRetirement() async throws {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, gallery) = try fixture(ids: ["A", "B", "C"])
+        defer { library.close(); try? FileManager.default.removeItem(at: root) }
+        let gate = GalleryTransferGate()
+        let window = gallery.snapshot()
+        gallery.selectAll(admitted: window)
+        gallery.cacheSelection(admitted: window, operations: .init(download: { await gate.enter($0.payload) }))
+        #expect(await settled { gate.waiting == 1 })
+        gallery.retire()
+        for _ in 0..<3 { gate.release(); _ = await settled { gate.waiting == 1 } }
+        #expect(Set(gate.entered) == ["A", "B", "C"])
+        #expect(gate.entered.count == 3)
+    }
+    @Test func bulkCacheEndsWithTheLibraryLifetime() async throws {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, gallery) = try fixture(ids: ["A", "B", "C"])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let gate = GalleryTransferGate()
+        let window = gallery.snapshot()
+        gallery.selectAll(admitted: window)
+        gallery.cacheSelection(admitted: window, operations: .init(download: { await gate.enter($0.payload) }))
+        #expect(await settled { gate.waiting == 1 })
+        library.close()
+        gate.release()
+        for _ in 0..<50 { await Task.yield() }
+        #expect(gate.entered.count == 1)
+        #expect(gate.waiting == 0)
     }
 
 }

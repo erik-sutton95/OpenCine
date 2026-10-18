@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Merged into every test APK that links this library: AndroidJUnitRunner reads its arguments
+        from the instrumentation's meta-data too, so the listener runs however the run is started
+        (Gradle, UTP or a plain `am instrument`), with no runner argument to remember. -->
+    <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner" tools:node="merge" tools:ignore="MissingTargetPackage">
+        <meta-data android:name="listener" android:value="com.opencapture.opencine.systemhints.SystemHintsListener" />
+    </instrumentation>
+</manifest>

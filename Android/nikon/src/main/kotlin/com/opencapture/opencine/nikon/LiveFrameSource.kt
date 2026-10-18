@@ -1,5 +1,6 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CameraTimecode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -160,7 +161,11 @@ public data class LiveFrameTimecode(
     public val second: Int,
     /** Frame component. */
     public val frame: Int,
-)
+) {
+    /** The header timecode as a common observation: unknown unless the body says it runs. */
+    public val running: CameraTimecode?
+        get() = if (on) CameraTimecode(hour, minute, second, frames = frame) else null
+}
 
 /**
  * One decoded-ready live-view frame from the camera.

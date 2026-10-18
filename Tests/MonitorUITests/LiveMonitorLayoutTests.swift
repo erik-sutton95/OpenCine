@@ -5,6 +5,32 @@
 
     /// Live chrome geometry helpers. Zone frames are `FieldMonitorLayout` (presentation tests).
     final class LiveMonitorLayoutTests: XCTestCase {
+        /// Existing consumers keep the published size-based mark while camera adapters adopt areas.
+        func testFocusMarkUsesTheDeclaredAreaOrTheStandardSquare() {
+            let feed = CGRect(x: 10, y: 20, width: 400, height: 200)
+            func expect(_ declared: CGSize?, _ side: CGFloat, line: UInt = #line) {
+                let size = MonitorTrackingGeometry.focusBoxSize(declared, in: feed)
+                XCTAssertEqual(size.width, side, accuracy: 0.0001, line: line)
+                XCTAssertEqual(size.height, side, accuracy: 0.0001, line: line)
+            }
+            expect(nil, 28)
+            expect(CGSize(width: 0.25, height: 0.5), 100)
+            expect(CGSize(width: 0, height: 0.5), 28)
+            let legacy = MonitorFocusMark(
+                point: CGPoint(x: 0.25, y: 0.5), size: CGSize(width: 0.25, height: 0.5),
+                color: .white)
+            XCTAssertEqual(legacy.size, CGSize(width: 0.25, height: 0.5))
+            XCTAssertEqual(
+                MonitorTrackingGeometry.focusBoxFrame(legacy, in: feed),
+                CGRect(x: 60, y: 70, width: 100, height: 100))
+        }
+
+        /// Hold-to-lock progress is clamped to 0 to 1.
+        func testFocusMarkClampsLockProgress() {
+            XCTAssertEqual(MonitorFocusMark(point: .zero, color: .white, lockProgress: 2).lockProgress, 1)
+            XCTAssertEqual(MonitorFocusMark(point: .zero, color: .white, lockProgress: -1).lockProgress, 0)
+        }
+
         func testChromeScaleFloorsCompactPhonesAndLeavesProMaxAlone() {
             XCTAssertEqual(LiveChromeMetrics.chromeScale(shortestSide: 360), 0.935, accuracy: 0.001)
             XCTAssertEqual(LiveChromeMetrics.chromeScale(shortestSide: 320), 0.935, accuracy: 0.001)
@@ -42,7 +68,7 @@
             XCTAssertEqual(fromInsetBox.width, 390, accuracy: 0.05)
             XCTAssertEqual(fromInsetBox.height, 844, accuracy: 0.05)
 
-            let recovered = LiveMonitorLayout.resolvedSafeArea(EdgeInsets(), scene: inset)
+            let recovered = OperatorPanelMetrics.resolvedDeviceSafeArea(EdgeInsets(), window: inset)
             XCTAssertEqual(recovered.top, 59, accuracy: 0.05)
             XCTAssertEqual(recovered.bottom, 34, accuracy: 0.05)
 

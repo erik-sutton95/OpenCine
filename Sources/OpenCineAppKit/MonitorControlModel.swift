@@ -34,26 +34,29 @@ public final class MonitorControlModel {
         let localRevision: Int
     }
 
-    /// Which reported state changes retire an operator's captured record target.
-    public enum RecordConfirmationPolicy: Hashable, Sendable {
-        /// A changed recording report requires a new approval.
-        case unchangedRecording
-        /// Preserve the captured Start or Stop while recording remains known and control ready.
-        case explicitTarget
-    }
-
     /// An explicit record confirmation authorizes one target under captured control assumptions.
+    /// A recording report that changes the captured Start or Stop retires it: approval never inverts.
     public struct RecordEditor: Hashable, Sendable {
         public let recording: Bool
-        public let policy: RecordConfirmationPolicy
         let editor: Editor
         let mode: CaptureMode
     }
 
     /// The session the controls drive; `nil` when nothing is bound.
     public private(set) var session: (any CameraSession)?
-    /// The latest snapshot of `session`.
-    public private(set) var snapshot: CameraSnapshot?
+    /// The latest snapshot of `session`. A report that changes only the timecode updates it
+    /// without notifying observers of `snapshot`; read `timecode` to follow the counter.
+    public var snapshot: CameraSnapshot? {
+        access(keyPath: \.snapshot)
+        return latest
+    }
+    /// The latest reported timecode, observed on its own: a per-frame counter re-renders the
+    /// clock that shows it, not every view that reads the snapshot.
+    public var timecode: ObservedValue<CameraTimecode> {
+        timecodeReading.compactMap { $0.frameTimecode }
+    }
+    public private(set) var timecodeReading: ObservedValue<CameraTimecodeReading> = .unknown
+    @ObservationIgnored private var latest: CameraSnapshot?
     /// Operator targets whose operations are unfinished.
     public private(set) var pending: [SettingKey: SettingValue] = [:]
     /// A record start or stop is in flight.
@@ -72,9 +75,12 @@ public final class MonitorControlModel {
     @ObservationIgnored public var onChange: () -> Void = {}
     /// The bound session reported `.disconnected` or ended its snapshots. Called once per binding.
     @ObservationIgnored var onEnded: () -> Void = {}
+    /// Each field's drum, rebuilt only when its domain changes (`captureField`): a body pass
+    /// reads it many times a second and a Kelvin domain spans up to a thousand detents (R-03).
+    @ObservationIgnored var captureChoices: [SettingKey: (domain: SettingDomain, choices: [MonitorCaptureChoice])] = [:]
 
     @ObservationIgnored private let coalescing: Duration
-    @ObservationIgnored private let sleep: @MainActor (Duration) async -> Void
+    @ObservationIgnored private let sleep: @MainActor (Duration) async throws -> Void
     @ObservationIgnored private var binding = 0
     @ObservationIgnored private var feed: Task<Void, Never>?
     @ObservationIgnored private var operations:
@@ -92,10 +98,84 @@ public final class MonitorControlModel {
     /// `sleep` waits out the coalescing window; tests pass a manual clock.
     public init(
         coalescing: Duration = .milliseconds(120),
-        sleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+        sleep: @escaping @MainActor (Duration) async throws -> Void = {
+            try await Task.sleep(for: $0)
+        }
     ) {
         self.coalescing = coalescing
         self.sleep = sleep
+    }
+
+
+    /// A counter measured from a fresh camera-confirmed start. Initial already-recording
+    /// connections have no known start; the provenance remains clockDerived.
+    public private(set) var recordingElapsed: ObservedValue<Int> = .unknown
+    @ObservationIgnored private var recordingStartedAt: MonotonicInstant?
+    @ObservationIgnored private var recordingTicker: Task<Void, Never>?
+    @ObservationIgnored private var recordingNow: @MainActor () -> MonotonicInstant = { .now() }
+    @ObservationIgnored private var recordingSleep: @MainActor (Duration) async -> Void = {
+        try? await Task.sleep(for: $0)
+    }
+
+    /// The existing initializer remains available; this overload supplies deterministic timing.
+    public convenience init(now: @escaping @MainActor () -> MonotonicInstant,
+        recordingSleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        coalescing: Duration = .milliseconds(120),
+        sleep: @escaping @MainActor (Duration) async throws -> Void = {
+            try await Task.sleep(for: $0)
+        }) {
+        self.init(coalescing: coalescing, sleep: sleep)
+        self.recordingNow = now
+        self.recordingSleep = recordingSleep
+    }
+
+    private func retireRecordingElapsed() {
+        recordingTicker?.cancel(); recordingTicker = nil
+        recordingStartedAt = nil
+        if recordingElapsed != .unknown { recordingElapsed = .unknown }
+    }
+
+    private func updateRecordingElapsed(at instant: MonotonicInstant) {
+        guard let start = recordingStartedAt, instant >= start,
+            let seconds = Int(exactly: (instant - start).components.seconds) else {
+            retireRecordingElapsed(); return
+        }
+        if recordingElapsed.value != seconds {
+            recordingElapsed = ObservedValue(seconds, origin: .clockDerived, at: instant,
+                precision: .quantized(step: 1))
+        }
+    }
+
+    private func observeRecordingElapsed(_ value: CameraSnapshot) {
+        let sameOwner = latest?.session == value.session && latest?.epoch == value.epoch
+        if !sameOwner { retireRecordingElapsed() }
+        guard value.connection == .ready else { retireRecordingElapsed(); return }
+        guard value.recording.validity == .valid else { retireRecordingElapsed(); return }
+        switch value.recording.value {
+        case .idle?:
+            recordingTicker?.cancel(); recordingTicker = nil
+            recordingStartedAt = nil
+            if recordingElapsed.value != 0 {
+                recordingElapsed = ObservedValue(0, origin: .clockDerived, at: recordingNow(),
+                    precision: .quantized(step: 1))
+            }
+        case .recording?:
+            guard recordingStartedAt == nil, sameOwner,
+                latest?.recording.value == .idle, latest?.recording.validity == .valid else { return }
+            recordingStartedAt = recordingNow()
+            updateRecordingElapsed(at: recordingNow())
+            let current = binding
+            let wait = recordingSleep
+            recordingTicker = Task { [weak self] in
+                while !Task.isCancelled {
+                    await wait(.seconds(1))
+                    guard !Task.isCancelled, let self, self.binding == current,
+                        self.recordingStartedAt != nil else { return }
+                    self.updateRecordingElapsed(at: self.recordingNow())
+                }
+            }
+        default: retireRecordingElapsed()
+        }
     }
 
     // MARK: Binding
@@ -117,6 +197,7 @@ public final class MonitorControlModel {
             }
             guard let self, self.binding == current else { return }
             self.feed = nil
+            self.retireRecordingElapsed()
             self.onEnded()
         }
     }
@@ -124,12 +205,14 @@ public final class MonitorControlModel {
     /// Retires the binding: stops following, drops pending edits and record state, obsoletes
     /// every editor. Never closes the session and never sends a command.
     public func unbind() {
+        retireRecordingElapsed()
         binding += 1
         feed?.cancel()
         feed = nil
-        let changed = snapshot != nil || !pending.isEmpty
+        let changed = latest != nil || !pending.isEmpty
         session = nil
-        snapshot = nil
+        withMutation(keyPath: \.snapshot) { latest = nil }
+        if timecodeReading != .unknown { timecodeReading = .unknown }
         pending = [:]
         operations = [:]
         scheduled = []
@@ -140,8 +223,21 @@ public final class MonitorControlModel {
     }
 
     private func apply(_ snapshot: CameraSnapshot) {
-        self.snapshot = snapshot
+        observeRecordingElapsed(snapshot)
+        if let previous = latest, Self.differsOnlyInTimecode(previous, snapshot) {
+            latest = snapshot
+        } else {
+            withMutation(keyPath: \.snapshot) { latest = snapshot }
+        }
+        if timecodeReading != snapshot.timecodeReading { timecodeReading = snapshot.timecodeReading }
         onChange()
+    }
+
+    private static func differsOnlyInTimecode(_ old: CameraSnapshot, _ new: CameraSnapshot) -> Bool {
+        var old = old
+        old.timecodeReading = new.timecodeReading
+        old.revision = new.revision
+        return old == new
     }
 
     // MARK: Readouts
@@ -245,12 +341,15 @@ public final class MonitorControlModel {
         guard scheduled.insert(key).inserted else { return }
         let current = binding
         let revision = editRevisions[key, default: 0]
+        // Hosted Swift 6.3.3 aborted in the task allocator awaiting a non-throwing stored
+        // `@MainActor` async closure here; `sleep` is throwing like the other injected waits.
+        // Capturing it first also leaves the model free during the window.
+        let sleep = sleep, coalescing = coalescing
         Task { [weak self] in
-            guard let self else { return }
-            await self.sleep(self.coalescing)
-            guard self.binding == current, self.editRevisions[key, default: 0] == revision else {
-                return
-            }
+            try? await sleep(coalescing)
+            guard let self, self.binding == current,
+                self.editRevisions[key, default: 0] == revision
+            else { return }
             self.scheduled.remove(key)
             self.submit(key)
         }
@@ -289,16 +388,12 @@ public final class MonitorControlModel {
     // MARK: Record
 
     /// Unknown recording, mode, access or control readiness cannot be confirmed.
-    public func recordEditor(policy: RecordConfirmationPolicy = .unchangedRecording)
-        -> RecordEditor?
-    {
+    public func recordEditor() -> RecordEditor? {
         guard !recordPending, let snapshot else { return nil }
-        return recordEditor(in: snapshot, policy: policy)
+        return recordEditor(in: snapshot)
     }
 
-    private func recordEditor(in snapshot: CameraSnapshot, policy: RecordConfirmationPolicy)
-        -> RecordEditor?
-    {
+    private func recordEditor(in snapshot: CameraSnapshot) -> RecordEditor? {
         guard snapshot.connection == .ready, let mode = snapshot.mode.value, mode.role == .video,
             let descriptor = snapshot.capabilities[.recording], descriptor.access == .readWrite,
             descriptor.availability == .available
@@ -314,7 +409,7 @@ public final class MonitorControlModel {
         default: return nil
         }
         return RecordEditor(
-            recording: recording, policy: policy,
+            recording: recording,
             editor: Editor(
                 key: .recording, binding: binding, session: snapshot.session,
                 epoch: snapshot.epoch, authority: snapshot.authority, domain: descriptor.domain,
@@ -322,17 +417,17 @@ public final class MonitorControlModel {
             mode: mode)
     }
 
-    /// Checks mode, epoch, authority, binding, readiness and the captured observation policy.
+    /// Checks mode, epoch, authority, binding, readiness and the captured recording observation.
     public func canCommitRecord(from editor: RecordEditor) -> Bool {
         guard !recordPending, let snapshot else { return false }
         return recordApprovalMatches(editor, snapshot: snapshot)
     }
 
     private func recordApprovalMatches(_ editor: RecordEditor, snapshot: CameraSnapshot) -> Bool {
-        guard let current = recordEditor(in: snapshot, policy: editor.policy),
+        guard let current = recordEditor(in: snapshot),
             current.editor == editor.editor, current.mode == editor.mode
         else { return false }
-        return editor.policy == .explicitTarget || current.recording == editor.recording
+        return current.recording == editor.recording
     }
 
     /// Sends the captured target. A fresh snapshot is checked again immediately before dispatch.

@@ -71,7 +71,8 @@ final class ReliabilityReportingTransportTests: XCTestCase {
             consent.resetForTests()
             gate.resetForTests()
             if let optedIn = c.optedIn { consent.setOptedIn(optedIn) }
-            gate.setCameraSessionActive(c.cameraActive)
+            let lease = c.cameraActive ? gate.beginCameraPath() : nil
+            defer { lease?.end() }
             let session = TestReportingURLProtocol.makeSDKSession()
             let done = expectation(description: c.name)
             nonisolated(unsafe) var response: URLResponse?
@@ -93,7 +94,6 @@ final class ReliabilityReportingTransportTests: XCTestCase {
         let forwardConfig = URLSessionConfiguration.ephemeral
         forwardConfig.protocolClasses = [SlowForwardProtocol.self]
         TestReportingURLProtocol.current.session = URLSession(configuration: forwardConfig)
-        gate.setCameraSessionActive(false)
         let session = TestReportingURLProtocol.makeSDKSession()
         let url = URL(string: "https://o0.ingest.sentry.io/api/0/envelope/")!
         let done = expectation(description: "race")
@@ -104,7 +104,8 @@ final class ReliabilityReportingTransportTests: XCTestCase {
             done.fulfill()
         }.resume()
         wait(for: [SlowForwardProtocol.started], timeout: 10)
-        reporting.setCameraSessionActive(true)
+        let lease = reporting.beginCameraPath()
+        defer { lease.end() }
         wait(for: [done], timeout: 10)
         XCTAssertNil(response)
     }

@@ -12,6 +12,8 @@ import OpenCineMedia
     public let adoptLook: (@MainActor (MonitorMediaRecord<Payload>, MonitorPlaybackLook<Look>) -> Void)?
     public let access: (@MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryAccess)?
     public let rating: MonitorMediaPlaybackRatingService<Payload>?
+    /// Capture frozen consequences and source admission before showing a destructive dialog.
+    public let captureDeletion: (@MainActor (MonitorMediaRecord<Payload>) -> MonitorOperatorPlaybackDeletionRequest?)?
     public init(cacheOriginal: (@MainActor (MonitorMediaRecord<Payload>) async -> Void)? = nil,
         delete: (@MainActor (MonitorMediaRecord<Payload>) async -> Bool)? = nil,
         favorite: (@MainActor (MonitorMediaRecord<Payload>) -> Void)? = nil,
@@ -19,7 +21,18 @@ import OpenCineMedia
         access: (@MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryAccess)? = nil,
         rating: MonitorMediaPlaybackRatingService<Payload>? = nil) {
         self.cacheOriginal = cacheOriginal; self.delete = delete; self.favorite = favorite; self.adoptLook = adoptLook
-        self.access = access; self.rating = rating
+        self.access = access; self.rating = rating; self.captureDeletion = nil
+    }
+    /// Additive route; the original initializer and its trailing callback remain unchanged.
+    public init(captureDeletion: @escaping @MainActor (MonitorMediaRecord<Payload>) -> MonitorOperatorPlaybackDeletionRequest?,
+        cacheOriginal: (@MainActor (MonitorMediaRecord<Payload>) async -> Void)? = nil,
+        delete: (@MainActor (MonitorMediaRecord<Payload>) async -> Bool)? = nil,
+        favorite: (@MainActor (MonitorMediaRecord<Payload>) -> Void)? = nil,
+        adoptLook: (@MainActor (MonitorMediaRecord<Payload>, MonitorPlaybackLook<Look>) -> Void)? = nil,
+        access: (@MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryAccess)? = nil,
+        rating: MonitorMediaPlaybackRatingService<Payload>? = nil) {
+        self.cacheOriginal = cacheOriginal; self.delete = delete; self.favorite = favorite; self.adoptLook = adoptLook
+        self.access = access; self.rating = rating; self.captureDeletion = captureDeletion
     }
 }
 
@@ -94,6 +107,20 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
     @ObservationIgnored private var sceneActive = true
     @ObservationIgnored private var cacheRequest: MonitorPlaybackItemToken?
     @ObservationIgnored private var cacheTask: Task<Void, Never>?
+    private struct CapturedDeletion {
+        let request: MonitorOperatorPlaybackDeletionRequest
+        let record: MonitorMediaRecord<Payload>
+        let owner: MonitorMediaPlaybackModel<Payload, Look>
+        let token: MonitorPlaybackItemToken
+        let page: UUID
+        let generation: UInt64
+        let source: MonitorMediaLibraryActionToken
+        let survivors: [MonitorMediaRecord<Payload>]
+        let successor: MediaAssetID?
+    }
+    @ObservationIgnored private var deletionRevision = UUID()
+    @ObservationIgnored private var pendingDeletion: CapturedDeletion?
+    @ObservationIgnored private var enteredDeletion: MonitorOperatorPlaybackDeletionRequest?
     @ObservationIgnored private var deleteTask: Task<Void, Never>?
     @ObservationIgnored private var adoptedLook: UUID?
     @ObservationIgnored private let sleep: @MainActor (Duration) async throws -> Void
@@ -376,6 +403,120 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
         return current && ratingRevision == revision
     }
 
+    /// Captures exactly the consequences displayed by this item's confirmation. No IO begins.
+    public func captureDeletion(admitted token: MonitorPlaybackItemToken,
+        operations: MonitorOperatorPlaybackOperations<Payload, Look>) -> MonitorPlaybackDeletionConfirmation? {
+        guard enteredDeletion == nil, isCurrent(token), let owner = playback, let record = owner.active,
+            let capture = operations.captureDeletion else { return nil }
+        let capturedPage = page, generation = library.cache.directory.generation, source = library.actionToken
+        if let access = operations.access {
+            if access(record).delete != true { return nil }
+        } else if record.asset.deletable != true { return nil }
+        guard page == capturedPage, playback === owner, isCurrent(token) else { return nil }
+        cancelPendingDeletion()
+        let revision = deletionRevision
+        guard let request = capture(record) else { return nil }
+        guard deletionRevision == revision, page == capturedPage, playback === owner, isCurrent(token),
+            library.isCurrent(source), library.cache.directory.generation == generation, request.authority.isCurrent,
+            request.authority.directory === library.cache.directory,
+            deletionRevision == revision, page == capturedPage, playback === owner, isCurrent(token),
+            library.isCurrent(source), library.cache.directory.generation == generation else {
+            request.authority.retire(); return nil
+        }
+        let index = owner.playlist.firstIndex { $0.asset.id == record.asset.id } ?? 0
+        let survivors = owner.playlist.filter { $0.asset.id != record.asset.id }
+        pendingDeletion = .init(request: request, record: record, owner: owner, token: token,
+            page: capturedPage, generation: generation, source: source, survivors: survivors,
+            successor: survivors.isEmpty ? nil : survivors[min(index, survivors.count - 1)].asset.id)
+        return request.confirmation
+    }
+
+    public func isDeletionCurrent(admitted id: UUID) -> Bool {
+        guard let captured = pendingDeletion, captured.request.confirmation.id == id,
+            page == captured.page, playback === captured.owner, isCurrent(captured.token),
+            library.cache.directory.generation == captured.generation,
+            captured.request.authority.isCurrent else { return false }
+        return pendingDeletion?.request.confirmation.id == id && page == captured.page &&
+            playback === captured.owner && isCurrent(captured.token) &&
+            library.cache.directory.generation == captured.generation
+    }
+
+    /// Cancel revokes only this displayed request and never enters its native performer.
+    public func cancelDeletion(admitted id: UUID) {
+        guard pendingDeletion?.request.confirmation.id == id else { return }
+        cancelPendingDeletion()
+    }
+    private func cancelPendingDeletion() {
+        deletionRevision = UUID()
+        let outgoing = pendingDeletion; pendingDeletion = nil; outgoing?.request.authority.retire()
+    }
+
+    /// Consumes the captured request once. Only its existing completion may cross a planned relist.
+    public func confirmDeletion(admitted id: UUID) {
+        guard let captured = pendingDeletion, captured.request.confirmation.id == id else { return }
+        pendingDeletion = nil
+        guard page == captured.page, playback === captured.owner, isCurrent(captured.token),
+            captured.request.authority.isCurrent,
+            library.cache.directory.generation == captured.generation,
+            page == captured.page, playback === captured.owner, isCurrent(captured.token) else {
+            captured.request.authority.retire(); return
+        }
+        let previous = deleteTask; deleteTask = nil; previous?.cancel()
+        enteredDeletion?.authority.retire(); enteredDeletion = captured.request
+        deleteTask = Task { @MainActor [weak self] in
+            guard let self else { captured.request.authority.retire(); return }
+            defer {
+                if self.enteredDeletion?.confirmation.id == id {
+                    self.enteredDeletion = nil; self.deleteTask = nil; captured.request.authority.retire()
+                }
+            }
+            guard !Task.isCancelled, self.page == captured.page, self.playback === captured.owner,
+                self.isCurrent(captured.token), captured.request.authority.isCurrent,
+                self.page == captured.page, self.playback === captured.owner, self.isCurrent(captured.token) else { return }
+            await captured.request.perform()
+            guard !Task.isCancelled, self.page == captured.page, self.playback === captured.owner,
+                self.library.cache.directory.generation == captured.generation,
+                let completion = captured.request.authority.completion,
+                completion.claim == captured.request.authority.id, completion.isCurrent,
+                self.library.isCurrent(completion.admission), self.page == captured.page,
+                self.playback === captured.owner,
+                self.library.cache.directory.generation == captured.generation else {
+                // A declined performer may close its outgoing native item before source IO.
+                // Restore only when the original gallery/source still admits this same item.
+                if !Task.isCancelled, self.page == captured.page, self.playback === captured.owner,
+                    self.library.cache.directory.generation == captured.generation,
+                    self.library.isCurrent(captured.source), captured.request.authority.isCurrent,
+                    captured.owner.closed, captured.owner.active?.asset.id == captured.record.asset.id,
+                    captured.owner.token == .init(owner: captured.token.owner, revision: captured.token.revision &+ 1),
+                    self.page == captured.page, self.playback === captured.owner,
+                    let retained = self.library.record(captured.record.asset.id) {
+                    self.enteredDeletion = nil
+                    _ = self.open(retained, playlist: captured.owner.playlist.compactMap { self.library.record($0.asset.id) },
+                        admitted: captured.source)
+                }
+                return
+            }
+            let removed = self.library.record(captured.record.asset.id) == nil
+            guard MonitorPlaybackRemovalAdmission.accepts(
+                removed: removed ? captured.record.asset.id : nil, captured: captured.record.asset.id,
+                token: captured.token, current: captured.owner.token,
+                active: captured.owner.active?.asset.id, closed: captured.owner.closed,
+                sameComposition: true, sameGallery: true, sameContent: true) ||
+                (!removed && captured.owner.closed && captured.owner.active?.asset.id == captured.record.asset.id &&
+                    captured.owner.token == .init(owner: captured.token.owner, revision: captured.token.revision &+ 1))
+            else { return }
+            self.enteredDeletion = nil
+            let preferred = captured.survivors.firstIndex { $0.asset.id == captured.successor } ?? 0
+            let successor = captured.survivors.dropFirst(preferred).compactMap { self.library.record($0.asset.id) }.first
+                ?? captured.survivors.prefix(preferred).reversed().compactMap { self.library.record($0.asset.id) }.first
+            if !removed, let retained = self.library.record(captured.record.asset.id) {
+                _ = self.open(retained, playlist: captured.owner.playlist.compactMap { self.library.record($0.asset.id) }, admitted: completion.admission)
+            } else if let successor {
+                _ = self.open(successor, playlist: captured.survivors.compactMap { self.library.record($0.asset.id) }, admitted: completion.admission)
+            } else { self.closePlayback() }
+        }
+    }
+
     public func deleteCurrent(admitted token: MonitorPlaybackItemToken,
         operations: MonitorOperatorPlaybackOperations<Payload, Look>) {
         guard isCurrent(token), let owner = playback, let dying = owner.active,
@@ -410,6 +551,8 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
     }
 
     private func retireWork() {
+        cancelPendingDeletion()
+        enteredDeletion?.authority.retire(); enteredDeletion = nil
         let previousCache = cacheTask, previousDelete = deleteTask
         let previousRating = ratingTasks.values
         ratingTasks = [:]; ratingRevision = UUID(); ratingRead = nil; ratingNoticeID = nil

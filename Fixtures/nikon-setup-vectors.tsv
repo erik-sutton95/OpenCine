@@ -1,0 +1,33 @@
+# Golden vectors for the Nikon saved-setup rules, shared by both shells.
+#
+# Swift owns `PTPIPSavedCameraRecords.canonicalized` in `Sources/OpenCineNikon`; Kotlin re-implements
+# it for the Android record in `Android/nikon` (`SavedCameraRecords.kt`). The records differ (iOS
+# has a serial and a declared path, Android a transport and a profile id), but which rows are one
+# setup and which row wins must not. Both suites read these rows.
+#
+# Columns: kind (canonical), records, expected. Records are `|`-separated
+# `host,name,path,network,lastSeen` (path: accessPoint, infrastructure, phoneHotspot, usbC;
+# network: the access point's SSID or the router's network name; lastSeen: epoch milliseconds).
+# Expected is the canonical list as `host,name,network`, `|`-separated. <nil> is no value,
+# <empty> no rows.
+canonical	192.168.1.5,ZR_3001234,infrastructure,<nil>,100|192.168.1.5,Camera,infrastructure,<nil>,200	192.168.1.5,Camera,<nil>
+canonical	192.168.1.1,ZR_3001234,accessPoint,NIKON_ZR_01234,100|192.168.1.1,ZR_4005678,accessPoint,NIKON_ZR_05678,200	192.168.1.1,ZR_3001234,NIKON_ZR_01234|192.168.1.1,ZR_4005678,NIKON_ZR_05678
+canonical	192.168.1.1,ZR_3001234,accessPoint,NIKON_ZR_01234,100|192.168.1.1,ZR_3001234,infrastructure,<nil>,200	192.168.1.1,ZR_3001234,NIKON_ZR_01234|192.168.1.1,ZR_3001234,<nil>
+canonical	192.168.1.20,ZR_3001234,infrastructure,<nil>,100|192.168.1.30,ZR_3001234,infrastructure,<nil>,200	192.168.1.30,ZR_3001234,<nil>
+canonical	192.168.1.20,ZR_3001234,infrastructure,<nil>,100|192.168.129.20,ZR_3001234,infrastructure,<nil>,200	192.168.1.20,ZR_3001234,<nil>|192.168.129.20,ZR_3001234,<nil>
+canonical	192.168.1.20,ZR_3001234,infrastructure,Studio,100|10.0.0.20,ZR_3001234,infrastructure,Studio,200	10.0.0.20,ZR_3001234,Studio
+canonical	192.168.1.20,ZR_3001234,infrastructure,Studio,100|192.168.1.30,ZR_3001234,infrastructure,Home,200	192.168.1.20,ZR_3001234,Studio|192.168.1.30,ZR_3001234,Home
+canonical	192.168.1.20,ZR_3001234,infrastructure,Studio,100|192.168.1.30,ZR_3001234,infrastructure,<nil>,200	192.168.1.30,ZR_3001234,Studio
+canonical	192.168.1.20,Camera,infrastructure,<nil>,100|192.168.1.30,Camera,infrastructure,<nil>,200	192.168.1.20,Camera,<nil>|192.168.1.30,Camera,<nil>
+canonical	192.168.1.20,ZR_3001234,phoneHotspot,<nil>,100|192.168.1.30,ZR_4005678,phoneHotspot,<nil>,200	192.168.1.20,ZR_3001234,<nil>|192.168.1.30,ZR_4005678,<nil>
+canonical	172.20.10.2,ZR_3001234,phoneHotspot,<nil>,<nil>|172.20.10.2,Nikon ZR,phoneHotspot,<nil>,<nil>	172.20.10.2,Nikon ZR,<nil>
+canonical	172.20.10.2,ZR_3001234,phoneHotspot,<nil>,<nil>|172.20.10.2,Nikon ZR,phoneHotspot,<nil>,5	172.20.10.2,Nikon ZR,<nil>
+canonical	172.20.10.2,ZR_3001234,phoneHotspot,<nil>,5|172.20.10.2,Nikon ZR,phoneHotspot,<nil>,<nil>	172.20.10.2,ZR_3001234,<nil>
+canonical	172.20.10.2,ZR_3001234,phoneHotspot,<nil>,9|172.20.10.2,Nikon ZR,phoneHotspot,<nil>,9	172.20.10.2,Nikon ZR,<nil>
+canonical	192.168.1.1,ZR_3001234,accessPoint,NIKON_ZR_01234,100|192.168.1.1,ZR_3001234,accessPoint,<nil>,200	192.168.1.1,ZR_3001234,NIKON_ZR_01234
+canonical	USB:3F9A2C,ZR_3001234,usbC,<nil>,1|usb:3f9a2c,ZR_3001234,usbC,<nil>,2	usb:3f9a2c,ZR_3001234,<nil>
+canonical	 192.168.1.9 , ZR_3001234 ,phoneHotspot,<nil>,1	192.168.1.9,ZR_3001234,<nil>
+canonical	 ,ZR_3001234,phoneHotspot,<nil>,1	<empty>
+canonical	192.168.1.9,,phoneHotspot,<nil>,1	192.168.1.9,Camera 192.168.1.9,<nil>
+canonical	192.168.1.9,PTP-IP Camera,phoneHotspot,<nil>,1|192.168.1.9,ZR_3001234,phoneHotspot,<nil>,2	192.168.1.9,ZR_3001234,<nil>
+canonical	10.0.0.5,Z_8_5009999,infrastructure,<nil>,1|10.0.0.6,z_8_5009999,infrastructure,<nil>,2	10.0.0.6,z_8_5009999,<nil>

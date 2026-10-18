@@ -175,6 +175,45 @@ import Testing
         #expect(job?.bundle.header.kind == .freshInputStaleOutput)
     }
 
+    /// OPENPOCKETCINE-IOS-2E (event 1f04a311, build 194): after the scene went inactive the
+    /// native session failed with -12903 and the decode stages were no longer observable. The
+    /// classifier called it a presentation stall; the failing stage is the decoder.
+    @Test func unobservableDecoderFailureIsADecoderErrorNotAPresentationStall() {
+        var snapshot = Fixture.snap(
+            now: 30, auHz: 0, submitHz: 5.5, acceptHz: 5.4, outputHz: 5.4, presentHz: 10.9,
+            packetAge: 0.01, auAge: 0.01, acceptAge: 9.3, outputAge: 9.3, presentAge: 9.3,
+            errorClass: "nativeDecoder", errorCount: 2, decoderFailed: true, errorAge: 9.1,
+            outputObservable: false)
+        snapshot.rates.packetHz = 0
+        let verdict = FeedIncidentClassifier.classify(snapshot)
+        #expect(verdict.kind == .decoderError)
+        #expect(verdict.failingStage == .decodeAccept)
+    }
+
+    /// OPENPOCKETCINE-IOS-K (event 0d4710fd, build 194): camera input stopped (access units
+    /// 4.7 s old, 0 Hz) with no decoder error and the decode stages unobservable. That is a
+    /// transport stall upstream of the picture, not a presenter that stopped.
+    @Test func unobservableOutputWithStaleInputIsATransportStall() {
+        let snapshot = Fixture.snap(
+            now: 10, packetHz: 0, auHz: 0, submitHz: 0, acceptHz: 0, outputHz: 0, presentHz: 0,
+            packetAge: 4.7, auAge: 4.7, acceptAge: nil, outputAge: nil, presentAge: 4.7,
+            outputObservable: false)
+        let verdict = FeedIncidentClassifier.classify(snapshot)
+        #expect(verdict.kind == .transportStall)
+        #expect(verdict.failingStage == .packet)
+    }
+
+    /// With fresh input and no decoder failure an unobservable decode path still leaves the
+    /// presenter as the stage that stopped.
+    @Test func unobservableOutputWithFreshInputStaysAPresentationStall() {
+        let snapshot = Fixture.snap(
+            now: 10, outputHz: 0, presentHz: 0, acceptAge: nil, outputAge: nil, presentAge: 4,
+            outputObservable: false)
+        let verdict = FeedIncidentClassifier.classify(snapshot)
+        #expect(verdict.kind == .presentStalled)
+        #expect(verdict.failingStage == .presentation)
+    }
+
     @Test func compressedLayerDoesNotReportRetiredAssistOutputAsStalled() {
         var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-retired-assist" })
         _ = recorder.beginSession(Fixture.context())
@@ -370,6 +409,28 @@ import Testing
         #expect(decoded.header.buildIdentity == nil)
         #expect(decoded.header.resolvedTestSource == .unknown)
         #expect(decoded.header.resolvedBuildIdentity == "unknown")
+    }
+
+    @Test func firstDecodeErrorContextRoundTripsAndLegacyRecordsOmitIt() throws {
+        let context = FeedIncidentDecodeErrorContext(
+            status: -12909, nalTypes: [1], accessUnitBytes: 1_234, irapAge: 0.5, inputHz: 37.4)
+        let decoder = FeedIncidentDecoder(lastStatus: -12909, firstError: context)
+        let encoded = try FeedIncidentCoding.encoder().encode(decoder)
+        #expect(
+            try FeedIncidentCoding.decoder().decode(FeedIncidentDecoder.self, from: encoded)
+                == decoder)
+        let legacy = try FeedIncidentCoding.encoder().encode(FeedIncidentDecoder())
+        let json = try #require(JSONSerialization.jsonObject(with: legacy) as? [String: Any])
+        #expect(json["firstError"] == nil)
+        #expect(
+            try FeedIncidentCoding.decoder().decode(FeedIncidentDecoder.self, from: legacy)
+                .firstError == nil)
+        // Bounded: 6-bit NAL types, at most 16; negative sizes and ages and NaN rates vanish.
+        let bounded = FeedIncidentDecodeErrorContext(
+            status: 0, nalTypes: Array(repeating: 99, count: 40), accessUnitBytes: -1,
+            irapAge: -1, parameterSetChangeAge: .infinity, inputHz: .nan)
+        #expect(bounded.nalTypes == Array(repeating: 63, count: 16))
+        #expect(bounded.accessUnitBytes == 0 && bounded.irapAge == nil && bounded.parameterSetChangeAge == nil && bounded.inputHz == 0)
     }
 
     @Test func nativeBreadcrumbDetailsKeepOnlyTypedTokens() {

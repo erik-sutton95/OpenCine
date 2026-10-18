@@ -23,15 +23,20 @@ import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.StorageVolume
 import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
+import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingSemantics
 import com.opencapture.opencine.core.SettingValue
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.rejection
@@ -81,6 +86,13 @@ class NikonOpenCineSession(
             ),
         )
     override val snapshots: StateFlow<CameraSnapshot> = _snapshots.asStateFlow()
+
+    private var commandAuthorityRevision = Any()
+    /** Captures source/authority publication lifetime, independent of ordinary property reports. */
+    public fun captureCommandAuthority(): () -> Boolean {
+        val captured = synchronized(lock) { commandAuthorityRevision }
+        return { synchronized(lock) { !closed && commandAuthorityRevision === captured } }
+    }
     private val receipts = HashMap<OperationID, MutableStateFlow<CommandReceipt>>()
 
     /** Record targets in flight: not finished, so a newer press must follow, never be skipped. */
@@ -95,7 +107,9 @@ class NikonOpenCineSession(
         refresh()
         feed =
             scope.launch {
-                combine(session.state, session.reportedCameraProperties, session.reportedRecording) { _, _, _ -> }
+                combine(
+                    session.state, session.reportedCameraProperties, session.reportedRecording, session.liveTimecode,
+                ) { _, _, _, _ -> }
                     .collect { refresh() }
             }
     }
@@ -311,11 +325,12 @@ class NikonOpenCineSession(
         wasReady = ready
         everReady = everReady || ready
         val descriptors = descriptors(properties, reported)
+        val timecode = timecodeCapability(properties)
         val capabilities =
-            if (CapabilitySnapshot(current.capabilities.revision, descriptors) == current.capabilities) {
+            if (CapabilitySnapshot(timecodeCapability = timecode, revision = current.capabilities.revision, descriptors = descriptors) == current.capabilities) {
                 current.capabilities
             } else {
-                CapabilitySnapshot(current.capabilities.revision.next(), descriptors)
+                CapabilitySnapshot(timecodeCapability = timecode, revision = current.capabilities.revision.next(), descriptors = descriptors)
             }
         val serial = (state as? CameraSessionState.Connected)?.identity?.serialNumber.orEmpty()
         val photography = properties.captureSelector.equals("photo", ignoreCase = true)
@@ -335,6 +350,8 @@ class NikonOpenCineSession(
                     else -> ControlAuthority.Unavailable(UnavailableReason.Authority)
                 },
                 capabilities = capabilities,
+                // The header counter is the runtime's own observation; unknown off the link (A5-04).
+                timecode = current.timecode.observe(if (ready) session.liveTimecode.value else null, at),
                 mode = current.mode.observe(properties.captureSelector?.let { captureMode(photography) }, at),
                 recording =
                     current.recording.observe(
@@ -345,17 +362,34 @@ class NikonOpenCineSession(
                     current.power.copy(
                         battery =
                             current.power.battery.observe(
-                                properties.batteryPercent?.let { it / 100.0 },
+                                properties.batteryPercent?.let(::batteryFraction),
                                 at,
-                                ObservationPrecision.Quantized(0.01),
+                                // Nikon BatteryLevel is a five-step gauge (A5-01), not a percent.
+                                BATTERY_PRECISION,
                             ),
+                        exhausted = current.power.exhausted.observe(
+                            properties.batteryPercent?.let { NikonCameraBatteryGauge.gauge(it).exhaustion }, at,
+                        ),
+                        externalPower = current.power.externalPower.observe(properties.externalPower, at),
                     ),
+                exposureProgram = current.exposureProgram.observe(exposureProgram(properties.exposureMode), at),
+                recordingFormat = current.recordingFormat.copy(
+                    dimensions = current.recordingFormat.dimensions.observe(recordingDimensions(properties.resolution), at),
+                    codec = current.recordingFormat.codec.observe(properties.codec?.trim()?.takeIf { it.isNotEmpty() }, at),
+                    profile = current.recordingFormat.profile.observe(properties.tone?.trim()?.takeIf { it.isNotEmpty() }, at,
+                        origin = ObservationOrigin.PROTOCOL_DERIVED),
+                ),
+                storage = current.storage.observe(storageVolumes(properties, current.storage.value, at), at),
                 settings =
                     reportedSettings(properties, photography)
                         .mapValues { (key, value) -> current.value(key).observe(value, at) }
                         .filterValues { it.isKnown },
             )
         if (next != current) {
+            if (next.session != current.session || next.epoch != current.epoch ||
+                next.connection != current.connection || next.authority != current.authority) {
+                commandAuthorityRevision = Any()
+            }
             next = next.copy(revision = current.revision.next())
             _snapshots.value = next
         }
@@ -371,6 +405,44 @@ class NikonOpenCineSession(
 
     companion object {
         val INTEGRATION: IntegrationID = IntegrationID("org.opencapture.nikon-ptp")
+
+        /** The body's battery gauge steps: five bars, so a reading is never finer than a fifth. */
+        val BATTERY_PRECISION: ObservationPrecision = ObservationPrecision.Quantized(1.0 / NikonCameraBatteryGauge.BAR_COUNT)
+
+        /** The bars the body shows, as a fraction on [BATTERY_PRECISION]'s steps; no reading stays unknown. */
+        fun batteryFraction(rawBatteryLevel: Int): Double? = NikonCameraBatteryGauge.gauge(rawBatteryLevel)
+            .takeIf { it != NikonCameraBatteryGauge.Unknown }
+            ?.let { it.filledBars.toDouble() / NikonCameraBatteryGauge.BAR_COUNT }
+
+        /**
+         * Every Z body's live-view header carries a frame-counting timecode at the movie rate the body
+         * reports. Whether it runs is the observation, not the capability (Swift `timecodeCapability`).
+         */
+        fun timecodeCapability(properties: CameraPropertySnapshot): TimecodeCapability =
+            TimecodeCapability.supported(frameRate(properties)?.let { TimecodePrecision.Frames(it) })
+
+        /**
+         * The movie rate as the screen-size token reports it, in whole frames per second. Whether a
+         * body's "24p" token records 24000/1001 is unverified on hardware, so none is assumed.
+         */
+        private fun exposureProgram(label: String?): com.opencapture.opencine.core.CameraExposureProgram? = when (label) {
+            "M" -> com.opencapture.opencine.core.CameraExposureProgram.MANUAL
+            "P" -> com.opencapture.opencine.core.CameraExposureProgram.PROGRAM
+            "A" -> com.opencapture.opencine.core.CameraExposureProgram.APERTURE_PRIORITY
+            "S" -> com.opencapture.opencine.core.CameraExposureProgram.SHUTTER_PRIORITY
+            "Auto" -> com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC
+            else -> null
+        }
+
+        private fun recordingDimensions(value: String?): com.opencapture.opencine.core.CameraRecordingFormat.Dimensions? {
+            val parts = value?.split('x') ?: return null
+            if (parts.size != 2) return null
+            val width = parts[0].toIntOrNull() ?: return null
+            val height = parts[1].toIntOrNull() ?: return null
+            return com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(width, height)
+        }
+
+        fun frameRate(properties: CameraPropertySnapshot): Rational? = properties.frameRate?.takeIf { it > 0 }?.let { Rational(it) }
 
         /** Movie controls offered through the common seam; stills retain their typed adapter. */
         val CONTROLS: Set<CameraControl> =
@@ -420,6 +492,8 @@ class NikonOpenCineSession(
                 SettingDescriptor(SettingKey.ISO, domain = SettingDomain(iso), availability = isoAvailability),
                 SettingDescriptor(SettingKey.WHITE_BALANCE, domain = whiteBalance),
                 SettingDescriptor(SettingKey.RECORDING),
+                // The movie rate is a common read-only observation; the format picker stays native.
+                SettingDescriptor(SettingKey.FRAME_RATE, access = SettingAccess.READ_ONLY),
             ) + NikonExposureSettings.descriptors(properties)
         }
 
@@ -481,7 +555,11 @@ class NikonOpenCineSession(
                 } else {
                     mode?.let { SettingValue.WhiteBalance(whiteBalance(it)) }
                 }
-            return mapOf(SettingKey.ISO to iso, SettingKey.WHITE_BALANCE to whiteBalance) + NikonExposureSettings.reported(properties)
+            return mapOf(
+                SettingKey.ISO to iso,
+                SettingKey.WHITE_BALANCE to whiteBalance,
+                SettingKey.FRAME_RATE to frameRate(properties)?.let { SettingValue.FrameRate(it) },
+            ) + NikonExposureSettings.reported(properties)
         }
 
         private fun captureMode(photography: Boolean): CaptureMode =
@@ -491,16 +569,39 @@ class NikonOpenCineSession(
                 CaptureMode(CaptureMode.Role.VIDEO, "${INTEGRATION.rawValue}.movie", "Movie")
             }
 
+        /** Exact bytes and a separately marked estimate; unknown format has no duration. */
+        internal fun storageVolumes(
+            properties: CameraPropertySnapshot, previous: List<StorageVolume>? = null, at: MonotonicInstant? = null,
+        ): List<StorageVolume>? {
+            val storage = properties.storage?.takeIf { it.readout != null } ?: return null
+            val old = previous?.firstOrNull { it.id == "active" }
+            fun <T : Any> observation(value: T?, previous: ObservedValue<T>?, origin: ObservationOrigin): ObservedValue<T> = when {
+                value == null -> ObservedValue.unknown
+                previous != null && previous.value == value && previous.origin == origin -> previous
+                else -> ObservedValue(value, origin, at)
+            }
+            val minutes = if (properties.captureSelector == "video") {
+                RecordDurationEstimator.estimateMinutes(properties.codec, properties.resolution, properties.frameRate, storage.freeSpaceBytes)
+            } else null
+            return listOf(StorageVolume(
+                id = "active",
+                freeBytes = observation(storage.freeSpaceBytes, old?.freeBytes, ObservationOrigin.CAMERA_REPORTED),
+                totalBytes = observation(storage.totalCapacityBytes.takeIf { it > 0 }, old?.totalBytes, ObservationOrigin.CAMERA_REPORTED),
+                remainingRecordingTime = observation(minutes?.let { (it.toLong() * 60).seconds }, old?.remainingRecordingTime, ObservationOrigin.ESTIMATED),
+            ))
+        }
+
         /** Keeps an unchanged observation and its timestamp; a new value is camera-reported now. */
         private fun <T : Any> ObservedValue<T>.observe(
             value: T?,
             at: MonotonicInstant,
             precision: ObservationPrecision? = null,
+            origin: ObservationOrigin = ObservationOrigin.CAMERA_REPORTED,
         ): ObservedValue<T> =
             when {
                 this.value == value -> this
                 value == null -> ObservedValue.unknown
-                else -> ObservedValue(value, ObservationOrigin.CAMERA_REPORTED, at, precision = precision)
+                else -> ObservedValue(value, origin, at, precision = precision)
             }
 
         private fun CameraControlException.toStage(): CommandStage =

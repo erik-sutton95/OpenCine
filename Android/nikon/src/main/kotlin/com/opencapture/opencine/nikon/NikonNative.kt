@@ -140,8 +140,11 @@ object NikonNative {
         /** Terminal success: the PTP session is open and the camera identified. */
         fun onConnected(name: String, model: String, serialNumber: String)
 
-        /** Terminal failure with an operator-facing message. */
-        fun onFailed(message: String)
+        /**
+         * Terminal failure: [failure] is the Swift `AndroidConnectFailure` wire code (read it with
+         * [CameraConnectionFailure.fromWire]) and [message] the operator-facing message.
+         */
+        fun onFailed(failure: Int, message: String)
     }
 
     /** Receives raw camera-pushed PTP events from the active event socket. */

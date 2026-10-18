@@ -1,4 +1,5 @@
 #if os(iOS)
+import MonitorPresentation
 import SwiftUI
 
 /// The app supplies supported relay help and keeps credentials and relay lifetime.
@@ -17,6 +18,10 @@ public struct MonitorFeedSharingHelp {
 }
 
 /// Native host controls. Values/actions never locate a relay, keychain or app model.
+///
+/// The passcode field applies ``MonitorWatcherPasscodeRule``: the binding and `passcodeChanged`
+/// only ever receive a code that takes effect (trimmed, empty for an open feed); a shorter entry
+/// stays a draft in the field and the code already in force is kept.
 public struct MonitorFeedSharingSettings: View {
     @Binding private var sharing: Bool
     @Binding private var passcode: String
@@ -27,6 +32,7 @@ public struct MonitorFeedSharingSettings: View {
     private let showWiFiCode: (() -> Void)?
     private let passcodeChanged: (String) -> Void
     private let feedback: () -> Void
+    @State private var passcodeDraft: String?
 
     public init(sharing: Binding<Bool>, passcode: Binding<String>, controlRequests: Binding<Bool>,
         priority: Binding<String>, priorities: [String], help: MonitorFeedSharingHelp,
@@ -54,11 +60,22 @@ public struct MonitorFeedSharingSettings: View {
                 }
             }
             MonitorSettingsInlineRow(title: "Watcher passcode", help: help.passcode) {
-                SecureField("Optional", text: $passcode)
-                    .font(MonitorTheme.font(13, weight: .medium))
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 120)
-                    .onChange(of: passcode) { _, value in passcodeChanged(value) }
+                VStack(alignment: .trailing, spacing: 4) {
+                    SecureField("Optional", text: Binding(
+                        get: { passcodeDraft ?? passcode },
+                        set: { text in enterPasscode(text) }))
+                        .font(MonitorTheme.font(13, weight: .medium))
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 120)
+                    if let passcodeDraft, MonitorWatcherPasscodeRule.entry(passcodeDraft) == .tooShort {
+                        Text(MonitorWatcherPasscodeRule.tooShortHint)
+                            .font(MonitorTheme.font(10))
+                            .foregroundStyle(MonitorTheme.muted)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 160, alignment: .trailing)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             MonitorSettingsSwitchInlineRow(title: "Control requests", help: help.controlRequests,
                 isOn: controlRequests, feedback: feedback) { controlRequests.toggle() }
@@ -68,6 +85,13 @@ public struct MonitorFeedSharingSettings: View {
                     .buttonStyle(MonitorSettingsButtonStyle())
             }
         }
+    }
+
+    private func enterPasscode(_ text: String) {
+        passcodeDraft = text
+        guard let code = MonitorWatcherPasscodeRule.entry(text).passcode else { return }
+        if passcode != code { passcode = code }
+        passcodeChanged(code)
     }
 }
 #endif

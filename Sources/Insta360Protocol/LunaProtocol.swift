@@ -116,6 +116,30 @@ public enum LunaColorMode: UInt64, Sendable {
     case dolbyVision = 5
 }
 
+extension LunaColorMode {
+    /// The colour name operators read (twin of Kotlin `CameraColorProfile.label`).
+    public var label: String {
+        switch self {
+        case .standard: "Standard"
+        case .iLog: "I-Log"
+        case .vivid: "Vivid"
+        case .hdr: "HDR"
+        case .dolbyVision: "Dolby Vision"
+        }
+    }
+
+    /// The recording colour profiles offered as native choices, in drawer order.
+    public static let nativeRecordingChoices: [LunaColorMode] = [.standard, .iLog, .dolbyVision]
+
+    /// The colour drum: the native choices plus the reported `current` colour when they lack it,
+    /// so the popup opens centred on the colour the header shows. That entry is shown, never
+    /// sent: a SET goes only to a native choice. Kotlin twin: `nativeRecordingColorDrum`.
+    public static func recordingDrum(current: LunaColorMode?) -> [LunaColorMode] {
+        guard let current, !nativeRecordingChoices.contains(current) else { return nativeRecordingChoices }
+        return nativeRecordingChoices + [current]
+    }
+}
+
 public enum LunaExposureProgram: UInt64, Sendable {
     case automatic = 0
     case isoPriority = 1

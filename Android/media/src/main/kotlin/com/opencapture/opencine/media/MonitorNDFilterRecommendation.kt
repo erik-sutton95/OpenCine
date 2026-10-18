@@ -65,9 +65,7 @@ object MonitorNDFilterRecommendation {
 
     fun stopsLabel(stops: Double, noneLabel: String = NONE_LABEL): String {
         if (!stops.isFinite()) return noneLabel
-        if (abs(stops) < 0.05) return "0.0"
-        val sign = if (stops > 0) "+" else "−"
-        return sign + String.format(Locale.US, "%.1f", abs(stops))
+        return ExposureCompensation.label(stops)
     }
 
     /** Optical density of the picture (`ND 0.4`). Signed when under. */

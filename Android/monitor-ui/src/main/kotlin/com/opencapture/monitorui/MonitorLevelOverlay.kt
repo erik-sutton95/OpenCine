@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -26,6 +27,8 @@ sealed interface MonitorLevelDisplay {
     data object Unavailable : MonitorLevelDisplay
     data class Gauges(val rollDeg: Double, val tiltDeg: Double) : MonitorLevelDisplay
     data class Bubble(val xDeg: Double, val yDeg: Double) : MonitorLevelDisplay
+    /** A horizon line through the picture's centre, rotated by the roll. */
+    data class Horizon(val rollDeg: Double) : MonitorLevelDisplay
 }
 
 object MonitorLevelGeometry {
@@ -36,6 +39,8 @@ object MonitorLevelGeometry {
     const val BUBBLE_SPAN = 10.0
     const val BUBBLE_RADIUS = 64f
     const val BAND = 8f
+    /** The horizon reads level inside this roll. */
+    const val HORIZON_THRESHOLD = 0.8
     /** Roll strip centre above the visible picture's bottom edge; tilt mirrors the offset. */
     const val ROLL_LIFT_LANDSCAPE = 84f
     const val ROLL_LIFT_PORTRAIT = 22f
@@ -72,6 +77,7 @@ object MonitorLevelGeometry {
         MonitorLevelDisplay.Unavailable -> "Level, $noDataLabel"
         is MonitorLevelDisplay.Gauges -> String.format(Locale.ROOT, "Level, roll %+.1f°, tilt %+.1f°", display.rollDeg, display.tiltDeg)
         is MonitorLevelDisplay.Bubble -> String.format(Locale.ROOT, "Level, off plumb %+.1f° / %+.1f°", display.xDeg, display.yDeg)
+        is MonitorLevelDisplay.Horizon -> String.format(Locale.ROOT, "Level, horizon roll %+.1f°", display.rollDeg)
     }
 }
 
@@ -97,6 +103,7 @@ fun MonitorLevelOverlay(
                 val v = MonitorLevelGeometry.visible(feedDp, viewportDp)
                 drawBubble(Offset(v.midX.dp.toPx(), v.midY.dp.toPx()), m.xDeg, m.yDeg, measurer)
             }
+            is MonitorLevelDisplay.Horizon -> drawHorizon(Offset(feedDp.midX.dp.toPx(), feedDp.midY.dp.toPx()), m.rollDeg)
             is MonitorLevelDisplay.Gauges -> {
                 drawStrip(frames.roll, vertical = false, m.rollDeg, measurer, unknownLabel)
                 drawStrip(frames.tilt, vertical = true, m.tiltDeg, measurer, unknownLabel)
@@ -184,4 +191,19 @@ private fun DrawScope.drawBubble(centre: Offset, x: Double, y: Double, measurer:
     drawCircle(Color.Black.copy(alpha = 0.45f), radius = 6.5f.dp.toPx(), center = bead, style = Stroke(2f.dp.toPx()))
     text(measurer, "${MonitorLevelGeometry.label(x)} / ${MonitorLevelGeometry.label(y)}", Offset(centre.x, centre.y + r + 14f.dp.toPx()),
         if (isLevel) MonitorLevelGeometry.good else MonitorPalette.text.copy(alpha = 0.85f), 11f, bold = true, shadow = false)
+}
+
+/** A ring with two wings through the picture's centre, rotated by the roll; green when level. */
+private fun DrawScope.drawHorizon(centre: Offset, roll: Double) {
+    val color = if (abs(roll) < MonitorLevelGeometry.HORIZON_THRESHOLD) MonitorLevelGeometry.good else MonitorPalette.accent
+    val wing = 64f.dp.toPx()
+    val gap = 10f.dp.toPx()
+    val ring = 5f.dp.toPx()
+    rotate(roll.toFloat(), pivot = centre) {
+        drawCircle(color, radius = ring, center = centre, style = Stroke(1.6f.dp.toPx()))
+        for (side in listOf(-1f, 1f)) {
+            drawLine(color, Offset(centre.x + side * (ring + gap), centre.y), Offset(centre.x + side * (ring + gap + wing), centre.y),
+                2f.dp.toPx(), androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+    }
 }

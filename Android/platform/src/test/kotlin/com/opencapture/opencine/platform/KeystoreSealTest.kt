@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class KeystoreSealTest {
     private val key = SecretKeySpec(ByteArray(16) { it.toByte() }, "AES")
@@ -41,5 +42,22 @@ class KeystoreSealTest {
         val unavailable = KeystoreSeal({ error("unavailable") }, codec::encodeToString, reader::decode)
         assertNull(unavailable.seal("synthetic fixture"))
         assertNull(unavailable.open(current))
+    }
+
+    @Test
+    fun openedTellsAGoneKeyFromOneThatDidNotAnswer() {
+        val current = assertNotNull(seal().seal("synthetic fixture"))
+        assertEquals(KeystoreSeal.Opened.Secret("synthetic fixture"), seal().opened(current))
+        val gone = KeystoreSeal({ key }, codec::encodeToString, reader::decode, hasKey = { false })
+        assertEquals(KeystoreSeal.Opened.KeyGone, gone.opened(current))
+        assertNull(gone.open(current))
+        val unanswered = KeystoreSeal({ key }, codec::encodeToString, reader::decode, hasKey = { error("locked") })
+        assertTrue(unanswered.opened(current) is KeystoreSeal.Opened.Failed)
+        val unavailable = KeystoreSeal({ error("unavailable") }, codec::encodeToString, reader::decode)
+        assertTrue(unavailable.opened(current) is KeystoreSeal.Opened.Failed)
+        assertTrue(seal().opened("not an envelope") is KeystoreSeal.Opened.Failed)
+        val parts = current.split(':')
+        val payload = reader.decode(parts[1]).also { it[0] = (it[0].toInt() xor 1).toByte() }
+        assertTrue(seal().opened(parts[0] + ":" + codec.encodeToString(payload)) is KeystoreSeal.Opened.Failed)
     }
 }

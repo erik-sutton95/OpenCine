@@ -24,7 +24,7 @@ import Testing
         let facts = NativeDeliveryFacts()
         let outcome = await batch(
             facts, action: .saveToPhotos,
-            photos: .perItem { _ in
+            photos: .init { _ in
                 facts.calls.append("save")
                 return true
             },
@@ -48,7 +48,7 @@ import Testing
         let facts = NativeDeliveryFacts()
         let outcome = await batch(
             facts, action: .saveToPhotos,
-            photos: .perItem { _ in
+            photos: .init { _ in
                 facts.calls.append("save")
                 return true
             },
@@ -68,18 +68,13 @@ import Testing
     @Test func nativeContinuationKeepsOrderPartialMetadataAndResourceRelease() async {
         let facts = NativeDeliveryFacts()
         facts.cached = [1, 2, 3]
-        let policy = MonitorDeliveryBatchPolicy(
-            behavior: .init(nativeFailures: .continueItems),
-            nativeSummary: {
-                $0.failed > 0 ? "Prepared \($0.prepared); \($0.failed) failed." : nil
-            })
         let outcome = await batch(
             facts, records: [1, 2, 3],
             exporter: .init(release: { facts.calls.append("release \($0)") }) { record, _ in
                 facts.calls.append("prepare \(record)")
                 if record == 2 { throw failure("second failed") }
                 return "\(record)"
-            }, policy: policy, metadata: { _ in "metadata" })
+            }, metadata: { _ in "metadata" })
         guard case .share(let urls, let text, _) = outcome else {
             Issue.record("Missing partial native result")
             return
@@ -88,24 +83,24 @@ import Testing
         #expect(facts.calls == ["prepare 1", "prepare 2", "prepare 3", "release 1", "release 3"])
     }
 
-    @Test func emptyUploadSuccessKeepsSkippedCountAndCountFailure() async {
+    /// A2-56: the one policy. Nothing uploaded but some skipped succeeds with its count; a single
+    /// item's failure reports that item's own detail.
+    @Test func emptyUploadSuccessKeepsSkippedCountAndSingleFailureDetail() async {
         for failed in [false, true] {
             let facts = NativeDeliveryFacts()
             facts.cached = [1]
-            let policy = MonitorDeliveryBatchPolicy(
-                behavior: .init(emptyUploadSucceeds: true, singleUploadFailureUsesDetail: false))
             let outcome = await batch(
                 facts, destination: .remoteUpload,
                 exporter: .init { _, _ in
                     if failed { throw failure("detail") }
                     return nil
-                }, upload: .init { _, _ in facts.calls.append("upload") }, policy: policy)
+                }, upload: .init { _, _ in facts.calls.append("upload") })
             if failed {
                 guard case .failed(let message) = outcome else {
-                    Issue.record("Missing count failure")
+                    Issue.record("Missing single failure")
                     continue
                 }
-                #expect(message == "1 failed")
+                #expect(message == "detail")
             } else {
                 guard case .uploaded(let summary) = outcome else {
                     Issue.record("Missing valid empty upload")
@@ -117,21 +112,74 @@ import Testing
         }
     }
 
+    /// A2-51: the share completion keeps the "Include metadata" text for the share sheet.
+    @Test func shareCompletionCarriesTheMetadataText() {
+        let completion = Outcome.share(urls: ["1"], metadataText: "SIMULATED.MOV", stagingCleanupURL: "lease")
+            .completion()
+        #expect(completion.share?.urls == ["1"] && completion.share?.cleanup == "lease")
+        #expect(completion.share?.metadataText == "SIMULATED.MOV")
+    }
+
+    /// A2-53: an uploaded record is skipped before any cache or export work unless re-upload is
+    /// on; every confirmed upload is recorded.
+    @Test func uploadHistorySkipsUploadedRecordsUnlessReuploadIsOn() async {
+        let facts = NativeDeliveryFacts()
+        var uploaded: Set<Int> = []
+        let history = MonitorDeliveryUploadHistory<Int>(
+            wasUploaded: { uploaded.contains($0) }, recordUploaded: { uploaded.insert($0) })
+        let upload = MonitorDeliveryUploadService<String> { artifact, _ in
+            facts.calls.append("upload \(artifact)")
+        }
+        let first = await batch(facts, destination: .remoteUpload, upload: upload, history: history)
+        guard case .uploaded(let summary) = first else {
+            Issue.record("Missing first upload")
+            return
+        }
+        #expect(summary == "1 uploaded" && uploaded == [1])
+        #expect(facts.calls == ["cache 1", "prepare 1", "upload 1", "release 1"])
+        facts.calls = []
+        let second = await batch(facts, destination: .remoteUpload, upload: upload, history: history)
+        guard case .uploaded(let skipped) = second else {
+            Issue.record("Missing skip")
+            return
+        }
+        #expect(skipped == "1 skipped" && facts.calls.isEmpty)
+        let forced = await batch(
+            facts, destination: .remoteUpload, upload: upload, history: history, reupload: true)
+        guard case .uploaded(let again) = forced else {
+            Issue.record("Missing re-upload")
+            return
+        }
+        #expect(again == "1 uploaded" && facts.calls == ["prepare 1", "upload 1", "release 1"])
+    }
+
+    /// A2-16: a route refused because another hop holds it fails the upload with the internet
+    /// failure; nothing is prepared or uploaded.
+    @Test func aRefusedRouteFailsTheUploadBeforeAnyExport() async {
+        let facts = NativeDeliveryFacts()
+        let outcome = await batch(
+            facts, destination: .remoteUpload, upload: .init { _, _ in facts.calls.append("upload") },
+            internet: .init(
+                needsHop: { true }, begin: { nil }, owns: { _ in false }, wait: { _ in true },
+                restore: { _ in }))
+        guard case .failed(let message) = outcome else {
+            Issue.record("Missing refused route")
+            return
+        }
+        #expect(message == MonitorDeliveryBatchPolicy.internetFailure)
+        #expect(!facts.calls.contains { $0.hasPrefix("prepare") || $0.hasPrefix("upload") })
+    }
+
     @Test func photosPerItemContinuesAndReportsExactPartialCounts() async {
         let facts = NativeDeliveryFacts()
         facts.cached = [1, 2, 3]
-        let policy = MonitorDeliveryBatchPolicy(
-            behavior: .init(photosFailures: .continueItems),
-            photosFailure: {
-                $1 > 0 ? "Saved \($0); \($1) couldn't be saved to Photos." : nil
-            })
         let outcome = await batch(
             facts, records: [1, 2, 3], action: .saveToPhotos,
-            photos: .perItem { artifact in
+            photos: .init { artifact in
                 facts.calls.append("save \(artifact)")
                 if artifact == "2" { throw failure("insert failed") }
                 return artifact == "1"
-            }, policy: policy)
+            })
         guard case .failed(let message) = outcome else {
             Issue.record("Missing aggregate Photos failure")
             return
@@ -227,7 +275,7 @@ import Testing
         for reply in [false, true] {
             let facts = NativeDeliveryFacts()
             let outcome = await batch(
-                facts, action: .saveToPhotos, photos: .perItem { _ in true },
+                facts, action: .saveToPhotos, photos: .init { _ in true },
                 authorization: .init(
                     isPending: {
                         facts.current = false
@@ -250,7 +298,7 @@ import Testing
         authorization: MonitorDeliveryPhotosAuthorizationService? = nil,
         upload: MonitorDeliveryUploadService<String>? = nil,
         internet: MonitorDeliveryInternetService<Int>? = nil,
-        policy: MonitorDeliveryBatchPolicy = .init(),
+        history: MonitorDeliveryUploadHistory<Int>? = nil, reupload: Bool = false,
         metadata: @escaping @MainActor ([Int]) -> String? = { _ in nil },
         admission: MonitorDeliveryAdmission? = nil,
         progress: @escaping @MainActor (MonitorDeliveryBatchProgress) -> Void = { _ in }
@@ -269,8 +317,8 @@ import Testing
                     facts.calls.append("prepare \(record)")
                     return "\(record)"
                 }, share: { .init(urls: $0) }, photos: photos, photosAuthorization: authorization,
-            upload: upload, internet: internet,
-            filename: { "\($0)" }, metadata: metadata, policy: policy,
+            upload: upload, uploadHistory: history, reupload: reupload, internet: internet,
+            filename: { "\($0)" }, metadata: metadata,
             sleep: { _ in throw CancellationError() },
             progress: {
                 facts.progress.append($0)

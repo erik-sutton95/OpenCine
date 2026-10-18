@@ -25,6 +25,23 @@ import kotlin.test.assertTrue
 /** Swift suite `CamerasMappingTests`: the same golden values. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CamerasMappingTest {
+    @Test fun editSetupReopensOnlyAnAdvertisedCurrentRoute() = runTest {
+        val fake = FakeIntegration(id = IntegrationID("test.cameras"))
+        val model = Values.model(listOf(fake), backgroundScope)
+        val chooser = AddSetupChooser("Add setup", "", listOf(
+            AddSetupOption("wifi", RouteKind.INFRASTRUCTURE_NETWORK, "Wi-Fi", "", "Choose"),
+            AddSetupOption("hotspot", RouteKind.PHONE_HOTSPOT, "Hotspot", "", "Choose"),
+        ))
+        model.connect(Values.camera, Values.wifi.id)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        assertEquals("wifi", CamerasMapping.addSetupSelection(model, Values.camera, chooser))
+        val removed = Values.camera.copy(routes = Values.camera.routes.filterNot { it.kind == RouteKind.INFRASTRUCTURE_NETWORK })
+        assertEquals(null, CamerasMapping.addSetupSelection(model, removed, chooser))
+        val unsupported = chooser.copy(options = chooser.options.filterNot { it.kind == RouteKind.INFRASTRUCTURE_NETWORK })
+        assertEquals(null, CamerasMapping.addSetupSelection(model, Values.camera, unsupported))
+    }
+
     @Test
     fun pairedCardsShowRoutesProgressAndFailures() = runTest {
         val fake = FakeIntegration(id = IntegrationID("test.cameras"))

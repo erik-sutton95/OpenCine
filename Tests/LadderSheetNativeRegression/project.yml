@@ -1,0 +1,42 @@
+name: LadderSheetNativeRegression
+options:
+  bundleIdPrefix: org.opencapture.simulated
+  deploymentTarget:
+    iOS: '17.0'
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    CODE_SIGNING_ALLOWED: NO
+    GENERATE_INFOPLIST_FILE: YES
+packages:
+  OpenCine:
+    path: ../..
+targets:
+  SIMULATEDLadderHost:
+    type: application
+    platform: iOS
+    sources: [Host.swift]
+    settings:
+      base:
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait
+    dependencies:
+      - package: OpenCine
+        product: OpenCineCameraControls
+      - package: OpenCine
+        product: OpenCineCoreTestSupport
+  LadderSheetNativeTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [LadderSheetNativeTests.swift]
+    dependencies:
+      - target: SIMULATEDLadderHost
+schemes:
+  LadderSheetNativeRegression:
+    build:
+      targets:
+        SIMULATEDLadderHost: all
+        LadderSheetNativeTests: [test]
+    test:
+      targets: [LadderSheetNativeTests]
+      gatherCoverageData: false

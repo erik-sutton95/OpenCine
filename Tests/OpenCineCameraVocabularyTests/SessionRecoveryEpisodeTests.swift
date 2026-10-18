@@ -1,0 +1,378 @@
+import Foundation
+import Testing
+
+@testable import OpenCineCameraVocabulary
+
+/// Shared recovery conformance scenarios (A6-02, A6-11). Every app's port runs this episode, so
+/// these pin the behavior once: a returned control session is not a recovery, a fresh source frame
+/// and a presented picture after the attempt start are, the run stops at the 180 s budget, clustered
+/// drops pause, the operator retries, and a retired attempt can never act for its successor.
+/// SIMULATED transport on a manual clock.
+@Suite("Session recovery episode") @MainActor
+struct SessionRecoveryEpisodeTests {
+    @Test func controlWithoutPictureKeepsRetryingUntilTheAttemptDeadline() async {
+        let host = Host(deadline: .init(attempt: .seconds(30)))
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.connects == 1 })
+        host.clock.advance(to: 29.9)
+        await host.clock.settle()
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        #expect(host.episode.snapshot.holdsPicture)
+        #expect(await host.clock.drive { host.connects == 2 })
+        #expect(host.cleanups == [.initialDrop, .failedAttempt])
+        #expect(host.episode.snapshot.state == .retrying(attempt: 2, maxAttempts: 8))
+    }
+
+    @Test func freshSourceAndPresentationAfterTheAttemptStartEndRecovery() async {
+        let host = Host()
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.connects == 1 })
+        host.clock.advance(to: 1)
+        host.picture = (1, 1)
+        #expect(await host.clock.drive { host.episode.snapshot.state == .idle })
+        #expect(!host.episode.snapshot.holdsPicture)
+        #expect(!host.episode.snapshot.reconnecting)
+        #expect(!host.episode.isRunning)
+        #expect(host.episode.currentEpisodeID == nil)
+        #expect(host.cleanups == [.initialDrop])
+    }
+
+    @Test(arguments: [
+        (source: -1.0, presented: -1.0), (source: 1.0, presented: -1.0),
+        (source: -1.0, presented: 1.0), (source: 1.0, presented: Double.nan),
+    ])
+    func staleOrPartialPictureDoesNotEndRecovery(source: Double, presented: Double) async {
+        let host = Host(deadline: .init(attempt: .seconds(30)))
+        host.clock.time = 10
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.connects == 1 })
+        host.picture = (10 + source, presented.isNaN ? nil : 10 + presented)
+        host.clock.advance(to: 11.5)
+        await host.clock.settle()
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        #expect(host.episode.snapshot.holdsPicture)
+    }
+
+    @Test func attemptsThatNeverShowAPictureStopAtTheTotalBudget() async {
+        let host = Host(deadline: .init(attempt: .seconds(30)))
+        #expect(host.begin())
+        #expect(
+            await host.clock.drive {
+                if case .waitingForOperator = host.episode.snapshot.state { return true }
+                return false
+            })
+        // The manual clock sums 100 ms polls, so allow for floating-point drift.
+        #expect(abs(host.clock.time - 180) < 1e-6)
+        #expect(host.cleanups.last == .budgetExhausted)
+        #expect(host.episode.snapshot.holdsPicture)
+        #expect(host.episode.snapshot.cardGraceElapsed)
+        let connects = host.connects
+        host.clock.advance(to: 400)
+        await host.clock.settle()
+        #expect(host.connects == connects)
+        #expect(!host.begin(trigger: .softAPLost), "the spent budget waits for the operator")
+    }
+
+    @Test func totalBudgetHandsBackBeforeAnUncancellableConnectReturns() async {
+        let host = Host()
+        let gate = Gate()
+        host.onConnect = { await gate.wait() }
+        #expect(host.begin())
+        await host.clock.settle()
+        #expect(gate.isWaiting)
+        host.clock.advance(to: 180)
+        await host.clock.settle()
+        #expect(host.episode.snapshot.state == .waitingForOperator(attemptsMade: 1))
+        #expect(host.cleanups.last == .budgetExhausted)
+        let published = host.published
+        gate.resume()
+        await host.clock.settle()
+        #expect(host.published == published, "a late transport cannot resume the spent episode")
+        host.episode.cancel()
+    }
+
+    @Test func eightFailedAttemptsHandBackWithTheSharedWaits() async {
+        let host = Host()
+        host.admits = false
+        #expect(host.begin())
+        #expect(
+            await host.clock.drive {
+                host.episode.snapshot.state == .waitingForOperator(attemptsMade: 8)
+            })
+        #expect(host.connects == 8)
+        #expect(host.clock.backoffs == [0.5, 1, 2, 4, 8, 8, 8])
+        #expect(host.cleanups.filter { $0 == .failedAttempt }.count == 8)
+    }
+
+    @Test func aTransportThatGivesUpCountsAFailure() async {
+        let host = Host()
+        host.progress = .failed
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.connects == 2 })
+        // The second attempt also gives up at once, so its wait may already be queued.
+        #expect(host.clock.backoffs.first == 0.5)
+        #expect(host.cleanups.contains(.failedAttempt))
+    }
+
+    @Test func aSupersededSourceWaitsForTheOperatorWithoutReconnecting() async {
+        let host = Host()
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.connects == 1 })
+        host.progress = .superseded
+        host.picture = (host.clock.time + 0.05, host.clock.time + 0.05)
+        #expect(
+            await host.clock.drive {
+                host.episode.snapshot.state == .waitingForOperator(attemptsMade: 1)
+            })
+        host.clock.advance(to: 60)
+        await host.clock.settle()
+        #expect(host.connects == 1)
+        #expect(host.episode.snapshot.holdsPicture)
+    }
+
+    @Test func stageCeilingsRestartWhenTheStageChanges() async {
+        let host = Host(
+            deadline: .init(
+                attempt: .seconds(100), stages: [.connecting: .seconds(5), .live: .seconds(4)]))
+        host.stage = .connecting
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.connects == 1 })
+        host.clock.advance(to: 3)
+        await host.clock.settle()
+        host.stage = .openingLink
+        host.clock.advance(to: 20)
+        await host.clock.settle()
+        #expect(host.connects == 1, "a stage without a ceiling runs on the attempt ceiling")
+        host.stage = .live
+        #expect(await host.clock.drive { host.connects == 2 })
+        #expect(host.clock.time >= 24 && host.clock.time < 25)
+    }
+
+    @Test func theCardWaitsOutItsGraceBehindAttemptOne() async {
+        let host = Host()
+        #expect(host.begin())
+        await host.clock.settle()
+        host.clock.advance(to: 2.4)
+        await host.clock.settle()
+        #expect(!host.episode.snapshot.cardGraceElapsed)
+        host.clock.advance(to: 2.5)
+        await host.clock.settle()
+        #expect(host.episode.snapshot.cardGraceElapsed)
+    }
+
+    @Test func clusteredDropsPauseUntilTheOperatorRetries() async {
+        let host = Host()
+        for _ in 1...2 {
+            #expect(host.begin())
+            #expect(await host.clock.drive { host.connects > 0 })
+            host.picture = (host.clock.time + 0.05, host.clock.time + 0.05)
+            #expect(await host.clock.drive { host.episode.snapshot.state == .idle })
+            host.connects = 0
+        }
+        #expect(host.begin())
+        #expect(host.episode.snapshot.state == .pausedAfterRepeatedDrops(drops: 3))
+        #expect(host.cleanups.suffix(2) == [.initialDrop, .stormPause])
+        #expect(host.episode.snapshot.cardGraceElapsed)
+        #expect(!host.begin(trigger: .softAPLost))
+        #expect(host.episode.retry())
+        #expect(await host.clock.drive { host.connects == 1 })
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+    }
+
+    @Test func refusedTriggersMissingTargetsAndForeignConnectionsDoNothing() {
+        let host = Host()
+        #expect(!host.begin(trigger: .feedWatchdogStall))
+        #expect(!host.episode.begin(targetID: nil, trigger: .bleDropped, reason: "SIMULATED"))
+        host.owns = nil
+        #expect(!host.begin())
+        host.owns = false
+        #expect(!host.begin())
+        #expect(host.cleanups.isEmpty)
+        #expect(host.published.isEmpty)
+        #expect(host.episode.snapshot == .init())
+    }
+
+    @Test func losingTheConnectionMidAttemptStopsWithoutActing() async {
+        let host = Host()
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.connects == 1 })
+        let published = host.published.count
+        host.owns = false
+        host.clock.advance(to: 60)
+        await host.clock.settle()
+        #expect(host.connects == 1)
+        #expect(host.published.count == published)
+        #expect(host.cleanups == [.initialDrop])
+    }
+
+    @Test func aRetiredAttemptsLateConnectCannotActForItsSuccessor() async {
+        let host = Host()
+        let gate = Gate()
+        host.onConnect = { await gate.wait() }
+        #expect(host.begin())
+        await host.clock.settle()
+        #expect(gate.isWaiting)
+        host.episode.cancel(clearHold: false)
+        host.onConnect = nil
+        #expect(host.begin(trigger: .operatorRetry))
+        #expect(await host.clock.drive { host.connects == 2 })
+        host.picture = (host.clock.time + 0.05, host.clock.time + 0.05)
+        #expect(await host.clock.drive { host.episode.snapshot.state == .idle })
+        let state = host.episode.snapshot
+        let cleanups = host.cleanups
+        gate.resume()
+        await host.clock.settle()
+        #expect(host.episode.snapshot == state)
+        #expect(host.cleanups == cleanups)
+        #expect(host.connects == 2)
+    }
+
+    @Test func cancellingInsideTheFirstPublicationInstallsNothing() async {
+        let host = Host()
+        host.onChanged = { value in
+            if case .retrying = value.state { host.episode.cancel() }
+        }
+        #expect(!host.begin())
+        await host.clock.settle()
+        #expect(host.episode.snapshot == .init())
+        #expect(!host.episode.isRunning)
+        #expect(host.connects == 0)
+    }
+
+    @Test func aRunFenceRetiresOnlyTheCapturedRun() async {
+        let host = Host()
+        host.run = UUID()
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.connects == 1 })
+        let captured = host.run
+        host.run = UUID()
+        host.clock.advance(to: 1)
+        await host.clock.settle()
+        #expect(host.episode.currentEpisodeID != nil)
+        host.episode.cancel()
+        #expect(host.retiredRuns.isEmpty, "a successor's run is never retired")
+        #expect(captured != host.run)
+    }
+
+    // MARK: - SIMULATED host
+
+    @MainActor final class Host {
+        let clock = Clock()
+        var owns: Bool? = true
+        var admits = true
+        var progress: SessionRecoveryEpisode.Progress = .running
+        var stage: SessionRecoveryEpisode.Stage?
+        var picture: (TimeInterval?, TimeInterval?) = (nil, nil)
+        var connects = 0
+        var cleanups: [SessionRecoveryEpisode.Cleanup] = []
+        var published: [SessionRecoveryEpisode.Snapshot] = []
+        var run: UUID?
+        var retiredRuns: [UUID?] = []
+        var onConnect: (@MainActor () async -> Void)?
+        var onChanged: ((SessionRecoveryEpisode.Snapshot) -> Void)?
+        private let deadline: SessionRecoveryEpisode.AttemptDeadline
+        lazy var episode = SessionRecoveryEpisode(
+            port: .init(
+                observe: { [unowned self] in
+                    .init(
+                        ownsConnection: owns, progress: progress, stage: stage,
+                        sourceAt: picture.0, presentedAt: picture.1)
+                },
+                cleanup: { [unowned self] kind, _ in cleanups.append(kind) },
+                connect: { [unowned self] attempt in
+                    connects += 1
+                    await onConnect?()
+                    try attempt.checkContinuation()
+                    return admits
+                },
+                currentRun: { [unowned self] in run },
+                retireRun: { [unowned self] in
+                    retiredRuns.append(run)
+                    run = nil
+                }),
+            attemptDeadline: deadline, timing: clock.timing,
+            changed: { [unowned self] value, _ in
+                published.append(value)
+                onChanged?(value)
+            })
+
+        init(deadline: SessionRecoveryEpisode.AttemptDeadline = .init(attempt: .seconds(30))) {
+            self.deadline = deadline
+        }
+
+        func begin(trigger: SessionRecoveryTrigger = .bleDropped) -> Bool {
+            episode.begin(targetID: "SIMULATED camera", trigger: trigger, reason: "SIMULATED drop")
+        }
+    }
+
+    @MainActor final class Gate {
+        private var continuation: CheckedContinuation<Void, Never>?
+        var isWaiting: Bool { continuation != nil }
+        func wait() async { await withCheckedContinuation { continuation = $0 } }
+        func resume() {
+            let old = continuation
+            continuation = nil
+            old?.resume()
+        }
+    }
+
+    @MainActor final class Clock {
+        private struct Sleeper {
+            let id: UUID
+            let at: Double
+            let continuation: CheckedContinuation<Void, Error>
+        }
+        private let origin = ContinuousClock().now
+        var time = 0.0
+        private(set) var pauses: [Double] = []
+        private var sleepers: [Sleeper] = []
+        var backoffs: [Double] { pauses.filter { [0.5, 1, 2, 4, 8].contains($0) } }
+        var timing: SessionRecoveryEpisode.Timing {
+            .init(
+                monotonicNow: { [unowned self] in origin.advanced(by: .seconds(time)) },
+                uptime: { [unowned self] in time }, wallNow: { [unowned self] in time },
+                sleep: { [unowned self] in try await pause($0) }, jitter: { 0.5 })
+        }
+
+        func pause(_ duration: Duration) async throws {
+            try Task.checkCancellation()
+            let id = UUID()
+            let seconds =
+                Double(duration.components.seconds)
+                + Double(duration.components.attoseconds) / 1e18
+            try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    pauses.append(seconds)
+                    sleepers.append(.init(id: id, at: time + seconds, continuation: continuation))
+                }
+            } onCancel: {
+                Task { @MainActor in
+                    guard let index = self.sleepers.firstIndex(where: { $0.id == id }) else {
+                        return
+                    }
+                    self.sleepers.remove(at: index).continuation.resume(
+                        throwing: CancellationError())
+                }
+            }
+        }
+
+        func advance(to end: Double) {
+            time = max(time, end)
+            let ready = sleepers.filter { $0.at <= time + 1e-9 }
+            sleepers.removeAll { $0.at <= time + 1e-9 }
+            for sleeper in ready { sleeper.continuation.resume() }
+        }
+
+        func settle() async { for _ in 0..<64 { await Task.yield() } }
+
+        func drive(until done: () -> Bool) async -> Bool {
+            for _ in 0..<20_000 {
+                await settle()
+                if done() { return true }
+                guard let next = sleepers.map(\.at).min() else { return done() }
+                advance(to: next)
+            }
+            return done()
+        }
+    }
+}

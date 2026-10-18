@@ -217,9 +217,10 @@ import Testing
     #expect(PTPCameraPropertyDecoders.baseISOCircuitShort("Low") == "L")
     #expect(PTPCameraPropertyDecoders.baseISOCircuitShort("High") == "H")
     #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "R3D NE") == "Log3G10")
-    #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "N-RAW") == "N-Log")
-    #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "ProRes RAW HQ") == "N-Log")
-    #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "H.265 10-bit") == "N-Log")
+    #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "N-RAW") == nil)
+    #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "ProRes RAW HQ") == nil)
+    #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "H.265 10-bit") == nil)
+    #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "N-Log") == "N-Log")
     #expect(PTPCameraPropertyDecoders.toneLabel(fromCodec: "") == nil)
     #expect(PTPCameraPropertyDecoders.movMicrophone(0) == "Auto")
     #expect(PTPCameraPropertyDecoders.onOffLabel(1) == "ON")
@@ -674,6 +675,21 @@ import Testing
     #expect(WhiteBalanceTint.label(amberBlueCell: -3, greenMagentaCell: 3) == "B1.5 · G0.75")
 }
 
+/// The shared tint pad reports the operator label; it reads back onto the same grid cells.
+@Test func whiteBalanceTintLabelReadsBackOntoItsGridCells() {
+    for amberBlue in WhiteBalanceTint.cellRange {
+        for greenMagenta in WhiteBalanceTint.cellRange {
+            let label = WhiteBalanceTint.label(amberBlueCell: amberBlue, greenMagentaCell: greenMagenta)
+            let cells = WhiteBalanceTint.cells(label: label)
+            #expect(cells?.amberBlue == amberBlue, "\(label)")
+            #expect(cells?.greenMagenta == greenMagenta, "\(label)")
+        }
+    }
+    #expect(WhiteBalanceTint.cells(label: "") == nil)
+    #expect(WhiteBalanceTint.cells(label: "X1") == nil)
+    #expect(WhiteBalanceTint.cells(label: "A") == nil)
+}
+
 @Test func movieVibrationReductionDecodesKnownValues() {
     #expect(PTPCameraPropertyDecoders.movieVibrationReduction(0) == "OFF")
     #expect(PTPCameraPropertyDecoders.movieVibrationReduction(1) == "ON")
@@ -804,4 +820,30 @@ import Testing
     #expect(
         PTPCameraPropertyDecoders.whiteBalanceOptions(advertised: advertised, codec: nil)
             == advertised)
+}
+
+@Test func stillToneReadbackPreservesUnknownAndRetiresPreviousTone() {
+    let initial = PTPCameraPropertySnapshot()
+    #expect(initial.stillToneMode == nil)
+    #expect(initial.applying(property: .stillToneMode, data: Data([0])).stillToneMode == "SDR")
+    let hlg = initial.applying(property: .stillToneMode, data: Data([2]))
+    #expect(hlg.stillToneMode == "HLG")
+    for bytes: [UInt8] in [[], [1], [255], [2, 0]] {
+        #expect(hlg.applying(property: .stillToneMode, data: Data(bytes)).stillToneMode == nil)
+    }
+}
+
+/// Nikon exposure bias (thousandths of EV) spells EV like every other readout: the `ev` rows of
+/// `Fixtures/capture-label-vectors.tsv` with denominator 1000 (A5-16).
+@Test func exposureBiasUsesTheSharedEVSpelling() throws {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let text = try String(
+        contentsOf: root.appendingPathComponent("Fixtures/capture-label-vectors.tsv"), encoding: .utf8)
+    let rows = text.split(separator: "\n").map { $0.components(separatedBy: "\t") }
+        .filter { $0.count == 4 && $0[0] == "ev" && $0[2] == "1000" }
+    #expect(rows.count >= 3)
+    for row in rows {
+        #expect(PTPCameraPropertyDecoders.exposureBias(Int16(row[1])!) == row[3], "\(row)")
+    }
 }

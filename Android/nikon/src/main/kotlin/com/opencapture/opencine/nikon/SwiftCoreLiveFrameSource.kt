@@ -160,6 +160,8 @@ class SwiftCoreLiveFrameSource(
      */
     private val maxConsecutiveRestarts: Int = 3,
     private val onRecordingState: (Boolean) -> Unit = {},
+    /** Each accepted frame's header timecode, observed on the existing pump (no added demand). */
+    private val onTimecode: (LiveFrameTimecode?) -> Unit = {},
     private val onCommandRoundTrip: () -> Unit = {},
     private val onStreamExhausted: () -> Unit = {},
     private val onFailurePhase: (String) -> Unit = {},
@@ -481,6 +483,7 @@ class SwiftCoreLiveFrameSource(
                             consecutivePumpEnds.set(0L)
                             onCommandRoundTrip()
                             onRecordingState(isRecording)
+                            onTimecode(timecode)
                             val audioLevels =
                                 if (hasAudioLevels) {
                                     LiveAudioMeterLevels(
@@ -525,6 +528,8 @@ class SwiftCoreLiveFrameSource(
                 }
                 awaitClose {
                     releasePumpFromFlow(generation)
+                    // No header is being read: a stopped pump never leaves a frozen counter.
+                    onTimecode(null)
                 }
             }
             .buffer(Channel.CONFLATED)

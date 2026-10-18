@@ -126,9 +126,9 @@ class ConformanceTest {
         // An observation is reported only where it is supported; a derived time says so.
         val capabilities = reported.capabilities
         assertTrue(capabilities.timecode != SupportStatus.UNKNOWN && capabilities.audioLevels != SupportStatus.UNKNOWN)
-        assertEquals(capabilities.timecode == SupportStatus.SUPPORTED && device.timecode != null, reported.timecode.isKnown)
+        assertEquals(capabilities.timecode == SupportStatus.SUPPORTED && device.timecodeReading != null, reported.timecodeReading.isKnown)
         assertEquals(capabilities.audioLevels == SupportStatus.SUPPORTED && device.audioLevels != null, reported.audioLevels.isKnown)
-        assertTrue(!reported.timecode.isKnown || reported.timecode.origin in setOf(CAMERA_REPORTED, ObservationOrigin.CLOCK_DERIVED))
+        assertTrue(!reported.timecodeReading.isKnown || reported.timecode.origin in setOf(CAMERA_REPORTED, ObservationOrigin.CLOCK_DERIVED))
         assertTrue(!reported.audioLevels.isKnown || reported.audioLevels.origin == CAMERA_REPORTED)
     }
 

@@ -55,8 +55,8 @@ class NeutralUtilityCompatibilityTest {
         assertEquals(4.0, FeedIncidentPrivacy.gapSeconds(snapshot, FeedIncidentFailingStage.DECODED_OUTPUT))
     }
 
-    @Test fun compatibilityPrivacyKeepsTheExistingNetworkAllowlistAndNestedReason() {
-        assertEquals("ssid=OsmoPocket3-A1B2", FeedIncidentBuildIdentity.parse("ssid=OsmoPocket3-A1B2", PrivacyRedactor::redact))
+    @Test fun compatibilityPrivacyRedactsEveryNetworkAndKeepsNestedReason() {
+        assertEquals("ssid=<redacted>", FeedIncidentBuildIdentity.parse("ssid=OsmoPocket3-A1B2", PrivacyRedactor::redact))
         assertEquals("ssid=<redacted>", FeedIncidentPrivacy.token("ssid=CafeWiFi", redact = PrivacyRedactor::redact))
         assertEquals("started", FeedIncidentPersistenceJob.Reason.STARTED.name.lowercase())
         assertEquals(mapOf("repairPhase" to "requested", "repairAction" to "decoder"), FeedIncidentNativeBreadcrumb.details(FeedRepairRecord(1.0, "decoder", FeedRepairPhase.REQUESTED)))

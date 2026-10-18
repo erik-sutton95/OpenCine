@@ -1,7 +1,6 @@
 package com.opencapture.opencine.cameracontrols
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -25,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
@@ -88,13 +88,18 @@ public fun <P> MonitorOperatorCatalogScreen(
     DisposableEffect(gallery) { gallery.activate(); begin(); onDispose { gallery.retire() } }
     LaunchedEffect(value.lifetimeToken) { gallery.sourceChanged() }
     val snapshot = gallery.snapshot(presentation?.projection)
+    // Action handlers installed in one recomposition can outlive it (the compiler keeps a
+    // memoized callback while the gallery lifetime rotates underneath), so every admitted
+    // action reads the presented window at call time instead of trusting this closure's
+    // capture. The retirement guard itself is unchanged.
+    val presented by rememberUpdatedState(snapshot)
     LaunchedEffect(presentation?.projection?.displayIDs) {
         if (presentation?.retainsVisibleSelection == true) gallery.retainSelection(snapshot)
     }
-    fun admitted(action: () -> Unit) { if (gallery.isCurrent(snapshot)) action() }
+    fun admitted(action: () -> Unit) { if (gallery.isCurrent(presented)) action() }
     fun select(ids: Set<MediaAssetID>, selecting: Boolean = true) {
-        if (gallery.select(ids, snapshot, selecting)) haptics.longPress()
-        if (selecting && gallery.isCurrent(snapshot)) gallery.filterPopup(false)
+        if (gallery.select(ids, presented, selecting)) haptics.longPress()
+        if (selecting && gallery.isCurrent(presented)) gallery.filterPopup(false)
     }
     if (handlesBack) BackHandler {
         when {
@@ -128,14 +133,14 @@ public fun <P> MonitorOperatorCatalogScreen(
     )
     val filterID = state.filterRequestID
     fun filter(action: MonitorMediaGalleryFilterAction, popup: Boolean = true) = admitted {
-        if (popup && !gallery.admitsFilter(snapshot, filterID)) return@admitted
+        if (popup && !gallery.admitsFilter(presented, filterID)) return@admitted
         haptics.selection()
         sourceFilter?.invoke(action)
-        if (presentation?.filterClearsSelection == true && gallery.isCurrent(snapshot)) library.clearSelection()
+        if (presentation?.filterClearsSelection == true && gallery.isCurrent(presented)) library.clearSelection()
     }
     fun navigate(action: MonitorMediaGalleryNavigation, fallback: () -> Unit) = admitted {
         if (navigation != null) navigation(action) else fallback()
-        if (presentation?.navigationClearsSelection == true && gallery.isCurrent(snapshot)) library.clearSelection()
+        if (presentation?.navigationClearsSelection == true && gallery.isCurrent(presented)) library.clearSelection()
     }
     val sourceFilters = presentation?.filters
     val filters = if (sourceFilters != null) MediaLibraryFilterState(
@@ -168,46 +173,46 @@ public fun <P> MonitorOperatorCatalogScreen(
             library.display(thumbnailSize = MonitorThumbnailSize.valueOf(size.name)) }
         override fun cycleSort() = navigate(MonitorMediaGalleryNavigation.CycleSort) { library.display(sort = MonitorMediaSort.valueOf(sort.next.name)) }
         override fun toggleFilter() = admitted { gallery.filterPopup(!state.filterPopupPresented) }
-        override fun selectAll() = admitted { gallery.selectAll(snapshot) }
+        override fun selectAll() = admitted { gallery.selectAll(presented) }
         override fun clearSelection() = admitted { library.clearSelection(); gallery.cancelDelete() }
-        override fun cacheSelected() = gallery.cacheSelection(snapshot, operations)
-        override fun favoriteSelected() = gallery.favoriteSelection(snapshot, operations, toggleUniform = true)
-        override fun deleteSelected() = gallery.requestDelete(snapshot, operations, supportedSubset = true)
-        override fun shareSelected() { gallery.shareSelection(snapshot, operations)?.let { share?.invoke(it, snapshot.token) } }
+        override fun cacheSelected() = gallery.cacheSelection(presented, operations)
+        override fun favoriteSelected() = gallery.favoriteSelection(presented, operations, toggleUniform = true)
+        override fun deleteSelected() = gallery.requestDelete(presented, operations, supportedSubset = true)
+        override fun shareSelected() { gallery.shareSelection(presented, operations)?.let { share?.invoke(it, presented.token) } }
         override fun toggleFormat(format: String) {
             if (sourceFilters != null) filter(MonitorMediaGalleryFilterAction.Format(format))
-            else admitted { if (gallery.admitsFilter(snapshot, filterID)) library.filter(formats = value.formats.toggled(format)) }
+            else admitted { if (gallery.admitsFilter(presented, filterID)) library.filter(formats = value.formats.toggled(format)) }
         }
         override fun toggleResolution(resolution: String) {
             if (sourceFilters != null) filter(MonitorMediaGalleryFilterAction.Resolution(resolution))
-            else admitted { if (gallery.admitsFilter(snapshot, filterID)) library.filter(resolutions = value.resolutions.toggled(resolution)) }
+            else admitted { if (gallery.admitsFilter(presented, filterID)) library.filter(resolutions = value.resolutions.toggled(resolution)) }
         }
-        override fun toggleColor(color: Int) = admitted { if (gallery.admitsFilter(snapshot, filterID)) colors.getOrNull(color)?.let { library.filter(colors = value.colors.toggled(it.first)) } }
-        override fun filterDates(start: String?, end: String?) = admitted { if (gallery.admitsFilter(snapshot, filterID)) library.filter(dateStart = start, dateEnd = end) }
+        override fun toggleColor(color: Int) = admitted { if (gallery.admitsFilter(presented, filterID)) colors.getOrNull(color)?.let { library.filter(colors = value.colors.toggled(it.first)) } }
+        override fun filterDates(start: String?, end: String?) = admitted { if (gallery.admitsFilter(presented, filterID)) library.filter(dateStart = start, dateEnd = end) }
         override fun dateEdit(start: Boolean, currentStart: String?, currentEnd: String?): MediaDatePickerAction? {
-            if (!gallery.admitsFilter(snapshot, filterID)) return null
-            gallery.pickDate(if (start) MonitorMediaDateBound.START else MonitorMediaDateBound.END, snapshot)
+            if (!gallery.admitsFilter(presented, filterID)) return null
+            gallery.pickDate(if (start) MonitorMediaDateBound.START else MonitorMediaDateBound.END, presented)
             val request = gallery.state.value.pickingDate ?: return null
             return MediaDatePickerAction(start, commit = { gallery.date(it, request) }, cancel = {
                 if (gallery.state.value.pickingDate?.id == request.id) gallery.cancelDate()
             })
         }
         override fun resetFilters() {
-            if (sourceFilters != null) filter(MonitorMediaGalleryFilterAction.Reset) else admitted { if (gallery.admitsFilter(snapshot, filterID)) library.resetFilters() }
+            if (sourceFilters != null) filter(MonitorMediaGalleryFilterAction.Reset) else admitted { if (gallery.admitsFilter(presented, filterID)) library.resetFilters() }
         }
         override fun closeFilter() { gallery.dismissFilter(filterID) }
     }
     key(value.lifetimeToken) {
         MediaLibraryPage(page, filters, actions, gallery = {
-            MonitorOperatorCatalogGallery(gallery, snapshot, facts, operations, sourceAvailable, refresh,
+            MonitorOperatorCatalogGallery(gallery, snapshot, state.presentationRevision, facts, operations, sourceAvailable, refresh,
                 open = open, select = ::select, thumbnail = thumbnail, presentation = presentation,
                 cell = cell, selectionConfiguration = selectionConfiguration, selectionChanged = selectionChanged)
         }, overlays = {
-            MediaCloseButton({ gallery.retire(); close() }, Modifier.align(Alignment.TopEnd).padding(8.dp).testTag("monitor.page.back"))
-            library.deletionProgress?.let { progress -> MediaDeletionOverlay(progress, deletionDetail?.invoke(progress)) }
+            library.deletionProgress?.let { progress -> MonitorMediaDeletionOverlay(progress, deletionDetail?.invoke(progress)) }
             state.notice?.let { Text(it, Modifier.align(Alignment.BottomCenter).padding(24.dp), color = LiveDesign.text) }
         }, storageCards = presentation?.storage.orEmpty(),
-            selectStorage = { filter(MonitorMediaGalleryFilterAction.Storage(it), popup = false) })
+            selectStorage = { filter(MonitorMediaGalleryFilterAction.Storage(it), popup = false) },
+            close = { gallery.retire(); close() })
     }
     if (state.confirmationPresented) {
         val confirmation = state.deleteRequestID
@@ -226,7 +231,7 @@ public fun <P> MonitorOperatorCatalogScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun <P> MonitorOperatorCatalogGallery(
-    owner: MonitorMediaGalleryModel<P>, snapshot: MonitorMediaGallerySnapshot<P>,
+    owner: MonitorMediaGalleryModel<P>, snapshot: MonitorMediaGallerySnapshot<P>, presentationRevision: Long,
     facts: (MonitorMediaRecord<P>) -> MonitorMediaGalleryFileFacts,
     operations: MonitorMediaGalleryOperations<P>, connected: Boolean, refresh: () -> Unit,
     open: (MonitorMediaGalleryOpen<P>) -> Unit, select: (Set<MediaAssetID>, Boolean) -> Unit,
@@ -256,7 +261,6 @@ private fun <P> MonitorOperatorCatalogGallery(
             @Composable fun card(record: MonitorMediaRecord<P>) {
                 val id = record.asset.id
                 val entry = value.entries[id]
-                val source = if (entry?.original != null) "CACHED" else if (entry?.proxy != null) "PROXY" else "ON CAMERA"
                 val metadata = facts(record)
                 val context = MonitorMediaGalleryThumbnail(record, entry, list, snapshot.token,
                     current = { owner.isCurrent(snapshot) && snapshot.record(id) != null },
@@ -264,14 +268,16 @@ private fun <P> MonitorOperatorCatalogGallery(
                 MonitorMediaHitTarget(registry, id.rawValue) {
                     val cellValue = cell?.invoke(record, MonitorMediaGalleryCellContext(list, value.selecting,
                         id in value.selectedIDs, state.resolvedDurations[id]))
-                    MonitorClipCard(cellValue?.copy(id = id.rawValue, favorite = record.favorite) ?: MonitorClipValue(id.rawValue,
-                        record.asset.filename, metadata.detail, state.resolvedDurations[id] ?: metadata.duration,
-                        source, record.favorite, metadata.progress?.toFloat() ?: value.progress[id]?.toFloat()),
+                    MonitorClipCard(monitorCatalogClip(record, entry, metadata, state.resolvedDurations[id], value.progress[id], cellValue),
                         list, value.selecting, id in value.selectedIDs,
                         modifier = Modifier.testTag("monitor.media.clip.${id.rawValue}"),
                         onOpen = { owner.open(id, snapshot, operations, sourceAvailable = connected)?.let(open) },
                         onSelect = { select(if (value.selecting) value.selectedIDs.toggled(id) else setOf(id), true) },
-                        onFavorite = { owner.favorite(id, snapshot, operations) }, clicks = false) { thumbnail(context) }
+                        onFavorite = { owner.favorite(id, snapshot, operations) }, clicks = false) {
+                        // A cover can retire this presentation while the library admission stays
+                        // unchanged. Its new thumbnails must retry reads refused by the old context.
+                        key(presentationRevision) { thumbnail(context) }
+                    }
                 }
             }
             Box(Modifier.fillMaxSize()) {
@@ -285,13 +291,13 @@ private fun <P> MonitorOperatorCatalogGallery(
                         MediaEmptyState(value.fetching, value.note ?: MediaLibraryCopy.emptySubtitle(connected,
                             value.records.isNotEmpty(), value.activeFilterCount, MediaLibraryTab.valueOf(value.category.name)))
                     }
-                    list -> LazyColumn(Modifier.fillMaxSize().monitorScrollFade(listState), state = listState,
+                    list -> LazyColumn(Modifier.fillMaxSize().testTag(GALLERY_TAG).monitorScrollFade(listState), state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                         items(records, key = { it.asset.id.rawValue }) { card(it) }
                     }
                     else -> MonitorCatalogGrid(records,
                         monitorCatalogColumns(presentation?.thumbnailSize ?: value.thumbnailSize, minOf(configuration.screenWidthDp, configuration.screenHeightDp) >= 600),
-                        key = { it.asset.id.rawValue }, modifier = Modifier.fillMaxSize(), state = gridState) { card(it) }
+                        key = { it.asset.id.rawValue }, modifier = Modifier.fillMaxSize().testTag(GALLERY_TAG), state = gridState) { card(it) }
                 }
             }
         }
@@ -301,20 +307,19 @@ private fun <P> MonitorOperatorCatalogGallery(
     else draw()
 }
 
+/** The catalog owns cache state and progress for every cell; a source cell supplies its own facts only. */
+internal fun <P> monitorCatalogClip(
+    record: MonitorMediaRecord<P>, entry: MonitorMediaCacheEntry?, facts: MonitorMediaGalleryFileFacts,
+    resolvedDuration: String?, libraryProgress: Double?, cell: MonitorClipValue?,
+): MonitorClipValue {
+    val source = if (entry?.original != null) "CACHED" else if (entry?.proxy != null) "PROXY" else "ON CAMERA"
+    val progress = (facts.progress ?: libraryProgress)?.toFloat()
+    return cell?.copy(id = record.asset.id.rawValue, favorite = record.favorite, source = source, progress = progress)
+        ?: MonitorClipValue(record.asset.id.rawValue, record.asset.filename, facts.detail,
+            resolvedDuration ?: facts.duration, source, record.favorite, progress)
+}
+
 private fun <T> Set<T>.toggled(value: T): Set<T> = if (value in this) this - value else this + value
 
-@Composable
-private fun MediaDeletionOverlay(progress: MonitorMediaDeletionProgress, detail: String?) {
-    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.35f))
-        .chromeClickable(onClick = {}), contentAlignment = Alignment.Center) {
-        androidx.compose.foundation.layout.Column(Modifier.mediaGlass(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Deleting ${progress.selectedCount} ${if (progress.selectedCount == 1) "item" else "items"}…", color = LiveDesign.text)
-            Text(detail ?: "${progress.completed} of ${progress.total}", color = LiveDesign.muted)
-            androidx.compose.material3.LinearProgressIndicator(progress = {
-                if (progress.total > 0) progress.completed.toFloat() / progress.total else 0f
-            })
-        }
-    }
-}
+/** The scrolling gallery, named as the SwiftUI catalog names it. */
+private const val GALLERY_TAG = "monitor.media.gallery"

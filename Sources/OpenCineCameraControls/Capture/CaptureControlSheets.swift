@@ -216,10 +216,9 @@
                 Group {
                     if let held = preview {
                         if let field = held.snapshot.commonField {
-                            MonitorCaptureDrum(
-                                control: host.control, field: field, enabled: false,
-                                haptics: host.hapticsEnabled, previewPosition: held.position,
-                                previewSelection: held.selection)
+                            fieldLadder(
+                                field, choices: field.choices, enabled: false,
+                                previewPosition: held.position, previewSelection: held.selection)
                         } else {
                             CaptureDrumWheel<Host>(
                                 options: held.snapshot.options,
@@ -247,7 +246,7 @@
                                         category, isPhoto: isPhoto))
                             }
                         }
-                        if sheet == .iso, host.captureCapabilities.nativeIsoHop {
+                        if sheet == .iso, host.controlCapabilities.nativeISO.hop == true {
                             nativeIsoHopToggle
                         }
                         if isEvSheet { facePriorityToggle }
@@ -408,6 +407,7 @@
                     reseatEv()
                 }
                 .onChange(of: host.cameraStatus.colorMode) { _, _ in
+                    if sheet == .color { seed() }
                     guard sheet == .iso else { return }
                     reseatIso()
                 }
@@ -452,7 +452,7 @@
             case .shutter:
                 if isEvSheet {
                     VStack(alignment: .leading, spacing: 12) {
-                        if host.captureCapabilities.commonExposureCompensation {
+                        if host.captureRouting.commonExposureCompensation {
                             commonDrum(
                                 .exposureCompensation,
                                 editingAllowed: !host.facePriorityExposureEnabled)
@@ -495,11 +495,11 @@
                     tintPad
                 }
             case .focus:
-                if host.captureCapabilities.focusMode {
+                if host.controlCapabilities.focus.isOffered {
                     focusRows
                 }
             case .aperture:
-                if host.captureCapabilities.aperture {
+                if host.controlCapabilities.iris.isOffered {
                     choiceDrum(
                         CaptureLists.apertureStrategies(from: host.cameraStatus).map(\.label),
                         selected: host.cameraStatus.apertureStrategy?.label
@@ -544,7 +544,9 @@
                     }
                 }
             case .resolution:
-                if isPhoto {
+                if let panel = host.nativeCapturePanel(.resolution, enabled: canApplyDrum) {
+                    panel
+                } else if isPhoto {
                     Text("Photo")
                         .font(MonitorTheme.font(16, weight: .semibold))
                         .foregroundStyle(MonitorTheme.text)
@@ -554,7 +556,19 @@
                     formatPicker
                 }
             case .color:
-                CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection)
+                // One popup for codec and colour: the codec choices the camera offers, then its
+                // colour choices. The colour drum keeps each camera's existing behaviour.
+                CaptureCodecColorPanel(
+                    choices: host.recordingCodecColor,
+                    enabled: canApplyDrum && !host.cameraStatus.isRecording,
+                    selectCodec: { id in
+                        guard canApplyDrum, !host.cameraStatus.isRecording else { return }
+                        host.commitRecordingCodec(id)
+                    }
+                ) {
+                    if let panel = host.nativeCapturePanel(.color, enabled: canApplyDrum) { panel }
+                    else { CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection) }
+                }
             }
         }
 
@@ -677,15 +691,14 @@
                 title: { $0.label }, select: handleAspectChange)
         }
 
+        /// The one capture mode strip every camera's popup draws (`LadderSheet` uses it too).
         private var modeBar: some View {
-            MonitorCaptureTabs(
-                options: Array(modeTabs.indices), selection: selectedMode,
-                title: { modeTabs[$0] },
-                select: { index in
-                    guard canApplyDrum else { return }
-                    selectedMode = index
-                    handleModeChange(index)
-                })
+            ModeBar(tabs: modeTabs, selected: selectedMode, enabled: true) { index in
+                guard canApplyDrum else { return }
+                selectedMode = index
+                handleModeChange(index)
+            }
+            .environment(\.ladderOperatorHaptics, host.hapticsEnabled)
         }
 
         private func choiceDrum(
@@ -699,6 +712,7 @@
 
         private var headerTitle: String {
             if isEvSheet { return "EXPOSURE" }
+            if sheet == .color { return host.recordingCodecColor.title }
             return sheet.headerLabel
         }
 
@@ -769,15 +783,16 @@
         }
 
         private var colorWheelLabels: [String] {
-            let family = host.bodyFamily
-            return host.colorModes.map { $0.label(for: family, in: host.labelProfile) }
+            CaptureLists.colorDrumLabels(
+                offered: host.colorModes, current: host.cameraStatus.colorMode,
+                family: host.bodyFamily, profile: host.labelProfile)
         }
 
         private var connectedBody: CameraModel? { host.connectedBody }
 
         private var isoAutoDrumLabels: [String] {
             // No settable auto ceiling: a single read-only "Auto" stop, like the WB drum.
-            guard host.captureCapabilities.isoLimit else { return ["Auto"] }
+            guard host.controlCapabilities.nativeISO.ceiling == true else { return ["Auto"] }
             return CaptureLists.isoAutoLabels(from: host.cameraStatus, model: connectedBody)
         }
 
@@ -804,6 +819,7 @@
             case .iso:
                 reseatIso()
                 guard preview == nil,
+                    host.controlCapabilities.nativeISO.ceiling == true,
                     CaptureLists.shouldGetIsoLimit(from: host.cameraStatus)
                 else { return }
                 Task {
@@ -903,10 +919,10 @@
                 switch sheet {
                 case .iso: .iso
                 case .shutter:
-                    isEvSheet && host.captureCapabilities.commonExposureCompensation
+                    isEvSheet && host.captureRouting.commonExposureCompensation
                         ? .exposureCompensation : .shutter
                 case .wb: .whiteBalance
-                case .focus: host.captureCapabilities.commonFocusMode ? .focusMode : nil
+                case .focus: host.captureRouting.commonFocusMode ? .focusMode : nil
                 default: nil
                 }
             commonField = key.flatMap { host.control.captureField($0) }
@@ -924,21 +940,37 @@
                     default: return false
                     }
                 }
-                MonitorCaptureDrum(
-                    control: host.control, field: field, enabled: canApplyDrum && editingAllowed,
-                    haptics: host.hapticsEnabled, choices: choices, marked: marked
-                ) { value in
-                    host.captureDrumDidCommit(value)
-                }
+                fieldLadder(field, choices: choices, marked: marked,
+                    enabled: canApplyDrum && editingAllowed)
             } else {
                 Text("Setting not available").foregroundStyle(MonitorTheme.muted)
             }
         }
 
+        private func fieldLadder(
+            _ field: MonitorCaptureField, choices: [MonitorCaptureChoice],
+            marked: Set<String> = [], enabled: Bool,
+            previewPosition: Double? = nil, previewSelection: String? = nil
+        ) -> some View {
+            LadderSheet(
+                presentation: LadderSheetPresentation(title: "", subtitle: "", tabs: [
+                    LadderTab(label: "", key: field.key,
+                        ladder: CaptureLadder(current: field.label,
+                            values: choices.map(\.label), marked: marked), applyOnActivate: false)
+                ]), enabled: enabled, onWrite: { _ in },
+                control: host.control,
+                host: LadderSheetHost(selectedTab: 0, selection: previewSelection ?? field.label,
+                    drum: .field(field, choices: choices), previewPosition: previewPosition,
+                    onSelectTab: { _ in }, onCommitted: host.captureDrumDidCommit)
+            ).environment(\.ladderOperatorHaptics, host.hapticsEnabled)
+        }
+
         private func applyDrum(_ value: String) {
             guard canApplyDrum, !value.isEmpty, value != lastApplied else { return }
             if sheet == .color, host.cameraStatus.isRecording {
-                if let mode = ColorMode(label: value, in: host.labelProfile) {
+                if let mode = ColorMode(label: value, in: host.labelProfile),
+                    mode != host.cameraStatus.colorMode
+                {
                     host.commit(.colorMode(mode), from: .sheet(commonField))
                 }
                 return
@@ -947,7 +979,7 @@
             switch sheet {
             case .iso:
                 if isIsoAutoTab {
-                    guard
+                    guard host.controlCapabilities.nativeISO.ceiling == true,
                         let limit = CaptureLists.isoLimit(
                             from: value, status: host.cameraStatus, model: connectedBody)
                     else { return }
@@ -984,7 +1016,10 @@
                 guard let resolution = resolutionForTab(selectedMode) else { return }
                 applyVideoFormat(resolution: resolution, frameRate: rate)
             case .color:
-                guard let mode = ColorMode(label: value, in: host.labelProfile) else { return }
+                // The drum's extra entry is the current mode: selecting it sends nothing.
+                guard let mode = ColorMode(label: value, in: host.labelProfile),
+                    mode != host.cameraStatus.colorMode
+                else { return }
                 host.commit(.colorMode(mode), from: .sheet(commonField))
             default:
                 break
@@ -1129,7 +1164,7 @@
         private func reseatIsoAutoDrum() {
             let labels = isoAutoDrumLabels
             let live =
-                host.captureCapabilities.isoLimit
+                host.controlCapabilities.nativeISO.ceiling == true
                 ? CaptureLists.isoAutoLabel(from: host.cameraStatus, model: connectedBody) : "Auto"
             let next = labels.contains(live) ? live : ""
             lastApplied = next
@@ -1271,13 +1306,22 @@
         @Environment(\.captureDrumPreview) private var preview
 
         var body: some View {
-            MonitorValueDrum(
-                options: preview?.snapshot.options ?? options,
-                selection: preview.map { .constant($0.selection) } ?? $selection,
-                markedValues: preview?.snapshot.marked ?? markedValues,
-                isInteractive: isInteractive, haptics: host.hapticsEnabled,
-                previewPosition: preview?.position, interactionIdentity: interactionIdentity
-            )
+            let values = preview?.snapshot.options ?? options
+            let shown = preview?.selection ?? selection
+            let marked = preview?.snapshot.marked ?? markedValues
+            LadderSheet(
+                presentation: LadderSheetPresentation(title: "", subtitle: "", tabs: [
+                    LadderTab(label: "", key: 0,
+                        ladder: CaptureLadder(current: shown.isEmpty ? nil : shown,
+                            values: values, marked: marked), applyOnActivate: false)
+                ]), enabled: isInteractive, onWrite: { write in
+                    guard preview == nil else { return }
+                    selection = write.value
+                },
+                host: LadderSheetHost(selectedTab: 0, selection: shown, drum: .labels,
+                    previewPosition: preview?.position, interactionIdentity: interactionIdentity,
+                    onSelectTab: { _ in })
+            ).environment(\.ladderOperatorHaptics, host.hapticsEnabled)
         }
     }
 
@@ -1309,6 +1353,17 @@
         ) -> [ShootingMode] {
             (model?.captureProfile?.labels.shootingModes ?? ShootingMode.allCases).filter {
                 $0 != .livePhoto || ShootingMode.fromStatus(status.shootingMode) == .livePhoto
+            }
+        }
+
+        /// The colour drum's labels: the offered modes plus the reported current one when the
+        /// offered list lacks it, so the drum opens centred on the value the header shows.
+        public static func colorDrumLabels(
+            offered: [ColorMode], current: ColorMode?, family: CameraBodyFamily,
+            profile: CameraLabelProfile
+        ) -> [String] {
+            CamCapColorMode.drum(offered: offered, current: current).map {
+                $0.label(for: family, in: profile)
             }
         }
 

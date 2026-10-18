@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCameraVocabulary
 
 /// PTP-IP `Operation_Request` DataPhaseInfo values.
 public enum PTPDataPhase: UInt32, Sendable {
@@ -230,9 +231,17 @@ public enum PTPPropertyCode: UInt32, Sendable {
     case wbColorTemp = 0xD01E
     case wbTuneColorTemp = 0xD150
     case wbTuneNatural = 0xD15E
-    /// Stills tone mode (UINT8): 0 SDR, 2 HLG. Drives the exposure-assist transfer curve in
-    /// photo mode — SDR bodies without the property simply fail the poll and stay SDR.
+    /// Stills tone mode (UINT8): the existing integration names 0 SDR and 2 HLG.
+    /// Missing or unknown readback does not establish the preview signal calibration.
     case stillToneMode = 0x0001_D01C
+
+    // Movie tone mode (SDR / HLG / N-Log), one property per codec family. Names follow libgphoto2
+    // `ptp.h`; value tables are hardware-read (see `NikonMovieToneCapability`).
+    case movieProResToneMode = 0x0001_D000
+    case movieH265ToneMode = 0x0001_D001
+    case movieNRawToneMode = 0x0001_D028
+    /// libgphoto2 also names this code `MovieQualityNRaw`; the ZR descriptor decides.
+    case movieProResRawToneMode = 0x0001_D029
 }
 
 /// PTP response codes used by the app.
@@ -432,6 +441,17 @@ public struct PTPStorageInfo: Equatable, Sendable {
     public let totalCapacityBytes: UInt64
     /// Free space in bytes (`FreeSpaceInBytes` @ offset 14).
     public let freeSpaceBytes: UInt64
+
+    public init(totalCapacityBytes: UInt64, freeSpaceBytes: UInt64) {
+        self.totalCapacityBytes = totalCapacityBytes
+        self.freeSpaceBytes = freeSpaceBytes
+    }
+
+    /// The shared storage readout (A5-11); nil when free space exceeds a known capacity.
+    public var readout: StorageReadout? {
+        guard totalCapacityBytes == 0 || freeSpaceBytes <= totalCapacityBytes else { return nil }
+        return StorageReadout(freeBytes: freeSpaceBytes, totalBytes: totalCapacityBytes)
+    }
 
     /// Parses a raw `GetStorageInfo` dataset. Returns nil when the payload is too short.
     public init?(_ bytes: [UInt8]) {

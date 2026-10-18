@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -93,6 +94,7 @@ fun MonitorPlaybackHeader(title: String, subtitle: String, source: String, portr
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(MonitorPlaybackLayout.IDENTITY_SPACING.dp)) {
             Text(
                 title,
+                modifier = Modifier.testTag("monitor.playback.title"),
                 style = MonitorTypography.text(MonitorPlaybackLayout.TITLE_SIZE, FontWeight.SemiBold),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -204,7 +206,7 @@ fun MonitorMetadataDrawer(rows: List<MonitorMetadataRow>, modifier: Modifier = M
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "CLIP INFO",
+                MonitorPlaybackCopy.CLIP_INFORMATION_TITLE,
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                 style = MonitorTypography.text(9f, FontWeight.Bold).copy(letterSpacing = 1.8.sp),
             )

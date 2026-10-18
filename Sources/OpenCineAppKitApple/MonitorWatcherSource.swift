@@ -22,6 +22,8 @@ private struct WatcherJoinDestination {
     @ObservationIgnored private let journal: @Sendable (String) -> Void
     @ObservationIgnored public var preparePicture: (@MainActor () -> Void)?
     @ObservationIgnored private let commandWire: (@MainActor (Data) -> Void)?
+    /// The relay's poll and recovery clock; `nil` keeps the relay client's own (uptime) clock.
+    @ObservationIgnored private let clock: MonitorHostClock?
     @ObservationIgnored private var client: RelayAppleClient<SharedMonitorRelayCodec>?
     @ObservationIgnored private var nativeEpisode = UUID()
     @ObservationIgnored private var destination: WatcherJoinDestination?
@@ -101,9 +103,10 @@ private struct WatcherJoinDestination {
     }
     public init(decoder: Decoder, samples: LiveFrameSampleBus, versionMismatchReason: String,
         journal: @escaping @Sendable (String) -> Void = { _ in },
-        commandWire: (@MainActor (Data) -> Void)? = nil) {
+        commandWire: (@MainActor (Data) -> Void)? = nil, clock: MonitorHostClock? = nil) {
         self.decoder = decoder; self.samples = samples
         self.versionMismatchReason = versionMismatchReason; self.journal = journal; self.commandWire = commandWire
+        self.clock = clock
     }
 
     public func join(endpoint: NWEndpoint, hostName: String, passcode: String, watcherID: String, deviceName: String) {
@@ -131,12 +134,20 @@ private struct WatcherJoinDestination {
         guard nativeEpisode == episode, client == nil else { return }
         preparePicture?()
         guard nativeEpisode == episode, client == nil else { return }
-        let transport = RelayAppleClient(codec: SharedMonitorRelayCodec(), watcherID: watcherID,
-            versionMismatchReason: versionMismatchReason,
-            journal: journal, watcher: .init(deviceName: deviceName,
+        let watcher = RelayAppleWatcherConfiguration<SharedMonitorRelayCodec.FrameMetadata,
+            SharedMonitorRelayCodec.ControlToken, SharedMonitorRelayCodec.JoinDenied>(deviceName: deviceName,
                 passcode: passcode.isEmpty ? nil : passcode, encodedAt: { $0.encodedAt },
                 holderIsRecipient: { $0.holderIsRecipient },
-                refusal: { .init(reason: $0.reason, passcodeRequired: $0.passcodeRequired) }))
+                refusal: { .init(reason: $0.reason, passcodeRequired: $0.passcodeRequired) })
+        let transport = if let clock {
+            RelayAppleClient(codec: SharedMonitorRelayCodec(), watcherID: watcherID,
+                versionMismatchReason: versionMismatchReason, journal: journal,
+                sleep: { seconds in try? await clock.sleep(.seconds(seconds)) },
+                now: { clock.now().sinceReference / .seconds(1) }, watcher: watcher)
+        } else {
+            RelayAppleClient(codec: SharedMonitorRelayCodec(), watcherID: watcherID,
+                versionMismatchReason: versionMismatchReason, journal: journal, watcher: watcher)
+        }
         client = transport
         transport.onWatcherChanged = { [weak self, weak transport] next in
             guard let self, let transport, self.client === transport else { return }
@@ -234,6 +245,25 @@ private struct WatcherJoinDestination {
         client?.requestControl()
     }
     public func releaseControl() { guard canControl else { return }; client?.releaseControl() }
+    public func toggleRecording() { sendCommand(.toggleRecording) }
+    public func setISO(_ index: Int) { sendCommand(.setISO(index)) }
+    public func setShutterDenominator(_ denominator: Int) { sendCommand(.setShutterDenom(denominator)) }
+    public func setZoom(_ hundredths: Int) { sendCommand(.setZoom(hundredths)) }
+
+    /// Map the admitted displayed tap and submit its relay command in the native source owner.
+    /// A replaced source cannot publish the focus mark after an entered wire callback.
+    public func sendTapFocus(x: Double, y: Double, width: Double, height: Double,
+        mirrored: Bool, flippedVertically: Bool, captured: MonitorWatcherTapSource
+    ) -> MonitorWatcherFocus? {
+        guard captured.admits(tapSource),
+            let point = WatcherFocusPoint.map(x: x, y: y, width: width, height: height,
+                mirrored: mirrored, flippedVertically: flippedVertically),
+            sendCommand(.tapFocus(cameraX: point.x, cameraY: point.y,
+                coordinateWidth: 1000, coordinateHeight: 1000), captured: captured)
+        else { return nil }
+        return .init(source: captured, x: Double(point.x) / 1000, y: Double(point.y) / 1000)
+    }
+
     public func sendCommand(_ command: WatcherRelayCommand) { _ = sendCommand(command, captured: tapSource) }
     @discardableResult public func sendCommand(_ command: WatcherRelayCommand, captured: MonitorWatcherTapSource) -> Bool {
         guard captured.admits(tapSource) else { return false }
@@ -245,6 +275,134 @@ private struct WatcherJoinDestination {
             client.send(command: command)
         }
         return captured.admits(tapSource)
+    }
+}
+
+/// Where a watcher's join to a shared feed stands, for the browse screen.
+public enum WatcherJoinStatus: Equatable, Sendable {
+    case idle
+    case connecting
+    case reconnecting(attempt: Int, maximum: Int)
+    case needsPasscode
+    case live
+    case failed(String)
+}
+
+/// One shared feed found on this network.
+public struct WatcherFeedRow: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let cameraName: String?
+
+    public init(id: String, name: String, cameraName: String?) {
+        self.id = id
+        self.name = name
+        self.cameraName = cameraName
+    }
+}
+
+/// The watcher side of the shared relay for an app that watches another phone's feed: browse,
+/// join with the remembered passcode, retry a passcode, leave, and the navigation between the
+/// browse screen and the watcher monitor. Its members satisfy the camera controls'
+/// `WatcherBrowseHost`. The app supplies its relay objects, Keychain service and the one chrome
+/// step that differs (closing its own covers).
+@MainActor
+public protocol WatcherRelayViewer: AnyObject {
+    associatedtype WatcherDecoder: MonitorLiveVideoRuntime
+    var relayClient: MonitorWatcherSource<WatcherDecoder> { get }
+    var relayBrowser: WatcherRelayBrowser { get }
+    /// This app's relay secrets.
+    var relayKeychain: WatcherRelayKeychain { get }
+    var isWatchingFeed: Bool { get set }
+    var showsWatcherBrowse: Bool { get set }
+    /// A phone with a live camera of its own does not browse for other feeds.
+    var isLive: Bool { get }
+    /// This phone's name, shown to the sharing phone.
+    var watcherDeviceName: String { get }
+    /// Close the app's own covers so the watcher monitor shows once a join goes live.
+    func dismissCoversForWatching()
+}
+
+extension WatcherRelayViewer {
+    public var watcherJoinStatus: WatcherJoinStatus {
+        switch relayClient.status {
+        case .idle: .idle
+        case .connecting: .connecting
+        case .reconnecting(let attempt):
+            .reconnecting(attempt: attempt, maximum: WatcherRelayRecovery.maximumRetries)
+        case .needsPasscode: .needsPasscode
+        case .live: .live
+        case .failed(let message): .failed(message)
+        }
+    }
+
+    public var watcherFeeds: [WatcherFeedRow] {
+        relayBrowser.hosts.map {
+            WatcherFeedRow(id: $0.id, name: $0.name, cameraName: $0.cameraName)
+        }
+    }
+
+    public var watcherBrowseError: String? { relayBrowser.browseError }
+
+    /// Once accepted, transport failure belongs on the watcher screen until explicit Leave.
+    public var showsWatcherMonitor: Bool { isWatchingFeed }
+
+    public func joinWatcherFeed(id: String) {
+        guard let feed = relayBrowser.hosts.first(where: { $0.id == id }) else { return }
+        joinWatcher(feed)
+    }
+
+    public func openWatcherBrowse() {
+        showsWatcherBrowse = true
+        relayClient.resolveEndpoint = { [weak self] name in
+            self?.relayBrowser.hosts.first { $0.name == name }?.endpoint
+        }
+        relayClient.onReconnect = { [weak self] in self?.startWatcherBrowse() }
+        startWatcherBrowse()
+    }
+
+    public func startWatcherBrowse() {
+        guard !isLive else { return }
+        relayBrowser.start()
+    }
+
+    public func joinWatcher(_ host: WatcherRelayDiscovery) {
+        relayClient.join(
+            endpoint: host.endpoint,
+            hostName: host.name,
+            passcode: relayKeychain.rememberedPasscode(forHost: host.name),
+            watcherID: relayKeychain.installID,
+            deviceName: watcherDeviceName)
+    }
+
+    /// A failed save keeps the passcode for this join; the next join asks again. The answer is
+    /// trimmed by the shared rule and an empty one is ignored.
+    public func retryWatcherPasscode(_ code: String) {
+        guard let code = MonitorWatcherPasscodeRule.answer(code) else { return }
+        relayKeychain.storeRememberedPasscode(code, forHost: relayClient.hostTitle)
+        relayClient.retryPasscode(code)
+    }
+
+    public func stopWatching() {
+        relayClient.leave()
+        isWatchingFeed = false
+        showsWatcherBrowse = false
+        relayBrowser.stop()
+    }
+
+    /// A passcode demand while watching returns to browse; a live join leaves browse for the
+    /// watcher monitor.
+    public func noteWatcherStatusChanged(_ status: RelayWatcherPhase) {
+        if status == .needsPasscode, isWatchingFeed {
+            isWatchingFeed = false
+            showsWatcherBrowse = true
+            startWatcherBrowse()
+        }
+        if status == .live, showsWatcherBrowse {
+            isWatchingFeed = true
+            showsWatcherBrowse = false
+            dismissCoversForWatching()
+        }
     }
 }
 #endif

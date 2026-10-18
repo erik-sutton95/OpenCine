@@ -1,5 +1,7 @@
 package com.opencapture.opencine.appkit
 
+import com.opencapture.monitorui.MonitorTimecodeFormat
+import com.opencapture.opencine.core.BatteryReading
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.ConnectionState
@@ -13,7 +15,6 @@ import com.opencapture.opencine.multicam.RecordDirection
 import com.opencapture.opencine.multicam.RecordPlan
 import com.opencapture.opencine.multicam.RoleStatus
 import java.util.Locale
-import kotlin.math.roundToInt
 
 // Swift twin: Sources/OpenCineAppKit/MultiviewStage.swift (same types and copy).
 
@@ -72,9 +73,12 @@ public data class MultiviewTile(
     val model: String = "",
     /** Resolution, rate and look, on roomy tiles and in the options. */
     val format: String = "",
-    /** 0..100, null when unknown. */
+    /** 0..100, null when unknown or when the camera reports [batteryBars] instead. */
     val battery: Int? = null,
     val charging: Boolean = false,
+    /** Filled steps of [batteryBarCount] when the camera reports a coarse gauge, never a percent. */
+    val batteryBars: Int? = null,
+    val batteryBarCount: Int = 5,
     val storage: String = MultiviewTally.UNAVAILABLE,
     val timecode: String? = null,
     /** [MultiviewTally] copy, or the app's own. */
@@ -132,11 +136,7 @@ public data class MultiviewTile(
             }
             return MultiviewTile(
                 name = entry.name,
-                battery = snapshot?.power?.battery?.value?.let { (it * 100).roundToInt() },
-                charging = snapshot?.power?.charging?.value ?: false,
-                timecode = snapshot?.timecode?.value?.let {
-                    String.format(Locale.ROOT, "%02d:%02d:%02d", it.hours, it.minutes, it.seconds)
-                },
+                timecode = MonitorTimecodeFormat.label(snapshot),
                 tally = MultiviewTally.text(recording, waiting = waiting, failed = control is ConnectionState.Disconnected),
                 recording = state == RecordingState.RECORDING,
                 readouts = listOf(
@@ -153,7 +153,7 @@ public data class MultiviewTile(
                     ),
                     MultiviewCameraAction("remove", "Remove camera", MultiviewCameraAction.Kind.DESTRUCTIVE),
                 ),
-            )
+            ).withPower(snapshot?.power)
         }
     }
 }
@@ -192,6 +192,33 @@ public object MultiviewTally {
 
 /** The stage's assist tools. Apps list the ones they offer, in their palette order. */
 public enum class MultiviewTool { LAYOUT, CAMERA, FIT, LUT }
+
+/** Working host adapters for occupied member slots. An empty value offers no executable tools. */
+public data class MultiviewToolAvailability(
+    val cameraSettingsSlots: Set<Int> = emptySet(),
+    val pictureLUTSlots: Set<Int> = emptySet(),
+) {
+    /** Preserve the caller's order while intersecting services with current occupied slots. */
+    public fun offeredTools(requested: List<MultiviewTool>, occupiedSlots: Set<Int>): List<MultiviewTool> =
+        requested.filter { tool ->
+            when (tool) {
+                MultiviewTool.CAMERA -> cameraSettingsSlots.any { it in occupiedSlots }
+                MultiviewTool.LUT -> pictureLUTSlots.any { it in occupiedSlots }
+                MultiviewTool.LAYOUT, MultiviewTool.FIT -> true
+            }
+        }
+
+    public fun cameraSettingsSlot(selected: Int, occupiedSlots: Set<Int>): Int? =
+        preferred(selected, cameraSettingsSlots, occupiedSlots)
+
+    public fun pictureLUTSlot(selected: Int, occupiedSlots: Set<Int>): Int? =
+        preferred(selected, pictureLUTSlots, occupiedSlots)
+
+    private fun preferred(selected: Int, services: Set<Int>, occupiedSlots: Set<Int>): Int? {
+        val admitted = services.intersect(occupiedSlots)
+        return selected.takeIf { it in admitted } ?: admitted.minOrNull()
+    }
+}
 
 /** One camera the Add camera list offers. */
 public data class MultiviewPickerRow(
@@ -250,4 +277,19 @@ public data class MultiviewRecordContext(
         /** A group command is coordinated dispatch, not synchronized recording. */
         public const val GROUP_NOTE: String = "Each camera confirms independently; recording is not synchronized."
     }
+}
+
+/**
+ * The tile's battery from the camera's typed power: a percent or a declared gauge (a five-bar
+ * gauge draws bars, never a percent), and charging as the live chrome reads it (charging, else
+ * external power). Twin of Swift `MultiviewTile.withPower`.
+ */
+public fun MultiviewTile.withPower(power: com.opencapture.opencine.core.PowerStatus?): MultiviewTile {
+    val reading = power?.batteryReading
+    return copy(
+        battery = (reading as? BatteryReading.Fraction)?.let { Math.round(it.value * 100).toInt() },
+        batteryBars = (reading as? BatteryReading.Steps)?.filled,
+        batteryBarCount = (reading as? BatteryReading.Steps)?.of ?: batteryBarCount,
+        charging = (power?.charging?.value ?: power?.externalPower?.value) ?: false,
+    )
 }

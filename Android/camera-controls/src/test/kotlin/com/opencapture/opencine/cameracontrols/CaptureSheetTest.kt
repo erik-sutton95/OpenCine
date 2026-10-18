@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.vocabulary.CameraCommands
@@ -374,7 +375,10 @@ class CaptureSheetTest {
     @Test
     fun wbSheetTabsModeKelvinTint() {
         assertEquals(listOf("Mode", "Kelvin", "Tint"), CaptureLists.wbTabs)
-        assertEquals("Kelvin / auto / tint", LiveSheet.WB.subtitle)
+        assertEquals("WHITE BALANCE", LiveSheet.WB.headerLabel)
+        assertEquals("Kelvin · auto · tint", LiveSheet.WB.subtitle)
+        assertEquals("SHUTTER", LiveSheet.SHUTTER.headerLabel)
+        assertEquals("Angle · speed", LiveSheet.SHUTTER.subtitle)
         assertEquals(listOf("Auto", "Custom"), CaptureLists.wbModeRows)
         assertEquals(
             CaptureLists.WB_TAB_MODE,
@@ -492,6 +496,28 @@ class CaptureSheetTest {
         assertTrue(CaptureLists.shouldRefreshFocusTrack(afc, supportsFocus = true))
         assertTrue(!CaptureLists.shouldRefreshFocusTrack(lock, supportsFocus = true))
         assertTrue(!CaptureLists.shouldRefreshFocusTrack(afc, supportsFocus = false))
+    }
+
+    /** The colour drum opens on the value the header shows, even when the body list lacks it. */
+    @Test
+    fun colorDrumKeepsTheReportedCurrentModeAndNeverSendsIt() {
+        val status = CameraStatus(colorMode = CameraCommands.COLOR_DLOG2)
+        val labels = CaptureLists.colorWheelLabels(status, profile = CaptureTestProfiles.base)
+        assertEquals(listOf("Normal", "HDR", "D-Log", "D-Log2"), labels)
+        val quick = requireNotNull(
+            recordingCategoryQuickControl(LiveSheet.COLOR, status, family = "pocket", profile = CaptureTestProfiles.base),
+        )
+        assertEquals("D-Log2", quick.selection)
+        // Shown, never sent: the body does not offer it.
+        assertNull(CaptureLists.applyColorDrum("D-Log2", "pocket", status, hopEnabled = false, profile = CaptureTestProfiles.base))
+        assertEquals(
+            listOf("Normal", "HDR", "D-Log"),
+            CaptureLists.colorWheelLabels(CameraStatus(colorMode = CameraCommands.COLOR_HDR), profile = CaptureTestProfiles.base),
+        )
+        assertEquals(
+            listOf("Normal", "HDR", "D-Log"),
+            CaptureLists.colorWheelLabels(CameraStatus(), profile = CaptureTestProfiles.base),
+        )
     }
 
     @Test
@@ -717,8 +743,10 @@ class CaptureSheetTest {
     @Test
     fun manualExpoRestoresShutterSpeedOrAngle() {
         assertEquals("SHUTTER", CaptureLists.headerTitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL))
-        assertEquals("Speed", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 0, false))
-        assertEquals("Angle", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 1, false))
+        assertEquals("Angle · speed", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 0, false))
+        assertEquals("Angle · speed", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 1, false))
+        assertEquals("Speed", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 0, false,
+            CameraCommands.SHOOT_PHOTO))
         assertEquals(
             listOf("Speed", "Angle"),
             CaptureLists.modeTabs(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, true),
@@ -1121,6 +1149,13 @@ class CaptureSheetTest {
     }
 
     @Test
+    fun sharedStorageCaseReadsSixtyGigabytes() {
+        // A5-11: 60e9 free of 128e9 bytes, as the DJI-wire status carries them (MiB, truncated).
+        val status = CameraStatus(storageFreeMb = 57_220, storageTotalMb = 122_070)
+        assertEquals("60 GB · 47%", CaptureLists.storageLabel(status, showDuration = false))
+    }
+
+    @Test
     fun storagePrefersStorageThenSdLikeIos() {
         val mixed =
             CameraStatus(
@@ -1129,9 +1164,9 @@ class CaptureSheetTest {
                 sdFreeMb = 512,
                 sdTotalMb = 1024,
             )
-        assertEquals("2 GB · 50%", CaptureLists.storageLabel(mixed, showDuration = false))
+        assertEquals("2.15 GB · 50%", CaptureLists.storageLabel(mixed, showDuration = false))
         val sdOnly = CameraStatus(sdFreeMb = 1024, sdTotalMb = 2048)
-        assertEquals("1 GB · 50%", CaptureLists.storageLabel(sdOnly, showDuration = false))
+        assertEquals("1.07 GB · 50%", CaptureLists.storageLabel(sdOnly, showDuration = false))
         val duration = CameraStatus(recordRemainingSec = 180)
         assertEquals("3 Min", CaptureLists.storageLabel(duration, showDuration = true))
         assertEquals("— Min", CaptureLists.storageLabel(CameraStatus(), showDuration = true))

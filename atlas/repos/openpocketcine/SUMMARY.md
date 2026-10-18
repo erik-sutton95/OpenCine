@@ -1,38 +1,20 @@
 # openpocketcine
 
-DJI Osmo Pocket monitor app (iOS, watchOS, Android). The donor for the shared UI 2.0
-design system and for Multi View. Build and test instructions live in the repo's own
-`AGENTS.md`; this file is only a map.
+DJI Osmo Pocket monitor app for iOS, watchOS and Android. Pocket's pre-refactor main is the common UI/UX reference. Build and test rules live in the app's `AGENTS.md`.
 
 ## Connections
 
-- **Donor to `openinstacine`** (source-copy, live): Insta copies Pocket's shared Swift
-  targets, tests, iOS shell and Android shell. A Pocket change in those paths is not in
-  Insta until someone runs Insta's sync and reviews it.
-- **Donor to `openzcine` engine-port** (source-copy, candidate branch only).
-- **Donor to `opencine`** (candidate): UI-01/UI-02 extracted `MonitorPresentation`,
-  `MonitorUI` and Android `monitor-ui` from the frozen BASE-01 revision.
-- **Consumes `opencine`** on `opencine/integration` (candidate): one sibling path `../OpenCine`
-  and one Gradle included build named `opencine`, pinned by one line in `opencine-pins.txt`.
-- Took its cube parser from `openzcine` once (see `THIRD-PARTY-NOTICES.md`).
+Public main consumes OpenCine through one sibling Swift package and one Android included build named `opencine`, pinned in `opencine-pins.txt`. Shared UI, app composition, media tools, DJI protocol/runtime, motion, relay and multicam live in OpenCine. Historical UI extraction attribution stays recorded in the platform notices; it is not a current copy-sync workflow.
 
 ## Where to start reading
 
-| Topic | Paths |
-|---|---|
-| Swift products and target direction | `Package.swift`, `ios/project.yml` |
-| Shared presentation policy | `Sources/MonitorPresentation/` |
-| Shared SwiftUI design system | `Sources/MonitorUI/` (theme: `MonitorTheme.swift`) |
-| Compose design system | `Apps/Android/monitor-ui/` |
-| DJI protocol core (stays vendor-owned) | `Sources/OpenPocketViewCore/` (for example `DumlFrame.swift`) |
-| Color science and log analysis | `Sources/OpenPocketViewCore/LiveColorScience.swift`, `LogColorTransform.swift` |
-| Multi View hosts, leases, record plan | `ios/OpenPocketCine/MultiviewStageCanvas.swift`, `MultiviewSession.swift`, `MultiviewCameraSettings.swift`, `MultiviewRecordAction.swift` |
-| Android native renderer | `Apps/Android/app/src/main/cpp/opc_vulkan.cpp` |
-| Frame.io (iOS) | `ios/OpenPocketCine/Frameio/` |
+- `Package.swift`, `ios/project.yml`, `Apps/Android/settings.gradle.kts`: package and native consumers.
+- `ios/OpenPocketCine/`: native session, live/media host values and camera/OS services.
+- `Apps/Android/app/src/main/kotlin/com/opencapture/openpocketcine/session/AppSessionHost.kt`: Android host services for the shared DJI session.
+- `Apps/Android/app/src/main/kotlin/com/opencapture/openpocketcine/media/Media3PlaybackPort.kt`: admitted native playback adapter.
+- `Sources/OpenPocketViewCore/`, `Sources/OpenPocketCineAndroidFacade/`: remaining app values and JNI host exports. DJI session/JNI exports belong to OpenCine.
+- `ios/OpenPocketCine/Frameio/`: host credentials, authentication and delivery services.
 
 ## Cross-repo gotchas
 
-- The shared checkout is used live by other sessions. Read it through Git objects or a
-  task worktree; never switch its branch.
-- Shared-UI edits here propagate to Insta only through its sync script, and to Nikon
-  only by hand. Record the donor SHA when copying.
+Shared behavior changes belong in OpenCine and require relevant adoption and verification in every thin app. A package pin and passing compile do not prove that an app supplies all required values/actions. Historical pre-migration refs and graph snapshots are navigation provenance, not evidence of current behavior. Read canonical checkouts through Git objects; edit only task-owned worktrees.

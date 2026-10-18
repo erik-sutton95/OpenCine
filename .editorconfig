@@ -24,6 +24,10 @@ indent_size = unset
 [*.py]
 indent_size = 4
 
+# Playback-label harness continuation lines hang under their call, not a 4-space grid.
+[scripts/ios-playback-label*.py]
+indent_size = unset
+
 # Atlas Python blocks use 4 spaces; continuations and fixture text need no grid.
 [atlas/**.py]
 indent_size = unset
@@ -51,7 +55,7 @@ trim_trailing_whitespace = false
 indent_size = 2
 
 # Runtime binaries and LUT tables — not text.
-[*.{cube,ttf,bin,png,jpg,jpeg,webp}]
+[*.{cube,ttf,bin,png,jpg,jpeg,webp,h264}]
 charset = unset
 end_of_line = unset
 insert_final_newline = unset

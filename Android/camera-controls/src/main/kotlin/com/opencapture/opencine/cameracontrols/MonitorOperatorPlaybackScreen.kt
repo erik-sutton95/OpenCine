@@ -1,8 +1,20 @@
 package com.opencapture.opencine.cameracontrols
 
-import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -105,6 +117,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val haptics = LocalOperatorHaptics.current
     var opened by remember(model) { mutableStateOf(false) }
+    var openedRequest by remember(model) { mutableStateOf<java.util.UUID?>(null) }
     DisposableEffect(model, lifecycle) {
         model.playerVisible(true)
         model.sceneActive(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
@@ -121,6 +134,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     LaunchedEffect(model, initial.id) {
         if (!opened) model.ratingShadeOpen(initialRatingShadeOpen)
         opened = model.open(initial.record, initial.playlist, initial.admission)
+        openedRequest = initial.id
     }
     LaunchedEffect(owner.playback) {
         if (opened && owner.playback == null && model.state.value.playback == null) close()
@@ -129,22 +143,32 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         model.deliveryPresented(deliveryPresented)
         if (deliveryPresented) assist?.configureTool = null
     }
-    val player = owner.playback ?: return
+    fun unavailableClose() { model.playerVisible(false); close() }
+    val player = owner.playback
+    if (player == null || !opened || openedRequest != initial.id) { MonitorOperatorMediaUnavailable(close = ::unavailableClose); return }
     val value by player.state.collectAsState()
+    if (value.closed || !model.isCurrent(value.token)) {
+        MonitorOperatorMediaUnavailable(close = ::unavailableClose); return
+    }
     val record = value.active ?: initial.record
     val facts = source(record)
-    val transfer = effects?.scopeTap?.transfer ?: facts.transfer
+    // Existing hosts retain effect-first transfer precedence; an explicit source never falls back.
+    val transfer = if (facts.allowsSignalFallback) effects?.scopeTap?.transfer ?: facts.transfer else facts.transfer
     val audio = nativeAudio(player)
     val levels = audio?.levels?.collectAsState()?.value
     val bundle = assists?.scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value
     val sampled = setOf(MonitorAssistTool.WAVE, MonitorAssistTool.PARADE, MonitorAssistTool.HISTO,
         MonitorAssistTool.VECTOR, MonitorAssistTool.LIGHTS, MonitorAssistTool.ND)
-    val supportedTools = when {
+    val suppliedTools = when {
         assist == null -> emptySet()
         assists?.scopes == null -> (availableAssistTools ?: MonitorAssistTool.playbackToolbarCases.toSet()) - sampled
         else -> availableAssistTools
     }
-    val context = LocalContext.current
+    val supportedTools = if (!facts.allowsSignalFallback && transfer == null) {
+        (suppliedTools ?: MonitorAssistTool.playbackToolbarCases.toSet()) - setOf(
+            MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA, MonitorAssistTool.LIGHTS, MonitorAssistTool.ND,
+        )
+    } else suppliedTools
     val rate = player.rate
     fun clock(seconds: Double): String {
         val duration = MonitorConformPreview.conformedDuration(seconds, rate)
@@ -155,6 +179,9 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     val asset = record.asset
     val position = if (value.scrubbing) value.scrubPosition else value.position
     val duration = value.duration ?: asset.durationSeconds ?: 0.0
+    val buffered = if (facts.bufferedThroughSeconds != null) {
+        facts.bufferedTemporalFraction(value.metadata.duration?.takeIf { value.ready })?.toFloat() ?: 0f
+    } else facts.buffered?.toFloat() ?: 0f
     val listed = PlaybackVideoLayout.sizeFromResolution(record.facts.resolution)
     val width = value.metadata.width ?: asset.pixelSize?.width?.toDouble() ?: listed?.width?.toDouble() ?: 16.0
     val height = value.metadata.height ?: asset.pixelSize?.height?.toDouble() ?: listed?.height?.toDouble() ?: 9.0
@@ -170,7 +197,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         row("Frame rate", asset.frameRate?.let { number(it) + " fps" }); row("Duration", clock(duration))
         row("Playback source", sourceLabel)
         row("Size", asset.representations.firstOrNull { it.role == MediaRepresentationRole.ORIGINAL }
-            ?.byteCount?.takeIf { it > 0 }?.let { Formatter.formatShortFileSize(context, it) })
+            ?.byteCount?.takeIf { it > 0 }?.let(MediaClipFormatting::byteLabel))
         row("Created", asset.capturedAt?.let { DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
             .withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(it)) })
         row("Favorite", if (favorite) "Yes" else "No")
@@ -188,7 +215,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         value.scrubbing, value.muted, value.looping, player.canGoPrevious, player.canGoNext, favorite,
         value.metadata.conform, value.conformTarget, initialChromeVisible = initialChromeVisible,
         loopAvailable = loopAvailable, shareEnabled = mayShare,
-        buffered = facts.buffered?.toFloat() ?: 0f,
+        buffered = buffered,
         doubleTapResetsZoom = interaction.doubleTapResetsZoom,
         continuousPanBounds = interaction.continuousPanBounds,
         zoomBoundary = if (interaction.zoomAgainstCanvas) MonitorPlaybackZoomBoundary.CANVAS else MonitorPlaybackZoomBoundary.PICTURE,
@@ -217,9 +244,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         adjacent = { token, offset -> if (!model.adjacent(offset, token)) haptics.confirm() },
         favorite = { token -> current(token) { operations.favorite?.invoke(record) ?: model.library.toggleFavorite(asset.id) } },
         share = { token -> current(token) {
-            if (share != null && (operations.access?.let { it(record).share == true } ?: true) && model.isCurrent(token)) {
-                model.deliveryPresented(true); share(record)
-            }
+            if (share != null && (operations.access?.let { it(record).share == true } ?: true) && model.beginShare(token)) share(record)
         } },
         delete = removal, beginScrub = { if (model.isCurrent(it)) player.beginScrub() else null },
         updateScrub = { edit, seconds -> player.updateScrub(seconds, edit) },
@@ -228,6 +253,11 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         cancelScrub = { edit, reason -> player.cancelScrub(reason == MonitorEditingCancellation.INTERRUPTED, edit) },
         longPressFeedback = haptics::longPress, detentFeedback = haptics::confirm, selectionFeedback = haptics::selection,
         dismissAssistInspector = { if (assist?.configureTool == null) false else { assist.configureTool = null; true } })
+    if (operations.captureDeletion != null && mayDelete) {
+        actions.deletionConfirmation = com.opencapture.monitorui.MonitorPlaybackDeletionActions(
+            capture = { model.captureDeletion(it, operations) }, isCurrent = model::isDeletionCurrent,
+            confirm = model::confirmDeletion, cancel = model::cancelDeletion)
+    }
     fun hasOptions(tool: MonitorAssistTool): Boolean = tool.hasConfiguration && when (tool) {
         MonitorAssistTool.FALSE -> transfer != null || signalOptions.falseColor != null
         MonitorAssistTool.ZEBRA -> transfer != null || signalOptions.zebra != null
@@ -239,13 +269,16 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         assist.configureTool = tool
     }
     val slots = MonitorPlaybackPageSlots(headerAccessory = {
-        operations.rating?.let { rating -> MonitorPlaybackRatingShade(owner.ratingStars, rating.levels,
-            model.isCurrent(value.token), owner.ratingNotice, owner.ratingShadeOpen, model::ratingShadeOpen,
-            { model.setRating(it, rating) }) }
+        operations.rating?.let { rating -> MonitorPlaybackRatingDetails(owner.ratingStars, rating.levels,
+            model.isCurrent(value.token), owner.ratingNotice, owner.ratingShadeOpen,
+            { model.setRating(it, rating) }, Modifier.fillMaxWidth()) }
     }, canvasDetails = { context ->
         if (assist != null && assists?.panelPlacement?.usesAnalysisViewport == true)
             OperatorPlaybackAssistOverlays(assist, assists, context.geometry, bundle, levels,
                 transfer, signalOptions, ::options, context.analysis, supportedTools)
+    }, onChromeVisibilityChanged = {}, onAssistExpansionChanged = {}, headerActionAccessory = {
+        if (operations.rating != null)
+            MonitorPlaybackRatingAnchor(owner.ratingStars, owner.ratingShadeOpen, model::ratingShadeOpen)
     })
     MonitorPlaybackScreen(presentation, actions, slots, modifier,
         coverPresented = deliveryPresented, backHandler = { BackHandler(onBack = it) },
@@ -259,7 +292,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
                 requestExpand = chrome.expanded, onExpansionHandled = chrome.onExpansionHandled,
                 showsAudio = audio != null, playback = true, availableTools = supportedTools, hasOptions = ::hasOptions)
         }, assistInspector = { chrome ->
-            if (assist != null) assist.configureTool?.takeIf(::hasOptions)?.let { tool ->
+            if (assist != null) assist.configureTool?.takeIf { supportedTools?.contains(it) != false && hasOptions(it) }?.let { tool ->
                 val image: (@Composable () -> Unit)? = assists?.preview?.let { renderer -> { renderer(tool) } }
                 AssistInspectorFrame(tool, assist, chrome.width, chrome.height, chrome.leading, chrome.top, chrome.bottom,
                     onDismiss = { assist.configureTool = null }, playback = true, safeTrailing = chrome.trailing,
@@ -313,4 +346,21 @@ private fun OperatorPlaybackAssistOverlays(
         }
     }
 
+}
+
+/** Shared return surface for refused or retired media; Close never borrows source admission. */
+@Composable
+public fun MonitorOperatorMediaUnavailable(closeEnabled: Boolean = true, close: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Color.Black).padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Media unavailable", color = LiveDesign.text, style = LiveType.ui(20f, FontWeight.SemiBold),
+            modifier = Modifier.testTag("monitor.media.unavailable"))
+        Text("This media is no longer available.", color = LiveDesign.muted,
+            style = LiveType.ui(14f, FontWeight.Medium))
+        TextButton(onClick = close, enabled = closeEnabled,
+            modifier = Modifier.testTag("monitor.media.unavailable.close").semantics { contentDescription = "Close" }) {
+            Text("Close", color = LiveDesign.text, style = LiveType.ui(14f, FontWeight.SemiBold))
+        }
+    }
 }

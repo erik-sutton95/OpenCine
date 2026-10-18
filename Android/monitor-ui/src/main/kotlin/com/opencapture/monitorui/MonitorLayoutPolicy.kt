@@ -83,6 +83,8 @@ data class MonitorFieldLayout(
     val tablet: Boolean,
     val fillsPicture: Boolean,
     val controlsFloor: Float,
+    /** Live render bounds, independent of the retained gauges/corner contract. */
+    val telemetry: MonitorRect = gauges,
 )
 
 /** Operator choice for the on-feed gimbal joystick diameter. */
@@ -101,6 +103,10 @@ enum class MonitorJoystickSize(val raw: String, val side: Float, val label: Stri
 
 /** UI 2.0 layout decisions shared by brand apps; native shells retain the feed. */
 object MonitorLayoutPolicy {
+    /** Reserve the portrait telemetry band independently of immersive system insets and feed framing. */
+    fun portraitHeaderSafeTop(width: Float, height: Float, safeTop: Float): Float =
+        if (height > width && width < 600f) max(44f, safeTop) else safeTop
+
     fun portrait(
         width: Float, height: Float, safeTop: Float, safeBottom: Float,
         fill: Boolean, valuesVisible: Boolean, sourceAspect: Float,
@@ -264,7 +270,13 @@ object MonitorLayoutPolicy {
         val edge = 8f
         if (portrait) {
             val layout = portrait(w, h, safeTop, safeBottom, fill, showsValues, aspect)
-            val status = MonitorRect(edge, layout.status.y + controlInset, max(0f, w - 28f), layout.status.height)
+            val headerLift = if (tablet) 0f else 6f
+            val headerSafeTop = portraitHeaderSafeTop(w, h, safeTop)
+            val headerLeading = if (tablet) edge else max(16f, safeLeading + 8f)
+            val headerTrailing = if (tablet) edge else max(16f, safeTrailing + 8f)
+            val status = MonitorRect(headerLeading,
+                max(0f, headerSafeTop - headerLift) + controlInset,
+                if (tablet) max(0f, w - 28f) else max(0f, w - headerLeading - headerTrailing), layout.status.height)
             val cy = layout.system.y + layout.system.height / 2f
             val lock = MonitorRect(edge, cy - button / 2f, button, button)
             val display = MonitorRect(edge + button + 8f, lock.y, button, button)
@@ -272,13 +284,14 @@ object MonitorLayoutPolicy {
             // Same order as landscape: Media sits next to Record, Settings outside it.
             val settings = MonitorRect(w - edge - button, lock.y, button, button)
             val media = MonitorRect(settings.x - button - SETTINGS_MEDIA_GAP, lock.y, button, button)
-            val top = max(0f, safeTop - 24f)
-            val gaugeTop = (if (tablet) 82f else max(4f, top - 16f)) + controlInset
+            val cornerTop = max(0f, headerSafeTop - 24f)
+            val gaugeTop = (if (tablet) 82f else max(4f, cornerTop - 16f)) + controlInset
             // Three gauge pills: a trailing row on phone, a stacked column on tablet.
             val gauges = MonitorRect(
                 if (tablet) edge else w - edge - 186f, gaugeTop,
                 if (tablet) 58f else 186f, if (tablet) 68f else 22f,
             )
+            val telemetry = if (tablet) gauges else MonitorRect(w - headerTrailing - 122f, gaugeTop + 13f - headerLift, 122f, 22f)
             val floor = layout.controlsFloor
             val assists = portraitAssists(floor, tablet)
             val stick = portraitStick(w, floor, joystick.side)
@@ -287,13 +300,13 @@ object MonitorLayoutPolicy {
             val compass = headTrack(stick, zoom)
             val aspectToggle = portraitAspect(w, floor)
             val focusReset = MonitorRect(
-                max(safeLeading + 8f, stick.x - 50f), stick.maxY - 40f, 40f, 40f,
+                max(safeLeading + 8f, assists.x), assists.y - 48f, 40f, 40f,
             )
             return MonitorFieldLayout(
                 viewport, layout.picture, status, layout.values, layout.system,
                 lock, gauges, settings, media, record, display, assists, stick, zoom, gimbal,
                 compass, aspectToggle, focusReset, true, tablet, fill || aspect < 1f,
-                floor,
+                floor, telemetry = telemetry,
             )
         }
         val cut = max(0f, max(safeLeading, safeTrailing) - 14f)
@@ -322,7 +335,7 @@ object MonitorLayoutPolicy {
         )
         val lock = MonitorRect(12f, cornerTop, button, button)
         // Gauges share the lock's edge so a 19.5:9 phone's 16:9 picture starts at their trailing edge.
-        val gauges = MonitorRect(lock.x, lock.maxY + 6f, 58f, 68f)
+        val gauges = MonitorRect(lock.x, lock.maxY + landscapeGaugeGap(tablet), 58f, 68f)
         val statusX = max(77f, picture.x + 12f)
         val status = MonitorRect(
             statusX, (if (tablet) 4f else 0f) + controlInset,
@@ -414,26 +427,40 @@ object MonitorLayoutPolicy {
 
     data class Panel(val x: Float, val y: Float, val width: Float, val maxHeight: Float)
 
+    /** The smallest distance any capture popup keeps from the top, and its offset under a safe top inset. */
+    const val POPUP_TOP_MARGIN_MINIMUM = 8f
+
+    /**
+     * The one capture popup top margin, `max(8, safe top + 8)` in dp: the bottom drawer and the
+     * top-edge recording categories both keep it. Twin of Swift `MonitorCapturePopupLayout.topMargin`
+     * (points); both read `Fixtures/popup-top-margin.tsv`.
+     */
+    fun popupTopMargin(safeTop: Float): Float = max(POPUP_TOP_MARGIN_MINIMUM, safeTop + POPUP_TOP_MARGIN_MINIMUM)
+
     fun bottomPanel(panelHeight: Float, width: Float, height: Float, safeLeading: Float,
         safeTrailing: Float, safeTop: Float, safeBottom: Float, portraitFloor: Float? = null): Panel {
         val edge = max(14f, max(safeLeading, safeTrailing) + 4f)
         val panelWidth = min(if (min(width, height) >= 600f) 620f else 480f, max(0f, width - edge * 2f))
         val bottom = if (height > width && portraitFloor != null) min(height, portraitFloor - 12f)
             else height - max(0f, safeBottom)
-        val top = max(14f, safeTop + 10f)
+        val top = popupTopMargin(safeTop)
         val room = max(0f, bottom - top)
         return Panel((width - panelWidth) / 2f, max(top, bottom - min(panelHeight, room)), panelWidth, room)
     }
 
-    /** Format / color / mode hang from the top edge. Portrait sits 6dp below the info bar. */
+    /**
+     * Format / color / mode open from the top. Portrait sits 6dp below the info bar; landscape
+     * floats inside the safe area under the same top margin as [bottomPanel].
+     */
     fun topPanel(panelHeight: Float, width: Float, height: Float, safeLeading: Float,
         safeTrailing: Float, safeTop: Float, safeBottom: Float, portraitCeiling: Float? = null,
         portraitFloor: Float? = null): Panel {
         val edge = max(14f, max(safeLeading, safeTrailing) + 4f)
         val panelWidth = min(if (min(width, height) >= 600f) 620f else 480f, max(0f, width - edge * 2f))
         val portrait = height > width
-        val top = if (portrait && portraitCeiling != null) min(height, max(0f, portraitCeiling + 6f))
-            else 0f
+        val margin = popupTopMargin(safeTop)
+        val top = if (portrait && portraitCeiling != null) min(height, max(margin, portraitCeiling + 6f))
+            else min(height, margin)
         val bottom = if (portrait && portraitFloor != null) min(height, portraitFloor - 12f)
             else height - max(0f, safeBottom)
         val room = max(0f, bottom - top)
@@ -480,15 +507,23 @@ object MonitorLayoutPolicy {
     const val CAMERA_CARD_CORNER = 13f
     /** Space between the Settings and Media system buttons. */
     const val SETTINGS_MEDIA_GAP = 12f
+
+    /** The drawn height of a telemetry gauge pill (link, phone and camera battery); Swift `FieldMonitorLayout`. */
+    fun telemetryGaugeHeight(tablet: Boolean): Float = if (tablet) 22f else 20f
+
+    /**
+     * Space between the landscape lock and the gauge column under it: the link pill's padded touch
+     * target, centred on its drawn pill, must clear the lock's (Swift `landscapeGaugeGap`).
+     */
+    fun landscapeGaugeGap(tablet: Boolean): Float = max(6f, (MONITOR_MIN_TAP_TARGET_DP - telemetryGaugeHeight(tablet)) / 2f)
     const val SETTINGS_TITLE_CONTENT_GAP = 8f
     const val SETTINGS_TITLE_MIN_HEIGHT = 24f
     const val DISP_SIZE = 12f
     const val DISP_TRACKING = 0.48f
     const val CAPTURE_PANEL_CORNER = 16f
 
-    /** Portrait floating popups round every corner; landscape attached edges stay square. */
-    fun capturePanelTopCorner(fromTop: Boolean, portrait: Boolean): Float =
-        if (!fromTop || portrait) CAPTURE_PANEL_CORNER else 0f
+    /** Floating popups round every corner; only a landscape bottom drawer's attached edge stays square. */
+    fun capturePanelTopCorner(fromTop: Boolean, portrait: Boolean): Float = CAPTURE_PANEL_CORNER
 
     fun capturePanelBottomCorner(fromTop: Boolean, portrait: Boolean): Float =
         if (fromTop || portrait) CAPTURE_PANEL_CORNER else 0f

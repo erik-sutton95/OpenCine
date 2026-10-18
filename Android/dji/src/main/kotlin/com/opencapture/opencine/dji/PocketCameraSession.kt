@@ -1,26 +1,34 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.platform.withCredentialIO
+import kotlin.time.Duration.Companion.seconds
 import com.opencapture.opencine.core.CameraValuePin
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.StorageVolume
+import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.media.RecoveryAction
 import com.opencapture.opencine.media.RecoveryEffect
 import com.opencapture.opencine.media.RecoveryReason
 import com.opencapture.opencine.media.RecoveryEffectLog
-import com.opencapture.opencine.media.FeedDecoderErrorOrigin
 import com.opencapture.opencine.media.FeedIncidentAges
 import com.opencapture.opencine.media.FeedIncidentBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentBreadcrumbKind
-import com.opencapture.opencine.media.FeedIncidentDecoder
 import com.opencapture.opencine.media.FeedIncidentLifecycle
 import com.opencapture.opencine.media.FeedIncidentQueue
-import com.opencapture.opencine.media.FeedIncidentRates
-import com.opencapture.opencine.media.FeedIncidentSessionContext
+import com.opencapture.opencine.media.FeedIncidentRateObservation
+import com.opencapture.opencine.media.FeedIncidentRateSampler
+import com.opencapture.opencine.decoder.incidentDecoder
+import com.opencapture.opencine.media.FeedIncidentSource
 import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedIncidentThermal
+import com.opencapture.opencine.media.FeedIncidentWatchdogGate
 import com.opencapture.opencine.media.FeedRepairPhase
 import com.opencapture.opencine.media.FeedRepairRecord
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
+import com.opencapture.opencine.media.HostShutterPresentation
 import com.opencapture.opencine.media.SerialSessionGate
 import com.opencapture.opencine.decoder.HevcDecoder
 import android.os.Build
@@ -31,6 +39,7 @@ import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.motion.SnapOutcome
 import com.opencapture.opencine.motion.WorldLevelSnap
 import com.opencapture.opencine.platform.LocalVPNProbe
+import com.opencapture.opencine.platform.WifiLowLatencyLock
 import com.opencapture.opencine.vocabulary.AudioPin
 import com.opencapture.opencine.vocabulary.AutoExposureLock
 import com.opencapture.opencine.vocabulary.CamFov
@@ -38,6 +47,7 @@ import com.opencapture.opencine.vocabulary.CaptureWheels
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraFocusPolicy
 import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.storageReadout
 import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.ColorPin
@@ -73,8 +83,7 @@ import com.opencapture.opencine.vocabulary.LiveChromeThrottle
 import com.opencapture.opencine.vocabulary.LiveFeedTapPolicy
 import com.opencapture.opencine.vocabulary.RecoveryPictureProof
 import com.opencapture.opencine.vocabulary.SceneFacePolicy
-import com.opencapture.opencine.vocabulary.SessionDropStormGuard
-import com.opencapture.opencine.vocabulary.SessionRecoveryDecision
+import com.opencapture.opencine.vocabulary.SessionRecoveryEpisode
 import com.opencapture.opencine.vocabulary.SessionRecoveryPolicy
 import com.opencapture.opencine.vocabulary.SessionRecoveryTrigger
 import com.opencapture.opencine.vocabulary.SessionRecoveryUi
@@ -87,8 +96,6 @@ import com.opencapture.opencine.vocabulary.TrackingHud
 import com.opencapture.opencine.vocabulary.TrackingStartPolicy
 import com.opencapture.opencine.vocabulary.VideoFormat
 import com.opencapture.opencine.vocabulary.WhiteBalancePin
-import com.opencapture.opencine.vocabulary.recoverAfterAdvertisement
-import com.opencapture.opencine.vocabulary.withinAutomaticRecoveryBudget
 import java.util.UUID
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart
@@ -110,6 +117,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
@@ -186,6 +194,14 @@ internal fun acceptsGimbalConfiguration(
     recovering: Boolean, videoStale: Boolean, hasDatalink: Boolean,
 ): Boolean = hasGimbal && live && sceneActive && !warming && !recovering && !videoStale && hasDatalink
 
+/**
+ * DJI's bound on one session-recovery attempt once the datalink handshake admits it: the first
+ * fresh picture within one GOP grace. The scan, BLE pairing and Wi-Fi join before admission keep
+ * their own transport deadlines inside the shared 180 s budget.
+ */
+internal val DJI_RECOVERY_ATTEMPT_DEADLINE =
+    SessionRecoveryEpisode.AttemptDeadline(attemptMs = LiveViewEnablePolicy.GOP_GRACE_MS)
+
 /** A serialized command chain keeps its original endpoint epoch across every suspension. */
 internal class EndpointCommandEpoch(val generation: Long) :
     kotlin.coroutines.AbstractCoroutineContextElement(Key) {
@@ -217,7 +233,8 @@ class PocketCameraSession(
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val ble = BleLink(context)
-    private val joiner = CameraApJoiner(context)
+    private val joiner = DjiCameraAp.joiner(context)
+    private val joinerPath = joiner.asNetworkPath()
     /** The operator's Wi-Fi or this phone's hotspot for the Wi-Fi and Hotspot setups (#406). */
     private val station = SharedWiFi(context)
     val cadence = LivePipelineCadence()
@@ -261,10 +278,12 @@ class PocketCameraSession(
     }
     private val wifiCache = CameraWifiCredentialStore(appContext)
     private val wifiLock = WifiLowLatencyLock(appContext)
+    private val power = appContext.getSystemService(android.os.PowerManager::class.java)
     private var feedSessionId = UUID.randomUUID().toString()
     private var socketGeneration = 0
     /** Open from the first LIVE until the operator disconnects (iOS `incidentSessionActive`). */
     private var incidentSessionActive = false
+    private var incidentSource: FeedIncidentSource? = null
     /** Repair deadlines held off Bluetooth recovery this stall episode (core `nextSessionHoldCycles`). */
     private var sessionHoldCycles = 0
     private var lastSessionHoldAt: Long? = null
@@ -396,6 +415,9 @@ class PocketCameraSession(
 
     var connectedCamera: FoundCamera? = null
         private set
+    val nativeISOCapabilities: com.opencapture.opencine.vocabulary.CaptureNativeISOCapabilities
+        get() = connectedCamera?.model?.captureProfile?.nativeISO
+            ?: com.opencapture.opencine.vocabulary.CaptureNativeISOCapabilities()
     override var joinedSSID: String? = null
         private set
 
@@ -414,7 +436,7 @@ class PocketCameraSession(
     private val _setupProgress = MutableStateFlow<String?>(null)
     override val setupProgress: StateFlow<String?> = _setupProgress.asStateFlow()
     private val cameraPath: CameraNetworkPath
-        get() = if (connectionSetup.movesCamera) station else joiner
+        get() = if (connectionSetup.movesCamera) station else joinerPath
 
     /** iOS `CameraSession.supportsFocusMode`. Unknown camera defaults on. */
     val supportsFocusMode: Boolean
@@ -464,8 +486,8 @@ class PocketCameraSession(
     private var mediaListCounter = 1
     private val feedWatchdog = LiveViewEnablePolicy.State()
     private var coreWatchdog = 0L
-    private val dropStorm = SessionDropStormGuard()
-    private var recoveryJob: Job? = null
+    /** Gating inputs of the last watchdog pass, for incidents (PI-2E slow -12903 recovery). */
+    private var watchdogGate: FeedIncidentWatchdogGate? = null
     private var recoveryCameraId: String? = null
     private var recoveryDeviceName = ""
     private var datalink: DatalinkDriver? = null
@@ -601,6 +623,8 @@ class PocketCameraSession(
     private val inflightPending = ConcurrentHashMap<Int, InflightSend>()
     private var reconnectJob: Job? = null
     private var reconnectTarget: String? = null
+    /** This session's hold on the reporting camera path, from connect start until disconnect. */
+    private var reportingCameraPath: AutoCloseable? = null
     private val _connectionTargetId = MutableStateFlow<String?>(null)
     val connectionTargetId: StateFlow<String?> = _connectionTargetId.asStateFlow()
     private var feedRecoveryJob: Job? = null
@@ -818,7 +842,7 @@ class PocketCameraSession(
         reconnectTarget = null
         _connectionTargetId.value = camera.id
         _isReconnecting.value = false
-        appHost.setCameraSessionActive(true)
+        if (reportingCameraPath == null) reportingCameraPath = appHost.beginCameraPath()
         LocalVPNProbe.noteIfActive(appContext) { DjiLog.log("notice", "session", "vpn", it) }
         connectJob?.cancel()
         if (!holdsMonitor) publishPhase(ConnectionPhase.CONNECTING_GATT)
@@ -861,6 +885,22 @@ class PocketCameraSession(
             return
         }
         decoder.attachSurface(surface)
+    }
+
+    /**
+     * SIMULATED, debug review only (a `ReviewLaunch` LIVE): presents [status] from [camera] as a live
+     * session through the same reported-capture projection a camera report takes. Opens no radio,
+     * link or decoder; with no link, every command is refused. Never call it in a camera session.
+     */
+    fun stageSimulatedLive(camera: FoundCamera, status: CameraStatus) {
+        check(datalink == null && !isMultiviewBorrowed) { "A simulated review never replaces a camera session" }
+        connectedCamera = camera
+        reportedCapture = status
+        noteReportedExposure(status)
+        _status.value = status
+        _chromeStatus.value = status
+        controlSeam?.sessionDidChange()
+        _phase.value = ConnectionPhase.LIVE
     }
 
     /** Borrow the tile's transport and decoder; Multiview remains the sole repair owner. */
@@ -936,9 +976,12 @@ class PocketCameraSession(
         mediaReturnOwner = null
         controlBinding.retire(com.opencapture.opencine.core.SessionCloseReason.REQUESTED)
         reportedCapture = CameraStatus()
-        appHost.setCameraSessionActive(false)
+        reportingCameraPath?.close()
+        reportingCameraPath = null
         // Operator ended the session: an incident still open ends as userEnded.
-        appHost.incidents.endSession(SystemClock.elapsedRealtime() / 1000.0)
+        val outgoingIncidentSource = incidentSource
+        incidentSource = null
+        outgoingIncidentSource?.endSession(SystemClock.elapsedRealtime() / 1000.0)
         incidentSessionActive = false
         cancelSessionRecovery(clearHoldsMonitor = true)
         reconnectTarget = null
@@ -1125,7 +1168,9 @@ class PocketCameraSession(
 
         publishPhase(ConnectionPhase.JOINING_WIFI)
         if (!joiner.isProcessBound()) {
-            val joined = joiner.join(ssid, pass, camera.model.wpa3)
+            // Core `CameraSoftAPSwitch.joinDeadlineSeconds`: a 5.8 GHz SoftAP in a DFS region
+            // beacons about 60 s after power-on; 45 s gave up first (#235).
+            val joined = joiner.join(ssid, pass, timeoutMillis = 90_000, wpa3 = camera.model.wpa3)
             if (!joined) {
                 // iOS parity: a Pocket "Reset Wi-Fi" regenerates the passphrase.
                 // Drop cached creds so the next tap re-reads them over BLE.
@@ -1717,45 +1762,33 @@ class PocketCameraSession(
     private fun beginFeedIncidentSession() {
         if (incidentSessionActive) return
         incidentSessionActive = true
-        appHost.incidents.beginSession(
-            FeedIncidentSessionContext(
-                sessionId = feedSessionId,
-                appVersion = appHost.appVersion,
-                appBuild = appHost.appBuild,
-                sourceRevision = appHost.sourceRevision,
-                osName = "Android",
-                osVersion = Build.VERSION.RELEASE ?: "?",
-                hardwareClass = Build.MODEL ?: "unknown",
-                cameraFamily = connectedCamera?.model?.family ?: "none",
-                decoderGeneration = decoder.randomAccess.generation,
-                socketGeneration = socketGeneration,
-                testSource = appHost.incidentTestSource(),
-                buildIdentity = appHost.incidentBuildIdentity(),
-            ),
+        incidentSource = appHost.incidents.beginBoundSession(
+            appHost.incidentSessionContext(feedSessionId, connectedCamera?.model?.family ?: "none",
+                decoderGeneration = decoder.randomAccess.generation, socketGeneration = socketGeneration),
         )
     }
 
     private fun noteFeedIncidentSnapshot(window: LivePipelineCadence.Window?) {
+        val source = incidentSource ?: return
         val now = SystemClock.elapsedRealtime()
         val ingressSource = datalink
-        fun ageSec(at: Long?): Double? = at?.let { ((now - it).coerceAtLeast(0)).toDouble() / 1000.0 }
+        fun ageSec(at: Long?): Double? = FeedIncidentRateSampler.ageMilliseconds(at, now)
         val hz = window?.hz
-        appHost.incidents.ingestSnapshot(
+        source.ingestSnapshot(
             FeedIncidentSnapshot(
                 monotonicNow = now / 1000.0,
                 wallClockMs = System.currentTimeMillis(),
                 rates =
-                    FeedIncidentRates(
-                        packetHz = hz?.get(LivePipelineCadence.Stage.VIDEO) ?: 0.0,
-                        accessUnitHz = hz?.get(LivePipelineCadence.Stage.AU) ?: 0.0,
-                        decodeSubmitHz = hz?.get(LivePipelineCadence.Stage.SUBMIT) ?: 0.0,
-                        decodeAcceptHz = hz?.get(LivePipelineCadence.Stage.SUBMIT) ?: 0.0,
-                        decodedOutputHz = hz?.get(LivePipelineCadence.Stage.OUTPUT) ?: 0.0,
+                    FeedIncidentRateObservation(
+                        packetHz = hz?.get(LivePipelineCadence.Stage.VIDEO),
+                        accessUnitHz = hz?.get(LivePipelineCadence.Stage.AU),
+                        decodeSubmitHz = hz?.get(LivePipelineCadence.Stage.SUBMIT),
+                        decodeAcceptHz = hz?.get(LivePipelineCadence.Stage.SUBMIT),
+                        decodedOutputHz = hz?.get(LivePipelineCadence.Stage.OUTPUT),
                         // Scopes tap presented GLES frames; there is no independent assist-output stage.
-                        assistOutputHz = 0.0,
-                        presentHz = hz?.get(LivePipelineCadence.Stage.PRESENT) ?: 0.0,
-                        ackHz = hz?.get(LivePipelineCadence.Stage.ACK) ?: 0.0,
-                    ),
+                        presentHz = hz?.get(LivePipelineCadence.Stage.PRESENT),
+                        ackHz = hz?.get(LivePipelineCadence.Stage.ACK),
+                    ).rates(),
                 ages =
                     FeedIncidentAges(
                         packetAge = ageSec(datalink?.lastVideoPacketAt),
@@ -1764,7 +1797,7 @@ class PocketCameraSession(
                         decodedOutputAge = ageSec(decoder.lastDecoderOutputAt),
                         assistOutputAge = null,
                         presentAge = ageSec(decoder.lastPresentedAt),
-                        statusAge = ingressSource?.lastStatusAt?.takeIf { it <= now }?.let { (now - it) / 1000.0 },
+                        statusAge = ageSec(ingressSource?.lastStatusAt),
                     ),
                 queue =
                     FeedIncidentQueue(
@@ -1774,46 +1807,27 @@ class PocketCameraSession(
                         drops = datalink?.admissionDrops ?: 0,
                     ),
                 decoder =
-                    FeedIncidentDecoder(
-                        generation = decoder.randomAccess.generation,
-                        formatGeneration = decoder.errorLifetime.formatGeneration,
-                        codec = if (decoder.hasFormat) "hevc" else "none",
-                        width = decoder.pictureWidth,
-                        height = decoder.pictureHeight,
-                        origin =
-                            when (decoder.errorLifetime.lastError?.origin) {
-                                DecoderErrorOrigin.CONFIGURE -> FeedDecoderErrorOrigin.CREATE
-                                DecoderErrorOrigin.QUEUE -> FeedDecoderErrorOrigin.SYNC
-                                DecoderErrorOrigin.OUTPUT,
-                                DecoderErrorOrigin.OUTPUT_RELEASE,
-                                -> FeedDecoderErrorOrigin.CALLBACK
-                                null -> FeedDecoderErrorOrigin.NONE
-                            },
-                        errorClass = decoder.errorLifetime.lastError?.code,
-                        errorCount = decoder.errorLifetime.countThisGeneration,
-                        decoderFailed = decoder.failedThisGeneration,
-                        errorAge = decoder.errorLifetime.lastError?.atElapsedMs?.let { ageSec(it) },
-                        receivedIrap = decoder.hasDecodableReferences,
-                        awaitingIrap = decoder.awaitingIdr,
-                        hasDecodableReferences = decoder.hasDecodableReferences,
-                        lastIrapAge = ageSec(decoder.lastIrapAt),
-                        lastSuccessfulOutputAge = ageSec(decoder.lastDecoderOutputAt),
-                    ),
+                    decoder.incidentDecoder(nowElapsedMs = now),
                 lifecycle =
                     FeedIncidentLifecycle(
                         foreground = !needsForegroundRecover,
                         playbackActive = _status.value.inPlayback,
                         connected = _phase.value == ConnectionPhase.LIVE,
                         liveEstablished = decoder.lastPresentedAt != null,
+                        // Thermal and battery saver separate a throttled presenter from a stall
+                        // (S1 telemetry gap on presentStalled; iOS already sends both).
+                        thermalState = FeedIncidentThermal.fromAndroidThermalStatus(power?.currentThermalStatus),
+                        lowPower = power?.isPowerSaveMode == true,
                         sceneActive = !needsForegroundRecover,
                         assistState = "off",
                         outputObservable = decoder.decoderOutputExpected,
                         presentationExpected = decoder.isPresentationReady && decoder.lastPresentedAt != null,
                     ),
                 ingress = ingressSource?.ingressSnapshot(now / 1000.0),
+                watchdogGate = watchdogGate,
             ),
         )
-        appHost.incidents.noteDecoderGeneration(decoder.randomAccess.generation)
+        source.noteDecoderGeneration(decoder.randomAccess.generation)
     }
 
     private fun publishPipelineStats() {
@@ -2037,8 +2051,23 @@ class PocketCameraSession(
     }
 
     private fun applyFeedWatchdog(now: Long, packets: Int) {
-        if (needsForegroundRecover) return
-        if (datalink?.isRebuilding == true || feedRecoveryJob != null) return
+        val shellHold =
+            when {
+                needsForegroundRecover -> "foregroundRecover"
+                datalink?.isRebuilding == true -> "endpointRebuild"
+                feedRecoveryJob != null -> "repairInFlight"
+                else -> null
+            }
+        if (shellHold != null) {
+            watchdogGate =
+                FeedIncidentWatchdogGate(
+                    pathReady = cameraPath.isProcessBound(),
+                    repairReady = decoder.isPresentationReady,
+                    outputExpected = decoder.decoderOutputExpected,
+                    hold = shellHold,
+                )
+            return
+        }
         val pictureOwner = mediaPictureGeneration
         val repairLink = datalink
         val decoderInput = decoder.captureInputOwnership()
@@ -2113,7 +2142,15 @@ class PocketCameraSession(
                     append(",\"repairReady\":${decoder.isPresentationReady}")
                     append("}")
                 }
-            when (DjiNative.feedWatchdogTick(coreWatchdog, json)) {
+            val action = DjiNative.feedWatchdogTick(coreWatchdog, json)
+            watchdogGate =
+                FeedIncidentWatchdogGate(
+                    pathReady = snap.pathReady,
+                    repairReady = snap.repairReady,
+                    outputExpected = snap.decoderOutputExpected,
+                    hold = DjiNative.feedWatchdogTick(coreWatchdog, "{\"lastHold\":true}")?.takeIf { it.isNotEmpty() },
+                )
+            when (action) {
                 "resendLiveViewEnable" -> {
                     endGimbalStick()
                     logRecovery(RecoveryAction.ENABLE, RecoveryEffect.REQUESTED, RecoveryReason.WATCHDOG)
@@ -2151,6 +2188,13 @@ class PocketCameraSession(
             }
             return
         }
+        // The JVM fallback ladder does not name its gate: hold stays unknown.
+        watchdogGate =
+            FeedIncidentWatchdogGate(
+                pathReady = snap.pathReady,
+                repairReady = snap.repairReady,
+                outputExpected = snap.decoderOutputExpected,
+            )
         val watchdogBeforeTick = feedWatchdog.capture()
         when (LiveViewEnablePolicy.tick(feedWatchdog, snap)) {
             LiveViewEnablePolicy.Action.NONE -> applyWatchdogNone(snap)
@@ -2265,7 +2309,7 @@ class PocketCameraSession(
                 RecoveryEffect.SENT -> FeedRepairPhase.LOCALLY_SENT
                 RecoveryEffect.FRESH_PICTURE -> FeedRepairPhase.PICTURE_RESTORED
             }
-        appHost.incidents.recordRepair(
+        incidentSource?.recordRepair(
             FeedRepairRecord(
                 monotonicAt = SystemClock.elapsedRealtime() / 1000.0,
                 action = action.wire,
@@ -2431,7 +2475,7 @@ class PocketCameraSession(
             feedWatchdog.reset()
             return
         }
-        appHost.incidents.noteExhausted(SystemClock.elapsedRealtime() / 1000.0)
+        incidentSource?.noteExhausted(SystemClock.elapsedRealtime() / 1000.0)
         logRecovery(RecoveryAction.DECODER, RecoveryEffect.BLOCKED, RecoveryReason.PICTURE_DEADLINE)
         logRecovery(RecoveryAction.REJOIN, RecoveryEffect.REQUESTED, RecoveryReason.PICTURE_DEADLINE)
         rejoinDatalinkKeepingLive()
@@ -2440,6 +2484,7 @@ class PocketCameraSession(
     /** Keep the held picture; the fresh endpoint receives one enable from this repair owner. */
     private suspend fun rebuildDatalinkKeepingPicture(reason: String) {
         val link = datalink ?: return
+        val source = incidentSource
         val owner = mediaPictureGeneration
         var startedAt = 0L
         repairDatalinkEndpoint(
@@ -2456,7 +2501,7 @@ class PocketCameraSession(
                 firstPictureSettled = false
                 focusTrackPending = true
                 socketGeneration += 1
-                appHost.incidents.noteSocketGeneration(socketGeneration)
+                source?.noteSocketGeneration(socketGeneration)
             },
             reopen = {
                 decoder.prepareAfterForeground()
@@ -2526,7 +2571,7 @@ class PocketCameraSession(
         cancelProgrammedMove()
         endGimbalStick()
         if (_phase.value == ConnectionPhase.LIVE) needsForegroundRecover = true
-        appHost.incidents.recordBreadcrumb(
+        incidentSource?.recordBreadcrumb(
             FeedIncidentBreadcrumb(
                 SystemClock.elapsedRealtime() / 1000.0,
                 FeedIncidentBreadcrumbKind.SCENE_ACTIVITY,
@@ -2815,7 +2860,7 @@ class PocketCameraSession(
     }
 
     fun retrySessionRecovery() {
-        dropStorm.reset()
+        recoveryEpisode.resetStorm()
         cancelSessionRecovery(clearHoldsMonitor = false)
         beginSessionRecovery("operator retry", SessionRecoveryTrigger.OPERATOR_RETRY)
     }
@@ -2825,52 +2870,42 @@ class PocketCameraSession(
         disconnect()
     }
 
+    /** The shared recovery episode; scan, BLE, Wi-Fi, datalink and decoder stay here. */
+    private val recoveryEpisode by lazy {
+        SessionRecoveryEpisode(
+            scope = scope,
+            port = RecoveryPort(),
+            attemptDeadline = DJI_RECOVERY_ATTEMPT_DEADLINE,
+            timing = SessionRecoveryEpisode.Timing(SystemClock::elapsedRealtime),
+        ) { applyRecovery(it) }
+    }
+
     private fun beginSessionRecovery(
         reason: String,
         trigger: SessionRecoveryTrigger = SessionRecoveryTrigger.BLE_DROPPED,
     ) {
-        if (isMultiviewBorrowed) return
-        if (!SessionRecoveryPolicy.shouldBegin(trigger)) return
-        if (_recoveryState.value is SessionRecoveryUi.PausedAfterDrops) return
-        if (_recoveryState.value is SessionRecoveryUi.WaitingForOperator) return
-        if (recoveryJob != null) return
         val camera = connectedCamera
         val cameraId = camera?.id ?: recoveryCameraId
         if (cameraId == null) {
-            Log.i(TAG, "session: drop ($reason) — no camera to recover")
+            Log.i(TAG, "session: drop ($reason): no camera to recover")
             return
         }
+        val previousTarget = recoveryCameraId
         recoveryCameraId = cameraId
-        if (recoveryDeviceName.isEmpty()) recoveryDeviceName = camera?.name.orEmpty()
-        appHost.incidents.noteUnexpectedDisconnect(SystemClock.elapsedRealtime() / 1000.0)
-        holdsMonitor = true
-        feedRecoveryJob?.cancel()
-        feedRecoveryJob = null
-        connectJob?.cancel()
-        stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraPath.isProcessBound())
-        ble.disconnect()
-        val now = SystemClock.elapsedRealtime()
-        if (dropStorm.noteDrop(now)) {
-            DjiLog.log("notice", "recovery", "session", "session: drop ($reason) → storm pause after ${dropStorm.dropsInWindow} drops")
-            _recoveryState.value = SessionRecoveryUi.PausedAfterDrops(dropStorm.dropsInWindow)
+        if (!recoveryEpisode.begin(cameraId, trigger, reason)) {
+            if (!_recoveryState.value.isRecovering) recoveryCameraId = previousTarget
             return
         }
-        DjiLog.log("notice", "recovery", "session", "session: drop ($reason) → bounded recovery")
-        _recoveryState.value = SessionRecoveryPolicy.monitor.state(afterFailedAttempts = 0)
-        val target = camera ?: FoundCamera(cameraId, "", recoveryDeviceName, CameraModel.default, null)
-        recoveryJob =
-            scope.launch {
-                try { runSessionRecovery(target) }
-                finally {
-                    if (recoveryJob === coroutineContext[Job]) recoveryJob = null
-                }
-            }
+        if (recoveryDeviceName.isEmpty()) recoveryDeviceName = camera?.name.orEmpty()
+        when (val state = _recoveryState.value) {
+            is SessionRecoveryUi.PausedAfterDrops ->
+                DjiLog.log("notice", "recovery", "session", "session: drop ($reason) → storm pause after ${state.drops} drops")
+            else -> DjiLog.log("notice", "recovery", "session", "session: drop ($reason) → bounded recovery")
+        }
     }
 
     private fun cancelSessionRecovery(clearHoldsMonitor: Boolean) {
-        recoveryJob?.cancel()
-        recoveryJob = null
-        _recoveryState.value = SessionRecoveryUi.Idle
+        recoveryEpisode.cancel(clearHold = clearHoldsMonitor)
         if (clearHoldsMonitor) {
             holdsMonitor = false
             recoveryCameraId = null
@@ -2878,75 +2913,64 @@ class PocketCameraSession(
         }
     }
 
-    private suspend fun runSessionRecovery(camera: FoundCamera) {
-        val policy = SessionRecoveryPolicy.monitor
-        var failures = 0
-        suspend fun runAttempts() {
-            while (true) {
-                val state = policy.state(afterFailedAttempts = failures)
-                _recoveryState.value = state
-                if (state !is SessionRecoveryUi.Retrying) return
-                val recovered = attemptRecoveryConnect(camera)
-                if (recovered) {
-                    _recoveryState.value = SessionRecoveryUi.Idle
-                    holdsMonitor = false
-                    DjiLog.log("notice", "recovery", "session", "session: recovered after $failures failed attempt(s)")
-                    return
-                }
-                failures += 1
-                when (val decision = policy.decision(afterFailedAttempts = failures, jitter = kotlin.random.Random.nextDouble())) {
-                    SessionRecoveryDecision.Stop -> {
-                        _recoveryState.value = policy.state(afterFailedAttempts = failures)
-                        DjiLog.log("notice", "recovery", "session", "session: recovery exhausted after $failures attempts")
-                        return
-                    }
-                    is SessionRecoveryDecision.Retry -> delay(decision.afterMs)
-                }
+    private fun applyRecovery(snapshot: SessionRecoveryEpisode.Snapshot) {
+        val previous = _recoveryState.value
+        _recoveryState.value = snapshot.state
+        if (previous !is SessionRecoveryUi.Retrying) return
+        when (val state = snapshot.state) {
+            // A recovered episode keeps its target; a local cancel clears or keeps the hold.
+            SessionRecoveryUi.Idle -> if (snapshot.targetId != null && !snapshot.holdsPicture) {
+                holdsMonitor = false
+                DjiLog.log("notice", "recovery", "session", "session: recovered after ${previous.attempt - 1} failed attempt(s)")
             }
-        }
-        if (!withinAutomaticRecoveryBudget { runAttempts() }) {
-            stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraNetworkUsable())
-            ble.disconnect()
-            _recoveryState.value = SessionRecoveryUi.WaitingForOperator(maxOf(1, failures + 1))
-            DjiLog.log("notice", "recovery", "budget",
-                "session: recovery stopped after 180s — operator retry required")
+            is SessionRecoveryUi.WaitingForOperator ->
+                DjiLog.log("notice", "recovery", "budget", "session: recovery stopped after ${state.attemptsMade} attempt(s), operator retry required")
+            else -> Unit
         }
     }
 
-    private suspend fun attemptRecoveryConnect(camera: FoundCamera): Boolean {
-        val id = recoveryCameraId ?: camera.id
-        return try {
-            // Keep the held image and Surface, but retire a failed codec before
-            // the new session. The episode budget encloses all connection stages.
-            withContext(Dispatchers.IO) { decoder.prepareAfterForeground() }
-            recoverAfterAdvertisement(
-                scan = {
-                    ble.startScan()
-                    waitForRecoveryAdvertisement(id, SessionRecoveryPolicy.ADVERTISEMENT_SCAN_BUDGET_MS)
-                },
-                reconnect = { foundCamera ->
-                    run(foundCamera)
-                    val handshakeAt = SystemClock.elapsedRealtime()
-                    var recovered = false
-                    while (SystemClock.elapsedRealtime() - handshakeAt < LiveViewEnablePolicy.GOP_GRACE_MS) {
-                        if (hasRecoveryPicture(handshakeAt)) {
-                            recovered = true
-                            break
-                        }
-                        delay(100)
-                    }
-                    recovered
-                },
+    /** The DJI transport for the shared episode. */
+    private inner class RecoveryPort : SessionRecoveryEpisode.Port {
+        // A lent session belongs to multiview; only its owner recovers it.
+        override fun observe() =
+            SessionRecoveryEpisode.Observation(
+                ownsConnection = !isMultiviewBorrowed && recoveryCameraId != null,
+                sourceAtMs = datalink?.lastAccessUnitAt,
+                presentedAtMs = decoder.lastPresentedAt,
             )
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            false
-        }.also { recovered ->
-            if (!recovered) {
-                stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraNetworkUsable())
-                ble.disconnect()
+
+        override fun cleanup(kind: SessionRecoveryEpisode.Cleanup, attempt: SessionRecoveryEpisode.Attempt) {
+            when (kind) {
+                SessionRecoveryEpisode.Cleanup.INITIAL_DROP -> {
+                    incidentSource?.noteUnexpectedDisconnect(SystemClock.elapsedRealtime() / 1000.0)
+                    holdsMonitor = true
+                    feedRecoveryJob?.cancel()
+                    feedRecoveryJob = null
+                    connectJob?.cancel()
+                    stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraPath.isProcessBound())
+                    ble.disconnect()
+                }
+                SessionRecoveryEpisode.Cleanup.FAILED_ATTEMPT, SessionRecoveryEpisode.Cleanup.BUDGET_EXHAUSTED -> {
+                    stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraNetworkUsable())
+                    ble.disconnect()
+                }
+                SessionRecoveryEpisode.Cleanup.STORM_PAUSE -> Unit
             }
+        }
+
+        override suspend fun connect(attempt: SessionRecoveryEpisode.Attempt): Boolean {
+            val id = recoveryCameraId ?: return false
+            // Keep the held image and Surface, but retire a failed codec before the new session.
+            withContext(Dispatchers.IO) { decoder.prepareAfterForeground() }
+            attempt.checkContinuation()
+            val found = withTimeoutOrNull(SessionRecoveryPolicy.ADVERTISEMENT_SCAN_BUDGET_MS) {
+                ble.startScan()
+                waitForRecoveryAdvertisement(id, SessionRecoveryPolicy.ADVERTISEMENT_SCAN_BUDGET_MS)
+            } ?: return false
+            attempt.checkContinuation()
+            // BLE, pairing, Wi-Fi and the datalink handshake; a transport failure throws.
+            run(found)
+            return true
         }
     }
 
@@ -3142,25 +3166,31 @@ class PocketCameraSession(
 
     /** Only this frame's own decode counts: never a pin-held or optimistic value. */
     private fun noteReportedControlValues(frame: DumlFrame, decoded: CameraStatus, reported: CameraStatus) {
-        if (reported.isoIndex >= 0) reportedIsoIndex = reported.isoIndex
-        if (reported.wbMode == CameraCommands.WB_AUTO) {
-            reportedWhiteBalance = ReportedWhiteBalance(CameraCommands.WB_AUTO, 0, reported.wbTint)
-        } else if (reported.wbMode == CameraCommands.WB_CUSTOM && reported.wbKelvin >= 2_000) {
-            reportedWhiteBalance = ReportedWhiteBalance(CameraCommands.WB_CUSTOM, reported.wbKelvin, reported.wbTint)
-        }
+        noteReportedExposure(reported)
         // `0x02/0x80` carries the recording bit; the JNI decode of this frame is camera truth.
         if (frame.cmdSet == 0x02 && frame.cmdId == 0x80 && frame.payload.size >= 13) {
             reportedRecording = decoded.isRecording
         }
     }
 
+    /** The ISO and white balance a report carries, as the control projection reads them. */
+    private fun noteReportedExposure(reported: CameraStatus) {
+        if (reported.isoIndex >= 0) reportedIsoIndex = reported.isoIndex
+        if (reported.wbMode == CameraCommands.WB_AUTO) {
+            reportedWhiteBalance = ReportedWhiteBalance(CameraCommands.WB_AUTO, 0, reported.wbTint)
+        } else if (reported.wbMode == CameraCommands.WB_CUSTOM && reported.wbKelvin >= 2_000) {
+            reportedWhiteBalance = ReportedWhiteBalance(CameraCommands.WB_CUSTOM, reported.wbKelvin, reported.wbTint)
+        }
+    }
+
     override fun controlState(): PocketControlState {
         val dl = datalink
         val status = _status.value
+        val storage = status.storageReadout
         return PocketControlState(
             linkReady = dl != null && endpointCommandAdmission.allows(dl.isClosed, dl.isRebuilding),
             authorized = controlLeaseAllows(),
-            recovering = dl?.isRebuilding == true || recoveryJob?.isActive == true,
+            recovering = dl?.isRebuilding == true || recoveryEpisode.isRunning,
             phase = _phase.value,
             cameraId = connectedCamera?.id,
             shootingMode = status.shootingMode,
@@ -3171,15 +3201,28 @@ class PocketCameraSession(
             pendingWhiteBalance = whiteBalancePin?.let { ReportedWhiteBalance(it.wbMode, it.wbKelvin, it.wbTint) },
             recording = reportedRecording,
             batteryPercent = status.batteryPercent.takeIf { it in 0..100 },
+            storage = if (storage != null || status.recordRemainingSec > 0) {
+                ObservedValue(listOf(StorageVolume(
+                    "active",
+                    freeBytes = storage?.let { ObservedValue(it.freeBytes, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown,
+                    totalBytes = storage?.totalBytes?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown,
+                    remainingRecordingTime = status.recordRemainingSec.takeIf { it > 0 }?.let {
+                        ObservedValue(it.seconds, ObservationOrigin.CAMERA_REPORTED, null)
+                    } ?: ObservedValue.unknown,
+                )), ObservationOrigin.CAMERA_REPORTED, null)
+            } else ObservedValue.unknown,
             storageFreeMb = status.storageFreeMb.takeIf { status.storageTotalMb > 0 },
+            storageTotalMb = status.storageTotalMb.takeIf { it > 0 },
             model = connectedCamera?.model,
-            timecode = status.timecode,
+            timecode = status.timecodeValue,
             audioLevels = DjiCameraSessionAdapter.audioLevels(status),
+            charging = status.chargingReading,
         )
     }
 
     override fun captureControlState(): DjiCaptureControlState =
-        DjiCaptureControlState(reportedCapture, connectedCamera?.model)
+        DjiCaptureControlState(reportedCapture, connectedCamera?.model,
+            if (appHost.shutterUsesAngle()) HostShutterPresentation.EMULATED_ANGLE else HostShutterPresentation.CAMERA_VALUE)
 
     override fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) {
         if (reportedCapture.expoMode != CameraCommands.EXPO_MANUAL ||
@@ -3189,6 +3232,21 @@ class PocketCameraSession(
         }
         // Common duration edits never implicitly switch Auto into Manual.
         setShutterDenom(denominator, onStage, ensureManual = false)
+    }
+
+    override fun writeHostShutterAngle(degrees: Double, denominator: Int, admission: DjiCommandAdmission?, onStage: (ControlWireEvent) -> Unit) {
+        if (!appHost.shutterUsesAngle() || reportedCapture.isPhoto || admission?.admits(commandOwner) == false) {
+            onStage(ControlWireEvent.NOT_SENT)
+            return
+        }
+        val source = commandOwner?.let { DjiCommandAdmission(it) { true } }
+        val note: (ControlWireEvent) -> Unit = { stage ->
+            if (stage == ControlWireEvent.SENT && source?.admits(commandOwner) == true && admission?.isCurrent != false) {
+                appHost.setShutterAngleDegrees(degrees)
+            }
+            onStage(stage)
+        }
+        if (admission == null) writeShutter(denominator, note) else writeShutter(denominator, admission, note)
     }
 
     override fun writeExposureCompensation(value: EvComp, onStage: (ControlWireEvent) -> Unit) =
@@ -3278,6 +3336,7 @@ class PocketCameraSession(
     }
 
     fun setIsoLimit(raw: Int) {
+        if (nativeISOCapabilities.ceiling != true) return
         val previous = _status.value.isoLimit
         isoLimitPin =
             IsoLimitPin(expected = raw, deadlineElapsedRealtime = SystemClock.elapsedRealtime() + 2_000L)
@@ -3326,6 +3385,7 @@ class PocketCameraSession(
 
     /** GET only when Auto ISO exists. D-Log2 has no ceiling. */
     suspend fun refreshIsoLimit(): Boolean {
+        if (nativeISOCapabilities.ceiling != true) return false
         if (!CameraCommands.shouldGetIsoLimit(_status.value.colorMode)) return false
         return sendKind(DjiNative.CMD_GET_ISO_LIMIT, null, "ISO limit GET")
     }
@@ -3928,7 +3988,7 @@ class PocketCameraSession(
             owner, mediaPictureGeneration, isBrowsingMedia)
 
     private fun ownsMediaReturnContext(owner: Long): Boolean =
-        ownsLivePicture(owner) && _phase.value == ConnectionPhase.LIVE && !holdsMonitor && recoveryJob == null
+        ownsLivePicture(owner) && _phase.value == ConnectionPhase.LIVE && !holdsMonitor && !recoveryEpisode.isRunning
 
     fun ownsMediaLiveResume(owner: Long): Boolean =
         ownsMediaReturnContext(owner) && datalink?.isClosed == false
@@ -4443,14 +4503,17 @@ class PocketCameraSession(
             )
         ) return false
         val modeAtSet = previous.shootingMode
-        val angle = if (ShutterAngle.rematchesFormat(
-                usesAngle = appHost.shutterUsesAngle(),
-                manual = previous.expoMode == CameraCommands.EXPO_MANUAL,
-                isPhoto = CameraCommands.isPhotoMode(previous.shootingMode),
-                previousFps = previous.fps, nextFps = format.frameRate.fps,
-                alreadyPending = formatPin?.shutterAngle != null,
-            )) formatPin?.shutterAngle ?: appHost.shutterAngleDegrees() else null
-        val shutter = angle?.let { ShutterAngle.denom(it, format.frameRate.fps, previous.availableShutterDenoms) }
+        val rematch = ShutterAngle.formatRematch(
+            degrees = formatPin?.shutterAngle ?: appHost.shutterAngleDegrees(),
+            usesAngle = appHost.shutterUsesAngle(),
+            manual = previous.expoMode == CameraCommands.EXPO_MANUAL,
+            isPhoto = CameraCommands.isPhotoMode(previous.shootingMode),
+            previousFps = previous.fps, nextFps = format.frameRate.fps,
+            available = previous.availableShutterDenoms,
+            alreadyPending = formatPin?.shutterAngle != null,
+        )
+        val angle = rematch?.degrees
+        val shutter = rematch?.denom
         val pin =
             FormatPin(
                 expected = format,
@@ -4646,6 +4709,7 @@ class PocketCameraSession(
 
     /** iOS `hopNativeISO`; fires immediately, does not wait for the color ACK. */
     private fun hopNativeISO(from: Int, to: Int, hopEnabled: Boolean) {
+        if (nativeISOCapabilities.hop != true) return
         val hop =
             CameraCommands.nativeIsoHop(from, to, _status.value.isoIndex, hopEnabled) ?: return
         Log.i(
@@ -5414,7 +5478,7 @@ class PocketCameraSession(
         warming = !firstPictureSettled || decoder.lastPresentedAt?.let {
             SystemClock.elapsedRealtime() - it in 0 until LiveViewEnablePolicy.STALL_MS
         } != true,
-        recovering = holdsMonitor || recoveryJob != null || feedRecoveryJob != null,
+        recovering = holdsMonitor || recoveryEpisode.isRunning || feedRecoveryJob != null,
         videoStale = isLiveVideoStale(),
         hasDatalink = datalink?.isClosed == false,
     )

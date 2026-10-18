@@ -111,7 +111,7 @@ fun MonitorWaveformScopePlot(bundle: ScopeAssistBundle, axis: ScopeLevelAxis,
     Canvas(modifier.fillMaxSize()) {
         val livePlot = MonitorScopeGeometry.waveformPlot(this.size.width, this.size.height, this.density)
         blitScopePlot(trace, livePlot)
-        drawWaveGuides(livePlot, guides, axis.middleGrayIre, this.density)
+        drawWaveGuides(livePlot, if (axis.supportsCalibratedReferences) guides else MonitorScopeGuides(false, false, false), axis.middleGrayIre, this.density)
         drawScopeTitle(measurer, "WAVE", mode.label.uppercase())
     }
 }
@@ -145,7 +145,7 @@ fun MonitorParadeScopePlot(bundle: ScopeAssistBundle, axis: ScopeLevelAxis,
         val livePlot = MonitorScopeGeometry.waveformPlot(this.size.width, this.size.height, this.density)
         blitScopePlot(trace, livePlot)
         // iOS ParadeOverlay does not paint lane letters or vertical dividers.
-        drawWaveGuides(livePlot, guides, axis.middleGrayIre, this.density)
+        drawWaveGuides(livePlot, if (axis.supportsCalibratedReferences) guides else MonitorScopeGuides(false, false, false), axis.middleGrayIre, this.density)
         drawScopeTitle(measurer, "PARADE", mode.label.uppercase())
     }
 }

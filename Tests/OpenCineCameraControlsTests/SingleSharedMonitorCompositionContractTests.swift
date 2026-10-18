@@ -1,42 +1,65 @@
 import Foundation
 import Testing
 
-/// The three exercised live entries are adapters to one composition owner.
-/// This protects a new app using Scene as well as the two existing host APIs.
+/// Every live entry is the one surface. The camera-vocabulary source is a convenience init
+/// on it and the descriptor scene calls it; neither keeps a region recipe or a second entry.
 struct SingleSharedMonitorCompositionContractTests {
     private static let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     private static let directory = "Sources/OpenCineCameraControls/LiveChrome/"
-    private static let adapters = [
-        "MonitorOperatorLiveSurface.swift", "MonitorOperatorDescriptorLiveSurface.swift",
-        "MonitorOperatorScene.swift",
-    ]
+    private static let surface = "MonitorOperatorLiveSurface.swift"
     private static let regions: Set<String> = [
         "MonitorScreen", "MonitorStatusChrome", "MonitorSystemControls", "MonitorAssistPalette",
         "MonitorOperatorAssistInspector", "MonitorOperatorCaptureStrip", "MonitorOperatorCapturePopup",
     ]
 
-    @Test func everyLiveEntryDelegatesWithoutKeepingASecondRegionRecipe() throws {
-        for name in Self.adapters {
-            let source = try Self.read(Self.directory + name)
-            let calls = Self.calls(in: source)
-            let entry = name.replacingOccurrences(of: ".swift", with: "")
-            #expect(calls.contains("MonitorOperatorLiveBody") || Self.directBodyAlias(in: source, named: entry),
-                "\(name) does not enter the common body")
-            #expect(Set(calls).isDisjoint(with: Self.regions), "\(name) retains common region composition")
+    @Test func everyLiveEntryIsTheOneSurfaceWithoutASecondRegionRecipe() throws {
+        let vocabulary = try Self.read(Self.directory + "MonitorOperatorVocabularySurface.swift")
+        #expect(Self.delegatesThroughConvenienceInit(vocabulary), "The vocabulary source must extend the one surface")
+        #expect(Set(Self.calls(in: vocabulary)).isDisjoint(with: Self.regions), "The vocabulary source retains region composition")
+        let scene = try Self.read(Self.directory + "MonitorOperatorScene.swift")
+        #expect(Self.calls(in: scene).contains("MonitorOperatorLiveSurface"), "The scene does not enter the one surface")
+        #expect(Set(Self.calls(in: scene)).isDisjoint(with: Self.regions), "The scene retains region composition")
+    }
+
+    /// A5-14: no app declares the single-camera clock slot. It follows the DISP section in every
+    /// app; the source's declared precision decides what it shows (Nano: the seconds placeholder).
+    @Test func noAppDeclaresTheClockSlot() throws {
+        for file in ["LiveChromeHost.swift", "LiveStatusChrome.swift", "MonitorOperatorVocabularySurface.swift"] {
+            #expect(!Self.tokens(in: try Self.read(Self.directory + file)).contains("timecodeAvailable"),
+                "\(file) gates the clock on an app flag")
         }
     }
 
-    @Test func commonBodyOwnsStatusRailAssistsInspectorAndPopupOnce() throws {
-        let source = try Self.read(Self.directory + "MonitorOperatorLiveBody.swift")
+    /// A5-08: `MonitorLayoutCapabilities` is the one layout type; no presentation twin survives.
+    @Test func oneLayoutCapabilityType() throws {
+        let files = try FileManager.default.contentsOfDirectory(
+            at: Self.root.appending(path: "Sources/MonitorPresentation"), includingPropertiesForKeys: nil)
+        for file in files where file.pathExtension == "swift" {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            #expect(!source.contains("struct MonitorCapabilities"), "\(file.lastPathComponent) keeps a layout twin")
+        }
+    }
+
+    @Test func theSurfaceOwnsStatusRailAssistsInspectorAndPopupOnce() throws {
+        let source = try Self.read(Self.directory + Self.surface)
         let calls = Self.calls(in: source)
         for region in Self.regions {
             #expect(calls.filter { $0 == region }.count == 1, "Common \(region) must have one composition site")
         }
-        let identifiers = Set(Self.tokens(in: source))
+        let identifiers = Self.tokens(in: source)
         #expect(identifiers.contains("ChromeEditHost"))
         #expect(!identifiers.contains("CaptureSheetHost"))
-        #expect(!identifiers.contains("CameraStatus"), "The common body must consume neutral observed facts")
+        #expect(!identifiers.contains("CameraStatus"), "The surface must consume neutral observed facts")
+    }
+
+    @Test func theCompositionBehindTheSurfaceIsNotASecondEntry() throws {
+        let tokens = Self.tokens(in: try Self.read(Self.directory + Self.surface))
+        let declaration = tokens.indices.first { index in
+            index + 1 < tokens.count && tokens[index] == "struct" && tokens[index + 1] == "MonitorOperatorLiveBody"
+        }
+        let index = try #require(declaration)
+        #expect(index == 0 || tokens[index - 1] != "public", "The composition must stay internal")
     }
 
     @Test func generatedAppsStillEnterTheSharedSceneAdapter() throws {
@@ -47,35 +70,21 @@ struct SingleSharedMonitorCompositionContractTests {
     @Test func compositionScannerRejectsASecondRecipeAndIgnoresCopyInComments() {
         let source = """
             // MonitorScreen(control: old)
-            let example = "MonitorOperatorLiveBody(host: camera)"
+            let example = "MonitorOperatorLiveSurface(host: camera)"
             func MonitorSystemControls() {}
             struct OtherScreen {
                 var body: some View { MonitorStatusChrome(layout: layout); MonitorSystemControls() }
             }
             """
         #expect(Self.calls(in: source) == ["MonitorStatusChrome", "MonitorSystemControls"])
-        #expect(!Self.calls(in: source).contains("MonitorOperatorLiveBody"))
+        #expect(!Self.calls(in: source).contains("MonitorOperatorLiveSurface"))
     }
 
-    @Test func compositionScannerRecognizesOnlyTheEntryDirectPublicAlias() {
-        let entry = "MonitorOperatorDescriptorLiveSurface"
-        let direct = """
-            public typealias MonitorOperatorDescriptorLiveSurface<Host: ChromeEditHost, Key: Hashable>
-                = MonitorOperatorLiveBody<Host, Key, Never, Dictionary<String, Array<Int>>>
-            """
-        #expect(Self.directBodyAlias(in: direct, named: entry))
-        let rejected = [
-            "// public typealias MonitorOperatorDescriptorLiveSurface<T> = MonitorOperatorLiveBody<T>",
-            "let example = \"public typealias MonitorOperatorDescriptorLiveSurface<T> = MonitorOperatorLiveBody<T>\"",
-            "public typealias OtherEntry<T> = MonitorOperatorLiveBody<T>",
-            "typealias MonitorOperatorDescriptorLiveSurface<T> = MonitorOperatorLiveBody<T>",
-            "public typealias MonitorOperatorDescriptorLiveSurface<T> = OtherEntry<T>; public typealias OtherEntry<T> = MonitorOperatorLiveBody<T>",
-            "public typealias MonitorOperatorDescriptorLiveSurface<T = MonitorOperatorLiveBody<T>",
-            "public typealias MonitorOperatorDescriptorLiveSurface<T> = MonitorOperatorLiveBody<Array<T>",
-        ]
-        for source in rejected {
-            #expect(!Self.directBodyAlias(in: source, named: entry))
-        }
+    @Test func convenienceInitScannerNeedsTheSurfaceExtensionAndASelfInit() {
+        #expect(Self.delegatesThroughConvenienceInit("extension MonitorOperatorLiveSurface where Key == K { init() { self.init(a: 1) } }"))
+        #expect(!Self.delegatesThroughConvenienceInit("extension OtherSurface { init() { self.init(a: 1) } }"))
+        #expect(!Self.delegatesThroughConvenienceInit("// extension MonitorOperatorLiveSurface { self.init() }"))
+        #expect(!Self.delegatesThroughConvenienceInit("extension MonitorOperatorLiveSurface { func make() {} }"))
     }
 
     private static func read(_ relativePath: String) throws -> String {
@@ -95,34 +104,15 @@ struct SingleSharedMonitorCompositionContractTests {
         }
     }
 
-    private static func directBodyAlias(in source: String, named entry: String) -> Bool {
+    private static func delegatesThroughConvenienceInit(_ source: String) -> Bool {
         let tokens = tokens(in: source)
-        for index in tokens.indices {
-            guard index + 2 < tokens.count,
-                Array(tokens[index...(index + 2)]) == ["public", "typealias", entry]
-            else { continue }
-            var next = index + 3
-            if next < tokens.count, tokens[next] == "<" {
-                guard let end = genericEnd(in: tokens, startingAt: next) else { continue }
-                next = end
-            }
-            guard next + 2 < tokens.count, tokens[next] == "=",
-                tokens[next + 1] == "MonitorOperatorLiveBody", tokens[next + 2] == "<",
-                genericEnd(in: tokens, startingAt: next + 2) != nil
-            else { continue }
-            return true
+        let extends = tokens.indices.contains { index in
+            index + 1 < tokens.count && tokens[index] == "extension" && tokens[index + 1] == "MonitorOperatorLiveSurface"
         }
-        return false
-    }
-
-    private static func genericEnd(in tokens: [String], startingAt start: Int) -> Int? {
-        var depth = 0
-        for index in start..<tokens.count {
-            if tokens[index] == "<" { depth += 1 }
-            if tokens[index] == ">" { depth -= 1 }
-            if depth == 0 { return index + 1 }
+        let delegates = tokens.indices.contains { index in
+            index + 2 < tokens.count && tokens[index] == "self" && tokens[index + 1] == "init" && tokens[index + 2] == "("
         }
-        return nil
+        return extends && delegates
     }
 
     private static func calls(in source: String) -> [String] {

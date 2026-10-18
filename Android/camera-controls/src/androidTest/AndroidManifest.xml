@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="com.opencapture.opencine.cameracontrols.LadderSheetTestActivity"
+            android:exported="false" android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
+        <activity android:name="com.opencapture.opencine.cameracontrols.GalleryOpeningTestActivity"
+            android:exported="false" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
+    </application>
+</manifest>

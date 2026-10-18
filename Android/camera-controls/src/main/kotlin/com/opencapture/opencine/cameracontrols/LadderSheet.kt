@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -58,51 +59,36 @@ import com.opencapture.monitorui.MonitorLayoutPolicy
 import com.opencapture.opencine.appkit.LocalOperatorHaptics
 import com.opencapture.opencine.appkit.LocalMonitorCaptureCommandEnabled
 import com.opencapture.opencine.appkit.MonitorCaptureDrum
+import com.opencapture.opencine.appkit.MonitorCaptureChoice
 import com.opencapture.opencine.appkit.MonitorCaptureField
+import com.opencapture.opencine.core.SettingValue
+import com.opencapture.opencine.appkit.captureField
 import com.opencapture.opencine.appkit.MonitorControlModel
 import com.opencapture.opencine.vocabulary.CaptureLadder
 import com.opencapture.opencine.vocabulary.CaptureLock
 import com.opencapture.opencine.vocabulary.CaptureTint
+import com.opencapture.opencine.vocabulary.LadderSheetPresentation
+import com.opencapture.opencine.vocabulary.LadderStep
+import com.opencapture.opencine.vocabulary.LadderTab
+import com.opencapture.opencine.vocabulary.LadderWrite
 import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** One write the sheet asks the host to make: the host's own key and a camera label. */
-data class LadderWrite<K>(val key: K, val value: String)
+/** Retained editor and exact detents, or the host's existing label/unavailable surface. */
+sealed interface LadderSheetDrum {
+    data object Labels : LadderSheetDrum
+    data class Field(val field: MonitorCaptureField, val choices: List<MonitorCaptureChoice>) : LadderSheetDrum
+    data class Unavailable(val message: String?) : LadderSheetDrum
+}
 
-/**
- * A button beside the drum's selected value (Kelvin -10/+10, a codec's two bit depths).
- * [value] null disables the button. [lands] true means the written value becomes the drum's value.
- */
-data class LadderStep(
-    val label: String,
-    val value: String?,
-    val description: String,
-    val selected: Boolean = false,
-    val lands: Boolean = false,
-)
-
-/** One tab: a typed core field (drawn by MonitorCaptureDrum) or a label ladder (MonitorValueDrum). */
-data class LadderTab<K>(
-    val label: String,
-    val key: K,
-    val ladder: CaptureLadder,
-    val detail: String? = null,
-    val activate: LadderWrite<K>? = null,
-    val applyOnActivate: Boolean = true,
-    val disabled: Boolean = false,
-    val field: MonitorCaptureField? = null,
-    val tint: CaptureTint? = null,
-    val values: ((landed: String) -> List<String>)? = null,
-    val steps: ((selected: String) -> Pair<LadderStep, LadderStep>?)? = null,
-)
-
-data class LadderSheetPresentation<K>(
-    val title: String,
-    val subtitle: String,
-    val tabs: List<LadderTab<K>>,
-    val initialTab: Int = 0,
-    val lock: CaptureLock? = null,
-    val lockBanner: String? = null,
+/** Observations and previews are values; the existing panel keeps its command and tab owners. */
+class LadderSheetHost(
+    val selectedTab: Int,
+    val selection: String?,
+    val drum: LadderSheetDrum,
+    val previewPosition: Float? = null,
+    val onSelectTab: (Int) -> Unit,
+    val onCommitted: (SettingValue) -> Unit = {},
 )
 
 /** Whether the tabs and the drum accept input, and whether the lock line is showing. */
@@ -131,6 +117,25 @@ internal fun <K> ladderActivationWrites(tab: LadderTab<K>, landed: String): List
     return writes
 }
 
+/**
+ * What the sheet's remembered tab, landed and applied values belong to: the tab keys and the tab
+ * the host opens on. A new picker, a gained or lost tab, or a camera circuit change (a new initial
+ * tab) starts fresh instead of carrying positional values onto other tabs.
+ */
+internal fun <K> ladderIdentity(presentation: LadderSheetPresentation<K>): Any =
+    presentation.tabs.map { it.key } to presentation.initialTab
+
+/**
+ * The write a drum pick sends, or null when [value] is already applied. An unknown current applies
+ * nothing, so picking the first label (where the drum seats an unknown value) still writes.
+ */
+internal fun <K> ladderPickWrite(tab: LadderTab<K>, applied: String, value: String): LadderWrite<K>? =
+    if (value.isBlank() || value == applied) null else LadderWrite(tab.key, value)
+
+/** A format pick's write: only a value on the tab's ladder, and only while the drum is open. */
+internal fun <K> ladderFormatWrite(tab: LadderTab<K>, value: String, enabled: Boolean): LadderWrite<K>? =
+    if (enabled && value in tab.ladder.values) LadderWrite(tab.key, value) else null
+
 /** Labels on the drum: a host-grown ladder when the tab has one, otherwise the camera's list. */
 internal fun <K> ladderOptions(tab: LadderTab<K>, landed: String): List<String> =
     tab.values?.invoke(landed) ?: tab.ladder.values
@@ -138,7 +143,7 @@ internal fun <K> ladderOptions(tab: LadderTab<K>, landed: String): List<String> 
 /**
  * Label-ladder sheet. Typed tabs draw [MonitorCaptureDrum] and commit through [control].
  * Label tabs draw the shared horizontal drum and report writes through [onWrite].
- * Apps that already have a typed sheet do not construct this.
+ * Existing capture panels pass their retained state and editor through [host].
  */
 @Composable
 fun <K> LadderSheet(
@@ -156,24 +161,30 @@ fun <K> LadderSheet(
     tintLabel: (CaptureTint) -> String = { "" },
     tintHelp: String? = null,
     footer: @Composable (LadderTab<K>) -> Unit = {},
+    /** A recording-format sheet: the shared format picker (area, size, rate) over these exact choices,
+     * each value a label from the tab's ladder. Twin of the SwiftUI sheet's `formats`. */
+    formats: List<CaptureFormatChoice<String>>? = null,
+    host: LadderSheetHost? = null,
 ) {
     if (presentation.tabs.isEmpty()) return
     val haptics = LocalOperatorHaptics.current
     val portrait = viewportIsPortrait()
     val last = presentation.tabs.lastIndex
-    var selected by remember { mutableIntStateOf(presentation.initialTab.coerceIn(0, last)) }
-    val index = selected.coerceIn(0, last)
+    val identity = ladderIdentity(presentation)
+    var selected by remember(identity) { mutableIntStateOf(presentation.initialTab.coerceIn(0, last)) }
+    val index = (host?.selectedTab ?: selected).coerceIn(0, last)
     val tab = presentation.tabs[index]
-    val landed = remember {
+    val landed = remember(identity) {
         mutableStateListOf(*presentation.tabs.map { it.ladder.current.orEmpty() }.toTypedArray())
     }
-    val applied = remember {
+    val applied = remember(identity) {
         mutableStateListOf(*presentation.tabs.map { it.ladder.current.orEmpty() }.toTypedArray())
     }
     val commandEnabled = LocalMonitorCaptureCommandEnabled.current
     val gates = ladderGates(presentation.lock, tab.ladder.lock, enabled && commandEnabled)
     val hold = onHold.takeIf { commandEnabled }
     val shown = when {
+        host != null -> host.selection.orEmpty()
         tab.ladder.lock != null -> tab.ladder.current.orEmpty()
         else -> landed.getOrElse(index) { tab.ladder.current.orEmpty() }
     }
@@ -200,7 +211,9 @@ fun <K> LadderSheet(
             .pointerInput(Unit) { detectTapGestures(onTap = {}) }
             .padding(horizontal = if (chromeless) 0.dp else 14.dp)
             .padding(top = if (chromeless) 0.dp else top.dp, bottom = if (chromeless) 0.dp else if (fromTop) 14.dp else 11.dp)
-            .semantics { contentDescription = "${presentation.title}. ${presentation.subtitle}" },
+            .semantics {
+                if (presentation.title.isNotEmpty()) contentDescription = "${presentation.title}. ${presentation.subtitle}"
+            },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (!chromeless) SheetHeader(presentation.title, presentation.subtitle, onClose)
@@ -210,7 +223,8 @@ fun <K> LadderSheet(
         if (!unavailable.isNullOrBlank()) {
             Text(unavailable, style = LiveType.ui(11f, FontWeight.Medium), color = LiveDesign.muted, maxLines = 2)
         }
-        if (gates.showBanner && !presentation.lockBanner.isNullOrBlank()) {
+        val lockBanner = presentation.lockBanner
+        if (gates.showBanner && !lockBanner.isNullOrBlank()) {
             Row(
                 Modifier.fillMaxWidth().background(LiveDesign.accentDim, ChromeShape).padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -218,7 +232,7 @@ fun <K> LadderSheet(
             ) {
                 MonitorIcon(MonitorIcon.LOCK, null, Modifier.size(14.dp), LiveDesign.accent.copy(alpha = 0.9f))
                 Text(
-                    presentation.lockBanner,
+                    lockBanner,
                     style = LiveType.ui(11.5f, FontWeight.Medium),
                     color = LiveDesign.accent.copy(alpha = 0.9f),
                     maxLines = 2,
@@ -226,10 +240,34 @@ fun <K> LadderSheet(
             }
         }
         Box(Modifier.fillMaxWidth().then(if (chromeless) Modifier else Modifier.weight(1f)), contentAlignment = Alignment.Center) {
-            val core = tab.field?.takeIf { tab.tint == null && control != null }
+            // A typed tab draws the session's field, limited to what the camera offers on it.
+            val controlState = control?.state?.collectAsState()?.value
+            val tint = tab.tint.takeIf { host == null }
+            val hostedField = host?.drum as? LadderSheetDrum.Field
+            val unavailableDrum = host?.drum as? LadderSheetDrum.Unavailable
+            val core = hostedField?.let { it.field to it.choices }
+                ?: tab.setting?.takeIf { host == null && tint == null && controlState != null }
+                    ?.let { setting -> control?.captureField(setting.key)?.let { field ->
+                        val offered = setting.offered.toSet()
+                        field to field.choices.filter { it.value in offered }.ifEmpty { field.choices }
+                    } }
             when {
-                tab.tint != null -> TintPad(
-                    tint = tab.tint,
+                unavailableDrum != null -> unavailableDrum.message?.let {
+                    Text(it, color = LiveDesign.muted)
+                }
+                hostedField != null && control == null -> Unit
+                formats != null -> {
+                    val source = controlState?.snapshot?.let { it.session to it.epoch }
+                    CaptureFormatPicker(
+                        choices = formats, current = tab.ladder.current, enabled = gates.drumEnabled,
+                        sourceIdentity = source ?: identity,
+                        isCurrent = { control?.state?.value?.snapshot?.let { it.session to it.epoch } == source },
+                    ) { choice ->
+                        ladderFormatWrite(tab, choice.value, gates.drumEnabled)?.let(onWrite)
+                    }
+                }
+                tint != null -> TintPad(
+                    tint = tint,
                     enabled = gates.drumEnabled,
                     labelOf = tintLabel,
                     help = tintHelp,
@@ -239,29 +277,38 @@ fun <K> LadderSheet(
                     },
                 )
                 core != null && control != null -> {
-                    val offered = options.toSet()
-                    val choices = core.choices.filter { it.label in offered }.ifEmpty { core.choices }
+                    val (field, choices) = core
                     MonitorCaptureDrum(
-                        control, core, enabled = gates.drumEnabled, modifier = Modifier.fillMaxWidth(),
-                        choices = choices, marked = tab.ladder.marked, onDetent = { haptics.confirm() },
+                        control, field, enabled = gates.drumEnabled, modifier = Modifier.fillMaxWidth(),
+                        choices = choices, marked = tab.ladder.marked,
+                        previewPosition = host?.previewPosition,
+                        previewSelection = host?.takeIf { it.previewPosition != null }?.selection,
+                        onDetent = { if (host == null) haptics.confirm() },
                         onCommitted = { value ->
                             val label = choices.firstOrNull { it.value == value }?.label ?: return@MonitorCaptureDrum
                             if (index in landed.indices) landed[index] = label
+                            host?.onCommitted?.invoke(value)
                         },
                     )
                 }
                 else -> LabelDrum(
                     options = options,
-                    selection = shown.ifBlank { options.firstOrNull().orEmpty() },
+                    // Unknown stays blank: the drum seats on its first label without claiming it.
+                    selection = shown,
                     marked = tab.ladder.marked,
                     enabled = gates.drumEnabled,
                     steps = tab.steps?.invoke(shown),
+                    previewPosition = host?.previewPosition,
                     onSelect = { value ->
                         if (!gates.drumEnabled || value.isBlank()) return@LabelDrum
+                        if (host != null) {
+                            if (host.previewPosition == null) onWrite(LadderWrite(tab.key, value))
+                            return@LabelDrum
+                        }
                         if (index in landed.indices) landed[index] = value
-                        if (applied.getOrNull(index) != value) {
+                        ladderPickWrite(tab, applied.getOrNull(index).orEmpty(), value)?.let { write ->
                             if (index in applied.indices) applied[index] = value
-                            onWrite(LadderWrite(tab.key, value))
+                            onWrite(write)
                         }
                     },
                     onStep = { step ->
@@ -286,6 +333,10 @@ fun <K> LadderSheet(
             ) { next ->
                 val candidate = presentation.tabs.getOrNull(next) ?: return@ModeBar
                 if (next == index || candidate.disabled || !gates.tabsEnabled) return@ModeBar
+                if (host != null) {
+                    if (host.previewPosition == null) host.onSelectTab(next)
+                    return@ModeBar
+                }
                 selected = next
                 val landedValue = when {
                     candidate.ladder.lock != null -> candidate.ladder.current.orEmpty()
@@ -308,13 +359,25 @@ private fun LabelDrum(
     marked: Set<String>,
     enabled: Boolean,
     steps: Pair<LadderStep, LadderStep>?,
+    previewPosition: Float? = null,
     onSelect: (String) -> Unit,
     onStep: (LadderStep) -> Unit,
 ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (steps != null) StepButton(steps.first, enabled, onStep)
         Box(Modifier.weight(1f)) {
-            CaptureDrumWheel(options, selection, markedValues = marked, interactive = enabled, onSelect = onSelect)
+            val preview = LocalCapturePreview.current
+            val haptics = LocalOperatorHaptics.current
+            com.opencapture.monitorui.MonitorValueDrum(
+                preview?.control?.options ?: options, preview?.selection ?: selection,
+                markedValues = preview?.control?.marked ?: marked,
+                interactive = enabled && preview == null && previewPosition == null,
+                displayPosition = preview?.position ?: previewPosition,
+                dimDisabled = preview == null && previewPosition == null,
+                onDetent = { haptics.confirm() },
+                onSelect = { value ->
+                    if (enabled && preview == null && previewPosition == null) onSelect(value)
+                })
         }
         if (steps != null) StepButton(steps.second, enabled, onStep)
     }

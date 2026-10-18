@@ -786,6 +786,30 @@
             )
         }
 
+        /// Observes exact scalar descriptor facts on the established serialized session.
+        /// The legacy enum API and all existing write and discovery policies stay independent.
+        public func observeCameraPropertyDescriptor(
+            _ property: PTPPropertyCode, valueByteCount: Int
+        ) async -> NikonDescriptorObservation {
+            let operation = PTPOperationCode.getDevicePropDescEx
+            do {
+                let result = try await transact(
+                    operationCode: operation, parameters: [property.rawValue], dataPhase: .dataIn)
+                guard result.operationResponse.responseCode == .ok else {
+                    return .rejected(
+                        operation: operation,
+                        response: result.operationResponse.rawResponseCode)
+                }
+                guard
+                    let descriptor = NikonScalarPropertyDescriptor.parse(
+                        result.data, property: property.rawValue, valueByteCount: valueByteCount)
+                else { return .init(outcome: .malformed, operation: operation) }
+                return .init(outcome: .described, descriptor: descriptor, operation: operation)
+            } catch {
+                return .init(outcome: .transportFailed, operation: operation)
+            }
+        }
+
         /// Reads the recording card's capacity and free space.
         ///
         /// The ZR is dual-slot and its plain `GetStorageIDs` returns placeholder per-slot IDs (the

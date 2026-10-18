@@ -103,6 +103,44 @@
             #expect(await transport.calls.isEmpty)
         }
 
+        @Test func stabilizationDescribeRetainsNativeResponseMetadataAndScalarFacts() async throws {
+            let transport = ObjectTransport(operations: [.getDevicePropDescEx])
+            let session = try await establish(transport)
+            defer { session.close() }
+            let property = PTPPropertyCode.movieVibrationReduction
+            let bytes = ByteCoding.uint32LE(property.rawValue) + [2, 0, 0, 0, 0, 2, 2, 0, 2, 99]
+            await transport.describe(data: Data(bytes), response: 0x2001)
+            await transport.clear()
+            let actual = await session.observeCameraPropertyDescriptor(property, valueByteCount: 1)
+            #expect(actual.outcome == .described)
+            #expect(actual.descriptor?.writable == false)
+            #expect(actual.descriptor?.form == .enumeration([[2], [99]]))
+            #expect(actual.capability.offer == ["SPORT"])
+            #expect(actual.capability.access == .readOnly)
+            let call = try #require(await transport.calls.first)
+            #expect(
+                call.operation == .getDevicePropDescEx && call.parameters == [property.rawValue])
+            #expect(call.phase == .dataIn && call.deadline == .seconds(15))
+            for response: UInt16 in [0x2002, 0x2005, 0x200A, 0x2019] {
+                await transport.describe(data: Data(), response: response)
+                let refused = await session.observeCameraPropertyDescriptor(
+                    property, valueByteCount: 1)
+                #expect(refused.operation == .getDevicePropDescEx && refused.response == response)
+                #expect(refused.outcome == .rejected)
+                #expect(refused.capability.offer == nil)
+                #expect(
+                    refused.capability.support == .unknown)
+            }
+            await transport.describe(data: Data([0]), response: 0x2001)
+            #expect(
+                await session.observeCameraPropertyDescriptor(property, valueByteCount: 1).outcome
+                    == .malformed)
+            await transport.failDescribe()
+            #expect(
+                await session.observeCameraPropertyDescriptor(property, valueByteCount: 1).outcome
+                    == .transportFailed)
+        }
+
         private func establish(_ transport: ObjectTransport) async throws -> NativeCameraSession {
             try await NativeCameraSession.establish(
                 transport: transport, host: "usb:SIMULATED-transfer", cameraName: "SIMULATED",
@@ -121,6 +159,15 @@
         let operations: [PTPOperationCode]
         let sizePayload: Data
         private var sizeRejected = false
+        private var describeData = Data()
+        private var describeResponse: UInt16 = 0x2001
+        private var describeFailed = false
+        func describe(data: Data, response: UInt16) {
+            describeData = data
+            describeResponse = response
+            describeFailed = false
+        }
+        func failDescribe() { describeFailed = true }
         private(set) var calls: [Call] = []
         init(operations: [PTPOperationCode], size: UInt64 = 100, sizePayload: Data? = nil) {
             self.operations = operations
@@ -136,6 +183,15 @@
                 .init(
                     operation: operationCode, parameters: parameters, phase: dataPhase,
                     deadline: deadline))
+            if operationCode == .getDevicePropDescEx {
+                if describeFailed { throw NativeCameraSessionError.connectionClosed }
+                return PTPIPTransactionResult(
+                    operationResponse: try PTPOperationResponse(
+                        payloadBytes:
+                            ByteCoding.uint16LE(describeResponse)
+                            + ByteCoding.uint32LE(transactionID ?? 1)),
+                    data: describeData)
+            }
             let response: PTPResponseCode =
                 operationCode == .getObjectSize && sizeRejected ? .unknown : .ok
             let reply =

@@ -119,6 +119,8 @@ class MultiviewLayoutPolicyTest {
             MultiviewSafeArea(top = 59f, bottom = 34f), CENTER_STAGE, 2)
         val main = layout.tiles[2]
         val thumbs = layout.tiles.filterIndexed { index, _ -> index != 2 }
+        assertEquals(19f, layout.sessionControls.y)
+        assertEquals(77f, main.y)
         assertEquals(layout.sessionControls.maxX + 8f, layout.network.x)
         assertEquals(layout.sessionControls.y, layout.network.y)
         assertEquals(MonitorRect(15f, layout.sessionControls.maxY + 10f, 363f, 204.1875f), main)

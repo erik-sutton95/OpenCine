@@ -123,7 +123,7 @@
                     .overlay(Circle().strokeBorder(Host.Palette.text.opacity(0.55), lineWidth: 1))
             }
             .buttonStyle(.monitorTapTarget)
-            .minTapTarget()
+            .minTapTarget(MonitorChromeEditBadgeLayout.touchTarget)
             .accessibilityLabel(host.chromeSectionTitle(section))
             .accessibilityValue(on ? "Shown" : "Hidden")
             .accessibilityHint("Shows or hides this on \(host.chromeModeTitle(mode))")
@@ -207,7 +207,6 @@
             .padding(.trailing, 6)
             .padding(.vertical, 6)
             .liquidGlass(in: Capsule())
-            .accessibilityIdentifier("monitor.chromeEdit.banner")
         }
     }
 

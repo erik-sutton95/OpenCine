@@ -27,6 +27,25 @@
         public var nativeEditor: MonitorControlModel.Editor? = nil
         public var audioControl: CaptureAudioControl? = nil
         public var audioSourceID: CaptureAudioSourceID? = nil
+        /// The sheet an integration-owned quick choice commits through the host slot (format or
+        /// colour), never as camera-vocabulary wire enums; `nil` for every vocabulary choice.
+        public var nativeSheet: CaptureSheet?
+
+        /// An integration-owned format (`.resolution`) or colour (`.color`) choice; `nil` for any
+        /// other sheet, which has no native quick slot.
+        public static func native(sheet: CaptureSheet, title: String, options: [String], selection: String,
+            context: String, enabled: Bool) -> Self? {
+            let kind: Kind
+            switch sheet {
+            case .resolution: kind = .format
+            case .color: kind = .color
+            default: return nil
+            }
+            var result = Self(kind: kind, title: title, options: options, selection: selection,
+                context: context, enabled: enabled)
+            result.nativeSheet = sheet
+            return result
+        }
 
         public static func common(_ field: MonitorCaptureField) -> Self {
             Self(
@@ -60,7 +79,7 @@
         public var sourceIdentity: SourceIdentity {
             SourceIdentity(
                 kind: kind, title: title, options: options, marked: marked, context: context,
-                enabled: enabled, nativeEditor: nativeEditor)
+                enabled: enabled, nativeEditor: nativeEditor, nativeSheet: nativeSheet)
         }
 
         public struct SourceIdentity: Hashable, Sendable {
@@ -71,6 +90,7 @@
             public var context: String
             public var enabled: Bool
             public var nativeEditor: MonitorControlModel.Editor? = nil
+            public var nativeSheet: CaptureSheet? = nil
         }
 
         public var display: MonitorReadoutSnapshot {
@@ -105,6 +125,24 @@
         public func changedValue(translation: Double, current: Self?) -> String? {
             guard self == current, enabled else { return nil }
             return display.changedValue(at: display.position(translation: translation))
+        }
+
+        /// The primary choices of `sheet` for the camera `controls` describe: focus and iris
+        /// follow the one capability model.
+        public static func primary(
+            _ sheet: CaptureSheet, status: CameraStatus, controls: ControlCapabilities,
+            cameraModel: CameraModel? = nil, facePriorityExposureEnabled: Bool = false,
+            shutterUsesAngle: Bool = false, shutterAngleDegrees: Double = 180, aeLocked: Bool = false,
+            awbLocked: Bool = false, offersAwbLock: Bool = false,
+            focusOptions: [FocusOption] = FocusOption.allCases, profile: CameraLabelProfile = .standard,
+            audioField: CaptureAudioField? = nil, audioSourceID: CaptureAudioSourceID? = nil
+        ) -> Self? {
+            primary(sheet, status: status, cameraModel: cameraModel,
+                supportsFocusMode: controls.focus.isOffered, supportsAperture: controls.iris.isOffered,
+                facePriorityExposureEnabled: facePriorityExposureEnabled, shutterUsesAngle: shutterUsesAngle,
+                shutterAngleDegrees: shutterAngleDegrees, aeLocked: aeLocked, awbLocked: awbLocked,
+                offersAwbLock: offersAwbLock, focusOptions: focusOptions, profile: profile,
+                audioField: audioField, audioSourceID: audioSourceID)
         }
 
         public static func primary(
@@ -244,7 +282,8 @@
             let modes = CamCapColorMode.wheel(
                 available: status.availableColorModes,
                 order: profile.colorModes ?? cameraModel?.captureProfile?.labels.colorModes ?? [])
-            let options = modes.map { $0.label(for: family, in: profile) }
+            let options = CaptureLists.colorDrumLabels(
+                offered: modes, current: status.colorMode, family: family, profile: profile)
             guard !options.isEmpty else { return nil }
             let live = status.colorMode?.label(for: family, in: profile) ?? ""
             return Self(
@@ -273,6 +312,11 @@
         /// preservation, and shutter-angle conversion; the host routes each to its session.
         @MainActor public func apply<Host: CaptureSheetHost>(_ value: String, host: Host) {
             guard enabled, options.contains(value), value != selection, !host.sessionLocked else {
+                return
+            }
+            if let sheet = nativeSheet {
+                guard host.quickSnapshot(sheet) == self else { return }
+                host.commitNativeCaptureQuick(sheet, selection: value)
                 return
             }
             if let commonField {
@@ -369,7 +413,8 @@
                         from: origin)
                 }
             case .color:
-                if let mode = ColorMode(label: value, in: host.labelProfile) {
+                // The drum's extra entry is the current mode: selecting it sends nothing.
+                if let mode = ColorMode(label: value, in: host.labelProfile), mode != status.colorMode {
                     host.commit(.colorMode(mode), from: origin)
                 }
             case .shootingMode:

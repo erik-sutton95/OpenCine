@@ -89,6 +89,35 @@ including legal links and a named single setup in phone and tablet orientations.
 `OPENCINE_SCREENSHOTS` is set (`TEST_RUNNER_OPENCINE_SCREENSHOTS=<dir> xcodebuild test -scheme
 OpenCine-Package -destination <private simulator> -only-testing:OpenCineAppKitTests`).
 
+## Typed setup choices and operator consent
+
+`IntegrationSlots.addSetup` returns an `AddSetupFlow`: an `AddSetupChooser` of typed
+`AddSetupOption` values plus host actions and optional network or credential destinations.
+The shared SwiftUI and Compose chooser renders the same title, detail, action and enabled
+capabilities. Host values retain transport readiness, permission notices and integration-specific
+steps. The published stored `addRoute` callback, initializer, default and mutability remain
+unchanged. Shared screens prefer `addSetup` and otherwise call the legacy callback; a typed-only
+entry does not synthesize legacy access. This preserves the erased callback's actor contract
+without sending its non-Sendable reply or view across actors. `CamerasMapping.addSetupSelection`
+reopens a failed route only while the saved route and an enabled matching option still exist.
+
+Core's neutral `ConfirmationPrompt` supplies an explicit decision's copy and callbacks.
+`CamerasModel.consent` binds it to the attempt token. One shared presenter renders it
+(`operatorConsentPresenter` in SwiftUI, `OperatorConsentDialog` in Compose): `AppShell`,
+`CamerasScreen` and `PairScreen` each request it for their model's owner, the outermost request
+for that exact owner renders, and nested screens defer to it. A standalone screen therefore presents
+its own decisions, a screen under a matching `AppShell` adds no second alert, and a different
+model's presenter never suppresses this one. Removing a screen retires nothing.
+Replies consume their ID before checking current-source admission and invoking the host.
+Replacement, cancellation and terminal events retire the prompt. Retirement invokes no host
+action and sends no camera command. Apps can submit direct connection decisions to the same owner;
+their source predicate must reject a retired route or native connection generation.
+
+Preparation wizards still supply their own integration steps. When an established session has no
+first frame and the app owns progress, render `PairCameraPage` / `MonitorPairCameraPage` from values
+and actions without starting `PairScreen` discovery. A shared connection attempt retains its own
+card or pair-page progress until picture readiness; it needs no additional preparing page.
+
 ## Shell: root, monitor lifetime and common controls (SHELL-03)
 
 `ShellModel` is the app's root state over `CamerasModel`: the route (`cameras`, `pair`,
@@ -138,23 +167,26 @@ pages over itself.
 
 ## Monitor composition and capture
 
-`MonitorOperatorLiveBody` in `OpenCineCameraControls` / `camera-controls` owns one live monitor
-composition on SwiftUI and Compose. It assembles the picture canvas, status and telemetry,
-system rail, assists and palette, inspector, capture strip, header gestures and capture popup.
-The shared layout and presentation follow the existing Pocket behavior. All three entry APIs
-adapt values and actions into that body:
+`MonitorOperatorLiveSurface` in `OpenCineCameraControls` / `camera-controls` is the one live
+monitor every app composes, on SwiftUI and Compose. It assembles the picture canvas, status and
+telemetry, system rail, assists and palette, inspector, capture strip, header gestures and capture
+popup, and owns the policies a caller used to pass as flags: record confirmation, connect-tap
+arming, the interface lock and a borrowed multicam member. Display modes, chrome and the lock come
+from `MonitorOperatorSessionModel`. The composition behind it is internal. Entries:
 
 | Entry | Source adapter |
 | --- | --- |
-| `MonitorOperatorLiveSurface` | Existing vocabulary hosts and their captured native control actions |
-| `MonitorOperatorDescriptorLiveSurface` | Reported fields, optional source facts and typed native control content; a direct body alias on Swift |
+| `MonitorOperatorLiveSurface(host:control:session:layout:source:...)` | A typed source value (identity, available sections, picture, status, battery, capture, record, exposure, level, audio, notes) and bounded native slots |
+| Vocabulary convenience init (Swift) / `cameraStatusLiveSource` (Kotlin) | Hosts on the `CameraStatus` vocabulary |
 | `MonitorOperatorScene` | Core shell and providers, including both generated future-app templates |
 
-A new app uses one of these adapters and supplies its capabilities, observations and actions.
-Native picture, focus, motion and control content have bounded typed slots. Status, rails,
-palette, inspector and popup chrome stay in the common body. Sources:
-[Swift owner](../../Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorLiveBody.swift) and
-[Compose owner](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorLiveBody.kt).
+A new app supplies its capabilities, observations and actions as that source. Native picture,
+focus, motion and control content have bounded typed slots. Status, rails, palette, inspector and
+popup chrome stay in the common surface. Unknown values stay absent. Sources:
+[Swift owner](../../Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorLiveSurface.swift) and
+[Compose owner](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorLiveSurface.kt).
+On Compose the public `MonitorOperatorLiveBody` remains only as a compatibility entry until the
+last caller moves to the surface.
 
 `MonitorScreen` fixes the stable picture/assist host positions and the bounded status, power,
 capture and system slots from `FieldMonitorLayout` (Compose `MonitorFieldLayout`). Its
@@ -192,6 +224,14 @@ captured editor or native identity. Native panel slots return controls-only cont
 actual title, subtitle and panel kind; the common popup owns header, placement, dismissal,
 material and reveal. Native content consumes the common command-enabled environment, retaining
 its existing option lists, locks and write callbacks.
+
+Capture panels render label and retained-field drums through the existing
+`LadderSheet` on both platforms. `LadderSheetHost` carries the panel's selection,
+exact captured choices and preview position; observations never invoke a write.
+The original panel retains its tabs, refresh, delayed-send and cancellation
+owners, and passes typed commit callbacks through the shared renderer. Unknown
+values stay unknown and empty captured detents stay empty. Existing standalone
+ladder clients retain their tab activation and selection defaults.
 
 Movie-format panels use the common `CaptureFormatPicker`,
 `CaptureFormatPickerState`, `CaptureFormatChoice` and `CaptureFormatGroup` in
@@ -263,10 +303,11 @@ Apps with an existing structured preferences document can bind its values direct
 shared settings views instead of changing that document's storage format.
 
 On Android, the deployed `OperatorSetupScreen`, configured `MonitorOperatorSettingsScreen` and
-Scene's session settings overload all delegate to
+Scene's session settings overload each build one `MonitorOperatorSettingsConfiguration` and
+delegate to
 [`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
 It owns the full-cover input barrier, safe-drawing clearance, Back action, page spacing, tab
-and row dispatch, and legal/LUT presentation. Typed source records carry existing preferences,
+and row dispatch (one recipe per tab), and legal/LUT presentation. Typed source records carry existing preferences,
 reported values, optional services and bounded native content; they do not replace the page.
 SwiftUI retains its complete `MonitorOperatorSettingsScreen` and shared `MonitorSettingsPage`,
 including the typed borrowed-display entry. This describes source adoption; consumer checks
@@ -293,6 +334,14 @@ retains JSONObject strings and defaults individual missing fields. Reads never r
 missing or malformed data, unknown tool IDs survive, and a failed nonfinite write leaves
 the previous stored bytes intact. The mirrored preference tests cover the legacy schema,
 ranking inputs, empty values, separate app/key namespaces and these codec differences.
+
+`MonitorCommandTileOrderPreferences` stores the command dashboard tile order under the app's
+storage and key, normalized on read and write (`monitorCommandTileOrder`: duplicates and retired
+names drop, new tiles join at the end). Android stores comma-joined enum names; Swift stores a
+JSON array of raw values, the bytes `JSONEncoder` writes for an array of the app's tile kinds.
+Reads never rewrite absent or malformed data. OpenZCine keeps its existing keys
+(`display.commandGrid.order.v1` on Android, `commandGridOrder.v1` on iOS), so stored orders
+carry over.
 
 ## Multiview stage
 
@@ -341,9 +390,10 @@ a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` 
 | `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
 | `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
 | `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
-| `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, host isolation, backoff, receipts refuse IDs that leave their directory) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`, `receiptsRefuseIdsThatLeaveTheReceiptsDirectory`; the envelope cases are Swift only |
+| `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, camera path lease fenced per owner, host isolation, backoff, receipts refuse IDs that leave their directory) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `cameraPathLeaseIsFencedPerOwner`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`, `receiptsRefuseIdsThatLeaveTheReceiptsDirectory`; the envelope cases are Swift only |
+| `SentryReliabilitySinkTests` in `OpenCineSentryAppleTests` (iOS simulator: crash capture installs on camera Wi-Fi, scrub never stamps current origin on fatal events, breadcrumb allowlist, user/request/path removal, original release after upgrade, queued origin survives the SDK scope merge, options privacy flags) | `appkit-sentry`: `SentryReliabilitySinkTest`, `ReliabilityTransportCacheFailureTest` (A6-01), `ReliabilityTransportRetryTest`, `OkHttpManualReportUploadTest`, `AdapterIsolationTest` |
 | `FeedSessionSummaryStoreTests` (healthy sessions survive later sessions and an interrupted process, retention and invalid identity cannot escape the spool) | `FeedSessionSummaryStoreTest` (same cases, Kotlin names) |
-| `ReliabilityReportingTests` (event levels, consent and revoke purge, DSN shape, launch origin, event ID and fingerprint, original release and origin of a queued incident, queued then confirmed receipts and dedup, open checkpoints and revoked consent never capture, session summaries) | `ReliabilityReportingTest`, mostly the same names |
+| `ReliabilityReportingTests` (event levels, consent and revoke purge, DSN shape, launch origin, event ID and fingerprint, original release and origin of a queued incident, queued then confirmed receipts and dedup, open checkpoints and revoked consent never capture, session summaries as metrics, install id, environment, lifecycle exception text, feed upscaler tag) | `ReliabilityReportingTest`, mostly the same names |
 | `ProblemReportingTests` (manual report kept without automatic consent, feedback schema, bounded attachment, endpoint, Retry-After, HTTP accept and retry, expiry, image normalization) | `ManualProblemReportTest`, `ManualReportImagesTest` (Kotlin's own report format) |
 | `FeedIncidentStoreTests` (interrupted not crash, retention, corrupt file, journal-free redacted export, size caps) | `FeedIncidentStoreTest` |
 | `DiagnosticJournalTests` (redacted lines, trim to the cap on its cadence) | Swift only (no Kotlin journal) |
@@ -491,13 +541,45 @@ never infers a cleanup path from an original or cached URL.
 Mirrored `MonitorDeliveryModelTests` and `MonitorDeliveryModelTest` use manual gates and timers.
 Native adapter and physical presentation checks remain separate consumer verification.
 
+### One delivery owner per app (iOS)
+
+Every app composes the same owners and keeps only its camera adapter, brand and namespaces:
+
+- `MonitorDeliveryCoordinator` (`OpenCineAppKitApple`) is the app-scoped run: one
+  `MonitorDeliveryModel` over `MonitorDeliveryBatchProgress`, the batch policy, per-item Photos
+  with access asked before caching, upload history (skip unless re-upload), metadata text with the
+  share, and `cameraTransferReleased()` for a playback barrier that waits only while a run caches
+  from the camera (it never cancels a run). The app supplies a `MonitorDeliverySource` (originals,
+  still, export into the store, filename, metadata) and, for a remote, a `MonitorDeliveryRemoteRun`.
+- `MonitorDeliveryExportStore` (`OpenCineMedia`, one `.shared` instance under Caches) owns export
+  output: a directory per export so the camera's filename never overwrites another export, share
+  leases, pruning at launch and by Settings' clear, and the bytes Settings counts
+  (`MonitorDeliveryCoordinator.cacheSource`). Exports are transient and never in Documents.
+- `View.monitorDeliverySharePresenter(_:)` is the one share sheet, installed once at the app root
+  and presented from the topmost controller, above any player or photo cover.
+- `MonitorOperatorDeliveryPopupHost` (`OpenCineCameraControls`) makes the preparation model once
+  per selection identity; `MonitorClipDelivery` is the shared host of the log-curve camera apps.
+- `MonitorInternetHop` (`OpenCineAppKit`) is the one internet hop: refused while another runs,
+  tokens with transfer, a single return the app's route must still admit, and the system path
+  monitor as the one probe. The native leave and rejoin stay the app's Wi-Fi joiner, through its
+  `Port`; `deliveryService(route:admission:)` is the delivery's internet lease.
+- `ShellModel.close(.retain)` leaves the monitor with an open cover kept, so a hop that drops the
+  camera keeps the gallery page, its selection and its popup.
+
 ## Reliability reporting, incidents and problem reports (iOS)
 
 The network policy of the apps' opt-in crash and incident reporting, without the reporting SDK
-(Kotlin: `appkit/diagnostics`). `ReliabilityReportingGate` blocks uploads while a camera session
-is live or the camera's IPv4 path is up; the app supplies `cameraIPv4Prefix` (nil when the camera's
-network shares its prefix with home networks, so only the session blocks) and keeps one shared
-gate. `ReliabilityReportingHostPolicy` and `ReliabilityReportingNetwork.decision` forward only
+(Kotlin: `appkit/diagnostics`). `ReliabilityReportingGate` blocks uploads while a camera path is
+held or the camera's IPv4 path is up; the app supplies `cameraIPv4Prefix` (nil when the camera's
+network shares its prefix with home networks, so only a held path blocks) and keeps one shared
+gate. A camera path is held by a lease: each connection owner calls
+`ReliabilityReporting.beginCameraPath()` when a connect attempt starts and ends the lease when it
+retires (operator disconnect, or the session ends for good), so the hold covers connecting,
+pairing, recovery and a failure still on the camera's network. Uploads in flight are cancelled at
+`begin`; they resume (spool, flush, a waiting problem report) only after the last lease ends, and a
+superseded owner ending late cannot reopen its successor's hold (A6-08). The Kotlin lease is
+`AutoCloseable`, so an integration that cannot see appkit (DJI's `PocketSessionHost.beginCameraPath`)
+holds it as one. `ReliabilityReportingHostPolicy` and `ReliabilityReportingNetwork.decision` forward only
 HTTPS to the DSN host and fail a refused request without an HTTP response, so the SDK keeps the
 envelope cached. `ReliabilityReportingRedirectGuard` drops redirects off the DSN host,
 `ReliabilityReportingEnvelopeID` reads the event ID from a plain or gzip envelope header with
@@ -511,18 +593,54 @@ The stateful core is host-built instances, like Kotlin's: the app's one holder m
 `DiagnosticsHost` (names, release package, version, environment, support email, redaction),
 `ReliabilityReportingConsent` (the stored choice), `ReliabilityReportingDSN` (the build's and the
 launch environment's candidates), the gate, `FeedIncidentOrigin` (the current run's test source and
-build identity), `ReliabilityReporting` (consent epochs, SDK start and purge, typed incident and
-session-summary events, queued and confirmed receipts, idle polls and backoff), `FeedIncidentRuntime`
+build identity), `ReliabilityReporting` (consent epochs, SDK start and purge, typed incident events,
+session-summary metrics, queued and confirmed receipts, idle polls and backoff), `FeedIncidentRuntime`
 (the recorder, the `FeedIncidentStore` spool and the report extras) and `ProblemReporting` (the
 operator's one-off report and its `ProblemReportImage`s), plus `DiagnosticJournal` (the redacted,
 capped journal the shared report reads). `ReliabilityReportingPrivacy` holds the
-rules for what may leave the phone. The app implements `ReliabilityReportingSink` over its SDK
-(options, start, close, flush, breadcrumbs, tags, capture of a `ReliabilityEvent`) and applies the
-privacy rules to the SDK's own events; it also keeps the URLProtocol that applies the network
-policy to the SDK's session. Nothing here links the SDK.
+rules for what may leave the phone: allow-listed tags, extras, contexts and metrics, each value
+through `value` (a closed vocabulary such as `trigger` or `feedUpscaler` reads `other` for anything
+else, a build value with a fixed shape reads `unknown`, the rest is clipped and redacted, because
+redaction alone keeps bare SSIDs and camera names); `DiagnosticsHost.redact` is the host's redaction, and the
+neutral `PrivacyRedactor.redact` keeps no SSID readable. An integration that keeps its camera
+access points readable supplies the predicate (DJI: `DJICameraNetwork.redact`, Kotlin
+`DjiCameraNetwork`); Luna and Nikon apps use the neutral one (A6-10). Nothing here links the SDK.
+
+The SDK side is the optional reporting adapter, the one OpenCine code with a third-party
+dependency: the Swift package `Packages/OpenCineSentryApple` (product `OpenCineSentryApple`,
+sentry-cocoa; a separate package so resolving OpenCine never fetches the SDK) and Android
+`:appkit-sentry` (sentry-android and OkHttp). `SentryReliabilitySink` implements `ReliabilityReportingSink` (options, start, close,
+flush, breadcrumbs, tags, capture of a `ReliabilityEvent`) and applies the privacy rules to the
+SDK's own events and breadcrumbs; on Android it also owns the gated, durable OkHttp transport and
+`OkHttpManualReportUpload`, and its manifest disables auto-init and binds `io.sentry.proguard-uuid`
+to the app's `sentryProguardUuid` placeholder. The iOS app builds the sink with its host, consent
+and its one-line `ReliabilityReportingURLProtocol` subclass that names its forwarder; Kotlin apps
+pass `::SentryReliabilitySink`. Debug builds get the verification harness over the SDK with
+`ReliabilityReportingVerification(sentry:isActive:)`. Apps never import the SDK. Release tooling
+for every app (DSN xcconfig and archive check, Android DSN requirement, pinned sentry-cli install,
+dSYM, R8 mapping and native symbol upload, source revision stamp and build identity) is in
+`scripts/sentry/`; `scripts/sentry/sentry-test.sh` runs its checks. Each app keeps its project
+slug, its Android modules and `tools/build-identity.json` (the inputs its build compiles).
 
 `ProblemReportSheet` is the operator's report form over `ProblemReporting` (message, optional
 technical details, photos or screenshots, reply email, and the pending report's ID, status and
 removal) and `ReliabilityConsentSheet` the first-launch ask for automatic reports. The app supplies
 its product name, support email, accent, technical details and privacy page; a missing `onAccent`
 keeps the system's text on the accent button.
+
+## Watcher browse composition
+
+Camera controls supplies `WatcherBrowse` and `WatcherBrowseHost` on SwiftUI and
+Compose. The host projects its current discovery identities, optional camera
+names, join phase, browse and passcode errors, and its existing find, join,
+passcode and leave actions. The view owns only presentation and the draft code.
+Network guidance and the empty-state message are caller values with the existing
+Swift defaults retained. A host without a separate passcode error uses the
+original prompt. No relay transport, credential store or renderer is created by
+the screen.
+
+Pocket and Insta already compose this shared Swift view over
+`WatcherRelayViewer`. The deployed monitor relay can supply the same typed host
+while keeping its own wire and storage adapters. An unknown camera name stays
+optional. Shell `watchFeed` and extra-nearby actions can open this page without
+replacing an integration's first-pair or connecting funnel.

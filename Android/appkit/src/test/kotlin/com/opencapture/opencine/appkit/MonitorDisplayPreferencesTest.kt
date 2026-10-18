@@ -12,21 +12,28 @@ class MonitorDisplayPreferencesTest {
     private val identifiers = listOf(
         "statusBar", "toolBar", "cameraValues", "lockButton", "batteries", "railRecord",
         "railMedia", "railSettings", "zoomChip", "gimbalStick", "focusBox", "recReadout",
-        "timecode", "format", "color", "storage", "fps",
+        "timecode", "format", "codec", "color", "storage", "fps",
     )
+    private val legacyIdentifiers = identifiers - "codec"
     private val keys = MonitorDisplayPreferences.Keys("legacy.live", "legacy.clean")
 
     @Test fun legacySectionOrderAndLiveCleanDefaultsStayStable() {
         assertEquals(identifiers, MonitorDisplaySection.entries.map { it.key })
-        assertEquals(listOf("LIVE", "CLEAN"), MonitorDisplayMode.entries.map { it.name })
-        assertEquals(listOf("DISP 1 · Live", "DISP 2 · Clean"), MonitorDisplayMode.entries.map { it.settingsTitle })
+        assertEquals(listOf("LIVE", "CLEAN", "COMMAND"), MonitorDisplayMode.entries.map { it.name })
+        assertEquals(listOf("DISP 1 · Live", "DISP 2 · Clean", "DISP 3 · Command"),
+            MonitorDisplayMode.entries.map { it.settingsTitle })
         assertEquals("Face Box", MonitorDisplaySection.FOCUS_BOX.title)
+        for (mode in listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN)) {
+            assertEquals(MonitorDisplaySection.entries, MonitorDisplayChrome.configurableSections(mode))
+        }
+        assertEquals(listOf("lockButton", "batteries", "railRecord", "railMedia", "railSettings"),
+            MonitorDisplayChrome.configurableSections(MonitorDisplayMode.COMMAND).map { it.key })
         assertTrue(MonitorDisplaySection.entries.all(MonitorDisplayChrome.liveDefaults::isVisible))
         assertEquals(listOf("statusBar", "toolBar", "cameraValues", "lockButton"),
             MonitorDisplaySection.entries.filter { !MonitorDisplayChrome.cleanDefaults.isVisible(it) }.map { it.key })
     }
 
-    @Test fun legacyChromeEncodingKeepsAllSeventeenKeysAndFalseValues() {
+    @Test fun chromeEncodingKeepsEveryKeyAndFalseValues() {
         val encoded = MonitorDisplayChrome.cleanDefaults.toJson()
         val obj = JSONObject(encoded)
         assertEquals(identifiers.toSet(), obj.keys().asSequence().toSet())
@@ -36,11 +43,20 @@ class MonitorDisplayPreferencesTest {
             MonitorDisplayChrome.fromJson(encoded, MonitorDisplayChrome.liveDefaults))
     }
 
+    /** A layout saved before the codec chip existed keeps every choice and shows the chip. */
+    @Test fun layoutSavedBeforeTheCodecSectionStillDecodes() {
+        val memory = DisplayPreferencesMemory()
+        memory.values[keys.clean] = JSONObject(legacyIdentifiers.associateWith { true }).put("statusBar", false).toString()
+        val decoded = MonitorDisplayPreferences(memory.storage, keys).clean
+        assertTrue(!decoded.statusBar && decoded.codec && decoded.focusBox && decoded.lockButton)
+    }
+
     @Test fun absentLayoutsReadWithoutWritingAndExplicitOffSurvivesReload() {
         val memory = DisplayPreferencesMemory()
         val store = MonitorDisplayPreferences(memory.storage, keys)
         assertEquals(MonitorDisplayChrome.liveDefaults, store.live)
         assertEquals(MonitorDisplayChrome.cleanDefaults, store.clean)
+        assertEquals(MonitorDisplayChrome.liveDefaults, store.command)
         assertTrue(memory.values.isEmpty())
         store.live = store.live.toggling(MonitorDisplaySection.STATUS_BAR)
         assertEquals(MonitorDisplayChrome.cleanDefaults, store.clean)

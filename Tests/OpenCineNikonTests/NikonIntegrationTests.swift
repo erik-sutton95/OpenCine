@@ -1,8 +1,8 @@
 import Foundation
 import OpenCineCore
 import OpenCineCoreTestSupport
-import OpenCineNikon
 import OpenCineMedia
+import OpenCineNikon
 import Testing
 
 /// A scripted Nikon pipeline: it records discovery modes, connects, cancels and forgets, holds each
@@ -31,6 +31,15 @@ final class FakeNikonPort: NikonConnectPort {
         }
     }
 
+    private(set) var consentedRequests: [NikonConnectRequest] = []
+
+    func connect(_ request: NikonConnectRequest, takingOverConfirmed: Bool) async throws
+        -> NikonConnection
+    {
+        if takingOverConfirmed { consentedRequests.append(request) }
+        return try await connect(request)
+    }
+
     func finish(_ result: Result<NikonConnection, Error>) {
         let waiter = pending
         pending = nil
@@ -43,6 +52,26 @@ final class FakeNikonPort: NikonConnectPort {
     }
 
     func forget(hosts: [String]) { forgotten.append(hosts) }
+}
+
+/// A pre-consent-overload port; the public default must preserve its own admission failure.
+@MainActor
+private final class LegacyNikonPort: NikonConnectPort {
+    var onSightings: (([DiscoveredCamera]) -> Void)?
+    var onPhase: ((CameraConnectionPhase, String?) -> Void)?
+    var savedRecords: [PTPIPSavedCameraRecord] = []
+    var requests: [NikonConnectRequest] = []
+    let failure = ConnectionFailure(
+        reason: .heldElsewhere, title: "Held", message: "Consent required", actions: [.retry],
+        code: "SIMULATED.legacy")
+    func startDiscovery(_ mode: DiscoveryMode) {}
+    func stopDiscovery() {}
+    func connect(_ request: NikonConnectRequest) async throws -> NikonConnection {
+        requests.append(request)
+        throw failure
+    }
+    func cancel() {}
+    func forget(hosts: [String]) {}
 }
 
 /// The Nikon `CameraIntegration` against a scripted pipeline. Kotlin mirror: `NikonIntegrationTest`,
@@ -114,8 +143,13 @@ final class FakeNikonPort: NikonConnectPort {
         let list = await iterator.next() ?? []
         #expect(list.map(\.id) == ["192.168.50.23", "192.168.50.40", "192.168.50.41", "usb:0x99"])
         #expect(list.map(\.savedID) == ["serial:3001234", nil, nil, nil])
-        #expect(list.map(\.availability) == [.available, .available, .unavailable(.busy), .available])
-        #expect(list.map(\.routes) == [[.infrastructureNetwork], [.infrastructureNetwork], [.infrastructureNetwork], [.usb]])
+        #expect(
+            list.map(\.availability) == [.available, .available, .unavailable(.busy), .available])
+        #expect(
+            list.map(\.routes) == [
+                [.infrastructureNetwork], [.infrastructureNetwork], [.infrastructureNetwork],
+                [.usb],
+            ])
     }
 
     @Test func sightingsNameTheSetupTheyReach() async {
@@ -145,14 +179,19 @@ final class FakeNikonPort: NikonConnectPort {
         let studio = try #require(camera.routes.first { $0.key == "infrastructure|Studio" })
         let native = FakeCameraSession.nikonLike()
         let marker = IntegrationMediaMarker(sessionID: native.id)
-        var services = CameraServices(); services.register(marker, as: (any CameraMediaService).self)
-        let defaults = NikonConnection(session: native, host: "192.168.50.23", path: .infrastructure)
+        var services = CameraServices()
+        services.register(marker, as: (any CameraMediaService).self)
+        let defaults = NikonConnection(
+            session: native, host: "192.168.50.23", path: .infrastructure)
         #expect(defaults.services[(any CameraMediaService).self] == nil)
         let events = nikon.connect(.saved(camera, route: studio.id))
         #expect(await eventually { port.connects.count == 1 })
         port.finish(.success(.init(session: native, host: "192.168.50.23", path: .infrastructure, services: services)))
         let (_, _, end) = await outcome(events)
-        guard case .connected(let camera) = end else { Issue.record("not connected"); return }
+        guard case .connected(let camera) = end else {
+            Issue.record("not connected")
+            return
+        }
         #expect(camera.services[(any CameraMediaService).self] === marker)
         #expect(camera.session.id == marker.sessionID)
     }
@@ -167,10 +206,19 @@ final class FakeNikonPort: NikonConnectPort {
         for phase in [CameraConnectionPhase.discovering, .handshaking, .preparingLiveView] { port.onPhase?(phase, nil) }
         port.finish(.success(NikonConnection(session: FakeCameraSession.nikonLike(), host: "192.168.50.23", path: .infrastructure)))
         let (progress, prompts, end) = await outcome(events)
-        #expect(progress.map { "\($0.phase) \($0.current)" } == ["link 0", "negotiating 1", "negotiating 2"])
-        #expect(progress[0].steps.map(\.title) == ["Finding the camera", "Connecting", "Starting live view"])
+        #expect(
+            progress.map { "\($0.phase) \($0.current)" } == [
+                "link 0", "negotiating 1", "negotiating 2",
+            ])
+        #expect(
+            progress[0].steps.map(\.title) == [
+                "Finding the camera", "Connecting", "Starting live view",
+            ])
         #expect(prompts == [nil, nil, nil])
-        guard case .connected(let connected) = end else { Issue.record("not connected"); return }
+        guard case .connected(let connected) = end else {
+            Issue.record("not connected")
+            return
+        }
         #expect(connected.saved.id == "serial:3001234")
         #expect(connected.saved.routes.map(\.id) == camera.routes.map(\.id), "route ids survive the read-back")
         #expect(connected.saved.preferredRoute == studio.id)
@@ -190,8 +238,16 @@ final class FakeNikonPort: NikonConnectPort {
         let (progress, prompts, end) = await outcome(events)
         #expect(progress.map(\.current) == [0, 1, 1])
         #expect(progress[0].steps.first?.title == "Joining the camera’s Wi-Fi")
-        #expect(prompts == [ConnectionProgressCopy.statusDetail(phase: .joiningWiFi, deviceName: "ZR_3001234", friendlyError: nil), nil, "Pairing with code 1234…"])
-        guard case .failed(let failure) = end else { Issue.record("not failed"); return }
+        #expect(
+            prompts == [
+                ConnectionProgressCopy.statusDetail(
+                    phase: .joiningWiFi, deviceName: "ZR_3001234", friendlyError: nil), nil,
+                "Pairing with code 1234…",
+            ])
+        guard case .failed(let failure) = end else {
+            Issue.record("not failed")
+            return
+        }
         #expect(failure.reason == .notApproved && failure.phase == .awaitingApproval)
     }
 
@@ -201,20 +257,158 @@ final class FakeNikonPort: NikonConnectPort {
         port.onSightings?([held])
         let nearby = NearbyCamera(id: held.id, name: held.displayName, model: "", routes: [.infrastructureNetwork], availability: .unavailable(.busy))
         var iterator = nikon.connect(.nearby(nearby)).makeAsyncIterator()
-        guard case .progress(_, .integration(let asked)) = await iterator.next(), let prompt = asked as? NikonTakeOverPrompt
-        else { Issue.record("no take-over prompt"); return }
-        #expect(prompt.fallbackText == "Phone B is using this camera. Connecting will disconnect it.")
+        guard case .progress(_, .integration(let asked)) = await iterator.next(),
+            let prompt = asked as? NikonTakeOverPrompt
+        else {
+            Issue.record("no take-over prompt")
+            return
+        }
+        #expect(
+            prompt.fallbackText == "Phone B is using this camera. Connecting will disconnect it.")
         #expect(port.connects.isEmpty, "nothing dials a held camera before the operator agrees")
         prompt.confirm()
         #expect(await eventually { port.connects == [.discovered(held, takeOver: true)] })
 
         // Declining ends the attempt without a connect.
         var declined = nikon.connect(.nearby(nearby)).makeAsyncIterator()
-        guard case .progress(_, .integration(let again)) = await declined.next(), let second = again as? NikonTakeOverPrompt
-        else { Issue.record("no take-over prompt"); return }
+        guard case .progress(_, .integration(let again)) = await declined.next(),
+            let second = again as? NikonTakeOverPrompt
+        else {
+            Issue.record("no take-over prompt")
+            return
+        }
         second.cancel()
         #expect(await declined.next() == nil)
         #expect(port.connects.count == 1)
+    }
+
+    @Test func aHeldSavedSetupUsesTheSameConsentPrompt() async throws {
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let route = try #require(camera.routes.first { $0.kind == .infrastructureNetwork })
+        let events = nikon.connect(.saved(camera, route: route.id))
+        #expect(await eventually { port.connects.count == 1 })
+        port.finish(
+            .failure(
+                ConnectionFailure(
+                    reason: .heldElsewhere, title: "Camera in use",
+                    message: "Phone B is using this camera. Connecting will disconnect it.",
+                    actions: [.retry], code: "SIMULATED.held")))
+        var iterator = events.makeAsyncIterator()
+        guard case .progress(_, .integration(let asked)) = await iterator.next(),
+            let prompt = asked as? NikonTakeOverPrompt
+        else {
+            Issue.record(
+                "a held saved setup must ask in the integration prompt before a consented retry")
+            return
+        }
+        #expect(
+            prompt.fallbackText == "Phone B is using this camera. Connecting will disconnect it.")
+        #expect(port.connects.count == 1, "the held attempt cannot retry until the operator agrees")
+        prompt.cancel()
+        #expect(await iterator.next() == nil)
+        #expect(port.connects.count == 1, "declining never retries")
+    }
+
+    @Test func savedConsentIsOnceOnlyAndAConfirmedFailureCannotAskAgain() async throws {
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let route = try #require(camera.routes.first { $0.kind == .infrastructureNetwork })
+        var iterator = nikon.connect(.saved(camera, route: route.id)).makeAsyncIterator()
+        #expect(await eventually { port.connects.count == 1 })
+        let held = ConnectionFailure(
+            reason: .heldElsewhere, title: "Camera in use",
+            message: "Phone B is using this camera.",
+            actions: [.retry], code: "SIMULATED.held")
+        port.finish(.failure(held))
+        guard case .progress(_, .integration(let asked)) = await iterator.next(),
+            let prompt = asked as? NikonTakeOverPrompt
+        else {
+            Issue.record("missing saved consent prompt")
+            return
+        }
+        prompt.confirm()
+        prompt.confirm()
+        #expect(await eventually { port.connects.count == 2 })
+        #expect(port.consentedRequests == [.saved(host: "192.168.50.23", path: .infrastructure)])
+        port.finish(.failure(held))
+        guard case .failed(let failure) = await iterator.next()
+        else {
+            Issue.record("confirmed failure must end rather than ask for consent again")
+            return
+        }
+        #expect(failure.reason == .heldElsewhere)
+        #expect(await iterator.next() == nil)
+        prompt.confirm()
+        #expect(port.connects.count == 2)
+    }
+
+    @Test func replacingASavedAttemptRetiresItsUnansweredConsent() async throws {
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let route = try #require(camera.routes.first { $0.kind == .infrastructureNetwork })
+        var iterator = nikon.connect(.saved(camera, route: route.id)).makeAsyncIterator()
+        #expect(await eventually { port.connects.count == 1 })
+        port.finish(
+            .failure(
+                ConnectionFailure(
+                    reason: .heldElsewhere, title: "Camera in use", message: "Consent required",
+                    actions: [.retry], code: "SIMULATED.held")))
+        guard case .progress(_, .integration(let asked)) = await iterator.next(),
+            let prompt = asked as? NikonTakeOverPrompt
+        else {
+            Issue.record("missing saved consent prompt")
+            return
+        }
+        let replacement = nikon.connect(.saved(camera, route: route.id))
+        #expect(await iterator.next() == nil)
+        #expect(await eventually { port.connects.count == 2 })
+        prompt.confirm()
+        #expect(port.consentedRequests.isEmpty)
+        #expect(port.connects.count == 2)
+        port.finish(.failure(CancellationError()))
+        for await _ in replacement {}
+    }
+
+    @Test func cancellingASavedAttemptRetiresItsUnansweredConsent() async throws {
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let route = try #require(camera.routes.first { $0.kind == .infrastructureNetwork })
+        let events = nikon.connect(.saved(camera, route: route.id))
+        var received: NikonTakeOverPrompt?
+        let consumer = Task {
+            for await event in events {
+                if case .progress(_, .integration(let asked)) = event {
+                    received = asked as? NikonTakeOverPrompt
+                }
+            }
+        }
+        defer { consumer.cancel() }
+        #expect(await eventually { port.connects.count == 1 })
+        port.finish(
+            .failure(
+                ConnectionFailure(
+                    reason: .heldElsewhere, title: "Camera in use", message: "Consent required",
+                    actions: [.retry], code: "SIMULATED.held")))
+        #expect(await eventually { received != nil })
+        let prompt = try #require(received)
+        consumer.cancel()
+        await consumer.value
+        #expect(await eventually { port.cancels == 1 })
+        prompt.confirm()
+        #expect(port.consentedRequests.isEmpty && port.connects.count == 1)
+    }
+
+    @Test func aLegacyPortKeepsItsAdmissionThroughTheConfirmedOverload() async {
+        let legacy = LegacyNikonPort()
+        let request = NikonConnectRequest.saved(host: "SIMULATED-host", path: .infrastructure)
+        do {
+            _ = try await legacy.connect(request, takingOverConfirmed: true)
+            Issue.record("legacy admission was bypassed")
+        } catch {
+            #expect(error as? ConnectionFailure == legacy.failure)
+        }
+        #expect(legacy.requests == [request])
     }
 
     @Test func failuresAreTyped() {
@@ -249,7 +443,10 @@ final class FakeNikonPort: NikonConnectPort {
         #expect(port.connects == [expected])
         port.finish(.success(NikonConnection(session: FakeCameraSession.nikonLike(), host: "172.20.10.3", path: .phoneHotspot)))
         let (_, _, end) = await outcome(current)
-        guard case .connected(let camera) = end else { Issue.record("not connected"); return }
+        guard case .connected(let camera) = end else {
+            Issue.record("not connected")
+            return
+        }
         #expect(camera.saved.id == replacement.id)
         let (_, _, oldEnd) = await outcome(previous)
         #expect(oldEnd == nil)
@@ -260,7 +457,10 @@ final class FakeNikonPort: NikonConnectPort {
         let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
         await nikon.forget(camera)
         #expect(port.forgotten == [["192.168.50.23", "192.168.1.1"]])
-        #expect(nikon.profiles.first?.addableRoutes == [.cameraAccessPoint, .infrastructureNetwork, .phoneHotspot, .usb])
+        #expect(
+            nikon.profiles.first?.addableRoutes == [
+                .cameraAccessPoint, .infrastructureNetwork, .phoneHotspot, .usb,
+            ])
     }
 }
 

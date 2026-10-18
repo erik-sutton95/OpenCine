@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Declared control facts supplied by a camera integration, separate from live observations.
 public struct CameraCaptureProfile: Equatable, Sendable {
@@ -12,6 +13,11 @@ public struct CameraCaptureProfile: Equatable, Sendable {
     public var videoFormatFallbacks: [ShootingMode: [VideoFormat]]
     public var zoom: CameraZoomProfile?
     public var looks: CameraLUTProfile?
+    public var nativeISO: CaptureNativeISOCapabilities
+    /// Static support of the families no setting descriptor or flag above carries (ND, face
+    /// metering, audio input, photo, camera media, clip delete, multiview, ...). A family not
+    /// listed is unknown. `ControlCapabilities` merges this with the live snapshot.
+    public var controls: [ControlFamily: SupportStatus] = [:]
 
     public init(
         labels: CameraLabelProfile = .standard, supportsFocusMode: Bool? = nil,
@@ -19,6 +25,19 @@ public struct CameraCaptureProfile: Equatable, Sendable {
         supportsZoom: Bool? = nil, isoAutoRangeFloor: Int? = nil,
         videoFormatFallbacks: [ShootingMode: [VideoFormat]] = [:], zoom: CameraZoomProfile? = nil,
         looks: CameraLUTProfile? = nil
+    ) {
+        self.init(labels: labels, supportsFocusMode: supportsFocusMode, supportsTapFocus: supportsTapFocus,
+            supportsAperture: supportsAperture, hasGimbal: hasGimbal, supportsZoom: supportsZoom,
+            isoAutoRangeFloor: isoAutoRangeFloor, videoFormatFallbacks: videoFormatFallbacks,
+            zoom: zoom, looks: looks, nativeISO: .init())
+    }
+
+    public init(
+        labels: CameraLabelProfile = .standard, supportsFocusMode: Bool? = nil,
+        supportsTapFocus: Bool? = nil, supportsAperture: Bool? = nil, hasGimbal: Bool? = nil,
+        supportsZoom: Bool? = nil, isoAutoRangeFloor: Int? = nil,
+        videoFormatFallbacks: [ShootingMode: [VideoFormat]] = [:], zoom: CameraZoomProfile? = nil,
+        looks: CameraLUTProfile? = nil, nativeISO: CaptureNativeISOCapabilities
     ) {
         self.labels = labels
         self.supportsFocusMode = supportsFocusMode
@@ -30,6 +49,7 @@ public struct CameraCaptureProfile: Equatable, Sendable {
         self.videoFormatFallbacks = videoFormatFallbacks
         self.zoom = zoom
         self.looks = looks
+        self.nativeISO = nativeISO
     }
 }
 

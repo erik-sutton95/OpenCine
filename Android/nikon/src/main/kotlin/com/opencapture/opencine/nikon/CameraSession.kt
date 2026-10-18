@@ -1,5 +1,7 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.vocabulary.StorageReadout
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -9,6 +11,8 @@ private val noCameraSessionEvents: SharedFlow<CameraSessionEvent> =
     MutableSharedFlow<CameraSessionEvent>()
 
 private val noReportedRecording: StateFlow<Boolean?> = MutableStateFlow<Boolean?>(null)
+
+private val noLiveTimecode: StateFlow<CameraTimecode?> = MutableStateFlow<CameraTimecode?>(null)
 
 private val noCameraProperties: StateFlow<CameraPropertySnapshot> =
     MutableStateFlow(CameraPropertySnapshot())
@@ -68,11 +72,62 @@ public enum class CameraConnectionPhase {
  *
  * The detail carries only display-safe information, such as a camera name or
  * pairing PIN. It must never contain Wi-Fi credentials or raw protocol data.
+ * A [CameraConnectionPhase.FAILED] progress from the Swift session layer also
+ * carries its typed [failure]; the app reads that, never the detail's words.
  */
 public data class CameraConnectionProgress(
     public val phase: CameraConnectionPhase = CameraConnectionPhase.IDLE,
     public val detail: String = "",
+    public val failure: CameraConnectionFailure? = null,
 )
+
+/**
+ * Why a connect attempt failed, typed by the Swift session layer (`AndroidConnectFailure`, whose
+ * raw values are [wireCode]). The app picks its copy and its recovery from this, never from the
+ * failure message, as iOS does from `NativeCameraSessionError`.
+ */
+public enum class CameraConnectionFailure(internal val wireCode: Int) {
+    /** Anything else; the message is the copy. */
+    OTHER(0),
+
+    /** The body refused this initiator: it no longer knows this phone. */
+    REJECTED_INITIATOR(1),
+
+    /** Another initiator holds the body. */
+    BUSY(2),
+
+    /** The body hung up mid-establishment. */
+    CONNECTION_CLOSED(3),
+
+    /** The body did not answer in time. */
+    TIMEOUT(4),
+
+    /** The body offered no pairing code. */
+    PAIRING_CHALLENGE_UNAVAILABLE(5),
+
+    /** The saved camera-side profile does not admit this initiator. */
+    SAVED_PROFILE_REQUIRED(6),
+
+    /** The dial target was not a numeric IPv4 address. */
+    NON_NUMERIC_HOST(7),
+
+    /** The network or the PTP-IP exchange failed below the camera's own answers. */
+    UNREACHABLE(8),
+    ;
+
+    /**
+     * The saved profile cannot open app control, so one fresh pairing is the remedy (iOS
+     * `isSavedProfileUnavailable`): a refusal, a required first pairing, or a body that hangs up
+     * during a pairing-skipped establishment.
+     */
+    public val savedProfileUnavailable: Boolean
+        get() = this == REJECTED_INITIATOR || this == SAVED_PROFILE_REQUIRED || this == CONNECTION_CLOSED
+
+    public companion object {
+        /** The failure for a wire code; an unknown code (a newer core) reads as [OTHER]. */
+        public fun fromWire(code: Int): CameraConnectionFailure = entries.firstOrNull { it.wireCode == code } ?: OTHER
+    }
+}
 
 /**
  * Connection lifecycle of a [CameraSession].
@@ -238,6 +293,9 @@ public enum class CameraControl {
 
     /** Active picture control (profile), such as `"Standard"` or `"Cloud 3"`. */
     STILL_PICTURE_CONTROL,
+
+    /** Movie tone (colour) of the active codec, such as `"N-Log"`; Swift picks the property. */
+    MOVIE_TONE,
 }
 
 /** Progress of a still release as reported by polling after the release op. */
@@ -303,7 +361,12 @@ public data class CameraStorageStatus(
     val totalCapacityBytes: Long,
     /** Currently free capacity in bytes. */
     val freeSpaceBytes: Long,
-)
+) {
+    /** The shared storage readout (A5-11); null for a negative free space or one above a known capacity. */
+    val readout: StorageReadout?
+        get() = if (freeSpaceBytes < 0 || (totalCapacityBytes > 0 && freeSpaceBytes > totalCapacityBytes)) null
+        else StorageReadout(freeSpaceBytes, totalCapacityBytes)
+}
 
 /** Capacity and identity for one connected camera recording card. */
 public data class CameraStorageSlotStatus(
@@ -408,8 +471,21 @@ public data class CameraControlCapabilities(
      * can never name a combination this body did not offer.
      */
     val codecBitDepths: List<CodecBitDepthOption> = emptyList(),
+    /**
+     * The movie tones (colour) the body offers for the active codec, or the codec's fixed tone
+     * (R3D NE: Log3G10), decided by the shared Swift core. Empty when the codec has none.
+     */
+    val movieTones: List<String> = emptyList(),
+    /** Whether the operator can change the tone (more than one offered, not codec-fixed). */
+    val movieToneEditable: Boolean = false,
     /** Actual f-number descriptor choices, excluding the legacy body/lens fallback. */
     val advertisedIrisValues: List<String> = emptyList(),
+    /** Native mode axes from Swift, with the exact advertised write token. */
+    val recordingFormats: List<NikonRecordingFormatPresentation> = emptyList(),
+    /** Actual movie-VR descriptor evidence, separate from the effective option list. */
+    val vibrationReductionDescriptor: NikonDescriptorEvidence = NikonDescriptorEvidence(),
+    /** Actual electronic-VR descriptor evidence, separate from the effective option list. */
+    val electronicVrDescriptor: NikonDescriptorEvidence = NikonDescriptorEvidence(),
 ) {
     /** Returns the advertised labels for one descriptor-dependent control. */
     public fun options(control: CameraControl): List<String> =
@@ -452,6 +528,7 @@ public data class CameraControlCapabilities(
             CameraControl.CODEC -> codecs
             CameraControl.VIBRATION_REDUCTION -> vibrationReduction
             CameraControl.ELECTRONIC_VR -> electronicVr
+            CameraControl.MOVIE_TONE -> if (movieToneEditable) movieTones else emptyList()
             else -> emptyList()
         }
 }
@@ -500,7 +577,7 @@ public data class CameraPropertySnapshot(
     val frameRate: Int? = null,
     /** Camera-reported recording codec label. */
     val codec: String? = null,
-    /** Shared-core tone/gamma label inferred from the active recording codec. */
+    /** Positively identified recording log label; containers with selectable tone stay unknown. */
     val tone: String? = null,
     /** Shared-core resolution/frame-rate label matching the active advertised option. */
     val resolutionFrameRate: String? = null,
@@ -508,6 +585,8 @@ public data class CameraPropertySnapshot(
     val codecSelection: String? = null,
     /** Caption of the depth the body is recording at, when [codecSelection]'s row offers a choice. */
     val codecBitDepth: String? = null,
+    /** The active codec's reported movie tone (`SDR`, `HLG`, `N-Log`, `Log3G10`); null while unknown. */
+    val movieTone: String? = null,
     /** Active camera white-balance fine-tune label. */
     val whiteBalanceTint: String? = null,
     /** Battery percentage. */
@@ -872,6 +951,15 @@ public interface CameraSession {
      */
     public val reportedRecording: StateFlow<Boolean?>
         get() = noReportedRecording
+
+    /**
+     * The live-view header's running timecode, frames included, observed from the session's own
+     * live-view pump (no extra stream demand). `null` while the header says timecode is off, while no
+     * header is being read, or once the session leaves [CameraSessionState.Connected]: never a frozen
+     * counter. Sessions without a camera header (relay, capture card, test fakes) stay `null`.
+     */
+    public val liveTimecode: StateFlow<CameraTimecode?>
+        get() = noLiveTimecode
 
     /**
      * The latest display snapshot, including a session's pending control projection.

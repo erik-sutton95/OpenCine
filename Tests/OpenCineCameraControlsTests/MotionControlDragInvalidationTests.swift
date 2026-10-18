@@ -1,5 +1,6 @@
 #if os(iOS)
     import Observation
+    import OpenCineHostedAccessibility
     import SwiftUI
     import XCTest
 
@@ -7,6 +8,17 @@
 
     @MainActor
     final class MotionControlDragInvalidationTests: XCTestCase {
+        /// Moves re-evaluate the guarded controls neither with the accessibility runtime off nor
+        /// with it on (measured on brand-new simulators: no re-evaluation over eight moves either
+        /// way). Switching the runtime on changes the environment, and SwiftUI then re-evaluates
+        /// every view that reads it, this consumer included; the switch lands asynchronously, so
+        /// a switch made by an earlier walk in the process could land during the moves and count
+        /// as move re-evaluations. The count below is therefore measured after the runtime is
+        /// live, as every hosted walk in this package leaves it.
+        override func setUp() async throws {
+            await HostedAccessibility.awaitRuntime()
+        }
+
         func testActionGuardBlocksDraggingAndTheReleaseTapWithoutARefreshTimer() {
             XCTAssertTrue(MotionControlInteraction().allowsInteraction(at: 10))
             XCTAssertFalse(MotionControlInteraction(isDragging: true).allowsInteraction(at: 10))
@@ -19,8 +31,11 @@
         func testMovingTheWindowDoesNotReevaluateControlsThatReadItsActionGuard() async throws {
             let input = MotionDragInput()
             let recorder = MotionDragRecorder()
+            // Retain the guard reader while placement updates rebuild the fixture,
+            // so this measures interaction-environment invalidation.
             let host = UIHostingController(
-                rootView: MotionDragFixture(input: input, recorder: recorder))
+                rootView: MotionDragFixture(
+                    input: input, controls: MotionDragGuardConsumer(recorder: recorder)))
             host.safeAreaRegions = []
             let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
             window.rootViewController = host
@@ -78,10 +93,10 @@
 
     private struct MotionDragFixture: View {
         let input: MotionDragInput
-        let recorder: MotionDragRecorder
+        let controls: MotionDragGuardConsumer
 
         var body: some View {
-            MotionDragGuardConsumer(recorder: recorder)
+            controls
                 .modifier(
                     LiveGimbalFloatMove(
                         stored: Binding(get: { input.center }, set: { input.center = $0 }),

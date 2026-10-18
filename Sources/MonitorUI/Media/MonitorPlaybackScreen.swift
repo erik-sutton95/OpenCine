@@ -35,6 +35,8 @@
         @State private var isConformPresented = false
         @State private var isDeleteConfirmPresented = false
         @State private var deleteItem: MonitorPlaybackItemToken?
+        @State private var capturedDeletion: MonitorPlaybackDeletionConfirmation?
+        @State private var capturedDeletionActions: MonitorPlaybackDeletionActions?
         @State private var zoom = MonitorPlaybackZoom()
         @State private var zoomContainerSize: CGSize = .zero
         @State private var zoomPictureSize: CGSize = .zero
@@ -88,7 +90,10 @@
 
         public var body: some View {
             playerContent
+                // A full-screen cover hides the root, so the player publishes the review safe area.
+                .monitorReviewSafeArea()
                 .onChange(of: value.item) { _, _ in
+                    cancelDeleteConfirmation()
                     cancelEditing(.contextChanged)
                     zoom.reset()
                     assistMode = false
@@ -112,6 +117,7 @@
                     if !active, frameEditing.end() { cancelEditing(.interrupted) }
                 }
                 .onDisappear {
+                    cancelDeleteConfirmation()
                     playbackFlashTask?.cancel()
                     cancelEditing(.disappeared)
                 }
@@ -244,7 +250,7 @@
                         }
                         if chromeVisible {
                             MonitorChromeButton(
-                                "Back to media",
+                                MonitorPlaybackCopy.backToMedia,
                                 size: CGSize(width: corner.width, height: corner.height),
                                 action: dismissPlayback
                             ) {
@@ -299,6 +305,7 @@
                     VStack(alignment: .leading, spacing: 4) {
                         Text(value.title).font(MonitorTheme.font(13, weight: .semibold))
                             .foregroundStyle(MonitorTheme.text).lineLimit(1)
+                            .accessibilityIdentifier("monitor.playback.title")
                         Text(value.subtitle).font(MonitorTheme.font(9.5)).foregroundStyle(
                             MonitorTheme.muted
                         )
@@ -315,6 +322,7 @@
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 HStack(spacing: 8) {
+                    slots.headerActionAccessory()
                     Button {
                         withItem { actions.favorite($0) }
                     } label: {
@@ -327,15 +335,17 @@
                                             gain: MonitorTheme.hdrGain) : MonitorTheme.secondary)
                         }
                     }
-                    .buttonStyle(MonitorButtonStyle()).accessibilityLabel("Favorite clip")
+                    .buttonStyle(MonitorButtonStyle()).accessibilityLabel(
+                        MonitorPlaybackCopy.favorite)
                     Button {
                         isInfoPresented.toggle()
                     } label: {
                         MonitorPlaybackChip(active: isInfoPresented) { MonitorIcon.info }
                     }
-                    .buttonStyle(MonitorButtonStyle()).accessibilityLabel("Clip information")
+                    .buttonStyle(MonitorButtonStyle()).accessibilityLabel(
+                        MonitorPlaybackCopy.clipInformation)
                     shareTransportButton(compact: portrait)
-                    if actions.delete != nil { deleteButton }
+                    if actions.delete != nil || actions.deletionConfirmation != nil { deleteButton }
                 }
                 .frame(maxWidth: portrait ? .infinity : nil, alignment: .trailing)
                 .fixedSize(horizontal: !portrait, vertical: true)
@@ -385,29 +395,32 @@
                     if !portrait { Color.clear.frame(maxWidth: .infinity, maxHeight: 1) }
                     HStack(spacing: 8) {
                         transportButton(.skipBack) { seek(by: -15) }
-                            .accessibilityLabel("Back 15 seconds")
+                            .accessibilityLabel(MonitorPlaybackCopy.backFifteen)
                         transportButton(
                             reachedEnd ? .rotateCw : isPlaying ? .pause : .play, size: 26
                         ) {
                             if reachedEnd { restartPlayback() } else { togglePlay() }
                         }
                         .accessibilityLabel(
-                            reachedEnd ? "Restart clip" : isPlaying ? "Pause" : "Play")
+                            MonitorPlaybackCopy.transport(
+                                reachedEnd: reachedEnd, playing: isPlaying))
                         transportButton(.skipForward) { seek(by: 15) }
-                            .accessibilityLabel("Forward 15 seconds")
+                            .accessibilityLabel(MonitorPlaybackCopy.forwardFifteen)
                     }
                     HStack(spacing: 8) {
                         conformButton
                         actionToggle(.volumeX, .volume2, on: isMuted) { toggleMute() }
-                            .accessibilityLabel(isMuted ? "Unmute" : "Mute")
+                            .accessibilityLabel(MonitorPlaybackCopy.muteToggle(muted: isMuted))
                         if value.loopAvailable {
                             Button {
                                 withItem { actions.loop($0, !value.looping) }
                             } label: {
                                 MonitorPlaybackChip(active: isLooping) { MonitorIcon.repeat }
                             }
-                            .buttonStyle(MonitorButtonStyle()).accessibilityLabel("Loop playback")
-                            .accessibilityValue(isLooping ? "On" : "Off")
+                            .buttonStyle(MonitorButtonStyle()).accessibilityLabel(
+                                MonitorPlaybackCopy.loop
+                            )
+                            .accessibilityValue(MonitorPlaybackCopy.toggleValue(isLooping))
                         }
                         cleanViewButton
                     }
@@ -418,23 +431,49 @@
 
         private var deleteButton: some View {
             Button {
-                deleteItem = value.item
-                isDeleteConfirmPresented = deleteItem != nil
+                cancelDeleteConfirmation()
+                if let capture = actions.deletionConfirmation, let item = value.item {
+                    capturedDeletion = capture.capture(item)
+                    capturedDeletionActions = capturedDeletion == nil ? nil : capture
+                    isDeleteConfirmPresented = capturedDeletion != nil
+                } else {
+                    deleteItem = value.item
+                    isDeleteConfirmPresented = deleteItem != nil
+                }
             } label: {
                 MonitorPlaybackChip(destructive: true) { MonitorIcon.trash }
             }
             .buttonStyle(MonitorButtonStyle())
-            .accessibilityLabel("Delete clip from camera")
+            .accessibilityLabel(MonitorPlaybackCopy.delete)
             .confirmationDialog(
-                "Delete this clip from the camera?", isPresented: $isDeleteConfirmPresented,
+                capturedDeletion?.title ?? MonitorPlaybackCopy.deleteConfirmationTitle,
+                isPresented: $isDeleteConfirmPresented,
                 titleVisibility: .visible
             ) {
-                Button("Delete", role: .destructive) {
-                    let admitted = deleteItem
-                    deleteItem = nil
-                    if let admitted { actions.delete?(admitted) }
+                Button(MonitorPlaybackCopy.deleteConfirm, role: .destructive) {
+                    if let captured = capturedDeletion, let typed = capturedDeletionActions {
+                        capturedDeletion = nil; capturedDeletionActions = nil; deleteItem = nil
+                        if typed.isCurrent(captured.id) { typed.confirm(captured.id) }
+                        else { typed.cancel(captured.id) }
+                    } else {
+                        let admitted = deleteItem; deleteItem = nil
+                        if let admitted { actions.delete?(admitted) }
+                    }
                 }
+                // Dismissal settles the request through isDeleteConfirmPresented below.
+                Button(MonitorPlaybackCopy.deleteCancel, role: .cancel) {}
+            } message: {
+                if let message = capturedDeletion?.message { Text(message) }
             }
+            .onChange(of: isDeleteConfirmPresented) { _, shown in
+                if !shown { cancelDeleteConfirmation() }
+            }
+        }
+
+        private func cancelDeleteConfirmation() {
+            let captured = capturedDeletion, outgoing = capturedDeletionActions
+            capturedDeletion = nil; capturedDeletionActions = nil; deleteItem = nil; isDeleteConfirmPresented = false
+            if let captured { outgoing?.cancel(captured.id) }
         }
 
         @ViewBuilder
@@ -451,7 +490,7 @@
                 }
                 .buttonStyle(MonitorButtonStyle())
                 .position(x: videoRect.minX + 22, y: videoRect.midY)
-                .accessibilityLabel("Previous clip")
+                .accessibilityLabel(MonitorPlaybackCopy.previousClip)
             }
             if canGoNext {
                 Button {
@@ -465,7 +504,7 @@
                 }
                 .buttonStyle(MonitorButtonStyle())
                 .position(x: videoRect.maxX - 22, y: videoRect.midY)
-                .accessibilityLabel("Next clip")
+                .accessibilityLabel(MonitorPlaybackCopy.nextClip)
             }
         }
 
@@ -536,23 +575,25 @@
                 }
             }
             .buttonStyle(MonitorButtonStyle()).disabled(!availability.isAvailable)
-            .accessibilityLabel("Conform preview")
+            .accessibilityLabel(MonitorPlaybackCopy.conformPreview)
         }
 
         private var conformPanel: some View {
             let availability = MonitorConformPreview.availability(for: conformSource)
             let rate = conformSource.captureRate ?? 0
             let labels =
-                ["Real time"]
+                [MonitorPlaybackCopy.realTime]
                 + availability.targets.map {
                     MonitorConformPreview.targetLabel(captureRate: rate, targetRate: $0)
                 }
             return VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("CONFORM PREVIEW").font(MonitorTheme.font(9, weight: .bold)).tracking(
+                        Text(MonitorPlaybackCopy.conformTitle).font(
+                            MonitorTheme.font(9, weight: .bold)
+                        ).tracking(
                             1.8)
-                        Text(conformTarget == nil ? "As recorded" : "Conformed for slow motion")
+                        Text(MonitorPlaybackCopy.conformSubtitle(captureRate: rate))
                             .font(MonitorTheme.font(9)).foregroundStyle(MonitorTheme.muted)
                     }
                     Spacer()
@@ -560,7 +601,8 @@
                         isConformPresented = false
                     } label: {
                         MonitorIcon.x.frame(width: 12, height: 12).frame(width: 44, height: 44)
-                    }.buttonStyle(MonitorButtonStyle()).accessibilityLabel("Close conform preview")
+                    }.buttonStyle(MonitorButtonStyle()).accessibilityLabel(
+                        MonitorPlaybackCopy.closeConformPreview)
                 }
                 MonitorValueDrum(
                     options: labels,
@@ -568,7 +610,7 @@
                         get: {
                             conformTarget.map {
                                 MonitorConformPreview.targetLabel(captureRate: rate, targetRate: $0)
-                            } ?? "Real time"
+                            } ?? MonitorPlaybackCopy.realTime
                         },
                         set: { label in
                             guard let index = labels.firstIndex(of: label) else { return }
@@ -577,6 +619,9 @@
                                     $0, index == 0 ? nil : availability.targets[index - 1])
                             }
                         }), isInteractive: availability.isAvailable, haptics: value.haptics)
+                if let reason = availability.unavailableReason {
+                    Text(reason).font(MonitorTheme.font(9)).foregroundStyle(MonitorTheme.muted)
+                }
                 if conformTarget != nil {
                     Text(MonitorConformPreview.audioLabel).font(MonitorTheme.font(9))
                         .foregroundStyle(
@@ -592,8 +637,8 @@
             } label: {
                 MonitorPlaybackChip { MonitorIcon.maximize }
             }
-            .buttonStyle(MonitorButtonStyle()).accessibilityLabel("Hide playback controls")
-            .accessibilityHint("A restore control stays in the corner")
+            .buttonStyle(MonitorButtonStyle()).accessibilityLabel(MonitorPlaybackCopy.hideControls)
+            .accessibilityHint(MonitorPlaybackCopy.hideControlsHint)
         }
 
         private var restoreChromeButton: some View {
@@ -602,18 +647,20 @@
             } label: {
                 MonitorPlaybackChip { MonitorIcon.minimize }
             }
-            .buttonStyle(MonitorButtonStyle()).accessibilityLabel("Show playback controls")
+            .buttonStyle(MonitorButtonStyle()).accessibilityLabel(MonitorPlaybackCopy.showControls)
         }
 
         private func shareTransportButton(compact: Bool) -> some View {
             Button {
                 withItem { actions.share($0) }
             } label: {
-                MonitorPlaybackChip(title: compact ? nil : "SHARE", active: true) {
+                MonitorPlaybackChip(
+                    title: compact ? nil : MonitorPlaybackCopy.shareTitle, active: true
+                ) {
                     MonitorIcon.share
                 }
             }
-            .buttonStyle(MonitorButtonStyle()).accessibilityLabel("Share clip")
+            .buttonStyle(MonitorButtonStyle()).accessibilityLabel(MonitorPlaybackCopy.share)
             .disabled(!value.shareEnabled)
             .background {
                 GeometryReader { proxy in

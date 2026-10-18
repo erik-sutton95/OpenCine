@@ -39,10 +39,10 @@
                     }
                 }
                 .onChange(of: columns) { _, _ in host.captureDrum = nil }
-                .onChange(of: capabilities.focusMode) { _, on in
+                .onChange(of: controls.focus.isOffered) { _, on in
                     if !on, host.captureSheet == .focus { host.captureSheet = nil }
                 }
-                .onChange(of: capabilities.aperture) { _, on in
+                .onChange(of: controls.iris.isOffered) { _, on in
                     if !on, host.captureSheet == .aperture { host.captureSheet = nil }
                     if !on, host.captureDrum?.sheet == .aperture { host.captureDrum = nil }
                 }
@@ -56,15 +56,16 @@
             interfaceLocked || host.sessionLocked
         }
 
-        private var capabilities: CaptureSheetCapabilities { host.captureCapabilities }
+        /// The one capability model: which tiles the strip offers.
+        private var controls: ControlCapabilities { host.controlCapabilities }
 
         private var status: CameraStatus { host.cameraStatus }
 
-        private var showsAudio: Bool { capabilities.audio && !status.isPhoto }
+        private var showsAudio: Bool { controls.audio.isOffered && !status.isPhoto }
 
         private var visibleTileCount: Int {
-            4 + (capabilities.faceMetering ? 1 : 0) + (capabilities.focusMode ? 1 : 0)
-                + (capabilities.aperture ? 1 : 0) + (showsAudio ? 1 : 0)
+            4 + (controls.faceMetering.isOffered ? 1 : 0) + (controls.focus.isOffered ? 1 : 0)
+                + (controls.iris.isOffered ? 1 : 0) + (showsAudio ? 1 : 0)
         }
 
         private var gridColumns: Int { columns == 3 ? 3 : max(visibleTileCount, 1) }
@@ -73,12 +74,12 @@
             MonitorControlGrid(
                 columns: gridColumns, spacing: columns == 3 ? 8 : 12, equalColumns: columns == 3
             ) {
-                if !host.captureStripShowsPendingEdits || (status.isoIndex == .auto && capabilities.isoLimit) {
+                if !host.captureStripShowsPendingEdits || (status.isoIndex == .auto && controls.nativeISO.ceiling == true) {
                     tile(.iso, label: "ISO", value: isoValue, widest: "25600")
                 } else {
                     commonTile(.iso, key: .iso)
                 }
-                if status.expoMode == .auto {
+                if host.control.snapshot?.exposureProgram.value == .automatic {
                     tile(
                         .shutter,
                         label: MonitorExposureReadout.autoEvCaption(
@@ -102,10 +103,10 @@
                 } else {
                     tile(.wb, label: "WB", value: wbValue, widest: "10000K", valueIcon: wbIcon)
                 }
-                if capabilities.focusMode {
+                if controls.focus.isOffered {
                     tile(.focus, label: "FOCUS", value: focusValue, widest: "Showcase")
                 }
-                if capabilities.aperture {
+                if controls.iris.isOffered {
                     tile(
                         .aperture, label: "APERTURE", value: apertureValue, widest: "Starburst f/4")
                 }
@@ -121,7 +122,7 @@
         }
 
         @ViewBuilder private func commonTile(_ sheet: CaptureSheet, key: SettingKey) -> some View {
-            if let field = host.control.captureField(key) {
+            if let field = host.control.captureField(key, selection: readoutSelection) {
                 MonitorCaptureReadout(
                     control: host.control, field: field,
                     enabled: !tilesLocked
@@ -212,57 +213,61 @@
                 with: CaptureReadoutAdmission.opening(sheet, isPhoto: status.isPhoto))
         }
 
-        private var isoValue: String {
-            if status.isoIndex == .auto { return "Auto" }
-            let iso = status.iso
-            return iso > 0 ? "\(iso)" : (status.isoIndex?.label ?? "\u{2014}")
+        private var readoutSelection: MonitorCaptureSelection {
+            host.captureStripShowsPendingEdits ? .pending : .reported
         }
 
+        private func commonValue(_ key: SettingKey) -> String {
+            host.control.captureValue(key, selection: readoutSelection).map(MonitorCapturePresentation.label) ?? "--"
+        }
+
+        private var isoValue: String { commonValue(.iso) }
+
         private var shutterValue: String {
-            CaptureQuickSnapshot.shutterReadout(
-                status: status,
-                shutterUsesAngle: host.shutterUsesAngle,
-                shutterAngleDegrees: host.shutterAngleDegrees)
+            if !host.shutterUsesAngle || status.isPhoto { return commonValue(.shutter) }
+            // The same angle readout as the live strip: common shutter and reported cadence.
+            let shutter: ShutterValue?
+            if case .shutter(let value)? = host.control.captureValue(.shutter, selection: readoutSelection) {
+                shutter = value
+            } else { shutter = nil }
+            let rate: Rational?
+            if case .frameRate(let value)? = host.control.snapshot?.value(of: .frameRate).value { rate = value } else { rate = nil }
+            return CaptureNativeReadoutPresentation.shutterAngle(common: shutter, frameRate: rate,
+                available: CaptureLists.shutterDenoms(from: status), preferredAngle: host.shutterAngleDegrees)
         }
 
         private var evValue: String {
-            status.evComp?.label ?? "\u{2014}"
+            host.captureRouting.commonExposureCompensation ? commonValue(.exposureCompensation) : status.evComp?.label ?? "--"
         }
 
         private var wbIcon: MonitorIcon? {
-            host.displayStatus.whiteBalance?.mode == .custom ? nil : .aperture
+            if case .whiteBalance(.auto)? = host.control.captureValue(.whiteBalance, selection: readoutSelection) {
+                return host.autoWhiteBalanceLocked ? nil : .aperture
+            }
+            return nil
         }
 
         private var wbValue: String {
             if host.autoWhiteBalanceLocked { return CaptureLists.awbLockTile }
-            let wb = host.displayStatus
-            switch wb.whiteBalance?.mode {
-            case .custom:
-                let k = wb.whiteBalanceKelvin
-                return k > 0 ? "\(k)K" : "Custom"
-            case .auto:
-                return "Auto"
-            case nil:
-                return "\u{2014}"
-            }
+            return commonValue(.whiteBalance)
         }
 
         private var focusValue: String {
-            FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)?.chip
-                ?? "\u{2014}"
+            let commonFocus: OpenCineCore.FocusMode?
+            if case .focusMode(let value)? = host.control.captureValue(.focusMode, selection: readoutSelection) {
+                commonFocus = value
+            } else { commonFocus = nil }
+            return CaptureNativeReadoutPresentation.focus(common: commonFocus,
+                native: FocusOption.resolve(mode: status.focusMode, track: status.focusTrack))
         }
 
-        /// Live mechanical iris first; the requested strategy until `cam_expo_param` lands.
         private var apertureValue: String {
-            if let iris = status.irisHundredths {
-                return ApertureStrategy.fNumberLabel(hundredths: iris)
-            }
-            return status.apertureStrategy?.label ?? "\u{2014}"
+            commonValue(.aperture)
         }
 
         private var expoValue: String {
             if host.autoExposureLocked { return CaptureLists.aeLock }
-            return status.expoMode == .manual ? "M" : status.expoMode == .auto ? "A" : "\u{2014}"
+            return host.control.snapshot?.exposureProgram.value.map(MonitorCapturePresentation.exposureProgram) ?? "--"
         }
 
         private var audioValue: String {

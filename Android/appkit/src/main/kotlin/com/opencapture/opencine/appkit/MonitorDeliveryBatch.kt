@@ -62,35 +62,20 @@ public suspend fun <R> MonitorDeliveryModel.Companion.cacheOriginals(
     return MonitorDeliveryCachedOriginals(ready, uncached)
 }
 
-/** Ordered preparation within the existing admitted delivery run; no cache or IO owner is created. */
+/**
+ * Ordered preparation within the existing admitted delivery run; no cache or IO owner is created.
+ * Every app runs the one [MonitorDeliveryBatchPolicy].
+ */
 public suspend fun <R, A, H> MonitorDeliveryModel.Companion.runBatch(
     records: List<R>, destination: MonitorDeliveryDestination, action: MonitorDeliveryPostExportAction,
     admission: MonitorDeliveryAdmission, originals: MonitorDeliveryOriginalService<R>,
     exporter: MonitorDeliveryExportService<R, A>, share: ((List<A>) -> MonitorDeliveryShareFiles<A>)?,
-    photos: MonitorDeliveryPhotosService<A>?, upload: MonitorDeliveryUploadService<A>? = null,
+    photos: MonitorDeliveryPhotosService<A>?, photosAuthorization: MonitorDeliveryPhotosAuthorizationService? = null,
+    upload: MonitorDeliveryUploadService<A>? = null,
+    uploadHistory: MonitorDeliveryUploadHistory<R>? = null, reupload: Boolean = false,
     internet: MonitorDeliveryInternetService<H>? = null, initialLease: H? = null,
     filename: (R) -> String, artifactFilename: (A) -> String? = { null }, metadata: (List<R>) -> String? = { null },
     noPrepared: (List<R>) -> String? = { null },
-    policy: MonitorDeliveryBatchPolicy = MonitorDeliveryBatchPolicy(),
-    sleep: suspend (Long) -> Unit = { delay(it) }, progress: (MonitorDeliveryBatchProgress) -> Unit,
-): MonitorDeliveryBatchOutcome<A> {
-    return runBatch(
-        records = records, destination = destination, action = action, admission = admission,
-        originals = originals, exporter = exporter, share = share, photos = photos,
-        photosAuthorization = null, upload = upload, internet = internet, initialLease = initialLease,
-        filename = filename, artifactFilename = artifactFilename, metadata = metadata,
-        noPrepared = noPrepared, policy = policy, sleep = sleep, progress = progress)
-}
-
-public suspend fun <R, A, H> MonitorDeliveryModel.Companion.runBatch(
-    records: List<R>, destination: MonitorDeliveryDestination, action: MonitorDeliveryPostExportAction,
-    admission: MonitorDeliveryAdmission, originals: MonitorDeliveryOriginalService<R>,
-    exporter: MonitorDeliveryExportService<R, A>, share: ((List<A>) -> MonitorDeliveryShareFiles<A>)?,
-    photos: MonitorDeliveryPhotosService<A>?, photosAuthorization: MonitorDeliveryPhotosAuthorizationService?, upload: MonitorDeliveryUploadService<A>? = null,
-    internet: MonitorDeliveryInternetService<H>? = null, initialLease: H? = null,
-    filename: (R) -> String, artifactFilename: (A) -> String? = { null }, metadata: (List<R>) -> String? = { null },
-    noPrepared: (List<R>) -> String? = { null },
-    policy: MonitorDeliveryBatchPolicy = MonitorDeliveryBatchPolicy(),
     sleep: suspend (Long) -> Unit = { delay(it) }, progress: (MonitorDeliveryBatchProgress) -> Unit,
 ): MonitorDeliveryBatchOutcome<A> {
     val operationJob = currentCoroutineContext()[kotlinx.coroutines.Job]
@@ -116,12 +101,22 @@ public suspend fun <R, A, H> MonitorDeliveryModel.Companion.runBatch(
             photosAuthorization.authorize()
             if (!accepts()) return cancelled()
         }
-        val cached = cacheOriginals(records, destination, admission, originals, filename,
+        // Already uploaded records are skipped before any cache or export work (A2-53).
+        val deliverable = mutableListOf<R>()
+        var alreadyUploaded = 0
+        for (record in records) {
+            if (!accepts()) return cancelled()
+            if (destination == MonitorDeliveryDestination.REMOTE_UPLOAD && !reupload && uploadHistory != null &&
+                uploadHistory.wasUploaded(record)) alreadyUploaded += 1 else deliverable += record
+        }
+        if (!accepts()) return cancelled()
+        if (deliverable.isEmpty() && alreadyUploaded > 0) return MonitorDeliveryBatchOutcome.Uploaded("$alreadyUploaded skipped")
+        val cached = cacheOriginals(deliverable, destination, admission, originals, filename,
             upload?.progressCaption, sleep, progress) ?: return cancelled()
         val ready = cached.ready
         val uncached = cached.uncached
         if (ready.isEmpty()) return MonitorDeliveryBatchOutcome.Failed(
-            if (uncached > 0) policy.cacheFailure(uncached) else policy.emptySelection)
+            if (uncached > 0) MonitorDeliveryBatchPolicy.cacheFailure(uncached) else MonitorDeliveryBatchPolicy.EMPTY_SELECTION)
         if (destination == MonitorDeliveryDestination.REMOTE_UPLOAD) {
             if (upload == null) return MonitorDeliveryBatchOutcome.Failed("Upload is unavailable.")
             if (internet != null) {
@@ -129,7 +124,7 @@ public suspend fun <R, A, H> MonitorDeliveryModel.Companion.runBatch(
                 val needsHop = internet.needsHop()
                 if (!accepts()) return cancelled()
                 if (needsHop) {
-                    val next = lease ?: internet.begin()
+                    val next = lease ?: internet.begin() ?: return MonitorDeliveryBatchOutcome.Failed(MonitorDeliveryBatchPolicy.INTERNET_FAILURE)
                     lease = next
                     if (!accepts() || !internet.owns(next) || !accepts()) return cancelled()
                     var value = MonitorDeliveryBatchProgress(destination, ready.size, 1, 0.0,
@@ -141,12 +136,12 @@ public suspend fun <R, A, H> MonitorDeliveryModel.Companion.runBatch(
                     value = value.copy(isSwitchingNetworks = false, stage = MonitorDeliveryBatchProgress.Stage.PREPARING)
                     progress(value)
                     if (!accepts()) return cancelled()
-                    if (!online) return MonitorDeliveryBatchOutcome.Failed(policy.internetFailure)
+                    if (!online) return MonitorDeliveryBatchOutcome.Failed(MonitorDeliveryBatchPolicy.INTERNET_FAILURE)
                 }
             }
         }
         val prepared = mutableListOf<A>()
-        var uploaded = 0; var skipped = 0; var failed = 0; var firstFailure: String? = null
+        var uploaded = 0; var skipped = alreadyUploaded; var failed = 0; var firstFailure: String? = null
         for ((index, record) in ready.withIndex()) {
             if (!accepts()) return cancelled()
             var active = true
@@ -178,20 +173,19 @@ public suspend fun <R, A, H> MonitorDeliveryModel.Companion.runBatch(
                     } finally { uploading = false }
                     if (!accepts()) return cancelled()
                     uploaded += 1
+                    uploadHistory?.recordUploaded(record)
                 } else {
                     prepared += artifact; value = value.copy(clipFraction = 1.0); progress(value)
                 }
             } catch (failure: Throwable) {
                 active = false
                 if (!accepts() || failure is CancellationException) return cancelled()
-                if (destination == MonitorDeliveryDestination.NATIVE_SHARE && policy.behavior.nativeFailures == MonitorDeliveryItemFailurePolicy.STOP)
-                    return MonitorDeliveryBatchOutcome.Failed(failure.message ?: failure.toString())
                 failed += 1; if (firstFailure == null) firstFailure = failure.message ?: failure.toString()
             }
         }
         if (!accepts()) return cancelled()
         if (destination == MonitorDeliveryDestination.REMOTE_UPLOAD) {
-            if (policy.behavior.singleUploadFailureUsesDetail && ready.size == 1 && firstFailure != null) return MonitorDeliveryBatchOutcome.Failed(firstFailure)
+            if (ready.size == 1 && firstFailure != null) return MonitorDeliveryBatchOutcome.Failed(firstFailure)
             val parts = buildList {
                 if (uploaded > 0) add("$uploaded uploaded")
                 if (skipped > 0) add("$skipped skipped")
@@ -199,45 +193,36 @@ public suspend fun <R, A, H> MonitorDeliveryModel.Companion.runBatch(
                 if (failed > 0) add("$failed failed")
             }.joinToString(", ")
             if (failed > 0) return MonitorDeliveryBatchOutcome.Failed(parts)
-            if (uploaded == 0 && !policy.behavior.emptyUploadSucceeds) return MonitorDeliveryBatchOutcome.Failed(
-                if (skipped > 0) noPrepared(ready) ?: policy.noPrepared ?: policy.emptySelection else parts.ifEmpty { "Nothing to upload." })
             return MonitorDeliveryBatchOutcome.Uploaded(parts.ifEmpty { "Nothing to upload." })
         }
-        if (prepared.isEmpty()) return MonitorDeliveryBatchOutcome.Failed(firstFailure ?: noPrepared(ready) ?: policy.noPrepared ?: policy.emptySelection)
+        if (prepared.isEmpty()) return MonitorDeliveryBatchOutcome.Failed(firstFailure ?: noPrepared(ready) ?: MonitorDeliveryBatchPolicy.EMPTY_SELECTION)
         if (action == MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS) {
             if (photos == null) return MonitorDeliveryBatchOutcome.Failed("Saving to Photos is unavailable.")
-            val count = when (photos) {
-                is MonitorDeliveryPhotosService.Batch -> photos.save(prepared)
-                is MonitorDeliveryPhotosService.PerItem -> {
-                    var saved = 0; var rejected = 0
-                    for ((index, artifact) in prepared.withIndex()) {
-                        if (!accepts()) return cancelled()
-                        progress(MonitorDeliveryBatchProgress(destination, prepared.size, index + 1, 1.0,
-                            filename = artifactFilename(artifact), stage = MonitorDeliveryBatchProgress.Stage.SAVING))
-                        if (!accepts()) return cancelled()
-                        try {
-                            val accepted = photos.save(artifact)
-                            if (!accepts()) return cancelled()
-                            if (accepted) saved += 1 else rejected += 1
-                        } catch (failure: Throwable) {
-                            if (!accepts() || failure is CancellationException) return cancelled()
-                            if (policy.behavior.photosFailures == MonitorDeliveryItemFailurePolicy.STOP) throw failure
-                            rejected += 1
-                        }
-                    }
-                    val failure = policy.photosFailure(saved, rejected)
+            var saved = 0; var rejected = 0
+            for ((index, artifact) in prepared.withIndex()) {
+                if (!accepts()) return cancelled()
+                progress(MonitorDeliveryBatchProgress(destination, prepared.size, index + 1, 1.0,
+                    filename = artifactFilename(artifact), stage = MonitorDeliveryBatchProgress.Stage.SAVING))
+                if (!accepts()) return cancelled()
+                try {
+                    val accepted = photos.save(artifact)
                     if (!accepts()) return cancelled()
-                    if (failure != null) return MonitorDeliveryBatchOutcome.Failed(failure)
-                    saved
+                    if (accepted) saved += 1 else rejected += 1
+                } catch (failure: Throwable) {
+                    if (!accepts() || failure is CancellationException) return cancelled()
+                    rejected += 1
                 }
             }
+            if (!accepts()) return cancelled()
+            MonitorDeliveryBatchPolicy.photosFailure(saved, rejected)?.let { return MonitorDeliveryBatchOutcome.Failed(it) }
+            val count = saved
             if (!accepts()) return cancelled()
             return MonitorDeliveryBatchOutcome.SavedToPhotos(count)
         }
         if (share == null) return MonitorDeliveryBatchOutcome.Failed("Sharing is unavailable.")
         val staged = share(prepared)
         val text = if (accepts()) {
-            val note = policy.nativeSummary(MonitorDeliveryBatchCounts(prepared.size, uploaded, skipped, failed, uncached))
+            val note = MonitorDeliveryBatchPolicy.nativeSummary(MonitorDeliveryBatchCounts(prepared.size, uploaded, skipped, failed, uncached))
             val originalText = if (accepts()) metadata(ready) else null
             if (note == null) originalText else listOfNotNull(note, originalText).filter { it.isNotEmpty() }.joinToString("\n").ifEmpty { null }
         } else null

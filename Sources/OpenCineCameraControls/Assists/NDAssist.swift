@@ -34,7 +34,8 @@
         }
 
         public static func reading(from bundle: ScopeAssistBundle) -> MonitorNDFilterSuggestion? {
-            MonitorNDFilterRecommendation.reading(
+            guard bundle.levelAxis?.supportsCalibratedReferences != false else { return nil }
+            return MonitorNDFilterRecommendation.reading(
                 lumaHistogram: bundle.samples.histogramLuma, transfer: bundle.transfer,
                 noneLabel: noneLabel)
         }

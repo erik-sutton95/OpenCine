@@ -43,6 +43,21 @@ public enum ShutterAngle: Sendable {
             && (previousFps != nextFps || alreadyPending)
     }
 
+    /// What a format change owes a host-emulated angle: the degrees kept and the 1/N sent at the
+    /// new rate, or nil when no hidden write is due (`rematchesFormat`). The DJI and Luna sessions
+    /// on both platforms call this; none decides it inline.
+    public static func formatRematch(
+        degrees: Double, usesAngle: Bool, manual: Bool, isPhoto: Bool,
+        previousFps: Int, nextFps: Int, available: [Int], alreadyPending: Bool = false
+    ) -> (degrees: Double, denom: Int)? {
+        guard
+            rematchesFormat(
+                usesAngle: usesAngle, manual: manual, isPhoto: isPhoto,
+                previousFps: previousFps, nextFps: nextFps, alreadyPending: alreadyPending)
+        else { return nil }
+        return (degrees, denom(degrees: degrees, fps: nextFps, available: available))
+    }
+
     /// 1/N that produces this angle at `fps`. Clamped to the SET range.
     public static func denom(degrees: Double, fps: Int) -> Int {
         let angle = max(degrees, 0.1)

@@ -181,6 +181,32 @@ struct MonitorMediaDragSelectionTests {
         #expect(controller.up(childConsumed: false) == nil)
     }
 
+    @Test func aViewportResizeUnderAStillSweepScrollsOnlyOnceThePointerMoves() {
+        // Kotlin twin: MonitorMediaSelectionTest.aViewportResizeUnderAStillSweepScrollsOnlyOnceTheFingerMoves.
+        var controller = MonitorMediaSelectionController()
+        controller.bind(ids: ids, selecting: false, selected: [])
+        controller.down(id: "0", x: 10, y: 700, timeMilliseconds: 0)
+        _ = controller.holdDue(timeMilliseconds: 280)
+        #expect(controller.edgeVelocity(pointerY: 700, viewportHeight: 800) == 0)
+        // The selection tray shrinks the viewport to 720: the same still pointer now lies in its bottom band.
+        controller.viewportResized(pointerY: 700)
+        #expect(controller.edgeVelocity(pointerY: 700, viewportHeight: 720) == 0)
+        #expect(controller.edgeScroll(elapsed: 0.1, viewportHeight: 720) == 0)
+        // A sideways sweep along the row keeps the edge held.
+        _ = controller.move(id: "1", x: 200, y: 702)
+        #expect(controller.edgeVelocity(pointerY: 702, viewportHeight: 720) == 0)
+        #expect(controller.edgeScroll(elapsed: 0.1, viewportHeight: 720) == 0)
+        // The pointer itself moving towards the edge arms it again.
+        _ = controller.move(id: "1", x: 200, y: 712)
+        #expect(controller.edgeVelocity(pointerY: 712, viewportHeight: 720) > 0)
+        #expect(controller.edgeScroll(elapsed: 0.1, viewportHeight: 720) > 0)
+        // A new sweep starts armed: a still hold at the edge of an unchanged viewport scrolls.
+        _ = controller.up(childConsumed: false)
+        controller.down(id: "2", x: 10, y: 712, timeMilliseconds: 1_000)
+        _ = controller.holdDue(timeMilliseconds: 1_280)
+        #expect(controller.edgeVelocity(pointerY: 712, viewportHeight: 720) > 0)
+    }
+
     @Test func changedPolicyOrExternalSelectionExitRetiresAnActiveClock() {
         var controller = MonitorMediaSelectionController()
         controller.bind(ids: ids, selecting: true, selected: [])

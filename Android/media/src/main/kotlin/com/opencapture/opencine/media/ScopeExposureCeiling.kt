@@ -44,6 +44,7 @@ open class ScopeExposureCeiling(private val profile: ScopeClipProfile = ScopeCli
     private var iso: Int? = profile.defaultIso
     private val refined = HashMap<MonitorTransfer, Int>()
     private val observed = HashMap<Pair<MonitorTransfer, Int?>, Int>()
+    private val declared = HashMap<MonitorTransfer, Int>()
     private val lock = Any()
 
     fun setISO(value: Int) {
@@ -51,18 +52,28 @@ open class ScopeExposureCeiling(private val profile: ScopeClipProfile = ScopeCli
     }
     fun syncISO(value: Int) { if (value > 0) setISO(value) }
     fun resolvedISO(): Int? = synchronized(lock) { iso }
+    /**
+     * A clip the source states for [transfer] at its current settings (a camera's published
+     * overexposure warning code for its ISO), in place of measured calibration and tap history
+     * for that transfer. `null` withdraws it. [reset] clears it with the rest of the source's state.
+     */
+    fun declare(clipByte: Int?, transfer: MonitorTransfer) = synchronized(lock) {
+        if (clipByte == null) declared.remove(transfer) else declared[transfer] = clipByte.coerceIn(1, 255)
+    }
     fun reset() = synchronized(lock) {
         iso = profile.defaultIso
         refined.clear()
         observed.clear()
+        declared.clear()
     }
     override fun clipEncoded(transfer: MonitorTransfer, iso: Int?): Double = clipByte(transfer, iso) / 255.0
     override fun clipByte(transfer: MonitorTransfer, iso: Int?): Int = synchronized(lock) {
+        declared[transfer]?.let { return@synchronized it }
         val ei = iso?.takeIf { it > 0 } ?: this.iso
         maxOf(tableByte(transfer, ei), observed[transfer to ei] ?: 0)
     }
     fun observeTapMax(byte: Int, transfer: MonitorTransfer): Pair<Int, Boolean> = synchronized(lock) {
-        val calibration = profile.calibrations[transfer]
+        val calibration = profile.calibrations[transfer]?.takeIf { transfer !in declared }
             ?: return@synchronized clipByte(transfer) to false
         if (byte <= 0 || byte >= 255) return@synchronized clipByte(transfer) to false
         val ei = iso ?: calibration.referenceIso

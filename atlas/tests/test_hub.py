@@ -432,6 +432,23 @@ class Hub(AtlasCase):
                 self.assertEqual(sh(task / "OpenCine", "branch", "--show-current"), "issue/app-12")
             self.assertFalse((fresh_root / ".local" / "checkouts.json").exists(), "bootstrap stays in memory")
 
+    def test_registered_public_revision_is_not_rewound_to_a_stale_local_main(self):
+        app = self.ws / "App"
+        sh(app, "checkout", "-q", "-b", "published-tip", "main")
+        published = commit(app, {"README.md": "published app\n"}, "published update")
+        sh(app, "checkout", "-q", "main")
+        ref = {"name": "main", "commit": published, "role": "baseline"}
+        before = tree_digest(self.ws)
+        self.assertEqual(hub.ref_tip(app, ref), published)
+        self.assertEqual(sh(app, "rev-parse", "main"), self.app_main)
+        self.assertEqual(tree_digest(self.ws), before, "routing must not switch or update the checkout")
+
+    def test_current_descendant_tip_still_advances_a_registered_revision(self):
+        app = self.ws / "App"
+        advanced = commit(app, {"README.md": "new local app\n"}, "local update")
+        ref = {"name": "main", "commit": self.app_main, "role": "baseline"}
+        self.assertEqual(hub.ref_tip(app, ref), advanced)
+
     # -- graph build --all
     def test_graph_build_all_degrades_without_graphify(self):
         before = tree_digest(self.ws)

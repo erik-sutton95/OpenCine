@@ -53,7 +53,7 @@ fun monitorScaleToFitFactor(
 }
 
 @Composable
-private fun ScaleToFit(
+internal fun MonitorScaleToFit(
     minScale: Float,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
@@ -77,30 +77,35 @@ private fun ScaleToFit(
     }
 }
 
-/** A device glyph beside a battery-shaped outline with the percent inside; negative is unknown. */
+/**
+ * A device glyph beside a battery-shaped outline with the percent inside; negative is unknown.
+ * A camera that reports a coarse gauge passes [bars] of [barCount]: the outline holds the bars.
+ */
 @Composable
-fun MonitorBatteryOutlineRow(percent: Int, charging: Boolean, camera: Boolean) {
+fun MonitorBatteryOutlineRow(percent: Int, charging: Boolean, camera: Boolean, bars: Int? = null, barCount: Int = 5) {
+    val level = bars?.let { (it.toDouble() * 100 / barCount.coerceAtLeast(1)).toInt() } ?: percent
     val tint =
         when {
-            percent < 0 -> MonitorPalette.faint
-            percent <= 20 -> MonitorPalette.recording
-            percent <= 40 -> Color(0.914f, 0.674f, 0.208f)
+            level < 0 -> MonitorPalette.faint
+            level <= 20 -> MonitorPalette.recording
+            level <= 40 -> Color(0.914f, 0.674f, 0.208f)
             else -> Color(0.18f, 0.78f, 0.42f)
         }
     val readout = if (percent < 0) "\u2014" else "$percent"
     // Phone and camera are told apart only by the glyph, so both rows speak a
     // bare number without this. The dash for "unknown" reads as nothing.
     val source = if (camera) "Camera battery" else "Phone battery"
-    val level = if (percent < 0) "level unknown" else "$percent percent"
+    val spoken = bars?.let { "$it of $barCount bars" } ?: if (percent < 0) "level unknown" else "$percent percent"
     val power = if (charging) ", charging" else ""
     Row(
-        Modifier.clearAndSetSemantics { contentDescription = "$source $level$power" },
+        Modifier.clearAndSetSemantics { contentDescription = "$source $spoken$power" },
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         MonitorIcon(if (camera) MonitorIcon.CAMERA else MonitorIcon.SMARTPHONE, null, Modifier.size(10.dp),
             MonitorPalette.muted)
-        Box(Modifier.size(MONITOR_BATTERY_CELL_W_DP.dp, MONITOR_BATTERY_CELL_H_DP.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size((bars?.let { monitorGaugeReadoutWidth(it, barCount, MONITOR_BATTERY_CELL_W_DP,
+            if (charging) 13f else 6f) } ?: MONITOR_BATTERY_CELL_W_DP).dp, MONITOR_BATTERY_CELL_H_DP.dp), contentAlignment = Alignment.Center) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -108,13 +113,14 @@ fun MonitorBatteryOutlineRow(percent: Int, charging: Boolean, camera: Boolean) {
                     .clip(RoundedCornerShape(2.5.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                ScaleToFit(minScale = 0.65f, modifier = Modifier.fillMaxSize()) {
+                MonitorScaleToFit(minScale = if (bars != null && barCount > 10) 0.5f else 0.65f, modifier = Modifier.fillMaxSize()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(1.dp),
                     ) {
                         if (charging) MonitorIcon(MonitorIcon.ZAP, null, Modifier.size(7.dp), tint)
-                        Text(
+                        if (bars != null) MonitorGaugeBars(bars, barCount, tint)
+                        else Text(
                             readout,
                             color = tint,
                             style =

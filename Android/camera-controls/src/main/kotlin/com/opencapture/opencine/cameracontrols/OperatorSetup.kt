@@ -60,24 +60,11 @@ import com.opencapture.monitorui.MonitorWaveformMode
 import com.opencapture.monitorui.MonitorZebraUnit
 import com.opencapture.monitorui.MonitorJoystickSize
 import com.opencapture.monitorui.MonitorPalette
-import com.opencapture.monitorui.settings.MonitorAccountSettings
-import com.opencapture.monitorui.settings.MonitorAccountState
-import com.opencapture.monitorui.settings.MonitorAppInformationSettings
-import com.opencapture.monitorui.settings.MonitorCacheSettings
-import com.opencapture.monitorui.settings.MonitorConnectionSettings
-import com.opencapture.monitorui.settings.MonitorControllerSettings
-import com.opencapture.monitorui.settings.MonitorDiagnosticSettings
 import com.opencapture.monitorui.settings.MonitorExposureMeterSettings
-import com.opencapture.monitorui.settings.MonitorGimbalSettings
-import com.opencapture.monitorui.settings.MonitorJoystickSettings
-import com.opencapture.monitorui.settings.MonitorLinkHealthScale
 import com.opencapture.monitorui.settings.MonitorMotionChoiceSetting
 import com.opencapture.monitorui.settings.MonitorMotionIntegerSetting
 import com.opencapture.monitorui.settings.MonitorMotionToggleSetting
-import com.opencapture.monitorui.settings.MonitorOperatorSafetySettings
-import com.opencapture.monitorui.settings.MonitorProjectLegalSettings
-import com.opencapture.monitorui.settings.MonitorSavedCameraSettings
-import com.opencapture.monitorui.settings.MonitorSavedCameraSummary
+import com.opencapture.monitorui.settings.MonitorDisplayChoice
 import com.opencapture.monitorui.settings.MonitorSettingsActionPill
 import com.opencapture.monitorui.settings.MonitorSettingsColorDot
 import com.opencapture.monitorui.settings.MonitorSettingsColorDots
@@ -91,7 +78,8 @@ import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 import com.opencapture.monitorui.settings.MonitorSettingsTab
 import com.opencapture.monitorui.settings.MonitorSettingsValueSlider
 import com.opencapture.monitorui.settings.MonitorSettingsValueText
-import com.opencapture.monitorui.settings.MonitorSupportSettings
+import com.opencapture.monitorui.settings.MonitorViewAssistSettings
+import com.opencapture.monitorui.settings.MonitorAssistSettingsSection
 import com.opencapture.opencine.appkit.CamerasModel
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorDisplayChrome
@@ -99,11 +87,9 @@ import com.opencapture.opencine.appkit.MonitorDisplayMode
 import com.opencapture.opencine.appkit.MonitorDisplaySection
 import com.opencapture.opencine.appkit.diagnostics.FeedIncidentRuntime
 import com.opencapture.opencine.appkit.diagnostics.ManualProblemReport
-import com.opencapture.opencine.appkit.diagnostics.ManualProblemReportDialog
 import com.opencapture.opencine.appkit.diagnostics.settingsStatus
 import com.opencapture.opencine.appkit.diagnostics.ReliabilityReporting
 import com.opencapture.opencine.core.MonitorLayoutCapabilities
-import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.media.MonitorCrushClipCompensation
 import com.opencapture.opencine.media.MonitorDesqueezeDirection
 import com.opencapture.opencine.media.MonitorDesqueezePreset
@@ -116,11 +102,16 @@ import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.ConnectionPhase
 import com.opencapture.opencine.vocabulary.GamepadGimbalStick
 import com.opencapture.opencine.vocabulary.fromColorMode
+import com.opencapture.opencine.vocabulary.knownFromColorMode
+import com.opencapture.opencine.appkit.offered
 import kotlinx.coroutines.delay
 
 /** What Operator Setup reads and changes on the app's model; each app's AppModel implements it. */
 interface OperatorSetupModel : GamepadHost {
     var operatorSettingsTab: MonitorSettingsTab
+    /** Each settings tab's scroll offset (`MonitorOperatorSessionModel.settingsScrollOffsets`). */
+    val operatorSettingsScrollOffsets: Map<MonitorSettingsTab, Int>
+    fun noteOperatorSettingsScroll(tab: MonitorSettingsTab, offset: Int)
     var chromeEditorReturnMode: MonitorDisplayMode?
     val assist: MonitorAssistState
     val cameras: CamerasModel
@@ -140,6 +131,12 @@ interface OperatorSetupModel : GamepadHost {
     fun updateHdrDisplay(value: Boolean)
     fun updateCacheFullResolution(value: Boolean)
     fun updateRecordConfirmationEnabled(value: Boolean)
+    /**
+     * The stored remote shutter choice (A2-32), or null when the app offers no remote shutter. An app that
+     * offers it also installs [LocalMonitorRemoteShutter] and passes the choice to its live surface.
+     */
+    val remoteShutterEnabled: Boolean? get() = null
+    fun updateRemoteShutterEnabled(value: Boolean) {}
     fun updateHapticsEnabled(value: Boolean)
     fun updateGimbalStickSensitivity(value: Int)
     fun updateVirtualJoystickSize(value: MonitorJoystickSize)
@@ -164,12 +161,22 @@ class OperatorSetupState(
     val cameraFamily: String?,
     val layout: MonitorLayoutCapabilities,
     val lookProfile: com.opencapture.opencine.vocabulary.CameraLUTProfile? = null,
+    /**
+     * The shell presents a monitor (Swift `shell.monitor != nil`). What arranges that monitor
+     * follows it; what reports the link (transport, health) follows [phase].
+     */
+    val monitorPresented: Boolean,
 )
+
+/**
+ * Display's Edit view: it arranges the presented monitor, so it is offered whenever one is
+ * presented, whatever the link phase (Swift `MonitorOperatorSettingsScreen.editChrome`).
+ */
+internal fun OperatorSetupState.chromeEdit(begin: (MonitorDisplayMode) -> Unit): ((MonitorDisplayMode) -> Unit)? =
+    if (monitorPresented) begin else null
 
 /** The decoder and link counters the Link Health tile samples twice a second. */
 class OperatorLinkSample(val framesEnqueued: Int, val lastPresentedAt: Long?, val videoPackets: Int, val hasVideoFormat: Boolean)
-
-enum class OperatorLegalPage { PRIVACY, LICENSES, NOTICE }
 
 /** The App Information card: what the app is and how it talks to the camera. */
 class OperatorAppInformation(
@@ -189,8 +196,6 @@ class OperatorDiagnostics(
     val incidents: FeedIncidentRuntime,
     val diagnosticText: () -> String,
     val shareReport: (Context) -> Unit,
-    /** The report form's action pills: full touch targets or main's capsule size. */
-    val reportActionMinimumTouchTarget: Boolean,
 )
 
 /** The app's part of Operator Setup: its name, copy, links, stores and pages. */
@@ -199,19 +204,29 @@ class OperatorSetupApp(
     val help: OperatorHelpCopy,
     val prefs: OperatorPreferenceStore,
     val assistHost: AssistHost,
-    val mediaCache: OperatorMediaCacheDirs,
-    val clearMediaCache: (Context) -> Unit,
+    /** Legacy cache directories, read only when [cacheSource] is null. */
+    val mediaCache: OperatorMediaCacheDirs? = null,
+    val clearMediaCache: ((Context) -> Unit)? = null,
     val upscalers: List<String>,
     val upscaler: (Context) -> String,
     val setUpscaler: (Context, String) -> Unit,
     val linkSample: () -> OperatorLinkSample,
     val information: OperatorAppInformation,
     val sourceUrl: String,
-    val termsUrl: String,
     val diagnostics: OperatorDiagnostics,
-    val legalPage: @Composable (OperatorLegalPage, () -> Unit) -> Unit,
+    /**
+     * Opens the app root's problem report (Swift `MonitorSettingsSupportSource.report`, A2-24): the
+     * draft lives with the root, so it outlives the camera session ending and this page closing.
+     */
+    val reportProblem: () -> Unit,
+    /** Privacy, terms, licenses and NOTICE, in Settings and wherever the app links privacy. */
+    val legal: MonitorLegalDocuments,
     val lutPicker: @Composable (() -> Unit) -> Unit,
-    /** Captured existing cache IO; no page or storage policy is supplied by the app. */
+    /**
+     * Captured existing cache IO; no page or storage policy is supplied by the app. An app whose gallery
+     * runs on a shared library passes [monitorSettingsCacheSource] over it, so Settings counts and
+     * clears what the gallery writes.
+     */
     val cacheSource: (@Composable (Context) -> com.opencapture.opencine.appkit.MonitorSettingsCacheSource)? = null,
 )
 
@@ -222,7 +237,7 @@ fun toggledCleanPins(prefs: OperatorPreferenceStore, current: Set<String>, toolK
 }
 
 fun resetDispChrome(model: OperatorSetupModel, mode: MonitorDisplayMode) {
-    val defaults = if (mode == MonitorDisplayMode.LIVE) MonitorDisplayChrome.liveDefaults else MonitorDisplayChrome.cleanDefaults
+    val defaults = MonitorDisplayChrome.defaults(mode)
     MonitorDisplaySection.entries.forEach { section ->
         if (model.chrome(mode).isVisible(section) != defaults.isVisible(section)) model.toggleChrome(section, mode)
     }
@@ -267,66 +282,115 @@ fun OperatorSetupScreen(model: OperatorSetupModel, state: OperatorSetupState, ap
         model.chromeEditorReturnMode = null
     }
 
-    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(
-        brand = app.wordmark, selection = model.operatorSettingsTab,
-        onSelect = { model.operatorSettingsTab = it },
-        isLive = isLive, phase = phaseLabel, close = onClose, disconnect = model::disconnect,
-        feedback = { operatorHaptic(view, model.hapticsEnabled) },
-        source = MonitorOperatorSettingsSource.Deployed(model, state, app, bars),
-    ))
+    val configuration = operatorSetupConfiguration(model, state, app, isLive, phaseLabel, bars, onClose,
+        feedback = { operatorHaptic(view, model.hapticsEnabled) }, report = app.reportProblem)
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, model.operatorSettingsTab,
+        { model.operatorSettingsTab = it }, MonitorOperatorPictureSettings.Deployed(model, state, app),
+        scrollOffsets = model.operatorSettingsScrollOffsets, onScroll = model::noteOperatorSettingsScroll))
 }
 
+/** The deployed apps' settings as one configuration over their model: the same recipe every app builds. */
 @Composable
-internal fun LinkRows(
+private fun operatorSetupConfiguration(
     model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp,
-    isLive: Boolean, phaseLabel: String, bars: Int,
-) {
-    MonitorLinkHealthScale(
-        title = "Link Health",
-        caption = OperatorLinkHealth.caption(isLive, bars),
-        score = OperatorLinkHealth.score(bars),
-    )
-    MonitorConnectionSettings(
-        transport = if (isLive) "BLE + Wi-Fi active" else "Not connected",
-        transportHelp = app.help.CURRENT_TRANSPORT,
-        phase = phaseLabel, phaseHelp = app.help.PHASE,
-        network = state.network?.takeIf { it.isNotEmpty() },
-        networkHelp = app.help.CAMERA_WIFI,
-    )
-    if (app.upscalers.size > 1) {
-        val context = LocalContext.current
-        var upscaler by remember { mutableStateOf(app.upscaler(context)) }
-        MonitorSettingsRowCard(title = "Processing") {
-            MonitorSettingsInlineRow("Feed Upscaler", app.help.FEED_UPSCALER, showTopDivider = false) {
-                MonitorSettingsSegmented(
-                    options = app.upscalers,
-                    selected = upscaler,
-                    compact = true,
-                    fillWidth = false,
-                ) { label ->
-                    upscaler = label
-                    app.setUpscaler(context, label)
-                }
-            }
-        }
-    }
+    isLive: Boolean, phaseLabel: String, bars: Int, onClose: () -> Unit,
+    feedback: () -> Unit, report: () -> Unit,
+): MonitorOperatorSettingsConfiguration {
+    val context = LocalContext.current
+    val diagnostics = app.diagnostics
+    var upscaler by remember { mutableStateOf(app.upscaler(context)) }
+    var gimbalGamepadStick by remember { mutableStateOf(app.prefs.gimbalGamepadStick(context)) }
+    var reliabilityOptIn by remember { mutableStateOf(diagnostics.reporting.isOptedIn) }
+    val reportSnapshot by diagnostics.manualReport.snapshot.collectAsState()
     val saved = model.cameras.state.collectAsState().value.saved
-    MonitorSavedCameraSettings(cameras = saved.map { camera ->
-        val network = camera.routes.firstOrNull { it.kind == RouteKind.CAMERA_ACCESS_POINT }?.network
-        MonitorSavedCameraSummary(camera.id, camera.displayName, camera.model + (network?.let { " · $it" } ?: ""), network)
-    }, emptyHelp = app.help.SAVED_CAMERAS)
-}
-
-@Composable
-internal fun SharingRows() {
-    MonitorSettingsRowCard {
-        Text(
-            "Coming soon...",
-            style = LiveType.ui(15f, FontWeight.Medium),
-            color = LiveDesign.muted,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 2.dp),
+    val cacheSource = app.cacheSource?.invoke(context) ?: run {
+        val dirs = requireNotNull(app.mediaCache) { "Operator Setup needs a cache source or the legacy cache directories" }
+        val clear = requireNotNull(app.clearMediaCache) { "Legacy cache directories need their clear action" }
+        com.opencapture.opencine.appkit.MonitorSettingsCacheSource(
+            com.opencapture.opencine.appkit.MonitorSettingsCacheIdentity(dirs.candidates(context).first().absolutePath, null),
+            0L, isCurrent = { true },
+            count = { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dirs.byteCount(context) } },
+            clear = { clear(context) },
         )
     }
+    fun <T> changed(next: T, current: T, apply: (T) -> Unit) {
+        if (next != current) { feedback(); apply(next) }
+    }
+    val gimbal = state.layout.gimbal
+    val information = app.information
+    return MonitorOperatorSettingsConfiguration(
+        brand = app.wordmark, isLive = isLive, phase = phaseLabel, close = onClose, disconnect = model::disconnect,
+        feedback = feedback,
+        link = MonitorSettingsLinkSource(
+            transport = if (isLive) "BLE + Wi-Fi active" else "Not connected", transportHelp = app.help.CURRENT_TRANSPORT,
+            phase = phaseLabel, phaseHelp = app.help.PHASE, healthTitle = "Link Health",
+            healthCaption = OperatorLinkHealth.caption(isLive, bars), score = OperatorLinkHealth.score(bars),
+            processingTitle = "Processing",
+            processingChoices = if (app.upscalers.size > 1) listOf(MonitorSettingsChoiceSource("Feed Upscaler",
+                app.help.FEED_UPSCALER, app.upscalers.map { MonitorDisplayChoice(it, it) }, upscaler,
+                select = { label -> upscaler = label; app.setUpscaler(context, label) }, segmented = true)) else emptyList(),
+            network = state.network, networkHelp = app.help.CAMERA_WIFI,
+            savedCameras = monitorSavedCameraSummaries(saved), savedCamerasHelp = app.help.SAVED_CAMERAS,
+        ),
+        sharing = null, sharingSubtitle = null, sharingRail = null,
+        controls = MonitorSettingsControlsSource(
+            model.recordConfirmationEnabled, model::updateRecordConfirmationEnabled,
+            model.hapticsEnabled, model::updateHapticsEnabled, model.keepScreenAwake, model::updateKeepScreenAwake,
+            keepAwakeHelp = app.help.KEEP_SCREEN_AWAKE, hapticsHelp = app.help.HAPTICS,
+            shutter = model.remoteShutterEnabled?.let { MonitorSettingsRemoteShutter.mediaButtons(it, model::updateRemoteShutterEnabled) },
+            motion = MonitorSettingsMotionSource(
+                sensitivity = if (!gimbal) null else MonitorMotionIntegerSetting(model.gimbalStickSensitivity, 1..5,
+                    app.help.JOYSTICK_SENSITIVITY) { changed(it, model.gimbalStickSensitivity, model::updateGimbalStickSensitivity) },
+                joystick = if (!gimbal) null else MonitorSettingsJoystickSource(
+                    size = MonitorMotionChoiceSetting(MonitorJoystickSize.entries.map { it.label },
+                        model.virtualJoystickSize.label, app.help.VIRTUAL_JOYSTICK_SIZE) { label ->
+                        changed(MonitorJoystickSize.fromLabel(label), model.virtualJoystickSize, model::updateVirtualJoystickSize)
+                    },
+                    invertPan = MonitorMotionToggleSetting(model.virtualJoystickInvertPan,
+                        app.help.VIRTUAL_JOYSTICK_INVERT_PAN) { feedback(); model.updateVirtualJoystickInvertPan(it) },
+                    invertTilt = MonitorMotionToggleSetting(model.virtualJoystickInvertTilt,
+                        app.help.VIRTUAL_JOYSTICK_INVERT_TILT) { feedback(); model.updateVirtualJoystickInvertTilt(it) },
+                    deadZone = MonitorMotionIntegerSetting(model.virtualJoystickDeadzonePercent, 0..25,
+                        app.help.VIRTUAL_JOYSTICK_DEADZONE, suffix = "%") {
+                        changed(it, model.virtualJoystickDeadzonePercent, model::updateVirtualJoystickDeadzonePercent)
+                    },
+                    response = MonitorMotionChoiceSetting(CameraCommands.VirtualJoystickCurve.entries.map { it.label },
+                        model.virtualJoystickResponseCurve.label, app.help.VIRTUAL_JOYSTICK_RESPONSE) { label ->
+                        changed(CameraCommands.VirtualJoystickCurve.fromLabel(label), model.virtualJoystickResponseCurve,
+                            model::updateVirtualJoystickResponseCurve)
+                    },
+                    identifier = "gimbal.virtual",
+                ),
+                controller = MonitorMotionChoiceSetting(GamepadGimbalStick.entries.map { it.label },
+                    gimbalGamepadStick.label, app.help.GIMBAL_JOYSTICK) { label ->
+                    changed(GamepadGimbalStick.fromLabel(label), gimbalGamepadStick) { next ->
+                        app.prefs.setGimbalGamepadStick(context, next)
+                        gimbalGamepadStick = next
+                        model.gimbalGamepad.noteStickSelectionChanged(model)
+                    }
+                },
+                controllerStatus = if (model.gamepadConnected) "Connected" else "Not connected",
+                controllerHelp = app.help.GAMEPAD,
+            ),
+        ),
+        cache = MonitorSettingsCachePresentation(cacheSource, formatBytes = ::formatCacheSize,
+            scopeHelp = app.help.LOCAL_CACHE, clearHelp = app.help.CLEAR_CACHE,
+            cacheOriginals = model.cacheFullResolution, setCacheOriginals = model::updateCacheFullResolution,
+            cacheHelp = app.help.CACHE_FULL_RESOLUTION),
+        unconfiguredAccount = MonitorSettingsReadoutSource("Frame.io", app.help.FRAME_IO, null),
+        support = MonitorSettingsSupportSource(report = report,
+            automaticReports = reliabilityOptIn, available = diagnostics.reporting.isAvailable,
+            automaticHelp = app.help.RELIABILITY_REPORTS, unavailableHelp = app.help.RELIABILITY_UNAVAILABLE,
+            setAutomaticReports = { reliabilityOptIn = it; diagnostics.reporting.setConsent(it) },
+            status = reportSnapshot.settingsStatus,
+            discard = if (reportSnapshot.allowsDiscard) ({ diagnostics.manualReport.discard() }) else null,
+            sourceUrl = app.sourceUrl, sourceHelp = app.help.SOURCE, termsHelp = information.termsHelp),
+        diagnostics = MonitorSettingsDiagnosticsSource(save = { diagnostics.shareReport(context) },
+            incidents = diagnostics.incidents),
+        legal = app.legal,
+        information = MonitorSettingsInformationSource(information.theme, information.protocol, information.version,
+            information.themeHelp, information.protocolHelp, information.versionHelp),
+    )
 }
 
 // View Assist: main's cards (two columns in landscape), on the settings controls.
@@ -336,7 +400,12 @@ internal fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, ap
     val assist = model.assist
     val colorMode = state.colorMode
     val transfer = MonitorTransfer.fromColorMode(colorMode)
-    @Composable fun card(tool: MonitorAssistTool) = OperatorAssistCard(tool, assist, app.help, app.assistHost, transfer)
+    val sourceTransfer = MonitorTransfer.knownFromColorMode(colorMode)
+    @Composable fun card(tool: MonitorAssistTool) {
+        val unavailable = assistCardUnavailableMessage(tool, sourceTransfer)
+        if (unavailable != null) MonitorViewAssistSettings(listOf(MonitorAssistSettingsSection.Unavailable(tool, unavailable)))
+        else OperatorAssistCard(tool, assist, app.help, app.assistHost, transfer)
+    }
     if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA, MonitorAssistTool.WAVE, MonitorAssistTool.PARADE,
@@ -387,35 +456,47 @@ internal fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, ap
     }
 }
 
-/** One of main's eight View Assist cards, tagged `settings.assist.<name>`. */
+/**
+ * One of main's eight View Assist cards, tagged `settings.assist.<name>`. Its reset follows [resetPolicy];
+ * [changed] runs after every edit and reset (the host's haptic, or nothing).
+ */
 @Composable
-fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer) {
+fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help: OperatorHelpCopy,
+    host: AssistHost, transfer: MonitorTransfer) =
+    OperatorAssistCard(tool, assist, help, host, transfer, MonitorOperatorAssistResetPolicy.ALL_OPTIONS, {})
+
+/** Optional reset policy and host action; the original five-argument entry remains available. */
+@Composable
+fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer,
+    resetPolicy: MonitorOperatorAssistResetPolicy, changed: () -> Unit) {
     val ceiling = host.scopeCeiling(assist)
+    val reset = { resetPolicy.reset(assist, tool); changed() }
     val (tag, card) = when (tool) {
-        MonitorAssistTool.FALSE -> "falseColor" to @Composable { FalseColorAssistCard(assist, help, transfer, ceiling) }
-        MonitorAssistTool.ZEBRA -> "zebra" to @Composable { ZebraAssistCard(assist, help, host, transfer, ceiling) }
-        MonitorAssistTool.WAVE -> "waveform" to @Composable { WaveformAssistCard(assist, help) }
-        MonitorAssistTool.PARADE -> "parade" to @Composable { ParadeAssistCard(assist, help) }
-        MonitorAssistTool.HISTO -> "histogram" to @Composable { HistogramAssistCard(assist) }
-        MonitorAssistTool.VECTOR -> "vectorscope" to @Composable { VectorscopeAssistCard(assist, help) }
-        MonitorAssistTool.PEAK -> "peaking" to @Composable { PeakingAssistCard(assist, help, host) }
-        MonitorAssistTool.LIGHTS -> "trafficLights" to @Composable { TrafficLightsAssistCard(assist, help) }
+        MonitorAssistTool.FALSE -> "falseColor" to @Composable { FalseColorAssistCard(assist, help, transfer, ceiling, reset, changed) }
+        MonitorAssistTool.ZEBRA -> "zebra" to @Composable { ZebraAssistCard(assist, help, host, transfer, ceiling, reset, changed) }
+        MonitorAssistTool.WAVE -> "waveform" to @Composable { WaveformAssistCard(assist, help, reset, changed) }
+        MonitorAssistTool.PARADE -> "parade" to @Composable { ParadeAssistCard(assist, help, reset, changed) }
+        MonitorAssistTool.HISTO -> "histogram" to @Composable { HistogramAssistCard(assist, reset, changed) }
+        MonitorAssistTool.VECTOR -> "vectorscope" to @Composable { VectorscopeAssistCard(assist, help, reset, changed) }
+        MonitorAssistTool.PEAK -> "peaking" to @Composable { PeakingAssistCard(assist, help, host, reset, changed) }
+        MonitorAssistTool.LIGHTS -> "trafficLights" to @Composable { TrafficLightsAssistCard(assist, help, reset, changed) }
         else -> return
     }
     Box(Modifier.testTag("settings.assist.$tag")) { card() }
 }
 
 @Composable
-private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
+private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, transfer: MonitorTransfer, ceiling: ScopeClipSource,
+    reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "False Color",
-        onReset = { assist.resetSettings(MonitorAssistTool.FALSE) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Scale", help.FALSE_COLOR_SCALE, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(
                 options = listOf("CineStop", "Video", "IRE", "Limits"),
                 selected = assist.falseColorScale.menuLabel,
-            ) { label -> assist.setFalseColor(scale = MonitorFalseColorSelection.fromMenuLabel(label)) }
+            ) { label -> assist.setFalseColor(scale = MonitorFalseColorSelection.fromMenuLabel(label)); changed() }
         }
         MonitorSettingsInlineRow(title = "Reference key", stacked = true) {
             FalseColorKey(assist.falseColorScale, transfer, ceiling)
@@ -425,7 +506,7 @@ private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpC
             isOn = assist.falseColorReference,
             help = help.FALSE_COLOR_REFERENCE,
             stacked = true,
-        ) { assist.setFalseColor(reference = !assist.falseColorReference) }
+        ) { assist.setFalseColor(reference = !assist.falseColorReference); changed() }
     }
 }
 
@@ -466,34 +547,35 @@ private fun FalseColorKey(scale: MonitorFalseColorSelection, transfer: MonitorTr
 }
 
 @Composable
-private fun PeakingAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost) {
+private fun PeakingAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Peaking",
-        onReset = { assist.resetSettings(MonitorAssistTool.PEAK) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Sensitivity", help.PEAKING_SENSITIVITY, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(
                 options = MonitorPeakingSense.entries.map { it.label },
                 selected = assist.peakingSensitivity.label,
-            ) { label -> assist.setPeaking(sense = MonitorPeakingSense.fromPersisted(label)) }
+            ) { label -> assist.setPeaking(sense = MonitorPeakingSense.fromPersisted(label)); changed() }
         }
         MonitorSettingsInlineRow("Color", help.PEAKING_COLOR, stacked = true) {
             MonitorSettingsColorDots(dots = host.peakingColors, selectedName = assist.peakingColor.label) { name ->
-                assist.setPeaking(color = MonitorPeakingColor.fromPersisted(name))
+                assist.setPeaking(color = MonitorPeakingColor.fromPersisted(name)); changed()
             }
         }
     }
 }
 
 @Composable
-private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
+private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer, ceiling: ScopeClipSource,
+    reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Zebra",
-        onReset = { assist.resetSettings(MonitorAssistTool.ZEBRA) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Units", help.ZEBRA_UNITS, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = listOf("0-255", "IRE"), selected = assist.zebraUnit.editorLabel) { label ->
-                assist.updateZebraUnit(MonitorZebraUnit.fromEditorLabel(label))
+                assist.updateZebraUnit(MonitorZebraUnit.fromEditorLabel(label)); changed()
             }
         }
         val maximum = ZebraEditor.editorMaximum(assist.zebraUnit)
@@ -505,9 +587,9 @@ private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, 
             maximum = maximum,
             selectedColor = assist.zebraHighlightColor.label,
             palette = host.highlightColors,
-            onEnabled = { assist.setZebraHighlight(enabled = !assist.zebraHighlight) },
-            onValue = { assist.setZebraHighlight(ire = ZebraEditor.ireFromDisplay(it, assist.zebraUnit, transfer, ceiling)) },
-            onColor = { assist.setZebraHighlight(color = MonitorZebraPaint.fromPersisted(it)) },
+            onEnabled = { assist.setZebraHighlight(enabled = !assist.zebraHighlight); changed() },
+            onValue = { assist.setZebraHighlight(ire = ZebraEditor.ireFromDisplay(it, assist.zebraUnit, transfer, ceiling)); changed() },
+            onColor = { assist.setZebraHighlight(color = MonitorZebraPaint.fromPersisted(it)); changed() },
         )
         ZebraZoneRow(
             title = "Midtone",
@@ -517,9 +599,9 @@ private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, 
             maximum = maximum,
             selectedColor = assist.zebraMidtoneColor.label,
             palette = host.midtoneColors,
-            onEnabled = { assist.setZebraMidtone(enabled = !assist.zebraMidtone) },
-            onValue = { assist.setZebraMidtone(ire = ZebraEditor.ireFromDisplay(it, assist.zebraUnit, transfer, ceiling)) },
-            onColor = { assist.setZebraMidtone(color = MonitorZebraPaint.fromPersisted(it)) },
+            onEnabled = { assist.setZebraMidtone(enabled = !assist.zebraMidtone); changed() },
+            onValue = { assist.setZebraMidtone(ire = ZebraEditor.ireFromDisplay(it, assist.zebraUnit, transfer, ceiling)); changed() },
+            onColor = { assist.setZebraMidtone(color = MonitorZebraPaint.fromPersisted(it)); changed() },
         )
     }
 }
@@ -556,46 +638,46 @@ private fun ZebraZoneRow(
 }
 
 @Composable
-private fun WaveformAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
+private fun WaveformAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Waveform",
-        onReset = { assist.resetSettings(MonitorAssistTool.WAVE) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Mode", showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorWaveformMode.entries.map { it.label }, selected = assist.waveMode.label) { label ->
-                assist.setWaveform(mode = MonitorWaveformMode.fromPersisted(label))
+                assist.setWaveform(mode = MonitorWaveformMode.fromPersisted(label)); changed()
             }
         }
         MonitorSettingsInlineRow("Brightness", help.WAVEFORM_BRIGHTNESS, stacked = true) {
-            MonitorSettingsPercentSlider(value = assist.waveBrightness, range = 0..200) { assist.setWaveform(brightness = it) }
+            MonitorSettingsPercentSlider(value = assist.waveBrightness, range = 0..200) { assist.setWaveform(brightness = it); changed() }
         }
-        ScopeGuideRows(assist.waveGuides) { assist.setWaveform(guides = it) }
+        ScopeGuideRows(assist.waveGuides) { assist.setWaveform(guides = it); changed() }
     }
 }
 
 @Composable
-private fun ParadeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
+private fun ParadeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Parade",
-        onReset = { assist.resetSettings(MonitorAssistTool.PARADE) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Mode", showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorParadeMode.entries.map { it.label }, selected = assist.paradeMode.label) { label ->
-                assist.setParade(mode = MonitorParadeMode.fromPersisted(label))
+                assist.setParade(mode = MonitorParadeMode.fromPersisted(label)); changed()
             }
         }
         MonitorSettingsInlineRow("Brightness", help.PARADE_BRIGHTNESS, stacked = true) {
-            MonitorSettingsPercentSlider(value = assist.paradeBrightness, range = 0..200) { assist.setParade(brightness = it) }
+            MonitorSettingsPercentSlider(value = assist.paradeBrightness, range = 0..200) { assist.setParade(brightness = it); changed() }
         }
-        ScopeGuideRows(assist.paradeGuides) { assist.setParade(guides = it) }
+        ScopeGuideRows(assist.paradeGuides) { assist.setParade(guides = it); changed() }
     }
 }
 
 @Composable
-private fun HistogramAssistCard(assist: MonitorAssistState) {
+private fun HistogramAssistCard(assist: MonitorAssistState, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Histogram",
-        onReset = { assist.resetSettings(MonitorAssistTool.HISTO) },
+        onReset = reset,
     ) {
         MonitorSettingsSwitchInlineRow(
             title = HistogramAssist.TRAFFIC_LIGHTS_TITLE,
@@ -603,39 +685,39 @@ private fun HistogramAssistCard(assist: MonitorAssistState) {
             help = HistogramAssist.TRAFFIC_LIGHTS_HELP,
             showTopDivider = false,
             stacked = true,
-        ) { assist.setHistogram(traffic = !assist.histoTrafficLights) }
+        ) { assist.setHistogram(traffic = !assist.histoTrafficLights); changed() }
         MonitorSettingsInlineRow(title = HistogramAssist.COMPENSATION_TITLE, help = HistogramAssist.COMPENSATION_HELP, stacked = true) {
-            CrushClipControl(assist.crushClipCompensation) { assist.setHistogram(compensation = it) }
+            CrushClipControl(assist.crushClipCompensation) { assist.setHistogram(compensation = it); changed() }
         }
     }
 }
 
 @Composable
-private fun VectorscopeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
+private fun VectorscopeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Vectorscope",
-        onReset = { assist.resetSettings(MonitorAssistTool.VECTOR) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Trace Zoom", help.VECTORSCOPE_ZOOM, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorVectorscopeZoom.entries.map { it.label }, selected = assist.vectorZoom.label) { label ->
-                assist.setVectorscope(zoom = MonitorVectorscopeZoom.fromPersisted(label))
+                assist.setVectorscope(zoom = MonitorVectorscopeZoom.fromPersisted(label)); changed()
             }
         }
         MonitorSettingsInlineRow("Brightness", help.VECTORSCOPE_BRIGHTNESS, stacked = true) {
-            MonitorSettingsPercentSlider(value = assist.vectorBrightness, range = 0..200) { assist.setVectorscope(brightness = it) }
+            MonitorSettingsPercentSlider(value = assist.vectorBrightness, range = 0..200) { assist.setVectorscope(brightness = it); changed() }
         }
     }
 }
 
 @Composable
-private fun TrafficLightsAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
-    MonitorSettingsRowCard(title = "Traffic Lights", onReset = { assist.resetSettings(MonitorAssistTool.LIGHTS) }) {
+private fun TrafficLightsAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, reset: () -> Unit, changed: () -> Unit) {
+    MonitorSettingsRowCard(title = "Traffic Lights", onReset = reset) {
         MonitorSettingsInlineRow(
             title = HistogramAssist.COMPENSATION_TITLE,
             help = help.TRAFFIC_LIGHTS_COMPENSATION,
             showTopDivider = false,
             stacked = true,
-        ) { CrushClipControl(assist.crushClipCompensation) { assist.setCompensation(it) } }
+        ) { CrushClipControl(assist.crushClipCompensation) { assist.setCompensation(it); changed() } }
     }
 }
 
@@ -654,86 +736,11 @@ private fun ScopeGuideRows(guides: MonitorScopeGuides, onChange: (MonitorScopeGu
     MonitorSettingsSwitchInlineRow("Middle Gray", isOn = guides.middle, stacked = true) { onChange(guides.copy(middle = !guides.middle)) }
 }
 
-@Composable
-internal fun ControlsRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp) {
-    val view = LocalView.current
-    val context = LocalContext.current
-    var gimbalGamepadStick by remember { mutableStateOf(app.prefs.gimbalGamepadStick(context)) }
-    MonitorOperatorSafetySettings(
-        recordConfirmation = model.recordConfirmationEnabled, haptics = model.hapticsEnabled,
-        keepScreenAwake = model.keepScreenAwake,
-        onRecordConfirmation = model::updateRecordConfirmationEnabled,
-        onHaptics = model::updateHapticsEnabled, onKeepScreenAwake = model::updateKeepScreenAwake,
-        hapticsHelp = app.help.HAPTICS, keepScreenAwakeHelp = app.help.KEEP_SCREEN_AWAKE,
-        feedback = { operatorHaptic(view, model.hapticsEnabled) },
-    )
-    if (state.layout.gimbal) {
-        MonitorGimbalSettings(sensitivity = MonitorMotionIntegerSetting(
-            value = model.gimbalStickSensitivity, range = 1..5, help = app.help.JOYSTICK_SENSITIVITY,
-        ) { next ->
-            if (next != model.gimbalStickSensitivity) {
-                operatorHaptic(view, model.hapticsEnabled)
-                model.updateGimbalStickSensitivity(next)
-            }
-        })
-        MonitorJoystickSettings(
-            size = MonitorMotionChoiceSetting(MonitorJoystickSize.entries.map { it.label },
-                model.virtualJoystickSize.label, app.help.VIRTUAL_JOYSTICK_SIZE) { label ->
-                val next = MonitorJoystickSize.fromLabel(label)
-                if (next != model.virtualJoystickSize) {
-                    operatorHaptic(view, model.hapticsEnabled)
-                    model.updateVirtualJoystickSize(next)
-                }
-            },
-            invertPan = MonitorMotionToggleSetting(model.virtualJoystickInvertPan,
-                app.help.VIRTUAL_JOYSTICK_INVERT_PAN) { next ->
-                operatorHaptic(view, model.hapticsEnabled)
-                model.updateVirtualJoystickInvertPan(next)
-            },
-            invertTilt = MonitorMotionToggleSetting(model.virtualJoystickInvertTilt,
-                app.help.VIRTUAL_JOYSTICK_INVERT_TILT) { next ->
-                operatorHaptic(view, model.hapticsEnabled)
-                model.updateVirtualJoystickInvertTilt(next)
-            },
-            deadZone = MonitorMotionIntegerSetting(model.virtualJoystickDeadzonePercent,
-                0..25, app.help.VIRTUAL_JOYSTICK_DEADZONE, suffix = "%") { next ->
-                if (next != model.virtualJoystickDeadzonePercent) {
-                    operatorHaptic(view, model.hapticsEnabled)
-                    model.updateVirtualJoystickDeadzonePercent(next)
-                }
-            },
-            response = MonitorMotionChoiceSetting(CameraCommands.VirtualJoystickCurve.entries.map { it.label },
-                model.virtualJoystickResponseCurve.label, app.help.VIRTUAL_JOYSTICK_RESPONSE) { label ->
-                val next = CameraCommands.VirtualJoystickCurve.fromLabel(label)
-                if (next != model.virtualJoystickResponseCurve) {
-                    operatorHaptic(view, model.hapticsEnabled)
-                    model.updateVirtualJoystickResponseCurve(next)
-                }
-            },
-            identifierPrefix = "gimbal.virtual",
-        )
-    }
-    MonitorControllerSettings(
-        stick = MonitorMotionChoiceSetting(GamepadGimbalStick.entries.map { it.label },
-            gimbalGamepadStick.label, app.help.GIMBAL_JOYSTICK) { label ->
-            val next = GamepadGimbalStick.fromLabel(label)
-            if (next != gimbalGamepadStick) {
-                operatorHaptic(view, model.hapticsEnabled)
-                app.prefs.setGimbalGamepadStick(context, next)
-                gimbalGamepadStick = next
-                model.gimbalGamepad.noteStickSelectionChanged(model)
-            }
-        },
-        status = if (model.gamepadConnected) "Connected" else "Not connected",
-        statusHelp = app.help.GAMEPAD,
-    )
-}
-
 // Display: main's rows.
 
 /** Main's Display rows; tagged `monitor.settings.display.*` for the instrumented tests. */
 @Composable
-fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp, isLive: Boolean) {
+fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp) {
     val view = LocalView.current
     MonitorSettingsRowCard(title = "Panel") {
         MonitorSettingsSwitchInlineRow(
@@ -747,7 +754,7 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
         }
     }
     com.opencapture.opencine.appkit.MonitorOperatorDisplaySections(
-        live = model.chrome(MonitorDisplayMode.LIVE), clean = model.chrome(MonitorDisplayMode.CLEAN),
+        modes = listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN), chrome = model::chrome,
         assist = model.assist,
         onChange = { mode, desired ->
             MonitorDisplaySection.entries.forEach { section ->
@@ -760,6 +767,8 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
             when (section) {
                 MonitorDisplaySection.GIMBAL_STICK -> state.layout.gimbal
                 MonitorDisplaySection.ZOOM_CHIP -> state.layout.zoom
+                // The camera vocabulary reports its codec inside the format chip.
+                MonitorDisplaySection.CODEC -> false
                 else -> true
             }
         }.toSet(),
@@ -769,90 +778,8 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
             model.assist.pinned = next.mapNotNull(MonitorAssistTool::fromPersisted).toSet()
             model.updateCleanViewPinnedTools(next)
         },
-        edit = if (!isLive) null else { mode -> model.beginChromeEditing(mode) },
+        edit = state.chromeEdit(model::beginChromeEditing),
         feedback = { operatorHaptic(view, model.hapticsEnabled) },
-    )
-}
-
-@Composable
-internal fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp) {
-    val context = LocalContext.current
-    val view = LocalView.current
-    val source = app.cacheSource?.invoke(context) ?: com.opencapture.opencine.appkit.MonitorSettingsCacheSource(
-        com.opencapture.opencine.appkit.MonitorSettingsCacheIdentity(app.mediaCache.candidates(context).first().absolutePath, null),
-        0L, isCurrent = { true },
-        count = { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.mediaCache.byteCount(context) } },
-        clear = { app.clearMediaCache(context) },
-    )
-    MonitorAccountSettings(
-        title = "Frame.io", help = app.help.FRAME_IO,
-        state = MonitorAccountState.NOT_CONFIGURED,
-    )
-    MonitorOperatorCacheSettings(
-        source = source, cacheOriginals = model.cacheFullResolution,
-        cacheHelp = app.help.CACHE_FULL_RESOLUTION,
-        scopeHelp = app.help.LOCAL_CACHE, clearHelp = app.help.CLEAR_CACHE,
-        onCacheOriginals = model::updateCacheFullResolution,
-        formatBytes = { bytes -> if (bytes == 0L) "Empty" else formatCacheSize(bytes) },
-        feedback = { operatorHaptic(view, model.hapticsEnabled) },
-    )
-}
-
-@Composable
-internal fun SystemRows(model: OperatorSetupModel, app: OperatorSetupApp, onLegal: (OperatorLegalPage) -> Unit) {
-    val context = LocalContext.current
-    val view = LocalView.current
-    val diagnostics = app.diagnostics
-    var reliabilityOptIn by remember { mutableStateOf(diagnostics.reporting.isOptedIn) }
-    var diagnosticOptions by remember { mutableStateOf(false) }
-    var showReportForm by remember { mutableStateOf(false) }
-    val report by diagnostics.manualReport.snapshot.collectAsState()
-    MonitorSupportSettings(
-        automaticReports = reliabilityOptIn, available = diagnostics.reporting.isAvailable,
-        automaticHelp = app.help.RELIABILITY_REPORTS,
-        unavailableHelp = app.help.RELIABILITY_UNAVAILABLE,
-        onAutomaticReports = { reliabilityOptIn = it; diagnostics.reporting.setConsent(it) },
-        report = { showReportForm = true }, privacy = { onLegal(OperatorLegalPage.PRIVACY) },
-        status = report.settingsStatus,
-        discard = if (report.allowsDiscard) ({ diagnostics.manualReport.discard() }) else null,
-        feedback = { operatorHaptic(view, model.hapticsEnabled) },
-    )
-    MonitorDiagnosticSettings(
-        expanded = diagnosticOptions, onExpanded = { diagnosticOptions = it },
-        deleteHelp = "Remove saved feed reports from this phone. Connection logs remain. Turn off automatic reporting to clear pending uploads. Reports already sent cannot be removed here.",
-        save = { diagnostics.shareReport(context) },
-        delete = {
-            diagnostics.incidents.deleteStoredReports { deleted ->
-                android.widget.Toast.makeText(context,
-                    if (deleted) "Saved feed reports deleted" else "Couldn't delete saved feed reports. Please try again.",
-                    android.widget.Toast.LENGTH_LONG).show()
-            }
-        },
-    )
-    if (showReportForm) {
-        ManualProblemReportDialog(
-            diagnostics.manualReport, diagnostics.diagnosticText, diagnostics.reportActionMinimumTouchTarget,
-            onClose = { showReportForm = false },
-            onPrivacy = {
-                showReportForm = false
-                onLegal(OperatorLegalPage.PRIVACY)
-            },
-        )
-    }
-    val information = app.information
-    MonitorProjectLegalSettings(
-        sourceHelp = app.help.SOURCE, termsHelp = information.termsHelp,
-        source = { openUrl(context, app.sourceUrl) },
-        privacy = { onLegal(OperatorLegalPage.PRIVACY) },
-        terms = { openUrl(context, app.termsUrl) },
-        licenses = { onLegal(OperatorLegalPage.LICENSES) }, notice = { onLegal(OperatorLegalPage.NOTICE) },
-    )
-    MonitorAppInformationSettings(
-        theme = information.theme, protocolName = information.protocol,
-        version = information.version,
-        themeHelp = information.themeHelp,
-        protocolHelp = information.protocolHelp,
-        versionHelp = information.versionHelp,
     )
 }
 
@@ -860,3 +787,10 @@ private fun operatorHaptic(view: View, enabled: Boolean) {
     if (!enabled) return
     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
 }
+
+/**
+ * The View Assist card explanation while the source curve is unknown (product ruling 2026-10-16): false
+ * colour and zebra wait for it and return on their own; null shows the card.
+ */
+internal fun assistCardUnavailableMessage(tool: MonitorAssistTool, sourceTransfer: MonitorTransfer?): String? =
+    if (tool.offered(sourceTransfer)) null else MonitorSettingsCopy.sourceCurveUnknown

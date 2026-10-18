@@ -1,4 +1,5 @@
 #if os(iOS)
+    import MonitorPresentation
     import SwiftUI
     import UIKit
 
@@ -46,6 +47,28 @@
         }
     }
 
+    extension View {
+        /// Publishes the page safe area (`monitor.review.safeArea`) from this view during a staged
+        /// review. The root observer does; a page presented as a full-screen cover takes the root
+        /// off screen, so such a page publishes it too.
+        func monitorReviewSafeArea() -> some View { modifier(MonitorReviewSafeAreaPublisher()) }
+    }
+
+    private struct MonitorReviewSafeAreaPublisher: ViewModifier {
+        /// Only a staged review (`ReviewLaunch`) in a Debug build publishes the safe area.
+        #if DEBUG
+            private let reviewed = ReviewLaunch.current != nil
+        #else
+            private let reviewed = false
+        #endif
+
+        func body(content: Content) -> some View {
+            content.background {
+                if reviewed { MonitorReviewSafeAreaMarker().allowsHitTesting(false) }
+            }
+        }
+    }
+
     private struct MonitorWindowGeometryObserver: ViewModifier {
         @State private var geometry = MonitorWindowGeometry()
 
@@ -57,6 +80,52 @@
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
+                .monitorReviewSafeArea()
+        }
+    }
+
+    /// The safe area full-screen pages lay out in (`OperatorPanelMetrics.fullScreenPanelSafeArea`:
+    /// the window's insets, with the landscape side that holds no camera housing given back to the
+    /// page), published as one accessibility element `monitor.review.safeArea` in screen
+    /// coordinates. The conformance screenshot matrix requires page content inside it (the Kotlin
+    /// kit reads the system bars and the display cutout from the activity's window insets).
+    private struct MonitorReviewSafeAreaMarker: UIViewRepresentable {
+        func makeUIView(context: Context) -> MonitorReviewSafeAreaView {
+            MonitorReviewSafeAreaView()
+        }
+        func updateUIView(_ view: MonitorReviewSafeAreaView, context: Context) {}
+    }
+
+    private final class MonitorReviewSafeAreaView: UIView {
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isUserInteractionEnabled = false
+            backgroundColor = .clear
+            isAccessibilityElement = true
+            accessibilityIdentifier = "monitor.review.safeArea"
+            accessibilityLabel = "Safe area"
+        }
+
+        @available(*, unavailable) required init?(coder: NSCoder) { nil }
+
+        override var accessibilityFrame: CGRect {
+            get {
+                guard let window else { return .zero }
+                let raw = window.safeAreaInsets
+                let portrait = window.bounds.height > window.bounds.width
+                let panel = OperatorPanelMetrics.fullScreenPanelSafeArea(
+                    from: EdgeInsets(
+                        top: raw.top, leading: raw.left, bottom: raw.bottom, trailing: raw.right),
+                    isPortrait: portrait,
+                    mirrored: LiveMonitorLayout.shouldMirror(leading: raw.left, trailing: raw.right)
+                )
+                let safe = window.bounds.inset(
+                    by: UIEdgeInsets(
+                        top: panel.top, left: panel.leading, bottom: panel.bottom,
+                        right: panel.trailing))
+                return window.convert(safe, to: window.screen.coordinateSpace)
+            }
+            set {}
         }
     }
 

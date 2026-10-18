@@ -5,6 +5,7 @@ import MonitorUI
 import Observation
 import OpenCineAppKit
 import OpenCineCore
+import OpenCineHostedAccessibility
 import OpenCineMedia
 import SwiftUI
 import UIKit
@@ -28,7 +29,7 @@ final class CanonicalMonitorRecordAdmissionTests: XCTestCase {
     }
 
     func testLockedMonitorCannotEnterTheRecordService() async throws {
-        try await assertRecordRefused { $0.locked = true }
+        try await assertRecordRefused { $0.session.locked = true }
     }
 
     func testSessionBusyProjectionCannotEnterTheRecordService() async throws {
@@ -71,8 +72,8 @@ private final class RecordBodyProbe: ChromeEditHost {
     typealias ChromeSection = MonitorDisplayChrome.Section
     typealias ChromeMode = MonitorDisplayMode
     let identity: MonitorOperatorLiveIdentity
-    var currentSource: MonitorOperatorLiveIdentity
-    var locked = false
+    /// Unobserved, so a change models a source that moved on before the mounted body re-rendered.
+    @ObservationIgnored var currentSource: MonitorOperatorLiveIdentity
     var busy = false
     var readOnly = false
     var recording: Bool? = false
@@ -81,6 +82,9 @@ private final class RecordBodyProbe: ChromeEditHost {
     var usage = MonitorToolUsage()
     let control = MonitorControlModel()
     let assist: MonitorAssistState<RecordBodyLooks>
+    let session: MonitorOperatorSessionModel<RecordBodyLooks>
+    var note: String?
+    var portraitAspect = PortraitFeedAspect.fit16x9
     let storage: UserDefaults
     let storageName: String
 
@@ -93,6 +97,12 @@ private final class RecordBodyProbe: ChromeEditHost {
         storageName = name; storage = preferences
         assist = MonitorAssistState(looks: RecordBodyLooks(), storage: preferences,
             keys: .init(assist: "assist", cleanPins: "pins", playback: "playback"), cleanPinCases: [])
+        var document: Data?
+        let cameras = CamerasModel(integrations: [], store: SavedCamerasStore(document: StoredData(
+            read: { document }, write: { document = $0 })))
+        let display = MonitorDisplayPreferences(storage: preferences, keys: .init(live: "live", clean: "clean"))
+        session = MonitorOperatorSessionModel(shell: ShellModel(cameras: cameras, control: control),
+            assist: assist, display: display)
     }
 
     var hapticsEnabled: Bool { false }
@@ -118,24 +128,25 @@ private final class RecordBodyLooks: MonitorLookProvider {
 private struct RecordContractSurface: View {
     @Bindable var probe: RecordBodyProbe
     var body: some View {
-        let layout = FieldMonitorLayout(width: 420, height: 900, safeArea: .init(), sourceAspect: 16 / 9)
-        let inputs = MonitorOperatorCaptureInputs<SettingKey, MonitorDisplayChrome.Section, Never>(
-            readouts: [], haptics: false, open: { _ in }, dismiss: {})
-        MonitorOperatorLiveBody(host: probe, control: probe.control, identity: probe.identity,
-            current: { probe.currentSource == $0 }, layout: layout, safeArea: .init(), sourceAspect: 16 / 9,
-            sections: .init(status: .statusBar, power: .batteries, capture: .cameraValues,
-                assists: .toolBar, lock: .lockButton, settings: .railSettings, media: .railMedia,
-                record: .railRecord), mounted: [.railRecord], editing: nil,
-            locked: $probe.locked, covered: false, clean: false, command: false,
-            readOnly: probe.readOnly, recovering: false,
-            status: MonitorOperatorLiveStatus<SettingKey, MonitorDisplayChrome.Section>(
-                recording: .init(recording: probe.recording), showsTimecode: false, showsRecording: false),
-            power: [], captureInputs: inputs, settings: {}, media: {}, cycleDisplay: {},
-            displayTitle: "SIMULATED", displayIndex: nil, displayCount: 0, photo: false, confirmRecord: false,
-            externalRecord: .init(recording: probe.recording, confirmation: nil,
-                request: { probe.requests += 1 }, cancel: {}, confirm: { probe.confirmations += 1 }),
-            assist: probe.assist, tools: [], usage: $probe.usage, toggleTool: { _ in }, assistSource: nil,
-            retireEditor: {}, recordEnabled: !probe.busy,
+        let layout = LiveMonitorLayout.fieldMonitor(size: CGSize(width: 420, height: 900), safeArea: EdgeInsets(),
+            sourceAspect: 16 / 9, fill: false, showsValues: false, showsBottomBars: false)
+        MonitorOperatorLiveSurface(host: probe, control: probe.control, session: probe.session, layout: layout,
+            source: MonitorOperatorLiveSource<SettingKey, Never>(
+                identity: { probe.currentSource }, available: { [.railRecord] },
+                picture: { .init(aspect: 16 / 9, waiting: false, vertical: false, flipped: false, recovering: false) },
+                status: { .init(recording: .init(recording: probe.recording), showsTimecode: false, showsRecording: false) },
+                cameraBattery: { nil },
+                capture: { .init(readouts: [], haptics: false, open: { _ in }, dismiss: {}) },
+                record: {
+                    .init(photo: false, confirm: false, busy: probe.busy, openMode: nil,
+                        external: .init(recording: probe.recording, confirmation: nil,
+                            request: { probe.requests += 1 }, cancel: {}, confirm: { probe.confirmations += 1 }))
+                },
+                exposure: nil, level: nil, audio: { nil }, readOnly: { probe.readOnly }, borrowed: { false },
+                returnToStage: nil, coverOpen: { false }, note: $probe.note, settings: {}, media: {}),
+            assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
+                usage: $probe.usage, usageSeed: [:], toggle: { _ in }),
+            views: .init(), portraitAspect: $probe.portraitAspect,
             picture: { Color.black }, cameraPanel: { _, _ in EmptyView() },
             photoRelease: { _ in EmptyView() }, preview: { _ in EmptyView() }, lookMenu: { EmptyView() })
             .frame(width: 420, height: 900).environment(\.scenePhase, .active)
@@ -165,12 +176,12 @@ private final class RecordBodyFixture {
     func recordElement() async throws -> NSObject {
         for _ in 0..<200 {
             host.view.setNeedsLayout(); host.view.layoutIfNeeded()
-            if let element = Self.leaves(host.view).first(where: { Self.identifier($0) == "monitor.system.record" }) {
+            if let element = HostedAccessibility.leaves(in: host.view).first(where: { HostedAccessibility.identifier($0) == "monitor.system.record" }) {
                 return element
             }
             await Task.yield()
         }
-        return try XCTUnwrap(Self.leaves(host.view).first { Self.identifier($0) == "monitor.system.record" },
+        return try XCTUnwrap(HostedAccessibility.leaves(in: host.view).first { HostedAccessibility.identifier($0) == "monitor.system.record" },
             "The canonical body's real record element must be mounted")
     }
     func waitForRequests(_ count: Int) async {
@@ -181,20 +192,6 @@ private final class RecordBodyFixture {
     }
     func settleActions() async {
         for _ in 0..<50 { await Task.yield() }
-    }
-    private static func leaves(_ object: NSObject) -> [NSObject] {
-        if object.accessibilityElementsHidden { return [] }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-        if object.isAccessibilityElement { return [object] }
-        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty {
-            return elements.flatMap(leaves)
-        }
-        return ((object as? UIView)?.subviews ?? []).flatMap(leaves)
-    }
-    private static func identifier(_ object: NSObject) -> String? {
-        let getter = NSSelectorFromString("accessibilityIdentifier")
-        guard object.responds(to: getter) else { return nil }
-        return object.perform(getter)?.takeUnretainedValue() as? String
     }
 }
 #endif

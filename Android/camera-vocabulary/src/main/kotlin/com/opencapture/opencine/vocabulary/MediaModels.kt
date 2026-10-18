@@ -1,5 +1,6 @@
 package com.opencapture.opencine.vocabulary
 
+import com.opencapture.opencine.media.ByteCountLabel
 import java.util.Locale
 
 data class MediaFile(
@@ -342,14 +343,8 @@ object MediaClipFormatting {
         return durationLabel(seconds.toInt())
     }
 
-    fun byteLabel(bytes: Long): String {
-        if (bytes <= 0L) return ""
-        val kb = bytes / 1024.0
-        if (kb < 1024) return String.format(Locale.US, "%.0f KB", kb)
-        val mb = kb / 1024.0
-        if (mb < 1024) return String.format(Locale.US, "%.1f MB", mb)
-        return String.format(Locale.US, "%.2f GB", mb / 1024.0)
-    }
+    /** Decimal byte labels; zero in a file manifest means an unknown size. */
+    fun byteLabel(bytes: Long): String = if (bytes <= 0) "" else ByteCountLabel.label(bytes)
 }
 
 fun pathExtension(path: String): String {

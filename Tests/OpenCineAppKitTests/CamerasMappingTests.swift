@@ -19,6 +19,34 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func editSetupReopensOnlyAnAdvertisedCurrentRoute() async {
+        let fake = FakeIntegration(id: IntegrationID("test.cameras"))
+        let model = model(fake, saved: [T.camera])
+        let chooser = AddSetupChooser(
+            title: "Add setup", detail: "",
+            options: [
+                AddSetupOption(
+                    id: "wifi", kind: .infrastructureNetwork, title: "Wi-Fi", detail: "",
+                    actionTitle: "Choose"),
+                AddSetupOption(
+                    id: "hotspot", kind: .phoneHotspot, title: "Hotspot", detail: "",
+                    actionTitle: "Choose"),
+            ])
+        model.connect(T.camera, route: T.wifi.id)
+        fake.attempts[0].fail(T.failure)
+        #expect(await eventually { model.failures[T.camera.id] != nil })
+        #expect(
+            CamerasMapping.addSetupSelection(model, camera: T.camera, chooser: chooser) == "wifi")
+        var removed = T.camera
+        removed.routes.removeAll { $0.kind == .infrastructureNetwork }
+        #expect(CamerasMapping.addSetupSelection(model, camera: removed, chooser: chooser) == nil)
+        var unsupported = chooser
+        unsupported.options.removeAll { $0.kind == .infrastructureNetwork }
+        #expect(
+            CamerasMapping.addSetupSelection(model, camera: T.camera, chooser: unsupported) == nil)
+    }
+
+    @available(macOS 14, *)
     @Test func pairedCardsShowRoutesProgressAndFailures() async throws {
         let fake = FakeIntegration(id: IntegrationID("test.cameras"))
         var older = T.camera
@@ -103,10 +131,15 @@ import Testing
         let fake = FakeIntegration(id: IntegrationID("test.cameras"))
         let model = model(fake, saved: [T.camera])
         fake.publish([
-            NearbyCamera(id: "x", savedID: "camera-1", name: "CAM-1", model: "Test Body", routes: [.cameraAccessPoint]),
-            NearbyCamera(id: "n2", name: "CAM-2", model: "Test Body", routes: [.cameraAccessPoint], signalBars: 3),
             NearbyCamera(
-                id: "n3", name: "CAM-3", model: "Test Body", routes: [.cameraAccessPoint], availability: .unavailable(.busy)),
+                id: "x", savedID: "camera-1", name: "CAM-1", model: "Test Body",
+                routes: [.cameraAccessPoint]),
+            NearbyCamera(
+                id: "n2", name: "CAM-2", model: "Test Body", routes: [.cameraAccessPoint],
+                signalBars: 3),
+            NearbyCamera(
+                id: "n3", name: "CAM-3", model: "Test Body", routes: [.cameraAccessPoint],
+                availability: .unavailable(.busy)),
         ])
         #expect(await eventually { model.nearby.count == 3 })
         #expect(
@@ -146,7 +179,10 @@ import Testing
         fake.attempts[0].progress(.link, step: 0)
         #expect(await eventually { model.attempts["n2"]?.progress != nil })
         let linking = CamerasMapping.pairing(model)
-        #expect(linking.steps.map(\.title) == ["Find your camera", "Link", "Approve", "Join network", "Video"])
+        #expect(
+            linking.steps.map(\.title) == [
+                "Find your camera", "Link", "Approve", "Join network", "Video",
+            ])
         #expect(linking.currentStep == 1 && linking.devices.isEmpty && linking.progress == "Link")
         #expect(linking.primaryAction == nil && linking.backAction == "Cancel")
 

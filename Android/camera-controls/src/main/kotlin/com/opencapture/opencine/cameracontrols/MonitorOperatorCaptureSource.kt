@@ -13,8 +13,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.MonitorQuickControl
 import com.opencapture.opencine.appkit.MonitorCaptureField
 import com.opencapture.opencine.appkit.MonitorCapturePresentation
+import com.opencapture.opencine.appkit.MonitorCaptureSelection
 import com.opencapture.opencine.appkit.MonitorControlModel
 import com.opencapture.opencine.appkit.captureField
+import com.opencapture.opencine.appkit.captureValue
 import com.opencapture.opencine.appkit.commit
 import com.opencapture.opencine.appkit.quickControl
 import com.opencapture.opencine.core.CameraSessionID
@@ -29,6 +31,7 @@ import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.CaptureSessionState
 import com.opencapture.opencine.vocabulary.CaptureSetting
 import com.opencapture.opencine.vocabulary.FocusTrackMode
+import com.opencapture.opencine.vocabulary.FocusOption
 import com.opencapture.opencine.vocabulary.ShutterAngle
 import com.opencapture.opencine.vocabulary.VideoResolution
 import kotlinx.coroutines.flow.Flow
@@ -60,10 +63,11 @@ public class MonitorOperatorCaptureSource(
 
     public fun commonField(sheet: LiveSheet, status: CameraStatus): MonitorCaptureField? {
         val key = when (sheet) {
-            LiveSheet.ISO -> if (CaptureLists.shouldGetIsoLimit(status)) null else SettingKey.ISO
+            LiveSheet.ISO -> if (readSessionState().controlCapabilities.nativeISO.ceiling == true && CaptureLists.shouldGetIsoLimit(status)) null else SettingKey.ISO
             LiveSheet.SHUTTER -> when {
-                CaptureLists.isEvSheet(sheet, status.expoMode) ->
-                    if (nativeExposureCompensation) null else SettingKey.EXPOSURE_COMPENSATION
+                (nativeExposureCompensation && CaptureLists.isEvSheet(sheet, status.expoMode)) ||
+                    control.state.value.snapshot?.exposureProgram?.value == com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC ->
+                    if (nativeExposureCompensation || !host.captureRouting.commonExposureCompensation) null else SettingKey.EXPOSURE_COMPENSATION
                 host.capturePreferences.shutterUsesAngle && !CameraCommands.isPhotoMode(status.shootingMode) -> null
                 else -> SettingKey.SHUTTER
             }
@@ -75,8 +79,33 @@ public class MonitorOperatorCaptureSource(
             MonitorCapturePresentation.title(key).orEmpty(), null, emptyList(), null)
     }
 
-    public fun readout(sheet: LiveSheet, status: CameraStatus, nativeLabel: String): String =
-        commonField(sheet, status)?.let { it.label ?: "--" } ?: nativeLabel
+    public fun readout(sheet: LiveSheet, status: CameraStatus, nativeLabel: String): String {
+        val key = when (sheet) {
+            LiveSheet.ISO -> SettingKey.ISO
+            LiveSheet.SHUTTER -> when {
+                (nativeExposureCompensation && CaptureLists.isEvSheet(sheet, status.expoMode)) ||
+                    control.state.value.snapshot?.exposureProgram?.value == com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC -> {
+                    if (nativeExposureCompensation || !host.captureRouting.commonExposureCompensation) return nativeLabel
+                    SettingKey.EXPOSURE_COMPENSATION
+                }
+                host.capturePreferences.shutterUsesAngle && !CameraCommands.isPhotoMode(status.shootingMode) -> return CaptureNativeReadoutPresentation.shutterAngle(
+                    (control.captureValue(SettingKey.SHUTTER, host.captureReadoutSelection) as? SettingValue.Shutter)?.value,
+                    (control.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value as? SettingValue.FrameRate)?.fps,
+                    CaptureLists.shutterDenoms(status), host.capturePreferences.shutterAngleDegrees)
+                else -> SettingKey.SHUTTER
+            }
+            LiveSheet.WB -> {
+                if (readSessionState().awbLockKelvin != null) return nativeLabel
+                SettingKey.WHITE_BALANCE
+            }
+            LiveSheet.FOCUS -> return CaptureNativeReadoutPresentation.focus(
+                (control.captureValue(SettingKey.FOCUS_MODE, host.captureReadoutSelection) as? SettingValue.FocusMode)?.mode,
+                FocusOption.resolve(status.focusMode, status.focusTrack))
+            LiveSheet.APERTURE -> SettingKey.APERTURE
+            else -> return nativeLabel
+        }
+        return control.captureValue(key, host.captureReadoutSelection)?.let(MonitorCapturePresentation::label) ?: "--"
+    }
 
     public fun quick(sheet: LiveSheet, status: CameraStatus,
         lifetime: CaptureQuickLifetime? = null): MonitorQuickControl? {
@@ -91,15 +120,16 @@ public class MonitorOperatorCaptureSource(
                 lifetime, lifetime?.epoch ?: 0L, value.identity as? MonitorCaptureField
                     ?: if (sheet == LiveSheet.FOCUS) host.captureField(sheet, status.expoMode) else null))
         }
+        host.nativeCaptureQuick(sheet, status)?.let { return captured(it) }
         commonField(sheet, status)?.let { field ->
             return captured(field.quickControl().copy(enabled = field.isEditable &&
                 (sheet != LiveSheet.SHUTTER || status.expoMode != CameraCommands.EXPO_AUTO || !preferences.facePriorityExposure)))
         }
         return when (sheet) {
             LiveSheet.ISO -> {
-                val seat = IsoSheetLogic.reseat(status, body, floor)
+                val seat = IsoSheetLogic.reseat(status, body, floor, state.controlCapabilities.nativeISO.ceiling == true)
                 captured(MonitorQuickControl(if (IsoSheetLogic.isAutoTab(status, seat.selectedMode))
-                    CaptureLists.isoAutoLabels(status, body, floor) else CaptureLists.isoDrumLabels(status),
+                    IsoSheetLogic.autoLabels(status, body, floor, state.controlCapabilities.nativeISO.ceiling == true) else CaptureLists.isoDrumLabels(status),
                     seat.drumSelection, CaptureLists.isoMarkedLabels(status), context = "${status.colorMode}"))
             }
             LiveSheet.SHUTTER -> {
@@ -120,9 +150,9 @@ public class MonitorOperatorCaptureSource(
                     CaptureLists.wbModeRowSelected(status, locked),
                     context = "${status.wbMode}:${CaptureLists.currentKelvin(status)}:${CaptureLists.currentTint(status)}"))
             }
-            LiveSheet.FOCUS -> if (!state.focusModeSupported) null
+            LiveSheet.FOCUS -> if (!state.controlCapabilities.focus.isOffered) null
                 else captured(captureQuickFocusControl(status, labels.focusLabels))
-            LiveSheet.APERTURE -> if (!state.irisSupported) null else captured(MonitorQuickControl(
+            LiveSheet.APERTURE -> if (!state.controlCapabilities.iris.isOffered) null else captured(MonitorQuickControl(
                 CaptureLists.apertureLabels(status), ApertureStrategy.label(status.apertureStrategy).orEmpty()))
             LiveSheet.EXPO -> captured(MonitorQuickControl(CaptureLists.expoLabels(state.aeLocked),
                 CaptureLists.expoSelectedLabel(status.expoMode, state.aeLocked) ?: CaptureLists.expoLabel(status.expoMode)))
@@ -139,6 +169,10 @@ public class MonitorOperatorCaptureSource(
     }
 
     public fun apply(sheet: LiveSheet, value: String, status: CameraStatus): Unit {
+        host.nativeCaptureQuick(sheet, status)?.let { native ->
+            if (native.enabled && value in native.options && value != native.selection) host.commitNativeCaptureQuick(sheet, value)
+            return
+        }
         val current = quick(sheet, status) ?: return
         if (!current.enabled || value !in current.options || value == current.selection) return
         fun commit(setting: CaptureSetting): Unit = host.commit(setting, host.captureField(sheet, status.expoMode), status)
@@ -148,7 +182,8 @@ public class MonitorOperatorCaptureSource(
                 val body = host.camera?.name.orEmpty()
                 val floor = host.camera?.captureProfile?.isoAutoRangeFloor
                 when (val command = IsoSheetLogic.applyDrum(value, status,
-                    IsoSheetLogic.reseat(status, body, floor).selectedMode, body, floor)) {
+                    IsoSheetLogic.reseat(status, body, floor, readSessionState().controlCapabilities.nativeISO.ceiling == true).selectedMode, body, floor,
+                    readSessionState().controlCapabilities.nativeISO.ceiling == true)) {
                     is IsoSheetLogic.Command.SetIndex -> commit(CaptureSetting.IsoIndex(command.index))
                     is IsoSheetLogic.Command.SetLimit -> commit(CaptureSetting.IsoLimitRaw(command.raw))
                     null -> Unit

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "opencine",
   "display_name": "OpenCine",
-  "status": "candidate",
+  "status": "active",
   "layer": "platform",
   "repository": {
     "url": "https://github.com/erik-sutton95/OpenCine",
@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "85239fd23b23d0023bc1e6eaa1570a41c2a69e67",
+      "commit": "acc38b57d43d4308c79ad5ce951bcb6f44d14d68",
       "role": "baseline"
     }
   ],
@@ -93,7 +93,22 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineFrameIOApple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineAppUITesting",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineHostedAccessibility",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineHostedTestSupport",
       "kind": "swift-library",
       "manifest": "Package.swift"
     },
@@ -232,10 +247,22 @@
       "coordinates": "com.opencapture.opencine:appkit"
     },
     {
+      "name": ":appkit-native",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:appkit-native"
+    },
+    {
       "name": ":camera-controls",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:camera-controls"
+    },
+    {
+      "name": ":frameio",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:frameio"
     },
     {
       "name": ":relay",
@@ -260,6 +287,24 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:nikon-wire"
+    },
+    {
+      "name": ":media3",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:media3"
+    },
+    {
+      "name": ":app-ui-testing",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:app-ui-testing"
+    },
+    {
+      "name": ":system-hints-testing",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:system-hints-testing"
     }
   ],
   "layers": {
@@ -280,6 +325,7 @@
       "OpenCineWatch",
       "OpenCineWatchTests",
       "OpenCineApple",
+      "OpenCineAppleObjC",
       "OpenCineAppleTests",
       ":core",
       ":media",
@@ -301,11 +347,23 @@
       "OpenCineAppKitTests",
       "OpenCineAppKitApple",
       "OpenCineAppKitAppleTests",
+      "OpenCineFrameIOApple",
+      "OpenCineFrameIOAppleTests",
       "OpenCineAppUITesting",
+      "OpenCineHostedAccessibility",
+      "OpenCineHostedAccessibilityTests",
+      "OpenCineHostedTestSupport",
+      "OpenCineHostedTestSupportTests",
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
-      ":camera-controls"
+      ":appkit-native",
+      ":appkit-sentry",
+      ":camera-controls",
+      ":frameio",
+      ":media3",
+      ":app-ui-testing",
+      ":system-hints-testing"
     ],
     "multicam": [
       "OpenCineMulticam",
@@ -321,6 +379,8 @@
       "OpenCineDJIAppleTests",
       "OpenCineJNI",
       "OpenCineJNISupport",
+      "OpenCineFrameIOAndroid",
+      "OpenCineFrameIOAndroidTests",
       "OpenCineDJIAndroid",
       "OpenCineDJIAndroidTests",
       "OpenCineNikon",
@@ -408,5 +468,8 @@
       }
     }
   ],
-  "summary_review": null
+  "summary_review": {
+    "source_commit": "acc38b57d43d4308c79ad5ce951bcb6f44d14d68",
+    "reviewed_at": "2026-10-11T20:13:31Z"
+  }
 }

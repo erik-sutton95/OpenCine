@@ -1,4 +1,5 @@
 import Foundation
+import MonitorPresentation
 import OpenCineCore
 import OpenCineMulticam
 
@@ -78,9 +79,12 @@ public struct MultiviewTile: Hashable, Sendable {
     public var model: String
     /// Resolution, rate and look, on roomy tiles and in the options.
     public var format: String
-    /// 0...100, `nil` when unknown.
+    /// 0...100, `nil` when unknown or when the source reports bars instead.
     public var battery: Int?
     public var charging: Bool
+    /// Filled steps of the source's coarse gauge, never an inferred percentage.
+    public var batteryBars: Int?
+    public var batteryBarCount: Int
     public var storage: String
     public var timecode: String?
     /// `MultiviewTally` copy, or the app's own.
@@ -108,7 +112,8 @@ public struct MultiviewTile: Hashable, Sendable {
 
     public init(
         name: String, model: String = "", format: String = "", battery: Int? = nil,
-        charging: Bool = false, storage: String = MultiviewTally.unavailable,
+        charging: Bool = false, batteryBars: Int? = nil, batteryBarCount: Int = 5,
+        storage: String = MultiviewTally.unavailable,
         timecode: String? = nil, tally: String = MultiviewTally.unavailable,
         recordingSince: Date? = nil, recording: Bool = false, lut: Bool = false,
         note: String? = nil, tileNote: String? = nil, readouts: [MultiviewReadout] = [], status: MultiviewTileStatus? = nil,
@@ -120,6 +125,8 @@ public struct MultiviewTile: Hashable, Sendable {
         self.format = format
         self.battery = battery
         self.charging = charging
+        self.batteryBars = batteryBars
+        self.batteryBarCount = batteryBarCount
         self.storage = storage
         self.timecode = timecode
         self.tally = tally
@@ -176,6 +183,46 @@ public enum MultiviewTool: String, CaseIterable, Sendable {
     case camera = "CAMERA"
     case fit = "FIT"
     case lut = "LUT"
+}
+
+/// Slots backed by the host's currently admitted settings and native picture-look adapters.
+/// Unknown or missing services are absent; offered tools retain the caller's existing order.
+public struct MultiviewToolAvailability: Hashable, Sendable {
+    public var cameraSettingsSlots: Set<Int>
+    public var pictureLUTSlots: Set<Int>
+
+    public init(cameraSettingsSlots: Set<Int> = [], pictureLUTSlots: Set<Int> = []) {
+        self.cameraSettingsSlots = cameraSettingsSlots
+        self.pictureLUTSlots = pictureLUTSlots
+    }
+
+    /// Intersects executable services with the stage's current occupied, valid tile indices.
+    public func offeredTools(
+        from requested: [MultiviewTool], occupiedSlots: Set<Int>
+    ) -> [MultiviewTool] {
+        requested.filter { tool in
+            switch tool {
+            case .camera: !cameraSettingsSlots.isDisjoint(with: occupiedSlots)
+            case .lut: !pictureLUTSlots.isDisjoint(with: occupiedSlots)
+            case .layout, .fit: true
+            }
+        }
+    }
+
+    /// The selected settings adapter, or the first currently occupied admitted slot.
+    public func cameraSettingsSlot(selected: Int, occupiedSlots: Set<Int>) -> Int? {
+        selectedSlot(selected, services: cameraSettingsSlots, occupied: occupiedSlots)
+    }
+
+    /// The selected picture-look adapter, or the first currently occupied admitted slot.
+    public func pictureLUTSlot(selected: Int, occupiedSlots: Set<Int>) -> Int? {
+        selectedSlot(selected, services: pictureLUTSlots, occupied: occupiedSlots)
+    }
+
+    private func selectedSlot(_ selected: Int, services: Set<Int>, occupied: Set<Int>) -> Int? {
+        let admitted = services.intersection(occupied)
+        return admitted.contains(selected) ? selected : admitted.min()
+    }
 }
 
 /// One camera the Add camera list offers.
@@ -278,11 +325,7 @@ extension MultiviewTile {
             }
         self.init(
             name: entry.name,
-            battery: snapshot?.power.battery.value.map { Int(($0 * 100).rounded()) },
-            charging: snapshot?.power.charging.value ?? false,
-            timecode: snapshot?.timecode.value.map {
-                String(format: "%02d:%02d:%02d", $0.hours, $0.minutes, $0.seconds)
-            },
+            timecode: MonitorTimecodeFormat.label(snapshot),
             tally: MultiviewTally.text(
                 recording: recording, waiting: waiting,
                 failed: control.map { if case .disconnected = $0 { true } else { false } } ?? false),
@@ -296,5 +339,23 @@ extension MultiviewTile {
                     kind: .record),
                 MultiviewCameraAction("remove", "Remove camera", kind: .destructive),
             ])
+        self = withPower(snapshot?.power)
+    }
+}
+
+extension MultiviewTile {
+    /// The tile's battery from the camera's typed power: a percent or a declared gauge, never
+    /// both, and charging as the live chrome reads it (charging, else external power).
+    public func withPower(_ power: PowerStatus?) -> MultiviewTile {
+        var tile = self
+        tile.battery = nil
+        tile.batteryBars = nil
+        switch power?.batteryReading {
+        case .fraction(let value)?: tile.battery = Int((value * 100).rounded())
+        case .steps(let filled, let count)?: tile.batteryBars = filled; tile.batteryBarCount = count
+        case nil: break
+        }
+        tile.charging = power.flatMap { $0.charging.value ?? $0.externalPower.value } ?? false
+        return tile
     }
 }

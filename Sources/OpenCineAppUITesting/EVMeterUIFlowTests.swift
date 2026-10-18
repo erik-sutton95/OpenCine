@@ -1,4 +1,5 @@
 #if os(iOS)
+import MonitorPresentation
 import UIKit
 import XCTest
 
@@ -69,10 +70,7 @@ open class EVMeterUIFlowTests: SharedAppUITestCase {
             throw XCTSkip("Presentation fixtures are simulator-only")
         #endif
         continueAfterFailure = false
-        let app = XCUIApplication()
-        app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
-        app.launchEnvironment["OPV_UI_REVIEW_METERED_EV"] = "14"
-        app.launch()
+        let app = launch(ReviewLaunch(screen: .live, meteredEV: -2.0 / 3))
         defer {
             app.terminate()
             XCUIDevice.shared.orientation = .portrait
@@ -95,8 +93,7 @@ open class EVMeterUIFlowTests: SharedAppUITestCase {
         app.buttons["monitor.assists.collapse"].tap()
         XCTAssertFalse(app.otherElements["monitor.ev.resize"].exists)
         for orientation in [UIDeviceOrientation.landscapeLeft, .portrait, .landscapeRight] {
-            XCUIDevice.shared.orientation = orientation
-            Thread.sleep(forTimeInterval: 1)
+            rotate(orientation, settling: meter)
             XCTAssertTrue(app.frame.contains(meter.frame))
             XCTAssertEqual(meter.frame.width, 28, accuracy: 1)
             XCTAssertGreaterThan(meter.frame.height, meter.frame.width * 1.5)
@@ -142,9 +139,7 @@ open class EVMeterUIFlowTests: SharedAppUITestCase {
         #if !targetEnvironment(simulator)
             throw XCTSkip("Presentation fixtures are simulator-only")
         #endif
-        let app = XCUIApplication()
-        app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
-        app.launch()
+        let app = launch(ReviewLaunch(screen: .live))
         defer { app.terminate() }
         let meter = app.otherElements["monitor.ev.meter"]
         XCTAssertTrue(meter.waitForExistence(timeout: 15))

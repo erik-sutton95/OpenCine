@@ -1,0 +1,72 @@
+# The shared playback screen's operator and accessibility copy, read by both shells.
+#
+# Swift owns it in `MonitorPlaybackCopy` (`Sources/MonitorPresentation/MonitorPlaybackCopy.swift`);
+# Compose keeps the twin `MonitorPlaybackCopy` (`Android/monitor-ui/.../MonitorPlaybackCopy.kt`).
+# Nothing links the two, so `MonitorPlaybackCopyVectorTests` (Swift) and
+# `MonitorPlaybackCopyVectorTest` (Kotlin) both read this file: a label edited on one side only
+# fails. Every `text` key must exist on both sides (Swift camelCase name; Kotlin the same name in
+# UPPER_SNAKE_CASE), and every constant must have a row.
+#
+# Rows (tab separated; 1 is true, 0 false):
+#   text       <key>                  <text>     the constant
+#   transport  <reachedEnd> <playing> <text>     transport(reachedEnd:playing:)
+#   mute       <muted>                <text>     muteToggle(muted:)
+#   toggle     <on>                   <text>     toggleValue(_:)
+#   position   <seconds>              <text>     positionValue(seconds:) (nan, inf allowed)
+#   rating     <expanded>             <text>     rating(expanded:)
+#   rate       <level>                <text>     rate(_:)
+#   conform    <captureRate>          <text>     conformSubtitle(captureRate:)
+text	backToMedia	Back to media
+text	favorite	Favorite clip
+text	clipInformation	Clip information
+text	share	Share clip
+text	shareTitle	SHARE
+text	delete	Delete clip from camera
+text	clipInformationTitle	CLIP INFO
+text	closeClipInformation	Close clip information
+text	deleteConfirmationTitle	Delete this clip from the camera?
+text	deleteConfirm	Delete
+text	deleteCancel	Cancel
+text	backFifteen	Back 15 seconds
+text	forwardFifteen	Forward 15 seconds
+text	play	Play
+text	pause	Pause
+text	restart	Restart clip
+text	previousClip	Previous clip
+text	nextClip	Next clip
+text	conformPreview	Conform preview
+text	closeConformPreview	Close conform preview
+text	mute	Mute
+text	unmute	Unmute
+text	loop	Loop playback
+text	on	On
+text	off	Off
+text	hideControls	Hide playback controls
+text	hideControlsHint	A restore control stays in the corner
+text	showControls	Show playback controls
+text	position	Playback position
+text	conformTitle	CONFORM PREVIEW
+text	realTime	Real time
+text	showRating	Show star rating
+text	hideRating	Hide star rating
+transport	1	0	Restart clip
+transport	1	1	Restart clip
+transport	0	1	Pause
+transport	0	0	Play
+mute	1	Unmute
+mute	0	Mute
+toggle	1	On
+toggle	0	Off
+position	0	0 seconds
+position	7.9	7 seconds
+position	61.5	61 seconds
+position	-3	0 seconds
+position	nan	0 seconds
+position	inf	0 seconds
+rating	1	Hide star rating
+rating	0	Show star rating
+rate	1	Rate 1 star
+rate	2	Rate 2 stars
+rate	5	Rate 5 stars
+conform	120	Conform 120 fps to
+conform	50	Conform 50 fps to

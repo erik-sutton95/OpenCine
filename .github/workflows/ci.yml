@@ -34,8 +34,10 @@ jobs:
           args: "detect --source=. --log-opts=HEAD --redact --no-banner --config=.gitleaks.toml"
       - name: Repository hygiene
         run: scripts/check-repository-hygiene.sh
+      - name: Sentry release tooling shared by the apps (offline)
+        run: bash scripts/sentry/sentry-test.sh
       - name: Spell check
-        uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
+        uses: crate-ci/typos@00f422f3b19c57bc6338715ebfe3316d38768461 # v1.50.3
       - name: Markdown lint
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
         with:
@@ -55,6 +57,9 @@ jobs:
   swift:
     name: Swift package (macOS host tests, iOS builds)
     runs-on: macos-latest
+    env:
+      # Surface the crashing frame if a test process aborts; failure-only reports are uploaded below.
+      SWIFT_BACKTRACE: enable=yes,interactive=no
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,7 +80,8 @@ jobs:
             swift build --scratch-path "$RUNNER_TEMP/opencine-portable-wae" --target "$target" \
               -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
           done
-      - name: Test (fails on a duplicate class warning)
+      - name: Test cache admission (isolated real I/O)
+        if: always()
         shell: bash  # -o pipefail, so a failing swift test fails the step
         run: |
           # Run the complete strict bundle built above, not the isolated WAE objects.
@@ -84,16 +90,72 @@ jobs:
           cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --filter "$cache_test" 2>&1 | tee test-cache.log
+      - name: Test package (real-clock join prompts excluded)
+        if: always()
+        shell: bash
+        run: |
+          # The real-clock join prompt suite runs by itself below; every other test stays here.
+          cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
-            --skip "$cache_test" 2>&1 | tee test.log
-          ! grep -q "implemented in both" test-cache.log test.log
+            --skip "$cache_test" --skip LunaJoinPromptTests 2>&1 | tee test.log
+      - name: Test join prompt retry (real clock, isolated)
+        if: always()
+        shell: bash
+        run: |
+          # Required separate invocation: its five-second retry budget and every original
+          # assertion stay unchanged, without the full package workload beside it.
+          swift test --skip-build -Xswiftc -strict-concurrency=complete \
+            --filter LunaJoinPromptTests 2>&1 | tee test-luna.log
+      - name: No duplicate test class warning
+        if: always()
+        shell: bash
+        run: '! grep -q "implemented in both" test-cache.log test.log test-luna.log'
       - name: Build MonitorUI (iOS Simulator)
         run: xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
       - name: Build OpenCineApple (iOS Simulator)
         run: xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
+      # The optional Sentry adapter is its own package (it alone takes sentry-cocoa) and starts the
+      # SDK in its tests, so they run in an iOS simulator rather than the shared macOS test process.
+      - name: Test OpenCineSentryApple (iOS Simulator)
+        working-directory: Packages/OpenCineSentryApple
+        run: |
+          set -euo pipefail
+          udid="$(xcrun simctl create opencine-sentry "iPhone 16 Pro")"
+          trap 'xcrun simctl delete "$udid"' EXIT
+          xcodebuild -scheme OpenCineSentryApple -destination "platform=iOS Simulator,id=$udid" test
       # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
       - name: Build Insta360Apple (iOS devices)
         run: xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+      - name: Collect Swift crash reports
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p swift-crash-reports
+          root="$HOME/Library/Logs/DiagnosticReports"
+          if [ -d "$root" ]; then
+            while IFS= read -r -d '' report; do
+              case "$(basename "$report")" in
+                *swiftpm-testing-helper*|*OpenCinePackageTests*|*xctest*|*swift-testing*|*swift-frontend*|*swiftc*)
+                  relative="${report#"$root/"}"
+                  mkdir -p "swift-crash-reports/$(dirname "$relative")"
+                  cp "$report" "swift-crash-reports/$relative"
+                  ;;
+              esac
+            done < <(find "$root" -type f -print0)
+          fi
+      - name: Upload Swift test diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: swift-test-diagnostics
+          path: |
+            test-cache.log
+            test.log
+            test-luna.log
+            swift-crash-reports/**/*.ips
+            swift-crash-reports/**/*.crash
+            swift-crash-reports/**/*.txt
+          if-no-files-found: warn
 
   android:
     name: Android (test, lint, assemble, Vulkan regression)
@@ -105,13 +167,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Test, lint and assemble (Kotlin warnings are errors in core, media, multicam)
         run: ./gradlew test lint assembleRelease
+      - name: Apps' Gradle plugins (build-logic)
+        run: ./gradlew -p build-logic test
       - name: Vulkan present synchronization regression (host CPU)
         working-directory: .
         run: scripts/android-vulkan-sync-test.sh
@@ -151,6 +215,115 @@ jobs:
           OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
         run: python3 atlas/tools/atlas.py dupes --check --top 3
 
+  # The conformance kit's own checks (docs/conformance/SCENARIOS.md): the hosted accessibility walk's
+  # self-test and the native view tests that use it, on a private simulator with accessibility on.
+  kit-ios:
+    name: Conformance kit, iOS (hosted walk self-test)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+      - name: Install the SIMULATED application host generator
+        run: brew install xcodegen
+      - name: Create a private simulator with accessibility enabled
+        run: |
+          mkdir -p "$RUNNER_TEMP/kit-ios"
+          udid=$(scripts/ios-private-simulator.py create "opc-kit-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --report "$RUNNER_TEMP/kit-ios/simulator-setup.json")
+          echo "KIT_IOS_DEVICE_ID=$udid" >> "$GITHUB_ENV"
+      - name: Hosted walk self-test and native view tests
+        run: |
+          xcodebuild -scheme OpenCine-Package -destination "platform=iOS Simulator,id=$KIT_IOS_DEVICE_ID" \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/kit-ios/kit.xcresult" \
+            -only-testing:OpenCineHostedAccessibilityTests -only-testing:MonitorUITests \
+            -skip-testing:MonitorUITests/MonitorCommandDashboardTests test
+      # Scroll accessibility needs an application scene. This runner executes every dashboard
+      # contract, including the original activation/read-only assertions, without skipping one.
+      - name: Command dashboard contracts in a SIMULATED application host
+        timeout-minutes: 20
+        run: |
+          python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
+            --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
+      - name: Native playback labels and confirmation input
+        run: |
+          python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
+            --derived-data "$RUNNER_TEMP/kit-ios-labels-dd" --output "$RUNNER_TEMP/kit-ios/playback-labels"
+      - name: Delete the private simulator
+        if: always()
+        run: if [ -n "${KIT_IOS_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IOS_DEVICE_ID"; fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: kit-ios-evidence
+          path: ${{ runner.temp }}/kit-ios
+          if-no-files-found: warn
+
+  # The original three-case fixture remains required in kit-ios. This separate standard UI
+  # target exercises the typed system-dismissal counterpart with the same shared screen.
+  playback-native-ios:
+    name: Playback labels, native typed cancellation (SIMULATED)
+    needs: kit-ios
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Admit actual private userdata, cache, temporary and output filesystems
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          output = Path(os.environ['RUNNER_TEMP']) / 'playback-native'
+          output.mkdir()
+          paths = [output, Path.home() / 'Library/Developer/CoreSimulator/Devices',
+                    Path.home() / 'Library/Caches/org.swift.swiftpm', Path(os.environ['TMPDIR'])]
+          facts = {}
+          for path in paths:
+              existing = path
+              while not existing.exists():
+                  existing = existing.parent
+              stat = os.statvfs(existing)
+              facts[str(path)] = {'resolved': str(path.resolve()), 'freeBytes': stat.f_bavail * stat.f_frsize}
+          (output / 'admission.json').write_text(json.dumps(facts, indent=2) + '\n')
+          assert all(value['freeBytes'] >= 20 * 2**30 for value in facts.values()), facts
+          PY
+      - name: Create the owned native playback simulator
+        run: |
+          name="opc-playback-labels-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          udid=$(scripts/ios-private-simulator.py create "$name" \
+            --report "$RUNNER_TEMP/playback-native/simulator-setup.json")
+          echo "PLAYBACK_UI_DEVICE_ID=$udid" >> "$GITHUB_ENV"
+          echo "PLAYBACK_UI_DEVICE_NAME=$name" >> "$GITHUB_ENV"
+      - name: Standard native UI target and actual callback settlement
+        run: |
+          python3 scripts/ios-playback-label-ci.py --run --simulator-id "$PLAYBACK_UI_DEVICE_ID" \
+            --expected-device-name "$PLAYBACK_UI_DEVICE_NAME" --output "$RUNNER_TEMP/playback-native/case"
+      - name: Retain the exact private simulator in Shutdown state
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${PLAYBACK_UI_DEVICE_ID:-}" ]; then
+            python3 scripts/ios-playback-label-ci.py --cleanup --simulator-id "$PLAYBACK_UI_DEVICE_ID" \
+              --expected-device-name "$PLAYBACK_UI_DEVICE_NAME" --output "$RUNNER_TEMP/playback-native/case"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: playback-native-evidence
+          path: ${{ runner.temp }}/playback-native
+          if-no-files-found: warn
+
   # SHELL-05: an app fresh from `atlas new-app` builds against this commit and passes its SIMULATED
   # contract test (OpenCine's fake integration; no camera, no hardware).
   template-ios:
@@ -167,7 +340,7 @@ jobs:
         env:
           OUT: ${{ runner.temp }}/template
         run: brew install xcodegen && scripts/template-app-check.sh ios
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: SIMULATED-template-ios-evidence
@@ -183,7 +356,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: "21"
@@ -197,7 +370,7 @@ jobs:
         run: |
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
           scripts/template-app-check.sh android
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: SIMULATED-template-android-evidence
@@ -208,7 +381,7 @@ jobs:
   gate:
     name: CI gate
     if: always()
-    needs: [meta, swift, android, atlas, template-ios, template-android]
+    needs: [meta, swift, android, atlas, kit-ios, playback-native-ios, template-ios, template-android]
     runs-on: ubuntu-latest
     steps:
       - name: Require every shared and template check to pass

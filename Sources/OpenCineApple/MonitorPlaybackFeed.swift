@@ -167,6 +167,10 @@
     private let hdrDisplay: @Sendable () -> Bool
     private let journal: @Sendable (String) -> Void
     private let sourceAdvanced: @Sendable () -> Void
+    /// The clip a source states outright for a transfer (for example from its recording codec
+    /// and ISO). Declared on every playback publication this feed opens; nil keeps the measured
+    /// ceiling.
+    @MainActor private let declaredClip: (@MainActor (MonitorTransfer) -> Int?)?
     /// Main-owned publication authority. A rejected host closes its logical/native owner,
     /// advancing the existing pull fence. Background queues never read gallery state.
     @MainActor public var sourceAdmission: (@MainActor @Sendable () -> Bool)?
@@ -205,9 +209,11 @@
       configuration: MonitorAssistConfiguration,
       hdrDisplay: @escaping @Sendable () -> Bool,
       journal: @escaping @Sendable (String) -> Void = { _ in },
-      sourceAdvanced: @escaping @Sendable () -> Void = {}
+      sourceAdvanced: @escaping @Sendable () -> Void = {},
+      declaredClip: (@MainActor (MonitorTransfer) -> Int?)? = nil
     ) {
       assistEngine = MonitorAssistEngine(configuration: configuration)
+      self.declaredClip = declaredClip
       self.hdrDisplay = hdrDisplay
       self.journal = journal
       self.sourceAdvanced = sourceAdvanced
@@ -289,8 +295,14 @@
       }
       assistEngine.reset()
       if let sampleSource {
+        declareClip(on: sampleSource)
         assistEngine.adopt(exposureCeiling: sampleSource.exposureCeiling)
       }
+    }
+
+    @MainActor private func declareClip(on source: LiveFrameSampleBus.Source) {
+      guard let declaredClip, let clip = declaredClip(transfer) else { return }
+      source.exposureCeiling.declare(clipByte: clip, for: transfer)
     }
 
     @MainActor public func reserveHostGeneration() -> Int {
@@ -389,6 +401,7 @@
       guard sampleBus.isCurrent(sampleSource) else { return }
       // A clip owns its calibration history independently of the held live picture.
       guard let sampleSource else { return }
+      declareClip(on: sampleSource)
       assistEngine.adopt(exposureCeiling: sampleSource.exposureCeiling)
       if changed {
         sourceFence.retire(clearBuffer: false)

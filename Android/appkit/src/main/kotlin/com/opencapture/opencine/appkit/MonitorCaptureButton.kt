@@ -50,21 +50,19 @@ public fun MonitorCaptureButton(
     modifier: Modifier = Modifier,
     photo: Boolean = false,
     confirm: Boolean = false,
-    confirmationPolicy: MonitorControlModel.RecordConfirmationPolicy =
-        MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,
     takePhoto: () -> Unit = {},
     openMode: (() -> Unit)? = null,
     onConfirmingChange: (Boolean) -> Unit = {},
 ): Unit {
     val state by control.state.collectAsState()
-    val editor = control.recordEditor(confirmationPolicy)
+    val editor = control.recordEditor()
     val recording = control.isRecording == true
     val interactive = enabled && !state.recordPending && (photo || editor != null)
     var approved by remember { mutableStateOf<MonitorControlModel.RecordEditor?>(null) }
     LaunchedEffect(editor) {
         approved?.let { if (!control.canCommitRecord(it)) approved = null }
     }
-    LaunchedEffect(enabled, photo, confirmationPolicy) { approved = null }
+    LaunchedEffect(enabled, photo) { approved = null }
     // Hosts gate other record paths (remote shutter, watch) while the operator is deciding.
     val confirming = approved != null
     val latestConfirming by rememberUpdatedState(onConfirmingChange)
@@ -76,8 +74,6 @@ public fun MonitorCaptureButton(
         when {
             photo -> takePhoto()
             confirm -> approved = editor
-            confirmationPolicy == MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET && editor != null ->
-                control.commitRecord(editor)
             else -> control.record(null)
         }
     }

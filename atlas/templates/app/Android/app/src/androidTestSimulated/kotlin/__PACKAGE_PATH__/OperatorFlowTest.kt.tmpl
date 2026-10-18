@@ -189,7 +189,7 @@ class OperatorFlowTest {
     }
     private fun startLoopingPlayback() {
         // Pixel capture can outlast the short golden clip. Exercise the public loop action.
-        click("Loop clip")
+        click("Loop playback")
         val transport = awaitNode {
             matches(it, "Pause", "Play", "Restart clip") && clickableAncestor(it) != null
         }

@@ -14,8 +14,6 @@
         public var onDiagnostics: () -> Void
         public var onReportProblem: () -> Void
         public var onWatchFeed: (() -> Void)?
-        public var onPrivacy: (() -> Void)?
-        public var onTerms: (() -> Void)?
         public var extra: Extra
 
         public init(
@@ -24,7 +22,6 @@
             onBack: @escaping () -> Void, onDiagnostics: @escaping () -> Void,
             onReportProblem: @escaping () -> Void,
             onWatchFeed: (() -> Void)? = nil,
-            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil,
             @ViewBuilder extra: () -> Extra
         ) {
             self.presentation = presentation
@@ -35,8 +32,6 @@
             self.onDiagnostics = onDiagnostics
             self.onReportProblem = onReportProblem
             self.onWatchFeed = onWatchFeed
-            self.onPrivacy = onPrivacy
-            self.onTerms = onTerms
             self.extra = extra()
         }
 
@@ -143,7 +138,6 @@
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("pair.reportProblem")
-                CameraLegalLinks(onPrivacy: onPrivacy, onTerms: onTerms)
             }
             .padding(11).frame(
                 maxWidth: .infinity, maxHeight: portrait ? nil : .infinity, alignment: .topLeading
@@ -232,7 +226,9 @@
                         MonitorSnapshotRows(presentation.instructions) { instruction in
                             instructionCard(instruction)
                         }
-                        MonitorSnapshotRows(presentation.checks) { check in checkRow(check) }
+                        MonitorSnapshotRows(presentation.checks) { check in
+                            CameraPairingCheckRow(check)
+                        }
                         if !presentation.summary.isEmpty {
                             LazyVGrid(
                                 columns: Array(
@@ -303,37 +299,6 @@
                 RoundedRectangle(cornerRadius: 11).stroke(Color.white.opacity(0.06), lineWidth: 1))
         }
 
-        private func checkRow(_ check: CameraPairingCheck) -> some View {
-            HStack(spacing: 11) {
-                Text(check.state == .complete ? "✓" : check.state == .active ? "·" : "")
-                    .font(MonitorTheme.font(10, weight: .bold))
-                    .foregroundStyle(
-                        check.state == .complete ? MonitorTheme.background : MonitorTheme.accent
-                    )
-                    .frame(width: 22, height: 22)
-                    .background(
-                        check.state == .complete
-                            ? MonitorTheme.accent
-                            : MonitorTheme.accent.opacity(check.state == .active ? 0.16 : 0.04),
-                        in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(check.title).font(MonitorTheme.font(13, weight: .semibold))
-                    Text(check.subtitle).font(MonitorTheme.font(9.5)).foregroundStyle(
-                        MonitorTheme.muted)
-                }.frame(maxWidth: .infinity, alignment: .leading)
-                Text(check.stateLabel).font(MonitorTheme.font(8.5, weight: .bold)).tracking(1.1)
-                    .foregroundStyle(
-                        check.state == .complete
-                            ? Color(red: 63 / 255, green: 211 / 255, blue: 163 / 255)
-                            : check.state == .active ? MonitorTheme.accent : MonitorTheme.faint)
-            }
-            .padding(13).background(
-                Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 11)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 11).stroke(Color.white.opacity(0.06), lineWidth: 1))
-        }
-
         private func footer(portrait: Bool) -> some View {
             VStack(spacing: 9) {
                 if portrait {
@@ -368,14 +333,12 @@
             onSelect: @escaping (String) -> Void, onPrimary: @escaping () -> Void,
             onBack: @escaping () -> Void, onDiagnostics: @escaping () -> Void,
             onReportProblem: @escaping () -> Void,
-            onWatchFeed: (() -> Void)? = nil,
-            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil
+            onWatchFeed: (() -> Void)? = nil
         ) {
             self.init(
                 presentation: presentation, safeArea: safeArea, onSelect: onSelect,
                 onPrimary: onPrimary, onBack: onBack, onDiagnostics: onDiagnostics,
-                onReportProblem: onReportProblem, onWatchFeed: onWatchFeed,
-                onPrivacy: onPrivacy, onTerms: onTerms, extra: { EmptyView() })
+                onReportProblem: onReportProblem, onWatchFeed: onWatchFeed, extra: { EmptyView() })
         }
     }
 
