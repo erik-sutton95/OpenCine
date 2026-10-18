@@ -22,6 +22,7 @@ from pathlib import Path
 import atlas
 import manifests
 import resolver
+import linked_issues
 
 OK, FAIL, USAGE, INCOMPLETE = atlas.OK, atlas.FAIL, atlas.USAGE, atlas.INCOMPLETE
 CODE_GLOBS = ["*.swift", "*.kt", "*.java", "*.c", "*.h", "*.cc", "*.cpp", "*.hpp", "*.m", "*.mm",
@@ -377,7 +378,7 @@ def fetch_issue(m, number):
     if not shutil.which("gh"):
         return None, "gh is not installed"
     try:
-        r = gh_run(["issue", "view", str(number), "--repo", repo, "--json", "number,title,body,labels,url,state"])
+        r = gh_run(["issue", "view", str(number), "--repo", repo, "--json", "number,title,body,labels,url,state,author"])
     except subprocess.TimeoutExpired:
         return None, "GitHub did not answer"
     if r.returncode:
@@ -388,6 +389,10 @@ def fetch_issue(m, number):
 def _worktree(checkout, dest, branch, base):
     """Create or reuse a task worktree. `branch` None means detached at `base`."""
     if dest.exists():
+        if dest.is_symlink() or Path(resolver.git(dest, "rev-parse", "--show-toplevel")).resolve() != dest.resolve() \
+                or resolver.git(dest, "rev-parse", "--path-format=absolute", "--git-common-dir") \
+                != resolver.git(checkout, "rev-parse", "--path-format=absolute", "--git-common-dir"):
+            raise resolver.GitError(f"{dest} is not an exact worktree of the requested repository; preserve its owner")
         have = resolver.git(dest, "symbolic-ref", "--quiet", "--short", "HEAD", check=False) or None
         if have == branch and (branch or resolver.git(dest, "rev-parse", "HEAD") == base):
             return "reused"
@@ -419,20 +424,80 @@ def cmd_task_start(args, reg, root):
         print(f"unknown repo in --with: {', '.join(r for r in extra if r not in reg)}", file=sys.stderr)
         return USAGE
     pid, _ = platform(reg, root)
+    issue, why = fetch_issue(reg[rid], number)
+    tracking = None
+    if rid == pid and issue:
+        config_path = Path(root) / "issue-sync.json"
+        bot = json.loads(config_path.read_text())["bot_login"] if config_path.exists() else "opencine-atlas-sync[bot]"
+        link = None
+        # Ordinary Core reports can quote any marker syntax. Creator authority
+        # precedes parsing; only sync-owned trackers can redirect to an app.
+        author = issue.get("author") or {}
+        login = author.get("login") or ""
+        if author.get("is_bot") is True and login.startswith("app/"):
+            login = login.removeprefix("app/") + "[bot]"
+        if login == bot:
+            try:
+                link = linked_issues.parse_link(issue.get("body"), reg)
+            except linked_issues.SyncError as exc:
+                print(f"cannot route linked issue: {exc}", file=sys.stderr)
+                return FAIL
+        if link:
+            if args.from_file:
+                print("linked trackers require the original issue; --from-file cannot override their identity", file=sys.stderr)
+                return USAGE
+            tracking = {"repo": rid, "number": number, "url": issue.get("url")}
+            if tracking["url"] != f"https://github.com/{github_repo(reg[rid])}/issues/{number}":
+                print("invalid central tracking issue URL", file=sys.stderr)
+                return FAIL
+            rid, number = link["app"], link["number"]
+            issue, why = fetch_issue(reg[rid], number)
+            if not issue or issue.get("url") != link["url"] or issue.get("number") != number:
+                print(f"original {rid}#{number} unavailable or invalid ({why or 'identity mismatch'}); no worktrees created", file=sys.stderr)
+                return INCOMPLETE
+            extra.insert(0, pid)
+            print(f"linked   {tracking['repo']}#{tracking['number']} -> {rid}#{number} (original source of truth)")
     repos = list(dict.fromkeys([rid, *extra]))
     task = f"{rid}-{number}"
     branch = f"issue/{task}"
-    folder = workspace(root, reg) / "OpenCine-tasks" / task
-    issue, why = fetch_issue(reg[rid], number)
+    session = None
+    cfg = resolver.load_local_config(root)
+    if getattr(args, "orca", False):
+        import orca_tasks
+        try:
+            session = orca_tasks.OrcaTasks(reg, root)
+            cfg = session.config()
+        except orca_tasks.OrcaError as exc:
+            print(str(exc), file=sys.stderr)
+            return INCOMPLETE
+    ws = workspace(root, reg)
+    if session and not cfg.get("workspace") and not os.environ.get("OPENCAPTURE_WORKSPACE"):
+        ws = Path(session.repo(pid)["path"]).resolve().parent
+    folder = ws / "OpenCine-tasks" / task
     if args.from_file:
         title, _, body = Path(args.from_file).read_text().strip().partition("\n")
         given = {"title": title.strip().lstrip("# "), "body": body.strip()}
         issue = dict(issue or {"url": f"text given by the user, not on GitHub ({why})"}, **given)
         why = None
+    if session:
+        try:
+            with session.lock(folder):
+                return _start_task_worktrees(args, reg, root, cfg, session, rid, number, pid, repos, branch, folder, issue, why, tracking)
+        except (orca_tasks.OrcaError, OSError, ValueError) as exc:
+            print(f"Orca task incomplete: {exc}; preserve the task folder and rerun the same command", file=sys.stderr)
+            return INCOMPLETE
+    return _start_task_worktrees(args, reg, root, cfg, session, rid, number, pid, repos, branch, folder, issue, why, tracking)
+
+
+def _start_task_worktrees(args, reg, root, cfg, session, rid, number, pid, repos, branch, folder, issue, why, tracking):
+    if session:
+        tracking = session.task_tracking(folder, rid, number, pid, tracking)
+        if tracking and pid not in repos:
+            repos = [*repos, pid]
     rows, pins = [], {}
     for r in repos:
         m = reg[r]
-        res = resolver.resolve(m, root)
+        res = resolver.resolve(m, root, config=cfg)
         if res["status"] != "ok":
             print(f"{r}: checkout {res['status']}: {res['reason']} (python3 atlas/tools/atlas.py ensure)", file=sys.stderr)
             return INCOMPLETE
@@ -443,38 +508,71 @@ def cmd_task_start(args, reg, root):
             print(f"{r}: base {ref['name'] if ref else '(none registered)'} not found locally; fetch it or pass --base", file=sys.stderr)
             return INCOMPLETE
         dest = folder / m["local_dir"]
-        try:
-            state = _worktree(res["path"], dest, branch, base)
-        except resolver.GitError as exc:
-            print(str(exc), file=sys.stderr)
-            return FAIL
         pin = resolver.git(res["path"], "show", f"{base}:opencine-pins.txt", check=False)
         for ln in pin.splitlines():
             parts = ln.split()
             if len(parts) == 2 and not ln.startswith("#"):
                 pins.setdefault(parts[0], (parts[1], r))
-        rows.append({"repo": r, "path": dest, "branch": branch, "base": f"{ref['name']} @ {base[:12]}", "state": state,
+        rows.append({"repo": r, "path": dest, "branch": branch, "base": f"{ref['name']} @ {base[:12]}", "base_sha": base,
                      "instructions": m.get("instructions", []), "checkout": res["path"]})
     plat = reg.get(pid)
     if plat and pid not in repos and plat["local_dir"] in pins:
         sha, by = pins[plat["local_dir"]]
-        res = resolver.resolve(plat, root)
+        res = resolver.resolve(plat, root, config=cfg)
         dest = folder / plat["local_dir"]
         if res["status"] == "ok" and resolver.rev(res["path"], sha):
-            state = _worktree(res["path"], dest, None, sha)
             rows.append({"repo": pid, "path": dest, "branch": None, "base": f"{by}'s pin @ {sha[:12]} (detached, read-only reference)",
-                         "state": state, "instructions": plat.get("instructions", []), "checkout": res["path"]})
+                         "base_sha": sha, "instructions": plat.get("instructions", []), "checkout": res["path"]})
         else:
             print(f"warning: {pid} pin {sha[:12]} not available locally; {by} has no sibling OpenCine in the task folder")
+            if session:
+                return INCOMPLETE
+    if session:
+        session.preflight(rows, rid, number, pid, tracking)
+    for row in rows:
+        try:
+            row["state"] = _worktree(row["checkout"], row["path"], row["branch"], row["base_sha"])
+        except resolver.GitError as exc:
+            print(str(exc), file=sys.stderr)
+            return FAIL
     brief = folder / "TASK.md"
     text = task_brief(rid, number, issue, why, rows, reg, pid)
     if brief.exists():
         # A rerun (for example --with opencine) keeps what was written into the brief.
         table = text[text.index("## Worktrees"):text.index("## Routing decision")]
-        with brief.open("a") as fh:
-            fh.write("\n" + table.replace("## Worktrees", "## Worktrees after a rerun of task start", 1))
+        addition = table.replace("## Worktrees", "## Worktrees after a rerun of task start", 1)
+        if addition not in brief.read_text():
+            with brief.open("a") as fh:
+                fh.write("\n" + addition)
     else:
         brief.write_text(text)
+    if tracking:
+        line = (f"Linked tracking issue: {tracking['url']} ({tracking['repo']}#{tracking['number']}).\n"
+                f"Original source of truth: https://github.com/{github_repo(reg[rid])}/issues/{number}. "
+                "The original remains the canonical task and PR reference; hosted sync carries paired closure/reopening. "
+                "Verify both actual states when reporting completion.\n")
+        if line not in brief.read_text():
+            with brief.open("a") as fh:
+                fh.write("\n## Linked issue identities\n\n" + line)
+    if session:
+        receipt = session.adopt(rows, folder, rid, number, pid, tracking)
+        note = ("\n## Orca task custody\n\n"
+                "These Git worktrees are adopted/discovered through Orca's public catalog. "
+                "Continue this agent in the task worktrees; no additional agent is started.\n"
+                "Local receipt: `.atlas-orca.json`. On partial failure preserve work and rerun the same task command. "
+                "Use Orca worktree removal after merge or deliberate abandonment; retain unique notes first.\n")
+        if note not in brief.read_text():
+            with brief.open("a") as fh:
+                fh.write(note)
+        for row in rows:
+            cleanup = f"git -C {row['checkout']} worktree remove {row['path']}"
+            # Replace only generated cleanup lines, keeping the rest of the operator's brief.
+            text = brief.read_text().replace(cleanup, f"orca worktree rm --worktree path:{row['path'].resolve()} --json")
+            brief.write_text(text)
+        if not receipt["complete"]:
+            print(f"Orca adoption incomplete: {receipt['error']}; preserved work and receipt {folder / '.atlas-orca.json'}", file=sys.stderr)
+            return INCOMPLETE
+        print(f"orca     adopted/discovered {len(receipt['adopted'])} verified worktrees; {folder / '.atlas-orca.json'}")
     want = ((resolver.load_local_config(root).get("identity") or {}).get("email") or "")
     want = None if want.startswith("<") else want
     for row in rows:
