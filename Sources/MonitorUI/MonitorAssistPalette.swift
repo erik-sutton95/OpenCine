@@ -181,8 +181,11 @@
                         .scrollDisabled(!expanded)
                         .monitorScrollFade(depth: fade)
                     } else {
+                        // Eager, like the portrait stack: a lazy stack stopped updating the cells
+                        // the collapsed plate clips, so after a collapse they stayed in the
+                        // accessibility tree as visible buttons at their open positions.
                         ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: MonitorAssistPaletteLayout.spacing) {
+                            HStack(spacing: MonitorAssistPaletteLayout.spacing) {
                                 ForEach(0..<full.columns, id: \.self) { column in
                                     VStack(spacing: MonitorAssistPaletteLayout.spacing) {
                                         ForEach(0..<2, id: \.self) { row in
