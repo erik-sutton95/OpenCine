@@ -80,7 +80,7 @@ public final class MonitorControlModel {
     @ObservationIgnored var captureChoices: [SettingKey: (domain: SettingDomain, choices: [MonitorCaptureChoice])] = [:]
 
     @ObservationIgnored private let coalescing: Duration
-    @ObservationIgnored private let sleep: @MainActor (Duration) async -> Void
+    @ObservationIgnored private let sleep: @MainActor (Duration) async throws -> Void
     @ObservationIgnored private var binding = 0
     @ObservationIgnored private var feed: Task<Void, Never>?
     @ObservationIgnored private var operations:
@@ -98,7 +98,9 @@ public final class MonitorControlModel {
     /// `sleep` waits out the coalescing window; tests pass a manual clock.
     public init(
         coalescing: Duration = .milliseconds(120),
-        sleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+        sleep: @escaping @MainActor (Duration) async throws -> Void = {
+            try await Task.sleep(for: $0)
+        }
     ) {
         self.coalescing = coalescing
         self.sleep = sleep
@@ -119,7 +121,9 @@ public final class MonitorControlModel {
     public convenience init(now: @escaping @MainActor () -> MonotonicInstant,
         recordingSleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) },
         coalescing: Duration = .milliseconds(120),
-        sleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
+        sleep: @escaping @MainActor (Duration) async throws -> Void = {
+            try await Task.sleep(for: $0)
+        }) {
         self.init(coalescing: coalescing, sleep: sleep)
         self.recordingNow = now
         self.recordingSleep = recordingSleep
@@ -337,11 +341,12 @@ public final class MonitorControlModel {
         guard scheduled.insert(key).inserted else { return }
         let current = binding
         let revision = editRevisions[key, default: 0]
-        // Hosted Swift 6.3.3 aborts in the task allocator when the stored closure is called
-        // through `self` here; capturing it first also leaves the model free during the window.
+        // Hosted Swift 6.3.3 aborted in the task allocator awaiting a non-throwing stored
+        // `@MainActor` async closure here; `sleep` is throwing like the other injected waits.
+        // Capturing it first also leaves the model free during the window.
         let sleep = sleep, coalescing = coalescing
         Task { [weak self] in
-            await sleep(coalescing)
+            try? await sleep(coalescing)
             guard let self, self.binding == current,
                 self.editRevisions[key, default: 0] == revision
             else { return }
