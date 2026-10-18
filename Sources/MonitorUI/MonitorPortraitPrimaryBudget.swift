@@ -282,7 +282,25 @@
       )
       .tracking(fit?.tracking ?? 0)
       .monospacedDigit().lineLimit(1).fixedSize(horizontal: true, vertical: true)
+      .padding(.top, detail ? 0 : fit.map(MonitorPortraitCapAlignment.primaryInset) ?? 0)
       .accessibilityLabel(value)
+    }
+  }
+
+  /// The status row aligns its items by their top edge. A primary drawn smaller than the clock
+  /// (the fitter caps it) would then paint its capitals higher than the clock's digits, since a
+  /// line's top sits above its cap height by an amount that grows with the size. The inset moves
+  /// the primary's paint down by that difference, so the painted tops line up; the target keeps
+  /// its frame top.
+  enum MonitorPortraitCapAlignment {
+    /// Space above the cap height in one point of Sora Medium, the face of the clock and primary.
+    private static let unitTopToCap: CGFloat = {
+      guard let font = UIFont(name: "Sora-Medium", size: 100) else { return 0 }
+      return (font.ascender - font.capHeight) / 100
+    }()
+
+    static func primaryInset(_ fit: MonitorPortraitPrimaryFit) -> CGFloat {
+      max(0, (fit.clockSize - fit.primarySize) * unitTopToCap)
     }
   }
 
