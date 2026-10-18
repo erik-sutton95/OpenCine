@@ -410,9 +410,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         readSnapshot:
             @escaping @MainActor (MonitorMediaCacheReadPlan) async throws ->
             MonitorMediaCacheSnapshot = { try await $0.read() },
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        }
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)
     ) {
         self.catalogBase = catalogBase
         self.cache = cache

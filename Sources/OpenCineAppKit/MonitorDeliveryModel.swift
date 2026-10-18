@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OpenCineCore
 
 private final class MonitorDeliveryCancellation: @unchecked Sendable {
     private let lock = NSLock()
@@ -99,9 +100,7 @@ public final class MonitorDeliveryModel<Progress: Sendable, Outcome: Sendable, S
     @ObservationIgnored private let releaseShare: @MainActor (Share) -> Void
 
     public init(
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        },
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
         releaseShare: @escaping @MainActor (Share) -> Void = { _ in }
     ) {
         self.sleep = sleep

@@ -1,6 +1,7 @@
 import Foundation
 import MonitorPresentation
 import Observation
+import OpenCineCore
 
 /// Host reporting actions over the app's existing consent store and transport. The startup
 /// lifetime owns admission and cadence, never persistence namespaces, SDKs or upload policy.
@@ -47,9 +48,7 @@ import Observation
 
     public init(
         reports: MonitorStartupReports,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = {
-            try await Task.sleep(for: $0)
-        }
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)
     ) {
         self.reports = reports
         self.sleep = sleep

@@ -1,6 +1,7 @@
 import Foundation
 import MonitorPresentation
 import Observation
+import OpenCineCore
 
 /// The one owner of the monitor's display intent: the DISP modes a source offers and the current
 /// one, each mode's chrome, the chrome editor and its return to Settings, the interface lock and
@@ -50,7 +51,7 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
 
     public init(shell: ShellModel, assist: MonitorAssistState<Looks>,
         display: MonitorDisplayPreferences,
-        sleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
+        sleep: @escaping @MainActor (Duration) async -> Void = hostSleepUntilCancelled(for:)) {
         self.shell = shell; self.assist = assist; preferences = display; self.sleep = sleep
         live = display.live; clean = display.clean; command = display.command
     }

@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OpenCineCore
 import OpenCineMedia
 
 /// Immutable samples from the existing native source, identified by its actual publication.
@@ -27,7 +28,8 @@ public final class MonitorPlaybackScopeSession<Configuration: Equatable & Sendab
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var enabled = false
     @ObservationIgnored private var closed = false
-    public init(cadence: Duration, sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+    public init(cadence: Duration,
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
         derive: @escaping @Sendable (ScopeSamples, Configuration, ScopeAssistBundle) async -> ScopeAssistBundle) {
         self.cadence = cadence; self.sleep = sleep; self.derive = derive
     }

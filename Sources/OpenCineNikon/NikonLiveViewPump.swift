@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Current preview demand. Picture ownership belongs to the native presentation runtime;
 /// this value controls only Nikon's camera stream and its header/control carrier.
@@ -53,7 +54,7 @@ public final class NikonLiveViewPump {
     public init(
         link: any NikonMonitorLink,
         now: @escaping @MainActor () -> Date = Date.init,
-        sleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+        sleep: @escaping @MainActor (Duration) async -> Void = hostSleepUntilCancelled(for:)
     ) {
         self.link = link
         self.now = now
