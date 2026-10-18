@@ -77,7 +77,8 @@ jobs:
             swift build --scratch-path "$RUNNER_TEMP/opencine-portable-wae" --target "$target" \
               -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
           done
-      - name: Test (fails on a duplicate class warning)
+      - name: Test cache admission (isolated real I/O)
+        if: always()
         shell: bash  # -o pipefail, so a failing swift test fails the step
         run: |
           # Run the complete strict bundle built above, not the isolated WAE objects.
@@ -86,9 +87,26 @@ jobs:
           cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --filter "$cache_test" 2>&1 | tee test-cache.log
+      - name: Test package (real-clock join prompts excluded)
+        if: always()
+        shell: bash
+        run: |
+          # The real-clock join prompt suite runs by itself below; every other test stays here.
+          cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
-            --skip "$cache_test" 2>&1 | tee test.log
-          ! grep -q "implemented in both" test-cache.log test.log
+            --skip "$cache_test" --skip LunaJoinPromptTests 2>&1 | tee test.log
+      - name: Test join prompt retry (real clock, isolated)
+        if: always()
+        shell: bash
+        run: |
+          # Required separate invocation: its five-second retry budget and every original
+          # assertion stay unchanged, without the full package workload beside it.
+          swift test --skip-build -Xswiftc -strict-concurrency=complete \
+            --filter LunaJoinPromptTests 2>&1 | tee test-luna.log
+      - name: No duplicate test class warning
+        if: always()
+        shell: bash
+        run: '! grep -q "implemented in both" test-cache.log test.log test-luna.log'
       - name: Build MonitorUI (iOS Simulator)
         run: xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
       - name: Build OpenCineApple (iOS Simulator)
