@@ -78,8 +78,13 @@
     /// Every editor over the shared DISP sections names and offers them the same way.
     extension ChromeEditHost
     where ChromeSection == MonitorDisplayChrome.Section, ChromeMode == MonitorDisplayMode {
+        /// Section order is the eye-badge placement priority. The lock and batteries take their
+        /// corners first, then CODEC: its portrait detail box nests inside the status band, and a
+        /// nested box cannot stack outward when the enclosing status eye has already taken the
+        /// only free corner. Enum raw values and the persisted preference order are untouched.
         public var chromeEditSections: [MonitorDisplayChrome.Section] {
-            MonitorDisplayChrome.Section.allCases
+            let cornerFirst: [MonitorDisplayChrome.Section] = [.lockButton, .batteries, .codec]
+            return cornerFirst + MonitorDisplayChrome.Section.allCases.filter { !cornerFirst.contains($0) }
         }
 
         public func chromeSectionTitle(_ section: MonitorDisplayChrome.Section) -> String {

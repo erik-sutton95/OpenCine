@@ -318,13 +318,19 @@ private fun BoxScope.OperatorToast(note: String?, layout: LiveMonitorLayout, sta
 private fun Modifier.frame(rect: MonitorRect): Modifier = offset(rect.x.dp, rect.y.dp).size(rect.width.dp, rect.height.dp)
 
 private val BADGE_ORDER: List<MonitorDisplaySection> =
-    listOf(MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.BATTERIES) +
-        MonitorDisplaySection.entries.filter { it != MonitorDisplaySection.LOCK_BUTTON && it != MonitorDisplaySection.BATTERIES }
+    listOf(MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.BATTERIES,
+        MonitorDisplaySection.CODEC) +
+        MonitorDisplaySection.entries.filter {
+            it != MonitorDisplaySection.LOCK_BUTTON && it != MonitorDisplaySection.BATTERIES &&
+                it != MonitorDisplaySection.CODEC
+        }
 
 internal fun operatorChromeHost(session: MonitorOperatorSessionModel): ChromeEditHost<MonitorDisplaySection, MonitorDisplayMode> =
     object : ChromeEditHost<MonitorDisplaySection, MonitorDisplayMode> {
         // The lock and batteries take their corners first: on a phone with no top cutout the battery band sits on
-        // the status row, and the status bar's eye would otherwise land on the batteries'.
+        // the status row, and the status bar's eye would otherwise land on the batteries'. CODEC follows them
+        // because its portrait detail box nests inside the status band; a nested box cannot stack outward, so
+        // the enclosing status eye would otherwise take the only free corner and drop the codec eye.
         override val chromeEditSections = BADGE_ORDER
         override fun chromeSectionTitle(section: MonitorDisplaySection) = section.title
         override fun chromeSectionID(section: MonitorDisplaySection) = section.key
