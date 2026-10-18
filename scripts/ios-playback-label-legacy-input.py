@@ -184,6 +184,35 @@ final class OpenCinePlaybackLabelsDiagnosticApplication: UIApplication {
             }
             return block
         }
+        hook("_UIPassthroughScrollInteraction", "_gestureRecognizerFailed:") { imp, sel in
+            let original = unsafeBitCast(imp, to: ObjectFn.self)
+            let block: @convention(block) (AnyObject, AnyObject?) -> Void = { object, recognizer in
+                trace("recognizerFailed", object, [
+                    "recognizer": recognizer.map { String(describing: type(of: $0)) } ?? "nil",
+                    "stack": Thread.callStackSymbols.prefix(24).map { String($0.dropFirst(40)) },
+                    "windowRecognizers": ((recognizer as? UIGestureRecognizer)?.view?.gestureRecognizers ?? []).map {
+                        String(describing: type(of: $0)) + ":" + String($0.state.rawValue)
+                    },
+                ])
+                original(object, sel, recognizer)
+            }
+            return block
+        }
+        hook("UIGestureRecognizer", "setState:") { imp, sel in
+            typealias StateFn = @convention(c) (AnyObject, Selector, Int) -> Void
+            let original = unsafeBitCast(imp, to: StateFn.self)
+            let block: @convention(block) (AnyObject, Int) -> Void = { object, state in
+                let name = String(describing: type(of: object))
+                if name.contains("Gate") || name.contains("Passthrough") || name.contains("Dimming") {
+                    trace("setState", object, [
+                        "from": (object as? UIGestureRecognizer)?.state.rawValue ?? -1, "to": state,
+                        "stack": Thread.callStackSymbols.prefix(10).dropFirst(2).map { String($0.dropFirst(40)) },
+                    ])
+                }
+                original(object, sel, state)
+            }
+            return block
+        }
         hook("_UIPassthroughScrollInteraction", "_handlePassthroughGestureRecognizerEndWithReason:atLocation:") { imp, sel in
             let original = unsafeBitCast(imp, to: ReasonFn.self)
             let block: @convention(block) (AnyObject, Int, CGPoint) -> Void = { object, reason, point in
