@@ -161,6 +161,15 @@
             .compactMap { id in tools.first { $0.id == id } }
         }
 
+        /// The landscape columns to lay out. Fully collapsed, only the compact cells: the lazy
+        /// stack does not update the cells the collapsed plate clips, so they kept their open
+        /// state and stayed in the accessibility tree as visible buttons where nothing draws.
+        private func landscapeColumns(full: MonitorAssistPaletteLayout, labels: Double) -> Int {
+            guard labels <= 0 else { return full.columns }
+            let compact = MonitorAssistPaletteReveal.compactToolCount(portrait: false)
+            return min(full.columns, (compact + 1) / 2)
+        }
+
         private func toolGrid(full: MonitorAssistPaletteLayout, labels: Double) -> some View {
             let items = displayTools
             // Collapsed, the edge fade would mask the favorite in its one-cell viewport.
@@ -181,12 +190,9 @@
                         .scrollDisabled(!expanded)
                         .monitorScrollFade(depth: fade)
                     } else {
-                        // Eager, like the portrait stack: a lazy stack stopped updating the cells
-                        // the collapsed plate clips, so after a collapse they stayed in the
-                        // accessibility tree as visible buttons at their open positions.
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: MonitorAssistPaletteLayout.spacing) {
-                                ForEach(0..<full.columns, id: \.self) { column in
+                            LazyHStack(spacing: MonitorAssistPaletteLayout.spacing) {
+                                ForEach(0..<landscapeColumns(full: full, labels: labels), id: \.self) { column in
                                     VStack(spacing: MonitorAssistPaletteLayout.spacing) {
                                         ForEach(0..<2, id: \.self) { row in
                                             let index =
