@@ -804,6 +804,17 @@ def run(args, root):
         remaining = group_members(process.pid)
         results[label] = {'pid': process.pid, 'pgid': process.pid, 'exit': code, 'watchdog': row.get('watchdog'), 'remainingGroup': remaining}
     assert all(not r['remainingGroup'] for r in results.values()), results
+    # DIAGNOSTIC (round 4): the system side of gesture arbitration around the reader's tap.
+    try:
+        with (out / 'system-gesture-log.txt').open('w') as stream:
+            subprocess.run(['xcrun', 'simctl', 'spawn', args.simulator_id, 'log', 'show', '--style', 'compact',
+                            '--last', '30m', '--info', '--debug', '--predicate',
+                            '(process == "SpringBoard" OR process == "backboardd") AND '
+                            '(category CONTAINS[c] "gesture" OR eventMessage CONTAINS[c] "gesture" '
+                            'OR eventMessage CONTAINS[c] "home affordance" OR eventMessage CONTAINS[c] "edge")'],
+                           stdout=stream, stderr=subprocess.STDOUT, timeout=180)
+    except Exception as error:
+        (out / 'system-gesture-log-error.txt').write_text(repr(error) + '\n')
     devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', '--json']))['devices']
     device_info = next(d for group in devices.values() for d in group if d['udid'] == args.simulator_id)
     if device_info['state'] != 'Shutdown':

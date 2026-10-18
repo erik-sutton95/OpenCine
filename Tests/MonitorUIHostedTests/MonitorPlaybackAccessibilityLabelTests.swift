@@ -176,6 +176,13 @@
         case nativeScene
     }
 
+    // The reader's native tap lands near the bottom edge. Without deferral the system may claim
+    // it as a screen-edge gesture, which fails the popover's outside-tap recognizer before it can
+    // dismiss. Deferring keeps every touch on the fixture first, as an app's full-screen player.
+    private final class PlaybackLabelHostingController: UIHostingController<AnyView> {
+        override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
+    }
+
     @MainActor
     private final class PlaybackLabelFixture {
         let item = MonitorPlaybackItemToken(owner: UUID(), revision: 1)
@@ -246,13 +253,14 @@
                 root = AnyView(screen.frame(maxWidth: .infinity, maxHeight: .infinity))
                 frame = scene.coordinateSpace.bounds
             }
-            host = UIHostingController(rootView: root)
+            host = PlaybackLabelHostingController(rootView: root)
             window = UIWindow(windowScene: scene)
             window.frame = frame
             previousKeyWindow = scene.keyWindow
             window.rootViewController = host
             window.makeKeyAndVisible()
             host.view.frame = window.bounds
+            host.setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
             hideOtherWindows()
         }
 
