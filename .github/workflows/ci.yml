@@ -236,7 +236,7 @@ jobs:
           output = Path(os.environ['RUNNER_TEMP']) / 'playback-native'
           output.mkdir()
           paths = [output, Path.home() / 'Library/Developer/CoreSimulator/Devices',
-                   Path.home() / 'Library/Caches/org.swift.swiftpm', Path(os.environ['TMPDIR'])]
+                    Path.home() / 'Library/Caches/org.swift.swiftpm', Path(os.environ['TMPDIR'])]
           facts = {}
           for path in paths:
               existing = path

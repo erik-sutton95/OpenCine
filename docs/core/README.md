@@ -471,4 +471,3 @@ and an optional metering source whose unknown mode has no toggle target. Luna's 
 native colour choices and shape labels live in the integration (`LunaColorMode.label`, Kotlin
 `CameraColorProfile.label`, `aspectLabel`). `MultiviewTile.withPower` is the one projection of
 typed power onto a stage tile, and `WatchRelayState.replacing(power:)` the one for the wrist.
-

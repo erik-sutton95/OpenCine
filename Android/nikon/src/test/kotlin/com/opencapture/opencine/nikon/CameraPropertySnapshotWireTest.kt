@@ -38,7 +38,7 @@ class CameraPropertySnapshotWireTest {
             descriptor.vibrationReduction.support	supported
             descriptor.vibrationReduction.access	readWrite
             descriptor.vibrationReduction.form	enumeration
-            descriptor.vibrationReduction.choices	SPORTOFF
+            descriptor.vibrationReduction.choices	SPORT${'\u001F'}OFF
             descriptor.vibrationReduction.origin	descriptor
             descriptor.vibrationReduction.operation	getDevicePropDesc
             descriptor.vibrationReduction.response	8193

@@ -162,35 +162,35 @@ private fun TelemetryGauge(
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .semantics { contentDescription = label }
     val content: @Composable () -> Unit = {
-      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (icon != null) MonitorIcon(icon, contentDescription = null, tint = MonitorPalette.text, modifier = Modifier.size(metrics.iconSize.dp))
-        if (value != null) {
-            Text(value, color = tint, style = MonitorTypography.readout(metrics.fontSize, FontWeight.Bold), maxLines = 1)
-        } else {
-            if (filled != null) MonitorGaugeBars(filled, barCount, tint, metrics.barHeight)
-            else MonitorGaugeBars(fraction, barCount, tint, metrics.barHeight)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (icon != null) MonitorIcon(icon, contentDescription = null, tint = MonitorPalette.text, modifier = Modifier.size(metrics.iconSize.dp))
+            if (value != null) {
+                Text(value, color = tint, style = MonitorTypography.readout(metrics.fontSize, FontWeight.Bold), maxLines = 1)
+            } else {
+                if (filled != null) MonitorGaugeBars(filled, barCount, tint, metrics.barHeight)
+                else MonitorGaugeBars(fraction, barCount, tint, metrics.barHeight)
+            }
         }
-      }
     }
     if (LocalMonitorAdaptiveTelemetryPadding.current) {
         val minimumTarget = maxOf(48f, LocalViewConfiguration.current.minimumTouchTargetSize.width.value)
         Layout(content = content, modifier = appearance.height(metrics.pillHeight.dp), measurePolicy = object : MeasurePolicy {
-          override fun MeasureScope.measure(children: List<Measurable>, constraints: Constraints): MeasureResult {
-            val child = children.single().measure(constraints.copy(minWidth = 0, minHeight = 0,
-                maxWidth = Constraints.Infinity))
-            val fit = MonitorTelemetryPadding.pixels(child.width, constraints.maxWidth,
-                preferredWidth.dp.roundToPx(), ceil(minimumTarget.dp.toPx()).toInt(), 6.dp.roundToPx())
-            val height = metrics.pillHeight.dp.roundToPx().coerceIn(constraints.minHeight, constraints.maxHeight)
-            return layout(fit.width, height) {
-                child.place(fit.padding, (height - child.height) / 2)
+            override fun MeasureScope.measure(children: List<Measurable>, constraints: Constraints): MeasureResult {
+                val child = children.single().measure(constraints.copy(minWidth = 0, minHeight = 0,
+                    maxWidth = Constraints.Infinity))
+                val fit = MonitorTelemetryPadding.pixels(child.width, constraints.maxWidth,
+                    preferredWidth.dp.roundToPx(), ceil(minimumTarget.dp.toPx()).toInt(), 6.dp.roundToPx())
+                val height = metrics.pillHeight.dp.roundToPx().coerceIn(constraints.minHeight, constraints.maxHeight)
+                return layout(fit.width, height) {
+                    child.place(fit.padding, (height - child.height) / 2)
+                }
             }
-          }
-          override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
-              maxOf(ceil(minimumTarget.dp.toPx()).toInt(), measurables.single().maxIntrinsicWidth(height))
-          override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
-              maxOf(preferredWidth.dp.roundToPx(), measurables.single().maxIntrinsicWidth(height) + 2 * 6.dp.roundToPx())
-          override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int = metrics.pillHeight.dp.roundToPx()
-          override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int = metrics.pillHeight.dp.roundToPx()
+            override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
+                maxOf(ceil(minimumTarget.dp.toPx()).toInt(), measurables.single().maxIntrinsicWidth(height))
+            override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
+                maxOf(preferredWidth.dp.roundToPx(), measurables.single().maxIntrinsicWidth(height) + 2 * 6.dp.roundToPx())
+            override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int = metrics.pillHeight.dp.roundToPx()
+            override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int = metrics.pillHeight.dp.roundToPx()
         })
     } else {
         Box(Modifier.size(preferredWidth.dp, metrics.pillHeight.dp).then(appearance)
