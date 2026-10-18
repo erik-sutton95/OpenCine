@@ -388,6 +388,37 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(session.current.mode.value?.role, .video)
     }
 
+    func testLinkChangesInvalidateTimecodeUntilTheReadySourcePublishesAgain() {
+        for phase: CameraConnectionPhase in [.idle, .openingVideo] {
+            let session = FakeLuna().connectedSession()
+            let reading = CameraTimecodeReading(hours: 15, minutes: 39, seconds: 50)
+            session.ingest(timecode: reading)
+            XCTAssertEqual(session.current.timecodeReading.value, reading)
+            session.linkChanged(.scanning, serial: nil)
+            XCTAssertEqual(session.current.timecodeReading.value, reading, "scanning keeps the active source")
+
+            session.linkChanged(phase, serial: nil)
+            XCTAssertEqual(session.current.timecodeReading, .unknown, "\(phase) retires the clock")
+            XCTAssertEqual(session.current.timecode, .unknown)
+            session.ingest(timecode: reading)
+            XCTAssertEqual(session.current.timecodeReading, .unknown, "late recovery frames stay retired")
+
+            let epoch = session.current.epoch
+            session.linkChanged(.streaming, serial: nil)
+            XCTAssertEqual(session.current.epoch, epoch.next())
+            XCTAssertNil(session.current.timecodeReading.value, "a new epoch waits for a fresh frame")
+            session.ingest(timecode: reading)
+            XCTAssertEqual(session.current.timecodeReading.value, reading)
+            XCTAssertEqual(session.current.timecodeReading.origin, .clockDerived)
+            XCTAssertNil(session.current.timecode.value, "whole seconds never invent frames")
+            session.linkChanged(.streaming, serial: nil)
+            XCTAssertEqual(session.current.timecodeReading, .unknown, "another LIVE is another epoch")
+            session.close(.requested)
+            session.ingest(timecode: reading)
+            XCTAssertNil(session.current.timecodeReading.value)
+        }
+    }
+
     func testANewerWriteToTheSameSettingSupersedesTheOlder() async {
         let camera = FakeLuna()
         let session = camera.connectedSession(settle: .seconds(5))

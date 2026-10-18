@@ -244,6 +244,8 @@ class LunaCameraSession internal constructor(
                     connection = ConnectionState.Ready, authority = ControlAuthority.Owner, epoch = current.epoch.next(),
                 )
             }
+            // Frame-derived clock observations belong to this link, never its predecessor.
+            current = current.withTimecodeReading(ObservedValue.unknown)
             publish()
         }
     }
@@ -398,7 +400,7 @@ class LunaCameraSession internal constructor(
 
     fun ingest(timecode: CameraTimecodeReading) {
         synchronized(lock) {
-            if (closed) return
+            if (closed || current.connection != ConnectionState.Ready) return
             current = current.withTimecodeReading(ObservedValue(timecode, ObservationOrigin.CLOCK_DERIVED, now()))
             publish()
         }

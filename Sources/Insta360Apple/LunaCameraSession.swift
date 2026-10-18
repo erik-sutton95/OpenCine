@@ -184,6 +184,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             current.authority = .owner
             current.epoch = current.epoch.next()
         }
+        // Frame-derived clock observations belong to this link, never its predecessor.
+        current.timecodeReading = .unknown
         publish()
     }
 
@@ -329,7 +331,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     }
 
     public func ingest(timecode: CameraTimecodeReading) {
-        guard !closed else { return }
+        guard !closed, current.connection == .ready else { return }
         current.timecodeReading = ObservedValue(timecode, origin: .clockDerived, at: now())
         publish()
     }

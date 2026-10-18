@@ -16,6 +16,7 @@ import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SessionCloseReason
@@ -417,6 +418,37 @@ class LunaCameraSessionTest {
         session.ingest(CameraTimecodeReading(15, 39, 50))
         assertEquals(50, session.snapshots.value.timecodeReading.value?.seconds)
         assertEquals(ObservationOrigin.CLOCK_DERIVED, session.snapshots.value.timecode.origin, "never a camera counter")
+    }
+
+    @Test fun linkChangesInvalidateTimecodeUntilTheReadySourcePublishesAgain() {
+        for (phase in listOf(LinkPhase.IDLE, LinkPhase.FAILED, LinkPhase.OPENING_DATALINK)) {
+            val session = FakeLuna(scope).connectedSession()
+            val reading = CameraTimecodeReading(15, 39, 50)
+            session.ingest(reading)
+            assertEquals(reading, session.snapshots.value.timecodeReading.value)
+            session.linkChanged(LinkPhase.SCANNING)
+            assertEquals(reading, session.snapshots.value.timecodeReading.value, "scanning keeps the active source")
+
+            session.linkChanged(phase)
+            assertEquals(ObservedValue.unknown, session.snapshots.value.timecodeReading, "$phase retires the clock")
+            assertEquals(ObservedValue.unknown, session.snapshots.value.timecode)
+            session.ingest(reading)
+            assertEquals(ObservedValue.unknown, session.snapshots.value.timecodeReading, "late recovery frames stay retired")
+
+            val epoch = session.snapshots.value.epoch
+            session.linkChanged(LinkPhase.LIVE)
+            assertEquals(epoch.next(), session.snapshots.value.epoch)
+            assertNull(session.snapshots.value.timecodeReading.value, "a new epoch waits for a fresh frame")
+            session.ingest(reading)
+            assertEquals(reading, session.snapshots.value.timecodeReading.value)
+            assertEquals(ObservationOrigin.CLOCK_DERIVED, session.snapshots.value.timecodeReading.origin)
+            assertNull(session.snapshots.value.timecode.value, "whole seconds never invent frames")
+            session.linkChanged(LinkPhase.LIVE)
+            assertEquals(ObservedValue.unknown, session.snapshots.value.timecodeReading, "another LIVE is another epoch")
+            session.closeNow(SessionCloseReason.REQUESTED)
+            session.ingest(reading)
+            assertNull(session.snapshots.value.timecodeReading.value)
+        }
     }
 
     @Test fun recordingProfileIsCameraReportedOrUnknown() = runBlocking {
