@@ -25,6 +25,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
@@ -250,6 +251,23 @@ private fun <P> MonitorOperatorCatalogGallery(
     val records = snapshot.records
     val empty = presentation?.empty
     val configuration = LocalConfiguration.current
+    val anchor = remember { MonitorCatalogHeadAnchor() }
+    // Keyed lazy items hold the previous first clip in place, so a rescan that prepends newer
+    // clips would push them off above. Only a scroll by the operator releases the top.
+    LaunchedEffect(list) {
+        snapshotFlow {
+            if (list) listState.isScrollInProgress to (listState.firstVisibleItemIndex == 0 &&
+                listState.firstVisibleItemScrollOffset == 0)
+            else gridState.isScrollInProgress to (gridState.firstVisibleItemIndex == 0 &&
+                gridState.firstVisibleItemScrollOffset == 0)
+        }.collect { (scrolling, atTop) -> anchor.scrolled(scrolling, atTop) }
+    }
+    val head = records.firstOrNull()?.asset?.id
+    LaunchedEffect(head) {
+        if (anchor.headChanged(head)) {
+            if (list) listState.scrollToItem(0) else gridState.scrollToItem(0)
+        }
+    }
     val draw: @Composable () -> Unit = {
         MonitorMediaSelectionHost(records.map { it.asset.id.rawValue }, value.selecting,
             value.selectedIDs.map { it.rawValue }.toSet(), if (list) listState else gridState,
@@ -305,6 +323,26 @@ private fun <P> MonitorOperatorCatalogGallery(
     if (connected) PullToRefreshBox(value.fetching,
         onRefresh = { if (!value.fetching && owner.isCurrent(snapshot)) refresh() }, modifier = Modifier.fillMaxSize()) { draw() }
     else draw()
+}
+
+/** The newest clip stays first while the operator rests at the top of the catalog. */
+internal class MonitorCatalogHeadAnchor {
+    private var pinned = true
+    private var scrolling = false
+    private var head: MediaAssetID? = null
+
+    /** A scroll records where the operator leaves the catalog; layout anchoring does not. */
+    fun scrolled(scrolling: Boolean, atTop: Boolean) {
+        if (scrolling || this.scrolling) pinned = atTop
+        this.scrolling = scrolling
+    }
+
+    /** True when a new first record arrives while the catalog rests at its top. */
+    fun headChanged(newHead: MediaAssetID?): Boolean {
+        val changed = newHead != head
+        head = newHead
+        return changed && pinned && !scrolling
+    }
 }
 
 /** The catalog owns cache state and progress for every cell; a source cell supplies its own facts only. */
