@@ -242,7 +242,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         identity.monitor, identity.picture, identity.phase)
     @Composable fun Readout(value: MonitorOperatorLiveReadout<K, S>, portrait: Boolean = false,
         caption: String? = null, opens: Boolean = true, accent: Boolean = false, storageReadout: Boolean = false, grouped: Boolean = false, detail: Boolean = false,
-        primaryBottom: Boolean = false, decoratesSection: Boolean = true) {
+        primaryBottom: Boolean = false, decoratesSection: Boolean = true, displayValue: String? = null) {
         val decoration = (value.section?.takeIf { decoratesSection }?.let { edit(it) } ?: Modifier).then(value.itemModifier)
             .onGloballyPositioned { coordinates ->
                 val r = coordinates.boundsInRoot()
@@ -260,7 +260,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     value.icon?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
                     if (grouped) {
-                        MonitorPortraitInlineReadoutText(value.value ?: "--", detail = detail,
+                        MonitorPortraitInlineReadoutText(displayValue ?: value.value ?: "--", detail = detail,
                             color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text)
                     } else if (storageReadout && layout.portrait && !layout.tablet) {
                         MonitorBoundedReadoutText(value.value ?: "--",
@@ -279,7 +279,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         if (opens) com.opencapture.opencine.appkit.MonitorOperatorCaptureHeaderReadout(captureInputs, control,
             state, source, value, enabled = interactive && !assistInspectorPresented, commandEnabled = !readOnly,
             currentSource = ::currentSource, portrait = layout.portrait, modifier = decoration,
-            fromTop = true, ceilingY = if (layout.portrait) layout.status.maxY else null, content = label)
+            fromTop = true, ceilingY = if (layout.portrait) layout.status.maxY else null, displayValue = displayValue, content = label)
         else Box(decoration.monitorChromeClickable(enabled = interactive && !assistInspectorPresented && value.action != null) {
             if (interactive && !assistInspectorPresented && currentSource()) value.action?.invoke()
         }.semantics { contentDescription = value.title }) { label() }
@@ -317,22 +317,27 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             val shownPrimary = status.portraitFormat?.takeIf { it.section == null || it.section in mounted }
                 ?: visibleFormat.firstOrNull()
             val inline = layout.portrait && !photo
-            val shownColor = status.color?.takeIf { it.section == null || it.section in mounted }
+            val codecVisible = visibleFormat.any { it.section == MonitorDisplaySection.CODEC }
+            val shownColor = status.color?.takeIf { (it.section == null || it.section in mounted) && !(inline && codecVisible) }
+            // A color-only camera keeps its existing control without exposing the selected profile.
+            fun displayValue(value: MonitorOperatorLiveReadout<K, S>): String =
+                if (inline && value.id == shownColor?.id) "COLOR" else value.value ?: "--"
             val details = visibleFormat.drop(if (visibleFormat.firstOrNull()?.section == MonitorDisplaySection.CODEC) 0 else 1)
                 .filter { it.id != shownPrimary?.id }
-            // Portrait stacks the capture readouts: resolution and frame rate on top, codec and
-            // color below it. Without a primary, the first lower readout takes the top line.
+            // Portrait stacks resolution/frame rate above codec, or the neutral color-only entry.
+            // Without a primary, the first lower readout takes the top line.
             val lower = details + listOfNotNull(shownColor)
             val top = shownPrimary ?: lower.firstOrNull()
             val below = if (shownPrimary == null) lower.drop(1) else lower
-            val caption = status.portraitCaption.takeIf { status.portraitFormat != null && shownColor == null }
+            val caption = status.portraitCaption.takeIf { !inline && status.portraitFormat != null && shownColor == null }
             val fit = if (inline && top != null) {
                 fun line(value: MonitorOperatorLiveReadout<K, S>) =
-                    MonitorPortraitReadoutLine(value.value ?: "--", if (value.icon != null) 19f else 0f)
+                    MonitorPortraitReadoutLine(displayValue(value), if (value.icon != null) 19f else 0f)
                 rememberMonitorPortraitSingleRowFit(layout.status.width, recording, status.showsRecording,
                     status.showsTimecode, line(top), below.map(::line), caption,
                     maximumSize = if (layout.tablet) 25f else 23f,
-                    primaryIsDetail = top.section == MonitorDisplaySection.CODEC)
+                    primaryIsDetail = top.section == MonitorDisplaySection.CODEC,
+                    maximumPrimarySize = if (layout.tablet) 22f else 20f, maximumDetailSize = 13f)
             } else null
             CompositionLocalProvider(LocalMonitorPortraitPrimaryFit provides fit) {
             MonitorStatusChrome(layout, recording, status.showsTimecode, status.showsRecording, !usesCompactTelemetry,
@@ -345,14 +350,14 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     if (inline) {
                         if (top != null) MonitorPortraitFormatGroup(below.isNotEmpty() || caption != null, primary = {
                             Readout(top, portrait = true, grouped = true, detail = top.section == MonitorDisplaySection.CODEC,
-                                primaryBottom = below.isNotEmpty() || caption != null)
+                                primaryBottom = below.isNotEmpty() || caption != null, displayValue = displayValue(top))
                         }, detail = {
                             Row(verticalAlignment = Alignment.Top,
                                 horizontalArrangement = Arrangement.spacedBy((fit?.spacing ?: 8f).dp)) {
                                 // Each detail target fills the line slot the group grants it.
                                 below.forEach { value ->
                                     Box(Modifier.fillMaxHeight(), propagateMinConstraints = true) {
-                                        Readout(value, portrait = true, grouped = true, detail = true)
+                                        Readout(value, portrait = true, grouped = true, detail = true, displayValue = displayValue(value))
                                     }
                                 }
                                 if (caption != null) {

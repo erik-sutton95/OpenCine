@@ -60,6 +60,8 @@
       let inline: Bool
       let caption: String?
       let maximumSize: CGFloat
+      let maximumPrimarySize: CGFloat
+      let maximumDetailSize: CGFloat
     }
     private var cached: (key: Key, fit: MonitorPortraitPrimaryFit)?
     public init() {}
@@ -80,26 +82,29 @@
       width: CGFloat, scale: CGFloat, typeSize: DynamicTypeSize,
       recording: [String], clock: String?, primary: String, details: [String],
       caption: String? = nil, maximumSize: CGFloat = 23, color: String? = nil,
-      primaryIsDetail: Bool = false
+      primaryIsDetail: Bool = false, maximumPrimarySize: CGFloat = 25, maximumDetailSize: CGFloat = 11
     ) -> MonitorPortraitPrimaryFit {
       fit(
         width: width, scale: scale, typeSize: typeSize, recording: recording,
         clock: clock, primary: primary, details: details, inline: true, caption: caption,
-        maximumSize: maximumSize, color: color, primaryIsDetail: primaryIsDetail)
+        maximumSize: maximumSize, color: color, primaryIsDetail: primaryIsDetail,
+        maximumPrimarySize: maximumPrimarySize, maximumDetailSize: maximumDetailSize)
     }
 
     private func fit(
       width: CGFloat, scale: CGFloat, typeSize: DynamicTypeSize,
       recording: [String], clock: String?, primary: String, details: [String],
       inline: Bool, caption: String?, maximumSize: CGFloat, color: String?,
-      primaryIsDetail: Bool
+      primaryIsDetail: Bool, maximumPrimarySize: CGFloat = 25, maximumDetailSize: CGFloat = 11
     ) -> MonitorPortraitPrimaryFit {
       let key = Key(
         width: width, scale: max(1, scale), typeSize: typeSize,
         recording: recording, clock: clock.map(portraitClockShape), primary: primary,
         primaryIsDetail: primaryIsDetail, details: details, color: color, inline: inline,
         caption: caption,
-        maximumSize: maximumSize.isFinite ? max(23, maximumSize) : 23)
+        maximumSize: maximumSize.isFinite ? max(23, maximumSize) : 23,
+        maximumPrimarySize: maximumPrimarySize.isFinite ? max(10, maximumPrimarySize) : 25,
+        maximumDetailSize: maximumDetailSize.isFinite ? max(10, maximumDetailSize) : 11)
       if let cached, cached.key == key { return cached.fit }
       MonitorTheme.prepareResources()
       let trait = UITraitCollection(preferredContentSizeCategory: category(typeSize))
@@ -166,7 +171,7 @@
                 guard size >= max(clockFloor, primaryFloor), size >= detailFloor else {
                   return nil
                 }
-                return (size, size, min(11, size), spacing, padding, recordingSpacing, 0)
+                return (size, min(key.maximumPrimarySize, size), min(key.maximumDetailSize, size), spacing, padding, recordingSpacing, 0)
               }
             }
             + (1...7).map {

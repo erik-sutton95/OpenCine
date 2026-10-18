@@ -300,6 +300,7 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
     private let currentSource: () -> Bool
     private let coordinateSpace: String
     private let expandsHeight: Bool
+    private let displayValue: String?
     private let content: () -> Content
     @State private var measuredSize: CGSize = .zero
 
@@ -307,11 +308,11 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
         state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity,
         readout: MonitorOperatorLiveReadout<Key, Section>, enabled: Bool, commandEnabled: Bool = true,
         currentSource: @escaping () -> Bool, coordinateSpace: String = "monitor.canvas",
-        expandsHeight: Bool = true, @ViewBuilder content: @escaping () -> Content) {
+        expandsHeight: Bool = true, displayValue: String? = nil, @ViewBuilder content: @escaping () -> Content) {
         self.inputs = inputs; self.control = control; self.state = state; self.source = source
         self.readout = readout; self.enabled = enabled; self.commandEnabled = commandEnabled
         self.currentSource = currentSource; self.coordinateSpace = coordinateSpace
-        self.expandsHeight = expandsHeight; self.content = content
+        self.expandsHeight = expandsHeight; self.displayValue = displayValue; self.content = content
     }
 
     public var body: some View {
@@ -330,6 +331,7 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
             .modifier(CaptureReadoutGesture(inputs: inputs, readout: readout, control: control,
                 state: state, source: source, enabled: enabled, commandEnabled: commandEnabled,
                 currentSource: currentSource))
+            .accessibilityValue(MonitorCapturePresentation.spokenValue(displayValue ?? readout.value))
             .padding(.horizontal, -horizontal).padding(.vertical, -vertical)
     }
 }

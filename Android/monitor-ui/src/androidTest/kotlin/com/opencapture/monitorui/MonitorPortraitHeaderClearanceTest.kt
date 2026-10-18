@@ -343,6 +343,11 @@ class MonitorPortraitHeaderClearanceTest {
         }
     }
 
+    @Test(timeout = 90_000) fun portraitTypedFormatMovesColorIntoCodecAndRetainsColorOnlyAccess() {
+        for (colorOnly in listOf(false, true))
+            productionPrimaryCase(360f, 62f, 0f, listOf(null), typedPortraitHeader = true, colorOnly = colorOnly)
+    }
+
     @Test(timeout = 90_000) fun productionCodecOnlyRetainsDetailFontAndAction() {
         productionPrimaryCase(360f, 24f, 20f, listOf(null), codecOnly = true)
     }
@@ -385,7 +390,7 @@ class MonitorPortraitHeaderClearanceTest {
         captureRails: MutableMap<String, Rect>? = null, expectedRails: Map<String, Rect>? = null,
         compactEditorMode: com.opencapture.opencine.appkit.MonitorDisplayMode? = null,
         declaredGauge: com.opencapture.opencine.cameracontrols.MonitorOperatorPowerReading? = null,
-        verifyInsetMovement: Boolean = false) {
+        verifyInsetMovement: Boolean = false, typedPortraitHeader: Boolean = false, colorOnly: Boolean = false) {
         ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
             val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
             val control = com.opencapture.opencine.appkit.MonitorControlModel(scope)
@@ -446,9 +451,9 @@ class MonitorPortraitHeaderClearanceTest {
                         val nativeMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
                         val mainMaximum = if (field.tablet) 25f else 23f
                         fontReferences = listOf("00:48:03:23" to 10f, "00:48:03:23" to mainMaximum,
-                            "[FX] 6K · 25p" to 10f, "[FX] 6K · 25p" to mainMaximum, "R3D NE" to 10f, "R3D NE" to 11f,
+                            "[FX] 6K · 25p" to 10f, "[FX] 6K · 25p" to (if (field.tablet) 22f else 20f), "R3D NE" to 10f, "R3D NE" to 13f,
                             // Codec and color share the detail line, so both use the detail size range.
-                            "D-Log2" to 10f, "D-Log2" to 11f).map { (value, size) ->
+                            "COLOR" to 10f, "COLOR" to 13f).map { (value, size) ->
                             nativeMeasurer.measure(androidx.compose.ui.text.AnnotatedString(value),
                                 style = MonitorTypography.readout(size, androidx.compose.ui.text.font.FontWeight.Medium))
                         }
@@ -456,7 +461,7 @@ class MonitorPortraitHeaderClearanceTest {
                             "format", "Recording format", "[FX] 6K · 25p", action = { primaryCalls++ }, quickEnabled = false)
                         val codec = com.opencapture.opencine.appkit.MonitorOperatorLiveReadout<String, com.opencapture.opencine.appkit.MonitorDisplaySection>(
                             if (codecOnly) "compression" else "codec", "Codec", "R3D NE",
-                            section = if (codecOnly) com.opencapture.opencine.appkit.MonitorDisplaySection.CODEC else null,
+                            section = if (codecOnly || typedPortraitHeader) com.opencapture.opencine.appkit.MonitorDisplaySection.CODEC else null,
                             action = { codecCalls++ }, quickEnabled = false)
                         val color = com.opencapture.opencine.appkit.MonitorOperatorLiveReadout<String, com.opencapture.opencine.appkit.MonitorDisplaySection>(
                             "color", "Color mode", "D-Log2", action = { colorCalls++ }, quickEnabled = false)
@@ -467,8 +472,10 @@ class MonitorPortraitHeaderClearanceTest {
                             showsTimecode = true, showsRecording = true,
                             storage = com.opencapture.opencine.appkit.MonitorOperatorLiveReadout("storage", "Storage remaining", "107 GB",
                                 section = if (compactEditorMode != null) com.opencapture.opencine.appkit.MonitorDisplaySection.STORAGE else null),
-                            format = if (codecOnly) listOf(codec) else listOf(format, codec), fps = "25 fps", signalBars = 4,
+                            format = if (codecOnly) listOf(codec) else if (colorOnly) listOf(format) else listOf(format, codec), fps = "25 fps", signalBars = 4,
                             fpsSection = if (compactEditorMode != null) com.opencapture.opencine.appkit.MonitorDisplaySection.FPS else null,
+                            portraitFormat = if (typedPortraitHeader) com.opencapture.opencine.appkit.MonitorOperatorLiveReadout(
+                                "format", "Recording format", "6K · 25p", action = { primaryCalls++ }, quickEnabled = false) else null,
                             color = if (codecOnly) null else color)
                         val source = com.opencapture.opencine.cameracontrols.MonitorOperatorLiveSource(
                             identity = { identity }, available = if (codecOnly) setOf(
@@ -566,6 +573,35 @@ class MonitorPortraitHeaderClearanceTest {
                         val recording = labeled(if (duration == null) presentation.recordingAccessibilityLabel
                             else "${presentation.recordingAccessibilityLabel}, ${presentation.elapsedAccessibilityLabel}")
                         val clock = labeled("Timecode 00:48:03:23")
+                        if (typedPortraitHeader) {
+                            val format = labeled("Recording format")
+                            val detail = labeled(if (colorOnly) "Color mode" else "Codec")
+                            assertEquals("6K · 25p", format.config[SemanticsProperties.StateDescription])
+                            assertEquals(colorOnly, nodes.any {
+                                it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull() == "Color mode"
+                            })
+                            assertEquals(if (colorOnly) "COLOR" else "R3D NE", detail.config[SemanticsProperties.StateDescription])
+                            val density = activity.resources.displayMetrics.density
+                            for (target in listOf(format, detail)) {
+                                assertTrue("Portrait target width", target.boundsInRoot.width >= 48f * density - .5f)
+                                assertTrue("Portrait target height", target.boundsInRoot.height >= 48f * density - .5f)
+                            }
+                            assertTrue("Primary/detail targets stay separate", format.boundsInRoot.bottom <= detail.boundsInRoot.top + .5f)
+                            assertTrue("Clock clears both header lines", clock.boundsInRoot.right <= minOf(format.boundsInRoot.left, detail.boundsInRoot.left) + .5f)
+                            for ((value, maximum) in listOf("6K · 25p" to 20f, (if (colorOnly) "COLOR" else "R3D NE") to 13f)) {
+                                val node = nodes.single { it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == value }
+                                val results = mutableListOf<TextLayoutResult>()
+                                assertTrue(node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results))
+                                val actual = results.single()
+                                assertEquals(1, actual.lineCount)
+                                assertTrue("Native text remains bounded", !actual.didOverflowWidth && !actual.didOverflowHeight)
+                                assertTrue("Native portrait font ceiling", actual.layoutInput.style.fontSize.value <= maximum)
+                            }
+                            assertTrue(detail.config[SemanticsActions.OnClick].action!!.invoke())
+                            assertEquals(1, if (colorOnly) colorCalls else codecCalls)
+                            assertEquals(0, if (colorOnly) codecCalls else colorCalls)
+                            return@onActivity
+                        }
                         if (captureRails != null || expectedRails != null) {
                             fun powerFrame(prefix: String) = nodes.single {
                                 it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull()
@@ -642,7 +678,7 @@ class MonitorPortraitHeaderClearanceTest {
                             it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull() == "Color mode"
                         }
                         android.util.Log.i("B5FiveReadoutInventory", JSONObject()
-                            .put("expectedColor", "D-Log2").put("expectedCodec", "R3D NE")
+                            .put("expectedColor", "COLOR").put("expectedCodec", "R3D NE")
                             .put("canvasWidth", width).put("rawSafeTop", top).put("sideSafe", side)
                             .put("elapsedSeconds", duration ?: JSONObject.NULL)
                             .put("nodeCount", nodes.size).toString())
@@ -677,7 +713,7 @@ class MonitorPortraitHeaderClearanceTest {
                         // Diagnostics precede unchanged geometry guards; a failing width remains a failing case.
                         val nativeParagraphs = nodes.mapNotNull { node ->
                             val value = node.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text
-                            if (value !in listOf("[FX] 6K · 25p", "D-Log2", "R3D NE")) null
+                            if (value !in listOf("[FX] 6K · 25p", "COLOR", "R3D NE")) null
                             else {
                                 val results = mutableListOf<TextLayoutResult>()
                                 val supplied = node.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(results) == true
@@ -696,7 +732,7 @@ class MonitorPortraitHeaderClearanceTest {
                             .put("density", density).put("actualFontScale", activity.resources.configuration.fontScale)
                             .put("canvasBoundsPixels", canvas.toString()).put("nativeStatusRectDp", field.status.toString())
                             .put("statusWidthDp", field.status.width).put("paragraphs", org.json.JSONArray(nativeParagraphs)).toString())
-                        val color = requireNotNull(availableColor) { "Production Color mode must remain present with D-Log2" }
+                        val color = requireNotNull(availableColor) { "Production Color mode must remain present with COLOR" }
                         assertEquals(recording.boundsInRoot.top, clock.boundsInRoot.top, .5f)
                         val primaryText = nodes.single {
                             it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == "[FX] 6K · 25p"
@@ -764,7 +800,7 @@ class MonitorPortraitHeaderClearanceTest {
                         // Clock intentionally clears its Text semantics. Its full eleven-character
                         // paint is independently validated from the original PNG and bounded native frame.
                         val mainFonts = mutableMapOf("clockNativeHeightPixels" to clock.boundsInRoot.height)
-                        for (value in listOf("[FX] 6K · 25p", "D-Log2", "R3D NE")) {
+                        for (value in listOf("[FX] 6K · 25p", "COLOR", "R3D NE")) {
                             val textNode = nodes.single { it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == value }
                             val results = mutableListOf<TextLayoutResult>()
                             assertTrue("Actual native paragraph required", textNode.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results))
@@ -789,8 +825,8 @@ class MonitorPortraitHeaderClearanceTest {
                             assertEquals(value.length, result.getLineEnd(0, visibleEnd = false))
                             // Actual paragraph glyphs supplement the retained native layout input.
                             assertTrue("Native glyphs must have positive height", result.getBoundingBox(0).height > 0f)
-                            val floorIndex = when (value) { "R3D NE" -> 4; "D-Log2" -> 6; else -> 2 }
-                            val upperIndex = when (value) { "R3D NE" -> 5; "D-Log2" -> 7; else -> 3 }
+                            val floorIndex = when (value) { "R3D NE" -> 4; "COLOR" -> 6; else -> 2 }
+                            val upperIndex = when (value) { "R3D NE" -> 5; "COLOR" -> 7; else -> 3 }
                             assertTrue("Actual native paragraph font floor",
                                 result.getBoundingBox(0).height >= fontReferences[floorIndex].getBoundingBox(0).height - .5f)
                             assertTrue("Actual native paragraph font maximum",

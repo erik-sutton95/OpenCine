@@ -54,24 +54,29 @@ public fun monitorPortraitStackedFormatWidth(primaryWidth: Int, lowerWidths: Lis
 public fun rememberMonitorPortraitSingleRowFit(width: Float, status: MonitorStatusPresentation,
     showsRecording: Boolean, showsTimecode: Boolean, primary: MonitorPortraitReadoutLine,
     details: List<MonitorPortraitReadoutLine>, caption: String? = null, maximumSize: Float = 23f,
-    color: MonitorPortraitReadoutLine? = null, primaryIsDetail: Boolean = false): MonitorPortraitPrimaryFit {
+    color: MonitorPortraitReadoutLine? = null, primaryIsDetail: Boolean = false,
+    maximumPrimarySize: Float = 25f, maximumDetailSize: Float = 11f): MonitorPortraitPrimaryFit {
     return rememberPortraitPrimaryFit(width, status, showsRecording, showsTimecode,
-        primary, details, inline = true, caption = caption, maximumSize = maximumSize, color = color, primaryIsDetail = primaryIsDetail)
+        primary, details, inline = true, caption = caption, maximumSize = maximumSize, color = color, primaryIsDetail = primaryIsDetail,
+        maximumPrimarySize = maximumPrimarySize, maximumDetailSize = maximumDetailSize)
 }
 
 @Composable
 private fun rememberPortraitPrimaryFit(width: Float, status: MonitorStatusPresentation,
     showsRecording: Boolean, showsTimecode: Boolean, primary: MonitorPortraitReadoutLine,
     details: List<MonitorPortraitReadoutLine>, inline: Boolean, caption: String?, maximumSize: Float,
-    color: MonitorPortraitReadoutLine?, primaryIsDetail: Boolean): MonitorPortraitPrimaryFit {
+    color: MonitorPortraitReadoutLine?, primaryIsDetail: Boolean,
+    maximumPrimarySize: Float = 25f, maximumDetailSize: Float = 11f): MonitorPortraitPrimaryFit {
     val baseSize = if (maximumSize.isFinite()) maxOf(23f, maximumSize) else 23f
+    val primaryCap = if (maximumPrimarySize.isFinite()) maxOf(10f, maximumPrimarySize) else 25f
+    val detailCap = if (maximumDetailSize.isFinite()) maxOf(10f, maximumDetailSize) else 11f
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val minimum = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width)
     val measurer = rememberTextMeasurer(cacheSize = 128)
     val shape = if (showsTimecode) portraitClockShape(status.timecode ?: "--:--:--") else null
     return remember(width, status.recordingLabel, status.elapsedLabel, showsRecording, shape,
-        primary, details, color, primaryIsDetail, inline, caption, baseSize, density, direction, minimum, measurer) {
+        primary, details, color, primaryIsDetail, inline, caption, baseSize, primaryCap, detailCap, density, direction, minimum, measurer) {
         with(density) {
             fun measured(value: String, size: Float, recording: Boolean = false, tracking: Float = 0f): Int = measurer.measure(
                 value, style = (if (recording) MonitorTypography.text(size, FontWeight.SemiBold)
@@ -104,7 +109,7 @@ private fun rememberPortraitPrimaryFit(width: Float, status: MonitorStatusPresen
                     tiers.mapNotNull { tier ->
                         val detailFloor = if (tier.clockFloor == 10f) 10f else 11f
                         if (size < maxOf(tier.clockFloor, tier.primaryFloor) || size < detailFloor) null
-                        else Candidate(size, size, minOf(11f, size), tier.spacing, tier.recordingPadding, tier.recordingSpacing)
+                        else Candidate(size, minOf(primaryCap, size), minOf(detailCap, size), tier.spacing, tier.recordingPadding, tier.recordingSpacing)
                     }
                 } + (1..7).map { step ->
                     // Compact tracking follows the complete natural-width 10sp floor, never a smaller font.

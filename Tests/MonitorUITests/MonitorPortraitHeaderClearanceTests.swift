@@ -643,6 +643,37 @@
             }
         }
 
+        func testPortraitTypedFormatHidesCropAndColorButKeepsColorOnlyAccess() async throws {
+            for sensorArea in ["FX", "DX"] {
+                for colorOnly in [false, true] {
+                    let fixture = try ProductionHeaderFixture(.init(width: 360, safeTop: 62, sideSafe: 0),
+                        typedPortraitHeader: true, colorOnly: colorOnly, sensorArea: sensorArea)
+                    defer { fixture.close() }
+                    try await fixture.assertPortraitCodecPolicy(colorOnly: colorOnly)
+                }
+            }
+        }
+
+        func testPortraitHeaderFitterCapsPrimaryAndEnlargesCodecWithoutChangingClock() {
+            let sizer = MonitorPortraitPrimarySizer()
+            let original = sizer.fitRow(width: 1000, scale: 3, typeSize: .large,
+                recording: ["STBY", "00:00"], clock: "00:48:03:23", primary: "6K · 25p", details: ["R3D NE"])
+            let portrait = sizer.fitRow(width: 1000, scale: 3, typeSize: .large,
+                recording: ["STBY", "00:00"], clock: "00:48:03:23", primary: "6K · 25p", details: ["R3D NE"],
+                maximumPrimarySize: 20, maximumDetailSize: 13)
+            XCTAssertTrue(portrait.completeSingleRow)
+            XCTAssertEqual(portrait.primarySize, 20)
+            XCTAssertEqual(portrait.detailSize, 13)
+            XCTAssertEqual(portrait.clockSize, original.clockSize)
+            let narrow = sizer.fitRow(width: 264, scale: 3, typeSize: .large,
+                recording: ["REC", "23:59:59"], clock: "00:48:03:23", primary: "6K · 25p", details: ["R3D NE"],
+                maximumPrimarySize: 20, maximumDetailSize: 13)
+            XCTAssertTrue(narrow.completeSingleRow)
+            XCTAssertLessThanOrEqual(narrow.primarySize, 20)
+            XCTAssertLessThanOrEqual(narrow.detailSize, 13)
+            XCTAssertGreaterThanOrEqual(narrow.detailSize, 10)
+        }
+
         /// Landscape keeps format, codec and color side by side on the one status row.
         func testLandscapeFormatCodecAndColorStayOnTheStatusRow() async throws {
             let screen = UIScreen.main.bounds.size
@@ -676,6 +707,9 @@
             picture: "SIMULATED production primary")
         var status = MonitorStatusPresentation(recording: false, elapsedSeconds: 0,
             timecode: "00:48:03:23")
+        var typedPortraitHeader = false
+        var sensorArea = "FX"
+        var colorOnly = false
         var formatCalls = 0
         var codecCalls = 0
         var colorCalls = 0
@@ -736,11 +770,13 @@
                     action: { probe.codecCalls += 1 }, quickEnabled: false)]
             }
             return [
-                .init(id: "format", title: "Recording format", value: "[FX] 6K · 25p",
+                .init(id: "format", title: "Recording format", value: "[\(probe.sensorArea)] 6K · 25p",
+                    section: probe.typedPortraitHeader ? .format : nil,
                     action: { probe.formatCalls += 1 }, quickEnabled: false),
                 .init(id: "codec", title: "Codec", value: "R3D NE",
+                    section: probe.typedPortraitHeader ? .codec : nil,
                     action: { probe.codecCalls += 1 }, quickEnabled: false),
-            ]
+            ].filter { !probe.colorOnly || $0.section != .codec }
         }
         var body: some View {
             MonitorOperatorLiveSurface(host: probe, control: probe.control, session: probe.session,
@@ -755,6 +791,8 @@
                         .init(recording: probe.status, showsTimecode: true, showsRecording: true,
                             storage: .init(id: "storage", title: "Storage remaining", value: probe.storageValue),
                             format: readouts, fps: "25 fps", signalBars: 4,
+                            portraitFormat: probe.typedPortraitHeader ? .init(id: "format", title: "Recording format",
+                                value: "6K · 25p", section: .format, action: { probe.formatCalls += 1 }, quickEnabled: false) : nil,
                             color: probe.codecOnly ? nil : .init(id: "color", title: "Color mode", value: "D-Log2",
                                 action: { probe.colorCalls += 1 }, quickEnabled: false))
                     }, cameraBattery: {
@@ -785,9 +823,13 @@
         private let native: HeaderWindow
         private let sample: ProductionHeaderCase
         private let live: LiveMonitorLayout
-        init(_ sample: ProductionHeaderCase, codecOnly: Bool = false, passiveBackdrop: Bool = false) throws {
+        init(_ sample: ProductionHeaderCase, codecOnly: Bool = false, passiveBackdrop: Bool = false,
+            typedPortraitHeader: Bool = false, colorOnly: Bool = false, sensorArea: String = "FX") throws {
             self.sample = sample
             probe = try ProductionHeaderProbe(codecOnly: codecOnly)
+            probe.typedPortraitHeader = typedPortraitHeader
+            probe.sensorArea = sensorArea
+            probe.colorOnly = colorOnly
             live = LiveMonitorLayout.fieldMonitor(size: CGSize(width: sample.width, height: sample.height),
                 safeArea: EdgeInsets(top: sample.safeTop, leading: sample.sideSafe, bottom: 0,
                     trailing: sample.sideSafe), sourceAspect: 16 / 9, fill: false,
@@ -813,6 +855,23 @@
         func close() {
             native.close(); probe.control.unbind()
             probe.storage.removePersistentDomain(forName: probe.storageName)
+        }
+        func assertPortraitCodecPolicy(colorOnly: Bool) async throws {
+            _ = try await nativeFrames(labels: ["Recording format", colorOnly ? "Color mode" : "Codec"])
+            let nodes = native.nodes()
+            let format = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Recording format" })
+            XCTAssertEqual(format.accessibilityValue, "6K · 25p")
+            XCTAssertEqual(nodes.contains { $0.accessibilityLabel == "Color mode" }, colorOnly,
+                "Color belongs in the codec popup; a color-only camera keeps its original target")
+            let detail = try XCTUnwrap(nodes.first { $0.accessibilityLabel == (colorOnly ? "Color mode" : "Codec") })
+            for target in [format, detail] {
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.width, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.height, 44 - monitorFloorMeasurementTolerance)
+            }
+            XCTAssertLessThanOrEqual(format.accessibilityFrame.maxY, detail.accessibilityFrame.minY + 0.5)
+            XCTAssertEqual(detail.accessibilityValue, colorOnly ? "COLOR" : "R3D NE")
+            XCTAssertTrue(detail.accessibilityActivate())
+            XCTAssertEqual(colorOnly ? probe.colorCalls : probe.codecCalls, 1)
         }
         func nativeFrames(labels: [String]) async throws -> [String: CGRect] {
             var nodes: [NSObject] = []
@@ -890,7 +949,7 @@
                 "canvasWidth": sample.width, "rawSafeTop": sample.safeTop, "sideSafe": sample.sideSafe,
                 "scale": availabilityImage.scale, "statusAnchorPoints": live.presentation!.status.y,
                 "expectedPicturePoints": [live.picture.minX, live.picture.minY, live.picture.width, live.picture.height],
-                "expectedColor": "D-Log2", "expectedCodec": "R3D NE",
+                "expectedColor": "COLOR", "expectedCodec": "R3D NE",
                 "actualNativeNodes": nodes.map {
                     ["label": ($0.accessibilityLabel as Any?) ?? NSNull(),
                         "value": ($0.accessibilityValue as Any?) ?? NSNull(),
@@ -920,7 +979,7 @@
                 "scale": image.scale, "statusAnchorPoints": live.presentation!.status.y,
                 "expectedPicturePoints": [live.picture.minX, live.picture.minY, live.picture.width, live.picture.height],
                 "recording": probe.status.recordingLabel, "elapsed": probe.status.elapsedLabel,
-                "clock": (probe.status.timecode as Any?) ?? NSNull(), "primary": "[FX] 6K · 25p", "color": "D-Log2", "codec": "R3D NE",
+                "clock": (probe.status.timecode as Any?) ?? NSNull(), "primary": "[FX] 6K · 25p", "color": "COLOR", "codec": "R3D NE",
                 "nativeTopTolerancePoints": 0.5,
                 "actualNativeNodes": [recording, clock, format, color, codec, picture].map {
                     ["label": ($0.accessibilityLabel as Any?) ?? NSNull(), "value": ($0.accessibilityValue as Any?) ?? NSNull(),
@@ -935,7 +994,7 @@
             XCTAssertEqual(recording.accessibilityFrame.minY, clock.accessibilityFrame.minY, accuracy: 0.5)
             XCTAssertEqual(clock.accessibilityFrame.minY, live.presentation!.status.y, accuracy: 0.5)
             XCTAssertEqual(format.accessibilityValue, "[FX] 6K · 25p")
-            XCTAssertEqual(color.accessibilityValue, "D-Log2")
+            XCTAssertEqual(color.accessibilityValue, "COLOR")
             XCTAssertEqual(codec.accessibilityValue, "R3D NE")
             XCTAssertEqual(recording.accessibilityValue, probe.status.elapsedLabel)
             for target in [format, color, codec] {
@@ -1021,7 +1080,7 @@
             }
             let fonts = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
                 "actualGlyphHeightsPixels": nativeHeights, "referenceGlyphHeightsPixels": references,
-                "referenceSizesPoints": [10, 23, 10, 23, 10, 11, 10, 11], "scale": image.scale,
+                "referenceSizesPoints": [10, 23, 10, live.presentation!.tablet ? 22 : 20, 10, 13, 10, 13], "scale": image.scale,
             ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
             fonts.lifetime = .keepAlways
             XCTContext.runActivity(named: "SIMULATED actual native Sora font bounds") { $0.add(fonts) }
@@ -1118,6 +1177,8 @@
             let format = try node("Recording format")
             let codec = try node("Codec")
             let color = try node("Color mode")
+            XCTAssertEqual(nodes.first { $0.accessibilityLabel == "Recording format" }?.accessibilityValue, "[FX] 6K · 25p")
+            XCTAssertEqual(nodes.first { $0.accessibilityLabel == "Color mode" }?.accessibilityValue, "D-Log2")
             XCTAssertEqual(format.midY, codec.midY, accuracy: 0.5)
             XCTAssertEqual(codec.midY, color.midY, accuracy: 0.5)
             XCTAssertLessThanOrEqual(format.maxX, codec.minX + 0.5)
@@ -1196,9 +1257,9 @@
             XCTAssertEqual(probe.codecCalls, 1); XCTAssertEqual(probe.formatCalls, 0); XCTAssertEqual(probe.colorCalls, 0)
         }
         private func nativeFontReferences() async throws -> [CGFloat] {
-            let values = ["00:48:03:23", "00:48:03:23", "[FX] 6K · 25p", "[FX] 6K · 25p", "R3D NE", "R3D NE", "D-Log2", "D-Log2"]
+            let values = ["00:48:03:23", "00:48:03:23", "[FX] 6K · 25p", "[FX] 6K · 25p", "R3D NE", "R3D NE", "COLOR", "COLOR"]
             // Codec and color share the detail line, so both use the detail size range.
-            let sizes: [CGFloat] = [10, 23, 10, 23, 10, 11, 10, 11]
+            let sizes: [CGFloat] = [10, 23, 10, live.presentation!.tablet ? 22 : 20, 10, 13, 10, 13]
             let reference = try HeaderWindow(rootView: AnyView(
                 ZStack(alignment: .topLeading) {
                     Color.black
@@ -1290,7 +1351,7 @@
         }
         private func assertCompletePaint(_ image: UIImage, nodes: [NSObject], expected: [String]? = nil) throws {
             let expected = expected ?? [probe.status.recordingLabel + " " + probe.status.elapsedLabel,
-                probe.status.timecode!, "[FX] 6K · 25p", "D-Log2", "R3D NE"]
+                probe.status.timecode!, "[FX] 6K · 25p", "COLOR", "R3D NE"]
             var diagnostics: [String] = []
             // A stacked primary's target reaches under its glyphs; crop it at the detail line.
             let detailTop = nodes.map(\.accessibilityFrame.minY).filter {
@@ -1329,7 +1390,8 @@
                         let fit = MonitorPortraitPrimarySizer().fitRow(width: CGFloat(field.status.width),
                             scale: image.scale, typeSize: .large,
                             recording: [probe.status.recordingLabel, probe.status.elapsedLabel],
-                            clock: probe.status.timecode, primary: value, details: ["R3D NE"], color: "D-Log2")
+                            clock: probe.status.timecode, primary: value, details: ["R3D NE"], color: "COLOR",
+                            maximumPrimarySize: live.presentation!.tablet ? 22 : 20, maximumDetailSize: 13)
                         let reference = try NativeOriginalSpaceControls.originalReference(
                             fontSize: fit.primarySize, tracking: fit.tracking)
                         XCTAssertTrue(NativeOriginalSpaceControls.matchesOriginal(components,
