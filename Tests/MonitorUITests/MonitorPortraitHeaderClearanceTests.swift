@@ -1337,7 +1337,7 @@
             try VNImageRequestHandler(cgImage: crop, orientation: .up).perform([request])
             return (request.results ?? []).compactMap { observation -> (String, CGRect)? in
                 guard let text = observation.topCandidates(1).first?.string else { return nil }
-                return (text, observation.boundingBox)
+                return (latinRead(text), observation.boundingBox)
             }
         }
         static func recordingPaintMatches(_ read: String, expected: String) -> Bool {
@@ -1836,7 +1836,7 @@
                 request.recognitionLanguages = ["en-US"]
                 try VNImageRequestHandler(cgImage: crop, orientation: .up).perform([request])
                 let actual = (request.results ?? []).compactMap { observation -> (String, CGRect)? in
-                    guard let text = observation.topCandidates(1).first?.string else { return nil }
+                    guard let text = observation.topCandidates(1).first.map({ latinRead($0.string) }) else { return nil }
                     return (text, observation.boundingBox)
                 }.sorted { $0.1.minX < $1.1.minX }.map(\.0).joined(separator: " ")
                 visionByValue[value] = actual
@@ -2073,7 +2073,7 @@
             let tokens = (request.results ?? []).sorted {
                 $0.boundingBox.minX < $1.boundingBox.minX
             }
-            .compactMap { $0.topCandidates(1).first?.string }
+            .compactMap { $0.topCandidates(1).first.map { latinRead($0.string) } }
             let recognized = tokens.joined(separator: " ")
             let paint = XCTAttachment(
                 data: try JSONSerialization.data(
@@ -2432,7 +2432,7 @@
                     request.recognitionLanguages = ["en-US"]
                     try VNImageRequestHandler(cgImage: crop, orientation: .up).perform([request])
                     let tokens = (request.results ?? []).sorted { $0.boundingBox.minX < $1.boundingBox.minX }
-                        .compactMap { $0.topCandidates(1).first?.string }
+                        .compactMap { $0.topCandidates(1).first.map { latinRead($0.string) } }
                     XCTAssertEqual(tokens.joined(separator: " "), "12345678...",
                         "The original prefix must survive the real performance toggle")
                 }
@@ -2492,5 +2492,18 @@
             return CGRect(x: CGFloat(minX), y: CGFloat(minY),
                 width: CGFloat(maxX - minX + 1), height: CGFloat(maxY - minY + 1))
         }
+    }
+
+    /// Some simulator runtimes' Vision returns a Cyrillic letter for a Latin glyph that paints
+    /// identically (the "p" of "25p" reads as U+0440). The header paints only Latin text, so
+    /// folding those lookalikes back reads the same pixels; every other character is untouched.
+    private func latinRead(_ text: String) -> String {
+        let lookalikes: [Character: Character] = [
+            "\u{0430}": "a", "\u{0441}": "c", "\u{0435}": "e", "\u{043E}": "o", "\u{0440}": "p",
+            "\u{0445}": "x", "\u{0443}": "y", "\u{0410}": "A", "\u{0412}": "B", "\u{0421}": "C",
+            "\u{0415}": "E", "\u{041D}": "H", "\u{041A}": "K", "\u{041C}": "M", "\u{041E}": "O",
+            "\u{0420}": "P", "\u{0422}": "T", "\u{0425}": "X",
+        ]
+        return String(text.map { lookalikes[$0] ?? $0 })
     }
 #endif
