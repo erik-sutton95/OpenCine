@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -72,7 +73,8 @@ class MonitorPortraitStatusGeometryTest {
     private val statusDescription = "SIMULATED status geometry header"
 
     @Test fun observedSeparateReadoutsKeepTheirFullValuesAndEightPointClearance() = withHeader(440f) { value ->
-        assertEquals(412f, value.status.width / value.density, 0.6f)
+        // The phone portrait header keeps its 16 dp per-side reserve on a 440 dp canvas.
+        assertEquals(408f, value.status.width / value.density, 0.6f)
         assertEquals(48f, value.status.height / value.density, 0.6f)
         clear(value.clock.left - value.recording.right, value)
         clear(value.format.left - value.clock.right, value)
@@ -90,7 +92,8 @@ class MonitorPortraitStatusGeometryTest {
     }
 
     @Test fun narrowViewportUsesAnIntrinsicSecondRowWithoutMovingTheScreenTopAnchor() = withHeader(320f) { value ->
-        assertEquals(292f, value.status.width / value.density, 0.6f)
+        // 320 dp less the same 16 dp per-side reserve; the intrinsic second row keeps the top anchor.
+        assertEquals(288f, value.status.width / value.density, 0.6f)
         assertEquals(value.expectedTop, value.status.top / value.density, 0.6f)
         assertTrue(value.status.height / value.density > 48f)
         clear(value.clock.left - value.recording.right, value)
@@ -331,6 +334,9 @@ class MonitorPortraitStatusGeometryTest {
                 })
         }
     }
+
+    /** The fixture supplies the explicit native target slot the shared portrait group normally grants,
+     *  so the readout's accessibility bounds match its visual slot instead of expanding above it. */
     @Composable private fun HeaderReadout(id: String, title: String, value: String, large: Boolean,
         layout: MonitorFieldLayout, control: MonitorControlModel, state: MonitorOperatorCaptureState<String, Nothing>,
         source: MonitorCaptureSourceIdentity, inputs: MonitorOperatorCaptureInputs<String, String, Nothing>, probe: Probe,
@@ -338,11 +344,13 @@ class MonitorPortraitStatusGeometryTest {
         MonitorOperatorCaptureHeaderReadout(inputs, control, state, source,
             MonitorOperatorLiveReadout<String, String>(id, title, value), enabled = true, commandEnabled = false,
             currentSource = { true }, portrait = layout.portrait,
-            modifier = Modifier.onGloballyPositioned {
-                val bounds = screenBounds(it.boundsInWindow())
-                if (id == "codec") probe.composeCodec = bounds else probe.composeFormat = bounds
-                probe.geometryRevision += 1L
-            }
+            modifier = Modifier
+                .heightIn(min = LocalViewConfiguration.current.minimumTouchTargetSize.height)
+                .onGloballyPositioned {
+                    val bounds = screenBounds(it.boundsInWindow())
+                    if (id == "codec") probe.composeCodec = bounds else probe.composeFormat = bounds
+                    probe.geometryRevision += 1L
+                }
                 .semantics(mergeDescendants = true) { contentDescription = title }) {
             Text(value, style = MonitorTypography.readout(if (large) 23f else 16f, FontWeight.Medium),
                 color = MonitorPalette.text, maxLines = 1, softWrap = false)
