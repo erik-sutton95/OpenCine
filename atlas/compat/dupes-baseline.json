@@ -1,35 +1,35 @@
 {
   "code_lines": {
-    "opencine": 362989,
+    "opencine": 417786,
     "openinstacine": 40402,
     "openpocketcine": 56662,
     "openzcine": 119312
   },
-  "note": "Written by atlas dupes --write-baseline at OpenCine 3c6f470e against the exact registered public-main app commits in sources. The shared/OpenZCine pair grows from 672 to 3070 normalized lines because the cumulative shared extraction lands before that app removes its donor copies in a reviewed pin move, as allowed by atlas/docs/MAINTENANCE.md. The measured accepted app candidates (Pocket 1679ddd8, Insta db515403, Z 35ccdacb) reduce the shared pairs to 193, 663 and 388 lines respectively, including Z below the old 672-line baseline; they are not yet integrated or released. All six current public-source pairs remain checked and their total decreases from 80089 to 16206 lines. No scanner rules, registry refs, compatibility results, pins or CI checks changed; regenerate this baseline after the app changes land.",
+  "note": "Written by `atlas dupes --write-baseline` at OpenCine bf961d87 against the registered public-main app commits in sources. The three OpenCine/app pairs rise because the cumulative shared extraction lands before each app removes its donor copies in a reviewed pin move, as allowed by atlas/docs/MAINTENANCE.md; regenerate this baseline after the app changes land.",
   "pairs": {
     "opencine|openinstacine": {
-      "block_lines": 1262,
-      "blocks": 84,
+      "block_lines": 1754,
+      "blocks": 121,
       "exact_files": 0,
       "file_lines": 0,
       "files": 0,
-      "lines": 1262
+      "lines": 1754
     },
     "opencine|openpocketcine": {
-      "block_lines": 931,
-      "blocks": 65,
+      "block_lines": 1809,
+      "blocks": 129,
       "exact_files": 0,
-      "file_lines": 0,
-      "files": 0,
-      "lines": 931
+      "file_lines": 14,
+      "files": 1,
+      "lines": 1823
     },
     "opencine|openzcine": {
-      "block_lines": 2758,
-      "blocks": 168,
+      "block_lines": 3145,
+      "blocks": 196,
       "exact_files": 0,
-      "file_lines": 312,
-      "files": 3,
-      "lines": 3070
+      "file_lines": 745,
+      "files": 7,
+      "lines": 3890
     },
     "openinstacine|openpocketcine": {
       "block_lines": 8198,
@@ -58,7 +58,7 @@
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at 3c6f470ed9693a1827647317d1d34cbbb8eae7eb",
+    "opencine": "working tree at bf961d87fa5a71f5574a9f206212443c0838cebe",
     "openinstacine": "main cd6c86f02e675ab2e76c0a5d8b177b458b961a37",
     "openpocketcine": "main 5e57d277cb301a846de9f0a2c0e97b217f6acffc",
     "openzcine": "main f4b8c734cfc0b7d814fdd10015c6825fb602e8a8"
