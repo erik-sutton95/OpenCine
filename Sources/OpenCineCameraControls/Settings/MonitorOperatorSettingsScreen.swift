@@ -272,6 +272,27 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     }
 
     @ViewBuilder private func controlsRows(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        if let gyro = source.gyro {
+            MonitorSettingsRowCard(title: "Gyro logging") {
+                MonitorSettingsSwitchInlineRow(title: "Log gyro with camera recordings",
+                    help: "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
+                    showTopDivider: false, isOn: gyro.enabled.wrappedValue,
+                    feedback: source.feedback) { gyro.enabled.wrappedValue.toggle() }
+                    .disabled(!gyro.available)
+                MonitorSettingsInlineRow(title: "Status", help: nil) {
+                    MonitorSettingsValueText(value: gyro.status)
+                }
+                if let configureMount = gyro.configureMount {
+                    MonitorSettingsInlineRow(title: "Phone mount",
+                        help: "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
+                        HStack(spacing: 8) {
+                            if let name = gyro.mountName { MonitorSettingsValueText(value: name) }
+                            MonitorSettingsActionPill(title: "Configure", action: configureMount)
+                        }
+                    }
+                }
+            }
+        }
         MonitorOperatorSafetySettings(recordConfirmation: source.recordConfirmation, haptics: source.haptics,
             keepScreenAwake: source.keepAwake, hapticsHelp: source.hapticsHelp,
             keepScreenAwakeHelp: source.keepAwakeHelp, feedback: source.feedback)
@@ -293,6 +314,17 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     }
 
     @ViewBuilder private func storageRows(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        if let gyro = source.gyro {
+            MonitorSettingsRowCard(title: "Gyro logs") {
+                MonitorSettingsInlineRow(title: "Saved motion logs",
+                    help: gyro.configureMount == nil
+                        ? "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow."
+                        : "Share a log with the matching camera video, then select its lens in Gyroflow. A configured phone mount is included in each new log.",
+                    showTopDivider: false) {
+                    MonitorSettingsActionPill(title: "Open", action: gyro.openLogs)
+                }
+            }
+        }
         if let account = source.account {
             MonitorSettingsConfiguredAccount(source: account)
         }

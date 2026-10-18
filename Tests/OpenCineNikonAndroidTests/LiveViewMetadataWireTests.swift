@@ -13,6 +13,8 @@ struct LiveViewMetadataWireTests {
         #expect(focus.boxes.isEmpty)
         #expect(focus.selectedBoxIndex == LiveViewFocusWire.unavailableSelectedBoxIndex)
         #expect(!level.hasLevel)
+        #expect(!level.hasPitch)
+        #expect(!level.hasYaw)
         #expect(level.rollDegrees == 0)
     }
 
@@ -49,5 +51,14 @@ struct LiveViewMetadataWireTests {
         #expect(abs(wire.rollDegrees - -0.5) < 0.000_001)
         #expect(abs(wire.pitchDegrees - -90) < 0.000_001)
         #expect(wire.yawDegrees == 180)
+    }
+
+    @Test func levelWirePreservesMissingOptionalAxesWithoutHidingRoll() {
+        let wire = LiveViewLevelWire(
+            level: PTPLevelAngles(roll: 359.5, pitch: 0, yaw: 0, hasPitch: false, hasYaw: false))
+        #expect(wire.hasLevel)
+        #expect(wire.rollDegrees == -0.5)
+        #expect(!wire.hasPitch)
+        #expect(!wire.hasYaw)
     }
 }

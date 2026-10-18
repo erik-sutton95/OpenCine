@@ -3,7 +3,9 @@ package com.opencapture.opencine.cameracontrols
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -19,6 +21,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
@@ -32,6 +35,8 @@ import com.opencapture.monitorui.settings.MonitorPanelSettings
 import com.opencapture.monitorui.settings.MonitorSettingsActionPill
 import com.opencapture.monitorui.settings.MonitorSettingsPage
 import com.opencapture.monitorui.settings.MonitorSettingsRowCard
+import com.opencapture.monitorui.settings.MonitorSettingsInlineRow
+import com.opencapture.monitorui.settings.MonitorSettingsValueText
 import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 import com.opencapture.monitorui.settings.MonitorSettingsTab
 import com.opencapture.monitorui.settings.MonitorViewAssistSettings
@@ -161,6 +166,28 @@ private fun MonitorOperatorSettingsRows(
             is MonitorOperatorSettingsSource.Deployed -> ControlsRows(source.model, source.state, source.app)
             is MonitorOperatorSettingsSource.Configured -> {
                 val controls = source.configuration.controls
+                source.configuration.gyro?.let { gyro ->
+                    MonitorSettingsRowCard("Gyro logging") {
+                        MonitorSettingsSwitchInlineRow("Log gyro with camera recordings", gyro.enabled,
+                            help = "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
+                            showTopDivider = false) {
+                            if (gyro.available) { inputs.feedback(); gyro.setEnabled(!gyro.enabled) }
+                        }
+                        MonitorSettingsInlineRow("Status", null) {
+                            MonitorSettingsValueText(gyro.status)
+                        }
+                        gyro.configureMount?.let { configureMount ->
+                            MonitorSettingsInlineRow("Phone mount",
+                                "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    gyro.mountName?.let { MonitorSettingsValueText(it) }
+                                    MonitorSettingsActionPill("Configure", onClick = configureMount)
+                                }
+                            }
+                        }
+                    }
+                }
                 MonitorOperatorSafetySettings(controls.recordConfirmation, controls.haptics, controls.keepAwake,
                     controls.setRecordConfirmation, controls.setHaptics, controls.setKeepAwake,
                     keepScreenAwakeHelp = controls.keepAwakeHelp, feedback = inputs.feedback)
@@ -194,6 +221,17 @@ private fun MonitorOperatorSettingsRows(
             is MonitorOperatorSettingsSource.Deployed -> StorageRows(source.model, source.app)
             is MonitorOperatorSettingsSource.Configured -> {
                 source.configuration.account?.let { SettingsAccount(it) }
+                source.configuration.gyro?.let { gyro ->
+                    MonitorSettingsRowCard("Gyro logs") {
+                        MonitorSettingsInlineRow("Saved motion logs",
+                            if (gyro.configureMount == null)
+                                "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow."
+                            else "Share a log with the matching camera video, then select its lens in Gyroflow. A configured phone mount is included in each new log.",
+                            showTopDivider = false) {
+                            MonitorSettingsActionPill("Open", onClick = gyro.openLogs)
+                        }
+                    }
+                }
                 source.configuration.cache?.let { cache ->
                     MonitorOperatorCacheSettings(cache.source, scopeHelp = cache.scopeHelp,
                         clearHelp = cache.clearHelp, formatBytes = cache.formatBytes, feedback = inputs.feedback,

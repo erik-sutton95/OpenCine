@@ -55,6 +55,12 @@ must reject its late frames and clear only its own publications. Covers and rota
 the picture host. Codec, frame leases, renderer scheduling and sampling demand retain one owner
 through that host's lifetime. A captured frame is not permission to send a camera command.
 
+Android JPEG decoding stays on the source's decode worker. The frame pump awaits its optional
+`publish` callback before synchronous frame observers or another decode. Bitmap Vulkan state
+and UI frame publication belong on Main; the app rechecks source admission after that dispatch.
+Glass and relay observers remain on the decode worker. Awaited publication preserves the pooled
+bitmap's lifetime and rejects cancelled or retired work before observers run.
+
 Verify portable changes on the mirrored Swift/Kotlin golden vectors, and runtime changes in the
 actual consuming app. Include source replacement, cancellation and picture-host lifetime when
 those paths change. Compile and simulated native checks are recorded separately from physical

@@ -135,6 +135,14 @@ public data class MonitorSettingsInformationSource(
     public val theme: String, public val protocolName: String, public val version: String,
     public val themeHelp: String, public val protocolHelp: String, public val versionHelp: String,
 )
+/** Optional phone motion controls; capture and storage remain host-owned. */
+public class MonitorSettingsGyroSource(
+    public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
+    public val status: String, public val available: Boolean = true,
+    public val openLogs: () -> Unit,
+    public val mountName: String? = null,
+    public val configureMount: (() -> Unit)? = null,
+)
 public class MonitorOperatorSettingsConfiguration(
     public val brand: String, public val isLive: Boolean, public val phase: String,
     public val close: () -> Unit, public val disconnect: (() -> Unit)?, public val feedback: () -> Unit,
@@ -146,6 +154,7 @@ public class MonitorOperatorSettingsConfiguration(
     public val account: MonitorSettingsAccountSource? = null,
     public val support: MonitorSettingsSupportSource,
     public val information: MonitorSettingsInformationSource,
+    public val gyro: MonitorSettingsGyroSource? = null,
 )
 
 /** Complete settings ownership using actual stores, optional services and bounded native leaves. */
