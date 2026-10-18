@@ -141,6 +141,31 @@ final class OpenCinePlaybackLabelsDiagnosticApplication: UIApplication {
     private let logURL = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("SIMULATED-touch-diagnostics.jsonl")
     private var otherEvents = 0
+    nonisolated(unsafe) static weak var current: OpenCinePlaybackLabelsDiagnosticApplication?
+
+    override init() {
+        super.init()
+        Self.current = self
+        for (original, replacement) in [
+            (#selector(UIViewController.dismiss(animated:completion:)),
+             #selector(UIViewController.opencineDiagnosticDismiss(animated:completion:))),
+            (#selector(UIPresentationController.dismissalTransitionWillBegin),
+             #selector(UIPresentationController.opencineDiagnosticDismissalWillBegin)),
+        ] {
+            let owner: AnyClass = original == #selector(UIPresentationController.dismissalTransitionWillBegin)
+                ? UIPresentationController.self : UIViewController.self
+            if let a = class_getInstanceMethod(owner, original),
+                let b = class_getInstanceMethod(owner, replacement)
+            {
+                method_exchangeImplementations(a, b)
+            }
+        }
+    }
+
+    func record(_ kind: String, _ object: AnyObject) {
+        log(["kind": kind, "object": name(object) + "#" + id(object),
+             "stack": Thread.callStackSymbols.prefix(40).map { $0 }])
+    }
 
     override func sendEvent(_ event: UIEvent) {
         let touches = Array(event.allTouches ?? [])
@@ -154,9 +179,10 @@ final class OpenCinePlaybackLabelsDiagnosticApplication: UIApplication {
         }
         let before = touches.map(describe)
         let windows = allWindows()
+        let raw = [event.debugDescription] + touches.map(\.debugDescription)
         super.sendEvent(event)
         log([
-            "kind": "touches", "before": before, "after": touches.map(describe),
+            "kind": "touches", "raw": raw, "before": before, "after": touches.map(describe),
             "windows": windows, "presentations": presentations(),
         ])
         if touches.contains(where: { $0.phase == .ended || $0.phase == .cancelled }) {
@@ -279,6 +305,20 @@ final class OpenCinePlaybackLabelsDiagnosticApplication: UIApplication {
         } else {
             try? data.write(to: logURL)
         }
+    }
+}
+
+extension UIViewController {
+    @objc func opencineDiagnosticDismiss(animated: Bool, completion: (() -> Void)?) {
+        OpenCinePlaybackLabelsDiagnosticApplication.current?.record("dismiss", self)
+        opencineDiagnosticDismiss(animated: animated, completion: completion)
+    }
+}
+
+extension UIPresentationController {
+    @objc func opencineDiagnosticDismissalWillBegin() {
+        OpenCinePlaybackLabelsDiagnosticApplication.current?.record("dismissalWillBegin", self)
+        opencineDiagnosticDismissalWillBegin()
     }
 }
 
