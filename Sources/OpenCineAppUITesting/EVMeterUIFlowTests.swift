@@ -5,6 +5,10 @@ import XCTest
 
 /// Presentation and interaction proof only; camera metering needs a physical camera.
 open class EVMeterUIFlowTests: SharedAppUITestCase {
+    /// Launch values an app adds to the review so its camera offers the EV meter, for a camera
+    /// that offers it in one capture mode only (Nikon: photography). Empty by default.
+    open var meterLaunchEnvironment: [String: String] { [:] }
+
     func testPhysicalMeterHasAReadingAndKeepsPresenting() throws {
         guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_UI_REVIEW"] == "1" else {
             throw XCTSkip("Requires an attached iPhone and available camera")
@@ -70,7 +74,8 @@ open class EVMeterUIFlowTests: SharedAppUITestCase {
             throw XCTSkip("Presentation fixtures are simulator-only")
         #endif
         continueAfterFailure = false
-        let app = launch(ReviewLaunch(screen: .live, meteredEV: -2.0 / 3))
+        let app = launch(
+            ReviewLaunch(screen: .live, meteredEV: -2.0 / 3), environment: meterLaunchEnvironment)
         defer {
             app.terminate()
             XCUIDevice.shared.orientation = .portrait
@@ -139,7 +144,7 @@ open class EVMeterUIFlowTests: SharedAppUITestCase {
         #if !targetEnvironment(simulator)
             throw XCTSkip("Presentation fixtures are simulator-only")
         #endif
-        let app = launch(ReviewLaunch(screen: .live))
+        let app = launch(ReviewLaunch(screen: .live), environment: meterLaunchEnvironment)
         defer { app.terminate() }
         let meter = app.otherElements["monitor.ev.meter"]
         XCTAssertTrue(meter.waitForExistence(timeout: 15))
