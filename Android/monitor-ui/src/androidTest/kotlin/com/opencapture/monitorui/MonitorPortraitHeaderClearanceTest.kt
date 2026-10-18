@@ -358,7 +358,7 @@ class MonitorPortraitHeaderClearanceTest {
         }
     }
 
-    /** Separate physical-host adapter; original private956dp cases retain their original inputs. */
+    /** Full available host height; other cases cap their original956dp canvas to the native window. */
     @Test(timeout = 90_000) fun productionLongPrimaryUsesActualAvailablePhysicalHostHeight() {
         productionPrimaryCase(360f, 0f, 0f, listOf(null), useActualHostHeight = true)
     }
@@ -412,18 +412,20 @@ class MonitorPortraitHeaderClearanceTest {
             var standbyMainFonts = emptyMap<String, Float>()
             var canvas = Rect.Zero; var actualPicture = Rect.Zero
             var canvasHeightDp = 956f
-            if (useActualHostHeight) {
+            run {
                 awaitForegroundFrame(scenario)
                 scenario.onActivity { activity ->
                     val content = activity.findViewById<View>(android.R.id.content)
                     val density = activity.resources.displayMetrics.density
                     assertTrue("Actual available native window must be measured", content.width > 0 && content.height > 0)
-                    assertTrue("Full production360width must fit the actual physical host", content.width / density >= width)
-                    canvasHeightDp = content.height / density
+                    if (useActualHostHeight)
+                        assertTrue("Full production360width must fit the actual physical host", content.width / density >= width)
+                    val availableHeightDp = content.height / density
+                    canvasHeightDp = if (useActualHostHeight) availableHeightDp else minOf(canvasHeightDp, availableHeightDp)
                     android.util.Log.i("B5ActualPhysicalHostInputs", JSONObject().put("actualContentWidthPixels", content.width)
                         .put("actualContentHeightPixels", content.height).put("density", density)
                         .put("actualFontScale", activity.resources.configuration.fontScale).put("canvasWidthDp", width)
-                        .put("actualAvailableHeightDp", canvasHeightDp).put("rawSafeTopDp", top)
+                        .put("actualAvailableHeightDp", availableHeightDp).put("canvasHeightDp", canvasHeightDp).put("rawSafeTopDp", top)
                         .put("sideSafeDp", side).put("ownedTestOnlyHost", true).toString())
                 }
             }
@@ -485,6 +487,7 @@ class MonitorPortraitHeaderClearanceTest {
                                 com.opencapture.opencine.appkit.MonitorDisplaySection.STATUS_BAR,
                                 com.opencapture.opencine.appkit.MonitorDisplaySection.BATTERIES,
                                 com.opencapture.opencine.appkit.MonitorDisplaySection.COLOR) +
+                                (if (typedPortraitHeader && !colorOnly) setOf(com.opencapture.opencine.appkit.MonitorDisplaySection.CODEC) else emptySet()) +
                                 if (compactEditorMode != null) setOf(com.opencapture.opencine.appkit.MonitorDisplaySection.STORAGE,
                                     com.opencapture.opencine.appkit.MonitorDisplaySection.FPS) else emptySet(),
                             picture = com.opencapture.opencine.cameracontrols.MonitorOperatorLivePicture(16f / 9f, false, false, false, false),
@@ -581,6 +584,14 @@ class MonitorPortraitHeaderClearanceTest {
                                 it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull() == "Color mode"
                             })
                             assertEquals(if (colorOnly) "COLOR" else "R3D NE", detail.config[SemanticsProperties.StateDescription])
+                            assertTrue("Selected profile and FX/DX stay out of the portrait header", nodes.none {
+                                val text = it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text
+                                val value = it.config.getOrNull(SemanticsProperties.StateDescription)
+                                text == "D-Log2" || value == "D-Log2" || text?.contains("[FX]") == true || text?.contains("[DX]") == true
+                            })
+                            assertRenderedBands(activity.window.decorView, width, top, emptyList(), listOf(
+                                "status" to recording.boundsInRoot, "clock" to clock.boundsInRoot,
+                                "format" to format.boundsInRoot, "detail" to detail.boundsInRoot))
                             val density = activity.resources.displayMetrics.density
                             for (target in listOf(format, detail)) {
                                 assertTrue("Portrait target width", target.boundsInRoot.width >= 48f * density - .5f)
