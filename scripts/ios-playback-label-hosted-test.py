@@ -133,7 +133,7 @@ def system_source_binding(root: Path) -> dict[str, str]:
     paths += [SYSTEM_DIRECTORY / name for name in
               ["NativeCancelReceipt.swift", "SimulatedNativeCancelHost.swift", "NativeCancelUITests.swift"]]
     result = {str(path): sha256(path.read_bytes()).hexdigest() for path in paths}
-    assert result[str(paths[1])] == "abeeeb264869a977f1e1fef7c28347a6269bf47422347131bd481396323ca3ae"
+    assert result[str(paths[1])] == "824997e288e5ce8499a09be70886832a41b8f76c079cc18161e23d6dc1b17964"
     return result
 
 

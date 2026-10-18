@@ -218,6 +218,7 @@ struct NativeSystemOtherWindowHit: Codable, Equatable {
     let screen: String
     let hidden: Bool
     let alpha: Double
+    let frame: NativeCancelRect
     let interactive: Bool
     let pointInWindow: NativeSystemPoint?
     let convertedScreenPoint: NativeSystemPoint?
@@ -323,13 +324,17 @@ func nativeContractInputRejections(
         reasons.append("Incomplete, missing or duplicated native window inventory")
     }
     for other in proof.otherWindowHits {
-        if !other.alpha.isFinite
-            || (!other.hidden && other.alpha >= 0.01 && other.interactive
-                && (other.sceneID != proof.sceneID || other.screen != proof.selectedScreen
-                    || !other.hitTestObserved || other.hitIdentity != nil
-                    || other.pointInWindow?.finite != true
-                    || other.convertedScreenPoint != proof.pointOnScreen))
-        {
+        let visible = !other.hidden && other.alpha >= 0.01
+        // A visible window whose frame covers the point swallows the touch even when its hit
+        // test there is nil, so its public frame excludes it independently of the hit chain.
+        let covering = other.frame.finite && other.frame.contains(proof.pointOnScreen)
+        let interception =
+            other.interactive
+            && (other.sceneID != proof.sceneID || other.screen != proof.selectedScreen
+                || !other.hitTestObserved || other.hitIdentity != nil
+                || other.pointInWindow?.finite != true
+                || other.convertedScreenPoint != proof.pointOnScreen)
+        if !other.alpha.isFinite || (visible && (covering || interception)) {
             reasons.append("Other-window interception is unknown or present")
             break
         }

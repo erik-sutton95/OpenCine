@@ -185,6 +185,11 @@
         private let recorder: PlaybackLabelActions
         private let nativeGeometry = LegacyPlaybackGeometry()
         private weak var previousKeyWindow: UIWindow?
+        private struct OtherWindowState {
+            let hidden: Bool
+            let alpha: CGFloat
+        }
+        private var hiddenOtherWindows: [UIWindow: OtherWindowState] = [:]
 
         init(
             actions recorder: PlaybackLabelActions, typedDeletion: Bool = false,
@@ -245,19 +250,38 @@
             window = UIWindow(windowScene: scene)
             window.frame = frame
             previousKeyWindow = scene.keyWindow
-            // The original host's placeholder is below this owned scene-sized fixture. Keep it
-            // out of native hit routing while the strict all-window input proof is active.
-            if nativeSceneGeometry { previousKeyWindow?.isHidden = true }
             window.rootViewController = host
             window.makeKeyAndVisible()
             host.view.frame = window.bounds
+            hideOtherWindows()
+        }
+
+        // A covering scene window takes the native tap even when its hit test at the point is
+        // nil, so the fixture owns every other window while its own window is visible. The
+        // accessibility runtime probe (HostedAccessibility.awaitRuntime) is ordered visible
+        // again by a later window transaction, so alpha zero keeps it non-interactive as well
+        // as hidden. Prior state is kept so close() hands the windows back unchanged.
+        private func hideOtherWindows() {
+            guard let scene = window.windowScene else { return }
+            for other in scene.windows where other !== window {
+                if hiddenOtherWindows[other] == nil {
+                    hiddenOtherWindows[other] = OtherWindowState(
+                        hidden: other.isHidden, alpha: other.alpha)
+                }
+                other.isHidden = true
+                other.alpha = 0
+            }
         }
 
         func close() {
             host.presentedViewController?.dismiss(animated: false)
             window.isHidden = true
             window.rootViewController = nil
-            if nativeSceneGeometry { previousKeyWindow?.isHidden = false }
+            for (other, state) in hiddenOtherWindows {
+                other.isHidden = state.hidden
+                other.alpha = state.alpha
+            }
+            hiddenOtherWindows = [:]
             if let previousKeyWindow, !previousKeyWindow.isHidden,
                 previousKeyWindow.windowScene === window.windowScene
             {
@@ -366,6 +390,9 @@
         func cancelVisible(_ dialog: UIAlertController, screenshotDirectory: URL? = nil)
             async throws -> Bool
         {
+            // A window created after init could come forward mid-test; hide the scene's other
+            // windows again before the reader sends its one native event.
+            hideOtherWindows()
             let observer = try LegacyHostedNativeInput(
                 host: host, window: window, item: item, geometry: nativeGeometry,
                 request: recorder.captured?.id,

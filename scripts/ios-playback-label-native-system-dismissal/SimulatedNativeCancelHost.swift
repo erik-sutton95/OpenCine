@@ -449,6 +449,8 @@ private final class SimulatedNativeCancelScenario: NSObject {
             return NativeSystemOtherWindowHit(
                 identity: identity(other), sceneID: other.windowScene?.session.persistentIdentifier,
                 screen: identity(other.screen), hidden: other.isHidden, alpha: Double(other.alpha),
+                frame: NativeCancelRect(
+                    other.convert(other.bounds, to: window.screen.coordinateSpace)),
                 interactive: other.isUserInteractionEnabled,
                 pointInWindow: finite ? NativeSystemPoint(local) : nil,
                 convertedScreenPoint: finite ? NativeSystemPoint(converted) : nil,

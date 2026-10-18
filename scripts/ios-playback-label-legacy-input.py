@@ -23,9 +23,9 @@ NAMES = [
     'testUntypedDeletionConfirmationFallsBackToTheSharedTitle',
 ]
 FROZEN = {
-    'NativeCancelReceipt.swift': 'a6c750aa09d9fa56241e959e90be54014d7aef093443078b16f6f760a7856c67',
+    'NativeCancelReceipt.swift': '748421482fd6f26e78293f9a9b1071237edd5332079169fbf52b3305bfd2af63',
     'NativeCancelUITests.swift': 'e5137f000f1c7886d023eef2dbc5f5a4649e50786ae18769f36af35d9f11be2c',
-    'SimulatedNativeCancelHost.swift': '99485f573d8edbe1450ef1dd881a6f422a3f5ddbe52d3974fa4434fc906d4804',
+    'SimulatedNativeCancelHost.swift': '181554d188ea52679ef0ec90ff45fd6615515d229d3a92d26120b9b72395b364',
 }
 
 OBSERVER = r'''import MonitorPresentation
@@ -115,6 +115,31 @@ import XCTest
 
     func stop() { timer?.invalidate(); timer = nil }
 // ACCEPTED_OBSERVATION_METHODS
+}
+'''
+
+# A real application scene without a screen: the fixture owns the only window, so no later
+# application window can come forward and take the reader's native tap. Mirrors the accepted
+# SIMULATED native cancellation host's delegate pair (SimulatedNativeCancelHost.swift).
+HOST_SOURCE = r'''import UIKit
+
+@main
+@MainActor
+final class OpenCinePlaybackLabelsSimulated: UIResponder, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication, configurationForConnecting session: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(
+            name: "SIMULATED playback label host", sessionRole: session.role)
+        configuration.delegateClass = OpenCinePlaybackLabelsSimulatedScene.self
+        return configuration
+    }
+}
+
+@MainActor
+final class OpenCinePlaybackLabelsSimulatedScene: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
 }
 '''
 
@@ -328,7 +353,7 @@ def run(args, root):
     (out / 'input-binding.json').write_text(json.dumps({'inputs': before, **prepared}, indent=2) + '\n')
     generated_sources(root, out)
     host, target, reader = 'OpenCinePlaybackLabelsSimulated', 'OpenCinePlaybackLabelsHostedTests', 'LegacyHostedNativeInputUITests'
-    (out / 'SimulatedHost.swift').write_text('import SwiftUI\n@main struct OpenCinePlaybackLabelsSimulated: App { var body: some Scene { WindowGroup { Text("SIMULATED playback label host") } } }\n')
+    (out / 'SimulatedHost.swift').write_text(HOST_SOURCE)
     dependencies = [{'package': 'OpenCine', 'product': p} for p in ['MonitorPresentation', 'MonitorUI', 'OpenCineMedia', 'OpenCineHostedAccessibility', 'OpenCineHostedTestSupport']]
     spec = {'name': 'OpenCinePlaybackLabelsHosted', 'options': {'deploymentTarget': {'iOS': '17.0'}},
             'settings': {'base': {'SWIFT_VERSION': '6.0', 'GENERATE_INFOPLIST_FILE': 'YES', 'TARGETED_DEVICE_FAMILY': '1,2'}},
