@@ -7,6 +7,25 @@ import Testing
 @MainActor
 @Suite("Nikon explicit queued command admission")
 struct NikonCommandAdmissionTests {
+    @Test func authorityCaptureSurvivesReadbackButNotSurrenderAndRegrant() {
+        let link = AdmittedLink()
+        var facts = NikonCameraSessionTests.movieFacts()
+        let runtime = NikonMonitorRuntime(link: link, facts: facts)
+        let captured = runtime.session.captureCommandAuthority()
+        facts.recording = true
+        runtime.updateFacts(facts)
+        #expect(captured(), "Unrelated camera observations do not retire source authority")
+        facts.holdsControl = false
+        runtime.updateFacts(facts)
+        facts.holdsControl = true
+        runtime.updateFacts(facts)
+        #expect(!captured(), "A held native job must not revive after authority returns")
+        let current = runtime.session.captureCommandAuthority()
+        #expect(current())
+        runtime.session.close(.requested)
+        #expect(!current())
+    }
+
     @Test("A supplied source receipt never changes the existing direct command path")
     func sourceBoundAdmissionIsExplicitAndDirectOperationsRemainUnchanged() async throws {
         let link = AdmittedLink()

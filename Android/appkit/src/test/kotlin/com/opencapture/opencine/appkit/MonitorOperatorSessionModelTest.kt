@@ -40,6 +40,27 @@ class MonitorOperatorSessionModelTest {
         assertTrue(!display.live.railMedia && display.clean.railMedia)
     }
 
+    @Test fun commandReceiptRetiresSynchronouslyOnLockOrOwnerReplacementOnly() = runTest {
+        val (model) = fixture()
+        model.synchronize("SIMULATED-first")
+        val first = model.captureCommandRevision()
+        model.locked = false
+        model.settingsTab = MonitorSettingsTab.DISPLAY
+        model.openSettings()
+        assertTrue(first(), "Same lock value and unrelated popup state keep a released command current")
+        model.locked = true
+        assertFalse(first(), "No snapshot notification or coroutine turn may be required")
+        model.locked = false
+        assertFalse(first(), "Unlock does not revive old work")
+        val second = model.captureCommandRevision()
+        assertTrue(second())
+        model.synchronize("SIMULATED-replacement")
+        assertFalse(second())
+        val third = model.captureCommandRevision()
+        model.close()
+        assertFalse(third())
+    }
+
     @Test fun editorDoneReturnsToSettingsWithoutClosingBorrowedCamera() = runTest {
         val (model, shell, assist) = fixture()
         val camera = FakeCameraSession.lunaLike()

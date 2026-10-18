@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The one owner of the monitor's display intent: the DISP modes a source offers and the current one,
@@ -57,9 +58,19 @@ public class MonitorOperatorSessionModel(
         private set
     /** The interface lock. It refuses the DISP cycle here; the surface refuses every other operator
      * input while it holds. It lasts one monitor lifetime. */
+    private val commandRevision = AtomicReference(Any())
     public var locked: Boolean
         get() = displaySession.locked
-        set(value) { displaySession.locked = value }
+        set(value) {
+            if (displaySession.locked != value) commandRevision.set(Any())
+            displaySession.locked = value
+        }
+
+    /** Captures this owner's local command lifetime without making an eligibility decision. */
+    public fun captureCommandRevision(): () -> Boolean {
+        val captured = commandRevision.get()
+        return { commandRevision.get() === captured }
+    }
     public var interactive: Boolean by mutableStateOf(true)
         private set
     /** Command has no assist-state twin; Live and Clean stay `assist.clean`, which assist filtering and
@@ -161,6 +172,7 @@ public class MonitorOperatorSessionModel(
     }
 
     private fun retire() {
+        commandRevision.set(Any())
         revision += 1
         armJob?.cancel(); armJob = null
         interactive = true

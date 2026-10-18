@@ -86,6 +86,13 @@ class NikonOpenCineSession(
             ),
         )
     override val snapshots: StateFlow<CameraSnapshot> = _snapshots.asStateFlow()
+
+    private var commandAuthorityRevision = Any()
+    /** Captures source/authority publication lifetime, independent of ordinary property reports. */
+    public fun captureCommandAuthority(): () -> Boolean {
+        val captured = synchronized(lock) { commandAuthorityRevision }
+        return { synchronized(lock) { !closed && commandAuthorityRevision === captured } }
+    }
     private val receipts = HashMap<OperationID, MutableStateFlow<CommandReceipt>>()
 
     /** Record targets in flight: not finished, so a newer press must follow, never be skipped. */
@@ -379,6 +386,10 @@ class NikonOpenCineSession(
                         .filterValues { it.isKnown },
             )
         if (next != current) {
+            if (next.session != current.session || next.epoch != current.epoch ||
+                next.connection != current.connection || next.authority != current.authority) {
+                commandAuthorityRevision = Any()
+            }
             next = next.copy(revision = current.revision.next())
             _snapshots.value = next
         }

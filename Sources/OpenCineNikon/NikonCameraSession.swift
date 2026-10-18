@@ -123,6 +123,7 @@ extension NikonControlDriver {
 private final class NikonCommandSnapshot: @unchecked Sendable {
     private let lock = NSLock()
     private var value: CameraSnapshot
+    private var authority = NikonCommandOwner()
     init(_ value: CameraSnapshot) { self.value = value }
     func read() -> CameraSnapshot {
         lock.lock()
@@ -131,8 +132,20 @@ private final class NikonCommandSnapshot: @unchecked Sendable {
     }
     func replace(_ value: CameraSnapshot) {
         lock.lock()
+        if self.value.session != value.session || self.value.epoch != value.epoch
+            || self.value.connection != value.connection || self.value.authority != value.authority
+        {
+            authority.retire()
+            authority = NikonCommandOwner()
+        }
         self.value = value
         lock.unlock()
+    }
+    func captureAuthority() -> @Sendable () -> Bool {
+        lock.lock()
+        let captured = authority
+        lock.unlock()
+        return { captured.isActive }
     }
 }
 
@@ -152,6 +165,10 @@ public final class NikonCameraSession: CameraSession {
     /// The last published observation, safe to copy at a queued native transaction gate.
     /// Reading it performs no refresh, callbacks or transport work.
     public nonisolated var commandSnapshot: CameraSnapshot { commandState.read() }
+    /// Captures source/authority publication lifetime, independent of ordinary property reports.
+    public nonisolated func captureCommandAuthority() -> @Sendable () -> Bool {
+        commandState.captureAuthority()
+    }
     private var receipts: [OperationID: CommandReceipt] = [:]
     /// Property writes each setting operation still owes a readback for.
     private var owedWrites: [OperationID: Int] = [:]
