@@ -130,6 +130,10 @@
                     ?? MonitorStorageReadoutFormat.remainingMinutes(nil)
             }
             guard let readout = host.control.snapshot?.storage.storageReadout else { return StorageReadout.unavailable }
+            // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
+            if layout.presentation?.portrait == true {
+                return MonitorStorageReadoutFormat.wholeUnitCapacity(bytes: readout.freeBytes)
+            }
             return readout.free
         }
 

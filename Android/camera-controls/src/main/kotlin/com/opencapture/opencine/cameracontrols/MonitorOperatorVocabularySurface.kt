@@ -27,6 +27,7 @@ import com.opencapture.monitorui.LiveMonitorLayout
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorRect
+import com.opencapture.monitorui.MonitorStorageReadoutFormat
 import com.opencapture.monitorui.PortraitZones
 import com.opencapture.monitorui.portraitAspectToggle
 import com.opencapture.opencine.appkit.MonitorAssistState
@@ -300,7 +301,10 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
     val storage = source.capture.control.state.value.snapshot?.storage
-    val storageLabel = if (duration) storage?.recordingTimeLabel else storage?.storageReadout?.free
+    // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
+    val storageLabel = if (duration) storage?.recordingTimeLabel else storage?.storageReadout?.let { readout ->
+        if (field.portrait) MonitorStorageReadoutFormat.wholeUnitCapacity(readout.freeBytes) else readout.free
+    }
     fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
         MonitorOperatorLiveReadout(sheet.name, title, value, section)
     val labels = source.host.labelProfile

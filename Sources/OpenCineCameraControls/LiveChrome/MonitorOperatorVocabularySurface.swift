@@ -121,7 +121,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                 available: { Set(MonitorDisplayChrome.Section.allCases) },
                 picture: { .init(aspect: source.pictureAspect, waiting: source.pictureWaiting,
                     vertical: source.verticalPicture, flipped: host.livePictureViewFlip, recovering: source.recovering) },
-                status: { Self.status(host) },
+                status: { Self.status(host, portrait: layout.viewport.height > layout.viewport.width) },
                 cameraBattery: {
                     host.control.snapshot.flatMap { MonitorOperatorPowerReading.camera($0.power) }
                 },
@@ -177,7 +177,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             }, preview: preview, lookMenu: lookMenu)
     }
 
-    private static func status(_ host: Host) -> MonitorOperatorLiveStatus<CaptureSheet, MonitorDisplayChrome.Section> {
+    private static func status(_ host: Host, portrait: Bool) -> MonitorOperatorLiveStatus<CaptureSheet, MonitorDisplayChrome.Section> {
         let value = host.cameraStatus
         let photo = value.isPhoto
         let recordingFormat = host.control.snapshot.map(MonitorCapturePresentation.recordingFormat)
@@ -187,8 +187,12 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             .init(id: key, title: title, value: text, section: section, accessibilityIdentifier: identifier)
         }
         let readout = host.control.snapshot?.storage.storageReadout
+        // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
+        let storageText = readout.map {
+            portrait ? MonitorStorageReadoutFormat.wholeUnitCapacity(bytes: $0.freeBytes) : $0.free
+        } ?? StorageReadout.unavailable
         let storage = host.chromeSectionMounts(.storage)
-            ? row(.resolution, "Storage remaining", readout?.free ?? StorageReadout.unavailable, .storage, "monitor.storage") : nil
+            ? row(.resolution, "Storage remaining", storageText, .storage, "monitor.storage") : nil
         let format = host.chromeSectionMounts(.format) ? [row(photo ? .mode : .resolution,
             photo ? "Shooting mode" : "Recording format",
             photo ? host.currentShootingMode?.label(for: host.connectedBody) ?? "Photo" : formatLabel ?? "--",
