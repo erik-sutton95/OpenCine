@@ -61,7 +61,9 @@ public struct MonitorFeedSharingSettings: View {
             }
             MonitorSettingsInlineRow(title: "Watcher passcode", help: help.passcode) {
                 VStack(alignment: .trailing, spacing: 4) {
-                    SecureField("Optional", text: Binding(get: { passcodeDraft ?? passcode }, set: enterPasscode))
+                    SecureField("Optional", text: Binding(
+                        get: { passcodeDraft ?? passcode },
+                        set: { text in enterPasscode(text) }))
                         .font(MonitorTheme.font(13, weight: .medium))
                         .multilineTextAlignment(.trailing)
                         .frame(width: 120)
