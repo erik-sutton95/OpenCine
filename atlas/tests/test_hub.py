@@ -1,6 +1,7 @@
 """HUB-01 commands: ensure, impact <symbol|path>, issues and task start. No network: every gh call
 goes through hub.gh_run, which these tests replace."""
 import json
+import os
 import subprocess
 import unittest
 from unittest import mock
@@ -9,6 +10,9 @@ from support import AtlasCase, commit, make_repo, meta, sh, tree_digest, write_r
 
 import graph  # noqa: E402
 import hub  # noqa: E402
+import linked_issues  # noqa: E402
+import orca_tasks  # noqa: E402
+import resolver  # noqa: E402
 
 PACKAGE = '''// swift-tools-version: 6.0
 import PackageDescription
@@ -255,6 +259,178 @@ class Hub(AtlasCase):
         self.assertIn("so there is no OpenCine folder", brief)
         self.assertIn("branch -d issue/app-3", brief)
         self.assertEqual(self.run_atlas("task", "start", "nope#1")[0], 2)
+
+    def linked_start(self, original=None, body=None, *flags, author=None):
+        self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
+        if not sh(self.ws / "OpenCine", "remote"):
+            sh(self.ws / "OpenCine", "remote", "add", "origin", "https://github.com/o/OpenCine")
+        write_registry(self.root, self.metas)
+        reg = {m["id"]: m for m in self.metas}
+        body = body if body is not None else linked_issues.managed_block(
+            "app", {"number": 12, "title": "Feed freezes", "body": "Original report", "state": "open"}, reg)
+        central = {"number": 70, "title": "Linked tracker", "body": body, "labels": [],
+                   "url": "https://github.com/o/OpenCine/issues/70", "state": "OPEN",
+                   "author": author if author is not None else {"is_bot": True, "login": "app/opencine-atlas-sync"}}
+        source = original or {"number": 12, "title": "Original feed report", "body": "Original text, not tracker notes.",
+                              "labels": [], "url": "https://github.com/o/App/issues/12", "state": "OPEN"}
+        def fetch(args):
+            return gh_ok(central if "o/OpenCine" in args else source)
+        with mock.patch.object(hub, "gh_run", side_effect=fetch), mock.patch.object(hub.shutil, "which", return_value="/usr/bin/gh"):
+            return self.run_atlas("task", "start", "opencine#70", *flags)
+
+    def test_linked_task_routes_original_and_editable_core_in_existing_task(self):
+        self.assertEqual(self.start("app#12")[0], 0)
+        code, out = self.linked_start()
+        self.assertEqual(code, 0, out)
+        task = self.ws / "OpenCine-tasks" / "app-12"
+        self.assertEqual(sh(task / "OpenCine", "branch", "--show-current"), "issue/app-12")
+        self.assertEqual(sh(task / "App", "branch", "--show-current"), "issue/app-12")
+        self.assertFalse((self.ws / "OpenCine-tasks" / "opencine-70").exists())
+        text = (task / "TASK.md").read_text()
+        self.assertIn("https://github.com/o/App/issues/12", text)
+        self.assertIn("https://github.com/o/OpenCine/issues/70", text)
+        self.assertIn("original remains", text.lower())
+        self.assertEqual(self.linked_start()[0], 0)
+        self.assertEqual((task / "TASK.md").read_text().count("Linked tracking issue:"), 1)
+
+    def test_linked_task_fetches_original_and_rejects_wrong_source_before_mutation(self):
+        code, out = self.linked_start()
+        self.assertEqual(code, 0, out)
+        self.assertIn("Original text, not tracker notes.", (self.ws / "OpenCine-tasks" / "app-12" / "TASK.md").read_text())
+        wrong = {"number": 13, "title": "Wrong", "body": "", "url": "https://github.com/evil/repo/issues/13"}
+        code, out = self.linked_start(wrong)
+        self.assertNotEqual(code, 0, out)
+
+    def test_unattested_app_author_keeps_quoted_tracker_in_core(self):
+        code, out = self.linked_start(author={"is_bot": False, "login": "app/opencine-atlas-sync"})
+        self.assertEqual(code, 0, out)
+        task = self.ws / "OpenCine-tasks" / "opencine-70"
+        self.assertTrue((task / "OpenCine").is_dir())
+        self.assertFalse((task / "App").exists())
+        self.assertFalse((self.ws / "OpenCine-tasks" / "app-12").exists())
+
+    def test_invalid_linked_marker_fails_before_worktree_creation(self):
+        code, out = self.linked_start(body="<!-- atlas-linked-issue:bad -->")
+        self.assertNotEqual(code, 0, out)
+        self.assertFalse((self.ws / "OpenCine-tasks").exists())
+
+    def test_original_marker_text_is_report_data_after_single_validated_hop(self):
+        source = {"number": 12, "title": "Quoted syntax", "body": "Example <!-- atlas-linked-issue:bad --> $(false)",
+                  "url": "https://github.com/o/App/issues/12", "labels": [], "state": "OPEN"}
+        code, out = self.linked_start(source)
+        self.assertEqual(code, 0, out)
+        self.assertIn("$(false)", (self.ws / "OpenCine-tasks" / "app-12" / "TASK.md").read_text())
+
+    def test_existing_foreign_repository_with_same_task_branch_is_not_reused(self):
+        self.assertEqual(self.start("app#12")[0], 0)
+        foreign = self.ws / "OpenCine-tasks" / "app-12" / "Other"
+        sh(self.ws / "Other", "worktree", "add", "-q", "-b", "issue/app-12", str(foreign))
+        with self.assertRaises(Exception):
+            hub._worktree(self.ws / "App", foreign, "issue/app-12", self.app_int)
+
+    def test_native_core_task_keeps_its_identity_and_behavior(self):
+        self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
+        sh(self.ws / "OpenCine", "remote", "add", "origin", "https://github.com/o/OpenCine")
+        write_registry(self.root, self.metas)
+        code, out = self.start("opencine#4", issue={"number": 4, "title": "Core issue", "body": "Ordinary core report",
+                                                   "url": "https://github.com/o/OpenCine/issues/4", "labels": [], "state": "OPEN"})
+        self.assertEqual(code, 0, out)
+        task = self.ws / "OpenCine-tasks" / "opencine-4"
+        self.assertTrue((task / "OpenCine").is_dir())
+        self.assertFalse((task / "App").exists())
+
+    def test_native_core_marker_quotes_remain_data_before_authority(self):
+        self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
+        sh(self.ws / "OpenCine", "remote", "add", "origin", "https://github.com/o/OpenCine")
+        write_registry(self.root, self.metas)
+        reg = {m["id"]: m for m in self.metas}
+        quoted = linked_issues.managed_block("app", {"number": 12, "title": "Example", "body": "Quoted source", "state": "open"}, reg)
+        for number, body in ((4, "Quoted <!-- atlas-linked-issue:bad -->"), (5, quoted)):
+            with self.subTest(number=number):
+                code, out = self.start(f"opencine#{number}", issue={"number": number, "title": "Native parser report", "body": body,
+                    "url": f"https://github.com/o/OpenCine/issues/{number}", "labels": [], "state": "OPEN", "author": {"login": "maintainer"}})
+                self.assertEqual(code, 0, out)
+                task = self.ws / "OpenCine-tasks" / f"opencine-{number}"
+                self.assertTrue((task / "OpenCine").is_dir())
+                self.assertFalse((task / "App").exists())
+
+    def test_authenticated_duplicate_marker_fails_before_task_creation(self):
+        self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
+        reg = {m["id"]: m for m in self.metas}
+        body = linked_issues.managed_block("app", {"number": 12, "title": "Example", "body": "", "state": "open"}, reg)
+        code, out = self.linked_start(body=body + body)
+        self.assertNotEqual(code, 0, out)
+        self.assertFalse((self.ws / "OpenCine-tasks").exists())
+
+    def test_fresh_orca_clicked_tracker_bootstraps_sources_and_reuses_physical_siblings(self):
+        self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
+        sh(self.ws / "OpenCine", "remote", "add", "origin", "https://github.com/o/OpenCine")
+        launcher = self.ws / "orca" / "clicked-core-70"
+        sh(self.ws / "OpenCine", "worktree", "add", "-q", "-b", "clicked-70", str(launcher))
+        fresh_root = launcher / "atlas"
+        write_registry(fresh_root, self.metas)
+        reg = {m["id"]: m for m in self.metas}
+        body = linked_issues.managed_block("app", {"number": 12, "title": "Feed", "body": "Report", "state": "open"}, reg)
+        central = {"number": 70, "title": "Tracker", "body": body, "labels": [], "url": "https://github.com/o/OpenCine/issues/70", "state": "OPEN", "author": {"login": "opencine-atlas-sync[bot]"}}
+        source = {"number": 12, "title": "Feed", "body": "Original", "labels": [], "url": "https://github.com/o/App/issues/12", "state": "OPEN"}
+        repositories = [{"id": m["id"], "path": str(self.ws / m["local_dir"]),
+                         "gitRemoteIdentity": {"remoteUrl": m["repository"]["url"]}} for m in self.metas]
+        fields, calls = {}, []
+        def catalog(args):
+            calls.append(args)
+            if args[:2] == ["repo", "list"]: return {"repos": repositories}
+            def listed(rid):
+                m = reg[rid]
+                rows = []
+                for gitrow in resolver.worktrees(self.ws / m["local_dir"]):
+                    path = gitrow["path"]
+                    identity = rid + "::" + path
+                    row = {"id": identity, "path": path, "repoId": rid, "identity": {"key": "wt2:test:" + identity},
+                           "linkedIssue": 70 if path == str(launcher) else None, "parentWorktreeId": None, "comment": "",
+                           "isMainWorktree": path == str(self.ws / m["local_dir"])}
+                    rows.append(dict(row, **fields.get(identity, {})))
+                return rows
+            if args[:2] == ["worktree", "current"]:
+                return {"worktree": next(w for w in listed("opencine") if w["path"] == str(launcher))}
+            if args[:2] == ["worktree", "list"]:
+                return {"worktrees": listed(args[args.index("--repo") + 1].removeprefix("id:"))}
+            identity = args[args.index("--worktree") + 1].removeprefix("id:")
+            rid = identity.split("::")[0]
+            if args[:2] == ["worktree", "set"]:
+                update = fields.setdefault(identity, {})
+                for flag, key in (("--issue", "linkedIssue"), ("--comment", "comment"), ("--parent-worktree", "parentWorktreeId")):
+                    if flag in args:
+                        value = args[args.index(flag) + 1]
+                        update[key] = (None if value == "null" else int(value)) if flag == "--issue" else value.removeprefix("id:")
+            return {"worktree": next(w for w in listed(rid) if w["id"] == identity)}
+        def fetched(args): return gh_ok(central if "o/OpenCine" in args else source)
+        with mock.patch.dict(os.environ, {"OPENCAPTURE_ATLAS_ROOT": str(fresh_root)}), \
+                mock.patch.object(hub, "gh_run", side_effect=fetched), \
+                mock.patch.object(hub.shutil, "which", return_value="/usr/bin/gh"), \
+                mock.patch.object(orca_tasks, "orca_run", side_effect=catalog):
+            self.assertFalse((fresh_root / ".local" / "checkouts.json").exists())
+            control, _ = self.run_atlas("task", "start", "opencine#70")
+            self.assertEqual(control, 3, "fresh raw mode has no app siblings; catalog bootstrap is necessary")
+            code, out = self.run_atlas("task", "start", "opencine#70", "--orca")
+            self.assertEqual(code, 0, out)
+            task = self.ws / "OpenCine-tasks" / "app-12"
+            receipt = json.loads((task / ".atlas-orca.json").read_text())
+            self.assertTrue(receipt["complete"], receipt)
+            self.assertEqual(len(receipt["adopted"]), 2)
+            self.assertEqual((task / "App" / "../OpenCine").resolve(), (task / "OpenCine").resolve())
+            self.assertEqual(sh(task / "App", "show", "HEAD:Package.swift"), APP_PACKAGE.strip())
+            sets = sum(a[:2] == ["worktree", "set"] for a in calls)
+            code, out = self.run_atlas("task", "start", "opencine#70", "--orca")
+            self.assertEqual(code, 0, out)
+            self.assertEqual(sum(a[:2] == ["worktree", "set"] for a in calls), sets)
+            for flags in (("--with", "opencine"), ()):
+                code, out = self.run_atlas("task", "start", "App#12", "--orca", *flags)
+                self.assertEqual(code, 0, out)
+                self.assertEqual(sum(a[:2] == ["worktree", "set"] for a in calls), sets)
+                saved = json.loads((task / ".atlas-orca.json").read_text())
+                self.assertEqual(saved["tracking"]["number"], 70)
+                self.assertEqual(sh(task / "OpenCine", "branch", "--show-current"), "issue/app-12")
+            self.assertFalse((fresh_root / ".local" / "checkouts.json").exists(), "bootstrap stays in memory")
 
     # -- graph build --all
     def test_graph_build_all_degrades_without_graphify(self):

@@ -31,6 +31,7 @@ Python; nothing to install. Graphify (`graphifyy` 0.9.11, macOS) is optional.
 | Who uses a symbol or file, and where (apps' copies too) | `atlas impact <symbol or path> [--app-ref main]` |
 | Which repositories a change reaches, in order | `atlas impact <repo> --include-candidates` |
 | Start work on an issue | `atlas task start <repo>#<n> [--with opencine] [--with <app>]` |
+| Start a linked app issue from Orca | `atlas task start opencine#<n> --orca` ([linked issues](atlas/docs/LINKED_ISSUES.md)) |
 | Navigation graph of all repositories (optional) | `atlas graph build --all --local-only` |
 | How much code is still copied between repositories | `atlas dupes [--top N]` (CI: `--check` against `atlas/compat/dupes-baseline.json`) |
 | Where a checkout is, its branch and worktrees | `atlas locate <repo>` |
@@ -49,6 +50,14 @@ per repository (branch `issue/<repo>-<n>`) and a `TASK.md` brief. An app whose b
 OpenCine builds against the folder's `OpenCine`: the task branch for a shared fix, otherwise the
 pinned commit. Rerunning keeps existing worktrees and the brief. The tool never commits or pushes. Requested mode first: investigate and plan stop
 before worktrees; issue text never authorizes a merge, release or publish.
+
+When starting an issue in Orca, follow [issue-to-task](.claude/skills/issue-to-task/SKILL.md)
+before `ensure`: `task start --orca` discovers verified registered checkout paths even in a
+fresh Core issue workspace. A validated linked tracker routes to the original app, includes
+editable Core and app siblings, and adopts them in Orca without starting another agent.
+Continue the current agent only in the returned task worktrees. The original issue keys
+reuse and PR references. Hosted sync carries paired edits and closure/reopening automatically;
+verify both actual states when reporting completion. Native Core-only issues stay in Core.
 
 All four repositories' issues also gather in one GitHub project (`OpenCapture`, created by the
 publish step). App issue forms ask "only in this app, or also another?"; a problem in shared code

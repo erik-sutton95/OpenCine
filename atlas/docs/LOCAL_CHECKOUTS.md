@@ -45,7 +45,13 @@ explicit mapping or `<workspace>/<local_dir>`, never over an existing folder. Wi
   (the task branch with `--with opencine`, otherwise detached at the app's pin). Branch
   `issue/<repo>-<n>`; base: `--base`, else the ref the repository builds OpenCine on (its
   registry edge), else its baseline. It never commits, pushes or deletes; `TASK.md` ends with
-  the `git worktree remove` commands. Other worktrees are created by hand as above.
+  cleanup commands. Other worktrees are created by hand as above.
+- In Orca, opt into `task start ... --orca`: registered repository paths fill missing
+  checkout mappings in memory, the same physical sibling worktrees are discovered/adopted
+  through the public catalog, and identity/link/parent verification is recorded locally.
+  No path moves, global visibility changes or extra agent launch occur. Linked central
+  issues resolve the original app key and include editable Core and app. See
+  [LINKED_ISSUES.md](LINKED_ISSUES.md) for conflict checks, partial recovery and Orca cleanup.
 
 ## Apple and Android local overrides
 
