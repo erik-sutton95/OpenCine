@@ -538,7 +538,9 @@ UI_BODY = r'''    private var expectedTitle = ""
             preInputHash = SHA256.hash(data: try XCTUnwrap(lastData)).map { String(format: "%02x", $0) }.joined()
             try require(clock.now < deadline, "Original native readiness deadline expired")
             tapInvoked = true
-            coordinate.tap()
+            // EXPERIMENT (round 4): one native touch at the same point, held past SpringBoard's
+            // hosted arbitration lag and well under UIKit's 1.5 s passthrough tap limit.
+            coordinate.press(forDuration: 0.75)
             let settled = try await receipt { value in
                 value.sequence > current.sequence && value.processID == initial.processID
                     && value.sceneID == initial.sceneID && value.windowIdentity == initial.windowIdentity
