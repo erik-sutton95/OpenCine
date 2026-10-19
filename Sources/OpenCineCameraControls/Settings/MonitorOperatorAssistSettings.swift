@@ -59,7 +59,9 @@ public struct MonitorOperatorAssistSettings<Looks: MonitorLookProvider, Palette:
             result.append(.zebra(menu, reset: {
                 haptics.selection()
                 if let reset = signalOptions.resetZebra { reset(); return }
-                assist.setZebraOptions(.default, stores: stores); assist.persist()
+                var options = ZebraAssist.Options.default
+                options.highlightIRE = assist.defaults.zebraHighlightIRE
+                assist.setZebraOptions(options, stores: stores); assist.persist()
             }))
         }
         if available.contains(.waveform) {
@@ -80,8 +82,10 @@ public struct MonitorOperatorAssistSettings<Looks: MonitorLookProvider, Palette:
             result.append(.histogram(HistogramAssist.longPressMenu(assist: assist, stores: stores,
                 haptics: haptics, compact: true).assistMenu, reset: {
                 haptics.selection()
-                stores.histogram.options = .default
-                assist.crushClipCompensation = .zero; assist.persist()
+                var options = MonitorHistogramOptions.default
+                options.crushClipCompensation = assist.defaults.crushClipCompensation
+                stores.histogram.options = options
+                assist.crushClipCompensation = assist.defaults.crushClipCompensation; assist.persist()
             }))
         }
         if available.contains(.vectorscope) {
@@ -101,7 +105,7 @@ public struct MonitorOperatorAssistSettings<Looks: MonitorLookProvider, Palette:
             result.append(.trafficLights(TrafficLightsAssist.longPressMenu(assist: assist, stores: stores,
                 haptics: haptics, compact: true).assistMenu, reset: {
                 haptics.selection()
-                assist.crushClipCompensation = TrafficLightsAssist.defaultCompensation
+                assist.crushClipCompensation = assist.defaults.crushClipCompensation
                 stores.trafficLights.scale = 1; stores.trafficLights.persist()
                 assist.persist()
             }))
