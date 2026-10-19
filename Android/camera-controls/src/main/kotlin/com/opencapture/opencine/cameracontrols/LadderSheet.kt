@@ -158,6 +158,8 @@ fun <K> LadderSheet(
     error: String? = null,
     unavailable: String? = null,
     onHold: (() -> Unit)? = null,
+    /** A finger resting on (true) or leaving (false) a holdable sheet, so the host can name the hold. */
+    onHoldPressing: ((Boolean) -> Unit)? = null,
     tintLabel: (CaptureTint) -> String = { "" },
     tintHelp: String? = null,
     footer: @Composable (LadderTab<K>) -> Unit = {},
@@ -197,14 +199,16 @@ fun <K> LadderSheet(
             .testTag("ladder_sheet")
             .then(if (chromeless) Modifier else Modifier.pickerPanelGlass(capturePanelShape(fromTop, portrait)))
             .then(
-                if (hold == null) Modifier else Modifier.pointerInput(holdTimeout, hold) {
+                if (hold == null) Modifier else Modifier.pointerInput(holdTimeout, hold, onHoldPressing) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
+                        onHoldPressing?.invoke(true)
                         val released = withTimeoutOrNull(holdTimeout) { waitForUpOrCancellation() }
                         if (released == null) {
                             hold()
                             waitForUpOrCancellation()
                         }
+                        onHoldPressing?.invoke(false)
                     }
                 },
             )

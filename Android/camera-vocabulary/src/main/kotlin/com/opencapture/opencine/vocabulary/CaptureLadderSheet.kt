@@ -44,6 +44,8 @@ data class LadderTab<K>(
     val tint: CaptureTint? = null,
     val values: ((landed: String) -> List<String>)? = null,
     val steps: ((selected: String) -> Pair<LadderStep, LadderStep>?)? = null,
+    /** Spoken on the drum when it carries steps: what the buttons beside the value do. */
+    val stepsHint: String? = null,
 )
 
 data class LadderSheetPresentation<K>(

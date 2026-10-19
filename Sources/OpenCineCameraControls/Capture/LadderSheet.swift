@@ -196,6 +196,7 @@ private extension String {
         private let error: String?
         private let unavailable: String?
         private let onHold: (() -> Void)?
+        private let onHoldPressing: ((Bool) -> Void)?
         private let tintLabel: (CaptureTint) -> String
         private let tintHelp: String?
         private let footer: (LadderTab<Key>) -> Footer
@@ -212,6 +213,7 @@ private extension String {
             onWrite: @escaping (LadderWrite<Key>) -> Void,
             control: MonitorControlModel? = nil, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
+            onHoldPressing: ((Bool) -> Void)? = nil,
             tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil,
             formats: [CaptureFormatChoice<String>]? = nil,
             host: LadderSheetHost? = nil,
@@ -225,6 +227,7 @@ private extension String {
             self.error = error
             self.unavailable = unavailable
             self.onHold = onHold
+            self.onHoldPressing = onHoldPressing
             self.tintLabel = tintLabel
             self.tintHelp = tintHelp
             self.footer = footer
@@ -274,7 +277,8 @@ private extension String {
             .accessibilityIdentifier("ladder_sheet")
             .contentShape(Rectangle())
             .onTapGesture {}
-            .modifier(LadderHoldGesture(minimumDuration: 0.45, action: onHold))
+            .modifier(
+                LadderHoldGesture(minimumDuration: 0.45, action: onHold, pressing: onHoldPressing))
         }
 
         private var controls: some View {
@@ -379,7 +383,7 @@ private extension String {
                     options: ladderOptions(tab, landed: shown),
                     selection: shown,
                     marked: tab.ladder.marked, enabled: gates.drumEnabled, haptics: hapticsEnabled,
-                    steps: tab.steps?(shown),
+                    steps: tab.steps?(shown), stepsHint: tab.stepsHint,
                     onSelect: { value in
                         guard gates.drumEnabled, !value.isBlank else { return }
                         if landed.indices.contains(index) { landed[index] = value }
@@ -476,13 +480,14 @@ private extension String {
             onWrite: @escaping (LadderWrite<Key>) -> Void,
             control: MonitorControlModel? = nil, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
+            onHoldPressing: ((Bool) -> Void)? = nil,
             tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil,
             host: LadderSheetHost? = nil
         ) {
             self.init(
                 presentation: presentation, enabled: enabled, onWrite: onWrite,
                 control: control, error: error, unavailable: unavailable,
-                onHold: onHold, tintLabel: tintLabel, tintHelp: tintHelp, host: host, footer: { _ in EmptyView() }
+                onHold: onHold, onHoldPressing: onHoldPressing, tintLabel: tintLabel, tintHelp: tintHelp, host: host, footer: { _ in EmptyView() }
             )
         }
     }
@@ -490,10 +495,13 @@ private extension String {
     private struct LadderHoldGesture: ViewModifier {
         let minimumDuration: Double
         let action: (() -> Void)?
+        var pressing: ((Bool) -> Void)? = nil
 
         func body(content: Content) -> some View {
             if let action {
-                content.onLongPressGesture(minimumDuration: minimumDuration, perform: action)
+                content.onLongPressGesture(
+                    minimumDuration: minimumDuration, perform: action,
+                    onPressingChanged: { pressing?($0) })
             } else {
                 content
             }
@@ -507,6 +515,7 @@ private extension String {
         let enabled: Bool
         let haptics: Bool
         let steps: (LadderStep, LadderStep)?
+        var stepsHint: String? = nil
         var previewPosition: Double? = nil
         var interactionIdentity: () -> AnyHashable = { AnyHashable(0) }
         let onSelect: (String) -> Void
@@ -523,6 +532,7 @@ private extension String {
                     markedValues: marked, isInteractive: enabled, haptics: haptics,
                     previewPosition: previewPosition, interactionIdentity: interactionIdentity
                 )
+                .accessibilityHint(steps == nil ? "" : stepsHint ?? "")
                 if let steps {
                     StepButton(step: steps.1, enabled: enabled, onStep: onStep)
                 }
