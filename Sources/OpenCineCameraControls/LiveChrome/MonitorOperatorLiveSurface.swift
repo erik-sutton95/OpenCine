@@ -627,7 +627,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .modifier(ChromeEditableModifier<Host>(section: .statusBar, mode: editing))
     }
     private func storageReadout(_ value: MonitorOperatorLiveReadout<Key, Section>) -> some View {
-        Button {
+        let shown = showStorageDuration ? status.storageAlternative ?? value.value : value.value
+        return Button {
             if exposed && !locked && editing == nil {
                 if status.storageAlternative != nil { showStorageDuration.toggle() }
                 else if let action = value.action { action() }
@@ -635,17 +636,18 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             }
         } label: {
             HStack(spacing: 5) {
-                MonitorIcon.cardSim.frame(width: 12, height: 12)
+                // A source's own glyph replaces the card (photography's picture glyph for shots), never joins it.
+                (value.valueIcon ?? .cardSim).frame(width: 12, height: 12)
                 if layout.portrait && !layout.tablet {
-                    MonitorBoundedReadoutText(showStorageDuration ? status.storageAlternative ?? value.value : value.value)
+                    MonitorBoundedReadoutText(shown)
                 } else {
-                    Text(showStorageDuration ? status.storageAlternative ?? value.value : value.value)
+                    Text(shown)
                         .font(MonitorTheme.font(layout.portrait ? 14 : (layout.tablet ? 18 : 16), weight: .medium))
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
                 }
             }
-        }.buttonStyle(.monitorTapTarget).accessibilityLabel("Storage remaining")
-            .accessibilityValue(showStorageDuration ? status.storageAlternative ?? value.value : value.value)
+        }.buttonStyle(.monitorTapTarget).accessibilityLabel(value.accessibilityLabel ?? "Storage remaining")
+            .accessibilityValue(value.accessibilityLabel == nil ? shown : "")
             .modifier(DescriptorEditable<Host>(section: value.section, mode: editing))
     }
     private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,
@@ -689,6 +691,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
     private var compactTelemetry: some View {
         MonitorCompactTelemetryRow(layout: layout, safeArea: safeArea, metrics: resolvedTelemetryMetrics,
+            topCutout: MonitorTopCutout.estimated(width: layout.viewport.width, height: layout.viewport.height,
+                safeTop: safeArea.top),
             minimumStatusTop: { compactTelemetryMinimumStatusTop = $0 }) {
             if mounts(.statusBar), let storage = status.storage {
                 storageReadout(storage).monitorReadoutShadow()
