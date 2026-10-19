@@ -1123,7 +1123,7 @@ Maintain two layers with visibly different authority.
 
 Prefer a small set of relation kinds with platform/product qualifiers over dozens of special-purpose edge types. Build cycles are errors in the intended OpenCine package graph. A legitimate runtime or documentation cycle must not make build-order validation fail.
 
-**Source navigation.** Code navigation is source search plus the committed, code-derived consumer index and public API snapshots (ADR 0012). Cross-language links such as Kotlin facade → JNI entry point → Swift session owner need separate evidence; a missing search hit is not proof that a call does not exist.
+**Source navigation.** Code navigation is source search (`atlas impact`), joined by the code-derived consumer index and public API snapshots that ADR 0012 adds in follow-up changes. Cross-language links such as Kotlin facade → JNI entry point → Swift session owner need separate evidence; a missing search hit is not proof that a call does not exist.
 
 Every answer based on either graph should expose the repository, exact inspected revision, source path/symbol, and whether the claim is manifest-derived, source-confirmed, or inferred. An inferred edge can guide a search; it cannot silently become confirmed or control a release decision.
 
@@ -1274,7 +1274,7 @@ These routes are hypotheses until the migration changes the real ownership. Duri
 
 **ATLAS-03: Capture the real build graph.** Owner: manifest readers and metadata. Read actual SwiftPM/Xcode/Gradle inputs and model legacy source-copy edges. Add product/platform qualifiers and evidence. Gate: a fixture with an app → UI → Core chain yields correct consumer waves, a manufacturer → UI forbidden dependency fails, a missing checkout is incomplete, and a comment or example URL cannot create a confirmed edge.
 
-**ATLAS-04: Add code navigation.** Superseded: the navigation graph adapter built here was removed (ADR 0012). Navigation is source search plus the committed consumer index and public API snapshots.
+**ATLAS-04: Add code navigation.** Superseded: the navigation graph adapter built here was removed (ADR 0012). Navigation is source search, joined by the consumer index and public API snapshots that ADR 0012 adds in follow-up changes.
 
 **ATLAS-05: Prove cross-repo execution.** Owner: execution docs and task-brief template. Dry-run one illustrative shared UI change and one capability change spanning two integrations. Gate: clear owner, explicit target worktree/ref, dependency order, separate app validation, no accidental main-checkout edits, and no implied merge/release permission. This is a workflow exercise; do not perform the application changes merely to test the atlas.
 

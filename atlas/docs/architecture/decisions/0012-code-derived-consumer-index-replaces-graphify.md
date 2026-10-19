@@ -19,7 +19,9 @@ what does the app own.
   labels, doctor and staleness checks, `impact` graph hints, ignore rules and docs, in OpenCine
   and in the app repositories.
 - Its place is taken by two small committed, deterministic, code-derived outputs built with the
-  standard library and Git only (no model, no network beyond git and gh):
+  standard library and Git only (no model, no network beyond git and gh). They land in the
+  changes that follow this removal; until then source search and `atlas impact` are the
+  navigation:
   - public API snapshots of the Core Swift products and Android modules the apps consume,
     checked in CI so a public change is always deliberate;
   - a per-app consumer index (compact Markdown plus JSON, size-budgeted) listing the Core
