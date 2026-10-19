@@ -89,8 +89,11 @@
                 .accessibilityValue(policy.stateDescription ?? "")
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { press() }
-                .accessibilityAction(named: Text(policy.holdAccessibilityLabel ?? "Shooting mode")) {
-                    if policy.modeAdmitted { openMode?() }
+                .accessibilityActions {
+                    // Named only when the source offers a mode sheet, like the Android long-click label.
+                    if let label = policy.holdAccessibilityLabel {
+                        Button(label) { if policy.modeAdmitted { openMode?() } }
+                    }
                 }
                 .accessibilityIdentifier(photo ? "monitor.system.shutter" : "monitor.system.record")
                 .disabled(!policy.interactive)
