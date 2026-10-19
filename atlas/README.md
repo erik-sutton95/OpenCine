@@ -2,8 +2,7 @@
 
 Entry point for understanding and coordinating work across the OpenCapture camera apps and the
 shared OpenCine platform. It holds a repository registry, routing notes, exact source baselines,
-a typed dependency map with per-target product layers, compatibility records and optional
-Graphify navigation snapshots. It lives inside the OpenCine repository at `atlas/` (formerly the
+a typed dependency map with per-target product layers and compatibility records. It lives inside the OpenCine repository at `atlas/` (formerly the
 separate `opencapture-atlas`, ADR 0010).
 
 It is **not** a build dependency of anything, not a container for app source and not a release
@@ -45,7 +44,7 @@ map). Candidate entries and edges are never live dependencies.
 
 `tools/atlas.py` is a Python 3 standard-library CLI. Every command except `ensure` (clones
 missing checkouts), `task start` (task worktrees and a brief), `new-app` (a new app folder),
-`dupes --write-baseline`, `graph build`/`graph merge` and `compat run` is read-only. Run it from this folder as below, or
+`dupes --write-baseline` and `compat run` is read-only. Run it from this folder as below, or
 from the repository root with an `atlas/` prefix (`python3 atlas/tools/atlas.py check`, as CI does).
 
 ```sh
@@ -55,17 +54,15 @@ python3 tools/atlas.py impact MonitorTheme # owner, apps that link it, call site
 python3 tools/atlas.py task start openpocketcine#12 [--with opencine]   # task folder + TASK.md
 python3 tools/atlas.py task start opencine#70 --orca                   # resolve tracker, adopt physical sibling tasks in Orca
 python3 tools/linked_issues.py                                        # read-only linked issue plan; --execute needs authority
-python3 tools/atlas.py graph build --all --local-only                   # every repo, merged view
 python3 tools/atlas.py dupes --top 3       # duplicated code per repository pair vs compat/dupes-baseline.json
 python3 tools/atlas.py dupes --candidate opencine-thin-app  # apps at a candidate's consumer commits
 python3 tools/atlas.py new-app OpenFooCine  # a thin app next to OpenCine from templates/app (below)
-python3 tools/atlas.py doctor              # registry, local paths, tooling, snapshots
+python3 tools/atlas.py doctor              # registry, local paths, tooling
 python3 tools/atlas.py locate openzcine    # verified path, branch, commit, dirty, worktrees
 python3 tools/atlas.py deps openinstacine  # typed edges with evidence
 python3 tools/atlas.py impact openpocketcine
 python3 tools/atlas.py stale
 python3 tools/atlas.py check               # CI gate (includes per-target layers of the enclosing OpenCine tree)
-python3 tools/atlas.py graph plan          # what a Graphify build would read and write
 python3 tools/atlas.py compat plan         # candidate consumer matrix (read-only)
 python3 tools/atlas.py compat run <id>     # build consumers against a candidate (macOS, docs/EXECUTION.md)
 python3 tools/publish.py                   # publish plan, dry run (docs/PUBLISH.md); --execute acts

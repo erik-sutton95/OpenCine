@@ -2,7 +2,11 @@ name: Atlas linked app issues
 
 on:
   schedule:
+    # Five-minute incremental pass. The daily pass below is the completeness backstop:
+    # it sets ATLAS_SYNC_FULL=1 so every tracked pair is read even when its checkpoint
+    # still matches, which catches comment edits the cheap signals cannot see.
     - cron: "3-58/5 * * * *"
+    - cron: "17 3 * * *"
   issues:
     types: [opened, edited, closed, reopened, labeled, unlabeled, assigned, unassigned, deleted]
   issue_comment:
@@ -74,6 +78,9 @@ jobs:
           ATLAS_SYNC_BOT_LOGIN: ${{ format('{0}[bot]', steps.app-token.outputs.app-slug) }}
           EVENT_NAME: ${{ github.event_name }}
           EXECUTE: ${{ inputs.execute }}
+          # Only the daily schedule forces the full read; the five-minute schedule
+          # keeps the incremental checkpoint so unchanged pairs cost no requests.
+          ATLAS_SYNC_FULL: ${{ github.event.schedule == '17 3 * * *' && '1' || '0' }}
         run: |
           args=()
           if [[ "$EVENT_NAME" != workflow_dispatch || "$EXECUTE" == true ]]; then

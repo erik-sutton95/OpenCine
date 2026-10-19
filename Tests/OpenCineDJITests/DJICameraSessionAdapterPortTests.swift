@@ -265,6 +265,44 @@ import Testing
         #expect(port.fired.isEmpty)
     }
 
+    /// Behavior audit PAA-210 / PIA-211: Pocket 3 publishes no `camcap_shutter`. The standalone
+    /// apps offered the documented video ladder (with the live 1/N merged in) and sent any of it.
+    @Test func emptyShutterCapOffersTheDocumentedLadderAndWrites() {
+        let port = Self.capturePort()
+        port.captureControlState?.reported.availableShutterDenoms = []
+        port.captureControlState?.reported.shootingMode = Int(ShootingMode.video.rawValue)
+        port.captureControlState?.reported.fps = 25
+        let seam = DJICameraSessionAdapter(session: port)
+        let shutter = seam.current.capabilities[.shutter]
+        #expect(shutter?.access == .readWrite)
+        #expect(shutter?.domain?.choices == CamCapShutter.wheelDenoms(available: [], current: 50).map {
+            SettingValue.shutter(.duration(Rational(1, $0)))
+        })
+        #expect(port.captureControlState?.admitsShutterWrite(100) == true)
+        #expect(seam.request(.set(.shutter(.duration(Rational(1, 100))))).stage == .admitted)
+        #expect(port.fired == ["shutter 100"])
+        // The Angle preference maps onto the same ladder (180 degrees at 25p is 1/50).
+        port.captureControlState?.shutterPresentation = .emulatedAngle
+        #expect(DJICameraSessionAdapter(session: port).request(.set(.shutter(.angle(180)))).stage == .admitted)
+        #expect(port.fired.last == "angle 180.0 1/50")
+    }
+
+    /// Behavior audit PAA-211: the Angle preference is a video presentation. In Photo the
+    /// standalone apps forced the Speed tab and a 1/N readout, so the common shutter stays a duration.
+    @Test func photoModeKeepsShutterDurationsUnderTheAnglePreference() {
+        let port = Self.capturePort()
+        port.captureControlState?.shutterPresentation = .emulatedAngle
+        port.captureControlState?.reported.shootingMode = Int(ShootingMode.photoRawPocket3AndNano)
+        port.captureControlState?.reported.fps = 25
+        let seam = DJICameraSessionAdapter(session: port)
+        let shutter = seam.current.capabilities[.shutter]
+        #expect(shutter?.availability == .available)
+        #expect(shutter?.domain?.choices == [50, 100].map { SettingValue.shutter(.duration(Rational(1, $0))) })
+        #expect(seam.current.value(of: .shutter).value == .shutter(.duration(Rational(1, 50))))
+        #expect(seam.request(.set(.shutter(.duration(Rational(1, 100))))).stage == .admitted)
+        #expect(port.fired == ["shutter 100"])
+    }
+
     private static func capturePort() -> FakePort {
         let port = FakePort()
         var actual = CameraStatus()
@@ -445,6 +483,12 @@ final class FakePort: DJIControlPort {
 
     func writeShutter(_ denominator: Int, onStage: @escaping @MainActor (ControlWireEvent) -> Void) {
         fire("shutter \(denominator)", onStage)
+    }
+    func writeHostShutterAngle(
+        _ degrees: Double, denominator: Int, admission: DJICommandAdmission?,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void
+    ) {
+        fire("angle \(degrees) 1/\(denominator)", onStage)
     }
     func writeExposureCompensation(_ value: EvComp, onStage: @escaping @MainActor (ControlWireEvent) -> Void) {
         fire("ev \(value.thirds)", onStage)
