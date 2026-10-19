@@ -89,8 +89,8 @@ class API:
 class TwoWay(unittest.TestCase):
     def setUp(self): self.api = API()
 
-    def run_sync(self, execute=True):
-        return sync.reconcile(registry(), self.api, execute=execute, bot_login=BOT)
+    def run_sync(self, execute=True, full=False):
+        return sync.reconcile(registry(), self.api, execute=execute, bot_login=BOT, full=full)
 
     def created(self):
         result = self.run_sync()
@@ -122,6 +122,106 @@ class TwoWay(unittest.TestCase):
         before = len(self.api.writes)
         self.assertTrue(self.run_sync()["complete"])
         self.assertEqual(len(self.api.writes), before)
+
+    def test_unchanged_pair_skips_both_comment_inventories_until_an_endpoint_changes(self):
+        self.api.comment("o/App", 12, "Indexed")
+        tracker = self.created()
+        # GitHub's issue inventory carries both cheap change signals for every pair.
+        self.api.source.update(updated_at="2026-01-01T00:00:00Z", comments=1)
+        tracker.update(updated_at="2026-01-01T00:00:01Z", comments=2)
+        self.assertTrue(self.run_sync()["complete"])
+        state = sync._one_json(tracker["body"], sync.ROOT_PREFIX)
+        self.assertEqual(set(state["poll"]),
+                         {"source_updated_at", "source_comments", "tracker_comments"},
+                         "a wall-clock field here would rewrite every tracker body")
+        start = len(self.api.calls)
+        self.assertTrue(self.run_sync()["complete"])
+        quiet = self.api.calls[start:]
+        self.assertFalse([call for call in quiet if "comments?" in call[1]],
+                         "an unchanged pair must not read either comment thread")
+        self.assertEqual([call for call in quiet if call[0] != "GET"], [])
+        # A comment edit bumps its issue's updated_at, so the pair is polled and copied.
+        self.api.source["updated_at"] = "2026-01-02T00:00:00Z"
+        self.api.comments["o/App", 12][0]["body"] = "Edited after the checkpoint"
+        self.assertTrue(self.run_sync()["complete"])
+        copies = [c for c in self.api.comments["o/OpenCine", tracker["number"]]
+                  if sync.COMMENT_PREFIX in c["body"]]
+        self.assertEqual(len(copies), 1)
+        self.assertEqual(sync.comment_body(copies[0]["body"]), "Edited after the checkpoint")
+        # A new source comment changes the cheap comment count, without needing updated_at.
+        self.api.comment("o/App", 12, "Added after the checkpoint")
+        self.api.source["comments"] = 2
+        start = len(self.api.calls)
+        self.assertTrue(self.run_sync()["complete"])
+        reads = [call for call in self.api.calls[start:]
+                 if "comments?" in call[1] and "/o/App/issues/12/" in call[1]]
+        self.assertTrue(reads, "a new source comment must trigger a thread read")
+        copies = [c for c in self.api.comments["o/OpenCine", tracker["number"]]
+                  if sync.COMMENT_PREFIX in c["body"]]
+        self.assertEqual(len(copies), 2)
+        self.assertIn("Added after the checkpoint", [sync.comment_body(c["body"]) for c in copies])
+
+    def test_comment_arriving_after_the_inventory_blocks_a_poll_checkpoint(self):
+        self.api.comment("o/App", 12, "First")
+        tracker = self.created()
+        self.api.source.update(updated_at="2026-01-01T00:00:00Z", comments=1)
+        tracker.update(updated_at="2026-01-01T00:00:01Z", comments=2)
+        self.assertTrue(self.run_sync()["complete"])
+        request, injected = self.api.request, [False]
+
+        def comment_arrives(method, path, payload=None):
+            if not injected[0] and method == "GET" and path == "/repos/o/App/issues/12":
+                injected[0] = True
+                self.api.comment("o/App", 12, "Arrived after the inventory")
+                self.api.source["comments"] = 2
+                self.api.source["updated_at"] = "2026-01-02T00:00:00Z"
+            return request(method, path, payload)
+
+        self.api.request = comment_arrives
+        try:
+            self.assertTrue(self.run_sync(full=True)["complete"])
+        finally:
+            self.api.request = request
+        state = sync._one_json(tracker["body"], sync.ROOT_PREFIX)
+        self.assertNotIn("poll", state,
+                         "a comment the inventory did not see must be read again")
+        start = len(self.api.calls)
+        self.assertTrue(self.run_sync()["complete"])
+        self.assertTrue([call for call in self.api.calls[start:]
+                         if "comments?" in call[1] and "/o/App/issues/12/" in call[1]])
+        copies = [c for c in self.api.comments["o/OpenCine", tracker["number"]]
+                  if sync.COMMENT_PREFIX in c["body"]]
+        self.assertIn("Arrived after the inventory",
+                      [sync.comment_body(c["body"]) for c in copies])
+
+    def test_forced_full_pass_reads_every_pair_and_writes_nothing_when_unchanged(self):
+        self.api.comment("o/App", 12, "Indexed")
+        tracker = self.created()
+        self.api.source.update(updated_at="2026-01-01T00:00:00Z", comments=1)
+        tracker.update(updated_at="2026-01-01T00:00:01Z", comments=2)
+        self.assertTrue(self.run_sync()["complete"])
+        before = len(self.api.writes)
+        start = len(self.api.calls)
+        self.assertTrue(self.run_sync(full=True)["complete"])
+        reads = [call for call in self.api.calls[start:] if "comments?" in call[1]]
+        self.assertEqual(len(reads), 2, "a forced full pass reads both endpoint threads")
+        self.assertEqual(len(self.api.writes), before, "a full pass with no upstream change writes nothing")
+
+    def test_released_checked_poll_checkpoint_is_accepted_and_skipped(self):
+        self.api.comment("o/App", 12, "Indexed")
+        tracker = self.created()
+        self.api.source.update(updated_at="2026-01-01T00:00:00Z", comments=1)
+        tracker.update(updated_at="2026-01-01T00:00:01Z", comments=2)
+        self.assertTrue(self.run_sync()["complete"])
+        state = sync._one_json(tracker["body"], sync.ROOT_PREFIX)
+        state["poll"]["checked"] = 123
+        tracker["body"] = sync._render(
+            "app", 12, sync._values(tracker, True, "app", registry()), state, registry(), tracker["body"])
+        start = len(self.api.calls)
+        self.assertTrue(self.run_sync()["complete"])
+        quiet = self.api.calls[start:]
+        self.assertFalse([call for call in quiet if "comments?" in call[1]])
+        self.assertEqual([call for call in quiet if call[0] != "GET"], [])
 
     def test_conflicting_content_is_preserved_while_independent_state_syncs(self):
         tracker = self.created()

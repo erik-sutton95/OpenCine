@@ -188,8 +188,8 @@ jobs:
 
   atlas:
     # Nothing here builds an app, writes to another repository, publishes, schedules or merges.
-    # It reads the public app repositories for the duplication check. The Graphify build test
-    # and the pinned-path eval test skip without app checkouts and report as skipped, not passed.
+    # It reads the public app repositories for the duplication check. The pinned-path eval test
+    # skips without app checkouts and reports as skipped, not passed.
     name: Atlas check
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -199,7 +199,7 @@ jobs:
           persist-credentials: false
       - name: Unit tests
         run: python3 -m unittest discover -s atlas/tests -v
-      - name: Registry, direction, cycles, snapshots, candidates and private paths
+      - name: Registry, direction, cycles, candidates and private paths
         run: python3 atlas/tools/atlas.py check
       # Informational: consumer builds (`compat run`) need macOS, Xcode and the Android SDK.
       - name: Candidate consumer matrix
