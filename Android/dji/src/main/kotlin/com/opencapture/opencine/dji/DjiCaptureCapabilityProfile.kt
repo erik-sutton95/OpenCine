@@ -76,13 +76,18 @@ fun CameraModel.Companion.colorModesFor(name: String, family: String): List<Int>
     )
 }
 
-fun CameraModel.Companion.zoomStopsFor(name: String, family: String): List<Double> {
+fun CameraModel.Companion.zoomStopsFor(name: String, family: String): List<Double> =
+    namedZoomStops(name) ?: if (family == "pocket") listOf(1.0, 2.0, 4.0) else listOf(1.0)
+
+/**
+ * The zoom stops a named body cycles whatever a saved record says (Swift
+ * `DJICaptureCapabilityProfile.make`); null for a body the name does not identify.
+ */
+internal fun namedZoomStops(name: String): List<Double>? {
     val n = name.lowercase().replace(" ", "")
     if (n.contains("pocket4p") || n.contains("4pro")) return listOf(1.0, 3.0, 6.0, 12.0)
-    if (n.contains("pocket4") || n.contains("pocket3") || n.contains("muse")) {
-        return listOf(1.0, 2.0, 4.0)
-    }
-    return if (family == "pocket") listOf(1.0, 2.0, 4.0) else listOf(1.0)
+    if (n.contains("pocket4") || n.contains("pocket3") || n.contains("muse")) return listOf(1.0, 2.0, 4.0)
+    return null
 }
 
 val CameraModel.Companion.default: CameraModel
@@ -145,7 +150,7 @@ object DjiCaptureCapabilityProfile {
             supportsTapFocus = model.supportsTapFocus, supportsAperture = model.supportsAperture,
             hasGimbal = model.hasGimbal, supportsZoom = model.supportsZoom,
             isoAutoRangeFloor = CameraModel.isoAutoRangeFloorFor(model.name), videoFormatFallbacks = fallbacks,
-            zoom = CameraZoomProfile(stops = model.zoomStops, restrictedModes = restricted,
+            zoom = CameraZoomProfile(stops = namedZoomStops(model.name) ?: model.zoomStops, restrictedModes = restricted,
                 restrictedStops = if (CameraModel.looksLikePocket4Pro(model.name)) listOf(1.0, 3.0) else listOf(1.0),
                 resolutionCeilings = ceilings), looks = DjiCameraLUTProfile.make(model),
             controls = controls(model), nativeISO = nativeISO(model))
