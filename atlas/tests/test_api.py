@@ -1,6 +1,9 @@
 """C-API: public API snapshots. The digester itself is not run here (macOS + a Swift build);
 render_dump is fed a recorded dump shape and generate() is replaced."""
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from support import AtlasCase, make_repo, meta, tree_digest, write_registry
@@ -60,6 +63,18 @@ class Render(unittest.TestCase):
         ])
         self.assertNotIn("/private", text)  # tool arguments (machine paths) never reach the file
         self.assertEqual(text, api.render_dump("Mod", DUMP), "deterministic")
+
+
+class Digest(unittest.TestCase):
+    def test_a_module_that_fails_to_load_is_an_error_not_an_empty_snapshot(self):
+        def fake(cmd, **_):
+            if "swift-api-digester" in cmd:
+                Path(cmd[cmd.index("-o") + 1]).write_text('{"ABIRoot": {"children": []}}')
+                return subprocess.CompletedProcess(cmd, 0, "", "error: redefinition of module 'X'\nFailed to load module: Core\n")
+            return subprocess.CompletedProcess(cmd, 0, "/sdk\n", "")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(api.subprocess, "run", side_effect=fake):
+            with self.assertRaisesRegex(RuntimeError, "Core: Failed to load module"):
+                api.digest(tmp, "Core", tmp, tmp)
 
 
 PACKAGE = '''let package = Package(name: "OpenCine", products: [
