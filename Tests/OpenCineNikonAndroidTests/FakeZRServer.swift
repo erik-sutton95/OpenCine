@@ -171,6 +171,10 @@ final class FakeZRServer: @unchecked Sendable {
         /// at or above `MFDriveChannelBudget.readinessPollLimit` keeps the drive in
         /// flight for the whole poll ceiling so tests can assert the abort path.
         var mfDriveReadinessBusyPolls: Int = 0
+        /// Models the Z6III shape behind ZT-02: after `MfDrive` the body answers busy to
+        /// `ChangeAfArea` until a `DeviceReady` poll has read the drive's end back.
+        /// `AfDriveCancel` stops the move but does not count as that read.
+        var mfDriveHoldsBusyUntilReadBack = false
         /// Whether synthesized live-view headers contain authoritative focus data.
         var focusMetadataEnabled = true
         var focusCoordinateWidth: UInt16 = 6_048
@@ -233,6 +237,7 @@ final class FakeZRServer: @unchecked Sendable {
     private var stillCaptureRequests: [[UInt32]] = []
     private var stillReleaseBusyPollsRemaining = 0
     private var mfDriveBusyPollsRemaining = 0
+    private var mfDriveUnread = false
     private var terminateCaptureCount = 0
     private var descriptorReadCounts: [UInt32: Int] = [:]
     private var propertyValueOverrides: [UInt32: Data] = [:]
@@ -680,6 +685,9 @@ final class FakeZRServer: @unchecked Sendable {
             if mfDriveBusyPollsRemaining > 0 {
                 mfDriveBusyPollsRemaining -= 1
                 busyCode = PTPResponseCode.deviceBusy.rawValue
+            } else if mfDriveUnread {
+                mfDriveUnread = false
+                busyCode = nil
             } else if stillReleaseBusyPollsRemaining > 0 {
                 stillReleaseBusyPollsRemaining -= 1
                 busyCode = options.stillReleaseBusyResponseCode
@@ -691,6 +699,7 @@ final class FakeZRServer: @unchecked Sendable {
         case .mfDrive:
             lock.lock()
             mfDriveBusyPollsRemaining = options.mfDriveReadinessBusyPolls
+            mfDriveUnread = options.mfDriveHoldsBusyUntilReadBack
             lock.unlock()
             sendResponse(connection, code: 0x2001, transactionID: transactionID)
         case .initiateCaptureRecInMedia:
@@ -714,7 +723,9 @@ final class FakeZRServer: @unchecked Sendable {
                 return
             }
             lock.lock()
-            let changeResponse = options.changeAfAreaResponseCode
+            let changeResponse =
+                mfDriveUnread
+                ? PTPResponseCode.deviceBusy.rawValue : options.changeAfAreaResponseCode
             if changeResponse == PTPResponseCode.ok.rawValue {
                 focusCenterX = UInt16(clamping: parameters[0])
                 focusCenterY = UInt16(clamping: parameters[1])
@@ -740,6 +751,9 @@ final class FakeZRServer: @unchecked Sendable {
             lock.unlock()
             sendResponse(connection, code: endTrackingResponse, transactionID: transactionID)
         case .afDriveCancel:
+            lock.lock()
+            mfDriveBusyPollsRemaining = 0
+            lock.unlock()
             sendResponse(
                 connection,
                 code: options.afDriveCancelResponseCode,

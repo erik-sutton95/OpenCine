@@ -328,6 +328,12 @@ public enum MFDriveChannelBudget: Sendable {
     public static let readinessPollLimit = 12
     public static let readinessPollIntervalSeconds = 0.12
 
+    /// `DeviceReady` polls after an abort (`AfDriveCancel`), or after a busy `ChangeAfArea`, until
+    /// the body stops answering busy. A drive whose completion nobody reads back is how the
+    /// Z6III left `ChangeAfArea` busy until a body half-press, release or zoom-ring nudge (ZT-02).
+    /// [verify-on-HW: that the read-back, not only the cancel, is what frees the body]
+    public static let settlePollLimit = 8
+
     /// Wall clock a run of refusal retries may keep retrying before it gives up and frees the
     /// channel. Deliberately shorter than one drive's poll ceiling.
     public static let refusalRetrySeconds = 1.2
@@ -341,7 +347,8 @@ public enum MFDriveChannelBudget: Sendable {
     /// Worst-case seconds one drag's drive can own the command channel — the bound that keeps
     /// tap-to-focus alive without a shutter release.
     public static var worstCaseChannelSeconds: Double {
-        Double(readinessPollLimit) * readinessPollIntervalSeconds + refusalRetrySeconds
+        Double(readinessPollLimit + settlePollLimit) * readinessPollIntervalSeconds
+            + refusalRetrySeconds
     }
 }
 

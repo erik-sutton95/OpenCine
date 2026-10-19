@@ -566,6 +566,8 @@
                         result.operationResponse.responseCode
                     )
                 }
+                // Busy is often a drive whose end nobody has read back yet (ZT-02): read it.
+                await settleDeviceReady()
                 try await Task.sleep(for: .milliseconds(120))
             }
         }
@@ -650,13 +652,8 @@
             // `ChangeAfArea` answered busy until a body half-press (#272). Abort and refuse so a
             // tap can own the channel, and so a cancelled Task does not keep polling.
             for _ in 0..<MFDriveChannelBudget.readinessPollLimit {
-                if Task.isCancelled {
-                    try? await afDriveCancel()
-                    return .refused(.deviceBusy)
-                }
-                guard let ready = try? await transact(operationCode: .deviceReady) else {
-                    return .refused(.deviceBusy)
-                }
+                if Task.isCancelled { break }
+                guard let ready = try? await transact(operationCode: .deviceReady) else { break }
                 switch ready.operationResponse.responseCode {
                 case .ok: return .complete
                 case .deviceBusy:
@@ -667,8 +664,33 @@
                 case let other: return .refused(other)
                 }
             }
-            try? await afDriveCancel()
+            // The abort runs in its own task: both transports refuse to send for a cancelled task,
+            // and a tap pre-empts the dial by cancelling it. The old in-task `AfDriveCancel` never
+            // left the phone, the body was left mid-drive, and `ChangeAfArea` answered busy until
+            // a half-press, release or zoom-ring nudge (ZT-02).
+            await Task { await self.abortMFDrive() }.value
             return .refused(.deviceBusy)
+        }
+
+        /// Ends a focus-by-wire drive that was not read to completion: `AfDriveCancel`, then
+        /// `DeviceReady` until the body stops answering busy, so the command that follows (a tap's
+        /// `ChangeAfArea`) is not refused. Best effort; a dead channel fails fast.
+        private func abortMFDrive() async {
+            _ = try? await transact(operationCode: .afDriveCancel)
+            await settleDeviceReady()
+        }
+
+        /// Polls `DeviceReady` while the body answers busy, within `MFDriveChannelBudget`. Reading
+        /// the result back is how Nikon reports a drive's end; a body whose result nobody reads
+        /// keeps refusing other commands. [verify-on-HW]
+        private func settleDeviceReady() async {
+            for _ in 0..<MFDriveChannelBudget.settlePollLimit {
+                guard let ready = try? await transact(operationCode: .deviceReady),
+                    ready.operationResponse.responseCode == .deviceBusy
+                else { return }
+                try? await Task.sleep(
+                    for: .seconds(MFDriveChannelBudget.readinessPollIntervalSeconds))
+            }
         }
 
         /// Nikon session af drive cancel.
