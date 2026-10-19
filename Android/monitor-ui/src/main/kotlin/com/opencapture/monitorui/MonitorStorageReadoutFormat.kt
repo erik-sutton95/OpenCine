@@ -28,5 +28,9 @@ object MonitorStorageReadoutFormat {
         }
     }
 
+    /** The forms one tap on the live storage readout steps to after the free space. */
+    fun alternatives(percent: String?, recordingTime: String?, photo: Boolean): List<String> =
+        listOf(recordingTime ?: "\u2014")
+
     fun remainingMinutes(minutes: Int?): String = minutes?.takeIf { it >= 0 }?.let { "$it Min" } ?: "\u2014 Min"
 }

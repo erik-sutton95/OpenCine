@@ -36,10 +36,14 @@ public struct MonitorOperatorPowerReading: Identifiable {
     public let warning: Bool
     public let exhausted: Bool
     public let charging: Bool?
+    /// The body reports running on external power (the bolt shows through `charging`).
+    public let externalPower: Bool?
     public init(id: String, title: String, camera: Bool, percent: Int? = nil, bars: Int? = nil,
-        barCount: Int = 5, warning: Bool = false, exhausted: Bool = false, charging: Bool? = nil) {
+        barCount: Int = 5, warning: Bool = false, exhausted: Bool = false, charging: Bool? = nil,
+        externalPower: Bool? = nil) {
         self.id = id; self.title = title; self.camera = camera; self.percent = percent; self.bars = bars
         self.barCount = barCount; self.warning = warning; self.exhausted = exhausted; self.charging = charging
+        self.externalPower = externalPower
     }
 }
 
@@ -93,6 +97,8 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
     public let color: MonitorOperatorLiveReadout<Key, Section>?
     public let mode: MonitorOperatorLiveReadout<Key, Section>?
     public let storageAlternative: String?
+    /// The forms one tap steps the storage readout through after its value, in order.
+    public let storageAlternatives: [String]
     public let fps: String?
     public let signalBars: Int?
     public let fpsSection: Section?
@@ -102,11 +108,13 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
         signalBars: Int? = nil, fpsSection: Section? = nil,
         portraitFormat: MonitorOperatorLiveReadout<Key, Section>? = nil, portraitCaption: String? = nil,
         color: MonitorOperatorLiveReadout<Key, Section>? = nil, mode: MonitorOperatorLiveReadout<Key, Section>? = nil,
-        storageAlternative: String? = nil) {
+        storageAlternative: String? = nil, storageAlternatives: [String]? = nil) {
         self.recording = recording; self.showsTimecode = showsTimecode; self.showsRecording = showsRecording
         self.storage = storage; self.format = format; self.fps = fps; self.signalBars = signalBars; self.fpsSection = fpsSection
         self.portraitFormat = portraitFormat; self.portraitCaption = portraitCaption
-        self.color = color; self.mode = mode; self.storageAlternative = storageAlternative
+        self.color = color; self.mode = mode
+        self.storageAlternatives = storageAlternatives ?? storageAlternative.map { [$0] } ?? []
+        self.storageAlternative = self.storageAlternatives.first
     }
 }
 
@@ -382,7 +390,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @Environment(\.dynamicTypeSize) private var primaryTypeSize
     @Environment(\.displayScale) private var primaryDisplayScale
     @State private var primarySizer = MonitorPortraitPrimarySizer()
-    @State private var showStorageDuration = false
+    @State private var storageForm = 0
     @State private var expanded = false
     @State private var lifecycle = MonitorInteractionLifecycle()
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
@@ -626,9 +634,11 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .modifier(ChromeEditableModifier<Host>(section: .statusBar, mode: editing))
     }
     private func storageReadout(_ value: MonitorOperatorLiveReadout<Key, Section>) -> some View {
-        Button {
+        let forms = [value.value] + status.storageAlternatives
+        let shown = forms[storageForm % forms.count]
+        return Button {
             if exposed && !locked && editing == nil {
-                if status.storageAlternative != nil { showStorageDuration.toggle() }
+                if forms.count > 1 { storageForm = (storageForm + 1) % forms.count }
                 else if let action = value.action { action() }
                 else { open(value.id) }
             }
@@ -636,15 +646,15 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             HStack(spacing: 5) {
                 MonitorIcon.cardSim.frame(width: 12, height: 12)
                 if layout.portrait && !layout.tablet {
-                    MonitorBoundedReadoutText(showStorageDuration ? status.storageAlternative ?? value.value : value.value)
+                    MonitorBoundedReadoutText(shown)
                 } else {
-                    Text(showStorageDuration ? status.storageAlternative ?? value.value : value.value)
+                    Text(shown)
                         .font(MonitorTheme.font(layout.portrait ? 14 : (layout.tablet ? 18 : 16), weight: .medium))
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
                 }
             }
         }.buttonStyle(.monitorTapTarget).accessibilityLabel("Storage remaining")
-            .accessibilityValue(showStorageDuration ? status.storageAlternative ?? value.value : value.value)
+            .accessibilityValue(shown)
             .modifier(DescriptorEditable<Host>(section: value.section, mode: editing))
     }
     private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,

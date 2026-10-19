@@ -25,6 +25,11 @@ public enum MonitorStorageReadoutFormat {
             return "\(rounded)\(units[unit])"
         }
     }
+    /// The forms one tap on the live storage readout steps to after the free space.
+    public static func alternatives(percent: String?, recordingTime: String?, photo: Bool) -> [String] {
+        photo ? [] : [recordingTime].compactMap { $0 }
+    }
+
     public static func remainingMinutes(_ minutes: Int?) -> String {
         guard let minutes, minutes >= 0 else { return "\u{2014} Min" }
         return "\(minutes) Min"

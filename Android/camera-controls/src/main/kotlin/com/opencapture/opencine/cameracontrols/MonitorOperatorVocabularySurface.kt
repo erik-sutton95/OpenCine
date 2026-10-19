@@ -74,7 +74,8 @@ public class MonitorOperatorLiveState {
     public var sheet: LiveSheet? by mutableStateOf(null)
     public var topQuickActive: Boolean by mutableStateOf(false)
     public var stripQuickActive: Boolean by mutableStateOf(false)
-    public var showStorageDuration: Boolean by mutableStateOf(false)
+    /** Which storage form the readout shows: the free space, then its alternatives in turn. */
+    public var storageForm: Int by mutableStateOf(0)
     /** The record confirmation is open: a remote press must not bypass a dialog the operator sees. */
     public var recordConfirming: Boolean by mutableStateOf(false)
     public var paletteRevision: Long by mutableStateOf(0L)
@@ -130,7 +131,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
         picture = MonitorOperatorLivePicture(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect,
             waiting = !hasPicture, vertical = verticalPicture, flipped = mirrored, recovering = recovering),
         status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars,
-            state.showStorageDuration) { state.showStorageDuration = !state.showStorageDuration },
+            state.storageForm) { state.storageForm++ },
         cameraBattery = control.snapshot?.power?.let(::cameraPowerReading),
         capture = captureSheetHostInputs(chrome.capture, status, state.sheet, { state.sheet = it },
             section = MonitorDisplaySection.CAMERA_VALUES, metering = metering, quickEnabled = !busy,
@@ -297,14 +298,18 @@ private fun Modifier.operatorFrame(rect: MonitorRect): Modifier = offset(rect.x.
 
 private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSource<Host>, layout: LiveMonitorLayout,
     status: CameraStatus, fps: String, bars: Int,
-    duration: Boolean, toggleStorage: () -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
+    storageForm: Int, toggleStorage: () -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
     val storage = source.capture.control.state.value.snapshot?.storage
+    val readout = storage?.storageReadout
     // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
-    val storageLabel = if (duration) storage?.recordingTimeLabel else storage?.storageReadout?.let { readout ->
-        if (field.portrait) MonitorStorageReadoutFormat.wholeUnitCapacity(readout.freeBytes) else readout.free
-    }
+    val free = readout?.let {
+        if (field.portrait) MonitorStorageReadoutFormat.wholeUnitCapacity(it.freeBytes) else it.free
+    } ?: StorageReadout.UNAVAILABLE
+    val storageForms = listOf(free) + MonitorStorageReadoutFormat.alternatives(readout?.percent,
+        storage?.recordingTimeLabel, CameraCommands.isPhotoMode(status.shootingMode))
+    val storageLabel = storageForms[storageForm.mod(storageForms.size)]
     fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
         MonitorOperatorLiveReadout(sheet.name, title, value, section)
     val labels = source.host.labelProfile
@@ -319,7 +324,7 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.TIMECODE),
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.REC_READOUT),
         if (source.session.mounts(MonitorDisplaySection.STORAGE)) MonitorOperatorLiveReadout("STORAGE", "Storage remaining",
-            storageLabel ?: StorageReadout.UNAVAILABLE, MonitorDisplaySection.STORAGE,
+            storageLabel, MonitorDisplaySection.STORAGE,
             action = toggleStorage, icon = MonitorIcon.CARD_SIM) else null,
         format, fps, bars, MonitorDisplaySection.BATTERIES,
         portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",

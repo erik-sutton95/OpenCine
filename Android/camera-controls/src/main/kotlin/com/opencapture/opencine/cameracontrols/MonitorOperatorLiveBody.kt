@@ -81,6 +81,8 @@ public class MonitorOperatorPowerReading(
     public val camera: Boolean, public val percent: Int?, public val charging: Boolean? = null,
     public val bars: Int? = null, public val barCount: Int = 5, public val warning: Boolean = false,
     public val exhausted: Boolean = false,
+    /** The body reports running on external power (the bolt shows through [charging]). */
+    public val externalPower: Boolean? = null,
 )
 
 /**
@@ -299,7 +301,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val captureHidden = panel?.top == false
     @Composable fun TelemetryPower() {
         MonitorTelemetry(status.signalBars, status.fps, power.map {
-            MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted)
+            MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted,
+                it.externalPower)
         }, horizontal = layout.portrait && !layout.tablet, metrics = telemetryMetrics,
             modifier = edit(sections.power), showsLink = linkMounted && (!layout.portrait || layout.tablet))
     }

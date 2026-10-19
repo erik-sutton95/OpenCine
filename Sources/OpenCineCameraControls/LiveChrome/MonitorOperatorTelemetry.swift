@@ -47,7 +47,7 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
             if showsLink, fps != nil || signalBars != nil {
                 Button { showsFPS.toggle() } label: {
                     Self.gauge(icon: showsFPS ? .gauge : .signal,
-                        value: showsFPS ? fpsValue : (signalBars == nil ? "\u{2014}" : nil),
+                        value: MonitorTelemetryValues.linkValue(fps: fps, signalBars: signalBars, showsRate: showsFPS),
                         bars: signalBars ?? 0, color: MonitorTheme.accent, metrics: resolvedMetrics)
                 }
                 // The landscape layout spaces the gauges for exactly this padded target.
@@ -69,10 +69,6 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryStateDidChangeNotification)) { _ in updatePhone() }
     }
 
-    private var fpsValue: String {
-        guard let fps else { return "\u{2014}" }
-        return Double(fps).map { "\(Int($0.rounded())) fps" } ?? fps
-    }
     private var linkLabel: String {
         let signal = signalBars.map { "\($0) of 4 bars" } ?? "unavailable"
         let rate = fps.map { "\($0) frames per second" } ?? "unavailable"
@@ -91,8 +87,16 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
     }
 
     static func batteryColor(_ percent: Int) -> Color {
-        guard (0...100).contains(percent) else { return Palette.text }
-        return percent <= 20 ? MonitorTheme.recording : percent <= 40 ? Palette.amber : Palette.good
+        batteryColor(MonitorBatteryUrgency.of(percent: percent, bars: nil, barCount: 4, warning: false, exhausted: false))
+    }
+
+    static func batteryColor(_ urgency: MonitorBatteryUrgency?) -> Color {
+        switch urgency {
+        case .depleted: MonitorTheme.recording
+        case .low: Palette.amber
+        case .nominal: Palette.good
+        case nil: Palette.text
+        }
     }
 
     static func gauge(icon: MonitorIcon?, value: String?, bars: Int, color: Color,
@@ -127,12 +131,12 @@ private struct MonitorOperatorPowerTelemetry<Palette: LiveChromePalette>: View {
     let metrics: MonitorTelemetryMetrics
     @State private var pulse = false
     private var tint: Color {
-        if reading.warning || reading.exhausted { return MonitorTheme.recording }
-        if let percent = reading.percent { return MonitorOperatorTelemetry<Palette>.batteryColor(percent) }
-        return Palette.text
+        MonitorOperatorTelemetry<Palette>.batteryColor(MonitorBatteryUrgency.of(percent: reading.percent,
+            bars: reading.bars, barCount: reading.barCount, warning: reading.warning, exhausted: reading.exhausted))
     }
     var body: some View {
-        let value = reading.bars == nil ? reading.percent.map { "\($0)%" } ?? "\u{2014}" : nil
+        let value = MonitorTelemetryValues.batteryValue(percent: reading.percent, bars: reading.bars,
+            charging: reading.charging, externalPower: reading.externalPower)
         MonitorOperatorTelemetry<Palette>.gauge(
             icon: reading.charging == true ? .zap : (reading.camera ? .camera : .smartphone),
             value: value, bars: reading.bars ?? 0, color: tint, barCount: reading.barCount, metrics: metrics)
@@ -140,8 +144,9 @@ private struct MonitorOperatorPowerTelemetry<Palette: LiveChromePalette>: View {
             .animation(reading.exhausted ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true) : .default, value: pulse)
             .onAppear { pulse = reading.exhausted }.onChange(of: reading.exhausted) { _, value in pulse = value }
             .accessibilityLabel(reading.title)
-            .accessibilityValue(Text(verbatim: reading.bars.map { "\($0) of \(reading.barCount) bars" }
-                ?? reading.percent.map { "\($0) percent" } ?? "Unavailable"))
+            .accessibilityValue(Text(verbatim: MonitorTelemetryValues.batterySpokenValue(percent: reading.percent,
+                bars: reading.bars, barCount: reading.barCount, charging: reading.charging,
+                externalPower: reading.externalPower, exhausted: reading.exhausted) ?? "Unavailable"))
             .accessibilityIdentifier(reading.camera ? "monitor.telemetry.camera" : "monitor.telemetry.phone")
             // The passive bitmap spans the viewport; native focus belongs to the visible pill.
             .contentShape(.accessibility, RoundedRectangle(cornerRadius: 7, style: .continuous))

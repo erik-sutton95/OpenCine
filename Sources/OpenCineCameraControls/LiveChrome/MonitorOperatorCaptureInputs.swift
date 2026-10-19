@@ -90,12 +90,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         if controls.audio.isOffered && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
         let supplementary: [MonitorOperatorSupplementaryCaptureReadout<CaptureSheet, Section>]
         if let meter = host.nativeMeteringSource {
-            supplementary = [.init(id: "native.metering", after: .exposure, title: "METER",
-                value: meter.face.map { $0 ? "Face" : "Matrix" } ?? "--",
-                accessibilityValue: meter.face.map { $0 ? "Face Priority" : "Matrix" } ?? "Unknown",
-                accessibilityIdentifier: "monitor.capture.metering", section: section,
-                enabled: meter.face != nil, isCurrent: meter.isCurrent,
-                action: { if let face = meter.face { meter.setFace(!face) } })]
+            supplementary = [.metering(meter, section: section)]
         } else { supplementary = [] }
         let presented = presentedSheet.map { $0() } ?? host.captureSheet
         let panel = presented.map { sheet in
@@ -138,6 +133,17 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
                 !host.sessionLocked && !host.operatorPanelOpen && !host.coverOpen && host.captureSheet == nil
                     && (presentedSheet == nil || presentedSheet?() == nil)
             }, presentationOwner: { host.captureDrum?.id }, supplementaryReadouts: supplementary)
+    }
+}
+extension MonitorOperatorSupplementaryCaptureReadout where Key == CaptureSheet {
+    /// The face-priority metering toggle beside EXPOSURE: two values, so it switches in place.
+    @MainActor static func metering(_ meter: CaptureNativeMeteringSource, section: Section?) -> Self {
+        .init(id: "native.metering", after: .exposure, title: "METER",
+            value: meter.face.map { $0 ? "Face" : "Matrix" } ?? "--",
+            accessibilityValue: meter.face.map { $0 ? "Face Priority" : "Matrix" } ?? "Unknown",
+            accessibilityIdentifier: "monitor.capture.metering", section: section,
+            enabled: meter.face != nil, isCurrent: meter.isCurrent,
+            action: { if let face = meter.face { meter.setFace(!face) } })
     }
 }
 #endif
