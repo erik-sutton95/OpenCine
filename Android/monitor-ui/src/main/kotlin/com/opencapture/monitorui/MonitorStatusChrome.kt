@@ -90,6 +90,7 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
     clockModifier: Modifier = Modifier, storage: @Composable () -> Unit = {}, format: @Composable () -> Unit,
     color: @Composable () -> Unit = {}, mode: @Composable () -> Unit = {}, link: @Composable () -> Unit = {}) {
     Box(modifier.fillMaxWidth().then(if (layout.portrait) Modifier else Modifier.height(layout.status.height.dp))) {
+        // iOS `MonitorStatusChrome`: the readouts carry the shared glow; telemetry pills keep their own glass.
         if (layout.portrait) {
             MonitorPortraitStatusRow(
                 maxOf(layout.status.height, LocalViewConfiguration.current.minimumTouchTargetSize.height.value), layout.status.y,
@@ -99,7 +100,7 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
                 format = { Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(
                     (LocalMonitorPortraitPrimaryFit.current?.spacing ?: 8f).dp)) { format(); color() } })
         } else {
-            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
+            Row(Modifier.fillMaxSize().monitorReadoutShadow(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(24.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)) { storage(); format(); color(); mode() }
@@ -112,7 +113,9 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
         }
         if (layout.portrait && showsCompactTelemetry) {
             if (layout.tablet) Row(Modifier.offset(y = (52f - layout.status.y).dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { storage() }
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.monitorReadoutShadow()) { storage() }
+            }
             else MonitorPortraitTelemetryRow(Modifier.offset(y = (layout.telemetry.y - 13f - layout.status.y).dp)
                 .width(maxOf(0f, layout.telemetry.x - layout.status.x - 8f).dp).heightIn(min = 48.dp), storage, link)
         }
@@ -122,7 +125,7 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
 /** Performance stays next to intrinsic storage, bounded before measurement. */
 @Composable
 private fun MonitorPortraitTelemetryRow(modifier: Modifier, storage: @Composable () -> Unit, link: @Composable () -> Unit) {
-    Layout(content = { Box { storage() }; Box { link() } }, modifier = modifier) { children, constraints ->
+    Layout(content = { Box(Modifier.monitorReadoutShadow()) { storage() }; Box { link() } }, modifier = modifier) { children, constraints ->
         val gap = 8.dp.roundToPx()
         val linkView = children[1].measure(constraints.copy(minWidth = 0, minHeight = 0))
         val storageView = children[0].measure(constraints.copy(minWidth = 0, minHeight = 0,
@@ -144,7 +147,8 @@ private fun MonitorPortraitStatusRow(minimumHeight: Float, availableTop: Float, 
     clock: @Composable () -> Unit, format: @Composable () -> Unit) {
     val spacing = LocalMonitorPortraitPrimaryFit.current?.spacing ?: 8f
     val allowsFallbackRows = LocalMonitorPortraitPrimaryFit.current?.completeSingleRow != true
-    Layout(content = { Box { recording() }; Box { clock() }; Box { format() } }, modifier = Modifier.fillMaxWidth()) {
+    Layout(content = { Box { recording() }; Box { clock() }; Box { format() } },
+        modifier = Modifier.fillMaxWidth().monitorReadoutShadow()) {
             measurables, constraints ->
         val gap = spacing.dp.roundToPx()
         val intrinsic = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
