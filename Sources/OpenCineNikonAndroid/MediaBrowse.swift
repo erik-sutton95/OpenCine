@@ -406,81 +406,70 @@ extension PTPIPClientSession {
 
     // MARK: - Instant review (photography live view)
 
+    // The rules (handle choice, RAW preview location, read plan) are shared
+    // with the iOS session in `OpenCineNikon/NikonStillReview.swift`; these
+    // are its blocking twins of `NativeCameraSession+StillReview.swift`.
+
     /// Seeds the instant-review baseline with the card's current handle sets,
     /// so the first post-capture diff has something to diff against (iOS
-    /// `seedInstantReviewBaseline`).
+    /// `seedStillReviewBaseline(tracker:)`).
     public func seedStillReviewBaseline() throws {
-        var baseline: [UInt32: Set<UInt32>] = [:]
-        for storageID in try usableStorageIDs() {
-            baseline[storageID] = Set((try? objectHandles(storageID: storageID)) ?? [])
-        }
-        stillReviewBaseline = baseline
+        stillReviewTracker.seed(listing: try stillReviewListing())
     }
 
-    /// The just-captured JPEG/HEIF handle: the diff against the pre-capture
-    /// baseline (a RAW+JPEG pair adds two objects; ObjectInfo picks the
-    /// JPEG/HEIF side). With a baseline but no diff yet the caller retries;
-    /// falling back to the highest handle would show the PREVIOUS photo, so
-    /// that stands in only when no baseline was ever seeded.
-    /// [verify-on-HW: enumeration lag per body]
+    /// One lookup for the just-captured still: the handles `ObjectAdded`
+    /// announced, else the diff against the pre-capture baseline. Among one
+    /// shot's objects JPEG/HEIF wins over NEF/NRW; a RAW-only shot returns
+    /// its NEF. Nil while the shot has not reached the card; the caller
+    /// retries within `NikonStillReviewPolicy.objectWindowMilliseconds`.
+    /// [verify-on-HW: card write time per body and quality]
     public func resolveNewestStillHandle() throws -> UInt32? {
-        let hadBaseline = !stillReviewBaseline.isEmpty
-        var newHandles: Set<UInt32> = []
-        var maxHandle: UInt32 = 0
-        for storageID in try usableStorageIDs() {
-            let handles = Set((try? objectHandles(storageID: storageID)) ?? [])
-            if let known = stillReviewBaseline[storageID] {
-                newHandles.formUnion(handles.subtracting(known))
-            }
-            maxHandle = max(maxHandle, handles.max() ?? 0)
-            stillReviewBaseline[storageID] = handles
+        var candidates = stillReviewTracker.takeAnnounced()
+        if candidates.isEmpty {
+            candidates = stillReviewTracker.absorb(listing: try stillReviewListing())
         }
-        let candidates: [UInt32]
-        if !newHandles.isEmpty {
-            candidates = newHandles.sorted(by: >)
-        } else if !hadBaseline, maxHandle > 0 {
-            candidates = [maxHandle]
-        } else {
-            return nil
-        }
+        var selection = NikonStillReviewSelection()
+        var offered: [UInt32] = []
         for handle in candidates {
             guard let info = try? objectInfo(handle: handle) else { continue }
-            let name = info.filename.lowercased()
-            if name.hasSuffix(".jpg") || name.hasSuffix(".jpeg") || name.hasSuffix(".hif") {
-                return handle
-            }
+            offered.append(handle)
+            if selection.offer(handle: handle, filename: info.filename) { break }
         }
-        return nil
+        stillReviewTracker.markReviewed(offered)
+        return selection.choice?.handle
     }
 
-    /// Chunked full-object fetch for the review; 1 MB `GetPartialObject`
-    /// reads that interleave with live-view frames on the shared serialized
-    /// channel. Aborts when `cancelStillReviewFetch` is called so a dismissed
-    /// review never holds the channel hostage.
+    /// The sharp review image for one object: the whole JPEG/HEIF, or a RAW's
+    /// largest embedded JPEG preview (head read, then only the preview's
+    /// bytes). `GetPartialObject` chunks interleave with live-view frames on
+    /// the shared serialized channel. Aborts when `cancelStillReviewFetch` is
+    /// called so a dismissed review never holds the channel hostage.
     public func stillReviewImage(handle: UInt32) -> Data? {
         stillReviewFetchCancelled = false
         guard let info = try? objectInfo(handle: handle),
-            info.compressedSize > 0, info.compressedSize < 60_000_000
+            let kind = NikonStillReviewObjectKind(filename: info.filename)
         else { return nil }
-        var data = Data()
-        data.reserveCapacity(Int(info.compressedSize))
-        var offset: UInt32 = 0
-        let chunk: UInt32 = 1_000_000
-        let total = info.compressedSize
-        while offset < total {
-            if stillReviewFetchCancelled { return nil }
-            let length = min(chunk, total - offset)
-            guard
-                let result = try? transactExpectingOK(
-                    .getPartialObject,
-                    parameters: [handle, offset, length],
-                    dataPhase: .dataIn),
-                !result.data.isEmpty
-            else { return nil }
-            data.append(result.data)
-            offset += UInt32(result.data.count)
+        return NikonStillReviewImageReader.read(
+            kind: kind, objectSize: info.compressedSize,
+            isCancelled: { stillReviewFetchCancelled }
+        ) { offset, length in
+            try transactExpectingOK(
+                .getPartialObject,
+                parameters: [handle, offset, length],
+                dataPhase: .dataIn
+            ).data
         }
-        return data
+    }
+
+    /// Every usable card's object handles; a card whose listing fails is
+    /// left out so its baseline is kept rather than emptied.
+    private func stillReviewListing() throws -> [UInt32: [UInt32]] {
+        var listing: [UInt32: [UInt32]] = [:]
+        for storageID in try usableStorageIDs() {
+            guard let handles = try? objectHandles(storageID: storageID) else { continue }
+            listing[storageID] = handles
+        }
+        return listing
     }
 
     /// Flags the in-flight review fetch to stop at its next chunk boundary.

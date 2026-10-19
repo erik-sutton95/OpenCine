@@ -237,6 +237,7 @@ final class FakeZRServer: @unchecked Sendable {
     private var descriptorReadCounts: [UInt32: Int] = [:]
     private var propertyValueOverrides: [UInt32: Data] = [:]
     private var deletedObjectHandles: Set<UInt32> = []
+    private var addedMediaObjects: [FakeZRMediaObject] = []
     private var objectRatings: [UInt32: UInt16] = [:]
     private var transactionIDLog: [UInt32] = []
     private var pairingConfirmed = false
@@ -329,7 +330,15 @@ final class FakeZRServer: @unchecked Sendable {
     private func activeMediaObjects() -> [FakeZRMediaObject] {
         lock.lock()
         defer { lock.unlock() }
-        return options.mediaObjects.filter { !deletedObjectHandles.contains($0.handle) }
+        return (options.mediaObjects + addedMediaObjects)
+            .filter { !deletedObjectHandles.contains($0.handle) }
+    }
+
+    /// Writes one more object to the card while the session runs, like a capture landing.
+    func addMediaObject(_ object: FakeZRMediaObject) {
+        lock.lock()
+        addedMediaObjects.append(object)
+        lock.unlock()
     }
 
     /// Handles the client deleted from the card, for deletion assertions.

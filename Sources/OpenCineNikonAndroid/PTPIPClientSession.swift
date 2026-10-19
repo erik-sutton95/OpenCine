@@ -754,11 +754,11 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// flight.
     private let mediaTransferCondition = NSCondition()
     private var mediaTransferActive = false
-    /// Last known object handles per storage; the instant-review baseline a
-    /// post-capture diff runs against. Maintained outside the shutter path so
-    /// the release itself never waits on enumeration; the Kotlin review flow
-    /// serializes access.
-    var stillReviewBaseline: [UInt32: Set<UInt32>] = [:]
+    /// The instant-review baseline (last known object handles per storage)
+    /// and the handles `ObjectAdded` announced since. Seeded outside the
+    /// shutter path so the release itself never waits on enumeration; noted
+    /// from both event channels, so it locks internally.
+    let stillReviewTracker = NikonStillReviewObjectTracker()
     /// Aborts an in-flight chunked review fetch so the shared channel is
     /// released the moment the review is dismissed.
     var stillReviewFetchCancelled = false
@@ -3794,8 +3794,16 @@ public final class PTPIPClientSession: @unchecked Sendable {
         deviceEventSink = onEvent
         deviceEventSinkLock.unlock()
 
+        // The instant review reads the new object's handle from `ObjectAdded` on either
+        // channel; the poll notes its events in `pollDeviceEvents`.
+        let reviewTracker = stillReviewTracker
         Thread.detachNewThread { [self] in
-            runEventDrain(onEvent: onEvent, onEnded: onEnded)
+            runEventDrain(
+                onEvent: { event in
+                    reviewTracker.note(event)
+                    onEvent(event)
+                },
+                onEnded: onEnded)
         }
     }
 
@@ -3823,7 +3831,9 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 .getEventEx, parameters: [0], dataPhase: .dataIn),
             result.operationResponse.responseCode == .ok
         else { return [] }
-        return PTPNikonEventList.parse(Array(result.data))
+        let events = PTPNikonEventList.parse(Array(result.data))
+        stillReviewTracker.note(events)
+        return events
     }
 
     /// Stops the event reader by closing its dedicated socket, then waits only
