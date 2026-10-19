@@ -9,6 +9,8 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import com.opencapture.opencine.media.MonitorMediaShareIntentSpec
+import com.opencapture.opencine.media.MonitorMediaShareStager
+import com.opencapture.opencine.media.MonitorMediaShareStagingPolicy
 import com.opencapture.opencine.media.MonitorStagedMediaShare
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -18,11 +20,15 @@ import kotlinx.coroutines.withContext
  * Shares and saves delivered media files for every app: the share sheet through the app's
  * FileProvider (authority `<package>[authoritySuffix]`, declared in the app manifest over the
  * directories delivered files live in), the gallery through MediaStore in the [album] folder.
+ * A delivered file outside those directories (the private no-backup cache, which FileProvider
+ * cannot name) is shared through a copy in `cacheDir/share/ready`, so the app's paths also declare
+ * `<cache-path path="share/ready/">` ([staging] bounds that copy cache).
  */
 public class MediaShare(
     album: String,
     private val authoritySuffix: String = ".mediafileprovider",
     private val batchLabel: String = "$album media",
+    private val staging: MonitorMediaShareStagingPolicy = DEFAULT_STAGING,
 ) {
     public val insertPolicy: MediaStoreInsertPolicy = MediaStoreInsertPolicy(album)
 
@@ -30,15 +36,21 @@ public class MediaShare(
      * The chooser for already-delivered files, with read grants on every URI and the "Include
      * metadata" summary as `EXTRA_TEXT` when not blank (A2-51). [displayName] is the title a
      * file is shared under (a staged copy may carry a private name). Null when no file has a URI.
+     * Copies files outside the provider paths, so call it off the main thread.
      */
     public fun chooserIntent(context: Context, files: List<File>, mimeType: (File) -> String,
         metadataText: String? = null, displayName: (File) -> String = { it.name }): Intent? {
+        val stager = lazy { MonitorMediaShareStager(context.cacheDir.toPath(), staging) }
         val shared = files.mapNotNull { file ->
             val mime = mimeType(file)
-            val uri = runCatching { FileProvider.getUriForFile(context, providerAuthority(context), file) }.getOrNull()
-                // A single file outside the provider paths is shared through its gallery copy.
+            val name = displayName(file)
+            val uri = providerUri(context, file)
+                // IA-552: a file in the private cache is shared through its provider-visible copy.
+                ?: runCatching { stager.value.stagePreparedArtifact(file.toPath(), file.length(), name, STAGED_MIME) }
+                    .getOrNull()?.let { providerUri(context, it.file.toFile()) }
+                // An app without the share/ready path still shares a single file through its gallery copy.
                 ?: if (files.size == 1) insertIntoGallery(context, file, mime) else null
-            uri?.let { MonitorStagedMediaShare(file.toPath(), displayName(file), mime) to it }
+            uri?.let { MonitorStagedMediaShare(file.toPath(), name, mime) to it }
         }
         if (shared.isEmpty()) return null
         val spec = MonitorMediaShareIntentSpec.forShares(shared.map { it.first }, batchLabel, metadataText)
@@ -128,9 +140,22 @@ public class MediaShare(
 
     private fun providerAuthority(context: Context): String = "${context.packageName}$authoritySuffix"
 
+    private fun providerUri(context: Context, file: File): Uri? =
+        runCatching { FileProvider.getUriForFile(context, providerAuthority(context), file) }.getOrNull()
+
     public companion object {
         /** The default provider authority (also used for diagnostics shares). */
         public fun authority(context: Context): String = "${context.packageName}.mediafileprovider"
+
+        /**
+         * Share copies of private-cache files: room for a few camera originals, kept long enough
+         * for the receiving app to read its temporary grant.
+         */
+        public val DEFAULT_STAGING: MonitorMediaShareStagingPolicy =
+            MonitorMediaShareStagingPolicy(8L * 1024 * 1024 * 1024, 32, 10L * 60 * 1000, 64 * 1024)
+
+        // The chooser carries each file's own MIME; the staged copy only needs a valid one.
+        private const val STAGED_MIME = "application/octet-stream"
     }
 }
 

@@ -56,6 +56,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -360,7 +361,9 @@ fun MonitorOperatorDeliveryChrome(
     LaunchedEffect(state.share?.id) {
         val ready = state.share ?: return@LaunchedEffect
         if (presenting != null) return@LaunchedEffect
-        val intent = share.chooserIntent(context, ready.payload.urls, mimeType, ready.payload.metadataText, displayName)
+        val intent = withContext(Dispatchers.IO) {
+            share.chooserIntent(context, ready.payload.urls, mimeType, ready.payload.metadataText, displayName)
+        }
         val launched = intent != null && runCatching { presenting = ready.id; chooser.launch(intent) }.isSuccess
         if (!launched) {
             presenting = null; delivery.clearSharePresentation(ready.id)
