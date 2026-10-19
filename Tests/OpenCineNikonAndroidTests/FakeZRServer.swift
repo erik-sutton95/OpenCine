@@ -48,6 +48,14 @@ struct FakeZRStorageCard: Equatable, Sendable {
     let storageID: UInt32
     let totalCapacityBytes: UInt64
     let freeSpaceBytes: UInt64
+    /// `FreeSpaceInImages`; nil leaves the dataset at the short capacity-only form.
+    var freeSpaceInImages: UInt32? = nil
+}
+
+/// A UINT8 enumeration slot property (`PrimarySlot`, `ActiveSlot`) with a real current value.
+struct FakeZRSlotDescriptor: Equatable, Sendable {
+    let current: UInt8
+    let values: [UInt8]
 }
 
 /// A scripted fake ZR listening on an ephemeral localhost port.
@@ -123,6 +131,8 @@ final class FakeZRServer: @unchecked Sendable {
         var shortPropertyCodesAfterFirstRead: Set<UInt32> = []
         /// Deterministic command-response latency used to prove RTT is measured, not synthesized.
         var commandResponseDelayMilliseconds: UInt64 = 0
+        /// Slot properties described with their current value, keyed by property code.
+        var slotDescriptors: [UInt32: FakeZRSlotDescriptor] = [:]
         /// Ordered recording cards exposed by both storage-ID operations.
         var storageCards: [FakeZRStorageCard] = [
             FakeZRStorageCard(
@@ -241,6 +251,7 @@ final class FakeZRServer: @unchecked Sendable {
     private var terminateCaptureCount = 0
     private var descriptorReadCounts: [UInt32: Int] = [:]
     private var propertyValueOverrides: [UInt32: Data] = [:]
+    private var storageCardsOverride: [FakeZRStorageCard]?
     private var deletedObjectHandles: Set<UInt32> = []
     private var addedMediaObjects: [FakeZRMediaObject] = []
     private var objectRatings: [UInt32: UInt16] = [:]
@@ -409,6 +420,19 @@ final class FakeZRServer: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         updateCameraMovieFileTypeLocked(raw)
+    }
+
+    /// Swaps the inserted cards, as a card pulled or inserted on the body.
+    func setStorageCards(_ cards: [FakeZRStorageCard]) {
+        lock.lock()
+        defer { lock.unlock() }
+        storageCardsOverride = cards
+    }
+
+    private func currentStorageCards() -> [FakeZRStorageCard] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageCardsOverride ?? options.storageCards
     }
 
     /// Overrides a property's GetDevicePropValue payload without recording an app write.
@@ -805,14 +829,16 @@ final class FakeZRServer: @unchecked Sendable {
                 connection, data: liveViewObject(frameIndex: frameIndex, isRecording: isRecording),
                 transactionID: transactionID)
         case .getVendorStorageIDs, .getStorageIDs:
-            var payload = ByteCoding.uint32LE(UInt32(options.storageCards.count))
-            for card in options.storageCards {
+            let cards = currentStorageCards()
+            var payload = ByteCoding.uint32LE(UInt32(cards.count))
+            for card in cards {
                 payload += ByteCoding.uint32LE(card.storageID)
             }
             sendDataIn(connection, data: Data(payload), transactionID: transactionID)
         case .getStorageInfo:
             let storageID = bytes.count >= 14 ? ByteCoding.readUInt32LE(bytes, at: 10) : 0
-            guard let card = options.storageCards.first(where: { $0.storageID == storageID }) else {
+            guard let card = currentStorageCards().first(where: { $0.storageID == storageID })
+            else {
                 // Invalid_StorageID.
                 sendResponse(connection, code: 0x2008, transactionID: transactionID)
                 return
@@ -827,7 +853,7 @@ final class FakeZRServer: @unchecked Sendable {
                 return
             }
             let storageID = bytes.count >= 14 ? ByteCoding.readUInt32LE(bytes, at: 10) : 0
-            guard options.storageCards.contains(where: { $0.storageID == storageID }) else {
+            guard currentStorageCards().contains(where: { $0.storageID == storageID }) else {
                 // Invalid_StorageID.
                 sendResponse(connection, code: 0x2008, transactionID: transactionID)
                 return
@@ -1249,6 +1275,15 @@ final class FakeZRServer: @unchecked Sendable {
 
     /// Protocol-shaped descriptor datasets consumed only by shared-core decoders.
     private func cameraPropertyDescriptor(for property: PTPPropertyCode) -> Data? {
+        if let slot = options.slotDescriptors[property.rawValue] {
+            // Standard 16-bit GetDevicePropDesc header, UINT8 data type.
+            var bytes = ByteCoding.uint16LE(UInt16(property.rawValue))
+            bytes += ByteCoding.uint16LE(0x0002)
+            bytes += [options.readOnlyDescriptorCodes.contains(property.rawValue) ? 0 : 1]
+            bytes += [slot.values.first ?? 0, slot.current, 2]
+            bytes += ByteCoding.uint16LE(UInt16(slot.values.count)) + slot.values
+            return Data(bytes)
+        }
         if property == .movieRecordScreenSize,
             let modes = screenSizeModesForActiveFileType(),
             !modes.isEmpty
@@ -1477,6 +1512,7 @@ final class FakeZRServer: @unchecked Sendable {
         var bytes = [UInt8](repeating: 0, count: 6)
         bytes += ByteCoding.uint64LE(card.totalCapacityBytes)
         bytes += ByteCoding.uint64LE(card.freeSpaceBytes)
+        if let images = card.freeSpaceInImages { bytes += ByteCoding.uint32LE(images) }
         return Data(bytes)
     }
 

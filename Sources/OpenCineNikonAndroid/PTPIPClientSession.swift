@@ -695,6 +695,9 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// A flip marked the descriptor domains stale; the pass runs once after
     /// the value queue drains.
     private var androidDescriptorsDueForModeFlip = false
+    /// A flip marked the stills card and ActiveSlot alignment stale; one
+    /// storage read runs after the value queue drains, even while streaming.
+    private var androidStorageDueForModeFlip = false
     private var nextTransactionID: UInt32 = 1
     private var isClosed = false
 
@@ -1599,6 +1602,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 // at flip time; mark them due; the maintenance pass below
                 // picks them up once the value queue drains.
                 androidDescriptorsDueForModeFlip = true
+                androidStorageDueForModeFlip = true
             }
             // Drain a bounded slice of a pending flip queue each tick; frames
             // keep flowing between ticks and the whole set lands within a few
@@ -1617,6 +1621,17 @@ public final class PTPIPClientSession: @unchecked Sendable {
             // drained (chrome + readouts are already live), so the flip itself
             // never blocks on ~24 descriptor reads. [verify-on-HW: pass length
             // vs frame cadence on-body]
+            // The storage interval below waits for live view to stop, so the new
+            // mode's stills card and ActiveSlot alignment would never land while
+            // streaming. One storage read after the queue drains covers a flip.
+            if androidPendingModeFlipBurst.isEmpty,
+                androidStorageDueForModeFlip,
+                result != .transportFailed,
+                !isRecording
+            {
+                androidStorageDueForModeFlip = false
+                result = mergedAndroidPropertyRefreshResult(result, refreshAndroidStorage())
+            }
             if androidPendingModeFlipBurst.isEmpty,
                 androidDescriptorsDueForModeFlip,
                 result != .transportFailed,
@@ -1697,6 +1712,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                     )
                     .filter { $0 != .liveViewSelector }
                 androidDescriptorsDueForModeFlip = true
+                androidStorageDueForModeFlip = true
             }
             return androidPropertyReadback(result: result)
         case .autoExposure:
@@ -1800,15 +1816,16 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 AndroidCameraStorageSlot(
                     storageID: $0.storageID, slotNumber: $0.slot, storage: $0.info)
             }
+            // The shots counter follows the stills card, and in photo mode a remote release
+            // is pointed at it when the body lets the host choose (ZT-04/ZT-05). An empty read
+            // applies too, so a removed card's count does not linger.
+            androidPropertySnapshot = androidPropertySnapshot.applyingCardSlots(readout)
             guard !slots.isEmpty else {
                 androidStorageInfo = nil
                 androidStorageSlots = []
                 return .unsupported
             }
             androidStorageSlots = slots
-            // The shots counter follows the stills card, and in photo mode a remote release
-            // is pointed at it when the body lets the host choose (ZT-04/ZT-05).
-            androidPropertySnapshot = androidPropertySnapshot.applyingCardSlots(readout)
             if androidPropertySnapshot.captureSelector == .photo,
                 let value = readout.activeSlotAlignment
             {
