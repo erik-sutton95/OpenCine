@@ -11,7 +11,6 @@ import hashlib
 import html
 import json
 import re
-import time
 from urllib.parse import quote
 
 import linked_issues as linked
@@ -114,13 +113,15 @@ def _validate_base(state):
             raise linked.SyncError("invalid common field fingerprint")
     if any(type(v) is not int or v < 1 for v in state["shards"]) or len(set(state["shards"])) != len(state["shards"]):
         raise linked.SyncError("invalid comment index references")
+    # The released schema carried a "checked" timestamp; accept it for one release but
+    # ignore it, because a wall-clock field would rewrite every reconciled tracker body.
     poll = state.get("poll")
+    required = {"source_updated_at", "source_comments", "tracker_comments"}
     if poll is not None and (not isinstance(poll, dict)
-            or set(poll) != {"source_updated_at", "source_comments", "tracker_comments", "checked"}
+            or not required <= set(poll) or not set(poll) <= required | {"checked"}
             or not isinstance(poll["source_updated_at"], str) or not poll["source_updated_at"]
             or type(poll["source_comments"]) is not int or poll["source_comments"] < 0
-            or type(poll["tracker_comments"]) is not int or poll["tracker_comments"] < 0
-            or type(poll["checked"]) is not int or poll["checked"] < 0):
+            or type(poll["tracker_comments"]) is not int or poll["tracker_comments"] < 0):
         raise linked.SyncError("invalid poll checkpoint")
     return state
 
@@ -168,9 +169,6 @@ def _conflict(result, pair, field, reason):
     result["conflicts"].append({"source": pair, "field": field, "reason": reason})
 
 
-POLL_TTL_SECONDS = 24 * 60 * 60
-
-
 def _poll_checkpoint(source, tracker):
     """Endpoint signals cheap enough to decide that a pair needs no read this run."""
     updated_at, comments = source.get("updated_at"), source.get("comments")
@@ -179,12 +177,12 @@ def _poll_checkpoint(source, tracker):
             or type(tracker_comments) is not int or tracker_comments < 0:
         return None
     return {"source_updated_at": updated_at, "source_comments": comments,
-            "tracker_comments": tracker_comments, "checked": int(time.time())}
+            "tracker_comments": tracker_comments}
 
 
 def _poll_unchanged(state, source, tracker):
     poll = state.get("poll")
-    if not poll or time.time() - poll["checked"] > POLL_TTL_SECONDS:
+    if not poll:
         return False
     return poll["source_updated_at"] == source.get("updated_at") \
         and poll["source_comments"] == source.get("comments") \
@@ -554,7 +552,7 @@ class Runner:
             self.issue_patch(self.central, b, {"body": body} if body != b["body"] else {}, pair, True, app)
 
 
-def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]"):
+def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]", full=False):
     result = {"version": 2, "mode": "execute" if execute else "dry-run", "complete": False,
               "actions": [], "applied": [], "errors": [], "conflicts": [], "tombstones": [], "counts": {}, "uncertain": None}
     try:
@@ -579,6 +577,7 @@ def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]"):
                  if (app, number) in mirrors or item["state"] == "open"]
         # A pair whose fields still match the durable baseline and whose endpoint signals
         # still match the poll checkpoint cannot have changed: skip both comment inventories.
+        # A forced full pass (the daily workflow schedule) reads every pair anyway.
         # Any invalid durable state is left to pair(), which refuses it explicitly.
         def unchanged(app, source, tracker):
             if tracker is None: return False
@@ -589,7 +588,8 @@ def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]"):
                     and _poll_unchanged(state, source, tracker)
             except (linked.SyncError, ValueError, KeyError, TypeError):
                 return False
-        pairs = [pair for pair in pairs if not unchanged(*pair)]
+        if not full:
+            pairs = [pair for pair in pairs if not unchanged(*pair)]
         # Complete all read inventories before any write, so partial API reads never
         # masquerade as empty threads, deleted comments or missing label definitions.
         for repo in [runner.central, *runner.apps.values()]:
