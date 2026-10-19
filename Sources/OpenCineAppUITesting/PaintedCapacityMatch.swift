@@ -34,7 +34,8 @@ public enum PaintedCapacityMatch {
             control.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
                 && viewport.contains($0.frame)
         }
-        if let complete = contained.first(where: { $0.value == expected }) {
+        if contained.count == 1, let complete = contained.first,
+            complete.value == expected, control.contains(complete.frame) {
             return complete.frame
         }
         guard let (number, unit) = parts(expected) else { return nil }

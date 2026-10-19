@@ -42,6 +42,18 @@ struct PaintedCapacityMatchTests {
         ], control: control, viewport: viewport) == nil)
     }
 
+    @Test func exactMatchMustBeFullyInsideTheControlAndAlone() {
+        // A token whose midpoint is inside can still paint outside its control.
+        let overflowing = PaintedCapacityToken(
+            value: "115GB", frame: CGRect(x: 90, y: 28, width: 40, height: 16))
+        #expect(PaintedCapacityMatch.frame(expected: "115GB", tokens: [overflowing],
+            control: control, viewport: viewport) == nil)
+        // An exact token beside another recognized token is not a clean capacity read.
+        #expect(PaintedCapacityMatch.frame(expected: "115GB",
+            tokens: [token("115GB", x: 106), token("1", x: 150)],
+            control: control, viewport: viewport) == nil)
+    }
+
     @Test func capacityPartsAreParsedFromCompactAndSpacedForms() {
         #expect(PaintedCapacityMatch.parts("115GB")?.number == "115")
         #expect(PaintedCapacityMatch.parts("115GB")?.unit == "GB")
