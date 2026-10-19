@@ -364,6 +364,7 @@ class DjiAndroidMediaService(
         return task
     }
     private inner class Browse(val source: DjiAndroidMediaIdentity, val bodyGalleryHeld: Boolean) : CameraMediaBrowse {
+        override val heldBySource: Boolean? get() = bodyGalleryHeld
         override val binding = MediaBrowseBinding(source.session, source.epoch)
         override val thumbnails: CameraMediaThumbnailService? = null
         override val transfers: CameraMediaTransferService? = null
@@ -448,6 +449,6 @@ object DjiAndroidMediaAssets {
         val captured = file.filenameTimestamp?.let { stamp -> runCatching { LocalDateTime.parse(stamp, DateTimeFormatter.ofPattern("yyyyMMddHHmmss")).toInstant(ZoneOffset.UTC).toEpochMilli() }.getOrNull() }
         return MediaAsset(id, filename = file.filename, kind = kind, capturedAt = captured,
             durationSeconds = file.durationSeconds.takeIf { it > 0 }?.toDouble(), pixelSize = pixels,
-            frameRate = file.fps?.takeIf { it > 0 }?.toDouble(), representations = representations, deletable = null)
+            frameRate = file.fps?.takeIf { it > 0 }?.toDouble(), representations = representations, deletable = file.isDeletable)
     }
 }
