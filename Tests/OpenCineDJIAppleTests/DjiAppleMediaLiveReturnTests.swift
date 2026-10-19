@@ -1,10 +1,11 @@
 import Foundation
+import OpenCineDJI
 import OpenCineDJIApple
 import Testing
 
 /// SIMULATED operation facts on a manual clock; the native host supplies genuine picture facts.
 @MainActor @Suite struct DjiAppleMediaLiveReturnTests {
-    @Test func oneAcceptedEnableWaitsForPictureAndExhaustsTheDeadline() async {
+    @Test func acceptedEnableWaitsTheKeyframeIntervalAndExhaustsTheDeadline() async {
         var now: TimeInterval = 0
         let timing = DjiAppleMediaTiming(
             now: { now },
@@ -25,8 +26,63 @@ import Testing
                 enables += 1
                 return true
             })
+        // The 2 s budget starts at the request (0.18 s), inside one keyframe resend interval.
         #expect(result == .exhausted && exits == 1 && enables == 1)
-        #expect(now >= 2 && now < 2.2)
+        #expect(now >= 2.18 && now < 2.3)
+    }
+
+    /// C5b (2026-10-19): after a 51 min gallery the first IRAP hit a dead VT session; the one
+    /// enable was never repeated and the session was dropped although video kept arriving.
+    @Test func unusableFirstAnswerIsRequestedAgainAtKeyframeCadence() async {
+        var now: TimeInterval = 0
+        let timing = DjiAppleMediaTiming(
+            now: { now },
+            sleep: { delay in
+                let value = delay.components
+                now += Double(value.seconds) + Double(value.attoseconds) / 1e18
+            })
+        var enableTimes: [TimeInterval] = []
+        var usableAnswerAt: TimeInterval?
+        let result = await DjiAppleMediaLiveReturn.run(
+            timing: timing,
+            isCurrent: { true }, inPlayback: { false },
+            pictureFresh: { usableAnswerAt.map { now >= $0 + 0.3 } ?? false },
+            exitPlayback: { true },
+            enableLiveView: {
+                enableTimes.append(now)
+                if enableTimes.count == 2 { usableAnswerAt = now }
+                return true
+            })
+        #expect(result == .restored && enableTimes.count == 2)
+        #expect(enableTimes.count == 2
+            && enableTimes[1] - enableTimes[0] >= FeedWatchdog.keyframeResendInterval)
+    }
+
+    @Test func pictureBudgetStartsAtTheFirstLiveViewRequestNotAtPlaybackExit() async {
+        var now: TimeInterval = 0
+        let timing = DjiAppleMediaTiming(
+            now: { now },
+            sleep: { delay in
+                let value = delay.components
+                now += Double(value.seconds) + Double(value.attoseconds) / 1e18
+            })
+        var exits = 0
+        var firstEnableAt: TimeInterval?
+        let result = await DjiAppleMediaLiveReturn.run(
+            timeout: .seconds(16), timing: timing,
+            isCurrent: { true }, inPlayback: { exits < 7 }, pictureFresh: { false },
+            exitPlayback: {
+                exits += 1
+                now += 2
+                return true
+            },
+            enableLiveView: {
+                if firstEnableAt == nil { firstEnableAt = now }
+                return true
+            })
+        #expect(result == .exhausted && exits == 7)
+        let first = firstEnableAt ?? .infinity
+        #expect(now >= first + 16 && now < first + 16.2)
     }
 
     @Test func lateExitCompletionCannotEnableAfterRetirement() async {

@@ -108,6 +108,31 @@
             #expect(runtime.nativeDecodeTotals.submitted == 0)
         }
 
+        /// SIMULATED kVTInvalidSessionErr on the first IRAP after a long gallery visit (physical-C
+        /// C5b, 2026-10-19). Nothing else rebuilds the session while a media return owns repair,
+        /// so the next random-access unit must start a fresh one instead of being rejected.
+        @Test func invalidSessionIsRebuiltByTheNextRandomAccessUnit() async throws {
+            let gop = try SyntheticHevcGOP.encode()
+            let runtime = try await establishedRuntime(gop)
+            defer { runtime.close() }
+            let source = runtime.sourceToken
+            var native: VideoToolboxDecoder?
+            runtime.nativeSubmission = { decoder, _, _, _, _ in
+                native = decoder
+                runtime.nativeSubmission = nil
+                return kVTInvalidSessionErr
+            }
+            #expect(!runtime.decode(
+                accessUnit: annexB([gop.vps, gop.sps, gop.pps] + gop.pictures[0]), source: source))
+            #expect(native?.sessionFailed == true)
+            #expect(!runtime.decode(accessUnit: annexB(gop.pictures[1]), source: source))
+            let rebuilds = runtime.vtRebuildCount, output = runtime.nativeDecodeTotals.output
+            try feed(gop, through: 3, to: runtime)
+            #expect(runtime.vtRebuildCount == rebuilds + 1)
+            try await waitUntil { runtime.nativeDecodeTotals.output >= output + 4 }
+            #expect(runtime.canReleaseIDRHold)
+        }
+
         /// Pictures 0 to 3 decoded natively through the VT path the apps use for assists.
         private func establishedRuntime(_ gop: SyntheticHevcGOP) async throws
             -> MonitorLiveVideoRuntime

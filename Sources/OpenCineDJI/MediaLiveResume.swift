@@ -16,21 +16,25 @@ public enum MediaLiveResume: Sendable {
         case exhausted
     }
 
-    /// One tick of the post-media resume loop.
+    /// One tick of the post-media resume loop. `keyframeResendDue` is set once a sent
+    /// enable has gone `FeedWatchdog.keyframeResendInterval` without a picture: Pocket has
+    /// no periodic GOP, so an IRAP the decoder could not use (a session that died during a
+    /// long gallery visit) is never repeated unless the loop asks again.
     public static func action(
         attempt: Int,
         inPlayback: Bool,
         exitAcknowledged: Bool,
         pictureFresh: Bool,
         enableSent: Bool = false,
-        deadlineExpired: Bool = false
+        deadlineExpired: Bool = false,
+        keyframeResendDue: Bool = false
     ) -> Action {
         if pictureFresh, !inPlayback { return .done }
         if deadlineExpired { return .exhausted }
         if inPlayback || !exitAcknowledged {
             return attempt > maxExitAttempts ? .exhausted : .exitPlayback
         }
-        return enableSent ? .waitForPicture : .enableLiveView
+        return enableSent && !keyframeResendDue ? .waitForPicture : .enableLiveView
     }
 
     /// Opening and closing media each retire a live-picture requirement.

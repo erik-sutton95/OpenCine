@@ -571,6 +571,10 @@ open class MonitorLiveVideoRuntime {
                 irapAge: lastIrapAt.map { Date().timeIntervalSince($0) },
                 parameterSetChangeAge: lastParameterSetChangeUptime.map { receivedAt - $0 },
                 inputHz: Double(recentInputUptimes.count))
+            // kVTInvalidSessionErr fails the session for every later frame, and nothing else
+            // rebuilds it while a media return owns repair. A random-access unit can start a
+            // fresh session, so spend the rebuild here rather than reject the camera's answer.
+            if hasIDR, vt.sessionFailed { rebuildVT(force: true) }
             let submitted = presentProcessed(sample, source: source, sequence: submissionSequence, unit: unit)
             if submitted && hasIDR {
                 hasSubmittedRandomAccess = true

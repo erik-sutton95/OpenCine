@@ -20,6 +20,12 @@ object MediaLiveResume {
         EXHAUSTED,
     }
 
+    /**
+     * One tick of the post-media resume loop. [keyframeResendDue] is set once a sent
+     * enable has gone [LiveViewEnablePolicy.KEYFRAME_RESEND_MS] without a picture: Pocket
+     * has no periodic GOP, so an IRAP the decoder could not use (a codec that died during
+     * a long gallery visit) is never repeated unless the loop asks again.
+     */
     fun action(
         attempt: Int,
         inPlayback: Boolean,
@@ -27,13 +33,14 @@ object MediaLiveResume {
         pictureFresh: Boolean,
         enableSent: Boolean = false,
         deadlineExpired: Boolean = false,
+        keyframeResendDue: Boolean = false,
     ): Action {
         if (pictureFresh && !inPlayback) return Action.DONE
         if (deadlineExpired) return Action.EXHAUSTED
         if (inPlayback || !exitAcknowledged) {
             return if (attempt > MAX_EXIT_ATTEMPTS) Action.EXHAUSTED else Action.EXIT_PLAYBACK
         }
-        if (enableSent) return Action.WAIT_FOR_PICTURE
+        if (enableSent && !keyframeResendDue) return Action.WAIT_FOR_PICTURE
         return Action.ENABLE_LIVE_VIEW
     }
 
@@ -72,13 +79,18 @@ object MediaLiveResumeRunner {
         enableLiveView: () -> Boolean,
         sleep: suspend (Long) -> Unit = defaultSleep,
     ): Result {
-        val startedAt = nowMs()
+        // The picture budget starts with the first live-view request. Exiting playback is
+        // bounded by MAX_EXIT_ATTEMPTS; a slow gallery exit must not spend the picture's time.
+        var deadlineMs: Long? = null
+        var lastEnableMs: Long? = null
         var attempt = 1
         var exitAcked = false
         var enableSent = false
         while (isCurrent()) {
+            val now = nowMs()
+            val resendDue = lastEnableMs?.let { now - it >= LiveViewEnablePolicy.KEYFRAME_RESEND_MS } ?: false
             when (MediaLiveResume.action(attempt, inPlayback(), exitAcked, pictureFresh(),
-                    enableSent, nowMs() - startedAt >= timeoutMs)) {
+                    enableSent, deadlineMs?.let { now >= it } ?: false, resendDue)) {
                 MediaLiveResume.Action.DONE -> return Result.RESTORED
                 MediaLiveResume.Action.EXHAUSTED -> return Result.EXHAUSTED
                 MediaLiveResume.Action.EXIT_PLAYBACK -> {
@@ -87,7 +99,9 @@ object MediaLiveResumeRunner {
                     sleep(180)
                 }
                 MediaLiveResume.Action.ENABLE_LIVE_VIEW -> {
-                    enableSent = enableLiveView()
+                    if (deadlineMs == null) deadlineMs = now + timeoutMs
+                    enableSent = enableLiveView() || enableSent
+                    if (enableSent) lastEnableMs = now
                     sleep(100)
                 }
                 MediaLiveResume.Action.WAIT_FOR_PICTURE -> sleep(100)

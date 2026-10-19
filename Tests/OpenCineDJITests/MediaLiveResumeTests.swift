@@ -42,6 +42,15 @@ import Testing
             MediaLiveResume.action(
                 attempt: 2, inPlayback: false, exitAcknowledged: true,
                 pictureFresh: false, enableSent: true, deadlineExpired: true) == .exhausted)
+        // Past the keyframe interval the request is repeated; an expired budget still wins.
+        #expect(
+            MediaLiveResume.action(
+                attempt: 2, inPlayback: false, exitAcknowledged: true,
+                pictureFresh: false, enableSent: true, keyframeResendDue: true) == .enableLiveView)
+        #expect(
+            MediaLiveResume.action(
+                attempt: 2, inPlayback: false, exitAcknowledged: true, pictureFresh: false,
+                enableSent: true, deadlineExpired: true, keyframeResendDue: true) == .exhausted)
     }
 
     @Test func mediaEntryAndQuickReturnBothRetireThePreviousPictureOwner() {
