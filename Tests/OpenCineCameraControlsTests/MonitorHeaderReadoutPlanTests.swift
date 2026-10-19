@@ -1,4 +1,5 @@
 import OpenCineAppKit
+import OpenCineCameraVocabulary
 import Testing
 
 @testable import OpenCineCameraControls
@@ -20,14 +21,20 @@ import Testing
     private var color: MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section> {
         readout("color", "Color mode", "D-Log2", .color)
     }
+    private var modeReadout: MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section> {
+        readout("mode", "Shooting mode", "Video")
+    }
 
     private func plan(portrait: Bool, photo: Bool = false,
-        format: [MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section]]? = nil,
+        format: [MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section>]? = nil,
         color: MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section>? = nil,
+        mode: MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section>? = nil,
+        accent: MonitorHeaderAccent = .shootingMode,
         mounted: Set<MonitorDisplayChrome.Section> = Set(MonitorDisplayChrome.Section.allCases)
     ) -> MonitorHeaderReadoutPlan<String, MonitorDisplayChrome.Section> {
         MonitorHeaderReadoutPolicy.plan(
             format: format ?? [self.format, codec], color: color ?? self.color,
+            mode: mode, accent: accent,
             portrait: portrait, photo: photo, isMounted: { mounted.contains($0) },
             codecSection: .codec)
     }
@@ -81,5 +88,26 @@ import Testing
         #expect(!hidden.foldsColor)
         #expect(hidden.color == nil)
         #expect(hidden.accessibility(for: codec) == nil)
+    }
+
+    @Test func shootingModeAccentStaysOnTheModeReadout() {
+        let dji = plan(portrait: false, mode: modeReadout)
+        #expect(dji.accented == "mode")
+    }
+
+    @Test func aDeclaredCodecAccentMovesOffTheModeReadout() {
+        let nikon = plan(portrait: false, mode: modeReadout, accent: .codec)
+        #expect(nikon.accented == "codec")
+    }
+
+    @Test func aBodyWithoutAShootingModeReadoutAccentsTheCodec() {
+        // Nikon: no shooting-mode readout, so the declared default still finds the codec.
+        let nikon = plan(portrait: false)
+        #expect(nikon.accented == "codec")
+    }
+
+    @Test func neitherReadoutLeavesTheHeaderUnaccented() {
+        let none = plan(portrait: false, format: [format])
+        #expect(none.accented == nil)
     }
 }

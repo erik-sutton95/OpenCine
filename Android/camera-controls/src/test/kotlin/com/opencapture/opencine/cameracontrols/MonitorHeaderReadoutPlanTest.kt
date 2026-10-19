@@ -2,6 +2,7 @@ package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.appkit.MonitorDisplaySection
 import com.opencapture.opencine.appkit.MonitorOperatorLiveReadout
+import com.opencapture.opencine.vocabulary.MonitorHeaderAccent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -22,13 +23,16 @@ class MonitorHeaderReadoutPlanTest {
     private val format = readout("format", "Recording format", "6K · 25p")
     private val codec = readout("codec", "Codec", "R3D NE", MonitorDisplaySection.CODEC)
     private val color = readout("color", "Color mode", "D-Log2", MonitorDisplaySection.COLOR)
+    private val mode = readout("mode", "Shooting mode", "Video")
 
     private fun plan(
         portrait: Boolean, photo: Boolean = false, format: List<HeaderReadout> = listOf(this.format, codec),
-        color: HeaderReadout? = this.color,
+        color: HeaderReadout? = this.color, mode: HeaderReadout? = null,
+        accent: MonitorHeaderAccent = MonitorHeaderAccent.SHOOTING_MODE,
         mounted: Set<MonitorDisplaySection> = MonitorDisplaySection.entries.toSet(),
     ): MonitorHeaderReadoutPlan<String, MonitorDisplaySection> =
-        MonitorHeaderReadoutPolicy.plan(format, color, portrait, photo, mounted, MonitorDisplaySection.CODEC)
+        MonitorHeaderReadoutPolicy.plan(format, color, mode, accent, portrait, photo, mounted,
+            MonitorDisplaySection.CODEC)
 
     @Test fun landscapeFoldsColorIntoTheCodecReadout() {
         val landscape = plan(portrait = false)
@@ -73,5 +77,26 @@ class MonitorHeaderReadoutPlanTest {
         assertFalse(hidden.foldsColor)
         assertNull(hidden.color)
         assertNull(hidden.accessibility(codec))
+    }
+
+    @Test fun shootingModeAccentStaysOnTheModeReadout() {
+        val dji = plan(portrait = false, mode = mode)
+        assertEquals("mode", dji.accented)
+    }
+
+    @Test fun aDeclaredCodecAccentMovesOffTheModeReadout() {
+        val nikon = plan(portrait = false, mode = mode, accent = MonitorHeaderAccent.CODEC)
+        assertEquals("codec", nikon.accented)
+    }
+
+    @Test fun aBodyWithoutAShootingModeReadoutAccentsTheCodec() {
+        // Nikon: no shooting-mode readout, so the declared default still finds the codec.
+        val nikon = plan(portrait = false)
+        assertEquals("codec", nikon.accented)
+    }
+
+    @Test fun neitherReadoutLeavesTheHeaderUnaccented() {
+        val none = plan(portrait = false, format = listOf(format))
+        assertNull(none.accented)
     }
 }

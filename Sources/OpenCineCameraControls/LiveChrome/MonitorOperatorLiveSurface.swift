@@ -110,19 +110,24 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
     public let fps: String?
     public let signalBars: Int?
     public let fpsSection: Section?
+    /// Which readout carries the accent, declared by the body's capability profile. The header
+    /// accents this slot when it shows, else the codec readout.
+    public let headerAccent: MonitorHeaderAccent
     public init(recording: MonitorStatusPresentation, showsTimecode: Bool, showsRecording: Bool,
         storage: MonitorOperatorLiveReadout<Key, Section>? = nil,
         format: [MonitorOperatorLiveReadout<Key, Section>] = [], fps: String? = nil,
         signalBars: Int? = nil, fpsSection: Section? = nil,
         portraitFormat: MonitorOperatorLiveReadout<Key, Section>? = nil, portraitCaption: String? = nil,
         color: MonitorOperatorLiveReadout<Key, Section>? = nil, mode: MonitorOperatorLiveReadout<Key, Section>? = nil,
-        storageAlternative: String? = nil, storageAlternatives: [String]? = nil) {
+        storageAlternative: String? = nil, storageAlternatives: [String]? = nil,
+        headerAccent: MonitorHeaderAccent = .shootingMode) {
         self.recording = recording; self.showsTimecode = showsTimecode; self.showsRecording = showsRecording
         self.storage = storage; self.format = format; self.fps = fps; self.signalBars = signalBars; self.fpsSection = fpsSection
         self.portraitFormat = portraitFormat; self.portraitCaption = portraitCaption
         self.color = color; self.mode = mode
         self.storageAlternatives = storageAlternatives ?? storageAlternative.map { [$0] } ?? []
         self.storageAlternative = self.storageAlternatives.first
+        self.headerAccent = headerAccent
     }
 }
 
@@ -558,8 +563,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
 
     private var statusChrome: some View {
+            let modeShown = !layout.portrait && layout.viewport.width >= 800 ? status.mode : nil
             let plan = MonitorHeaderReadoutPolicy.plan(
-                format: status.format, color: status.color, portrait: layout.portrait, photo: photo,
+                format: status.format, color: status.color, mode: modeShown,
+                accent: status.headerAccent, portrait: layout.portrait, photo: photo,
                 isMounted: mounts, codecSection: .codec)
             let visibleFormat = plan.format
             let primary =
@@ -607,14 +614,17 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                         if let top {
                             MonitorPortraitFormatGroup(showsDetail: !below.isEmpty || caption != nil) {
                                 headerReadout(
-                                    top, portrait: true, grouped: true, detail: top.section == .codec,
+                                    top, portrait: true, alwaysAccent: top.id == plan.accented,
+                                    grouped: true, detail: top.section == .codec,
                                     primaryBottom: !below.isEmpty || caption != nil, displayValue: displayValue(top),
                                     accessibility: plan.accessibility(for: top))
                             } detail: {
                                 HStack(alignment: .top, spacing: fit?.spacing ?? 8) {
                                     ForEach(below) { value in
-                                        headerReadout(value, portrait: true, grouped: true, detail: true,
-                                            displayValue: displayValue(value), accessibility: plan.accessibility(for: value))
+                                        headerReadout(value, portrait: true, alwaysAccent: value.id == plan.accented,
+                                            grouped: true, detail: true,
+                                            displayValue: displayValue(value),
+                                            accessibility: plan.accessibility(for: value))
                                     }
                                     if let caption {
                                         MonitorPortraitInlineReadoutText(caption, detail: true)
@@ -633,14 +643,15 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 } else {
                     HStack(spacing: 24) {
                         ForEach(visibleFormat) { value in
-                            headerReadout(value, accessibility: plan.accessibility(for: value))
+                            headerReadout(value, alwaysAccent: value.id == plan.accented,
+                                accessibility: plan.accessibility(for: value))
                         }
                     }
                 }
                 }, color: { if !inline, let color { headerReadout(color) } },
                 mode: {
-                    if layout.viewport.width >= 800, let mode = status.mode {
-                        headerReadout(mode, alwaysAccent: true)
+                    if let mode = modeShown {
+                        headerReadout(mode, alwaysAccent: mode.id == plan.accented)
                     }
                 },
                 link: { telemetry(horizontal: true, showsLink: true, showsPower: false) }

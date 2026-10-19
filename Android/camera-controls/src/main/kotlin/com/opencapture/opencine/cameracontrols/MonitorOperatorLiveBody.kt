@@ -56,6 +56,7 @@ import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.PowerStatus
 import com.opencapture.opencine.media.ScopeAssistBundle
 import com.opencapture.opencine.media.MonitorAudioMeterLevels
+import com.opencapture.opencine.vocabulary.MonitorHeaderAccent
 import kotlin.math.max
 
 /** Source identity is captured before presenting or releasing a readout. */
@@ -76,6 +77,11 @@ public class MonitorOperatorLiveStatus<K, S>(
     public val portraitFormat: MonitorOperatorLiveReadout<K, S>? = null, public val portraitCaption: String? = null,
     public val color: MonitorOperatorLiveReadout<K, S>? = null, public val mode: MonitorOperatorLiveReadout<K, S>? = null,
     public val recordingSection: S? = null, public val timecodeSection: S? = null,
+    /**
+     * Which readout carries the accent, declared by the body's capability profile. The header
+     * accents this slot when it shows, else the codec readout.
+     */
+    public val headerAccent: MonitorHeaderAccent = MonitorHeaderAccent.SHOOTING_MODE,
 )
 public class MonitorOperatorPowerReading(
     public val camera: Boolean, public val percent: Int?, public val charging: Boolean? = null,
@@ -330,8 +336,10 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         modifier, picture = picture,
         status = {
             val recording = status.recording()
-            val plan = MonitorHeaderReadoutPolicy.plan(status.format, status.color, layout.portrait, photo,
-                mounted, MonitorDisplaySection.CODEC)
+            // Portrait never draws the mode slot, so the accent falls back to the codec there.
+            val modeShown = if (layout.portrait) null else status.mode
+            val plan = MonitorHeaderReadoutPolicy.plan(status.format, status.color, modeShown,
+                status.headerAccent, layout.portrait, photo, mounted, MonitorDisplaySection.CODEC)
             val visibleFormat = plan.format
             val shownPrimary = status.portraitFormat?.takeIf { it.section == null || it.section in mounted }
                 ?: visibleFormat.firstOrNull()
@@ -369,7 +377,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                         if (top != null) MonitorPortraitFormatGroup(below.isNotEmpty() || caption != null, primary = {
                             Readout(top, portrait = true, grouped = true, detail = top.section == MonitorDisplaySection.CODEC,
                                 primaryBottom = below.isNotEmpty() || caption != null, displayValue = displayValue(top),
-                                accessibility = plan.accessibility(top))
+                                accent = top.id == plan.accented, accessibility = plan.accessibility(top))
                         }, detail = {
                             Row(verticalAlignment = Alignment.Top,
                                 horizontalArrangement = Arrangement.spacedBy((fit?.spacing ?: 8f).dp)) {
@@ -377,7 +385,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                                 below.forEach { value ->
                                     Box(Modifier.fillMaxHeight(), propagateMinConstraints = true) {
                                         Readout(value, portrait = true, grouped = true, detail = true,
-                                            displayValue = displayValue(value), accessibility = plan.accessibility(value))
+                                            displayValue = displayValue(value), accent = value.id == plan.accented,
+                                            accessibility = plan.accessibility(value))
                                     }
                                 }
                                 if (caption != null) {
@@ -392,10 +401,11 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     } else if (layout.portrait && status.portraitFormat != null) {
                         Readout(status.portraitFormat, true, status.portraitCaption)
                     } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        visibleFormat.forEach { Readout(it, accessibility = plan.accessibility(it)) }
+                        visibleFormat.forEach { Readout(it, accent = it.id == plan.accented,
+                            accessibility = plan.accessibility(it)) }
                     }
                 }, color = { if (!inline) shownColor?.let { Readout(it) } },
-                mode = { status.mode?.let { Readout(it, accent = true) } },
+                mode = { modeShown?.let { Readout(it, accent = it.id == plan.accented) } },
                 link = { MonitorTelemetry(status.signalBars, status.fps, emptyList(), horizontal = true,
                     showsLink = linkMounted, showsPower = false, metrics = telemetryMetrics) })
             }

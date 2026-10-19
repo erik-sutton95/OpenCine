@@ -51,6 +51,7 @@ import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.EvComp
 import com.opencapture.opencine.vocabulary.FocusOverlay
 import com.opencapture.opencine.vocabulary.LiveFeedFocusGesture
+import com.opencapture.opencine.vocabulary.MonitorHeaderAccent
 import com.opencapture.opencine.vocabulary.TrackingBox
 import com.opencapture.opencine.vocabulary.TrackingHud
 import com.opencapture.opencine.vocabulary.VideoResolution
@@ -131,7 +132,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
         }.toSet(),
         picture = MonitorOperatorLivePicture(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect,
             waiting = !hasPicture, vertical = verticalPicture, flipped = mirrored, recovering = recovering),
-        status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars,
+        status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars, controls.headerAccent,
             state.storageForm) { count -> state.storageForm = MonitorStorageReadoutFormat.nextForm(state.storageForm, count) },
         cameraBattery = control.snapshot?.power?.let(::cameraPowerReading),
         capture = captureSheetHostInputs(chrome.capture, status, state.sheet, { state.sheet = it },
@@ -302,7 +303,7 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
 private fun Modifier.operatorFrame(rect: MonitorRect): Modifier = offset(rect.x.dp, rect.y.dp).size(rect.width.dp, rect.height.dp)
 
 private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSource<Host>, layout: LiveMonitorLayout,
-    status: CameraStatus, fps: String, bars: Int,
+    status: CameraStatus, fps: String, bars: Int, headerAccent: MonitorHeaderAccent,
     storageForm: Int, toggleStorage: (Int) -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
@@ -339,7 +340,8 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
             row(LiveSheet.COLOR, "Color mode", recordingFormat?.profile, MonitorDisplaySection.COLOR) else null,
         mode = if (!field.portrait && source.session.mounts(MonitorDisplaySection.FORMAT))
             row(LiveSheet.MODE, "Shooting mode", CameraCommands.shootingModeLabel(status.shootingMode, source.host.camera?.name, labels)) else null,
-        recordingSection = MonitorDisplaySection.REC_READOUT, timecodeSection = MonitorDisplaySection.TIMECODE)
+        recordingSection = MonitorDisplaySection.REC_READOUT, timecodeSection = MonitorDisplaySection.TIMECODE,
+        headerAccent = headerAccent)
 }
 
 private val MONITOR_OPERATOR_USAGE_SEED = mapOf("PEAK" to 6, "FALSE" to 5, "ZEBRA" to 4,

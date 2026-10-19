@@ -1,4 +1,5 @@
 import OpenCineAppKit
+import OpenCineCameraVocabulary
 
 /// The status row's readouts after the colour fold: one codec control carries the colour in its
 /// popup, as portrait already does, and a camera without a codec readout keeps its own colour
@@ -12,13 +13,16 @@ public struct MonitorHeaderReadoutPlan<Key: Hashable, Section: Hashable> {
     /// The landscape codec control that also speaks the folded colour. Portrait keeps its spoken
     /// codec value, as it already showed it.
     public let combined: MonitorHeaderCombinedCodec<Key, Section>?
+    /// The readout that carries the accent: the declared slot when the header shows it, else the
+    /// codec (a body with no shooting-mode readout, as Nikon). Nil when neither shows.
+    public let accented: Key?
 
     public init(format: [MonitorOperatorLiveReadout<Key, Section>],
         color: MonitorOperatorLiveReadout<Key, Section>?,
         foldedColor: MonitorOperatorLiveReadout<Key, Section>?,
-        combined: MonitorHeaderCombinedCodec<Key, Section>?) {
+        combined: MonitorHeaderCombinedCodec<Key, Section>?, accented: Key?) {
         self.format = format; self.color = color
-        self.foldedColor = foldedColor; self.combined = combined
+        self.foldedColor = foldedColor; self.combined = combined; self.accented = accented
     }
 
     public var foldsColor: Bool { foldedColor != nil }
@@ -56,6 +60,8 @@ public enum MonitorHeaderReadoutPolicy {
     public static func plan<Key: Hashable, Section: Hashable>(
         format: [MonitorOperatorLiveReadout<Key, Section>],
         color: MonitorOperatorLiveReadout<Key, Section>?,
+        mode: MonitorOperatorLiveReadout<Key, Section>?,
+        accent: MonitorHeaderAccent,
         portrait: Bool, photo: Bool,
         isMounted: (Section) -> Bool, codecSection: Section
     ) -> MonitorHeaderReadoutPlan<Key, Section> {
@@ -68,8 +74,12 @@ public enum MonitorHeaderReadoutPolicy {
         let combined = !portrait ? foldedColor.flatMap { color in
             codec.map { MonitorHeaderCombinedCodec(codec: $0, color: color) }
         } : nil
+        let accented: Key? = switch accent {
+        case .shootingMode: mode?.id ?? codec?.id
+        case .codec: codec?.id ?? mode?.id
+        }
         return MonitorHeaderReadoutPlan(
             format: shownFormat, color: foldedColor == nil ? shownColor : nil,
-            foldedColor: foldedColor, combined: combined)
+            foldedColor: foldedColor, combined: combined, accented: accented)
     }
 }

@@ -1,6 +1,7 @@
 package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.appkit.MonitorOperatorLiveReadout
+import com.opencapture.opencine.vocabulary.MonitorHeaderAccent
 
 /**
  * The status row's readouts after the colour fold: one codec control carries the colour in its
@@ -18,6 +19,11 @@ public class MonitorHeaderReadoutPlan<K, S>(
      * codec value, as it already showed it.
      */
     public val combined: MonitorHeaderCombinedCodec<K, S>?,
+    /**
+     * The readout that carries the accent: the declared slot when the header shows it, else the
+     * codec (a body with no shooting-mode readout, as Nikon). Null when neither shows.
+     */
+    public val accented: K?,
 ) {
     public val foldsColor: Boolean get() = foldedColor != null
 
@@ -55,6 +61,8 @@ public object MonitorHeaderReadoutPolicy {
     public fun <K, S> plan(
         format: List<MonitorOperatorLiveReadout<K, S>>,
         color: MonitorOperatorLiveReadout<K, S>?,
+        mode: MonitorOperatorLiveReadout<K, S>?,
+        accent: MonitorHeaderAccent,
         portrait: Boolean, photo: Boolean,
         mounted: Set<S>, codecSection: S,
     ): MonitorHeaderReadoutPlan<K, S> {
@@ -65,7 +73,11 @@ public object MonitorHeaderReadoutPolicy {
         val foldedColor = if (!(portrait && photo) && codec != null) shownColor else null
         val combined = if (!portrait && foldedColor != null && codec != null)
             MonitorHeaderCombinedCodec(codec, foldedColor) else null
+        val accented = when (accent) {
+            MonitorHeaderAccent.SHOOTING_MODE -> mode?.id ?: codec?.id
+            MonitorHeaderAccent.CODEC -> codec?.id ?: mode?.id
+        }
         return MonitorHeaderReadoutPlan(shownFormat, if (foldedColor == null) shownColor else null,
-            foldedColor, combined)
+            foldedColor, combined, accented)
     }
 }

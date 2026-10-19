@@ -135,4 +135,17 @@ import Testing
         #expect(!known.audio.isOffered, "undeclared stays unknown")
         #expect(known == ControlCapabilities(snapshot: CapabilitySnapshot(), profile: profile, motion: Self.gimbal))
     }
+
+    @Test func theStaticProfileDeclaresTheHeaderAccent() {
+        #expect(CameraCaptureProfile().headerAccent == .shootingMode,
+            "DJI and Insta keep the shooting-mode accent")
+        var nikon = CameraCaptureProfile()
+        nikon.headerAccent = .codec
+        #expect(ControlCapabilities(snapshot: CapabilitySnapshot(), profile: nikon).headerAccent == .codec)
+        #expect(ControlCapabilities(beforeConnection: nikon).headerAccent == .codec,
+            "the saved body keeps its accent before it reconnects")
+        #expect(ControlCapabilities().headerAccent == .shootingMode)
+        #expect(ControlCapabilities(snapshot: CapabilitySnapshot(), profile: nil).headerAccent == .shootingMode,
+            "no body known never invents a codec accent")
+    }
 }

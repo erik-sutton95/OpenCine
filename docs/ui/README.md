@@ -142,6 +142,10 @@ a camera without a codec readout keeps its own colour control and target. Landsc
 both values from the combined control (`Codec and color`, `R3D NE · D-Log2`). Photography
 keeps its existing stack.
 
+The header accent follows the body's declared `MonitorHeaderAccent`: the shooting-mode
+readout where the header shows one (DJI and Insta), else the codec readout (Nikon, which
+has no shooting mode). The profile carries the declaration; the header never tests a brand.
+
 Phone portrait telemetry uses separate `telemetry` bounds below the safe top,
 with eight points/dp of clearance and side reserves for rounded corners. The
 existing `gauges` corner contract remains available to other compositions.

@@ -130,6 +130,11 @@ public data class ControlCapabilities(
     public val mediaDelete: ControlCapability<NoOffer> = ControlCapability.unknown(),
     /** The body can join a multi-camera stage. */
     public val multiview: ControlCapability<NoOffer> = ControlCapability.unknown(),
+    /**
+     * Which live header readout carries the app accent, from the body's static profile. The
+     * shared header accents the declared slot when it shows, else the codec readout.
+     */
+    public val headerAccent: MonitorHeaderAccent = MonitorHeaderAccent.SHOOTING_MODE,
 ) {
     /**
      * Applies typed backend restrictions without inventing support or values. Missing inputs retain
@@ -313,6 +318,7 @@ public data class ControlCapabilities(
                 media = declaredOnly(ControlFamily.MEDIA),
                 mediaDelete = declaredOnly(ControlFamily.MEDIA_DELETE),
                 multiview = declaredOnly(ControlFamily.MULTIVIEW),
+                headerAccent = profile?.headerAccent ?: MonitorHeaderAccent.SHOOTING_MODE,
             )
         }
     }
