@@ -1803,6 +1803,9 @@ public final class PTPIPClientSession: @unchecked Sendable {
             guard !slots.isEmpty else {
                 androidStorageInfo = nil
                 androidStorageSlots = []
+                // A removed card must release the photo counter it used to supply;
+                // another card's capacity is never retained as the stills count.
+                androidPropertySnapshot = androidPropertySnapshot.applyingCardSlots(readout)
                 return .unsupported
             }
             androidStorageSlots = slots

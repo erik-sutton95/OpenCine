@@ -136,6 +136,35 @@ struct AndroidCameraPropertyReadbackTests {
         #expect(server.receivedPropertyWrites().isEmpty)
     }
 
+    @Test func anEmptyStorageReadReleasesTheRemovedStillsCardCount() throws {
+        var options = FakeZRServer.Options()
+        options.storageCards = [
+            FakeZRStorageCard(
+                storageID: FakeZRMediaCard.storageID,
+                totalCapacityBytes: 954_000_000_000,
+                freeSpaceBytes: 242_000_000_000,
+                freeSpaceInImages: 1_200),
+            FakeZRStorageCard(
+                storageID: 0x0002_0001,
+                totalCapacityBytes: 512_000_000_000,
+                freeSpaceBytes: 111_000_000_000,
+                freeSpaceInImages: 800),
+        ]
+        // PrimarySlot's enum's first entry is zero-based; [0, 1] selects slot 1.
+        options.descriptorEnumOverrides[.primarySlot] = [0, 1]
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+
+        let twoCards = session.refreshAndroidPropertySnapshot(.bootstrap)
+        #expect(twoCards.properties.stillsCardShots == 1_200)
+        server.setStorageCards([])
+        let removed = session.refreshAndroidPropertySnapshot(.bootstrap)
+        #expect(removed.properties.stillsCardShots == nil,
+                "a removed card must not keep supplying the photo counter")
+    }
+
     @Test func bootstrapPreservesEveryValidCardInCameraOrder() throws {
         let secondStorageID: UInt32 = 0x0002_0001
         var options = FakeZRServer.Options()
