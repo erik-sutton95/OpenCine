@@ -229,6 +229,39 @@
             }
         }
 
+        /// SIMULATED Dynamic Island phones in portrait points. The island itself is hardware: 126 pt
+        /// wide and centred, inside 11 to 51 pt from the top on every model with a 59 or 62 pt inset.
+        func testLongShotsAndStorageKeepTheLinkPillLeftOfTheDynamicIsland() async throws {
+            let phones: [(width: CGFloat, height: CGFloat, safeTop: CGFloat)] = [
+                (393, 852, 59), (402, 874, 62), (430, 932, 59), (440, 956, 62),
+            ]
+            let readouts: [(value: String, icon: MonitorIcon?, spoken: String?)] = [
+                ("99.9k", .image, "99999 shots remaining"),  // OpenZCine photography after the glyph
+                ("99999 SHOTS", nil, nil),  // the same count as the word readout used to show it
+                ("123456789 GB", nil, nil),
+            ]
+            let link = "Live link 4 of 4 bars, feed 25 fps frames per second"
+            for phone in phones {
+                for readout in readouts {
+                    let fixture = try ProductionHeaderFixture(
+                        ProductionHeaderCase(width: phone.width, safeTop: phone.safeTop, sideSafe: 0,
+                            height: phone.height), photo: true, storage: readout)
+                    defer { fixture.close() }
+                    let storageLabel = readout.spoken ?? "Storage remaining"
+                    let frames = try await fixture.nativeFrames(labels: [storageLabel, link])
+                    let island = CGRect(x: (phone.width - 126) / 2, y: 11, width: 126, height: 40)
+                    let storage = try XCTUnwrap(frames[storageLabel])
+                    let pill = try XCTUnwrap(frames[link])
+                    XCTAssertTrue(pill.minY < island.maxY && pill.maxY > island.minY,
+                        "The witness must place the link pill in the island's band: \(phone) \(pill)")
+                    XCTAssertLessThanOrEqual(pill.maxX, island.minX + 0.5,
+                        "\(readout.value) must not push the link pill under the island: \(phone) \(pill)")
+                    XCTAssertLessThanOrEqual(storage.maxX, pill.minX + 0.5, "\(readout.value) \(phone)")
+                    XCTAssertGreaterThanOrEqual(storage.width, 44 - monitorFloorMeasurementTolerance)
+                }
+            }
+        }
+
         func testCompactPortraitStorageAndPerformanceRemainAdjacentBeforePower() async throws {
             for safeTop in Self.safeTops {
                 for width in [CGFloat(320), 360, 440] {
@@ -714,6 +747,9 @@
         var codecCalls = 0
         var colorCalls = 0
         var storageValue = "107 GB"
+        var storageIcon: MonitorIcon?
+        var storageSpoken: String?
+        var photo = false
         var motionCovering = false
         var usage = MonitorToolUsage()
         var note: String?
@@ -769,6 +805,15 @@
                 return [.init(id: "compression", title: "Codec", value: "R3D NE", section: .codec,
                     action: { probe.codecCalls += 1 }, quickEnabled: false)]
             }
+            if probe.photo {
+                // The widest Nikon still readouts: a 16:9 image area at Large, RAW + JPEG fine star.
+                return [
+                    .init(id: "format", title: "Image area", value: "16:9 · L",
+                        action: { probe.formatCalls += 1 }, quickEnabled: false),
+                    .init(id: "codec", title: "Image quality", value: "R+JF★",
+                        action: { probe.codecCalls += 1 }, quickEnabled: false),
+                ]
+            }
             return [
                 .init(id: "format", title: "Recording format", value: "[\(probe.sensorArea)] 6K · 25p",
                     section: probe.typedPortraitHeader ? .format : nil,
@@ -789,16 +834,17 @@
                         flipped: false, recovering: false) },
                     status: {
                         .init(recording: probe.status, showsTimecode: true, showsRecording: true,
-                            storage: .init(id: "storage", title: "Storage remaining", value: probe.storageValue),
+                            storage: .init(id: "storage", title: "Storage remaining", value: probe.storageValue,
+                                valueIcon: probe.storageIcon, accessibilityLabel: probe.storageSpoken),
                             format: readouts, fps: "25 fps", signalBars: 4,
                             portraitFormat: probe.typedPortraitHeader ? .init(id: "format", title: "Recording format",
                                 value: "6K · 25p", section: .format, action: { probe.formatCalls += 1 }, quickEnabled: false) : nil,
-                            color: probe.codecOnly ? nil : .init(id: "color", title: "Color mode", value: "D-Log2",
+                            color: probe.codecOnly || probe.photo ? nil : .init(id: "color", title: "Color mode", value: "D-Log2",
                                 action: { probe.colorCalls += 1 }, quickEnabled: false))
                     }, cameraBattery: {
                         cameraBatteryOverride ?? .init(id: "camera", title: "Camera battery", camera: true, percent: 68)
                     }, capture: { .init(readouts: [], haptics: false, open: { _ in }, dismiss: {}) },
-                    record: { .init(photo: false, confirm: false, busy: false, openMode: nil, external: nil) },
+                    record: { .init(photo: probe.photo, confirm: false, busy: false, openMode: nil, external: nil) },
                     exposure: nil, level: nil, audio: { nil }, readOnly: { false }, borrowed: { false },
                     returnToStage: nil, coverOpen: { false }, note: $probe.note, settings: {}, media: {}),
                 assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, fitted: { [] },
@@ -824,9 +870,15 @@
         private let sample: ProductionHeaderCase
         private let live: LiveMonitorLayout
         init(_ sample: ProductionHeaderCase, codecOnly: Bool = false, passiveBackdrop: Bool = false,
-            typedPortraitHeader: Bool = false, colorOnly: Bool = false, sensorArea: String = "FX") throws {
+            typedPortraitHeader: Bool = false, colorOnly: Bool = false, sensorArea: String = "FX",
+            photo: Bool = false, storage: (value: String, icon: MonitorIcon?, spoken: String?)? = nil) throws {
             self.sample = sample
             probe = try ProductionHeaderProbe(codecOnly: codecOnly)
+            probe.photo = photo
+            if let storage {
+                probe.storageValue = storage.value; probe.storageIcon = storage.icon
+                probe.storageSpoken = storage.spoken
+            }
             probe.typedPortraitHeader = typedPortraitHeader
             probe.sensorArea = sensorArea
             probe.colorOnly = colorOnly

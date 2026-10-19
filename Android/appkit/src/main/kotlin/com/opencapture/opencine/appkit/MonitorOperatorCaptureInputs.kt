@@ -61,6 +61,8 @@ public class MonitorOperatorLiveReadout<K, S>(
     public val icon: MonitorIcon? = null, public val badgeIcon: MonitorIcon? = null,
     public val annotation: String? = null,
     public val actionIsCommand: Boolean = false,
+    /** The complete spoken readout when [value] is compacted ("20282 shots remaining" for "20.2k"). */
+    public val accessibilityLabel: String? = null,
     /** The camera owns or locks this value: the cell reads muted, as the source decides. */
     public val dimmed: Boolean = false,
     /** A hold on the cell while it has no quick adjust (for example a camera-side lock toggle). */

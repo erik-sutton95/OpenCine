@@ -100,4 +100,31 @@ struct MonitorCompactTelemetryTests {
         #expect(fit.storageWidth == 0)
         #expect(fit.performanceX == fit.leading)
     }
+
+    @Test func theDynamicIslandBoundsStorageSoTheLinkPillEndsBeforeIt() throws {
+        let layout = FieldMonitorLayout(width: 393, height: 852, safeArea: .init(top: 59))
+        let island = try #require(MonitorTopCutout.estimated(width: 393, height: 852, safeTop: 59))
+        #expect(island == MonitorRect(x: 133.5, y: 11, width: 126, height: 40))
+        let storage = try #require(MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+            layout: layout, topCutout: island, linkWidth: 58, minimumTarget: 44))
+        // Storage, its 8 pt gap and the 58 pt link end 6 pt before the island.
+        #expect(layout.status.x + storage + 8 + 58 == island.x - 6)
+        #expect(storage == 45.5)
+    }
+
+    @Test func noCutoutANotchOrALandscapePhoneKeepTheOriginalCorners() {
+        let layout = FieldMonitorLayout(width: 375, height: 812, safeArea: .init(top: 44))
+        #expect(MonitorTopCutout.estimated(width: 375, height: 812, safeTop: 44) == nil)
+        #expect(MonitorTopCutout.estimated(width: 375, height: 667, safeTop: 20) == nil)
+        #expect(MonitorTopCutout.estimated(width: 852, height: 393, safeTop: 0) == nil)
+        #expect(MonitorTopCutout.estimated(width: 834, height: 1194, safeTop: 24) == nil)
+        // A notch-wide housing leaves less than a minimum storage target and the link.
+        let notch = MonitorRect(x: 83, y: 0, width: 209, height: 30)
+        #expect(MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+            layout: layout, topCutout: notch, linkWidth: 58, minimumTarget: 44) == nil)
+        // A housing above or below the telemetry band does not bound it.
+        let below = MonitorRect(x: 150, y: layout.telemetry.maxY + 1, width: 20, height: 20)
+        #expect(MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+            layout: layout, topCutout: below, linkWidth: 58, minimumTarget: 44) == nil)
+    }
 }
