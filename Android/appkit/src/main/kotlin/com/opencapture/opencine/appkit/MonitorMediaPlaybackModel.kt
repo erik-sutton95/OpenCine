@@ -58,7 +58,7 @@ public class MonitorMediaPlaybackModel<P, L>(
     private val resolveLook: suspend (MonitorMediaRecord<P>, MonitorPlaybackItem) -> MonitorPlaybackLook<L>? = { _, _ -> null },
     private val now: () -> MonotonicInstant = { MonotonicInstant.now() },
     seekEndClearance: Double = 0.05,
-    private val sceneLossPolicy: MonitorPlaybackSceneLossPolicy = MonitorPlaybackSceneLossPolicy.PRESERVE_REQUEST,
+    private val sceneLossPolicy: MonitorPlaybackSceneLossPolicy = MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST,
 ) {
     private val seekEndClearance = seekEndClearance.takeIf { it.isFinite() && it >= 0.0 } ?: 0.05
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))

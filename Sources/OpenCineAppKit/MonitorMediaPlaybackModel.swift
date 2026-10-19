@@ -269,7 +269,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       -> MonitorPlaybackLook<Look>?)? = nil,
     now: @escaping @MainActor @Sendable () -> MonotonicInstant = { .now() },
     seekEndClearance: Double = 0.05,
-    sceneLossPolicy: MonitorPlaybackSceneLossPolicy = .preserveRequest
+    sceneLossPolicy: MonitorPlaybackSceneLossPolicy = .clearRequest
   ) {
     self.library = library
     libraryLifetime = library.lifetimeToken
