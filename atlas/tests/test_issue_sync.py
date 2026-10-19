@@ -123,6 +123,28 @@ class TwoWay(unittest.TestCase):
         self.assertTrue(self.run_sync()["complete"])
         self.assertEqual(len(self.api.writes), before)
 
+    def test_unchanged_pair_skips_both_comment_inventories_until_an_endpoint_changes(self):
+        self.api.comment("o/App", 12, "Indexed")
+        tracker = self.created()
+        # GitHub's issue inventory carries both cheap change signals for every pair.
+        self.api.source.update(updated_at="2026-01-01T00:00:00Z", comments=1)
+        tracker.update(updated_at="2026-01-01T00:00:01Z", comments=2)
+        self.assertTrue(self.run_sync()["complete"])
+        start = len(self.api.calls)
+        self.assertTrue(self.run_sync()["complete"])
+        quiet = self.api.calls[start:]
+        self.assertFalse([call for call in quiet if "comments?" in call[1]],
+                         "an unchanged pair must not read either comment thread")
+        self.assertEqual([call for call in quiet if call[0] != "GET"], [])
+        # A comment edit bumps its issue's updated_at, so the pair is polled and copied.
+        self.api.source["updated_at"] = "2026-01-02T00:00:00Z"
+        self.api.comments["o/App", 12][0]["body"] = "Edited after the checkpoint"
+        self.assertTrue(self.run_sync()["complete"])
+        copies = [c for c in self.api.comments["o/OpenCine", tracker["number"]]
+                  if sync.COMMENT_PREFIX in c["body"]]
+        self.assertEqual(len(copies), 1)
+        self.assertEqual(sync.comment_body(copies[0]["body"]), "Edited after the checkpoint")
+
     def test_conflicting_content_is_preserved_while_independent_state_syncs(self):
         tracker = self.created()
         self.api.source.update(title="App edit", body="App body", state="closed")
