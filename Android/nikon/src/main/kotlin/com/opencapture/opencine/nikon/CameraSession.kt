@@ -679,6 +679,17 @@ public data class CameraPropertySnapshot(
     val controlCapabilities: CameraControlCapabilities = CameraControlCapabilities(),
 ) {
     /**
+     * The snapshot a restart or recovery of the same body starts from: every reading cleared,
+     * the last reported photo/video selector and shot count kept. A dropped link does not switch
+     * the body to video, so the reconnecting and disconnected chrome keep the capture mode the
+     * operator was in; the first readback of the new session replaces both. An operator
+     * disconnect or another camera starts from an empty snapshot instead. Mirrors shared-core
+     * `retainingCaptureMode()`.
+     */
+    public fun retainingCaptureMode(): CameraPropertySnapshot =
+        CameraPropertySnapshot(captureSelector = captureSelector, shotsRemaining = shotsRemaining)
+
+    /**
      * The white-balance mode belonging to the side of the camera currently on screen.
      *
      * Falls back to the other one only when its own has never been reported, so a body that has

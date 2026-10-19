@@ -847,3 +847,15 @@ import Testing
         #expect(PTPCameraPropertyDecoders.exposureBias(Int16(row[1])!) == row[3], "\(row)")
     }
 }
+
+/// physical-C C3/C9 (2026-10-19): a ZR in stills showed the video chrome while reconnecting.
+/// A recovery clears every reading but keeps the capture mode and shot count; twin of the Kotlin
+/// session test.
+@Test func recoverySnapshotKeepsOnlyTheCaptureModeAndShotCount() {
+    let live = PTPCameraPropertySnapshot(
+        iso: 3200, exposureMode: "M", shutterSpeed: "1/50", captureSelector: .photo, shotsRemaining: 7149)
+    #expect(
+        live.retainingCaptureMode()
+            == PTPCameraPropertySnapshot(captureSelector: .photo, shotsRemaining: 7149))
+    #expect(PTPCameraPropertySnapshot().retainingCaptureMode() == PTPCameraPropertySnapshot())
+}

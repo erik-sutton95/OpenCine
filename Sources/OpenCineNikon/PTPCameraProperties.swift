@@ -2395,6 +2395,17 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
     static let burstDropLimit = 200
 }
 
+extension PTPCameraPropertySnapshot {
+    /// The snapshot a restart or recovery of the same body starts from: every reading cleared,
+    /// the last reported photo/video selector and shot count kept. A dropped link does not switch
+    /// the body to video, so the reconnecting and disconnected chrome keep the capture mode the
+    /// operator was in; the first readback of the new session replaces both. An operator
+    /// disconnect or another camera starts from an empty snapshot instead.
+    public func retainingCaptureMode() -> PTPCameraPropertySnapshot {
+        PTPCameraPropertySnapshot(captureSelector: captureSelector, shotsRemaining: shotsRemaining)
+    }
+}
+
 extension CameraDisplayState {
     /// Returns a monitor-display snapshot updated with the decoded camera properties available so far.
     public func applyingCameraProperties(

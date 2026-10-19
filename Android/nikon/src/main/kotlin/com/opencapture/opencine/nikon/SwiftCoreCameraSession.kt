@@ -614,7 +614,7 @@ class SwiftCoreCameraSession internal constructor(
                             _recordingState.value = CameraRecordingState.STANDBY
                             _reportedRecording.value = null
                             _liveTimecode.value = null
-                            _cameraProperties.value = CameraPropertySnapshot()
+                            _cameraProperties.value = _cameraProperties.value.retainingCaptureMode()
                             _reportedCameraProperties.value = CameraPropertySnapshot()
                             _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
                             (liveFrames as? SwiftCoreLiveFrameSource)?.noteSessionConnected()
@@ -1487,7 +1487,11 @@ class SwiftCoreCameraSession internal constructor(
         }
     }
 
-    /** Cancels polling and pending event work before connection teardown/retry. */
+    /**
+     * Cancels polling and pending event work before connection teardown/retry. Every clearing
+     * caller is an attempt of this session's own host failing or restarting, so the cleared
+     * snapshot keeps the capture mode; [disconnect] empties it fully.
+     */
     private fun stopPropertyRefresh(clearSnapshot: Boolean) {
         synchronized(propertyRefreshJobLock) {
             propertyPollingJob?.cancel()
@@ -1497,7 +1501,7 @@ class SwiftCoreCameraSession internal constructor(
             pendingEventPropertyCodes.clear()
         }
         if (clearSnapshot) {
-            _cameraProperties.value = CameraPropertySnapshot()
+            _cameraProperties.value = _cameraProperties.value.retainingCaptureMode()
             _reportedCameraProperties.value = CameraPropertySnapshot()
         }
         _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
