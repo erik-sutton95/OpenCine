@@ -216,6 +216,11 @@ public enum PTPPropertyCode: UInt32, Sendable {
     /// Frames recordable to the card (`ExposureRemaining`, UINT32). Photo top-bar counter.
     case userMode = 0xD0FC
     case exposureRemaining = 0xD1F1
+    /// Card slot the body writes stills to (`PrimarySlot`, the menu's primary slot selection).
+    /// Values follow the descriptor's enumeration order, slot 1 first. [verify-on-HW]
+    case primarySlot = 0xD156
+    /// Card slot the body is writing now (`ActiveSlot`). [verify-on-HW]
+    case activeSlot = 0xD1F2
     /// Photo image area (`CaptureAreaCrop`, UINT8) — FX/DX/1:1/16:9 sensor crop.
     case captureAreaCrop = 0xD030
     case activePicCtrlItem = 0xD200
@@ -437,7 +442,7 @@ public enum PTPDataPayloads {
 /// - `StorageType` u16 @ 0, `FilesystemType` u16 @ 2, `AccessCapability` u16 @ 4
 /// - `StorageMaxCapacity` u64 @ 6 — total bytes on the volume
 /// - `FreeSpaceInBytes` u64 @ 14 — free bytes
-/// - `FreeSpaceInImages` u32 @ 22 (not decoded here), then description + volume label strings
+/// - `FreeSpaceInImages` u32 @ 22, then description + volume label strings
 ///
 /// HW verify: log raw `StorageMaxCapacity` and `FreeSpaceInBytes` from `GetStorageInfo` (0x1005).
 public struct PTPStorageInfo: Equatable, Sendable {
@@ -449,9 +454,14 @@ public struct PTPStorageInfo: Equatable, Sendable {
     /// Free space in bytes (`FreeSpaceInBytes` @ offset 14).
     public let freeSpaceBytes: UInt64
 
-    public init(totalCapacityBytes: UInt64, freeSpaceBytes: UInt64) {
+    /// Frames this card alone can still hold at the current image settings (`FreeSpaceInImages`
+    /// @ offset 22); nil when the dataset stops before it or reports the `0xFFFFFFFF` sentinel.
+    public let freeSpaceInImages: Int?
+
+    public init(totalCapacityBytes: UInt64, freeSpaceBytes: UInt64, freeSpaceInImages: Int? = nil) {
         self.totalCapacityBytes = totalCapacityBytes
         self.freeSpaceBytes = freeSpaceBytes
+        self.freeSpaceInImages = freeSpaceInImages
     }
 
     /// The shared storage readout (A5-11); nil when free space exceeds a known capacity.
@@ -467,6 +477,8 @@ public struct PTPStorageInfo: Equatable, Sendable {
         let freeSpace = ByteCoding.readUInt64LE(bytes, at: 14)
         totalCapacityBytes = maxCapacity == Self.unknownCapacityBytes ? 0 : maxCapacity
         freeSpaceBytes = freeSpace
+        let images = bytes.count >= 26 ? ByteCoding.readUInt32LE(bytes, at: 22) : 0xFFFF_FFFF
+        freeSpaceInImages = images == 0xFFFF_FFFF ? nil : Int(images)
     }
 
     /// Whole gigabytes using decimal GB (1 GB = 1e9 bytes), matching camera UI conventions.
