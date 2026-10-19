@@ -14,6 +14,8 @@ class MonitorAssistCapabilitiesTest {
         assertEquals(MonitorAssistTool.settingsCases, MonitorAssistTool.settingsCases.filter { standard.offers(it, photography = false) })
         assertTrue(standard.levelStyles.isEmpty())
         assertFalse(standard.hasLevelStyle)
+        assertTrue(standard.videoOnly.isEmpty())
+        assertTrue(standard.offers(MonitorAssistTool.LUT, photography = true))
     }
 
     @Test
@@ -27,5 +29,13 @@ class MonitorAssistCapabilitiesTest {
         assertEquals(listOf("Horizon", "Gauge"), camera.levelStyles.map { it.title })
         assertEquals(MonitorLevelStyle.GAUGE, MonitorLevelStyle.fromStoredName("GAUGE"))
         assertNull(MonitorLevelStyle.fromStoredName("Gauge"))
+    }
+
+    @Test
+    fun `a video only tool leaves photography`() {
+        val camera = MonitorAssistCapabilities(videoOnly = setOf(MonitorAssistTool.LUT))
+        assertTrue(camera.offers(MonitorAssistTool.LUT, photography = false))
+        assertFalse(camera.offers(MonitorAssistTool.LUT, photography = true))
+        assertTrue(camera.offers(MonitorAssistTool.PEAK, photography = true))
     }
 }
