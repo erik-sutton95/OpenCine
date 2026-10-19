@@ -251,6 +251,7 @@ final class FakeZRServer: @unchecked Sendable {
     private var terminateCaptureCount = 0
     private var descriptorReadCounts: [UInt32: Int] = [:]
     private var propertyValueOverrides: [UInt32: Data] = [:]
+    private var rejectedStorageInfoReads = 0
     private var deletedObjectHandles: Set<UInt32> = []
     private var addedMediaObjects: [FakeZRMediaObject] = []
     private var objectRatings: [UInt32: UInt16] = [:]
@@ -455,6 +456,21 @@ final class FakeZRServer: @unchecked Sendable {
         lock.lock()
         options.storageCards = cards
         lock.unlock()
+    }
+
+    /// Answers the next `count` GetStorageInfo requests with Device_Busy, as a body mid-write.
+    func rejectStorageInfoReads(_ count: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        rejectedStorageInfoReads = count
+    }
+
+    private func takeStorageInfoRejection() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard rejectedStorageInfoReads > 0 else { return false }
+        rejectedStorageInfoReads -= 1
+        return true
     }
 
     /// Test hook: runs when a storage-info response has its card snapshot, before encoding it.
@@ -839,6 +855,10 @@ final class FakeZRServer: @unchecked Sendable {
             }
             sendDataIn(connection, data: Data(payload), transactionID: transactionID)
         case .getStorageInfo:
+            if takeStorageInfoRejection() {
+                sendResponse(connection, code: 0x2019, transactionID: transactionID)
+                return
+            }
             let storageID = bytes.count >= 14 ? ByteCoding.readUInt32LE(bytes, at: 10) : 0
             let cards = storageCards()
             onStorageInfoSnapshot?()

@@ -90,4 +90,36 @@ struct AndroidCardSlotTests {
         }
         #expect(server.receivedOperations().filter { $0 == .getStorageInfo }.count == storageReads)
     }
+
+    @Test func aFailedStorageReadAfterAPhotoFlipIsRetriedOnALaterTick() throws {
+        let server = try twoCardServer(
+            activeSlot: FakeZRSlotDescriptor(current: 2, values: [1, 2]))
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        _ = session.refreshAndroidPropertySnapshot(.bootstrap)
+        let activeSlotWrites = {
+            server.receivedPropertyWrites().filter {
+                $0.property == PTPPropertyCode.activeSlot.rawValue
+            }
+        }
+
+        let firstFrame = DispatchSemaphore(value: 0)
+        try session.startLiveView(onFrame: { _, _ in firstFrame.signal() }, onEnded: {})
+        defer { session.stopLiveView() }
+        #expect(firstFrame.wait(timeout: .now() + .seconds(5)) == .success)
+
+        // The body is busy for the flip's first storage read (both cards refused).
+        server.rejectStorageInfoReads(2)
+        server.setCameraProperty(.liveViewSelector, data: Data([0]))
+        _ = session.refreshAndroidPropertySnapshot(.selector)
+        var storageAttempts = 0
+        for _ in 0..<12 where activeSlotWrites().isEmpty {
+            _ = session.refreshAndroidPropertySnapshot(.next(isRecording: false))
+            storageAttempts = server.receivedOperations().filter { $0 == .getStorageInfo }.count
+        }
+        #expect(activeSlotWrites().map(\.data) == [Data([1])])
+        // Bootstrap read two cards, the refused attempt two, the retry two.
+        #expect(storageAttempts == 6)
+    }
 }

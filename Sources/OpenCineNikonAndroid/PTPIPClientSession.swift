@@ -695,9 +695,10 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// A flip marked the descriptor domains stale; the pass runs once after
     /// the value queue drains.
     private var androidDescriptorsDueForModeFlip = false
-    /// A flip marked the stills card and ActiveSlot alignment stale; one
-    /// storage read runs after the value queue drains, even while streaming.
-    private var androidStorageDueForModeFlip = false
+    /// Storage reads left for a flip's stills card and ActiveSlot alignment;
+    /// they run after the value queue drains, even while streaming, until one
+    /// completes. Bounded so a body that keeps refusing cannot tax every frame.
+    private var androidStorageAttemptsForModeFlip = 0
     private var nextTransactionID: UInt32 = 1
     private var isClosed = false
 
@@ -1602,7 +1603,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 // at flip time; mark them due; the maintenance pass below
                 // picks them up once the value queue drains.
                 androidDescriptorsDueForModeFlip = true
-                androidStorageDueForModeFlip = true
+                androidStorageAttemptsForModeFlip = Self.androidModeFlipStorageAttempts
             }
             // Drain a bounded slice of a pending flip queue each tick; frames
             // keep flowing between ticks and the whole set lands within a few
@@ -1625,12 +1626,14 @@ public final class PTPIPClientSession: @unchecked Sendable {
             // mode's stills card and ActiveSlot alignment would never land while
             // streaming. One storage read after the queue drains covers a flip.
             if androidPendingModeFlipBurst.isEmpty,
-                androidStorageDueForModeFlip,
+                androidStorageAttemptsForModeFlip > 0,
                 result != .transportFailed,
                 !isRecording
             {
-                androidStorageDueForModeFlip = false
-                result = mergedAndroidPropertyRefreshResult(result, refreshAndroidStorage())
+                let storage = refreshAndroidStorage()
+                androidStorageAttemptsForModeFlip =
+                    storage == .accepted ? 0 : androidStorageAttemptsForModeFlip - 1
+                result = mergedAndroidPropertyRefreshResult(result, storage)
             }
             if androidPendingModeFlipBurst.isEmpty,
                 androidDescriptorsDueForModeFlip,
@@ -1712,7 +1715,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                     )
                     .filter { $0 != .liveViewSelector }
                 androidDescriptorsDueForModeFlip = true
-                androidStorageDueForModeFlip = true
+                androidStorageAttemptsForModeFlip = Self.androidModeFlipStorageAttempts
             }
             return androidPropertyReadback(result: result)
         case .autoExposure:
@@ -2655,6 +2658,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// few fast Kotlin polls land the whole set in ~1-2 s, small enough that
     /// live-view frames interleave between ticks.
     static let androidModeFlipBurstChunk = 8
+    /// Storage reads a flip may spend before the next storage interval takes over.
+    static let androidModeFlipStorageAttempts = 5
 
     /// The aperture enum property for the active selector: photo mode
     /// describes the STANDARD aperture property; the movie enum is not
