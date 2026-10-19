@@ -32,6 +32,7 @@ Python; nothing to install.
 | Which repositories a change reaches, in order | `atlas impact <repo> --include-candidates` |
 | Start work on an issue | `atlas task start <repo>#<n> [--with opencine] [--with <app>]` |
 | Start a linked app issue from Orca | `atlas task start opencine#<n> --orca` ([linked issues](atlas/docs/LINKED_ISSUES.md)) |
+| Public API of an OpenCine module (the contract apps compile against) | `atlas api <module> [--grep text]` |
 | How much code is still copied between repositories | `atlas dupes [--top N]` (CI: `--check` against `atlas/compat/dupes-baseline.json`) |
 | Where a checkout is, its branch and worktrees | `atlas locate <repo>` |
 
@@ -280,6 +281,10 @@ The atlas routes and coordinates; product code lives in this package and the app
    docs, then the atlas.
 3. Status words stay honest: implemented, automated checks passed, hardware-qualified,
    candidate, integrated, released, unsupported, untested.
+
+A change to public API updates its snapshot in the same PR (CI fails otherwise): Swift
+`atlas api --write --build` (atlas/api/swift), Kotlin `cd Android && ./gradlew updateKotlinAbi`
+(`<module>/api/*.api`).
 
 Before changing atlas files read [atlas/docs/MAINTENANCE.md](atlas/docs/MAINTENANCE.md) and run
 `atlas check`. Machine paths and task notes go in the ignored `atlas/.local/`.

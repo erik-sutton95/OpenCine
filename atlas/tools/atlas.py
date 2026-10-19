@@ -2,7 +2,7 @@
 """OpenCine atlas CLI (formerly opencapture-atlas). Standard library only.
 
 Read-only commands: doctor, locate, deps, impact, stale, check, issues, ensure --check, dupes
-(without --write-baseline), compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
+(without --write-baseline), api (without --write), compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
 `ensure` clones missing checkouts; `task start` creates task worktrees and a brief (never commits).
 Exit codes: 0 ok, 1 failed check, 2 unusable input, 3 incomplete (something requested
 could not be obtained or parsed; never reported as success).
@@ -770,6 +770,14 @@ def main(argv=None):
     p.add_argument("--id", help="bundle and application id (default com.opencapture.<name lowercased>)")
     p.add_argument("--dest", help="parent folder (default: the folder holding this OpenCine checkout)")
     p.add_argument("--dry-run", action="store_true", help="validate and list every output; write nothing")
+    p = sub.add_parser("api", help="public API snapshots: list, print one module, or --check/--write the Swift ones")
+    p.add_argument("module", nargs="?", help="Swift product (OpenCineCore) or Gradle module (:core)")
+    p.add_argument("--grep", help="only lines containing this text (case-insensitive)")
+    p.add_argument("--limit", type=int, default=200, help="lines shown")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--check", action="store_true", help="fail when the iOS Simulator build's public API differs from atlas/api/swift")
+    g.add_argument("--write", action="store_true", help="rewrite atlas/api/swift from the iOS Simulator build")
+    p.add_argument("--build", action="store_true", help="with --check/--write: build the package for the iOS Simulator first")
     cp = sub.add_parser("compat", help="candidate package versus recorded consumers (OPS-01)").add_subparsers(dest="ccmd", required=True)
     p = cp.add_parser("plan", help="read-only: workspace layout and what each check would do")
     p.add_argument("candidate", nargs="?")
@@ -790,6 +798,9 @@ def main(argv=None):
     if load_errors:
         print("\n".join(load_errors), file=sys.stderr)
         return USAGE
+    if args.cmd == "api":
+        import api  # noqa: PLC0415
+        return api.run(args, reg, root)
     if args.cmd == "compat":
         import compat  # noqa: PLC0415
         return compat.run(args, reg, root)
