@@ -64,6 +64,14 @@ class SessionRecoveryEpisodeTest {
             return admits
         }
 
+        var holder: String? = null
+        val holderAsks = mutableListOf<Int>()
+
+        override suspend fun holder(attempt: SessionRecoveryEpisode.Attempt, number: Int): String? {
+            holderAsks += number
+            return holder
+        }
+
         fun present() {
             val now = scope.testScheduler.currentTime
             sourceAtMs = now
@@ -78,6 +86,39 @@ class SessionRecoveryEpisodeTest {
 
     private fun TestScope.host(attemptMs: Long = 30_000, stages: Map<Stage, Long> = emptyMap()) =
         Host(this, SessionRecoveryEpisode.AttemptDeadline(attemptMs, stages))
+
+    /** physical-C C9/C10: the phone that lost the camera must not take it straight back. */
+    @Test
+    fun `another device holding the camera stops recovery before any dial`() = runTest {
+        val host = host()
+        host.holder = "Phone B"
+        assertTrue(host.begin(SessionRecoveryTrigger.DATALINK_LOST))
+        runCurrent()
+        assertEquals(SessionRecoveryUi.TakenOver("Phone B"), host.state)
+        assertEquals(0, host.connects)
+        assertEquals(listOf(1), host.holderAsks)
+        assertTrue(host.episode.snapshot.value.cardGraceElapsed)
+        // A later loss reporter for the same drop cannot restart the run behind the card.
+        assertFalse(host.begin(SessionRecoveryTrigger.DATALINK_LOST))
+        // The operator's retry is the take-back: it dials without asking.
+        assertTrue(host.episode.retry())
+        runCurrent()
+        assertEquals(1, host.connects)
+        assertEquals(listOf(1), host.holderAsks)
+    }
+
+    @Test
+    fun `nobody holding the camera lets every automatic attempt dial`() = runTest {
+        val host = host(attemptMs = 1_000)
+        assertTrue(host.begin(SessionRecoveryTrigger.DATALINK_LOST))
+        runCurrent()
+        advanceTimeBy(1_100)
+        runCurrent()
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertTrue(host.connects >= 2)
+        assertEquals((1..host.connects).toList(), host.holderAsks)
+    }
 
     @Test
     fun `a control session without a picture keeps retrying until the attempt deadline`() = runTest {

@@ -207,6 +207,29 @@ public final class NikonDiscovery: @unchecked Sendable {
         return found
     }
 
+    /// The device serving `host` now, from one fresh presence sweep. The list sweeps at most every
+    /// `presenceSweepInterval`, so a phone that went live since is not in its held rows yet. A body
+    /// that takes one initiator hands its session to a new one without refusing it (a ZR drops the
+    /// phone holding it), so a saved connect and a recovering session ask this before they dial.
+    /// Never dials a camera's control port.
+    public func currentHolder(of host: String, priorityHosts: [String] = []) async -> String? {
+        // A cable or a not-yet-joined access point has no network holder to ask.
+        guard !DiscoveredCamera.isUSBHostKey(host), !CameraDiscovery.isAccessPointHostKey(host) else {
+            return nil
+        }
+        let hits = await presenceSweep(scanHosts(priorityHosts: priorityHosts), dialer: dialer)
+        return Self.holder(of: host, in: hits)
+    }
+
+    /// The device among presence `hits` that names `host` as the camera it serves.
+    public static func holder(of host: String, in hits: [String: NikonPresence]) -> String? {
+        let wanted = hostKeys(host)
+        return hits.sorted { $0.key < $1.key }.first { _, presence in
+            guard let served = presence.servedCamera, !served.isEmpty else { return false }
+            return !hostKeys(served).isDisjoint(with: wanted)
+        }?.value.deviceName
+    }
+
     /// Init the known candidates (saved hosts plus the access-point convention address) in one
     /// parallel round. Trusted addresses: none of the blind sweep's restraint.
     private func probeTrustedHosts(

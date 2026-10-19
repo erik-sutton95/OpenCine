@@ -13,6 +13,9 @@ public enum SessionRecoveryState: Equatable, Sendable {
     case waitingForOperator(attemptsMade: Int)
     /// Reconnects kept succeeding but the session kept dying young.
     case pausedAfterRepeatedDrops(drops: Int)
+    /// Another device now holds the camera (`holder`, when it names itself). Reconnecting would
+    /// take the camera back from it, so automatic recovery stops and the operator decides.
+    case takenOver(holder: String?)
 
     public var isRecovering: Bool { self != .idle }
 }
@@ -138,6 +141,7 @@ public enum SessionRecoveryCopy {
         case .retrying: return "Reconnecting…"
         case .waitingForOperator: return "Camera disconnected"
         case .pausedAfterRepeatedDrops: return "Connection keeps dropping"
+        case .takenOver: return "Camera taken over"
         }
     }
 
@@ -166,6 +170,11 @@ public enum SessionRecoveryCopy {
                 }
             return
                 "\(camera) reconnected but dropped \(drops) times in quick succession. Automatic retries are \(paused) The frame below is held, not live."
+        case .takenOver(let holder):
+            let other = holder.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .flatMap { $0.isEmpty ? nil : $0 } ?? "Another device"
+            return
+                "\(other) connected to \(name.isEmpty ? "the camera" : name), so this device stopped reconnecting. Retry takes the camera back. The frame below is held, not live."
         }
     }
 

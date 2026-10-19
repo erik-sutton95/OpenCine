@@ -20,6 +20,12 @@ sealed class SessionRecoveryUi {
     /** Reconnects kept succeeding but the session kept dying young. */
     data class PausedAfterDrops(val drops: Int) : SessionRecoveryUi()
 
+    /**
+     * Another device now holds the camera ([holder], when it names itself). Reconnecting would
+     * take the camera back from it, so automatic recovery stops and the operator decides.
+     */
+    data class TakenOver(val holder: String?) : SessionRecoveryUi()
+
     val isRecovering: Boolean get() = this !is Idle
 }
 
@@ -150,6 +156,7 @@ object SessionRecoveryCopy {
             is SessionRecoveryUi.Retrying -> "Reconnecting…"
             is SessionRecoveryUi.WaitingForOperator -> "Camera disconnected"
             is SessionRecoveryUi.PausedAfterDrops -> "Connection keeps dropping"
+            is SessionRecoveryUi.TakenOver -> "Camera taken over"
         }
 
     /** [dropSuspect] names a likely cause for repeated drops; only the paused case reads it. */
@@ -171,6 +178,10 @@ object SessionRecoveryCopy {
                     SessionDropSuspect.OTHER_DEVICE_SCANNING ->
                         "$camera reconnected but dropped ${state.drops} times in quick succession. Automatic retries are paused to protect the camera \u2014 another device may be scanning for cameras. The frame below is held, not live."
                 }
+            is SessionRecoveryUi.TakenOver -> {
+                val other = state.holder?.trim()?.takeIf(String::isNotEmpty) ?: "Another device"
+                "$other connected to ${name.ifEmpty { "the camera" }}, so this device stopped reconnecting. Retry takes the camera back. The frame below is held, not live."
+            }
         }
     }
 }

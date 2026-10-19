@@ -111,6 +111,14 @@ class NikonDiscovery(
         const val BLIND_SWEEP_TIMEOUT_MILLIS: Int = 1_500
         const val SWEEP_CONCURRENCY: Int = 48
         const val LOCAL_SWEEP_PASSES: Int = 2
+
+        /** The device among presence [hits] that names [host] as the camera it serves. */
+        fun holder(host: String, hits: Map<String, NikonPresence>): String? {
+            val wanted = NikonHosts.normalizedHost(host) ?: return null
+            return hits.entries.sortedBy { it.key }.firstOrNull { (_, presence) ->
+                presence.servedCamera?.let(NikonHosts::normalizedHost) == wanted
+            }?.value?.deviceName
+        }
     }
 
     private var lastSweepNanos: Long? = null
@@ -142,6 +150,25 @@ class NikonDiscovery(
         }
         log("presence sweep hits=${found.size}")
         return found
+    }
+
+    /**
+     * The device serving [host] now, from one fresh presence sweep (Swift
+     * `currentHolder(of:)`). The list sweeps at most every [PRESENCE_SWEEP_INTERVAL_MILLIS], so a
+     * phone that went live since is not in its held rows yet. A body that takes one initiator
+     * hands its session to a new one without refusing it (a ZR drops the phone holding it), so a
+     * saved connect and a recovering session ask this before they dial. Never dials a camera's
+     * control port.
+     */
+    suspend fun currentHolder(host: String): String? {
+        // A cable or a not-yet-joined access point has no network holder to ask.
+        if (NikonHosts.isUsbHostKey(host) || NikonHosts.isAccessPointHostKey(host)) return null
+        val found = LinkedHashMap<String, NikonPresence>()
+        for (chunk in neighbours().chunked(64)) {
+            coroutineScope { chunk.map { neighbour -> async { neighbour to dialer.presence(neighbour) } }.awaitAll() }
+                .forEach { (neighbour, presence) -> if (presence != null) found[neighbour] = presence }
+        }
+        return holder(host, found)
     }
 
     /** Saved hosts that something occupies (a presence-port dial answered or refused). */

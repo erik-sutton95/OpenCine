@@ -52,6 +52,14 @@ final class FakeNikonPort: NikonConnectPort {
     }
 
     func forget(hosts: [String]) { forgotten.append(hosts) }
+
+    /// The presence lookup's answer, and every host it was asked about.
+    var holder: String?
+    private(set) var holderQueries: [String] = []
+    func currentHolder(of host: String) async -> String? {
+        holderQueries.append(host)
+        return holder
+    }
 }
 
 /// A pre-consent-overload port; the public default must preserve its own admission failure.
@@ -282,6 +290,58 @@ private final class LegacyNikonPort: NikonConnectPort {
         #expect(port.connects.count == 1)
     }
 
+    /// physical-C C9 (2026-10-19): a ZR never refuses a second initiator, it hands the session over
+    /// and drops the phone holding it, so the saved connect must ask before its first dial.
+    @Test func aSavedSetupAnotherDeviceHoldsAsksBeforeDialing() async throws {
+        port.holder = "Phone B"
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let route = try #require(camera.routes.first { $0.kind == .infrastructureNetwork })
+        let events = nikon.connect(.saved(camera, route: route.id))
+        var iterator = events.makeAsyncIterator()
+        guard case .progress(_, .integration(let asked)) = await iterator.next(),
+            let prompt = asked as? NikonTakeOverPrompt
+        else {
+            Issue.record("a held saved setup must ask before it contacts the camera")
+            return
+        }
+        #expect(port.holderQueries == ["192.168.50.23"])
+        #expect(prompt.holder == "Phone B")
+        #expect(port.connects.isEmpty, "nothing dials the camera before the operator agrees")
+        prompt.confirm()
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(port.consentedRequests == [.saved(host: "192.168.50.23", path: .infrastructure)])
+    }
+
+    @Test func cancellingTheSavedTakeOverLeavesTheHolderAlone() async throws {
+        port.holder = ""
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let route = try #require(camera.routes.first { $0.kind == .infrastructureNetwork })
+        let events = nikon.connect(.saved(camera, route: route.id))
+        var iterator = events.makeAsyncIterator()
+        guard case .progress(_, .integration(let asked)) = await iterator.next(),
+            let prompt = asked as? NikonTakeOverPrompt
+        else {
+            Issue.record("an unnamed holder still asks")
+            return
+        }
+        #expect(prompt.holder == nil)
+        prompt.cancel()
+        #expect(await iterator.next() == nil)
+        #expect(port.connects.isEmpty && port.consentedRequests.isEmpty, "Cancel never dials")
+    }
+
+    @Test func aSavedSetupNobodyHoldsDialsWithoutAsking() async throws {
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let route = try #require(camera.routes.first { $0.kind == .infrastructureNetwork })
+        let events = nikon.connect(.saved(camera, route: route.id))
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(port.holderQueries == ["192.168.50.23"] && port.consentedRequests.isEmpty)
+        withExtendedLifetime(events) {}
+    }
+
     @Test func aHeldSavedSetupUsesTheSameConsentPrompt() async throws {
         let nikon = integration()
         let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
@@ -474,4 +534,21 @@ func eventually(_ condition: () -> Bool) async -> Bool {
     let sessionID: CameraSessionID
     init(sessionID: CameraSessionID) { self.sessionID = sessionID }
     func openBrowse() async throws -> any CameraMediaBrowse { throw MediaServiceError.unavailable }
+}
+
+/// physical-C C9/C10: the phone that lost the camera must not take it straight back.
+@MainActor @Test func takeOverRecoveryAsksTwiceOnlyBeforeTheFirstAttempt() async {
+    var asks = 0
+    var answers: [String?] = [nil, "Phone B"]
+    let first = await NikonTakeOverRecovery.holder(beforeAttempt: 1) {
+        asks += 1
+        return answers.removeFirst()
+    }
+    #expect(first == "Phone B" && asks == 2)
+    asks = 0
+    let later = await NikonTakeOverRecovery.holder(beforeAttempt: 2) {
+        asks += 1
+        return nil
+    }
+    #expect(later == nil && asks == 1)
 }

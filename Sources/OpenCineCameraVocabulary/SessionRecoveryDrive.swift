@@ -46,6 +46,7 @@ public struct SessionRecoveryDrive: Equatable, Sendable {
         }
         if case .pausedAfterRepeatedDrops = state { return .ignored }
         if case .waitingForOperator = state { return .ignored }
+        if case .takenOver = state { return .ignored }
         holdsPicture = true
         generation += 1
         if storm.noteDrop(now: now) {

@@ -54,6 +54,14 @@ private class FakeNikonPort : NikonConnectPort {
     }
     override fun cancel() { cancels++ }
     override fun forget(hosts: List<String>) { forgotten += hosts }
+
+    /** The presence lookup's answer, and every host it was asked about. */
+    var holder: String? = null
+    val holderQueries = mutableListOf<String>()
+    override suspend fun currentHolder(host: String): String? {
+        holderQueries += host
+        return holder
+    }
 }
 
 /** Swift suite `NikonIntegrationTests`, same method names, against a scripted pipeline. */
@@ -228,6 +236,56 @@ class NikonIntegrationTest {
         assertEquals(1, port.connects.size)
     }
 
+    /**
+     * physical-C C9 (2026-10-19): a ZR never refuses a second initiator, it hands the session over
+     * and drops the phone holding it, so the saved connect must ask before its first dial.
+     */
+    @Test
+    fun aSavedSetupAnotherDeviceHoldsAsksBeforeDialing() = runTest {
+        port.holder = "Phone B"
+        val camera = cameras().first()
+        val route = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        val events = mutableListOf<ConnectionEvent>()
+        backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).toList(events) }
+        runCurrent()
+        val progress = assertIs<ConnectionEvent.Progress>(events.single())
+        val prompt = assertIs<NikonTakeOverPrompt>(assertIs<ConnectionPrompt.Integration>(progress.prompt).prompt)
+        assertEquals(listOf("192.168.50.23"), port.holderQueries)
+        assertEquals("Phone B", prompt.holder)
+        assertTrue(port.connects.isEmpty(), "nothing dials the camera before the operator agrees")
+        prompt.confirm()
+        runCurrent()
+        assertEquals(listOf<NikonConnectRequest>(NikonConnectRequest.Saved("192.168.50.23", RouteKind.INFRASTRUCTURE_NETWORK)), port.consentedRequests)
+        assertEquals(1, port.connects.size)
+    }
+
+    @Test
+    fun cancellingTheSavedTakeOverLeavesTheHolderAlone() = runTest {
+        port.holder = ""
+        val camera = cameras().first()
+        val route = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        val events = mutableListOf<ConnectionEvent>()
+        val job = backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).toList(events) }
+        runCurrent()
+        val progress = assertIs<ConnectionEvent.Progress>(events.single())
+        val prompt = assertIs<NikonTakeOverPrompt>(assertIs<ConnectionPrompt.Integration>(progress.prompt).prompt)
+        assertEquals(null, prompt.holder)
+        prompt.cancel()
+        job.join()
+        assertTrue(port.connects.isEmpty() && port.consentedRequests.isEmpty(), "Cancel never dials")
+    }
+
+    @Test
+    fun aSavedSetupNobodyHoldsDialsWithoutAsking() = runTest {
+        val camera = cameras().first()
+        val route = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).toList(mutableListOf()) }
+        runCurrent()
+        assertEquals(listOf("192.168.50.23"), port.holderQueries)
+        assertEquals(1, port.connects.size)
+        assertTrue(port.consentedRequests.isEmpty())
+    }
+
     @Test
     fun aHeldSavedSetupUsesTheSameConsentPrompt() = runTest {
         val camera = cameras().first()
@@ -393,5 +451,19 @@ class NikonIntegrationTest {
             setOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT, RouteKind.USB),
             nikon.profiles.single().addableRoutes,
         )
+    }
+}
+
+/** physical-C C9/C10: the phone that lost the camera must not take it straight back. */
+class NikonTakeOverRecoveryTest {
+    @Test
+    fun asksTwiceOnlyBeforeTheFirstAttempt() = runTest {
+        val answers = ArrayDeque(listOf(null, "Phone B"))
+        var asks = 0
+        assertEquals("Phone B", NikonTakeOverRecovery.holder(1) { asks += 1; answers.removeFirst() })
+        assertEquals(2, asks)
+        asks = 0
+        assertEquals(null, NikonTakeOverRecovery.holder(2) { asks += 1; null })
+        assertEquals(1, asks)
     }
 }

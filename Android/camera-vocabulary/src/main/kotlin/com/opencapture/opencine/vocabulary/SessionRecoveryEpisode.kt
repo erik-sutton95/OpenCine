@@ -103,6 +103,14 @@ class SessionRecoveryEpisode(
          * admitted. `false` means it could not start and counts as a failed attempt.
          */
         suspend fun connect(attempt: Attempt): Boolean
+
+        /**
+         * The device now holding the camera, asked before automatic attempt [number] (1-based)
+         * dials. A body that takes one initiator drops the device holding it when another
+         * connects, so reconnecting would take the camera straight back from it. `null` when
+         * nobody says so. Never asked on an operator retry: that is the take-back.
+         */
+        suspend fun holder(attempt: Attempt, number: Int): String? = null
     }
 
     /** One admitted episode. Host actions check it before touching shared transport state. */
@@ -310,6 +318,21 @@ class SessionRecoveryEpisode(
             val state = policy.state(failures)
             publish(mutableSnapshot.value.copy(state = state), attempt)
             if (state !is SessionRecoveryUi.Retrying) return
+            if (attempt.trigger != SessionRecoveryTrigger.OPERATOR_RETRY) {
+                val holder = port.holder(attempt, failures + 1)
+                checkContinuation(attempt)
+                if (holder != null) {
+                    publish(
+                        mutableSnapshot.value.copy(
+                            state = SessionRecoveryUi.TakenOver(holder.ifBlank { null }),
+                            reconnecting = false,
+                            cardGraceElapsed = true,
+                        ),
+                        attempt,
+                    )
+                    return
+                }
+            }
             val outcome = runOneAttempt(attempt)
             checkContinuation(attempt)
             when (outcome) {
