@@ -212,7 +212,8 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             signalBars: host.chromeSectionMounts(.batteries) ? host.liveSignalBars : nil, fpsSection: .batteries,
             portraitFormat: setup, portraitCaption: photo ? nil : recordingFormat?.profile,
             color: color, mode: mode,
-            storageAlternative: photo ? nil : host.control.snapshot?.storage.recordingTimeLabel)
+            storageAlternatives: MonitorStorageReadoutFormat.alternatives(percent: readout?.percent,
+                recordingTime: host.control.snapshot?.storage.recordingTimeLabel, photo: photo))
     }
 }
 

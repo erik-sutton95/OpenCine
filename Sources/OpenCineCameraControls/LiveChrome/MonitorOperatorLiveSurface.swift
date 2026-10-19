@@ -36,10 +36,14 @@ public struct MonitorOperatorPowerReading: Identifiable {
     public let warning: Bool
     public let exhausted: Bool
     public let charging: Bool?
+    /// The body reports running on external power (the bolt shows through `charging`).
+    public let externalPower: Bool?
     public init(id: String, title: String, camera: Bool, percent: Int? = nil, bars: Int? = nil,
-        barCount: Int = 5, warning: Bool = false, exhausted: Bool = false, charging: Bool? = nil) {
+        barCount: Int = 5, warning: Bool = false, exhausted: Bool = false, charging: Bool? = nil,
+        externalPower: Bool? = nil) {
         self.id = id; self.title = title; self.camera = camera; self.percent = percent; self.bars = bars
         self.barCount = barCount; self.warning = warning; self.exhausted = exhausted; self.charging = charging
+        self.externalPower = externalPower
     }
 }
 
@@ -61,21 +65,29 @@ extension MonitorOperatorPowerReading {
     /// and an unknown battery is absent rather than an empty gauge (D11).
     public static func camera(_ power: PowerStatus) -> MonitorOperatorPowerReading? {
         camera(power.batteryReading, exhausted: power.exhausted.value,
-            charging: power.charging.value ?? power.externalPower.value)
+            charging: power.charging.value ?? power.externalPower.value, externalPower: power.externalPower.value)
     }
 
+    /// A body on external power that reports no level keeps its pill ("EXT"), as the standalone
+    /// apps showed it; without power facts an unknown level stays absent.
     public static func camera(_ reading: BatteryReading?, exhausted: Bool? = nil,
-        charging: Bool? = nil) -> MonitorOperatorPowerReading? {
-        guard let reading else { return nil }
+        charging: Bool? = nil, externalPower: Bool? = nil) -> MonitorOperatorPowerReading? {
+        guard let reading else {
+            guard charging == true || externalPower == true else { return nil }
+            return .init(id: "camera", title: "Camera battery", camera: true, charging: true,
+                externalPower: externalPower)
+        }
         switch reading {
         case .fraction(let value):
             guard value.isFinite, (0...1).contains(value) else { return nil }
             return .init(id: "camera", title: "Camera battery", camera: true,
-                percent: Int((value * 100).rounded()), exhausted: exhausted == true, charging: charging)
+                percent: Int((value * 100).rounded()), exhausted: exhausted == true, charging: charging,
+                externalPower: externalPower)
         case .steps(let filled, let count):
             guard count > 0, (0...count).contains(filled) else { return nil }
             return .init(id: "camera", title: "Camera battery", camera: true, bars: filled, barCount: count,
-                warning: Double(filled) / Double(count) <= 0.4, exhausted: exhausted == true, charging: charging)
+                warning: Double(filled) / Double(count) <= 0.4, exhausted: exhausted == true, charging: charging,
+                externalPower: externalPower)
         }
     }
 }
@@ -93,6 +105,8 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
     public let color: MonitorOperatorLiveReadout<Key, Section>?
     public let mode: MonitorOperatorLiveReadout<Key, Section>?
     public let storageAlternative: String?
+    /// The forms one tap steps the storage readout through after its value, in order.
+    public let storageAlternatives: [String]
     public let fps: String?
     public let signalBars: Int?
     public let fpsSection: Section?
@@ -102,11 +116,13 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
         signalBars: Int? = nil, fpsSection: Section? = nil,
         portraitFormat: MonitorOperatorLiveReadout<Key, Section>? = nil, portraitCaption: String? = nil,
         color: MonitorOperatorLiveReadout<Key, Section>? = nil, mode: MonitorOperatorLiveReadout<Key, Section>? = nil,
-        storageAlternative: String? = nil) {
+        storageAlternative: String? = nil, storageAlternatives: [String]? = nil) {
         self.recording = recording; self.showsTimecode = showsTimecode; self.showsRecording = showsRecording
         self.storage = storage; self.format = format; self.fps = fps; self.signalBars = signalBars; self.fpsSection = fpsSection
         self.portraitFormat = portraitFormat; self.portraitCaption = portraitCaption
-        self.color = color; self.mode = mode; self.storageAlternative = storageAlternative
+        self.color = color; self.mode = mode
+        self.storageAlternatives = storageAlternatives ?? storageAlternative.map { [$0] } ?? []
+        self.storageAlternative = self.storageAlternatives.first
     }
 }
 
@@ -382,7 +398,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @Environment(\.dynamicTypeSize) private var primaryTypeSize
     @Environment(\.displayScale) private var primaryDisplayScale
     @State private var primarySizer = MonitorPortraitPrimarySizer()
-    @State private var showStorageDuration = false
+    @State private var storageForm = 0
     @State private var expanded = false
     @State private var lifecycle = MonitorInteractionLifecycle()
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
@@ -626,12 +642,13 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .modifier(ChromeEditableModifier<Host>(section: .statusBar, mode: editing))
     }
     private func storageReadout(_ value: MonitorOperatorLiveReadout<Key, Section>) -> some View {
-        let shown = showStorageDuration ? status.storageAlternative ?? value.value : value.value
+        let forms = [value.value] + status.storageAlternatives
+        let shown = forms[storageForm % forms.count]
         return Button {
             if exposed && !locked && editing == nil {
-                if status.storageAlternative != nil { showStorageDuration.toggle() }
+                // Storage has no sheet: without alternatives a tap runs the source's action only.
+                if forms.count > 1 { storageForm = (storageForm + 1) % forms.count }
                 else if let action = value.action { action() }
-                else { open(value.id) }
             }
         } label: {
             HStack(spacing: 5) {
@@ -645,8 +662,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
                 }
             }
-        }.buttonStyle(.monitorTapTarget).accessibilityLabel(value.accessibilityLabel ?? "Storage remaining")
-            .accessibilityValue(value.accessibilityLabel == nil ? shown : "")
+        }.buttonStyle(.monitorTapTarget).accessibilityLabel("Storage remaining")
+            .accessibilityValue(shown)
             .modifier(DescriptorEditable<Host>(section: value.section, mode: editing))
     }
     private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,
