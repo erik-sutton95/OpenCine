@@ -115,4 +115,21 @@ class MonitorCompactTelemetryTest {
         assertEquals(0f, fit.storageWidth)
         assertEquals(fit.leading, fit.performanceX)
     }
+
+    @Test fun aPunchHoleBoundsStorageSoTheLinkPillEndsBeforeIt() {
+        val layout = MonitorLayoutPolicy.fieldMonitor(412f, 915f, safeTop = 52f)
+        val hole = MonitorRect(193f, 12f, 26f, 26f)
+        val storage = MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout, hole, 58f, 48f)!!
+        // Storage, its 8 dp gap and the 58 dp link end 6 dp before the cutout.
+        assertEquals(hole.x - 6f, layout.status.x + storage + 8f + 58f)
+    }
+
+    @Test fun aWideNotchOrACutoutOutsideTheBandKeepsTheOriginalCorners() {
+        val layout = MonitorLayoutPolicy.fieldMonitor(375f, 812f, safeTop = 44f)
+        assertEquals(null, MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+            layout, MonitorRect(83f, 0f, 209f, 30f), 58f, 48f))
+        assertEquals(null, MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+            layout, MonitorRect(150f, layout.telemetry.maxY + 1f, 20f, 20f), 58f, 48f))
+        assertEquals(null, MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout, null, 58f, 48f))
+    }
 }

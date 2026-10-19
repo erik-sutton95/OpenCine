@@ -12,6 +12,8 @@
 #   estimate     <short codec>  <width>  <height>  <fps>  <decimal GB free>  <minutes>
 #   media        <free bytes>  <total bytes>  <camera codec>  <WxH>  <fps>  <capacity label>  <duration label>
 #                MediaStatus from a storage readback; "-" labels when the readback has no usable capacity
+#   shots        <remaining>  <compact label>  <spoken label>
+#                shotsRemainingCompactLabel / shotsRemainingAccessibilityLabel
 resolution	6048x3402	25	6K · 25p
 resolution	4032x2268	24	4K · 24p
 resolution	7680x4320	30	8K · 30p
@@ -44,3 +46,12 @@ media	60000000000	128000000000	H.265 10-bit MP4	3840x2160	24	60 GB · 47%	~42 Mi
 media	59600000000	128000000000	-	-	-	59.6 GB · 47%	-- Min
 media	1000	0	H.265 10-bit MP4	3840x2160	24	-	-
 media	2000	1000	H.265 10-bit MP4	3840x2160	24	-	-
+shots	0	0	0 shots remaining
+shots	7149	7149	7149 shots remaining
+shots	9999	9999	9999 shots remaining
+shots	10000	10.0k	10000 shots remaining
+shots	20282	20.2k	20282 shots remaining
+shots	99999	99.9k	99999 shots remaining
+shots	100000	100k	100000 shots remaining
+shots	1234567	1234k	1234567 shots remaining
+shots	-3	0	0 shots remaining
