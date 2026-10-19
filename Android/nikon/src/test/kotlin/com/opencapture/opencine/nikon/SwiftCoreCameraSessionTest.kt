@@ -855,6 +855,40 @@ class SwiftCoreCameraSessionTest {
     }
 
     @Test
+    fun `recovery of the same body keeps the capture mode until the next readback`() = runTest {
+        // physical-C C3/C9 (2026-10-19): a ZR in stills showed the video chrome (record ring,
+        // movie value columns) while Reconnecting and on Camera disconnected.
+        val bridge = FakeBridge()
+        val session = quietSession(bridge)
+        val connecting = async { session.connect() }
+        runCurrent()
+        bridge.listeners.single().onConnected("ZR", "NIKON ZR", "6001234")
+        connecting.await()
+        bridge.propertyRefreshPayload = propertyPayload(captureSelector = "photo")
+        session.refreshProperties()
+        assertEquals("photo", session.cameraProperties.value.captureSelector)
+
+        bridge.eventListeners.single().onEnded("The camera closed the connection.")
+        runCurrent()
+        assertTrue(session.state.value !is CameraSessionState.Connected)
+        assertEquals(CameraPropertySnapshot(captureSelector = "photo"), session.cameraProperties.value)
+        assertEquals(CameraPropertySnapshot(), session.reportedCameraProperties.value)
+
+        val reconnecting = async { session.connect() }
+        runCurrent()
+        assertEquals("photo", session.cameraProperties.value.captureSelector)
+        bridge.listeners.last().onConnected("ZR", "NIKON ZR", "6001234")
+        reconnecting.await()
+        assertEquals("photo", session.cameraProperties.value.captureSelector)
+        bridge.propertyRefreshPayload = propertyPayload(captureSelector = "video")
+        session.refreshProperties()
+        assertEquals("video", session.cameraProperties.value.captureSelector)
+
+        session.disconnect()
+        assertEquals(CameraPropertySnapshot(), session.cameraProperties.value)
+    }
+
+    @Test
     fun `USB event channel end tears down its native owner`() = runTest {
         val bridge = FakeBridge()
         val transport = FakeUsbTransport()
@@ -1998,9 +2032,11 @@ class SwiftCoreCameraSessionTest {
             iso: Int = 800,
             warningRaw: Int = 0,
             temperatureStatus: String = "OK",
+            captureSelector: String? = null,
         ): String =
-            listOf(
+            listOfNotNull(
                 "result\t$result",
+                captureSelector?.let { "captureSelector\t$it" },
                 "iso\t$iso",
                 "baseIso\tHigh",
                 "exposureMode\tM",
