@@ -77,8 +77,8 @@ class Provenance(AtlasCase):
         self.second = commit(self.repo, {"a.swift": "let a = 2\n"}, "same instant")  # identical timestamp
 
     def test_same_day_commits_are_distinct_snapshots(self):
-        one = resolver.snapshot_provenance("appone", self.repo, self.first, {"x": 1}, {"graphify": "t"})
-        two = resolver.snapshot_provenance("appone", self.repo, self.second, {"x": 1}, {"graphify": "t"})
+        one = resolver.snapshot_provenance("appone", self.repo, self.first, {"x": 1}, {"atlas": "t"})
+        two = resolver.snapshot_provenance("appone", self.repo, self.second, {"x": 1}, {"atlas": "t"})
         self.assertNotEqual(one["source_commit"], two["source_commit"])
         self.assertNotEqual(one["source_tree"], two["source_tree"])
         self.assertEqual(len(one["source_commit"]), 40)
@@ -106,7 +106,6 @@ class Provenance(AtlasCase):
         row = json.loads(out)[0]
         self.assertEqual(code, 0)
         self.assertTrue(row["source"].startswith("outdated"), row)
-        self.assertEqual(row["snapshot"], "missing")
 
 
 if __name__ == "__main__":

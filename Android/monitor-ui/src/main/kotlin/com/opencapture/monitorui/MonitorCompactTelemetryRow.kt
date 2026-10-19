@@ -18,7 +18,6 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import kotlin.math.max
 import kotlin.math.ceil
 
 internal val LocalMonitorAdaptiveTelemetryPadding = compositionLocalOf { false }
@@ -65,13 +64,10 @@ fun MonitorCompactTelemetryRow(layout: MonitorFieldLayout, safeLeading: Float, s
         val powerView = children[2].measure(loose.copy(maxWidth = powerWidth.coerceAtLeast(0)))
         val preferredLink = children[1].maxIntrinsicWidth(Constraints.Infinity)
         val minimumLink = children[1].minIntrinsicWidth(Constraints.Infinity)
-        // Match the old row's roundToPx at each term, including fractional native densities.
-        val legacyRowWidth = max(0f, layout.telemetry.x - layout.status.x - 8f).dp.roundToPx()
-        val legacyLinkWidth = if (preferredLink > 0) metrics.pillWidth.dp.roundToPx() else 0
-        val cornerWidth = (legacyRowWidth - legacyLinkWidth - 8.dp.roundToPx()).coerceAtLeast(0)
-        val legacyWidth = MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout, topCutout,
-            if (preferredLink > 0) metrics.pillWidth else 0f, minimumTarget)
-            ?.let { minOf(cornerWidth, it.dp.toPx().toInt()) } ?: cornerWidth
+        // The adaptive pill's measured width, not its nominal width, is the real reservation.
+        val legacyWidth = with(density) {
+            legacyStorageWidthPixels(layout, topCutout, preferredLink, minimumTarget)
+        }
         val storageView = children[0].measure(loose.copy(maxWidth = legacyWidth))
         val budget = MonitorCompactTelemetryBudget.pixels(constraints.maxWidth,
             layout.status.x.dp.roundToPx(), (layout.viewport.width - layout.status.maxX).dp.roundToPx(),

@@ -94,7 +94,7 @@ public struct MonitorCompactTelemetryRow<Storage: View, Link: View, Power: View>
     }
 
     public var body: some View {
-        CompactTelemetryRowLayout(layout: layout, safeArea: safeArea, referenceLinkWidth: metrics.pillWidth,
+        CompactTelemetryRowLayout(layout: layout, safeArea: safeArea,
             scale: Double(scale), powerHeight: metrics.pillHeight, topCutout: topCutout) {
             HStack(spacing: 0) { storage() }
             HStack(spacing: 0) { link() }.environment(\.monitorAdaptiveTelemetryPadding, true)
@@ -114,7 +114,6 @@ public struct MonitorCompactTelemetryRow<Storage: View, Link: View, Power: View>
 private struct CompactTelemetryRowLayout: Layout {
     let layout: FieldMonitorLayout
     let safeArea: MonitorSafeArea
-    let referenceLinkWidth: Double
     let scale: Double
     let powerHeight: Double
     let topCutout: MonitorRect?
@@ -143,7 +142,8 @@ private struct CompactTelemetryRowLayout: Layout {
     )? {
         guard subviews.count == 3 else { return nil }
         let preferredLink = subviews[1].sizeThatFits(.unspecified)
-        let linkReference = preferredLink.width > 0 ? referenceLinkWidth : 0
+        // The adaptive pill can exceed its nominal width: reserve what it actually draws.
+        let linkReference = preferredLink.width > 0 ? preferredLink.width : 0
         let cornerWidth = max(0, layout.telemetry.x - layout.status.x - 8 - linkReference - 8)
         let legacyWidth = MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout: layout,
             topCutout: topCutout, linkWidth: linkReference, minimumTarget: FieldMonitorLayout.minimumTapTarget)

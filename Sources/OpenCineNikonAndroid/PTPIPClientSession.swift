@@ -3526,7 +3526,9 @@ public final class PTPIPClientSession: @unchecked Sendable {
                     case .operationRejected(_, .deviceBusy) = error
                 else { throw error }
                 // Busy is often a drive whose end nobody has read back yet (ZT-02).
-                settleDeviceReady()
+                // One read-back suffices; repeating it on every retry holds
+                // commandLifecycleLock about 1 s per attempt on a body busy for other reasons.
+                if attempt == 0 { settleDeviceReady() }
                 Thread.sleep(forTimeInterval: 0.12)
             }
         }

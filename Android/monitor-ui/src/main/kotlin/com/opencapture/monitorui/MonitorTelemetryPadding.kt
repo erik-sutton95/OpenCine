@@ -1,7 +1,10 @@
 package com.opencapture.monitorui
 
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.max
 
 /** Complete native content stays fixed; only decorative padding yields to the occupied budget. */
 data class MonitorTelemetryPadding private constructor(val width: Float, val padding: Float, val fits: Boolean) {
@@ -36,6 +39,22 @@ data class MonitorTelemetryPadding private constructor(val width: Float, val pad
 }
 
 internal data class MonitorTelemetryPixelPadding(val width: Int, val padding: Int, val fits: Boolean)
+
+/**
+ * The compact row's storage allowance in pixels. The adaptive link pill can exceed its nominal
+ * dp width, so the measured width is the reservation held before a top cutout; the nominal width
+ * only describes the resting pill and would let a long value reach the cutout.
+ */
+internal fun Density.legacyStorageWidthPixels(layout: MonitorFieldLayout, topCutout: MonitorRect?,
+    preferredLink: Int, minimumTarget: Float): Int {
+    // Match the old row's roundToPx at each term, including fractional native densities.
+    val rowWidth = max(0f, layout.telemetry.x - layout.status.x - 8f).dp.roundToPx()
+    val cornerWidth = (rowWidth - preferredLink - 8.dp.roundToPx()).coerceAtLeast(0)
+    val linkWidth = if (preferredLink > 0) preferredLink / density else 0f
+    return MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+        layout, topCutout, linkWidth, minimumTarget)
+        ?.let { minOf(cornerWidth, it.dp.toPx().toInt()) } ?: cornerWidth
+}
 
 /** Real occupied targets determine the compact row; matches Swift MonitorCompactTelemetryBudget. */
 class MonitorCompactTelemetryBudget private constructor(viewportWidth: Float,
