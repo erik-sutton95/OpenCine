@@ -35,13 +35,14 @@ public class MediaShare(
     /**
      * The chooser for already-delivered files, with read grants on every URI and the "Include
      * metadata" summary as `EXTRA_TEXT` when not blank (A2-51). [displayName] is the title a
-     * file is shared under (a staged copy may carry a private name). Null when no file has a URI.
+     * file is shared under (a staged copy may carry a private name). Null unless every file has a
+     * URI, so a selected clip is never silently left out of the share.
      * Copies files outside the provider paths, so call it off the main thread.
      */
     public fun chooserIntent(context: Context, files: List<File>, mimeType: (File) -> String,
         metadataText: String? = null, displayName: (File) -> String = { it.name }): Intent? {
         val stager = lazy { MonitorMediaShareStager(context.cacheDir.toPath(), staging) }
-        val shared = files.mapNotNull { file ->
+        val shared = files.map { file ->
             val mime = mimeType(file)
             val name = displayName(file)
             val uri = providerUri(context, file)
@@ -50,7 +51,7 @@ public class MediaShare(
                     .getOrNull()?.let { providerUri(context, it.file.toFile()) }
                 // An app without the share/ready path still shares a single file through its gallery copy.
                 ?: if (files.size == 1) insertIntoGallery(context, file, mime) else null
-            uri?.let { MonitorStagedMediaShare(file.toPath(), name, mime) to it }
+            uri?.let { MonitorStagedMediaShare(file.toPath(), name, mime) to it } ?: return null
         }
         if (shared.isEmpty()) return null
         val spec = MonitorMediaShareIntentSpec.forShares(shared.map { it.first }, batchLabel, metadataText)

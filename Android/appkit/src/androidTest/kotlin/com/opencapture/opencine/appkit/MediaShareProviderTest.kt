@@ -4,10 +4,12 @@ import android.content.Intent
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.opencapture.opencine.media.MonitorMediaShareStagingPolicy
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -42,5 +44,16 @@ class MediaShareProviderTest {
             val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
             assertEquals(files[index].readBytes().toList(), bytes.toList())
         }
+    }
+
+    /** A selected clip that cannot be staged fails the whole share instead of silently dropping out. */
+    @Test fun aClipThatCannotBeStagedFailsTheWholeShare() {
+        val files = listOf("DJI_0001.MP4" to 16, "DJI_0002.MP4" to 64).map { (name, size) ->
+            File(root, "files/$name").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(size)) }
+        }
+        val tight = MonitorMediaShareStagingPolicy(maximumReadyBytes = 48, maximumReadyArtifacts = 4,
+            grantRetentionMillis = 0, copyBufferBytes = 16)
+        assertNull("a partial batch must not reach the chooser",
+            MediaShare("SIMULATED", staging = tight).chooserIntent(context, files, { "video/mp4" }))
     }
 }
