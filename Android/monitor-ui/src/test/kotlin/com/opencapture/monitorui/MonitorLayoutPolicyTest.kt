@@ -82,10 +82,56 @@ class MonitorLayoutPolicyTest {
 
     @Test
     fun phoneReadoutsUseThreeColumnsEvenWhenOneCapabilityIsAbsent() {
-        assertEquals(3, MonitorLayoutPolicy.valueColumns(320f, true, 6))
-        assertEquals(3, MonitorLayoutPolicy.valueColumns(393f, true, 5))
-        assertEquals(6, MonitorLayoutPolicy.valueColumns(716f, true, 6))
-        assertEquals(6, MonitorLayoutPolicy.valueColumns(420f, false, 6))
+        assertEquals(3, MonitorLayoutPolicy.valueColumns(6, portrait = true, tablet = false))
+        assertEquals(3, MonitorLayoutPolicy.valueColumns(5, portrait = true, tablet = false))
+        assertEquals(6, MonitorLayoutPolicy.valueColumns(6, portrait = true, tablet = true))
+        assertEquals(6, MonitorLayoutPolicy.valueColumns(6, portrait = false, tablet = false))
+    }
+
+    @Test
+    fun phonePortraitReadoutsKeepThreeColumnsAtAnyCount() {
+        assertEquals(3, MonitorLayoutPolicy.valueColumns(7, portrait = true, tablet = false))
+        assertEquals(3, MonitorLayoutPolicy.valueColumns(9, portrait = true, tablet = false))
+        assertEquals(9, MonitorLayoutPolicy.valueColumns(9, portrait = false, tablet = false))
+        assertEquals(3, MonitorLayoutPolicy.valueColumns(0, portrait = true, tablet = false))
+        assertEquals(1, MonitorLayoutPolicy.valueColumns(0, portrait = false, tablet = false))
+    }
+
+    /** Mirrors Swift `phonePortraitValueBandGrowsToFitItsRows` (32 dp tiles, 10 dp gap). */
+    @Test
+    fun phonePortraitValueBandGrowsToFitItsRows() {
+        for (width in listOf(320f, 393f, 440f)) for (count in 1..9) {
+            val layout = MonitorLayoutPolicy.fieldMonitor(width, width * 2.17f, safeTop = 59f, safeBottom = 34f,
+                valueCount = count)
+            val rows = (count + 2) / 3
+            val label = "$width $count"
+            assertTrue(layout.values.height >= rows * 32f + (rows - 1) * 10f, label)
+            assertTrue((layout.values.width - 2 * 14f) / 3f >= 44f, label)
+            assertTrue(layout.values.maxY <= layout.system.y, label)
+            for (rect in listOf(layout.assists, layout.stick, layout.aspectToggle, layout.picture)) {
+                assertTrue(rect.maxY <= layout.values.y, label)
+            }
+        }
+    }
+
+    /** Six or fewer values keep the two-row band; tablets and landscape keep one row at any count. */
+    @Test
+    fun valueCountChangesOnlyAPortraitPhoneWithMoreThanTwoRows() {
+        for ((width, height) in listOf(393f to 852f, 852f to 393f, 820f to 1180f, 1180f to 820f)) {
+            val base = MonitorLayoutPolicy.fieldMonitor(width, height, safeTop = 59f, safeBottom = 34f)
+            for (count in 0..12) {
+                if (count > 6 && width < height && minOf(width, height) < 600f) continue
+                assertEquals(base,
+                    MonitorLayoutPolicy.fieldMonitor(width, height, safeTop = 59f, safeBottom = 34f, valueCount = count),
+                    "${width}x$height $count")
+            }
+        }
+        val base = MonitorLayoutPolicy.fieldMonitor(393f, 852f, safeTop = 59f, safeBottom = 34f)
+        val nine = MonitorLayoutPolicy.fieldMonitor(393f, 852f, safeTop = 59f, safeBottom = 34f, valueCount = 9)
+        assertEquals(base.values.height + MonitorLayoutPolicy.VALUE_ROW_PITCH, nine.values.height, .01f)
+        assertEquals(base.values.maxY, nine.values.maxY, .01f)
+        assertEquals(base.system, nine.system)
+        assertEquals(base.record, nine.record)
     }
 
     @Test

@@ -245,6 +245,8 @@ public data class MonitorLiveFeedDisplay(
     public val portraitFeedAspect: PortraitFeedAspect,
     public val joystickSize: MonitorJoystickSize,
     public val hdrDisplay: Boolean,
+    /** Camera values the strip shows; a portrait phone grows the value band to fit them. Null keeps two rows. */
+    public val valueCount: Int? = null,
 )
 
 /** Shared HEVC native assembly over one actual source and retained monitor owners. */
@@ -261,7 +263,7 @@ public fun <F : Any> MonitorLiveFeedHost(
 ) {
     MonitorLiveFeedBody(feed, source, cover, owners.assist, display.plan, owners.scopes, owners.preview,
         display.viewFlip, display.chromeSectionMounts, display.portraitFeedAspect, display.joystickSize,
-        display.hdrDisplay, onOperatorMenu, onCover, content)
+        display.hdrDisplay, display.valueCount, onOperatorMenu, onCover, content)
 }
 
 @Composable
@@ -278,6 +280,7 @@ private fun <F : Any> MonitorLiveFeedBody(
     portraitFeedAspect: PortraitFeedAspect,
     joystickSize: MonitorJoystickSize,
     hdrDisplay: Boolean,
+    valueCount: Int?,
     onOperatorMenu: () -> Unit,
     onCover: (ShellModel.Cover?) -> Unit = {},
     content: @Composable MonitorLiveFeedScope.() -> Unit,
@@ -380,7 +383,7 @@ private fun <F : Any> MonitorLiveFeedBody(
                 chromeScale, with(density) { cutout.getTop(this) > 0 || cutout.getBottom(this) > 0 ||
                     cutout.getLeft(this, layoutDir) > 0 || cutout.getRight(this, layoutDir) > 0 }),
             assist, chromeSectionMounts, portraitFeedAspect, decoder.pictureAspect.toFloat(), verticalPicture,
-            joystickSize, source.isFocusResetAvailable)
+            joystickSize, source.isFocusResetAvailable, valueCount)
         val layout = geometry.layout
         val pictureContent = geometry.pictureContent
         var vulkanSurfaceView by remember { mutableStateOf<SurfaceView?>(null) }

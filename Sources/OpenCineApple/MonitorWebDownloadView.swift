@@ -270,8 +270,10 @@
                 }
             }
             transfer = task
+            // URLSession updates the progress on its own queue: no main-actor isolation, or Swift 6
+            // traps on entry where the SDK does not import the KVO handler as @Sendable.
             progressObservation = task.progress.observe(\.fractionCompleted) {
-                [weak self] progress, _ in
+                @Sendable [weak self] progress, _ in
                 let fraction = progress.fractionCompleted
                 Task { @MainActor in self?.onProgress(fraction) }
             }

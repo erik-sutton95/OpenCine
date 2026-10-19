@@ -2,6 +2,62 @@ import MonitorPresentation
 import Testing
 
 struct FieldMonitorLayoutTests {
+    /// Same table as Kotlin `MonitorLayoutPolicyTest`: three per row on a portrait phone,
+    /// one row elsewhere.
+    @Test(arguments: [
+        (6, true, false, 3), (5, true, false, 3), (7, true, false, 3), (9, true, false, 3),
+        (0, true, false, 3), (6, true, true, 6), (9, false, false, 9), (0, false, false, 1),
+    ])
+    func valueColumns(count: Int, portrait: Bool, tablet: Bool, expected: Int) {
+        #expect(
+            FieldMonitorLayout.valueColumns(count: count, portrait: portrait, tablet: tablet)
+                == expected)
+    }
+
+    /// Every row of a portrait phone's values (34 pt tiles, 8 pt gap) lands in its band and
+    /// clears the system bar, each tile a full touch target wide, with the tools, joystick
+    /// and picture above it.
+    @Test func phonePortraitValueBandGrowsToFitItsRows() {
+        for width in [320.0, 393, 440] {
+            for count in 1...9 {
+                let layout = FieldMonitorLayout(
+                    width: width, height: width * 2.17, safeArea: .init(top: 59, bottom: 34),
+                    valueCount: count)
+                let rows = Double((count + 2) / 3)
+                let grid = rows * 34 + (rows - 1) * 8
+                #expect(layout.values.height == 74 + max(0, rows - 2) * FieldMonitorLayout.valueRowPitch)
+                #expect(layout.values.y + grid <= layout.system.y, "\(width) \(count)")
+                let cell = (layout.values.width - 2 * 8) / 3
+                #expect(cell >= FieldMonitorLayout.minimumTapTarget, "\(width) \(count)")
+                #expect(layout.values.maxY <= layout.system.y, "\(width) \(count)")
+                for rect in [layout.assists, layout.stick, layout.aspectToggle, layout.picture] {
+                    #expect(rect.maxY <= layout.values.y, "\(width) \(count)")
+                }
+            }
+        }
+    }
+
+    /// Six or fewer values keep the two-row band, so the apps that show them lay out as before.
+    /// Tablets and landscape keep one row at any count.
+    @Test func valueCountChangesOnlyAPortraitPhoneWithMoreThanTwoRows() {
+        for (width, height) in [(393.0, 852.0), (852, 393), (820, 1180), (1180, 820)] {
+            let base = FieldMonitorLayout(
+                width: width, height: height, safeArea: .init(top: 59, bottom: 34))
+            for count in 0...12 where count <= 6 || width > height || min(width, height) >= 600 {
+                #expect(
+                    FieldMonitorLayout(
+                        width: width, height: height, safeArea: .init(top: 59, bottom: 34),
+                        valueCount: count) == base, "\(width)x\(height) \(count)")
+            }
+        }
+        let nine = FieldMonitorLayout(
+            width: 393, height: 852, safeArea: .init(top: 59, bottom: 34), valueCount: 9)
+        let base = FieldMonitorLayout(width: 393, height: 852, safeArea: .init(top: 59, bottom: 34))
+        #expect(nine.values.height == base.values.height + FieldMonitorLayout.valueRowPitch)
+        #expect(nine.values.maxY == base.values.maxY)
+        #expect(nine.system == base.system && nine.record == base.record)
+    }
+
     @Test func portraitRevisionRestoresTopPlacementAndKeepsFocusOnTheLeft() {
         for (width, height, top) in [
             (320.0, 568.0, 24.0), (393, 852, 59), (440, 956, 62), (744, 1133, 24),

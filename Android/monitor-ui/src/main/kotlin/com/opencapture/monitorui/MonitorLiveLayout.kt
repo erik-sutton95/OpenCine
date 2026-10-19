@@ -509,13 +509,14 @@ data class LiveMonitorLayout(
             showsValues: Boolean = true,
             topControlInset: Float = 0f,
             joystick: MonitorJoystickSize = MonitorJoystickSize.MEDIUM,
+            valueCount: Int? = null,
         ): LiveMonitorLayout {
             LiveChromeMetrics.scale = chromeScale
             val p =
                 MonitorLayoutPolicy.fieldMonitor(
                     viewportWidth, viewportHeight, safeTop, safeLeading, safeBottom, safeTrailing,
                     pictureAspect ?: LiveChromeMetrics.FEED_ASPECT, fill, showsValues,
-                    topControlInset, hasDisplayCutout, joystick,
+                    topControlInset, hasDisplayCutout, joystick, valueCount,
                 )
             fun slot(rect: MonitorRect) =
                 MonitorRect(rect.x, rect.y, rect.width, rect.height)
@@ -938,9 +939,10 @@ fun portraitZones(
     fill: Boolean,
     assistToolbarHeight: Float,
     feedAspectRatio: Float = 16f / 9f,
+    valueCount: Int? = null,
 ): PortraitZones {
     val layout = MonitorLayoutPolicy.portrait(
-        viewportWidth, viewportHeight, safeTop, safeBottom, fill, !clean, feedAspectRatio,
+        viewportWidth, viewportHeight, safeTop, safeBottom, fill, !clean, feedAspectRatio, valueCount,
     )
     return PortraitZones(layout.status, layout.picture,
         MonitorRect(0f, layout.controlsFloor, viewportWidth, 0f), layout.values, layout.system)

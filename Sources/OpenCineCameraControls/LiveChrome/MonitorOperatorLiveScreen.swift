@@ -151,7 +151,9 @@
                     sourceAspect: model.session.pictureAspect,
                     fill: model.portraitFeedAspect == .fill && !model.assist.isVisible(.desqueeze),
                     showsValues: model.chromeSectionMounts(.cameraValues), showsBottomBars: showsBottomBars,
-                    topControlInset: windowGeometry.topControlInset, joystick: model.virtualJoystickSize)
+                    topControlInset: windowGeometry.topControlInset, joystick: model.virtualJoystickSize,
+                    valueCount: MonitorOperatorCaptureInputs<CaptureSheet, MonitorDisplayChrome.Section,
+                        MonitorOperatorLegacyCaptureIdentity>.captureSheetHost(model).valueCount)
                 Color.clear.ignoresSafeArea().overlay(alignment: .topLeading) {
                     canvas(layout).frame(width: layout.viewport.width, height: layout.viewport.height, alignment: .topLeading)
                 }

@@ -126,8 +126,8 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                     host.control.snapshot.flatMap { MonitorOperatorPowerReading.camera($0.power) }
                 },
                 capture: {
-                    .captureSheetHost(host, section: .cameraValues, columns: layout.capture.height > 60 ? 3 : 6,
-                        presentedSheet: presented, open: { sheet in
+                    .captureSheetHost(host, section: .cameraValues, presentedSheet: presented,
+                        open: { sheet in
                             if sheet == .resolution { interaction.topMenu = interaction.topMenu == .recFormat ? nil : .recFormat }
                             else if sheet == .color { interaction.topMenu = interaction.topMenu == .color ? nil : .color }
                             else { host.captureSheet = CaptureReadoutAdmission.replacing(host.captureSheet,
