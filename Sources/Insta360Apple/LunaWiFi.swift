@@ -90,7 +90,9 @@ enum LunaWiFi {
                     } catch is CancellationError {
                         throw CancellationError()
                     } catch {
-                        if let failure = applyFailure(error as NSError, logPrefix: logPrefix) { throw failure }
+                        if let failure = applyFailure(
+                            error, network: credentials.ssid, logPrefix: logPrefix)
+                        { throw failure }
                     }
                 } else {
                     let config = NEHotspotConfiguration(
@@ -99,7 +101,9 @@ enum LunaWiFi {
                     try await withCheckedThrowingContinuation {
                         (continuation: CheckedContinuation<Void, Error>) in
                         NEHotspotConfigurationManager.shared.apply(config) { error in
-                            if let error = error as NSError?, let failure = applyFailure(error, logPrefix: logPrefix) {
+                            if let error, let failure = applyFailure(
+                                error, network: credentials.ssid, logPrefix: logPrefix)
+                            {
                                 continuation.resume(throwing: failure)
                             } else {
                                 continuation.resume()
@@ -126,18 +130,36 @@ enum LunaWiFi {
     }
 
     #if os(iOS) && !targetEnvironment(macCatalyst)
-    /// "Already associated" is success; any other refusal is the existing join failure.
-    private nonisolated static func applyFailure(_ error: NSError, logPrefix: String) -> ConnectionFailure? {
-        if error.domain == NEHotspotConfigurationErrorDomain,
-            error.code == NEHotspotConfigurationError.alreadyAssociated.rawValue
+    /// "Already associated" is success; any other refusal uses the shared copy and actions.
+    private nonisolated static func applyFailure(
+        _ error: Error, network: String, logPrefix: String
+    ) -> ConnectionFailure? {
+        if let refusal = error as? CameraHotspotJoinRefusal {
+            return failure(for: refusal, logPrefix: logPrefix)
+        }
+        let platformError = error as NSError
+        if platformError.domain == NEHotspotConfigurationErrorDomain,
+            platformError.code == NEHotspotConfigurationError.alreadyAssociated.rawValue
         {
             return nil
         }
-        NSLog("%@ luna: hotspot apply failed %@ %d %@", logPrefix, error.domain, error.code, error.localizedDescription)
+        if let refusal = CameraHotspotJoinRefusal(error: platformError, network: network) {
+            return failure(for: refusal, logPrefix: logPrefix)
+        }
+        NSLog("%@ luna: hotspot apply failed %@ %d", logPrefix, platformError.domain, platformError.code)
         return ConnectionFailure.luna(
             .joinFailed, "wifi.join-refused",
-            "The camera Wi-Fi could not be joined (\(error.code)). Keep the camera powered on and accept the iOS Wi-Fi prompt.",
+            "The camera Wi-Fi could not be joined. Keep the camera powered on and accept the iOS Wi-Fi prompt.",
             phase: .joiningNetwork)
+    }
+
+    /// The raw platform code stays in the journal as a closed token; operator copy is shared.
+    private nonisolated static func failure(
+        for refusal: CameraHotspotJoinRefusal, logPrefix: String
+    ) -> ConnectionFailure? {
+        guard refusal.reason != .alreadyAssociated else { return nil }
+        NSLog("%@ luna: %@", logPrefix, refusal.diagnosticsCode)
+        return refusal.failure(integration: LunaCameraSession.integration)
     }
     #endif
 
