@@ -371,7 +371,8 @@ private struct AndroidRawControlCatalog: Sendable {
             switch properties.shutterMode {
             case .angle: activeShutterValues = shutterAngles.map(\.label)
             case .speed: activeShutterValues = shutterSpeeds.map(\.label)
-            case nil: activeShutterValues = []
+            // No `MovieShutterMode` (non-ZR bodies): the encoder writes by label shape.
+            case nil: activeShutterValues = (shutterAngles + shutterSpeeds).map(\.label)
             }
         }
         let irisValues: [String]

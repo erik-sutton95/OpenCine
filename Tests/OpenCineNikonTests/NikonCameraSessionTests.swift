@@ -361,11 +361,43 @@ struct NikonCameraSessionTests {
         #expect(session.request(.set(.shutter(.angle(180)))).stage == .rejected(.supportUnknown))
         #expect(driver.queued.isEmpty)
 
+        // An unreported mode is not a lock: the label shape picks the circuit (baseline Z).
         let unknown = PTPCameraPropertySnapshot(shutterSpeed: "1/50", captureSelector: .video)
-        #expect((NikonExposureSettings.reported(unknown)[.shutter] ?? nil) == nil)
+        #expect(
+            (NikonExposureSettings.reported(unknown)[.shutter] ?? nil)
+                == .shutter(.duration(Rational(1, 50))))
         #expect(
             NikonExposureSettings.descriptors(unknown, shutterLabels: ["1/50"], apertureLabels: [])
-                .isEmpty)
+                .map(\.availability) == [.available])
+    }
+
+    @Test("A body that never reports its shutter mode reads and writes movie SHUTTER by label shape")
+    func unknownShutterModeWritesByLabelShape() {
+        // Z6III-class bodies have no MovieShutterMode; the baseline encoder wrote by label shape.
+        var facts = Self.movieFacts()
+        facts.reported = facts.reported.applying(
+            property: .movieShutterSpeed, data: Data(ByteCoding.uint32LE(1 << 16 | 50)))
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        #expect(session.refresh().value(of: .shutter).value == .shutter(.duration(Rational(1, 50))))
+        #expect(session.refresh().capabilities[.shutter]?.availability == .available)
+        _ = session.request(.set(.shutter(.duration(Rational(1, 100)))))
+        _ = session.request(.set(.shutter(.angle(180))))
+        #expect(
+            driver.queued.flatMap(\.writes).map(\.property)
+                == [.movieShutterSpeed, .movieShutterAngle])
+
+        // Advertised labels of either circuit are the domain while the mode is unknown.
+        driver.nikonControlFacts.shutterLabels = ["1/50", "1/100"]
+        #expect(
+            session.request(.set(.shutter(.duration(Rational(1, 200))))).stage
+                == .rejected(.outOfDomain))
+        // A camera lock still wins.
+        driver.nikonControlFacts.reported = driver.nikonControlFacts.reported.applying(
+            property: .movieTVLockSetting, data: Data([1]))
+        #expect(
+            session.request(.set(.shutter(.duration(Rational(1, 100))))).stage
+                == .rejected(.unavailable(.busy)))
     }
 
     @Test("The confirmed record target runs; a target the camera already reports sends nothing")

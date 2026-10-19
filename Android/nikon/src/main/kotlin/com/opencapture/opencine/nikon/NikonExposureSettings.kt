@@ -41,7 +41,10 @@ public object NikonExposureSettings {
             ?.let(SettingValue::Aperture)
     }
 
-    /** Camera reports follow only the active movie circuit. Unknown mode is not duration mode. */
+    /**
+     * Camera reports follow only the active movie circuit. A body that never reports
+     * `MovieShutterMode` (only the ZR does) shows the circuit it reports, angle first.
+     */
     public fun reported(properties: CameraPropertySnapshot): Map<SettingKey, SettingValue?> {
         if (!properties.captureSelector.equals("video", ignoreCase = true)) {
             return mapOf(SettingKey.SHUTTER to null, SettingKey.APERTURE to null)
@@ -49,20 +52,31 @@ public object NikonExposureSettings {
         val shutter = when (properties.shutterMode) {
             CameraShutterMode.ANGLE -> properties.shutterAngle?.let(::shutter)
             CameraShutterMode.SPEED -> properties.shutterSpeed?.let(::shutter)
-            null -> null
+            null -> (properties.shutterAngle ?: properties.shutterSpeed)?.let(::shutter)
         }
         return mapOf(SettingKey.SHUTTER to shutter, SettingKey.APERTURE to properties.iris?.let(::aperture))
     }
 
-    /** Active write domains; a reported value does not imply permission to write it. */
+    /**
+     * Active write domains; a reported value does not imply permission to write it. While the
+     * shutter mode is unknown the encoder writes by label shape, so both circuits are the domain:
+     * the advertised labels, else the picker ladders.
+     */
     public fun descriptors(properties: CameraPropertySnapshot): List<SettingDescriptor> {
         if (!properties.captureSelector.equals("video", ignoreCase = true)) return emptyList()
         val reported = reported(properties)
-        val shutters = (properties.controlCapabilities.shutterValues.mapNotNull(::shutter).filter {
+        val labels = properties.controlCapabilities.shutterValues.ifEmpty {
+            if (properties.shutterMode == null) {
+                ShutterPickerPolicy.angleOptions + ShutterPickerPolicy.speedOptions
+            } else {
+                emptyList()
+            }
+        }
+        val shutters = (labels.mapNotNull(::shutter).filter {
             when (properties.shutterMode) {
                 CameraShutterMode.ANGLE -> it is SettingValue.Shutter && it.value is ShutterValue.Angle
                 CameraShutterMode.SPEED -> it is SettingValue.Shutter && it.value is ShutterValue.Duration
-                null -> false
+                null -> it is SettingValue.Shutter
             }
         }).distinct()
         val apertures = properties.controlCapabilities.advertisedIrisValues.mapNotNull(::aperture).distinct()
