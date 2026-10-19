@@ -85,7 +85,13 @@ data class MonitorFieldLayout(
     val controlsFloor: Float,
     /** Live render bounds, independent of the retained gauges/corner contract. */
     val telemetry: MonitorRect = gauges,
-)
+) {
+    /**
+     * The app status badge slot, clear of the lock, the gauges and the status row in either
+     * orientation. The badge's touch target stays inside this rect. Swift `FieldMonitorLayout.appBadge`.
+     */
+    val appBadge: MonitorRect get() = MonitorLayoutPolicy.appBadge(status, listOf(lock, gauges, telemetry))
+}
 
 /** Operator choice for the on-feed gimbal joystick diameter. */
 enum class MonitorJoystickSize(val raw: String, val side: Float, val label: String) {
@@ -380,6 +386,29 @@ object MonitorLayoutPolicy {
             else -> reset.x - 8f - width
         }
         return MonitorRect(x, reset.y, width, reset.height)
+    }
+
+    /** The widest an app's own status badge may draw. */
+    const val APP_BADGE_WIDTH = 200f
+
+    /** Clearance an app status badge keeps from the status row and from reserved chrome. */
+    const val APP_BADGE_GAP = 8f
+
+    /**
+     * An app's own status badge (a capture health pill): one touch-target row under the status
+     * row, starting at its leading edge and moved past each reserved rect it would touch, so a
+     * tap on the badge never lands on the lock or a gauge. Never wider than the status row.
+     * Swift `FieldMonitorLayout.appBadge`.
+     */
+    fun appBadge(status: MonitorRect, reserved: List<MonitorRect>): MonitorRect {
+        val y = status.maxY + APP_BADGE_GAP
+        var x = status.x
+        for (rect in reserved.sortedBy { it.x }) {
+            val touchesRow = rect.y < y + MONITOR_MIN_TAP_TARGET_DP + APP_BADGE_GAP && y - APP_BADGE_GAP < rect.maxY
+            val touchesColumn = rect.x - APP_BADGE_GAP < x + APP_BADGE_WIDTH && x < rect.maxX + APP_BADGE_GAP
+            if (touchesRow && touchesColumn) x = rect.maxX + APP_BADGE_GAP
+        }
+        return MonitorRect(x, y, max(0f, min(APP_BADGE_WIDTH, status.maxX - x)), MONITOR_MIN_TAP_TARGET_DP)
     }
 
     /** 44 dp compass above the zoom row, trailing-aligned with the stick. */

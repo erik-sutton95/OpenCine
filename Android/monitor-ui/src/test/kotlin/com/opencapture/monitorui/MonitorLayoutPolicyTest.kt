@@ -2,6 +2,7 @@ package com.opencapture.monitorui
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MonitorLayoutPolicyTest {
@@ -334,6 +335,35 @@ class MonitorLayoutPolicyTest {
         // Galaxy S25 landscape (780 x 360 dp): telemetry pills stay off the 16:9 picture.
         val s25 = MonitorLayoutPolicy.fieldMonitor(780f, 360f, safeLeading = 59f, hasDisplayCutout = true)
         assertTrue(s25.gauges.maxX <= s25.picture.x + .01f)
+    }
+
+    @Test fun appBadgeClearsTheLockGaugesAndStatus() {
+        // Swift twin: FieldMonitorLayoutTests. A tap on an app status badge (the gyro pill) never
+        // reaches the interface lock (ZT-06).
+        val sizes = listOf(667f to 375f, 852f to 393f, 956f to 440f, 1180f to 820f, 1366f to 1024f,
+            375f to 667f, 393f to 852f, 440f to 956f, 820f to 1180f, 1024f to 1366f)
+        for ((w, h) in sizes) {
+            val portrait = h > w
+            for (cutout in listOf("none", "leading", "trailing")) {
+                val layout = if (portrait) {
+                    MonitorLayoutPolicy.fieldMonitor(w, h, safeTop = if (cutout == "none") 24f else 59f, safeBottom = 34f,
+                        hasDisplayCutout = cutout != "none")
+                } else {
+                    MonitorLayoutPolicy.fieldMonitor(w, h, safeLeading = if (cutout == "leading") 59f else 0f,
+                        safeBottom = 21f, safeTrailing = if (cutout == "trailing") 59f else 0f,
+                        hasDisplayCutout = cutout != "none")
+                }
+                val badge = layout.appBadge
+                val label = "${w}x$h $cutout"
+                assertEquals(MONITOR_MIN_TAP_TARGET_DP, badge.height, label)
+                assertTrue(badge.width >= 160f, label)
+                assertTrue(badge.x >= 0f && badge.maxX <= w, label)
+                for (reserved in listOf(layout.lock, layout.gauges, layout.telemetry, layout.status, layout.settings,
+                    layout.media, layout.display, layout.record)) {
+                    assertFalse(badge.intersects(reserved), "$label $reserved")
+                }
+            }
+        }
     }
 
     @Test fun landscapeLinkPillTouchTargetClearsTheLock() {

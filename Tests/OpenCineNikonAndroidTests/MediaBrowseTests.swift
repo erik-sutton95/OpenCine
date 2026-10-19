@@ -404,6 +404,127 @@ struct MediaBrowseTests {
         }
     }
 
+    // MARK: - Instant review
+
+    /// A minimal little-endian NEF: IFD0 names one SubIFD whose old-style JPEG
+    /// (0x0201/0x0202) is `preview`, placed past the 256 KB head the review reads.
+    private static func syntheticNEF(preview: [UInt8], previewOffset: Int = 300_000) -> Data {
+        var bytes: [UInt8] = [0x49, 0x49] + ByteCoding.uint16LE(42) + ByteCoding.uint32LE(8)
+        // IFD0 at 8: one entry (SubIFDs → 26), no next IFD.
+        bytes += ByteCoding.uint16LE(1)
+        bytes += ByteCoding.uint16LE(0x014A) + ByteCoding.uint16LE(4)
+        bytes += ByteCoding.uint32LE(1) + ByteCoding.uint32LE(26)
+        bytes += ByteCoding.uint32LE(0)
+        // SubIFD at 26: JPEG compression plus the preview's offset and length.
+        bytes += ByteCoding.uint16LE(3)
+        for (tag, type, value) in [
+            (UInt16(0x0103), UInt16(3), UInt32(6)),
+            (0x0201, 4, UInt32(previewOffset)),
+            (0x0202, 4, UInt32(preview.count)),
+        ] {
+            bytes += ByteCoding.uint16LE(tag) + ByteCoding.uint16LE(type)
+            bytes += ByteCoding.uint32LE(1) + ByteCoding.uint32LE(value)
+        }
+        bytes += ByteCoding.uint32LE(0)
+        bytes += [UInt8](repeating: 0, count: previewOffset - bytes.count)
+        return Data(bytes + preview)
+    }
+
+    private static func still(
+        _ handle: UInt32, _ filename: String, payload: Data
+    ) -> FakeZRMediaObject {
+        FakeZRMediaObject(
+            handle: handle, filename: filename, objectFormat: 0x3801,
+            sizeBytes: UInt32(payload.count), captureDate: "20260714T120000",
+            pixelWidth: 6048, pixelHeight: 4032, thumbnail: FakeZRMediaCard.thumb7,
+            payload: payload)
+    }
+
+    private func partialReads(_ server: FakeZRServer, handle: UInt32) -> [[UInt32]] {
+        server.receivedRequests()
+            .filter { $0.operation == .getPartialObject && $0.parameters.first == handle }
+            .map(\.parameters)
+    }
+
+    @Test func rawOnlyShotReviewsTheNEFsEmbeddedPreview() throws {
+        let server = try FakeZRServer()
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        try session.seedStillReviewBaseline()
+
+        // The quality label no longer gates the review: a RAW-only frame lands.
+        let nef = Self.syntheticNEF(preview: FakeZRMediaCard.thumb2)
+        server.addMediaObject(Self.still(0x2001, "DSC_0100.NEF", payload: nef))
+
+        #expect(try session.resolveNewestStillHandle() == 0x2001)
+        let image = try #require(session.stillReviewImage(handle: 0x2001))
+        #expect(image == Data(FakeZRMediaCard.thumb2))
+        // Only the head and the preview were read, never the whole RAW.
+        #expect(
+            partialReads(server, handle: 0x2001) == [
+                [0x2001, 0, NikonRawPreviewLocator.defaultHeadLength],
+                [0x2001, 300_000, UInt32(FakeZRMediaCard.thumb2.count)],
+            ])
+    }
+
+    @Test func rawPlusJPEGShotReviewsTheJPEG() throws {
+        let server = try FakeZRServer()
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        try session.seedStillReviewBaseline()
+
+        // The NEF is written after the JPEG, so it has the higher (newer) handle.
+        let jpeg = Data(FakeZRMediaCard.thumb3)
+        server.addMediaObject(Self.still(0x2002, "DSC_0101.JPG", payload: jpeg))
+        server.addMediaObject(
+            Self.still(
+                0x2003, "DSC_0101.NEF",
+                payload: Self.syntheticNEF(preview: FakeZRMediaCard.thumb4)))
+
+        #expect(try session.resolveNewestStillHandle() == 0x2002)
+        #expect(session.stillReviewImage(handle: 0x2002) == jpeg)
+    }
+
+    @Test func aLateObjectWithinTheWindowStillReviews() throws {
+        let server = try FakeZRServer()
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        try session.seedStillReviewBaseline()
+
+        // The release completed but the card write has not: the shells keep asking within
+        // `NikonStillReviewPolicy.objectWindowMilliseconds` instead of giving up.
+        #expect(try session.resolveNewestStillHandle() == nil)
+        #expect(try session.resolveNewestStillHandle() == nil)
+        server.addMediaObject(
+            Self.still(0x2004, "DSC_0102.JPG", payload: Data(FakeZRMediaCard.thumb5)))
+        #expect(try session.resolveNewestStillHandle() == 0x2004)
+        // Reviewed once: a later lookup does not offer the same photo again.
+        #expect(try session.resolveNewestStillHandle() == nil)
+    }
+
+    @Test func theObjectAddedHandleSkipsTheCardListing() throws {
+        let server = try FakeZRServer()
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        try session.seedStillReviewBaseline()
+
+        server.addMediaObject(
+            Self.still(0x2005, "DSC_0103.JPG", payload: Data(FakeZRMediaCard.thumb6)))
+        server.queueDeviceEvent(rawEventCode: 0x4002, parameters: [0x2005])
+        #expect(session.pollDeviceEvents().map(\.eventCode) == [.objectAdded])
+        let listingsBefore = server.receivedOperations().filter { $0 == .getObjectHandles }.count
+
+        #expect(try session.resolveNewestStillHandle() == 0x2005)
+        let listingsAfter = server.receivedOperations().filter { $0 == .getObjectHandles }.count
+        #expect(listingsAfter == listingsBefore)
+        // The diff that follows does not treat the announced object as new.
+        #expect(try session.resolveNewestStillHandle() == nil)
+    }
+
     /// Not a test: an opt-in dev server for the on-device end-to-end. Run
     /// `ZC_FAKE_ZR_PORT=15740 swift test --filter servesFakeZRForMediaBrowse`
     /// on the Mac, `adb reverse tcp:15740 tcp:15740`, then launch the app with

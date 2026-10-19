@@ -134,6 +134,41 @@ struct FieldMonitorLayoutTests {
         }
     }
 
+    /// An app status badge (OpenZCine's gyro pill) is a full touch-target row that never
+    /// touches the lock, the gauges, the status row or the system buttons, so a tap on it cannot
+    /// reach the interface lock (ZT-06). Same table as Kotlin `MonitorLayoutPolicyTest`.
+    @Test func appBadgeClearsTheLockGaugesAndStatus() {
+        func overlaps(_ a: MonitorRect, _ b: MonitorRect) -> Bool {
+            a.x < b.maxX && b.x < a.maxX && a.y < b.maxY && b.y < a.maxY
+        }
+        for (width, height) in [
+            (667.0, 375.0), (852, 393), (956, 440), (1180, 820), (1366, 1024),
+            (375, 667), (393, 852), (440, 956), (820, 1180), (1024, 1366),
+        ] {
+            let portrait = height > width
+            for cutout in ["none", "leading", "trailing"] {
+                let safeArea =
+                    portrait
+                    ? MonitorSafeArea(top: cutout == "none" ? 20 : 59, bottom: 34)
+                    : MonitorSafeArea(
+                        leading: cutout == "leading" ? 59 : 0, bottom: 21,
+                        trailing: cutout == "trailing" ? 59 : 0)
+                let layout = FieldMonitorLayout(width: width, height: height, safeArea: safeArea)
+                let badge = layout.appBadge
+                let label = "\(width)x\(height) \(cutout)"
+                #expect(badge.height == FieldMonitorLayout.minimumTapTarget, "\(label)")
+                #expect(badge.width >= 160, "\(label)")
+                #expect(badge.x >= 0 && badge.maxX <= width, "\(label)")
+                for reserved in [
+                    layout.lock, layout.gauges, layout.telemetry, layout.status, layout.settings,
+                    layout.media, layout.display, layout.record,
+                ] {
+                    #expect(!overlaps(badge, reserved), "\(label) \(reserved)")
+                }
+            }
+        }
+    }
+
     @Test func landscapeCameraValuesClearTheHomeIndicator() {
         let layout = FieldMonitorLayout(
             width: 852, height: 393, safeArea: .init(bottom: 21, trailing: 59))

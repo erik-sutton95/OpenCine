@@ -12,9 +12,9 @@ public enum MonitorLevelStyle: String, CaseIterable, Codable, Hashable, Sendable
 }
 
 /// The typed assist entries a camera declares beyond the shared cinema set. The standard
-/// declaration is the one every app had before (only Instant Playback is photography only, the
-/// level is the shared gauge), so an app that declares nothing keeps its list exactly. Retired
-/// tools (Magnify) are never offered; only their saved names still decode.
+/// declaration is the one every app had before (only Instant Playback is photography only, no
+/// tool is video only, the level is the shared gauge), so an app that declares nothing keeps its
+/// list exactly. Retired tools (Magnify) are never offered; only their saved names still decode.
 ///
 /// Kotlin mirror: `MonitorAssistCapabilities` in `:monitor-ui`, same names.
 public struct MonitorAssistCapabilities: Hashable, Sendable {
@@ -24,15 +24,20 @@ public struct MonitorAssistCapabilities: Hashable, Sendable {
     public var levelStyles: [MonitorLevelStyle]
     /// Shared tools this camera has no source for.
     public var unavailable: Set<MonitorAssistSelection>
+    /// Tools offered and drawn only while the camera records video. A camera whose stills live
+    /// view is already display referred declares the LUT here, so a log look never grades it twice.
+    public var videoOnly: Set<MonitorAssistSelection>
 
     public init(
         photographyOnly: Set<MonitorAssistSelection> = [.instantReview],
         levelStyles: [MonitorLevelStyle] = [],
-        unavailable: Set<MonitorAssistSelection> = []
+        unavailable: Set<MonitorAssistSelection> = [],
+        videoOnly: Set<MonitorAssistSelection> = []
     ) {
         self.photographyOnly = photographyOnly
         self.levelStyles = levelStyles
         self.unavailable = unavailable
+        self.videoOnly = videoOnly
     }
 
     /// The declaration of an app that adds nothing to the shared list.
@@ -49,5 +54,6 @@ public struct MonitorAssistCapabilities: Hashable, Sendable {
     public func offers(_ tool: MonitorAssistSelection, photography: Bool) -> Bool {
         tool != .magnification && !unavailable.contains(tool)
             && (photography || !photographyOnly.contains(tool))
+            && (!photography || !videoOnly.contains(tool))
     }
 }

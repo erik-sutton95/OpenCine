@@ -1346,7 +1346,8 @@
     }
 
     /// `NikonNative.sessionResolveNewestStillHandle(): Int`; the just-captured
-    /// JPEG/HEIF handle from the post-capture baseline diff, or 0 when the
+    /// still's handle (an `ObjectAdded` handle, else the post-capture
+    /// baseline diff; JPEG/HEIF over NEF within one shot), or 0 when the
     /// card hasn't listed it yet (caller retries).
     @_cdecl("Java_com_opencapture_opencine_nikon_NikonNative_sessionResolveNewestStillHandle")
     public func swiftCoreSessionResolveNewestStillHandle(
@@ -1358,10 +1359,10 @@
         return jint(bitPattern: UInt32(handle))
     }
 
-    /// `NikonNative.sessionStillImage(handle): ByteArray?`; the full captured
-    /// image, streamed in 1 MB chunks between live-view frames. Null when
-    /// cancelled or unavailable. Blocking; Kotlin calls it from
-    /// `Dispatchers.IO`.
+    /// `NikonNative.sessionStillImage(handle): ByteArray?`; the review's sharp
+    /// image: the whole JPEG/HEIF, or a NEF's largest embedded JPEG preview,
+    /// streamed in 1 MB chunks between live-view frames. Null when cancelled
+    /// or unavailable. Blocking; Kotlin calls it from `Dispatchers.IO`.
     @_cdecl("Java_com_opencapture_opencine_nikon_NikonNative_sessionStillImage")
     public func swiftCoreSessionStillImage(
         env: UnsafeMutablePointer<JNIEnv?>, this _: jobject?, owner: jlong, handle: jint

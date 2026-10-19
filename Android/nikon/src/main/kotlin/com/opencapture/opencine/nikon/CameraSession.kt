@@ -1112,8 +1112,10 @@ public interface CameraSession {
     public suspend fun seedInstantReviewBaseline(): Unit = Unit
 
     /**
-     * The just-captured photo's object handle from a post-capture baseline
-     * diff, or `null` while the card hasn't listed it yet (caller retries).
+     * The just-captured photo's object handle (the `ObjectAdded` handle, else
+     * a post-capture baseline diff; JPEG/HEIF over NEF within one shot), or
+     * `null` while the card hasn't listed it yet (caller retries within the
+     * review window).
      */
     public suspend fun resolveNewestStillHandle(): Int? = null
 
@@ -1121,7 +1123,8 @@ public interface CameraSession {
     public suspend fun stillThumbnail(handle: Int): ByteArray? = null
 
     /**
-     * The full captured image, streamed between live-view frames. Long-running;
+     * The review's sharp image, streamed between live-view frames: the whole
+     * JPEG/HEIF, or a NEF's largest embedded JPEG preview. Long-running;
      * abort via [cancelStillImageFetch].
      */
     public suspend fun stillFullImage(handle: Int): ByteArray? = null
