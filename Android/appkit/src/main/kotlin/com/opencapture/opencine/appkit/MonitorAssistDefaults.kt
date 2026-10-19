@@ -16,7 +16,7 @@ public data class MonitorAssistDefaults(
     val crushClipCompensation: MonitorCrushClipCompensation = MonitorCrushClipCompensation.ZERO,
 ) {
     public companion object {
-        /** The shared defaults (Pocket's and Insta's own). */
+        /** The shared defaults, for an app that declares none. */
         public val STANDARD: MonitorAssistDefaults = MonitorAssistDefaults()
     }
 }

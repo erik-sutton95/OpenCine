@@ -62,7 +62,7 @@ public struct MonitorAssistDefaults: Hashable, Sendable {
         self.crushClipCompensation = crushClipCompensation
     }
 
-    /// The shared defaults (Pocket's and Insta's own).
+    /// The shared defaults, for an app that declares none.
     public static let standard = Self()
 }
 
