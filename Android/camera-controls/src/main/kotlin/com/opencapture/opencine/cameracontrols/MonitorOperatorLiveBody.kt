@@ -512,7 +512,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             if (usesCompactTelemetry) {
                 MonitorCompactTelemetryRow(layout, safeLeading, safeTrailing, telemetryMetrics,
                     storage = {
-                        if (sections.status in mounted) Box(edit(sections.status)
+                        if (sections.status in mounted) Box(edit(sections.status).monitorReadoutShadow()
                             .then(if (assistInspectorPresented) Modifier.clearAndSetSemantics {} else Modifier)) {
                             status.storage?.let {
                                 if (it.section == null || it.section in mounted) Readout(it, opens = false, storageReadout = true)
