@@ -250,6 +250,57 @@ class DjiCameraSessionAdapterTest {
         assertTrue(port.fired.isEmpty())
     }
 
+    /**
+     * Behavior audit PAA-210 / PIA-211: Pocket 3 publishes no `camcap_shutter`. The standalone apps
+     * offered the documented video ladder (with the live 1/N merged in) and sent any of it.
+     */
+    @Test
+    fun emptyShutterCapOffersTheDocumentedLadderAndWrites() = runTest {
+        val port = capturePort()
+        val capture = assertNotNull(port.capture)
+        port.capture = capture.copy(reported = capture.reported.copy(availableShutterDenoms = emptyList(),
+            shootingMode = CameraCommands.SHOOT_VIDEO, fps = 25))
+        val seam = adapter(port)
+        val shutter = assertNotNull(seam.current.capabilities[SettingKey.SHUTTER])
+        assertEquals(SettingAccess.READ_WRITE, shutter.access)
+        assertEquals(CameraCommands.shutterWheelDenoms(emptyList(), 50).map {
+            SettingValue.Shutter(ShutterValue.Duration(Rational(1, it)))
+        }, shutter.domain?.choices)
+        assertTrue(assertNotNull(port.capture).admitsShutterWrite(100))
+        assertEquals(CommandStage.Sent, seam.request(CameraCommandIntent.Set(
+            SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100))))).stage)
+        assertEquals(listOf("shutter 100"), port.fired)
+        // The Angle preference maps onto the same ladder (180 degrees at 25p is 1/50).
+        port.capture = assertNotNull(port.capture).copy(
+            shutterPresentation = com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertEquals(CommandStage.Sent, adapter(port).request(CameraCommandIntent.Set(
+            SettingValue.Shutter(ShutterValue.Angle(180.0)))).stage)
+        assertEquals("angle 180.0 1/50", port.fired.last())
+    }
+
+    /**
+     * Behavior audit PAA-211: the Angle preference is a video presentation. In Photo the standalone
+     * apps forced the Speed tab and a 1/N readout, so the common shutter stays a duration.
+     */
+    @Test
+    fun photoModeKeepsShutterDurationsUnderTheAnglePreference() = runTest {
+        val port = capturePort()
+        val capture = assertNotNull(port.capture)
+        port.capture = capture.copy(
+            reported = capture.reported.copy(shootingMode = CameraCommands.SHOOT_PHOTO, fps = 25),
+            shutterPresentation = com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        val seam = adapter(port)
+        val shutter = assertNotNull(seam.current.capabilities[SettingKey.SHUTTER])
+        assertEquals(com.opencapture.opencine.core.Availability.Available, shutter.availability)
+        assertEquals(listOf(50, 100).map { SettingValue.Shutter(ShutterValue.Duration(Rational(1, it))) },
+            shutter.domain?.choices)
+        assertEquals(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50))),
+            seam.current.value(SettingKey.SHUTTER).value)
+        assertEquals(CommandStage.Sent, seam.request(CameraCommandIntent.Set(
+            SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100))))).stage)
+        assertEquals(listOf("shutter 100"), port.fired)
+    }
+
     private fun capturePort(): FakePort {
         val port = FakePort()
         val model = djiBodyProfile("Osmo Pocket 3")
@@ -586,6 +637,8 @@ class DjiCameraSessionAdapterTest {
         override fun captureControlState() = capture
         override fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) =
             fire("shutter $denominator", onStage)
+        override fun writeHostShutterAngle(degrees: Double, denominator: Int, admission: DjiCommandAdmission?,
+            onStage: (ControlWireEvent) -> Unit) = fire("angle $degrees 1/$denominator", onStage)
         override fun writeExposureCompensation(value: EvComp, onStage: (ControlWireEvent) -> Unit) =
             fire("ev ${value.thirds}", onStage)
         override fun writeFocusMode(continuous: Boolean, onStage: (ControlWireEvent) -> Unit) =

@@ -227,13 +227,17 @@ import UIKit
     private var clockStart: CMTime?
     private var clockAdvanced = false
     private var displayCheck: Task<Void, Never>?
+    private var displayCheckExhausted = false
 
     init(host: MonitorPlaybackFeedHost, player: AVPlayer, identity: String) {
         self.host = host; self.player = player; self.identity = identity
         host.accessibilityValue = "Waiting \(identity)"
         let republish: @MainActor @Sendable (_ restartClock: Bool) -> Void = { [weak self] restartClock in
             guard let self else { return }
-            if restartClock { self.clockStart = nil; self.clockAdvanced = false }
+            if restartClock {
+                self.clockStart = nil; self.clockAdvanced = false
+                self.displayCheckExhausted = false
+            }
             self.publish()
         }
         func watch<Root: NSObject, Value>(_ root: Root, _ path: KeyPath<Root, Value>, restartClock: Bool) {
@@ -282,16 +286,23 @@ import UIKit
     }
 
     private func awaitDisplayedBuffer() {
-        guard displayCheck == nil else { return }
+        guard displayCheck == nil, !displayCheckExhausted else { return }
         displayCheck = Task { @MainActor [weak self] in
+            var exhausted = true
             for _ in 0..<300 {
                 try? await Task.sleep(nanoseconds: 33_000_000)
                 guard let self, !Task.isCancelled else { return }
-                guard let host = self.host, self.player.rate == 0, host.playerLayer.isReadyForDisplay else { break }
-                if host.playerLayer.displayedPixelBuffer() != nil { break }
+                guard let host = self.host, self.player.rate == 0,
+                    host.playerLayer.isReadyForDisplay
+                else { exhausted = false; break }
+                if host.playerLayer.displayedPixelBuffer() != nil { exhausted = false; break }
             }
-            self?.displayCheck = nil
-            self?.publish()
+            guard let self else { return }
+            self.displayCheck = nil
+            // The bound only means anything if an exhausted poll is not restarted by
+            // the repaint it triggers; readiness/item/rate changes reset this record.
+            self.displayCheckExhausted = exhausted
+            self.publish()
         }
     }
 

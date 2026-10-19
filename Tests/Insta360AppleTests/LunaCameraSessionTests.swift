@@ -75,6 +75,32 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertNil(session.current.value(of: .shutter).value)
     }
 
+    /// II-061/069/070, IA-115..119: angle is a presentation. The host still writes the camera's own
+    /// durations (an angle pick, Manual from Auto, AE-L) and Auto, and the first manual shutter may
+    /// leave Auto, as before the shared session.
+    func testEmulatedAngleStillAdmitsNativeDurationsAutoAndLeavingAuto() async throws {
+        let camera = FakeLuna()
+        camera.program = LunaExposureProgram.automatic.rawValue
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        let session = camera.connectedSession(now: { MonotonicInstant(.zero) })
+        try reportCadence(48, to: session)
+        session.configureShutter(presentation: .emulatedAngle)
+        XCTAssertEqual(session.current.capabilities[.shutter]?.availability, .available)
+        let (_, manual) = await submit(.set(.shutter(.duration(Rational(1, 50)))), to: session)
+        XCTAssertEqual(manual.stage, .confirmed, "Manual from Auto in angle mode")
+        var exposure = try XCTUnwrap(LunaPhotographySettings(response: try XCTUnwrap(camera.sent.last).body).videoExposure)
+        XCTAssertEqual(exposure.shutterSeconds, 1.0 / 50, accuracy: 1e-9)
+        let (_, faster) = await submit(.set(.shutter(.duration(Rational(1, 100)))), to: session)
+        XCTAssertEqual(faster.stage, .confirmed, "an angle pick sent as its 1/N")
+        let (_, auto) = await submit(.set(.shutter(.auto)), to: session)
+        XCTAssertEqual(auto.stage, .confirmed, "Auto exposure from angle mode")
+        let (_, angle) = await submit(.set(.shutter(.angle(180))), to: session)
+        XCTAssertEqual(angle.stage, .confirmed, "an angle from Auto composes 1/N from the cadence")
+        exposure = try XCTUnwrap(LunaPhotographySettings(response: try XCTUnwrap(camera.sent.last).body).videoExposure)
+        XCTAssertEqual(exposure.shutterSeconds, 1.0 / 50, accuracy: 1e-9)
+    }
+
     private func submit(
         _ intent: CameraCommandIntent, to session: LunaCameraSession
     ) async -> (submitted: CommandReceipt, outcome: CommandReceipt) {

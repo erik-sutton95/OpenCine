@@ -112,6 +112,28 @@ struct SharedMonitorControlContractTests {
         #expect(await eventuallyAsync { await camera.wire == ["set \(choice.value)"] })
     }
 
+    /// A write refused before it was sent still reaches the app's journal with its label and stage:
+    /// the Luna Angle-mode Manual write left no trace in the field log (owner, 2026-10-19).
+    @Test func aWriteRefusedBeforeSendingIsJournaled() async throws {
+        guard #available(macOS 14, *) else { return }
+        let clock = ManualClock()
+        let camera = MonitorContractCameraFixture.camera()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel(sleep: { await clock.sleep($0) })
+        var journal: [(String, CommandStage)] = []
+        control.onWriteFinished = { journal.append(($0, $1.stage)) }
+        control.bind(camera)
+        defer { control.unbind() }
+        #expect(await eventually { control.captureField(.iso)?.isEditable == true })
+        control.set(.iso(.manual(1600)), label: "ISO 1600")
+        #expect(await eventually { clock.pendingSleeps == 1 })
+        clock.advance(by: .milliseconds(120))
+        #expect(await eventually { !journal.isEmpty })
+        #expect(journal.first?.0 == "ISO 1600")
+        #expect(journal.first?.1 == .rejected(.outOfDomain))
+        #expect(await camera.wire.isEmpty)
+    }
+
     @Test func replacementRetiresQueuedWorkWithoutBorrowingTheSuccessor() async throws {
         guard #available(macOS 14, *) else { return }
         let clock = ManualClock()

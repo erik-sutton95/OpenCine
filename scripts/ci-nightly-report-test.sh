@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Regression tests for the nightly tracking issue, against a recording gh stand-in.
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+report="${script_dir}/ci-nightly-report.sh"
+temp_dir="$(mktemp -d)"
+trap 'rm -rf "$temp_dir"' EXIT
+
+mkdir "$temp_dir/bin"
+cat > "$temp_dir/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+case "$1 $2" in
+  "api --paginate") printf '%s' "${FAKE_FAILED_JOBS:-}" ;;
+  "issue list") printf '%s' "${FAKE_OPEN_ISSUE:-}" ;;
+esac
+EOF
+chmod +x "$temp_dir/bin/gh"
+
+run() {
+  : > "$temp_dir/gh.log"
+  PATH="$temp_dir/bin:$PATH" GH_LOG="$temp_dir/gh.log" GITHUB_STEP_SUMMARY="$temp_dir/summary.md" \
+    GITHUB_REPOSITORY=owner/repo GITHUB_RUN_ID=42 GITHUB_RUN_ATTEMPT=1 \
+    GITHUB_SERVER_URL=https://github.com "$@" bash "$report" >/dev/null
+}
+
+expect_log() {
+  if ! grep -Fq -- "$1" "$temp_dir/gh.log"; then
+    printf 'Expected gh call containing: %s\nGot:\n%s\n' "$1" "$(cat "$temp_dir/gh.log")" >&2
+    exit 1
+  fi
+}
+
+expect_no_log() {
+  if grep -Fq -- "$1" "$temp_dir/gh.log"; then
+    printf 'Unexpected gh call containing: %s\n' "$1" >&2
+    exit 1
+  fi
+}
+
+# A failing nightly with no open issue labels and opens one with the failing jobs.
+run env SUITE_RESULT=failure GITHUB_REF=refs/heads/main FAKE_FAILED_JOBS='- [Full suite / Android](u): failure'
+expect_log 'label create ci-nightly'
+expect_log 'issue create --repo owner/repo --title Nightly CI failing on main --label ci-nightly'
+expect_log 'Full suite / Android'
+expect_log 'actions/runs/42'
+
+# A failing nightly with an open issue updates it instead of opening a second one.
+run env SUITE_RESULT=failure GITHUB_REF=refs/heads/main FAKE_OPEN_ISSUE=7
+expect_log 'issue edit 7'
+expect_log 'issue comment 7'
+expect_no_log 'issue create'
+
+# A passing nightly closes the open issue, and does nothing when none is open.
+run env SUITE_RESULT=success GITHUB_REF=refs/heads/main FAKE_OPEN_ISSUE=7
+expect_log 'issue close 7 --repo owner/repo --reason completed'
+run env SUITE_RESULT=success GITHUB_REF=refs/heads/main
+expect_no_log 'issue close'
+
+# Other refs and cancelled runs leave the issue alone.
+run env SUITE_RESULT=failure GITHUB_REF=refs/heads/ci/branch
+expect_no_log 'issue'
+run env SUITE_RESULT=cancelled GITHUB_REF=refs/heads/main FAKE_OPEN_ISSUE=7
+expect_no_log 'issue close'
+expect_no_log 'issue edit'
+
+printf 'Nightly report tests passed.\n'

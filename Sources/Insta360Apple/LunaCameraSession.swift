@@ -623,9 +623,9 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         var seconds: Double?
         switch shutter ?? reportedShutter.value {
         case .angle(let degrees)?:
+            // An angle from Auto is the first manual shutter; the reported cadence composes it.
             guard shutterPresentation == .emulatedAngle,
                 shootingMode.map({ !$0.isPhoto }) == true,
-                case .duration? = reportedShutter.value,
                 let denominator = HostShutterAngle.denominator(degrees: degrees,
                     framesPerSecond: reportedCadence.value, available: Self.shutterDenominators)
             else { return nil }
@@ -664,6 +664,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         case .set(.shutter(.angle)):
             guard let shutterDenominator, case .duration(let reported)? = reportedShutter.value else { return false }
             return reported == Rational(1, shutterDenominator)
+        // An angle projection never equals a duration or Auto: the camera's own value confirms.
+        case .set(.shutter(let target)): return reportedShutter.value == target
         case .set(let value): return current.value(of: value.key).value == value
         case .startRecording: return current.recording.value == .recording
         case .stopRecording: return current.recording.value == .idle
@@ -755,7 +757,9 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
 
     private func projectShutter() {
         guard let value = reportedShutter.value else { current.settings[.shutter] = .unknown; return }
-        if shutterPresentation == .emulatedAngle, case .duration(let seconds) = value {
+        // Photo has no cadence to emulate against: it keeps the camera's own duration.
+        if shutterPresentation == .emulatedAngle, case .duration(let seconds) = value,
+            shootingMode?.isPhoto != true {
             guard shootingMode.map({ !$0.isPhoto }) == true,
                 let cadence = reportedCadence.value, seconds.numerator > 0,
                 let angle = HostShutterAngle.reported(denominator: seconds.denominator, framesPerSecond: cadence)
@@ -785,13 +789,15 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             choices: Self.shutterDenominators.map { .shutter(.duration(Rational(1, $0))) })
         shutter.choices.insert(.shutter(.auto), at: 0)
         let emulated = shutterPresentation == .emulatedAngle
-        if emulated { shutter = SettingDomain(choices: HostShutterAngle.choices) }
+        if emulated { shutter.choices = HostShutterAngle.choices + shutter.choices }
+        // Angle is a presentation: the camera's durations and Auto stay writable (an angle pick,
+        // Manual from Auto, AE-L), so Auto never blocks the first manual shutter.
         let shutterAvailability: Availability
         if !emulated { shutterAvailability = exposure }
-        else if shootingMode == nil || reportedCadence.value == nil { shutterAvailability = .unavailable(.notReady) }
-        else if shootingMode?.isPhoto == true { shutterAvailability = .unavailable(.mode) }
-        else if case .duration? = reportedShutter.value { shutterAvailability = exposure }
-        else { shutterAvailability = .unavailable(.mode) }
+        else if shootingMode == nil { shutterAvailability = .unavailable(.notReady) }
+        else if shootingMode?.isPhoto == true { shutterAvailability = exposure }
+        else if reportedCadence.value == nil { shutterAvailability = .unavailable(.notReady) }
+        else { shutterAvailability = exposure }
         var descriptors = [
             SettingDescriptor(.iso, domain: iso, availability: exposure),
             SettingDescriptor(.shutter, domain: shutter, availability: shutterAvailability,

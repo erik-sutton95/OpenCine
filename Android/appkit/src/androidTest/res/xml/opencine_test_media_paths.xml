@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mirrors the Pocket and Insta provider paths, with the share copy folder MediaShare stages into. -->
+<paths>
+    <files-path
+        name="opc_media"
+        path="OpenPocketCine/media/" />
+    <cache-path
+        name="opc_share"
+        path="share/ready/" />
+</paths>

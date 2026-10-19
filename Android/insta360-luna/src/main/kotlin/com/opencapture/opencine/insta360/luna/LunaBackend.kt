@@ -322,7 +322,30 @@ class LunaBackend(
             channel.request(1, LunaWire.liveBody)
             lastVideoAt.set(android.os.SystemClock.elapsedRealtime())
             launch { syncClock() }
-            watchdog = launch { while (isActive) { delay(2_000); if (!livePaused && android.os.SystemClock.elapsedRealtime() - lastVideoAt.get() > 10_000) { channel.fail(IllegalStateException("No live video received")); break } } }
+            // Keyframes, bounded single-flight live restarts, then session recovery (`LunaFeedStall`).
+            watchdog = launch {
+                val stall = LunaFeedStall()
+                while (isActive) {
+                    delay(1_000)
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    val silence = if (livePaused) 0.0 else (now - lastVideoAt.get()) / 1_000.0
+                    when (stall.tick(silence, now / 1_000.0)) {
+                        LunaFeedStall.Action.NONE -> {}
+                        LunaFeedStall.Action.REQUEST_KEYFRAME ->
+                            launch { runCatching { channel.request(LunaControl.keyframe.code, LunaControl.keyframe.body) } }
+                        LunaFeedStall.Action.RESTART_LIVE -> launch {
+                            runCatching { channel.request(LunaControl.stopLive.code, LunaControl.stopLive.body) }
+                            runCatching { channel.request(wake.code, wake.body) }
+                            runCatching { channel.request(LunaControl.startLive.code, LunaControl.startLive.body) }
+                            stall.restartFinished()
+                        }
+                        LunaFeedStall.Action.ESCALATE -> {
+                            channel.fail(IllegalStateException("No live video received"))
+                            break
+                        }
+                    }
+                }
+            }
             // Same cadence as iOS: capture state every second (REC timer), battery and storage every 5 s.
             poll = launch {
                 refreshStatus()

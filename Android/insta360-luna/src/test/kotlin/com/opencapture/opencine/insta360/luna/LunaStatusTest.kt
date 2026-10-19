@@ -82,6 +82,8 @@ class LunaStatusTest {
             24L to listOf(3840, 2160, 30, "16:9"), 43L to listOf(1280, 720, 30, "16:9"), 48L to listOf(3840, 2160, 25, "16:9"),
             52L to listOf(1920, 1080, 25, "16:9"), 211L to listOf(7680, 4320, 25, "16:9"), 214L to listOf(3840, 2160, 120, "16:9"),
             454L to listOf(1728, 3072, 25, "9:16"), 31L to listOf(4000, 3000, 30, "4:3"), 1L to listOf(2560, 1280, 30, "2:1"),
+            // II-089: the aspect tab names the 2.35:1 sizes as the resolution readout does, not 21:9.
+            110L to listOf(3840, 1634, 25, "2.35:1"), 408L to listOf(2688, 1136, 25, "2.35:1"),
         )
         for ((raw, e) in expected) {
             val r = assertNotNull(LunaVideoResolution.of(raw))
