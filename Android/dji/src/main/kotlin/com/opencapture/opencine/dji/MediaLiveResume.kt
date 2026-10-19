@@ -100,8 +100,10 @@ object MediaLiveResumeRunner {
                 }
                 MediaLiveResume.Action.ENABLE_LIVE_VIEW -> {
                     if (deadlineMs == null) deadlineMs = now + timeoutMs
-                    enableSent = enableLiveView() || enableSent
-                    if (enableSent) lastEnableMs = now
+                    val accepted = enableLiveView()
+                    enableSent = accepted || enableSent
+                    // A refused resend must not delay the next one by another keyframe interval.
+                    if (accepted) lastEnableMs = now
                     sleep(100)
                 }
                 MediaLiveResume.Action.WAIT_FOR_PICTURE -> sleep(100)

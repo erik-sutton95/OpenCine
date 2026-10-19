@@ -204,6 +204,7 @@ let package = Package(
         .target(
             name: "OpenCineAppUITesting", dependencies: ["MonitorPresentation", "OpenCineCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]),
+        .testTarget(name: "OpenCineAppUITestingTests", dependencies: ["OpenCineAppUITesting"]),
         // Hosted test bundles link this beside their host app, so it depends on nothing here: no
         // second copy of a module the host already holds. iOS only, empty elsewhere.
         .target(name: "OpenCineHostedAccessibility"),
