@@ -23,6 +23,8 @@ public final class FakeLuna {
     /// A stored value changes this long after its SET is acknowledged.
     public var applyDelay: Duration = .zero
     public var silent = false
+    /// The camera answers every request with a refusal (Kotlin `FakeLuna.refuses`).
+    public var refuses = false
     public private(set) var sent: [LunaRequest] = []
     private var lastApply: Task<Void, Never>?
     public weak var session: LunaCameraSession?
@@ -61,6 +63,7 @@ public final class FakeLuna {
 
     private func receive(_ request: LunaRequest) async throws -> Data {
         sent.append(request)
+        if refuses { throw FakeLunaRefusal() }
         guard !ignoresWrites else { return Data() }
         if applyDelay == .zero {
             apply(request)
@@ -136,3 +139,6 @@ public final class FakeLuna {
             device: try! LunaDeviceStatus(response: ProtoMessage.blob(field: 2, value: nested)))
     }
 }
+
+/// The error a refusing `FakeLuna` throws.
+public struct FakeLunaRefusal: Error {}

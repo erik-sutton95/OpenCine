@@ -551,8 +551,9 @@ class LunaCameraSession internal constructor(
         val manualIso = (iso as? ISOValue.Manual)?.iso?.toLong()
         val seconds = when (val value = shutter ?: reportedShutter.value) {
             is ShutterValue.Angle -> {
+                // An angle from Auto is the first manual shutter; the reported cadence composes it.
                 if (shutterPresentation != HostShutterPresentation.EMULATED_ANGLE ||
-                    shootingMode?.isPhoto != false || reportedShutter.value !is ShutterValue.Duration) return null
+                    shootingMode?.isPhoto != false) return null
                 val denominator = HostShutterAngle.denominator(value.degrees, reportedCadence.value, SHUTTER_DENOMINATORS)
                     ?: return null
                 1.0 / denominator
@@ -579,7 +580,8 @@ class LunaCameraSession internal constructor(
             } == true
             is SettingValue.Shutter -> if (target.value is ShutterValue.Angle) {
                 shutterDenominator != null && (reportedShutter.value as? ShutterValue.Duration)?.seconds == Rational(1, shutterDenominator)
-            } else current.value(target.key).value == target
+            // An angle projection never equals a duration or Auto: the camera's own value confirms.
+            } else reportedShutter.value == target.value
             else -> current.value(target.key).value == target
         }
         CameraCommandIntent.StartRecording -> current.recording.value == RecordingState.RECORDING
@@ -674,7 +676,9 @@ class LunaCameraSession internal constructor(
         val value = reportedShutter.value
         val projected: ObservedValue<SettingValue> = when {
             value == null -> ObservedValue.unknown
-            shutterPresentation == HostShutterPresentation.EMULATED_ANGLE && value is ShutterValue.Duration -> {
+            // Photo has no cadence to emulate against: it keeps the camera's own duration.
+            shutterPresentation == HostShutterPresentation.EMULATED_ANGLE && value is ShutterValue.Duration &&
+                shootingMode?.isPhoto != true -> {
                 val cadence = reportedCadence.value
                 val angle = if (shootingMode?.isPhoto == false && cadence != null && value.seconds.numerator > 0)
                     HostShutterAngle.reported(value.seconds.denominator, cadence) else null
@@ -692,13 +696,17 @@ class LunaCameraSession internal constructor(
         // withdrawn report keeps its key with an unknown value, so the value decides.
         val exposure = if (current.value(SettingKey.ISO).value != null) Availability.Available else Availability.Unavailable(UnavailableReason.NotReady)
         val emulated = shutterPresentation == HostShutterPresentation.EMULATED_ANGLE
+        // Angle is a presentation: the camera's durations and Auto stay writable (an angle pick,
+        // Manual from Auto, AE-L), so Auto never blocks the first manual shutter.
         val shutterAvailability = when {
             !emulated -> exposure
-            shootingMode == null || reportedCadence.value == null -> Availability.Unavailable(UnavailableReason.NotReady)
-            shootingMode?.isPhoto == true -> Availability.Unavailable(UnavailableReason.Mode)
-            reportedShutter.value is ShutterValue.Duration -> exposure
-            else -> Availability.Unavailable(UnavailableReason.Mode)
+            shootingMode == null -> Availability.Unavailable(UnavailableReason.NotReady)
+            shootingMode?.isPhoto == true -> exposure
+            reportedCadence.value == null -> Availability.Unavailable(UnavailableReason.NotReady)
+            else -> exposure
         }
+        val nativeShutter = listOf<SettingValue>(SettingValue.Shutter(ShutterValue.Auto)) +
+            SHUTTER_DENOMINATORS.map { SettingValue.Shutter(ShutterValue.Duration(Rational(1, it))) }
         val recording = when {
             shootingMode == null -> Availability.Unavailable(UnavailableReason.NotReady)
             shootingMode?.isPhoto == true -> Availability.Unavailable(UnavailableReason.Mode)
@@ -712,10 +720,7 @@ class LunaCameraSession internal constructor(
             SettingDescriptor(
                 SettingKey.SHUTTER, availability = shutterAvailability,
                 semantics = SettingSemantics(implementation = if (emulated) SettingSemantics.Implementation.EMULATED else SettingSemantics.Implementation.NATIVE),
-                domain = SettingDomain(
-                    if (emulated) HostShutterAngle.choices else listOf<SettingValue>(SettingValue.Shutter(ShutterValue.Auto)) +
-                        SHUTTER_DENOMINATORS.map { SettingValue.Shutter(ShutterValue.Duration(Rational(1, it))) },
-                ),
+                domain = SettingDomain(if (emulated) HostShutterAngle.choices + nativeShutter else nativeShutter),
             ),
             SettingDescriptor(
                 SettingKey.WHITE_BALANCE,
