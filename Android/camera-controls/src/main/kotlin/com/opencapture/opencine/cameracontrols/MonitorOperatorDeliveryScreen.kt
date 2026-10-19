@@ -267,7 +267,7 @@ fun <C, F, P, X, H> MonitorOperatorDeliveryPopupOverlay(
  */
 private fun <C, F, P, X, H> deliveryPanelValue(model: MonitorDeliveryPreparationModel<C, F, P, X, H>,
     state: MonitorDeliveryPreparationModel.State<C, F, P, X>, busy: Boolean): MonitorMediaDeliveryValue {
-    val serviceName = model.remotePresentation?.displayName ?: "Upload service"; val selection = state.selection; val remote = state.remoteFacts; val config = state.configuration; val options = model.exportOptions
+    val serviceName = model.remotePresentation?.displayName ?: "Upload service"; val selection = state.selection; val remote = state.remoteFacts; val config = state.configuration; val options = model.clipExportOptions
     val notices = buildList {
         selection.cachedCount?.let { cached -> if (cached < selection.files.size) {
             if (selection.connected == true) add(MonitorMediaDeliveryValue.Notice("${selection.files.size - cached} on-camera clip(s) will be cached from the camera first."))
