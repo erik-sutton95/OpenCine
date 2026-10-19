@@ -77,14 +77,23 @@ object DjiFailures {
         )
 
     /**
-     * The card copy for the session's reason [raw]: a sentence, with the DJI apps tip when the
-     * camera never answered pairing or the video link.
+     * The card and pair page copy for the session's reason [raw]: the baseline
+     * `StartupConnectionCopy.friendly` sentence (never the raw technical text), with the DJI apps
+     * tip when the camera never answered pairing or the video link (PAB-C-23).
      */
     fun copy(raw: String): String {
-        val sentence = raw.trim().replaceFirstChar { it.uppercase() }.let { if (it.endsWith(".")) it else "$it." }
-        val lower = raw.lowercase()
-        val neverAnswered = "pairing timed out" in lower || "never answered the datalink handshake" in lower
-        return if (neverAnswered) "$sentence $DJI_APPS_TIP" else sentence
+        val trimmed = raw.trim()
+        val lower = trimmed.lowercase()
+        val tip = "pairing timed out" in lower || "never answered the datalink handshake" in lower
+        val sentence =
+            when {
+                "never answered the datalink handshake" in lower -> "The camera never answered the video link."
+                "timed out" in lower || "timeout" in lower ->
+                    "The camera didn't respond in time. Check Bluetooth and try again."
+                "disconnected" in lower -> "The camera ended the connection. Try again."
+                else -> trimmed.replaceFirstChar { it.uppercase() }.let { if (it.endsWith(".")) it else "$it." }
+            }
+        return if (tip) "$sentence $DJI_APPS_TIP" else sentence
     }
 
     /**
@@ -346,7 +355,13 @@ class DjiIntegration(
         }
         val note = when {
             phase == ConnectionPhase.SCANNING -> LOOKING
-            step == 1 -> port.setupProgress.value ?: if (phase == ConnectionPhase.READING_WIFI_CREDS) READING else JOINING
+            // The setup's live text ("Finding the camera on <network>") is the caption on every
+            // step it reaches, not only the first (PAB-C-36).
+            step != 0 -> port.setupProgress.value ?: if (step == 1) {
+                if (phase == ConnectionPhase.READING_WIFI_CREDS) READING else JOINING
+            } else {
+                null
+            }
             else -> null
         }
         return ConnectionEvent.Progress(ConnectionProgress(attempt, corePhase, steps, step, note), prompt)
