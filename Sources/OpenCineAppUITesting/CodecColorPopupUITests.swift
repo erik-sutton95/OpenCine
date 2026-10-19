@@ -4,6 +4,7 @@
 
     /// SIMULATED: codec and colour are one popup. In portrait and landscape, the colour readout
     /// opens the codec and colour popup, and so does the codec readout where the camera has one.
+    /// Portrait folds the colour readout into that codec readout, so it is not shown beside it.
     /// Screenshots of the popup are kept as attachments. Apps supply only their review launch values.
     open class CodecColorPopupUITests: SharedAppUITestCase {
         open var reviewLaunchEnvironment: [String: String] {
@@ -29,19 +30,28 @@
             XCTAssertTrue(app.buttons["monitor.system.record"].waitForExistence(timeout: 20))
             let format = app.buttons.matching(NSPredicate(format: "label IN %@",
                 ["Format", "Recording options", "Recording format"])).firstMatch
-            let color = app.buttons["monitor.capture.color"]
+            // Portrait folds the colour readout into the codec readout where the camera has one
+            // (`MonitorOperatorLiveSurface`, 1ea73c92): the codec readout is then the lower target.
+            let lower = hasCodecReadout
+                ? app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).firstMatch
+                : app.buttons["monitor.capture.color"]
             XCTAssertTrue(format.waitForExistence(timeout: 10))
-            XCTAssertTrue(color.waitForExistence(timeout: 10))
+            XCTAssertTrue(lower.waitForExistence(timeout: 10))
+            if hasCodecReadout {
+                XCTAssertFalse(
+                    app.buttons["monitor.capture.color"].exists,
+                    "Portrait shows the colour through the codec readout, not beside it")
+            }
             let clock = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Timecode ")).firstMatch
             XCTAssertTrue(clock.waitForExistence(timeout: 10))
-            for control in [format, color] {
+            for control in [format, lower] {
                 XCTAssertGreaterThanOrEqual(control.frame.width, 44 - 0.5)
                 XCTAssertGreaterThanOrEqual(control.frame.height, 44 - 0.5)
                 XCTAssertTrue(app.frame.contains(control.frame))
             }
             XCTAssertLessThan(format.frame.minY, clock.frame.minY,
                 "The test must tap the actual upward expansion, above the painted row")
-            XCTAssertLessThanOrEqual(format.frame.maxY, color.frame.minY + 0.5)
+            XCTAssertLessThanOrEqual(format.frame.maxY, lower.frame.minY + 0.5)
             let points = [
                 CGPoint(x: format.frame.midX, y: format.frame.minY + 1),
                 CGPoint(x: format.frame.midX, y: format.frame.maxY - 1),
@@ -61,16 +71,8 @@
                 XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
                     predicate: NSPredicate(format: "exists == false"), object: groups)], timeout: 8), .completed)
             }
-            try open(color, orientation: "portrait boundary", readout: "color",
-                point: CGPoint(x: color.frame.midX, y: color.frame.minY + 1))
-            if hasCodecReadout {
-                let codec = app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).firstMatch
-                XCTAssertTrue(codec.waitForExistence(timeout: 5))
-                XCTAssertGreaterThanOrEqual(codec.frame.height, 44 - 0.5)
-                XCTAssertLessThanOrEqual(format.frame.maxY, codec.frame.minY + 0.5)
-                try open(codec, orientation: "portrait boundary", readout: "codec",
-                    point: CGPoint(x: codec.frame.midX, y: codec.frame.minY + 1))
-            }
+            try open(lower, orientation: "portrait boundary", readout: hasCodecReadout ? "codec" : "color",
+                point: CGPoint(x: lower.frame.midX, y: lower.frame.minY + 1))
         }
 
         func testSIMULATEDCodecAndColorReadoutsOpenOnePopupInBothOrientations() throws {
@@ -97,11 +99,22 @@
                 XCTAssertEqual(XCTWaiter.wait(for: [shaped], timeout: 10), .completed)
                 let name = orientation == .portrait ? "portrait" : "landscape"
                 let color = app.buttons["monitor.capture.color"]
-                XCTAssertTrue(color.waitForExistence(timeout: 10), "The colour readout must be shown")
-                try open(color, orientation: name, readout: "color")
                 if hasCodecReadout {
                     let codec = app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).firstMatch
                     XCTAssertTrue(codec.waitForExistence(timeout: 5), "The codec readout must be shown")
+                    // Portrait folds the colour readout into the codec readout (1ea73c92).
+                    if orientation == .portrait {
+                        XCTAssertFalse(
+                            color.exists,
+                            "Portrait shows the colour through the codec readout, not beside it")
+                    }
+                }
+                if !hasCodecReadout || orientation != .portrait {
+                    XCTAssertTrue(color.waitForExistence(timeout: 10), "The colour readout must be shown")
+                    try open(color, orientation: name, readout: "color")
+                }
+                if hasCodecReadout {
+                    let codec = app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).firstMatch
                     try open(codec, orientation: name, readout: "codec")
                 }
             }

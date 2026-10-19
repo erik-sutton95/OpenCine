@@ -22,6 +22,9 @@
         /// The DJI-wire fixture's 107 GiB free card, read in the shared decimal storage units
         /// (138e1d6b unified every storage readout on bytes).
         open var expectedStorageText: String { "114.89 GB" }
+        /// The same card in portrait, where the header rounds to the nearest whole decimal unit
+        /// with a compact unit (`MonitorStorageReadoutFormat.wholeUnitCapacity`, 8121a4ac).
+        open var expectedPortraitStorageText: String { "115GB" }
         open var expectedCameraPowerValue: String { "68 percent" }
         open var expectedCameraPercentText: String? { "68%" }
 
@@ -329,9 +332,11 @@
                 let storage = app.buttons["Storage remaining"]
                 XCTAssertTrue(storage.exists)
                 XCTAssertTrue(app.frame.contains(storage.frame))
-                XCTAssertEqual(storage.value as? String, expectedStorageText)
+                let storageText =
+                    orientation == .portrait ? expectedPortraitStorageText : expectedStorageText
+                XCTAssertEqual(storage.value as? String, storageText)
                 let capacity = try XCTUnwrap(
-                    paintedCapacity(expectedStorageText, in: storage.frame, viewport: app.frame, tokens: text),
+                    paintedCapacity(storageText, in: storage.frame, viewport: app.frame, tokens: text),
                     "The declared capacity must be readable in its own native storage control")
                 let cameraPower = try XCTUnwrap(
                     cameraPowerQuery.allElementsBoundByIndex.min {
