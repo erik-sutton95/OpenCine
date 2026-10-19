@@ -10,8 +10,7 @@ Run from the OpenCine checkout. `atlas` means `python3 atlas/tools/atlas.py`.
 1. **Measure first.** `atlas impact <symbol or path>`: owner target or Gradle module and its
    layer, the products that carry it, the apps that link one of them (read from the apps'
    manifests) and their call sites. `atlas impact opencine --include-candidates` gives the
-   repository order. A merged graph (`atlas graph build --all --local-only`) adds call-site
-   hints; it is optional and never proof.
+   repository order.
 2. **One task folder.** `atlas task start opencine#<n> --with <app> ...` for every linking app
    (any OpenCine issue number works before OpenCine is on GitHub). Each app worktree builds
    against the task's OpenCine branch.

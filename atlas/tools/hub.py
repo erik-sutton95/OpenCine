@@ -2,8 +2,7 @@
 
   ensure      resolve or clone each registered checkout next to OpenCine (--check writes nothing)
   impact      for a symbol or path: the owning target or module, the apps that link it (from
-              their manifests) and where they use it (source search, plus graph hints when a
-              merged Graphify view exists)
+              their manifests) and where they use it (source search)
   issues      open issues across every registered GitHub repository (gh; offline-safe)
   task start  one task folder with a worktree per repository and a TASK.md brief; never commits
               or pushes
@@ -218,28 +217,6 @@ def grep(path, patterns, commit=None, limit=10, decl=False):
     return lines[:limit], len(lines)
 
 
-NAV_ONLY = {"contains", "method", "case_of", "defines", "rationale_for"}
-
-
-def graph_hints(root, symbols, limit):
-    """{repo snapshot: [files]} of graph neighbours of nodes labelled like a symbol, or None."""
-    merged = root / "graphify-out" / "merged-graph.json"
-    if not merged.is_file():
-        return None
-    data = json.loads(merged.read_text())
-    want = set(symbols)
-    nodes = {n["id"]: n for n in data["nodes"]}
-    ids = {i for i, n in nodes.items() if n.get("label", "").removesuffix("()") in want}
-    hits = defaultdict(set)
-    for e in data.get("links", []):
-        if e.get("relation") in NAV_ONLY:
-            continue
-        for a, b in ((e["source"], e["target"]), (e["target"], e["source"])):
-            if a in ids and b in nodes and nodes[b].get("source_file"):
-                hits[nodes[b].get("repo", "?")].add(nodes[b]["source_file"])
-    return {k: sorted(v)[:limit] for k, v in sorted(hits.items())}
-
-
 def cmd_impact_symbol(args, reg, root):
     target, limit, text = args.repo, args.limit, []
     def say(*lines):
@@ -310,14 +287,7 @@ def cmd_impact_symbol(args, reg, root):
         say(*[f"    {ln[:160]}" for ln in lines])
         if n > len(lines):
             say(f"    ... {n - len(lines)} more (--limit)")
-    hints = graph_hints(root, symbols, limit)
-    out["graph"] = hints
-    if hints is None:
-        say("graph: no merged view (python3 atlas/tools/atlas.py graph build --all); source search only")
-    else:
-        say("graph hints (navigation only; graphify-out/merged-inputs.json names the commits it read):")
-        say(*[f"  {repo}: {', '.join(fs)}" for repo, fs in hints.items()])
-    if not found and not hints:
+    if not found:
         say("nothing found: not declared in OpenCine and not used in any app")
         code = FAIL
     print(json.dumps(out, indent=2, sort_keys=True) if args.json else "\n".join(text))

@@ -6,8 +6,7 @@
 > 1. Every absolute local path is converted to `repo-id@<full SHA>:<relative path>` at the
 >    revision the plan inspected (`openpocketcine@3cf8187c...`, `openinstacine@35b6f33b...`,
 >    `openzcine@9ac41387...` for main and `openzcine@ef38a264...` for the engine-port worktree,
->    `prior-atlas@296bd295...` for the unregistered donor, `graphifyy==0.9.11:` for the installed
->    tool). Machine paths live only in ignored `.local/` configuration.
+>    `prior-atlas@296bd295...` for the unregistered donor). Machine paths live only in ignored `.local/` configuration.
 > 2. Em dashes after work-package IDs are replaced with colons; workspace folders read `<workspace>`.
 > 3. Section 14.4's identity sentence and the 15.3 hosting row are replaced by Atlas
 >    notes pointing at [PUBLISH.md](../PUBLISH.md).
@@ -158,7 +157,7 @@ No application build, simulator run, new graph build, or physical camera test wa
 | `OpenCineNikon` | PTP/IP/USB and Nikon semantics, discovery policy, control pump, profiles and confirmation | Shared layout or universal camera assumptions derived from PTP opcodes |
 | `OpenCineInsta360` | Luna protocol/SDK adapters, discovery/connect rules, confirmation delays, profiles, gimbal mapping | Shared UI theme or process-wide configuration of other integrations |
 | Brand apps | Composition, branding, lifecycle, entitlements, permissions, release configuration, app-owned credentials/preferences, specialized view composition | Duplicated shared implementations after their extraction is complete |
-| `opencapture-atlas` | Repository registry, source maps, Graphify snapshots, architecture decisions, cross-repo task and compatibility records, navigation evaluations | Production source ownership, app releases, runtime dependency resolution |
+| `opencapture-atlas` | Repository registry, source maps, consumer index, architecture decisions, cross-repo task and compatibility records, navigation evaluations | Production source ownership, app releases, runtime dependency resolution |
 
 ### 3.2 Products within the Core repository
 
@@ -1088,7 +1087,6 @@ The inspected local `prior-atlas` checkout was clean on `main`, commit `296bd295
 - `repos/<repo>/meta.json` owns authored, typed, directed cross-repository edges. `tools/repograph.py` derives reverse relationships, README tables, and dependency-impact waves from them.
 - `repos/<repo>/SUMMARY.md` contains navigation and cross-repository ownership information. `docs/MAINTENANCE.md` deliberately tells maintainers not to duplicate build instructions, package pins, or source-owned documentation.
 - `ensure.sh --source-only` resolves or obtains one checkout without requiring a graph build. `ensure.sh --check` previews without changing anything. The acquisition tests include linked Git worktrees and paths with spaces.
-- `refresh.sh` extracts per-repository Graphify structure, clusters it, preserves committed community labels, and merges local graph files. Full `graph.json`, `graph.html`, merge outputs, caches, and dated backups are ignored. Compact reports and community labels are committed.
 - `tools/repograph.py impact` distinguishes build dependencies from runtime/operational relationships, rather than treating every edge as the same kind of dependency.
 - `docs/EXECUTION.md` and the local worktree skill keep sibling primary checkouts read-only, use isolated target worktrees for implementation, and carry a cross-repository task brief with validation and release order.
 - `evals/navigation/` and `docs/ROUTING_EVALUATION.md` test whether agents find the correct owner and relevant source, while preserving uncertainty. They explicitly do not count locating a source file as proving a fix.
@@ -1101,18 +1099,13 @@ The local implementation has several limitations relevant to this exact migratio
 
 | Observed behavior in prior-atlas | Required behavior in opencapture-atlas |
 |---|---|
-| `snapshot_commit` is populated with a commit **date**, and freshness compares only dates. Two distinct commits on the same day can look identical. | Store full commit SHA, branch/ref, tree identity, scan configuration hash, Graphify version, and build timestamp. Compare exact SHAs for clean snapshots. |
+| `snapshot_commit` is populated with a commit **date**, and freshness compares only dates. Two distinct commits on the same day can look identical. | Store full commit SHA, branch/ref, tree identity, scan configuration hash, tool version, and build timestamp. Compare exact SHAs for clean snapshots. |
 | Graph extraction can scan the current working directory while stamping only the latest committed date. | Default published snapshots must come from a verified clean, identified source tree. Dirty work may be indexed only as an explicitly local overlay, with a content fingerprint and a warning that it is not a committed baseline. |
 | Different scripts resolve roots differently; some recognize `.git` directories but not `.git` files. | One path resolver, used by every command, that accepts primary clones and linked worktrees and verifies their Git identity. Machine-local explicit paths win over discovery. |
 | `tools/verify_edges.py` does not list `Package.swift`, `Package.resolved`, Xcode project references, or Gradle version catalogs. | Add SwiftPM, Xcode, Gradle settings/build files and version-catalog evidence before trusting dependency validation for these apps. Treat parser coverage gaps as unknown, not success. |
 | `verify_edges.py` skips unavailable checkouts; the CI clone step continues after clone failure. | A requested validation target that could not be obtained or parsed is an incomplete/failed check. An intentionally excluded optional repo is separately reported as skipped. |
-| `refresh.sh` can invoke LLM labeling for newly formed communities even without `--label`; docs describe the default as free. | A strict local/no-model default must not call a model backend. Labeling and semantic document extraction are separate explicit operations with budget and scope. Preserve labels without using `git checkout` to overwrite a maintainer's edits. |
-| `refresh.sh --dry-run` returns early only inside the branch for at least two existing graphs; with fewer graphs it can still reach report trimming/metadata generation. | Every preview/check mode must be provably read-only for zero, one, and many graphs. Put the dry-run exit before all writes. |
-| `setup.sh --check` can create its root directory; setup also installs an unpinned Graphify version. | A doctor/check command writes nothing and installs nothing. Explicit setup uses a reviewed, pinned tool version. |
-| `merge-graphs` in locally installed Graphify `0.9.11` combines repo-prefixed nodes into a plain undirected graph. It does not infer actual cross-repo dependency bridges and can discard directional/multiple-edge semantics. | Keep a separate authoritative typed, directed dependency graph. Use the merged Graphify view for symbol navigation only. Add explicit verified links for products, manifests, contracts, and platform bridges. |
+| `setup.sh --check` can create its root directory; setup also installs an unpinned tool version. | A doctor/check command writes nothing and installs nothing. Explicit setup uses a reviewed, pinned tool version. |
 | prior-atlas permits certain metadata PRs to auto-merge and runs scheduled GitHub workflows. | Do not automatically inherit publication, scheduling, or merge permissions. Establish atlas checks first; use normal explicit task authorization and repository policy. |
-
-These observations come from the local source, not assumptions about Graphify in general. The installed extractor recognizes Swift, Kotlin, and Metal, with Metal using the C++ extractor. That support still requires a small coverage fixture for this codebase: SwiftUI result builders, Swift extensions, conditionally compiled sources, Kotlin-to-JNI calls, native registration, shader entry points, and generated bridges must not be assumed fully resolved by the graph.
 
 ### Two complementary graphs
 
@@ -1130,7 +1123,7 @@ Maintain two layers with visibly different authority.
 
 Prefer a small set of relation kinds with platform/product qualifiers over dozens of special-purpose edge types. Build cycles are errors in the intended OpenCine package graph. A legitimate runtime or documentation cycle must not make build-order validation fail.
 
-**Source/navigation graph.** Per-repository Graphify output helps find code, hubs, callers, and related files. Merge with stable repository namespaces for browsing, but do not use a merged undirected graph as the source of truth for legal dependency direction or a package-release sequence. Cross-language links such as Kotlin facade → JNI entry point → Swift session owner need separate evidence; absence from Graphify is not proof that a call does not exist.
+**Source navigation.** Code navigation is source search (`atlas impact`), joined by the code-derived consumer index and public API snapshots that ADR 0012 adds in follow-up changes. Cross-language links such as Kotlin facade → JNI entry point → Swift session owner need separate evidence; a missing search hit is not proof that a call does not exist.
 
 Every answer based on either graph should expose the repository, exact inspected revision, source path/symbol, and whether the claim is manifest-derived, source-confirmed, or inferred. An inferred edge can guide a search; it cannot silently become confirmed or control a release decision.
 
@@ -1153,9 +1146,6 @@ opencapture-atlas/
     openpocketcine/
       meta.json                    # identity, products, edges, evidence references
       SUMMARY.md                   # short routing map, no copied build manual
-      graphify-out/
-        GRAPH_REPORT.md             # compact reviewed/generated report
-        .graphify_labels.json       # optional reviewed community labels
     openinstacine/...
     openzcine/...
   planned/
@@ -1170,7 +1160,6 @@ opencapture-atlas/
     checkout_resolver.py
     dependency_graph.py
     manifest_readers/
-    graphify_adapter.py
   evals/navigation/
     cases.json
     snapshots.json
@@ -1182,10 +1171,9 @@ opencapture-atlas/
     test_preview_modes.py
     test_snapshot_provenance.py
   .local/                          # ignored machine config and task notes
-  graphify-out/                    # ignored complete and merged graphs
 ```
 
-Do not create every optional file in advance. Start with registry, routing, resolver, provenance, and Graphify wrapper; add a schema or command only when it enforces an actual invariant. The outline describes ownership and growth, not a requirement for a large framework.
+Do not create every optional file in advance. Start with registry, routing, resolver, and provenance; add a schema or command only when it enforces an actual invariant. The outline describes ownership and growth, not a requirement for a large framework.
 
 This standalone personal plan intentionally includes clickable absolute local paths. Before committing an Atlas-owned version, convert its evidence links to repository ID + full SHA + repository-relative path (or a verified immutable repository URL). Keep actual machine/worktree path mappings in ignored local configuration. That published copy must pass the same private-path check as other tracked Atlas artifacts.
 
@@ -1222,7 +1210,6 @@ The empty edge list is an example, not a statement that Pocket currently has no 
   "source_tree": "<tree SHA>",
   "dirty": false,
   "scope": "baseline",
-  "graphify_version": "<pinned installed version>",
   "scan_config_hash": "<hash>",
   "built_at": "<UTC timestamp>",
   "excluded_classes": ["credentials", "build-products", "binary-captures", "vendor-reference-copies"],
@@ -1242,15 +1229,11 @@ These are proposed commands to implement and test, not claims that they exist to
 |---|---|
 | `atlas doctor` | Validate registry, local path resolution, installed tooling, and snapshot status. No clone, install, graph build, or file write. |
 | `atlas locate <repo>` | Print one verified source path/ref/status. Fail clearly if ambiguous or unavailable. |
-| `atlas graph plan [repos]` | Show exact source snapshots, exclusions, output destinations, cache reuse, and whether any model/network operation would occur. Read-only. |
-| `atlas graph build <repo> --ref <ref> --local-only` | Build AST structure from identified source, no labeling/model calls. Leave shared source checkouts unchanged. |
-| `atlas graph label <repo> --budget <budget>` | Explicit optional labeling pass, isolated from ordinary code-only refresh. |
-| `atlas graph merge` | Build a local navigation view with namespaced nodes and recorded input snapshots; no claim of semantic cross-repo dependency discovery. |
 | `atlas deps <repo>` / `atlas impact <repo>` | Use typed directed edges; report evidence, affected products/platforms, and actions in dependency order. |
 | `atlas stale` | Compare snapshot SHA/config/tool version against selected source; distinguish outdated, missing, dirty, and not checked. |
 | `atlas check` | Validate metadata/schema, generated output, evidence completeness, forbidden build cycles, and no private machine paths in tracked outputs. |
 
-Do not require Graphify to answer a simple ownership question. Start from routing and source search, then use graphs for unresolved relationships. Do not require a graph refresh merely to fix a small application bug.
+Start from routing and source search for an ownership question. Do not require an index refresh merely to fix a small application bug.
 
 ### Working from the atlas across applications
 
@@ -1291,17 +1274,17 @@ These routes are hypotheses until the migration changes the real ownership. Duri
 
 **ATLAS-03: Capture the real build graph.** Owner: manifest readers and metadata. Read actual SwiftPM/Xcode/Gradle inputs and model legacy source-copy edges. Add product/platform qualifiers and evidence. Gate: a fixture with an app → UI → Core chain yields correct consumer waves, a manufacturer → UI forbidden dependency fails, a missing checkout is incomplete, and a comment or example URL cannot create a confirmed edge.
 
-**ATLAS-04: Add Graphify navigation.** Owner: Graphify adapter/config. Pin and inspect the tool version, scan the three apps one at a time using code-only mode, capture exclusions/coverage, then merge namespaced navigation graphs. Gate: default refresh makes no model call, secrets/build outputs/camera captures are excluded, dirty source is not stamped clean, merged graph inputs are disclosed, and labels can be updated without discarding existing local edits.
+**ATLAS-04: Add code navigation.** Superseded: the navigation graph adapter built here was removed (ADR 0012). Navigation is source search, joined by the consumer index and public API snapshots that ADR 0012 adds in follow-up changes.
 
 **ATLAS-05: Prove cross-repo execution.** Owner: execution docs and task-brief template. Dry-run one illustrative shared UI change and one capability change spanning two integrations. Gate: clear owner, explicit target worktree/ref, dependency order, separate app validation, no accidental main-checkout edits, and no implied merge/release permission. This is a workflow exercise; do not perform the application changes merely to test the atlas.
 
-**ATLAS-06: Evaluate retrieval quality.** Owner: navigation evals. Begin with 8–12 held-out tasks spanning UI2, retained Multi View hosts, setting capabilities, log-preview analysis, owner-keyed JNI, Nikon PTP/JPEG versus capture input, Luna control, and Frame.io. Include wrong-repository and no-code-change cases. Grade correct owner, relevant source/tests, evidence freshness, unsupported certainty, and unnecessary exploration. Compare minimal routing plus source search against Graphify-assisted routing on identical frozen sources. Do not tune prompts against answer fixtures.
+**ATLAS-06: Evaluate retrieval quality.** Owner: navigation evals. Begin with 8–12 held-out tasks spanning UI2, retained Multi View hosts, setting capabilities, log-preview analysis, owner-keyed JNI, Nikon PTP/JPEG versus capture input, Luna control, and Frame.io. Include wrong-repository and no-code-change cases. Grade correct owner, relevant source/tests, evidence freshness, unsupported certainty, and unnecessary exploration. Grade routing plus source search on identical frozen sources. Do not tune prompts against answer fixtures.
 
 **ATLAS-07: Integrate ongoing maintenance.** Owner: atlas CI and cross-repo validation configuration. Check metadata/derived output and dependency direction in atlas CI. Add explicit consumer revision sets to package validation. Update graphs incrementally when relevant source changes; refresh summaries only when routing/ownership facts change. Gate: one task can be completed from atlas with app/package repos remaining independently buildable and releasable. Scheduling and automatic issue updates are optional later decisions, not part of initial setup.
 
 ### Atlas non-goals
 
-No graph database service, always-running indexer, all-repo clone requirement, hidden global Graphify graph, centralized runtime configuration, mirrored app source trees, mandatory full graph rebuild per task, or universal issue automation is needed. A small registry, exact source snapshots, typed dependency map, local Graphify navigation, and reliable worktree workflow provide the value first.
+No graph database service, always-running indexer, all-repo clone requirement, hidden global code graph, centralized runtime configuration, mirrored app source trees, mandatory full graph rebuild per task, or universal issue automation is needed. A small registry, exact source snapshots, typed dependency map, code-derived consumer index, and reliable worktree workflow provide the value first.
 
 ### Local evidence for this section
 
@@ -1317,8 +1300,6 @@ No graph database service, always-running indexer, all-repo clone requirement, h
 - `prior-atlas:docs/EXECUTION.md`: multi-repo brief, validation and release ordering.
 - `prior-atlas:.claude/skills/orca-cross-repo-worktrees/SKILL.md`: isolated target worktree workflow and installed-tool discovery.
 - `prior-atlas:docs/ROUTING_EVALUATION.md`: frozen-source navigation evaluation and limitations.
-- `graphifyy==0.9.11:graphify/cli.py:1404`: locally installed `merge-graphs` implementation.
-- `graphifyy==0.9.11:graphify/extract.py:3671`: local Swift/Kotlin/Metal extractor dispatch.
 
 No graph build, repo mutation, or atlas implementation was performed during this inspection.
 
@@ -1850,7 +1831,7 @@ In Atlas, proposed and historical edges stay distinct from live dependencies. In
 | Resource redistribution exceeds recorded permission | Nikon contributed LUT is app-scoped in notices | Keep asset with app pending scope clarification; extract algorithms independently |
 | Persistence reset on package move | Saved devices/setups/LUTs/auth/settings are app-scoped | Stable namespaces, schema migration tests and rollback planning |
 | Independent versions create dependency conflicts | Several apps/packages will evolve at different rates | Compatible library ranges, reviewed app pins and consumer revision matrix |
-| Atlas graph appears more authoritative than source | Graphify merge is undirected navigation; scanner coverage gaps | Directed manifest/evidence graph and exact-source citations |
+| Atlas graph appears more authoritative than source | Navigation hints are incomplete; scanner coverage gaps | Directed manifest/evidence graph and exact-source citations |
 | Atlas indexes wrong branch or private local data | Multiple worktrees and dirty source | Shared resolver, per-SHA snapshots, explicit excludes/local overlays |
 | Too many packages/abstractions slow a solo developer | Hypothetical future brands/features | Create repositories at consumption gates; use internal folders first |
 | Source-sync scripts keep overwriting extracted paths | Insta currently synchronizes Pocket sources | Remove only migrated scopes and track remaining source-copy edges |
@@ -1869,7 +1850,7 @@ Recommended defaults:
 7. Treat profiles, calibration and analysis preferences as scoped data.
 8. Use exact evidence and explicit unknown states in both runtime models and Atlas.
 9. Keep specialized integration interfaces possible without a universal command dump.
-10. Bootstrap a minimal Atlas before large extraction, with Graphify as navigation rather than build authority.
+10. Bootstrap a minimal Atlas before large extraction, with navigation hints never treated as build authority.
 
 These recommendations do not require solving every future integration or neutral-app product question.
 
@@ -2034,5 +2015,5 @@ External package-manager documentation was checked to validate proposed developm
 | 19. Incremental migration | 13, 14 |
 | 20. Current risks and assumptions | 2, 15 |
 | Added request: local re-evaluation | 1.2, 2, 16 |
-| Added request: opencapture-atlas/Graphify | 12 and ATLAS-01 through ATLAS-07 |
+| Added request: opencapture-atlas | 12 and ATLAS-01 through ATLAS-07 |
 | Added request: executable detailed Markdown | This document, especially work packages and task-brief template |

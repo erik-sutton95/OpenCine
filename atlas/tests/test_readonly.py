@@ -1,25 +1,14 @@
 """Every check/preview command writes nothing: atlas files, checkouts and .git included."""
-import json
 import unittest
 
 from support import AtlasCase, make_repo, meta, tree_digest, write_registry
 
 READ_ONLY = [
     ("doctor",), ("check",), ("check", "--sources"), ("stale",), ("locate", "app"),
-    ("deps", "app"), ("impact", "app"), ("impact", "app", "--include-candidates"), ("graph", "plan"), ("compat", "plan"),
+    ("deps", "app"), ("impact", "app"), ("impact", "app", "--include-candidates"), ("compat", "plan"),
     ("ensure", "--check"), ("impact", "SomeSymbol"), ("impact", "Package.swift"),
     ("dupes",), ("dupes", "--check", "--top", "2"),
 ]
-
-
-def fake_snapshot(root, rid, sha):
-    d = root / "repos" / rid / "snapshots" / sha
-    d.mkdir(parents=True)
-    (d / "snapshot.json").write_text(json.dumps({
-        "repository_id": rid, "source_commit": sha, "source_ref": "refs/heads/main", "source_tree": "1" * 40,
-        "dirty": False, "scope": "baseline", "scan_config_hash": "2" * 64,
-        "tool_versions": {"graphify": "0.9.11"}, "built_at": "2026-10-01T00:00:00Z"}))
-    (d / "GRAPH_REPORT.md").write_text("# report\n")
 
 
 class ReadOnly(AtlasCase):
@@ -38,18 +27,8 @@ class ReadOnly(AtlasCase):
             self.assertIn(code, (0, 1, 3), f"{argv}: {out}")
             self.assertEqual(tree_digest(self.ws), before, f"{' '.join(argv)} changed files")
 
-    def test_zero_snapshots(self):
+    def test_check_and_preview_commands_write_nothing(self):
         self.assert_read_only()
-
-    def test_one_snapshot(self):
-        fake_snapshot(self.root, "app", self.app)
-        self.assert_read_only()
-
-    def test_many_snapshots(self):
-        fake_snapshot(self.root, "app", self.app)
-        fake_snapshot(self.root, "lib", self.lib)
-        self.assert_read_only()
-
 
 if __name__ == "__main__":
     unittest.main()
