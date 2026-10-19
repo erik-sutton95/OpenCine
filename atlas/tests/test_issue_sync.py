@@ -161,6 +161,39 @@ class TwoWay(unittest.TestCase):
         self.assertEqual(len(copies), 2)
         self.assertIn("Added after the checkpoint", [sync.comment_body(c["body"]) for c in copies])
 
+    def test_comment_arriving_after_the_inventory_blocks_a_poll_checkpoint(self):
+        self.api.comment("o/App", 12, "First")
+        tracker = self.created()
+        self.api.source.update(updated_at="2026-01-01T00:00:00Z", comments=1)
+        tracker.update(updated_at="2026-01-01T00:00:01Z", comments=2)
+        self.assertTrue(self.run_sync()["complete"])
+        request, injected = self.api.request, [False]
+
+        def comment_arrives(method, path, payload=None):
+            if not injected[0] and method == "GET" and path == "/repos/o/App/issues/12":
+                injected[0] = True
+                self.api.comment("o/App", 12, "Arrived after the inventory")
+                self.api.source["comments"] = 2
+                self.api.source["updated_at"] = "2026-01-02T00:00:00Z"
+            return request(method, path, payload)
+
+        self.api.request = comment_arrives
+        try:
+            self.assertTrue(self.run_sync(full=True)["complete"])
+        finally:
+            self.api.request = request
+        state = sync._one_json(tracker["body"], sync.ROOT_PREFIX)
+        self.assertNotIn("poll", state,
+                         "a comment the inventory did not see must be read again")
+        start = len(self.api.calls)
+        self.assertTrue(self.run_sync()["complete"])
+        self.assertTrue([call for call in self.api.calls[start:]
+                         if "comments?" in call[1] and "/o/App/issues/12/" in call[1]])
+        copies = [c for c in self.api.comments["o/OpenCine", tracker["number"]]
+                  if sync.COMMENT_PREFIX in c["body"]]
+        self.assertIn("Arrived after the inventory",
+                      [sync.comment_body(c["body"]) for c in copies])
+
     def test_forced_full_pass_reads_every_pair_and_writes_nothing_when_unchanged(self):
         self.api.comment("o/App", 12, "Indexed")
         tracker = self.created()

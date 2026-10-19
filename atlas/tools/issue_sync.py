@@ -169,6 +169,11 @@ def _conflict(result, pair, field, reason):
     result["conflicts"].append({"source": pair, "field": field, "reason": reason})
 
 
+def _poll_baseline(source, tracker):
+    """The stored poll signals as read by the pre-write issue inventory."""
+    return source.get("updated_at"), source.get("comments"), (tracker or {}).get("comments")
+
+
 def _poll_checkpoint(source, tracker):
     """Endpoint signals cheap enough to decide that a pair needs no read this run."""
     updated_at, comments = source.get("updated_at"), source.get("comments")
@@ -475,6 +480,7 @@ class Runner:
     def pair(self, app, source, tracker):
         pair = f"{app}#{source['number']}"
         conflicts_before = len(self.result["conflicts"])
+        poll_baseline = _poll_baseline(source, tracker)
         source_repo = self.apps[app]
         src = _values(source)
         if tracker is None:
@@ -492,6 +498,7 @@ class Runner:
             payload = dict(target, title=_title(app, source["number"], target["title"], self.reg),
                            body=_render(app, source["number"], target, state, self.reg))
             tracker = self.write("create", pair, "POST", f"/repos/{self.central}/issues", payload)
+            poll_baseline = _poll_baseline(source, tracker)
             if not self.execute:
                 for comment in self.threads[source_repo, source["number"]]:
                     self.result["actions"].append({"source": pair, "action": "comment-create", "origin": comment["html_url"]})
@@ -545,7 +552,11 @@ class Runner:
             checkpoint = {"version": 1, "base": next_base, "shards": shard_ids}
             # An unresolved conflict must be reported again on the next run, so only a
             # clean pair earns the poll checkpoint that lets reconcile skip its threads.
-            if len(self.result["conflicts"]) == conflicts_before:
+            # A comment may arrive after the thread inventories but before these readbacks.
+            # Storing its count would let the next incremental run skip an unreconciled
+            # comment, so only checkpoint signals that match the pre-write inventory.
+            if len(self.result["conflicts"]) == conflicts_before \
+                    and _poll_baseline(a, b) == poll_baseline:
                 poll = _poll_checkpoint(a, b)
                 if poll: checkpoint["poll"] = poll
             body = _render(app, source["number"], b_values, checkpoint, self.reg, b["body"])
