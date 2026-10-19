@@ -189,4 +189,36 @@ struct MonitorCommandDashboardTests {
             open.accessibilityHint(controlsEnabled: true, pending: false, applying: false, reorderable: false)
                 == "Double tap to change.")
     }
+
+    @Test func heroReadsTheHeaderStatusAndSplitsTheFrameField() {
+        let recording = MonitorStatusPresentation(recording: true, timecode: "01:02:03:04")
+        #expect(recording.commandHeroTimecode?.seconds == "01:02:03")
+        #expect(recording.commandHeroTimecode?.frames == ":04")
+        #expect(recording.commandHeroAccessibilityValue == "Recording, 01:02:03:04")
+        // Drop-frame timecode keeps its semicolon in the accent field.
+        #expect(MonitorStatusPresentation(recording: false, timecode: "01:02:03;04").commandHeroTimecode?.frames == ";04")
+        #expect(MonitorStatusPresentation(recording: false, timecode: "12").commandHeroTimecode?.seconds == "12")
+        // Unknown never reads as standby; a body with no timecode has no hero digits.
+        let unknown = MonitorStatusPresentation(recording: nil, timecode: nil)
+        #expect(unknown.recordingLabel == "--")
+        #expect(unknown.commandHeroTimecode == nil)
+        #expect(unknown.commandHeroAccessibilityValue == "Recording state unknown")
+        #expect(MonitorStatusPresentation(recording: false, timecode: "").commandHeroTimecode == nil)
+        #expect(MonitorStatusPresentation(recording: false, timecode: "").commandHeroAccessibilityValue == "Standby")
+    }
+
+    @Test func heroAndSideColumnGeometryMatchTheComposeTwin() {
+        #expect(MonitorCommandGridLayout.heroHeight(portrait: true) == 80)
+        #expect(MonitorCommandGridLayout.heroHeight(portrait: false) == 56)
+        #expect(MonitorCommandGridLayout.heroTimecodeSize(portrait: true) == 60)
+        #expect(MonitorCommandGridLayout.heroTimecodeSize(portrait: false) == 46)
+        // The hero fits its band.
+        for portrait in [true, false] {
+            #expect(
+                MonitorCommandGridLayout.heroTimecodeSize(portrait: portrait)
+                    < MonitorCommandGridLayout.heroHeight(portrait: portrait))
+        }
+        #expect(MonitorCommandGridLayout.sideColumnWidth(pictureWidth: 400) == 160)
+        #expect(MonitorCommandGridLayout.sideColumnWidth(pictureWidth: 1000) == 270)
+    }
 }

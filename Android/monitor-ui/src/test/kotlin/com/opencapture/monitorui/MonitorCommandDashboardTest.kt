@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MonitorCommandDashboardTest {
     private enum class Tile { A, B, C, D, E, F, G, H }
@@ -79,5 +80,33 @@ class MonitorCommandDashboardTest {
             commandSideDescription(listOf("Image", "Focus")),
         )
         assertEquals("Audio controls. Swipe up to reveal more command controls.", commandSideDescription(listOf("Audio")))
+    }
+
+    @Test fun heroReadsTheHeaderStatusAndSplitsTheFrameField() {
+        val recording = MonitorStatusPresentation(recording = true, timecode = "01:02:03:04")
+        assertEquals("01:02:03" to ":04", recording.commandHeroTimecode)
+        assertEquals("Recording, 01:02:03:04", recording.commandHeroAccessibilityValue)
+        // Drop-frame timecode keeps its semicolon in the accent field.
+        assertEquals(";04", MonitorStatusPresentation(false, timecode = "01:02:03;04").commandHeroTimecode?.second)
+        assertEquals("12" to "", MonitorStatusPresentation(false, timecode = "12").commandHeroTimecode)
+        // Unknown never reads as standby; a body with no timecode has no hero digits.
+        val unknown = MonitorStatusPresentation(recording = null, timecode = null)
+        assertEquals("--", unknown.recordingLabel)
+        assertNull(unknown.commandHeroTimecode)
+        assertEquals("Recording state unknown", unknown.commandHeroAccessibilityValue)
+        assertNull(MonitorStatusPresentation(false, timecode = "").commandHeroTimecode)
+        assertEquals("Standby", MonitorStatusPresentation(false, timecode = "").commandHeroAccessibilityValue)
+    }
+
+    @Test fun heroAndSideColumnGeometryMatchTheSwiftTwin() {
+        assertEquals(80f, commandHeroHeightDp(portrait = true))
+        assertEquals(56f, commandHeroHeightDp(portrait = false))
+        assertEquals(60f, commandHeroTimecodeSize(portrait = true))
+        assertEquals(46f, commandHeroTimecodeSize(portrait = false))
+        for (portrait in listOf(true, false)) {
+            assertTrue(commandHeroTimecodeSize(portrait) < commandHeroHeightDp(portrait))
+        }
+        assertEquals(160f, commandSideColumnWidthDp(400f))
+        assertEquals(270f, commandSideColumnWidthDp(1000f))
     }
 }
