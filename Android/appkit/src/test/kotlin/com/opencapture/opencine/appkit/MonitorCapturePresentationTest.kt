@@ -46,6 +46,12 @@ class MonitorCapturePresentationTest {
         assertEquals("1080p 9:16", MonitorCapturePresentation.resolutionLabel(assertNotNull(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(1080, 1920))))
     }
 
+    /** Behavior audit PAA-255: the DJI 1:1 1080 format (0x69) read "1080p 1:1" in the standalone app. */
+    @Test fun squareTenEightyReadsAsTenEightyP() {
+        assertEquals("1080p 1:1", MonitorCapturePresentation.resolutionLabel(assertNotNull(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(1080, 1080))))
+        assertEquals("2160p 1:1", MonitorCapturePresentation.resolutionLabel(assertNotNull(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(2160, 2160))))
+    }
+
     @Test fun exposureProgramLabelsUseTheReportedProgram() {
         assertEquals("M", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.MANUAL))
         assertEquals("A", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC))

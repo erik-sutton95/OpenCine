@@ -21,6 +21,12 @@ import Testing
         #expect(MonitorCapturePresentation.resolutionLabel(try #require(CameraRecordingFormat.Dimensions(width: 1080, height: 1920))) == "1080p 9:16")
     }
 
+    /// Behavior audit PAA-255: the DJI 1:1 1080 format (0x69) read "1080p 1:1" in the standalone app.
+    @Test func squareTenEightyReadsAsTenEightyP() throws {
+        #expect(MonitorCapturePresentation.resolutionLabel(try #require(CameraRecordingFormat.Dimensions(width: 1080, height: 1080))) == "1080p 1:1")
+        #expect(MonitorCapturePresentation.resolutionLabel(try #require(CameraRecordingFormat.Dimensions(width: 2160, height: 2160))) == "2160p 1:1")
+    }
+
     /// Behavior audit PAA-221: the Custom white balance hold drum scrubs Kelvin only; leaving
     /// Custom for Auto takes the panel, as in the standalone apps.
     @available(macOS 14, *)

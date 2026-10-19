@@ -171,6 +171,7 @@ public object MonitorCapturePresentation {
             in 2880..3499 -> "3K"
             in 2500..2879 -> "2.7K"
             2160 -> if (size.width == size.height) "2160p" else return "${size.width}×${size.height}"
+            1080 -> if (size.width == size.height) "1080p" else return "${size.width}×${size.height}"
             1920 -> "1080p"
             else -> return "${size.width}×${size.height}"
         }

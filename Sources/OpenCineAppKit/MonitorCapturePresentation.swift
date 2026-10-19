@@ -186,6 +186,7 @@ public enum MonitorCapturePresentation {
         case 2880..<3500: label = "3K"
         case 2500..<2880: label = "2.7K"
         case 2160 where size.width == size.height: label = "2160p"
+        case 1080 where size.width == size.height: label = "1080p"
         case 1920: label = "1080p"
         default: return "\(size.width)×\(size.height)"
         }
