@@ -3225,8 +3225,7 @@ class PocketCameraSession(
             if (appHost.shutterUsesAngle()) HostShutterPresentation.EMULATED_ANGLE else HostShutterPresentation.CAMERA_VALUE)
 
     override fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) {
-        if (reportedCapture.expoMode != CameraCommands.EXPO_MANUAL ||
-            denominator !in reportedCapture.availableShutterDenoms) {
+        if (!captureControlState().admitsShutterWrite(denominator)) {
             onStage(ControlWireEvent.NOT_SENT)
             return
         }

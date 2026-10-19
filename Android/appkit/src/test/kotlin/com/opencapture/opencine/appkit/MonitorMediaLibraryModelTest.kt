@@ -59,6 +59,7 @@ private class LibraryBrowse(val cursors: MutableList<LibraryCursor>) : CameraMed
     override val thumbnails: CameraMediaThumbnailService? = null
     override var transfers: CameraMediaTransferService? = null
     override val deletion: CameraMediaDeleteService? = null
+    override var heldBySource: Boolean? = null
     var closed = false
     override suspend fun catalog(): MediaCatalogCursor = cursors.removeAt(0)
     override suspend fun close() { closed = true }
@@ -99,6 +100,24 @@ class MonitorMediaLibraryModelTest {
             model.refresh(); runCurrent(); assertEquals(1, model.state.value.records.size)
             assertEquals(2, service.opens); assertNotNull(model.binding)
         } finally { model.dispose(); nativeOwner.cancel(); fixture.root.deleteRecursively() }
+    }
+    @Test fun cameraHeldGalleryAndHostNotesReachTheEmptyState() = runTest {
+        // PAB-M-14/15, PIB-082: the camera's own open gallery and host action notes are shown, not "No clips".
+        val nativeOwner = Job()
+        val scope = CoroutineScope(nativeOwner + StandardTestDispatcher(testScheduler))
+        val browse = LibraryBrowse(mutableListOf(LibraryCursor())).also { it.heldBySource = true }
+        val root = Files.createTempDirectory("opencine-library-").toFile()
+        val cache = MonitorMediaCache(MonitorMediaCacheDirectory(root), LibraryCodec(), MonitorMediaOriginalEligibility.ExactSize,
+            "index.json", listOf("index.json", "color.json"))
+        val model = MonitorMediaLibraryModel(cache, LibraryFavorites(), LibraryService(browse), scope,
+            cacheScanning = MonitorMediaCacheScanning.IMMEDIATE, sleep = {},
+            copy = MonitorMediaLibraryCopy(empty = "No clips on the camera.", sourceHeld = "Playback is open on the camera."))
+        try {
+            model.begin(); runCurrent()
+            assertEquals("Playback is open on the camera.", model.state.value.note)
+            model.showNote("Could not delete that clip.")
+            assertEquals("Could not delete that clip.", model.state.value.note)
+        } finally { model.dispose(); nativeOwner.cancel(); root.deleteRecursively() }
     }
     @Test fun refreshRejectsLatePageAndKeepsSuccessorSelection() = runTest {
         val old = LibraryCursor(held = true)

@@ -169,7 +169,7 @@ object SessionRecoveryCopy {
                 "$camera dropped off. Holding the last frame — attempt ${state.attempt} of ${state.maxAttempts}."
             is SessionRecoveryUi.WaitingForOperator -> {
                 val tries = if (state.attemptsMade == 1) "1 try" else "${state.attemptsMade} tries"
-                "$camera didn't come back after $tries. The frame below is held, not live."
+                "$camera didn't come back after $tries. Turn the camera off and on, then tap Retry. The frame below is held, not live."
             }
             is SessionRecoveryUi.PausedAfterDrops ->
                 when (dropSuspect) {

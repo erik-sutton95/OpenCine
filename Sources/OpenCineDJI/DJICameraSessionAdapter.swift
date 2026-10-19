@@ -416,10 +416,10 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                     }
                 }, requiresReport: true)
         case .set(.shutter(.angle(let degrees))):
-            guard let state = session.captureControlState, state.shutterPresentation == .emulatedAngle,
+            guard let state = session.captureControlState, state.emulatesShutterAngle,
                 let denominator = HostShutterAngle.denominator(degrees: degrees,
                     framesPerSecond: state.reported.fps > 0 ? Double(state.reported.fps) : nil,
-                    available: state.reported.availableShutterDenoms) else { return nil }
+                    available: state.offeredShutterDenoms) else { return nil }
             return WirePlan(
                 shows: { _ in session.captureControlState?.reported.shutterDenom == denominator },
                 fire: { session.writeHostShutterAngle(degrees, denominator: denominator,

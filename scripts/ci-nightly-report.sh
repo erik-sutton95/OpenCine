@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Keep one tracking issue per repository in step with the nightly full suite on main.
+# A failed nightly opens "Nightly CI failing on main" (label ci-nightly) or updates the open one
+# with the failing jobs and the run link; a passing nightly closes it. Other refs and cancelled
+# runs only write the job summary. Shared by OpenCine and every app's nightly.yml.
+#
+# Env: GH_TOKEN (issues: write, actions: read), SUITE_RESULT (the full-suite job's result),
+# GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT, GITHUB_REF, GITHUB_SERVER_URL.
+set -euo pipefail
+
+label=ci-nightly
+title="Nightly CI failing on main"
+repo="$GITHUB_REPOSITORY"
+run_url="${GITHUB_SERVER_URL:-https://github.com}/${repo}/actions/runs/${GITHUB_RUN_ID}"
+summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
+result="${SUITE_RESULT:?SUITE_RESULT is required}"
+
+failed_jobs="$(gh api --paginate \
+  "repos/${repo}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT:-1}/jobs?per_page=100" \
+  --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled")
+    | "- [\(.name)](\(.html_url)): \(.conclusion)"')"
+
+{
+  echo "## Nightly full suite: ${result}"
+  echo
+  echo "${failed_jobs:-No failed jobs.}"
+} >> "$summary"
+
+if [ "${GITHUB_REF:-}" != refs/heads/main ]; then
+  echo "Nightly on ${GITHUB_REF:-an unknown ref}: the tracking issue follows main only."
+  exit 0
+fi
+
+open_issue="$(gh issue list --repo "$repo" --label "$label" --state open --json number --jq '.[0].number // empty')"
+
+case "$result" in
+  success)
+    if [ -n "$open_issue" ]; then
+      gh issue close "$open_issue" --repo "$repo" --reason completed \
+        --comment "The nightly full suite passed on main: ${run_url}"
+      echo "Closed #${open_issue}: the nightly passed."
+    fi
+    ;;
+  failure)
+    sha="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    body="$(printf '%s\n' \
+      "The nightly full suite failed on \`main\` at ${sha}: ${run_url}" \
+      "" \
+      "Failing jobs:" \
+      "" \
+      "${failed_jobs:-- (no job reported a failure; see the run)}" \
+      "" \
+      "This issue is updated by every failing nightly and closed by the first passing one." \
+      "Tiers and quarantine: docs/testing/CI.md in OpenCine, the CI doc in each app.")"
+    if [ -n "$open_issue" ]; then
+      gh issue edit "$open_issue" --repo "$repo" --body "$body"
+      gh issue comment "$open_issue" --repo "$repo" --body "Still failing: ${run_url}"
+      echo "Updated #${open_issue}."
+    else
+      gh label create "$label" --repo "$repo" --color B60205 \
+        --description "Nightly full suite on main is failing" 2>/dev/null || true
+      gh issue create --repo "$repo" --title "$title" --label "$label" --body "$body"
+    fi
+    ;;
+  *)
+    echo "Nightly suite result '${result}': the tracking issue is unchanged."
+    ;;
+esac

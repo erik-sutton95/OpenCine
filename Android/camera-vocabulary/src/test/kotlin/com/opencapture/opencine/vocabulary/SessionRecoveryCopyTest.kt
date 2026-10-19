@@ -20,6 +20,13 @@ class SessionRecoveryCopyTest {
         )
     }
 
+    @Test fun givingUpSuggestsRestartingTheCamera() {
+        assertEquals(
+            "Luna Ultra didn't come back after 8 tries. Turn the camera off and on, then tap Retry. The frame below is held, not live.",
+            SessionRecoveryCopy.detail(SessionRecoveryUi.WaitingForOperator(attemptsMade = 8), "Luna Ultra"),
+        )
+    }
+
     @Test fun onlyThePausedCaseReadsTheSuspect() {
         val retrying = SessionRecoveryUi.Retrying(attempt = 2, maxAttempts = 8)
         assertEquals(

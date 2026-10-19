@@ -163,6 +163,8 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
         filterPopupPresented = false; pickingDate = nil
         cancelDelete(); resolvedDurations.removeAll()
     }
+    /// The operator closes the browser: the next visit starts without a selection, as covers keep it.
+    public func leave() { library.clearSelection(); retire() }
     public func sourceChanged() {
         let retained = Set(acceptedDeletions.filter { $0.value.isPrepared && $0.value.isCurrent }.map(\.key))
         if !retained.isEmpty {

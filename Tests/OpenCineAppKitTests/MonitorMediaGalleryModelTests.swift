@@ -65,6 +65,21 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
     private func projection(_ ids: [String] = ["A", "B"], scope: MonitorMediaProjectionSelectionScope = .representatives) -> MonitorMediaProjectionResult {
         MonitorMediaProjection.project(ids.map { MediaAssetID($0) }, request: .init(selectionScope: scope), policy: GalleryGrouping())
     }
+    /// PAB-M-09 / II-351: closing Media starts the next visit clean, as the baseline screen did;
+    /// a cover (player, viewer) still keeps the selection.
+    @Test func leavingTheBrowserEndsSelectionButACoverKeepsIt() throws {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, gallery) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        library.select([MediaAssetID("A"), MediaAssetID("B")])
+        gallery.retire()
+        #expect(library.selecting)
+        #expect(library.selectedIDs == [MediaAssetID("A"), MediaAssetID("B")])
+        gallery.activate()
+        gallery.leave()
+        #expect(!library.selecting)
+        #expect(library.selectedIDs.isEmpty)
+    }
     @Test func sourceReplacementInvalidatesRenderedGallerySnapshot() throws {
         guard #available(macOS 14, *) else { return }
         let (root, library, gallery) = try fixture()
