@@ -91,7 +91,7 @@ import UIKit
         let preferences: MonitorOperatorPreferences
         private var endObserver: NSObjectProtocol?
         private var closed = false
-        private var pictureObserver: NSKeyValueObservation?
+        private var probe: SimulatedPictureProbe?
         private var host: MonitorPlaybackFeedHost?
         private let identity = UUID().uuidString
         init(preferences: MonitorOperatorPreferences) {
@@ -99,22 +99,13 @@ import UIKit
             feed = MonitorPlaybackFeedSession(configuration: .init(), hdrDisplay: { preferences.hdrDisplay })
         }
         func attach() -> MonitorPlaybackFeedHost {
-            let view = simulatedHost(display: display, preferences: preferences, identity: identity)
+            let view = simulatedHost(display: display, preferences: preferences)
             host = view
             view.attachGeneration = feed.reserveHostGeneration()
             view.isAccessibilityElement = true
             view.accessibilityIdentifier = "simulated.live.picture"
             view.accessibilityLabel = "SIMULATED live picture"
-            view.accessibilityValue = "Waiting \(identity)"
-            let publishPictureValue: @MainActor @Sendable () -> Void = { [weak view, identity] in
-                guard let view else { return }
-                view.accessibilityValue = simulatedPictureValue(view, identity: identity)
-            }
-            pictureObserver = view.playerLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { _, _ in
-                Task { @MainActor in
-                    publishPictureValue()
-                }
-            }
+            probe = SimulatedPictureProbe(host: view, player: player, identity: identity)
             feed.attach(host: view, player: player)
             if let url = try? SimulatedAssets.url("mp4") {
                 let item = AVPlayerItem(url: url)
@@ -148,7 +139,7 @@ import UIKit
         }
         func close() {
             closed = true
-            pictureObserver = nil
+            probe?.close(); probe = nil
             if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
             endObserver = nil
             player.pause(); player.replaceCurrentItem(with: nil)
@@ -167,7 +158,7 @@ import UIKit
     let preferences: MonitorOperatorPreferences
     func makeCoordinator() -> Coordinator { Coordinator(native, identity: identity, preferences: preferences) }
     func makeUIView(context: Context) -> MonitorPlaybackFeedHost {
-        let view = simulatedHost(display: context.coordinator.display, preferences: preferences, identity: identity)
+        let view = simulatedHost(display: context.coordinator.display, preferences: preferences)
         view.attachGeneration = native.feed.reserveHostGeneration()
         view.isAccessibilityElement = true
         view.accessibilityIdentifier = "simulated.playback.picture"
@@ -186,28 +177,20 @@ import UIKit
         let identity: String
         let display = LiveHDRDisplay()
         let sampleBus = LiveFrameSampleBus()
-        private var pictureObserver: NSKeyValueObservation?
+        private var probe: SimulatedPictureProbe?
         init(_ native: MonitorApplePlaybackOwner, identity: String, preferences: MonitorOperatorPreferences) {
             self.native = native; self.identity = identity
             display.setEnabled(preferences.hdrDisplay)
         }
         func attach(_ view: MonitorPlaybackFeedHost) {
-            let publishPictureValue: @MainActor @Sendable () -> Void = { [weak view, identity] in
-                guard let view else { return }
-                view.accessibilityValue = simulatedPictureValue(view, identity: identity)
-            }
-            pictureObserver = view.playerLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { _, _ in
-                Task { @MainActor in
-                    publishPictureValue()
-                }
-            }
+            probe = SimulatedPictureProbe(host: view, player: native.player, identity: identity)
             native.feed.attach(host: view, player: native.player)
         }
         func update(_ effects: MonitorFrameEffects) {
             native.feed.setEffects(effects, transfer: effects.transfer, sampleBus: sampleBus)
         }
         func detach(_ view: MonitorPlaybackFeedHost) {
-            pictureObserver = nil
+            probe?.close(); probe = nil
             native.feed.detach(host: view)
         }
     }
@@ -215,7 +198,7 @@ import UIKit
 
 /// SDK display facts go into existing HDR and Metal owners; no display policy is copied here.
 @MainActor private func simulatedHost(display: LiveHDRDisplay,
-    preferences: MonitorOperatorPreferences, identity: String) -> MonitorPlaybackFeedHost {
+    preferences: MonitorOperatorPreferences) -> MonitorPlaybackFeedHost {
     let picture = MonitorPictureHost(frame: .zero, options: { screen in
         display.setEnabled(preferences.hdrDisplay, screen: screen)
         display.setScreenCaptured(screen?.isCaptured ?? false, screen: screen)
@@ -226,15 +209,97 @@ import UIKit
         display.setScreenCaptured(UIScreen.main.isCaptured)
         display.configure(layer)
     })
-    picture.onSuccessfulPresent = { [weak host] in
-        guard let host else { return }
-        host.accessibilityValue = simulatedPictureValue(host, identity: identity)
-    }
     return host
 }
 
-@MainActor private func simulatedPictureValue(_ host: MonitorPlaybackFeedHost, identity: String) -> String {
-    let decoded = host.playerLayer.isReadyForDisplay || host.ciFeed.hasPresentedFrame
-    let processed = host.ciFeed.hasPresentedFrame ? " Processed" : ""
-    return "\(decoded ? "Decoded" : "Waiting")\(processed) \(identity)"
+/// The accessibility value states what the bounded picture shows on screen, so UI tests sample a
+/// real frame. `isReadyForDisplay` alone is not that: it latches once per item, and after
+/// `playImmediately` a starved host keeps the player layer empty until the clock starts. The
+/// player layer counts while paused only with a displayed buffer, and while running only once its
+/// clock has advanced; the Metal plate counts once it is unhidden with a presented frame, and an
+/// overlay bake still needs the player picture beneath it. Every input republishes the value.
+@MainActor private final class SimulatedPictureProbe {
+    private weak var host: MonitorPlaybackFeedHost?
+    private let player: AVPlayer
+    private let identity: String
+    private var observations: [NSKeyValueObservation] = []
+    private var timeObserver: Any?
+    private var clockStart: CMTime?
+    private var clockAdvanced = false
+    private var displayCheck: Task<Void, Never>?
+
+    init(host: MonitorPlaybackFeedHost, player: AVPlayer, identity: String) {
+        self.host = host; self.player = player; self.identity = identity
+        host.accessibilityValue = "Waiting \(identity)"
+        let republish: @MainActor @Sendable (_ restartClock: Bool) -> Void = { [weak self] restartClock in
+            guard let self else { return }
+            if restartClock { self.clockStart = nil; self.clockAdvanced = false }
+            self.publish()
+        }
+        func watch<Root: NSObject, Value>(_ root: Root, _ path: KeyPath<Root, Value>, restartClock: Bool) {
+            observations.append(root.observe(path, options: [.initial, .new]) { _, _ in
+                Task { @MainActor in republish(restartClock) }
+            })
+        }
+        watch(host.playerLayer, \.isReadyForDisplay, restartClock: true)
+        watch(player, \.currentItem, restartClock: true)
+        watch(player, \.rate, restartClock: true)
+        watch(host.playerLayer, \.isHidden, restartClock: false)
+        watch(host.ciFeed.layer, \.isHidden, restartClock: false)
+        // `onSuccessfulPresent` runs just before the plate records the frame; read it after.
+        host.ciFeed.onSuccessfulPresent = { Task { @MainActor in republish(false) } }
+        timeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(value: 1, timescale: 30), queue: .main
+        ) { [weak self] time in
+            MainActor.assumeIsolated { self?.noteClock(time) }
+        }
+    }
+
+    func close() {
+        displayCheck?.cancel(); displayCheck = nil
+        observations.removeAll()
+        if let timeObserver { player.removeTimeObserver(timeObserver) }
+        timeObserver = nil
+        host?.ciFeed.onSuccessfulPresent = nil
+    }
+
+    private func noteClock(_ time: CMTime) {
+        guard player.rate != 0, time.isNumeric, !clockAdvanced else { return }
+        guard let clockStart else { clockStart = time; return }
+        if time > clockStart { clockAdvanced = true; publish() }
+    }
+
+    private var playerShowsFrame: Bool {
+        guard let host, !host.playerLayer.isHidden, host.playerLayer.isReadyForDisplay else { return false }
+        if player.rate != 0 { return clockAdvanced }
+        if #available(iOS 17.4, *) {
+            if host.playerLayer.displayedPixelBuffer() != nil { return true }
+            // A paused layer reports its buffer once composited; no callback announces that.
+            awaitDisplayedBuffer()
+            return false
+        }
+        return true
+    }
+
+    private func awaitDisplayedBuffer() {
+        guard displayCheck == nil else { return }
+        displayCheck = Task { @MainActor [weak self] in
+            for _ in 0..<300 {
+                try? await Task.sleep(nanoseconds: 33_000_000)
+                guard let self, !Task.isCancelled else { return }
+                guard let host = self.host, self.player.rate == 0, host.playerLayer.isReadyForDisplay else { break }
+                if host.playerLayer.displayedPixelBuffer() != nil { break }
+            }
+            self?.displayCheck = nil
+            self?.publish()
+        }
+    }
+
+    private func publish() {
+        guard let host else { return }
+        let plate = host.ciFeed
+        let plateShows = !plate.isHidden && plate.hasPresentedFrame
+        let decoded = (plateShows && !plate.lastPresentWasOverlay) || playerShowsFrame
+        host.accessibilityValue = "\(decoded ? "Decoded" : "Waiting")\(plateShows ? " Processed" : "") \(identity)"
+    }
 }
