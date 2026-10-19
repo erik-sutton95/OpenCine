@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -49,15 +50,22 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     var scans = 0
     var scanStops = 0
     val connects = mutableListOf<String>()
+    /** Whether the most recent connect started after the camera had advertised. */
+    var connectSawSighting: Boolean? = null
     var disconnects = 0
     var makeMediaService: ((CameraSessionID) -> CameraMediaService?)? = null
     val forgotten = mutableListOf<String>()
+    val seen = mutableSetOf<String>()
+    val savedWiFi = mutableSetOf<String>()
     private var outcome: CompletableDeferred<ConnectionFailure?>? = null
 
     override fun startScan() { scans += 1 }
     override fun stopScan() { scanStops += 1 }
+    override fun hasSeen(id: String): Boolean = id in seen
+    override suspend fun hasSavedWiFi(id: String): Boolean = id in savedWiFi
     override fun connect(id: String) {
         connects += id
+        connectSawSighting = id in seen
         val done = CompletableDeferred<ConnectionFailure?>()
         outcome = done
         attempt = scope.launch {
@@ -114,6 +122,35 @@ class LunaIntegrationTest {
             assertEquals(matching, camera.services.get<CameraMediaService>() != null)
             port.disconnect()
         }
+    }
+
+    /** II-202: the baseline scanned for a few seconds and connected over Bluetooth when the camera
+     * advertised; only then did it dial saved Wi-Fi. The shared model dialled saved Wi-Fi at once. */
+    @Test
+    fun aSavedReconnectWaitsForTheBluetoothAdvertBeforeSavedWiFi() = runTest {
+        val port = FakeLunaPort(backgroundScope)
+        val luna = LunaIntegration(port, now = { testScheduler.currentTime })
+        port.savedWiFi += camera
+        val ap = SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = "LUNA-1A2B", bluetooth = true)
+        val saved = SavedCamera(
+            id = camera, integration = luna.id, advertisedName = "Luna 1A2B", model = "Insta360 Luna Ultra",
+            routes = listOf(ap), preferredRoute = ap.id,
+        )
+        val events = collect(luna.connect(ConnectTarget.Saved(saved, ap.id)))
+        runCurrent()
+        // The grace is running: no Wi-Fi dial yet, and the card says it is looking.
+        assertEquals(0, port.connects.size)
+        assertTrue(port.scans >= 1)
+        assertTrue(events.filterIsInstance<ConnectionEvent.Progress>().any { it.progress.note == "Looking for the camera" })
+        // The camera now advertises: Bluetooth is the route the backend takes.
+        port.seen += camera
+        port.found.value = listOf(CameraIdentity(camera, "Luna 1A2B", "Insta360 Luna Ultra"))
+        advanceTimeBy(LunaIntegration.SIGHTING_STEP_MS)
+        runCurrent()
+        assertEquals(listOf(camera), port.connects)
+        assertEquals(true, port.connectSawSighting, "the advert chose the Bluetooth bootstrap")
+        val phases = events.filterIsInstance<ConnectionEvent.Progress>().map { it.progress.phase }
+        assertTrue(CorePhase.JOINING_NETWORK !in phases, "saved Wi-Fi is not dialled before the advert")
     }
 
     @Test

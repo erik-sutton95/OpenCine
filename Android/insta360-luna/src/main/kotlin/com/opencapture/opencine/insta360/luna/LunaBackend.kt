@@ -184,6 +184,9 @@ class LunaBackend(
     }
     private fun fail(failure: ConnectionFailure) { _failure.value = failure.message; _failureDetail.value = failure }
     override fun stopScan() { if (scanActive) runCatching { bluetooth?.adapter?.bluetoothLeScanner?.stopScan(scanner) }; scanActive = false }
+    override fun hasSeen(id: String): Boolean = _found.value.any { it.id == id }
+    override suspend fun hasSavedWiFi(id: String): Boolean =
+        withCredentialIO({ true }, transaction = credentialTransaction) { savedWifi(id) != null }
     override fun connect(id: String) {
         connectedMedia?.retire()
         mediaConnectionGeneration += 1

@@ -108,6 +108,40 @@ import Testing
         #expect(connected?.session is LunaCameraSession)
     }
 
+    /// II-202: the baseline scanned for a few seconds and connected over Bluetooth when the camera
+    /// advertised; only then did it dial saved Wi-Fi. The shared model dialled saved Wi-Fi at once.
+    @Test func aSavedReconnectWaitsForTheBluetoothAdvertBeforeSavedWiFi() async throws {
+        let port = FakeLunaPort()
+        let gate = StepGate()
+        let luna = LunaIntegration(port: port, now: { [when] in when }, sleep: { _ in await gate.wait() })
+        port.savedWiFi.insert(camera)
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B",
+            model: LunaProtocol.model, routes: [ap], preferredRoute: ap.id)
+        let events = luna.connect(.saved(saved, route: ap.id))
+        var seen: [(phase: ConnectionPhase, note: String?)] = []
+        let consumer = Task {
+            for await case .progress(let progress, _) in events {
+                seen.append((progress.phase, progress.note))
+            }
+        }
+        // The grace is running: no Wi-Fi dial yet, and the card says it is looking.
+        #expect(await eventually { gate.waits == 1 })
+        #expect(port.connects.isEmpty, "the saved Wi-Fi path must wait for the advert")
+        #expect(await eventually { seen.contains { $0.note == "Looking for the camera" } })
+        // The camera now advertises: Bluetooth is the route the backend takes.
+        port.seen.insert(camera)
+        port.emit(.discovered(MonitorCamera(
+            id: camera, name: "Luna 1A2B", model: LunaProtocol.model, capabilities: [])))
+        gate.release()
+        #expect(await eventually { port.connects.count == 1 })
+        port.finishConnect()
+        await consumer.value
+        #expect(port.connectSawSighting == true, "the advert chose the Bluetooth bootstrap")
+        #expect(!seen.contains { $0.phase == .joiningNetwork }, "saved Wi-Fi is not dialled before the advert")
+    }
+
     @Test func aSavedCameraKeepsItsRecord() async throws {
         let luna = integration()
         let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-OLD", bluetooth: true)
@@ -249,6 +283,24 @@ import Testing
         case .acceptNetworkJoin(let network, let text): "join \(network): \(text)"
         case .integration(let prompt): "integration: \(prompt.fallbackText)"
         }
+    }
+}
+
+/// A controlled sleep: `wait()` suspends until the test releases it, so a grace loop can be
+/// observed and released without wall-clock waiting.
+@MainActor
+private final class StepGate {
+    private(set) var waits = 0
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        waits += 1
+        await withCheckedContinuation { waiter = $0 }
+    }
+
+    func release() {
+        waiter?.resume()
+        waiter = nil
     }
 }
 
