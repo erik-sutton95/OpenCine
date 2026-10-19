@@ -229,6 +229,40 @@ class CamerasModelTest {
     }
 
     @Test
+    fun returningToTheAppRetriesARecordedFailureThroughAnAttempt() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        assertEquals(1, fake.attempts.size)
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        assertEquals(2, fake.attempts.size, "the foreground retry is a real attempt with card progress")
+        assertEquals(ConnectTarget.Saved(Values.camera, Values.ap.id), fake.attempts[1].target)
+        assertNull(model.now.failures[Values.camera.id])
+        assertNotNull(model.now.attempts[Values.camera.id])
+    }
+
+    @Test
+    fun aForegroundRetryLeavesALiveSessionAlone() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        model.connect(Values.camera)
+        fake.attempts[1].connect(FakeCameraSession.lunaLike())
+        runCurrent()
+        assertEquals(2, fake.attempts.size)
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        assertEquals(2, fake.attempts.size, "a live camera is never re-dialled")
+    }
+
+    @Test
     fun promptsReachTheCardAndThePairPage() = runTest {
         val model = model(saved = emptyList())
         fake.publish(listOf(Values.sighting))
