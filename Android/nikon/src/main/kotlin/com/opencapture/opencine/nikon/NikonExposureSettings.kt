@@ -59,8 +59,9 @@ public object NikonExposureSettings {
 
     /**
      * Active write domains; a reported value does not imply permission to write it. While the
-     * shutter mode is unknown the encoder writes by label shape, so both circuits are the domain:
-     * the advertised labels, else the picker ladders.
+     * shutter mode is unknown the encoder writes by label shape, so each circuit the body reports
+     * a value for is the domain: the advertised labels, else the picker ladders. A body that
+     * reports no shutter value publishes no shutter descriptor.
      */
     public fun descriptors(properties: CameraPropertySnapshot): List<SettingDescriptor> {
         if (!properties.captureSelector.equals("video", ignoreCase = true)) return emptyList()
@@ -76,7 +77,10 @@ public object NikonExposureSettings {
             when (properties.shutterMode) {
                 CameraShutterMode.ANGLE -> it is SettingValue.Shutter && it.value is ShutterValue.Angle
                 CameraShutterMode.SPEED -> it is SettingValue.Shutter && it.value is ShutterValue.Duration
-                null -> it is SettingValue.Shutter
+                // Unknown mode: only a circuit the body reports a value for is writable.
+                null -> it is SettingValue.Shutter &&
+                    ((it.value is ShutterValue.Angle && properties.shutterAngle != null) ||
+                        (it.value is ShutterValue.Duration && properties.shutterSpeed != null))
             }
         }).distinct()
         val apertures = properties.controlCapabilities.advertisedIrisValues.mapNotNull(::aperture).distinct()

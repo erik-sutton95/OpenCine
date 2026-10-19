@@ -72,8 +72,9 @@ public enum NikonExposureSettings {
     /// The active movie write domain. A reported value does not imply permission to write it.
     /// Locks and unknown prerequisites
     /// constrain admission; the existing transaction encoder and body remain write authorities.
-    /// While the shutter mode is unknown the encoder writes by label shape, so both circuits are
-    /// the domain: the advertised labels, else the picker ladders.
+    /// While the shutter mode is unknown the encoder writes by label shape, so each circuit the
+    /// body reports a value for is the domain: the advertised labels, else the picker ladders.
+    /// A body that reports no shutter value publishes no shutter descriptor.
     public static func descriptors(
         _ properties: PTPCameraPropertySnapshot, shutterLabels: [String], apertureLabels: [String]
     ) -> [SettingDescriptor] {
@@ -88,7 +89,10 @@ public enum NikonExposureSettings {
         let shutter = unique(
             labels.compactMap(Self.shutter).filter {
                 switch ($0, properties.shutterMode) {
-                case (.shutter(.angle), .angle), (.shutter(.duration), .speed), (.shutter, nil): true
+                case (.shutter(.angle), .angle), (.shutter(.duration), .speed): true
+                // Unknown mode: only a circuit the body reports a value for is writable.
+                case (.shutter(.angle), nil): properties.shutterAngle != nil
+                case (.shutter(.duration), nil): properties.shutterSpeed != nil
                 default: false
                 }
             })

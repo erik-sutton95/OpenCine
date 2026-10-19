@@ -369,6 +369,11 @@ struct NikonCameraSessionTests {
         #expect(
             NikonExposureSettings.descriptors(unknown, shutterLabels: ["1/50"], apertureLabels: [])
                 .map(\.availability) == [.available])
+        // No reported shutter value at all: still unknown, nothing to write.
+        #expect(
+            NikonExposureSettings.descriptors(
+                PTPCameraPropertySnapshot(captureSelector: .video), shutterLabels: [], apertureLabels: []
+            ).isEmpty)
     }
 
     @Test("A body that never reports its shutter mode reads and writes movie SHUTTER by label shape")
@@ -382,12 +387,11 @@ struct NikonCameraSessionTests {
         #expect(session.refresh().value(of: .shutter).value == .shutter(.duration(Rational(1, 50))))
         #expect(session.refresh().capabilities[.shutter]?.availability == .available)
         _ = session.request(.set(.shutter(.duration(Rational(1, 100)))))
-        _ = session.request(.set(.shutter(.angle(180))))
-        #expect(
-            driver.queued.flatMap(\.writes).map(\.property)
-                == [.movieShutterSpeed, .movieShutterAngle])
+        // The body reports no angle, so the angle circuit is not offered.
+        #expect(session.request(.set(.shutter(.angle(180)))).stage == .rejected(.outOfDomain))
+        #expect(driver.queued.flatMap(\.writes).map(\.property) == [.movieShutterSpeed])
 
-        // Advertised labels of either circuit are the domain while the mode is unknown.
+        // Advertised labels of a reported circuit are the domain while the mode is unknown.
         driver.nikonControlFacts.shutterLabels = ["1/50", "1/100"]
         #expect(
             session.request(.set(.shutter(.duration(Rational(1, 200))))).stage
