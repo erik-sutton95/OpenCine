@@ -558,16 +558,16 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
 
     private var statusChrome: some View {
-            let visibleFormat = status.format.filter { $0.section.map(mounts) ?? true }
+            let plan = MonitorHeaderReadoutPolicy.plan(
+                format: status.format, color: status.color, portrait: layout.portrait, photo: photo,
+                isMounted: mounts, codecSection: .codec)
+            let visibleFormat = plan.format
             let primary =
                 status.portraitFormat.flatMap { value in
                     (value.section.map(mounts) ?? true) ? value : nil
                 } ?? visibleFormat.first
             let inline = layout.portrait && !photo
-            let codecVisible = visibleFormat.contains { $0.section == .codec }
-            let color = status.color.flatMap { value in
-                (value.section.map(mounts) ?? true) && !(inline && codecVisible) ? value : nil
-            }
+            let color = plan.color
             // A color-only camera shows its selected profile through the same combined codec/color
             // control; the value stays the reported profile and only the display label changes.
             func displayValue(_ value: MonitorOperatorLiveReadout<Key, Section>) -> String {
@@ -608,11 +608,13 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                             MonitorPortraitFormatGroup(showsDetail: !below.isEmpty || caption != nil) {
                                 headerReadout(
                                     top, portrait: true, grouped: true, detail: top.section == .codec,
-                                    primaryBottom: !below.isEmpty || caption != nil, displayValue: displayValue(top))
+                                    primaryBottom: !below.isEmpty || caption != nil, displayValue: displayValue(top),
+                                    accessibility: plan.accessibility(for: top))
                             } detail: {
                                 HStack(alignment: .top, spacing: fit?.spacing ?? 8) {
                                     ForEach(below) { value in
-                                        headerReadout(value, portrait: true, grouped: true, detail: true, displayValue: displayValue(value))
+                                        headerReadout(value, portrait: true, grouped: true, detail: true,
+                                            displayValue: displayValue(value), accessibility: plan.accessibility(for: value))
                                     }
                                     if let caption {
                                         MonitorPortraitInlineReadoutText(caption, detail: true)
@@ -629,9 +631,13 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                     } else if layout.portrait, let value = status.portraitFormat {
                         headerReadout(value, portrait: true, caption: status.portraitCaption)
                 } else {
-                    HStack(spacing: 24) { ForEach(status.format) { headerReadout($0) } }
+                    HStack(spacing: 24) {
+                        ForEach(visibleFormat) { value in
+                            headerReadout(value, accessibility: plan.accessibility(for: value))
+                        }
+                    }
                 }
-                }, color: { if !inline, let color = status.color { headerReadout(color) } },
+                }, color: { if !inline, let color { headerReadout(color) } },
                 mode: {
                     if layout.viewport.width >= 800, let mode = status.mode {
                         headerReadout(mode, alwaysAccent: true)
@@ -674,11 +680,13 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,
         portrait: Bool = false, caption: String? = nil, alwaysAccent: Bool = false,
         grouped: Bool = false, detail: Bool = false, primaryBottom: Bool = false,
-        decoratesSection: Bool = true, displayValue: String? = nil) -> some View {
+        decoratesSection: Bool = true, displayValue: String? = nil,
+        accessibility: (label: String, value: String)? = nil) -> some View {
         MonitorOperatorCaptureHeaderReadout(inputs: captureInputs, control: control, state: captureState,
             source: captureSource, readout: value, enabled: presentationAdmitted, commandEnabled: !readOnly,
             currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
-            expandsHeight: !grouped, displayValue: displayValue) {
+            expandsHeight: !grouped, displayValue: displayValue,
+            accessibilityLabel: accessibility?.label, accessibilityValue: accessibility?.value) {
             Group {
                 if grouped {
                         MonitorPortraitInlineReadoutText(displayValue ?? value.value, detail: detail)

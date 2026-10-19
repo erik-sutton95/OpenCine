@@ -136,6 +136,12 @@ touch targets: iOS uses 44 points; Compose reads `LocalViewConfiguration` (norma
 keeps Android touch expansion inside the measured header. Typed header readouts expose
 their title, optional value and presentation action as one accessible control.
 
+The status row keeps one codec control. Portrait and landscape fold the colour readout
+into it: the codec value stays visible, its tap opens the one codec and colour popup, and
+a camera without a codec readout keeps its own colour control and target. Landscape speaks
+both values from the combined control (`Codec and color`, `R3D NE · D-Log2`). Photography
+keeps its existing stack.
+
 Phone portrait telemetry uses separate `telemetry` bounds below the safe top,
 with eight points/dp of clearance and side reserves for rounded corners. The
 existing `gauges` corner contract remains available to other compositions.

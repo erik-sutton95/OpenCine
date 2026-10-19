@@ -1,0 +1,85 @@
+import OpenCineAppKit
+import Testing
+
+@testable import OpenCineCameraControls
+
+/// The shared status-row readout plan: colour folds into the codec readout in portrait and
+/// landscape, while a camera without a codec readout keeps its own colour target. Kotlin twin:
+/// `MonitorHeaderReadoutPlanTest`.
+@Suite struct MonitorHeaderReadoutPlanTests {
+    private func readout(_ id: String, _ title: String, _ value: String,
+        _ section: MonitorDisplayChrome.Section? = nil) -> MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section> {
+        .init(id: id, title: title, value: value, section: section)
+    }
+
+    private let format = MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section>(
+        id: "format", title: "Recording format", value: "6K · 25p")
+    private var codec: MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section> {
+        readout("codec", "Codec", "R3D NE", .codec)
+    }
+    private var color: MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section> {
+        readout("color", "Color mode", "D-Log2", .color)
+    }
+
+    private func plan(portrait: Bool, photo: Bool = false,
+        format: [MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section]]? = nil,
+        color: MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section>? = nil,
+        mounted: Set<MonitorDisplayChrome.Section> = Set(MonitorDisplayChrome.Section.allCases)
+    ) -> MonitorHeaderReadoutPlan<String, MonitorDisplayChrome.Section> {
+        MonitorHeaderReadoutPolicy.plan(
+            format: format ?? [self.format, codec], color: color ?? self.color,
+            portrait: portrait, photo: photo, isMounted: { mounted.contains($0) },
+            codecSection: .codec)
+    }
+
+    @Test func landscapeFoldsColorIntoTheCodecReadout() {
+        let landscape = plan(portrait: false)
+        #expect(landscape.foldsColor)
+        #expect(landscape.color == nil)
+        #expect(landscape.combined?.codec.id == "codec")
+        #expect(landscape.accessibility(for: codec)?.label == "Codec and color")
+        #expect(landscape.accessibility(for: codec)?.value == "R3D NE · D-Log2")
+        #expect(landscape.accessibility(for: format) == nil,
+            "The format readout is not the combined control")
+    }
+
+    @Test func portraitFoldsColorTheSameWay() {
+        let portrait = plan(portrait: true)
+        #expect(portrait.foldsColor)
+        #expect(portrait.color == nil)
+        #expect(portrait.accessibility(for: codec) == nil,
+            "Portrait keeps its existing spoken codec value")
+    }
+
+    @Test func portraitPhotographyKeepsItsExistingStack() {
+        let photo = plan(portrait: true, photo: true)
+        #expect(!photo.foldsColor)
+        #expect(photo.color?.id == "color")
+        #expect(photo.accessibility(for: codec) == nil)
+    }
+
+    @Test func aCameraWithoutACodecReadoutKeepsItsColorTarget() {
+        let colorOnly = plan(portrait: false, format: [format])
+        #expect(!colorOnly.foldsColor)
+        #expect(colorOnly.color?.id == "color")
+        #expect(colorOnly.accessibility(for: color) == nil)
+    }
+
+    @Test func anUnmountedCodecDoesNotFoldTheColor() {
+        var mounted = Set(MonitorDisplayChrome.Section.allCases)
+        mounted.remove(.codec)
+        let hidden = plan(portrait: false, mounted: mounted)
+        #expect(hidden.format.map(\.id) == ["format"])
+        #expect(!hidden.foldsColor)
+        #expect(hidden.color?.id == "color")
+    }
+
+    @Test func anUnmountedColorIsNotFolded() {
+        var mounted = Set(MonitorDisplayChrome.Section.allCases)
+        mounted.remove(.color)
+        let hidden = plan(portrait: false, mounted: mounted)
+        #expect(!hidden.foldsColor)
+        #expect(hidden.color == nil)
+        #expect(hidden.accessibility(for: codec) == nil)
+    }
+}

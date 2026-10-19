@@ -707,17 +707,32 @@
             XCTAssertGreaterThanOrEqual(narrow.detailSize, 10)
         }
 
-        /// Landscape keeps format, codec and color side by side on the one status row.
-        func testLandscapeFormatCodecAndColorStayOnTheStatusRow() async throws {
+        /// Landscape folds colour into the codec control, exactly as portrait does, and keeps the
+        /// format readout on the one status row.
+        func testLandscapeFoldsColorIntoTheCodecReadout() async throws {
             let screen = UIScreen.main.bounds.size
             let sample = UIDevice.current.userInterfaceIdiom == .pad
                 ? ProductionHeaderCase(width: max(screen.width, screen.height), safeTop: 24, sideSafe: 0,
                     height: min(screen.width, screen.height))
                 : ProductionHeaderCase(width: 956, safeTop: 0, sideSafe: 62, height: 440)
             do {
-                let fixture = try ProductionHeaderFixture(sample)
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true)
                 defer { fixture.close() }
-                try await fixture.assertLandscapeRow()
+                try await fixture.assertLandscapeCodecColor()
+            }
+        }
+
+        /// A camera without a codec readout keeps its own colour control in landscape.
+        func testLandscapeColorOnlyCameraKeepsItsColorControl() async throws {
+            let screen = UIScreen.main.bounds.size
+            let sample = UIDevice.current.userInterfaceIdiom == .pad
+                ? ProductionHeaderCase(width: max(screen.width, screen.height), safeTop: 24, sideSafe: 0,
+                    height: min(screen.width, screen.height))
+                : ProductionHeaderCase(width: 956, safeTop: 0, sideSafe: 62, height: 440)
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true, colorOnly: true)
+                defer { fixture.close() }
+                try await fixture.assertLandscapeColorOnly()
             }
         }
     }
@@ -1152,12 +1167,12 @@
             XCTAssertEqual(probe.formatCalls, beforeFormat + 1); XCTAssertEqual(probe.codecCalls, beforeCodec + 1)
             return nativeHeights
         }
-        private func settledNodes() async throws -> [NSObject] {
+        private func settledNodes(labels: [String] = ["Recording format", "Codec", "Color mode"]) async throws -> [NSObject] {
             var nodes: [NSObject] = []
             for _ in 0..<200 {
                 native.host.view.setNeedsLayout(); native.host.view.layoutIfNeeded()
                 nodes = native.nodes()
-                if ["Recording format", "Codec", "Color mode"].allSatisfy({ label in
+                if labels.allSatisfy({ label in
                     nodes.contains { $0.accessibilityLabel == label }
                 }) { break }
                 try await Task.sleep(for: .milliseconds(20))
@@ -1219,22 +1234,56 @@
                     "Resolution and frame rate paint from the clock's top edge \(context)")
             }
         }
-        func assertLandscapeRow() async throws {
-            let nodes = try await settledNodes()
-            func node(_ label: String) throws -> CGRect {
+        func assertLandscapeCodecColor() async throws {
+            let labels = ["Recording format", "Codec"]
+            let nodes = try await settledNodes(labels: labels)
+            func node(_ label: String) throws -> NSObject {
                 try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
-                    "Production node \(label) at \(sample)").accessibilityFrame
+                    "Production node \(label) at \(sample)")
             }
-            XCTAssertFalse(try XCTUnwrap(live.presentation).portrait)
             let format = try node("Recording format")
             let codec = try node("Codec")
+            XCTAssertFalse(try XCTUnwrap(live.presentation).portrait)
+            XCTAssertEqual(format.accessibilityValue, "[FX] 6K · 25p")
+            // Colour belongs to the one codec control: its own target is gone, its value is spoken.
+            XCTAssertFalse(nodes.contains { $0.accessibilityLabel == "Color mode" })
+            XCTAssertEqual(codec.accessibilityLabel, "Codec and color")
+            XCTAssertEqual(codec.accessibilityValue, "R3D NE · D-Log2")
+            XCTAssertEqual(format.accessibilityFrame.midY, codec.accessibilityFrame.midY, accuracy: 0.5)
+            XCTAssertLessThanOrEqual(format.accessibilityFrame.maxX, codec.accessibilityFrame.minX + 0.5)
+            for target in [format, codec] {
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.width, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.height, 44 - monitorFloorMeasurementTolerance)
+            }
+            XCTAssertTrue(codec.accessibilityActivate())
+            XCTAssertEqual(probe.codecCalls, 1)
+            XCTAssertEqual(probe.colorCalls, 0)
+            XCTAssertEqual(probe.formatCalls, 0)
+        }
+        func assertLandscapeColorOnly() async throws {
+            let labels = ["Recording format", "Color mode"]
+            let nodes = try await settledNodes(labels: labels)
+            func node(_ label: String) throws -> NSObject {
+                try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
+                    "Production node \(label) at \(sample)")
+            }
+            let format = try node("Recording format")
             let color = try node("Color mode")
-            XCTAssertEqual(nodes.first { $0.accessibilityLabel == "Recording format" }?.accessibilityValue, "[FX] 6K · 25p")
-            XCTAssertEqual(nodes.first { $0.accessibilityLabel == "Color mode" }?.accessibilityValue, "D-Log2")
-            XCTAssertEqual(format.midY, codec.midY, accuracy: 0.5)
-            XCTAssertEqual(codec.midY, color.midY, accuracy: 0.5)
-            XCTAssertLessThanOrEqual(format.maxX, codec.minX + 0.5)
-            XCTAssertLessThanOrEqual(codec.maxX, color.minX + 0.5)
+            XCTAssertFalse(try XCTUnwrap(live.presentation).portrait)
+            XCTAssertFalse(nodes.contains { $0.accessibilityLabel == "Codec" })
+            XCTAssertEqual(format.accessibilityValue, "[FX] 6K · 25p")
+            XCTAssertEqual(color.accessibilityLabel, "Color mode")
+            XCTAssertEqual(color.accessibilityValue, "D-Log2")
+            XCTAssertEqual(format.accessibilityFrame.midY, color.accessibilityFrame.midY, accuracy: 0.5)
+            XCTAssertLessThanOrEqual(format.accessibilityFrame.maxX, color.accessibilityFrame.minX + 0.5)
+            for target in [format, color] {
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.width, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.height, 44 - monitorFloorMeasurementTolerance)
+            }
+            XCTAssertTrue(color.accessibilityActivate())
+            XCTAssertEqual(probe.colorCalls, 1)
+            XCTAssertEqual(probe.codecCalls, 0)
+            XCTAssertEqual(probe.formatCalls, 0)
         }
         func assertCodecOnly() async throws {
             var nodes: [NSObject] = []
