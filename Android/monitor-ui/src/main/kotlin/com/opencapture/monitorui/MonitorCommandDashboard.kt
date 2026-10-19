@@ -314,8 +314,9 @@ private fun CommandHeroBand(hero: MonitorStatusPresentation, portrait: Boolean) 
     ) {
         CommandRecordChip(hero)
         hero.commandHeroTimecode?.let { (seconds, frames) ->
-            BoxWithConstraints(Modifier.weight(1f)) {
-                FitScale(maxWidth) {
+            // Fit both ways: the user's font scale can make even a short timecode taller than the band.
+            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                FitScale(maxWidth, maxHeight) {
                     Text(
                         buildAnnotatedString {
                             withStyle(SpanStyle(color = MonitorPalette.text)) { append(seconds) }
@@ -632,16 +633,23 @@ private fun <K : Any, R : Any> CommandTile(
     }
 }
 
+/** The scale that fits a [width] x [height] child inside [maxWidth] x [maxHeight]; never above 1. */
+internal fun commandFitScale(width: Float, height: Float, maxWidth: Float, maxHeight: Float): Float =
+    minOf(1f, if (width > 0f) maxWidth / width else 1f, if (height > 0f) maxHeight / height else 1f)
+        .coerceAtLeast(0f)
+
 /**
- * Measures its child unbounded and scales it down (top-start anchored) to fit [maxWidth], the
- * Compose analog of iOS `minimumScaleFactor`.
+ * Measures its child unbounded and scales it down (top-start anchored) to fit [maxWidth] and
+ * [maxHeight], the Compose analog of iOS `minimumScaleFactor`.
  */
 @Composable
-private fun FitScale(maxWidth: Dp, content: @Composable () -> Unit) {
+private fun FitScale(maxWidth: Dp, maxHeight: Dp = Dp.Infinity, content: @Composable () -> Unit) {
     Layout(content) { measurables, _ ->
         val placeable = measurables.first().measure(Constraints())
-        val maxPx = maxWidth.roundToPx()
-        val scale = if (placeable.width > maxPx) maxPx / placeable.width.toFloat() else 1f
+        val heightPx = if (maxHeight == Dp.Infinity) Float.POSITIVE_INFINITY else maxHeight.toPx()
+        val scale = commandFitScale(
+            placeable.width.toFloat(), placeable.height.toFloat(), maxWidth.toPx(), heightPx,
+        )
         layout((placeable.width * scale).toInt(), (placeable.height * scale).toInt()) {
             placeable.placeWithLayer(0, 0) {
                 scaleX = scale

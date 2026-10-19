@@ -109,4 +109,12 @@ class MonitorCommandDashboardTest {
         assertEquals(160f, commandSideColumnWidthDp(400f))
         assertEquals(270f, commandSideColumnWidthDp(1000f))
     }
+
+    @Test fun heroTimecodeFitsTheBandAtLargeFontScales() {
+        // A short timecode at a large font scale fits the width but not the 56 dp landscape band.
+        assertEquals(0.5f, commandFitScale(width = 60f, height = 112f, maxWidth = 400f, maxHeight = 56f))
+        // Width still binds a long one; nothing ever scales up.
+        assertEquals(0.5f, commandFitScale(800f, 40f, 400f, 56f))
+        assertEquals(1f, commandFitScale(100f, 40f, 400f, Float.POSITIVE_INFINITY))
+    }
 }
