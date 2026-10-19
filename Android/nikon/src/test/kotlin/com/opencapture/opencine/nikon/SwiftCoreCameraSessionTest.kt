@@ -859,7 +859,17 @@ class SwiftCoreCameraSessionTest {
         // physical-C C3/C9 (2026-10-19): a ZR in stills showed the video chrome (record ring,
         // movie value columns) while Reconnecting and on Camera disconnected.
         val bridge = FakeBridge()
-        val session = quietSession(bridge)
+        // The event-channel teardown's native disconnect runs on the test scheduler, so the
+        // reconnect below starts from Disconnected rather than racing a real IO thread.
+        val session =
+            SwiftCoreCameraSession(
+                host = "192.168.1.1",
+                phaseLogger = { _, _ -> },
+                core = bridge,
+                propertyRefreshScope = backgroundScope,
+                propertyRefreshDispatcher = StandardTestDispatcher(testScheduler),
+                automaticallyRefreshProperties = false,
+            )
         val connecting = async { session.connect() }
         runCurrent()
         bridge.listeners.single().onConnected("ZR", "NIKON ZR", "6001234")
@@ -870,7 +880,7 @@ class SwiftCoreCameraSessionTest {
 
         bridge.eventListeners.single().onEnded("The camera closed the connection.")
         runCurrent()
-        assertTrue(session.state.value !is CameraSessionState.Connected)
+        assertEquals(CameraSessionState.Disconnected, session.state.value)
         assertEquals(CameraPropertySnapshot(captureSelector = "photo"), session.cameraProperties.value)
         assertEquals(CameraPropertySnapshot(), session.reportedCameraProperties.value)
 
