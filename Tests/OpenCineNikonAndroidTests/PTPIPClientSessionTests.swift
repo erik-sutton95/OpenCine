@@ -1847,6 +1847,26 @@ struct PTPIPClientSessionTests {
         #expect(server.receivedRequests().last?.operation == .changeAfArea)
     }
 
+    @Test func changeAfAreaSettlesOnlyTheFirstBusyAnswer() throws {
+        // A body busy for reasons the read-back cannot clear must not spend a
+        // DeviceReady settle on every retry while holding commandLifecycleLock.
+        var options = FakeZRServer.Options()
+        options.changeAfAreaResponseCode = PTPResponseCode.deviceBusy.rawValue
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+
+        #expect(
+            throws: PTPIPClientSessionError.operationRejected(.changeAfArea, .deviceBusy)
+        ) {
+            try session.changeAfArea(x: 3_024, y: 1_700)
+        }
+        let operations = server.receivedOperations()
+        let firstTap = try #require(operations.firstIndex(of: .changeAfArea))
+        #expect(operations[firstTap...].filter { $0 == .deviceReady }.count == 1)
+    }
+
     @Test func changeAfAreaUsesExactParametersWithoutADataOutPhase() throws {
         let server = try FakeZRServer()
         defer { server.stop() }
