@@ -121,17 +121,9 @@ source migration record.
 
 ## Navigate with the atlas
 
-The atlas routes issues, identifies consumers and records compatibility. An optional
-[Graphify](https://github.com/Graphify-Labs/graphify) adapter builds navigation graphs:
-
-```sh
-python3 atlas/tools/atlas.py graph build --all --local-only
-```
-
-The inspected adapter requires `graphifyy==0.9.11` and the macOS sandbox. It exports code from
-Git and runs AST extraction with network access denied, without model calls. Graph edges are
-search hints; current source, manifests and exercised evidence remain authoritative.
-Graphify is a developer tool, not a product dependency. See [atlas/README.md](atlas/README.md).
+The atlas routes issues, identifies consumers and records compatibility. It is standard library
+Python, reads manifests and Git, and is a developer tool, not a product dependency. Current
+source, manifests and exercised evidence remain authoritative. See [atlas/README.md](atlas/README.md).
 
 ## Contribute and report
 

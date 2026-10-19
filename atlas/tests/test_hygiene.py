@@ -41,7 +41,6 @@ class RepositoryHygiene(unittest.TestCase):
             "Android/monitor-ui/src/androidTest/assets/monitor_backdrop_reference.png": b"\x89PNG\x00fixture",
             "Sources/MonitorUI/Resources/Fonts/Sora-Regular.ttf": b"\x00fixture font",
             "atlas/templates/app/ios/Simulated/Resources/simulated.mp4.base64.tmpl": "U0lNVUxBVEVE\n",
-            "atlas/repos/opencine/snapshots/example/snapshot.json": '{"dirty":false}',
             ".claude/skills/issue-to-task/SKILL.md": "# Shared workflow\n",
             ".env.example": "EXAMPLE=replace-me\n",
         })
