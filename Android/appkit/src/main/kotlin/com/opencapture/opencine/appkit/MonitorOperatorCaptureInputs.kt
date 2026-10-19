@@ -61,6 +61,8 @@ public class MonitorOperatorLiveReadout<K, S>(
     public val icon: MonitorIcon? = null, public val badgeIcon: MonitorIcon? = null,
     public val annotation: String? = null,
     public val actionIsCommand: Boolean = false,
+    /** The complete spoken readout when [value] is compacted ("20282 shots remaining" for "20.2k"). */
+    public val accessibilityLabel: String? = null,
 )
 
 public enum class MonitorOperatorCameraPanelChrome { DESCRIPTOR, CONTENT, SHARED_SHEET }
