@@ -326,6 +326,35 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             portrait: portrait)
     }
 
+    /// The widest an app's own status badge may draw.
+    public static let appBadgeWidth = 200.0
+    /// Clearance an app status badge keeps from the status row and from reserved chrome.
+    public static let appBadgeGap = 8.0
+
+    /// An app's own status badge (a capture health pill): one touch-target row under the status
+    /// row, starting at its leading edge and moved past each reserved rect it would touch, so a
+    /// tap on the badge never lands on the lock or a gauge. Never wider than the status row.
+    /// Mirrors Kotlin `MonitorLayoutPolicy.appBadge`.
+    public static func appBadge(status: MonitorRect, reserved: [MonitorRect]) -> MonitorRect {
+        let y = status.maxY + appBadgeGap
+        var x = status.x
+        for rect in reserved.sorted(by: { $0.x < $1.x }) {
+            let touchesRow =
+                rect.y < y + minimumTapTarget + appBadgeGap && y - appBadgeGap < rect.maxY
+            let touchesColumn =
+                rect.x - appBadgeGap < x + appBadgeWidth && x < rect.maxX + appBadgeGap
+            if touchesRow && touchesColumn { x = rect.maxX + appBadgeGap }
+        }
+        return MonitorRect(
+            x: x, y: y, width: max(0, min(appBadgeWidth, status.maxX - x)), height: minimumTapTarget)
+    }
+
+    /// The app status badge slot, clear of the lock, the gauges and the status row in either
+    /// orientation. The badge's touch target is this rect; its drawn pill centres in it.
+    public var appBadge: MonitorRect {
+        Self.appBadge(status: status, reserved: [lock, gauges, telemetry])
+    }
+
     /// 44 pt compass above the zoom row, trailing-aligned with the stick.
     public static func headTrack(stick: MonitorRect, zoom: MonitorRect) -> MonitorRect {
         MonitorRect(x: stick.maxX - 44, y: zoom.y - 8 - 44, width: 44, height: 44)
