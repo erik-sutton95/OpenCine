@@ -92,6 +92,8 @@ class LunaBackend(
     override val attempt: Job? get() = connectJob
     private val _radioOn = MutableStateFlow(bluetooth?.adapter?.isEnabled == true)
     override val radioOn = _radioOn.asStateFlow()
+    private val _scanBlocked = MutableStateFlow(false)
+    override val scanBlocked = _scanBlocked.asStateFlow()
     private val _joinedSSID = MutableStateFlow<String?>(null)
     override val joinedSSID = _joinedSSID.asStateFlow()
     private val video = MutableSharedFlow<EncodedVideoFrame>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -166,21 +168,21 @@ class LunaBackend(
             val identity = CameraIdentity(result.device.address, name, "Insta360 Luna Ultra")
             _found.update { cameras -> (cameras.filterNot { it.id == identity.id } + identity).sortedBy { it.advertisedName } }
         }
-        override fun onScanFailed(code: Int) { scanActive = false; fail(LunaFailures.scanFailed(code)); setPhase(ConnectionPhase.FAILED) }
+        override fun onScanFailed(code: Int) { scanActive = false; _scanBlocked.value = true; fail(LunaFailures.scanFailed(code)); setPhase(ConnectionPhase.FAILED) }
     }
     override fun startScan() {
         if (connectJob?.isActive == true) return
         _radioOn.value = bluetooth?.adapter?.isEnabled == true
-        if (!_radioOn.value) { setPhase(ConnectionPhase.IDLE); return }
+        if (!_radioOn.value) { _scanBlocked.value = true; setPhase(ConnectionPhase.IDLE); return }
         _failure.value = null; _failureDetail.value = null
         stopScan()
         // Null while the radio is turning off (SDK 37 annotates it; 36 left it a platform type).
         val leScanner = bluetooth.adapter.bluetoothLeScanner
-        if (leScanner == null) { _radioOn.value = false; setPhase(ConnectionPhase.IDLE); return }
+        if (leScanner == null) { _radioOn.value = false; _scanBlocked.value = true; setPhase(ConnectionPhase.IDLE); return }
         try {
             leScanner.startScan(listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(LunaGatt.SERVICE)).build()), ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanner)
-            scanActive = true; setPhase(ConnectionPhase.SCANNING)
-        } catch (_: SecurityException) { fail(LunaFailures.discoveryDenied); setPhase(ConnectionPhase.FAILED) }
+            scanActive = true; _scanBlocked.value = false; setPhase(ConnectionPhase.SCANNING)
+        } catch (_: SecurityException) { _scanBlocked.value = true; fail(LunaFailures.discoveryDenied); setPhase(ConnectionPhase.FAILED) }
     }
     private fun fail(failure: ConnectionFailure) { _failure.value = failure.message; _failureDetail.value = failure }
     override fun stopScan() { if (scanActive) runCatching { bluetooth?.adapter?.bluetoothLeScanner?.stopScan(scanner) }; scanActive = false }

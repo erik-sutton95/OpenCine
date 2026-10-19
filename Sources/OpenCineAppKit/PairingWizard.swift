@@ -60,7 +60,8 @@ extension CamerasMapping {
         let selected = model.nearby.first { $0.id == model.selection }
         let cameraID = selected.map { ConnectTarget.nearby($0.camera).cameraID }
         let busy = !model.attempts.isEmpty
-        let failure = busy ? nil : cameraID.flatMap { model.failures[$0]?.failure } ?? wizard.discoveryFailure
+        let failed = busy ? nil : model.failure(for: model.selection)
+        let failure = busy ? nil : failed?.failure ?? wizard.discoveryFailure
         let page = failure != nil ? 0 : PairingWizard.page(cameraID.flatMap { model.attempts[$0] })
         let choosing = page == 0
         let instructions: [CameraPairingInstruction] =
@@ -81,7 +82,13 @@ extension CamerasMapping {
             default: wizard.vpnActive
                 ? [.init(title: "Check the connection", icon: .phone, lines: [LocalVPNFilter.wizardBanner])] : []
             }
-        let name = selected.map { device($0, in: model).name }
+        let failedName: String? =
+            switch failed?.target {
+            case .nearby(let camera)?: camera.name
+            case .saved(let camera, _)?, .addRoute(let camera, _)?: camera.displayName
+            case nil: nil
+            }
+        let name = selected.map { device($0, in: model).name } ?? failedName
         let checks: [CameraPairingCheck] =
             page >= 2
             ? [
@@ -136,10 +143,10 @@ extension CamerasMapping {
                 onPrimary: {
                     guard model.attempts.isEmpty else { return }
                     let sighting = model.nearby.first { $0.id == model.selection }
-                    let cameraID = sighting.map { ConnectTarget.nearby($0.camera).cameraID }
-                    if let failure = cameraID.flatMap({ model.failures[$0]?.failure }) ?? discoveryFailure {
+                    let recorded = model.failure(for: model.selection)
+                    if let failure = recorded?.failure ?? discoveryFailure {
                         if failure.actions.contains(.openSettings) { return openSettings() }
-                        if let cameraID { model.dismissFailure(cameraID) }
+                        if let recorded { model.dismissFailure(recorded.target.cameraID) }
                         rescan()
                     } else if let sighting {
                         model.connect(sighting)
