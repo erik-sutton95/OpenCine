@@ -44,6 +44,10 @@ jobs:
           args: "detect --source=. --log-opts=HEAD --redact --no-banner --config=.gitleaks.toml"
       - name: Repository hygiene
         run: scripts/check-repository-hygiene.sh
+      - name: No async closure-literal default arguments (swiftlang/swift#92017)
+        run: |
+          scripts/check-async-closure-defaults-test.sh
+          scripts/check-async-closure-defaults.sh
       - name: Sentry release tooling shared by the apps (offline)
         run: bash scripts/sentry/sentry-test.sh
       - name: Spell check
