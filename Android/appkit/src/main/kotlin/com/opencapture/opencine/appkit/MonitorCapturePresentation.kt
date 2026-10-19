@@ -87,7 +87,8 @@ public object MonitorCapturePresentation {
                 else "${number(shutter.seconds.doubleValue)}s"
             is ShutterValue.Angle -> "${number(shutter.degrees)}°"
         }
-        is SettingValue.Aperture -> "f/${number(value.fNumber)}"
+        // One decimal, as every body and its menus spell it ("f/4.0").
+        is SettingValue.Aperture -> "f/%.1f".format(java.util.Locale.ROOT, value.fNumber)
         is SettingValue.WhiteBalance -> when (val wb = value.value) {
             WhiteBalanceValue.Auto -> "Auto"
             is WhiteBalanceValue.Preset -> wb.id
