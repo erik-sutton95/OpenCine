@@ -465,27 +465,10 @@
 
         private func paintedCapacity(_ expected: String, in control: CGRect, viewport: CGRect,
             tokens: [PaintedText]) -> PaintedText? {
-            let contained = tokens.filter {
-                control.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) && viewport.contains($0.frame)
-            }
-            if let complete = contained.first(where: { $0.value == expected }) { return complete }
-            let parts = expected.split(separator: " ").map(String.init)
-            guard parts.count == 2 else { return nil }
-            if contained.count == 1, let joined = contained.first,
-                joined.value == parts.joined(), control.contains(joined.frame) {
-                return PaintedText(value: expected, frame: joined.frame)
-            }
-            let fragments = parts.compactMap { part -> PaintedText? in
-                let matches = contained.filter { $0.value == part }
-                return matches.count == 1 ? matches[0] : nil
-            }
-            guard contained.count == parts.count, fragments.count == parts.count,
-                fragments[0].frame.midX < fragments[1].frame.midX,
-                max(fragments[0].frame.minY, fragments[1].frame.minY)
-                    < min(fragments[0].frame.maxY, fragments[1].frame.maxY) else { return nil }
-            let ink = fragments[0].frame.union(fragments[1].frame)
-            guard control.contains(ink), viewport.contains(ink) else { return nil }
-            return PaintedText(value: fragments.map(\.value).joined(separator: " "), frame: ink)
+            let frame = PaintedCapacityMatch.frame(expected: expected,
+                tokens: tokens.map { PaintedCapacityToken(value: $0.value, frame: $0.frame) },
+                control: control, viewport: viewport)
+            return frame.map { PaintedText(value: expected, frame: $0) }
         }
 
         private func matchesDeclaredFormatOCR(_ value: String, nativeFormat: String) -> Bool {
