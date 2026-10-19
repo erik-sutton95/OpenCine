@@ -3451,8 +3451,23 @@ public final class PTPIPClientSession: @unchecked Sendable {
             case let other: return .refused(other)
             }
         }
+        // Abort, then read the result back: a drive nobody reads to completion leaves the body
+        // answering busy to `ChangeAfArea` until a half-press (ZT-02).
         _ = try? executeTransaction(.afDriveCancel)
+        settleDeviceReady()
         return .refused(.deviceBusy)
+    }
+
+    /// Polls `DeviceReady` while the body answers busy, within `MFDriveChannelBudget`, so
+    /// the next command is not refused for a drive result nobody read. Caller holds
+    /// `commandLifecycleLock`. [verify-on-HW]
+    private func settleDeviceReady() {
+        for _ in 0..<MFDriveChannelBudget.settlePollLimit {
+            guard let ready = try? executeTransaction(.deviceReady),
+                ready.operationResponse.responseCode == .deviceBusy
+            else { return }
+            Thread.sleep(forTimeInterval: MFDriveChannelBudget.readinessPollIntervalSeconds)
+        }
     }
 
     // MARK: - Autofocus area
@@ -3476,6 +3491,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 guard attempt < 3,
                     case .operationRejected(_, .deviceBusy) = error
                 else { throw error }
+                // Busy is often a drive whose end nobody has read back yet (ZT-02).
+                settleDeviceReady()
                 Thread.sleep(forTimeInterval: 0.12)
             }
         }

@@ -1808,7 +1808,43 @@ struct PTPIPClientSessionTests {
         let operations = server.receivedOperations()
         #expect(operations.contains(.mfDrive))
         #expect(operations.contains(.afDriveCancel))
-        #expect(operations.last == .afDriveCancel)
+        #expect(operations.last == .deviceReady)
+    }
+
+    @Test func mfDriveAbortReadsTheResultBackSoTouchAFIsAccepted() throws {
+        // ZT-02: AfDriveCancel alone left the Z6III answering busy to ChangeAfArea
+        // until a half-press. The abort must also read the drive's end back.
+        var options = FakeZRServer.Options()
+        options.mfDriveReadinessBusyPolls = MFDriveChannelBudget.readinessPollLimit + 4
+        options.mfDriveHoldsBusyUntilReadBack = true
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+
+        #expect(session.mfDrive(towardNear: false, pulses: 400) == .refused(.deviceBusy))
+        let operations = server.receivedOperations()
+        let cancel = try #require(operations.lastIndex(of: .afDriveCancel))
+        #expect(operations[cancel...].contains(.deviceReady))
+        try session.changeAfArea(x: 3_024, y: 1_700)
+    }
+
+    @Test func changeAfAreaReadsAnUnreadDriveBackInsteadOfFailingBusy() throws {
+        // A drive whose end nobody read (any path) must not turn the next tap into
+        // "Camera rejected changeAfArea with response deviceBusy".
+        var options = FakeZRServer.Options()
+        options.mfDriveHoldsBusyUntilReadBack = true
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+
+        _ = try session.executeTransaction(.mfDrive, parameters: [2, 40])
+        try session.changeAfArea(x: 3_024, y: 1_700)
+        let operations = server.receivedOperations()
+        let firstTap = try #require(operations.firstIndex(of: .changeAfArea))
+        #expect(operations[firstTap...].contains(.deviceReady))
+        #expect(server.receivedRequests().last?.operation == .changeAfArea)
     }
 
     @Test func changeAfAreaUsesExactParametersWithoutADataOutPhase() throws {

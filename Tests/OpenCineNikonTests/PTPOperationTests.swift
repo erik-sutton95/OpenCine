@@ -139,7 +139,10 @@ import Testing
 @Test func focusDriveCannotOwnTheCommandChannelLongEnoughToBlockTouchAF() {
     // A tap-to-focus queued behind a drive has to reach the body while the operator still
     // believes the tap did something — seconds, not the ~50 s the old count-based budget allowed.
-    #expect(MFDriveChannelBudget.worstCaseChannelSeconds < 3)
+    // The bound includes the settle drain after an abort (ZT-02): an abort the body never reads
+    // back costs far more, the body stays busy until a half-press.
+    #expect(MFDriveChannelBudget.worstCaseChannelSeconds < 4)
+    #expect(MFDriveChannelBudget.settlePollLimit < MFDriveChannelBudget.readinessPollLimit)
     // And a run of refusals must always end sooner than one drive's own poll ceiling, so a
     // refusing body can never chain the two into an unbounded hold.
     #expect(
