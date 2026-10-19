@@ -27,6 +27,8 @@ text	closeClipInformation	Close clip information
 text	deleteConfirmationTitle	Delete this clip from the camera?
 text	deleteConfirm	Delete
 text	deleteCancel	Cancel
+text	deleteCancelDescription	Cancel deletion
+text	deleteConfirmDescription	Delete from the camera card
 text	backFifteen	Back 15 seconds
 text	forwardFifteen	Forward 15 seconds
 text	play	Play

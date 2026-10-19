@@ -220,6 +220,8 @@ public fun <P> MonitorOperatorCatalogScreen(
         MonitorConfirmPopup(
             title = state.deletionMessage ?: "Delete ${state.deleteCount} item${if (state.deleteCount == 1) "" else "s"} from the camera?",
             confirmTitle = "Delete", onClickFeedback = haptics::selection,
+            cancelDescription = MonitorPlaybackCopy.DELETE_CANCEL_DESCRIPTION,
+            confirmDescription = MonitorPlaybackCopy.DELETE_CONFIRM_DESCRIPTION,
             onDismiss = { gallery.cancelDelete(confirmation) }, onConfirm = { gallery.confirmDelete(confirmation) },
         )
     }
