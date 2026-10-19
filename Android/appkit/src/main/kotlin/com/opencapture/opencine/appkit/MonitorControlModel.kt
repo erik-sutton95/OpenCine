@@ -126,6 +126,11 @@ public class MonitorControlModel(
 
     /** A record operation finished (any stage), for the app's follow-up (refresh media). */
     public var onRecordFinished: (CommandReceipt) -> Unit = {}
+    /**
+     * Every setting write's outcome with its operator label, including one refused before it was
+     * sent (out of domain, unavailable): for the app's diagnostic journal, never operator copy.
+     */
+    public var onWriteFinished: (String, CommandReceipt) -> Unit = { _, _ -> }
 
     /** The reported state or a pending target changed: for projections that still copy it. */
     public var onChange: () -> Unit = {}
@@ -374,7 +379,11 @@ public class MonitorControlModel(
         if (session == null || snapshot == null) return finish(key, operation, binding, CONNECT_FIRST)
         val command = CameraCommand(CameraCommandIntent.Set(value), CommandPreconditions(snapshot), operation)
         val current = binding
-        scope.launch { finish(key, operation, current, noteFor(finished(session, command, admission).stage, label)) }
+        scope.launch {
+            val receipt = finished(session, command, admission)
+            onWriteFinished(label, receipt)
+            finish(key, operation, current, noteFor(receipt.stage, label))
+        }
     }
 
     private fun finish(key: SettingKey, operation: OperationID, from: Int, note: String?) {
