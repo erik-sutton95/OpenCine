@@ -56,4 +56,21 @@ class CameraPowerReadingTest {
         assertEquals(true, cameraPowerReading(external)?.charging)
     }
 
+    /** Behavior audit ZAA-304: a body on external power with no level keeps its pill (EXT). */
+    @Test fun externalPowerWithoutALevelKeepsThePill() {
+        val reading = assertNotNull(cameraPowerReading(PowerStatus(
+            externalPower = ObservedValue(true, ObservationOrigin.CAMERA_REPORTED, null))))
+        assertNull(reading.percent)
+        assertNull(reading.bars)
+        assertEquals(true, reading.externalPower)
+        assertEquals(true, reading.charging)
+        assertNull(cameraPowerReading(PowerStatus(
+            externalPower = ObservedValue(false, ObservationOrigin.CAMERA_REPORTED, null))))
+        assertNull(cameraPowerReading(PowerStatus.unknown))
+        val gauge = assertNotNull(cameraPowerReading(PowerStatus(
+            battery = ObservedValue(0.6, ObservationOrigin.CAMERA_REPORTED, null, precision = ObservationPrecision.Quantized(0.2)),
+            externalPower = ObservedValue(true, ObservationOrigin.CAMERA_REPORTED, null))))
+        assertEquals(3, gauge.bars)
+        assertEquals(true, gauge.externalPower)
+    }
 }

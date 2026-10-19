@@ -26,4 +26,17 @@ class MonitorStorageReadoutFormatTest {
         assertEquals("1GB", MonitorStorageReadoutFormat.wholeUnitCapacity(999_600_000))
         assertEquals("1TB", MonitorStorageReadoutFormat.wholeUnitCapacity(1_000_000_000_000))
     }
+
+    /**
+     * A5-11: the free percentage is the storage readout's alternative; video adds the remaining
+     * recording time when the body reports one; photo never shows minutes (behavior audit
+     * II-130, PIA-252, PAA-248).
+     */
+    @Test fun oneTapStepsFromFreeSpaceToPercentThenRecordingTime() {
+        assertEquals(listOf("47%", "~47 Min"), MonitorStorageReadoutFormat.alternatives("47%", "~47 Min", photo = false))
+        assertEquals(listOf("47%"), MonitorStorageReadoutFormat.alternatives("47%", null, photo = false))
+        assertEquals(listOf("47%"), MonitorStorageReadoutFormat.alternatives("47%", "~47 Min", photo = true))
+        assertEquals(emptyList(), MonitorStorageReadoutFormat.alternatives(null, "~47 Min", photo = true))
+        assertEquals(emptyList(), MonitorStorageReadoutFormat.alternatives(null, null, photo = false))
+    }
 }
