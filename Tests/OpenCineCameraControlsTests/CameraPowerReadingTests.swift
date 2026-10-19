@@ -49,6 +49,9 @@
             XCTAssertNil(reading.bars)
             XCTAssertEqual(reading.externalPower, true)
             XCTAssertEqual(reading.charging, true)
+            XCTAssertTrue(try XCTUnwrap(MonitorOperatorPowerReading.camera(PowerStatus(
+                externalPower: .init(true, origin: .cameraReported, at: nil),
+                exhausted: .init(true, origin: .cameraReported, at: nil)))).exhausted)
             XCTAssertNil(MonitorOperatorPowerReading.camera(PowerStatus(
                 externalPower: .init(false, origin: .cameraReported, at: nil))))
             XCTAssertNil(MonitorOperatorPowerReading.camera(PowerStatus.unknown))

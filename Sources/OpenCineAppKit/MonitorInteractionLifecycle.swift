@@ -40,6 +40,8 @@ public struct MonitorInteractionTransition: Equatable, Sendable {
     public let retireReadout: Bool
     public let collapseAssists: Bool
     public let inputAdmission: MonitorInputAdmission?
+    /// A different camera replaced the previous one: per-camera readout choices start over.
+    public var cameraReplaced = false
 }
 
 /// Shared lock, cover, chrome-edit, clean-view, rotation and replacement lifecycle.

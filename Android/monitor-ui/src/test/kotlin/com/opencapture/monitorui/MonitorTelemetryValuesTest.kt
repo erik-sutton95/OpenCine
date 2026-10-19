@@ -35,6 +35,7 @@ class MonitorTelemetryValuesTest {
         assertEquals("60 percent, charging", MonitorTelemetryValues.batterySpokenValue(60, null, 5, true, null, false))
         assertEquals("60 percent", MonitorTelemetryValues.batterySpokenValue(60, null, 5, false, false, false))
         assertEquals("external power", MonitorTelemetryValues.batterySpokenValue(null, null, 5, true, true, false))
+        assertEquals("exhausted, external power", MonitorTelemetryValues.batterySpokenValue(null, null, 5, true, true, true))
         assertNull(MonitorTelemetryValues.batterySpokenValue(null, null, 5, null, null, false))
     }
 
@@ -58,5 +59,9 @@ class MonitorTelemetryValuesTest {
         assertNull(MonitorTelemetryValues.linkValue("\u2014", 0, showsRate = false))
         assertNull(MonitorTelemetryValues.linkValue(null, 1, showsRate = false))
         assertEquals("\u2014", MonitorTelemetryValues.linkValue(null, null, showsRate = false))
+        // A rate outside any frame rate prints as reported instead of a saturated conversion.
+        assertEquals("1e100", MonitorTelemetryValues.linkValue("1e100", 3, showsRate = true))
+        assertEquals("-1e100", MonitorTelemetryValues.linkValue("-1e100", 3, showsRate = true))
+        assertNull(MonitorTelemetryValues.linkValue("1e100", 3, showsRate = false))
     }
 }

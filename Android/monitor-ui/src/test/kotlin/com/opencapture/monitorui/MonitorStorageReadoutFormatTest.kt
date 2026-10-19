@@ -39,4 +39,13 @@ class MonitorStorageReadoutFormatTest {
         assertEquals(emptyList(), MonitorStorageReadoutFormat.alternatives(null, "~47 Min", photo = true))
         assertEquals(emptyList(), MonitorStorageReadoutFormat.alternatives(null, null, photo = false))
     }
+
+    /** A tap with nothing to step to leaves the readout on its free space, so a later alternative starts from free space too. */
+    @Test fun aTapStepsOnlyWhenThereIsAnAlternative() {
+        assertEquals(1, MonitorStorageReadoutFormat.nextForm(0, 3))
+        assertEquals(0, MonitorStorageReadoutFormat.nextForm(2, 3))
+        assertEquals(0, MonitorStorageReadoutFormat.nextForm(0, 1))
+        assertEquals(0, MonitorStorageReadoutFormat.nextForm(5, 1))
+        assertEquals(0, MonitorStorageReadoutFormat.nextForm(5, 2))
+    }
 }

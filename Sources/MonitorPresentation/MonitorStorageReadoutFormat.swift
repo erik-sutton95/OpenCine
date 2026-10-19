@@ -32,6 +32,9 @@ public enum MonitorStorageReadoutFormat {
         [percent, photo ? nil : recordingTime].compactMap { $0 }
     }
 
+    /// The form a tap selects after `current`, of `count` forms.
+    public static func nextForm(after current: Int, count: Int) -> Int { current + 1 }
+
     public static func remainingMinutes(_ minutes: Int?) -> String {
         guard let minutes, minutes >= 0 else { return "\u{2014} Min" }
         return "\(minutes) Min"

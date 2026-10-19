@@ -64,6 +64,9 @@ class CameraPowerReadingTest {
         assertNull(reading.bars)
         assertEquals(true, reading.externalPower)
         assertEquals(true, reading.charging)
+        assertTrue(assertNotNull(cameraPowerReading(PowerStatus(
+            externalPower = ObservedValue(true, ObservationOrigin.CAMERA_REPORTED, null),
+            exhausted = ObservedValue(true, ObservationOrigin.CAMERA_REPORTED, null)))).exhausted)
         assertNull(cameraPowerReading(PowerStatus(
             externalPower = ObservedValue(false, ObservationOrigin.CAMERA_REPORTED, null))))
         assertNull(cameraPowerReading(PowerStatus.unknown))

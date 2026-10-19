@@ -37,6 +37,8 @@ struct MonitorTelemetryValuesTests {
             externalPower: false, exhausted: false) == "60 percent")
         #expect(MonitorTelemetryValues.batterySpokenValue(percent: nil, bars: nil, barCount: 5, charging: true,
             externalPower: true, exhausted: false) == "external power")
+        #expect(MonitorTelemetryValues.batterySpokenValue(percent: nil, bars: nil, barCount: 5, charging: true,
+            externalPower: true, exhausted: true) == "exhausted, external power")
         #expect(MonitorTelemetryValues.batterySpokenValue(percent: nil, bars: nil, barCount: 5, charging: nil,
             externalPower: nil, exhausted: false) == nil)
     }
@@ -61,5 +63,9 @@ struct MonitorTelemetryValuesTests {
         #expect(MonitorTelemetryValues.linkValue(fps: "\u{2014}", signalBars: 0, showsRate: false) == nil)
         #expect(MonitorTelemetryValues.linkValue(fps: nil, signalBars: 1, showsRate: false) == nil)
         #expect(MonitorTelemetryValues.linkValue(fps: nil, signalBars: nil, showsRate: false) == "\u{2014}")
+        // A rate outside any frame rate prints as reported instead of trapping on conversion.
+        #expect(MonitorTelemetryValues.linkValue(fps: "1e100", signalBars: 3, showsRate: true) == "1e100")
+        #expect(MonitorTelemetryValues.linkValue(fps: "-1e100", signalBars: 3, showsRate: true) == "-1e100")
+        #expect(MonitorTelemetryValues.linkValue(fps: "1e100", signalBars: 3, showsRate: false) == nil)
     }
 }

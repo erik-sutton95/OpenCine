@@ -36,5 +36,8 @@ object MonitorStorageReadoutFormat {
     fun alternatives(percent: String?, recordingTime: String?, photo: Boolean): List<String> =
         listOfNotNull(percent, recordingTime.takeUnless { photo })
 
+    /** The form a tap selects after [current], of [count] forms. */
+    fun nextForm(current: Int, count: Int): Int = current + 1
+
     fun remainingMinutes(minutes: Int?): String = minutes?.takeIf { it >= 0 }?.let { "$it Min" } ?: "\u2014 Min"
 }

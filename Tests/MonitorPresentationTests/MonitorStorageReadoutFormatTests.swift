@@ -35,4 +35,14 @@ struct MonitorStorageReadoutFormatTests {
         #expect(MonitorStorageReadoutFormat.alternatives(percent: nil, recordingTime: "~47 Min", photo: true).isEmpty)
         #expect(MonitorStorageReadoutFormat.alternatives(percent: nil, recordingTime: nil, photo: false).isEmpty)
     }
+
+    /// A tap with nothing to step to leaves the readout on its free space, so a later
+    /// alternative starts from free space too.
+    @Test func aTapStepsOnlyWhenThereIsAnAlternative() {
+        #expect(MonitorStorageReadoutFormat.nextForm(after: 0, count: 3) == 1)
+        #expect(MonitorStorageReadoutFormat.nextForm(after: 2, count: 3) == 0)
+        #expect(MonitorStorageReadoutFormat.nextForm(after: 0, count: 1) == 0)
+        #expect(MonitorStorageReadoutFormat.nextForm(after: 5, count: 1) == 0)
+        #expect(MonitorStorageReadoutFormat.nextForm(after: 5, count: 2) == 0)
+    }
 }
