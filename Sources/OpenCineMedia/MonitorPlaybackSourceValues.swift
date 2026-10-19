@@ -38,17 +38,25 @@ public struct MonitorPlaybackSourceValues: Sendable {
     public var clipByte: Int?
     public var metadata: [MonitorPlaybackMetadataValue]
     public var clockStyle: MonitorPlaybackClockStyle
+    /// A source condition the operator should read now (a share waiting on the camera cache).
+    public var notice: String?
     public init(availability: MonitorPlaybackAvailability? = nil, progress: Double? = nil,
         buffered: Double? = nil, colorLabel: String? = nil, transfer: MonitorTransfer? = nil,
         clipByte: Int? = nil, metadata: [MonitorPlaybackMetadataValue] = [],
         clockStyle: MonitorPlaybackClockStyle = .elapsed, bufferedThroughSeconds: Double? = nil,
-        allowsSignalFallback: Bool = true) {
+        allowsSignalFallback: Bool = true, notice: String? = nil) {
+        self.notice = notice
         self.availability = availability; self.progress = progress; self.buffered = buffered
         self.colorLabel = colorLabel; self.transfer = transfer; self.clipByte = clipByte
         self.metadata = metadata
         self.clockStyle = clockStyle
         self.bufferedThroughSeconds = bufferedThroughSeconds
         self.allowsSignalFallback = allowsSignalFallback
+    }
+    /// The header line under the title: the source's notice while it has one, else the clip facts.
+    public func headerSubtitle(facts: String) -> String {
+        if let notice, !notice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return notice }
+        return facts
     }
     /// Maps a native temporal observation only when its actual native duration is known.
     public func bufferedTemporalFraction(nativeDuration: Double?) -> Double? {

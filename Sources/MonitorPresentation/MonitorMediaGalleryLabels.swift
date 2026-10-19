@@ -38,6 +38,14 @@ public enum MonitorMediaGalleryCopy {
     public static let emptyPhotos = "No photos on this camera yet. Capture a still, then pull to refresh."
     public static let disconnected = "Connect the camera to list clips on the body."
     public static let disconnectedEmptyCache = "Nothing cached on this phone. Connect the camera to list clips on the body."
+    /// The empty gallery's line: offline with nothing listed, filtered (before the cache is
+    /// blamed, ZIB-413), offline with listed clips, or the tab's own [tab] line.
+    public static func emptySubtitle(sourceAvailable: Bool, hasRecords: Bool, activeFilterCount: Int,
+        tab: String) -> String {
+        if !sourceAvailable && !hasRecords { return disconnected }
+        if activeFilterCount > 0 { return filterEmpty }
+        return sourceAvailable ? tab : disconnectedEmptyCache
+    }
     public static let proxyTag = "Proxy"
     public static let proxyHelp = "720p preview. Connect the camera to share the original."
 }

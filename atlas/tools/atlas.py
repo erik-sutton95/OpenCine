@@ -2,7 +2,7 @@
 """OpenCine atlas CLI (formerly opencapture-atlas). Standard library only.
 
 Read-only commands: doctor, locate, deps, impact, stale, check, issues, ensure --check, dupes
-(without --write-baseline), graph plan, compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
+(without --write-baseline), compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
 `ensure` clones missing checkouts; `task start` creates task worktrees and a brief (never commits).
 Exit codes: 0 ok, 1 failed check, 2 unusable input, 3 incomplete (something requested
 could not be obtained or parsed; never reported as success).
@@ -538,24 +538,13 @@ def cmd_impact(args, reg, root):
     return code
 
 
-def snapshot_dirs(root):
-    return sorted((root / "repos").glob("*/snapshots/*/snapshot.json"))
-
-
 def cmd_stale(args, reg, root):
-    import graph  # noqa: PLC0415
     resolved = resolve_all(reg, root)
     rows = []
     for rid, m in sorted(reg.items()):
         res = resolved[rid]
         for ref in m["refs"]:
-            row = {"repo": rid, "ref": ref["name"], "pinned": ref["commit"], "source": "not checked", "snapshot": "missing"}
-            snap = root / "repos" / rid / "snapshots" / ref["commit"] / "snapshot.json"
-            if snap.is_file():
-                s = json.loads(snap.read_text())
-                same_cfg = s.get("scan_config_hash") == resolver.config_hash(graph.SCAN_CONFIG)
-                same_tool = (s.get("tool_versions") or {}).get("graphify") == graph.GRAPHIFY_VERSION
-                row["snapshot"] = "current" if same_cfg and same_tool else "outdated (scan config or tool version changed)"
+            row = {"repo": rid, "ref": ref["name"], "pinned": ref["commit"], "source": "not checked"}
             if res["status"] == "ok":
                 tip = resolver.rev(res["path"], f"origin/{ref['name']}") or resolver.rev(res["path"], ref["name"])
                 if not tip:
@@ -574,7 +563,7 @@ def cmd_stale(args, reg, root):
         return OK
     for r in rows:
         extra = f"  checkout {r['checkout']}" if r.get("checkout") else ""
-        print(f"{r['repo']}@{r['ref']} {r['pinned'][:12]}  source: {r['source']}  snapshot: {r['snapshot']}{extra}")
+        print(f"{r['repo']}@{r['ref']} {r['pinned'][:12]}  source: {r['source']}{extra}")
     return OK
 
 
@@ -583,7 +572,7 @@ def tracked_files(root):
         out = subprocess.run(["git", "-C", str(root), "ls-files", "-co", "--exclude-standard", "-z"], capture_output=True, check=True, env=resolver.GIT_ENV).stdout
         return [root / p for p in out.decode().split("\0") if p]
     except (subprocess.CalledProcessError, FileNotFoundError):
-        skip = {".git", ".local", "graphify-out", "__pycache__"}
+        skip = {".git", ".local", "__pycache__"}
         return [p for p in root.rglob("*") if p.is_file() and not skip & set(p.relative_to(root).parts)]
 
 
@@ -601,29 +590,6 @@ def private_path_errors(root):
                 errors.append(f"{f.relative_to(root)}:{no}: private machine path")
             if "\u2014" in line:
                 errors.append(f"{f.relative_to(root)}:{no}: em dash (atlas style forbids it)")
-    return errors
-
-
-def snapshot_errors(root, reg):
-    errors = []
-    for p in snapshot_dirs(root):
-        rid, sha = p.parts[-4], p.parts[-2]
-        where = p.relative_to(root)
-        try:
-            s = json.loads(p.read_text())
-        except ValueError:
-            errors.append(f"{where}: invalid JSON")
-            continue
-        if rid not in reg or s.get("repository_id") != rid:
-            errors.append(f"{where}: repository_id does not match its folder")
-        if s.get("source_commit") != sha or not _is_sha(sha):
-            errors.append(f"{where}: folder must be the full source_commit")
-        if s.get("dirty") is not False or s.get("scope") == "local-overlay":
-            errors.append(f"{where}: committed snapshots must come from a clean commit, never an overlay")
-        if not _is_sha(s.get("source_tree")) or not re.match(r"^[0-9a-f]{64}$", s.get("scan_config_hash") or ""):
-            errors.append(f"{where}: needs source_tree and scan_config_hash")
-        if not (s.get("tool_versions") or {}).get("graphify") or not s.get("built_at"):
-            errors.append(f"{where}: needs tool_versions.graphify and built_at")
     return errors
 
 
@@ -724,7 +690,6 @@ def cmd_check(args, reg, root, load_errors):
                 if resolver.rev(resolved[rid]["path"], ref["commit"]):
                     errors += [f"{rid}@{ref['name']}: {e}" for e in target_layer_errors(m, platform_files_at(resolved[rid]["path"], ref["commit"]))]
     errors += [f"build cycle: {' -> '.join(c)}" for c in build_cycles(edges)]
-    errors += snapshot_errors(root, reg)
     errors += candidate_errors(root, reg)
     errors += private_path_errors(root)
     for err in errors:
@@ -744,7 +709,6 @@ def cmd_check(args, reg, root, load_errors):
 
 
 def cmd_doctor(args, reg, root, load_errors):
-    import graph  # noqa: PLC0415
     problems = load_errors + validate_registry(reg)
     print(f"atlas {ATLAS_VERSION}, python {sys.version.split()[0]}, {resolver.git(root, '--version', check=False) or 'git unavailable'}")
     print(f"registry: {len(reg)} repos, {len(problems)} problem(s)")
@@ -752,10 +716,6 @@ def cmd_doctor(args, reg, root, load_errors):
     print(f"local config: {'present' if cfg.is_file() else 'absent (workspace discovery only)'}")
     for rid, res in resolve_all(reg, root).items():
         print(f"  {rid:18} {res['status']:9} {res['path'] or res['reason']}")
-    gv = graph.installed_graphify_version()
-    pin = "matches pin" if gv == graph.GRAPHIFY_VERSION else f"pin is {graph.GRAPHIFY_VERSION}"
-    print(f"graphify: {gv or 'not installed'} ({pin}); sandbox-exec: {'available' if graph.sandbox_available() else 'unavailable'}")
-    print(f"snapshots: {len(snapshot_dirs(root))} committed")
     for p in problems:
         print(f"  problem: {p}")
     return FAIL if problems else OK
@@ -792,9 +752,9 @@ def main(argv=None):
     p.add_argument("--base", help="base ref for the issue's repository (default: the ref it consumes OpenCine on)")
     p.add_argument("--from-file", metavar="FILE", help="issue text the user gave you (first line: title) when GitHub has none")
     p.add_argument("--orca", action="store_true", help="discover registered sources and adopt the physical sibling task in Orca; no agent launch")
-    p = sub.add_parser("stale", help="pinned refs and snapshots versus current sources")
+    p = sub.add_parser("stale", help="pinned refs versus current sources")
     p.add_argument("--json", action="store_true")
-    p = sub.add_parser("check", help="registry, direction, cycles, snapshots, private paths")
+    p = sub.add_parser("check", help="registry, direction, cycles, private paths")
     p.add_argument("--sources", action="store_true", help="also verify evidence and manifests against local checkouts")
     p = sub.add_parser("dupes", help="duplicated code between OpenCine and the apps, against compat/dupes-baseline.json")
     p.add_argument("--check", action="store_true", help="fail when a repository pair has more duplicated lines than the baseline")
@@ -810,14 +770,6 @@ def main(argv=None):
     p.add_argument("--id", help="bundle and application id (default com.opencapture.<name lowercased>)")
     p.add_argument("--dest", help="parent folder (default: the folder holding this OpenCine checkout)")
     p.add_argument("--dry-run", action="store_true", help="validate and list every output; write nothing")
-    gp = sub.add_parser("graph", help="Graphify navigation snapshots").add_subparsers(dest="gcmd", required=True)
-    p = gp.add_parser("plan", help="read-only: what a build would read, exclude and write")
-    p.add_argument("targets", nargs="*", help="repo or repo@ref; default every registered ref")
-    p = gp.add_parser("build", help="code-only build from an exported commit")
-    p.add_argument("target", nargs="?", help="repo or repo@ref")
-    p.add_argument("--all", action="store_true", help="every repository at its working ref, then the merged navigation view")
-    p.add_argument("--local-only", action="store_true", required=True, help="required: no model or network calls")
-    p = gp.add_parser("merge", help="namespaced local navigation view of built snapshots")
     cp = sub.add_parser("compat", help="candidate package versus recorded consumers (OPS-01)").add_subparsers(dest="ccmd", required=True)
     p = cp.add_parser("plan", help="read-only: workspace layout and what each check would do")
     p.add_argument("candidate", nargs="?")
@@ -838,9 +790,6 @@ def main(argv=None):
     if load_errors:
         print("\n".join(load_errors), file=sys.stderr)
         return USAGE
-    if args.cmd == "graph":
-        import graph  # noqa: PLC0415
-        return graph.run(args, reg, root)
     if args.cmd == "compat":
         import compat  # noqa: PLC0415
         return compat.run(args, reg, root)

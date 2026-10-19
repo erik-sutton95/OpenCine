@@ -172,6 +172,8 @@ class DjiAndroidMediaServiceTest {
         val peer = Peer(this); peer.galleryOpen = true; peer.playback = true
         val browse = peer.service.openBrowse()
         assertNull(browse.catalog().next())
+        // PAB-M-14: the gallery says the camera holds its own gallery instead of "No clips".
+        assertEquals(true, browse.heldBySource)
         assertEquals(0, peer.enters); assertTrue(peer.writes.isEmpty())
         browse.close(); browse.close()
         assertEquals(1, peer.returns); assertEquals(1, peer.exits); assertEquals(1, peer.enables)
@@ -246,8 +248,14 @@ class DjiAndroidMediaServiceTest {
         assertEquals(MediaListCommand.pageKey(first), MediaListCommand.pageKey(first.copy(sizeBytes = first.sizeBytes + 1)))
         val unknown = DjiAndroidMediaAssets.asset(MediaFile("unknown.bin", ""))
         assertNull(unknown.kind); assertNull(unknown.durationSeconds); assertNull(unknown.pixelSize)
-        assertNull(unknown.frameRate); assertNull(unknown.capturedAt); assertNull(unknown.deletable)
+        assertNull(unknown.frameRate); assertNull(unknown.capturedAt)
         assertNull(unknown.representations.single().byteCount)
+    }
+    @Test fun assetIsDeletableExactlyWhenItsFileHasAnOwnHandle() {
+        val file = MediaFile("DCIM/DJI_001/DJI_20260912120000_0001_D.MP4", "", handle = 7)
+        assertEquals(true, DjiAndroidMediaAssets.asset(file).deletable)
+        assertEquals(false, DjiAndroidMediaAssets.asset(file.copy(handleShared = true)).deletable)
+        assertEquals(false, DjiAndroidMediaAssets.asset(file.copy(handle = 0)).deletable)
     }
 
     @Test fun capturedReceiverNeverLooksUpSuccessorAfterQueueingAndRetiresOnlyItsTicket() {

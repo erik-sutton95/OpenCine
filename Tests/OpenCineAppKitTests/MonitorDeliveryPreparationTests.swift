@@ -18,10 +18,11 @@ import Testing
         var network: Bool? = false, configured: Bool? = true, connected: Bool? = true
         var savedID: String?, sourceHook: (() -> Bool)?, persistHook: (() -> Void)?, restoreHook: (() -> Void)?
         var lut: Bool? = true, convert: Bool? = true, skipsUploaded = true
+        var files: [MonitorDeliveryFileFacts] = [.init(filename: "SIMULATED.mov", sizeBytes: nil)], bakeLUT = false
         var nativeWaits: [Int] = []
         func model(preferred: MonitorDeliveryDestination? = .remoteUpload, export: Bool = true) -> Model {
-            var configuration = MonitorDeliveryExportConfiguration(logTransform: 1, exportFormat: 1); configuration.bakeLUT = false
-            return .init(selection: { .init(files: [.init(filename: "SIMULATED.mov", sizeBytes: nil)], cachedCount: 1, connected: nil) },
+            var configuration = MonitorDeliveryExportConfiguration(logTransform: 1, exportFormat: 1); configuration.bakeLUT = bakeLUT
+            return .init(selection: { .init(files: self.files, cachedCount: 1, connected: nil) },
                 configuration: export ? configuration : nil,
                 exportOptions: export ? .init(curves: [.init(id: "1", label: "SIMULATED curve", value: 1)],
                     formats: [.init(id: "1", label: "SIMULATED format", value: 1)],
@@ -83,6 +84,24 @@ import Testing
         #expect(model.remotePresentation?.displayName == "SIMULATED upload")
         #expect(model.remotePresentation?.progressCaption == "SIMULATED uploading")
         fixture.finish(model)
+    }
+    /// ZIB-469: a still travels as its original, so no Bake LUT, curve or container is offered for it.
+    @Test func stillsOnlySelectionOffersNoClipExport() async {
+        let fixture = Fixture(); fixture.bakeLUT = true
+        fixture.files = [.init(filename: "DSC_0001.JPG", sizeBytes: nil, isStill: true)]
+        let model = fixture.model(preferred: .nativeShare)
+        model.start()
+        #expect(model.clipExportOptions == nil)
+        #expect(model.configuration?.bakeLUT == false)
+        model.setBakeLUT(true)
+        #expect(model.configuration?.bakeLUT == false)
+        #expect(model.canContinue)
+        fixture.files = [.init(filename: "DSC_0001.JPG", sizeBytes: nil, isStill: true),
+            .init(filename: "DSC_0002.MOV", sizeBytes: nil, isStill: false)]
+        let mixed = fixture.model(preferred: .nativeShare)
+        mixed.start()
+        #expect(mixed.clipExportOptions != nil && mixed.configuration?.bakeLUT == true)
+        fixture.finish(mixed); fixture.finish(model)
     }
     @Test func unknownExportFactsCannotEnableInventedOptions() async {
         let fixture = Fixture(); fixture.lut = nil; fixture.convert = nil

@@ -13,8 +13,6 @@
     ".build/**",
     "**/build/**",
     "**/node_modules/**",
-    "atlas/.local/**",
-    "atlas/.graphify-out/**",
-    "atlas/repos/*/snapshots/**"
+    "atlas/.local/**"
   ]
 }

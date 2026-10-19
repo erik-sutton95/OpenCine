@@ -1,6 +1,7 @@
 # ADR 0006: Graphify is local, code-only navigation
 
-Status: **Accepted, provisional.** Made autonomously during the unattended 2026-10-01 run; revisit when the user returns.
+Status: **Superseded** by [ADR 0012](0012-code-derived-consumer-index-replaces-graphify.md) on 2026-10-19.
+Originally accepted provisionally during the unattended 2026-10-01 run.
 Date: 2026-10-01
 
 ## Context

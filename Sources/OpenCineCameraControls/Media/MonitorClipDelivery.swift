@@ -127,6 +127,11 @@ public enum MonitorClipDeliveryError: LocalizedError {
         .init(logTransform: .dLogToDLog2, exportFormat: .mov)
     }
 
+    /// A still travels as its original, so the popup offers it no clip export (ZIB-469).
+    public nonisolated static func selectionFile(_ file: MediaFile) -> MonitorDeliveryFileFacts {
+        .init(filename: file.filename, sizeBytes: file.sizeBytes > 0 ? file.sizeBytes : nil,
+            isStill: file.kind == .photo)
+    }
     /// Convert log is video-only. An unknown shot color stays available until export reads the
     /// original; a curve with no conversion disables the toggle.
     public nonisolated static func convertLogAvailable(files: [MediaFile], shotColors: [ColorMode?]) -> Bool {
@@ -186,7 +191,7 @@ public enum MonitorClipDeliveryError: LocalizedError {
         let model = Preparation<Project, Context, Lease>(
             selection: {
                 .init(
-                    files: files.map { .init(filename: $0.filename, sizeBytes: $0.sizeBytes > 0 ? $0.sizeBytes : nil) },
+                    files: files.map(selectionFile),
                     cachedCount: files.filter(library.isDownloaded).count, connected: library.connected())
             }, configuration: configuration,
             exportOptions: .init(

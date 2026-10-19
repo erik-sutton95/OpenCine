@@ -149,9 +149,15 @@ public protocol MediaTransferProgressSink: MediaByteSink {
     var thumbnails: (any CameraMediaThumbnailService)? { get }
     var transfers: (any CameraMediaTransferService)? { get }
     var deletion: (any CameraMediaDeleteService)? { get }
+    /// True while the camera holds its own media (its own gallery is open), so this browse lists
+    /// nothing; nil when the source does not say.
+    var heldBySource: Bool? { get }
     func catalog() async throws -> any MediaCatalogCursor
     /// Retires before yielding. Idempotent; source owns safe return to the same live session.
     func close() async
+}
+extension CameraMediaBrowse {
+    public var heldBySource: Bool? { nil }
 }
 
 /// Registered by protocol type in ConnectedCamera.services, never selected by manufacturer.

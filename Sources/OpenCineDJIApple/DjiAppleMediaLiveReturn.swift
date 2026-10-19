@@ -63,8 +63,10 @@ import OpenCineDJI
                 do { try await timing.sleep(.milliseconds(180)) } catch { return .superseded }
             case .enableLiveView:
                 deadline = deadline ?? now + timing.seconds(timeout)
-                enableSent = enableLiveView() || enableSent
-                if enableSent { lastEnableAt = now }
+                let accepted = enableLiveView()
+                enableSent = accepted || enableSent
+                // A refused resend must not delay the next one by another keyframe interval.
+                if accepted { lastEnableAt = now }
                 do { try await timing.sleep(.milliseconds(100)) } catch { return .superseded }
             case .waitForPicture:
                 do { try await timing.sleep(.milliseconds(100)) } catch { return .superseded }

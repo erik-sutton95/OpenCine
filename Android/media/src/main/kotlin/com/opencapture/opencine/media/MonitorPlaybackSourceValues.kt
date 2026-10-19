@@ -31,7 +31,11 @@ public data class MonitorPlaybackSourceValues(
     public val bufferedThroughSeconds: Double? = null,
     /** Explicit unknown sources opt out of legacy player/effect transfer fallback. */
     public val allowsSignalFallback: Boolean = true,
+    /** A source condition the operator should read now (a share waiting on the camera cache). */
+    public val notice: String? = null,
 ) {
+    /** The header line under the title: the source's notice while it has one, else the clip facts. */
+    public fun headerSubtitle(facts: String): String = notice?.takeIf { it.isNotBlank() } ?: facts
     /** Maps only an actual native temporal observation with known actual native duration. */
     public fun bufferedTemporalFraction(nativeDuration: Double?): Double? {
         val through = bufferedThroughSeconds?.takeIf { it.isFinite() && it >= 0.0 } ?: return null

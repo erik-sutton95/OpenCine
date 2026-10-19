@@ -1,11 +1,20 @@
 name: CI
 
+# Two tiers (docs/testing/CI.md). Pull requests and pushes to main run the fast, deterministic
+# PR tier, which alone feeds the required "CI gate". The nightly workflow calls this file with
+# `full: true` to add the hosted simulator, SIMULATED and quarantined suites on main.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      full:
+        description: Also run the nightly-only suites
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -50,6 +59,10 @@ jobs:
           fail: true
       - name: EditorConfig check
         uses: editorconfig-checker/action-editorconfig-checker@51f63319f592f97930c73d9c46184d20bd206393 # v3.0.0
+      - name: Release notes and nightly report tooling
+        run: |
+          scripts/tester-notes-release-check-test.sh
+          scripts/ci-nightly-report-test.sh
       - name: Actionlint
         uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         with:
@@ -58,7 +71,7 @@ jobs:
   swift:
     name: Swift package (macOS host tests, iOS builds)
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     env:
       # Surface the crashing frame if a test process aborts; failure-only reports are uploaded below.
       SWIFT_BACKTRACE: enable=yes,interactive=no
@@ -188,8 +201,8 @@ jobs:
 
   atlas:
     # Nothing here builds an app, writes to another repository, publishes, schedules or merges.
-    # It reads the public app repositories for the duplication check. The Graphify build test
-    # and the pinned-path eval test skip without app checkouts and report as skipped, not passed.
+    # It reads the public app repositories for the duplication check. The pinned-path eval test
+    # skips without app checkouts and reports as skipped, not passed.
     name: Atlas check
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -199,7 +212,7 @@ jobs:
           persist-credentials: false
       - name: Unit tests
         run: python3 -m unittest discover -s atlas/tests -v
-      - name: Registry, direction, cycles, snapshots, candidates and private paths
+      - name: Registry, direction, cycles, candidates and private paths
         run: python3 atlas/tools/atlas.py check
       # Informational: consumer builds (`compat run`) need macOS, Xcode and the Android SDK.
       - name: Candidate consumer matrix
@@ -218,10 +231,14 @@ jobs:
           OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
         run: python3 atlas/tools/atlas.py dupes --check --top 3
 
+  # Nightly tier from here to the gate: hosted simulator and SIMULATED suites, which are slower
+  # and carry the quarantined hosted flakes (docs/testing/CI.md). They never feed "CI gate".
+  #
   # The conformance kit's own checks (docs/conformance/SCENARIOS.md): the hosted accessibility walk's
   # self-test and the native view tests that use it, on a private simulator with accessibility on.
   kit-ios:
     name: Conformance kit, iOS (hosted walk self-test)
+    if: ${{ inputs.full }}
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
@@ -252,6 +269,7 @@ jobs:
         run: |
           python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
+      # QUARANTINE (docs/testing/CI.md): digitizer cancel on hosted Xcode 26.6.
       - name: Native playback labels and confirmation input
         run: |
           python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
@@ -266,11 +284,12 @@ jobs:
           path: ${{ runner.temp }}/kit-ios
           if-no-files-found: warn
 
-  # The original three-case fixture remains required in kit-ios. This separate standard UI
-  # target exercises the typed system-dismissal counterpart with the same shared screen.
+  # The original three-case fixture remains in kit-ios. This separate standard UI target
+  # exercises the typed system-dismissal counterpart with the same shared screen. QUARANTINE.
   playback-native-ios:
     name: Playback labels, native typed cancellation (SIMULATED)
     needs: kit-ios
+    if: ${{ inputs.full }}
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -332,6 +351,7 @@ jobs:
   # contract test (OpenCine's fake integration; no camera, no hardware).
   template-ios:
     name: New-app template, iOS (SIMULATED)
+    if: ${{ inputs.full }}
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -356,6 +376,7 @@ jobs:
 
   template-android:
     name: New-app template, Android (SIMULATED)
+    if: ${{ inputs.full }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -384,14 +405,16 @@ jobs:
             ${{ runner.temp }}/template
             !${{ runner.temp }}/template/acceptance/avd/**
 
+  # The one required check on main. PR tier only: a nightly-tier failure opens the nightly
+  # tracking issue instead of blocking pull requests.
   gate:
     name: CI gate
     if: always()
-    needs: [meta, swift, android, atlas, kit-ios, playback-native-ios, template-ios, template-android]
+    needs: [meta, swift, android, atlas]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
-      - name: Require every shared and template check to pass
+      - name: Require every PR-tier check to pass
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
