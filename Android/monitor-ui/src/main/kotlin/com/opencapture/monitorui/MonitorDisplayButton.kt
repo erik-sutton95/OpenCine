@@ -30,22 +30,27 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MonitorDisplayButton(clean: Boolean, width: Float, height: Float,
-    modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null) {
+    modifier: Modifier = Modifier, enabled: Boolean = true, onClickFeedback: () -> Unit = {},
+    onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
     MonitorDisplayButton(activeIndex = if (clean) 1 else 0, modeCount = 2,
         description = if (clean) "DISP 2 clean" else "DISP 1 live", width = width, height = height,
-        modifier = modifier, enabled = enabled, onClick = onClick, onLongClick = onLongClick)
+        modifier = modifier, enabled = enabled, onClickFeedback = onClickFeedback, onClick = onClick,
+        onLongClick = onLongClick)
 }
 
-/** Admitted mode order is a source value; an absent selection lights no dash. */
+/**
+ * Admitted mode order is a source value; an absent selection lights no dash. [onClickFeedback] is
+ * the host's tick on a tap (the Swift tile ticks on the mode change).
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MonitorDisplayButton(activeIndex: Int?, modeCount: Int, description: String,
     width: Float, height: Float, modifier: Modifier = Modifier, enabled: Boolean = true,
-    onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
+    onClickFeedback: () -> Unit = {}, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
     Column(modifier.width(width.dp).height(height.dp)
         .monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(14.dp))
-        .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
+        .combinedClickable(enabled = enabled, onClick = monitorDisplayClick(enabled, onClickFeedback, onClick),
+            onLongClick = onLongClick)
         .semantics { contentDescription = description; role = Role.Button },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)) {
@@ -58,5 +63,13 @@ fun MonitorDisplayButton(activeIndex: Int?, modeCount: Int, description: String,
                     .background(if (activeIndex == index) MonitorPalette.accent else Color.White.copy(alpha = .10f)))
             }
         }
+    }
+}
+
+/** One DISP tap: the host's feedback, then the mode change, only while admitted. */
+internal fun monitorDisplayClick(enabled: Boolean, feedback: () -> Unit, onClick: () -> Unit): () -> Unit = {
+    if (enabled) {
+        feedback()
+        onClick()
     }
 }
