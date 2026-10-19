@@ -30,6 +30,17 @@ public struct MonitorCaptureField: Hashable, Sendable {
     public var isEditable: Bool { editor != nil && !choices.isEmpty }
 }
 
+@available(macOS 14, *)
+extension MonitorCaptureField {
+    /// The Custom white balance hold drum: Kelvin detents only. Leaving Custom for Auto or a
+    /// preset takes the panel, so a quick drag never flips the white balance mode.
+    public var kelvinScrub: MonitorCaptureField {
+        MonitorCaptureField(key: key, title: title, selection: selection, choices: choices.filter {
+            if case .whiteBalance(.kelvin) = $0.value { true } else { false }
+        }, editor: editor)
+    }
+}
+
 /// Common setting copy and bounded drum sampling. Integrations own the accepted domain.
 public enum MonitorCapturePresentation {
     public static func title(_ key: SettingKey) -> String? {

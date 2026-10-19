@@ -67,7 +67,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         let exposure = host.autoExposureLocked ? CaptureLists.aeLock : host.control.snapshot?.exposureProgram.value.map(MonitorCapturePresentation.exposureProgram) ?? "--"
         append(.exposure, "EXPOSURE", exposure)
         let pendingWB = host.captureStripShowsPendingEdits && status.whiteBalance?.mode == .custom && !host.autoWhiteBalanceLocked
-        let wbField = pendingWB ? host.control.captureField(.whiteBalance, selection: selection) : nil
+        let wbField = pendingWB ? host.control.captureField(.whiteBalance, selection: selection)?.kelvinScrub : nil
         let wbValue = host.autoWhiteBalanceLocked ? CaptureLists.awbLockTile : commonValue(.whiteBalance)
         let wbIcon: MonitorIcon?
         if case .whiteBalance(.auto)? = host.control.captureValue(.whiteBalance, selection: selection) {

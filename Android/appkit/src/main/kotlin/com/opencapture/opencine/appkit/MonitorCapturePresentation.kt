@@ -38,6 +38,15 @@ public data class MonitorCaptureField(
     public val isEditable: Boolean get() = editor != null && choices.isNotEmpty()
 }
 
+/**
+ * The Custom white balance hold drum: Kelvin detents only (Swift `MonitorCaptureField.kelvinScrub`).
+ * Leaving Custom for Auto or a preset takes the panel, so a quick drag never flips the mode.
+ */
+public val MonitorCaptureField.kelvinScrub: MonitorCaptureField
+    get() = copy(choices = choices.filter {
+        (it.value as? SettingValue.WhiteBalance)?.value is com.opencapture.opencine.core.WhiteBalanceValue.Kelvin
+    })
+
 /** Common setting copy and bounded drum sampling. Integrations own the accepted domain. */
 public object MonitorCapturePresentation {
     /** The dashes a readout draws for a value the camera has not reported. */

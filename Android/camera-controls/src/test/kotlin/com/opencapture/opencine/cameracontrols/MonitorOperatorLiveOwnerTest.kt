@@ -167,6 +167,20 @@ class MonitorOperatorLiveOwnerTest {
         assertTrue(host.commits.isEmpty(), "Common ISO crosses Core, not the native index adapter")
     }
 
+    /**
+     * Behavior audit PAA-221: holding the WB tile in Custom scrubbed Kelvin only in the standalone
+     * apps; leaving Custom for Auto took the popup, so the hold drum offers no "Auto" detent.
+     */
+    @Test fun customWhiteBalanceHoldDrumScrubsKelvinOnly() = runTest {
+        val host = Reports()
+        host.status = host.status.copy(wbMode = CameraCommands.WB_CUSTOM, wbKelvin = 5600)
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(whiteBalanceCamera())
+        val quick = requireNotNull(host.source(control).quick(LiveSheet.WB, host.status))
+        assertEquals(listOf("3200K", "5600K"), quick.options)
+        assertTrue(quick.enabled)
+    }
+
     @Test fun removedThenRestoredDescriptorStillRetiresTheOriginalRelease() = runTest {
         val camera = ReportedCamera()
         val host = Reports()
@@ -321,6 +335,18 @@ class MonitorOperatorLiveOwnerTest {
 
     companion object {
         private fun iso(value: Int) = SettingValue.Iso(ISOValue.Manual(value))
+        private fun whiteBalanceCamera(): FakeCameraSession {
+            val original = FakeCameraSession.lunaLike()
+            val kelvin = { k: Int -> SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(k)) }
+            val mode = original.behavior.modes.getValue(0x01).copy(
+                descriptors = listOf(SettingDescriptor(SettingKey.WHITE_BALANCE, domain = SettingDomain(listOf(
+                    SettingValue.WhiteBalance(WhiteBalanceValue.Auto), kelvin(3200), kelvin(5600))))),
+                unsupported = emptySet(),
+            )
+            return FakeCameraSession(original.behavior.copy(modes = mapOf(0x01 to mode)),
+                original.device.copy(settings = mapOf(SettingKey.WHITE_BALANCE to kelvin(5600))))
+                .also { it.cameraReportsStatus() }
+        }
         private fun isoCamera(): FakeCameraSession {
             val original = FakeCameraSession.lunaLike()
             val mode = original.behavior.modes.getValue(0x01).copy(

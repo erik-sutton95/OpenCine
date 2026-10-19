@@ -21,6 +21,19 @@ import Testing
         #expect(MonitorCapturePresentation.resolutionLabel(try #require(CameraRecordingFormat.Dimensions(width: 1080, height: 1920))) == "1080p 9:16")
     }
 
+    /// Behavior audit PAA-221: the Custom white balance hold drum scrubs Kelvin only; leaving
+    /// Custom for Auto takes the panel, as in the standalone apps.
+    @available(macOS 14, *)
+    @Test func customWhiteBalanceScrubKeepsKelvinOnly() {
+        let choices: [SettingValue] = [.whiteBalance(.auto), .whiteBalance(.preset("daylight")),
+            .whiteBalance(.kelvin(3200)), .whiteBalance(.kelvin(5600))]
+        let field = MonitorCaptureField(key: .whiteBalance, title: "WB", selection: .whiteBalance(.kelvin(5600)),
+            choices: choices.map { MonitorCaptureChoice(value: $0, label: MonitorCapturePresentation.label($0)) },
+            editor: nil)
+        #expect(field.kelvinScrub.choices.map(\.label) == ["3200K", "5600K"])
+        #expect(field.kelvinScrub.selection == field.selection)
+    }
+
     @Test func exposureProgramLabelsUseTheReportedProgram() {
         #expect(MonitorCapturePresentation.exposureProgram(.manual) == "M")
         #expect(MonitorCapturePresentation.exposureProgram(.automatic) == "A")

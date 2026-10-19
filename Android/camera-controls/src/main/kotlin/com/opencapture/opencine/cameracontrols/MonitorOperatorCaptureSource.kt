@@ -12,6 +12,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.MonitorQuickControl
 import com.opencapture.opencine.appkit.MonitorCaptureField
+import com.opencapture.opencine.appkit.kelvinScrub
 import com.opencapture.opencine.appkit.MonitorCapturePresentation
 import com.opencapture.opencine.appkit.MonitorCaptureSelection
 import com.opencapture.opencine.appkit.MonitorControlModel
@@ -121,7 +122,8 @@ public class MonitorOperatorCaptureSource(
                     ?: if (sheet == LiveSheet.FOCUS) host.captureField(sheet, status.expoMode) else null))
         }
         host.nativeCaptureQuick(sheet, status)?.let { return captured(it) }
-        commonField(sheet, status)?.let { field ->
+        commonField(sheet, status)?.let { common ->
+            val field = if (sheet == LiveSheet.WB) common.kelvinScrub else common
             return captured(field.quickControl().copy(enabled = field.isEditable &&
                 (sheet != LiveSheet.SHUTTER || status.expoMode != CameraCommands.EXPO_AUTO || !preferences.facePriorityExposure)))
         }
