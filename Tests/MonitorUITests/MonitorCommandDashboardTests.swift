@@ -127,6 +127,55 @@ final class MonitorCommandDashboardTests: XCTestCase {
         }
     }
 
+    func testHeroLeadsTheDashboardWithRecordStateAndTimecode() async throws {
+        for portrait in [false, true] {
+            let fixture = DashboardFixture(
+                portrait: portrait, hero: MonitorStatusPresentation(recording: true, timecode: "01:02:03:04"))
+            defer { fixture.close() }
+            let hero = try await fixture.element("monitor.command.hero")
+            XCTAssertEqual(hero.accessibilityLabel, "Timecode")
+            XCTAssertEqual(hero.accessibilityValue, "Recording, 01:02:03:04")
+            let iso = try await fixture.element("monitor.command.tile.iso")
+            XCTAssertLessThanOrEqual(hero.accessibilityFrame.maxY, iso.accessibilityFrame.minY)
+        }
+        let unknown = DashboardFixture(portrait: false, hero: MonitorStatusPresentation(recording: nil, timecode: nil))
+        defer { unknown.close() }
+        let hero = try await unknown.element("monitor.command.hero")
+        XCTAssertEqual(hero.accessibilityValue, "Recording state unknown")
+    }
+
+    /// Nine tiles (the stills-sized grid) and the hero still fit the iPhone landscape command
+    /// frame (`MonitorCommandDashboardLayout`, 682 x 300): every tile keeps the 44 point floor,
+    /// stays inside the canvas and the window's safe area, and no two tiles overlap.
+    func testHeroAndNineTilesStayInsideTheLandscapeFrameWithoutClipping() async throws {
+        for portrait in [false, true] {
+            let fixture = DashboardFixture(
+                portrait: portrait, tileCount: 9,
+                hero: MonitorStatusPresentation(recording: false, timecode: "23:59:59:29"))
+            defer { fixture.close() }
+            let canvas = try await fixture.element("SIMULATED.dashboard.canvas").accessibilityFrame
+            let hero = try await fixture.element("monitor.command.hero").accessibilityFrame
+            let safe = fixture.window.convert(
+                fixture.window.safeAreaLayoutGuide.layoutFrame, to: nil)
+            var frames: [CGRect] = []
+            for index in 0..<9 {
+                let tile = try await fixture.element("monitor.command.tile.\(index < 2 ? ["iso", "codec"][index] : String(index))")
+                frames.append(tile.accessibilityFrame)
+            }
+            for frame in frames {
+                XCTAssertGreaterThanOrEqual(frame.height, MonitorCommandGridLayout.minimumRowHeight - 0.5)
+                XCTAssertTrue(canvas.insetBy(dx: -0.5, dy: -0.5).contains(frame), "\(frame) outside \(canvas)")
+                XCTAssertTrue(safe.insetBy(dx: -0.5, dy: -0.5).contains(frame), "\(frame) outside safe \(safe)")
+                XCTAssertLessThanOrEqual(hero.maxY, frame.minY + 0.5)
+            }
+            for (i, a) in frames.enumerated() {
+                for b in frames[(i + 1)...] { XCTAssertFalse(a.insetBy(dx: 0.5, dy: 0.5).intersects(b)) }
+            }
+            XCTAssertTrue(canvas.insetBy(dx: -0.5, dy: -0.5).contains(hero))
+            capture(fixture, name: "SIMULATED-hero-\(portrait ? "portrait" : "landscape")")
+        }
+    }
+
     private func capture(_ fixture: DashboardFixture, name: String) {
         let image = UIGraphicsImageRenderer(size: fixture.window.bounds.size).image { _ in
             _ = fixture.window.drawHierarchy(
@@ -161,6 +210,8 @@ private struct DashboardCanvas: View {
     @Bindable var probe: DashboardProbe
     let portrait: Bool
     let overflowing: Bool
+    let tileCount: Int
+    let hero: MonitorStatusPresentation?
 
     var body: some View {
         MonitorCommandDashboard(
@@ -170,7 +221,7 @@ private struct DashboardCanvas: View {
                     kind: .codec, title: "Codec", value: "N-RAW",
                     unavailableReason: "Wait for the camera."),
                 Tile(title: "Grid", value: "OFF"),
-            ],
+            ] + (3..<max(3, tileCount)).map { Tile(title: "SIMULATED \($0)", value: "1/50") },
             sections: [
                 MonitorCommandSection(
                     title: "Image", cells: [Tile(title: "Tone", value: "SDR")]),
@@ -185,6 +236,7 @@ private struct DashboardCanvas: View {
                 temperature: "OK", temperatureOk: true, storage: "521 GB",
                 camera: "SIMULATED Z",
                 lens: "SIMULATED 24-70"),
+            hero: hero,
             portrait: portrait,
             controlsEnabled: probe.controlsEnabled,
             onOpenControl: { probe.opened.append($0) },
@@ -192,7 +244,12 @@ private struct DashboardCanvas: View {
         ) {
             Text("SIMULATED chip").accessibilityLabel("SIMULATED chip")
         }
-        .frame(width: portrait ? 390 : 780, height: portrait ? 640 : 300)
+        // The landscape canvas is the iPhone command frame (`MonitorCommandDashboardLayout`).
+        .frame(width: portrait ? 361 : 682, height: portrait ? 631 : 300)
+        .background {
+            Color.clear.accessibilityElement().accessibilityLabel("SIMULATED canvas")
+                .accessibilityIdentifier("SIMULATED.dashboard.canvas")
+        }
     }
 }
 
@@ -202,10 +259,10 @@ private final class DashboardFixture {
     let host: UIHostingController<DashboardCanvas>
     let window: UIWindow
 
-    init(portrait: Bool, overflowing: Bool = false) {
+    init(portrait: Bool, overflowing: Bool = false, tileCount: Int = 3, hero: MonitorStatusPresentation? = nil) {
         host = UIHostingController(
             rootView: DashboardCanvas(
-                probe: probe, portrait: portrait, overflowing: overflowing))
+                probe: probe, portrait: portrait, overflowing: overflowing, tileCount: tileCount, hero: hero))
         // Scroll accessibility needs the foreground application scene. The package-only runner
         // has no scene; scripts/ios-command-dashboard-hosted-test.py runs the contracts in one.
         if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })

@@ -79,6 +79,25 @@ public struct MonitorCommandHealth: Equatable, Sendable {
     }
 }
 
+/// The dashboard's hero band reads the header's own `MonitorStatusPresentation`: its record word
+/// (unknown is a dash, never standby) and its timecode, which a body without timecode leaves nil
+/// so the hero shows no frozen 00:00:00:00 (Kotlin `MonitorStatusPresentation.commandHero*`).
+extension MonitorStatusPresentation {
+    /// The timecode split before its frame field (the part the accent paints); a value without a
+    /// field separator is all seconds.
+    public var commandHeroTimecode: (seconds: String, frames: String)? {
+        guard let timecode, !timecode.isEmpty else { return nil }
+        guard let split = timecode.lastIndex(where: { $0 == ":" || $0 == ";" }) else { return (timecode, "") }
+        return (String(timecode[..<split]), String(timecode[split...]))
+    }
+
+    /// The hero's spoken value: the header's record words, then the timecode when there is one.
+    public var commandHeroAccessibilityValue: String {
+        [recordingAccessibilityLabel, timecode.flatMap { $0.isEmpty ? nil : $0 }].compactMap { $0 }
+            .joined(separator: ", ")
+    }
+}
+
 /// Drops duplicates and kinds outside `all`, then appends the kinds the order lacks in `all`'s
 /// order (Kotlin `monitorCommandTileOrder`).
 public func monitorCommandTileOrder<Kind: Hashable>(_ order: [Kind], all: [Kind]) -> [Kind] {
@@ -222,8 +241,20 @@ public enum MonitorCommandGridLayout {
             x: clamp(location.x, tileWidth / 2, size.width), y: clamp(location.y, rowHeight / 2, size.height))
     }
 
-    /// iOS side column width: 27 percent of the picture, never under 160 points.
+    /// Landscape side column width, both platforms: 27 percent of the dashboard, never under 160
+    /// points (the baseline `.cmd-body` 2.35fr : 0.85fr split).
     public static func sideColumnWidth(pictureWidth: CGFloat) -> CGFloat { max(160, pictureWidth * 0.27) }
+
+    /// Hero band height: portrait reserves the baseline 80 point band; landscape keeps the grid's
+    /// rows readable under it.
+    public static func heroHeight(portrait: Bool) -> CGFloat { portrait ? 80 : 56 }
+
+    /// Hero timecode point size; long values scale down to `heroMinimumScale` before clipping.
+    public static func heroTimecodeSize(portrait: Bool) -> CGFloat { portrait ? 60 : 46 }
+    public static let heroMinimumScale: CGFloat = 0.5
+
+    /// Gap between the hero, the health strip and the grid in the dashboard's left column.
+    public static let stackSpacing: CGFloat = 8
 }
 
 /// The primary grid's reorder transaction (the Compose grid's drag callbacks and click
