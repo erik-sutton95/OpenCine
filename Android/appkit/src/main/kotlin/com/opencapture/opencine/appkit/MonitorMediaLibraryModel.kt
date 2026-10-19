@@ -29,6 +29,8 @@ public data class MonitorMediaLibraryCopy(
     public val favoriteSaveFailed: String = "Could not save local clip favorites.",
     public val downloadFailed: String = "Could not download that clip.",
     public val listing: String? = null, public val empty: String? = null,
+    /** Shown when the camera holds its own gallery, so it lists nothing here. */
+    public val sourceHeld: String? = null,
 )
 public enum class MonitorMediaCatalogPersistence { EACH_DELTA, LISTING_COMPLETE_OR_NON_CANCEL_FAILURE }
 /** A fresh refresh base is unpublished until an actual source page is admitted. */
@@ -343,6 +345,8 @@ public class MonitorMediaLibraryModel<P>(
         task.invokeOnCompletion { retirementTasks.remove(task) }
         return task
     }
+    /** A host operation's outcome (a refused delete, a failed download) for the gallery's note line. */
+    public fun showNote(value: String?) { mutate { it.copy(note = value) } }
     public fun close() { retire() }
     public suspend fun dispose() {
         disposed = true
@@ -380,7 +384,8 @@ public class MonitorMediaLibraryModel<P>(
                     consumeCursor(opened, browse.binding, generation, request, catalogBase == MonitorMediaCatalogBase.FRESH_LISTING)
                 } finally { opened.close() }
                 if (admitted(generation, request, browse.binding)) {
-                    cursor = null; listTask = null; mutate { it.copy(fetching = false, note = if (it.records.isEmpty()) copy.empty else null) }
+                    val held = if (browse.heldBySource == true) copy.sourceHeld else null
+                    cursor = null; listTask = null; mutate { it.copy(fetching = false, note = held ?: if (it.records.isEmpty()) copy.empty else null) }
                 }
             } catch (error: Exception) {
                 if (admitted(generation, request, browse.binding)) {

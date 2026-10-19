@@ -101,13 +101,15 @@ object MediaLibraryCopy {
             MediaLibraryTab.FAVORITES -> "Favorites"
         }
 
-    /** The empty gallery's line: offline (with or without listed clips), filtered, or the tab's own. */
+    /**
+     * The empty gallery's line: offline with nothing listed, filtered (before the cache is blamed,
+     * ZIB-413), offline with listed clips, or the tab's own.
+     */
     fun emptySubtitle(isLive: Boolean, hasListedClips: Boolean, activeFilterCount: Int, category: MediaLibraryTab): String =
         when {
-            !isLive ->
-                if (!hasListedClips) DISCONNECTED
-                else DISCONNECTED_EMPTY_CACHE
+            !isLive && !hasListedClips -> DISCONNECTED
             activeFilterCount > 0 -> FILTER_EMPTY
+            !isLive -> DISCONNECTED_EMPTY_CACHE
             category == MediaLibraryTab.FAVORITES -> EMPTY_FAVORITES
             category == MediaLibraryTab.VIDEOS -> EMPTY_VIDEOS
             category == MediaLibraryTab.PHOTOS -> EMPTY_PHOTOS

@@ -350,6 +350,7 @@
       "OpenCineFrameIOApple",
       "OpenCineFrameIOAppleTests",
       "OpenCineAppUITesting",
+      "OpenCineAppUITestingTests",
       "OpenCineHostedAccessibility",
       "OpenCineHostedAccessibilityTests",
       "OpenCineHostedTestSupport",

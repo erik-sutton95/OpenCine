@@ -207,7 +207,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     val mayShare = share != null && (operations.access == null || access?.share == true)
     val mayDelete = if (operations.access == null) asset.deletable == true else access?.delete == true
     val presentation = MonitorPlaybackPresentation(value.token, asset.filename,
-        listOfNotNull(record.facts.resolution, asset.frameRate?.let { number(it) + "p" }, record.facts.format).joinToString(" · "),
+        facts.headerSubtitle(listOfNotNull(record.facts.resolution, asset.frameRate?.let { number(it) + "p" }, record.facts.format).joinToString(" · ")),
         sourceLabel, metadata, assist?.presentedAspect((width / height).toFloat(), playback = true) ?: (width / height).toFloat(),
         value.ready, value.error ?: if (value.closed) MediaOperatorCopy.CLIP_NOT_CACHED else null,
         facts.progress, position.toFloat(), duration.toFloat(), clock(position), clock(duration),

@@ -58,6 +58,38 @@ import Testing
             && enableTimes[1] - enableTimes[0] >= FeedWatchdog.keyframeResendInterval)
     }
 
+    @Test func refusedResendAfterAKeptEnableRetriesWithoutAnotherKeyframeDelay() async {
+        var now: TimeInterval = 0
+        let timing = DjiAppleMediaTiming(
+            now: { now },
+            sleep: { delay in
+                let value = delay.components
+                now += Double(value.seconds) + Double(value.attoseconds) / 1e18
+            })
+        var attempts: [TimeInterval] = []
+        var first = true
+        let result = await DjiAppleMediaLiveReturn.run(
+            timeout: .seconds(16), timing: timing,
+            isCurrent: { true }, inPlayback: { false }, pictureFresh: { now >= 3.5 },
+            exitPlayback: {
+                now += 0.45
+                return true
+            },
+            enableLiveView: {
+                attempts.append(now)
+                if first {
+                    first = false
+                    return true
+                }
+                return false
+            })
+        #expect(result == .restored)
+        // Accepted at 0.63 s, refused at 2.63 s, then asked again at the loop pace.
+        #expect(attempts.count == 10)
+        #expect(attempts.count > 2 && abs(attempts[2] - 2.73) < 0.01)
+        #expect(attempts.count > 2 && attempts[2] < attempts[1] + FeedWatchdog.keyframeResendInterval)
+    }
+
     @Test func pictureBudgetStartsAtTheFirstLiveViewRequestNotAtPlaybackExit() async {
         var now: TimeInterval = 0
         let timing = DjiAppleMediaTiming(

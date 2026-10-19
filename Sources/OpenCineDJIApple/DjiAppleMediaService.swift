@@ -397,6 +397,7 @@ private struct DjiAppleMediaPage {
     let binding: MediaBrowseBinding
     let source: DjiAppleMediaIdentity
     let bodyGalleryHeld: Bool
+    var heldBySource: Bool? { bodyGalleryHeld }
     weak var owner: DjiAppleMediaService?
     var closed = false
     var catalogRetired = false

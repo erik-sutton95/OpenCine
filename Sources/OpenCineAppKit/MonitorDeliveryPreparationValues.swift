@@ -3,9 +3,12 @@ import Foundation
 public struct MonitorDeliveryFileFacts: Equatable, Sendable {
     public let filename: String
     public let sizeBytes: UInt64?
-    public init(filename: String, sizeBytes: UInt64?) {
+    /// A still travels as its original; nil when the source does not say.
+    public let isStill: Bool?
+    public init(filename: String, sizeBytes: UInt64?, isStill: Bool? = nil) {
         self.filename = filename
         self.sizeBytes = sizeBytes
+        self.isStill = isStill
     }
 }
 public struct MonitorDeliverySelectionFacts: Sendable {
@@ -20,6 +23,8 @@ public struct MonitorDeliverySelectionFacts: Sendable {
     public var hasDeliverable: Bool {
         (cachedCount ?? 0) > 0 || (connected == true && !files.isEmpty)
     }
+    /// Every file is a known still, so clip export (LUT bake, curve, container) does not apply.
+    public var allStills: Bool { !files.isEmpty && files.allSatisfy { $0.isStill == true } }
 }
 public struct MonitorDeliveryChoice<Value: Equatable & Sendable>: Sendable {
     public let id: String

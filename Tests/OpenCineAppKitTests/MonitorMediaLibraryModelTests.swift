@@ -76,6 +76,7 @@ import Testing
     var thumbnails: (any CameraMediaThumbnailService)? { nil }
     var transfers: (any CameraMediaTransferService)?
     var deletion: (any CameraMediaDeleteService)? { nil }
+    var heldBySource: Bool?
     var cursors: [LibraryCursor]
     var closed = false
     init(_ cursors: [LibraryCursor]) { self.cursors = cursors }
@@ -134,6 +135,21 @@ import Testing
         #expect(model.browsing && model.canRefresh && model.binding == nil)
         model.refresh(); #expect(await eventually { model.records.count == 1 && !model.fetching })
         #expect(service.opens == 2 && model.binding != nil)
+    }
+    /// PAB-M-14/15, PIB-082: the camera's own open gallery and host action notes are shown, not "No clips".
+    @available(macOS 14, *)
+    @Test func cameraHeldGalleryAndHostNotesReachTheEmptyState() async {
+        let browse = LibraryBrowse([LibraryCursor([])]); browse.heldBySource = true
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("opencine-library-" + UUID().uuidString)
+        let cache = MonitorMediaCache(directory: .init(root: root), codec: LibraryCodec(), eligibility: .exactSize,
+            catalogAddress: "index.json", preservedMetadata: ["index.json", "color.json"])
+        let model = MonitorMediaLibraryModel(cache: cache, favorites: LibraryFavorites(), service: LibraryService(browse),
+            copy: .init(empty: "No clips on the camera.", sourceHeld: "Playback is open on the camera."), sleep: { _ in })
+        defer { model.close(); try? FileManager.default.removeItem(at: root) }
+        model.begin()
+        #expect(await eventually { !model.fetching && model.note == "Playback is open on the camera." })
+        model.showNote("Could not delete that clip.")
+        #expect(model.note == "Could not delete that clip.")
     }
     @available(macOS 14, *)
     @Test func refreshRejectsLatePageAndKeepsSuccessorSelection() async throws {

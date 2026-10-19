@@ -24,7 +24,7 @@ is_forbidden_path() {
     vendor|vendor/*|ref|ref/*|captures|captures/*|.local|.local/*|.codex|.codex/*|images|images/*)
       return 0
       ;;
-    */captures/*|*/.local/*|*/.codex/*|graphify-out|graphify-out/*|*/graphify-out/*)
+    */captures/*|*/.local/*|*/.codex/*)
       return 0
       ;;
     .build|.build/*|*/.build/*|build|build/*|*/build/*|DerivedData|DerivedData/*|*/DerivedData/*)

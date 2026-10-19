@@ -3,7 +3,6 @@ package com.opencapture.opencine.dji
 import com.opencapture.opencine.core.AudioLevels
 import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.media.HostShutterAngle
-import com.opencapture.opencine.media.HostShutterPresentation
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraDeviceID
@@ -448,9 +447,9 @@ class DjiCameraSessionAdapter(
                                 }
                             }
                             is com.opencapture.opencine.core.ShutterValue.Angle -> {
-                                val state = port.captureControlState()?.takeIf { it.shutterPresentation == HostShutterPresentation.EMULATED_ANGLE }
+                                val state = port.captureControlState()?.takeIf { it.emulatesShutterAngle }
                                 val denominator = state?.let { HostShutterAngle.denominator(shutter.degrees,
-                                    it.reported.fps.takeIf { rate -> rate > 0 }?.toDouble(), it.reported.availableShutterDenoms) }
+                                    it.reported.fps.takeIf { rate -> rate > 0 }?.toDouble(), it.offeredShutterDenoms) }
                                 denominator?.let { target -> WirePlan({ port.captureControlState()?.reported?.shutterDenom == target }, true) {
                                     port.writeHostShutterAngle(shutter.degrees, target, admission, it)
                                 } }
