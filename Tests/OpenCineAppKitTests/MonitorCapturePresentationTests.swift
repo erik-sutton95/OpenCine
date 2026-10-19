@@ -1,5 +1,6 @@
 import Foundation
 import OpenCineCore
+import MonitorPresentation
 import OpenCineCoreTestSupport
 import Testing
 
@@ -39,6 +40,20 @@ import Testing
         #expect(field.kelvinScrub.choices.map(\.label) == ["3200K", "5600K"])
         #expect(field.kelvinScrub.selection == field.selection)
     }
+
+    #if os(iOS)
+    /// Behavior audit PAA-204: the ISO hold drum opened from a common field still stars the native ISO.
+    @available(macOS 14, *)
+    @Test func commonFieldHoldDrumCarriesTheStarredDetents() {
+        let field = MonitorCaptureField(key: .iso, title: "ISO", selection: .iso(.manual(400)),
+            choices: [100, 400, 800].map { MonitorCaptureChoice(value: .iso(.manual($0)), label: "\($0)") },
+            editor: nil)
+        let readout = MonitorOperatorLiveReadout<SettingKey, String>(id: .iso, title: "ISO", value: "400",
+            field: field, marked: ["400"])
+        #expect(readout.fieldSnapshot == MonitorReadoutSnapshot(title: "ISO", options: ["100", "400", "800"],
+            selection: "400", marked: ["400"]))
+    }
+    #endif
 
     @Test func exposureProgramLabelsUseTheReportedProgram() {
         #expect(MonitorCapturePresentation.exposureProgram(.manual) == "M")

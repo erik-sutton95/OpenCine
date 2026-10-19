@@ -181,6 +181,19 @@ class MonitorOperatorLiveOwnerTest {
         assertTrue(quick.enabled)
     }
 
+    /**
+     * Behavior audit PAA-204: the ISO hold drum starred the log curve's native ISO (1600 in D-Log2)
+     * in the standalone apps, also when the drum comes from the common ISO field.
+     */
+    @Test fun commonIsoHoldDrumStarsTheNativeIso() = runTest {
+        val host = Reports()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(ReportedCamera())
+        val quick = requireNotNull(host.source(control).quick(LiveSheet.ISO, host.status))
+        assertEquals(listOf("100", "200", "400"), quick.options)
+        assertEquals(setOf("1600"), quick.marked)
+    }
+
     @Test fun removedThenRestoredDescriptorStillRetiresTheOriginalRelease() = runTest {
         val camera = ReportedCamera()
         val host = Reports()

@@ -124,7 +124,9 @@ public class MonitorOperatorCaptureSource(
         host.nativeCaptureQuick(sheet, status)?.let { return captured(it) }
         commonField(sheet, status)?.let { common ->
             val field = if (sheet == LiveSheet.WB) common.kelvinScrub else common
-            return captured(field.quickControl().copy(enabled = field.isEditable &&
+            // The ISO drum stars the curve's native ISO whichever source owns it.
+            val marked = if (sheet == LiveSheet.ISO) CaptureLists.isoMarkedLabels(status) else emptySet()
+            return captured(field.quickControl().copy(marked = marked, enabled = field.isEditable &&
                 (sheet != LiveSheet.SHUTTER || status.expoMode != CameraCommands.EXPO_AUTO || !preferences.facePriorityExposure)))
         }
         return when (sheet) {

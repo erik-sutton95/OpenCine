@@ -18,14 +18,22 @@ public struct MonitorOperatorLiveReadout<Key: Hashable, Section: Hashable>: Iden
     public let badgeIcon: MonitorIcon?
     public let quickEnabled: Bool
     public let accessibilityIdentifier: String
+    /// Detents the hold drum stars (the curve's native ISO).
+    public let marked: Set<String>
 
     public init(id: Key, title: String, value: String, section: Section? = nil,
         field: MonitorCaptureField? = nil, action: (() -> Void)? = nil,
         valueIcon: MonitorIcon? = nil, badgeIcon: MonitorIcon? = nil,
-        quickEnabled: Bool = true, accessibilityIdentifier: String = "") {
+        quickEnabled: Bool = true, accessibilityIdentifier: String = "", marked: Set<String> = []) {
         self.id = id; self.title = title; self.value = value; self.section = section
         self.field = field; self.action = action; self.valueIcon = valueIcon; self.badgeIcon = badgeIcon
         self.quickEnabled = quickEnabled; self.accessibilityIdentifier = accessibilityIdentifier
+        self.marked = marked
+    }
+
+    /// The hold drum a common field opens: its choices, its reported label and the starred detents.
+    public var fieldSnapshot: MonitorReadoutSnapshot? {
+        field.map { .init(title: title, options: $0.choices.map(\.label), selection: $0.label ?? "", marked: marked) }
     }
 }
 
@@ -397,8 +405,7 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
     private var quickSnapshot: MonitorReadoutSnapshot? {
         guard commandEnabled, readout.quickEnabled else { return nil }
         if let field = readout.field {
-            return field.isEditable ? .init(title: readout.title, options: field.choices.map(\.label),
-                selection: field.label ?? "") : nil
+            return field.isEditable ? readout.fieldSnapshot : nil
         }
         return capturedSource.native.flatMap { $0.enabled ? $0.snapshot : nil }
     }
