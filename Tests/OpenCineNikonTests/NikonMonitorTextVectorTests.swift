@@ -43,6 +43,15 @@ import OpenCineMedia
         }
     }
 
+    @Test func shotsRemainingLabelsMatchTheSharedVectors() throws {
+        #expect(Self.rows("shots").count > 5)
+        for row in Self.rows("shots") {
+            let count = try #require(Int(row[1]))
+            #expect(MonitorTextFormat.shotsRemainingCompactLabel(count) == row[2], "\(row)")
+            #expect(MonitorTextFormat.shotsRemainingAccessibilityLabel(count) == row[3], "\(row)")
+        }
+    }
+
     @Test func remainingMinutesMatchTheSharedVectors() throws {
         #expect(Self.rows("estimate").count > 5)
         for row in Self.rows("estimate") {

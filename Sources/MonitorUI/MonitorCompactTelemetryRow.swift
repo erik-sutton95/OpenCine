@@ -68,29 +68,34 @@ public struct MonitorCompactTelemetryRow<Storage: View, Link: View, Power: View>
     private let layout: FieldMonitorLayout
     private let safeArea: MonitorSafeArea
     private let metrics: MonitorTelemetryMetrics
+    private let topCutout: MonitorRect?
     private let storage: () -> Storage
     private let link: () -> Link
     private let power: () -> Power
     private let minimumStatusTop: (CGFloat) -> Void
 
     public init(layout: FieldMonitorLayout, safeArea: MonitorSafeArea, metrics: MonitorTelemetryMetrics,
+        topCutout: MonitorRect? = nil,
         @ViewBuilder storage: @escaping () -> Storage, @ViewBuilder link: @escaping () -> Link,
         @ViewBuilder power: @escaping () -> Power) {
-        self.init(layout: layout, safeArea: safeArea, metrics: metrics, minimumStatusTop: { _ in },
-            storage: storage, link: link, power: power)
+        self.init(layout: layout, safeArea: safeArea, metrics: metrics, topCutout: topCutout,
+            minimumStatusTop: { _ in }, storage: storage, link: link, power: power)
     }
 
+    /// `topCutout` is the camera housing in viewport points; storage then yields before the link
+    /// pill would reach it.
     public init(layout: FieldMonitorLayout, safeArea: MonitorSafeArea, metrics: MonitorTelemetryMetrics,
+        topCutout: MonitorRect? = nil,
         minimumStatusTop: @escaping (CGFloat) -> Void, @ViewBuilder storage: @escaping () -> Storage,
         @ViewBuilder link: @escaping () -> Link, @ViewBuilder power: @escaping () -> Power) {
-        self.layout = layout; self.safeArea = safeArea; self.metrics = metrics
+        self.layout = layout; self.safeArea = safeArea; self.metrics = metrics; self.topCutout = topCutout
         self.storage = storage; self.link = link; self.power = power
         self.minimumStatusTop = minimumStatusTop
     }
 
     public var body: some View {
         CompactTelemetryRowLayout(layout: layout, safeArea: safeArea, referenceLinkWidth: metrics.pillWidth,
-            scale: Double(scale), powerHeight: metrics.pillHeight) {
+            scale: Double(scale), powerHeight: metrics.pillHeight, topCutout: topCutout) {
             HStack(spacing: 0) { storage() }
             HStack(spacing: 0) { link() }.environment(\.monitorAdaptiveTelemetryPadding, true)
             HStack(spacing: 0) { power() }.environment(\.monitorAdaptiveTelemetryPadding, true)
@@ -112,6 +117,7 @@ private struct CompactTelemetryRowLayout: Layout {
     let referenceLinkWidth: Double
     let scale: Double
     let powerHeight: Double
+    let topCutout: MonitorRect?
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let measured = frames(proposal: proposal, subviews: subviews)
@@ -137,8 +143,11 @@ private struct CompactTelemetryRowLayout: Layout {
     )? {
         guard subviews.count == 3 else { return nil }
         let preferredLink = subviews[1].sizeThatFits(.unspecified)
-        let legacyWidth = max(0, layout.telemetry.x - layout.status.x - 8
-            - (preferredLink.width > 0 ? referenceLinkWidth : 0) - 8)
+        let linkReference = preferredLink.width > 0 ? referenceLinkWidth : 0
+        let cornerWidth = max(0, layout.telemetry.x - layout.status.x - 8 - linkReference - 8)
+        let legacyWidth = MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout: layout,
+            topCutout: topCutout, linkWidth: linkReference, minimumTarget: FieldMonitorLayout.minimumTapTarget)
+            .map { min(cornerWidth, $0) } ?? cornerWidth
         let original = subviews[0].sizeThatFits(
             ProposedViewSize(width: legacyWidth, height: 48))
         let storage = CGSize(width: min(legacyWidth, original.width), height: original.height)

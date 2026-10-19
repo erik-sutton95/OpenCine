@@ -326,6 +326,56 @@ class MonitorPortraitHeaderClearanceTest {
 
 
 
+    /**
+     * SIMULATED centred top cutouts (a punch hole and a wide pill) on portrait phones: a long
+     * remaining-shots or storage readout must never push the link pill into the housing.
+     */
+    @Test(timeout = 300_000) fun longShotsAndStorageKeepTheLinkPillLeftOfTheTopCutout() {
+        val phones = listOf(Triple(393f, 852f, 59f), Triple(412f, 915f, 52f), Triple(440f, 956f, 62f))
+        for ((width, height, safeTop) in phones) for (cutoutWidth in listOf(26f, 60f)) {
+            for ((value, icon) in listOf("99.9k" to MonitorIcon.IMAGE, "99999 SHOTS" to MonitorIcon.CARD_SIM,
+                "123456789 GB" to MonitorIcon.CARD_SIM)) {
+                ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
+                    val placed = CountDownLatch(2)
+                    var storage = Rect.Zero; var performance = Rect.Zero; var canvas = Rect.Zero
+                    var density = 1f
+                    val field = MonitorLayoutPolicy.fieldMonitor(width, height, safeTop = safeTop)
+                    val cutout = MonitorRect((width - cutoutWidth) / 2f, 11f, cutoutWidth, 40f)
+                    scenario.onActivity { activity ->
+                        density = activity.resources.displayMetrics.density
+                        activity.setContent {
+                            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+                                Box(Modifier.requiredSize(width.dp, height.dp).onGloballyPositioned { canvas = it.boundsInRoot() }) {
+                                    MonitorCompactTelemetryRow(field, 0f, 0f, MonitorTelemetryMetrics.PHONE, topCutout = cutout,
+                                        storage = {
+                                            Row(Modifier.onGloballyPositioned { storage = it.boundsInRoot(); placed.countDown() },
+                                                horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                                MonitorIcon(icon, null, Modifier.size(14.dp), MonitorPalette.muted)
+                                                MonitorBoundedReadoutText(value)
+                                            }
+                                        },
+                                        link = { MonitorTelemetry(4, "25", emptyList(), true, showsPower = false,
+                                            metrics = MonitorTelemetryMetrics.PHONE,
+                                            modifier = Modifier.onGloballyPositioned { performance = it.boundsInRoot(); placed.countDown() }) },
+                                        power = { MonitorTelemetry(null, null, listOf(MonitorTelemetryPower(false, 100),
+                                            MonitorTelemetryPower(true, 68)), true, showsLink = false, metrics = MonitorTelemetryMetrics.PHONE) })
+                                }
+                            }
+                        }
+                    }
+                    assertTrue("Actual native layout callbacks required", placed.await(5, TimeUnit.SECONDS))
+                    InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+                    val left = canvas.left + cutout.x * density
+                    assertTrue("The witness must place the link pill in the cutout's band: $performance",
+                        performance.top < canvas.top + cutout.maxY * density && performance.bottom > canvas.top + cutout.y * density)
+                    assertTrue("$value must not push the link pill into the cutout ($width x $height, $cutoutWidth): $performance",
+                        performance.right <= left + 1)
+                    assertTrue("$value: $storage $performance", storage.right <= performance.left + 1)
+                }
+            }
+        }
+    }
+
     /** Original-red selector: complete production common body, not standalone layout slots. */
     @Test(timeout = 90_000) fun productionLongPrimaryHasOneCompleteNativeRow() {
         productionPrimaryCase(360f, 0f, 0f, listOf(null))

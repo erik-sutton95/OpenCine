@@ -41,6 +41,15 @@ class NikonMonitorTextVectorTest {
     }
 
     @Test
+    fun shotsRemainingLabelsMatchTheSharedVectors() {
+        assertTrue(rows("shots").size > 5)
+        for (row in rows("shots")) {
+            assertEquals(row[2], MonitorTextFormat.shotsRemainingCompactLabel(row[1].toInt()), "$row")
+            assertEquals(row[3], MonitorTextFormat.shotsRemainingAccessibilityLabel(row[1].toInt()), "$row")
+        }
+    }
+
+    @Test
     fun remainingMinutesMatchTheSharedVectors() {
         assertTrue(rows("estimate").size > 5)
         for (row in rows("estimate")) {

@@ -79,6 +79,23 @@ class MonitorCompactTelemetryBudget private constructor(viewportWidth: Float,
     }
 
     companion object {
+        /** Space kept between the leading telemetry and the cutout's edge. */
+        const val CUTOUT_CLEARANCE: Float = 6f
+
+        /**
+         * The widest storage that keeps storage and the link pill left of a top cutout the telemetry
+         * band crosses. Null when no cutout crosses it, or when that leading space cannot hold a
+         * minimum storage target and the link (a wide notch): the row keeps its original corners.
+         * Swift twin: `MonitorCompactTelemetryBudget.storageWidthBeforeCutout`.
+         */
+        fun storageWidthBeforeCutout(layout: MonitorFieldLayout, topCutout: MonitorRect?,
+            linkWidth: Float, minimumTarget: Float): Float? {
+            val cutout = topCutout ?: return null
+            if (cutout.y >= layout.telemetry.maxY || cutout.maxY <= layout.telemetry.y || cutout.x <= layout.status.x) return null
+            val width = cutout.x - CUTOUT_CLEARANCE - layout.status.x - linkWidth - (if (linkWidth > 0f) 8f else 0f)
+            return width.takeIf { it >= minimumTarget }
+        }
+
         /** The same budget in the native lattice, preserving each original independently rounded term. */
         internal fun pixels(viewportWidth: Int, originalLeading: Int, originalTrailing: Int,
             safeLeading: Int, safeTrailing: Int, storageWidth: Int, powerWidth: Int, linkWidth: Int,
