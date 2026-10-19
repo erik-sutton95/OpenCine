@@ -537,7 +537,7 @@ func eventually(_ condition: () -> Bool) async -> Bool {
 }
 
 /// physical-C C9/C10: the phone that lost the camera must not take it straight back.
-@Test func takeOverRecoveryAsksTwiceOnlyBeforeTheFirstAttempt() async {
+@MainActor @Test func takeOverRecoveryAsksTwiceOnlyBeforeTheFirstAttempt() async {
     var asks = 0
     var answers: [String?] = [nil, "Phone B"]
     let first = await NikonTakeOverRecovery.holder(beforeAttempt: 1) {

@@ -73,7 +73,9 @@ extension NikonConnectPort {
     }
 }
 
-/// The other side of a take-over: the device that lost the camera.
+/// The other side of a take-over: the device that lost the camera. Main-actor isolated like the
+/// recovery episode port that asks it, so the app's lookup never crosses an isolation boundary.
+@MainActor
 public enum NikonTakeOverRecovery {
     /// The device that took the camera, asked before recovery attempt `attempt` (1-based) dials
     /// it. Reconnecting would take the camera straight back, and two phones re-taking one session
