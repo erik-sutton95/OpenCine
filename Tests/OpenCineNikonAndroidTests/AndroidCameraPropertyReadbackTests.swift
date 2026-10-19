@@ -136,6 +136,29 @@ struct AndroidCameraPropertyReadbackTests {
         #expect(server.receivedPropertyWrites().isEmpty)
     }
 
+    @Test func storageInfoResponseUsesOneCardSnapshotAcrossACardSwap() throws {
+        let card = FakeZRStorageCard(
+            storageID: FakeZRMediaCard.storageID,
+            totalCapacityBytes: 1_000,
+            freeSpaceBytes: 500,
+            freeSpaceInImages: 10)
+        var options = FakeZRServer.Options()
+        options.storageCards = [card]
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        // The card disappears after the response took its snapshot and before it is
+        // encoded; the response must still describe the card it snapshotted.
+        server.onStorageInfoSnapshot = { [weak server] in
+            server?.onStorageInfoSnapshot = nil
+            server?.setStorageCards([])
+        }
+
+        let bootstrap = session.refreshAndroidPropertySnapshot(.bootstrap)
+        #expect(bootstrap.storage?.totalCapacityBytes == 1_000)
+    }
+
     @Test func anEmptyStorageReadReleasesTheRemovedStillsCardCount() throws {
         var options = FakeZRServer.Options()
         options.storageCards = [

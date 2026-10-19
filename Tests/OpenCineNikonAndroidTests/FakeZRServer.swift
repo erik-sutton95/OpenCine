@@ -449,6 +449,16 @@ final class FakeZRServer: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// Test hook: runs when a storage-info response has its card snapshot, before encoding it.
+    var onStorageInfoSnapshot: (() -> Void)?
+
+    /// One locked snapshot so a connected card swap cannot race a storage response.
+    private func storageCards() -> [FakeZRStorageCard] {
+        lock.lock()
+        defer { lock.unlock() }
+        return options.storageCards
+    }
+
     /// Whether the fake body is currently recording to its card.
     func isRecording() -> Bool {
         lock.lock()
@@ -814,14 +824,17 @@ final class FakeZRServer: @unchecked Sendable {
                 connection, data: liveViewObject(frameIndex: frameIndex, isRecording: isRecording),
                 transactionID: transactionID)
         case .getVendorStorageIDs, .getStorageIDs:
-            var payload = ByteCoding.uint32LE(UInt32(options.storageCards.count))
-            for card in options.storageCards {
+            let cards = storageCards()
+            var payload = ByteCoding.uint32LE(UInt32(cards.count))
+            for card in cards {
                 payload += ByteCoding.uint32LE(card.storageID)
             }
             sendDataIn(connection, data: Data(payload), transactionID: transactionID)
         case .getStorageInfo:
             let storageID = bytes.count >= 14 ? ByteCoding.readUInt32LE(bytes, at: 10) : 0
-            guard let card = options.storageCards.first(where: { $0.storageID == storageID }) else {
+            let cards = storageCards()
+            onStorageInfoSnapshot?()
+            guard let card = cards.first(where: { $0.storageID == storageID }) else {
                 // Invalid_StorageID.
                 sendResponse(connection, code: 0x2008, transactionID: transactionID)
                 return
@@ -836,7 +849,7 @@ final class FakeZRServer: @unchecked Sendable {
                 return
             }
             let storageID = bytes.count >= 14 ? ByteCoding.readUInt32LE(bytes, at: 10) : 0
-            guard options.storageCards.contains(where: { $0.storageID == storageID }) else {
+            guard storageCards().contains(where: { $0.storageID == storageID }) else {
                 // Invalid_StorageID.
                 sendResponse(connection, code: 0x2008, transactionID: transactionID)
                 return
