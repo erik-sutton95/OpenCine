@@ -268,7 +268,9 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 .fillMaxHeight() else Modifier
             Box(groupFrame, contentAlignment = if (grouped && !primaryBottom) Alignment.TopEnd else Alignment.BottomEnd) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    value.icon?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
+                    // A source's own glyph replaces the card (photography's picture glyph for shots), never joins it.
+                    (value.icon ?: MonitorIcon.CARD_SIM.takeIf { storageReadout })
+                        ?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
                     if (grouped) {
                         MonitorPortraitInlineReadoutText(displayValue ?: value.value ?: "--", detail = detail,
                             color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text)
@@ -292,7 +294,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             fromTop = true, ceilingY = if (layout.portrait) layout.status.maxY else null, displayValue = displayValue, content = label)
         else Box(decoration.monitorChromeClickable(enabled = interactive && !assistInspectorPresented && value.action != null) {
             if (interactive && !assistInspectorPresented && currentSource()) value.action?.invoke()
-        }.semantics { contentDescription = value.title }) { label() }
+        }.then(value.accessibilityLabel?.let { spoken -> Modifier.clearAndSetSemantics { contentDescription = spoken } }
+            ?: Modifier.semantics { contentDescription = value.title })) { label() }
     }
     val context = MonitorInteractionContext(locked, covered, editing != null, clean,
         sections.assists in mounted, camera = identity.camera,
@@ -522,6 +525,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             if (!command) cameraViews.waitingPicture?.invoke()
             if (usesCompactTelemetry) {
                 MonitorCompactTelemetryRow(layout, safeLeading, safeTrailing, telemetryMetrics,
+                    topCutout = com.opencapture.monitorui.rememberMonitorTopCutout(),
                     storage = {
                         if (sections.status in mounted) Box(edit(sections.status).monitorReadoutShadow()
                             .then(if (assistInspectorPresented) Modifier.clearAndSetSemantics {} else Modifier)) {

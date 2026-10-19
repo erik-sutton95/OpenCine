@@ -61,3 +61,30 @@ public struct MonitorCompactTelemetryBudget: Equatable, Sendable {
             : singleRowWidth
     }
 }
+
+/// The camera housing at the top of a portrait phone, in viewport points.
+public enum MonitorTopCutout {
+    /// iOS reports only the safe-area top a cutout produces, not its shape. A portrait iPhone whose
+    /// inset is at least 51 pt carries a centred Dynamic Island 126 pt wide; its band here (11 to
+    /// 51 pt) covers every model. A notch or no cutout reports nil. Android reads the real rectangle.
+    public static func estimated(width: Double, height: Double, safeTop: Double) -> MonitorRect? {
+        guard height > width, width < 600, safeTop >= 51 else { return nil }
+        return MonitorRect(x: (width - 126) / 2, y: 11, width: 126, height: 40)
+    }
+}
+
+extension MonitorCompactTelemetryBudget {
+    /// Space kept between the leading telemetry and the cutout's edge.
+    public static let cutoutClearance = 6.0
+
+    /// The widest storage that keeps storage and the link pill left of a top cutout the telemetry
+    /// band crosses. Nil when no cutout crosses it, or when that leading space cannot hold a
+    /// minimum storage target and the link (a wide notch): the row keeps its original corners.
+    public static func storageWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?,
+        linkWidth: Double, minimumTarget: Double) -> Double? {
+        guard let cutout = topCutout, cutout.y < layout.telemetry.maxY, cutout.maxY > layout.telemetry.y,
+            cutout.x > layout.status.x else { return nil }
+        let width = cutout.x - cutoutClearance - layout.status.x - linkWidth - (linkWidth > 0 ? 8 : 0)
+        return width >= minimumTarget ? width : nil
+    }
+}

@@ -643,7 +643,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
     private func storageReadout(_ value: MonitorOperatorLiveReadout<Key, Section>) -> some View {
         let forms = [value.value] + status.storageAlternatives
-        let shown = forms[storageForm % forms.count]
+        let form = storageForm % forms.count
+        let shown = forms[form]
+        // The source's complete spoken label describes its primary form only.
+        let spokenLabel = form == 0 ? value.accessibilityLabel : nil
         return Button {
             if exposed && !locked && editing == nil {
                 // Storage has no sheet: without alternatives a tap runs the source's action only.
@@ -652,7 +655,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             }
         } label: {
             HStack(spacing: 5) {
-                MonitorIcon.cardSim.frame(width: 12, height: 12)
+                // A source's own glyph replaces the card (photography's picture glyph for shots), never joins it.
+                (value.valueIcon ?? .cardSim).frame(width: 12, height: 12)
                 if layout.portrait && !layout.tablet {
                     MonitorBoundedReadoutText(shown)
                 } else {
@@ -661,8 +665,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
                 }
             }
-        }.buttonStyle(.monitorTapTarget).accessibilityLabel("Storage remaining")
-            .accessibilityValue(shown)
+        }.buttonStyle(.monitorTapTarget).accessibilityLabel(spokenLabel ?? "Storage remaining")
+            .accessibilityValue(spokenLabel == nil ? shown : "")
             .modifier(DescriptorEditable<Host>(section: value.section, mode: editing))
     }
     private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,
@@ -706,6 +710,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
     private var compactTelemetry: some View {
         MonitorCompactTelemetryRow(layout: layout, safeArea: safeArea, metrics: resolvedTelemetryMetrics,
+            topCutout: MonitorTopCutout.estimated(width: layout.viewport.width, height: layout.viewport.height,
+                safeTop: safeArea.top),
             minimumStatusTop: { compactTelemetryMinimumStatusTop = $0 }) {
             if mounts(.statusBar), let storage = status.storage {
                 storageReadout(storage).monitorReadoutShadow()

@@ -1,6 +1,8 @@
 package com.opencapture.monitorui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
@@ -9,6 +11,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -23,14 +27,20 @@ internal val LocalMonitorAdaptiveTelemetryPadding = compositionLocalOf { false }
 @Composable
 fun MonitorCompactTelemetryRow(layout: MonitorFieldLayout, safeLeading: Float, safeTrailing: Float,
     metrics: MonitorTelemetryMetrics, modifier: Modifier = Modifier,
+    topCutout: MonitorRect? = null,
     storage: @Composable () -> Unit, link: @Composable () -> Unit, power: @Composable () -> Unit) {
-    MonitorCompactTelemetryRow(layout, safeLeading, safeTrailing, metrics, {}, modifier, storage, link, power)
+    MonitorCompactTelemetryRow(layout, safeLeading, safeTrailing, metrics, {}, modifier, topCutout, storage, link, power)
 }
 
-/** The measured status boundary is optional composition; original content calls retain their shape. */
+/**
+ * The measured status boundary is optional composition; original content calls retain their shape.
+ * [topCutout] is the camera housing in viewport dp ([rememberMonitorTopCutout]); storage then yields
+ * before the link pill would reach it.
+ */
 @Composable
 fun MonitorCompactTelemetryRow(layout: MonitorFieldLayout, safeLeading: Float, safeTrailing: Float,
     metrics: MonitorTelemetryMetrics, minimumStatusTop: (Float) -> Unit, modifier: Modifier = Modifier,
+    topCutout: MonitorRect? = null,
     storage: @Composable () -> Unit, link: @Composable () -> Unit, power: @Composable () -> Unit) {
     val density = LocalDensity.current
     val minimumTarget = maxOf(48f, LocalViewConfiguration.current.minimumTouchTargetSize.width.value)
@@ -58,7 +68,10 @@ fun MonitorCompactTelemetryRow(layout: MonitorFieldLayout, safeLeading: Float, s
         // Match the old row's roundToPx at each term, including fractional native densities.
         val legacyRowWidth = max(0f, layout.telemetry.x - layout.status.x - 8f).dp.roundToPx()
         val legacyLinkWidth = if (preferredLink > 0) metrics.pillWidth.dp.roundToPx() else 0
-        val legacyWidth = (legacyRowWidth - legacyLinkWidth - 8.dp.roundToPx()).coerceAtLeast(0)
+        val cornerWidth = (legacyRowWidth - legacyLinkWidth - 8.dp.roundToPx()).coerceAtLeast(0)
+        val legacyWidth = MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout, topCutout,
+            if (preferredLink > 0) metrics.pillWidth else 0f, minimumTarget)
+            ?.let { minOf(cornerWidth, it.dp.toPx().toInt()) } ?: cornerWidth
         val storageView = children[0].measure(loose.copy(maxWidth = legacyWidth))
         val budget = MonitorCompactTelemetryBudget.pixels(constraints.maxWidth,
             layout.status.x.dp.roundToPx(), (layout.viewport.width - layout.status.maxX).dp.roundToPx(),
@@ -74,6 +87,25 @@ fun MonitorCompactTelemetryRow(layout: MonitorFieldLayout, safeLeading: Float, s
                 (bandHeight - storageView.height) / 2)
             linkView.place(budget.performanceX, (bandHeight - linkView.height) / 2)
             powerView.place(budget.powerX, (bandHeight - layout.telemetry.height.dp.roundToPx()) / 2 + powerOffset)
+        }
+    }
+}
+
+/**
+ * The top display cutout crossing this window, in window dp; null without one. The row is laid out
+ * from the window origin in portrait, where navigation never takes the top or leading edge.
+ * Swift twin: `MonitorTopCutout.estimated`, since iOS reports no cutout shape.
+ */
+@Composable
+fun rememberMonitorTopCutout(): MonitorRect? {
+    val view = LocalView.current
+    val density = LocalDensity.current
+    // Reading the inset subscribes to cutout changes (rotation, folding); the shape comes from the view.
+    val top = WindowInsets.displayCutout.getTop(density)
+    return remember(view, density, top) {
+        val rect = view.rootWindowInsets?.displayCutout?.boundingRectTop
+        if (top <= 0 || rect == null || rect.isEmpty) null else with(density) {
+            MonitorRect(rect.left.toDp().value, rect.top.toDp().value, rect.width().toDp().value, rect.height().toDp().value)
         }
     }
 }

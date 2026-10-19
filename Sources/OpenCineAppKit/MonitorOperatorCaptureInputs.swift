@@ -18,14 +18,17 @@ public struct MonitorOperatorLiveReadout<Key: Hashable, Section: Hashable>: Iden
     public let badgeIcon: MonitorIcon?
     public let quickEnabled: Bool
     public let accessibilityIdentifier: String
+    /// The complete spoken readout when the shown value is compacted ("20282 shots remaining" for "20.2k").
+    public let accessibilityLabel: String?
 
     public init(id: Key, title: String, value: String, section: Section? = nil,
         field: MonitorCaptureField? = nil, action: (() -> Void)? = nil,
         valueIcon: MonitorIcon? = nil, badgeIcon: MonitorIcon? = nil,
-        quickEnabled: Bool = true, accessibilityIdentifier: String = "") {
+        quickEnabled: Bool = true, accessibilityIdentifier: String = "", accessibilityLabel: String? = nil) {
         self.id = id; self.title = title; self.value = value; self.section = section
         self.field = field; self.action = action; self.valueIcon = valueIcon; self.badgeIcon = badgeIcon
         self.quickEnabled = quickEnabled; self.accessibilityIdentifier = accessibilityIdentifier
+        self.accessibilityLabel = accessibilityLabel
     }
 }
 
