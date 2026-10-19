@@ -30,23 +30,31 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MonitorDisplayButton(clean: Boolean, width: Float, height: Float,
-    modifier: Modifier = Modifier, enabled: Boolean = true, onClickFeedback: () -> Unit = {},
-    onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
+    modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null) {
     MonitorDisplayButton(activeIndex = if (clean) 1 else 0, modeCount = 2,
         description = if (clean) "DISP 2 clean" else "DISP 1 live", width = width, height = height,
-        modifier = modifier, enabled = enabled, onClickFeedback = onClickFeedback, onClick = onClick,
-        onLongClick = onLongClick)
+        modifier = modifier, enabled = enabled, onClick = onClick, onLongClick = onLongClick)
+}
+
+/** Admitted mode order is a source value; an absent selection lights no dash. */
+@Composable
+fun MonitorDisplayButton(activeIndex: Int?, modeCount: Int, description: String,
+    width: Float, height: Float, modifier: Modifier = Modifier, enabled: Boolean = true,
+    onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
+    MonitorDisplayButton(activeIndex, modeCount, description, width, height, modifier, enabled,
+        onClick, onLongClick, onClickFeedback = {})
 }
 
 /**
- * Admitted mode order is a source value; an absent selection lights no dash. [onClickFeedback] is
- * the host's tick on a tap (the Swift tile ticks on the mode change).
+ * The tile with the host's tick on a tap (the Swift tile ticks on the mode change). A separate
+ * overload, so positional callers of the plain one keep their callback order.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MonitorDisplayButton(activeIndex: Int?, modeCount: Int, description: String,
-    width: Float, height: Float, modifier: Modifier = Modifier, enabled: Boolean = true,
-    onClickFeedback: () -> Unit = {}, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
+    width: Float, height: Float, modifier: Modifier, enabled: Boolean,
+    onClick: () -> Unit, onLongClick: (() -> Unit)?, onClickFeedback: () -> Unit) {
     Column(modifier.width(width.dp).height(height.dp)
         .monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(14.dp))
         .combinedClickable(enabled = enabled, onClick = monitorDisplayClick(enabled, onClickFeedback, onClick),

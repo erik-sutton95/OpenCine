@@ -114,6 +114,7 @@ public fun MonitorCaptureButton(
     Box(modifier.size(diameter.dp)
         .alpha(policy.alpha)
         .then(if (policy.interactive) Modifier.combinedClickable(onClickLabel = policy.accessibilityLabel,
+            onLongClickLabel = policy.holdAccessibilityLabel,
             onClick = { policy.tap(haptics, ::press) },
             onLongClick = openMode?.let { mode -> { policy.hold(haptics, ::press, mode) } })
             else Modifier.semantics { disabled() })

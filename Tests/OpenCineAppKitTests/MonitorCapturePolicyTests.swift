@@ -56,6 +56,14 @@ final class MonitorCapturePolicyTests: XCTestCase {
         XCTAssertEqual(policy(photo: true).accessibilityLabel, "Take photo")
     }
 
+    /// Review: an unrelated busy command is not a stop; a hold that opens the sheet is named.
+    func testOnlyAPendingStopIsAnnouncedAndTheModeHoldIsNamed() {
+        XCTAssertEqual(policy(busy: true, recording: true).accessibilityLabel, "Stop recording")
+        XCTAssertEqual(policy(pending: true, recording: true).accessibilityLabel, "Stopping recording")
+        XCTAssertEqual(policy(offersMode: true).holdAccessibilityLabel, "Shooting mode")
+        XCTAssertNil(policy().holdAccessibilityLabel)
+    }
+
     func testATapPressesOnlyWhenAdmitted() {
         XCTAssertEqual(policy().tapAction, .press)
         XCTAssertEqual(policy(photo: true, canRecord: false, recording: nil).tapAction, .press)

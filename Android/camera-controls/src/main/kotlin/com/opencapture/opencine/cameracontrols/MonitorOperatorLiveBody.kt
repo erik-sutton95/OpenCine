@@ -410,7 +410,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 }, display = { enabled -> MonitorDisplayButton(displayIndex, displayCount,
                     displayTitle ?: displayIndex?.let { "DISP ${it + 1}" } ?: "Display mode unavailable",
                     layout.display.width, layout.display.height, (sections.display?.let { edit(it) } ?: Modifier).testTag("monitor.system.display"), enabled = enabled && interactive,
-                    onClickFeedback = { displayHaptics.selection() }, onClick = cycleDisplay) })
+                    onClick = cycleDisplay, onLongClick = null, onClickFeedback = { displayHaptics.selection() }) })
         }, tools = { accepts ->
             cameraViews.feedGestures?.invoke(this, accepts && interactive)
             if (command) cameraViews.dashboard?.let { dashboard ->

@@ -67,6 +67,14 @@ class MonitorCapturePolicyTest {
         assertEquals("Take photo", policy(photo = true).accessibilityLabel)
     }
 
+    /** Review: an unrelated busy command is not a stop; a hold that opens the sheet is named. */
+    @Test fun onlyAPendingStopIsAnnouncedAndTheModeHoldIsNamed() {
+        assertEquals("Stop recording", policy(busy = true, recording = true).accessibilityLabel)
+        assertEquals("Stopping recording", policy(pending = true, recording = true).accessibilityLabel)
+        assertEquals("Shooting mode", policy(offersMode = true).holdAccessibilityLabel)
+        assertNull(policy().holdAccessibilityLabel)
+    }
+
     @Test fun aTapPressesOnlyWhenAdmitted() {
         assertEquals(MonitorCapturePolicy.Action.PRESS, policy().tapAction)
         assertEquals(MonitorCapturePolicy.Action.PRESS, policy(photo = true, canRecord = false, recording = null).tapAction)

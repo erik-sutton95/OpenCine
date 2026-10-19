@@ -12,4 +12,11 @@ class MonitorDisplayButtonTest {
         monitorDisplayClick(false, { calls += "feedback" }) { calls += "cycle" }()
         assertEquals(listOf("feedback", "cycle"), calls)
     }
+
+    /** ZIA-145 on Android: TalkBack has no hint slot, so the step hint follows the drum's value. */
+    @Test fun theDrumSpeaksItsStepHintAfterTheValue() {
+        assertEquals("5600K. Use minus 10", monitorDrumDescription("5600K", "Use minus 10"))
+        assertEquals("5600K", monitorDrumDescription("5600K", null))
+        assertEquals("Choose value", monitorDrumDescription("", " "))
+    }
 }

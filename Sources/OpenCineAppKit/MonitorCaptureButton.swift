@@ -89,7 +89,9 @@
                 .accessibilityValue(policy.stateDescription ?? "")
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { press() }
-                .accessibilityAction(named: "Shooting mode") { if policy.modeAdmitted { openMode?() } }
+                .accessibilityAction(named: Text(policy.holdAccessibilityLabel ?? "Shooting mode")) {
+                    if policy.modeAdmitted { openMode?() }
+                }
                 .accessibilityIdentifier(photo ? "monitor.system.shutter" : "monitor.system.record")
                 .disabled(!policy.interactive)
         }

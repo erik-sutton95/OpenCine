@@ -55,9 +55,12 @@ public struct MonitorCapturePolicy: Equatable, Sendable {
 
     public var accessibilityLabel: String {
         if photo { return "Take photo" }
-        if recording == true { return busy || pending ? "Stopping recording" : "Stop recording" }
+        if recording == true { return pending ? "Stopping recording" : "Stop recording" }
         return recording == nil ? "Recording state unknown" : "Start recording"
     }
+
+    /// What a hold does, for the screen reader; nil where a hold is a press.
+    public var holdAccessibilityLabel: String? { offersMode ? "Shooting mode" : nil }
 
     /// Spoken beside the action, like the pre-shared Android record disc.
     public var stateDescription: String? {
