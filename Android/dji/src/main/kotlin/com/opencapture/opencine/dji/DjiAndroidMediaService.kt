@@ -364,6 +364,7 @@ class DjiAndroidMediaService(
         return task
     }
     private inner class Browse(val source: DjiAndroidMediaIdentity, val bodyGalleryHeld: Boolean) : CameraMediaBrowse {
+        override val heldBySource: Boolean? get() = bodyGalleryHeld
         override val binding = MediaBrowseBinding(source.session, source.epoch)
         override val thumbnails: CameraMediaThumbnailService? = null
         override val transfers: CameraMediaTransferService? = null
