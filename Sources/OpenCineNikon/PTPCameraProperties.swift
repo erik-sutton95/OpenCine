@@ -1833,9 +1833,11 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         stillToneMode: String? = nil,
         evIndicatorSixths: Int? = nil,
         evIndicatorLit: Bool? = nil,
-        movieTones: [PTPPropertyCode: NikonMovieTone] = [:]
+        movieTones: [PTPPropertyCode: NikonMovieTone] = [:],
+        stillsCardShots: Int? = nil
     ) {
         self.movieTones = movieTones
+        self.stillsCardShots = stillsCardShots
         self.iso = iso
         self.baseISO = baseISO
         self.isoAuto = isoAuto
@@ -1880,7 +1882,7 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         self.meteringMode = meteringMode
         self.flashMode = flashMode
         self.exposureBias = exposureBias
-        self.shotsRemaining = shotsRemaining
+        self.cameraShotsRemaining = shotsRemaining
         self.imageArea = imageArea
         self.rawCompression = rawCompression
         self.userModeProgram = userModeProgram
@@ -1987,8 +1989,13 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
     public let meteringMode: String?
     public let flashMode: String?
     public let exposureBias: String?
-    /// Frames recordable to the card, for the photo top-bar counter.
-    public let shotsRemaining: Int?
+    /// Frames recordable to the stills card, for the photo top-bar counter: the stills card's own
+    /// count when two cards are in and the body names its stills slot, else `ExposureRemaining`.
+    public var shotsRemaining: Int? { stillsCardShots ?? cameraShotsRemaining }
+    /// The body's `ExposureRemaining` (0xD1F1), which can cover every inserted card.
+    public let cameraShotsRemaining: Int?
+    /// Frames left on the stills card alone (``NikonCardSlotReadout/stillsCardShots``).
+    public let stillsCardShots: Int?
     /// Photo image area (sensor crop) from `CaptureAreaCrop`.
     public let imageArea: StillImageArea?
     /// NEF (RAW) recording compression from `RawCompressionType`.
@@ -2208,7 +2215,12 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         case .stillISOAutoControl where bytes.count >= 1:
             return replacing(isoAuto: bytes[0] != 0)
         case .exposureRemaining where bytes.count >= 4:
-            return replacing(shotsRemaining: Int(ByteCoding.readUInt32LE(bytes, at: 0)))
+            let reported = Int(ByteCoding.readUInt32LE(bytes, at: 0))
+            return replacing(
+                shotsRemaining: reported,
+                stillsCardShots: stillsCardShots.map {
+                    Self.followingCameraCount($0, from: cameraShotsRemaining, to: reported)
+                })
         case .captureAreaCrop where bytes.count >= 1:
             return replacing(imageArea: StillImageArea.decode(raw: bytes[0]))
         case .stillFocusMode where bytes.count >= 1:
@@ -2293,7 +2305,8 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         evIndicatorSixths: Int? = nil,
         evIndicatorLit: Bool? = nil,
         clearsStillToneMode: Bool = false,
-        movieTone: (property: PTPPropertyCode, tone: NikonMovieTone?)? = nil
+        movieTone: (property: PTPPropertyCode, tone: NikonMovieTone?)? = nil,
+        stillsCardShots: Int?? = nil
     ) -> PTPCameraPropertySnapshot {
         var tones = movieTones
         if let movieTone { tones[movieTone.property] = movieTone.tone }
@@ -2342,7 +2355,7 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             meteringMode: meteringMode ?? self.meteringMode,
             flashMode: flashMode ?? self.flashMode,
             exposureBias: exposureBias ?? self.exposureBias,
-            shotsRemaining: shotsRemaining ?? self.shotsRemaining,
+            shotsRemaining: shotsRemaining ?? self.cameraShotsRemaining,
             imageArea: imageArea ?? self.imageArea,
             rawCompression: rawCompression ?? self.rawCompression,
             userModeProgram: userModeProgram ?? self.userModeProgram,
@@ -2350,9 +2363,36 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             stillToneMode: clearsStillToneMode ? nil : stillToneMode ?? self.stillToneMode,
             evIndicatorSixths: evIndicatorSixths ?? self.evIndicatorSixths,
             evIndicatorLit: evIndicatorLit ?? self.evIndicatorLit,
-            movieTones: tones
+            movieTones: tones,
+            stillsCardShots: stillsCardShots ?? self.stillsCardShots
         )
     }
+
+    /// Adopts the stills card's own count from a card-slot readout; nil returns to the body's
+    /// `ExposureRemaining` (one card, or no stills slot named).
+    public func applyingCardSlots(_ readout: NikonCardSlotReadout) -> PTPCameraPropertySnapshot {
+        replacing(stillsCardShots: .some(readout.stillsCardShots))
+    }
+
+    /// Counts one released frame at once, before the next `ExposureRemaining` read confirms it.
+    public func decrementingShotsRemaining() -> PTPCameraPropertySnapshot {
+        guard let camera = cameraShotsRemaining, camera > 0 else { return self }
+        return applying(
+            property: .exposureRemaining, data: Data(ByteCoding.uint32LE(UInt32(camera - 1))))
+    }
+
+    /// Carries the stills-card count between storage reads. Every frame lands on one card, so a
+    /// small drop in the body's count is the same drop on the stills card; any other change (image
+    /// settings, a card swap) rescales it. The next storage read replaces the estimate.
+    static func followingCameraCount(_ stills: Int, from previous: Int?, to reported: Int) -> Int {
+        guard let previous, previous > 0, previous != reported else { return stills }
+        let drop = previous - reported
+        if drop > 0, drop <= Self.burstDropLimit { return max(0, stills - drop) }
+        return max(0, Int((Double(stills) * Double(reported) / Double(previous)).rounded()))
+    }
+
+    /// Largest drop between two reads still treated as frames taken rather than a settings change.
+    static let burstDropLimit = 200
 }
 
 extension CameraDisplayState {

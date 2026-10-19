@@ -852,6 +852,46 @@
             return results
         }
 
+        /// Reads every card plus the body's slot assignment (`PrimarySlot`, `ActiveSlot`), so the
+        /// shots counter and remote releases follow the card the body writes stills to.
+        public func readCardSlots() async -> NikonCardSlotReadout {
+            let storage = await readAllStorageInfo()
+            return NikonCardSlotReadout(
+                storage: storage,
+                primarySlot: await slotDescriptor(.primarySlot),
+                activeSlot: await slotDescriptor(.activeSlot))
+        }
+
+        /// Points remote releases at the stills card when the body lets the host choose
+        /// (``NikonCardSlotReadout/activeSlotAlignment``). Returns whether a write was accepted.
+        @discardableResult
+        public func alignActiveSlotToStillsCard(_ readout: NikonCardSlotReadout) async -> Bool {
+            guard let value = readout.activeSlotAlignment else { return false }
+            do {
+                try await writeCameraProperty(
+                    PTPCameraPropertyWrite(property: .activeSlot, data: Data(value)))
+                return true
+            } catch {
+                storageLogger.error("ActiveSlot alignment rejected: \(String(describing: error))")
+                return false
+            }
+        }
+
+        /// A slot property's scalar descriptor at whichever width the body reports.
+        private func slotDescriptor(
+            _ property: PTPPropertyCode
+        ) async -> NikonScalarPropertyDescriptor? {
+            guard supportsProperty(property) else { return nil }
+            for width in [1, 2] {
+                if let descriptor = await observeCameraPropertyDescriptor(
+                    property, valueByteCount: width
+                ).descriptor {
+                    return descriptor
+                }
+            }
+            return nil
+        }
+
         /// Fetches and parses a StorageIDArray via the given op (`GetStorageIDs`/`GetVendorStorageIDs`),
         /// logging the result. Returns [] on rejection so the caller can fall back to the other op.
         private func storageIDList(via operationCode: PTPOperationCode) async -> [UInt32] {

@@ -1790,23 +1790,15 @@ public final class PTPIPClientSession: @unchecked Sendable {
             // The physical slot lives in the storage ID's high word (0x000X0001); the
             // enumerated order does NOT follow it (the second card can arrive appended
             // via the vendor storage list), which would label slot 1's card "SLOT 2" in
-            // the media chips. Number by the physical slot and sort, falling back to
-            // list order for IDs without the slot-word pattern. [verify-on-HW]
-            var slots = enumerated.enumerated().map { index, slot in
-                let physicalSlot = Int((slot.id >> 16) & 0xFF)
-                return AndroidCameraStorageSlot(
-                    storageID: slot.id,
-                    slotNumber: physicalSlot > 0 ? physicalSlot : index + 1,
-                    storage: slot.info)
-            }
-            .sorted { $0.slotNumber < $1.slotNumber }
-            if Set(slots.map(\.slotNumber)).count != slots.count {
-                // A duplicate physical number would fail the wire's strictly-increasing
-                // guard and drop every card; keep the old list-order numbering instead.
-                slots = enumerated.enumerated().map { index, slot in
-                    AndroidCameraStorageSlot(
-                        storageID: slot.id, slotNumber: index + 1, storage: slot.info)
-                }
+            // the media chips. The shared readout numbers by physical slot and keeps list
+            // order for IDs without the slot-word pattern. [verify-on-HW]
+            let readout = NikonCardSlotReadout(
+                storage: enumerated,
+                primarySlot: slotDescriptor(.primarySlot),
+                activeSlot: slotDescriptor(.activeSlot))
+            let slots = readout.cards.map {
+                AndroidCameraStorageSlot(
+                    storageID: $0.storageID, slotNumber: $0.slot, storage: $0.info)
             }
             guard !slots.isEmpty else {
                 androidStorageInfo = nil
@@ -1814,9 +1806,20 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 return .unsupported
             }
             androidStorageSlots = slots
-            // The legacy single-card readout keeps the camera's enumeration-first card,
-            // independent of the display sort.
-            androidStorageInfo = enumerated.first?.info
+            // The shots counter follows the stills card, and in photo mode a remote release
+            // is pointed at it when the body lets the host choose (ZT-04/ZT-05).
+            androidPropertySnapshot = androidPropertySnapshot.applyingCardSlots(readout)
+            if androidPropertySnapshot.captureSelector == .photo,
+                let value = readout.activeSlotAlignment
+            {
+                try? writeCameraProperty(
+                    PTPCameraPropertyWrite(property: .activeSlot, data: Data(value)))
+            }
+            // The single-card readout is the stills card in photo mode; otherwise it keeps
+            // the camera's enumeration-first card, independent of the display sort.
+            androidStorageInfo =
+                (androidPropertySnapshot.captureSelector == .photo ? readout.stillsCard?.info : nil)
+                ?? enumerated.first?.info
             androidLastStorageRefreshAt = Date()
             return .accepted
         } catch let error as PTPIPClientSessionError {
@@ -3393,6 +3396,20 @@ public final class PTPIPClientSession: @unchecked Sendable {
             PTPCameraPropertyWrite(
                 property: .dateTime,
                 data: CameraClockSync.encode(CameraClockSync.phoneNow())))
+    }
+
+    /// A slot property's scalar descriptor at whichever width the body reports; nil when the
+    /// body rejects or lacks it.
+    private func slotDescriptor(_ property: PTPPropertyCode) -> NikonScalarPropertyDescriptor? {
+        guard let data = try? readPropertyDescriptor(property) else { return nil }
+        for width in [1, 2] {
+            if let descriptor = NikonScalarPropertyDescriptor.parse(
+                data, property: property.rawValue, valueByteCount: width)
+            {
+                return descriptor
+            }
+        }
+        return nil
     }
 
     private func writeCameraProperty(_ write: PTPCameraPropertyWrite) throws {
