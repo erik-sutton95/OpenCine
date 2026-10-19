@@ -86,7 +86,10 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
                 native: FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)))
         }
         if controls.iris.isOffered {
-            append(.aperture, "APERTURE", commonValue(.aperture))
+            let iris: Double?
+            if case .aperture(let value)? = host.control.captureValue(.aperture, selection: selection) { iris = value } else { iris = nil }
+            append(.aperture, "APERTURE", CaptureNativeReadoutPresentation.aperture(
+                common: iris, strategy: status.apertureStrategy))
         }
         if controls.audio.isOffered && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
         let supplementary: [MonitorOperatorSupplementaryCaptureReadout<CaptureSheet, Section>]

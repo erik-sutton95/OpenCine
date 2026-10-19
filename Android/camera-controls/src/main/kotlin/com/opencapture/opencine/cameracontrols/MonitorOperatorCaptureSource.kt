@@ -102,7 +102,9 @@ public class MonitorOperatorCaptureSource(
             LiveSheet.FOCUS -> return CaptureNativeReadoutPresentation.focus(
                 (control.captureValue(SettingKey.FOCUS_MODE, host.captureReadoutSelection) as? SettingValue.FocusMode)?.mode,
                 FocusOption.resolve(status.focusMode, status.focusTrack))
-            LiveSheet.APERTURE -> SettingKey.APERTURE
+            LiveSheet.APERTURE -> return CaptureNativeReadoutPresentation.aperture(
+                (control.captureValue(SettingKey.APERTURE, host.captureReadoutSelection) as? SettingValue.Aperture)?.fNumber,
+                status.apertureStrategy)
             else -> return nativeLabel
         }
         return control.captureValue(key, host.captureReadoutSelection)?.let(MonitorCapturePresentation::label) ?: "--"
