@@ -137,10 +137,12 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
 }
 extension MonitorOperatorSupplementaryCaptureReadout where Key == CaptureSheet {
     /// The face-priority metering toggle beside EXPOSURE: two values, so it switches in place.
+    /// It speaks its full name and what a tap does, not the visual caption.
     @MainActor static func metering(_ meter: CaptureNativeMeteringSource, section: Section?) -> Self {
         .init(id: "native.metering", after: .exposure, title: "METER",
-            value: meter.face.map { $0 ? "Face" : "Matrix" } ?? "--",
+            value: meter.face.map { $0 ? "Face" : "Matrix" } ?? "--", accessibilityLabel: "Metering",
             accessibilityValue: meter.face.map { $0 ? "Face Priority" : "Matrix" } ?? "Unknown",
+            accessibilityHint: "Switches between Matrix and Face Priority metering",
             accessibilityIdentifier: "monitor.capture.metering", section: section,
             enabled: meter.face != nil, isCurrent: meter.isCurrent,
             action: { if let face = meter.face { meter.setFace(!face) } })

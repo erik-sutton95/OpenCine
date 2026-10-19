@@ -99,7 +99,7 @@ public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorT
                     label = "reportedLiveBatteryExhaustionAlpha")
                 alpha
             } else 1f
-            TelemetryGauge(if (reading.charging == true) MonitorIcon.ZAP else if (reading.camera) MonitorIcon.CAMERA else MonitorIcon.SMARTPHONE,
+            TelemetryGauge(if (reading.charging == true || reading.externalPower == true) MonitorIcon.ZAP else if (reading.camera) MonitorIcon.CAMERA else MonitorIcon.SMARTPHONE,
                 tint, reading.bars?.let { it.toFloat() / reading.barCount.coerceAtLeast(1) } ?: percent?.div(100f) ?: 0f,
                 label, horizontal, MonitorTelemetryValues.batteryValue(percent, reading.bars, reading.charging, reading.externalPower),
                 barCount = if (reading.bars != null) reading.barCount else 4, filled = reading.bars,

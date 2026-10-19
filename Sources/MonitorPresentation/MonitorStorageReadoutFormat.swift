@@ -25,9 +25,11 @@ public enum MonitorStorageReadoutFormat {
             return "\(rounded)\(units[unit])"
         }
     }
-    /// The forms one tap on the live storage readout steps to after the free space.
+    /// The forms one tap on the live storage readout steps to after the free space (A5-11): the
+    /// free percentage when the volume reports a capacity, then, in video, the remaining recording
+    /// time when the body reports one. Photo never shows a recording time.
     public static func alternatives(percent: String?, recordingTime: String?, photo: Bool) -> [String] {
-        photo ? [] : [recordingTime].compactMap { $0 }
+        [percent, photo ? nil : recordingTime].compactMap { $0 }
     }
 
     public static func remainingMinutes(_ minutes: Int?) -> String {

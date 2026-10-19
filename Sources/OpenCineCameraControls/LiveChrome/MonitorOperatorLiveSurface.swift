@@ -65,21 +65,29 @@ extension MonitorOperatorPowerReading {
     /// and an unknown battery is absent rather than an empty gauge (D11).
     public static func camera(_ power: PowerStatus) -> MonitorOperatorPowerReading? {
         camera(power.batteryReading, exhausted: power.exhausted.value,
-            charging: power.charging.value ?? power.externalPower.value)
+            charging: power.charging.value ?? power.externalPower.value, externalPower: power.externalPower.value)
     }
 
+    /// A body on external power that reports no level keeps its pill ("EXT"), as the standalone
+    /// apps showed it; without power facts an unknown level stays absent.
     public static func camera(_ reading: BatteryReading?, exhausted: Bool? = nil,
-        charging: Bool? = nil) -> MonitorOperatorPowerReading? {
-        guard let reading else { return nil }
+        charging: Bool? = nil, externalPower: Bool? = nil) -> MonitorOperatorPowerReading? {
+        guard let reading else {
+            guard charging == true || externalPower == true else { return nil }
+            return .init(id: "camera", title: "Camera battery", camera: true, charging: true,
+                externalPower: externalPower)
+        }
         switch reading {
         case .fraction(let value):
             guard value.isFinite, (0...1).contains(value) else { return nil }
             return .init(id: "camera", title: "Camera battery", camera: true,
-                percent: Int((value * 100).rounded()), exhausted: exhausted == true, charging: charging)
+                percent: Int((value * 100).rounded()), exhausted: exhausted == true, charging: charging,
+                externalPower: externalPower)
         case .steps(let filled, let count):
             guard count > 0, (0...count).contains(filled) else { return nil }
             return .init(id: "camera", title: "Camera battery", camera: true, bars: filled, barCount: count,
-                warning: Double(filled) / Double(count) <= 0.4, exhausted: exhausted == true, charging: charging)
+                warning: Double(filled) / Double(count) <= 0.4, exhausted: exhausted == true, charging: charging,
+                externalPower: externalPower)
         }
     }
 }
@@ -638,9 +646,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         let shown = forms[storageForm % forms.count]
         return Button {
             if exposed && !locked && editing == nil {
+                // Storage has no sheet: without alternatives a tap runs the source's action only.
                 if forms.count > 1 { storageForm = (storageForm + 1) % forms.count }
                 else if let action = value.action { action() }
-                else { open(value.id) }
             }
         } label: {
             HStack(spacing: 5) {

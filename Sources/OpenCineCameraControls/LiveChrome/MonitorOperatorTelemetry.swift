@@ -138,7 +138,8 @@ private struct MonitorOperatorPowerTelemetry<Palette: LiveChromePalette>: View {
         let value = MonitorTelemetryValues.batteryValue(percent: reading.percent, bars: reading.bars,
             charging: reading.charging, externalPower: reading.externalPower)
         MonitorOperatorTelemetry<Palette>.gauge(
-            icon: reading.charging == true ? .zap : (reading.camera ? .camera : .smartphone),
+            icon: reading.charging == true || reading.externalPower == true
+                ? .zap : (reading.camera ? .camera : .smartphone),
             value: value, bars: reading.bars ?? 0, color: tint, barCount: reading.barCount, metrics: metrics)
             .opacity(reading.exhausted && pulse ? 0.35 : 1)
             .animation(reading.exhausted ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true) : .default, value: pulse)

@@ -91,17 +91,25 @@ public class MonitorOperatorPowerReading(
  * battery is absent rather than an empty gauge (D11). iOS `MonitorOperatorPowerReading.camera`.
  */
 public fun cameraPowerReading(power: PowerStatus): MonitorOperatorPowerReading? =
-    cameraPowerReading(power.batteryReading, power.exhausted.value, power.charging.value ?: power.externalPower.value)
+    cameraPowerReading(power.batteryReading, power.exhausted.value, power.charging.value ?: power.externalPower.value,
+        power.externalPower.value)
 
+/**
+ * A body on external power that reports no level keeps its pill ("EXT"), as the standalone apps
+ * showed it; without power facts an unknown level stays absent.
+ */
 public fun cameraPowerReading(reading: BatteryReading?, exhausted: Boolean? = null,
-    charging: Boolean? = null): MonitorOperatorPowerReading? =
+    charging: Boolean? = null, externalPower: Boolean? = null): MonitorOperatorPowerReading? =
     when (reading) {
         is BatteryReading.Fraction -> if (reading.value.isFinite() && reading.value in 0.0..1.0)
-            MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), charging, exhausted = exhausted == true) else null
+            MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), charging, exhausted = exhausted == true,
+                externalPower = externalPower) else null
         is BatteryReading.Steps -> if (reading.of > 0 && reading.filled in 0..reading.of)
             MonitorOperatorPowerReading(true, null, charging, reading.filled, reading.of,
-                warning = reading.filled.toDouble() / reading.of <= 0.4, exhausted = exhausted == true) else null
-        null -> null
+                warning = reading.filled.toDouble() / reading.of <= 0.4, exhausted = exhausted == true,
+                externalPower = externalPower) else null
+        null -> if (charging == true || externalPower == true)
+            MonitorOperatorPowerReading(true, null, true, externalPower = externalPower) else null
     }
 
 public fun cameraBatteryReadoutLabel(reading: BatteryReading?): String? = when (reading) {

@@ -42,7 +42,7 @@ class MonitorTelemetryValuesTest {
     @Test fun externalPowerWithoutALevelReadsEXT() {
         assertEquals("EXT", MonitorTelemetryValues.batteryValue(null, null, true, true))
         assertEquals("EXT", MonitorTelemetryValues.batteryValue(null, null, true, null))
-        assertEquals("—", MonitorTelemetryValues.batteryValue(null, null, null, null))
+        assertEquals("\u2014", MonitorTelemetryValues.batteryValue(null, null, null, null))
         assertEquals("60%", MonitorTelemetryValues.batteryValue(60, null, true, null))
         assertNull(MonitorTelemetryValues.batteryValue(null, 3, true, true))
     }
@@ -55,8 +55,8 @@ class MonitorTelemetryValuesTest {
         }
         assertNull(MonitorTelemetryValues.linkValue("25.00", 3, showsRate = false))
         assertEquals("25 fps", MonitorTelemetryValues.linkValue("25.00", 3, showsRate = true))
-        assertNull(MonitorTelemetryValues.linkValue("—", 0, showsRate = false))
+        assertNull(MonitorTelemetryValues.linkValue("\u2014", 0, showsRate = false))
         assertNull(MonitorTelemetryValues.linkValue(null, 1, showsRate = false))
-        assertEquals("—", MonitorTelemetryValues.linkValue(null, null, showsRate = false))
+        assertEquals("\u2014", MonitorTelemetryValues.linkValue(null, null, showsRate = false))
     }
 }
