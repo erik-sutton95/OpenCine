@@ -118,6 +118,15 @@ class NikonOpenCineSessionTest {
     }
 
     @Test
+    fun `auto ISO readout carries the working ISO`() {
+        // ZAA-142 / ZIA-112: twin of Swift isoPickerPolicyLabelsTheWorkingISOUnderAuto.
+        assertEquals("A3200", IsoPickerPolicy.autoISOLabel(3200, true, "H.265 10-bit MOV"))
+        assertNull(IsoPickerPolicy.autoISOLabel(null, true, "H.265 10-bit MOV"))
+        assertNull(IsoPickerPolicy.autoISOLabel(800, false, "H.265 10-bit MOV"))
+        assertNull(IsoPickerPolicy.autoISOLabel(800, true, "R3D NE 12-bit R3D"))
+    }
+
+    @Test
     fun `a body that never reports its shutter mode reads and writes movie shutter by label shape`() = runTest {
         // Z6III-class bodies have no MovieShutterMode; the baseline encoder wrote by label shape.
         val properties = movie().copy(shutterMode = null, shutterSpeed = "1/50", shutterAngle = null)

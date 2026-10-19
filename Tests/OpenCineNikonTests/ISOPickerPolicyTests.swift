@@ -111,3 +111,11 @@ import Testing
     #expect(!ISOPickerPolicy.blocksISOChangeWhileRecording(codec: "R3D NE", isRecording: false))
     #expect(!ISOPickerPolicy.blocksISOChangeWhileRecording(codec: "N-RAW", isRecording: true))
 }
+
+@Test func isoPickerPolicyLabelsTheWorkingISOUnderAuto() {
+    // ZAA-142 / ZIA-112: the strip shows the body's working ISO while Auto ISO is on.
+    #expect(ISOPickerPolicy.autoISOLabel(iso: 3200, isoAuto: true, codec: "H.265 10-bit MOV") == "A3200")
+    #expect(ISOPickerPolicy.autoISOLabel(iso: nil, isoAuto: true, codec: "H.265 10-bit MOV") == nil)
+    #expect(ISOPickerPolicy.autoISOLabel(iso: 800, isoAuto: false, codec: "H.265 10-bit MOV") == nil)
+    #expect(ISOPickerPolicy.autoISOLabel(iso: 800, isoAuto: true, codec: "R3D NE 12-bit R3D") == nil)
+}
