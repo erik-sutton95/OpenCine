@@ -100,7 +100,8 @@ def _base(values):
 
 
 def _validate_base(state):
-    if not isinstance(state, dict) or set(state) != {"version", "base", "shards"} or state["version"] != 1 \
+    if not isinstance(state, dict) or not {"version", "base", "shards"} <= set(state) \
+            or not set(state) <= {"version", "base", "shards", "poll"} or state["version"] != 1 \
             or not isinstance(state["base"], dict) or set(state["base"]) != set(FIELDS) or not isinstance(state["shards"], list):
         raise linked.SyncError("unsupported durable issue state schema")
     for field in FIELDS:
@@ -112,6 +113,16 @@ def _validate_base(state):
             raise linked.SyncError("invalid common field fingerprint")
     if any(type(v) is not int or v < 1 for v in state["shards"]) or len(set(state["shards"])) != len(state["shards"]):
         raise linked.SyncError("invalid comment index references")
+    # The released schema carried a "checked" timestamp; accept it for one release but
+    # ignore it, because a wall-clock field would rewrite every reconciled tracker body.
+    poll = state.get("poll")
+    required = {"source_updated_at", "source_comments", "tracker_comments"}
+    if poll is not None and (not isinstance(poll, dict)
+            or not required <= set(poll) or not set(poll) <= required | {"checked"}
+            or not isinstance(poll["source_updated_at"], str) or not poll["source_updated_at"]
+            or type(poll["source_comments"]) is not int or poll["source_comments"] < 0
+            or type(poll["tracker_comments"]) is not int or poll["tracker_comments"] < 0):
+        raise linked.SyncError("invalid poll checkpoint")
     return state
 
 
@@ -158,11 +169,41 @@ def _conflict(result, pair, field, reason):
     result["conflicts"].append({"source": pair, "field": field, "reason": reason})
 
 
+def _poll_baseline(source, tracker):
+    """The stored poll signals as read by the pre-write issue inventory."""
+    return source.get("updated_at"), source.get("comments"), (tracker or {}).get("comments")
+
+
+def _poll_checkpoint(source, tracker):
+    """Endpoint signals cheap enough to decide that a pair needs no read this run."""
+    updated_at, comments = source.get("updated_at"), source.get("comments")
+    tracker_comments = tracker.get("comments")
+    if not isinstance(updated_at, str) or not updated_at or type(comments) is not int or comments < 0 \
+            or type(tracker_comments) is not int or tracker_comments < 0:
+        return None
+    return {"source_updated_at": updated_at, "source_comments": comments,
+            "tracker_comments": tracker_comments}
+
+
+def _poll_unchanged(state, source, tracker):
+    poll = state.get("poll")
+    if not poll:
+        return False
+    return poll["source_updated_at"] == source.get("updated_at") \
+        and poll["source_comments"] == source.get("comments") \
+        and poll["tracker_comments"] == tracker.get("comments")
+
+
+def _fields_match_base(values, base):
+    return all(values[field] == base[field] if field in {"labels", "assignees"}
+               else digest(values[field]) == base[field] for field in FIELDS)
+
+
 class Runner:
     def __init__(self, reg, api, execute, login, result):
         self.reg, self.api, self.execute, self.login, self.result = reg, api, execute, login, result
         _, self.central, self.apps = linked.identities(reg)
-        self.labels, self.threads = {}, {}
+        self.labels, self.threads, self.eligible_cache = {}, {}, {}
 
     def write(self, action, pair, method, path, payload):
         self.result["actions"].append({"action": action, "source": pair, "method": method, "path": path, "payload": payload})
@@ -174,12 +215,18 @@ class Runner:
         return value
 
     def eligible(self, repo, logins):
+        if len(logins) > 10: return False
         for login in logins:
-            try: self.api.request("GET", f"/repos/{repo}/assignees/{quote(login, safe='')}")
-            except linked.SyncError as exc:
-                if getattr(exc, "status", None) == 404: return False
-                raise
-        return len(logins) <= 10
+            key = repo, login
+            if key not in self.eligible_cache:
+                try: self.api.request("GET", f"/repos/{repo}/assignees/{quote(login, safe='')}")
+                except linked.SyncError as exc:
+                    if getattr(exc, "status", None) != 404: raise
+                    self.eligible_cache[key] = False
+                else:
+                    self.eligible_cache[key] = True
+            if not self.eligible_cache[key]: return False
+        return True
 
     def label_plan(self, repo, names, pair, definition_repo):
         for name in names:
@@ -432,6 +479,8 @@ class Runner:
 
     def pair(self, app, source, tracker):
         pair = f"{app}#{source['number']}"
+        conflicts_before = len(self.result["conflicts"])
+        poll_baseline = _poll_baseline(source, tracker)
         source_repo = self.apps[app]
         src = _values(source)
         if tracker is None:
@@ -449,6 +498,7 @@ class Runner:
             payload = dict(target, title=_title(app, source["number"], target["title"], self.reg),
                            body=_render(app, source["number"], target, state, self.reg))
             tracker = self.write("create", pair, "POST", f"/repos/{self.central}/issues", payload)
+            poll_baseline = _poll_baseline(source, tracker)
             if not self.execute:
                 for comment in self.threads[source_repo, source["number"]]:
                     self.result["actions"].append({"source": pair, "action": "comment-create", "origin": comment["html_url"]})
@@ -500,11 +550,20 @@ class Runner:
                 if next_base[field] != state["base"][field] and (a_values[field] != desired_src[field] or b_values[field] != desired_core[field]):
                     raise linked.SyncError("field changed before checkpoint; common baseline retained")
             checkpoint = {"version": 1, "base": next_base, "shards": shard_ids}
+            # An unresolved conflict must be reported again on the next run, so only a
+            # clean pair earns the poll checkpoint that lets reconcile skip its threads.
+            # A comment may arrive after the thread inventories but before these readbacks.
+            # Storing its count would let the next incremental run skip an unreconciled
+            # comment, so only checkpoint signals that match the pre-write inventory.
+            if len(self.result["conflicts"]) == conflicts_before \
+                    and _poll_baseline(a, b) == poll_baseline:
+                poll = _poll_checkpoint(a, b)
+                if poll: checkpoint["poll"] = poll
             body = _render(app, source["number"], b_values, checkpoint, self.reg, b["body"])
             self.issue_patch(self.central, b, {"body": body} if body != b["body"] else {}, pair, True, app)
 
 
-def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]"):
+def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]", full=False):
     result = {"version": 2, "mode": "execute" if execute else "dry-run", "complete": False,
               "actions": [], "applied": [], "errors": [], "conflicts": [], "tombstones": [], "counts": {}, "uncertain": None}
     try:
@@ -527,6 +586,21 @@ def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]"):
         if set(mirrors) - set(sources): raise linked.SyncError("a tracked original is missing; deletion/transfer/visibility needs review")
         pairs = [(app, item, mirrors.get((app, number))) for (app, number), item in sorted(sources.items())
                  if (app, number) in mirrors or item["state"] == "open"]
+        # A pair whose fields still match the durable baseline and whose endpoint signals
+        # still match the poll checkpoint cannot have changed: skip both comment inventories.
+        # A forced full pass (the daily workflow schedule) reads every pair anyway.
+        # Any invalid durable state is left to pair(), which refuses it explicitly.
+        def unchanged(app, source, tracker):
+            if tracker is None: return False
+            try:
+                state = _validate_base(_one_json(tracker["body"], ROOT_PREFIX))
+                return _fields_match_base(_values(source), state["base"]) \
+                    and _fields_match_base(_values(tracker, True, app, reg), state["base"]) \
+                    and _poll_unchanged(state, source, tracker)
+            except (linked.SyncError, ValueError, KeyError, TypeError):
+                return False
+        if not full:
+            pairs = [pair for pair in pairs if not unchanged(*pair)]
         # Complete all read inventories before any write, so partial API reads never
         # masquerade as empty threads, deleted comments or missing label definitions.
         for repo in [runner.central, *runner.apps.values()]:

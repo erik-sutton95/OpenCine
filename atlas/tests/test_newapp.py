@@ -162,6 +162,16 @@ class NewApp(unittest.TestCase):
         self.assertIn("REPLACE_WITH_AUTHORIZED_REPOSITORY_URL", self.text("atlas-registration.example.json"))
         self.assertFalse((self.app / ".git").exists())
 
+    def test_simulated_picture_poll_bound_cannot_restart_itself(self):
+        swift = self.text("ios/Simulated/SimulatedPictures.swift")
+        self.assertIn("displayCheckExhausted", swift)
+        self.assertIn("guard displayCheck == nil, !displayCheckExhausted", swift)
+        self.assertIn("self.displayCheckExhausted = exhausted", swift)
+        # Only a readiness, item or rate change may clear an exhausted poll.
+        self.assertIn(
+            "if restartClock {\n                self.clockStart = nil; self.clockAdvanced = false\n"
+            "                self.displayCheckExhausted = false\n", swift)
+
     def test_refusals_write_nothing(self):
         before = sorted(self.dest.rglob("*"))
         for argv in (["OpenTestCine"], ["lowercase"], ["OpenOtherCine", "--id", "Not.An.Id"],

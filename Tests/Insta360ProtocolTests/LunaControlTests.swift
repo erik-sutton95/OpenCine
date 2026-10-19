@@ -324,6 +324,8 @@ final class LunaStatusDecodeTests: XCTestCase {
             24: (3840, 2160, 30, "16:9"), 43: (1280, 720, 30, "16:9"), 48: (3840, 2160, 25, "16:9"),
             52: (1920, 1080, 25, "16:9"), 211: (7680, 4320, 25, "16:9"), 214: (3840, 2160, 120, "16:9"),
             454: (1728, 3072, 25, "9:16"), 31: (4000, 3000, 30, "4:3"), 1: (2560, 1280, 30, "2:1"),
+            // II-089: the aspect tab names the 2.35:1 sizes as the resolution readout does, not 21:9.
+            110: (3840, 1634, 25, "2.35:1"), 408: (2688, 1136, 25, "2.35:1"),
         ]
         for (raw, (w, h, fps, label)) in expected {
             let r = LunaVideoResolution(rawValue: raw)

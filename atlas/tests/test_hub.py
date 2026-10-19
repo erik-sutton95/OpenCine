@@ -8,7 +8,6 @@ from unittest import mock
 
 from support import AtlasCase, commit, make_repo, meta, sh, tree_digest, write_registry
 
-import graph  # noqa: E402
 import hub  # noqa: E402
 import linked_issues  # noqa: E402
 import orca_tasks  # noqa: E402
@@ -90,11 +89,9 @@ class Hub(AtlasCase):
         self.assertEqual(r["apps"]["app"]["uses"], 1)
         self.assertEqual((r["apps"]["other"]["links"], r["apps"]["other"]["uses"]), ([], 0))
         self.assertEqual(r["platform"]["uses"], {":core": 1, "Core": 1, "CoreTests": 1, "Media": 1})
-        self.assertIsNone(r["graph"])
         code, out = self.run_atlas("impact", "Thing")
         self.assertIn("app @ opencine/integration", out)
         self.assertIn("Sources/App/A.swift:2:func go() { _ = Thing() }", out)
-        self.assertIn("source search only", out)
 
     def test_impact_path_uses_its_public_types(self):
         code, out = self.run_atlas("impact", "Sources/Core/Thing.swift", "--json")
@@ -449,14 +446,6 @@ class Hub(AtlasCase):
         ref = {"name": "main", "commit": self.app_main, "role": "baseline"}
         self.assertEqual(hub.ref_tip(app, ref), advanced)
 
-    # -- graph build --all
-    def test_graph_build_all_degrades_without_graphify(self):
-        before = tree_digest(self.ws)
-        with mock.patch.object(graph, "local_only_problems", return_value=["graphify is not installed"]):
-            code, out = self.run_atlas("graph", "build", "--all", "--local-only")
-        self.assertEqual(code, 3, out)
-        self.assertIn("optional", out)
-        self.assertEqual(tree_digest(self.ws), before)
         self.assertEqual(hub.primary_ref(self.metas[1], "opencine")["name"], "opencine/integration")
         self.assertEqual(hub.primary_ref(self.metas[2], "opencine")["name"], "main")
 
