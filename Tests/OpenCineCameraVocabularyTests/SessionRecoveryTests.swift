@@ -120,6 +120,11 @@ struct SessionRecoveryCopyTests {
             ["3 times", "protect the camera", "held, not live"]
         ),
         (.waitingForOperator(attemptsMade: 1), "Camera disconnected", ["1 try"]),
+        (
+            .takenOver(holder: "Phone B"), "Camera taken over",
+            ["Phone B connected to Pocket 4 Pro", "Retry takes the camera back", "held, not live"]
+        ),
+        (.takenOver(holder: " "), "Camera taken over", ["Another device connected to Pocket 4 Pro"]),
     ])
     func copyNamesStateAndCount(state: SessionRecoveryState, title: String, phrases: [String]) {
         #expect(SessionRecoveryCopy.title(state) == title)
@@ -136,6 +141,7 @@ struct SessionRecoveryCopyTests {
         #expect(SessionRecoveryState.retrying(attempt: 1, maxAttempts: 8).isRecovering)
         #expect(SessionRecoveryState.waitingForOperator(attemptsMade: 8).isRecovering)
         #expect(SessionRecoveryState.pausedAfterRepeatedDrops(drops: 3).isRecovering)
+        #expect(SessionRecoveryState.takenOver(holder: nil).isRecovering)
     }
 
     @Test func blankDeviceNameDegradesToAGenericSubject() {

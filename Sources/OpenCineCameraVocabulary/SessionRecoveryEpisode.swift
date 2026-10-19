@@ -143,14 +143,21 @@ public final class SessionRecoveryEpisode {
         /// An attempt stays current only while this equals the run it captured or adopted.
         public var currentRun: @MainActor () -> UUID?
         public var retireRun: @MainActor () -> Void
+        /// The device now holding the camera, asked before automatic attempt `n` (1-based)
+        /// dials. A body that takes one initiator drops the device holding it when another
+        /// connects, so reconnecting would take the camera straight back from it. `nil` when
+        /// nobody says so. Never asked on an operator retry: that is the take-back.
+        public var holder: @MainActor (Attempt, Int) async -> String?
 
         public init(
             observe: @escaping @MainActor () -> Observation,
             cleanup: @escaping @MainActor (Cleanup, Attempt) -> Void,
             connect: @escaping @MainActor (Attempt) async throws -> Bool,
             currentRun: @escaping @MainActor () -> UUID? = { nil },
-            retireRun: @escaping @MainActor () -> Void = {}
+            retireRun: @escaping @MainActor () -> Void = {},
+            holder: @escaping @MainActor (Attempt, Int) async -> String? = { _, _ in nil }
         ) {
+            self.holder = holder
             self.observe = observe
             self.cleanup = cleanup
             self.connect = connect
@@ -423,6 +430,18 @@ public final class SessionRecoveryEpisode {
                 next.state = policy.state(afterFailedAttempts: failures)
                 try publish(next, attempt: attempt)
                 guard case .retrying = next.state else { return }
+                if attempt.trigger != .operatorRetry,
+                    let holder = await port.holder(attempt, failures + 1)
+                {
+                    try checkContinuation(attempt)
+                    next = snapshot
+                    next.state = .takenOver(holder: holder.isEmpty ? nil : holder)
+                    next.reconnecting = false
+                    next.cardGraceElapsed = true
+                    try publish(next, attempt: attempt)
+                    return
+                }
+                try checkContinuation(attempt)
                 let outcome = try await runOneAttempt(attempt)
                 try checkContinuation(attempt)
                 switch outcome {

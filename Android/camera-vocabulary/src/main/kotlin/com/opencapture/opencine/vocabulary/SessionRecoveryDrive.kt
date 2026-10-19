@@ -37,7 +37,10 @@ class SessionRecoveryDrive {
         if (!SessionRecoveryPolicy.shouldBegin(trigger) || !hasTarget || automaticTaskRunning) {
             return Begin.Ignored
         }
-        if (state is SessionRecoveryUi.PausedAfterDrops || state is SessionRecoveryUi.WaitingForOperator) {
+        if (
+            state is SessionRecoveryUi.PausedAfterDrops || state is SessionRecoveryUi.WaitingForOperator ||
+            state is SessionRecoveryUi.TakenOver
+        ) {
             return Begin.Ignored
         }
         holdsPicture = true

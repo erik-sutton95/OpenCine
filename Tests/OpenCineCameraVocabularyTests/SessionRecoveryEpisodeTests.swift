@@ -10,6 +10,22 @@ import Testing
 /// SIMULATED transport on a manual clock.
 @Suite("Session recovery episode") @MainActor
 struct SessionRecoveryEpisodeTests {
+    /// physical-C C9/C10: the phone that lost the camera must not take it straight back.
+    @Test func anotherDeviceHoldingTheCameraStopsRecoveryBeforeAnyDial() async {
+        let host = Host()
+        host.holder = "Phone B"
+        #expect(host.begin(trigger: .datalinkLost))
+        #expect(await host.clock.drive { host.episode.snapshot.state == .takenOver(holder: "Phone B") })
+        #expect(host.connects == 0 && host.holderAsks == [1])
+        #expect(host.episode.snapshot.cardGraceElapsed)
+        // A later loss reporter for the same drop cannot restart the run behind the card.
+        #expect(!host.begin(trigger: .datalinkLost))
+        // The operator's retry is the take-back: it dials without asking.
+        #expect(host.episode.retry())
+        #expect(await host.clock.drive { host.connects == 1 })
+        #expect(host.holderAsks == [1])
+    }
+
     @Test func controlWithoutPictureKeepsRetryingUntilTheAttemptDeadline() async {
         let host = Host(deadline: .init(attempt: .seconds(30)))
         #expect(host.begin())
@@ -270,6 +286,8 @@ struct SessionRecoveryEpisodeTests {
         var retiredRuns: [UUID?] = []
         var onConnect: (@MainActor () async -> Void)?
         var onChanged: ((SessionRecoveryEpisode.Snapshot) -> Void)?
+        var holder: String?
+        var holderAsks: [Int] = []
         private let deadline: SessionRecoveryEpisode.AttemptDeadline
         lazy var episode = SessionRecoveryEpisode(
             port: .init(
@@ -289,6 +307,10 @@ struct SessionRecoveryEpisodeTests {
                 retireRun: { [unowned self] in
                     retiredRuns.append(run)
                     run = nil
+                },
+                holder: { [unowned self] _, number in
+                    holderAsks.append(number)
+                    return holder
                 }),
             attemptDeadline: deadline, timing: clock.timing,
             changed: { [unowned self] value, _ in

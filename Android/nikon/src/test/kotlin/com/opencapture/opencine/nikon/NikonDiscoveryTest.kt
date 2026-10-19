@@ -35,6 +35,26 @@ class NikonDiscoveryTest {
 
     private fun discovery(dialer: NikonDialer) = NikonDiscovery(dialer, { phone }, nowNanos = { clock })
 
+    /** physical-C C9: a saved connect asks with a fresh sweep, outside the list's rate window. */
+    @Test
+    fun currentHolderSweepsFreshAndNamesTheServingDevice() = runTest {
+        val dialer = FakeDialer()
+        val discovery = discovery(dialer)
+        discovery.presenceSweep()
+        dialer.presences = mapOf(
+            "192.168.1.7" to NikonPresence("Phone B", "192.168.1.20"),
+            "192.168.1.8" to NikonPresence("Phone C"),
+        )
+        assertEquals("Phone B", discovery.currentHolder("192.168.1.20"))
+        assertEquals(null, discovery.currentHolder("192.168.1.30"))
+        val swept = dialer.dials.size
+        assertEquals(null, discovery.currentHolder("usb:1"))
+        assertEquals(null, discovery.currentHolder("ap:NIKON_ZR"))
+        assertEquals(swept, dialer.dials.size, "a cable or a pending access point sweeps nothing")
+        assertTrue(dialer.controlDials.isEmpty())
+        assertTrue(dialer.dials.none { it.first == "192.168.1.42" }, "this phone never asks itself")
+    }
+
     @Test
     fun passiveDiscoveryNeverDialsTheControlPort() = runTest {
         val dialer = FakeDialer().apply {

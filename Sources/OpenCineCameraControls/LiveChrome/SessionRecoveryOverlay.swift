@@ -119,7 +119,7 @@
                 ProgressView()
                     .controlSize(.small)
                     .tint(Host.Palette.accent)
-            case .waitingForOperator, .pausedAfterRepeatedDrops, .idle:
+            case .waitingForOperator, .pausedAfterRepeatedDrops, .takenOver, .idle:
                 MonitorIcon.unplug
                     .frame(width: 20, height: 20)
                     .foregroundStyle(Host.Palette.accent)

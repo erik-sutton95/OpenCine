@@ -27,4 +27,17 @@ class SessionRecoveryCopyTest {
             SessionRecoveryCopy.detail(retrying, "Z 6III", SessionDropSuspect.OTHER_DEVICE_SCANNING),
         )
     }
+
+    @Test fun takenOverNamesTheHolderAndHowToTakeItBack() {
+        val taken = SessionRecoveryUi.TakenOver(holder = "Phone B")
+        assertEquals("Camera taken over", SessionRecoveryCopy.title(taken))
+        assertEquals(
+            "Phone B connected to Z 6III, so this device stopped reconnecting. Retry takes the camera back. The frame below is held, not live.",
+            SessionRecoveryCopy.detail(taken, "Z 6III"),
+        )
+        assertEquals(
+            "Another device connected to the camera, so this device stopped reconnecting. Retry takes the camera back. The frame below is held, not live.",
+            SessionRecoveryCopy.detail(SessionRecoveryUi.TakenOver(holder = " "), ""),
+        )
+    }
 }

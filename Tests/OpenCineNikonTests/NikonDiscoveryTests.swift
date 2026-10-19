@@ -103,6 +103,26 @@ struct FakeSources: NikonDiscoverySources {
         #expect(found.map(\.ip).contains("192.168.1.30") && !found.map(\.ip).contains("192.168.1.20"))
     }
 
+    /// physical-C C9: the list's last sweep predated the phone that went live, so a saved connect
+    /// asks with a fresh sweep, outside the list's rate window, and never dials the control port.
+    @Test func currentHolderSweepsFreshAndNamesTheServingDevice() async throws {
+        let dialer = FakeDialer()
+        let nikon = discovery(dialer)
+        _ = try await nikon.discover(.passive, guid: guid)
+        dialer.presences = [
+            "192.168.1.7": NikonPresence(deviceName: "Phone B", servedCamera: "192.168.1.20"),
+            "192.168.1.8": NikonPresence(deviceName: "Phone C"),
+        ]
+        #expect(await nikon.currentHolder(of: "192.168.1.20") == "Phone B")
+        #expect(await nikon.currentHolder(of: "192.168.1.30") == nil)
+        let swept = dialer.dials.count
+        #expect(await nikon.currentHolder(of: "usb:1") == nil)
+        #expect(await nikon.currentHolder(of: "ap:NIKON_ZR") == nil)
+        #expect(dialer.dials.count == swept, "a cable or a pending access point sweeps nothing")
+        #expect(dialer.controlDials.isEmpty)
+        #expect(!dialer.dials.contains { $0.host == "192.168.1.42" }, "this phone never asks itself")
+    }
+
     @Test func theSweepIsMuteBeforeItIdentifies() async throws {
         let dialer = FakeDialer()
         dialer.openControlPorts = ["192.168.1.55"]

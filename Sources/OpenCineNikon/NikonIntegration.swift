@@ -55,14 +55,36 @@ public protocol NikonConnectPort: AnyObject {
     /// The app's forget for these setups: the records, the paired-host memory and the access
     /// point's Wi-Fi key. Never the app's pairing identity.
     func forget(hosts: [String])
+    /// The device holding `host` right now (`NikonDiscovery.currentHolder(of:)`), asked before a
+    /// saved setup dials: the camera does not refuse a second initiator, it drops the first.
+    /// `nil` when no device says it holds it.
+    func currentHolder(of host: String) async -> String?
 }
 
 extension NikonConnectPort {
+    /// Ports without a presence lookup keep their own admission.
+    public func currentHolder(of host: String) async -> String? { nil }
+
     /// The published request call remains the fallback for ports that have not adopted consent.
     public func connect(_ request: NikonConnectRequest, takingOverConfirmed: Bool) async throws
         -> NikonConnection
     {
         try await connect(request)
+    }
+}
+
+/// The other side of a take-over: the device that lost the camera.
+public enum NikonTakeOverRecovery {
+    /// The device that took the camera, asked before recovery attempt `attempt` (1-based) dials
+    /// it. Reconnecting would take the camera straight back, and two phones re-taking one session
+    /// churn the body's PTP stack into its wedge (physical-C C9/C10: a ZR refused every session for
+    /// about 14 min). The first attempt asks twice: the body drops this device the moment the new
+    /// one opens its session, before that phone's presence answer is up.
+    public static func holder(
+        beforeAttempt attempt: Int, lookup: () async -> String?
+    ) async -> String? {
+        if let holder = await lookup() { return holder }
+        return attempt == 1 ? await lookup() : nil
     }
 }
 
@@ -267,6 +289,19 @@ public final class NikonIntegration: CameraIntegration {
             askToTakeOver(
                 attempt, request: .discovered(sighting, takeOver: true),
                 holder: sighting.heldByDeviceName)
+        } else if case .saved(let host, _) = request {
+            // Ask before the first dial: the body hands its session to us and drops the device
+            // holding it, so a refusal after the fact never comes (physical-C C9, ZR).
+            attempt.task = Task { [weak self, port] in
+                let holder = await port.currentHolder(of: host)
+                guard let self, self.current === attempt, !Task.isCancelled else { return }
+                attempt.task = nil
+                if let holder {
+                    self.askToTakeOver(attempt, request: request, holder: holder.isEmpty ? nil : holder)
+                } else {
+                    self.run(attempt, request)
+                }
+            }
         } else {
             run(attempt, request)
         }

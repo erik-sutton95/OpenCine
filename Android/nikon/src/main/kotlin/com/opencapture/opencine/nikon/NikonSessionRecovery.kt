@@ -96,6 +96,8 @@ class MonitorSessionRecoveryCoordinator(
     private val schedule: SessionRetryScheduleBridge = ProductionSessionRetryScheduleBridge,
     private val jitterSample: () -> Double = { Random.nextDouble() },
     private val sleep: suspend (Long) -> Unit = { delay(it) },
+    /** The device holding this session's camera now ([NikonDiscovery.currentHolder]). */
+    private val currentHolder: suspend () -> String? = { null },
 ) {
     init {
         // A fresh monitor entry starts a fresh storm ledger (parity with iOS, which resets on
@@ -162,10 +164,32 @@ class MonitorSessionRecoveryCoordinator(
                         consecutiveFailures += 1
                         currentCoroutineContext().ensureActive()
                         if (session.state.value !is CameraSessionState.Disconnected) continue
+                        val holder = NikonTakeOverRecovery.holder(consecutiveFailures, currentHolder)
+                        currentCoroutineContext().ensureActive()
+                        if (holder != null) {
+                            mutableRecoveryState.value = SessionRecoveryUi.TakenOver(holder.ifBlank { null })
+                            return
+                        }
+                        if (session.state.value !is CameraSessionState.Disconnected) continue
                     }
                     session.connect()
                 }
             }
         }
     }
+}
+
+/**
+ * The other side of a take-over: the device that lost the camera (Swift `NikonTakeOverRecovery`).
+ */
+object NikonTakeOverRecovery {
+    /**
+     * The device that took the camera, asked before recovery attempt [attempt] (1-based) dials
+     * it. Reconnecting would take the camera straight back, and two phones re-taking one session
+     * churn the body's PTP stack into its wedge (physical-C C9/C10: a ZR refused every session for
+     * about 14 min). The first attempt asks twice: the body drops this device the moment the new
+     * one opens its session, before that phone's presence answer is up.
+     */
+    suspend fun holder(attempt: Int, lookup: suspend () -> String?): String? =
+        lookup() ?: if (attempt == 1) lookup() else null
 }

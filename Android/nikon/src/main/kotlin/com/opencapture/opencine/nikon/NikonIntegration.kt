@@ -94,6 +94,13 @@ interface NikonConnectPort {
 
     /** The app's forget for these setups: records, paired-host memory and the access point's key. */
     fun forget(hosts: List<String>)
+
+    /**
+     * The device holding [host] right now ([NikonDiscovery.currentHolder]), asked before a saved
+     * setup dials: the camera does not refuse a second initiator, it drops the first. `null` when
+     * no device says it holds it; ports without a presence lookup keep their own admission.
+     */
+    suspend fun currentHolder(host: String): String? = null
 }
 
 /** A connect failure the app typed, with its operator copy. */
@@ -268,16 +275,28 @@ class NikonIntegration(private val port: NikonConnectPort) : CameraIntegration {
                 waitingForConsent = false
                 return approved
             }
+            var savedTakeOverConfirmed = false
             if (request is NikonConnectRequest.Discovered && request.sighting.source == NikonSighting.Source.HELD_BY_ANOTHER_DEVICE) {
                 if (!consent(request.sighting.heldBy)) return@channelFlow
                 connecting = request.copy(takeOver = true)
+            } else if (request is NikonConnectRequest.Saved) {
+                // Ask before the first dial: the body hands its session to us and drops the device
+                // holding it, so a refusal after the fact never comes (physical-C C9, ZR).
+                val holder = port.currentHolder(request.host)
+                admitCurrent()
+                if (holder != null) {
+                    if (!consent(holder.ifBlank { null })) return@channelFlow
+                    savedTakeOverConfirmed = true
+                }
             }
             suspend fun connectWithConsent(): NikonConnection? {
                 try {
                     admitCurrent()
-                    return port.connect(connecting)
+                    return if (savedTakeOverConfirmed) port.connect(connecting, takingOverConfirmed = true)
+                        else port.connect(connecting)
                 } catch (error: NikonConnectException) {
-                    if (request !is NikonConnectRequest.Saved || error.failure.reason != ConnectionFailure.Reason.HeldElsewhere) throw error
+                    if (savedTakeOverConfirmed || request !is NikonConnectRequest.Saved ||
+                        error.failure.reason != ConnectionFailure.Reason.HeldElsewhere) throw error
                     if (!consent(null, error.failure.message)) return null
                     // Only this live coroutine can reach the confirmed overload, once. A failure
                     // from it escapes to the terminal failure handler rather than asking again.

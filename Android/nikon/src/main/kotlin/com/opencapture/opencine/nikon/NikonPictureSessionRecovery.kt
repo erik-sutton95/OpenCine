@@ -56,6 +56,8 @@ class PictureAwareMonitorSessionRecoveryCoordinator(
     private val session: CameraSession,
     private val pictures: MonitorPictureClock,
     private val jitterSample: () -> Double = { Random.nextDouble() },
+    /** The device holding this session's camera now ([NikonDiscovery.currentHolder]). */
+    private val currentHolder: suspend () -> String? = { null },
 ) {
     // One drop ledger per monitor session: lifecycle restarts keep it, the operator clears it.
     private val storm = SessionDropStormGuard()
@@ -143,6 +145,9 @@ class PictureAwareMonitorSessionRecoveryCoordinator(
                 teardown = scope.launch { session.disconnect() }
             }
         }
+
+        override suspend fun holder(attempt: SessionRecoveryEpisode.Attempt, number: Int): String? =
+            NikonTakeOverRecovery.holder(number, currentHolder)
 
         override suspend fun connect(attempt: SessionRecoveryEpisode.Attempt): Boolean {
             teardown?.join()
