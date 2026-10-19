@@ -83,3 +83,20 @@ public enum MonitorTextFormat {
         }
     }
 }
+
+extension MonitorTextFormat {
+    /// The remaining-shots readout: the count up to four digits, then tenths of a thousand
+    /// (`20.2k`), rounded down so the header never promises a frame the card cannot hold.
+    /// The header pairs it with a picture glyph instead of a "SHOTS" word.
+    public static func shotsRemainingCompactLabel(_ count: Int) -> String {
+        let count = max(0, count)
+        if count <= 9999 { return "\(count)" }
+        if count < 100_000 { return "\(count / 1000).\(count / 100 % 10)k" }
+        return "\(count / 1000)k"
+    }
+
+    /// The complete count the compact readout stands for, as VoiceOver and TalkBack speak it.
+    public static func shotsRemainingAccessibilityLabel(_ count: Int) -> String {
+        "\(max(0, count)) shots remaining"
+    }
+}
