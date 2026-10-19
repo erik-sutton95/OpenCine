@@ -58,6 +58,21 @@ final class LadderSheetNativeTests: XCTestCase {
         status(app, contains: "observed=unknown pending=unknown host=0 accepted=0 wire=0")
     }
 
+    /// ZIA-322: a single tap on the tint pad changes nothing (baseline `DragGesture(minimumDistance: 1)`);
+    /// a double-tap resets to neutral; a drag still sets the tint.
+    func testTintPadTapDoesNotWriteAndDoubleTapResets() throws {
+        let app = launch("tint")
+        let pad = app.descendants(matching: .any)["capture.tint.pad"]
+        XCTAssertTrue(pad.waitForExistence(timeout: 10))
+        pad.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.1)).tap()
+        status(app, contains: "tintWrites=0 tint=none")
+        pad.doubleTap()
+        status(app, contains: "tint=Neutral")
+        let start = pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: pad.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)))
+        status(app, contains: "tint=A")
+    }
+
     private func launch(_ arguments: String...) -> XCUIApplication {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .landscapeRight
