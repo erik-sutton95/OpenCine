@@ -501,6 +501,12 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         return true
     }
 
+    /// Whether a keepalive, event drain or preview reader is still live. The app's background
+    /// transition tests read this; production code awaits `retirePumps()` instead.
+    public var hasBackgroundPumps: Bool {
+        keepAliveTask != nil || eventTask != nil || deviceEventPoll != nil || previewTask != nil
+    }
+
     /// Drains every kept-link reader before returning a borrowed session to its member.
     @discardableResult
     public func retirePumps() -> Task<Void, Never>? { stopBackgroundTasks() }
