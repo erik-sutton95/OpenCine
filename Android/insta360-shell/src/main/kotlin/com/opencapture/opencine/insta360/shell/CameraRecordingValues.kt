@@ -2,12 +2,16 @@ package com.opencapture.opencine.insta360.shell
 
 import kotlin.math.abs
 
-private val knownAspects = listOf(16 to 9, 9 to 16, 4 to 3, 3 to 4, 2 to 1, 1 to 2, 1 to 1, 3 to 2, 2 to 3, 21 to 9)
+private val knownAspects = listOf(16 to 9, 9 to 16, 4 to 3, 3 to 4, 2 to 1, 1 to 2, 1 to 1, 3 to 2, 2 to 3)
 
-/** Nearest common ratio within 1%, else "r:1" (twin of Swift `LunaAspect.label`). */
+/**
+ * Nearest common ratio within 1%, else "r:1" (twin of Swift `LunaAspect.label`). The wide sizes
+ * read "2.35:1" as the shared resolution readout names them (`MonitorCapturePresentation`).
+ */
 public fun aspectLabel(width: Int, height: Int): String {
     if (width <= 0 || height <= 0) return "?"
     val ratio = width.toDouble() / height
+    if (abs(ratio - 2.35) < 0.03) return "2.35:1"
     knownAspects.firstOrNull { abs(it.first.toDouble() / it.second - ratio) / ratio < 0.01 }?.let { return "${it.first}:${it.second}" }
     return String.format(java.util.Locale.US, "%.2f:1", ratio)
 }
