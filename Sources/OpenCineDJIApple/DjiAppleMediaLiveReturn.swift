@@ -35,15 +35,22 @@ import OpenCineDJI
         exitPlayback: () async -> Bool,
         enableLiveView: () -> Bool
     ) async -> Result {
-        let deadline = timing.now() + timing.seconds(timeout)
+        // The picture budget starts with the first live-view request. Exiting playback is
+        // bounded by `maxExitAttempts`; a slow gallery exit must not spend the picture's time.
+        var deadline: TimeInterval?
+        var lastEnableAt: TimeInterval?
         var attempt = 1
         var exitAcknowledged = false
         var enableSent = false
         while !Task.isCancelled, isCurrent() {
+            let now = timing.now()
             switch MediaLiveResume.action(
                 attempt: attempt, inPlayback: inPlayback(),
                 exitAcknowledged: exitAcknowledged, pictureFresh: pictureFresh(),
-                enableSent: enableSent, deadlineExpired: timing.now() >= deadline)
+                enableSent: enableSent, deadlineExpired: deadline.map { now >= $0 } ?? false,
+                keyframeResendDue: lastEnableAt.map {
+                    now - $0 >= FeedWatchdog.keyframeResendInterval
+                } ?? false)
             {
             case .done: return .restored
             case .exhausted: return .exhausted
@@ -55,7 +62,9 @@ import OpenCineDJI
                 attempt += 1
                 do { try await timing.sleep(.milliseconds(180)) } catch { return .superseded }
             case .enableLiveView:
-                enableSent = enableLiveView()
+                deadline = deadline ?? now + timing.seconds(timeout)
+                enableSent = enableLiveView() || enableSent
+                if enableSent { lastEnableAt = now }
                 do { try await timing.sleep(.milliseconds(100)) } catch { return .superseded }
             case .waitForPicture:
                 do { try await timing.sleep(.milliseconds(100)) } catch { return .superseded }
