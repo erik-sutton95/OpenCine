@@ -35,6 +35,35 @@ public enum NikonBodyWake {
         }
     }
 
+    /// One TCP dial that failed before the PTP-IP handshake began. The socket layer sets
+    /// `wakeWorthy` only when the body did not answer at the link layer (no route, or the connect
+    /// deadline); a refused dial proves the host is up, so waking it cannot help.
+    // SAFETY: the failure is thrown and caught in the same task between the socket layer and
+    // `dial`; it never crosses an isolation boundary, and `underlying` is only read there.
+    public struct DialFailure: Error, @unchecked Sendable {
+        public let underlying: any Error
+        public let wakeWorthy: Bool
+
+        public init(underlying: any Error, wakeWorthy: Bool) {
+            self.underlying = underlying
+            self.wakeWorthy = wakeWorthy
+        }
+    }
+
+    /// The wake dials all went unanswered: the body is asleep or not on this network. The
+    /// description is `silentMessage`, the copy written for exactly that cause.
+    public struct SilentError: Error, LocalizedError, Sendable {
+        public let deviceName: String
+
+        public init(deviceName: String = "") {
+            self.deviceName = deviceName
+        }
+
+        public var errorDescription: String? {
+            NikonBodyWake.silentMessage(deviceName: deviceName)
+        }
+    }
+
     /// Dials `host` until it answers or `dials` dials went unanswered. Cancellation ends the wait
     /// as `.silent` with the dials made so far; the caller's own cancellation check decides what
     /// happens next.
@@ -55,6 +84,76 @@ public enum NikonBodyWake {
             }
         }
         return .silent(dials: made)
+    }
+
+    /// Runs `dial` once. When it fails with a wake-worthy `DialFailure`, asks the network with
+    /// `awaitAnswer` and then dials exactly once more: a silent body, or a retry that is still
+    /// unreachable, ends with `SilentError`; a different second failure surfaces its own error.
+    /// There is no loop beyond that one retry, so a camera that is truly gone costs one wake and
+    /// one extra dial, never an open-ended retry storm.
+    public static func dial<Value>(
+        host: String,
+        deviceName: String = "",
+        isAlive: @Sendable (String) async -> Bool,
+        onWake: @Sendable () async -> Void = {},
+        dial: @Sendable () async throws -> Value
+    ) async throws -> Value {
+        do {
+            return try await dial()
+        } catch let failure as DialFailure {
+            guard failure.wakeWorthy, !Task.isCancelled else { throw failure.underlying }
+            await onWake()
+            let outcome = await awaitAnswer(host: host, isAlive: isAlive)
+            guard outcome.answered else { throw SilentError(deviceName: deviceName) }
+            do {
+                return try await dial()
+            } catch let retry as DialFailure {
+                // The single retry was unreachable too: the body is not answering, so surface the
+                // honest cause instead of a raw socket sentence or a second wake.
+                if retry.wakeWorthy { throw SilentError(deviceName: deviceName) }
+                throw retry.underlying
+            }
+        }
+    }
+
+    /// Blocking twin of `dial` for the Android session layer, which calls Swift on a JVM thread:
+    /// the same one wake and one retry, measured with `Thread.sleep` instead of a suspending
+    /// clock. `interval` defaults to `0.5` seconds, the synchronous face of `interval` above.
+    public static func dialBlocking<Value>(
+        host: String,
+        deviceName: String = "",
+        dials: Int = dials,
+        interval: TimeInterval = 0.5,
+        isAlive: (String) -> Bool,
+        onWake: () -> Void = {},
+        dial: () throws -> Value
+    ) throws -> Value {
+        do {
+            return try dial()
+        } catch let failure as DialFailure {
+            guard failure.wakeWorthy else { throw failure.underlying }
+            onWake()
+            var made = 0
+            var answered = false
+            while made < max(dials, 1) {
+                if Task.isCancelled { break }
+                made += 1
+                if isAlive(host) {
+                    answered = true
+                    break
+                }
+                if made < dials, interval > 0 { Thread.sleep(forTimeInterval: interval) }
+            }
+            guard answered else { throw SilentError(deviceName: deviceName) }
+            do {
+                return try dial()
+            } catch let retry as DialFailure {
+                // Same one-retry rule as the async twin: a second unreachable dial ends with the
+                // honest sleep-or-off-network cause, never another wake.
+                if retry.wakeWorthy { throw SilentError(deviceName: deviceName) }
+                throw retry.underlying
+            }
+        }
     }
 
     /// Progress copy while the dials run.

@@ -78,4 +78,186 @@ struct NikonBodyWakeTests {
             NikonBodyWake.wakingMessage(deviceName: "ZR_6002199")
                 == "Waiting for ZR_6002199 to answer on the network…")
     }
+
+    // A dial that failed at the link layer. The socket layer wraps only the TCP connect this way;
+    // a PTP-IP handshake failure is never a `DialFailure`, so it cannot reach the wake.
+    private enum DialError: Error, Equatable, Sendable {
+        case unreachable
+        case rejected
+    }
+
+    /// Counts the dial, wake and liveness calls a `dial` run makes.
+    private actor DialProbe {
+        let answerOn: Int?
+        private(set) var attempts = 0
+        private(set) var wakes = 0
+        private(set) var aliveDials = 0
+
+        init(answerOn: Int?) { self.answerOn = answerOn }
+
+        func attempt() -> Int {
+            attempts += 1
+            return attempts
+        }
+
+        func woke() { wakes += 1 }
+
+        func isAlive(_ host: String) -> Bool {
+            aliveDials += 1
+            guard let answerOn else { return false }
+            return aliveDials >= answerOn
+        }
+    }
+
+    @Test("A dial that fails unreachable once wakes the body and retries exactly once")
+    func unreachableDialWakesAndRetriesOnce() async throws {
+        let probe = DialProbe(answerOn: 1)
+        let value = try await NikonBodyWake.dial(
+            host: "192.168.1.20",
+            isAlive: { await probe.isAlive($0) },
+            onWake: { await probe.woke() },
+            dial: {
+                let attempt = await probe.attempt()
+                guard attempt > 1 else {
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                }
+                return "connected"
+            })
+        #expect(value == "connected")
+        #expect(await probe.attempts == 2)
+        #expect(await probe.wakes == 1)
+        #expect(await probe.aliveDials == 1)
+    }
+
+    @Test("A silent wake ends with the honest asleep-or-off-network error and no retry")
+    func silentWakeEndsHonestly() async {
+        let probe = DialProbe(answerOn: nil)
+        do {
+            _ = try await NikonBodyWake.dial(
+                host: "192.168.1.20", deviceName: "ZR_6002199",
+                isAlive: { await probe.isAlive($0) },
+                dial: { () -> String in
+                    _ = await probe.attempt()
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                })
+            Issue.record("a silent body must not connect")
+        } catch let error as NikonBodyWake.SilentError {
+            #expect(error.errorDescription == NikonBodyWake.silentMessage(deviceName: "ZR_6002199"))
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+        #expect(await probe.attempts == 1)
+        #expect(await probe.aliveDials == NikonBodyWake.dials)
+    }
+
+    @Test("A second unreachable failure surfaces the honest silent error and never wakes again")
+    func secondFailureDoesNotWakeAgain() async {
+        let probe = DialProbe(answerOn: 1)
+        do {
+            _ = try await NikonBodyWake.dial(
+                host: "192.168.1.20", deviceName: "ZR_6002199",
+                isAlive: { await probe.isAlive($0) },
+                onWake: { await probe.woke() },
+                dial: { () -> String in
+                    _ = await probe.attempt()
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                })
+            Issue.record("a second failure must surface")
+        } catch let error as NikonBodyWake.SilentError {
+            #expect(error.errorDescription == NikonBodyWake.silentMessage(deviceName: "ZR_6002199"))
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+        #expect(await probe.attempts == 2)
+        #expect(await probe.wakes == 1)
+    }
+
+    @Test("A refused or rejected dial never wakes the body")
+    func otherDialFailuresNeverWake() async {
+        let probe = DialProbe(answerOn: 1)
+        do {
+            _ = try await NikonBodyWake.dial(
+                host: "192.168.1.20",
+                isAlive: { await probe.isAlive($0) },
+                onWake: { await probe.woke() },
+                dial: { () -> String in
+                    _ = await probe.attempt()
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.rejected, wakeWorthy: false)
+                })
+            Issue.record("a rejected dial must surface")
+        } catch let error as DialError {
+            #expect(error == .rejected)
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+        #expect(await probe.attempts == 1)
+        #expect(await probe.wakes == 0)
+        #expect(await probe.aliveDials == 0)
+    }
+
+    @Test("The blocking dial used by Android wakes and retries exactly once")
+    func blockingDialWakesAndRetriesOnce() throws {
+        let probe = BlockingDialProbe(answerOn: 1)
+        let value = try NikonBodyWake.dialBlocking(
+            host: "192.168.1.20", dials: 1, interval: 0,
+            isAlive: { _ in probe.isAlive() },
+            onWake: { probe.woke() },
+            dial: {
+                guard probe.attempt() > 1 else {
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                }
+                return "connected"
+            })
+        #expect(value == "connected")
+        #expect(probe.attempts == 2)
+        #expect(probe.wakes == 1)
+    }
+}
+
+private final class BlockingDialProbe: @unchecked Sendable {
+    private let answerOn: Int?
+    private let lock = NSLock()
+    private var count = 0
+    private var wakeCount = 0
+    private var aliveCount = 0
+
+    init(answerOn: Int?) { self.answerOn = answerOn }
+
+    func attempt() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        count += 1
+        return count
+    }
+
+    func woke() {
+        lock.lock()
+        wakeCount += 1
+        lock.unlock()
+    }
+
+    func isAlive() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        aliveCount += 1
+        guard let answerOn else { return false }
+        return aliveCount >= answerOn
+    }
+
+    var attempts: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    var wakes: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return wakeCount
+    }
 }
