@@ -122,7 +122,7 @@ public final class LunaIntegration: CameraIntegration {
 
     public init(
         port: any LunaConnectPort, now: @escaping () -> Date = Date.init,
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping (Duration) async throws -> Void = hostSleep(for:)
     ) {
         self.port = port
         self.now = now
