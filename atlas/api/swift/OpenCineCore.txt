@@ -19,6 +19,20 @@ case CameraHotspotConfiguration.Security.personal(Swift.String)
 case CameraHotspotConfiguration.Selection.prefix(Swift.String)
 case CameraHotspotConfiguration.Selection.ssid(Swift.String)
 case CameraHotspotError.timedOut
+case CameraHotspotJoinRefusal.Reason.alreadyAssociated
+case CameraHotspotJoinRefusal.Reason.applicationNotInForeground
+case CameraHotspotJoinRefusal.Reason.internalError
+case CameraHotspotJoinRefusal.Reason.invalidConfiguration
+case CameraHotspotJoinRefusal.Reason.invalidPassphrase
+case CameraHotspotJoinRefusal.Reason.invalidSSID
+case CameraHotspotJoinRefusal.Reason.joinOnceNotSupported
+case CameraHotspotJoinRefusal.Reason.other(Swift.Int)
+case CameraHotspotJoinRefusal.Reason.pending
+case CameraHotspotJoinRefusal.Reason.systemConfiguration
+case CameraHotspotJoinRefusal.Reason.systemDenied
+case CameraHotspotJoinRefusal.Reason.unknown
+case CameraHotspotJoinRefusal.Reason.userDenied
+case CameraHotspotJoinRefusal.Reason.userUnauthorized
 case CameraNetworkPermissionEvidence.operationSucceeded
 case CameraNetworkPermissionEvidence.policyDenied
 case CameraNetworkPermissionEvidence.waiting
@@ -216,6 +230,7 @@ enum CameraExposureProgram: CaseIterable, Decodable, Encodable, Equatable, Hasha
 enum CameraHotspotConfiguration.Security: Sendable
 enum CameraHotspotConfiguration.Selection: Sendable
 enum CameraHotspotError: Equatable, Error, Hashable, Sendable
+enum CameraHotspotJoinRefusal.Reason: Equatable, Hashable, Sendable
 enum CameraNetworkPermissionEvidence: Equatable, Hashable, Sendable
 enum CameraNetworkPermissionPolicy
 enum CameraNetworkPermissionState: Equatable, Hashable, RawRepresentable, Sendable
@@ -276,6 +291,7 @@ enum TimecodePrecision: Decodable, Encodable, Equatable, Hashable, Sendable
 enum UnavailableReason: Decodable, Encodable, Equatable, Hashable, Sendable
 enum WhiteBalanceValue: Decodable, Encodable, Equatable, Hashable, Sendable
 func BatteryReading.encode(to: any Swift.Encoder) throws -> ()
+func CameraHotspotJoinRefusal.failure(integration: IntegrationID) -> ConnectionFailure
 func CameraIntegration.connect(_: ConnectTarget) -> _Concurrency.AsyncStream<ConnectionEvent>
 func CameraIntegration.discover(_: DiscoveryMode) -> _Concurrency.AsyncStream<[NearbyCamera]>
 func CameraIntegration.forget(_: SavedCamera) async -> ()
@@ -316,6 +332,9 @@ init BatteryReading(from: any Swift.Decoder) throws
 init CameraCommand(_: CameraCommandIntent, preconditions: CommandPreconditions, operation: OperationID)
 init CameraHotspotConfiguration(selection: CameraHotspotConfiguration.Selection, security: CameraHotspotConfiguration.Security, joinOnce: Swift.Bool, timeout: Swift.Duration?)
 init CameraHotspotHost(withAttempt: (@escaping CameraNetworkIsCurrent, @escaping CameraHotspotAttemptBody) async throws -> Swift.Void, remove: (Swift.String, @escaping CameraNetworkIsCurrent) -> Swift.Void, currentSSID: () async -> Swift.String?, configuredSSIDs: () async -> [Swift.String])
+init CameraHotspotJoinRefusal(code: Swift.Int, network: Swift.String)
+init CameraHotspotJoinRefusal(error: Foundation.NSError, network: Swift.String)
+init CameraHotspotJoinRefusal(reason: CameraHotspotJoinRefusal.Reason, network: Swift.String, rawCode: Swift.Int?)
 init CameraHotspotOperations(apply: (CameraHotspotConfiguration) async throws -> Swift.Void, remove: (Swift.String) -> Swift.Void)
 init CameraNetworkPermissionObservation()
 init CameraProfile(id: Swift.String, title: Swift.String, routes: Swift.Set<RouteKind>, addableRoutes: Swift.Set<RouteKind>)
@@ -421,6 +440,7 @@ static func MonotonicInstant.<(_: MonotonicInstant, _: MonotonicInstant) -> Swif
 static func MonotonicInstant.now() -> MonotonicInstant
 static func Rational.frameRate(_: Swift.Double) -> Rational?
 static func TimecodeCapability.supported(_: TimecodePrecision?) -> TimecodeCapability
+static let CameraHotspotJoinRefusal.platformErrorDomain: Swift.String
 static let CameraRecordingObservations.unknown: CameraRecordingObservations
 static let HostClock.live: HostClock
 static let LocalVPNFilter.joinWifiPhoneStep: Swift.String
@@ -434,6 +454,7 @@ static let PowerStatus.unknown: PowerStatus
 static let SavedCamerasDocument.currentVersion: Swift.Int
 static let TimecodeCapability.unknown: TimecodeCapability
 static let TimecodeCapability.unsupported: TimecodeCapability
+static var CameraHotspotJoinRefusal.errorDomain: Swift.String
 static var ObservedValue.unknown: ObservedValue<Value>
 struct AudioLevels.Channel: Decodable, Encodable, Equatable, Hashable, Sendable
 struct AudioLevels: Decodable, Encodable, Equatable, Hashable, Sendable
@@ -441,6 +462,7 @@ struct CameraCommand: Decodable, Encodable, Equatable, Hashable, Sendable
 struct CameraDeviceID: Decodable, Encodable, Equatable, Hashable, Sendable
 struct CameraHotspotConfiguration: Sendable
 struct CameraHotspotHost: Sendable
+struct CameraHotspotJoinRefusal: CustomNSError, Equatable, Error, Hashable, LocalizedError, Sendable
 struct CameraHotspotOperations: Sendable
 struct CameraNetworkPermissionObservation: Sendable
 struct CameraProfile: Equatable, Hashable, Sendable
@@ -518,6 +540,16 @@ var CameraHotspotHost.configuredSSIDs: () async -> [Swift.String]
 var CameraHotspotHost.currentSSID: () async -> Swift.String?
 var CameraHotspotHost.remove: (Swift.String, @escaping CameraNetworkIsCurrent) -> Swift.Void
 var CameraHotspotHost.withAttempt: (@escaping CameraNetworkIsCurrent, @escaping CameraHotspotAttemptBody) async throws -> Swift.Void
+var CameraHotspotJoinRefusal.actions: [RecoveryAction]
+var CameraHotspotJoinRefusal.diagnosticsCode: Swift.String
+var CameraHotspotJoinRefusal.errorCode: Swift.Int
+var CameraHotspotJoinRefusal.errorDescription: Swift.String?
+var CameraHotspotJoinRefusal.errorUserInfo: [Swift.String : Any]
+var CameraHotspotJoinRefusal.message: Swift.String
+var CameraHotspotJoinRefusal.network: Swift.String
+var CameraHotspotJoinRefusal.rawCode: Swift.Int
+var CameraHotspotJoinRefusal.reason: CameraHotspotJoinRefusal.Reason
+var CameraHotspotJoinRefusal.title: Swift.String
 var CameraHotspotOperations.apply: (CameraHotspotConfiguration) async throws -> Swift.Void
 var CameraHotspotOperations.remove: (Swift.String) -> Swift.Void
 var CameraIntegration.discoveryModes: Swift.Set<DiscoveryMode>
