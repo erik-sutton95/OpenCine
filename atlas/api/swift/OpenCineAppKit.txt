@@ -223,8 +223,8 @@ class ReliabilityReporting: Sendable
 class ReliabilityReportingConsent: Sendable
 class ReliabilityReportingForwarder: Sendable
 class ReliabilityReportingGate: Sendable
-class ReliabilityReportingRedirectGuard: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable, URLSessionDelegate, URLSessionTaskDelegate
-class ReliabilityReportingURLProtocol: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable
+class ReliabilityReportingRedirectGuard: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class ReliabilityReportingURLProtocol: Foundation.URLProtocol, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class SavedCamerasStore: Sendable
 class ShellModel: Observable, Sendable
 enum BodyRecordsV0.Dates: Equatable, Hashable, Sendable

@@ -67,14 +67,14 @@ class CameraHotspotSystem: Sendable
 class DarwinNotificationObserver: Sendable
 class DecodedFrameFence: Sendable
 class DecodedFrameLease: Sendable
-class DiagnosticMetricSubscriber: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, MXMetricManagerSubscriber, NSObjectProtocol, Sendable
+class DiagnosticMetricSubscriber: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class JPEGPixelBufferDecoder
 class LiveFrameSampleBus.Source: Sendable
 class LiveFrameSampleBus: Observable, Sendable
 class LocalNetworkPrivacy: Sendable
 class MediaCellImageLoader: Actor, Sendable
 class MonitorApplePlaybackBufferRecovery: Sendable
-class MonitorApplePlaybackOwner: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, MonitorPlaybackFrameSource, MonitorPlaybackPort, NSObjectProtocol, Sendable
+class MonitorApplePlaybackOwner: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, MonitorPlaybackFrameSource, MonitorPlaybackPort, Sendable
 class MonitorAppleProgressiveAsset: Sendable
 class MonitorAssistEngine: Sendable
 class MonitorAudioMeterSampler: Sendable
@@ -87,30 +87,30 @@ class MonitorFalseColorMapper: Sendable
 class MonitorFrameBaker: Sendable
 class MonitorInspectorImageRenderer: Sendable
 class MonitorJPEGImageDecoder: Actor, Sendable
-class MonitorLiveVideoDecoder: Sendable
+class MonitorLiveVideoDecoder: MonitorLiveVideoRuntime, Sendable
 class MonitorLiveVideoRuntime: Sendable
 class MonitorMediaHTTPStream: Sendable
 class MonitorMediaThumbnailEncoder: Sendable
-class MonitorMetalPicturePresenter: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, MTKViewDelegate, NSObjectProtocol
-class MonitorNativeQualificationProbe: CALayerDelegate, CLBodyIdentifiable, CMBodyIdentifiable, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSObjectProtocol, UIAccessibilityIdentification, UIActivityItemsConfigurationProviding, UIAppearance, UIAppearanceContainer, UICoordinateSpace, UIDynamicItem, UIFocusEnvironment, UIFocusItem, UIFocusItemContainer, UILargeContentViewerItem, UIPasteConfigurationSupporting, UIPopoverPresentationControllerSourceItem, UIResponderStandardEditActions, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring
+class MonitorMetalPicturePresenter: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class MonitorNativeQualificationProbe: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorPictureHost.Ownership
-class MonitorPictureHost: CALayerDelegate, CLBodyIdentifiable, CMBodyIdentifiable, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSObjectProtocol, UIAccessibilityIdentification, UIActivityItemsConfigurationProviding, UIAppearance, UIAppearanceContainer, UICoordinateSpace, UIDynamicItem, UIFocusEnvironment, UIFocusItem, UIFocusItemContainer, UILargeContentViewerItem, UIPasteConfigurationSupporting, UIPopoverPresentationControllerSourceItem, UIResponderStandardEditActions, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring
+class MonitorPictureHost: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorPlaybackAudioMeterRuntime: Sendable
 class MonitorPlaybackAudioSession.Lease: Sendable
 class MonitorPlaybackAudioSession: Sendable
-class MonitorPlaybackFeedHost: CALayerDelegate, CLBodyIdentifiable, CMBodyIdentifiable, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSObjectProtocol, UIAccessibilityIdentification, UIActivityItemsConfigurationProviding, UIAppearance, UIAppearanceContainer, UICoordinateSpace, UIDynamicItem, UIFocusEnvironment, UIFocusItem, UIFocusItemContainer, UILargeContentViewerItem, UIPasteConfigurationSupporting, UIPopoverPresentationControllerSourceItem, UIResponderStandardEditActions, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring
-class MonitorPlaybackFeedSession: AVPlayerItemOutputPullDelegate, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable
+class MonitorPlaybackFeedHost: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class MonitorPlaybackFeedSession: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class MonitorPresentScaler: Sendable
 class MonitorTemporalNoiseFilter
 class MonitorUIImageGraphProcessor<Settings where Settings : Swift.Equatable>
 class MonitorUIImageScopeSampler: Actor, Sendable
 class MonitorUpscalerPreference: Observable, Sendable
 class MonitorVideoBackdropRenderer: Sendable
-class MonitorVideoPictureContainer: CALayerDelegate, CLBodyIdentifiable, CMBodyIdentifiable, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSObjectProtocol, UIAccessibilityIdentification, UIActivityItemsConfigurationProviding, UIAppearance, UIAppearanceContainer, UICoordinateSpace, UIDynamicItem, UIFocusEnvironment, UIFocusItem, UIFocusItemContainer, UILargeContentViewerItem, UIPasteConfigurationSupporting, UIPopoverPresentationControllerSourceItem, UIResponderStandardEditActions, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring
-class MonitorWebDownloadView: CALayerDelegate, CLBodyIdentifiable, CMBodyIdentifiable, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSObjectProtocol, UIAccessibilityIdentification, UIActivityItemsConfigurationProviding, UIAppearance, UIAppearanceContainer, UICoordinateSpace, UIDynamicItem, UIFocusEnvironment, UIFocusItem, UIFocusItemContainer, UILargeContentViewerItem, UIPasteConfigurationSupporting, UIPopoverPresentationControllerSourceItem, UIResponderStandardEditActions, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring, WKNavigationDelegate, WKUIDelegate
+class MonitorVideoPictureContainer: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class MonitorWebDownloadView: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorWorkingRaster: Sendable
-class StationWiFiNameAccess: CLLocationManagerDelegate, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable
-class UVCVideoSource: AVCaptureVideoDataOutputSampleBufferDelegate, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable
+class StationWiFiNameAccess: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class UVCVideoSource: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class VideoToolboxDecoder: Sendable
 enum CameraHotspotSystem.Cancellation: Equatable, Hashable, Sendable
 enum DiagnosticExceptionHandler

@@ -135,9 +135,9 @@ case MonitorTrafficLightsGeometry.BarSide.under
 class InterfaceOrientationObserver: Observable, Sendable
 class MonitorBackdropSource: Observable
 class MonitorPortraitPrimarySizer: Sendable
-class MonitorScopeTraceRenderer: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, MTKViewDelegate, NSObjectProtocol, Sendable
-class MonitorVectorscopeMetalRenderer: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, MTKViewDelegate, NSObjectProtocol, Sendable
-class MultiviewStageController: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSExtensionRequestHandling, NSObjectProtocol, UIActivityItemsConfigurationProviding, UIAppearanceContainer, UIContentContainer, UIFocusEnvironment, UIPasteConfigurationSupporting, UIResponderStandardEditActions, UIScrollViewDelegate, UIStateRestoring, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring
+class MonitorScopeTraceRenderer: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class MonitorVectorscopeMetalRenderer: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class MultiviewStageController: UIKit.UIViewController, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MultiviewStageGeometry: Sendable
 enum LiveChromeMetrics
 enum LivePopupPlacement

@@ -3,7 +3,7 @@
 enum AndroidFrameioWire
 enum AndroidFrameioWire.Operation
 static func AndroidFrameioWire.apiRequest(operation: Swift.String, accountID: Swift.String?, workspaceID: Swift.String?, folderID: Swift.String?, fileID: Swift.String?, name: Swift.String?, fileSize: Swift.Int64) -> Swift.String?
-static func AndroidFrameioWire.beginAuthorization(clientID: Swift.String, redirectURI: Swift.String, sha256: OpenCineFrameIO.PKCE.SHA256Digest) -> Swift.String?
+static func AndroidFrameioWire.beginAuthorization(clientID: Swift.String, redirectURI: Swift.String, sha256: (Foundation.Data) -> Foundation.Data) -> Swift.String?
 static func AndroidFrameioWire.decodedResponse(operation: Swift.String, response: Swift.String) -> Swift.String?
 static func AndroidFrameioWire.mediaType(forFilename: Swift.String) -> Swift.String
 static func AndroidFrameioWire.parseRedirect(redirectURI: Swift.String, callbackURI: Swift.String, expectedState: Swift.String) -> Swift.String?

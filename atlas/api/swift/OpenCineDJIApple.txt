@@ -164,7 +164,7 @@ case DjiAppleZoomGesture.Event.stopPreparing
 case DjiAppleZoomGesture.Event.stopRequested
 case DjiAppleZoomGesture.Event.stopSettled(OpenCineDJI.Duml.Frame, Swift.Bool)
 case DjiAppleZoomGesture.Event.unavailableChip(Swift.String)
-class DjiAppleBluetoothLink: CBCentralManagerDelegate, CBPeripheralDelegate, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable
+class DjiAppleBluetoothLink: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class DjiAppleCameraSettings: Sendable
 class DjiAppleConnectionRun.Attempt: Sendable
 class DjiAppleConnectionRun: Sendable

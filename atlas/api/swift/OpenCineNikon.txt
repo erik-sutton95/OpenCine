@@ -564,8 +564,8 @@ class NikonMonitorRuntime: NikonControlDriver, Sendable
 class NikonPropertyBootstrap: Sendable
 class NikonStillReviewObjectTracker: Sendable
 class PTPIPTransport: CameraTransport, Sendable
-class USBCameraDeviceBrowser: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, ICDeviceBrowserDelegate, NSObjectProtocol, Sendable
-class USBCameraTransport: CVarArg, CameraTransport, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, ICCameraDeviceDelegate, ICDeviceDelegate, NSObjectProtocol, Sendable
+class USBCameraDeviceBrowser: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class USBCameraTransport: ObjectiveC.NSObject, CVarArg, CameraTransport, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 enum BodyBusyHoldPolicy
 enum BurstSeriesGrouping
 enum ByteCoding

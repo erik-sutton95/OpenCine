@@ -72,7 +72,7 @@ init FrameioToken(accessToken: Swift.String, refreshToken: Swift.String?, expire
 init FrameioURLSessionTransport(session: Foundation.URLSession)
 init FrameioUploadHistoryIndex(capacity: Swift.Int, load: () -> Swift.String?, save: (Swift.String) -> Swift.Bool)
 init PKCE(verifier: Swift.String)
-init PKCE(verifier: Swift.String, sha256: PKCE.SHA256Digest)
+init PKCE(verifier: Swift.String, sha256: (Foundation.Data) -> Foundation.Data)
 init StoredFrameioToken(token: FrameioToken, receivedAt: Foundation.Date)
 let FrameioAPIRequest.body: Foundation.Data?
 let FrameioAPIRequest.method: FrameioHTTPMethod
@@ -139,9 +139,9 @@ static func FrameioOAuth.tokenExchangeRequest(config: FrameioConfiguration, code
 static func FrameioOAuth.urlScheme(from: Swift.String) -> Swift.String?
 static func FrameioUploadHistoryIndex.identity(_: [Swift.String]) -> Swift.String
 static func PKCE.challenge(for: Swift.String) -> Swift.String
-static func PKCE.challenge(for: Swift.String, sha256: PKCE.SHA256Digest) -> Swift.String
+static func PKCE.challenge(for: Swift.String, sha256: (Foundation.Data) -> Foundation.Data) -> Swift.String
 static func PKCE.generate() -> PKCE
-static func PKCE.generate(sha256: PKCE.SHA256Digest) -> PKCE
+static func PKCE.generate(sha256: (Foundation.Data) -> Foundation.Data) -> PKCE
 static let FrameioAPI.defaultBaseURL: Foundation.URL
 static let FrameioConfiguration.defaultScope: Swift.String
 static let FrameioConfiguration.frameioAPIBaseURL: Foundation.URL
