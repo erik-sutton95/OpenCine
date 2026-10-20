@@ -65,7 +65,9 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
             title = CaptureLists.headerTitle(sheet, expoMode, status.shootingMode),
             subtitle = CaptureLists.headerSubtitle(sheet, expoMode,
                 initialSelectedMode(sheet, status, native, preferences, CaptureLists.isEvSheet(sheet, expoMode)),
-                preferences.facePriorityExposure, status.shootingMode))
+                preferences.facePriorityExposure, status.shootingMode).let {
+                if (sheet == LiveSheet.SHUTTER && !auto) source.shutterPanelSubtitle(it, status) else it
+            })
     }
     return MonitorOperatorCaptureInputs(readouts, panel, columns = columns, open = { id ->
         if (lifetime.active) {

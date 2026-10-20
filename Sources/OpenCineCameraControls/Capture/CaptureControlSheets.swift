@@ -721,7 +721,8 @@
                 return "Compensation"
             }
             if sheet == .shutter {
-                return isPhoto ? "Speed" : "Angle · speed"
+                return isPhoto ? "Speed"
+                    : host.shutterPanelSubtitle(selection: host.captureStripShowsPendingEdits ? .pending : .reported)
             }
             if sheet == .resolution, isPhoto {
                 return "Photo"
@@ -1227,7 +1228,7 @@
             if liveDenom > 0 {
                 let mapped = ShutterAngle.denom(
                     degrees: host.shutterAngleDegrees, fps: fps, available: shutterDenoms)
-                if mapped == liveDenom, shutterAngleLabels.contains(preferred) {
+                if mapped == liveDenom || host.shutterAngleSettling, shutterAngleLabels.contains(preferred) {
                     lastApplied = preferred
                     drumSelection = preferred
                     return

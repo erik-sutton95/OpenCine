@@ -68,6 +68,8 @@ internal class FakeLuna(
     var program = 0L
     var iso = 0L
     var shutterSeconds = 0.0
+    /** The camera reads its exposure back through single precision, as a real Luna can. */
+    var reportsSinglePrecisionShutter = false
     var kelvin = 5600L
     var colorMode: Long? = null
     var zoom = 1.0
@@ -146,7 +148,8 @@ internal class FakeLuna(
         val body = synchronized(lock) {
             val types = mutableListOf(21, 39, 53, 93)
             var exposure = LunaWire.integer(1, program) + LunaWire.integer(2, iso)
-            if (shutterSeconds > 0) exposure += double(3, shutterSeconds)
+            if (shutterSeconds > 0) exposure += double(3,
+                if (reportsSinglePrecisionShutter) shutterSeconds.toFloat().toDouble() else shutterSeconds)
             var nested = LunaWire.blob(21, exposure) + LunaWire.integer(39, kelvin)
             nested += double(53, zoom) + LunaWire.integer(93, afMode)
             colorMode?.let { types += 35; nested += LunaWire.integer(35, it) }
@@ -172,6 +175,41 @@ class LunaCameraSessionTest {
     private fun reportCadence(raw: Long?, session: LunaCameraSession) {
         session.ingest(LunaPhotographySettings(types = listOf(31),
             functionMode = LunaControl.FUNCTION_MODE_VIDEO, recordResolution = raw))
+    }
+
+    /** Owner 2026-10-20, Luna Ultra 8K30, shutter priority, Angle 180: SHUTTER read "0.0108°". */
+    @Test fun anInexactReadbackIsTheSpeedAndItsAngle() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.reportsSinglePrecisionShutter = true
+        camera.program = 2
+        camera.shutterSeconds = 1.0 / 60
+        val session = camera.connectedSession()
+        reportCadence(24, session) // 4K30
+        assertEquals(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 60))), session.snapshots.value.value(SettingKey.SHUTTER).value)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertEquals(SettingValue.Shutter(ShutterValue.Angle(180.0)), session.snapshots.value.value(SettingKey.SHUTTER).value)
+    }
+
+    /** 180 degrees sends the Luna wheel's nearest 1/N per rate and confirms against an inexact readback. */
+    @Test fun angleSendsTheNearestWheelSpeedPerRate() = runTest {
+        // Raw format ids: 4K24, 4K25, 4K30, 4K60, 4K120.
+        for ((raw, fps, denom) in listOf(Triple(49L, 24.0, 50), Triple(48L, 25.0, 50), Triple(24L, 30.0, 60),
+            Triple(23L, 60.0, 125), Triple(214L, 120.0, 250))) {
+            val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+            camera.reportsSinglePrecisionShutter = true
+            camera.program = 3
+            camera.iso = 400
+            camera.shutterSeconds = 1.0 / 1000
+            val session = camera.connectedSession()
+            reportCadence(raw, session)
+            session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+            val (_, outcome) = session.run(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0))))
+            assertEquals(CommandStage.Confirmed, outcome.stage, "$fps fps")
+            val exposure = requireNotNull(LunaPhotographySettings.parse(camera.sent.last().body).videoExposure)
+            assertEquals(1.0 / denom, exposure.shutterSeconds, 1e-12, "$fps fps")
+            val angle = (session.snapshots.value.value(SettingKey.SHUTTER).value as SettingValue.Shutter).value as ShutterValue.Angle
+            assertEquals(360 * fps / denom, angle.degrees, 1e-9, "$fps fps")
+        }
     }
 
     @Test fun emulatedAngleConfirmsTheQuantizedNativeReadback() = runTest {

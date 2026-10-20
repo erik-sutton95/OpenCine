@@ -212,6 +212,36 @@
                 profile: connectedBody?.captureProfile, codecColor: recordingCodecColor)
                 .overlaying(captureCapabilities)
         }
+        /// A format change or a shutter write still settling: the angle readout holds the
+        /// operator's angle instead of pairing a rate and a speed from two moments.
+        var shutterAngleSettling: Bool { formatPinActive || control.pending[.shutter] != nil }
+
+        /// The one emulated-angle readout of the strip, the control bar and the panel: the held
+        /// angle and, when the camera makes it through the nearest legal speed, what it really is.
+        func shutterAngleReadout(selection: MonitorCaptureSelection) -> (value: String, achieved: String?) {
+            let shutter: ShutterValue?
+            if case .shutter(let value)? = control.captureValue(.shutter, selection: selection) {
+                shutter = value
+            } else { shutter = nil }
+            let rate: Rational?
+            if case .frameRate(let value)? = control.snapshot?.value(of: .frameRate).value { rate = value } else { rate = nil }
+            let available = CaptureLists.shutterDenoms(from: cameraStatus)
+            let settling = shutterAngleSettling
+            return (CaptureNativeReadoutPresentation.shutterAngle(common: shutter, frameRate: rate,
+                    available: available, preferredAngle: shutterAngleDegrees, settling: settling),
+                CaptureNativeReadoutPresentation.shutterAngleAchieved(common: shutter, frameRate: rate,
+                    available: available, preferredAngle: shutterAngleDegrees, settling: settling))
+        }
+
+        /// The shutter panel's subtitle: the tabs, or what the camera really makes for the held angle.
+        func shutterPanelSubtitle(selection: MonitorCaptureSelection) -> String {
+            if cameraStatus.isPhoto { return "Speed" }
+            guard shutterUsesAngle, let achieved = shutterAngleReadout(selection: selection).achieved else {
+                return "Angle · speed"
+            }
+            return "Angle · actual \(achieved)"
+        }
+
         /// Compatibility for existing hosts; migrated composition supplies routing explicitly.
         var captureRouting: CaptureSheetRouting {
             .init(commonExposureCompensation: captureCapabilities.commonExposureCompensation,

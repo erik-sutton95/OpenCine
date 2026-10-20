@@ -55,4 +55,43 @@ class ShutterAngleTest {
         assertFalse(ShutterAngle.rematchesFormat(true, true, true, 24, 30))
         assertFalse(ShutterAngle.rematchesFormat(true, true, false, 0, 30))
     }
+
+    /** 180 degrees at each rate: the exact 1/N when the body lists it, else the nearest listed. */
+    @Test fun oneEightyPerRatePinsTheSpeed() {
+        val luna = listOf(8000, 6400, 5000, 4000, 3200, 2500, 2000, 1600, 1250, 1000, 800, 640, 500, 400,
+            320, 250, 200, 160, 125, 100, 80, 60, 50, 40, 30, 25, 15, 10, 5)
+        val pocket3 = listOf(8000, 6400, 4000, 3200, 2000, 1600, 1000, 800, 500, 400, 250, 200, 125, 120,
+            100, 60, 50, 48, 40, 30, 25, 24)
+        for ((fps, exact, onLuna, onPocket3) in listOf(listOf(24, 48, 50, 48), listOf(25, 50, 50, 50),
+            listOf(30, 60, 60, 60), listOf(60, 120, 125, 120), listOf(120, 240, 250, 250))) {
+            assertEquals(exact, ShutterAngle.denom(180.0, fps))
+            assertEquals(onLuna, ShutterAngle.denom(180.0, fps, luna))
+            assertEquals(onPocket3, ShutterAngle.denom(180.0, fps, pocket3))
+        }
+        assertEquals(240, ShutterAngle.denom(180.0, 120, luna + 240))
+    }
+
+    @Test fun achievedTellsTheRealAngleOnlyWhenItDiffers() {
+        assertEquals("1/250 (172.8°)", ShutterAngle.achieved(180.0, 250, 120))
+        assertNull(ShutterAngle.achieved(180.0, 240, 120))
+        assertNull(ShutterAngle.achieved(180.0, 60, 30))
+        assertNull(ShutterAngle.achieved(180.0, 250, 0))
+    }
+
+    /** Owner 2026-10-20 (Luna, Angle 180 at 30p, shutter priority): "0.0108°". Swift twin. */
+    @Test fun anInexactReadbackIsItsSpeedAndAngle() {
+        for (denom in listOf(48, 50, 60, 120, 125, 240, 250, 1000, 8000)) {
+            val inexact = (1.0 / denom).toFloat().toDouble()
+            assertEquals(com.opencapture.opencine.core.Rational(1, denom), HostShutterAngle.readback(inexact))
+        }
+        assertEquals(com.opencapture.opencine.core.Rational(2), HostShutterAngle.readback(2.0))
+        assertEquals(com.opencapture.opencine.core.Rational(2, 5), HostShutterAngle.readback(0.4))
+        assertNull(HostShutterAngle.readback(0.0))
+        assertEquals(com.opencapture.opencine.core.Rational(1, 81), HostShutterAngle.readback(0.0123))
+        val measured = com.opencapture.opencine.core.Rational(3, 20)
+        assertEquals(measured, HostShutterAngle.readback(0.15))
+        assertEquals(180.0, HostShutterAngle.reported(com.opencapture.opencine.core.Rational(1, 60), 30.0))
+        assertEquals(270.0, HostShutterAngle.reported(measured, 5.0)!!, 1e-9)
+        assertNull(HostShutterAngle.reported(com.opencapture.opencine.core.Rational(1, 60), null))
+    }
 }

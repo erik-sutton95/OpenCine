@@ -21,6 +21,48 @@ class CaptureNativeReadoutPresentationTest {
         assertEquals("1/2147483647", label(duration(1, Int.MAX_VALUE), rate(25)))
     }
 
+    private val luna = listOf(8000, 6400, 5000, 4000, 3200, 2500, 2000, 1600, 1250, 1000, 800, 640,
+        500, 400, 320, 250, 200, 160, 125, 100, 80, 60, 50, 40, 30, 25, 15, 10, 5)
+    private fun angle(d: Double) = com.opencapture.opencine.core.ShutterValue.Angle(d)
+    private fun duration(n: Int, d: Int = 1) = com.opencapture.opencine.core.ShutterValue.Duration(com.opencapture.opencine.core.Rational(n, d))
+    private fun rate(n: Int) = com.opencapture.opencine.core.Rational(n)
+
+    /** Owner 2026-10-20: Angle 180 at 4K120 read "172.8°". Swift twin. */
+    @Test fun theOperatorsAngleHoldsThroughTheNearestLegalSpeed() {
+        fun label(shutter: com.opencapture.opencine.core.ShutterValue, fps: Int) =
+            CaptureNativeReadoutPresentation.shutterAngle(shutter, rate(fps), luna, 180.0)
+        assertEquals("180°", label(angle(172.8), 120))
+        assertEquals("180°", label(angle(172.8), 24))
+        assertEquals("180°", label(angle(172.8), 60))
+        assertEquals("180°", label(angle(180.0), 30))
+        assertEquals("180°", label(angle(180.0), 25))
+        assertEquals("180°", label(duration(1, 250), 120))
+        assertEquals("360°", label(angle(360.0), 30))
+        assertEquals("11.2°", label(duration(1, 1000), 30))
+    }
+
+    /** Owner 2026-10-20: changing the rate flashed "42°" until the camera confirmed. Swift twin. */
+    @Test fun noTransientAngleWhileAFormatOrShutterChangeSettles() {
+        fun label(shutter: com.opencapture.opencine.core.ShutterValue, fps: Int, settling: Boolean) =
+            CaptureNativeReadoutPresentation.shutterAngle(shutter, rate(fps), luna, 180.0, settling)
+        assertEquals("180°", label(duration(1, 60), 120, true))
+        assertEquals("180°", label(angle(720.0), 120, true))
+        assertEquals("180°", label(duration(1, 250), 30, true))
+        assertEquals("180°", label(angle(43.2), 30, true))
+        assertEquals("45°", label(duration(1, 250), 30, false))
+        assertEquals("180°", CaptureNativeReadoutPresentation.shutterAngle(duration(1, 60), null, luna, 180.0, true))
+    }
+
+    @Test fun theAchievedSpeedIsToldOnlyWhenItIsNotExact() {
+        fun achieved(shutter: com.opencapture.opencine.core.ShutterValue, fps: Int, settling: Boolean = false) =
+            CaptureNativeReadoutPresentation.shutterAngleAchieved(shutter, rate(fps), luna, 180.0, settling)
+        assertEquals("1/250 (172.8°)", achieved(angle(172.8), 120))
+        assertEquals("1/50 (172.8°)", achieved(duration(1, 50), 24))
+        assertEquals(null, achieved(angle(180.0), 30))
+        assertEquals(null, achieved(angle(172.8), 120, settling = true))
+        assertEquals(null, achieved(angle(360.0), 30))
+    }
+
     @Test fun nativeFocusStrategiesDoNotReplaceTheCommonBaseMode() {
         for (native in listOf(FocusOption.PRODUCT_SHOWCASE, FocusOption.SUBJECT_LOCK, FocusOption.REGISTERED_PRIORITY)) {
             assertEquals(native.chip, CaptureNativeReadoutPresentation.focus(FocusMode.CONTINUOUS, native))

@@ -85,9 +85,14 @@ enum class GamepadGimbalStick(val raw: String, val label: String) {
 
 /** Angle HUD and D-pad 1/N steps share this resolution. Stepping stays camcap shutter. */
 object GamepadShutterSync {
-    fun angleLabel(denom: Int, fps: Int, available: List<Int>, preferredAngle: Double): String {
+    /**
+     * Angle is the operator's intent: the preferred angle while the live 1/N is the nearest legal
+     * speed for it at the live rate, and throughout a format or shutter change still settling (a
+     * rate and a speed from two moments are no angle). Otherwise the nearest live label.
+     */
+    fun angleLabel(denom: Int, fps: Int, available: List<Int>, preferredAngle: Double, settling: Boolean = false): String {
         val preferred = ShutterAngle.label(ShutterAngle.nearestDegrees(preferredAngle))
-        if (denom <= 0) return preferred
+        if (denom <= 0 || settling) return preferred
         val mapped = ShutterAngle.denom(preferredAngle, fps, available)
         return if (mapped == denom) preferred else ShutterAngle.nearestLabel(denom, fps)
     }
