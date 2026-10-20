@@ -55,6 +55,10 @@ class MonitorInteractionLifecycleTest {
         val replaced = owner.update(MonitorInteractionContext(camera = b))
         assertTrue(replaced.dismissTransients && replaced.retireReadout)
         assertEquals(MonitorInputAdmission.Resumed, replaced.inputAdmission)
+        // Only a new camera resets per-camera readout choices (the storage form).
+        assertTrue(replaced.cameraReplaced)
+        assertFalse(owner.update(MonitorInteractionContext(locked = true, camera = b)).cameraReplaced)
+        owner.update(MonitorInteractionContext(camera = b))
         assertEquals(MonitorInputAdmission.Blocked(MonitorInputBlock.DISAPPEARED), owner.close().inputAdmission)
         assertNull(owner.context)
         val reentry = owner.update(MonitorInteractionContext(covered = true, camera = b))

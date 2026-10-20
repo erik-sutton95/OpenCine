@@ -37,6 +37,16 @@ final class MonitorCommandWaitingPictureTests: XCTestCase {
         }
     }
 
+    func testTheLockSlotReturnControlUsesTheSharedMultiviewLabel() async throws {
+        let fixture = try WaitingFixture(size: CGSize(width: 874, height: 402))
+        defer { fixture.close() }
+        fixture.probe.returnsToStage = true
+        try await fixture.ready("Return to Multiview")
+        XCTAssertFalse(
+            fixture.labels.contains("Return to Multicam"),
+            "iOS must use the shared label the Android twin and the baseline use")
+    }
+
     func testModeChangesRetainTheNativePictureOwnerAndReturnItsPaint() async throws {
         let fixture = try WaitingFixture(size: CGSize(width: 874, height: 402))
         defer { fixture.close() }
@@ -83,6 +93,7 @@ private final class WaitingProbe: ChromeEditHost {
     let storage: UserDefaults
     let namespace = "SIMULATED.command-waiting." + UUID().uuidString
     var waiting = true
+    var returnsToStage = false
     var note: String?
     var usage = MonitorToolUsage()
     var aspect = PortraitFeedAspect.fit16x9
@@ -145,7 +156,8 @@ private struct WaitingSurface: View {
                 cameraBattery: { nil }, capture: { .init(readouts: [], haptics: false, open: { _ in }, dismiss: {}) },
                 record: { .init(photo: false, confirm: false, busy: false, openMode: nil, external: nil) },
                 exposure: nil, level: nil, audio: { nil }, readOnly: { false }, borrowed: { false },
-                returnToStage: nil, coverOpen: { false }, note: $probe.note, settings: {}, media: {}),
+                returnToStage: probe.returnsToStage ? {} : nil, coverOpen: { false }, note: $probe.note,
+                settings: {}, media: {}),
             assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
                 usage: $probe.usage, usageSeed: [:], toggle: { _ in }),
             views: .init(dashboard: AnyView(Color(red: 0, green: 1, blue: 0).accessibilityElement(children: .ignore)

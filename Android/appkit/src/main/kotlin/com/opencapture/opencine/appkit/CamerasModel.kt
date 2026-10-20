@@ -212,6 +212,27 @@ public class CamerasModel(
 
     // Connecting
 
+    /**
+     * Retries the saved cameras whose last attempt failed, through a normal attempt so the card
+     * and wizard show its progress. The app calls this when it returns to the foreground, as the
+     * baseline backend did on its own; a live session is never re-dialled.
+     */
+    public fun retryCurrentFailures() {
+        val now = mutable.value
+        if (now.connected != null || now.pairing || now.attempts.isNotEmpty()) return
+        // One backend, one connection: retry the most recent failed saved camera only, as the
+        // baseline reconnected its last camera.
+        val (cameraID, failure) = now.failures.entries.lastOrNull { (id, failure) ->
+            failure.target is ConnectTarget.Saved && now.saved.any { it.id == id }
+        } ?: return
+        val camera = now.saved.first { it.id == cameraID }
+        // The current record, not the failure's snapshot: a retry must not restore a renamed
+        // camera or a route the operator forgot since.
+        val route = (failure.target as ConnectTarget.Saved).route
+        if (camera.routes.none { it.id == route }) return
+        start(ConnectTarget.Saved(camera, route), camera.integration)
+    }
+
     /** Connects a saved camera over [route], else its [defaultRoute]. */
     public fun connect(camera: SavedCamera, route: ConnectionRouteID? = null) {
         val chosen = route ?: defaultRoute(camera) ?: return
