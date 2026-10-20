@@ -53,8 +53,6 @@ interface CaptureSheetHost {
     val labelProfile: CameraLabelProfile
     /** Existing hosts retain their pending readout policy; report-only hosts declare it. */
     val captureReadoutSelection: com.opencapture.opencine.appkit.MonitorCaptureSelection get() = com.opencapture.opencine.appkit.MonitorCaptureSelection.PENDING
-    /** A recording format change the app sent is still settling (the Swift host's `formatPinActive`). */
-    val formatPinActive: Boolean get() = false
     val audioService: CaptureAudioService? get() = null
     /** Compatibility route for original hosts; migrated composition supplies it explicitly. */
     val captureRouting: CaptureSheetRouting get() = CaptureSheetRouting(commonExposureCompensation = true, commonFocusMode = true)

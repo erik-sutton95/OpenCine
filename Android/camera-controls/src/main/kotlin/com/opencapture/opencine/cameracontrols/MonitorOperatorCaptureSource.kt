@@ -81,7 +81,7 @@ public class MonitorOperatorCaptureSource(
 
     /** A format change or a shutter write still settling: the angle readout holds the operator's angle. */
     public val shutterAngleSettling: Boolean
-        get() = host.formatPinActive || control.state.value.pending[SettingKey.SHUTTER] != null
+        get() = readSessionState().formatPinned || control.state.value.pending[SettingKey.SHUTTER] != null
 
     private fun angleShutter() = (control.captureValue(SettingKey.SHUTTER, host.captureReadoutSelection) as? SettingValue.Shutter)?.value
     private fun angleFrameRate() = (control.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value as? SettingValue.FrameRate)?.fps
