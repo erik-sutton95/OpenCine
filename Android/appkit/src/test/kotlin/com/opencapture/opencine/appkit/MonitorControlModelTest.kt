@@ -88,6 +88,25 @@ class MonitorControlModelTest {
     private fun TestScope.elapsedModel() = MonitorControlModel(backgroundScope,
         now = { MonotonicInstant(testScheduler.currentTime.milliseconds) })
 
+    /** A reported frame-rate change opens the emulated-angle hold window. Swift twin. */
+    @Test fun aReportedFrameRateChangeOpensTheRateChangeWindow() = runTest {
+        val model = elapsedModel()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsSetting(SettingValue.FrameRate(Rational(30)))
+        model.bind(camera); runCurrent()
+        assertEquals(SettingValue.FrameRate(Rational(30)), model.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value)
+        assertFalse(model.frameRateChanged(3.seconds), "the first report is no change")
+        camera.cameraReportsSetting(SettingValue.FrameRate(Rational(60))); runCurrent()
+        assertEquals(SettingValue.FrameRate(Rational(60)), model.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value)
+        assertTrue(model.frameRateChanged(3.seconds))
+        advanceTimeBy(2000); runCurrent()
+        assertTrue(model.frameRateChanged(3.seconds))
+        advanceTimeBy(1000); runCurrent()
+        assertFalse(model.frameRateChanged(3.seconds))
+        model.unbind()
+        assertNull(model.frameRateChangedAt)
+    }
+
     @Test fun idleRecordingReportsKeepElapsedObservationStable() = runTest {
         val model = elapsedModel()
         val camera = FakeCameraSession.lunaLike()

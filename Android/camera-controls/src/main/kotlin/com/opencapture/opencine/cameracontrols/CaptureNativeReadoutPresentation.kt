@@ -8,10 +8,14 @@ import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.vocabulary.GamepadShutterSync
 import com.opencapture.opencine.vocabulary.ShutterAngle
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.seconds
 import com.opencapture.opencine.vocabulary.FocusOption
 
 /** Common reports and coherent native strategy values remain distinct. */
 public object CaptureNativeReadoutPresentation {
+    /** How long after a reported frame-rate change an emulated angle keeps the operator's value (Swift `rateChangeHold`). */
+    public val RATE_CHANGE_HOLD: kotlin.time.Duration = 3.seconds
+
     /**
      * Emulated angles use only the selected common shutter and reported recording cadence. The
      * operator's angle holds while the camera makes it through the nearest legal speed and while a

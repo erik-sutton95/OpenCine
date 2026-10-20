@@ -35,6 +35,27 @@ import Testing
             sleep: { [clock] in await clock.sleep($0) })
     }
 
+    /// A reported frame-rate change opens the window in which an emulated shutter angle keeps the
+    /// operator's value while the re-sent speed lands (owner 2026-10-20, Luna 30 to 120 fps).
+    @available(macOS 14, *)
+    @Test func aReportedFrameRateChangeOpensTheRateChangeWindow() async throws {
+        let model = elapsedModel()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsSetting(.frameRate(Rational(30)))
+        model.bind(camera)
+        try #require(await eventually { model.snapshot?.value(of: .frameRate).value == .frameRate(Rational(30)) })
+        #expect(!model.frameRateChanged(within: .seconds(3)), "the first report is no change")
+        await camera.cameraReportsSetting(.frameRate(Rational(60)))
+        try #require(await eventually { model.snapshot?.value(of: .frameRate).value == .frameRate(Rational(60)) })
+        #expect(model.frameRateChanged(within: .seconds(3)))
+        clock.advance(by: .seconds(2))
+        #expect(model.frameRateChanged(within: .seconds(3)))
+        clock.advance(by: .seconds(1))
+        #expect(!model.frameRateChanged(within: .seconds(3)))
+        model.unbind()
+        #expect(model.frameRateChangedAt == nil)
+    }
+
     @available(macOS 14, *)
     @Test func idleRecordingReportsKeepElapsedObservationStable() async throws {
         let model = elapsedModel()

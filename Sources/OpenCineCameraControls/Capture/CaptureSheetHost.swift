@@ -213,8 +213,14 @@
                 .overlaying(captureCapabilities)
         }
         /// A format change or a shutter write still settling: the angle readout holds the
-        /// operator's angle instead of pairing a rate and a speed from two moments.
-        var shutterAngleSettling: Bool { formatPinActive || control.pending[.shutter] != nil }
+        /// operator's angle instead of pairing a rate and a speed from two moments. The whole
+        /// window from the tap to the camera's speed at the new rate: the app's format pin (tap to
+        /// readback), a reported rate change (readback to the re-sent speed, including a speed the
+        /// camera clamps itself) and the pending shutter write (re-send to confirmation).
+        var shutterAngleSettling: Bool {
+            formatPinActive || control.pending[.shutter] != nil
+                || control.frameRateChanged(within: CaptureNativeReadoutPresentation.rateChangeHold)
+        }
 
         /// The one emulated-angle readout of the strip, the control bar and the panel: the held
         /// angle and, when the camera makes it through the nearest legal speed, what it really is.

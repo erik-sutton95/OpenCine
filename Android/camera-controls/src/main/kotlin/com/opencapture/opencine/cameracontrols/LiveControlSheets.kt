@@ -176,7 +176,11 @@ private fun LiveControlSheetContent(
     chromeless: Boolean = false,
     onHeaderChanged: (String, String) -> Unit = { _, _ -> },
 ) {
-    val commonField = remember(sheet, host) { host.captureField(sheet, status.expoMode) }
+    val openedField = remember(sheet, host) { host.captureField(sheet, status.expoMode) }
+    // Angle and Speed are two presentations of one shutter descriptor: a mode switch republishes it
+    // (an emulated angle editor, or none), so the shutter drum follows the current field (Swift twin
+    // `captureCommonField` on a mode change and on the descriptor).
+    val commonField = if (sheet == LiveSheet.SHUTTER) host.captureField(sheet, status.expoMode) else openedField
     val session = host.captureSessionState(status)
     val prefs = host.capturePreferences
     val preview = LocalCapturePreview.current
@@ -230,11 +234,11 @@ private fun LiveControlSheetContent(
     }
 
     fun reseatShutterAngle() {
-        applySeat(CaptureLists.reseatShutterAngle(status, preferredAngle))
+        applySeat(CaptureLists.reseatShutterAngle(status, preferredAngle, session.formatPinned))
     }
 
     fun reseatShutter() {
-        applySeat(CaptureLists.reseatShutter(status, selectedMode, isEvSheet, preferredAngle))
+        applySeat(CaptureLists.reseatShutter(status, selectedMode, isEvSheet, preferredAngle, session.formatPinned))
     }
 
     fun reseatShutterOrEv() {

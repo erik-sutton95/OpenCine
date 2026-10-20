@@ -5,6 +5,10 @@ import OpenCineMedia
 
 /// Common reports and coherent native strategy values remain distinct.
 public enum CaptureNativeReadoutPresentation {
+    /// How long after a reported frame-rate change an emulated angle keeps the operator's value
+    /// while the re-sent speed lands (Kotlin twin: `RATE_CHANGE_HOLD`).
+    public static let rateChangeHold: Duration = .seconds(3)
+
     /// Emulated angles use only the selected common shutter and reported recording cadence.
     /// Unknown cadence retains the known duration; unknown shutter has no derived angle. The
     /// operator's angle holds while the camera makes it through the nearest legal speed and while

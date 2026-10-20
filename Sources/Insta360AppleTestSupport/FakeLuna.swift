@@ -28,6 +28,9 @@ public final class FakeLuna {
     public var silent = false
     /// The camera answers every request with a refusal (Kotlin `FakeLuna.refuses`).
     public var refuses = false
+    /// Runs after a request is received and before its reply, so a test can deliver camera
+    /// reports in the window before the acknowledgement (a format readback that beats the ack).
+    public var beforeReply: (@MainActor (LunaRequest) async -> Void)?
     public private(set) var sent: [LunaRequest] = []
     private var lastApply: Task<Void, Never>?
     public weak var session: LunaCameraSession?
@@ -92,6 +95,7 @@ public final class FakeLuna {
 
     private func receive(_ request: LunaRequest) async throws -> Data {
         sent.append(request)
+        if let beforeReply { await beforeReply(request) }
         if refuses { throw FakeLunaRefusal() }
         guard !ignoresWrites else { return Data() }
         if applyDelay == .zero {

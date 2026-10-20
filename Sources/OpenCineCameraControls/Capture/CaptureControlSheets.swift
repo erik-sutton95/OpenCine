@@ -377,6 +377,12 @@
 
         private func statusObservers(_ content: some View) -> some View {
             content
+                .onChange(of: host.control.snapshot?.capabilities[.shutter]) { _, _ in
+                    // Angle and Speed are two presentations of one shutter descriptor: a mode
+                    // switch republishes it, and the drum must follow the new editor.
+                    guard sheet == .shutter else { return }
+                    captureCommonField()
+                }
                 .onChange(of: host.cameraStatus.availableShutterDenoms) { _, _ in
                     guard sheet == .shutter, !isEvSheet else { return }
                     reseatShutter()
@@ -889,6 +895,9 @@
                 }
             case .shutter:
                 host.shutterUsesAngle = index == 1
+                // The field captured when the popup opened belongs to the other presentation (an
+                // emulated angle editor, or none): Speed must edit the camera's own durations.
+                captureCommonField()
                 reseatShutter()
             case .wb:
                 if index == 0, host.displayStatus.whiteBalance?.mode != .auto {
@@ -933,9 +942,11 @@
             _ key: SettingKey, marked: Set<String> = [], editingAllowed: Bool = true
         ) -> some View {
             if let field = commonField, field.key == key {
+                let speedTab = sheet == .shutter && !isAngleSheet
                 let choices = field.choices.filter { choice in
                     switch choice.value {
-                    case .iso(.manual), .shutter(.duration), .shutter(.angle),
+                    case .shutter(.angle): return !speedTab
+                    case .iso(.manual), .shutter(.duration),
                         .whiteBalance(.kelvin), .exposureCompensation:
                         return true
                     default: return false
@@ -964,6 +975,10 @@
                     drum: .field(field, choices: choices), previewPosition: previewPosition,
                     onSelectTab: { _ in }, onCommitted: host.captureDrumDidCommit)
             ).environment(\.ladderOperatorHaptics, host.hapticsEnabled)
+            // The drum keeps the editor it opened with (`MonitorCaptureDrum`). A new editor (the
+            // Angle/Speed switch republishes the shutter descriptor) is a new drum; otherwise the
+            // Speed drum stayed bound to the angle editor and read as disabled (owner 2026-10-20).
+            .id(field.editor)
         }
 
         private func applyDrum(_ value: String) {

@@ -260,12 +260,34 @@ public class MonitorControlModel(
         scheduled.clear()
         editRevisions.clear()
         recordOperation = null
+        frameRateChangedAt = null
         mutable.value = State()
         timecodeReading = ObservedValue.unknown
         if (changed) onChange()
     }
 
+    /**
+     * When the camera last reported a new recording frame rate (one known rate replaced by another).
+     * Speeds and rates arrive from two moments around a format change, so readouts that pair them
+     * (an emulated shutter angle) hold the operator's value for a short window after it. Swift twin.
+     */
+    public var frameRateChangedAt: MonotonicInstant? = null
+        private set
+
+    /** Whether the reported frame rate changed within [window] of now (the injected clock). */
+    public fun frameRateChanged(window: kotlin.time.Duration): Boolean {
+        val changed = frameRateChangedAt ?: return false
+        val now = recordingNow()
+        return now >= changed && now - changed < window
+    }
+
     private fun apply(snapshot: CameraSnapshot) {
+        val before = mutable.value.snapshot
+        val nextRate = snapshot.value(SettingKey.FRAME_RATE).value
+        val previousRate = before?.value(SettingKey.FRAME_RATE)?.value
+        if (nextRate is com.opencapture.opencine.core.SettingValue.FrameRate &&
+            previousRate is com.opencapture.opencine.core.SettingValue.FrameRate && previousRate != nextRate &&
+            before.session == snapshot.session) frameRateChangedAt = recordingNow()
         observeRecordingElapsed(snapshot)
         val previous = mutable.value.snapshot
         if (previous?.copy(revision = snapshot.revision)?.withTimecodeReading(snapshot.timecodeReading) != snapshot) {
