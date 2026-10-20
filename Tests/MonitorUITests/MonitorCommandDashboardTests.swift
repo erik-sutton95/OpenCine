@@ -144,9 +144,11 @@ final class MonitorCommandDashboardTests: XCTestCase {
         XCTAssertEqual(hero.accessibilityValue, "Recording state unknown")
     }
 
-    /// Nine tiles (the stills-sized grid) and the hero still fit the iPhone landscape command
-    /// frame (`MonitorCommandDashboardLayout`, 682 x 300): every tile keeps the 44 point floor,
-    /// stays inside the canvas and the window's safe area, and no two tiles overlap.
+    /// Nine tiles and the hero still fit the iPhone command frames (`MonitorCommandDashboardLayout`:
+    /// 682 x 300 landscape, 361 x 631 portrait): every tile keeps the 44 point floor and stays
+    /// inside the canvas, border included, and no two tiles overlap. The frames' own safe-area
+    /// clearance is the layout's contract (MonitorCommandDashboardLayout tests); this hosted window
+    /// keeps the portrait scene's insets, so it cannot stand in for a rotated device.
     func testHeroAndNineTilesStayInsideTheLandscapeFrameWithoutClipping() async throws {
         for portrait in [false, true] {
             let fixture = DashboardFixture(
@@ -155,8 +157,6 @@ final class MonitorCommandDashboardTests: XCTestCase {
             defer { fixture.close() }
             let canvas = try await fixture.element("SIMULATED.dashboard.canvas").accessibilityFrame
             let hero = try await fixture.element("monitor.command.hero").accessibilityFrame
-            let safe = fixture.window.convert(
-                fixture.window.safeAreaLayoutGuide.layoutFrame, to: nil)
             var frames: [CGRect] = []
             for index in 0..<9 {
                 let tile = try await fixture.element("monitor.command.tile.\(index < 2 ? ["iso", "codec"][index] : String(index))")
@@ -165,7 +165,6 @@ final class MonitorCommandDashboardTests: XCTestCase {
             for frame in frames {
                 XCTAssertGreaterThanOrEqual(frame.height, MonitorCommandGridLayout.minimumRowHeight - 0.5)
                 XCTAssertTrue(canvas.insetBy(dx: -0.5, dy: -0.5).contains(frame), "\(frame) outside \(canvas)")
-                XCTAssertTrue(safe.insetBy(dx: -0.5, dy: -0.5).contains(frame), "\(frame) outside safe \(safe)")
                 XCTAssertLessThanOrEqual(hero.maxY, frame.minY + 0.5)
             }
             for (i, a) in frames.enumerated() {
