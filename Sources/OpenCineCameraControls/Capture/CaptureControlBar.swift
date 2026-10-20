@@ -226,14 +226,7 @@
         private var shutterValue: String {
             if !host.shutterUsesAngle || status.isPhoto { return commonValue(.shutter) }
             // The same angle readout as the live strip: common shutter and reported cadence.
-            let shutter: ShutterValue?
-            if case .shutter(let value)? = host.control.captureValue(.shutter, selection: readoutSelection) {
-                shutter = value
-            } else { shutter = nil }
-            let rate: Rational?
-            if case .frameRate(let value)? = host.control.snapshot?.value(of: .frameRate).value { rate = value } else { rate = nil }
-            return CaptureNativeReadoutPresentation.shutterAngle(common: shutter, frameRate: rate,
-                available: CaptureLists.shutterDenoms(from: status), preferredAngle: host.shutterAngleDegrees)
+            return host.shutterAngleReadout(selection: readoutSelection).value
         }
 
         private var evValue: String {

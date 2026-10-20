@@ -317,7 +317,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private let source: MonitorOperatorLiveSource<Key, NativeIdentity>
     private let assists: MonitorOperatorLiveAssists
     private let views: MonitorOperatorBodyViews
-    private let portraitAspect: Binding<PortraitFeedAspect>
+    private let portraitAspect: Binding<PortraitFeedAspect>?
     private let telemetryMetrics: MonitorTelemetryMetrics?
     private let picture: () -> Picture
     private let cameraPanel: (Key, MonitorCapturePopupLayout) -> CameraPanel
@@ -328,7 +328,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     public init(host: Host, control: MonitorControlModel, session: MonitorOperatorSessionModel<Looks>,
         layout: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
         assists: MonitorOperatorLiveAssists, views: MonitorOperatorBodyViews,
-        portraitAspect: Binding<PortraitFeedAspect>, telemetryMetrics: MonitorTelemetryMetrics? = nil,
+        portraitAspect: Binding<PortraitFeedAspect>?, telemetryMetrics: MonitorTelemetryMetrics? = nil,
         @ViewBuilder picture: @escaping () -> Picture,
         @ViewBuilder cameraPanel: @escaping (Key, MonitorCapturePopupLayout) -> CameraPanel,
         @ViewBuilder photoRelease: @escaping (CGFloat) -> PhotoRelease,
@@ -388,7 +388,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private let facts: MonitorOperatorLiveFacts<Key, NativeIdentity>
     private let assists: MonitorOperatorLiveAssists
     private let cameraViews: MonitorOperatorBodyViews
-    @Binding private var portraitAspect: PortraitFeedAspect
+    /// Nil when the source offers no fit/fill choice: the key hides and the caller's `live` layout
+    /// decides the picture (Z lays a still out whole). Kotlin's null aspect hides the key the same way.
+    private let portraitAspect: Binding<PortraitFeedAspect>?
     private let telemetryMetrics: MonitorTelemetryMetrics?
     private let picture: () -> Picture
     private let nativePanel: (Key, MonitorCapturePopupLayout) -> CameraPanel
@@ -407,14 +409,14 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     init(host: Host, control: MonitorControlModel, session: MonitorOperatorSessionModel<Looks>,
         live: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
         facts: MonitorOperatorLiveFacts<Key, NativeIdentity>, assists: MonitorOperatorLiveAssists,
-        views: MonitorOperatorBodyViews, portraitAspect: Binding<PortraitFeedAspect>,
+        views: MonitorOperatorBodyViews, portraitAspect: Binding<PortraitFeedAspect>?,
         telemetryMetrics: MonitorTelemetryMetrics? = nil,
         picture: @escaping () -> Picture, nativePanel: @escaping (Key, MonitorCapturePopupLayout) -> CameraPanel,
         photoRelease: @escaping (CGFloat) -> PhotoRelease, preview: @escaping (MonitorAssistSelection) -> Preview,
         lookMenu: @escaping () -> LookMenu) {
         self.host = host; self.control = control; self.session = session; self.live = live
         self.source = source; self.facts = facts; self.assists = assists; self.cameraViews = views
-        _portraitAspect = portraitAspect; self.picture = picture; self.nativePanel = nativePanel
+        self.portraitAspect = portraitAspect; self.picture = picture; self.nativePanel = nativePanel
         self.telemetryMetrics = telemetryMetrics
         self.photoRelease = photoRelease; self.preview = preview; self.lookMenu = lookMenu
     }
@@ -898,8 +900,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                     viewport: CGRect(origin: .zero, size: live.viewport), portrait: live.viewport.height > live.viewport.width)
             }.allowsHitTesting(false).accessibilityHidden(instrumentsHidden)
         }
-        if layout.portrait, !facts.picture.vertical, editing == nil, !assist.isVisible(.desqueeze) {
-            PortraitAspectToggle<Host.Palette>(aspect: $portraitAspect)
+        if let portraitAspect, layout.portrait, !facts.picture.vertical, editing == nil, !assist.isVisible(.desqueeze) {
+            PortraitAspectToggle<Host.Palette>(aspect: portraitAspect)
                 .accessibilityHidden(instrumentsHidden).liveModuleFrame(layout.aspectToggle.cgRect)
                 .allowsHitTesting(presentationAdmitted).zIndex(4)
         }

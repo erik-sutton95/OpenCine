@@ -279,6 +279,28 @@ class DjiCameraSessionAdapterTest {
     }
 
     /**
+     * The Pocket path pins the same rule as the Luna: the wire carries whole 1/N, 180 degrees sends
+     * the ladder's nearest speed per rate and the projected angle is what it really makes. Swift twin.
+     */
+    @Test
+    fun angleSendsTheNearestLadderSpeedPerRate() = runTest {
+        for ((fps, denom) in listOf(24 to 48, 25 to 50, 30 to 60, 60 to 120, 120 to 250)) {
+            val port = capturePort()
+            val capture = assertNotNull(port.capture)
+            port.capture = capture.copy(reported = capture.reported.copy(availableShutterDenoms = emptyList(),
+                shootingMode = CameraCommands.SHOOT_VIDEO, fps = fps),
+                shutterPresentation = com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+            assertEquals(CommandStage.Sent, adapter(port).request(CameraCommandIntent.Set(
+                SettingValue.Shutter(ShutterValue.Angle(180.0)))).stage, "$fps fps")
+            assertEquals("angle 180.0 1/$denom", port.fired.last(), "$fps fps")
+            val held = assertNotNull(port.capture)
+            port.capture = held.copy(reported = held.reported.copy(shutterDenom = denom))
+            val shown = (adapter(port).current.value(SettingKey.SHUTTER).value as SettingValue.Shutter).value as ShutterValue.Angle
+            assertEquals(360.0 * fps / denom, shown.degrees, 1e-9, "$fps fps")
+        }
+    }
+
+    /**
      * Behavior audit PAA-211: the Angle preference is a video presentation. In Photo the standalone
      * apps forced the Speed tab and a 1/N readout, so the common shutter stays a duration.
      */

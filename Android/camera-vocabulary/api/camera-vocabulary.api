@@ -1612,6 +1612,8 @@ public final class com/opencapture/opencine/vocabulary/GamepadShoulder : java/la
 public final class com/opencapture/opencine/vocabulary/GamepadShutterSync {
 	public static final field INSTANCE Lcom/opencapture/opencine/vocabulary/GamepadShutterSync;
 	public final fun angleLabel (IILjava/util/List;D)Ljava/lang/String;
+	public final fun angleLabel (IILjava/util/List;DZ)Ljava/lang/String;
+	public static synthetic fun angleLabel$default (Lcom/opencapture/opencine/vocabulary/GamepadShutterSync;IILjava/util/List;DZILjava/lang/Object;)Ljava/lang/String;
 	public final fun preferredAngle (II)D
 	public final fun shouldPersistPreferredAngle (ZZZ)Z
 }
@@ -2804,6 +2806,7 @@ public final class com/opencapture/opencine/vocabulary/ShootingModePin$Companion
 public final class com/opencapture/opencine/vocabulary/ShutterAngle {
 	public static final field DEFAULT_DEGREES D
 	public static final field INSTANCE Lcom/opencapture/opencine/vocabulary/ShutterAngle;
+	public final fun achieved (DII)Ljava/lang/String;
 	public final fun degrees (II)D
 	public final fun denom (DI)I
 	public final fun denom (DILjava/util/List;)I

@@ -80,6 +80,22 @@ public class MonitorOperatorCaptureSource(
             MonitorCapturePresentation.title(key).orEmpty(), null, emptyList(), null)
     }
 
+    /** A format change or a shutter write still settling: the angle readout holds the operator's angle. */
+    public val shutterAngleSettling: Boolean
+        get() = readSessionState().formatPinned || control.state.value.pending[SettingKey.SHUTTER] != null ||
+            control.frameRateSettling
+
+    private fun angleShutter() = (control.captureValue(SettingKey.SHUTTER, host.captureReadoutSelection) as? SettingValue.Shutter)?.value
+    private fun angleFrameRate() = (control.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value as? SettingValue.FrameRate)?.fps
+
+    /** The shutter panel's subtitle: the tabs, or what the camera really makes for the held angle. */
+    public fun shutterPanelSubtitle(base: String, status: CameraStatus): String {
+        if (!host.capturePreferences.shutterUsesAngle || CameraCommands.isPhotoMode(status.shootingMode)) return base
+        val achieved = CaptureNativeReadoutPresentation.shutterAngleAchieved(angleShutter(), angleFrameRate(),
+            CaptureLists.shutterDenoms(status), host.capturePreferences.shutterAngleDegrees, shutterAngleSettling) ?: return base
+        return "Angle · actual $achieved"
+    }
+
     public fun readout(sheet: LiveSheet, status: CameraStatus, nativeLabel: String): String {
         val key = when (sheet) {
             LiveSheet.ISO -> SettingKey.ISO
@@ -90,9 +106,8 @@ public class MonitorOperatorCaptureSource(
                     SettingKey.EXPOSURE_COMPENSATION
                 }
                 host.capturePreferences.shutterUsesAngle && !CameraCommands.isPhotoMode(status.shootingMode) -> return CaptureNativeReadoutPresentation.shutterAngle(
-                    (control.captureValue(SettingKey.SHUTTER, host.captureReadoutSelection) as? SettingValue.Shutter)?.value,
-                    (control.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value as? SettingValue.FrameRate)?.fps,
-                    CaptureLists.shutterDenoms(status), host.capturePreferences.shutterAngleDegrees)
+                    angleShutter(), angleFrameRate(), CaptureLists.shutterDenoms(status),
+                    host.capturePreferences.shutterAngleDegrees, shutterAngleSettling)
                 else -> SettingKey.SHUTTER
             }
             LiveSheet.WB -> {

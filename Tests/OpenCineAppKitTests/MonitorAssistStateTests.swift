@@ -17,6 +17,40 @@ import Testing
         MonitorAssistTool.allCases.filter { $0 != .evMeter }.map(MonitorAssistSelection.init)
     }
 
+    /// Kotlin mirror: MonitorAssistStateBehaviorTest `declaredDefaultsSeedAFreshStateAndEachReset`
+    /// and `savedValuesWinOverDeclaredDefaults` (ZAA-227, ZAA-228).
+    @Test func declaredDefaultsSeedAFreshStateAndSavedValuesWin() throws {
+        guard #available(macOS 14, *) else { return }
+        let (defaults, domain) = try storage()
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let standard = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        #expect(standard.defaults == .standard)
+        #expect(standard.zebraHighlightIRE == 99 && standard.crushClipCompensation == .zero)
+
+        let nikon = MonitorAssistDefaults(zebraHighlightIRE: 100, crushClipCompensation: .quarter)
+        let fresh = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed,
+            defaults: nikon)
+        #expect(fresh.zebraHighlightIRE == 100 && fresh.crushClipCompensation == .quarter)
+
+        standard.persist()
+        let saved = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed,
+            defaults: nikon)
+        #expect(saved.zebraHighlightIRE == 99 && saved.crushClipCompensation == .zero)
+
+        // A snapshot from before the compensation was saved falls back to the declared default.
+        let stored = try #require(defaults.data(forKey: "assist"))
+        var object = try #require(try JSONSerialization.jsonObject(with: stored) as? [String: Any])
+        object["crushClipCompensation"] = nil
+        defaults.set(try JSONSerialization.data(withJSONObject: object), forKey: "assist")
+        let older = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed,
+            defaults: nikon)
+        #expect(older.crushClipCompensation == .quarter)
+    }
+
     @Test func pinsPlaybackAndCoveredScopesHaveOneIndependentOwner() throws {
         guard #available(macOS 14, *) else { return }
         let (defaults, domain) = try storage()
