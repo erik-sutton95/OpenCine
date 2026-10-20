@@ -15,13 +15,14 @@ import UIKit
 ///
 /// Third-party shutter buttons pair as HID keyboards and send Consumer-Control volume presses
 /// (some models up, some down) that iOS routes to the system volume; there is no key event to
-/// catch. While active: documented KVO on `AVAudioSession.outputVolume` observes the change, an
-/// `MPVolumeView` in the window suppresses the system volume HUD, and after every press the
-/// volume is re-anchored at the operator's own level so presses in either direction register and
-/// the audible volume never drifts. Re-anchoring through the volume view's slider is a best-effort
-/// compatibility technique, not a documented interception API; a private volume-change
-/// notification remains only as a best-effort rail fallback. The rules (when to listen, what is a
-/// press) are `MonitorRemoteShutterPolicy`.
+/// catch. While active: documented KVO on `AVAudioSession.outputVolume` observes the change, and
+/// after every press the volume is re-anchored at the operator's own level so presses in either
+/// direction register and the audible volume never drifts. Re-anchoring through an `MPVolumeView`
+/// slider is a best-effort compatibility technique, not a documented interception API; the view is
+/// only in the window for a short lease around each write, because left there it keeps the app
+/// from ever idling. A private volume-change notification remains only as a best-effort rail
+/// fallback. The rules (when to listen, what is a press, when the view may stay) are
+/// `MonitorRemoteShutterPolicy` and `MonitorRemoteShutterVolumeLease`.
 ///
 /// This takes over the volume buttons, so it only runs while the operator has opted in and the
 /// live monitor is in front; the pre-session volume is restored on stop. It needs no
@@ -32,7 +33,7 @@ public final class MonitorRemoteShutter {
     /// The Controls row title and help every app shows for this owner.
     public nonisolated static let title = "Bluetooth Remote Shutter"
     public nonisolated static let help =
-        "A paired Bluetooth shutter remote's button press starts or stops recording while the live view is up front. Inside Settings, Media, or other full-screen pages the volume keys behave normally. The phone's volume keys record too, and Record Confirmation is skipped. Presses arrive as volume commands, so the volume may move momentarily before snapping back; the system volume overlay stays hidden while armed."
+        "A paired Bluetooth shutter remote's button press starts or stops recording while the live view is up front. Inside Settings, Media, or other full-screen pages the volume keys behave normally. The phone's volume keys record too, and Record Confirmation is skipped. Presses arrive as volume commands, so the volume overlay may flash and the volume may move momentarily before snapping back."
 
     /// The host's log, named by its subsystem.
     public let log: Logger
@@ -49,11 +50,10 @@ public final class MonitorRemoteShutter {
     private var volumeObservation: NSKeyValueObservation?
     private var volumeObserver: NSObjectProtocol?
     private var routeObserver: NSObjectProtocol?
-    private var volumeView: MPVolumeView?
-    private var volumeSlider: UISlider?
-    private var sliderAcquisitionTask: Task<Void, Never>?
-    private var sliderAcquisitionGeneration = 0
-    private var volumeWriteTask: Task<Void, Never>?
+    let volumeWriter: MonitorRemoteShutterVolumeWriter
+    /// A restore that stop() left to the writer (no slider was in hand); a re-arm before it lands
+    /// keeps that route's original level instead of the anchor it would otherwise read back.
+    private var pendingRestore: (route: String, volume: Float)?
     private var routeRecoveryTask: Task<Void, Never>?
     private var restoreVolumesByRoute: [String: Float] = [:]
     private var suppressVolumeEventsUntil: TimeInterval = 0
@@ -62,6 +62,14 @@ public final class MonitorRemoteShutter {
 
     public init(subsystem: String, category: String = "bluetooth-shutter") {
         log = Logger(subsystem: subsystem, category: category)
+        volumeWriter = MonitorRemoteShutterVolumeWriter(log: log)
+        // The re-anchor's own echo is judged from when the slider actually moved, which with a
+        // leased view can be a few hundred milliseconds after the request.
+        volumeWriter.onWritten = { [weak self] value in
+            guard let self else { return }
+            self.presses.pinned(at: CFAbsoluteTimeGetCurrent())
+            if !self.isActive, self.pendingRestore?.volume == value { self.pendingRestore = nil }
+        }
     }
 
     /// Starts or stops listening to match the host's state. Idempotent: call it from every seam
@@ -98,8 +106,6 @@ public final class MonitorRemoteShutter {
                 stop()
                 return false
             }
-            installVolumeView()
-            beginSliderAcquisition()
             log.info("BT-SHUTTER reactivated existing monitor")
             return true
         }
@@ -109,12 +115,16 @@ public final class MonitorRemoteShutter {
         isActive = true
         eventGeneration += 1
         outputRouteSignature = Self.outputRouteSignature(for: session)
-        restoreVolumesByRoute = [outputRouteSignature: session.outputVolume]
+        let unrestored = pendingRestore.flatMap { $0.route == outputRouteSignature ? $0.volume : nil }
+        pendingRestore = nil
+        volumeWriter.cancel()
+        restoreVolumesByRoute = [outputRouteSignature: unrestored ?? session.outputVolume]
         // Taken from where the operator left it, so for almost everyone the monitor opening
-        // changes nothing they can hear.
+        // changes nothing they can hear, and no volume view is installed at all.
         presses.reanchor(volume: session.outputVolume)
-        installVolumeView()
-        beginSliderAcquisition()
+        if MonitorRemoteShutterPolicy.needsWrite(from: session.outputVolume, to: presses.anchor) {
+            setSystemVolume(presses.anchor)
+        }
         // `outputVolume` KVO is Apple's documented observation path. It is the primary detector;
         // the notification below merely supplements it at the 0/1 rails. Both feed the same
         // debounce, so an OS that emits both still produces exactly one record toggle.
@@ -174,11 +184,6 @@ public final class MonitorRemoteShutter {
         guard isActive else { return }
         isActive = false
         eventGeneration += 1
-        sliderAcquisitionGeneration += 1
-        sliderAcquisitionTask?.cancel()
-        sliderAcquisitionTask = nil
-        volumeWriteTask?.cancel()
-        volumeWriteTask = nil
         routeRecoveryTask?.cancel()
         routeRecoveryTask = nil
         volumeObservation?.invalidate()
@@ -187,22 +192,29 @@ public final class MonitorRemoteShutter {
         volumeObserver = nil
         if let routeObserver { NotificationCenter.default.removeObserver(routeObserver) }
         routeObserver = nil
-        // The slider is already established at shutdown, so restore synchronously while this
-        // monitor still owns an active audio session. Delayed writes can otherwise race a new
-        // activation or deactivate the clip player's session after a rapid surface transition.
-        let currentRouteSignature = Self.outputRouteSignature(
-            for: AVAudioSession.sharedInstance())
-        if let restoreVolume = restoreVolumesByRoute[currentRouteSignature], let volumeSlider {
-            volumeSlider.setValue(restoreVolume, animated: false)
-            log.info(
-                "BT-SHUTTER restored volume=\(restoreVolume, privacy: .public)")
+        // A slider still in hand restores synchronously while this monitor owns an active audio
+        // session; otherwise the writer leases the view once more and restores just after.
+        // Deactivation itself stays synchronous: a delayed one could end the clip player's session
+        // after a rapid surface transition. Where the operator's level never moved, nothing is
+        // written and no view is installed.
+        let session = AVAudioSession.sharedInstance()
+        let currentRouteSignature = Self.outputRouteSignature(for: session)
+        if let restoreVolume = restoreVolumesByRoute[currentRouteSignature],
+            MonitorRemoteShutterPolicy.needsWrite(from: session.outputVolume, to: restoreVolume)
+        {
+            if volumeWriter.writeNow(restoreVolume) {
+                log.info("BT-SHUTTER restored volume=\(restoreVolume, privacy: .public)")
+                volumeWriter.cancel()
+            } else {
+                pendingRestore = (currentRouteSignature, restoreVolume)
+                log.info("BT-SHUTTER restoring volume=\(restoreVolume, privacy: .public) after stop")
+                volumeWriter.write(restoreVolume)
+            }
+        } else {
+            volumeWriter.cancel()
         }
         restoreVolumesByRoute.removeAll()
         outputRouteSignature = ""
-        let view = volumeView
-        volumeView = nil
-        volumeSlider = nil
-        view?.removeFromSuperview()
         do {
             try AVAudioSession.sharedInstance().setActive(
                 false, options: .notifyOthersOnDeactivation)
@@ -292,7 +304,8 @@ public final class MonitorRemoteShutter {
     private func handleAudioRouteChange(signature: String) {
         // Each route remembers its own output volume. Connecting headphones or another Bluetooth
         // route can therefore move outputVolume without a shutter press; suppress that transition
-        // and rebuild MPVolumeView because its internal slider may be replaced for the new route.
+        // and drop the leased MPVolumeView because its internal slider may be replaced for the new
+        // route.
         guard isActive else { return }
         guard signature != outputRouteSignature else {
             suppressVolumeEventsUntil = CFAbsoluteTimeGetCurrent() + 0.8
@@ -303,14 +316,7 @@ public final class MonitorRemoteShutter {
         outputRouteSignature = signature
         suppressVolumeEventsUntil = CFAbsoluteTimeGetCurrent() + 0.8
         log.info("BT-SHUTTER audio route changed; suppressing volume events")
-        volumeWriteTask?.cancel()
-        volumeWriteTask = nil
-        sliderAcquisitionGeneration += 1
-        sliderAcquisitionTask?.cancel()
-        sliderAcquisitionTask = nil
-        volumeSlider = nil
-        volumeView?.removeFromSuperview()
-        volumeView = nil
+        volumeWriter.cancel()
         routeRecoveryTask?.cancel()
         routeRecoveryTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(0.2))
@@ -323,8 +329,9 @@ public final class MonitorRemoteShutter {
             // carried across; otherwise plugging in headphones would drag their volume to
             // whatever the speaker happened to be at.
             self.presses.reanchor(volume: routeVolume)
-            self.installVolumeView()
-            self.beginSliderAcquisition()
+            if MonitorRemoteShutterPolicy.needsWrite(from: routeVolume, to: self.presses.anchor) {
+                self.setSystemVolume(self.presses.anchor)
+            }
             self.routeRecoveryTask = nil
         }
     }
@@ -336,93 +343,10 @@ public final class MonitorRemoteShutter {
             .joined(separator: "|")
     }
 
-    /// An `MPVolumeView` in the window suppresses the system volume HUD. This implementation also
-    /// uses its internal slider as a best-effort re-anchor; iOS does not expose a documented API
-    /// for intercepting generic HID volume commands without first changing system volume. The view
-    /// must be genuinely in the visible hierarchy for HUD suppression to hold on device, so it
-    /// sits at 1×1 pt in a corner at near-zero alpha rather than offscreen.
-    private func installVolumeView() {
-        guard volumeView == nil else { return }
-        guard
-            let window = UIApplication.shared.connectedScenes
-                .compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first
-        else {
-            log.error("BT-SHUTTER volume view has no key window")
-            return
-        }
-        let view = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
-        view.alpha = 0.02
-        view.clipsToBounds = true
-        view.isUserInteractionEnabled = false
-        window.addSubview(view)
-        volumeView = view
-        log.info("BT-SHUTTER volume view installed")
-    }
-
-    /// `MPVolumeView` builds its slider subview asynchronously after joining the hierarchy:
-    /// searching too early finds nothing (and silently broke anchoring in the first cut of this
-    /// feature). Poll briefly until it appears, then take the initial anchor.
-    private func beginSliderAcquisition() {
-        guard isActive, volumeSlider == nil, sliderAcquisitionTask == nil else { return }
-        sliderAcquisitionGeneration += 1
-        let generation = sliderAcquisitionGeneration
-        sliderAcquisitionTask = Task { @MainActor [weak self] in
-            var attempt = 0
-            while !Task.isCancelled {
-                guard let self, self.isActive, self.volumeSlider == nil,
-                    self.sliderAcquisitionGeneration == generation
-                else { return }
-                // Scene activation and MPVolumeView's private hierarchy are both asynchronous.
-                if self.volumeView == nil { self.installVolumeView() }
-                if let volumeView = self.volumeView,
-                    let slider = Self.firstSlider(in: volumeView)
-                {
-                    self.volumeSlider = slider
-                    self.bluetoothSliderAcquired(slider, attempt: attempt)
-                    self.sliderAcquisitionTask = nil
-                    return
-                }
-                if attempt == 20 {
-                    log.error(
-                        "BT-SHUTTER slider acquisition delayed; continuing to retry")
-                }
-                attempt += 1
-                try? await Task.sleep(for: attempt <= 20 ? .seconds(0.15) : .seconds(1))
-            }
-        }
-    }
-
-    private func bluetoothSliderAcquired(_ slider: UISlider, attempt: Int) {
-        log.info(
-            "BT-SHUTTER slider acquired class=\(NSStringFromClass(type(of: slider)), privacy: .public) attempt=\(attempt, privacy: .public)"
-        )
-        setSystemVolume(presses.anchor)
-    }
-
     private func setSystemVolume(_ value: Float) {
         presses.pinned(at: CFAbsoluteTimeGetCurrent())
-        // Capture the current slider before the async delay; lifecycle or route teardown may clear
-        // the monitor's property while this write is waiting.
-        guard let slider = volumeSlider else {
-            log.error(
-                "BT-SHUTTER cannot set volume=\(value, privacy: .public): slider unavailable")
-            return
-        }
-        log.info(
-            "BT-SHUTTER setting volume=\(value, privacy: .public)")
-        volumeWriteTask?.cancel()
-        volumeWriteTask = Task { @MainActor [weak self, weak slider] in
-            // The slider ignores writes for a beat after appearing; a short defer makes them stick.
-            try? await Task.sleep(for: .seconds(0.05))
-            guard !Task.isCancelled, let self, self.isActive, let slider else { return }
-            slider.setValue(value, animated: false)
-            try? await Task.sleep(for: .seconds(0.1))
-            guard !Task.isCancelled, self.isActive else { return }
-            let actual = AVAudioSession.sharedInstance().outputVolume
-            log.info(
-                "BT-SHUTTER volume readback requested=\(value, privacy: .public) actual=\(actual, privacy: .public)"
-            )
-        }
+        log.info("BT-SHUTTER setting volume=\(value, privacy: .public)")
+        volumeWriter.write(value)
     }
 
     static func firstSlider(in view: UIView) -> UISlider? {
@@ -431,6 +355,126 @@ public final class MonitorRemoteShutter {
             if let slider = firstSlider(in: subview) { return slider }
         }
         return nil
+    }
+}
+
+/// The remote shutter's only way to set the system volume: the slider inside an `MPVolumeView`.
+/// The view is leased (`MonitorRemoteShutterVolumeLease`): installed in the key window for a
+/// write, removed a short hold after the last one, so an armed shutter at rest leaves nothing in
+/// the window that keeps the app from idling. The window and view are injectable for tests.
+@MainActor final class MonitorRemoteShutterVolumeWriter {
+    /// Polls before the writer gives up on a slider that never appears: about 3 s at 0.15 s, then
+    /// 20 s at 1 s. Giving up releases the view, so a broken OS release cannot pin the app awake.
+    nonisolated static let acquisitionAttempts = 40
+
+    var hostWindow: @MainActor () -> UIWindow? = {
+        UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first
+    }
+    /// The view must be genuinely in the visible hierarchy for its slider to work on device, so it
+    /// sits at 1x1 pt in a corner at near-zero alpha rather than offscreen.
+    var makeView: @MainActor () -> UIView = {
+        let view = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        view.alpha = 0.02
+        return view
+    }
+    /// Called right after the slider moved, with the value written.
+    var onWritten: (@MainActor (Float) -> Void)?
+
+    private(set) var view: UIView?
+    private var slider: UISlider?
+    private var lease = MonitorRemoteShutterVolumeLease()
+    private var task: Task<Void, Never>?
+    private let log: Logger
+
+    init(log: Logger) {
+        self.log = log
+    }
+
+    /// Leases the view and writes `value` once its slider exists; the newest request wins.
+    func write(_ value: Float) {
+        lease.request(volume: value)
+        install()
+        task?.cancel()
+        task = Task { @MainActor [weak self] in await self?.run() }
+    }
+
+    /// Writes at once when a slider is already in hand; false when it is not.
+    @discardableResult
+    func writeNow(_ value: Float) -> Bool {
+        guard let slider else { return false }
+        slider.setValue(value, animated: false)
+        onWritten?(value)
+        return true
+    }
+
+    /// Drops any pending write and removes the view now.
+    func cancel() {
+        task?.cancel()
+        task = nil
+        lease.end()
+        remove()
+    }
+
+    private func run() async {
+        // `MPVolumeView` builds its slider asynchronously after joining the hierarchy: searching
+        // too early finds nothing, so poll until it appears.
+        var attempt = 0
+        while slider == nil {
+            guard !Task.isCancelled else { return }
+            if view == nil { install() }
+            if let view, let found = MonitorRemoteShutter.firstSlider(in: view) {
+                slider = found
+                log.info(
+                    "BT-SHUTTER slider acquired class=\(NSStringFromClass(type(of: found)), privacy: .public) attempt=\(attempt, privacy: .public)"
+                )
+                break
+            }
+            attempt += 1
+            if attempt == 20 { log.error("BT-SHUTTER slider acquisition delayed; continuing to retry") }
+            if attempt >= Self.acquisitionAttempts {
+                log.error("BT-SHUTTER slider unavailable; releasing the volume view")
+                cancel()
+                return
+            }
+            try? await Task.sleep(for: attempt <= 20 ? .seconds(0.15) : .seconds(1))
+        }
+        // The slider ignores writes for a beat after appearing; a short defer makes them stick.
+        try? await Task.sleep(for: .seconds(0.05))
+        guard !Task.isCancelled, let slider, let value = lease.pendingVolume else { return }
+        slider.setValue(value, animated: false)
+        lease.wrote(at: CFAbsoluteTimeGetCurrent())
+        onWritten?(value)
+        try? await Task.sleep(for: .seconds(0.1))
+        guard !Task.isCancelled else { return }
+        log.info(
+            "BT-SHUTTER volume readback requested=\(value, privacy: .public) actual=\(AVAudioSession.sharedInstance().outputVolume, privacy: .public)"
+        )
+        try? await Task.sleep(for: .seconds(MonitorRemoteShutterVolumeLease.hold))
+        guard !Task.isCancelled, !lease.needsView(at: CFAbsoluteTimeGetCurrent()) else { return }
+        task = nil
+        remove()
+    }
+
+    private func install() {
+        guard view == nil else { return }
+        guard let window = hostWindow() else {
+            log.error("BT-SHUTTER volume view has no key window")
+            return
+        }
+        let view = makeView()
+        view.clipsToBounds = true
+        view.isUserInteractionEnabled = false
+        window.addSubview(view)
+        self.view = view
+        log.info("BT-SHUTTER volume view installed")
+    }
+
+    private func remove() {
+        guard let view else { return }
+        self.view = nil
+        slider = nil
+        view.removeFromSuperview()
+        log.info("BT-SHUTTER volume view released")
     }
 }
 

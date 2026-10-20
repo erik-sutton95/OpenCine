@@ -1,5 +1,6 @@
 #if os(iOS)
 import MonitorUI
+import OpenCineAppKit
 import SwiftUI
 import Testing
 import UIKit
@@ -41,6 +42,73 @@ import UIKit
         #expect(!owner.isActive)
         #expect(!owner.update(enabled: false, monitorPresented: true, liveViewFront: true))
         #expect(!owner.isActive, "a disabled shutter never takes the audio session")
+    }
+
+    /// The idle regression: the writer installs its volume view only for a write and releases it
+    /// a hold later, so an armed shutter at rest leaves nothing in the window that keeps the app
+    /// from idling.
+    @Test func aWriteLeasesTheVolumeViewAndReleasesItAfterTheHold() async throws {
+        let (writer, window, slider) = Self.writer()
+        var written: [Float] = []
+        writer.onWritten = { written.append($0) }
+        #expect(writer.view == nil && window.subviews.isEmpty, "nothing is installed before a write")
+        #expect(!writer.writeNow(0.5), "no slider is in hand without a lease")
+
+        writer.write(0.25)
+        writer.write(0.75)
+        let view = try #require(writer.view)
+        #expect(view.superview === window)
+        try await Self.waitUntil { written == [0.75] }
+        #expect(slider.writes == [0.75], "the newest request is the one written")
+        #expect(writer.view === view, "held for the write's echo")
+        #expect(writer.writeNow(0.5), "a slider is in hand while the lease is held")
+
+        try await Self.waitUntil(seconds: MonitorRemoteShutterVolumeLease.hold + 2) { writer.view == nil }
+        #expect(view.superview == nil && window.subviews.isEmpty, "released after the hold")
+        #expect(!writer.writeNow(0.5))
+    }
+
+    /// Stop and route changes drop the lease at once, even with a write still waiting.
+    @Test func cancelReleasesTheVolumeViewAtOnce() async throws {
+        let (writer, window, slider) = Self.writer()
+        writer.write(0.5)
+        writer.cancel()
+        #expect(writer.view == nil && window.subviews.isEmpty)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(slider.writes.isEmpty, "a cancelled write never lands")
+        #expect(writer.view == nil)
+    }
+
+    private final class RecordingSlider: UISlider {
+        var writes: [Float] = []
+        override func setValue(_ value: Float, animated: Bool) {
+            writes.append(value)
+            super.setValue(value, animated: animated)
+        }
+    }
+
+    private static func writer() -> (MonitorRemoteShutterVolumeWriter, UIWindow, RecordingSlider) {
+        let writer = MonitorRemoteShutterVolumeWriter(log: .init(subsystem: "SIMULATED", category: "test"))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+        let slider = RecordingSlider()
+        writer.hostWindow = { window }
+        writer.makeView = {
+            let view = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+            view.addSubview(slider)
+            return view
+        }
+        return (writer, window, slider)
+    }
+
+    private static func waitUntil(seconds: Double = 2, _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(seconds)
+        while !condition() {
+            guard Date() < deadline else {
+                Issue.record("condition not met within \(seconds) s")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
     }
 }
 #endif
