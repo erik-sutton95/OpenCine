@@ -28,6 +28,8 @@ func body(x: Int) async {
     let y: Int = { 1 }()
 }
 final class Model {
+    var first: () async -> Void = {}, second: () async -> Void = {}
+    let third: (Int) async -> Int = { $0 }
     @ObservationIgnored private var wait: @MainActor (Duration) async -> Void = { _ in }
 }
 SWIFT

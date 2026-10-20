@@ -12,12 +12,18 @@ roots=("$@")
 [[ ${#roots[@]} -eq 0 ]] && roots=(Sources)
 # A parameter: `name: <type with async> = {`, possibly split across lines. The type may not cross
 # into the next `, name:` or contain `{`, `}` or `;`, so a function body or a stored property
-# (`var`/`let`, which lives only in the library) never matches.
+# (`var`/`let`, including later bindings of one declaration, which live only in the library)
+# never matches.
 hits="$(find "${roots[@]}" -name '*.swift' -print0 | xargs -0 perl -0777 -ne '
   my $seg = qr/(?:(?!,\s*\w+\s*:)[^={};])*/;
-  while (/(?:^|[,(])\s*((?:@\w+(?:\([^)]*\))?\s+)*(?:\w+\s+)?(\w+)\s*:$seg\basync\b$seg=\s*\{)/g) {
-    next if $2 eq "var" || $2 eq "let";
-    my $line = 1 + (substr($_, 0, $-[1]) =~ tr/\n//);
+  my $decl = qr/^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|internal|private|fileprivate|open|static|class|lazy|final|override|nonisolated|weak|unowned)(?:\(set\))?\s+)*(?:var|let)\b/;
+  while (/(?:^|[,(])\s*((?:@\w+(?:\([^)]*\))?\s+)*(?:(\w+)\s+)?\w+\s*:$seg\basync\b$seg=\s*\{)/g) {
+    my $start = $-[1];
+    next if defined $2 && ($2 eq "var" || $2 eq "let");
+    # A later binding of `var a: ... = {}, b: ...` is still a stored property.
+    my $from = rindex($_, "\n", $start) + 1;
+    next if substr($_, $from, $start - $from) =~ $decl;
+    my $line = 1 + (substr($_, 0, $start) =~ tr/\n//);
     (my $text = $1) =~ s/\s+/ /g;
     print "$ARGV:$line: $text\n";
   }
