@@ -697,14 +697,12 @@ class LunaCameraSession internal constructor(
         val exposure = if (current.value(SettingKey.ISO).value != null) Availability.Available else Availability.Unavailable(UnavailableReason.NotReady)
         val emulated = shutterPresentation == HostShutterPresentation.EMULATED_ANGLE
         // Angle is a presentation: the camera's durations and Auto stay writable (an angle pick,
-        // Manual from Auto, AE-L), so Auto never blocks the first manual shutter.
-        val shutterAvailability = when {
-            !emulated -> exposure
-            shootingMode == null -> Availability.Unavailable(UnavailableReason.NotReady)
-            shootingMode?.isPhoto == true -> exposure
-            reportedCadence.value == null -> Availability.Unavailable(UnavailableReason.NotReady)
-            else -> exposure
-        }
+        // Manual from Auto, AE-L), so Auto never blocks the first manual shutter, and a missing
+        // cadence withholds only the angles (CodeRabbit on #114). Swift twin.
+        val shutterAvailability =
+            if (emulated && shootingMode == null) Availability.Unavailable(UnavailableReason.NotReady) else exposure
+        // Angles are offered only where `exposure()` can compose them: video with a reported cadence.
+        val offersAngles = emulated && shootingMode?.isPhoto == false && reportedCadence.value != null
         val nativeShutter = listOf<SettingValue>(SettingValue.Shutter(ShutterValue.Auto)) +
             SHUTTER_DENOMINATORS.map { SettingValue.Shutter(ShutterValue.Duration(Rational(1, it))) }
         val recording = when {
@@ -720,7 +718,7 @@ class LunaCameraSession internal constructor(
             SettingDescriptor(
                 SettingKey.SHUTTER, availability = shutterAvailability,
                 semantics = SettingSemantics(implementation = if (emulated) SettingSemantics.Implementation.EMULATED else SettingSemantics.Implementation.NATIVE),
-                domain = SettingDomain(if (emulated) HostShutterAngle.choices + nativeShutter else nativeShutter),
+                domain = SettingDomain(if (offersAngles) HostShutterAngle.choices + nativeShutter else nativeShutter),
             ),
             SettingDescriptor(
                 SettingKey.WHITE_BALANCE,
