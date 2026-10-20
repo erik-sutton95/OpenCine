@@ -863,9 +863,10 @@ init IntegrationPairingFlow(presentation: MonitorPresentation.CameraPairingPrese
 init IntegrationSlots(pairing: (() -> SwiftUI.AnyView)?, addRoute: ((OpenCineCore.SavedCamera, @escaping (OpenCineCore.RouteDraft?) -> Swift.Void) -> SwiftUI.AnyView)?, prompt: ((any OpenCineCore.IntegrationPrompt) -> SwiftUI.AnyView?)?, nearbyCard: ((OpenCineCore.NearbyCamera) -> NearbyCardCopy)?, addSetup: ((OpenCineCore.SavedCamera, @escaping (OpenCineCore.RouteDraft?) -> Swift.Void) -> AddSetupFlow)?)
 init MonitorActivityShareSheet(items: [Any])
 init MonitorAppStartup(reports: MonitorStartupReports, sleep: (Swift.Duration) async throws -> Swift.Void)
+init MonitorAssistDefaults(zebraHighlightIRE: Swift.Double, crushClipCompensation: OpenCineMedia.MonitorCrushClipCompensation)
 init MonitorAssistPreferenceKeys(assist: Swift.String, cleanPins: Swift.String, playback: Swift.String)
 init MonitorAssistSnapshot(_: MonitorAssistState<Looks>)<Looks where Looks : MonitorLookProvider>
-init MonitorAssistState(looks: Looks, storage: Foundation.UserDefaults, keys: MonitorAssistPreferenceKeys, cleanPinCases: [MonitorPresentation.MonitorAssistSelection], onToggle: ((MonitorPresentation.MonitorAssistSelection, Swift.Bool) -> Swift.Void)?)<Looks where Looks : MonitorLookProvider>
+init MonitorAssistState(looks: Looks, storage: Foundation.UserDefaults, keys: MonitorAssistPreferenceKeys, cleanPinCases: [MonitorPresentation.MonitorAssistSelection], defaults: MonitorAssistDefaults, onToggle: ((MonitorPresentation.MonitorAssistSelection, Swift.Bool) -> Swift.Void)?)<Looks where Looks : MonitorLookProvider>
 init MonitorAudioPreferenceStore(storage: Foundation.UserDefaults, key: Swift.String)
 init MonitorAudioStoredCenter(_: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)
 init MonitorBrowserInternetHandoff(hop: MonitorInternetHop<Route>)<Route>
@@ -1068,6 +1069,7 @@ let MonitorActivityShareSheet.items: [Any]
 let MonitorAssistPreferenceKeys.assist: Swift.String
 let MonitorAssistPreferenceKeys.cleanPins: Swift.String
 let MonitorAssistPreferenceKeys.playback: Swift.String
+let MonitorAssistState.defaults: MonitorAssistDefaults
 let MonitorAssistState.looks: Looks
 let MonitorCaptureChoice.label: Swift.String
 let MonitorCaptureChoice.value: OpenCineCore.SettingValue
@@ -1594,6 +1596,7 @@ static func StationNetworkSetupRules.phoneNetworks(_: [Swift.String]) -> [Swift.
 static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext) -> AddSetupChooser
 static func StoredData.userDefaults(_: Foundation.UserDefaults, key: Swift.String) -> StoredData
 static let DiagnosticsDevice.current: DiagnosticsDevice
+static let MonitorAssistDefaults.standard: MonitorAssistDefaults
 static let MonitorAssistSelection.readsSourceCurve: Swift.Set<MonitorPresentation.MonitorAssistSelection>
 static let MonitorCapturePresentation.unreportedMarks: Swift.Set<Swift.String>
 static let MonitorChromeEditBadgeLayout.badgeGap: CoreGraphics.CGFloat
@@ -1602,6 +1605,7 @@ static let MonitorChromeEditBadgeLayout.edgeInset: CoreGraphics.CGFloat
 static let MonitorChromeEditBadgeLayout.overhang: CoreGraphics.CGFloat
 static let MonitorChromeEditBadgeLayout.touchTarget: CoreGraphics.CGFloat
 static let MonitorControlModel.connectFirst: Swift.String
+static let MonitorControlModel.rateChangeHold: Swift.Duration
 static let MonitorControlModel.recordingUnknown: Swift.String
 static let MonitorDeliveryBatchPolicy.emptySelection: Swift.String
 static let MonitorDeliveryBatchPolicy.internetFailure: Swift.String
@@ -1655,6 +1659,7 @@ struct FeedIncidentStore: Sendable
 struct IntegrationPairingFlow
 struct IntegrationSlots
 struct MonitorActivityShareSheet: Sendable, UIViewControllerRepresentable, View
+struct MonitorAssistDefaults: Equatable, Hashable, Sendable
 struct MonitorAssistPreferenceKeys: Sendable
 struct MonitorAssistSnapshot: Decodable, Encodable
 struct MonitorCaptureButton: Sendable, View
@@ -1912,6 +1917,8 @@ var IntegrationSlots.pairing: (() -> SwiftUI.AnyView)?
 var IntegrationSlots.prompt: ((any OpenCineCore.IntegrationPrompt) -> SwiftUI.AnyView?)?
 var MonitorAppStartup.consentOffer: MonitorStartupConsent?
 var MonitorAppStartup.isRetired: Swift.Bool
+var MonitorAssistDefaults.crushClipCompensation: OpenCineMedia.MonitorCrushClipCompensation
+var MonitorAssistDefaults.zebraHighlightIRE: Swift.Double
 var MonitorAssistSnapshot.crushClipCompensation: Swift.Int?
 var MonitorAssistSnapshot.desqueezeCustom: Swift.Bool?
 var MonitorAssistSnapshot.desqueezeCustomFactor: Swift.Double?
@@ -2029,6 +2036,7 @@ var MonitorCapturePolicy.tapAction: MonitorCapturePolicy.Action?
 var MonitorCapturePopupContainer.body: some SwiftUI.View
 var MonitorCapturePopupContainer.placement: MonitorPresentation.MonitorCapturePopupLayout
 var MonitorCaptureReadout.body: some SwiftUI.View
+var MonitorControlModel.frameRateSettling: Swift.Bool
 var MonitorControlModel.isRecording: Swift.Bool?
 var MonitorControlModel.noteFor: (OpenCineCore.CommandStage, Swift.String) -> Swift.String?
 var MonitorControlModel.onChange: () -> Swift.Void

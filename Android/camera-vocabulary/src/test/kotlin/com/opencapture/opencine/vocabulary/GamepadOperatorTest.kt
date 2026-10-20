@@ -6,6 +6,15 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class GamepadOperatorTest {
+    /** Owner 2026-10-20: "42°" flashed during a 4K30/4K120 change. Swift twin. */
+    @Test fun shutterHudHoldsThePreferredAngleWhileSettling() {
+        val luna = listOf(1000, 500, 250, 125, 60, 50)
+        assertEquals("45°", GamepadShutterSync.angleLabel(250, 30, luna, 180.0))
+        assertEquals("180°", GamepadShutterSync.angleLabel(250, 30, luna, 180.0, settling = true))
+        assertEquals("180°", GamepadShutterSync.angleLabel(60, 120, luna, 180.0, settling = true))
+        assertEquals("180°", GamepadShutterSync.angleLabel(250, 120, luna, 180.0))
+    }
+
     @Test
     fun gimbalStickDefaultsLeftAndIgnoresTheOtherAxes() {
         assertEquals(GamepadGimbalStick.DEFAULT, GamepadGimbalStick.LEFT)

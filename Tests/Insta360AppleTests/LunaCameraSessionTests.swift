@@ -101,6 +101,45 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(exposure.shutterSeconds, 1.0 / 50, accuracy: 1e-9)
     }
 
+    /// Owner 2026-10-20, Luna Ultra 8K30, shutter priority, Angle 180: SHUTTER read "0.0108°".
+    /// The camera's single-precision readback of 1/60 is not bit-exact, became 16667/1000000 and
+    /// its denominator alone made 360 x 30 / 1e6 degrees.
+    func testAnInexactReadbackIsTheSpeedAndItsAngle() async throws {
+        let camera = FakeLuna()
+        camera.reportsSinglePrecisionShutter = true
+        camera.program = LunaExposureProgram.shutterPriority.rawValue
+        camera.shutterSeconds = 1.0 / 60
+        let session = camera.connectedSession(now: { MonotonicInstant(.zero) })
+        try reportCadence(LunaVideoResolution.rawValue(width: 3840, height: 2160, framesPerSecond: 30), to: session)
+        XCTAssertEqual(session.current.value(of: .shutter).value, .shutter(.duration(Rational(1, 60))))
+        session.configureShutter(presentation: .emulatedAngle)
+        XCTAssertEqual(session.current.value(of: .shutter).value, .shutter(.angle(180)))
+    }
+
+    /// 180 degrees sends the Luna wheel's nearest 1/N at each rate, confirms against an inexact
+    /// readback and reads back the angle the camera really makes.
+    func testAngleSendsTheNearestWheelSpeedPerRate() async throws {
+        let cases: [(fps: Double, denom: Int)] = [(24, 50), (25, 50), (30, 60), (60, 125), (120, 250)]
+        for (fps, denom) in cases {
+            let camera = FakeLuna()
+            camera.reportsSinglePrecisionShutter = true
+            camera.program = LunaExposureProgram.manual.rawValue
+            camera.iso = 400
+            camera.shutterSeconds = 1.0 / 1000
+            let session = camera.connectedSession(now: { MonotonicInstant(.zero) })
+            try reportCadence(LunaVideoResolution.rawValue(width: 3840, height: 2160, framesPerSecond: fps), to: session)
+            session.configureShutter(presentation: .emulatedAngle)
+            let (_, outcome) = await submit(.set(.shutter(.angle(180))), to: session)
+            XCTAssertEqual(outcome.stage, .confirmed, "\(fps) fps")
+            let exposure = try XCTUnwrap(LunaPhotographySettings(response: try XCTUnwrap(camera.sent.last).body).videoExposure)
+            XCTAssertEqual(exposure.shutterSeconds, 1.0 / Double(denom), accuracy: 1e-12, "\(fps) fps")
+            guard case .shutter(.angle(let angle))? = session.current.value(of: .shutter).value else {
+                return XCTFail("\(fps) fps has no angle")
+            }
+            XCTAssertEqual(angle, 360 * fps / Double(denom), accuracy: 1e-9, "\(fps) fps")
+        }
+    }
+
     private func reportPhotoMode(to session: LunaCameraSession) throws {
         let nested = try ProtoMessage.integer(field: 40, value: 0) + ProtoMessage.integer(field: 41, value: 100)
         session.ingest(device: try LunaDeviceStatus(response: ProtoMessage.blob(field: 2, value: nested)))

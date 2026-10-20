@@ -857,7 +857,7 @@ static func GamepadGimbalStick.restHeldMotion(from: GamepadGimbalStick, to: Game
 static func GamepadOperatorMap.dpad(_: GamepadDpad) -> GamepadOperatorAction
 static func GamepadOperatorMap.face(_: GamepadFaceButton) -> GamepadOperatorAction
 static func GamepadOperatorMap.shoulder(_: GamepadShoulder) -> GamepadOperatorAction
-static func GamepadShutterSync.angleLabel(denom: Swift.Int, fps: Swift.Int, available: [Swift.Int], preferredAngle: Swift.Double) -> Swift.String
+static func GamepadShutterSync.angleLabel(denom: Swift.Int, fps: Swift.Int, available: [Swift.Int], preferredAngle: Swift.Double, settling: Swift.Bool) -> Swift.String
 static func GamepadShutterSync.preferredAngle(afterDenom: Swift.Int, fps: Swift.Int) -> Swift.Double?
 static func GamepadShutterSync.shouldPersistPreferredAngle(usesAngle: Swift.Bool, isPhoto: Swift.Bool, expoIsAuto: Swift.Bool) -> Swift.Bool
 static func GimbalStick.ResponseCurve.fromLabel(_: Swift.String) -> GimbalStick.ResponseCurve

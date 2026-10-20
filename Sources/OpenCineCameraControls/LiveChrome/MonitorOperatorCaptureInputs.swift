@@ -56,13 +56,8 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         } else {
             let nativeAngle = host.shutterUsesAngle && !status.isPhoto
             let field = nativeAngle ? nil : host.control.captureField(.shutter, selection: selection)
-            let shutter: ShutterValue?
-            if case .shutter(let value)? = host.control.captureValue(.shutter, selection: selection) { shutter = value } else { shutter = nil }
-            let rate: Rational?
-            if case .frameRate(let value)? = host.control.snapshot?.value(of: .frameRate).value { rate = value } else { rate = nil }
-            append(.shutter, "SHUTTER", nativeAngle ? CaptureNativeReadoutPresentation.shutterAngle(
-                common: shutter, frameRate: rate, available: CaptureLists.shutterDenoms(from: status),
-                preferredAngle: host.shutterAngleDegrees) : commonValue(.shutter), field: field,
+            append(.shutter, "SHUTTER", nativeAngle ? host.shutterAngleReadout(selection: selection).value
+                : commonValue(.shutter), field: field,
                 quickEnabled: nativeAngle || field != nil)
         }
         let exposure = host.autoExposureLocked ? CaptureLists.aeLock : host.control.snapshot?.exposureProgram.value.map(MonitorCapturePresentation.exposureProgram) ?? "--"
@@ -101,7 +96,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
             let ev = sheet == .shutter && automatic
             return MonitorOperatorCameraPanel(key: sheet, top: sheet.isTopAnchored, chrome: .content,
                 title: ev ? "EXPOSURE" : sheet.headerLabel,
-                subtitle: ev ? "Compensation" : sheet == .shutter ? (status.isPhoto ? "Speed" : "Angle · speed")
+                subtitle: ev ? "Compensation" : sheet == .shutter ? host.shutterPanelSubtitle(selection: selection)
                     : sheet == .resolution && status.isPhoto ? "Photo" : sheet.subtitle)
         }
         var ownedPreview: UUID?
