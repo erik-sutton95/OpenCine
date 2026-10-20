@@ -852,8 +852,14 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     if !value {
       if sceneLossPolicy == .clearRequest {
         playRequestRevision &+= 1
-        guard publish([.playRequested], { $0.playRequested = false }), admit(admitted)
-        else { return }
+        // The cleared request reads paused before native reports it, so the first toggle on return resumes.
+        publish([.playRequested, .reportedPlaying, .reportedTransport]) {
+          $0.playRequested = false
+          $0.reportedPlaying = false
+          $0.reportedTransport = nil
+        }
+        // A same-item observer may publish during that commit; only a successor or a regained scene skips the pause.
+        guard admit(admitted), !sceneActive else { return }
       }
       cancelScrub(interrupted: false, admitted: admitted)
       if admit(admitted) { native.pause(token: admitted) }

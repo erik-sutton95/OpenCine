@@ -364,6 +364,34 @@ import Testing
         model.setPlaying(true); await Task.yield()
         #expect(port.played.count == 2)
     }
+    @available(macOS 14, *) @Test func firstToggleAfterSceneLossResumesWhenNativeNeverReportedThePause() async {
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("scene-toggle")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let item = model.token
+        port.onEvent?(item, .playing(true))
+        model.setSceneActive(false); model.setSceneActive(true); await Task.yield()
+        #expect(!model.canPause, "A cleared request reads paused until native reports again")
+        model.togglePlaying(); await Task.yield()
+        #expect(model.playRequested && port.played == [item, item])
+    }
+    @available(macOS 14, *) @Test func sameItemObserverDuringSceneLossCannotSkipTheNativePause() async {
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("scene-observer")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        var pauses = 0
+        port.onPause = { pauses += 1 }
+        withObservationTracking { _ = model.playRequested } onChange: {
+            MainActor.assumeIsolated { model.setLooping(true) }
+        }
+        model.setSceneActive(false)
+        #expect(model.looping && !model.playRequested)
+        #expect(pauses == 1, "Losing the scene must still pause the native player")
+    }
     @available(macOS 14, *) @Test func closeRejectsLateReadyAndLeavesBorrowedGalleryOpen() async {
         let (root, library, port, model) = fixture()
         defer { library.close(); try? FileManager.default.removeItem(at: root) }

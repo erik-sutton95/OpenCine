@@ -399,7 +399,10 @@ public class MonitorMediaPlaybackModel<P, L>(
         if (!value) {
             if (sceneLossPolicy == MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST) {
                 playRequestRevision += 1
-                if (!mutate { it.copy(playRequested = false) } || !admit(token)) return
+                // The cleared request reads paused before native reports it, so the first toggle on return resumes.
+                mutate { it.copy(playRequested = false, reportedPlaying = false, reportedTransport = null) }
+                // A same-item observer may publish during that commit; only a successor or a regained scene skips the pause.
+                if (!admit(token) || sceneActive) return
             }
             cancelScrub(false, token)
             if (admit(token)) native.pause(token)

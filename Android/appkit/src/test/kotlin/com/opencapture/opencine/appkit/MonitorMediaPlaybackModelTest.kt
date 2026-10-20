@@ -349,6 +349,35 @@ class MonitorMediaPlaybackModelTest {
             assertEquals(2, port.played.size)
         } finally { fixture.close() }
     }
+    @Test fun firstToggleAfterSceneLossResumesWhenNativeNeverReportedThePause() = runTest {
+        val fixture = fixture(backgroundScope)
+        val model = fixture.model; val port = fixture.port
+        try {
+            val row = record("scene-toggle")
+            model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token
+            port.onEvent?.invoke(item, MonitorPlaybackEvent.Playing(true))
+            model.setSceneActive(false); model.setSceneActive(true); runCurrent()
+            assertFalse(model.state.value.canPause, "A cleared request reads paused until native reports again")
+            model.togglePlaying(); runCurrent()
+            assertTrue(model.state.value.playRequested); assertEquals(listOf(item, item), port.played)
+        } finally { fixture.close() }
+    }
+    @Test fun sameItemObserverDuringSceneLossCannotSkipTheNativePause() = runTest {
+        val fixture = fixture(backgroundScope)
+        val model = fixture.model; val port = fixture.port
+        try {
+            val row = record("scene-observer")
+            model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            var pauses = 0; port.onPause = { pauses += 1 }; var looped = false
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                model.state.collect { if (!looped && !it.playRequested) { looped = true; model.setLooping(true) } }
+            }
+            model.setSceneActive(false)
+            assertTrue(looped); assertTrue(model.state.value.looping); assertFalse(model.state.value.playRequested)
+            assertEquals(1, pauses, "Losing the scene must still pause the native player")
+        } finally { fixture.close() }
+    }
     @Test fun closeRejectsLateReadyAndLeavesBorrowedGalleryOpen() = runTest {
         val fixture = fixture(backgroundScope); val model = fixture.model; val port = fixture.port
         try {
