@@ -966,7 +966,7 @@ init MonitorOperatorCaptureInputs(readouts: [MonitorOperatorLiveReadout<Key, Sec
 init MonitorOperatorCapturePopup(inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>, control: MonitorControlModel, state: MonitorOperatorCaptureState<Key, NativeIdentity>, layout: MonitorPresentation.FieldMonitorLayout, safeArea: MonitorPresentation.MonitorSafeArea, enabled: Swift.Bool, commandEnabled: Swift.Bool, currentSource: () -> Swift.Bool, passthroughFrames: [CoreFoundation.CGRect], coordinateSpace: Swift.String, content: (Key, MonitorPresentation.MonitorCapturePopupLayout) -> Content)<Key, Section, NativeIdentity, Content where Key : Swift.Hashable, Section : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable, Content : SwiftUI.View>
 init MonitorOperatorCaptureState()<Key, NativeIdentity where Key : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable>
 init MonitorOperatorCaptureStrip(inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>, control: MonitorControlModel, state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity, enabled: Swift.Bool, commandEnabled: Swift.Bool, currentSource: () -> Swift.Bool, coordinateSpace: Swift.String, portrait: Swift.Bool, tablet: Swift.Bool)<Key, Section, NativeIdentity where Key : Swift.Hashable, Section : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable>
-init MonitorOperatorLiveReadout(id: Key, title: Swift.String, value: Swift.String, section: Section?, field: MonitorCaptureField?, action: (() -> Swift.Void)?, valueIcon: MonitorUI.MonitorIcon?, badgeIcon: MonitorUI.MonitorIcon?, quickEnabled: Swift.Bool, accessibilityIdentifier: Swift.String, accessibilityLabel: Swift.String?, dimmed: Swift.Bool, holdAction: (() -> Swift.Void)?)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
+init MonitorOperatorLiveReadout(id: Key, title: Swift.String, value: Swift.String, section: Section?, field: MonitorCaptureField?, action: (() -> Swift.Void)?, valueIcon: MonitorUI.MonitorIcon?, badgeIcon: MonitorUI.MonitorIcon?, quickEnabled: Swift.Bool, accessibilityIdentifier: Swift.String, accessibilityLabel: Swift.String?, marked: Swift.Set<Swift.String>, dimmed: Swift.Bool, holdAction: (() -> Swift.Void)?)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 init MonitorOperatorMediaModel(library: MonitorMediaLibraryModel<Payload>, recordAdmission: ((MonitorMediaRecord<Payload>) -> MonitorPlaybackAdmission)?, sleep: (Swift.Duration) async throws -> Swift.Void, makeAdmittedPlayback: (MonitorMediaLibraryModel<Payload>, MonitorPlaybackAdmission) -> MonitorMediaPlaybackModel<Payload, Look>?)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>
 init MonitorOperatorMediaModel(library: MonitorMediaLibraryModel<Payload>, recordAdmission: ((MonitorMediaRecord<Payload>) -> MonitorPlaybackAdmission)?, sleep: (Swift.Duration) async throws -> Swift.Void, makePlayback: (MonitorMediaLibraryModel<Payload>) -> MonitorMediaPlaybackModel<Payload, Look>)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>
 init MonitorOperatorNativeCaptureQuick(identity: Identity, snapshot: MonitorPresentation.MonitorReadoutSnapshot, enabled: Swift.Bool, delayed: Swift.Bool)<Identity where Identity : Swift.Hashable, Identity : Swift.Sendable>
@@ -1367,6 +1367,7 @@ let MonitorOperatorLiveReadout.dimmed: Swift.Bool
 let MonitorOperatorLiveReadout.field: MonitorCaptureField?
 let MonitorOperatorLiveReadout.holdAction: (() -> Swift.Void)?
 let MonitorOperatorLiveReadout.id: Key
+let MonitorOperatorLiveReadout.marked: Swift.Set<Swift.String>
 let MonitorOperatorLiveReadout.quickEnabled: Swift.Bool
 let MonitorOperatorLiveReadout.section: Section?
 let MonitorOperatorLiveReadout.title: Swift.String
@@ -2007,6 +2008,7 @@ var MonitorBrowserInternetHandoff.isHolding: Swift.Bool
 var MonitorCaptureButton.body: some SwiftUI.View
 var MonitorCaptureDrum.body: some SwiftUI.View
 var MonitorCaptureField.isEditable: Swift.Bool
+var MonitorCaptureField.kelvinScrub: MonitorCaptureField
 var MonitorCaptureField.label: Swift.String?
 var MonitorCapturePolicy.accessibilityLabel: Swift.String
 var MonitorCapturePolicy.holdAccessibilityLabel: Swift.String?
@@ -2322,6 +2324,7 @@ var MonitorOperatorCaptureState.frames: [Key : CoreFoundation.CGRect]
 var MonitorOperatorCaptureState.ownership: MonitorPresentation.MonitorReadoutOwnership
 var MonitorOperatorCaptureState.preview: MonitorOperatorCapturePreview<Key, NativeIdentity>?
 var MonitorOperatorCaptureStrip.body: some SwiftUI.View
+var MonitorOperatorLiveReadout.fieldSnapshot: MonitorPresentation.MonitorReadoutSnapshot?
 var MonitorOperatorMediaModel.deliveryPresented: Swift.Bool
 var MonitorOperatorMediaModel.galleryOpen: Swift.Bool
 var MonitorOperatorMediaModel.playback: MonitorMediaPlaybackModel<Payload, Look>?

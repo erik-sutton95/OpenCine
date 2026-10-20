@@ -53,6 +53,11 @@ public enum CaptureNativeReadoutPresentation {
         return (Int(reciprocal.rounded()), Int(frameRate.doubleValue.rounded()))
     }
 
+    /// The measured iris when reported, else the requested aperture strategy, else unknown.
+    public static func aperture(common: Double?, strategy: ApertureStrategy?) -> String {
+        common.map { MonitorCapturePresentation.label(.aperture($0)) } ?? strategy?.label ?? "--"
+    }
+
     /// A native focus strategy does not replace an observed Single or Manual base mode.
     public static func focus(common: OpenCineCore.FocusMode?, native: FocusOption?) -> String {
         if let native, [FocusOption.productShowcase, .subjectLock, .registeredPriority].contains(native),

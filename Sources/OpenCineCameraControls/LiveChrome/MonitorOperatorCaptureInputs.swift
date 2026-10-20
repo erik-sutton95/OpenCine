@@ -33,10 +33,10 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         var readouts: [MonitorOperatorLiveReadout<CaptureSheet, Section>] = []
         func append(_ sheet: CaptureSheet, _ title: String, _ value: String,
             field: MonitorCaptureField? = nil, icon: MonitorIcon? = nil, badge: MonitorIcon? = nil,
-            quickEnabled: Bool = true) {
+            quickEnabled: Bool = true, marked: Set<String> = []) {
             readouts.append(.init(id: sheet, title: title, value: value, section: section,
                 field: field, valueIcon: icon, badgeIcon: badge, quickEnabled: quickEnabled,
-                accessibilityIdentifier: "monitor.capture.\(sheet.rawValue)"))
+                accessibilityIdentifier: "monitor.capture.\(sheet.rawValue)", marked: marked))
         }
         let selection: MonitorCaptureSelection = host.captureStripShowsPendingEdits ? .pending : .reported
         func commonValue(_ key: SettingKey) -> String {
@@ -44,8 +44,9 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         }
         let nativeISO = status.isoIndex == .auto && controls.nativeISO.ceiling == true
         let isoField = nativeISO ? nil : host.control.captureField(.iso, selection: selection)
+        // The ISO drum stars the curve's native ISO whichever source owns it.
         append(.iso, "ISO", commonValue(.iso), field: isoField,
-            quickEnabled: nativeISO || isoField != nil)
+            quickEnabled: nativeISO || isoField != nil, marked: CaptureLists.isoMarkedLabels(from: status))
         // One rule for the tile and its panel: the common program, else the native report.
         let automatic = host.control.snapshot?.exposureProgram.value == .automatic || status.expoMode == .auto
         if automatic {
@@ -62,7 +63,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         let exposure = host.autoExposureLocked ? CaptureLists.aeLock : host.control.snapshot?.exposureProgram.value.map(MonitorCapturePresentation.exposureProgram) ?? "--"
         append(.exposure, "EXPOSURE", exposure)
         let pendingWB = host.captureStripShowsPendingEdits && status.whiteBalance?.mode == .custom && !host.autoWhiteBalanceLocked
-        let wbField = pendingWB ? host.control.captureField(.whiteBalance, selection: selection) : nil
+        let wbField = pendingWB ? host.control.captureField(.whiteBalance, selection: selection)?.kelvinScrub : nil
         let wbValue = host.autoWhiteBalanceLocked ? CaptureLists.awbLockTile : commonValue(.whiteBalance)
         let wbIcon: MonitorIcon?
         if case .whiteBalance(.auto)? = host.control.captureValue(.whiteBalance, selection: selection) {
@@ -80,7 +81,10 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
                 native: FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)))
         }
         if controls.iris.isOffered {
-            append(.aperture, "APERTURE", commonValue(.aperture))
+            let iris: Double?
+            if case .aperture(let value)? = host.control.captureValue(.aperture, selection: selection) { iris = value } else { iris = nil }
+            append(.aperture, "APERTURE", CaptureNativeReadoutPresentation.aperture(
+                common: iris, strategy: status.apertureStrategy))
         }
         if controls.audio.isOffered && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
         let supplementary: [MonitorOperatorSupplementaryCaptureReadout<CaptureSheet, Section>]

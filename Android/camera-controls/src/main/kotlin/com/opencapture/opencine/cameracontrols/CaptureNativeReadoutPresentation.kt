@@ -13,6 +13,11 @@ import com.opencapture.opencine.vocabulary.FocusOption
 
 /** Common reports and coherent native strategy values remain distinct. */
 public object CaptureNativeReadoutPresentation {
+    /** The measured iris when reported, else the requested aperture strategy, else unknown. */
+    public fun aperture(common: Double?, strategy: Int): String =
+        common?.let { MonitorCapturePresentation.label(SettingValue.Aperture(it)) }
+            ?: com.opencapture.opencine.vocabulary.ApertureStrategy.label(strategy) ?: "--"
+
     /** How long after a reported frame-rate change an emulated angle keeps the operator's value (Swift `rateChangeHold`). */
     public val RATE_CHANGE_HOLD: kotlin.time.Duration = 3.seconds
 
