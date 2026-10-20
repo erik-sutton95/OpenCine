@@ -2,8 +2,8 @@
 # API declared only for watchOS or macOS is not listed. Do not edit; one declaration per line.
 class FakeLuna: Sendable
 class FakeLunaPort: LunaConnectPort, Sendable
-func FakeLuna.connectedSession(settle: Swift.Duration, backendCapabilities: () -> Insta360Apple.CameraCapabilities?, now: () -> OpenCineCore.MonotonicInstant) -> Insta360Apple.LunaCameraSession
-func FakeLuna.makeSession(settle: Swift.Duration, backendCapabilities: () -> Insta360Apple.CameraCapabilities?, now: () -> OpenCineCore.MonotonicInstant) -> Insta360Apple.LunaCameraSession
+func FakeLuna.connectedSession(settle: Swift.Duration, admittedSends: Swift.Bool, backendCapabilities: () -> Insta360Apple.CameraCapabilities?, now: () -> OpenCineCore.MonotonicInstant) -> Insta360Apple.LunaCameraSession
+func FakeLuna.makeSession(settle: Swift.Duration, admittedSends: Swift.Bool, backendCapabilities: () -> Insta360Apple.CameraCapabilities?, now: () -> OpenCineCore.MonotonicInstant) -> Insta360Apple.LunaCameraSession
 func FakeLuna.reportCapture() -> ()
 func FakeLuna.reportDevice() -> ()
 func FakeLuna.reportSettings() -> ()

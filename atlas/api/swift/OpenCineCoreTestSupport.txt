@@ -51,7 +51,7 @@ init FakeCameraBehavior(integration: OpenCineCore.IntegrationID, reportDelay: Sw
 init FakeCameraSession(behavior: FakeCameraBehavior, device: FakeDevice, authority: OpenCineCore.ControlAuthority)
 init FakeDevice(rawMode: Swift.UInt8, settings: [OpenCineCore.SettingValue], recording: Swift.Bool?, batteryPercent: Swift.Int?, freeBytes: Swift.UInt64?, timecode: OpenCineCore.CameraTimecode?, audioLevels: OpenCineCore.AudioLevels?)
 init FakeDevice(rawMode: Swift.UInt8, settings: [OpenCineCore.SettingValue], recording: Swift.Bool?, batteryPercent: Swift.Int?, freeBytes: Swift.UInt64?, timecodeReading: OpenCineCore.CameraTimecodeReading?, audioLevels: OpenCineCore.AudioLevels?)
-init FakeIntegration(id: OpenCineCore.IntegrationID, profiles: [OpenCineCore.CameraProfile], discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>, steps: [OpenCineCore.ConnectionStep], endpoints: [Swift.String])
+init FakeIntegration(id: OpenCineCore.IntegrationID, profiles: [OpenCineCore.CameraProfile], discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>, steps: [OpenCineCore.ConnectionStep], endpoints: [Swift.String], discoveryRunning: Swift.Bool)
 init FakeMode(_: OpenCineCore.CaptureMode, _: [OpenCineCore.SettingDescriptor], unsupported: Swift.Set<OpenCineCore.SettingKey>, timecode: OpenCineCore.SupportStatus, audioLevels: OpenCineCore.SupportStatus)
 init FakeMode(_: OpenCineCore.CaptureMode, _: [OpenCineCore.SettingDescriptor], unsupported: Swift.Set<OpenCineCore.SettingKey>, timecodeCapability: OpenCineCore.TimecodeCapability, audioLevels: OpenCineCore.SupportStatus)
 init FakePictureSource(label: Swift.String)
@@ -61,6 +61,7 @@ let FakeAttempt.steps: [OpenCineCore.ConnectionStep]
 let FakeAttempt.target: OpenCineCore.ConnectTarget
 let FakeCameraSession.behavior: FakeCameraBehavior
 let FakeCameraSession.id: OpenCineCore.CameraSessionID
+let FakeIntegration.discoveryIsRunning: Swift.Bool
 let FakeIntegration.discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>
 let FakeIntegration.id: OpenCineCore.IntegrationID
 let FakeIntegration.profiles: [OpenCineCore.CameraProfile]
@@ -102,6 +103,7 @@ var FakeIntegration.Dial.purpose: FakeIntegration.DialPurpose
 var FakeIntegration.attempts: [FakeAttempt]
 var FakeIntegration.dials: [FakeIntegration.Dial]
 var FakeIntegration.discoveries: [OpenCineCore.DiscoveryMode]
+var FakeIntegration.discoveryRunning: _Concurrency.AsyncStream<Swift.Bool>
 var FakeIntegration.endpoints: [Swift.String]
 var FakeIntegration.forgotten: [OpenCineCore.SavedCamera]
 var FakeIntegration.liveDiscoveries: [OpenCineCore.DiscoveryMode]

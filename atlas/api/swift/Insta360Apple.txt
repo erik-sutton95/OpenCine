@@ -322,6 +322,7 @@ var LunaHeadTrackSteering.Tuning.gain: Swift.Double
 var LunaHeadTrackSteering.Tuning.panDegPerSec: Swift.Double
 var LunaHeadTrackSteering.Tuning.tiltDegPerSec: Swift.Double
 var LunaIntegration.discoveryFailure: OpenCineCore.ConnectionFailure?
+var LunaIntegration.discoveryRunning: _Concurrency.AsyncStream<Swift.Bool>
 var LunaIntegration.id: OpenCineCore.IntegrationID
 var LunaIntegration.onDiscoveryFailure: ((OpenCineCore.ConnectionFailure?) -> Swift.Void)?
 var LunaIntegration.onEvent: ((CameraBackendEvent) -> Swift.Void)?

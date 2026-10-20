@@ -322,6 +322,7 @@ func CamerasModel.defaultRoute(of: OpenCineCore.SavedCamera) -> OpenCineCore.Con
 func CamerasModel.discoveryMode(of: any OpenCineCore.CameraIntegration) -> OpenCineCore.DiscoveryMode?
 func CamerasModel.dismissFailure(_: Swift.String) -> ()
 func CamerasModel.endPairing() -> ()
+func CamerasModel.failure(for: Swift.String?) -> CamerasModel.Failure?
 func CamerasModel.forget(_: Swift.String) async -> ()
 func CamerasModel.forgetRoute(_: OpenCineCore.ConnectionRouteID, of: Swift.String) -> ()
 func CamerasModel.perform(_: OpenCineCore.RecoveryAction, for: Swift.String) -> CamerasModel.Request?
