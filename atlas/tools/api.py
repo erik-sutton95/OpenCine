@@ -177,14 +177,15 @@ def digest(top, module, products, scratch):
     arch = subprocess.run(["uname", "-m"], capture_output=True, text=True, check=True).stdout.strip()
     out = Path(scratch) / f"{module}.json"
     cmd = ["xcrun", "swift-api-digester", "-dump-sdk", "-module", module, "-I", str(products),
-           "-sdk", sdk, "-target", f"{arch}-apple-ios17.0-simulator", "-o", str(out)]
+           "-sdk", sdk, "-target", f"{arch}-apple-ios17.0-simulator", "-abort-on-module-fail", "-o", str(out)]
     # C targets' generated module maps only: a Swift module's map names a Clang module of the same
     # name that would shadow it, and the per-target copies of a map redefine the module.
     for m in sorted(Path(top, DERIVED).glob("Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/*.modulemap")):
         if not (Path(products) / f"{m.stem}.swiftmodule").exists():
             cmd += ["-Xcc", f"-fmodule-map-file={m}"]
     run = subprocess.run(cmd, cwd=top, capture_output=True, text=True, check=False)
-    # The digester exits 0 and writes an empty dump when the module fails to load.
+    # Without -abort-on-module-fail the digester exits 0 and writes an empty dump when the module
+    # fails to load; the message check stays as a second guard.
     if run.returncode or not out.is_file() or "Failed to load module" in run.stderr:
         raise RuntimeError(f"{module}: " + ((run.stderr or run.stdout).strip().splitlines() or ["no output"])[-1])
     return render_dump(module, json.loads(out.read_text()), package_modules(top))
