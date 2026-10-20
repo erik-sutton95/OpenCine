@@ -13,7 +13,10 @@ version = "0.1.0-SNAPSHOT"
 android {
     namespace = "com.opencapture.opencine.appkit"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
-    defaultConfig { minSdk = 29 }
+    defaultConfig {
+        minSdk = 29
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -39,6 +42,10 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.kotlin.test.junit)
 }
 
 // The saved-camera fixtures are shared with the Swift OpenCineAppKitTests (Fixtures/ at the

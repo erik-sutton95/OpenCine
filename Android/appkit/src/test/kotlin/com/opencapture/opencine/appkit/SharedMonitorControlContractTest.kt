@@ -2,6 +2,8 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.AudioLevels
 import com.opencapture.opencine.core.CaptureMode
+import com.opencapture.opencine.core.CommandRejection
+import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.SettingAccess
@@ -114,6 +116,21 @@ class SharedMonitorControlContractTest {
         assertTrue(control.commit(choice, after))
         runCurrent(); advanceTimeBy(120); runCurrent()
         assertEquals(listOf("set ${choice.value}"), camera.wire)
+    }
+
+    /** Swift `aWriteRefusedBeforeSendingIsJournaled`: a refused write still reaches the journal. */
+    @Test fun aWriteRefusedBeforeSendingIsJournaled() = runTest {
+        val camera = camera()
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        val journal = mutableListOf<Pair<String, CommandStage>>()
+        control.onWriteFinished = { label, receipt -> journal += label to receipt.stage }
+        control.bind(camera)
+        assertNotNull(control.captureField(SettingKey.ISO))
+        control.set(iso(1600), "ISO 1600")
+        runCurrent(); advanceTimeBy(120); runCurrent()
+        assertEquals(listOf("ISO 1600" to (CommandStage.Rejected(CommandRejection.OutOfDomain) as CommandStage)), journal)
+        assertTrue(camera.wire.isEmpty())
     }
 
     @Test fun replacementRetiresQueuedWorkWithoutBorrowingTheSuccessor() = runTest {

@@ -71,7 +71,7 @@
             let selection = model.selection
             let remote = model.remoteFacts
             let configuration = model.configuration
-            let exportOptions = model.exportOptions
+            let exportOptions = model.clipExportOptions
             var notices: [Value.Notice] = []
             if let cached = selection.cachedCount, cached < selection.files.count {
                 let missing = selection.files.count - cached

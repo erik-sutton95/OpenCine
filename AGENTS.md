@@ -233,6 +233,11 @@ python3 -m unittest discover -s atlas/tests && python3 atlas/tools/atlas.py chec
 ```
 
 - Apps: run each app's own checks (its `AGENTS.md` or `README.md`) in its task worktree.
+- Hosted CI has two tiers ([docs/testing/CI.md](docs/testing/CI.md)): the PR tier feeds the one
+  required check, `CI gate`; the nightly tier runs the full suite on `main` and keeps one
+  "Nightly CI failing on main" issue. A PR-tier failure is fixed, or the test is quarantined with
+  an issue; there are no accepted reds. CodeRabbit is advisory: read, verify and fix or answer
+  its findings, but it does not block merges.
 - iOS tests run on a private simulator, never the shared default one (parallel sessions replace
   each other's test host): `UDID=$(xcrun simctl create opc-<task> "iPhone 16 Pro")`, then
   `xcodebuild ... -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath <scratch>/dd test`,

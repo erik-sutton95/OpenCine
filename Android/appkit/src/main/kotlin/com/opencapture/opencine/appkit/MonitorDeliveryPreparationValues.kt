@@ -1,9 +1,12 @@
 package com.opencapture.opencine.appkit
 
-public data class MonitorDeliveryFileFacts(public val filename: String, public val sizeBytes: Long?)
+/** [isStill]: a still travels as its original; null when the source does not say. */
+public data class MonitorDeliveryFileFacts(public val filename: String, public val sizeBytes: Long?, public val isStill: Boolean? = null)
 public data class MonitorDeliverySelectionFacts(public val files: List<MonitorDeliveryFileFacts>,
     public val cachedCount: Int?, public val connected: Boolean?) {
     public val hasDeliverable: Boolean get() = (cachedCount ?: 0) > 0 || (connected == true && files.isNotEmpty())
+    /** Every file is a known still, so clip export (LUT bake, curve, container) does not apply. */
+    public val allStills: Boolean get() = files.isNotEmpty() && files.all { it.isStill == true }
 }
 public data class MonitorDeliveryChoice<V>(public val id: String, public val label: String, public val value: V)
 public class MonitorDeliveryExportOptions<C, F>(

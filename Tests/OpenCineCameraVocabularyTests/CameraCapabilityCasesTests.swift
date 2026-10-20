@@ -62,6 +62,14 @@ import Testing
         #expect(CamFov.displayLabel(factor: 12) == "12×")
     }
 
+    /// II-105: a host stop past the DJI ceiling (Luna 15×) is still a pinch detent; the default
+    /// 1/3/6/12 stops are unchanged.
+    @Test func jumpStopBeyondTheDefaultCeilingIsADetent() {
+        #expect(CamFov.isJumpStop(15, stops: [1, 2, 3, 6, 15]))
+        #expect(!CamFov.isJumpStop(14.2, stops: [1, 2, 3, 6, 15]))
+        #expect(CamFov.isJumpStop(12) && CamFov.isJumpStop(6))
+    }
+
     @Test func directPathMediaAndSplitFilenameStamp() {
         let direct = MediaHTTP.Route(host: "192.168.42.1", addressing: .directPath)
         #expect(

@@ -556,6 +556,7 @@ func MonitorMediaGalleryModel.duration(_: Swift.String, for: OpenCineMedia.Media
 func MonitorMediaGalleryModel.favorite(_: OpenCineMedia.MediaAssetID, admitted: MonitorMediaGallerySnapshot<Payload>, operations: MonitorMediaGalleryOperations<Payload>)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.favoriteSelection(admitted: MonitorMediaGallerySnapshot<Payload>, operations: MonitorMediaGalleryOperations<Payload>, toggleUniform: Swift.Bool)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.isCurrent(_: MonitorMediaGallerySnapshot<Payload>)<Payload where Payload : Swift.Sendable> -> Swift.Bool
+func MonitorMediaGalleryModel.leave()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.open(_: OpenCineMedia.MediaAssetID, admitted: MonitorMediaGallerySnapshot<Payload>, operations: MonitorMediaGalleryOperations<Payload>, sourceAvailable: Swift.Bool)<Payload where Payload : Swift.Sendable> -> MonitorMediaGalleryOpen<Payload>?
 func MonitorMediaGalleryModel.pickDate(_: MonitorMediaDateBound, admitted: MonitorMediaGallerySnapshot<Payload>)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.requestDelete(admitted: MonitorMediaGallerySnapshot<Payload>, operations: MonitorMediaGalleryOperations<Payload>, supportedSubset: Swift.Bool)<Payload where Payload : Swift.Sendable> -> ()
@@ -610,6 +611,7 @@ func MonitorMediaLibraryModel.relist(after: MonitorMediaLibraryDeletionAuthority
 func MonitorMediaLibraryModel.resetFilters()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaLibraryModel.select(_: Swift.Set<OpenCineMedia.MediaAssetID>, selecting: Swift.Bool)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaLibraryModel.selectAll()<Payload where Payload : Swift.Sendable> -> ()
+func MonitorMediaLibraryModel.showNote(_: Swift.String?)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaLibraryModel.toggleFavorite(_: OpenCineMedia.MediaAssetID)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaLibraryModel.transferHostFile(_: MonitorMediaLibraryIOAuthority, expectedByteCount: Swift.UInt64?, into: any OpenCineMedia.MediaByteSink, transfer: (any OpenCineMedia.MediaByteSink) async throws -> OpenCineMedia.MediaTransferReceipt)<Payload where Payload : Swift.Sendable> async throws -> OpenCineMedia.MediaTransferReceipt
 func MonitorMediaLibraryModel.transferHostFile(_: MonitorMediaLibraryIOAuthority, into: any OpenCineMedia.MediaByteSink, plan: OpenCineMedia.MediaTransferPlan, stagingRoot: Foundation.URL)<Payload where Payload : Swift.Sendable> async throws -> OpenCineMedia.MediaTransferReceipt
@@ -881,7 +883,7 @@ init MonitorDeliveryExportOptions(curves: [MonitorDeliveryChoice<Curve>], format
 init MonitorDeliveryExportService(original: ((Record) -> Artifact?)?, prepare: (Record, @escaping (Swift.Double) -> Swift.Void) async throws -> Artifact?)<Record, Artifact where Record : Swift.Sendable, Artifact : Swift.Sendable>
 init MonitorDeliveryExportService(original: ((Record) -> Artifact?)?, release: (Artifact) async -> Swift.Void, prepare: (Record, @escaping (Swift.Double) -> Swift.Void) async throws -> Artifact?)<Record, Artifact where Record : Swift.Sendable, Artifact : Swift.Sendable>
 init MonitorDeliveryExternalOperation(active: () -> Swift.Bool, cancel: () -> Swift.Void)
-init MonitorDeliveryFileFacts(filename: Swift.String, sizeBytes: Swift.UInt64?)
+init MonitorDeliveryFileFacts(filename: Swift.String, sizeBytes: Swift.UInt64?, isStill: Swift.Bool?)
 init MonitorDeliveryInternetService(needsHop: () -> Swift.Bool, begin: () -> Lease?, owns: (Lease) -> Swift.Bool, wait: (Lease) async -> Swift.Bool, restore: (Lease) -> Swift.Void)<Lease where Lease : Swift.Sendable>
 init MonitorDeliveryInternetService(needsHop: () -> Swift.Bool, begin: () -> Lease?, owns: (Lease) -> Swift.Bool, wait: (Lease) async -> Swift.Bool, restoreEntered: (Lease) async -> Swift.Void, restore: (Lease) -> Swift.Void)<Lease where Lease : Swift.Sendable>
 init MonitorDeliveryMetadataFacts(filename: Swift.String, captureDate: Swift.String?, sizeBytes: Swift.UInt64?)
@@ -929,7 +931,7 @@ init MonitorMediaGalleryDeletion(capture: ([MonitorMediaRecord<Payload>]) -> Mon
 init MonitorMediaGalleryModel(library: MonitorMediaLibraryModel<Payload>, sleep: (Swift.Duration) async throws -> Swift.Void)<Payload where Payload : Swift.Sendable>
 init MonitorMediaGalleryOpen(record: MonitorMediaRecord<Payload>, playlist: [MonitorMediaRecord<Payload>], admission: MonitorMediaLibraryActionToken)<Payload where Payload : Swift.Sendable>
 init MonitorMediaGalleryOperations(download: ((MonitorMediaRecord<Payload>) async -> Swift.Void)?, delete: ((MonitorMediaRecord<Payload>) async -> Swift.Void)?, favorite: ((MonitorMediaRecord<Payload>) -> Swift.Void)?, acceptedDeletion: MonitorMediaGalleryDeletion<Payload>?, access: ((MonitorMediaRecord<Payload>) -> MonitorMediaGalleryAccess)?, deletionMessage: (([MonitorMediaRecord<Payload>]) -> Swift.String?)?, openNotice: ((MonitorMediaRecord<Payload>) -> Swift.String?)?)<Payload where Payload : Swift.Sendable>
-init MonitorMediaLibraryCopy(openFailed: Swift.String, listFailed: Swift.String, favoriteSaveFailed: Swift.String, downloadFailed: Swift.String, listing: Swift.String?, empty: Swift.String?)
+init MonitorMediaLibraryCopy(openFailed: Swift.String, listFailed: Swift.String, favoriteSaveFailed: Swift.String, downloadFailed: Swift.String, listing: Swift.String?, empty: Swift.String?, sourceHeld: Swift.String?)
 init MonitorMediaLibraryIOKey(_: Swift.String)
 init MonitorMediaLibraryIOKey(rawValue: Swift.String)
 init MonitorMediaLibraryModel(cache: MonitorMediaCache<Payload>, favorites: any MonitorMediaFavoritesStore, service: (any OpenCineMedia.CameraMediaService)?, cacheScanning: MonitorMediaCacheScanning, catalogPersistence: MonitorMediaCatalogPersistence, catalogBase: MonitorMediaCatalogBase, initialCatalog: OpenCineMedia.MediaCatalog?, initialRecords: [MonitorMediaRecord<Payload>]?, copy: MonitorMediaLibraryCopy, readSnapshot: (MonitorMediaCacheReadPlan) async throws -> MonitorMediaCacheSnapshot, sleep: (Swift.Duration) async throws -> Swift.Void)<Payload where Payload : Swift.Sendable>
@@ -1104,6 +1106,7 @@ let MonitorDeliveryExportService.release: (Artifact) async -> Swift.Void
 let MonitorDeliveryExternalOperation.active: () -> Swift.Bool
 let MonitorDeliveryExternalOperation.cancel: () -> Swift.Void
 let MonitorDeliveryFileFacts.filename: Swift.String
+let MonitorDeliveryFileFacts.isStill: Swift.Bool?
 let MonitorDeliveryFileFacts.sizeBytes: Swift.UInt64?
 let MonitorDeliveryInternetService.begin: () -> Lease?
 let MonitorDeliveryInternetService.needsHop: () -> Swift.Bool
@@ -1256,6 +1259,7 @@ let MonitorMediaLibraryCopy.favoriteSaveFailed: Swift.String
 let MonitorMediaLibraryCopy.listFailed: Swift.String
 let MonitorMediaLibraryCopy.listing: Swift.String?
 let MonitorMediaLibraryCopy.openFailed: Swift.String
+let MonitorMediaLibraryCopy.sourceHeld: Swift.String?
 let MonitorMediaLibraryDeletionAuthority.directory: MonitorMediaCacheDirectory
 let MonitorMediaLibraryDeletionAuthority.generation: Swift.UInt64
 let MonitorMediaLibraryDeletionAuthority.id: Foundation.UUID
@@ -1992,6 +1996,7 @@ var MonitorControlModel.noteFor: (OpenCineCore.CommandStage, Swift.String) -> Sw
 var MonitorControlModel.onChange: () -> Swift.Void
 var MonitorControlModel.onNote: (Swift.String) -> Swift.Void
 var MonitorControlModel.onRecordFinished: (OpenCineCore.CommandReceipt) -> Swift.Void
+var MonitorControlModel.onWriteFinished: (Swift.String, OpenCineCore.CommandReceipt) -> Swift.Void
 var MonitorControlModel.pending: [OpenCineCore.SettingKey : OpenCineCore.SettingValue]
 var MonitorControlModel.recordPending: Swift.Bool
 var MonitorControlModel.recording: OpenCineCore.RecordingState?
@@ -2025,6 +2030,7 @@ var MonitorDeliveryExportConfiguration.logTransform: Curve
 var MonitorDeliveryModel.state: MonitorDeliveryState<Progress, Share>
 var MonitorDeliveryPreparationModel.action: MonitorDeliveryPostExportAction
 var MonitorDeliveryPreparationModel.canContinue: Swift.Bool
+var MonitorDeliveryPreparationModel.clipExportOptions: MonitorDeliveryExportOptions<Curve, Format>?
 var MonitorDeliveryPreparationModel.configuration: MonitorDeliveryExportConfiguration<Curve, Format>?
 var MonitorDeliveryPreparationModel.destination: MonitorDeliveryDestination?
 var MonitorDeliveryPreparationModel.hopping: Swift.Bool
@@ -2050,6 +2056,7 @@ var MonitorDeliveryPresentation.nativeRunning: Swift.Bool
 var MonitorDeliveryPresentation.nativeState: MonitorDeliveryState<Progress, Swift.Bool>
 var MonitorDeliveryPresentation.overlayState: Progress?
 var MonitorDeliveryProjectListing.projects: [MonitorDeliveryProject<Project>]
+var MonitorDeliverySelectionFacts.allStills: Swift.Bool
 var MonitorDeliverySelectionFacts.hasDeliverable: Swift.Bool
 var MonitorDeliveryState.expanded: Swift.Bool
 var MonitorDeliveryState.localOverlayDepth: Swift.Int
