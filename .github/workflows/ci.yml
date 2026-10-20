@@ -322,8 +322,10 @@ jobs:
         run: |
           python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
-      # QUARANTINE (docs/testing/CI.md): digitizer cancel on hosted Xcode 26.6.
+      # QUARANTINE (docs/testing/CI.md, #109): digitizer cancel on hosted Xcode 26.6. Its failure is
+      # reported on the step but does not fail the kit's other checks.
       - name: Native playback labels and confirmation input
+        continue-on-error: true
         run: |
           python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-labels-dd" --output "$RUNNER_TEMP/kit-ios/playback-labels"

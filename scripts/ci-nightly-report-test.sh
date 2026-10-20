@@ -12,7 +12,7 @@ cat > "$temp_dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$GH_LOG"
 case "$1 $2" in
-  "api --paginate") printf '%s' "${FAKE_FAILED_JOBS:-}" ;;
+  "api --paginate") printf '%b' "${FAKE_FAILED_JOBS:-}" ;;
   "issue list")
     # Apply the caller's --jq filter to a listing that also holds a mirrored tracker.
     arguments="$*"
@@ -28,6 +28,7 @@ chmod +x "$temp_dir/bin/gh"
 
 run() {
   : > "$temp_dir/gh.log"
+  : > "$temp_dir/summary.md"
   PATH="$temp_dir/bin:$PATH" GH_LOG="$temp_dir/gh.log" GITHUB_STEP_SUMMARY="$temp_dir/summary.md" \
     GITHUB_REPOSITORY=owner/repo GITHUB_RUN_ID=42 GITHUB_RUN_ATTEMPT=1 \
     GITHUB_SERVER_URL=https://github.com "$@" bash "$report" >/dev/null
@@ -48,7 +49,7 @@ expect_no_log() {
 }
 
 # A failing nightly with no open issue labels and opens one with the failing jobs.
-run env SUITE_RESULT=failure GITHUB_REF=refs/heads/main FAKE_FAILED_JOBS='- [Full suite / Android](u): failure'
+run env SUITE_RESULT=failure GITHUB_REF=refs/heads/main FAKE_FAILED_JOBS='Full suite / Android\tu\tfailure'
 expect_log 'label create ci-nightly'
 expect_log 'issue create --repo owner/repo --title Nightly CI failing on main --label ci-nightly'
 expect_log 'Full suite / Android'
@@ -72,6 +73,18 @@ expect_no_log 'issue close 9'
 run env SUITE_RESULT=failure GITHUB_REF=refs/heads/main
 expect_no_log 'issue edit 9'
 expect_log 'issue create'
+
+# Only quarantined jobs failed: the issue closes as on a passing night; any other failure keeps it.
+run env SUITE_RESULT=failure GITHUB_REF=refs/heads/main FAKE_OPEN_ISSUE=7 \
+  QUARANTINED_JOBS=$'Shared conformance scenarios, iOS\nPlayback labels' \
+  FAKE_FAILED_JOBS='Full suite / Shared conformance scenarios, iOS\tu\tfailure'
+expect_log 'issue close 7'
+grep -Fq 'Quarantined' "$temp_dir/summary.md" || { echo 'Expected quarantined jobs in the summary.' >&2; exit 1; }
+run env SUITE_RESULT=failure GITHUB_REF=refs/heads/main FAKE_OPEN_ISSUE=7 \
+  QUARANTINED_JOBS='Shared conformance scenarios, iOS' \
+  FAKE_FAILED_JOBS='Full suite / Shared conformance scenarios, iOS\tu\tfailure\nFull suite / Android\tv\tfailure'
+expect_log 'issue edit 7'
+expect_no_log 'issue close'
 
 # Other refs and cancelled runs leave the issue alone.
 run env SUITE_RESULT=failure GITHUB_REF=refs/heads/ci/branch
