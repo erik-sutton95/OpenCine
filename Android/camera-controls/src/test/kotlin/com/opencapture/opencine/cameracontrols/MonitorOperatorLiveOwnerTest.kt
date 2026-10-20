@@ -190,7 +190,7 @@ class MonitorOperatorLiveOwnerTest {
         val control = MonitorControlModel(backgroundScope)
         control.bind(ReportedCamera())
         val quick = requireNotNull(host.source(control).quick(LiveSheet.ISO, host.status))
-        assertEquals(listOf("100", "200", "400"), quick.options)
+        assertEquals(listOf("100", "200", "400", "1600"), quick.options)
         assertEquals(setOf("1600"), quick.marked)
     }
 
@@ -364,7 +364,7 @@ class MonitorOperatorLiveOwnerTest {
             val original = FakeCameraSession.lunaLike()
             val mode = original.behavior.modes.getValue(0x01).copy(
                 descriptors = listOf(SettingDescriptor(SettingKey.ISO,
-                    domain = SettingDomain(listOf(iso(100), iso(200), iso(400))))),
+                    domain = SettingDomain(listOf(iso(100), iso(200), iso(400), iso(1600))))),
                 unsupported = emptySet(),
             )
             val withoutIso = mode.copy(descriptors = emptyList(), unsupported = setOf(SettingKey.ISO))
