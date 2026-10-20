@@ -45,6 +45,7 @@ import com.opencapture.monitorui.MonitorPairCameraPage
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConfirmationPrompt
+import com.opencapture.opencine.core.ConnectionFailure
 import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.RecoveryAction
@@ -90,7 +91,7 @@ public fun CamerasScreen(
     fun saved(id: String) = state.saved.firstOrNull { it.id == id }
     fun handle(request: CamerasModel.Request?) {
         when (request) {
-            CamerasModel.Request.OpenSettings -> openSettings(context)
+            is CamerasModel.Request.OpenSettings -> openSettings(context, request.reason)
             is CamerasModel.Request.EditRoute -> adding = request.camera
             CamerasModel.Request.PairAgain -> {
                 model.select(null)
@@ -311,7 +312,8 @@ public fun PairScreen(
                     model.connect(sighting)
                 } else {
                     val action = if (RecoveryAction.OpenSettings in failure.actions) RecoveryAction.OpenSettings else RecoveryAction.Retry
-                    if (model.perform(action, cameraID) == CamerasModel.Request.OpenSettings) openSettings(context)
+                    val request = model.perform(action, cameraID)
+                    if (request is CamerasModel.Request.OpenSettings) openSettings(context, request.reason)
                 }
             }
         },
@@ -379,9 +381,23 @@ private fun HeaderAction(icon: MonitorIcon, label: String, enabled: Boolean, onC
 private fun slots(model: CamerasModel, integration: IntegrationID): IntegrationSlots =
     model.entries.firstOrNull { it.integration.id == integration }?.slots ?: IntegrationSlots()
 
-private fun openSettings(context: Context) {
-    context.startActivity(
-        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-    )
+/**
+ * The settings destination a failure reason needs: the Wi-Fi or Bluetooth panel when the radio is
+ * off (there is no switch for it on the app's page), the app's page for a permission (ZAB-245).
+ */
+internal fun settingsActionFor(reason: ConnectionFailure.Reason?): String = when {
+    reason is ConnectionFailure.Reason.RadioOff && reason.radio == ConnectionFailure.Radio.WIFI -> Settings.Panel.ACTION_WIFI
+    reason is ConnectionFailure.Reason.RadioOff && reason.radio == ConnectionFailure.Radio.BLUETOOTH -> Settings.ACTION_BLUETOOTH_SETTINGS
+    else -> Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+}
+
+private fun openSettings(context: Context, reason: ConnectionFailure.Reason?) {
+    val action = settingsActionFor(reason)
+    val data =
+        if (action == Settings.ACTION_APPLICATION_DETAILS_SETTINGS) {
+            Uri.fromParts("package", context.packageName, null)
+        } else {
+            null
+        }
+    context.startActivity(Intent(action, data).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }

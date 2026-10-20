@@ -93,6 +93,9 @@ public final class CamerasModel {
     @ObservationIgnored private let store: SavedCamerasStore
     @ObservationIgnored private let routePolicy: RoutePolicy
     @ObservationIgnored private var discovery: [Int: (mode: DiscoveryMode, task: Task<Void, Never>)] = [:]
+    /// What each run's integration last reported about discovery; absent reads as running.
+    @ObservationIgnored private var discoveryRunning: [Int: Bool] = [:]
+    @ObservationIgnored private var discoveryRunningTasks: [Int: Task<Void, Never>] = [:]
 
     public init(integrations: [AppIntegration], store: SavedCamerasStore, routePolicy: RoutePolicy = .preferred) {
         self.entries = integrations
@@ -129,14 +132,34 @@ public final class CamerasModel {
             let wanted = discoveryMode(of: entry.integration)
             guard discovery[index]?.mode != wanted else { continue }
             discovery.removeValue(forKey: index)?.task.cancel()
-            guard let wanted else { continue }
+            discoveryRunningTasks.removeValue(forKey: index)?.cancel()
+            guard let wanted else {
+                discoveryRunning[index] = nil
+                continue
+            }
             let lists = entry.integration.discover(wanted)
+            let statuses = entry.integration.discoveryRunning
             let id = entry.integration.id
             discovery[index] = (wanted, Task { [weak self] in
                 for await list in lists { self?.publish(list, from: id) }
             })
+            discoveryRunning[index] = true
+            discoveryRunningTasks[index] = Task { [weak self] in
+                for await running in statuses {
+                    guard let self else { return }
+                    // An unchanged report must not re-arm the still-looking wait (Kotlin twin guards too).
+                    guard self.discoveryRunning[index] != running else { continue }
+                    self.discoveryRunning[index] = running
+                    self.updateScanning()
+                }
+            }
         }
-        scanning = !discovery.isEmpty
+        updateScanning()
+    }
+
+    /// A page shows scanning only while a registered run reports it can scan (IA-336).
+    private func updateScanning() {
+        scanning = !discovery.isEmpty && discovery.keys.contains { discoveryRunning[$0] != false }
         refreshScanHint()
     }
 
@@ -205,6 +228,20 @@ public final class CamerasModel {
     /// Clears a camera's last failure without connecting (a pair page back to choosing).
     public func dismissFailure(_ cameraID: String) {
         failures[cameraID] = nil
+    }
+
+    /// The last failure a pair page shows for `selection`: the keyed one, else one whose target
+    /// carries that camera. A post-failure rescan clears the sightings, and the reason must stay
+    /// until the operator acts on it (F-PIB-042).
+    public func failure(for selection: String?) -> Failure? {
+        guard let selection else { return nil }
+        if let keyed = failures[selection] { return keyed }
+        return failures.values.first { failure in
+            switch failure.target {
+            case .nearby(let camera): camera.id == selection
+            case .saved(let camera, _), .addRoute(let camera, _): camera.id == selection
+            }
+        }
     }
 
     /// The app closed the live session, or it ended: discovery resumes.

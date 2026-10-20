@@ -11,16 +11,34 @@ import kotlin.test.assertTrue
 
 /** The pre-join scan wait every product's camera-AP join runs (A4-22). */
 class CameraApScanWaitTest {
+    /**
+     * The wizard asks only for NEARBY_WIFI_DEVICES on API 33+, so scan results are often
+     * unreadable. The system panel still lists networks from its own scan: kick it once (and once
+     * more when the panel must see the access point), then join without polling (ZAB-150).
+     */
     @Test
-    fun withoutScanPermissionTheJoinIsNotDelayed() = runTest {
+    fun withoutScanPermissionTheJoinStillKicksTheScanOnceWithoutWaiting() = runTest {
         var kicks = 0
         val seen = awaitScanVisibility(
-            canReadScans = false, maxWaitMillis = 12_000, requireVisible = true,
+            canReadScans = false, maxWaitMillis = 12_000, requireVisible = false,
             kick = { kicks++ }, visible = { false },
         )
         assertFalse(seen)
         assertEquals(0L, currentTime, "an unreadable scan can never show the camera; waiting only delays the join")
-        assertEquals(0, kicks)
+        assertEquals(1, kicks)
+    }
+
+    @Test
+    fun withoutScanPermissionThePanelGetsItsFinalKickToo() = runTest {
+        var kicks = 0
+        assertFalse(
+            awaitScanVisibility(
+                canReadScans = false, maxWaitMillis = 12_000, requireVisible = true,
+                kick = { kicks++ }, visible = { false },
+            ),
+        )
+        assertEquals(0L, currentTime)
+        assertEquals(2, kicks)
     }
 
     @Test
