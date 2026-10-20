@@ -33,9 +33,17 @@ public enum DJICaptureCapabilityProfile {
             videoFormatFallbacks: formats,
             zoom: CameraZoomProfile(stops: stops, restrictedModes: restricted,
                 restrictedStops: pro ? [1, 3] : [1], resolutionCeilings: ceilings),
-            looks: DJICameraLUTProfile.make(for: model))
+            looks: DJICameraLUTProfile.make(for: model),
+            nativeISO: nativeISO(for: model))
         profile.controls = controls(for: model)
         return profile
+    }
+
+    /// Every Osmo body answers the Auto ISO ceiling (`0x02/0x8E` pid `0x000F`) and takes the
+    /// native ISO hop on a colour change (the hop itself only moves between curves with a base
+    /// ISO). A drone declares neither (unknown).
+    static func nativeISO(for model: CameraModel) -> CaptureNativeISOCapabilities {
+        model.isDrone ? .init() : .init(hop: true, ceiling: true)
     }
 
     /// Families no setting descriptor carries. Every Osmo body records video in a format and

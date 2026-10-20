@@ -999,6 +999,7 @@ static func CaptureLists.shutterDenoms(from: OpenCineCameraVocabulary.CameraStat
 static func CaptureLists.shutterLabels(from: OpenCineCameraVocabulary.CameraStatus) -> [Swift.String]
 static func CaptureLists.whiteBalanceModeLabels(offersLock: Swift.Bool) -> [Swift.String]
 static func CaptureLists.whiteBalanceModeSelection(_: OpenCineCameraVocabulary.WhiteBalance?, awbLocked: Swift.Bool) -> Swift.String?
+static func CaptureNativeReadoutPresentation.aperture(common: Swift.Double?, strategy: OpenCineCameraVocabulary.ApertureStrategy?) -> Swift.String
 static func CaptureNativeReadoutPresentation.focus(common: OpenCineCore.FocusMode?, native: OpenCineCameraVocabulary.FocusOption?) -> Swift.String
 static func CaptureNativeReadoutPresentation.shutterAngle(common: OpenCineCore.ShutterValue?, frameRate: OpenCineCore.Rational?, available: [Swift.Int], preferredAngle: Swift.Double) -> Swift.String
 static func CaptureQuickSnapshot.common(_: OpenCineAppKit.MonitorCaptureField) -> CaptureQuickSnapshot
