@@ -210,7 +210,9 @@ public final class MonitorControlModel {
         feed?.cancel()
         feed = nil
         let changed = latest != nil || !pending.isEmpty
-        frameRateChangedAt = nil
+        rateChangeWake?.cancel()
+        rateChangeWake = nil
+        if frameRateSettling { frameRateSettling = false }
         session = nil
         withMutation(keyPath: \.snapshot) { latest = nil }
         if timecodeReading != .unknown { timecodeReading = .unknown }
@@ -223,23 +225,36 @@ public final class MonitorControlModel {
         if changed { onChange() }
     }
 
-    /// When the camera last reported a new recording frame rate (one known rate replaced by
-    /// another). Speeds and rates arrive from two moments around a format change, so readouts that
-    /// pair them (an emulated shutter angle) hold the operator's value for a short window after it.
-    @ObservationIgnored public private(set) var frameRateChangedAt: MonotonicInstant?
+    /// How long `frameRateSettling` holds after a reported frame-rate change (Kotlin twin:
+    /// `RATE_CHANGE_HOLD`): the camera re-sends its speed for the new rate within it.
+    public static let rateChangeHold: Duration = .seconds(3)
 
-    /// Whether the reported frame rate changed within `window` of now (the injected clock).
-    public func frameRateChanged(within window: Duration) -> Bool {
-        guard let changed = frameRateChangedAt else { return false }
-        let now = recordingNow()
-        return now >= changed && now - changed < window
+    /// True for `rateChangeHold` after the camera reports a new recording frame rate (one known
+    /// rate replaced by another). Speeds and rates arrive from two moments around a format change,
+    /// so readouts that pair them (an emulated shutter angle) hold the operator's value meanwhile.
+    /// Observable: the end of the hold redraws without waiting for another snapshot.
+    public private(set) var frameRateSettling = false
+    @ObservationIgnored private var rateChangeWake: Task<Void, Never>?
+
+    private func openRateChangeHold() {
+        if !frameRateSettling { frameRateSettling = true }
+        rateChangeWake?.cancel()
+        let current = binding
+        let wait = recordingSleep
+        rateChangeWake = Task { [weak self] in
+            await wait(Self.rateChangeHold)
+            guard !Task.isCancelled, let self, self.binding == current else { return }
+            self.rateChangeWake = nil
+            self.frameRateSettling = false
+            self.onChange()
+        }
     }
 
     private func apply(_ snapshot: CameraSnapshot) {
         if case .frameRate(let next)? = snapshot.value(of: .frameRate).value,
             case .frameRate(let previous)? = latest?.value(of: .frameRate).value, previous != next,
             latest?.session == snapshot.session {
-            frameRateChangedAt = recordingNow()
+            openRateChangeHold()
         }
         observeRecordingElapsed(snapshot)
         if let previous = latest, Self.differsOnlyInTimecode(previous, snapshot) {

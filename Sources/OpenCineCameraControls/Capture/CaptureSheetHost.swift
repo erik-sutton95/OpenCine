@@ -218,8 +218,7 @@
         /// readback), a reported rate change (readback to the re-sent speed, including a speed the
         /// camera clamps itself) and the pending shutter write (re-send to confirmation).
         var shutterAngleSettling: Bool {
-            formatPinActive || control.pending[.shutter] != nil
-                || control.frameRateChanged(within: CaptureNativeReadoutPresentation.rateChangeHold)
+            formatPinActive || control.pending[.shutter] != nil || control.frameRateSettling
         }
 
         /// The one emulated-angle readout of the strip, the control bar and the panel: the held

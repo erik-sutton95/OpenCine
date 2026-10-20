@@ -91,20 +91,27 @@ class MonitorControlModelTest {
     /** A reported frame-rate change opens the emulated-angle hold window. Swift twin. */
     @Test fun aReportedFrameRateChangeOpensTheRateChangeWindow() = runTest {
         val model = elapsedModel()
+        var changes = 0
+        model.onChange = { changes += 1 }
         val camera = FakeCameraSession.lunaLike()
         camera.cameraReportsSetting(SettingValue.FrameRate(Rational(30)))
         model.bind(camera); runCurrent()
         assertEquals(SettingValue.FrameRate(Rational(30)), model.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value)
-        assertFalse(model.frameRateChanged(3.seconds), "the first report is no change")
+        assertFalse(model.frameRateSettling, "the first report is no change")
         camera.cameraReportsSetting(SettingValue.FrameRate(Rational(60))); runCurrent()
         assertEquals(SettingValue.FrameRate(Rational(60)), model.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value)
-        assertTrue(model.frameRateChanged(3.seconds))
+        assertTrue(model.frameRateSettling)
         advanceTimeBy(2000); runCurrent()
-        assertTrue(model.frameRateChanged(3.seconds))
+        assertTrue(model.frameRateSettling)
+        val before = changes
+        // The hold ends on its own, without a later snapshot: Compose state and onChange redraw.
         advanceTimeBy(1000); runCurrent()
-        assertFalse(model.frameRateChanged(3.seconds))
+        assertFalse(model.frameRateSettling)
+        assertTrue(changes > before, "the expiry must redraw the held readout")
+        camera.cameraReportsSetting(SettingValue.FrameRate(Rational(30))); runCurrent()
+        assertTrue(model.frameRateSettling)
         model.unbind()
-        assertNull(model.frameRateChangedAt)
+        assertFalse(model.frameRateSettling)
     }
 
     @Test fun idleRecordingReportsKeepElapsedObservationStable() = runTest {

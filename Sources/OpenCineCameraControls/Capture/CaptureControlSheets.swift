@@ -391,6 +391,11 @@
                     guard sheet == .shutter, !isEvSheet else { return }
                     reseatShutter()
                 }
+                .onChange(of: host.shutterAngleSettling) { _, _ in
+                    // The end of a hold reseats the angle drum on what the camera really makes.
+                    guard sheet == .shutter, !isEvSheet, isAngleSheet else { return }
+                    reseatShutter()
+                }
                 .onChange(of: host.cameraStatus.availableIsoIndices) { _, _ in
                     guard sheet == .iso else { return }
                     reseatIso()

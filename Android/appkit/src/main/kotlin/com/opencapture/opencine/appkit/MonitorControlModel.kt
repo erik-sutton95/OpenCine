@@ -33,6 +33,7 @@ import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.UnavailableReason
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -260,25 +261,35 @@ public class MonitorControlModel(
         scheduled.clear()
         editRevisions.clear()
         recordOperation = null
-        frameRateChangedAt = null
+        rateChangeWake?.cancel()
+        rateChangeWake = null
+        frameRateSettling = false
         mutable.value = State()
         timecodeReading = ObservedValue.unknown
         if (changed) onChange()
     }
 
     /**
-     * When the camera last reported a new recording frame rate (one known rate replaced by another).
-     * Speeds and rates arrive from two moments around a format change, so readouts that pair them
-     * (an emulated shutter angle) hold the operator's value for a short window after it. Swift twin.
+     * True for [RATE_CHANGE_HOLD] after the camera reports a new recording frame rate (one known
+     * rate replaced by another). Speeds and rates arrive from two moments around a format change,
+     * so readouts that pair them (an emulated shutter angle) hold the operator's value meanwhile.
+     * Compose state: the end of the hold redraws without waiting for another snapshot. Swift twin.
      */
-    public var frameRateChangedAt: MonotonicInstant? = null
+    public var frameRateSettling: Boolean by mutableStateOf(false)
         private set
+    private var rateChangeWake: Job? = null
 
-    /** Whether the reported frame rate changed within [window] of now (the injected clock). */
-    public fun frameRateChanged(window: kotlin.time.Duration): Boolean {
-        val changed = frameRateChangedAt ?: return false
-        val now = recordingNow()
-        return now >= changed && now - changed < window
+    private fun openRateChangeHold() {
+        frameRateSettling = true
+        rateChangeWake?.cancel()
+        val current = binding
+        rateChangeWake = scope.launch {
+            recordingDelay(RATE_CHANGE_HOLD.inWholeMilliseconds)
+            if (!isActive || binding != current) return@launch
+            rateChangeWake = null
+            frameRateSettling = false
+            onChange()
+        }
     }
 
     private fun apply(snapshot: CameraSnapshot) {
@@ -287,7 +298,7 @@ public class MonitorControlModel(
         val previousRate = before?.value(SettingKey.FRAME_RATE)?.value
         if (nextRate is com.opencapture.opencine.core.SettingValue.FrameRate &&
             previousRate is com.opencapture.opencine.core.SettingValue.FrameRate && previousRate != nextRate &&
-            before.session == snapshot.session) frameRateChangedAt = recordingNow()
+            before.session == snapshot.session) openRateChangeHold()
         observeRecordingElapsed(snapshot)
         val previous = mutable.value.snapshot
         if (previous?.copy(revision = snapshot.revision)?.withTimecodeReading(snapshot.timecodeReading) != snapshot) {
@@ -521,6 +532,9 @@ public class MonitorControlModel(
     public companion object {
         public const val CONNECT_FIRST: String = "Connect the camera to use its controls."
         public const val RECORDING_UNKNOWN: String = "Recording state is not known yet. Try again in a moment."
+
+        /** How long [frameRateSettling] holds after a reported frame-rate change (Swift `rateChangeHold`). */
+        public val RATE_CHANGE_HOLD: kotlin.time.Duration = 3.seconds
 
         private suspend fun finished(
             session: CameraSession, command: CameraCommand, admission: CommandDispatchAdmission? = null,
