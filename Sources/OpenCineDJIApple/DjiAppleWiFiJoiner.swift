@@ -103,6 +103,9 @@ public enum DjiAppleWiFiJoiner {
                     throw CancellationError()
                 } catch CameraHotspotError.timedOut {
                     throw JoinError.timedOut
+                } catch let refusal as CameraHotspotJoinRefusal {
+                    host.journal("wifi: join refused \(refusal.diagnosticsCode)")
+                    throw refusal
                 } catch {
                     try applyOutcome(error as NSError, ssid: ssid, persist: persist, host: host).get()
                 }
@@ -160,6 +163,9 @@ public enum DjiAppleWiFiJoiner {
                 lastError = JoinError.stillOnOtherBody(now ?? "other camera")
             } catch is CancellationError {
                 throw CancellationError()
+            } catch let refusal as CameraHotspotJoinRefusal where !refusal.retryMayJoin {
+                // A decline or a wrong name or key: asking again would only repeat it.
+                throw refusal
             } catch {
                 lastError = error
             }
@@ -253,8 +259,13 @@ public enum DjiAppleWiFiJoiner {
             host.journal("wifi: apply \(ssid) already associated")
             return .success(())
         }
-        host.journal("wifi: apply \(ssid) failed \(error.domain) \(error.code) \(error.localizedDescription)")
-        return .failure(JoinError.failed(error.localizedDescription))
+        if let refusal = CameraHotspotJoinRefusal(error: error, network: ssid) {
+            host.journal("wifi: join refused \(refusal.diagnosticsCode)")
+            return .failure(refusal)
+        }
+        // No platform text in operator copy; the code stays in the journal above.
+        host.journal("wifi: apply \(ssid) failed \(error.domain) \(error.code)")
+        return .failure(JoinError.failed("the system refused the request"))
     }
 
     /// True when this phone has a DHCP address on the camera AP.
