@@ -67,9 +67,7 @@
             requiresVersionMatch: Bool = true,
             journal: @escaping @Sendable (String) -> Void = { _ in },
             now: @escaping @MainActor () -> Date = { Date() },
-            sleep: @escaping @MainActor (TimeInterval) async -> Void = { seconds in
-                try? await Task.sleep(for: .seconds(seconds))
-            },
+            sleep: (@MainActor (TimeInterval) async -> Void)? = nil,
             sendWire: @escaping SendWire = { data, connection, completion in
                 connection.send(content: data, completion: .contentProcessed { _ in completion() })
             }
@@ -81,7 +79,8 @@
             self.requiresVersionMatch = requiresVersionMatch
             self.journal = journal
             self.now = now
-            self.sleep = sleep
+            // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+            self.sleep = sleep ?? { seconds in try? await Task.sleep(for: .seconds(seconds)) }
             self.sendWire = sendWire
         }
         public func start(
