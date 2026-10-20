@@ -1,0 +1,2995 @@
+public final class com/opencapture/opencine/core/AudioLevels {
+	public fun <init> (Lcom/opencapture/opencine/core/AudioLevels$Channel;Lcom/opencapture/opencine/core/AudioLevels$Channel;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/AudioLevels$Channel;
+	public final fun component2 ()Lcom/opencapture/opencine/core/AudioLevels$Channel;
+	public final fun copy (Lcom/opencapture/opencine/core/AudioLevels$Channel;Lcom/opencapture/opencine/core/AudioLevels$Channel;)Lcom/opencapture/opencine/core/AudioLevels;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/AudioLevels;Lcom/opencapture/opencine/core/AudioLevels$Channel;Lcom/opencapture/opencine/core/AudioLevels$Channel;ILjava/lang/Object;)Lcom/opencapture/opencine/core/AudioLevels;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLeft ()Lcom/opencapture/opencine/core/AudioLevels$Channel;
+	public final fun getRight ()Lcom/opencapture/opencine/core/AudioLevels$Channel;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/AudioLevels$Channel {
+	public fun <init> (DLjava/lang/Double;)V
+	public synthetic fun <init> (DLjava/lang/Double;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()D
+	public final fun component2 ()Ljava/lang/Double;
+	public final fun copy (DLjava/lang/Double;)Lcom/opencapture/opencine/core/AudioLevels$Channel;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/AudioLevels$Channel;DLjava/lang/Double;ILjava/lang/Object;)Lcom/opencapture/opencine/core/AudioLevels$Channel;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLevel ()D
+	public final fun getPeak ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/Availability {
+}
+
+public final class com/opencapture/opencine/core/Availability$Available : com/opencapture/opencine/core/Availability {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/Availability$Available;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/Availability$Unavailable : com/opencapture/opencine/core/Availability {
+	public fun <init> (Lcom/opencapture/opencine/core/UnavailableReason;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/UnavailableReason;
+	public final fun copy (Lcom/opencapture/opencine/core/UnavailableReason;)Lcom/opencapture/opencine/core/Availability$Unavailable;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/Availability$Unavailable;Lcom/opencapture/opencine/core/UnavailableReason;ILjava/lang/Object;)Lcom/opencapture/opencine/core/Availability$Unavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lcom/opencapture/opencine/core/UnavailableReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/BatteryReading {
+	public static final field Companion Lcom/opencapture/opencine/core/BatteryReading$Companion;
+	public fun getWireFields ()Lcom/opencapture/opencine/core/BatteryReadingFields;
+}
+
+public final class com/opencapture/opencine/core/BatteryReading$Companion {
+	public final fun fromWireFields (Lcom/opencapture/opencine/core/BatteryReadingFields;)Lcom/opencapture/opencine/core/BatteryReading;
+}
+
+public final class com/opencapture/opencine/core/BatteryReading$DefaultImpls {
+	public static fun getWireFields (Lcom/opencapture/opencine/core/BatteryReading;)Lcom/opencapture/opencine/core/BatteryReadingFields;
+}
+
+public final class com/opencapture/opencine/core/BatteryReading$Fraction : com/opencapture/opencine/core/BatteryReading {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/core/BatteryReading$Fraction;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/BatteryReading$Fraction;DILjava/lang/Object;)Lcom/opencapture/opencine/core/BatteryReading$Fraction;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()D
+	public fun getWireFields ()Lcom/opencapture/opencine/core/BatteryReadingFields;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/BatteryReading$Steps : com/opencapture/opencine/core/BatteryReading {
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun copy (II)Lcom/opencapture/opencine/core/BatteryReading$Steps;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/BatteryReading$Steps;IIILjava/lang/Object;)Lcom/opencapture/opencine/core/BatteryReading$Steps;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFilled ()I
+	public final fun getOf ()I
+	public fun getWireFields ()Lcom/opencapture/opencine/core/BatteryReadingFields;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/BatteryReadingFields {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Double;Ljava/lang/Integer;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Double;Ljava/lang/Integer;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Double;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Double;Ljava/lang/Integer;Ljava/lang/Integer;)Lcom/opencapture/opencine/core/BatteryReadingFields;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/BatteryReadingFields;Ljava/lang/String;Ljava/lang/Double;Ljava/lang/Integer;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/core/BatteryReadingFields;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFilled ()Ljava/lang/Integer;
+	public final fun getKind ()Ljava/lang/String;
+	public final fun getOf ()Ljava/lang/Integer;
+	public final fun getValue ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraCommand {
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/core/CommandPreconditions;Ljava/util/UUID;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/core/CommandPreconditions;Ljava/util/UUID;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/CameraCommandIntent;
+	public final fun component2 ()Lcom/opencapture/opencine/core/CommandPreconditions;
+	public final fun component3-3dFvzvM ()Ljava/util/UUID;
+	public final fun copy-kzFp8uA (Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/core/CommandPreconditions;Ljava/util/UUID;)Lcom/opencapture/opencine/core/CameraCommand;
+	public static synthetic fun copy-kzFp8uA$default (Lcom/opencapture/opencine/core/CameraCommand;Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/core/CommandPreconditions;Ljava/util/UUID;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraCommand;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIntent ()Lcom/opencapture/opencine/core/CameraCommandIntent;
+	public final fun getOperation-3dFvzvM ()Ljava/util/UUID;
+	public final fun getPreconditions ()Lcom/opencapture/opencine/core/CommandPreconditions;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/CameraCommandIntent {
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+}
+
+public final class com/opencapture/opencine/core/CameraCommandIntent$DefaultImpls {
+	public static fun getKey (Lcom/opencapture/opencine/core/CameraCommandIntent;)Lcom/opencapture/opencine/core/SettingKey;
+}
+
+public final class com/opencapture/opencine/core/CameraCommandIntent$FocusPoint : com/opencapture/opencine/core/CameraCommandIntent {
+	public fun <init> (DD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun copy (DD)Lcom/opencapture/opencine/core/CameraCommandIntent$FocusPoint;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CameraCommandIntent$FocusPoint;DDILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraCommandIntent$FocusPoint;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public final fun getX ()D
+	public final fun getY ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraCommandIntent$Set : com/opencapture/opencine/core/CameraCommandIntent {
+	public fun <init> (Lcom/opencapture/opencine/core/SettingValue;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/SettingValue;
+	public final fun copy (Lcom/opencapture/opencine/core/SettingValue;)Lcom/opencapture/opencine/core/CameraCommandIntent$Set;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CameraCommandIntent$Set;Lcom/opencapture/opencine/core/SettingValue;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraCommandIntent$Set;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public final fun getValue ()Lcom/opencapture/opencine/core/SettingValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraCommandIntent$StartRecording : com/opencapture/opencine/core/CameraCommandIntent {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CameraCommandIntent$StartRecording;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraCommandIntent$StopRecording : com/opencapture/opencine/core/CameraCommandIntent {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CameraCommandIntent$StopRecording;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraDeviceID {
+	public static final field Companion Lcom/opencapture/opencine/core/CameraDeviceID$Companion;
+	public final fun component1-xwq1tjI ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Z
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIntegration-xwq1tjI ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isProvisional ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraDeviceID$Companion {
+	public final fun durable-obqwjB8 (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun provisional-llpgRtU (Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun restored-a_Kxgzw (Ljava/lang/String;Ljava/lang/String;Z)Lcom/opencapture/opencine/core/CameraDeviceID;
+}
+
+public final class com/opencapture/opencine/core/CameraExposureProgram : java/lang/Enum {
+	public static final field APERTURE_PRIORITY Lcom/opencapture/opencine/core/CameraExposureProgram;
+	public static final field AUTOMATIC Lcom/opencapture/opencine/core/CameraExposureProgram;
+	public static final field ISO_PRIORITY Lcom/opencapture/opencine/core/CameraExposureProgram;
+	public static final field MANUAL Lcom/opencapture/opencine/core/CameraExposureProgram;
+	public static final field PROGRAM Lcom/opencapture/opencine/core/CameraExposureProgram;
+	public static final field SHUTTER_PRIORITY Lcom/opencapture/opencine/core/CameraExposureProgram;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraExposureProgram;
+	public static fun values ()[Lcom/opencapture/opencine/core/CameraExposureProgram;
+}
+
+public abstract interface class com/opencapture/opencine/core/CameraIntegration {
+	public abstract fun connect (Lcom/opencapture/opencine/core/ConnectTarget;)Lkotlinx/coroutines/flow/Flow;
+	public abstract fun discover (Lcom/opencapture/opencine/core/DiscoveryMode;)Lkotlinx/coroutines/flow/Flow;
+	public abstract fun forget (Lcom/opencapture/opencine/core/SavedCamera;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getDiscoveryModes ()Ljava/util/Set;
+	public fun getDiscoveryRunning ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun getId-xwq1tjI ()Ljava/lang/String;
+	public fun getPresentation ()Lcom/opencapture/opencine/core/IntegrationPresentation;
+	public abstract fun getProfiles ()Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/core/CameraIntegration$DefaultImpls {
+	public static fun getDiscoveryRunning (Lcom/opencapture/opencine/core/CameraIntegration;)Lkotlinx/coroutines/flow/Flow;
+	public static fun getPresentation (Lcom/opencapture/opencine/core/CameraIntegration;)Lcom/opencapture/opencine/core/IntegrationPresentation;
+}
+
+public final class com/opencapture/opencine/core/CameraNetworkPermissionEvidence : java/lang/Enum {
+	public static final field OPERATION_SUCCEEDED Lcom/opencapture/opencine/core/CameraNetworkPermissionEvidence;
+	public static final field POLICY_DENIED Lcom/opencapture/opencine/core/CameraNetworkPermissionEvidence;
+	public static final field WAITING Lcom/opencapture/opencine/core/CameraNetworkPermissionEvidence;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraNetworkPermissionEvidence;
+	public static fun values ()[Lcom/opencapture/opencine/core/CameraNetworkPermissionEvidence;
+}
+
+public final class com/opencapture/opencine/core/CameraNetworkPermissionObservation {
+	public fun <init> ()V
+	public final fun begin ()Ljava/util/UUID;
+	public final fun getState ()Lcom/opencapture/opencine/core/CameraNetworkPermissionState;
+	public final fun observe (Lcom/opencapture/opencine/core/CameraNetworkPermissionEvidence;Ljava/util/UUID;)V
+	public final fun retire (Ljava/util/UUID;)V
+}
+
+public final class com/opencapture/opencine/core/CameraNetworkPermissionState : java/lang/Enum {
+	public static final field ALLOWED Lcom/opencapture/opencine/core/CameraNetworkPermissionState;
+	public static final field DENIED Lcom/opencapture/opencine/core/CameraNetworkPermissionState;
+	public static final field REQUESTED Lcom/opencapture/opencine/core/CameraNetworkPermissionState;
+	public static final field UNKNOWN Lcom/opencapture/opencine/core/CameraNetworkPermissionState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraNetworkPermissionState;
+	public static fun values ()[Lcom/opencapture/opencine/core/CameraNetworkPermissionState;
+}
+
+public final class com/opencapture/opencine/core/CameraProfile {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/util/Set;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/Set;
+	public final fun component4 ()Ljava/util/Set;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/util/Set;)Lcom/opencapture/opencine/core/CameraProfile;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CameraProfile;Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/util/Set;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraProfile;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAddableRoutes ()Ljava/util/Set;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getRoutes ()Ljava/util/Set;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraRecordingFormat {
+	public static final field Companion Lcom/opencapture/opencine/core/CameraRecordingFormat$Companion;
+	public final fun copy (Lcom/opencapture/opencine/core/CameraRecordingFormat$Dimensions;Lcom/opencapture/opencine/core/Rational;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraRecordingFormat;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CameraRecordingFormat;Lcom/opencapture/opencine/core/CameraRecordingFormat$Dimensions;Lcom/opencapture/opencine/core/Rational;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraRecordingFormat;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCodec ()Ljava/lang/String;
+	public final fun getDimensions ()Lcom/opencapture/opencine/core/CameraRecordingFormat$Dimensions;
+	public final fun getFrameRate ()Lcom/opencapture/opencine/core/Rational;
+	public final fun getProfile ()Ljava/lang/String;
+	public fun hashCode ()I
+}
+
+public final class com/opencapture/opencine/core/CameraRecordingFormat$Companion {
+	public final fun measured (Lcom/opencapture/opencine/core/CameraRecordingFormat$Dimensions;Lcom/opencapture/opencine/core/Rational;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraRecordingFormat;
+	public static synthetic fun measured$default (Lcom/opencapture/opencine/core/CameraRecordingFormat$Companion;Lcom/opencapture/opencine/core/CameraRecordingFormat$Dimensions;Lcom/opencapture/opencine/core/Rational;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraRecordingFormat;
+}
+
+public final class com/opencapture/opencine/core/CameraRecordingFormat$Dimensions {
+	public static final field Companion Lcom/opencapture/opencine/core/CameraRecordingFormat$Dimensions$Companion;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeight ()I
+	public final fun getWidth ()I
+	public fun hashCode ()I
+}
+
+public final class com/opencapture/opencine/core/CameraRecordingFormat$Dimensions$Companion {
+	public final fun measured (II)Lcom/opencapture/opencine/core/CameraRecordingFormat$Dimensions;
+}
+
+public final class com/opencapture/opencine/core/CameraRecordingObservations {
+	public static final field Companion Lcom/opencapture/opencine/core/CameraRecordingObservations$Companion;
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component2 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component3 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun copy (Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;)Lcom/opencapture/opencine/core/CameraRecordingObservations;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CameraRecordingObservations;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraRecordingObservations;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCodec ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getDimensions ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getProfile ()Lcom/opencapture/opencine/core/ObservedValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraRecordingObservations$Companion {
+	public final fun getUnknown ()Lcom/opencapture/opencine/core/CameraRecordingObservations;
+}
+
+public final class com/opencapture/opencine/core/CameraServices {
+	public fun <init> ()V
+	public final fun getServices ()Ljava/util/Map;
+	public final fun plus (Lkotlin/reflect/KClass;Ljava/lang/Object;)Lcom/opencapture/opencine/core/CameraServices;
+}
+
+public abstract interface class com/opencapture/opencine/core/CameraSession {
+	public abstract fun close (Lcom/opencapture/opencine/core/SessionCloseReason;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun closeNow (Lcom/opencapture/opencine/core/SessionCloseReason;)V
+	public abstract fun getId-knA1ijU ()Ljava/util/UUID;
+	public abstract fun getSnapshots ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun outcome-Lqx2lCU (Ljava/util/UUID;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun receipt-Cb-qs4A (Ljava/util/UUID;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public abstract fun submit (Lcom/opencapture/opencine/core/CameraCommand;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/core/CameraSessionID {
+	public static final synthetic fun box-impl (Ljava/util/UUID;)Lcom/opencapture/opencine/core/CameraSessionID;
+	public static fun constructor-impl (Ljava/util/UUID;)Ljava/util/UUID;
+	public static synthetic fun constructor-impl$default (Ljava/util/UUID;ILkotlin/jvm/internal/DefaultConstructorMarker;)Ljava/util/UUID;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/util/UUID;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/util/UUID;Ljava/util/UUID;)Z
+	public final fun getUuid ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/util/UUID;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/util/UUID;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/util/UUID;
+}
+
+public final class com/opencapture/opencine/core/CameraSnapshot {
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/ObservedValue;Ljava/util/UUID;JJLcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/ConnectionState;Lcom/opencapture/opencine/core/ControlAuthority;Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/core/ObservedValue;Ljava/util/Map;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/PowerStatus;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/CameraRecordingObservations;Lcom/opencapture/opencine/core/ObservedValue;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/ObservedValue;Ljava/util/UUID;JJLcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/ConnectionState;Lcom/opencapture/opencine/core/ControlAuthority;Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/core/ObservedValue;Ljava/util/Map;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/PowerStatus;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/CameraRecordingObservations;Lcom/opencapture/opencine/core/ObservedValue;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;JJLcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/ConnectionState;Lcom/opencapture/opencine/core/ControlAuthority;Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/core/ObservedValue;Ljava/util/Map;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/PowerStatus;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/CameraRecordingObservations;Lcom/opencapture/opencine/core/ObservedValue;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;JJLcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/ConnectionState;Lcom/opencapture/opencine/core/ControlAuthority;Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/core/ObservedValue;Ljava/util/Map;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/PowerStatus;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/CameraRecordingObservations;Lcom/opencapture/opencine/core/ObservedValue;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-knA1ijU ()Ljava/util/UUID;
+	public final fun component10 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component11 ()Lcom/opencapture/opencine/core/PowerStatus;
+	public final fun component12 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component13 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component14 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component15 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component16 ()Lcom/opencapture/opencine/core/CameraRecordingObservations;
+	public final fun component17 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component2-atwjfzU ()J
+	public final fun component3-l51t_xI ()J
+	public final fun component4 ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun component5 ()Lcom/opencapture/opencine/core/ConnectionState;
+	public final fun component6 ()Lcom/opencapture/opencine/core/ControlAuthority;
+	public final fun component7 ()Lcom/opencapture/opencine/core/CapabilitySnapshot;
+	public final fun component8 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component9 ()Ljava/util/Map;
+	public final fun copy-Xolls40 (Ljava/util/UUID;JJLcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/ConnectionState;Lcom/opencapture/opencine/core/ControlAuthority;Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/core/ObservedValue;Ljava/util/Map;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/PowerStatus;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/CameraRecordingObservations;Lcom/opencapture/opencine/core/ObservedValue;)Lcom/opencapture/opencine/core/CameraSnapshot;
+	public static synthetic fun copy-Xolls40$default (Lcom/opencapture/opencine/core/CameraSnapshot;Ljava/util/UUID;JJLcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/ConnectionState;Lcom/opencapture/opencine/core/ControlAuthority;Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/core/ObservedValue;Ljava/util/Map;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/PowerStatus;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/CameraRecordingObservations;Lcom/opencapture/opencine/core/ObservedValue;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraSnapshot;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAudioLevels ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getAuthority ()Lcom/opencapture/opencine/core/ControlAuthority;
+	public final fun getCapabilities ()Lcom/opencapture/opencine/core/CapabilitySnapshot;
+	public final fun getConnection ()Lcom/opencapture/opencine/core/ConnectionState;
+	public final fun getDevice ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun getEpoch-atwjfzU ()J
+	public final fun getExposureProgram ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getMode ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getPower ()Lcom/opencapture/opencine/core/PowerStatus;
+	public final fun getRecording ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getRecordingFormat ()Lcom/opencapture/opencine/core/CameraRecordingObservations;
+	public final fun getRevision-l51t_xI ()J
+	public final fun getSession-knA1ijU ()Ljava/util/UUID;
+	public final fun getSettings ()Ljava/util/Map;
+	public final fun getStorage ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getTimecode ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getTimecodeReading ()Lcom/opencapture/opencine/core/ObservedValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+	public final fun value (Lcom/opencapture/opencine/core/SettingKey;)Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun withTimecodeReading (Lcom/opencapture/opencine/core/ObservedValue;)Lcom/opencapture/opencine/core/CameraSnapshot;
+}
+
+public final class com/opencapture/opencine/core/CameraTimecode {
+	public fun <init> (IIIILjava/lang/Boolean;)V
+	public synthetic fun <init> (IIIILjava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()Ljava/lang/Boolean;
+	public final fun copy (IIIILjava/lang/Boolean;)Lcom/opencapture/opencine/core/CameraTimecode;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CameraTimecode;IIIILjava/lang/Boolean;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraTimecode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDropFrame ()Ljava/lang/Boolean;
+	public final fun getFrames ()I
+	public final fun getHours ()I
+	public final fun getMinutes ()I
+	public final fun getSeconds ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraTimecodeReading {
+	public fun <init> (IIILjava/lang/Integer;Ljava/lang/Boolean;)V
+	public synthetic fun <init> (IIILjava/lang/Integer;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/opencapture/opencine/core/CameraTimecode;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/lang/Integer;
+	public final fun component5 ()Ljava/lang/Boolean;
+	public final fun copy (IIILjava/lang/Integer;Ljava/lang/Boolean;)Lcom/opencapture/opencine/core/CameraTimecodeReading;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CameraTimecodeReading;IIILjava/lang/Integer;Ljava/lang/Boolean;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraTimecodeReading;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDropFrame ()Ljava/lang/Boolean;
+	public final fun getFrameTimecode ()Lcom/opencapture/opencine/core/CameraTimecode;
+	public final fun getFrames ()Ljava/lang/Integer;
+	public final fun getHours ()I
+	public final fun getMinutes ()I
+	public final fun getSeconds ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraValuePin {
+	public static final field Companion Lcom/opencapture/opencine/core/CameraValuePin$Companion;
+	public static final field SETTLE_MS J
+	public fun <init> (Ljava/lang/Object;J)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()J
+	public final fun copy (Ljava/lang/Object;J)Lcom/opencapture/opencine/core/CameraValuePin;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CameraValuePin;Ljava/lang/Object;JILjava/lang/Object;)Lcom/opencapture/opencine/core/CameraValuePin;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeadlineElapsed ()J
+	public final fun getExpected ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CameraValuePin$Companion {
+	public final fun reconcile (Lcom/opencapture/opencine/core/CameraValuePin;Ljava/lang/Object;JLkotlin/jvm/functions/Function2;)Lkotlin/Pair;
+	public static synthetic fun reconcile$default (Lcom/opencapture/opencine/core/CameraValuePin$Companion;Lcom/opencapture/opencine/core/CameraValuePin;Ljava/lang/Object;JLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lkotlin/Pair;
+}
+
+public final class com/opencapture/opencine/core/CapabilityRevision : java/lang/Comparable {
+	public static final synthetic fun box-impl (J)Lcom/opencapture/opencine/core/CapabilityRevision;
+	public synthetic fun compareTo (Ljava/lang/Object;)I
+	public fun compareTo-OqnBIHc (J)I
+	public static fun compareTo-OqnBIHc (JJ)I
+	public static fun constructor-impl (J)J
+	public static synthetic fun constructor-impl$default (JILkotlin/jvm/internal/DefaultConstructorMarker;)J
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (JLjava/lang/Object;)Z
+	public static final fun equals-impl0 (JJ)Z
+	public final fun getValue ()J
+	public fun hashCode ()I
+	public static fun hashCode-impl (J)I
+	public static final fun next-B2ZvwtY (J)J
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (J)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()J
+}
+
+public final class com/opencapture/opencine/core/CapabilitySnapshot {
+	public fun <init> ()V
+	public synthetic fun <init> (JLjava/util/List;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;Lcom/opencapture/opencine/core/SupportStatus;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JLjava/util/List;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;Lcom/opencapture/opencine/core/SupportStatus;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JLjava/util/Map;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;Lcom/opencapture/opencine/core/SupportStatus;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JLjava/util/Map;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;Lcom/opencapture/opencine/core/SupportStatus;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/TimecodeCapability;JLjava/util/List;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/TimecodeCapability;JLjava/util/List;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/TimecodeCapability;JLjava/util/Map;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/TimecodeCapability;JLjava/util/Map;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-B2ZvwtY ()J
+	public final fun component2 ()Ljava/util/Map;
+	public final fun component3 ()Ljava/util/Set;
+	public final fun component4 ()Lcom/opencapture/opencine/core/SupportStatus;
+	public final fun component5 ()Lcom/opencapture/opencine/core/SupportStatus;
+	public final fun component6 ()Lcom/opencapture/opencine/core/TimecodeCapability;
+	public final fun copy-zek8jqE (JLjava/util/Map;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;Lcom/opencapture/opencine/core/SupportStatus;)Lcom/opencapture/opencine/core/CapabilitySnapshot;
+	public static synthetic fun copy-zek8jqE$default (Lcom/opencapture/opencine/core/CapabilitySnapshot;JLjava/util/Map;Ljava/util/Set;Lcom/opencapture/opencine/core/SupportStatus;Lcom/opencapture/opencine/core/SupportStatus;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CapabilitySnapshot;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun get (Lcom/opencapture/opencine/core/SettingKey;)Lcom/opencapture/opencine/core/SettingDescriptor;
+	public final fun getAudioLevels ()Lcom/opencapture/opencine/core/SupportStatus;
+	public final fun getDescriptors ()Ljava/util/Map;
+	public final fun getRevision-B2ZvwtY ()J
+	public final fun getTimecode ()Lcom/opencapture/opencine/core/SupportStatus;
+	public final fun getTimecodeCapability ()Lcom/opencapture/opencine/core/TimecodeCapability;
+	public final fun getUnsupported ()Ljava/util/Set;
+	public fun hashCode ()I
+	public final fun support (Lcom/opencapture/opencine/core/SettingKey;)Lcom/opencapture/opencine/core/SupportStatus;
+	public fun toString ()Ljava/lang/String;
+	public final fun withTimecodeCapability (Lcom/opencapture/opencine/core/TimecodeCapability;)Lcom/opencapture/opencine/core/CapabilitySnapshot;
+}
+
+public final class com/opencapture/opencine/core/CaptureMode {
+	public fun <init> (Lcom/opencapture/opencine/core/CaptureMode$Role;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/CaptureMode$Role;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Lcom/opencapture/opencine/core/CaptureMode$Role;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/core/CaptureMode;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CaptureMode;Lcom/opencapture/opencine/core/CaptureMode$Role;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CaptureMode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getRole ()Lcom/opencapture/opencine/core/CaptureMode$Role;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CaptureMode$Role : java/lang/Enum {
+	public static final field OTHER Lcom/opencapture/opencine/core/CaptureMode$Role;
+	public static final field PHOTO Lcom/opencapture/opencine/core/CaptureMode$Role;
+	public static final field VIDEO Lcom/opencapture/opencine/core/CaptureMode$Role;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/CaptureMode$Role;
+	public static fun values ()[Lcom/opencapture/opencine/core/CaptureMode$Role;
+}
+
+public final class com/opencapture/opencine/core/CommandDispatchAdmission {
+	public synthetic fun <init> (Ljava/util/UUID;JLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun dispatch-bnpChqk (Lcom/opencapture/opencine/core/CameraCommand;Ljava/util/UUID;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getEpoch-atwjfzU ()J
+	public final fun getSession-knA1ijU ()Ljava/util/UUID;
+	public final fun rejection-_en7cBg (Lcom/opencapture/opencine/core/CameraCommand;Ljava/util/UUID;)Lcom/opencapture/opencine/core/CommandRejection;
+}
+
+public final class com/opencapture/opencine/core/CommandFailure : java/lang/Enum {
+	public static final field NOT_APPLIED Lcom/opencapture/opencine/core/CommandFailure;
+	public static final field NOT_SENT Lcom/opencapture/opencine/core/CommandFailure;
+	public static final field SUPERSEDED Lcom/opencapture/opencine/core/CommandFailure;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/CommandFailure;
+	public static fun values ()[Lcom/opencapture/opencine/core/CommandFailure;
+}
+
+public final class com/opencapture/opencine/core/CommandPreconditions {
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/CameraSnapshot;Lcom/opencapture/opencine/core/MonotonicInstant;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/CameraSnapshot;Lcom/opencapture/opencine/core/MonotonicInstant;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;JJLjava/util/UUID;Lcom/opencapture/opencine/core/MonotonicInstant;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;JJLjava/util/UUID;Lcom/opencapture/opencine/core/MonotonicInstant;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-knA1ijU ()Ljava/util/UUID;
+	public final fun component2-atwjfzU ()J
+	public final fun component3-B2ZvwtY ()J
+	public final fun component4-ryv2Ios ()Ljava/util/UUID;
+	public final fun component5-Ec5I4qw ()Lcom/opencapture/opencine/core/MonotonicInstant;
+	public final fun copy-1QfYtRw (Ljava/util/UUID;JJLjava/util/UUID;Lcom/opencapture/opencine/core/MonotonicInstant;)Lcom/opencapture/opencine/core/CommandPreconditions;
+	public static synthetic fun copy-1QfYtRw$default (Lcom/opencapture/opencine/core/CommandPreconditions;Ljava/util/UUID;JJLjava/util/UUID;Lcom/opencapture/opencine/core/MonotonicInstant;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CommandPreconditions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCapabilityRevision-B2ZvwtY ()J
+	public final fun getDeadline-Ec5I4qw ()Lcom/opencapture/opencine/core/MonotonicInstant;
+	public final fun getEpoch-atwjfzU ()J
+	public final fun getLease-ryv2Ios ()Ljava/util/UUID;
+	public final fun getSession-knA1ijU ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandReceipt {
+	public synthetic fun <init> (Ljava/util/UUID;Ljava/util/UUID;Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/core/CommandStage;Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;Ljava/util/UUID;Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/core/CommandStage;Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-3dFvzvM ()Ljava/util/UUID;
+	public final fun component2-knA1ijU ()Ljava/util/UUID;
+	public final fun component3 ()Lcom/opencapture/opencine/core/CameraCommandIntent;
+	public final fun component4 ()Lcom/opencapture/opencine/core/CommandStage;
+	public final fun component5 ()Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;
+	public final fun copy-ACDAqyY (Ljava/util/UUID;Ljava/util/UUID;Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/core/CommandStage;Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public static synthetic fun copy-ACDAqyY$default (Lcom/opencapture/opencine/core/CommandReceipt;Ljava/util/UUID;Ljava/util/UUID;Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/core/CommandStage;Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConfirmation ()Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;
+	public final fun getIntent ()Lcom/opencapture/opencine/core/CameraCommandIntent;
+	public final fun getOperation-3dFvzvM ()Ljava/util/UUID;
+	public final fun getSession-knA1ijU ()Ljava/util/UUID;
+	public final fun getStage ()Lcom/opencapture/opencine/core/CommandStage;
+	public fun hashCode ()I
+	public final fun isFinished ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/CommandRejection {
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$AuthorityExpired : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$AuthorityExpired;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$CameraRefused : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$CameraRefused;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$DeadlinePassed : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$DeadlinePassed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$NoAuthority : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$NoAuthority;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$NotConnected : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$NotConnected;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$OutOfDomain : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$OutOfDomain;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$ReadOnly : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$ReadOnly;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$RecordingStateUnknown : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$RecordingStateUnknown;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$SessionClosed : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$SessionClosed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$StaleCapabilities : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$StaleCapabilities;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$StaleEpoch : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$StaleEpoch;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$SupportUnknown : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$SupportUnknown;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$Unavailable : com/opencapture/opencine/core/CommandRejection {
+	public fun <init> (Lcom/opencapture/opencine/core/UnavailableReason;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/UnavailableReason;
+	public final fun copy (Lcom/opencapture/opencine/core/UnavailableReason;)Lcom/opencapture/opencine/core/CommandRejection$Unavailable;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CommandRejection$Unavailable;Lcom/opencapture/opencine/core/UnavailableReason;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CommandRejection$Unavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lcom/opencapture/opencine/core/UnavailableReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$Unsupported : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$Unsupported;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandRejection$WrongSession : com/opencapture/opencine/core/CommandRejection {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandRejection$WrongSession;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/CommandStage {
+	public fun isTerminal ()Z
+}
+
+public final class com/opencapture/opencine/core/CommandStage$Accepted : com/opencapture/opencine/core/CommandStage {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandStage$Accepted;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$Admitted : com/opencapture/opencine/core/CommandStage {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandStage$Admitted;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$AwaitingObservation : com/opencapture/opencine/core/CommandStage {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandStage$AwaitingObservation;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$Confirmed : com/opencapture/opencine/core/CommandStage {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandStage$Confirmed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$Created : com/opencapture/opencine/core/CommandStage {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandStage$Created;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$DefaultImpls {
+	public static fun isTerminal (Lcom/opencapture/opencine/core/CommandStage;)Z
+}
+
+public final class com/opencapture/opencine/core/CommandStage$Failed : com/opencapture/opencine/core/CommandStage {
+	public fun <init> (Lcom/opencapture/opencine/core/CommandFailure;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/CommandFailure;
+	public final fun copy (Lcom/opencapture/opencine/core/CommandFailure;)Lcom/opencapture/opencine/core/CommandStage$Failed;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CommandStage$Failed;Lcom/opencapture/opencine/core/CommandFailure;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CommandStage$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFailure ()Lcom/opencapture/opencine/core/CommandFailure;
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$OutcomeUnknown : com/opencapture/opencine/core/CommandStage {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandStage$OutcomeUnknown;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$Rejected : com/opencapture/opencine/core/CommandStage {
+	public fun <init> (Lcom/opencapture/opencine/core/CommandRejection;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/CommandRejection;
+	public final fun copy (Lcom/opencapture/opencine/core/CommandRejection;)Lcom/opencapture/opencine/core/CommandStage$Rejected;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/CommandStage$Rejected;Lcom/opencapture/opencine/core/CommandRejection;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CommandStage$Rejected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRejection ()Lcom/opencapture/opencine/core/CommandRejection;
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$Sent : com/opencapture/opencine/core/CommandStage {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandStage$Sent;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandStage$TimedOut : com/opencapture/opencine/core/CommandStage {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/CommandStage$TimedOut;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun isTerminal ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/CommandsKt {
+	public static final fun rejection-4Mmwk_w (Lcom/opencapture/opencine/core/CameraSnapshot;Lcom/opencapture/opencine/core/CameraCommand;J)Lcom/opencapture/opencine/core/CommandRejection;
+}
+
+public abstract interface class com/opencapture/opencine/core/ConfirmationPrompt : com/opencapture/opencine/core/IntegrationPrompt {
+	public abstract fun getCancel ()Lkotlin/jvm/functions/Function0;
+	public abstract fun getCancelTitle ()Ljava/lang/String;
+	public abstract fun getConfirm ()Lkotlin/jvm/functions/Function0;
+	public abstract fun getConfirmTitle ()Ljava/lang/String;
+	public abstract fun getConfirmationID ()Ljava/lang/String;
+	public abstract fun getConfirmationTitle ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/ConnectTarget {
+	public fun getCameraID ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectTarget$AddRoute : com/opencapture/opencine/core/ConnectTarget {
+	public fun <init> (Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/RouteDraft;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun component2 ()Lcom/opencapture/opencine/core/RouteDraft;
+	public final fun copy (Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/RouteDraft;)Lcom/opencapture/opencine/core/ConnectTarget$AddRoute;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectTarget$AddRoute;Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/RouteDraft;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectTarget$AddRoute;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCamera ()Lcom/opencapture/opencine/core/SavedCamera;
+	public fun getCameraID ()Ljava/lang/String;
+	public final fun getDraft ()Lcom/opencapture/opencine/core/RouteDraft;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectTarget$DefaultImpls {
+	public static fun getCameraID (Lcom/opencapture/opencine/core/ConnectTarget;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectTarget$Nearby : com/opencapture/opencine/core/ConnectTarget {
+	public fun <init> (Lcom/opencapture/opencine/core/NearbyCamera;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/NearbyCamera;
+	public final fun copy (Lcom/opencapture/opencine/core/NearbyCamera;)Lcom/opencapture/opencine/core/ConnectTarget$Nearby;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectTarget$Nearby;Lcom/opencapture/opencine/core/NearbyCamera;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectTarget$Nearby;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCamera ()Lcom/opencapture/opencine/core/NearbyCamera;
+	public fun getCameraID ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectTarget$Saved : com/opencapture/opencine/core/ConnectTarget {
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/UUID;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun component2-A8ND4-w ()Ljava/util/UUID;
+	public final fun copy-wv4LgDI (Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/UUID;)Lcom/opencapture/opencine/core/ConnectTarget$Saved;
+	public static synthetic fun copy-wv4LgDI$default (Lcom/opencapture/opencine/core/ConnectTarget$Saved;Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/UUID;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectTarget$Saved;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCamera ()Lcom/opencapture/opencine/core/SavedCamera;
+	public fun getCameraID ()Ljava/lang/String;
+	public final fun getRoute-A8ND4-w ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectedCamera {
+	public fun <init> (Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/CameraSession;Lcom/opencapture/opencine/core/CameraServices;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/CameraSession;Lcom/opencapture/opencine/core/CameraServices;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun component2 ()Lcom/opencapture/opencine/core/CameraSession;
+	public final fun component3 ()Lcom/opencapture/opencine/core/CameraServices;
+	public final fun copy (Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/CameraSession;Lcom/opencapture/opencine/core/CameraServices;)Lcom/opencapture/opencine/core/ConnectedCamera;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectedCamera;Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/CameraSession;Lcom/opencapture/opencine/core/CameraServices;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectedCamera;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSaved ()Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun getServices ()Lcom/opencapture/opencine/core/CameraServices;
+	public final fun getSession ()Lcom/opencapture/opencine/core/CameraSession;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionAttemptID {
+	public static final synthetic fun box-impl (Ljava/util/UUID;)Lcom/opencapture/opencine/core/ConnectionAttemptID;
+	public static fun constructor-impl (Ljava/util/UUID;)Ljava/util/UUID;
+	public static synthetic fun constructor-impl$default (Ljava/util/UUID;ILkotlin/jvm/internal/DefaultConstructorMarker;)Ljava/util/UUID;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/util/UUID;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/util/UUID;Ljava/util/UUID;)Z
+	public final fun getUuid ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/util/UUID;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/util/UUID;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/util/UUID;
+}
+
+public abstract interface class com/opencapture/opencine/core/ConnectionEvent {
+}
+
+public final class com/opencapture/opencine/core/ConnectionEvent$Connected : com/opencapture/opencine/core/ConnectionEvent {
+	public fun <init> (Lcom/opencapture/opencine/core/ConnectedCamera;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ConnectedCamera;
+	public final fun copy (Lcom/opencapture/opencine/core/ConnectedCamera;)Lcom/opencapture/opencine/core/ConnectionEvent$Connected;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionEvent$Connected;Lcom/opencapture/opencine/core/ConnectedCamera;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionEvent$Connected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCamera ()Lcom/opencapture/opencine/core/ConnectedCamera;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionEvent$Failed : com/opencapture/opencine/core/ConnectionEvent {
+	public fun <init> (Lcom/opencapture/opencine/core/ConnectionFailure;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ConnectionFailure;
+	public final fun copy (Lcom/opencapture/opencine/core/ConnectionFailure;)Lcom/opencapture/opencine/core/ConnectionEvent$Failed;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionEvent$Failed;Lcom/opencapture/opencine/core/ConnectionFailure;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionEvent$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFailure ()Lcom/opencapture/opencine/core/ConnectionFailure;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionEvent$Progress : com/opencapture/opencine/core/ConnectionEvent {
+	public fun <init> (Lcom/opencapture/opencine/core/ConnectionProgress;Lcom/opencapture/opencine/core/ConnectionPrompt;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/ConnectionProgress;Lcom/opencapture/opencine/core/ConnectionPrompt;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ConnectionProgress;
+	public final fun component2 ()Lcom/opencapture/opencine/core/ConnectionPrompt;
+	public final fun copy (Lcom/opencapture/opencine/core/ConnectionProgress;Lcom/opencapture/opencine/core/ConnectionPrompt;)Lcom/opencapture/opencine/core/ConnectionEvent$Progress;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionEvent$Progress;Lcom/opencapture/opencine/core/ConnectionProgress;Lcom/opencapture/opencine/core/ConnectionPrompt;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionEvent$Progress;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getProgress ()Lcom/opencapture/opencine/core/ConnectionProgress;
+	public final fun getPrompt ()Lcom/opencapture/opencine/core/ConnectionPrompt;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure {
+	public fun <init> (Lcom/opencapture/opencine/core/ConnectionFailure$Reason;Lcom/opencapture/opencine/core/ConnectionPhase;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/ConnectionFailure$Reason;Lcom/opencapture/opencine/core/ConnectionPhase;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ConnectionFailure$Reason;
+	public final fun component2 ()Lcom/opencapture/opencine/core/ConnectionPhase;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/util/List;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (Lcom/opencapture/opencine/core/ConnectionFailure$Reason;Lcom/opencapture/opencine/core/ConnectionPhase;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)Lcom/opencapture/opencine/core/ConnectionFailure;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionFailure;Lcom/opencapture/opencine/core/ConnectionFailure$Reason;Lcom/opencapture/opencine/core/ConnectionPhase;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionFailure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActions ()Ljava/util/List;
+	public final fun getCode ()Ljava/lang/String;
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getPhase ()Lcom/opencapture/opencine/core/ConnectionPhase;
+	public final fun getReason ()Lcom/opencapture/opencine/core/ConnectionFailure$Reason;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Permission : java/lang/Enum {
+	public static final field BLUETOOTH Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+	public static final field LOCAL_NETWORK Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+	public static final field LOCATION Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+	public static final field NEARBY_DEVICES Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+	public static final field USB Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+	public static fun values ()[Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Radio : java/lang/Enum {
+	public static final field BLUETOOTH Lcom/opencapture/opencine/core/ConnectionFailure$Radio;
+	public static final field WIFI Lcom/opencapture/opencine/core/ConnectionFailure$Radio;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/ConnectionFailure$Radio;
+	public static fun values ()[Lcom/opencapture/opencine/core/ConnectionFailure$Radio;
+}
+
+public abstract interface class com/opencapture/opencine/core/ConnectionFailure$Reason {
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$Cancelled : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$Cancelled;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$CredentialsRejected : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$CredentialsRejected;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$HeldElsewhere : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$HeldElsewhere;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$JoinFailed : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$JoinFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$LinkLost : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$LinkLost;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$NotApproved : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$NotApproved;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$NotFound : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$NotFound;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$Other : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$Other;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$Permission : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public fun <init> (Lcom/opencapture/opencine/core/ConnectionFailure$Permission;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+	public final fun copy (Lcom/opencapture/opencine/core/ConnectionFailure$Permission;)Lcom/opencapture/opencine/core/ConnectionFailure$Reason$Permission;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionFailure$Reason$Permission;Lcom/opencapture/opencine/core/ConnectionFailure$Permission;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionFailure$Reason$Permission;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPermission ()Lcom/opencapture/opencine/core/ConnectionFailure$Permission;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$RadioOff : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public fun <init> (Lcom/opencapture/opencine/core/ConnectionFailure$Radio;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ConnectionFailure$Radio;
+	public final fun copy (Lcom/opencapture/opencine/core/ConnectionFailure$Radio;)Lcom/opencapture/opencine/core/ConnectionFailure$Reason$RadioOff;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionFailure$Reason$RadioOff;Lcom/opencapture/opencine/core/ConnectionFailure$Radio;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionFailure$Reason$RadioOff;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRadio ()Lcom/opencapture/opencine/core/ConnectionFailure$Radio;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$TimedOut : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$TimedOut;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$Unsupported : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$Unsupported;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionFailure$Reason$WrongCamera : com/opencapture/opencine/core/ConnectionFailure$Reason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionFailure$Reason$WrongCamera;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionPhase : java/lang/Enum {
+	public static final field AWAITING_APPROVAL Lcom/opencapture/opencine/core/ConnectionPhase;
+	public static final field JOINING_NETWORK Lcom/opencapture/opencine/core/ConnectionPhase;
+	public static final field LINK Lcom/opencapture/opencine/core/ConnectionPhase;
+	public static final field NEGOTIATING Lcom/opencapture/opencine/core/ConnectionPhase;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/ConnectionPhase;
+	public static fun values ()[Lcom/opencapture/opencine/core/ConnectionPhase;
+}
+
+public final class com/opencapture/opencine/core/ConnectionProgress {
+	public synthetic fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/core/ConnectionPhase;Ljava/util/List;ILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/core/ConnectionPhase;Ljava/util/List;ILjava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-43NTVoo ()Ljava/util/UUID;
+	public final fun component2 ()Lcom/opencapture/opencine/core/ConnectionPhase;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()I
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy-GvanSDg (Ljava/util/UUID;Lcom/opencapture/opencine/core/ConnectionPhase;Ljava/util/List;ILjava/lang/String;)Lcom/opencapture/opencine/core/ConnectionProgress;
+	public static synthetic fun copy-GvanSDg$default (Lcom/opencapture/opencine/core/ConnectionProgress;Ljava/util/UUID;Lcom/opencapture/opencine/core/ConnectionPhase;Ljava/util/List;ILjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionProgress;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttempt-43NTVoo ()Ljava/util/UUID;
+	public final fun getCurrent ()I
+	public final fun getNote ()Ljava/lang/String;
+	public final fun getPhase ()Lcom/opencapture/opencine/core/ConnectionPhase;
+	public final fun getSteps ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/ConnectionPrompt {
+	public abstract fun getText ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionPrompt$AcceptNetworkJoin : com/opencapture/opencine/core/ConnectionPrompt {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/core/ConnectionPrompt$AcceptNetworkJoin;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionPrompt$AcceptNetworkJoin;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionPrompt$AcceptNetworkJoin;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNetwork ()Ljava/lang/String;
+	public fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionPrompt$ApproveOnCamera : com/opencapture/opencine/core/ConnectionPrompt {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/core/ConnectionPrompt$ApproveOnCamera;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionPrompt$ApproveOnCamera;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionPrompt$ApproveOnCamera;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionPrompt$Integration : com/opencapture/opencine/core/ConnectionPrompt {
+	public fun <init> (Lcom/opencapture/opencine/core/IntegrationPrompt;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/IntegrationPrompt;
+	public final fun copy (Lcom/opencapture/opencine/core/IntegrationPrompt;)Lcom/opencapture/opencine/core/ConnectionPrompt$Integration;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionPrompt$Integration;Lcom/opencapture/opencine/core/IntegrationPrompt;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionPrompt$Integration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPrompt ()Lcom/opencapture/opencine/core/IntegrationPrompt;
+	public fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionRouteID {
+	public static final synthetic fun box-impl (Ljava/util/UUID;)Lcom/opencapture/opencine/core/ConnectionRouteID;
+	public static fun constructor-impl (Ljava/util/UUID;)Ljava/util/UUID;
+	public static synthetic fun constructor-impl$default (Ljava/util/UUID;ILkotlin/jvm/internal/DefaultConstructorMarker;)Ljava/util/UUID;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/util/UUID;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/util/UUID;Ljava/util/UUID;)Z
+	public final fun getUuid ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/util/UUID;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/util/UUID;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/util/UUID;
+}
+
+public abstract interface class com/opencapture/opencine/core/ConnectionState {
+}
+
+public final class com/opencapture/opencine/core/ConnectionState$Connecting : com/opencapture/opencine/core/ConnectionState {
+	public synthetic fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/core/ConnectionPhase;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-43NTVoo ()Ljava/util/UUID;
+	public final fun component2 ()Lcom/opencapture/opencine/core/ConnectionPhase;
+	public final fun copy-AmLLvJg (Ljava/util/UUID;Lcom/opencapture/opencine/core/ConnectionPhase;)Lcom/opencapture/opencine/core/ConnectionState$Connecting;
+	public static synthetic fun copy-AmLLvJg$default (Lcom/opencapture/opencine/core/ConnectionState$Connecting;Ljava/util/UUID;Lcom/opencapture/opencine/core/ConnectionPhase;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionState$Connecting;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttempt-43NTVoo ()Ljava/util/UUID;
+	public final fun getPhase ()Lcom/opencapture/opencine/core/ConnectionPhase;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionState$Disconnected : com/opencapture/opencine/core/ConnectionState {
+	public fun <init> (Lcom/opencapture/opencine/core/SessionCloseReason;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/SessionCloseReason;
+	public final fun copy (Lcom/opencapture/opencine/core/SessionCloseReason;)Lcom/opencapture/opencine/core/ConnectionState$Disconnected;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionState$Disconnected;Lcom/opencapture/opencine/core/SessionCloseReason;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionState$Disconnected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lcom/opencapture/opencine/core/SessionCloseReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionState$Discovered : com/opencapture/opencine/core/ConnectionState {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionState$Discovered;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionState$Ready : com/opencapture/opencine/core/ConnectionState {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ConnectionState$Ready;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionState$Recovering : com/opencapture/opencine/core/ConnectionState {
+	public synthetic fun <init> (Ljava/util/UUID;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-43NTVoo ()Ljava/util/UUID;
+	public final fun copy-RfLiE10 (Ljava/util/UUID;)Lcom/opencapture/opencine/core/ConnectionState$Recovering;
+	public static synthetic fun copy-RfLiE10$default (Lcom/opencapture/opencine/core/ConnectionState$Recovering;Ljava/util/UUID;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionState$Recovering;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttempt-43NTVoo ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ConnectionStep {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/core/ConnectionStep;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ConnectionStep;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionStep;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/ControlAuthority {
+	public fun getLeaseID-ryv2Ios ()Ljava/util/UUID;
+}
+
+public final class com/opencapture/opencine/core/ControlAuthority$DefaultImpls {
+	public static fun getLeaseID-ryv2Ios (Lcom/opencapture/opencine/core/ControlAuthority;)Ljava/util/UUID;
+}
+
+public final class com/opencapture/opencine/core/ControlAuthority$Lease : com/opencapture/opencine/core/ControlAuthority {
+	public fun <init> (Lcom/opencapture/opencine/core/ControlLease;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ControlLease;
+	public final fun copy (Lcom/opencapture/opencine/core/ControlLease;)Lcom/opencapture/opencine/core/ControlAuthority$Lease;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ControlAuthority$Lease;Lcom/opencapture/opencine/core/ControlLease;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ControlAuthority$Lease;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLease ()Lcom/opencapture/opencine/core/ControlLease;
+	public fun getLeaseID-ryv2Ios ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ControlAuthority$Owner : com/opencapture/opencine/core/ControlAuthority {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ControlAuthority$Owner;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getLeaseID-ryv2Ios ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ControlAuthority$ReadOnly : com/opencapture/opencine/core/ControlAuthority {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ControlAuthority$ReadOnly;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getLeaseID-ryv2Ios ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ControlAuthority$Unavailable : com/opencapture/opencine/core/ControlAuthority {
+	public fun <init> (Lcom/opencapture/opencine/core/UnavailableReason;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/UnavailableReason;
+	public final fun copy (Lcom/opencapture/opencine/core/UnavailableReason;)Lcom/opencapture/opencine/core/ControlAuthority$Unavailable;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ControlAuthority$Unavailable;Lcom/opencapture/opencine/core/UnavailableReason;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ControlAuthority$Unavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getLeaseID-ryv2Ios ()Ljava/util/UUID;
+	public final fun getReason ()Lcom/opencapture/opencine/core/UnavailableReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ControlEpoch : java/lang/Comparable {
+	public static final synthetic fun box-impl (J)Lcom/opencapture/opencine/core/ControlEpoch;
+	public synthetic fun compareTo (Ljava/lang/Object;)I
+	public fun compareTo-OMol1zU (J)I
+	public static fun compareTo-OMol1zU (JJ)I
+	public static fun constructor-impl (J)J
+	public static synthetic fun constructor-impl$default (JILkotlin/jvm/internal/DefaultConstructorMarker;)J
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (JLjava/lang/Object;)Z
+	public static final fun equals-impl0 (JJ)Z
+	public final fun getValue ()J
+	public fun hashCode ()I
+	public static fun hashCode-impl (J)I
+	public static final fun next-atwjfzU (J)J
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (J)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()J
+}
+
+public final class com/opencapture/opencine/core/ControlLease {
+	public fun <init> ()V
+	public synthetic fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/core/MonotonicInstant;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/core/MonotonicInstant;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-bUqrHn0 ()Ljava/util/UUID;
+	public final fun component2-Ec5I4qw ()Lcom/opencapture/opencine/core/MonotonicInstant;
+	public final fun copy-sjqpZwk (Ljava/util/UUID;Lcom/opencapture/opencine/core/MonotonicInstant;)Lcom/opencapture/opencine/core/ControlLease;
+	public static synthetic fun copy-sjqpZwk$default (Lcom/opencapture/opencine/core/ControlLease;Ljava/util/UUID;Lcom/opencapture/opencine/core/MonotonicInstant;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ControlLease;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpiresAt-Ec5I4qw ()Lcom/opencapture/opencine/core/MonotonicInstant;
+	public final fun getId-bUqrHn0 ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ControlLeaseID {
+	public static final synthetic fun box-impl (Ljava/util/UUID;)Lcom/opencapture/opencine/core/ControlLeaseID;
+	public static fun constructor-impl (Ljava/util/UUID;)Ljava/util/UUID;
+	public static synthetic fun constructor-impl$default (Ljava/util/UUID;ILkotlin/jvm/internal/DefaultConstructorMarker;)Ljava/util/UUID;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/util/UUID;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/util/UUID;Ljava/util/UUID;)Z
+	public final fun getUuid ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/util/UUID;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/util/UUID;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/util/UUID;
+}
+
+public final class com/opencapture/opencine/core/DiscoveryMode : java/lang/Enum {
+	public static final field ACTIVE Lcom/opencapture/opencine/core/DiscoveryMode;
+	public static final field PASSIVE Lcom/opencapture/opencine/core/DiscoveryMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/DiscoveryMode;
+	public static fun values ()[Lcom/opencapture/opencine/core/DiscoveryMode;
+}
+
+public final class com/opencapture/opencine/core/FocusMode : java/lang/Enum {
+	public static final field CONTINUOUS Lcom/opencapture/opencine/core/FocusMode;
+	public static final field MANUAL Lcom/opencapture/opencine/core/FocusMode;
+	public static final field SINGLE Lcom/opencapture/opencine/core/FocusMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/FocusMode;
+	public static fun values ()[Lcom/opencapture/opencine/core/FocusMode;
+}
+
+public final class com/opencapture/opencine/core/Freshness : java/lang/Enum {
+	public static final field FRESH Lcom/opencapture/opencine/core/Freshness;
+	public static final field STALE Lcom/opencapture/opencine/core/Freshness;
+	public static final field UNKNOWN Lcom/opencapture/opencine/core/Freshness;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/Freshness;
+	public static fun values ()[Lcom/opencapture/opencine/core/Freshness;
+}
+
+public abstract interface class com/opencapture/opencine/core/ISOValue {
+}
+
+public final class com/opencapture/opencine/core/ISOValue$Auto : com/opencapture/opencine/core/ISOValue {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ISOValue$Auto;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ISOValue$AutoLimited : com/opencapture/opencine/core/ISOValue {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/core/ISOValue$AutoLimited;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ISOValue$AutoLimited;IILjava/lang/Object;)Lcom/opencapture/opencine/core/ISOValue$AutoLimited;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMaximum ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ISOValue$Manual : com/opencapture/opencine/core/ISOValue {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/core/ISOValue$Manual;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ISOValue$Manual;IILjava/lang/Object;)Lcom/opencapture/opencine/core/ISOValue$Manual;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIso ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/IntegrationID {
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lcom/opencapture/opencine/core/IntegrationID;
+	public static fun constructor-impl (Ljava/lang/String;)Ljava/lang/String;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getRawValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/IntegrationPresentation {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;Z)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;
+	public final fun component2 ()Z
+	public final fun copy (Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;Z)Lcom/opencapture/opencine/core/IntegrationPresentation;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/IntegrationPresentation;Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;ZILjava/lang/Object;)Lcom/opencapture/opencine/core/IntegrationPresentation;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNamesSetups ()Z
+	public final fun getNearbyTap ()Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/IntegrationPresentation$NearbyTap : java/lang/Enum {
+	public static final field CONNECT Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;
+	public static final field SELECT Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;
+	public static fun values ()[Lcom/opencapture/opencine/core/IntegrationPresentation$NearbyTap;
+}
+
+public abstract interface class com/opencapture/opencine/core/IntegrationPrompt {
+	public abstract fun getFallbackText ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/LegacyCamera {
+	public fun <init> (Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/Map;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun component2 ()Ljava/util/Map;
+	public final fun copy (Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/Map;)Lcom/opencapture/opencine/core/LegacyCamera;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/LegacyCamera;Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/Map;ILjava/lang/Object;)Lcom/opencapture/opencine/core/LegacyCamera;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCamera ()Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun getRecords ()Ljava/util/Map;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/LegacyRecordHash {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/LegacyRecordHash;
+	public final fun fnv1a (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/LegacySavedCameraCodec {
+	public abstract fun cameras (Ljava/lang/String;)Ljava/util/List;
+	public abstract fun getHeldExtras ()Ljava/util/Set;
+	public fun getHoldsRouteTitles ()Z
+	public abstract fun patched (Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/LegacySavedCameraCodec$DefaultImpls {
+	public static fun getHoldsRouteTitles (Lcom/opencapture/opencine/core/LegacySavedCameraCodec;)Z
+}
+
+public final class com/opencapture/opencine/core/LocalVPNFilter {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/LocalVPNFilter;
+	public static final field JOIN_WIFI_PHONE_STEP Ljava/lang/String;
+	public static final field LIVE_HINT Ljava/lang/String;
+	public static final field LIVE_HINT_DELAY_MS J
+	public static final field LIVE_HINT_DELAY_SECONDS D
+	public static final field WIZARD_BANNER Ljava/lang/String;
+	public final fun shouldHintOnLiveWait (ZZD)Z
+}
+
+public final class com/opencapture/opencine/core/MediaState : java/lang/Enum {
+	public static final field ABSENT Lcom/opencapture/opencine/core/MediaState;
+	public static final field ERROR Lcom/opencapture/opencine/core/MediaState;
+	public static final field FULL Lcom/opencapture/opencine/core/MediaState;
+	public static final field READY Lcom/opencapture/opencine/core/MediaState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/MediaState;
+	public static fun values ()[Lcom/opencapture/opencine/core/MediaState;
+}
+
+public final class com/opencapture/opencine/core/MonitorConnectionPolicy {
+	public static final field Companion Lcom/opencapture/opencine/core/MonitorConnectionPolicy$Companion;
+	public fun <init> (ZZZ)V
+	public synthetic fun <init> (ZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun copy (ZZZ)Lcom/opencapture/opencine/core/MonitorConnectionPolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/MonitorConnectionPolicy;ZZZILjava/lang/Object;)Lcom/opencapture/opencine/core/MonitorConnectionPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAudioMeters ()Z
+	public final fun getCameraControls ()Z
+	public final fun getCameraLevel ()Z
+	public final fun getCameraTimecode ()Z
+	public final fun getCanDriveCamera ()Z
+	public final fun getFocusBoxes ()Z
+	public final fun getFocusConfirmation ()Z
+	public final fun getHoldsRelayControl ()Z
+	public final fun getMediaBrowser ()Z
+	public final fun getOffersSourceSwitch ()Z
+	public final fun getOwnsCameraSession ()Z
+	public final fun getReceivesCameraMetadata ()Z
+	public final fun getRecordControl ()Z
+	public final fun getSubjectDetectionBoxes ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/MonitorConnectionPolicy$Companion {
+	public final fun getOWNING ()Lcom/opencapture/opencine/core/MonitorConnectionPolicy;
+	public final fun watcher (Z)Lcom/opencapture/opencine/core/MonitorConnectionPolicy;
+}
+
+public final class com/opencapture/opencine/core/MonitorEntryDescriptor {
+	public synthetic fun <init> (Ljava/util/UUID;Ljava/lang/String;Lcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/PictureSourceDescriptor;Ljava/util/UUID;Lcom/opencapture/opencine/core/TelemetrySource;Lcom/opencapture/opencine/core/ControlAuthority;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;Ljava/lang/String;Lcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/PictureSourceDescriptor;Ljava/util/UUID;Lcom/opencapture/opencine/core/TelemetrySource;Lcom/opencapture/opencine/core/ControlAuthority;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-AgVIDMY ()Ljava/util/UUID;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun component4 ()Lcom/opencapture/opencine/core/PictureSourceDescriptor;
+	public final fun component5-FgbMEzQ ()Ljava/util/UUID;
+	public final fun component6 ()Lcom/opencapture/opencine/core/TelemetrySource;
+	public final fun component7 ()Lcom/opencapture/opencine/core/ControlAuthority;
+	public final fun copy-adEQCjo (Ljava/util/UUID;Ljava/lang/String;Lcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/PictureSourceDescriptor;Ljava/util/UUID;Lcom/opencapture/opencine/core/TelemetrySource;Lcom/opencapture/opencine/core/ControlAuthority;)Lcom/opencapture/opencine/core/MonitorEntryDescriptor;
+	public static synthetic fun copy-adEQCjo$default (Lcom/opencapture/opencine/core/MonitorEntryDescriptor;Ljava/util/UUID;Ljava/lang/String;Lcom/opencapture/opencine/core/CameraDeviceID;Lcom/opencapture/opencine/core/PictureSourceDescriptor;Ljava/util/UUID;Lcom/opencapture/opencine/core/TelemetrySource;Lcom/opencapture/opencine/core/ControlAuthority;ILjava/lang/Object;)Lcom/opencapture/opencine/core/MonitorEntryDescriptor;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraSession-FgbMEzQ ()Ljava/util/UUID;
+	public final fun getControlAuthority ()Lcom/opencapture/opencine/core/ControlAuthority;
+	public final fun getDevice ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun getId-AgVIDMY ()Ljava/util/UUID;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPicture ()Lcom/opencapture/opencine/core/PictureSourceDescriptor;
+	public final fun getTelemetry ()Lcom/opencapture/opencine/core/TelemetrySource;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+	public final fun validationError ()Lcom/opencapture/opencine/core/MonitorEntryError;
+}
+
+public final class com/opencapture/opencine/core/MonitorEntryError : java/lang/Enum {
+	public static final field COMMAND_AUTHORITY_WITHOUT_SESSION Lcom/opencapture/opencine/core/MonitorEntryError;
+	public static final field NO_ROLE Lcom/opencapture/opencine/core/MonitorEntryError;
+	public static final field SESSION_TELEMETRY_WITHOUT_SESSION Lcom/opencapture/opencine/core/MonitorEntryError;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/MonitorEntryError;
+	public static fun values ()[Lcom/opencapture/opencine/core/MonitorEntryError;
+}
+
+public final class com/opencapture/opencine/core/MonitorEntryID {
+	public static final synthetic fun box-impl (Ljava/util/UUID;)Lcom/opencapture/opencine/core/MonitorEntryID;
+	public static fun constructor-impl (Ljava/util/UUID;)Ljava/util/UUID;
+	public static synthetic fun constructor-impl$default (Ljava/util/UUID;ILkotlin/jvm/internal/DefaultConstructorMarker;)Ljava/util/UUID;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/util/UUID;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/util/UUID;Ljava/util/UUID;)Z
+	public final fun getUuid ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/util/UUID;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/util/UUID;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/util/UUID;
+}
+
+public final class com/opencapture/opencine/core/MonitorLayoutCapabilities {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (ZZZZZZZZZZ)V
+	public synthetic fun <init> (ZZZZZZZZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component10 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun component7 ()Z
+	public final fun component8 ()Z
+	public final fun component9 ()Z
+	public final fun copy (ZZZZZZZZZZ)Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;ZZZZZZZZZZILjava/lang/Object;)Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAudio ()Z
+	public final fun getClipDelete ()Z
+	public final fun getClipStar ()Z
+	public final fun getFocus ()Z
+	public final fun getGimbal ()Z
+	public final fun getHeadTracking ()Z
+	public final fun getIris ()Z
+	public final fun getRequiresInternetHop ()Z
+	public final fun getTimecode ()Z
+	public final fun getZoom ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/MonotonicInstant : java/lang/Comparable {
+	public static final field Companion Lcom/opencapture/opencine/core/MonotonicInstant$Companion;
+	public static final synthetic fun box-impl (J)Lcom/opencapture/opencine/core/MonotonicInstant;
+	public synthetic fun compareTo (Ljava/lang/Object;)I
+	public fun compareTo-_5MYWhY (J)I
+	public static fun compareTo-_5MYWhY (JJ)I
+	public static fun constructor-impl (J)J
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (JLjava/lang/Object;)Z
+	public static final fun equals-impl0 (JJ)Z
+	public final fun getSinceReference-UwyO8pc ()J
+	public fun hashCode ()I
+	public static fun hashCode-impl (J)I
+	public static final fun minus-_n6XiXA (JJ)J
+	public static final fun now-AehAGeA ()J
+	public static final fun plus-M10QI0Y (JJ)J
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (J)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()J
+}
+
+public final class com/opencapture/opencine/core/MonotonicInstant$Companion {
+	public final fun getZERO-AehAGeA ()J
+	public final fun now-AehAGeA ()J
+}
+
+public abstract interface class com/opencapture/opencine/core/MulticamQualification {
+}
+
+public final class com/opencapture/opencine/core/MulticamQualification$Qualified : com/opencapture/opencine/core/MulticamQualification {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/MulticamQualification$Qualified;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/MulticamQualification$Refused : com/opencapture/opencine/core/MulticamQualification {
+	public fun <init> (Lcom/opencapture/opencine/core/MulticamQualificationRefusal;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/MulticamQualificationRefusal;
+	public final fun copy (Lcom/opencapture/opencine/core/MulticamQualificationRefusal;)Lcom/opencapture/opencine/core/MulticamQualification$Refused;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/MulticamQualification$Refused;Lcom/opencapture/opencine/core/MulticamQualificationRefusal;ILjava/lang/Object;)Lcom/opencapture/opencine/core/MulticamQualification$Refused;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lcom/opencapture/opencine/core/MulticamQualificationRefusal;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/MulticamQualification$Unknown : com/opencapture/opencine/core/MulticamQualification {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/MulticamQualification$Unknown;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/MulticamQualificationRefusal : java/lang/Enum {
+	public static final field ALREADY_MEMBER Lcom/opencapture/opencine/core/MulticamQualificationRefusal;
+	public static final field NOT_REACHABLE Lcom/opencapture/opencine/core/MulticamQualificationRefusal;
+	public static final field OPERATION_UNAVAILABLE Lcom/opencapture/opencine/core/MulticamQualificationRefusal;
+	public static final field UNSUPPORTED_CONFIGURATION Lcom/opencapture/opencine/core/MulticamQualificationRefusal;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/MulticamQualificationRefusal;
+	public static fun values ()[Lcom/opencapture/opencine/core/MulticamQualificationRefusal;
+}
+
+public final class com/opencapture/opencine/core/NearbyCamera {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/lang/Integer;Lcom/opencapture/opencine/core/Availability;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/lang/Integer;Lcom/opencapture/opencine/core/Availability;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/util/Set;
+	public final fun component6 ()Ljava/lang/Integer;
+	public final fun component7 ()Lcom/opencapture/opencine/core/Availability;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/lang/Integer;Lcom/opencapture/opencine/core/Availability;Ljava/lang/String;)Lcom/opencapture/opencine/core/NearbyCamera;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/NearbyCamera;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/lang/Integer;Lcom/opencapture/opencine/core/Availability;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/NearbyCamera;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAvailability ()Lcom/opencapture/opencine/core/Availability;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getModel ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRouteKey ()Ljava/lang/String;
+	public final fun getRoutes ()Ljava/util/Set;
+	public final fun getSavedID ()Ljava/lang/String;
+	public final fun getSignalBars ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ObservationOrigin : java/lang/Enum {
+	public static final field CAMERA_REPORTED Lcom/opencapture/opencine/core/ObservationOrigin;
+	public static final field CLOCK_DERIVED Lcom/opencapture/opencine/core/ObservationOrigin;
+	public static final field ESTIMATED Lcom/opencapture/opencine/core/ObservationOrigin;
+	public static final field IMAGE_ESTIMATED Lcom/opencapture/opencine/core/ObservationOrigin;
+	public static final field OPERATOR_PROVIDED Lcom/opencapture/opencine/core/ObservationOrigin;
+	public static final field PROTOCOL_DERIVED Lcom/opencapture/opencine/core/ObservationOrigin;
+	public static final field UNKNOWN Lcom/opencapture/opencine/core/ObservationOrigin;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/ObservationOrigin;
+	public static fun values ()[Lcom/opencapture/opencine/core/ObservationOrigin;
+}
+
+public abstract interface class com/opencapture/opencine/core/ObservationPrecision {
+}
+
+public final class com/opencapture/opencine/core/ObservationPrecision$Approximate : com/opencapture/opencine/core/ObservationPrecision {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/core/ObservationPrecision$Approximate;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ObservationPrecision$Approximate;DILjava/lang/Object;)Lcom/opencapture/opencine/core/ObservationPrecision$Approximate;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPlusOrMinus ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ObservationPrecision$Exact : com/opencapture/opencine/core/ObservationPrecision {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ObservationPrecision$Exact;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ObservationPrecision$Quantized : com/opencapture/opencine/core/ObservationPrecision {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/core/ObservationPrecision$Quantized;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ObservationPrecision$Quantized;DILjava/lang/Object;)Lcom/opencapture/opencine/core/ObservationPrecision$Quantized;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getStep ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/ObservationValidity {
+}
+
+public final class com/opencapture/opencine/core/ObservationValidity$Invalid : com/opencapture/opencine/core/ObservationValidity {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/core/ObservationValidity$Invalid;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ObservationValidity$Invalid;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ObservationValidity$Invalid;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ObservationValidity$Valid : com/opencapture/opencine/core/ObservationValidity {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ObservationValidity$Valid;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ObservedValue {
+	public static final field Companion Lcom/opencapture/opencine/core/ObservedValue$Companion;
+	public final fun compactMap (Lkotlin/jvm/functions/Function1;)Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()Lcom/opencapture/opencine/core/ObservationOrigin;
+	public final fun component3-Ec5I4qw ()Lcom/opencapture/opencine/core/MonotonicInstant;
+	public final fun component4 ()Lcom/opencapture/opencine/core/ObservationValidity;
+	public final fun component5 ()Lcom/opencapture/opencine/core/ObservationPrecision;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun freshness-4xAdfvc (JJ)Lcom/opencapture/opencine/core/Freshness;
+	public final fun getObservedAt-Ec5I4qw ()Lcom/opencapture/opencine/core/MonotonicInstant;
+	public final fun getOrigin ()Lcom/opencapture/opencine/core/ObservationOrigin;
+	public final fun getPrecision ()Lcom/opencapture/opencine/core/ObservationPrecision;
+	public final fun getValidity ()Lcom/opencapture/opencine/core/ObservationValidity;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public final fun isKnown ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ObservedValue$Companion {
+	public final fun getUnknown ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun invoke-mOC3eiE (Ljava/lang/Object;Lcom/opencapture/opencine/core/ObservationOrigin;Lcom/opencapture/opencine/core/MonotonicInstant;Lcom/opencapture/opencine/core/ObservationValidity;Lcom/opencapture/opencine/core/ObservationPrecision;)Lcom/opencapture/opencine/core/ObservedValue;
+	public static synthetic fun invoke-mOC3eiE$default (Lcom/opencapture/opencine/core/ObservedValue$Companion;Ljava/lang/Object;Lcom/opencapture/opencine/core/ObservationOrigin;Lcom/opencapture/opencine/core/MonotonicInstant;Lcom/opencapture/opencine/core/ObservationValidity;Lcom/opencapture/opencine/core/ObservationPrecision;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ObservedValue;
+}
+
+public final class com/opencapture/opencine/core/OperationID {
+	public static final synthetic fun box-impl (Ljava/util/UUID;)Lcom/opencapture/opencine/core/OperationID;
+	public static fun constructor-impl (Ljava/util/UUID;)Ljava/util/UUID;
+	public static synthetic fun constructor-impl$default (Ljava/util/UUID;ILkotlin/jvm/internal/DefaultConstructorMarker;)Ljava/util/UUID;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/util/UUID;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/util/UUID;Ljava/util/UUID;)Z
+	public final fun getUuid ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/util/UUID;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/util/UUID;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/util/UUID;
+}
+
+public final class com/opencapture/opencine/core/PictureHealth : java/lang/Enum {
+	public static final field FAILED Lcom/opencapture/opencine/core/PictureHealth;
+	public static final field LIVE Lcom/opencapture/opencine/core/PictureHealth;
+	public static final field STALLED Lcom/opencapture/opencine/core/PictureHealth;
+	public static final field STARTING Lcom/opencapture/opencine/core/PictureHealth;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/PictureHealth;
+	public static fun values ()[Lcom/opencapture/opencine/core/PictureHealth;
+}
+
+public final class com/opencapture/opencine/core/PictureSourceDescriptor {
+	public synthetic fun <init> (Ljava/util/UUID;JLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;JLjava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-wfDyAYw ()Ljava/util/UUID;
+	public final fun component2-WESdoBU ()J
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy-OpAj5xY (Ljava/util/UUID;JLjava/lang/String;)Lcom/opencapture/opencine/core/PictureSourceDescriptor;
+	public static synthetic fun copy-OpAj5xY$default (Lcom/opencapture/opencine/core/PictureSourceDescriptor;Ljava/util/UUID;JLjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/PictureSourceDescriptor;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGeneration-WESdoBU ()J
+	public final fun getLabel ()Ljava/lang/String;
+	public final fun getStream-wfDyAYw ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/PowerStatus {
+	public static final field Companion Lcom/opencapture/opencine/core/PowerStatus$Companion;
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component2 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component3 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component4 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun copy (Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;)Lcom/opencapture/opencine/core/PowerStatus;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/PowerStatus;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;ILjava/lang/Object;)Lcom/opencapture/opencine/core/PowerStatus;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBattery ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getBatteryReading ()Lcom/opencapture/opencine/core/BatteryReading;
+	public final fun getCharging ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getExhausted ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getExternalPower ()Lcom/opencapture/opencine/core/ObservedValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/PowerStatus$Companion {
+	public final fun getUnknown ()Lcom/opencapture/opencine/core/PowerStatus;
+}
+
+public final class com/opencapture/opencine/core/Rational {
+	public static final field Companion Lcom/opencapture/opencine/core/Rational$Companion;
+	public fun <init> (II)V
+	public synthetic fun <init> (IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDenominator ()I
+	public final fun getDoubleValue ()D
+	public final fun getNumerator ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/Rational$Companion {
+	public final fun frameRate (D)Lcom/opencapture/opencine/core/Rational;
+}
+
+public final class com/opencapture/opencine/core/RecordingState : java/lang/Enum {
+	public static final field ERROR Lcom/opencapture/opencine/core/RecordingState;
+	public static final field IDLE Lcom/opencapture/opencine/core/RecordingState;
+	public static final field RECORDING Lcom/opencapture/opencine/core/RecordingState;
+	public static final field TRANSITIONING Lcom/opencapture/opencine/core/RecordingState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/RecordingState;
+	public static fun values ()[Lcom/opencapture/opencine/core/RecordingState;
+}
+
+public abstract interface class com/opencapture/opencine/core/RecoveryAction {
+}
+
+public final class com/opencapture/opencine/core/RecoveryAction$EditRoute : com/opencapture/opencine/core/RecoveryAction {
+	public synthetic fun <init> (Ljava/util/UUID;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-A8ND4-w ()Ljava/util/UUID;
+	public final fun copy-eAnWbqQ (Ljava/util/UUID;)Lcom/opencapture/opencine/core/RecoveryAction$EditRoute;
+	public static synthetic fun copy-eAnWbqQ$default (Lcom/opencapture/opencine/core/RecoveryAction$EditRoute;Ljava/util/UUID;ILjava/lang/Object;)Lcom/opencapture/opencine/core/RecoveryAction$EditRoute;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRoute-A8ND4-w ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/RecoveryAction$Integration : com/opencapture/opencine/core/RecoveryAction {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/core/RecoveryAction$Integration;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/RecoveryAction$Integration;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/RecoveryAction$Integration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/RecoveryAction$OpenSettings : com/opencapture/opencine/core/RecoveryAction {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/RecoveryAction$OpenSettings;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/RecoveryAction$PairAgain : com/opencapture/opencine/core/RecoveryAction {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/RecoveryAction$PairAgain;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/RecoveryAction$Retry : com/opencapture/opencine/core/RecoveryAction {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/RecoveryAction$Retry;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/RecoveryAction$UseRoute : com/opencapture/opencine/core/RecoveryAction {
+	public synthetic fun <init> (Ljava/util/UUID;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-A8ND4-w ()Ljava/util/UUID;
+	public final fun copy-eAnWbqQ (Ljava/util/UUID;)Lcom/opencapture/opencine/core/RecoveryAction$UseRoute;
+	public static synthetic fun copy-eAnWbqQ$default (Lcom/opencapture/opencine/core/RecoveryAction$UseRoute;Ljava/util/UUID;ILjava/lang/Object;)Lcom/opencapture/opencine/core/RecoveryAction$UseRoute;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRoute-A8ND4-w ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/RetryBackoff {
+	public fun <init> (DDDD)V
+	public synthetic fun <init> (DDDDILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun component4 ()D
+	public final fun copy (DDDD)Lcom/opencapture/opencine/core/RetryBackoff;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/RetryBackoff;DDDDILjava/lang/Object;)Lcom/opencapture/opencine/core/RetryBackoff;
+	public final fun delay (ID)D
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getInitialDelay ()D
+	public final fun getJitterFraction ()D
+	public final fun getMaximumDelay ()D
+	public final fun getMultiplier ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/RouteDraft {
+	public fun <init> (Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/RouteKind;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/core/RouteDraft;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/RouteDraft;Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/RouteDraft;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lcom/opencapture/opencine/core/RouteKind;
+	public final fun getNetwork ()Ljava/lang/String;
+	public final fun getSecret ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/RouteKind : java/lang/Enum {
+	public static final field CAMERA_ACCESS_POINT Lcom/opencapture/opencine/core/RouteKind;
+	public static final field CAPTURE_DEVICE Lcom/opencapture/opencine/core/RouteKind;
+	public static final field Companion Lcom/opencapture/opencine/core/RouteKind$Companion;
+	public static final field INFRASTRUCTURE_NETWORK Lcom/opencapture/opencine/core/RouteKind;
+	public static final field PHONE_HOTSPOT Lcom/opencapture/opencine/core/RouteKind;
+	public static final field USB Lcom/opencapture/opencine/core/RouteKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getRawValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/RouteKind;
+	public static fun values ()[Lcom/opencapture/opencine/core/RouteKind;
+}
+
+public final class com/opencapture/opencine/core/RouteKind$Companion {
+	public final fun of (Ljava/lang/String;)Lcom/opencapture/opencine/core/RouteKind;
+}
+
+public final class com/opencapture/opencine/core/SavedCamera {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/core/CameraDeviceID;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/UUID;Ljava/lang/Long;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/core/CameraDeviceID;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/UUID;Ljava/lang/Long;Ljava/util/Map;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Ljava/util/Map;
+	public final fun component2-xwq1tjI ()Ljava/lang/String;
+	public final fun component3 ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/util/List;
+	public final fun component8-ap_Ce5o ()Ljava/util/UUID;
+	public final fun component9 ()Ljava/lang/Long;
+	public final fun copy--T-7EdI (Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/core/CameraDeviceID;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/UUID;Ljava/lang/Long;Ljava/util/Map;)Lcom/opencapture/opencine/core/SavedCamera;
+	public static synthetic fun copy--T-7EdI$default (Lcom/opencapture/opencine/core/SavedCamera;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/core/CameraDeviceID;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/UUID;Ljava/lang/Long;Ljava/util/Map;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SavedCamera;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdvertisedName ()Ljava/lang/String;
+	public final fun getDevice ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun getDisplayName ()Ljava/lang/String;
+	public final fun getExtras ()Ljava/util/Map;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getIntegration-xwq1tjI ()Ljava/lang/String;
+	public final fun getLastConnected ()Ljava/lang/Long;
+	public final fun getModel ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPreferredRoute-ap_Ce5o ()Ljava/util/UUID;
+	public final fun getRoutes ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SavedCamerasDocument {
+	public static final field CURRENT_VERSION I
+	public static final field Companion Lcom/opencapture/opencine/core/SavedCamerasDocument$Companion;
+	public fun <init> ()V
+	public fun <init> (ILjava/util/List;Ljava/util/Map;)V
+	public synthetic fun <init> (ILjava/util/List;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun copy (ILjava/util/List;Ljava/util/Map;)Lcom/opencapture/opencine/core/SavedCamerasDocument;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SavedCamerasDocument;ILjava/util/List;Ljava/util/Map;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SavedCamerasDocument;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameras ()Ljava/util/List;
+	public final fun getLegacy ()Ljava/util/Map;
+	public final fun getVersion ()I
+	public fun hashCode ()I
+	public final fun merge (Ljava/util/List;Ljava/lang/String;Ljava/util/Set;Z)Lcom/opencapture/opencine/core/SavedCamerasDocument;
+	public static synthetic fun merge$default (Lcom/opencapture/opencine/core/SavedCamerasDocument;Ljava/util/List;Ljava/lang/String;Ljava/util/Set;ZILjava/lang/Object;)Lcom/opencapture/opencine/core/SavedCamerasDocument;
+	public final fun recordMirror (Ljava/util/List;Ljava/lang/String;)Lcom/opencapture/opencine/core/SavedCamerasDocument;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SavedCamerasDocument$Companion {
+}
+
+public final class com/opencapture/opencine/core/SavedRoute {
+	public synthetic fun <init> (Ljava/util/UUID;Ljava/lang/String;Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Long;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;Ljava/lang/String;Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Long;Ljava/util/Map;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-A8ND4-w ()Ljava/util/UUID;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lcom/opencapture/opencine/core/RouteKind;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Z
+	public final fun component7 ()Ljava/lang/Long;
+	public final fun component8 ()Ljava/util/Map;
+	public final fun copy-3NBSVxU (Ljava/util/UUID;Ljava/lang/String;Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Long;Ljava/util/Map;)Lcom/opencapture/opencine/core/SavedRoute;
+	public static synthetic fun copy-3NBSVxU$default (Lcom/opencapture/opencine/core/SavedRoute;Ljava/util/UUID;Ljava/lang/String;Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Long;Ljava/util/Map;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SavedRoute;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBluetooth ()Z
+	public final fun getExtras ()Ljava/util/Map;
+	public final fun getId-A8ND4-w ()Ljava/util/UUID;
+	public final fun getKey ()Ljava/lang/String;
+	public final fun getKind ()Lcom/opencapture/opencine/core/RouteKind;
+	public final fun getLastConnected ()Ljava/lang/Long;
+	public final fun getNetwork ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SessionCloseReason : java/lang/Enum {
+	public static final field FAILED Lcom/opencapture/opencine/core/SessionCloseReason;
+	public static final field LINK_LOST Lcom/opencapture/opencine/core/SessionCloseReason;
+	public static final field REPLACED Lcom/opencapture/opencine/core/SessionCloseReason;
+	public static final field REQUESTED Lcom/opencapture/opencine/core/SessionCloseReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/SessionCloseReason;
+	public static fun values ()[Lcom/opencapture/opencine/core/SessionCloseReason;
+}
+
+public final class com/opencapture/opencine/core/SettingAccess : java/lang/Enum {
+	public static final field READ_ONLY Lcom/opencapture/opencine/core/SettingAccess;
+	public static final field READ_WRITE Lcom/opencapture/opencine/core/SettingAccess;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/SettingAccess;
+	public static fun values ()[Lcom/opencapture/opencine/core/SettingAccess;
+}
+
+public final class com/opencapture/opencine/core/SettingDescriptor {
+	public fun <init> (Lcom/opencapture/opencine/core/SettingKey;Lcom/opencapture/opencine/core/SettingAccess;Lcom/opencapture/opencine/core/SettingDomain;Lcom/opencapture/opencine/core/Availability;Lcom/opencapture/opencine/core/SettingSemantics;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/SettingKey;Lcom/opencapture/opencine/core/SettingAccess;Lcom/opencapture/opencine/core/SettingDomain;Lcom/opencapture/opencine/core/Availability;Lcom/opencapture/opencine/core/SettingSemantics;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun accepts (Lcom/opencapture/opencine/core/SettingValue;)Z
+	public final fun component1 ()Lcom/opencapture/opencine/core/SettingKey;
+	public final fun component2 ()Lcom/opencapture/opencine/core/SettingAccess;
+	public final fun component3 ()Lcom/opencapture/opencine/core/SettingDomain;
+	public final fun component4 ()Lcom/opencapture/opencine/core/Availability;
+	public final fun component5 ()Lcom/opencapture/opencine/core/SettingSemantics;
+	public final fun copy (Lcom/opencapture/opencine/core/SettingKey;Lcom/opencapture/opencine/core/SettingAccess;Lcom/opencapture/opencine/core/SettingDomain;Lcom/opencapture/opencine/core/Availability;Lcom/opencapture/opencine/core/SettingSemantics;)Lcom/opencapture/opencine/core/SettingDescriptor;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingDescriptor;Lcom/opencapture/opencine/core/SettingKey;Lcom/opencapture/opencine/core/SettingAccess;Lcom/opencapture/opencine/core/SettingDomain;Lcom/opencapture/opencine/core/Availability;Lcom/opencapture/opencine/core/SettingSemantics;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingDescriptor;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccess ()Lcom/opencapture/opencine/core/SettingAccess;
+	public final fun getAvailability ()Lcom/opencapture/opencine/core/Availability;
+	public final fun getDomain ()Lcom/opencapture/opencine/core/SettingDomain;
+	public final fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public final fun getSemantics ()Lcom/opencapture/opencine/core/SettingSemantics;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingDomain {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/List;Lkotlin/ranges/ClosedFloatingPointRange;Ljava/lang/Double;)V
+	public synthetic fun <init> (Ljava/util/List;Lkotlin/ranges/ClosedFloatingPointRange;Ljava/lang/Double;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public final fun component3 ()Ljava/lang/Double;
+	public final fun contains (Lcom/opencapture/opencine/core/SettingValue;)Z
+	public final fun copy (Ljava/util/List;Lkotlin/ranges/ClosedFloatingPointRange;Ljava/lang/Double;)Lcom/opencapture/opencine/core/SettingDomain;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingDomain;Ljava/util/List;Lkotlin/ranges/ClosedFloatingPointRange;Ljava/lang/Double;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingDomain;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChoices ()Ljava/util/List;
+	public final fun getRange ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public final fun getStep ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingKey : java/lang/Enum {
+	public static final field APERTURE Lcom/opencapture/opencine/core/SettingKey;
+	public static final field EXPOSURE_COMPENSATION Lcom/opencapture/opencine/core/SettingKey;
+	public static final field FOCUS_MODE Lcom/opencapture/opencine/core/SettingKey;
+	public static final field FOCUS_POINT Lcom/opencapture/opencine/core/SettingKey;
+	public static final field FRAME_RATE Lcom/opencapture/opencine/core/SettingKey;
+	public static final field ISO Lcom/opencapture/opencine/core/SettingKey;
+	public static final field RECORDING Lcom/opencapture/opencine/core/SettingKey;
+	public static final field SHUTTER Lcom/opencapture/opencine/core/SettingKey;
+	public static final field WHITE_BALANCE Lcom/opencapture/opencine/core/SettingKey;
+	public static final field WHITE_BALANCE_TINT Lcom/opencapture/opencine/core/SettingKey;
+	public static final field ZOOM Lcom/opencapture/opencine/core/SettingKey;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/SettingKey;
+	public static fun values ()[Lcom/opencapture/opencine/core/SettingKey;
+}
+
+public final class com/opencapture/opencine/core/SettingSemantics {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/core/SettingSemantics$Implementation;Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;Lcom/opencapture/opencine/core/SettingSemantics$Qualification;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/SettingSemantics$Implementation;Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;Lcom/opencapture/opencine/core/SettingSemantics$Qualification;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/SettingSemantics$Implementation;
+	public final fun component2 ()Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;
+	public final fun component3 ()Lcom/opencapture/opencine/core/SettingSemantics$Qualification;
+	public final fun copy (Lcom/opencapture/opencine/core/SettingSemantics$Implementation;Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;Lcom/opencapture/opencine/core/SettingSemantics$Qualification;)Lcom/opencapture/opencine/core/SettingSemantics;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingSemantics;Lcom/opencapture/opencine/core/SettingSemantics$Implementation;Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;Lcom/opencapture/opencine/core/SettingSemantics$Qualification;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingSemantics;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConfirmation ()Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;
+	public final fun getImplementation ()Lcom/opencapture/opencine/core/SettingSemantics$Implementation;
+	public final fun getQualification ()Lcom/opencapture/opencine/core/SettingSemantics$Qualification;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingSemantics$Confirmation : java/lang/Enum {
+	public static final field ACKNOWLEDGEMENT_ONLY Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;
+	public static final field READBACK Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;
+	public static fun values ()[Lcom/opencapture/opencine/core/SettingSemantics$Confirmation;
+}
+
+public final class com/opencapture/opencine/core/SettingSemantics$Implementation : java/lang/Enum {
+	public static final field EMULATED Lcom/opencapture/opencine/core/SettingSemantics$Implementation;
+	public static final field NATIVE Lcom/opencapture/opencine/core/SettingSemantics$Implementation;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/SettingSemantics$Implementation;
+	public static fun values ()[Lcom/opencapture/opencine/core/SettingSemantics$Implementation;
+}
+
+public final class com/opencapture/opencine/core/SettingSemantics$Qualification : java/lang/Enum {
+	public static final field QUALIFIED Lcom/opencapture/opencine/core/SettingSemantics$Qualification;
+	public static final field UNQUALIFIED Lcom/opencapture/opencine/core/SettingSemantics$Qualification;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/SettingSemantics$Qualification;
+	public static fun values ()[Lcom/opencapture/opencine/core/SettingSemantics$Qualification;
+}
+
+public abstract interface class com/opencapture/opencine/core/SettingValue {
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$Aperture : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/core/SettingValue$Aperture;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$Aperture;DILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$Aperture;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFNumber ()D
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$DefaultImpls {
+	public static fun getKey (Lcom/opencapture/opencine/core/SettingValue;)Lcom/opencapture/opencine/core/SettingKey;
+	public static fun getNumericValue (Lcom/opencapture/opencine/core/SettingValue;)Ljava/lang/Double;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$ExposureCompensation : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (Lcom/opencapture/opencine/core/Rational;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/Rational;
+	public final fun copy (Lcom/opencapture/opencine/core/Rational;)Lcom/opencapture/opencine/core/SettingValue$ExposureCompensation;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$ExposureCompensation;Lcom/opencapture/opencine/core/Rational;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$ExposureCompensation;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public final fun getStops ()Lcom/opencapture/opencine/core/Rational;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$FocusMode : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (Lcom/opencapture/opencine/core/FocusMode;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/FocusMode;
+	public final fun copy (Lcom/opencapture/opencine/core/FocusMode;)Lcom/opencapture/opencine/core/SettingValue$FocusMode;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$FocusMode;Lcom/opencapture/opencine/core/FocusMode;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$FocusMode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public final fun getMode ()Lcom/opencapture/opencine/core/FocusMode;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$FrameRate : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (Lcom/opencapture/opencine/core/Rational;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/Rational;
+	public final fun copy (Lcom/opencapture/opencine/core/Rational;)Lcom/opencapture/opencine/core/SettingValue$FrameRate;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$FrameRate;Lcom/opencapture/opencine/core/Rational;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$FrameRate;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFps ()Lcom/opencapture/opencine/core/Rational;
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$Iso : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (Lcom/opencapture/opencine/core/ISOValue;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ISOValue;
+	public final fun copy (Lcom/opencapture/opencine/core/ISOValue;)Lcom/opencapture/opencine/core/SettingValue$Iso;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$Iso;Lcom/opencapture/opencine/core/ISOValue;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$Iso;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public final fun getValue ()Lcom/opencapture/opencine/core/ISOValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$Shutter : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (Lcom/opencapture/opencine/core/ShutterValue;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/ShutterValue;
+	public final fun copy (Lcom/opencapture/opencine/core/ShutterValue;)Lcom/opencapture/opencine/core/SettingValue$Shutter;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$Shutter;Lcom/opencapture/opencine/core/ShutterValue;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$Shutter;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public final fun getValue ()Lcom/opencapture/opencine/core/ShutterValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$WhiteBalance : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (Lcom/opencapture/opencine/core/WhiteBalanceValue;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/WhiteBalanceValue;
+	public final fun copy (Lcom/opencapture/opencine/core/WhiteBalanceValue;)Lcom/opencapture/opencine/core/SettingValue$WhiteBalance;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$WhiteBalance;Lcom/opencapture/opencine/core/WhiteBalanceValue;ILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$WhiteBalance;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public final fun getValue ()Lcom/opencapture/opencine/core/WhiteBalanceValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$WhiteBalanceTint : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/core/SettingValue$WhiteBalanceTint;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$WhiteBalanceTint;DILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$WhiteBalanceTint;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public final fun getTint ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SettingValue$Zoom : com/opencapture/opencine/core/SettingValue {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/core/SettingValue$Zoom;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/SettingValue$Zoom;DILjava/lang/Object;)Lcom/opencapture/opencine/core/SettingValue$Zoom;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun getNumericValue ()Ljava/lang/Double;
+	public final fun getRatio ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/ShutterValue {
+}
+
+public final class com/opencapture/opencine/core/ShutterValue$Angle : com/opencapture/opencine/core/ShutterValue {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/core/ShutterValue$Angle;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ShutterValue$Angle;DILjava/lang/Object;)Lcom/opencapture/opencine/core/ShutterValue$Angle;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDegrees ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ShutterValue$Auto : com/opencapture/opencine/core/ShutterValue {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/ShutterValue$Auto;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/ShutterValue$Duration : com/opencapture/opencine/core/ShutterValue {
+	public fun <init> (Lcom/opencapture/opencine/core/Rational;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/Rational;
+	public final fun copy (Lcom/opencapture/opencine/core/Rational;)Lcom/opencapture/opencine/core/ShutterValue$Duration;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/ShutterValue$Duration;Lcom/opencapture/opencine/core/Rational;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ShutterValue$Duration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSeconds ()Lcom/opencapture/opencine/core/Rational;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/SnapshotRevision : java/lang/Comparable {
+	public static final synthetic fun box-impl (J)Lcom/opencapture/opencine/core/SnapshotRevision;
+	public synthetic fun compareTo (Ljava/lang/Object;)I
+	public fun compareTo-a9Ckdu0 (J)I
+	public static fun compareTo-a9Ckdu0 (JJ)I
+	public static fun constructor-impl (J)J
+	public static synthetic fun constructor-impl$default (JILkotlin/jvm/internal/DefaultConstructorMarker;)J
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (JLjava/lang/Object;)Z
+	public static final fun equals-impl0 (JJ)Z
+	public final fun getValue ()J
+	public fun hashCode ()I
+	public static fun hashCode-impl (J)I
+	public static final fun next-l51t_xI (J)J
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (J)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()J
+}
+
+public final class com/opencapture/opencine/core/StorageVolume {
+	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component3 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component4 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component5 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun copy (Ljava/lang/String;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;)Lcom/opencapture/opencine/core/StorageVolume;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/StorageVolume;Ljava/lang/String;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;ILjava/lang/Object;)Lcom/opencapture/opencine/core/StorageVolume;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFreeBytes ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getMedia ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getRemainingRecordingTime ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getTotalBytes ()Lcom/opencapture/opencine/core/ObservedValue;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/StreamGeneration : java/lang/Comparable {
+	public static final synthetic fun box-impl (J)Lcom/opencapture/opencine/core/StreamGeneration;
+	public synthetic fun compareTo (Ljava/lang/Object;)I
+	public fun compareTo-hIBEbn4 (J)I
+	public static fun compareTo-hIBEbn4 (JJ)I
+	public static fun constructor-impl (J)J
+	public static synthetic fun constructor-impl$default (JILkotlin/jvm/internal/DefaultConstructorMarker;)J
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (JLjava/lang/Object;)Z
+	public static final fun equals-impl0 (JJ)Z
+	public final fun getValue ()J
+	public fun hashCode ()I
+	public static fun hashCode-impl (J)I
+	public static final fun next-WESdoBU (J)J
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (J)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()J
+}
+
+public final class com/opencapture/opencine/core/StreamID {
+	public static final synthetic fun box-impl (Ljava/util/UUID;)Lcom/opencapture/opencine/core/StreamID;
+	public static fun constructor-impl (Ljava/util/UUID;)Ljava/util/UUID;
+	public static synthetic fun constructor-impl$default (Ljava/util/UUID;ILkotlin/jvm/internal/DefaultConstructorMarker;)Ljava/util/UUID;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/util/UUID;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/util/UUID;Ljava/util/UUID;)Z
+	public final fun getUuid ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/util/UUID;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/util/UUID;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/util/UUID;
+}
+
+public final class com/opencapture/opencine/core/SupportStatus : java/lang/Enum {
+	public static final field SUPPORTED Lcom/opencapture/opencine/core/SupportStatus;
+	public static final field UNKNOWN Lcom/opencapture/opencine/core/SupportStatus;
+	public static final field UNSUPPORTED Lcom/opencapture/opencine/core/SupportStatus;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/SupportStatus;
+	public static fun values ()[Lcom/opencapture/opencine/core/SupportStatus;
+}
+
+public final class com/opencapture/opencine/core/TelemetrySource : java/lang/Enum {
+	public static final field CAMERA_SESSION Lcom/opencapture/opencine/core/TelemetrySource;
+	public static final field RELAY Lcom/opencapture/opencine/core/TelemetrySource;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/core/TelemetrySource;
+	public static fun values ()[Lcom/opencapture/opencine/core/TelemetrySource;
+}
+
+public final class com/opencapture/opencine/core/TimecodeCapability {
+	public static final field Companion Lcom/opencapture/opencine/core/TimecodeCapability$Companion;
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/core/SupportStatus;Lcom/opencapture/opencine/core/TimecodePrecision;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/SupportStatus;Lcom/opencapture/opencine/core/TimecodePrecision;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPrecision ()Lcom/opencapture/opencine/core/TimecodePrecision;
+	public final fun getSupport ()Lcom/opencapture/opencine/core/SupportStatus;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/TimecodeCapability$Companion {
+	public final fun getUnknown ()Lcom/opencapture/opencine/core/TimecodeCapability;
+	public final fun getUnsupported ()Lcom/opencapture/opencine/core/TimecodeCapability;
+	public final fun supported (Lcom/opencapture/opencine/core/TimecodePrecision;)Lcom/opencapture/opencine/core/TimecodeCapability;
+}
+
+public abstract interface class com/opencapture/opencine/core/TimecodePrecision {
+}
+
+public final class com/opencapture/opencine/core/TimecodePrecision$Frames : com/opencapture/opencine/core/TimecodePrecision {
+	public fun <init> (Lcom/opencapture/opencine/core/Rational;Ljava/lang/Boolean;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/Rational;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/Rational;
+	public final fun component2 ()Ljava/lang/Boolean;
+	public final fun copy (Lcom/opencapture/opencine/core/Rational;Ljava/lang/Boolean;)Lcom/opencapture/opencine/core/TimecodePrecision$Frames;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/TimecodePrecision$Frames;Lcom/opencapture/opencine/core/Rational;Ljava/lang/Boolean;ILjava/lang/Object;)Lcom/opencapture/opencine/core/TimecodePrecision$Frames;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDropFrame ()Ljava/lang/Boolean;
+	public final fun getRate ()Lcom/opencapture/opencine/core/Rational;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/TimecodePrecision$Seconds : com/opencapture/opencine/core/TimecodePrecision {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/TimecodePrecision$Seconds;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/UnavailableReason {
+}
+
+public final class com/opencapture/opencine/core/UnavailableReason$Authority : com/opencapture/opencine/core/UnavailableReason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/UnavailableReason$Authority;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/UnavailableReason$Busy : com/opencapture/opencine/core/UnavailableReason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/UnavailableReason$Busy;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/UnavailableReason$Link : com/opencapture/opencine/core/UnavailableReason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/UnavailableReason$Link;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/UnavailableReason$Mode : com/opencapture/opencine/core/UnavailableReason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/UnavailableReason$Mode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/UnavailableReason$NotReady : com/opencapture/opencine/core/UnavailableReason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/UnavailableReason$NotReady;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/UnavailableReason$OtherSetting : com/opencapture/opencine/core/UnavailableReason {
+	public fun <init> (Lcom/opencapture/opencine/core/SettingKey;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/SettingKey;
+	public final fun copy (Lcom/opencapture/opencine/core/SettingKey;)Lcom/opencapture/opencine/core/UnavailableReason$OtherSetting;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/UnavailableReason$OtherSetting;Lcom/opencapture/opencine/core/SettingKey;ILjava/lang/Object;)Lcom/opencapture/opencine/core/UnavailableReason$OtherSetting;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKey ()Lcom/opencapture/opencine/core/SettingKey;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/UnavailableReason$RecordingActive : com/opencapture/opencine/core/UnavailableReason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/UnavailableReason$RecordingActive;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/UnavailableReason$Route : com/opencapture/opencine/core/UnavailableReason {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/UnavailableReason$Route;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/core/WhiteBalanceValue {
+}
+
+public final class com/opencapture/opencine/core/WhiteBalanceValue$Auto : com/opencapture/opencine/core/WhiteBalanceValue {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/WhiteBalanceValue$Auto;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/WhiteBalanceValue$Kelvin : com/opencapture/opencine/core/WhiteBalanceValue {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/core/WhiteBalanceValue$Kelvin;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/WhiteBalanceValue$Kelvin;IILjava/lang/Object;)Lcom/opencapture/opencine/core/WhiteBalanceValue$Kelvin;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKelvin ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/core/WhiteBalanceValue$Preset : com/opencapture/opencine/core/WhiteBalanceValue {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/core/WhiteBalanceValue$Preset;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/core/WhiteBalanceValue$Preset;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/core/WhiteBalanceValue$Preset;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/GimbalPath {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/GimbalPath;
+	public final fun angularDistance (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;)D
+	public final fun lerp (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;D)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun pitchDelta (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;)D
+	public final fun wrapAngle (D)D
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgram {
+	public static final field Companion Lcom/opencapture/opencine/motion/GimbalProgram$Companion;
+	public static final field DEFAULT_DURATION D
+	public static final field DURATION_STEP D
+	public static final field MAX_DURATION D
+	public static final field MIN_DURATION D
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;DDDZ)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;DDDZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun component2 ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun component3 ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun component4 ()D
+	public final fun component5 ()D
+	public final fun component6 ()D
+	public final fun component7 ()Z
+	public final fun copy (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;DDDZ)Lcom/opencapture/opencine/motion/GimbalProgram;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;DDDZILjava/lang/Object;)Lcom/opencapture/opencine/motion/GimbalProgram;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getA ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getB ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getC ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getCanRun ()Z
+	public final fun getChangesZoom ()Z
+	public final fun getDuration ()D
+	public final fun getDurationAB ()D
+	public final fun getDurationBC ()D
+	public final fun getLoop ()Z
+	public final fun getSmoothness ()D
+	public final fun getSummary ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun point (Lcom/opencapture/opencine/motion/GimbalWaypointSlot;)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun pose (D)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun seedTravelDurations ()Lcom/opencapture/opencine/motion/GimbalProgram;
+	public fun toString ()Ljava/lang/String;
+	public final fun withPoint (Lcom/opencapture/opencine/motion/GimbalWaypointSlot;Lcom/opencapture/opencine/motion/GimbalWaypoint;)Lcom/opencapture/opencine/motion/GimbalProgram;
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgram$Companion {
+	public final fun durationLabel (D)Ljava/lang/String;
+	public final fun getDurationStops ()Ljava/util/List;
+	public final fun minTravelDuration (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;)D
+	public final fun snapDuration (D)D
+	public final fun steppedDuration (DDD)D
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgramCurve {
+	public static final field Companion Lcom/opencapture/opencine/motion/GimbalProgramCurve$Companion;
+	public final fun getA ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getB ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getC ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getDuration ()D
+	public final fun getDurationAB ()D
+	public final fun getDurationBC ()D
+	public final fun getHalfCornerDuration ()D
+	public final fun position (D)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun remaining (DLcom/opencapture/opencine/motion/GimbalWaypoint;)Lcom/opencapture/opencine/motion/GimbalProgramCurve;
+	public final fun samples (I)Ljava/util/List;
+	public static synthetic fun samples$default (Lcom/opencapture/opencine/motion/GimbalProgramCurve;IILjava/lang/Object;)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgramCurve$Companion {
+	public final fun create (Lcom/opencapture/opencine/motion/GimbalProgram;)Lcom/opencapture/opencine/motion/GimbalProgramCurve;
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgramPlayback {
+	public static final field Companion Lcom/opencapture/opencine/motion/GimbalProgramPlayback$Companion;
+	public final fun cancel ()V
+	public final fun getProgram ()Lcom/opencapture/opencine/motion/GimbalProgram;
+	public final fun getState ()Lcom/opencapture/opencine/motion/GimbalProgramPlayback$State;
+	public final fun nextDelay-wmV0flA (J)J
+	public final fun pause-_5MYWhY (J)Z
+	public final fun resume-_5MYWhY (J)Z
+	public final fun step-_5MYWhY (J)Lcom/opencapture/opencine/motion/GimbalProgramPlayback$Output;
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgramPlayback$Companion {
+	public final fun create-ncvgV-A (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/MotionCapabilities;JJ)Lcom/opencapture/opencine/motion/GimbalProgramPlayback;
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgramPlayback$Output {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;Z)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun component2 ()Z
+	public final fun copy (Lcom/opencapture/opencine/motion/GimbalWaypoint;Z)Lcom/opencapture/opencine/motion/GimbalProgramPlayback$Output;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/GimbalProgramPlayback$Output;Lcom/opencapture/opencine/motion/GimbalWaypoint;ZILjava/lang/Object;)Lcom/opencapture/opencine/motion/GimbalProgramPlayback$Output;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFinished ()Z
+	public final fun getTarget ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgramPlayback$State {
+	public static final field Companion Lcom/opencapture/opencine/motion/GimbalProgramPlayback$State$Companion;
+	public fun <init> ()V
+	public fun <init> (ZZLjava/lang/Integer;DZ)V
+	public synthetic fun <init> (ZZLjava/lang/Integer;DZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()D
+	public final fun component5 ()Z
+	public final fun copy (ZZLjava/lang/Integer;DZ)Lcom/opencapture/opencine/motion/GimbalProgramPlayback$State;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/GimbalProgramPlayback$State;ZZLjava/lang/Integer;DZILjava/lang/Object;)Lcom/opencapture/opencine/motion/GimbalProgramPlayback$State;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCanPause ()Z
+	public final fun getCountdown ()Ljava/lang/Integer;
+	public final fun getElapsed ()D
+	public final fun getPaused ()Z
+	public final fun getReversing ()Z
+	public final fun getRunning ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/GimbalProgramPlayback$State$Companion {
+	public final fun getIDLE ()Lcom/opencapture/opencine/motion/GimbalProgramPlayback$State;
+}
+
+public final class com/opencapture/opencine/motion/GimbalWaypoint {
+	public static final field Companion Lcom/opencapture/opencine/motion/GimbalWaypoint$Companion;
+	public fun <init> (DDDLjava/lang/Double;)V
+	public synthetic fun <init> (DDDLjava/lang/Double;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun clamped (Lcom/opencapture/opencine/motion/MotionBounds;)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun copy (DDDLjava/lang/Double;)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/GimbalWaypoint;DDDLjava/lang/Double;ILjava/lang/Object;)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNativePitchDeg ()Ljava/lang/Double;
+	public final fun getPitchDeg ()D
+	public final fun getYawDeg ()D
+	public final fun getZoom ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/GimbalWaypoint$Companion {
+	public final fun unwrapYaw (DLcom/opencapture/opencine/motion/MotionBounds;)D
+}
+
+public final class com/opencapture/opencine/motion/GimbalWaypointOverlay {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/GimbalWaypointOverlay;
+	public static final field PITCH_UP_SIGN D
+	public final fun project (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;DD)Lkotlin/Triple;
+	public final fun tanHalfHFov (DD)D
+}
+
+public final class com/opencapture/opencine/motion/GimbalWaypointSlot : java/lang/Enum {
+	public static final field A Lcom/opencapture/opencine/motion/GimbalWaypointSlot;
+	public static final field B Lcom/opencapture/opencine/motion/GimbalWaypointSlot;
+	public static final field C Lcom/opencapture/opencine/motion/GimbalWaypointSlot;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getLetter ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/motion/GimbalWaypointSlot;
+	public static fun values ()[Lcom/opencapture/opencine/motion/GimbalWaypointSlot;
+}
+
+public abstract interface class com/opencapture/opencine/motion/LevelMode {
+}
+
+public final class com/opencapture/opencine/motion/LevelMode$Bubble : com/opencapture/opencine/motion/LevelMode {
+	public fun <init> (DD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun copy (DD)Lcom/opencapture/opencine/motion/LevelMode$Bubble;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/LevelMode$Bubble;DDILjava/lang/Object;)Lcom/opencapture/opencine/motion/LevelMode$Bubble;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getXDeg ()D
+	public final fun getYDeg ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/LevelMode$Gauges : com/opencapture/opencine/motion/LevelMode {
+	public fun <init> (DD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun copy (DD)Lcom/opencapture/opencine/motion/LevelMode$Gauges;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/LevelMode$Gauges;DDILjava/lang/Object;)Lcom/opencapture/opencine/motion/LevelMode$Gauges;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRollDeg ()D
+	public final fun getTiltDeg ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/LevelMode$Unavailable : com/opencapture/opencine/motion/LevelMode {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/LevelMode$Unavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/LevelReading {
+	public static final field BUBBLE_ENTER_DEG D
+	public static final field BUBBLE_EXIT_DEG D
+	public static final field Companion Lcom/opencapture/opencine/motion/LevelReading$Companion;
+	public static final field MIN_INTERVAL D
+	public static final field SMOOTHING D
+	public static final field STALE_AFTER D
+	public fun <init> ()V
+	public final fun ingest (Lcom/opencapture/opencine/motion/WorldLevel$Quat;D)V
+	public final fun mode (DZ)Lcom/opencapture/opencine/motion/LevelMode;
+	public final fun pitchDeg (D)Ljava/lang/Double;
+	public final fun tiltDeg (D)Ljava/lang/Double;
+}
+
+public final class com/opencapture/opencine/motion/LevelReading$Companion {
+}
+
+public final class com/opencapture/opencine/motion/MotionAxis : java/lang/Enum {
+	public static final field PAN Lcom/opencapture/opencine/motion/MotionAxis;
+	public static final field TILT Lcom/opencapture/opencine/motion/MotionAxis;
+	public static final field ZOOM Lcom/opencapture/opencine/motion/MotionAxis;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/motion/MotionAxis;
+	public static fun values ()[Lcom/opencapture/opencine/motion/MotionAxis;
+}
+
+public final class com/opencapture/opencine/motion/MotionBounds {
+	public fun <init> (Lkotlin/ranges/ClosedFloatingPointRange;Lkotlin/ranges/ClosedFloatingPointRange;)V
+	public final fun component1 ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public final fun component2 ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public final fun contains (Lcom/opencapture/opencine/motion/GimbalWaypoint;)Z
+	public final fun copy (Lkotlin/ranges/ClosedFloatingPointRange;Lkotlin/ranges/ClosedFloatingPointRange;)Lcom/opencapture/opencine/motion/MotionBounds;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/MotionBounds;Lkotlin/ranges/ClosedFloatingPointRange;Lkotlin/ranges/ClosedFloatingPointRange;ILjava/lang/Object;)Lcom/opencapture/opencine/motion/MotionBounds;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGapMidDeg ()D
+	public final fun getPan ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public final fun getTilt ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/MotionCapabilities {
+	public synthetic fun <init> (Ljava/util/Set;Lcom/opencapture/opencine/motion/MotionReferenceFrame;Lcom/opencapture/opencine/motion/MotionBounds;Ljava/lang/Double;JDLcom/opencapture/opencine/core/SupportStatus;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/Set;Lcom/opencapture/opencine/motion/MotionReferenceFrame;Lcom/opencapture/opencine/motion/MotionBounds;Ljava/lang/Double;JDLcom/opencapture/opencine/core/SupportStatus;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun admits (Lcom/opencapture/opencine/motion/GimbalProgram;)Z
+	public final fun component1 ()Ljava/util/Set;
+	public final fun component2 ()Lcom/opencapture/opencine/motion/MotionReferenceFrame;
+	public final fun component3 ()Lcom/opencapture/opencine/motion/MotionBounds;
+	public final fun component4 ()Ljava/lang/Double;
+	public final fun component5-UwyO8pc ()J
+	public final fun component6 ()D
+	public final fun component7 ()Lcom/opencapture/opencine/core/SupportStatus;
+	public final fun copy-TUY-ock (Ljava/util/Set;Lcom/opencapture/opencine/motion/MotionReferenceFrame;Lcom/opencapture/opencine/motion/MotionBounds;Ljava/lang/Double;JDLcom/opencapture/opencine/core/SupportStatus;)Lcom/opencapture/opencine/motion/MotionCapabilities;
+	public static synthetic fun copy-TUY-ock$default (Lcom/opencapture/opencine/motion/MotionCapabilities;Ljava/util/Set;Lcom/opencapture/opencine/motion/MotionReferenceFrame;Lcom/opencapture/opencine/motion/MotionBounds;Ljava/lang/Double;JDLcom/opencapture/opencine/core/SupportStatus;ILjava/lang/Object;)Lcom/opencapture/opencine/motion/MotionCapabilities;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun feedback-DxfyQ1I (Lcom/opencapture/opencine/core/ObservedValue;J)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getArrivalToleranceDeg ()D
+	public final fun getAxes ()Ljava/util/Set;
+	public final fun getBounds ()Lcom/opencapture/opencine/motion/MotionBounds;
+	public final fun getFeedbackMaxAge-UwyO8pc ()J
+	public final fun getFrame ()Lcom/opencapture/opencine/motion/MotionReferenceFrame;
+	public final fun getMaxRateDegPerSec ()Ljava/lang/Double;
+	public final fun getPose ()Lcom/opencapture/opencine/core/SupportStatus;
+	public fun hashCode ()I
+	public final fun target (Lcom/opencapture/opencine/motion/GimbalWaypoint;)Lcom/opencapture/opencine/motion/MotionTarget;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/MotionKt {
+	public static final fun MonitorLayoutCapabilities (Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/motion/MotionCapabilities;Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;)Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;
+	public static synthetic fun MonitorLayoutCapabilities$default (Lcom/opencapture/opencine/core/CapabilitySnapshot;Lcom/opencapture/opencine/motion/MotionCapabilities;Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;ILjava/lang/Object;)Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;
+}
+
+public final class com/opencapture/opencine/motion/MotionProgramTiming {
+	public synthetic fun <init> (JJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-UwyO8pc ()J
+	public final fun component2-UwyO8pc ()J
+	public final fun copy-QTBD994 (JJ)Lcom/opencapture/opencine/motion/MotionProgramTiming;
+	public static synthetic fun copy-QTBD994$default (Lcom/opencapture/opencine/motion/MotionProgramTiming;JJILjava/lang/Object;)Lcom/opencapture/opencine/motion/MotionProgramTiming;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCountdown-UwyO8pc ()J
+	public final fun getTargetInterval-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/MotionReferenceFrame : java/lang/Enum {
+	public static final field HANDLE Lcom/opencapture/opencine/motion/MotionReferenceFrame;
+	public static final field WORLD Lcom/opencapture/opencine/motion/MotionReferenceFrame;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/motion/MotionReferenceFrame;
+	public static fun values ()[Lcom/opencapture/opencine/motion/MotionReferenceFrame;
+}
+
+public abstract interface class com/opencapture/opencine/motion/MotionService {
+	public abstract fun getCapabilities ()Lcom/opencapture/opencine/motion/MotionCapabilities;
+	public abstract fun getPoses ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun move-Kx4hsE0 (Lcom/opencapture/opencine/motion/MotionTarget;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun recenter (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun stick (DDLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/motion/MotionTarget {
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPose ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public fun hashCode ()I
+}
+
+public abstract interface class com/opencapture/opencine/motion/SnapOutcome {
+}
+
+public final class com/opencapture/opencine/motion/SnapOutcome$Arrived : com/opencapture/opencine/motion/SnapOutcome {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/SnapOutcome$Arrived;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/SnapOutcome$Expired : com/opencapture/opencine/motion/SnapOutcome {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/SnapOutcome$Expired;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/SnapOutcome$Failed : com/opencapture/opencine/motion/SnapOutcome {
+	public fun <init> (Ljava/lang/Double;)V
+	public final fun component1 ()Ljava/lang/Double;
+	public final fun copy (Ljava/lang/Double;)Lcom/opencapture/opencine/motion/SnapOutcome$Failed;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/SnapOutcome$Failed;Ljava/lang/Double;ILjava/lang/Object;)Lcom/opencapture/opencine/motion/SnapOutcome$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getErrorDeg ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/SnapOutcome$Pending : com/opencapture/opencine/motion/SnapOutcome {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/SnapOutcome$Pending;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/WorldLevel {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/WorldLevel;
+	public final fun gravity (Lcom/opencapture/opencine/motion/WorldLevel$Quat;)Lcom/opencapture/opencine/motion/WorldLevel$Vec;
+}
+
+public final class com/opencapture/opencine/motion/WorldLevel$Quat {
+	public fun <init> (DDDD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun component4 ()D
+	public final fun copy (DDDD)Lcom/opencapture/opencine/motion/WorldLevel$Quat;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/WorldLevel$Quat;DDDDILjava/lang/Object;)Lcom/opencapture/opencine/motion/WorldLevel$Quat;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getW ()D
+	public final fun getX ()D
+	public final fun getY ()D
+	public final fun getZ ()D
+	public fun hashCode ()I
+	public final fun rotate (DDD)Lcom/opencapture/opencine/motion/WorldLevel$Vec;
+	public final fun times (Lcom/opencapture/opencine/motion/WorldLevel$Quat;)Lcom/opencapture/opencine/motion/WorldLevel$Quat;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/WorldLevel$Vec {
+	public fun <init> (DDD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun copy (DDD)Lcom/opencapture/opencine/motion/WorldLevel$Vec;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/WorldLevel$Vec;DDDILjava/lang/Object;)Lcom/opencapture/opencine/motion/WorldLevel$Vec;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getX ()D
+	public final fun getY ()D
+	public final fun getZ ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/WorldLevelMove {
+	public fun <init> (Lcom/opencapture/opencine/motion/WorldLevelTarget;DD)V
+	public final fun component1 ()Lcom/opencapture/opencine/motion/WorldLevelTarget;
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun copy (Lcom/opencapture/opencine/motion/WorldLevelTarget;DD)Lcom/opencapture/opencine/motion/WorldLevelMove;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/WorldLevelMove;Lcom/opencapture/opencine/motion/WorldLevelTarget;DDILjava/lang/Object;)Lcom/opencapture/opencine/motion/WorldLevelMove;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDuration ()D
+	public final fun getNativePitchDeg ()D
+	public final fun getTarget ()Lcom/opencapture/opencine/motion/WorldLevelTarget;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/WorldLevelSnap {
+	public static final field Companion Lcom/opencapture/opencine/motion/WorldLevelSnap$Companion;
+	public static final field FPV_ROLL_NOTE Ljava/lang/String;
+	public static final field NO_LEVEL_DATA Ljava/lang/String;
+	public static final field SETTLE_GRACE D
+	public static final field TOLERANCE_DEG D
+	public static final field UNREACHABLE_NOTE Ljava/lang/String;
+	public fun <init> (Lcom/opencapture/opencine/motion/WorldLevelTarget;D)V
+	public final fun component1 ()Lcom/opencapture/opencine/motion/WorldLevelTarget;
+	public final fun component2 ()D
+	public final fun copy (Lcom/opencapture/opencine/motion/WorldLevelTarget;D)Lcom/opencapture/opencine/motion/WorldLevelSnap;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/WorldLevelSnap;Lcom/opencapture/opencine/motion/WorldLevelTarget;DILjava/lang/Object;)Lcom/opencapture/opencine/motion/WorldLevelSnap;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun evaluate (Ljava/lang/Double;D)Lcom/opencapture/opencine/motion/SnapOutcome;
+	public final fun getDeadline ()D
+	public final fun getTarget ()Lcom/opencapture/opencine/motion/WorldLevelTarget;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/WorldLevelSnap$Companion {
+	public final fun duration (D)D
+	public final fun move (DLcom/opencapture/opencine/motion/GimbalWaypoint;)Lcom/opencapture/opencine/motion/WorldLevelMove;
+}
+
+public final class com/opencapture/opencine/motion/WorldLevelTarget : java/lang/Enum {
+	public static final field Companion Lcom/opencapture/opencine/motion/WorldLevelTarget$Companion;
+	public static final field HORIZON Lcom/opencapture/opencine/motion/WorldLevelTarget;
+	public static final field PLUMB_DOWN Lcom/opencapture/opencine/motion/WorldLevelTarget;
+	public static final field PLUMB_UP Lcom/opencapture/opencine/motion/WorldLevelTarget;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getSuccessNote ()Ljava/lang/String;
+	public final fun getTiltDeg ()D
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/motion/WorldLevelTarget;
+	public static fun values ()[Lcom/opencapture/opencine/motion/WorldLevelTarget;
+}
+
+public final class com/opencapture/opencine/motion/WorldLevelTarget$Companion {
+	public final fun nearest (D)Lcom/opencapture/opencine/motion/WorldLevelTarget;
+}
+
