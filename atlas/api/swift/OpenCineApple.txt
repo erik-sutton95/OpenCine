@@ -372,7 +372,7 @@ func VideoToolboxDecoder.noteError(status: Darwin.OSStatus, origin: Swift.String
 func VideoToolboxDecoder.openSession() -> Swift.Bool
 func VideoToolboxDecoder.resetCounters() -> ()
 func VideoToolboxDecoder.sessionAccepts(_: CoreMedia.CMVideoFormatDescription) -> Swift.Bool
-init CameraHotspotSystem(cancellation: CameraHotspotSystem.Cancellation, readTimeout: Swift.Duration?)
+init CameraHotspotSystem(cancellation: CameraHotspotSystem.Cancellation, readTimeout: Swift.Duration?, journal: ((Swift.String) -> Swift.Void)?)
 init DarwinNotificationObserver(names: [Swift.String], handler: (Swift.String) -> Swift.Void)
 init DecodedFrameFence(stream: OpenCineCore.StreamID, generation: OpenCineCore.StreamGeneration)
 init DecodedFrameFormat(_: CoreVideo.CVPixelBuffer)
