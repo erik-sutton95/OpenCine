@@ -9,8 +9,9 @@
 
 Swift: `swift-api-digester -dump-sdk` reads each library product's module from the iOS Simulator
 build of the package (what the apps ship; watchOS- or macOS-only `#if` API is not listed) and
-every public declaration becomes one sorted line. Kotlin: the Kotlin Gradle plugin's ABI
-validation keeps Android/<module>/api/<module>.api (`./gradlew checkKotlinAbi`, update with
+every public declaration becomes one sorted line. The lines do not depend on the Xcode version
+(CI runs Xcode 26, contributors may run 27; see `_type` and `_conformances`). Kotlin: the Kotlin
+Gradle plugin's ABI validation keeps Android/<module>/api/<module>.api (`./gradlew checkKotlinAbi`, update with
 `./gradlew updateKotlinAbi`); this command only reads those files.
 """
 from __future__ import annotations
@@ -41,12 +42,47 @@ TYPE_KEYWORD = {"Struct": "struct", "Enum": "enum", "Class": "class", "Protocol"
 # A protocol requirement's implicit `<Self where Self : P>`: noise on every requirement line.
 ASYNC = re.compile(r"YaK?F$")
 PROTOCOL_SELF = re.compile(r"^<Self where Self : [\w.]+>$")
+# A Swift USR names its module: `s:5UIKit23UITraitChangeObservableP`; `s:s...` and `s:S...` are the
+# standard library. A Clang USR (`c:objc(pl)UIAppearance`) is an SDK protocol.
+STDLIB_USR = re.compile(r"^s:[sS]")
+SWIFT_USR_MODULE = re.compile(r"^s:(\d+)")
+STDLIB_MODULES = {"Swift", "_Concurrency"}
 
 
 # ---------------------------------------------------------------- rendering
 
 def _type(node):
-    return node.get("printedName", "?") if node else "?"
+    if not node:
+        return "?"
+    # Toolchain independence: Xcode 26's digester prints a typealias of a non-escaping closure
+    # parameter as the function type itself, Xcode 27 keeps the alias. Print the function type.
+    children = node.get("children") or []
+    if (node.get("kind") == "TypeNameAlias" and "noescape" in node.get("typeAttributes", [])
+            and children and children[0].get("kind") == "TypeFunc"):
+        return _type(children[0])
+    return node.get("printedName", "?")
+
+
+def _protocol_module(usr):
+    """The module that declares a conformance's protocol: "Swift" for the standard library, None for
+    a Clang (SDK) protocol."""
+    if STDLIB_USR.match(usr):
+        return "Swift"
+    match = SWIFT_USR_MODULE.match(usr)
+    return usr[match.end():match.end() + int(match.group(1))] if match else None
+
+
+def _conformances(node, package):
+    """Sorted conformance names of a type. A class with an SDK superclass (UIView, NSObject) lists that
+    superclass first and only its conformances to standard-library and package protocols: the SDK
+    protocols it inherits change with the SDK version (iOS 27 adds CLBodyIdentifiable to UIView), so
+    listing them would make the snapshot depend on the Xcode that generated it."""
+    conf = [c for c in node.get("conformances", []) if c.get("printedName") not in IMPLICIT_CONFORMANCES]
+    supers = node.get("superclassNames") or []
+    if any(s.split(".", 1)[0] not in package for s in supers):
+        keep = package | STDLIB_MODULES
+        conf = [c for c in conf if _protocol_module(c.get("usr", "")) in keep]
+    return supers[:1] + sorted(c["printedName"] for c in conf)
 
 
 def _signature(name, children):
@@ -58,7 +94,7 @@ def _signature(name, children):
     return f"{base}({args})", _type(ret)
 
 
-def _render(node, path, out):
+def _render(node, path, out, package):
     kind, decl = node.get("kind"), node.get("declKind")
     if node.get("implicit") or kind == "Import":
         return
@@ -69,13 +105,13 @@ def _render(node, path, out):
         # Public members this module adds to another module's type.
         out.append(f"extension {node.get('moduleName')}.{name}")
         for child in node.get("children", []):
-            _render(child, path + [name], out)
+            _render(child, path + [name], out, package)
     elif kind == "TypeDecl":
-        conf = sorted(c["printedName"] for c in node.get("conformances", []) if c.get("printedName") not in IMPLICIT_CONFORMANCES)
+        conf = _conformances(node, package)
         generic = node.get("genericSig", "")
         out.append(f"{TYPE_KEYWORD.get(decl, decl.lower())} {full}{generic}" + (f": {', '.join(conf)}" if conf else ""))
         for child in node.get("children", []):
-            _render(child, path + [name], out)
+            _render(child, path + [name], out, package)
     elif decl == "EnumElement":
         # (Enum.Type) -> (Payload) -> Enum when the case has a payload, else (Enum.Type) -> Enum.
         inner = (node.get("children") or [{}])[0].get("children") or [{}]
@@ -105,11 +141,13 @@ def _render(node, path, out):
         out.append(f"{(decl or kind).lower()} {full}")
 
 
-def render_dump(module, dump):
-    """Sorted, de-duplicated public declaration lines of one digester dump."""
+def render_dump(module, dump, package=frozenset()):
+    """Sorted, de-duplicated public declaration lines of one digester dump. `package` names the
+    package's modules (the rest is the SDK or the standard library)."""
     out = []
+    package = frozenset(package) | {module}
     for child in dump.get("ABIRoot", {}).get("children", []):
-        _render(child, [], out)
+        _render(child, [], out, package)
     own = re.compile(rf"\b{re.escape(module)}\.(?=[A-Z_])")  # the module's own names read unqualified
     return HEADER.format(m=module) + "".join(f"{line}\n" for line in sorted({own.sub("", ln) for ln in out}))
 
@@ -120,6 +158,12 @@ def swift_products(top):
     """Library products of the OpenCine package (each product names one module)."""
     text = (Path(top) / "Package.swift").read_text()
     return sorted(set(re.findall(r'\.library\(\s*name:\s*"([^"]+)"', text)))
+
+
+def package_modules(top):
+    """Every target (module) of the OpenCine package."""
+    text = (Path(top) / "Package.swift").read_text()
+    return frozenset(re.findall(r'\.(?:target|binaryTarget|systemLibrary|macro)\(\s*name:\s*"([^"]+)"', text))
 
 
 def products_dir(top):
@@ -143,7 +187,7 @@ def digest(top, module, products, scratch):
     # The digester exits 0 and writes an empty dump when the module fails to load.
     if run.returncode or not out.is_file() or "Failed to load module" in run.stderr:
         raise RuntimeError(f"{module}: " + ((run.stderr or run.stdout).strip().splitlines() or ["no output"])[-1])
-    return render_dump(module, json.loads(out.read_text()))
+    return render_dump(module, json.loads(out.read_text()), package_modules(top))
 
 
 def generate(top, build=False):
