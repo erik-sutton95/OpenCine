@@ -201,6 +201,7 @@ enum LunaPhotoSubMode: CaseIterable, Equatable, Hashable, RawRepresentable, Send
 enum LunaPhotographyType: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum LunaProtocol
 enum LunaProtocolError: Equatable, Error, Sendable
+enum LunaScopeClip
 enum LunaShootingMode: CaseIterable, Equatable, Hashable, Sendable
 enum LunaTakePictureMode: Equatable, Hashable, RawRepresentable, Sendable
 enum LunaTrackFrame.State: Equatable, Hashable, RawRepresentable, Sendable
@@ -426,6 +427,11 @@ static let LunaProtocol.takePictureRequest: LunaRequest
 static let LunaProtocol.tcpPreface: Foundation.Data
 static let LunaProtocol.timelapseOptionsRequest: LunaRequest
 static let LunaProtocol.wifiCredentialsRequest: LunaRequest
+static let LunaScopeClip.iLogClipByteAtNative: Swift.UInt8
+static let LunaScopeClip.iLogClipByteAtNativeHigh: Swift.UInt8
+static let LunaScopeClip.lowestISO: Swift.Int
+static let LunaScopeClip.nativeISO: Swift.Int
+static let LunaScopeClip.profile: OpenCineMedia.ScopeClipProfile
 static let LunaThumbnail.headerSize: Swift.Int
 static let LunaVideoResolution.observed: Swift.Set<Swift.UInt64>
 static let ScreenWire.crcInitial: Swift.UInt16

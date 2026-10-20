@@ -711,6 +711,10 @@ func MonitorRemoteShutterPresses.observe(volume: Swift.Float, at: Foundation.Tim
 func MonitorRemoteShutterPresses.pinned(at: Foundation.TimeInterval) -> ()
 func MonitorRemoteShutterPresses.reanchor(volume: Swift.Float) -> ()
 func MonitorRemoteShutterPresses.repins(volume: Swift.Float, at: Foundation.TimeInterval) -> Swift.Bool
+func MonitorRemoteShutterVolumeLease.end() -> ()
+func MonitorRemoteShutterVolumeLease.needsView(at: Foundation.TimeInterval) -> Swift.Bool
+func MonitorRemoteShutterVolumeLease.request(volume: Swift.Float) -> ()
+func MonitorRemoteShutterVolumeLease.wrote(at: Foundation.TimeInterval) -> ()
 func MonitorScopePanelStore.beginDrag(center: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
 func MonitorScopePanelStore.beginDrag(center: MonitorPresentation.MonitorScopePoint, slot: MonitorPresentation.MonitorScopeCanvasSlot)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
 func MonitorScopePanelStore.cancelDrag(bounds: CoreFoundation.CGRect)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
@@ -984,6 +988,7 @@ init MonitorPlaybackScopeFrame(revision: Swift.UInt64, samples: OpenCineMedia.Sc
 init MonitorPlaybackScopeSession(cadence: Swift.Duration, sleep: (Swift.Duration) async throws -> Swift.Void, derive: (OpenCineMedia.ScopeSamples, Configuration, OpenCineMedia.ScopeAssistBundle) async -> OpenCineMedia.ScopeAssistBundle)<Configuration where Configuration : Swift.Equatable, Configuration : Swift.Sendable>
 init MonitorRect(_: CoreFoundation.CGRect)
 init MonitorRemoteShutterPresses(volume: Swift.Float)
+init MonitorRemoteShutterVolumeLease()
 init MonitorReviewOptions(duration: MonitorReviewDuration, showsFocusPoint: Swift.Bool, showsCaptureInfo: Swift.Bool)
 init MonitorScopePanelStore(options: Options?, storage: Foundation.UserDefaults, key: Swift.String)<Options where Options : MonitorPresentation.MonitorScopePanelOptions>
 init MonitorScopePoint(_: CoreFoundation.CGPoint)
@@ -1526,6 +1531,7 @@ static func MonitorMediaOrderedDeletion.run(_: [MonitorMediaDeletionTarget<Value
 static func MonitorPlaybackRemovalAdmission.accepts(removed: OpenCineMedia.MediaAssetID?, captured: OpenCineMedia.MediaAssetID, token: OpenCineMedia.MonitorPlaybackItemToken, current: OpenCineMedia.MonitorPlaybackItemToken, active: OpenCineMedia.MediaAssetID?, closed: Swift.Bool, sameComposition: Swift.Bool, sameGallery: Swift.Bool, sameContent: Swift.Bool) -> Swift.Bool
 static func MonitorRemoteShutterPolicy.anchor(forCurrentVolume: Swift.Float) -> Swift.Float
 static func MonitorRemoteShutterPolicy.decision(newVolume: Swift.Float, now: Foundation.TimeInterval, lastTriggerAt: Foundation.TimeInterval, lastAnchorAt: Foundation.TimeInterval, anchor: Swift.Float) -> MonitorRemoteShutterPolicy.Decision
+static func MonitorRemoteShutterPolicy.needsWrite(from: Swift.Float, to: Swift.Float) -> Swift.Bool
 static func MonitorRemoteShutterPolicy.shouldRun(enabled: Swift.Bool, monitorPresented: Swift.Bool, liveViewFront: Swift.Bool, applicationIsActive: Swift.Bool, audioSessionAvailable: Swift.Bool) -> Swift.Bool
 static func MonitorReviewDuration.fromSeconds(_: Swift.Int) -> MonitorReviewDuration
 static func MonitorScopePanelStore.load(storage: Foundation.UserDefaults, key: Swift.String)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> Options
@@ -1608,6 +1614,7 @@ static let MonitorOperatorLiveReadoutStyle.dimmedOpacity: Swift.Double
 static let MonitorRemoteShutterPolicy.debounceInterval: Foundation.TimeInterval
 static let MonitorRemoteShutterPolicy.railHeadroom: Swift.Float
 static let MonitorRemoteShutterPolicy.selfInflictedWindow: Foundation.TimeInterval
+static let MonitorRemoteShutterVolumeLease.hold: Foundation.TimeInterval
 static let MultiviewCameraAction.liveView: Swift.String
 static let MultiviewNetworkRestore.closeAction: Swift.String
 static let MultiviewRecordContext.groupNote: Swift.String
@@ -1755,6 +1762,7 @@ struct MonitorPlaybackAdmission: Sendable
 struct MonitorPlaybackLook<Source where Source : Swift.Sendable>: Sendable
 struct MonitorPlaybackScopeFrame: Sendable
 struct MonitorRemoteShutterPresses: Equatable, Sendable
+struct MonitorRemoteShutterVolumeLease: Equatable, Sendable
 struct MonitorReviewOptions: Decodable, Encodable, Equatable, Hashable, Sendable
 struct MonitorScopeStoredPanel<Options, Content where Options : MonitorPresentation.MonitorScopePanelOptions, Content : SwiftUI.View>: Sendable, View
 struct MonitorScreen<Picture, Assists, Signal, Status, Power, Capture, System, Tools, Panels, Cover, Recovery where Picture : SwiftUI.View, Assists : SwiftUI.View, Signal : SwiftUI.View, Status : SwiftUI.View, Power : SwiftUI.View, Capture : SwiftUI.View, System : SwiftUI.View, Tools : SwiftUI.View, Panels : SwiftUI.View, Cover : SwiftUI.View, Recovery : SwiftUI.View>: Sendable, View
@@ -2366,6 +2374,8 @@ var MonitorPlaybackScopeSession.bundle: OpenCineMedia.ScopeAssistBundle
 var MonitorRemoteShutterPresses.anchor: Swift.Float
 var MonitorRemoteShutterPresses.lastAnchorAt: Foundation.TimeInterval
 var MonitorRemoteShutterPresses.lastTriggerAt: Foundation.TimeInterval
+var MonitorRemoteShutterVolumeLease.heldUntil: Foundation.TimeInterval
+var MonitorRemoteShutterVolumeLease.pendingVolume: Swift.Float?
 var MonitorReviewDuration.automaticDismissDuration: Swift.Duration?
 var MonitorReviewDuration.label: Swift.String
 var MonitorReviewOptions.duration: MonitorReviewDuration

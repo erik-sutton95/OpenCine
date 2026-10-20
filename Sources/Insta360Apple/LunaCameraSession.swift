@@ -789,15 +789,16 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             choices: Self.shutterDenominators.map { .shutter(.duration(Rational(1, $0))) })
         shutter.choices.insert(.shutter(.auto), at: 0)
         let emulated = shutterPresentation == .emulatedAngle
-        if emulated { shutter.choices = HostShutterAngle.choices + shutter.choices }
+        // Angles are offered only where `exposure(iso:shutter:_:)` can compose them: video with a
+        // reported cadence. Photo keeps the camera's durations (CodeRabbit on #114).
+        if emulated, shootingMode.map({ !$0.isPhoto }) == true, reportedCadence.value != nil {
+            shutter.choices = HostShutterAngle.choices + shutter.choices
+        }
         // Angle is a presentation: the camera's durations and Auto stay writable (an angle pick,
-        // Manual from Auto, AE-L), so Auto never blocks the first manual shutter.
-        let shutterAvailability: Availability
-        if !emulated { shutterAvailability = exposure }
-        else if shootingMode == nil { shutterAvailability = .unavailable(.notReady) }
-        else if shootingMode?.isPhoto == true { shutterAvailability = exposure }
-        else if reportedCadence.value == nil { shutterAvailability = .unavailable(.notReady) }
-        else { shutterAvailability = exposure }
+        // Manual from Auto, AE-L), so Auto never blocks the first manual shutter, and a missing
+        // cadence withholds only the angles (CodeRabbit on #114).
+        let shutterAvailability: Availability =
+            emulated && shootingMode == nil ? .unavailable(.notReady) : exposure
         var descriptors = [
             SettingDescriptor(.iso, domain: iso, availability: exposure),
             SettingDescriptor(.shutter, domain: shutter, availability: shutterAvailability,

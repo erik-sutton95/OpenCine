@@ -138,7 +138,9 @@ plus current-source acceptance and the existing cached-repaint and picture-owner
 Known live ISO reports use `updateSourceCalibration(iso:source:)` with a token captured before
 queuing the report. Attach the sample bus before seeding a known ISO. This operation targets the
 runtime's current live publication lease; the bus's display ceiling may belong to playback.
-Unknown, invalid or retired reports preserve calibration and are refused. Android's existing
+Invalid or retired reports preserve calibration and are refused. An unreported ISO (`nil`, zero or
+less: Auto without its applied value) moves the ceiling to the profile's `unreportedISO` when it
+names one (Luna I-Log: the lowest ISO, so clipping is never missed) and is otherwise refused. Android's existing
 render policy already applies ISO to its current producer lease, so this Apple input adds no
 second calibration owner or display-projection write.
 
