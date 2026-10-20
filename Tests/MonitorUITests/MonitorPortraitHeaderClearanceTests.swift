@@ -1356,11 +1356,14 @@
                     "Production node \(label) at \(sample)")
                 return native.window.convert(node.accessibilityFrame, from: nil)
             }
-            XCTAssertGreaterThan(raster.accentPixelCount(in: try frame(accented)), 0,
-                "\(accented) carries the accent")
+            let on = raster.accentPixelCount(in: try frame(accented))
+            XCTAssertGreaterThan(on, 0, "\(accented) carries the accent")
             if let off {
-                XCTAssertEqual(raster.accentPixelCount(in: try frame(off)), 0,
-                    "\(off) stays unaccented")
+                // The accessibility frames are the expanded touch targets, so an unaccented
+                // readout's frame can reach a few edge pixels of its accented neighbour or of
+                // the green link bars. Accented glyphs paint far more.
+                let stray = raster.accentPixelCount(in: try frame(off))
+                XCTAssertLessThan(stray * 20, on, "\(off) stays unaccented (\(stray) vs \(on) accent pixels)")
             }
         }
         func assertUnaccented(_ label: String) async throws {
@@ -1368,8 +1371,10 @@
             let raster = try HeaderRaster(try native.renderedImage())
             let node = try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
                 "Production node \(label) at \(sample)")
-            XCTAssertEqual(raster.accentPixelCount(in: native.window.convert(node.accessibilityFrame, from: nil)), 0,
-                "\(label) stays unaccented")
+            // The expanded touch target can reach a few green edge pixels of the link bars; an
+            // accented readout paints well over a hundred.
+            let stray = raster.accentPixelCount(in: native.window.convert(node.accessibilityFrame, from: nil))
+            XCTAssertLessThan(stray, 16, "\(label) stays unaccented (\(stray) accent pixels)")
         }
         func assertCodecOnly() async throws {
             var nodes: [NSObject] = []
