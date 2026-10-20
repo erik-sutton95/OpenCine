@@ -1,0 +1,35 @@
+public final class com/opencapture/openpocketcine/feed/OpcVulkan {
+	public static final field INSTANCE Lcom/opencapture/openpocketcine/feed/OpcVulkan;
+	public final fun isAvailable ()Z
+	public static final fun nativeAttachBitmapWindow (JLandroid/view/Surface;)Z
+	public static final fun nativeAttachWindow (JLandroid/view/Surface;II)Z
+	public static final fun nativeClearBitmap (J)V
+	public static final fun nativeClearBitmapPlan (J)V
+	public static final fun nativeConfigureBitmap (J[FI[BI[BI[B)Z
+	public static final fun nativeCopyFace (J[B)Z
+	public static final fun nativeCopyHisto (J[I)V
+	public static final fun nativeCopyTap (J[B)Z
+	public static final fun nativeCreate ()J
+	public static final fun nativeCreateBitmap ()J
+	public static final fun nativeDestroy (J)V
+	public static final fun nativeDetachWindow (J)V
+	public static final fun nativeProbe ()Z
+	public static final fun nativeProbeBitmap ()Z
+	public static final fun nativeRedraw (J)Z
+	public static final fun nativeRedrawBitmap (J)Z
+	public static final fun nativeResize (JII)V
+	public static final fun nativeSetBitmapPaused (JZ)Z
+	public static final fun nativeSetCube (JI[BIIF)V
+	public static final fun nativeSetFeedFlags (JFFFFFFFFFFFFFFFFFF)V
+	public static final fun nativeSetFeedRect (JFFFFZ)V
+	public static final fun nativeSetIre (J[FFFFI)V
+	public static final fun nativeSetNeedFace (JZ)V
+	public static final fun nativeSetNeedTap (JZ)V
+	public static final fun nativeSetPlates (J[F)V
+	public static final fun nativeSetSlots (J[F)V
+	public static final fun nativeSetStack (J[I)V
+	public static final fun nativeSetUiScale (JF)V
+	public static final fun nativeSubmit (JLandroid/hardware/HardwareBuffer;)Z
+	public static final fun nativeSubmitBitmap (JLandroid/graphics/Bitmap;)Z
+}
+
