@@ -146,6 +146,18 @@ import Testing
         #expect(refusal.diagnosticsCode == "error.connection.wifi-join.code8")
     }
 
+    @Test func onlyRefusalsAnotherAttemptCanFixAreRetried() {
+        // A decline is the operator's answer, and a wrong name, key or configuration fails the
+        // same way every time: the join loop surfaces those at once. A platform refusal of its
+        // own request (internal, pending, busy) can pass on the next attempt.
+        for code in [0, 1, 2, 3, 4, 5, 6, 7, 12, 15] {
+            #expect(!CameraHotspotJoinRefusal(code: code, network: "Camera").retryMayJoin, "code \(code)")
+        }
+        for code in [8, 9, 10, 11, 14, 16, 17, 99] {
+            #expect(CameraHotspotJoinRefusal(code: code, network: "Camera").retryMayJoin, "code \(code)")
+        }
+    }
+
     @Test func anotherDomainIsNotARefusal() {
         let error = NSError(domain: "SomeOtherDomain", code: 8)
         #expect(CameraHotspotJoinRefusal(error: error, network: "Camera") == nil)

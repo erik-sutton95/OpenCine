@@ -96,6 +96,21 @@ public struct CameraHotspotJoinRefusal: Error, Hashable, Sendable, LocalizedErro
         }
     }
 
+    /// Whether another join attempt can still succeed. A decline is the operator's answer and a
+    /// wrong name, key or configuration fails the same way every time, so a join loop surfaces
+    /// those at once; the platform refusing its own request (internal, pending, busy) can pass
+    /// on the next attempt.
+    public var retryMayJoin: Bool {
+        switch reason {
+        case .userDenied, .invalidSSID, .invalidPassphrase, .invalidConfiguration,
+            .joinOnceNotSupported, .alreadyAssociated:
+            false
+        case .internalError, .pending, .systemConfiguration, .unknown, .applicationNotInForeground,
+            .userUnauthorized, .systemDenied, .other:
+            true
+        }
+    }
+
     public var errorDescription: String? { message }
 
     /// The shared failure card for this refusal. The integration only supplies its identity.

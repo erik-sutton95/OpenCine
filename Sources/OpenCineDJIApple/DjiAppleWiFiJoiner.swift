@@ -163,6 +163,9 @@ public enum DjiAppleWiFiJoiner {
                 lastError = JoinError.stillOnOtherBody(now ?? "other camera")
             } catch is CancellationError {
                 throw CancellationError()
+            } catch let refusal as CameraHotspotJoinRefusal where !refusal.retryMayJoin {
+                // A decline or a wrong name or key: asking again would only repeat it.
+                throw refusal
             } catch {
                 lastError = error
             }
