@@ -48,16 +48,22 @@ import OpenCineCore
     private let native: Native
     private let cancellation: Cancellation
     private let readTimeout: Duration?
+    /// The host's diagnostics journal, for closed refusal tokens only.
+    private let journal: (@MainActor @Sendable (String) -> Void)?
     private var currentScope: Scope?
     private var receipt = UUID()
     private var queue: [Mutation] = []
     private var admitted: Mutation?
     private var draining = false
 
-    init(native: Native, cancellation: Cancellation, readTimeout: Duration? = nil) {
+    init(
+        native: Native, cancellation: Cancellation, readTimeout: Duration? = nil,
+        journal: (@MainActor @Sendable (String) -> Void)? = nil
+    ) {
         self.native = native
         self.cancellation = cancellation
         self.readTimeout = readTimeout
+        self.journal = journal
     }
 
     public var host: CameraHotspotHost {
@@ -219,22 +225,48 @@ import OpenCineCore
 import NetworkExtension
 
 extension CameraHotspotSystem {
-    /// Construct once per host, with that host's existing callback wait policy.
-    public convenience init(cancellation: Cancellation = .retireCaller, readTimeout: Duration? = .seconds(3)) {
+    /// Construct once per host, with that host's existing callback wait policy. A refusal the
+    /// operator must act on throws `CameraHotspotJoinRefusal`; the journal gets its closed token.
+    public convenience init(
+        cancellation: Cancellation = .retireCaller, readTimeout: Duration? = .seconds(3),
+        journal: (@MainActor @Sendable (String) -> Void)? = nil
+    ) {
         self.init(native: .init(apply: { value, completion in
             let configuration: NEHotspotConfiguration
+            let network: String
             switch (value.selection, value.security) {
-            case (.ssid(let ssid), .open): configuration = NEHotspotConfiguration(ssid: ssid)
-            case (.prefix(let prefix), .open): configuration = NEHotspotConfiguration(ssidPrefix: prefix)
+            case (.ssid(let ssid), .open):
+                configuration = NEHotspotConfiguration(ssid: ssid)
+                network = ssid
+            case (.prefix(let prefix), .open):
+                configuration = NEHotspotConfiguration(ssidPrefix: prefix)
+                network = "\(prefix)…"
             case (.ssid(let ssid), .personal(let passphrase)):
                 configuration = NEHotspotConfiguration(ssid: ssid, passphrase: passphrase, isWEP: false)
+                network = ssid
             case (.prefix(let prefix), .personal(let passphrase)):
                 configuration = NEHotspotConfiguration(ssidPrefix: prefix, passphrase: passphrase, isWEP: false)
+                network = "\(prefix)…"
             }
             configuration.joinOnce = value.joinOnce
             NEHotspotConfigurationManager.shared.apply(configuration) { error in
                 Task { @MainActor in
-                    if let error { completion(.failure(error)) } else { completion(.success(())) }
+                    guard let error else {
+                        completion(.success(()))
+                        return
+                    }
+                    guard let refusal = CameraHotspotJoinRefusal(error: error as NSError, network: network)
+                    else {
+                        completion(.failure(error))
+                        return
+                    }
+                    // Already associated is the join's goal, not a failure.
+                    guard refusal.reason != .alreadyAssociated else {
+                        completion(.success(()))
+                        return
+                    }
+                    journal?(refusal.diagnosticsCode)
+                    completion(.failure(refusal))
                 }
             }
         }, remove: { NEHotspotConfigurationManager.shared.removeConfiguration(forSSID: $0) },
@@ -247,7 +279,7 @@ extension CameraHotspotSystem {
                 NEHotspotConfigurationManager.shared.getConfiguredSSIDs { ssids in
                     Task { @MainActor in completion(ssids) }
                 }
-            }), cancellation: cancellation, readTimeout: readTimeout)
+            }), cancellation: cancellation, readTimeout: readTimeout, journal: journal)
     }
 }
 #endif
