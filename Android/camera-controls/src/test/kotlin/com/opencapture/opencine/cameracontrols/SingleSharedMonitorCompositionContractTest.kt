@@ -16,6 +16,21 @@ class SingleSharedMonitorCompositionContractTest {
         "MonitorAssistPalette", "AssistInspectorFrame", "AssistOptionsPanel",
         "MonitorOperatorCaptureStrip", "MonitorOperatorCapturePopup")
 
+
+    /**
+     * Behavior audit ZAA-425 and PAA-424: the MF focus strip leaves the screen under the interface
+     * lock (pre-shared Z Android hid it, as focus reset still hides), and the DISP tile ticks.
+     */
+    @Test fun theLockHidesTheFocusDriveAndTheDisplayTileTicks() {
+        val source = File(directory, "MonitorOperatorLiveBody.kt").readText()
+        assertTrue(Regex("""if \(!locked\) cameraViews\.focusDrive""").containsMatchIn(source),
+            "The focus drive must not mount under the interface lock")
+        assertTrue("onClickFeedback = { displayHaptics.selection() }" in source,
+            "The DISP tile must give the selection haptic")
+        assertTrue("busy = !recordEnabled" in source,
+            "A busy source must not pass as the locked record look")
+    }
+
     @Test fun everyLiveEntryIsTheOneSurfaceWithoutASecondRegionRecipe() {
         val vocabulary = calls(File(directory, "MonitorOperatorVocabularySurface.kt").readText())
         assertTrue("MonitorOperatorLiveSurface" in vocabulary, "The vocabulary entry must delegate to the one surface")

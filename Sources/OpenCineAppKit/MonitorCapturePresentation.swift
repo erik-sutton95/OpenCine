@@ -91,7 +91,8 @@ public enum MonitorCapturePresentation {
         case .shutter(.duration(let seconds)):
             seconds.numerator == 1 ? "1/\(seconds.denominator)" : "\(number(seconds.doubleValue))s"
         case .shutter(.angle(let angle)): "\(number(angle))°"
-        case .aperture(let aperture): "f/\(number(aperture))"
+        // One decimal, as every body and its menus spell it ("f/4.0").
+        case .aperture(let aperture): String(format: "f/%.1f", aperture)
         case .whiteBalance(.auto): "Auto"
         case .whiteBalance(.preset(let name)): name
         case .whiteBalance(.kelvin(let kelvin)): "\(kelvin)K"

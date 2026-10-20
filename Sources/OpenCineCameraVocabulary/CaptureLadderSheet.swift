@@ -61,13 +61,16 @@ public struct LadderTab<Key: Equatable & Sendable>: Sendable {
     public let tint: CaptureTint?
     public let values: (@Sendable (String) -> [String])?
     public let steps: (@Sendable (String) -> (LadderStep, LadderStep)?)?
+    /// Spoken on the drum when it carries steps: what the buttons beside the value do.
+    public let stepsHint: String?
 
     public init(
         label: String, key: Key, ladder: CaptureLadder, detail: String? = nil,
         activate: LadderWrite<Key>? = nil, applyOnActivate: Bool = true, disabled: Bool = false,
         setting: CaptureLadderSetting? = nil, tint: CaptureTint? = nil,
         values: (@Sendable (String) -> [String])? = nil,
-        steps: (@Sendable (String) -> (LadderStep, LadderStep)?)? = nil
+        steps: (@Sendable (String) -> (LadderStep, LadderStep)?)? = nil,
+        stepsHint: String? = nil
     ) {
         self.label = label
         self.key = key
@@ -80,6 +83,7 @@ public struct LadderTab<Key: Equatable & Sendable>: Sendable {
         self.tint = tint
         self.values = values
         self.steps = steps
+        self.stepsHint = stepsHint
     }
 }
 

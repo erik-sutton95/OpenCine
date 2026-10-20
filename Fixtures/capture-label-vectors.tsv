@@ -11,7 +11,7 @@
 #   denom      degrees  fps          -> 1/N sent for a host-emulated angle (ties round up)
 #   duration   num      den          -> MonitorCapturePresentation shutter label (C %g)
 #   angle      degrees               -> MonitorCapturePresentation angle label (C %g)
-#   aperture   f-number              -> MonitorCapturePresentation iris label (C %g)
+#   aperture   f-number              -> MonitorCapturePresentation iris label (one decimal, as every body)
 #   ev         num      den          -> the one EV spelling (0.0, +0.3, U+2212 minus; C %.1f).
 #                                       Rows with den 1000 are Nikon thousandths: the Swift Nikon
 #                                       decoder must print them the same way.
@@ -36,7 +36,10 @@ angle	144	144°
 angle	172.8	172.8°
 angle	11.25	11.25°
 aperture	2.8	f/2.8
-aperture	22	f/22
+aperture	22	f/22.0
+aperture	4	f/4.0
+aperture	2	f/2.0
+aperture	11	f/11.0
 ev	0	1	0.0
 ev	-1	3	−0.3
 ev	2	3	+0.7

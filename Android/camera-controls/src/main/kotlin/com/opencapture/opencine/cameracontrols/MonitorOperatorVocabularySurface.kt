@@ -240,8 +240,11 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
                 onDismiss = { state.sheet = null }, maxHeightDp = frame.height, portrait = field.portrait,
                 chromeless = true, onHeaderChanged = { title, subtitle -> captureState.publishHeader(key, title, subtitle) })
         }, photoRelease = { enabled, decoration ->
+            // A still in flight keeps the lamp lit (inert): only the lock dims it.
+            val busy = source.record.busy
             com.opencapture.opencine.appkit.MonitorCaptureButton(chrome.capture.control, field.record.width,
-                enabled && chrome.capture.isReady, decoration, photo = true, confirm = chrome.capture.confirmRecording(),
+                (enabled || (busy && !locked)) && chrome.capture.isReady, decoration, busy = busy, photo = true,
+                confirm = chrome.capture.confirmRecording(),
                 takePhoto = chrome.capture.takePhoto, openMode = { state.sheet = LiveSheet.MODE })
         })
 }

@@ -158,6 +158,8 @@ fun <K> LadderSheet(
     error: String? = null,
     unavailable: String? = null,
     onHold: (() -> Unit)? = null,
+    /** A finger resting on (true) or leaving (false) a holdable sheet, so the host can name the hold. */
+    onHoldPressing: ((Boolean) -> Unit)? = null,
     tintLabel: (CaptureTint) -> String = { "" },
     tintHelp: String? = null,
     footer: @Composable (LadderTab<K>) -> Unit = {},
@@ -197,13 +199,20 @@ fun <K> LadderSheet(
             .testTag("ladder_sheet")
             .then(if (chromeless) Modifier else Modifier.pickerPanelGlass(capturePanelShape(fromTop, portrait)))
             .then(
-                if (hold == null) Modifier else Modifier.pointerInput(holdTimeout, hold) {
+                if (hold == null) Modifier else Modifier.pointerInput(holdTimeout, hold, onHoldPressing) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
-                        val released = withTimeoutOrNull(holdTimeout) { waitForUpOrCancellation() }
-                        if (released == null) {
-                            hold()
-                            waitForUpOrCancellation()
+                        // The callback that heard "pressing" hears the release, even on cancellation.
+                        val pressing = onHoldPressing
+                        pressing?.invoke(true)
+                        try {
+                            val released = withTimeoutOrNull(holdTimeout) { waitForUpOrCancellation() }
+                            if (released == null) {
+                                hold()
+                                waitForUpOrCancellation()
+                            }
+                        } finally {
+                            pressing?.invoke(false)
                         }
                     }
                 },
@@ -298,6 +307,7 @@ fun <K> LadderSheet(
                     marked = tab.ladder.marked,
                     enabled = gates.drumEnabled,
                     steps = tab.steps?.invoke(shown),
+                    stepsHint = tab.stepsHint,
                     previewPosition = host?.previewPosition,
                     onSelect = { value ->
                         if (!gates.drumEnabled || value.isBlank()) return@LabelDrum
@@ -359,6 +369,7 @@ private fun LabelDrum(
     marked: Set<String>,
     enabled: Boolean,
     steps: Pair<LadderStep, LadderStep>?,
+    stepsHint: String? = null,
     previewPosition: Float? = null,
     onSelect: (String) -> Unit,
     onStep: (LadderStep) -> Unit,
@@ -374,6 +385,7 @@ private fun LabelDrum(
                 interactive = enabled && preview == null && previewPosition == null,
                 displayPosition = preview?.position ?: previewPosition,
                 dimDisabled = preview == null && previewPosition == null,
+                hint = stepsHint.takeIf { steps != null },
                 onDetent = { haptics.confirm() },
                 onSelect = { value ->
                     if (enabled && preview == null && previewPosition == null) onSelect(value)
