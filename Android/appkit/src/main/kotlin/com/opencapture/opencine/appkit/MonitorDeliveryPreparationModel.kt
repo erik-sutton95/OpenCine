@@ -56,6 +56,8 @@ public class MonitorDeliveryPreparationModel<C, F, P, X, H>(
     private var projectsRequest: UUID? = null; private var hopRequest: UUID? = null
     private var projectsTask: Job? = null; private var hopTask: Job? = null; private var pollingTask: Job? = null
     private var lease: H? = null
+    /** The export options the selection can use: none when every file is a still (ZIB-469). */
+    public val clipExportOptions: MonitorDeliveryExportOptions<C, F>? get() = if (state.value.selection.allStills) null else exportOptions
     public val remotePresentation: MonitorDeliveryRemotePresentation? get() = remote?.presentation
     /** Re-upload is a choice only where the remote skips already uploaded records. */
     public val offersReupload: Boolean get() = state.value.destination == MonitorDeliveryDestination.REMOTE_UPLOAD && remote?.skipsUploaded == true
@@ -67,8 +69,8 @@ public class MonitorDeliveryPreparationModel<C, F, P, X, H>(
         if (value.destination == null || !value.selection.hasDeliverable || value.hopping || closed) return false
         if (exportOptions != null && value.configuration == null) return false
         value.configuration?.let {
-            if (it.bakeLUT && exportOptions?.lutAvailable?.invoke() != true) return false
-            if (it.convertLog && exportOptions?.convertLogAvailable?.invoke() != true) return false
+            if (it.bakeLUT && clipExportOptions?.lutAvailable?.invoke() != true) return false
+            if (it.convertLog && clipExportOptions?.convertLogAvailable?.invoke() != true) return false
         }
         return value.destination != MonitorDeliveryDestination.REMOTE_UPLOAD || (value.remoteFacts?.connected == true &&
             (selectedProject?.uploadable == true || value.remoteFacts.savedProjectID != null || value.remoteFacts.onCameraNetwork == true))
@@ -81,8 +83,8 @@ public class MonitorDeliveryPreparationModel<C, F, P, X, H>(
         if (!current(captured)) return
         refresh(captured)
         if (!current(captured)) return
-        val lut = exportOptions?.lutAvailable?.invoke(); if (!current(captured)) return
-        val convert = exportOptions?.convertLogAvailable?.invoke(); if (!current(captured)) return
+        val lut = clipExportOptions?.lutAvailable?.invoke(); if (!current(captured)) return
+        val convert = clipExportOptions?.convertLogAvailable?.invoke(); if (!current(captured)) return
         if (!publish(captured) { it.copy(configuration = it.configuration?.copy(
                 bakeLUT = it.configuration.bakeLUT && lut == true, convertLog = it.configuration.convertLog && convert == true),
                 selectedProjectID = it.remoteFacts?.savedProjectID) }) return
@@ -111,12 +113,12 @@ public class MonitorDeliveryPreparationModel<C, F, P, X, H>(
     }
     public fun setConvertLog(value: Boolean) {
         val captured = epoch
-        if (!current(captured) || (value && exportOptions?.convertLogAvailable?.invoke() != true) || !current(captured)) return
+        if (!current(captured) || (value && clipExportOptions?.convertLogAvailable?.invoke() != true) || !current(captured)) return
         publish(captured) { it.copy(configuration = it.configuration?.copy(convertLog = value, bakeLUT = if (value) false else it.configuration.bakeLUT)) }
     }
     public fun setBakeLUT(value: Boolean) {
         val captured = epoch
-        if (!current(captured) || (value && exportOptions?.lutAvailable?.invoke() != true) || !current(captured)) return
+        if (!current(captured) || (value && clipExportOptions?.lutAvailable?.invoke() != true) || !current(captured)) return
         publish(captured) { it.copy(configuration = it.configuration?.copy(bakeLUT = value, convertLog = if (value) false else it.configuration.convertLog)) }
     }
     public fun setAction(value: MonitorDeliveryPostExportAction) { if (!closed) publish(epoch) { it.copy(action = value) } }

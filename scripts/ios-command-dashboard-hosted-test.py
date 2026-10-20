@@ -29,6 +29,8 @@ names = [
     "testPortraitStacksTheGridOverTheSectionsWithoutTheHealthStrip",
     "testOverflowingSideColumnShowsItsCueAndClearsItAtTheRealBottom",
     "testSideColumnWithoutOverflowHasNoCue",
+    "testHeroLeadsTheDashboardWithRecordStateAndTimecode",
+    "testHeroAndNineTilesStayInsideTheLandscapeFrameWithoutClipping",
 ]
 assert re.findall(r"\bfunc (test\w+)\(", source.read_text()) == names
 waiting_names = [

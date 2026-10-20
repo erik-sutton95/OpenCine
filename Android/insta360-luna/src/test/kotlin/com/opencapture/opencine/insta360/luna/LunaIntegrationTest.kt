@@ -46,6 +46,7 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     override val found = MutableStateFlow<List<CameraIdentity>>(emptyList())
     override val joinedSSID = MutableStateFlow<String?>(null)
     override val failureDetail = MutableStateFlow<ConnectionFailure?>(null)
+    override val scanBlocked = MutableStateFlow(false)
     override var attempt: Job? = null
     var scans = 0
     var scanStops = 0
@@ -201,6 +202,20 @@ class LunaIntegrationTest {
         job.cancel()
         runCurrent()
         assertEquals(1, port.scanStops)
+    }
+
+    @Test
+    fun discoveryRunningFollowsTheScanNotAFailedConnect() = runTest {
+        val (port, luna) = setup()
+        val running = mutableListOf<Boolean>()
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { luna.discoveryRunning.collect { running += it } }
+        collect(luna.connect(ConnectTarget.Nearby(sighting)))
+        runCurrent(); port.fail(LunaFailures.connect(ConnectionPhase.CONNECTING_GATT)); runCurrent()
+        assertEquals(listOf(true), running, "a failed connect leaves the scan running")
+        port.scanBlocked.value = true; runCurrent()
+        assertEquals(listOf(true, false), running, "a blocked scan stops the scanning status")
+        port.scanBlocked.value = false; runCurrent()
+        assertEquals(listOf(true, false, true), running)
     }
 
     @Test

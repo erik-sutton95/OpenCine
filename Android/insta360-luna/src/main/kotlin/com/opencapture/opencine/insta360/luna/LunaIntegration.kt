@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -48,6 +49,8 @@ interface LunaConnectPort : CameraMediaServiceSource {
     val joinedSSID: StateFlow<String?>
     /** Why the last attempt failed, typed; `null` while none has. */
     val failureDetail: StateFlow<ConnectionFailure?>
+    /** `true` while discovery cannot run: radio off, permission denied or the scanner refused. */
+    val scanBlocked: StateFlow<Boolean>
     /** The connection job [connect] started; it keeps running while the camera is live. */
     val attempt: Job?
     fun startScan()
@@ -181,6 +184,13 @@ class LunaIntegration(
             }
         }
     }
+
+    /**
+     * Discovery runs unless the scan itself is blocked (Bluetooth off, permission denied, scanner
+     * refused), so the pages show no scanning status then; a failed connect leaves it running
+     * (IA-336, Swift `discoveryFailure`).
+     */
+    override val discoveryRunning: Flow<Boolean> = port.scanBlocked.map { !it }.distinctUntilChanged()
 
     override fun connect(target: ConnectTarget): Flow<ConnectionEvent> = channelFlow {
         val cameraID = when (target) {

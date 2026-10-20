@@ -107,7 +107,7 @@ public fun <P> MonitorOperatorCatalogScreen(
             state.confirmationPresented -> gallery.cancelDelete()
             state.filterPopupPresented -> gallery.filterPopup(false)
             value.selecting -> library.clearSelection()
-            else -> { gallery.retire(); close() }
+            else -> { gallery.leave(); close() }
         }
     }
     val records = snapshot.records
@@ -213,13 +213,15 @@ public fun <P> MonitorOperatorCatalogScreen(
             state.notice?.let { Text(it, Modifier.align(Alignment.BottomCenter).padding(24.dp), color = LiveDesign.text) }
         }, storageCards = presentation?.storage.orEmpty(),
             selectStorage = { filter(MonitorMediaGalleryFilterAction.Storage(it), popup = false) },
-            close = { gallery.retire(); close() })
+            close = { gallery.leave(); close() })
     }
     if (state.confirmationPresented) {
         val confirmation = state.deleteRequestID
         MonitorConfirmPopup(
             title = state.deletionMessage ?: "Delete ${state.deleteCount} item${if (state.deleteCount == 1) "" else "s"} from the camera?",
             confirmTitle = "Delete", onClickFeedback = haptics::selection,
+            cancelDescription = MonitorPlaybackCopy.DELETE_CANCEL_DESCRIPTION,
+            confirmDescription = MonitorPlaybackCopy.DELETE_CONFIRM_DESCRIPTION,
             onDismiss = { gallery.cancelDelete(confirmation) }, onConfirm = { gallery.confirmDelete(confirmation) },
         )
     }
@@ -307,7 +309,7 @@ private fun <P> MonitorOperatorCatalogGallery(
                     records.isEmpty() && value.fetching -> MediaScrollablePlaceholder { MediaListingState(value.fetchedCount) }
                     records.isEmpty() -> MediaScrollablePlaceholder {
                         MediaEmptyState(value.fetching, value.note ?: MediaLibraryCopy.emptySubtitle(connected,
-                            value.records.isNotEmpty(), value.activeFilterCount, MediaLibraryTab.valueOf(value.category.name)))
+                            value.records.isNotEmpty(), presentation?.activeFilterCount ?: value.activeFilterCount, MediaLibraryTab.valueOf(value.category.name)))
                     }
                     list -> LazyColumn(Modifier.fillMaxSize().testTag(GALLERY_TAG).monitorScrollFade(listState), state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 24.dp)) {

@@ -76,7 +76,12 @@ public final class LunaIntegration: CameraIntegration {
     /// Discovery stays subscribed: the app shows this in its pairing slot and calls
     /// `retryDiscovery()` (back from Settings, for example).
     public private(set) var discoveryFailure: ConnectionFailure? {
-        didSet { if discoveryFailure != oldValue { onDiscoveryFailure?(discoveryFailure) } }
+        didSet {
+            if discoveryFailure != oldValue {
+                onDiscoveryFailure?(discoveryFailure)
+                publishDiscoveryRunning()
+            }
+        }
     }
     public var onDiscoveryFailure: ((ConnectionFailure?) -> Void)?
 
@@ -99,6 +104,7 @@ public final class LunaIntegration: CameraIntegration {
     private var listeners: [UUID: AsyncStream<[NearbyCamera]>.Continuation] = [:]
     /// Sighting graces holding the scan, so the last discovery listener leaving cannot stop it.
     private var graceScans = 0
+    private var runningListeners: [UUID: AsyncStream<Bool>.Continuation] = [:]
     private var current: Attempt?
 
     @MainActor
@@ -150,6 +156,23 @@ public final class LunaIntegration: CameraIntegration {
     /// Starts the scan again while discovery is subscribed and not running.
     public func retryDiscovery() {
         if !listeners.isEmpty, discoveryFailure != nil { startScanning() }
+    }
+
+    /// Whether passive discovery is running now (IA-336): a failed start leaves the pages without
+    /// a scanning status until `retryDiscovery()` succeeds.
+    public var discoveryRunning: AsyncStream<Bool> {
+        AsyncStream<Bool> { continuation in
+            let key = UUID()
+            runningListeners[key] = continuation
+            continuation.yield(discoveryFailure == nil)
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor in self?.runningListeners[key] = nil }
+            }
+        }
+    }
+
+    private func publishDiscoveryRunning() {
+        for continuation in runningListeners.values { continuation.yield(discoveryFailure == nil) }
     }
 
     private func startScanning() {

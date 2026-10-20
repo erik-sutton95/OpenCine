@@ -100,7 +100,11 @@ public class CamerasModel(
 
     /** What a failure action asks of the app that the model cannot do itself. */
     public sealed interface Request {
-        public data object OpenSettings : Request
+        /**
+         * Open Settings for [reason]: a radio-off failure wants the Wi-Fi or Bluetooth panel, a
+         * permission the app's own page (ZAB-245).
+         */
+        public data class OpenSettings(public val reason: ConnectionFailure.Reason?) : Request
         public data class EditRoute(public val camera: SavedCamera, public val route: ConnectionRouteID) : Request
         public data object PairAgain : Request
         public data class Integration(public val id: String, public val camera: String) : Request
@@ -128,6 +132,9 @@ public class CamerasModel(
     public var onConnected: (ConnectedCamera) -> Unit = {}
 
     private val discovery = HashMap<Int, Pair<DiscoveryMode, Job>>()
+    /** What each run's integration last reported about discovery; absent reads as running. */
+    private val discoveryRunning = HashMap<Int, Boolean>()
+    private val discoveryRunningJobs = HashMap<Int, Job>()
     private val tokens = HashMap<String, Any>()
     private val jobs = HashMap<String, Job>()
 
@@ -171,13 +178,32 @@ public class CamerasModel(
             val wanted = discoveryMode(entry.integration)
             if (discovery[index]?.first == wanted) continue
             discovery.remove(index)?.second?.cancel()
-            if (wanted == null) continue
+            discoveryRunningJobs.remove(index)?.cancel()
+            if (wanted == null) {
+                discoveryRunning.remove(index)
+                continue
+            }
             val id = entry.integration.id
             discovery[index] = wanted to scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 entry.integration.discover(wanted).collect { publish(it, id) }
             }
+            discoveryRunning[index] = true
+            discoveryRunningJobs[index] = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                entry.integration.discoveryRunning.collect { running -> setDiscoveryRunning(index, running) }
+            }
         }
-        update { it.copy(scanning = discovery.isNotEmpty()) }
+        updateScanning()
+    }
+
+    /** A page shows scanning only while a registered run reports it can scan (IA-336). */
+    private fun setDiscoveryRunning(index: Int, running: Boolean) {
+        if (discoveryRunning[index] == running) return
+        discoveryRunning[index] = running
+        updateScanning()
+    }
+
+    private fun updateScanning() {
+        update { it.copy(scanning = discovery.keys.any { index -> discoveryRunning[index] != false }) }
     }
 
     private fun publish(list: List<NearbyCamera>, integration: IntegrationID) {
@@ -265,6 +291,24 @@ public class CamerasModel(
         update { it.copy(failures = it.failures - cameraID) }
     }
 
+    /**
+     * The last failure a pair page shows for [selection]: the keyed one, else one whose target
+     * carries that camera. A post-failure rescan clears the sightings, and the reason must stay
+     * until the operator acts on it (F-PIB-042).
+     */
+    public fun failureFor(selection: String?): Failure? {
+        if (selection == null) return null
+        val now = mutable.value
+        return now.failures[selection]
+            ?: now.failures.values.firstOrNull { failure ->
+                when (val target = failure.target) {
+                    is ConnectTarget.Nearby -> target.camera.id == selection
+                    is ConnectTarget.Saved -> target.camera.id == selection
+                    is ConnectTarget.AddRoute -> target.camera.id == selection
+                }
+            }
+    }
+
     /** The app closed the live session, or it ended: discovery resumes. */
     public fun sessionEnded() {
         update { it.copy(connected = null) }
@@ -282,7 +326,7 @@ public class CamerasModel(
             is RecoveryAction.EditRoute ->
                 return now.saved.firstOrNull { it.id == cameraID }?.let { Request.EditRoute(it, action.route) }
             RecoveryAction.PairAgain -> return Request.PairAgain
-            RecoveryAction.OpenSettings -> return Request.OpenSettings
+            RecoveryAction.OpenSettings -> return Request.OpenSettings(now.failures[cameraID]?.failure?.reason)
             is RecoveryAction.Integration -> return Request.Integration(action.id, cameraID)
         }
         return null

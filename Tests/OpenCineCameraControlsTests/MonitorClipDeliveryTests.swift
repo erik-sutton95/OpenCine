@@ -46,6 +46,14 @@ import XCTest
             store: store, admission: .init { true }, progress: { _ in })
     }
 
+    /// ZIB-469: a still travels as its original, so the popup must know it is one.
+    func testSelectionTellsStillsFromClips() {
+        let still = MonitorClipDelivery.selectionFile(MediaFile(path: "DCIM/DJI_001/DJI_0001.JPG", thumbPath: "", sizeBytes: 4))
+        let clip = MonitorClipDelivery.selectionFile(MediaFile(path: "DCIM/DJI_001/DJI_0002.MP4", thumbPath: "", sizeBytes: 4))
+        XCTAssertEqual(still.isStill, true)
+        XCTAssertEqual(clip.isStill, false)
+        XCTAssertEqual(still.filename, "DJI_0001.JPG")
+    }
     func testOriginalCopyKeepsBytesAndSidecarAndNeverOverwritesAnotherExport() async throws {
         let source = folder.appendingPathComponent("original.MOV")
         let original = Data([0, 1, 2, 3, 0xff, 0x80])
