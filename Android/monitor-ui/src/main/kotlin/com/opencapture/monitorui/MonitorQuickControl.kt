@@ -109,13 +109,14 @@ fun Modifier.monitorReadoutGesture(control: MonitorQuickControl?, enabled: Boole
     owner: MonitorQuickGestureOwner, ownerId: String,
     previewContent: (@Composable (MonitorQuickPreview, Float) -> Unit)? = null,
     fromTop: Boolean = false, ceilingY: Float? = null,
-    onPreviewBegin: () -> Unit = {}): Modifier {
+    onPreviewBegin: () -> Unit = {}, onHold: (() -> Unit)? = null): Modifier {
     var preview by remember { mutableStateOf<MonitorQuickPreview?>(null) }
     val open by rememberUpdatedState(onOpen)
     val beginPreview by rememberUpdatedState(onPreviewBegin)
     val commit by rememberUpdatedState(onCommit)
     val currentControl by rememberUpdatedState(control)
     val currentEnabled by rememberUpdatedState(enabled)
+    val hold by rememberUpdatedState(onHold)
     val density = LocalDensity.current
     val config = LocalConfiguration.current
     val direction = LocalLayoutDirection.current
@@ -162,12 +163,25 @@ fun Modifier.monitorReadoutGesture(control: MonitorQuickControl?, enabled: Boole
                     val interaction = MonitorQuickInteraction(if (previewContent != null) control else null)
                     // Do not consume a pending down: the parent can still claim a scroll.
                     var elapsed = 0L
+                    // No quick drum owns the hold: a still press runs the readout's own action
+                    // and the lift then opens nothing.
+                    val quickPossible = control?.enabled == true && control.options.isNotEmpty() &&
+                        previewContent != null
+                    var holdArmed = !quickPossible && hold != null
+                    var holdFired = false
                     try {
                         while (!interaction.finished) {
-                            val event = if (interaction.preview == null && control?.enabled == true &&
-                                control.options.isNotEmpty() && previewContent != null) {
+                            val event = if (interaction.preview == null && quickPossible) {
                                 withTimeoutOrNull((MonitorDrumSelection.HOLD_MILLISECONDS - elapsed).coerceAtLeast(1L)) { awaitPointerEvent() }
+                            } else if (holdArmed) {
+                                withTimeoutOrNull((MonitorDrumSelection.HOLD_ACTION_MILLISECONDS - elapsed).coerceAtLeast(1L)) { awaitPointerEvent() }
                             } else awaitPointerEvent()
+                            if (event == null && holdArmed) {
+                                holdArmed = false
+                                holdFired = true
+                                hold?.invoke()
+                                continue
+                            }
                             if (event == null) {
                                 interaction.hold(MonitorDrumSelection.HOLD_MILLISECONDS)
                                 if (preview == null && interaction.preview != null) beginPreview()
@@ -178,6 +192,11 @@ fun Modifier.monitorReadoutGesture(control: MonitorQuickControl?, enabled: Boole
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             val delta = change.position - down.position
                             elapsed = change.uptimeMillis - down.uptimeMillis
+                            if (holdArmed && hypot(delta.x, delta.y) / density.density > 8f) holdArmed = false
+                            if (holdFired) {
+                                if (!change.pressed) { change.consume(); break }
+                                continue
+                            }
                             interaction.move(delta.x / density.density, delta.y / density.density,
                                 change.isConsumed, event.changes.count { it.pressed })
                             if (previewContent != null) interaction.hold(elapsed)

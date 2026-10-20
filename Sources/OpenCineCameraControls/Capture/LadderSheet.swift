@@ -675,15 +675,20 @@ private extension String {
             }
             .frame(width: side, height: side)
             .contentShape(Rectangle())
-            .gesture(drag)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Tint pad")
+            .accessibilityIdentifier("capture.tint.pad")
+            // A tap changes nothing; a double-tap resets to neutral; only a drag moves the tint
+            // (baseline Z, and the Kotlin twin's tap and drag detectors).
             .onTapGesture(count: 2) {
                 guard enabled else { return }
                 emit(0, 0)
             }
+            .gesture(drag)
         }
 
         private var drag: some Gesture {
-            DragGesture(minimumDistance: 0)
+            DragGesture(minimumDistance: 1)
                 .onChanged { value in
                     guard enabled else { return }
                     let x = min(1, max(0, value.location.x / side))

@@ -61,6 +61,14 @@ public enum ISOPickerPolicy: Sendable {
         return isoAuto == true
     }
 
+    /// The movie ISO readout while Auto ISO is active: the body's working sensitivity with an
+    /// `A` prefix ("A3200"), so the strip tracks what Auto chose. `nil` when Auto is not active
+    /// or the working ISO is unknown (the common "Auto" label then stands).
+    public static func autoISOLabel(iso: Int?, isoAuto: Bool?, codec: String) -> String? {
+        guard isAutoISOActive(isoAuto: isoAuto, codec: codec), let iso, iso > 0 else { return nil }
+        return "A\(iso)"
+    }
+
     /// Whether the operator may write a manual movie ISO value for this codec / mode.
     ///
     /// - **R3D NE** (dual-base): always manual ISO — the body forces dual-base circuits even in
