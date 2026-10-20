@@ -42,13 +42,15 @@ NAMES = {t["name"] for t in TOOLS}
 
 
 def argv_for(name, args):
+    # Keep client values separate from the command's options, including option-looking names.
     if name == "consumers":
-        return ["consumers", args["target"], "--limit", "8"]
+        return ["consumers", "--limit", "8", "--", args["target"]]
     if name == "api":
-        return ["api", args["module"], "--limit", str(MAX_LINES - 2)] + (["--grep", args["grep"]] if args.get("grep") else [])
+        grep = [f"--grep={args['grep']}"] if args.get("grep") else []
+        return ["api", "--limit", str(MAX_LINES - 2), *grep, "--", args["module"]]
     if name == "pins":
         return ["pins", "--limit", "6"]
-    return ["impact", args["target"], "--limit", "5"]
+    return ["impact", "--limit", "5", "--", args["target"]]
 
 
 def cap(text):

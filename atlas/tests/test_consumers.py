@@ -261,6 +261,30 @@ class McpServer(Fixture):
         self.assertEqual((arguments["id"], arguments["error"]["code"]), (2, -32602))
         self.assertEqual(ping, {"jsonrpc": "2.0", "id": 3, "result": {}})
 
+    def test_a_consumer_target_cannot_rewrite_a_stale_index(self):
+        self.write()
+        commit(self.ws / "App", {"Sources/App/New.swift": "import Media\nlet value = Thing()\n"}, "new adoption")
+        before = tree_digest(self.ws)
+        reply, = self.ask({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                          "params": {"name": "consumers", "arguments": {"target": "--write"}}})
+        self.assertEqual(tree_digest(self.ws), before)
+        self.assertIn("--write: public in", reply["result"]["content"][0]["text"])
+        self.assertFalse(reply["result"]["isError"])
+
+    def test_option_looking_modules_targets_and_filters_are_literal_values(self):
+        self.write()
+        before = tree_digest(self.ws)
+        for name, args, expected in (
+            ("api", {"module": "--write"}, "--write: no API snapshot"),
+            ("impact", {"target": "--write"}, "nothing found: not declared in OpenCine"),
+            ("api", {"module": "Core", "grep": "--write"}, "Core: 0 line(s)"),
+        ):
+            with self.subTest(name=name, args=args):
+                reply, = self.ask({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                  "params": {"name": name, "arguments": args}})
+                self.assertEqual(tree_digest(self.ws), before)
+                self.assertIn(expected, reply["result"]["content"][0]["text"])
+
     def test_tools_write_nothing(self):
         self.write()
         before = tree_digest(self.ws)
