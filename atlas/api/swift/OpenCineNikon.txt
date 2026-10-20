@@ -1669,6 +1669,7 @@ static func FocusResetRestorePolicy.shouldRestoreFocusArea(demoted: Swift.Bool, 
 static func FocusResetRestorePolicy.shouldRestoreSubjectDetection(suspended: Swift.Bool, currentFocusSubject: Swift.String, savedFocusSubject: Swift.String, focusMode: Swift.String?) -> Swift.Bool
 static func FocusResetSettlePolicy.shouldRecenter(framesSinceRelease: Swift.Int, isTrackingLatched: Swift.Bool, trackingAFActive: Swift.Bool) -> Swift.Bool
 static func ISOPickerPolicy.allowsManualISO(codec: Swift.String, exposureMode: Swift.String?) -> Swift.Bool
+static func ISOPickerPolicy.autoISOLabel(iso: Swift.Int?, isoAuto: Swift.Bool?, codec: Swift.String) -> Swift.String?
 static func ISOPickerPolicy.autoISOModeIndex(codec: Swift.String, isoAuto: Swift.Bool?, exposureMode: Swift.String?) -> Swift.Int
 static func ISOPickerPolicy.blocksISOChangeWhileRecording(codec: Swift.String, isRecording: Swift.Bool) -> Swift.Bool
 static func ISOPickerPolicy.isAutoISOActive(isoAuto: Swift.Bool?, codec: Swift.String) -> Swift.Bool
@@ -2020,6 +2021,8 @@ static let NikonBodyWake.interval: Swift.Duration
 static let NikonCameraBatteryGauge.barCount: Swift.Int
 static let NikonCameraSession.captureProfile: OpenCineCameraVocabulary.CameraCaptureProfile
 static let NikonCameraSession.integration: OpenCineCore.IntegrationID
+static let NikonCapturePopupState.codecStepsHint: Swift.String?
+static let NikonCapturePopupState.kelvinStepsHint: Swift.String?
 static let NikonDiscovery.presenceSweepInterval: Foundation.TimeInterval
 static let NikonMediaFilterOptions.none: NikonMediaFilterOptions
 static let NikonMonitorColorProfile.log3G10Rec709: OpenCineMedia.MonitorLogDisplayTransform

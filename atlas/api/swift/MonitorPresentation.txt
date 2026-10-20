@@ -1052,6 +1052,7 @@ static let MonitorPlaybackLayout.transportSize: Swift.Double
 static let MonitorPlaybackLayout.transportSpacing: Swift.Double
 static let MonitorPlaybackZoom.maxScale: CoreGraphics.CGFloat
 static let MonitorReadoutInteraction.dragThreshold: Swift.Double
+static let MonitorReadoutInteraction.holdActionMilliseconds: Swift.Int
 static let MonitorReadoutInteraction.holdMilliseconds: Swift.Int
 static let MonitorReadoutInteraction.tapSlop: Swift.Double
 static let MonitorReadoutTypography.labelSize: Swift.Double

@@ -586,7 +586,7 @@ init ISOOffer(setting: SettingOffer?, autoRangeFloor: Swift.Int?, nativeISO: Cap
 init LUTPreferences(storage: Foundation.UserDefaults, namespace: Swift.String)
 init LadderSheetPresentation(title: Swift.String, subtitle: Swift.String, tabs: [LadderTab<Key>], initialTab: Swift.Int, lock: CaptureLock?, lockBanner: Swift.String?)<Key where Key : Swift.Equatable, Key : Swift.Sendable>
 init LadderStep(label: Swift.String, value: Swift.String?, description: Swift.String, selected: Swift.Bool, lands: Swift.Bool)
-init LadderTab(label: Swift.String, key: Key, ladder: CaptureLadder, detail: Swift.String?, activate: LadderWrite<Key>?, applyOnActivate: Swift.Bool, disabled: Swift.Bool, setting: CaptureLadderSetting?, tint: CaptureTint?, values: ((Swift.String) -> [Swift.String])?, steps: ((Swift.String) -> (LadderStep, LadderStep)?)?)<Key where Key : Swift.Equatable, Key : Swift.Sendable>
+init LadderTab(label: Swift.String, key: Key, ladder: CaptureLadder, detail: Swift.String?, activate: LadderWrite<Key>?, applyOnActivate: Swift.Bool, disabled: Swift.Bool, setting: CaptureLadderSetting?, tint: CaptureTint?, values: ((Swift.String) -> [Swift.String])?, steps: ((Swift.String) -> (LadderStep, LadderStep)?)?, stepsHint: Swift.String?)<Key where Key : Swift.Equatable, Key : Swift.Sendable>
 init LadderWrite(key: Key, value: Swift.String)<Key where Key : Swift.Equatable, Key : Swift.Sendable>
 init MediaFile(path: Swift.String, thumbPath: Swift.String, handle: Swift.UInt32, cmdHandle: Swift.UInt32, sizeBytes: Swift.UInt64, durationSeconds: Swift.Int, isStarred: Swift.Bool, resolution: Swift.String?, fps: Swift.Int?, proxyPath: Swift.String?, storage: Swift.Int, storageKnown: Swift.Bool?, group: Swift.Int, handleShared: Swift.Bool, handleCandidate: Swift.UInt32)
 init MediaHTTP.Route(host: Swift.String, addressing: MediaHTTP.Addressing)
@@ -671,6 +671,7 @@ let LadderTab.label: Swift.String
 let LadderTab.ladder: CaptureLadder
 let LadderTab.setting: CaptureLadderSetting?
 let LadderTab.steps: ((Swift.String) -> (LadderStep, LadderStep)?)?
+let LadderTab.stepsHint: Swift.String?
 let LadderTab.tint: CaptureTint?
 let LadderTab.values: ((Swift.String) -> [Swift.String])?
 let LadderWrite.key: Key

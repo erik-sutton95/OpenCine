@@ -389,7 +389,7 @@ init MonitorPortraitPrimarySizer()
 init MonitorPortraitReadoutText(_: Swift.String, detail: Swift.Bool)
 init MonitorProjectLegalSettings(sourceHelp: Swift.String, termsHelp: Swift.String, source: () -> Swift.Void, privacy: () -> Swift.Void, terms: () -> Swift.Void, licenses: (() -> Swift.Void)?, notice: (() -> Swift.Void)?)
 init MonitorReadout(_: Swift.String, active: Swift.Bool, value: () -> Value)<Value where Value : SwiftUI.View>
-init MonitorReadoutGesture(snapshot: MonitorPresentation.MonitorReadoutSnapshot?, sourceIdentity: SourceIdentity, isEnabled: Swift.Bool, ownership: SwiftUI.Binding<MonitorPresentation.MonitorReadoutOwnership>, presentationOwner: () -> Foundation.UUID?, onEvent: (MonitorPresentation.MonitorReadoutEvent<SourceIdentity>) -> Swift.Void)<SourceIdentity where SourceIdentity : Swift.Hashable, SourceIdentity : Swift.Sendable>
+init MonitorReadoutGesture(snapshot: MonitorPresentation.MonitorReadoutSnapshot?, sourceIdentity: SourceIdentity, isEnabled: Swift.Bool, ownership: SwiftUI.Binding<MonitorPresentation.MonitorReadoutOwnership>, presentationOwner: () -> Foundation.UUID?, holdAction: (() -> Swift.Void)?, onEvent: (MonitorPresentation.MonitorReadoutEvent<SourceIdentity>) -> Swift.Void)<SourceIdentity where SourceIdentity : Swift.Hashable, SourceIdentity : Swift.Sendable>
 init MonitorRecordLamp(diameter: CoreGraphics.CGFloat, recording: Swift.Bool, photo: Swift.Bool)
 init MonitorRecordingBorder(cornerRadius: CoreGraphics.CGFloat)
 init MonitorRecordingReadout(status: MonitorPresentation.MonitorStatusPresentation)
