@@ -484,8 +484,10 @@ class CameraApJoiner(context: Context, private val policy: CameraApJoinPolicy = 
 }
 
 /**
- * Kicks scans and waits until [visible] holds or [maxWaitMillis] passes. Without permission to read
- * scan results nothing can become visible, so it returns at once rather than delay the join.
+ * Kicks scans and waits until [visible] holds or [maxWaitMillis] passes. When scan results are
+ * unreadable nothing can become visible, so it still kicks the system scan once (and once more
+ * when [requireVisible]) and returns without polling: the panel lists networks from its own scan
+ * even when the app may not read them (ZAB-150).
  * [requireVisible] kicks one last scan when the wait ends unseen: the system panel may still see
  * the access point.
  */
@@ -498,8 +500,12 @@ internal suspend fun awaitScanVisibility(
     pollMillis: Long = 350L,
     rescanMillis: Long = 1_500L,
 ): Boolean {
-    if (maxWaitMillis <= 0L || !canReadScans) return false
+    if (maxWaitMillis <= 0L) return false
     kick()
+    if (!canReadScans) {
+        if (requireVisible) kick()
+        return false
+    }
     if (visible()) return true
     var waited = 0L
     var sinceKick = 0L

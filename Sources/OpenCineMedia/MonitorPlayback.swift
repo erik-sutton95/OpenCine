@@ -68,6 +68,8 @@ public enum MonitorPlaybackLookTiming: Sendable { case beforeNativePreparation, 
 public enum MonitorPlaybackStartTiming: Sendable { case afterNativeItemInstallation, afterNativeReadiness }
 
 /// Whether returning from an inactive scene retains the operator's earlier play request.
+/// The shared playback owner defaults to `clearRequest`: losing the scene pauses and forgets
+/// the request, so returning never restarts sound by itself.
 public enum MonitorPlaybackSceneLossPolicy: Sendable { case preserveRequest, clearRequest }
 
 /// AVPlayer and the existing Android player SDK vary here. No camera or UI owner crosses it.

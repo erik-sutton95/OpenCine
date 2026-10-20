@@ -141,6 +141,22 @@
                     == .transportFailed)
         }
 
+        @Test func cardSlotDescriptorsUseTheStandardDescribeForTheir16BitCodes() async throws {
+            let transport = ObjectTransport(operations: [.getDevicePropDesc, .getDevicePropDescEx])
+            let session = try await establish(transport)
+            defer { session.close() }
+            await transport.clear()
+            _ = await session.readCardSlots()
+            let describes = await transport.calls.filter {
+                $0.operation == .getDevicePropDesc || $0.operation == .getDevicePropDescEx
+            }
+            #expect(describes.map(\.operation) == [.getDevicePropDesc, .getDevicePropDesc])
+            #expect(
+                describes.map(\.parameters) == [
+                    [PTPPropertyCode.primarySlot.rawValue], [PTPPropertyCode.activeSlot.rawValue],
+                ])
+        }
+
         private func establish(_ transport: ObjectTransport) async throws -> NativeCameraSession {
             try await NativeCameraSession.establish(
                 transport: transport, host: "usb:SIMULATED-transfer", cameraName: "SIMULATED",

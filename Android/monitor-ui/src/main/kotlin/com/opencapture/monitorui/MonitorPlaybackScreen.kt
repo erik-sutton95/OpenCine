@@ -57,7 +57,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -702,6 +704,8 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     message = capturedDeletion?.message,
                     confirmTitle = MonitorPlaybackCopy.DELETE_CONFIRM,
                     cancelTitle = MonitorPlaybackCopy.DELETE_CANCEL,
+                    cancelDescription = MonitorPlaybackCopy.DELETE_CANCEL_DESCRIPTION,
+                    confirmDescription = MonitorPlaybackCopy.DELETE_CONFIRM_DESCRIPTION,
                     onDismiss = ::cancelDeleteConfirmation,
                     onConfirm = {
                         val captured = capturedDeletion; val admitted = confirmDelete
@@ -917,6 +921,9 @@ fun MonitorConfirmPopup(
     /** A line under the title that explains the consequence. */
     message: String? = null,
     cancelTitle: String = "Cancel",
+    /** What TalkBack says for each action; the visible titles are the drawing alone (ZAB-443). */
+    cancelDescription: String = cancelTitle,
+    confirmDescription: String = confirmTitle,
 ) {
     Box(
         Modifier
@@ -952,6 +959,7 @@ fun MonitorConfirmPopup(
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .border(1.dp, MonitorPalette.border, RoundedCornerShape(12.dp))
+                        .semantics { contentDescription = cancelDescription; role = Role.Button }
                         .monitorChromeClickable(onClickFeedback = onClickFeedback, onClick = onDismiss)
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
@@ -972,6 +980,7 @@ fun MonitorConfirmPopup(
                             RoundedCornerShape(12.dp),
                         )
                         .monitorChromeClickable(onClickFeedback = onClickFeedback, onClick = onConfirm)
+                        .semantics { contentDescription = confirmDescription; role = Role.Button }
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
