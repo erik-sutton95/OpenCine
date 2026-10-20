@@ -12,6 +12,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.MonitorQuickControl
 import com.opencapture.opencine.appkit.MonitorCaptureField
+import com.opencapture.opencine.appkit.kelvinScrub
 import com.opencapture.opencine.appkit.MonitorCapturePresentation
 import com.opencapture.opencine.appkit.MonitorCaptureSelection
 import com.opencapture.opencine.appkit.MonitorControlModel
@@ -101,7 +102,9 @@ public class MonitorOperatorCaptureSource(
             LiveSheet.FOCUS -> return CaptureNativeReadoutPresentation.focus(
                 (control.captureValue(SettingKey.FOCUS_MODE, host.captureReadoutSelection) as? SettingValue.FocusMode)?.mode,
                 FocusOption.resolve(status.focusMode, status.focusTrack))
-            LiveSheet.APERTURE -> SettingKey.APERTURE
+            LiveSheet.APERTURE -> return CaptureNativeReadoutPresentation.aperture(
+                (control.captureValue(SettingKey.APERTURE, host.captureReadoutSelection) as? SettingValue.Aperture)?.fNumber,
+                status.apertureStrategy)
             else -> return nativeLabel
         }
         return control.captureValue(key, host.captureReadoutSelection)?.let(MonitorCapturePresentation::label) ?: "--"
@@ -121,8 +124,11 @@ public class MonitorOperatorCaptureSource(
                     ?: if (sheet == LiveSheet.FOCUS) host.captureField(sheet, status.expoMode) else null))
         }
         host.nativeCaptureQuick(sheet, status)?.let { return captured(it) }
-        commonField(sheet, status)?.let { field ->
-            return captured(field.quickControl().copy(enabled = field.isEditable &&
+        commonField(sheet, status)?.let { common ->
+            val field = if (sheet == LiveSheet.WB) common.kelvinScrub else common
+            // The ISO drum stars the curve's native ISO whichever source owns it.
+            val marked = if (sheet == LiveSheet.ISO) CaptureLists.isoMarkedLabels(status) else emptySet()
+            return captured(field.quickControl().copy(marked = marked, enabled = field.isEditable &&
                 (sheet != LiveSheet.SHUTTER || status.expoMode != CameraCommands.EXPO_AUTO || !preferences.facePriorityExposure)))
         }
         return when (sheet) {

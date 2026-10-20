@@ -1,3 +1,4 @@
+import OpenCineAppKit
 import OpenCineCameraControls
 import OpenCineCameraVocabulary
 import OpenCineCore
@@ -31,5 +32,14 @@ import Testing
         #expect(CaptureNativeReadoutPresentation.focus(common: nil, native: .continuousDefault) == "--")
         #expect(CaptureNativeReadoutPresentation.focus(common: .continuous, native: .single) == "AF-C")
         #expect(CaptureNativeReadoutPresentation.focus(common: .single, native: nil) == "AF-S")
+    }
+
+    /// Behavior audit PIA-269: until the measured iris arrives the APERTURE tile reads the requested
+    /// strategy (Action 6), as the standalone app did, never a dash.
+    @Test func apertureFallsBackToTheRequestedStrategyUntilTheIrisIsMeasured() {
+        #expect(CaptureNativeReadoutPresentation.aperture(common: nil, strategy: .starburst) == "Starburst f/4")
+        #expect(CaptureNativeReadoutPresentation.aperture(common: nil, strategy: nil) == "--")
+        #expect(CaptureNativeReadoutPresentation.aperture(common: 2.8, strategy: .starburst)
+            == MonitorCapturePresentation.label(.aperture(2.8)))
     }
 }

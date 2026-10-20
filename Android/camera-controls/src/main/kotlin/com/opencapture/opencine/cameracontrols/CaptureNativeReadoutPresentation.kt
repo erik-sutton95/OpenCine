@@ -11,6 +11,11 @@ import com.opencapture.opencine.vocabulary.FocusOption
 
 /** Common reports and coherent native strategy values remain distinct. */
 public object CaptureNativeReadoutPresentation {
+    /** The measured iris when reported, else the requested aperture strategy, else unknown. */
+    public fun aperture(common: Double?, strategy: Int): String =
+        common?.let { MonitorCapturePresentation.label(SettingValue.Aperture(it)) }
+            ?: com.opencapture.opencine.vocabulary.ApertureStrategy.label(strategy) ?: "--"
+
     /** Emulated angles use only the selected common shutter and reported recording cadence. */
     public fun shutterAngle(common: ShutterValue?, frameRate: Rational?, available: List<Int>, preferredAngle: Double): String {
         if (common == null) return "--"
