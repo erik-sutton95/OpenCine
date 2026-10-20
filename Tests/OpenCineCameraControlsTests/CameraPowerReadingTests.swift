@@ -41,6 +41,27 @@
             XCTAssertEqual(MonitorOperatorPowerReading.camera(external)?.charging, true)
         }
 
+        /// Behavior audit ZAA-304: a body on external power with no level keeps its pill (EXT).
+        func testExternalPowerWithoutALevelKeepsThePill() throws {
+            let reading = try XCTUnwrap(MonitorOperatorPowerReading.camera(PowerStatus(
+                externalPower: .init(true, origin: .cameraReported, at: nil))))
+            XCTAssertNil(reading.percent)
+            XCTAssertNil(reading.bars)
+            XCTAssertEqual(reading.externalPower, true)
+            XCTAssertEqual(reading.charging, true)
+            XCTAssertTrue(try XCTUnwrap(MonitorOperatorPowerReading.camera(PowerStatus(
+                externalPower: .init(true, origin: .cameraReported, at: nil),
+                exhausted: .init(true, origin: .cameraReported, at: nil)))).exhausted)
+            XCTAssertNil(MonitorOperatorPowerReading.camera(PowerStatus(
+                externalPower: .init(false, origin: .cameraReported, at: nil))))
+            XCTAssertNil(MonitorOperatorPowerReading.camera(PowerStatus.unknown))
+            let gauge = try XCTUnwrap(MonitorOperatorPowerReading.camera(PowerStatus(
+                battery: .init(0.6, origin: .cameraReported, at: nil, precision: .quantized(step: 0.2)),
+                externalPower: .init(true, origin: .cameraReported, at: nil))))
+            XCTAssertEqual(gauge.bars, 3)
+            XCTAssertEqual(gauge.externalPower, true)
+        }
+
         func testAFractionPrintsAPercentageAndUnknownIsAbsent() throws {
             let reading = try XCTUnwrap(MonitorOperatorPowerReading.camera(power(0.6, .quantized(step: 0.01), charging: true)))
             XCTAssertEqual(reading.percent, 60)

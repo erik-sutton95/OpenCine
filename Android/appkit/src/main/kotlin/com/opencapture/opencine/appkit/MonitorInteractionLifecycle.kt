@@ -31,6 +31,8 @@ public data class MonitorInteractionTransition(
     public val retireReadout: Boolean,
     public val collapseAssists: Boolean,
     public val inputAdmission: MonitorInputAdmission?,
+    /** A different camera replaced the previous one: per-camera readout choices start over. */
+    public val cameraReplaced: Boolean = false,
 )
 
 /** Shared lock, cover, edit, clean, rotation and replacement lifecycle. No camera commands. */
@@ -56,7 +58,7 @@ public class MonitorInteractionLifecycle {
         } else null
         // Held input (a quick drag in flight) never survives a turn or a cover.
         return MonitorInteractionTransition(dismiss, dismiss || rotated || enteredCover,
-            dismiss || !next.toolbarMounted || next.transientPanelPresented, admission)
+            dismiss || !next.toolbarMounted || next.transientPanelPresented, admission, replaced)
     }
 
     public fun close(): MonitorInteractionTransition {

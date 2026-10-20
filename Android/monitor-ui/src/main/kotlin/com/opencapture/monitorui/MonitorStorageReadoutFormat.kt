@@ -28,5 +28,19 @@ object MonitorStorageReadoutFormat {
         }
     }
 
+    /**
+     * The forms one tap on the live storage readout steps to after the free space (A5-11): the
+     * free percentage when the volume reports a capacity, then, in video, the remaining recording
+     * time when the body reports one. Photo never shows a recording time.
+     */
+    fun alternatives(percent: String?, recordingTime: String?, photo: Boolean): List<String> =
+        listOfNotNull(percent, recordingTime.takeUnless { photo })
+
+    /**
+     * The form a tap selects after [current], of [count] forms. With nothing to step to the
+     * readout stays on the free space, so a later alternative starts from it.
+     */
+    fun nextForm(current: Int, count: Int): Int = if (count > 1) (current + 1) % count else 0
+
     fun remainingMinutes(minutes: Int?): String = minutes?.takeIf { it >= 0 }?.let { "$it Min" } ?: "\u2014 Min"
 }
