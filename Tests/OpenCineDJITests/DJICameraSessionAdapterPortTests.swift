@@ -287,6 +287,25 @@ import Testing
         #expect(port.fired.last == "angle 180.0 1/50")
     }
 
+    /// The Pocket path pins the same rule as the Luna: the wire carries whole 1/N, 180 degrees
+    /// sends the ladder's nearest speed per rate and the projected angle is what it really makes.
+    @Test func angleSendsTheNearestLadderSpeedPerRate() throws {
+        for (fps, denom) in [(24, 48), (25, 50), (30, 60), (60, 120), (120, 250)] {
+            let port = Self.capturePort()
+            port.captureControlState?.reported.availableShutterDenoms = []
+            port.captureControlState?.reported.shootingMode = Int(ShootingMode.video.rawValue)
+            port.captureControlState?.reported.fps = fps
+            port.captureControlState?.shutterPresentation = .emulatedAngle
+            let seam = DJICameraSessionAdapter(session: port)
+            #expect(seam.request(.set(.shutter(.angle(180)))).stage == .admitted, "\(fps) fps")
+            #expect(port.fired.last == "angle 180.0 1/\(denom)", "\(fps) fps")
+            port.captureControlState?.reported.shutterDenom = denom
+            let shown = DJICameraSessionAdapter(session: port).current.value(of: .shutter).value
+            guard case .shutter(.angle(let angle))? = shown else { Issue.record("\(fps) fps"); continue }
+            #expect(abs(angle - 360 * Double(fps) / Double(denom)) < 1e-9, "\(fps) fps")
+        }
+    }
+
     /// Behavior audit PAA-211: the Angle preference is a video presentation. In Photo the
     /// standalone apps forced the Speed tab and a 1/N readout, so the common shutter stays a duration.
     @Test func photoModeKeepsShutterDurationsUnderTheAnglePreference() {

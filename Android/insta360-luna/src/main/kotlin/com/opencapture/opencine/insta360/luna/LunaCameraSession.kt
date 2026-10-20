@@ -680,8 +680,8 @@ class LunaCameraSession internal constructor(
             shutterPresentation == HostShutterPresentation.EMULATED_ANGLE && value is ShutterValue.Duration &&
                 shootingMode?.isPhoto != true -> {
                 val cadence = reportedCadence.value
-                val angle = if (shootingMode?.isPhoto == false && cadence != null && value.seconds.numerator > 0)
-                    HostShutterAngle.reported(value.seconds.denominator, cadence) else null
+                val angle = if (shootingMode?.isPhoto == false && cadence != null)
+                    HostShutterAngle.reported(value.seconds, cadence) else null
                 angle?.let { ObservedValue(SettingValue.Shutter(ShutterValue.Angle(it)), ObservationOrigin.PROTOCOL_DERIVED,
                     listOfNotNull(reportedShutter.observedAt, reportedCadence.observedAt).minOrNull()) }
                     ?: ObservedValue.unknown
@@ -836,19 +836,7 @@ class LunaCameraSession internal constructor(
         internal fun shutter(exposure: LunaExposure): ShutterValue? {
             if (exposureProgram(exposure) == null) return null
             if (exposure.program !in setOf(2L, 3L) || exposure.shutterSeconds == 0.0) return ShutterValue.Auto
-            return duration(exposure.shutterSeconds)?.let(ShutterValue::Duration)
-        }
-
-        /** Same positive measured-duration construction as Swift, bounded to Rational's integers. */
-        private fun duration(seconds: Double): Rational? {
-            if (!seconds.isFinite() || seconds <= 0 || seconds >= Int.MAX_VALUE.toDouble()) return null
-            if (seconds == Math.round(seconds).toDouble()) return Rational(seconds.toInt())
-            val reciprocal = 1 / seconds
-            if (reciprocal.isFinite() && reciprocal >= 1 && reciprocal < Int.MAX_VALUE.toDouble() &&
-                kotlin.math.abs(reciprocal - Math.round(reciprocal)) < 1e-7) return Rational(1, Math.round(reciprocal).toInt())
-            val scaled = Math.round(seconds * 1_000_000).toDouble()
-            if (scaled < 1 || scaled >= Int.MAX_VALUE.toDouble()) return null
-            return Rational(scaled.toInt(), 1_000_000)
+            return HostShutterAngle.readback(exposure.shutterSeconds)?.let(ShutterValue::Duration)
         }
 
         internal fun captureMode(mode: LunaShootingMode): CaptureMode {

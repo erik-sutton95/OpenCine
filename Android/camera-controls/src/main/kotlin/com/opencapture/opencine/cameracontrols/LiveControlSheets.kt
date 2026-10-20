@@ -87,6 +87,11 @@ fun LiveControlSheet(
     showsHeader: Boolean = true,
     chromeless: Boolean = false,
     onHeaderChanged: (String, String) -> Unit = { _, _ -> },
+    /**
+     * The host's whole shutter settling window (format pin, pending shutter write, reported rate
+     * change; [MonitorOperatorCaptureSource.shutterAngleSettling]). Null: the format pin alone.
+     */
+    shutterAngleSettling: Boolean? = null,
 ) {
     val availableStatus = CaptureLists.withEffectiveVideoFormats(
         status, host.camera,
@@ -98,7 +103,8 @@ fun LiveControlSheet(
             RecordingSetupPanel(sheet, host, availableStatus, commandLocked, onDismiss, maxHeightDp, chromeless, onHeaderChanged)
         } else {
             LiveControlSheetContent(sheet, host, availableStatus, commandLocked, onDismiss, maxHeightDp,
-                showsHeader = showsHeader && !chromeless, chromeless = chromeless, onHeaderChanged = onHeaderChanged)
+                showsHeader = showsHeader && !chromeless, chromeless = chromeless, onHeaderChanged = onHeaderChanged,
+                shutterAngleSettling = shutterAngleSettling)
         }
     }
 }
@@ -175,9 +181,15 @@ private fun LiveControlSheetContent(
     showsHeader: Boolean = true,
     chromeless: Boolean = false,
     onHeaderChanged: (String, String) -> Unit = { _, _ -> },
+    shutterAngleSettling: Boolean? = null,
 ) {
-    val commonField = remember(sheet, host) { host.captureField(sheet, status.expoMode) }
+    val openedField = remember(sheet, host) { host.captureField(sheet, status.expoMode) }
+    // Angle and Speed are two presentations of one shutter descriptor: a mode switch republishes it
+    // (an emulated angle editor, or none), so the shutter drum follows the current field (Swift twin
+    // `captureCommonField` on a mode change and on the descriptor).
+    val commonField = if (sheet == LiveSheet.SHUTTER) host.captureField(sheet, status.expoMode) else openedField
     val session = host.captureSessionState(status)
+    val shutterSettling = shutterAngleSettling ?: session.formatPinned
     val prefs = host.capturePreferences
     val preview = LocalCapturePreview.current
     val effects = CapturePanelEffects(preview != null)
@@ -230,11 +242,11 @@ private fun LiveControlSheetContent(
     }
 
     fun reseatShutterAngle() {
-        applySeat(CaptureLists.reseatShutterAngle(status, preferredAngle))
+        applySeat(CaptureLists.reseatShutterAngle(status, preferredAngle, shutterSettling))
     }
 
     fun reseatShutter() {
-        applySeat(CaptureLists.reseatShutter(status, selectedMode, isEvSheet, preferredAngle))
+        applySeat(CaptureLists.reseatShutter(status, selectedMode, isEvSheet, preferredAngle, shutterSettling))
     }
 
     fun reseatShutterOrEv() {
@@ -434,6 +446,10 @@ private fun LiveControlSheetContent(
         }
         LaunchedEffect(sheet, status.availableShutterDenoms, status.fps) {
             if (sheet == LiveSheet.SHUTTER && !isEvSheet) reseatShutter()
+        }
+        // The end of a hold reseats the angle drum on what the camera really makes (Swift twin).
+        LaunchedEffect(sheet, shutterSettling) {
+            if (sheet == LiveSheet.SHUTTER && !isEvSheet && isAngleSheet) reseatShutter()
         }
         LaunchedEffect(sheet, status.expoMode) {
             if (sheet == LiveSheet.SHUTTER) {

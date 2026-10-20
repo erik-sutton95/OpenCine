@@ -24,6 +24,7 @@ let FakeLunaPort.camera: FakeLuna
 struct FakeLunaRefusal: Error, Sendable
 var FakeLuna.afMode: Swift.UInt64
 var FakeLuna.applyDelay: Swift.Duration
+var FakeLuna.beforeReply: ((Insta360Protocol.LunaRequest) async -> Swift.Void)?
 var FakeLuna.captureState: Swift.UInt64?
 var FakeLuna.colorMode: Swift.UInt64?
 var FakeLuna.ignoresWrites: Swift.Bool
@@ -31,6 +32,7 @@ var FakeLuna.iso: Swift.UInt64
 var FakeLuna.kelvin: Swift.UInt64
 var FakeLuna.program: Swift.UInt64
 var FakeLuna.refuses: Swift.Bool
+var FakeLuna.reportsSinglePrecisionShutter: Swift.Bool
 var FakeLuna.sent: [Insta360Protocol.LunaRequest]
 var FakeLuna.session: Insta360Apple.LunaCameraSession?
 var FakeLuna.shutterSeconds: Swift.Double

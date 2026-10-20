@@ -12,6 +12,9 @@ public final class FakeLuna {
     public var program: UInt64 = 0
     public var iso: UInt64 = 0
     public var shutterSeconds = 0.0
+    /// The camera reads its exposure back through single precision, as a real Luna can: 1/60
+    /// returns as 0.016666668 (1/59.99999), never bit-exact.
+    public var reportsSinglePrecisionShutter = false
     public var kelvin: UInt64 = 5600
     public var colorMode: UInt64?
     public var zoom = 1.0
@@ -25,6 +28,9 @@ public final class FakeLuna {
     public var silent = false
     /// The camera answers every request with a refusal (Kotlin `FakeLuna.refuses`).
     public var refuses = false
+    /// Runs after a request is received and before its reply, so a test can deliver camera
+    /// reports in the window before the acknowledgement (a format readback that beats the ack).
+    public var beforeReply: (@MainActor (LunaRequest) async -> Void)?
     public private(set) var sent: [LunaRequest] = []
     private var lastApply: Task<Void, Never>?
     public weak var session: LunaCameraSession?
@@ -89,6 +95,7 @@ public final class FakeLuna {
 
     private func receive(_ request: LunaRequest) async throws -> Data {
         sent.append(request)
+        if let beforeReply { await beforeReply(request) }
         if refuses { throw FakeLunaRefusal() }
         guard !ignoresWrites else { return Data() }
         if applyDelay == .zero {
@@ -130,7 +137,8 @@ public final class FakeLuna {
             try! ProtoMessage.integer(field: 1, value: program)
             + ProtoMessage.integer(field: 2, value: iso)
         if shutterSeconds > 0 {
-            exposure += try! ProtoMessage.double(field: 3, value: shutterSeconds)
+            let reported = reportsSinglePrecisionShutter ? Double(Float(shutterSeconds)) : shutterSeconds
+            exposure += try! ProtoMessage.double(field: 3, value: reported)
         }
         var nested =
             try! ProtoMessage.blob(field: 21, value: exposure)
