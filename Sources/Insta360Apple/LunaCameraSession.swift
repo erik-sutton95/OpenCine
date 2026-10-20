@@ -761,8 +761,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         if shutterPresentation == .emulatedAngle, case .duration(let seconds) = value,
             shootingMode?.isPhoto != true {
             guard shootingMode.map({ !$0.isPhoto }) == true,
-                let cadence = reportedCadence.value, seconds.numerator > 0,
-                let angle = HostShutterAngle.reported(denominator: seconds.denominator, framesPerSecond: cadence)
+                let cadence = reportedCadence.value,
+                let angle = HostShutterAngle.reported(seconds: seconds, framesPerSecond: cadence)
             else { current.settings[.shutter] = .unknown; return }
             let at = [reportedShutter.observedAt, reportedCadence.observedAt].compactMap { $0 }.min()
             current.settings[.shutter] = ObservedValue(.shutter(.angle(angle)), origin: .protocolDerived, at: at)
@@ -789,15 +789,16 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             choices: Self.shutterDenominators.map { .shutter(.duration(Rational(1, $0))) })
         shutter.choices.insert(.shutter(.auto), at: 0)
         let emulated = shutterPresentation == .emulatedAngle
-        if emulated { shutter.choices = HostShutterAngle.choices + shutter.choices }
+        // Angles are offered only where `exposure(iso:shutter:_:)` can compose them: video with a
+        // reported cadence. Photo keeps the camera's durations (CodeRabbit on #114).
+        if emulated, shootingMode.map({ !$0.isPhoto }) == true, reportedCadence.value != nil {
+            shutter.choices = HostShutterAngle.choices + shutter.choices
+        }
         // Angle is a presentation: the camera's durations and Auto stay writable (an angle pick,
-        // Manual from Auto, AE-L), so Auto never blocks the first manual shutter.
-        let shutterAvailability: Availability
-        if !emulated { shutterAvailability = exposure }
-        else if shootingMode == nil { shutterAvailability = .unavailable(.notReady) }
-        else if shootingMode?.isPhoto == true { shutterAvailability = exposure }
-        else if reportedCadence.value == nil { shutterAvailability = .unavailable(.notReady) }
-        else { shutterAvailability = exposure }
+        // Manual from Auto, AE-L), so Auto never blocks the first manual shutter, and a missing
+        // cadence withholds only the angles (CodeRabbit on #114).
+        let shutterAvailability: Availability =
+            emulated && shootingMode == nil ? .unavailable(.notReady) : exposure
         var descriptors = [
             SettingDescriptor(.iso, domain: iso, availability: exposure),
             SettingDescriptor(.shutter, domain: shutter, availability: shutterAvailability,
@@ -850,24 +851,9 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         switch exposure.exposureProgram {
         case .shutterPriority?, .manual?:
             if exposure.shutterSeconds == 0 { return .auto }
-            return duration(exposure.shutterSeconds).map(ShutterValue.duration)
+            return HostShutterAngle.readback(seconds: exposure.shutterSeconds).map(ShutterValue.duration)
         default: return .auto
         }
-    }
-
-    /// Preserve schema reciprocals and whole seconds; other measured durations use microseconds.
-    /// The supported integer range matches the Kotlin Rational representation.
-    private static func duration(_ seconds: Double) -> Rational? {
-        guard seconds.isFinite, seconds > 0, seconds < Double(Int32.max) else { return nil }
-        if seconds.rounded() == seconds { return Rational(Int(seconds)) }
-        let reciprocal = 1 / seconds
-        if reciprocal.isFinite, reciprocal >= 1, reciprocal < Double(Int32.max),
-            abs(reciprocal - reciprocal.rounded()) < 1e-7 {
-            return Rational(1, Int(reciprocal.rounded()))
-        }
-        let scaled = (seconds * 1_000_000).rounded()
-        guard scaled >= 1, scaled < Double(Int32.max) else { return nil }
-        return Rational(Int(scaled), 1_000_000)
     }
 
     private static func isoValue(_ value: SettingValue) -> ISOValue? {

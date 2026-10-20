@@ -241,7 +241,8 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
             val sheet = LiveSheet.valueOf(key)
             LiveControlSheet(sheet, chrome.host, status, locked = false,
                 onDismiss = { state.sheet = null }, maxHeightDp = frame.height, portrait = field.portrait,
-                chromeless = true, onHeaderChanged = { title, subtitle -> captureState.publishHeader(key, title, subtitle) })
+                chromeless = true, onHeaderChanged = { title, subtitle -> captureState.publishHeader(key, title, subtitle) },
+                shutterAngleSettling = chrome.capture.shutterAngleSettling)
         }, photoRelease = { enabled, decoration ->
             // A still in flight keeps the lamp lit (inert): only the lock dims it.
             val busy = source.record.busy

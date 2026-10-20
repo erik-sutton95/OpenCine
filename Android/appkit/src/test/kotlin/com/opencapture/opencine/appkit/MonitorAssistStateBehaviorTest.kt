@@ -354,4 +354,52 @@ class MonitorAssistStateBehaviorTest {
         }
         assertEquals(expected.encoded(), state.encoded())
     }
+
+    @Test
+    fun standardDefaultsKeepTheSharedZebraAndCompensation() {
+        val state = MonitorAssistState()
+        assertEquals(MonitorAssistDefaults.STANDARD, state.defaults)
+        assertEquals(99.0, state.zebraHighlightIRE)
+        assertEquals(MonitorCrushClipCompensation.ZERO, state.crushClipCompensation)
+    }
+
+    /** An app's declared defaults seed a fresh state and are where each Reset lands (ZAA-227, ZAA-228). */
+    @Test
+    fun declaredDefaultsSeedAFreshStateAndEachReset() {
+        val defaults = MonitorAssistDefaults(100.0, MonitorCrushClipCompensation.QUARTER)
+        val state = MonitorAssistState(defaults = defaults)
+        assertEquals(100.0, state.zebraHighlightIRE)
+        assertEquals(MonitorCrushClipCompensation.QUARTER, state.crushClipCompensation)
+
+        state.setZebraHighlight(ire = 80.0)
+        state.setCompensation(MonitorCrushClipCompensation.ONE)
+        state.resetSettings(MonitorAssistTool.ZEBRA)
+        assertEquals(100.0, state.zebraHighlightIRE)
+        state.resetSettings(MonitorAssistTool.HISTO)
+        assertEquals(MonitorCrushClipCompensation.QUARTER, state.crushClipCompensation)
+        state.setCompensation(MonitorCrushClipCompensation.ONE)
+        state.resetSettings(MonitorAssistTool.LIGHTS)
+        assertEquals(MonitorCrushClipCompensation.QUARTER, state.crushClipCompensation)
+    }
+
+    /** A saved value always wins; only a value the snapshot lacks falls back to the declared default. */
+    @Test
+    fun savedValuesWinOverDeclaredDefaults() {
+        val defaults = MonitorAssistDefaults(100.0, MonitorCrushClipCompensation.QUARTER)
+        val saved = MonitorAssistState().apply {
+            setZebraHighlight(ire = 99.0)
+            setCompensation(MonitorCrushClipCompensation.ZERO)
+        }.encoded()
+        val restored = MonitorAssistState(encoded = saved, defaults = defaults)
+        assertEquals(99.0, restored.zebraHighlightIRE)
+        assertEquals(MonitorCrushClipCompensation.ZERO, restored.crushClipCompensation)
+
+        val partial = org.json.JSONObject(saved).apply {
+            remove("zebraHighlightIRE")
+            remove("crushClipCompensation")
+        }.toString()
+        val filled = MonitorAssistState(encoded = partial, defaults = defaults)
+        assertEquals(100.0, filled.zebraHighlightIRE)
+        assertEquals(MonitorCrushClipCompensation.QUARTER, filled.crushClipCompensation)
+    }
 }

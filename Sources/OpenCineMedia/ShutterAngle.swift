@@ -81,6 +81,16 @@ public enum ShutterAngle: Sendable {
         return 360.0 * Double(fps) / Double(denom)
     }
 
+    /// What the camera really makes while it holds the operator's angle through the nearest
+    /// legal speed, e.g. "1/250 (172.8°)" for 180° at 120 fps on a body without 1/240; `nil` when
+    /// the speed is exact or either value is unknown.
+    public static func achieved(preferredDegrees: Double, denom: Int, fps: Int) -> String? {
+        guard let actual = degrees(denom: denom, fps: fps),
+            abs(actual - nearestDegrees(preferredDegrees)) >= 0.05
+        else { return nil }
+        return "1/\(denom) (\(label(actual)))"
+    }
+
     public static func nearestDegrees(_ value: Double) -> Double {
         degrees.min(by: { abs($0 - value) < abs($1 - value) }) ?? defaultDegrees
     }

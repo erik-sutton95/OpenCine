@@ -12,6 +12,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.MonitorQuickControl
 import com.opencapture.opencine.appkit.MonitorCaptureField
+import com.opencapture.opencine.appkit.kelvinScrub
 import com.opencapture.opencine.appkit.MonitorCapturePresentation
 import com.opencapture.opencine.appkit.MonitorCaptureSelection
 import com.opencapture.opencine.appkit.MonitorControlModel
@@ -79,6 +80,22 @@ public class MonitorOperatorCaptureSource(
             MonitorCapturePresentation.title(key).orEmpty(), null, emptyList(), null)
     }
 
+    /** A format change or a shutter write still settling: the angle readout holds the operator's angle. */
+    public val shutterAngleSettling: Boolean
+        get() = readSessionState().formatPinned || control.state.value.pending[SettingKey.SHUTTER] != null ||
+            control.frameRateSettling
+
+    private fun angleShutter() = (control.captureValue(SettingKey.SHUTTER, host.captureReadoutSelection) as? SettingValue.Shutter)?.value
+    private fun angleFrameRate() = (control.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value as? SettingValue.FrameRate)?.fps
+
+    /** The shutter panel's subtitle: the tabs, or what the camera really makes for the held angle. */
+    public fun shutterPanelSubtitle(base: String, status: CameraStatus): String {
+        if (!host.capturePreferences.shutterUsesAngle || CameraCommands.isPhotoMode(status.shootingMode)) return base
+        val achieved = CaptureNativeReadoutPresentation.shutterAngleAchieved(angleShutter(), angleFrameRate(),
+            CaptureLists.shutterDenoms(status), host.capturePreferences.shutterAngleDegrees, shutterAngleSettling) ?: return base
+        return "Angle · actual $achieved"
+    }
+
     public fun readout(sheet: LiveSheet, status: CameraStatus, nativeLabel: String): String {
         val key = when (sheet) {
             LiveSheet.ISO -> SettingKey.ISO
@@ -89,9 +106,8 @@ public class MonitorOperatorCaptureSource(
                     SettingKey.EXPOSURE_COMPENSATION
                 }
                 host.capturePreferences.shutterUsesAngle && !CameraCommands.isPhotoMode(status.shootingMode) -> return CaptureNativeReadoutPresentation.shutterAngle(
-                    (control.captureValue(SettingKey.SHUTTER, host.captureReadoutSelection) as? SettingValue.Shutter)?.value,
-                    (control.state.value.snapshot?.value(SettingKey.FRAME_RATE)?.value as? SettingValue.FrameRate)?.fps,
-                    CaptureLists.shutterDenoms(status), host.capturePreferences.shutterAngleDegrees)
+                    angleShutter(), angleFrameRate(), CaptureLists.shutterDenoms(status),
+                    host.capturePreferences.shutterAngleDegrees, shutterAngleSettling)
                 else -> SettingKey.SHUTTER
             }
             LiveSheet.WB -> {
@@ -101,7 +117,9 @@ public class MonitorOperatorCaptureSource(
             LiveSheet.FOCUS -> return CaptureNativeReadoutPresentation.focus(
                 (control.captureValue(SettingKey.FOCUS_MODE, host.captureReadoutSelection) as? SettingValue.FocusMode)?.mode,
                 FocusOption.resolve(status.focusMode, status.focusTrack))
-            LiveSheet.APERTURE -> SettingKey.APERTURE
+            LiveSheet.APERTURE -> return CaptureNativeReadoutPresentation.aperture(
+                (control.captureValue(SettingKey.APERTURE, host.captureReadoutSelection) as? SettingValue.Aperture)?.fNumber,
+                status.apertureStrategy)
             else -> return nativeLabel
         }
         return control.captureValue(key, host.captureReadoutSelection)?.let(MonitorCapturePresentation::label) ?: "--"
@@ -121,8 +139,11 @@ public class MonitorOperatorCaptureSource(
                     ?: if (sheet == LiveSheet.FOCUS) host.captureField(sheet, status.expoMode) else null))
         }
         host.nativeCaptureQuick(sheet, status)?.let { return captured(it) }
-        commonField(sheet, status)?.let { field ->
-            return captured(field.quickControl().copy(enabled = field.isEditable &&
+        commonField(sheet, status)?.let { common ->
+            val field = if (sheet == LiveSheet.WB) common.kelvinScrub else common
+            // The ISO drum stars the curve's native ISO whichever source owns it.
+            val marked = if (sheet == LiveSheet.ISO) CaptureLists.isoMarkedLabels(status) else emptySet()
+            return captured(field.quickControl().copy(marked = marked, enabled = field.isEditable &&
                 (sheet != LiveSheet.SHUTTER || status.expoMode != CameraCommands.EXPO_AUTO || !preferences.facePriorityExposure)))
         }
         return when (sheet) {

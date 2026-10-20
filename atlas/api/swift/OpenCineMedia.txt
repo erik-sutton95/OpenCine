@@ -462,7 +462,7 @@ func ScopeExposureCeiling.observeTapMax(_: Swift.UInt8, transfer: MonitorTransfe
 func ScopeExposureCeiling.reset() -> ()
 func ScopeExposureCeiling.resolvedISO() -> Swift.Int?
 func ScopeExposureCeiling.setISO(_: Swift.Int) -> ()
-func ScopeExposureCeiling.syncISO(_: Swift.Int) -> ()
+func ScopeExposureCeiling.syncISO(_: Swift.Int?) -> ()
 func ScopeLevelAxis.remapHistogram(_: [Swift.Int]) -> [Swift.Int]
 func SerialSessionGate.begin() -> Swift.Bool
 func SerialSessionGate.end() -> ()
@@ -567,7 +567,7 @@ init ReviewCard(clips: [Clip])<Clip>
 init ScopeAssistBundle(revision: Swift.UInt64, samples: ScopeSamples, vectorscopePoints: [ScopePoint], trailSamples: ScopeSamples, trailVectorscopePoints: [ScopePoint], traffic: ScopeTrafficLightsReading, histogramDisplay: ScopeHistogramDisplay, transfer: MonitorTransfer, clipByte: Swift.Int, levelAxis: ScopeLevelAxis?)
 init ScopeChannelLight(clip: Swift.Bool, crush: Swift.Bool, level: Swift.Double)
 init ScopeClipCalibration(referenceISO: Swift.Int, referenceByte: Swift.UInt8, refinementMaximumByte: Swift.UInt8?, noiseAllowance: Swift.Int, refinementAtOrAboveReference: Swift.Bool)
-init ScopeClipProfile(calibrations: [MonitorTransfer : ScopeClipCalibration], defaultISO: Swift.Int?)
+init ScopeClipProfile(calibrations: [MonitorTransfer : ScopeClipCalibration], defaultISO: Swift.Int?, unreportedISO: Swift.Int?)
 init ScopeExposureCeiling(profile: ScopeClipProfile)
 init ScopeHistogramDisplay(luma: [Swift.Float], red: [Swift.Float], green: [Swift.Float], blue: [Swift.Float])
 init ScopeLevelAxis(table: [Swift.Float], middleGrayIRE: Swift.Double, supportsCalibratedReferences: Swift.Bool)
@@ -814,7 +814,9 @@ static func Hevc.nalRanges(_: [Swift.UInt8]) -> [Swift.Range<Swift.Int>]
 static func Hevc.nalType(_: Swift.UInt8) -> Swift.Int
 static func Hevc.nalUnits(_: [Swift.UInt8]) -> [[Swift.UInt8]]
 static func HostShutterAngle.denominator(degrees: Swift.Double, framesPerSecond: Swift.Double?, available: [Swift.Int]) -> Swift.Int?
+static func HostShutterAngle.readback(seconds: Swift.Double) -> OpenCineCore.Rational?
 static func HostShutterAngle.reported(denominator: Swift.Int, framesPerSecond: Swift.Double?) -> Swift.Double?
+static func HostShutterAngle.reported(seconds: OpenCineCore.Rational, framesPerSecond: Swift.Double?) -> Swift.Double?
 static func LUTExposureCompensation.compensateEncoded(_: Swift.Double, stops: Swift.Double, transfer: MonitorTransfer) -> Swift.Double
 static func LUTExposureCompensation.label(_: Swift.Double) -> Swift.String
 static func LUTExposureCompensation.linearGain(_: Swift.Double) -> Swift.Double
@@ -948,6 +950,7 @@ static func ScopeSampler.sampleInterval(activeScopeCount: Swift.Int, thermalMult
 static func ScopeSampler.sampleRaw(bytes: [Swift.UInt8], width: Swift.Int, height: Swift.Int, bytesPerRow: Swift.Int, transfer: MonitorTransfer, includePoints: Swift.Bool, layout: MonitorScopeByteLayout, stride: Swift.Int, includeSampleCoordinates: Swift.Bool, requireCompleteRows: Swift.Bool) -> ScopeSamples
 static func ScopeTrafficLights.reading(red: [Swift.Int], green: [Swift.Int], blue: [Swift.Int], luma: [Swift.Int]?, transfer: MonitorTransfer, clipByte: Swift.Int, threshold: Swift.Double, previous: ScopeTrafficLightsReading?) -> ScopeTrafficLightsReading
 static func ScopeTrafficLights.reading(red: [Swift.Int], green: [Swift.Int], blue: [Swift.Int], transfer: MonitorTransfer, clipByte: Swift.Int, threshold: Swift.Double, previous: ScopeTrafficLightsReading?) -> ScopeTrafficLightsReading
+static func ShutterAngle.achieved(preferredDegrees: Swift.Double, denom: Swift.Int, fps: Swift.Int) -> Swift.String?
 static func ShutterAngle.degrees(denom: Swift.Int, fps: Swift.Int) -> Swift.Double?
 static func ShutterAngle.denom(degrees: Swift.Double, fps: Swift.Int) -> Swift.Int
 static func ShutterAngle.denom(degrees: Swift.Double, fps: Swift.Int, available: [Swift.Int]) -> Swift.Int
@@ -1008,6 +1011,7 @@ static let Hevc.pps: Swift.Int
 static let Hevc.sps: Swift.Int
 static let Hevc.vps: Swift.Int
 static let HostShutterAngle.choices: [OpenCineCore.SettingValue]
+static let HostShutterAngle.speedSnapTolerance: Swift.Double
 static let LUTExposureCompensation.maxStops: Swift.Double
 static let LUTExposureCompensation.minStops: Swift.Double
 static let LUTExposureCompensation.step: Swift.Double
@@ -1653,6 +1657,8 @@ var ScopeClipCalibration.refinementAtOrAboveReference: Swift.Bool
 var ScopeClipCalibration.refinementMaximumByte: Swift.UInt8
 var ScopeClipProfile.calibrations: [MonitorTransfer : ScopeClipCalibration]
 var ScopeClipProfile.defaultISO: Swift.Int?
+var ScopeClipProfile.unreportedISO: Swift.Int?
+var ScopeExposureCeiling.unreportedISO: Swift.Int?
 var ScopeHistogramDisplay.blue: [Swift.Float]
 var ScopeHistogramDisplay.green: [Swift.Float]
 var ScopeHistogramDisplay.luma: [Swift.Float]
