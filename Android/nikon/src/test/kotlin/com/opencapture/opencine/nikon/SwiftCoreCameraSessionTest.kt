@@ -2024,6 +2024,9 @@ class SwiftCoreCameraSessionTest {
             phaseLogger = { _, _ -> },
             core = bridge,
             propertyRefreshScope = backgroundScope,
+            // The refresh runs on the test scheduler, not Dispatchers.IO, so a readback cannot
+            // land after the test has moved on (the recovery capture-mode test flaked on CI).
+            propertyRefreshDispatcher = StandardTestDispatcher(testScheduler),
             automaticallyRefreshProperties = false,
         )
 
