@@ -1021,7 +1021,9 @@ static let MonitorPlaybackCopy.conformPreview: Swift.String
 static let MonitorPlaybackCopy.conformTitle: Swift.String
 static let MonitorPlaybackCopy.delete: Swift.String
 static let MonitorPlaybackCopy.deleteCancel: Swift.String
+static let MonitorPlaybackCopy.deleteCancelDescription: Swift.String
 static let MonitorPlaybackCopy.deleteConfirm: Swift.String
+static let MonitorPlaybackCopy.deleteConfirmDescription: Swift.String
 static let MonitorPlaybackCopy.deleteConfirmationTitle: Swift.String
 static let MonitorPlaybackCopy.favorite: Swift.String
 static let MonitorPlaybackCopy.forwardFifteen: Swift.String

@@ -38,7 +38,7 @@ func FrameioClient.createProject(accountID: Swift.String, workspaceID: Swift.Str
 func FrameioClient.currentUser() async throws -> FrameioUser
 func FrameioClient.firstWorkspaceProjects() async throws -> FrameioProjectListing
 func FrameioClient.projects(accountID: Swift.String, workspaceID: Swift.String) async throws -> [FrameioProject]
-func FrameioClient.upload(fileURL: Foundation.URL, name: Swift.String, mediaType: Swift.String, fileSize: Swift.Int, accountID: Swift.String, folderID: Swift.String, progress: (Swift.Double) async -> Swift.Void) async throws -> Swift.String
+func FrameioClient.upload(fileURL: Foundation.URL, name: Swift.String, mediaType: Swift.String, fileSize: Swift.Int, accountID: Swift.String, folderID: Swift.String, progress: ((Swift.Double) async -> Swift.Void)?) async throws -> Swift.String
 func FrameioClient.workspaces(accountID: Swift.String) async throws -> [FrameioWorkspace]
 func FrameioHTTPTransport.send(_: FrameioAPIRequest) async throws -> FrameioHTTPResponse
 func FrameioInternetHop.begin() -> FrameioInternetHop.Token
@@ -56,7 +56,7 @@ func FrameioUploadHistoryIndex.recordUploaded(_: Swift.String) -> Swift.Bool
 func FrameioUploadHistoryIndex.wasUploaded(_: Swift.String) -> Swift.Bool
 func StoredFrameioToken.needsRefresh(at: Foundation.Date) -> Swift.Bool
 init FrameioAPIRequest(url: Foundation.URL, method: FrameioHTTPMethod, body: Foundation.Data?, headers: [Swift.String : Swift.String])
-init FrameioClient(config: FrameioConfiguration, transport: any FrameioHTTPTransport, tokens: any FrameioTokenStorage, now: () -> Foundation.Date, pause: (Swift.Duration) async throws -> Swift.Void)
+init FrameioClient(config: FrameioConfiguration, transport: any FrameioHTTPTransport, tokens: any FrameioTokenStorage, now: () -> Foundation.Date, pause: ((Swift.Duration) async throws -> Swift.Void)?)
 init FrameioConfiguration(clientID: Swift.String, redirectURI: Swift.String, scope: Swift.String, authorizeEndpoint: Foundation.URL, tokenEndpoint: Foundation.URL, apiBaseURL: Foundation.URL)
 init FrameioCreateFileRequest(name: Swift.String, fileSize: Swift.Int)
 init FrameioCreateProjectRequest(name: Swift.String)
@@ -129,7 +129,7 @@ static func FrameioAPI.uploadStatus(apiBaseURL: Foundation.URL, accountID: Swift
 static func FrameioAPI.uploadStatus(config: FrameioConfiguration, accountID: Swift.String, fileID: Swift.String) throws -> FrameioAPIRequest
 static func FrameioAPI.workspaces(apiBaseURL: Foundation.URL, accountID: Swift.String) throws -> FrameioAPIRequest
 static func FrameioAPI.workspaces(config: FrameioConfiguration, accountID: Swift.String) throws -> FrameioAPIRequest
-static func FrameioDelivery.run(_: [Item], history: (any FrameioUploadHistory)?, identity: (Item) -> Swift.String?, prepare: (Item) async throws -> Prepared?, upload: (Item, Prepared) async throws -> FrameioItemUpload, release: (Prepared) async throws -> Swift.Void)<Item, Prepared> throws -> FrameioDeliveryReport
+static func FrameioDelivery.run(_: [Item], history: (any FrameioUploadHistory)?, identity: (Item) -> Swift.String?, prepare: (Item) async throws -> Prepared?, upload: (Item, Prepared) async throws -> FrameioItemUpload, release: ((Prepared) async throws -> Swift.Void)?)<Item, Prepared> throws -> FrameioDeliveryReport
 static func FrameioJSON.decode(_: T.Type, from: Foundation.Data)<T where T : Swift.Decodable> throws -> T
 static func FrameioMediaType.forFilename(_: Swift.String) -> Swift.String
 static func FrameioOAuth.authorizeURL(config: FrameioConfiguration, pkce: PKCE, state: Swift.String) -> Foundation.URL

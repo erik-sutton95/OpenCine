@@ -335,7 +335,7 @@ func MultiviewRecovery.action(_: OpenCineCameraVocabulary.FeedWatchdog.Snapshot)
 func MultiviewRecovery.beginRejoin() -> Swift.Bool
 func MultiviewRecovery.fail() -> ()
 func ShootingMode.wireByte(for: OpenCineCameraVocabulary.CameraModel?) -> Swift.UInt8
-func StationJoin.run(isolation: (any _Concurrency.Actor)?, identity: [Swift.UInt8], exchange: (Duml.Frame, Foundation.TimeInterval) async throws -> Duml.Frame, send: (Duml.Frame) -> Swift.Void, next: () -> Swift.UInt16, status: (Swift.String) -> Swift.Void, hotspotReady: () -> Swift.Bool, verifyOnNetwork: () async throws -> Swift.Bool, log: (Swift.String) -> Swift.Void, sleep: (Foundation.TimeInterval) async throws -> Swift.Void) async throws -> StationJoin.Outcome
+func StationJoin.run(isolation: (any _Concurrency.Actor)?, identity: [Swift.UInt8], exchange: (Duml.Frame, Foundation.TimeInterval) async throws -> Duml.Frame, send: (Duml.Frame) -> Swift.Void, next: () -> Swift.UInt16, status: (Swift.String) -> Swift.Void, hotspotReady: () -> Swift.Bool, verifyOnNetwork: () async throws -> Swift.Bool, log: (Swift.String) -> Swift.Void, sleep: ((Foundation.TimeInterval) async throws -> Swift.Void)?) async throws -> StationJoin.Outcome
 func VideoFormat.setPayload(shootingMode: OpenCineCameraVocabulary.ShootingMode?) -> [Swift.UInt8]
 init CameraAudioAdjustment(raw: Swift.UInt8)
 init CameraModel(name: Swift.String)
