@@ -272,6 +272,8 @@ case MediaLibraryTab.all
 case MediaLibraryTab.favorites
 case MediaLibraryTab.photos
 case MediaLibraryTab.videos
+case MonitorHeaderAccent.codec
+case MonitorHeaderAccent.shootingMode
 case OfficialDJILUT.action6DLogM
 case OfficialDJILUT.nanoDLogM
 case OfficialDJILUT.pocketDLog
@@ -427,6 +429,7 @@ enum MediaLibrarySort: CaseIterable, Equatable, Hashable, RawRepresentable, Send
 enum MediaLibraryTab: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MediaListCommand
 enum MonitorFeedEffectsWire
+enum MonitorHeaderAccent: CaseIterable, Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum OfficialDJILUT: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum OfficialPocketLUT: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum PlaybackLUTColor: Sendable
@@ -1262,6 +1265,7 @@ var AudioChannel.label: Swift.String
 var CameraBodyFamily.reportName: Swift.String
 var CameraCaptureProfile.controls: [ControlFamily : OpenCineCore.SupportStatus]
 var CameraCaptureProfile.hasGimbal: Swift.Bool?
+var CameraCaptureProfile.headerAccent: MonitorHeaderAccent
 var CameraCaptureProfile.isoAutoRangeFloor: Swift.Int?
 var CameraCaptureProfile.labels: CameraLabelProfile
 var CameraCaptureProfile.looks: CameraLUTProfile?
@@ -1398,6 +1402,7 @@ var ControlCapabilities.faceMetering: ControlCapability<NoOffer>
 var ControlCapabilities.focus: ControlCapability<SettingOffer>
 var ControlCapabilities.gimbal: ControlCapability<OpenCineMotion.MotionCapabilities>
 var ControlCapabilities.headTracking: ControlCapability<OpenCineMotion.MotionCapabilities>
+var ControlCapabilities.headerAccent: MonitorHeaderAccent
 var ControlCapabilities.iris: ControlCapability<SettingOffer>
 var ControlCapabilities.iso: ControlCapability<ISOOffer>
 var ControlCapabilities.liveAudioLevels: ControlCapability<NoOffer>

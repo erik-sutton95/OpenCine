@@ -5,16 +5,19 @@ import com.opencapture.opencine.vocabulary.CameraCaptureProfile
 import com.opencapture.opencine.vocabulary.CaptureCodecColorChoices
 import com.opencapture.opencine.vocabulary.ControlCapabilities
 import com.opencapture.opencine.vocabulary.ControlFamily
+import com.opencapture.opencine.vocabulary.MonitorHeaderAccent
 
 /**
  * Nikon Z static control facts (Swift `NikonCameraSession.captureProfile`): focus modes and tap
  * focus on every body, no motion service (no gimbal, so no head tracking), no built-in ND, movie
  * audio input settings, the codec and colour (movie tone) and recording format lists the body
  * reports, photo, the card served and deleted over PTP, and a multi-camera stage. Zoom stays
- * unknown (power-zoom lenses exist); the setting descriptors come live from the body.
+ * unknown (power-zoom lenses exist); the setting descriptors come live from the body. The header
+ * carries the accent on the codec: a Z body has no shooting-mode readout.
  */
 val NIKON_CAPTURE_PROFILE: CameraCaptureProfile = CameraCaptureProfile(
     supportsFocusMode = true, supportsTapFocus = true, hasGimbal = false,
+    headerAccent = MonitorHeaderAccent.CODEC,
     controls = mapOf(
         ControlFamily.ND_FILTER to SupportStatus.UNSUPPORTED,
         ControlFamily.AUDIO to SupportStatus.SUPPORTED,

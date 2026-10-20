@@ -66,15 +66,23 @@ fun MonitorCompactTelemetryRow(layout: MonitorFieldLayout, safeLeading: Float, s
         val minimumLink = children[1].minIntrinsicWidth(Constraints.Infinity)
         // The adaptive pill's measured width, not its nominal width, is the real reservation.
         val legacyWidth = with(density) {
-            legacyStorageWidthPixels(layout, topCutout, preferredLink, minimumTarget)
+            legacyStorageWidthPixels(layout, topCutout, preferredLink, minimumTarget, minimumLink)
         }
+        val cutoutBound = preferredLink > 0 && MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+            layout, topCutout, with(density) { minimumLink.toDp().value }, minimumTarget) != null
         val storageView = children[0].measure(loose.copy(maxWidth = legacyWidth))
         val budget = MonitorCompactTelemetryBudget.pixels(constraints.maxWidth,
             layout.status.x.dp.roundToPx(), (layout.viewport.width - layout.status.maxX).dp.roundToPx(),
             ceil(safeLeading.dp.toPx()).toInt(), ceil(safeTrailing.dp.toPx()).toInt(),
             storageView.width, powerView.width, preferredLink, ceil(minimumTarget.dp.toPx()).toInt(),
             ceil(14.dp.toPx()).toInt(), ceil(8.dp.toPx()).toInt(), minimumLink)
-        val linkView = children[1].measure(loose.copy(maxWidth = budget.performanceWidth))
+        // Before a cutout the link pill ends at its clearance, dropping padding rather than reaching it.
+        val beforeCutout = if (!cutoutBound) null else with(density) {
+            MonitorCompactTelemetryBudget.linkWidthBeforeCutout(layout, topCutout, budget.performanceX.toDp().value)
+                ?.let { it.dp.toPx().toInt() }
+        }
+        val linkView = children[1].measure(loose.copy(
+            maxWidth = beforeCutout?.let { minOf(budget.performanceWidth, it) } ?: budget.performanceWidth))
         val powerOffset = if (budget.wrapsPower) bandHeight + ceil(8.dp.toPx()).toInt() else 0
         val additionalHeight = powerOffset + (powerView.height - metrics.pillHeight.dp.roundToPx()).coerceAtLeast(0)
         layout(constraints.maxWidth, bandHeight + additionalHeight) {

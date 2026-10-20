@@ -262,6 +262,39 @@
             }
         }
 
+        /// SIMULATED Dynamic Island phones: an ordinary capacity ("115GB" on Pocket, "521GB" on Z in
+        /// the Z nightly, run 39422965987) must stay readable beside the link pill. The pill may drop
+        /// its decorative padding first; the readout may shrink only within its declared readable
+        /// range (MonitorBoundedReadoutText, 14 to 11 pt) and must not truncate.
+        func testOrdinaryCapacityStaysReadableBesideTheLinkPillOnDynamicIslandPhones() async throws {
+            let phones: [(width: CGFloat, height: CGFloat, safeTop: CGFloat)] = [
+                (393, 852, 59), (402, 874, 62), (430, 932, 59), (440, 956, 62),
+            ]
+            let link = "Live link 4 of 4 bars, feed 25 fps frames per second"
+            for phone in phones {
+                for value in ["115GB", "521GB", "99.9k"] {
+                    let fixture = try ProductionHeaderFixture(
+                        ProductionHeaderCase(width: phone.width, safeTop: phone.safeTop, sideSafe: 0,
+                            height: phone.height), storage: (value, nil, nil))
+                    defer { fixture.close() }
+                    let frames = try await fixture.nativeFrames(labels: ["Storage remaining", link])
+                    let island = CGRect(x: (phone.width - 126) / 2, y: 11, width: 126, height: 40)
+                    let storage = try XCTUnwrap(frames["Storage remaining"])
+                    let pill = try XCTUnwrap(frames[link])
+                    // The readout at its smallest readable size: the card glyph, its 5 pt gap, the text.
+                    let smallest = UIHostingController(rootView: HStack(spacing: 5) {
+                        MonitorIcon.cardSim.frame(width: 12, height: 12)
+                        Text(value).font(MonitorTheme.font(11, weight: .medium)).monospacedDigit()
+                    }.fixedSize()).sizeThatFits(in: CGSize(width: CGFloat.infinity, height: 48))
+                    XCTAssertGreaterThanOrEqual(storage.width + monitorFloorMeasurementTolerance, smallest.width,
+                        "\(value) truncates at \(phone): \(storage.width) pt for \(smallest.width) pt at 11 pt")
+                    XCTAssertLessThanOrEqual(pill.maxX, island.minX + 0.5,
+                        "\(value) must not push the link pill under the island: \(phone) \(pill)")
+                    XCTAssertLessThanOrEqual(storage.maxX, pill.minX + 0.5, "\(value) \(phone)")
+                }
+            }
+        }
+
         func testCompactPortraitStorageAndPerformanceRemainAdjacentBeforePower() async throws {
             for safeTop in Self.safeTops {
                 for width in [CGFloat(320), 360, 440] {
@@ -707,17 +740,83 @@
             XCTAssertGreaterThanOrEqual(narrow.detailSize, 10)
         }
 
-        /// Landscape keeps format, codec and color side by side on the one status row.
-        func testLandscapeFormatCodecAndColorStayOnTheStatusRow() async throws {
+        /// Landscape folds colour into the codec control, exactly as portrait does, and keeps the
+        /// format readout on the one status row.
+        func testLandscapeFoldsColorIntoTheCodecReadout() async throws {
             let screen = UIScreen.main.bounds.size
             let sample = UIDevice.current.userInterfaceIdiom == .pad
                 ? ProductionHeaderCase(width: max(screen.width, screen.height), safeTop: 24, sideSafe: 0,
                     height: min(screen.width, screen.height))
                 : ProductionHeaderCase(width: 956, safeTop: 0, sideSafe: 62, height: 440)
             do {
-                let fixture = try ProductionHeaderFixture(sample)
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true)
                 defer { fixture.close() }
-                try await fixture.assertLandscapeRow()
+                try await fixture.assertLandscapeCodecColor()
+            }
+        }
+
+        /// A camera without a codec readout keeps its own colour control in landscape.
+        func testLandscapeColorOnlyCameraKeepsItsColorControl() async throws {
+            let screen = UIScreen.main.bounds.size
+            let sample = UIDevice.current.userInterfaceIdiom == .pad
+                ? ProductionHeaderCase(width: max(screen.width, screen.height), safeTop: 24, sideSafe: 0,
+                    height: min(screen.width, screen.height))
+                : ProductionHeaderCase(width: 956, safeTop: 0, sideSafe: 62, height: 440)
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true, colorOnly: true)
+                defer { fixture.close() }
+                try await fixture.assertLandscapeColorOnly()
+            }
+        }
+
+        /// The accent follows the readout the camera family declares: DJI and Insta keep the
+        /// shooting mode, Nikon (no shooting mode readout) takes the codec.
+        func testLandscapeAccentFollowsTheDeclaredReadout() async throws {
+            let screen = UIScreen.main.bounds.size
+            let sample = UIDevice.current.userInterfaceIdiom == .pad
+                ? ProductionHeaderCase(width: max(screen.width, screen.height), safeTop: 24, sideSafe: 0,
+                    height: min(screen.width, screen.height))
+                : ProductionHeaderCase(width: 956, safeTop: 0, sideSafe: 62, height: 440)
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true, mode: "Video")
+                defer { fixture.close() }
+                try await fixture.assertAccent(on: "Shooting mode", off: "Codec and color")
+            }
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true,
+                    accentCodec: true, mode: "Video")
+                defer { fixture.close() }
+                try await fixture.assertAccent(on: "Codec and color", off: "Shooting mode")
+            }
+            // The Nikon app supplies no shooting-mode readout at all and declares the codec.
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true,
+                    accentCodec: true)
+                defer { fixture.close() }
+                try await fixture.assertAccent(on: "Codec and color")
+            }
+            // A shooting-mode declaration with no mode readout keeps the codec unaccented.
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true)
+                defer { fixture.close() }
+                try await fixture.assertUnaccented("Codec and color")
+            }
+        }
+
+        /// The same declaration carries into portrait: Nikon accents the codec, while DJI and
+        /// Insta (shooting mode declared, no mode slot in portrait) keep the codec plain.
+        func testPortraitAccentsTheCodecOnlyWhenDeclared() async throws {
+            let sample = ProductionHeaderCase(width: 360, safeTop: 62, sideSafe: 0)
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true,
+                    accentCodec: true)
+                defer { fixture.close() }
+                try await fixture.assertAccent(on: "Codec")
+            }
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true)
+                defer { fixture.close() }
+                try await fixture.assertUnaccented("Codec")
             }
         }
     }
@@ -743,9 +842,12 @@
         var typedPortraitHeader = false
         var sensorArea = "FX"
         var colorOnly = false
+        var accentCodec = false
+        var modeValue: String?
         var formatCalls = 0
         var codecCalls = 0
         var colorCalls = 0
+        var modeCalls = 0
         var storageValue = "107 GB"
         var storageIcon: MonitorIcon?
         var storageSpoken: String?
@@ -840,7 +942,10 @@
                             portraitFormat: probe.typedPortraitHeader ? .init(id: "format", title: "Recording format",
                                 value: "6K · 25p", section: .format, action: { probe.formatCalls += 1 }, quickEnabled: false) : nil,
                             color: probe.codecOnly || probe.photo ? nil : .init(id: "color", title: "Color mode", value: "D-Log2",
-                                action: { probe.colorCalls += 1 }, quickEnabled: false))
+                                action: { probe.colorCalls += 1 }, quickEnabled: false),
+                            mode: probe.modeValue.map { .init(id: "mode", title: "Shooting mode", value: $0,
+                                action: { probe.modeCalls += 1 }, quickEnabled: false) },
+                            headerAccent: probe.accentCodec ? .codec : .shootingMode)
                     }, cameraBattery: {
                         cameraBatteryOverride ?? .init(id: "camera", title: "Camera battery", camera: true, percent: 68)
                     }, capture: { .init(readouts: [], haptics: false, open: { _ in }, dismiss: {}) },
@@ -871,7 +976,8 @@
         private let live: LiveMonitorLayout
         init(_ sample: ProductionHeaderCase, codecOnly: Bool = false, passiveBackdrop: Bool = false,
             typedPortraitHeader: Bool = false, colorOnly: Bool = false, sensorArea: String = "FX",
-            photo: Bool = false, storage: (value: String, icon: MonitorIcon?, spoken: String?)? = nil) throws {
+            photo: Bool = false, storage: (value: String, icon: MonitorIcon?, spoken: String?)? = nil,
+            accentCodec: Bool = false, mode: String? = nil) throws {
             self.sample = sample
             probe = try ProductionHeaderProbe(codecOnly: codecOnly)
             probe.photo = photo
@@ -882,6 +988,8 @@
             probe.typedPortraitHeader = typedPortraitHeader
             probe.sensorArea = sensorArea
             probe.colorOnly = colorOnly
+            probe.accentCodec = accentCodec
+            probe.modeValue = mode
             live = LiveMonitorLayout.fieldMonitor(size: CGSize(width: sample.width, height: sample.height),
                 safeArea: EdgeInsets(top: sample.safeTop, leading: sample.sideSafe, bottom: 0,
                     trailing: sample.sideSafe), sourceAspect: 16 / 9, fill: false,
@@ -1152,12 +1260,12 @@
             XCTAssertEqual(probe.formatCalls, beforeFormat + 1); XCTAssertEqual(probe.codecCalls, beforeCodec + 1)
             return nativeHeights
         }
-        private func settledNodes() async throws -> [NSObject] {
+        private func settledNodes(labels: [String] = ["Recording format", "Codec", "Color mode"]) async throws -> [NSObject] {
             var nodes: [NSObject] = []
             for _ in 0..<200 {
                 native.host.view.setNeedsLayout(); native.host.view.layoutIfNeeded()
                 nodes = native.nodes()
-                if ["Recording format", "Codec", "Color mode"].allSatisfy({ label in
+                if labels.allSatisfy({ label in
                     nodes.contains { $0.accessibilityLabel == label }
                 }) { break }
                 try await Task.sleep(for: .milliseconds(20))
@@ -1219,22 +1327,86 @@
                     "Resolution and frame rate paint from the clock's top edge \(context)")
             }
         }
-        func assertLandscapeRow() async throws {
-            let nodes = try await settledNodes()
-            func node(_ label: String) throws -> CGRect {
+        func assertLandscapeCodecColor() async throws {
+            let labels = ["Recording format", "Codec and color"]
+            let nodes = try await settledNodes(labels: labels)
+            func node(_ label: String) throws -> NSObject {
                 try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
-                    "Production node \(label) at \(sample)").accessibilityFrame
+                    "Production node \(label) at \(sample)")
             }
-            XCTAssertFalse(try XCTUnwrap(live.presentation).portrait)
             let format = try node("Recording format")
-            let codec = try node("Codec")
+            let codec = try node("Codec and color")
+            XCTAssertFalse(try XCTUnwrap(live.presentation).portrait)
+            XCTAssertEqual(format.accessibilityValue, "[FX] 6K · 25p")
+            // Colour belongs to the one codec control: its own target is gone, its value is spoken.
+            XCTAssertFalse(nodes.contains { $0.accessibilityLabel == "Color mode" })
+            XCTAssertEqual(codec.accessibilityLabel, "Codec and color")
+            XCTAssertEqual(codec.accessibilityValue, "R3D NE · D-Log2")
+            XCTAssertEqual(format.accessibilityFrame.midY, codec.accessibilityFrame.midY, accuracy: 0.5)
+            XCTAssertLessThanOrEqual(format.accessibilityFrame.maxX, codec.accessibilityFrame.minX + 0.5)
+            for target in [format, codec] {
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.width, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.height, 44 - monitorFloorMeasurementTolerance)
+            }
+            XCTAssertTrue(codec.accessibilityActivate())
+            XCTAssertEqual(probe.codecCalls, 1)
+            XCTAssertEqual(probe.colorCalls, 0)
+            XCTAssertEqual(probe.formatCalls, 0)
+        }
+        func assertLandscapeColorOnly() async throws {
+            let labels = ["Recording format", "Color mode"]
+            let nodes = try await settledNodes(labels: labels)
+            func node(_ label: String) throws -> NSObject {
+                try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
+                    "Production node \(label) at \(sample)")
+            }
+            let format = try node("Recording format")
             let color = try node("Color mode")
-            XCTAssertEqual(nodes.first { $0.accessibilityLabel == "Recording format" }?.accessibilityValue, "[FX] 6K · 25p")
-            XCTAssertEqual(nodes.first { $0.accessibilityLabel == "Color mode" }?.accessibilityValue, "D-Log2")
-            XCTAssertEqual(format.midY, codec.midY, accuracy: 0.5)
-            XCTAssertEqual(codec.midY, color.midY, accuracy: 0.5)
-            XCTAssertLessThanOrEqual(format.maxX, codec.minX + 0.5)
-            XCTAssertLessThanOrEqual(codec.maxX, color.minX + 0.5)
+            XCTAssertFalse(try XCTUnwrap(live.presentation).portrait)
+            XCTAssertFalse(nodes.contains { $0.accessibilityLabel == "Codec" })
+            XCTAssertEqual(format.accessibilityValue, "[FX] 6K · 25p")
+            XCTAssertEqual(color.accessibilityLabel, "Color mode")
+            XCTAssertEqual(color.accessibilityValue, "D-Log2")
+            XCTAssertEqual(format.accessibilityFrame.midY, color.accessibilityFrame.midY, accuracy: 0.5)
+            XCTAssertLessThanOrEqual(format.accessibilityFrame.maxX, color.accessibilityFrame.minX + 0.5)
+            for target in [format, color] {
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.width, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(target.accessibilityFrame.height, 44 - monitorFloorMeasurementTolerance)
+            }
+            XCTAssertTrue(color.accessibilityActivate())
+            XCTAssertEqual(probe.colorCalls, 1)
+            XCTAssertEqual(probe.codecCalls, 0)
+            XCTAssertEqual(probe.formatCalls, 0)
+        }
+        /// The accent paint sits inside the declared readout and nowhere on the other one.
+        func assertAccent(on accented: String, off: String? = nil) async throws {
+            let nodes = try await settledNodes(labels: ["Recording format", accented] + (off.map { [$0] } ?? []))
+            let image = try native.renderedImage()
+            let raster = try HeaderRaster(image)
+            func frame(_ label: String) throws -> CGRect {
+                let node = try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
+                    "Production node \(label) at \(sample)")
+                return native.window.convert(node.accessibilityFrame, from: nil)
+            }
+            let on = raster.accentPixelCount(in: try frame(accented))
+            XCTAssertGreaterThan(on, 0, "\(accented) carries the accent")
+            if let off {
+                // The accessibility frames are the expanded touch targets, so an unaccented
+                // readout's frame can reach a few edge pixels of its accented neighbour or of
+                // the green link bars. Accented glyphs paint far more.
+                let stray = raster.accentPixelCount(in: try frame(off))
+                XCTAssertLessThan(stray * 20, on, "\(off) stays unaccented (\(stray) vs \(on) accent pixels)")
+            }
+        }
+        func assertUnaccented(_ label: String) async throws {
+            let nodes = try await settledNodes(labels: ["Recording format", label])
+            let raster = try HeaderRaster(try native.renderedImage())
+            let node = try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
+                "Production node \(label) at \(sample)")
+            // The expanded touch target can reach a few green edge pixels of the link bars; an
+            // accented readout paints well over a hundred.
+            let stray = raster.accentPixelCount(in: native.window.convert(node.accessibilityFrame, from: nil))
+            XCTAssertLessThan(stray, 16, "\(label) stays unaccented (\(stray) accent pixels)")
         }
         func assertCodecOnly() async throws {
             var nodes: [NSObject] = []
@@ -2521,28 +2693,39 @@
 
     extension HeaderRaster {
         /// Accent cyan is independent of RGBA/BGRA order and excludes white glyphs and green picture.
+        fileprivate func accentPixelCount(in rect: CGRect) -> Int {
+            scanAccentPixels(in: rect)?.count ?? 0
+        }
+
         fileprivate func accentGlyphBounds(in rect: CGRect) throws -> CGRect {
+            guard let pixels = scanAccentPixels(in: rect) else {
+                XCTFail("No actual accent glyphs in the native frame")
+                throw NSError(domain: "NativeAccentGlyphs", code: 1)
+            }
+            return pixels.bounds
+        }
+
+        private func scanAccentPixels(in rect: CGRect) -> (count: Int, bounds: CGRect)? {
             let left = max(0, Int(floor(rect.minX * image.scale)))
             let right = min(cg.width, Int(ceil(rect.maxX * image.scale)))
             let top = max(0, Int(floor(rect.minY * image.scale)))
             let bottom = min(cg.height, Int(ceil(rect.maxY * image.scale)))
+            var count = 0
             var minX = right; var maxX = left - 1; var minY = bottom; var maxY = top - 1
             for y in top..<bottom {
                 for x in left..<right {
                     let offset = y * cg.bytesPerRow + x * 4
                     if data[offset + 1] >= 160 && min(data[offset], data[offset + 2]) < 160
                         && max(data[offset], data[offset + 2]) >= 160 && data[offset + 3] >= 160 {
+                        count += 1
                         minX = min(minX, x); maxX = max(maxX, x)
                         minY = min(minY, y); maxY = max(maxY, y)
                     }
                 }
             }
-            guard maxX >= minX, maxY >= minY else {
-                XCTFail("No actual accent glyphs in the native frame")
-                throw NSError(domain: "NativeAccentGlyphs", code: 1)
-            }
-            return CGRect(x: CGFloat(minX), y: CGFloat(minY),
-                width: CGFloat(maxX - minX + 1), height: CGFloat(maxY - minY + 1))
+            guard maxX >= minX, maxY >= minY else { return nil }
+            return (count, CGRect(x: CGFloat(minX), y: CGFloat(minY),
+                width: CGFloat(maxX - minX + 1), height: CGFloat(maxY - minY + 1)))
         }
     }
 
