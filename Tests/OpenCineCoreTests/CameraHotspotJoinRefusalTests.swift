@@ -6,7 +6,7 @@ import Testing
 /// code reaches operator copy. The raw code stays in the closed journal token.
 @Suite struct CameraHotspotJoinRefusalTests {
     private static let settingsCopy =
-        "This iPhone couldn't join Camera automatically. Join it in Settings > Wi-Fi, then come back."
+        "This device couldn't join Camera automatically. Join it in Settings > Wi-Fi, then come back."
 
     @Test func mapsEveryKnownPlatformCodeToItsMeaning() throws {
         let table: [(code: Int, reason: CameraHotspotJoinRefusal.Reason)] = [
@@ -110,6 +110,7 @@ import Testing
             #expect(!refusal.message.contains(text), "code \(code)")
             #expect(!refusal.message.contains("NEHotspot"), "code \(code)")
             #expect(!refusal.message.contains("internal error"), "code \(code)")
+            #expect(!refusal.message.contains("iPhone"), "code \(code): iPad also uses this copy")
             #expect(refusal.errorDescription == refusal.message, "code \(code)")
             #expect(!refusal.message.contains("\(code)"), "code \(code)")
 

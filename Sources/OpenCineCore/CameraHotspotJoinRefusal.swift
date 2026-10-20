@@ -67,19 +67,19 @@ public struct CameraHotspotJoinRefusal: Error, Hashable, Sendable, LocalizedErro
             return "Join the camera Wi-Fi network to continue."
         case .invalidSSID:
             return
-                "The camera's Wi-Fi name looks wrong, so this iPhone can't join it. Reconnect the camera, then try again."
+                "The camera's Wi-Fi name looks wrong, so this device can't join it. Reconnect the camera, then try again."
         case .invalidPassphrase:
             return
                 "The camera Wi-Fi key looks wrong. Pair the camera again so the app reads a fresh key."
         case .invalidConfiguration, .joinOnceNotSupported:
             return
-                "The camera sent Wi-Fi details this iPhone can't use. Reconnect the camera, then try again."
+                "The camera sent Wi-Fi details this device can't use. Reconnect the camera, then try again."
         case .alreadyAssociated:
-            return "This iPhone is already on \(name)."
+            return "This device is already on \(name)."
         case .internalError, .pending, .systemConfiguration, .unknown, .applicationNotInForeground,
             .userUnauthorized, .systemDenied, .other:
             return
-                "This iPhone couldn't join \(name) automatically. Join it in Settings > Wi-Fi, then come back."
+                "This device couldn't join \(name) automatically. Join it in Settings > Wi-Fi, then come back."
         }
     }
 
