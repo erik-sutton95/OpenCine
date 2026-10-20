@@ -27,6 +27,22 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def developer_path(text):
+    paths = [Path(line.strip()) for line in text.splitlines()
+             if Path(line.strip()).is_absolute()]
+    if len(paths) != 1:
+        raise ValueError("xcode-select output must contain exactly one absolute developer path")
+    return paths[0]
+
+
+def test_frameworks(developer):
+    frameworks = developer / "Platforms/MacOSX.platform/Developer/Library/Frameworks"
+    header = frameworks / "XCTest.framework/Headers/XCTest.h"
+    if not developer.is_absolute() or not frameworks.is_dir() or not header.is_file():
+        raise ValueError(f"active Xcode XCTest framework/header is unavailable: {header}")
+    return frameworks
+
+
 def selection(text, methods):
     """Count actual Swift Testing starts and outcomes, including failed assertions."""
     names = "|".join(re.escape(name) for name in METHODS)
@@ -171,7 +187,9 @@ def main():
                                            "-strict-concurrency=complete"], 1200)
         cases("original", 0, (SUITE, *METHODS))
         _, developer = command("developer-directory", ["xcode-select", "-p"], 15)
-        frameworks = str(Path(developer.strip()) / "Platforms/MacOSX.platform/Developer/Library/Frameworks")
+        frameworks = str(test_frameworks(developer_path(developer)))
+        receipt["validated_xctest_frameworks"] = frameworks
+        save()
         library = output.parent / "native-readiness-library" / "libStillPhaseTrace.dylib"
         library.parent.mkdir(exist_ok=True)
         command("build-trace-library", [
