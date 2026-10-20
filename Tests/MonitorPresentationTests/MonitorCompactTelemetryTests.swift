@@ -112,6 +112,24 @@ struct MonitorCompactTelemetryTests {
         #expect(storage == 45.5)
     }
 
+    /// Z nightly 39422965987: "521GB" painted as "521..." beside a link pill keeping its padding.
+    @Test func aLinkThatDropsItsPaddingLeavesThatRoomToStorageAndStillEndsBeforeTheIsland() throws {
+        let layout = FieldMonitorLayout(width: 402, height: 874, safeArea: .init(top: 62))
+        let island = try #require(MonitorTopCutout.estimated(width: 402, height: 874, safeTop: 62))
+        let resting = try #require(MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+            layout: layout, topCutout: island, linkWidth: 58, minimumTarget: 44))
+        let yielding = try #require(MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
+            layout: layout, topCutout: island, linkWidth: 46, minimumTarget: 44))
+        #expect(yielding == resting + 12)
+        // An 11 pt "521GB" readout with its card glyph is 56 pt wide.
+        #expect(yielding >= 56)
+        let linkX = layout.status.x + yielding + 8
+        #expect(MonitorCompactTelemetryBudget.linkWidthBeforeCutout(
+            layout: layout, topCutout: island, linkX: linkX) == 46)
+        #expect(MonitorCompactTelemetryBudget.linkWidthBeforeCutout(
+            layout: layout, topCutout: nil, linkX: linkX) == nil)
+    }
+
     @Test func noCutoutANotchOrALandscapePhoneKeepTheOriginalCorners() {
         let layout = FieldMonitorLayout(width: 375, height: 812, safeArea: .init(top: 44))
         #expect(MonitorTopCutout.estimated(width: 375, height: 812, safeTop: 44) == nil)

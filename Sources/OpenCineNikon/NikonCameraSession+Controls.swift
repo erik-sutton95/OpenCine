@@ -7,10 +7,11 @@ extension NikonCameraSession {
     /// colour (movie tone) and recording format lists the body reports, photo, the card served and
     /// deleted over PTP, and a multi-camera stage. Zoom stays unknown (power-zoom lenses exist);
     /// the setting descriptors (ISO, shutter, aperture, white balance, frame rate) come live from
-    /// the body.
+    /// the body. The header carries the accent on the codec: a Z body has no shooting-mode readout.
     public nonisolated static let captureProfile: CameraCaptureProfile = {
         var profile = CameraCaptureProfile(supportsFocusMode: true, supportsTapFocus: true,
             hasGimbal: false)
+        profile.headerAccent = .codec
         profile.controls = [
             .ndFilter: .unsupported, .audio: .supported, .recordingFormat: .supported,
             .codecColor: .supported, .photo: .supported, .media: .supported, .mediaDelete: .supported,

@@ -844,6 +844,7 @@ static func MonitorCommandGridLayout.sideDescription(_: [Swift.String]) -> Swift
 static func MonitorCommandGridLayout.slot(at: CoreFoundation.CGPoint, tileWidth: CoreGraphics.CGFloat, rowHeight: CoreGraphics.CGFloat, spacing: CoreGraphics.CGFloat, columns: Swift.Int, itemCount: Swift.Int) -> Swift.Int
 static func MonitorCommandGridLayout.tileCenter(index: Swift.Int, tileWidth: CoreGraphics.CGFloat, rowHeight: CoreGraphics.CGFloat, spacing: CoreGraphics.CGFloat, columns: Swift.Int) -> CoreFoundation.CGPoint
 static func MonitorCommandGridLayout.valueFontSize(rowHeight: CoreGraphics.CGFloat) -> CoreGraphics.CGFloat
+static func MonitorCompactTelemetryBudget.linkWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?, linkX: Swift.Double) -> Swift.Double?
 static func MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?, linkWidth: Swift.Double, minimumTarget: Swift.Double) -> Swift.Double?
 static func MonitorDialHaptic.isMajor(_: Swift.String) -> Swift.Bool
 static func MonitorDialHaptic.shouldTick(previous: Swift.Double, next: Swift.Double, majors: [Swift.Double]) -> Swift.Bool

@@ -182,4 +182,17 @@ class ControlCapabilitiesTest {
         assertFalse(known.audio.isOffered, "undeclared stays unknown")
         assertEquals(ControlCapabilities.derive(CapabilitySnapshot(), profile, gimbal), known)
     }
+
+    @Test
+    fun theStaticProfileDeclaresTheHeaderAccent() {
+        assertEquals(MonitorHeaderAccent.SHOOTING_MODE, CameraCaptureProfile().headerAccent,
+            "DJI and Insta keep the shooting-mode accent")
+        val nikon = CameraCaptureProfile(headerAccent = MonitorHeaderAccent.CODEC)
+        assertEquals(MonitorHeaderAccent.CODEC, ControlCapabilities.derive(CapabilitySnapshot(), nikon).headerAccent)
+        assertEquals(MonitorHeaderAccent.CODEC, ControlCapabilities.beforeConnection(nikon).headerAccent,
+            "the saved body keeps its accent before it reconnects")
+        assertEquals(MonitorHeaderAccent.SHOOTING_MODE, ControlCapabilities().headerAccent)
+        assertEquals(MonitorHeaderAccent.SHOOTING_MODE, ControlCapabilities.derive(CapabilitySnapshot(), null).headerAccent,
+            "no body known never invents a codec accent")
+    }
 }

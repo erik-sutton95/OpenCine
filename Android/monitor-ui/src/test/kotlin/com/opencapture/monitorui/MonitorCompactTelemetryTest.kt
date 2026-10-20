@@ -136,6 +136,21 @@ class MonitorCompactTelemetryTest {
         assertTrue(wide < resting)
     }
 
+    /** Z nightly 39422965987: "521GB" painted as "521..." beside a link pill keeping its padding. */
+    @Test fun aLinkThatCanDropItsPaddingLeavesThatRoomToStorageBeforeTheCutout() {
+        val layout = MonitorLayoutPolicy.fieldMonitor(412f, 915f, safeTop = 52f)
+        val hole = MonitorRect(193f, 12f, 26f, 26f)
+        val density = Density(1f, 1f)
+        val resting = density.legacyStorageWidthPixels(layout, hole, preferredLink = 58, minimumTarget = 48f)
+        val yielding = density.legacyStorageWidthPixels(layout, hole, preferredLink = 58, minimumTarget = 48f,
+            minimumLink = 46)
+        assertEquals(resting + 12, yielding)
+        // The link then starts after storage and its gap and still ends 6 dp before the cutout.
+        val linkX = layout.status.x + yielding + 8f
+        assertEquals(46f, MonitorCompactTelemetryBudget.linkWidthBeforeCutout(layout, hole, linkX))
+        assertEquals(null, MonitorCompactTelemetryBudget.linkWidthBeforeCutout(layout, null, linkX))
+    }
+
     @Test fun aWideNotchOrACutoutOutsideTheBandKeepsTheOriginalCorners() {
         val layout = MonitorLayoutPolicy.fieldMonitor(375f, 812f, safeTop = 44f)
         assertEquals(null, MonitorCompactTelemetryBudget.storageWidthBeforeCutout(

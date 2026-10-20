@@ -133,6 +133,9 @@ public struct ControlCapabilities: Equatable, Sendable {
     public var mediaDelete: ControlCapability<NoOffer>
     /// The body can join a multi-camera stage.
     public var multiview: ControlCapability<NoOffer>
+    /// Which live header readout carries the app accent, from the body's static profile. The
+    /// shared header accents the declared slot only when it shows.
+    public var headerAccent: MonitorHeaderAccent
 
     /// Nothing known: every family unknown.
     public init() {
@@ -142,6 +145,7 @@ public struct ControlCapabilities: Equatable, Sendable {
         recordingFormat = .unknown; audio = .unknown; liveAudioLevels = .unknown; zoom = .unknown
         gimbal = .unknown; headTracking = .unknown; timecode = .unknown; recording = .unknown
         photo = .unknown; media = .unknown; mediaDelete = .unknown; multiview = .unknown
+        headerAccent = .shootingMode
     }
 
     /// Applies typed backend restrictions without inventing support or values. Missing inputs
@@ -337,6 +341,7 @@ public struct ControlCapabilities: Equatable, Sendable {
         media = declaredOnly(.media)
         mediaDelete = declaredOnly(.mediaDelete)
         multiview = declaredOnly(.multiview)
+        headerAccent = profile?.headerAccent ?? .shootingMode
     }
 }
 
