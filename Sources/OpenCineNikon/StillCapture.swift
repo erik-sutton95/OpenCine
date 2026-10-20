@@ -500,6 +500,69 @@ public enum StillReleaseReadiness: Equatable, Sendable {
     case failed(PTPResponseCode)
 }
 
+/// One press of the app's shutter control, from finger-down until its run ends.
+///
+/// A tap takes exactly one frame in every drive mode, as the body's own shutter does. So the
+/// first release of a press is always a plain single-frame release: it never opens the burst
+/// bracket, and a finger-up never cancels or terminates it. A quick tap in Continuous H used to
+/// lose that frame twice over: a finger-up before the queued release was sent cancelled it, and
+/// one after it was sent terminated the run before the body exposed anything.
+///
+/// Only while the finger stays down in a continuous drive does the press chain burst runs. Those
+/// open the remote-mode bracket (host-set burst values only persist inside it) and a finger-up
+/// terminates the one in flight; frames already taken are kept. Kotlin twin:
+/// `com.opencapture.opencine.nikon.StillShutterHold`. [verify-on-HW: one frame per tap in CL,
+/// CH and CH+]
+public struct StillShutterHold: Equatable, Sendable {
+    /// What the next release of this press is.
+    public enum Release: Equatable, Sendable {
+        /// The press's first release: one frame, outside the burst bracket.
+        case singleFrame
+        /// A chained release while the finger stays down, inside the burst bracket.
+        case burstRun
+    }
+
+    /// What a finger-up asks the shell to do.
+    public enum FingerUp: Equatable, Sendable {
+        /// Let the release in flight (or still queued) finish on its own.
+        case letReleaseFinish
+        /// Stop the burst: drop a chained release not sent yet, or terminate the one in flight.
+        case endBurst
+    }
+
+    /// Chained burst runs one press may add; backstops a finger-up the system swallowed.
+    public static let maximumBurstRuns = 30
+
+    /// Whether the body's drive mode keeps firing while the shutter is held.
+    public let continuousDrive: Bool
+    /// Whether the finger is still on the control.
+    public private(set) var isHeld = true
+    /// Burst runs chained after the first release.
+    public private(set) var burstRuns = 0
+
+    /// Starts a press (finger-down).
+    public init(continuousDrive: Bool) {
+        self.continuousDrive = continuousDrive
+    }
+
+    /// The kind of the release the shell sends next.
+    public var nextRelease: Release { burstRuns == 0 ? .singleFrame : .burstRun }
+
+    /// Finger-up. Only a press that already chained a burst run has anything to end.
+    public mutating func fingerUp() -> FingerUp {
+        guard isHeld else { return .letReleaseFinish }
+        isHeld = false
+        return burstRuns > 0 ? .endBurst : .letReleaseFinish
+    }
+
+    /// A release completed. True when the press chains a burst run next.
+    public mutating func releaseCompleted() -> Bool {
+        guard continuousDrive, isHeld, burstRuns < Self.maximumBurstRuns else { return false }
+        burstRuns += 1
+        return true
+    }
+}
+
 /// The camera's battery gauge, as the body actually reports it.
 ///
 /// `BatteryLevel` (0x5001) is a five-bar gauge, not a percentage: the documented property only ever

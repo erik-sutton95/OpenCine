@@ -290,3 +290,63 @@ public enum NikonStillReviewImageReader {
         return data
     }
 }
+
+/// How a shell reacts to a capture event it did not ask for (`ObjectAdded` or capture complete).
+public enum NikonBodyCaptureSync: Equatable, Sendable {
+    /// Movie mode, the app's own release, or one more event of a run already synced.
+    case ignore
+    /// Photo mode without instant review: refresh the remaining-shots readout only.
+    case shotsOnly
+    /// Photo mode with instant review: review the shot and refresh the remaining shots.
+    case reviewAndShots
+}
+
+/// Tells a shot fired on the body apart from the late card objects of the app's own release.
+///
+/// The app's release completes before all of its objects reach the card: the second half of a
+/// RAW+JPEG pair, or a burst's later frames, are announced after it. Those events used to count as
+/// a shot fired on the body, and the review that followed cancelled the app's own review while it
+/// read the sharp image, leaving the blurred thumb on screen for good. So every event within
+/// ``NikonStillReviewPolicy/objectWindowMilliseconds`` of the app's release, or of the previous
+/// late object, belongs to that release. A real body run is synced once, then quiet for
+/// ``bodyRunDebounceMilliseconds`` after each of its events.
+///
+/// Times are any monotonic clock in milliseconds. Kotlin twin:
+/// `com.opencapture.opencine.nikon.NikonBodyCaptureFilter`. [verify-on-HW: object arrival after a
+/// RAW+JPEG release per body]
+public struct NikonBodyCaptureFilter: Equatable, Sendable {
+    /// Quiet period after a synced body capture, so one body burst syncs once.
+    public static let bodyRunDebounceMilliseconds: Int64 = 800
+
+    private var appReleaseTailUntil: Int64?
+    private var bodyRunQuietUntil: Int64?
+
+    /// Creates a filter that has seen no capture yet.
+    public init() {}
+
+    /// The app's own release run completed at `now`.
+    public mutating func appReleaseCompleted(at now: Int64) {
+        appReleaseTailUntil = now + Int64(NikonStillReviewPolicy.objectWindowMilliseconds)
+    }
+
+    /// Classifies one capture event at `now`.
+    public mutating func action(
+        at now: Int64, isPhotography: Bool, instantReviewEnabled: Bool, appReleaseInFlight: Bool
+    ) -> NikonBodyCaptureSync {
+        guard isPhotography else { return .ignore }
+        if appReleaseInFlight {
+            return .ignore
+        }
+        if let until = appReleaseTailUntil, now < until {
+            appReleaseTailUntil = now + Int64(NikonStillReviewPolicy.objectWindowMilliseconds)
+            return .ignore
+        }
+        appReleaseTailUntil = nil
+        if let until = bodyRunQuietUntil, now < until {
+            bodyRunQuietUntil = now + Self.bodyRunDebounceMilliseconds
+            return .ignore
+        }
+        bodyRunQuietUntil = now + Self.bodyRunDebounceMilliseconds
+        return instantReviewEnabled ? .reviewAndShots : .shotsOnly
+    }
+}
