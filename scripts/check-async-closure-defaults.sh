@@ -10,13 +10,17 @@ set -euo pipefail
 cd "$(git --no-optional-locks rev-parse --show-toplevel)"
 roots=("$@")
 [[ ${#roots[@]} -eq 0 ]] && roots=(Sources)
-# A parameter: `name: <type with async> = {`, never crossing into the next `, name:` on the
-# same line. Stored property initializers (`var`/`let`) live only in the library and are fine.
-hits="$(find "${roots[@]}" -name '*.swift' -print0 | xargs -0 perl -ne '
-  next if /^\s*(@\w+(\([^)]*\))?\s+)*((public|internal|private|fileprivate|open)(\(set\))?\s+)*(static\s+|lazy\s+)*(var|let)\s/;
-  my $seg = qr/(?:(?!,\s*\w+\s*:)[^=])*/;
-  print "$ARGV:$.:$_" if /\b\w+\s*:$seg\basync\b$seg=\s*\{/;
-  close ARGV if eof;
+# A parameter: `name: <type with async> = {`, possibly split across lines. The type may not cross
+# into the next `, name:` or contain `{`, `}` or `;`, so a function body or a stored property
+# (`var`/`let`, which lives only in the library) never matches.
+hits="$(find "${roots[@]}" -name '*.swift' -print0 | xargs -0 perl -0777 -ne '
+  my $seg = qr/(?:(?!,\s*\w+\s*:)[^={};])*/;
+  while (/(?:^|[,(])\s*((?:@\w+(?:\([^)]*\))?\s+)*(?:\w+\s+)?(\w+)\s*:$seg\basync\b$seg=\s*\{)/g) {
+    next if $2 eq "var" || $2 eq "let";
+    my $line = 1 + (substr($_, 0, $-[1]) =~ tr/\n//);
+    (my $text = $1) =~ s/\s+/ /g;
+    print "$ARGV:$line: $text\n";
+  }
 ')"
 if [[ -n "$hits" ]]; then
   printf '%s\n' "$hits" >&2

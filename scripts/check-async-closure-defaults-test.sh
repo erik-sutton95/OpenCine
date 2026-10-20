@@ -10,6 +10,13 @@ public func run(
     sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
 ) {}
 SWIFT
+cat > "$dir/bad/Split.swift" <<'SWIFT'
+public init(
+    read:
+        @escaping @MainActor (Int) async throws ->
+        String = { _ in "" }
+) {}
+SWIFT
 cat > "$dir/good/Good.swift" <<'SWIFT'
 public func run(
     sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
@@ -17,12 +24,18 @@ public func run(
     log: @escaping (String) -> Void = { _ in },
     open: @escaping (URL) async -> Bool, changed: @escaping (String?) -> Void = { _ in }
 ) {}
+func body(x: Int) async {
+    let y: Int = { 1 }()
+}
 final class Model {
     @ObservationIgnored private var wait: @MainActor (Duration) async -> Void = { _ in }
 }
 SWIFT
-if scripts/check-async-closure-defaults.sh "$dir/bad" >/dev/null 2>&1; then
-  echo "expected the async closure-literal default to be flagged" >&2; exit 1
-fi
+out="$(scripts/check-async-closure-defaults.sh "$dir/bad" 2>&1 || true)"
+for file in Bad.swift Split.swift; do
+  if ! grep -q "$file:" <<< "$out"; then
+    echo "expected $file to be flagged; got: $out" >&2; exit 1
+  fi
+done
 scripts/check-async-closure-defaults.sh "$dir/good" >/dev/null
 echo "check-async-closure-defaults self-test passed."

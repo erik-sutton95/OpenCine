@@ -408,8 +408,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         initialRecords: [MonitorMediaRecord<Payload>]? = nil,
         copy: MonitorMediaLibraryCopy = .init(),
         readSnapshot:
-            @escaping @MainActor (MonitorMediaCacheReadPlan) async throws ->
-            MonitorMediaCacheSnapshot = { try await $0.read() },
+            (@MainActor (MonitorMediaCacheReadPlan) async throws -> MonitorMediaCacheSnapshot)? =
+            nil,
         sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)
     ) {
         self.catalogBase = catalogBase
@@ -418,7 +418,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         self.service = service
         self.sleep = sleep
         self.cacheScanning = cacheScanning
-        self.readSnapshot = readSnapshot
+        // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+        self.readSnapshot = readSnapshot ?? { try await $0.read() }
         self.copy = copy
         self.catalogPersistence = catalogPersistence
         self.favorites = favorites.favorites()
