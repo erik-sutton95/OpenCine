@@ -27,7 +27,7 @@ open class ShareRoundTrip: SharedAppUITestCase {
 
         // Two clips selected by the shared drag, then the selection share opened and closed.
         gallery.center(pair.0).press(
-            forDuration: 0.4, thenDragTo: gallery.center(pair.1), withVelocity: .slow,
+            forDuration: GallerySweep.pressSeconds, thenDragTo: gallery.center(pair.1), withVelocity: .slow,
             thenHoldForDuration: 0)
         let count = app.staticTexts["2 selected"]
         XCTAssertTrue(count.waitForExistence(timeout: 5), "Dragging across two clips selects both")
@@ -37,10 +37,11 @@ open class ShareRoundTrip: SharedAppUITestCase {
         }
         guard tapWhenReady(app.buttons["Share selected"], in: app, timeout: 5) else { return }
         let close = app.buttons["monitor.share.close"]
-        var closeDeadline = Date().addingTimeInterval(5)
+        // The share's transition budget counts the app's time, not the checkpoint's own reads.
+        var closeBudget = TransitionBudget(seconds: 5)
         XCTAssertTrue(close.waitForExistence(timeout: 5), "The selection share must open")
-        checkpoint("selection-share")
-        guard tapWhenReady(close, in: app, deadline: closeDeadline) else { return }
+        closeBudget.excluding { checkpoint("selection-share") }
+        guard tapWhenReady(close, in: app, deadline: closeBudget.deadline) else { return }
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
         XCTAssertEqual(
             gallery.settledAnchor()?.id, anchor.id, "The selection share must not move the gallery")
@@ -81,10 +82,10 @@ open class ShareRoundTrip: SharedAppUITestCase {
         XCTAssertTrue(destination.isEnabled, "A cached staged clip can be shared")
         guard tapWhenReady(destination, in: app, deadline: destinationDeadline) else { return }
         // The destination opens its options; an app without export options shows no summary line.
-        closeDeadline = Date().addingTimeInterval(5)
+        closeBudget = TransitionBudget(seconds: 5)
         XCTAssertTrue(app.buttons["monitor.share.begin"].waitForExistence(timeout: 5))
-        checkpoint("clip-share-summary")
-        guard tapWhenReady(close, in: app, deadline: closeDeadline) else { return }
+        closeBudget.excluding { checkpoint("clip-share-summary") }
+        guard tapWhenReady(close, in: app, deadline: closeBudget.deadline) else { return }
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
         XCTAssertEqual(title.label, clipTitle, "Closing the share must keep the same clip")
         XCTAssertEqual(

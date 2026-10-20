@@ -1,0 +1,61 @@
+public final class com/opencapture/opencine/decoder/FeedIncidentDecoderProjectionKt {
+	public static final fun incidentDecoder (Lcom/opencapture/opencine/decoder/HevcDecoder;JILjava/lang/String;Ljava/lang/Long;Ljava/lang/Double;Z)Lcom/opencapture/opencine/media/FeedIncidentDecoder;
+	public static synthetic fun incidentDecoder$default (Lcom/opencapture/opencine/decoder/HevcDecoder;JILjava/lang/String;Ljava/lang/Long;Ljava/lang/Double;ZILjava/lang/Object;)Lcom/opencapture/opencine/media/FeedIncidentDecoder;
+}
+
+public final class com/opencapture/opencine/decoder/HevcDecoder {
+	public static final field Companion Lcom/opencapture/opencine/decoder/HevcDecoder$Companion;
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/media/LivePipelineCadence;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/media/LivePipelineCadence;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun advanceInputEpoch (JJ)V
+	public final fun attachSurface (Landroid/view/Surface;)V
+	public final fun beginIDRHold ()V
+	public final fun beginPresentationProbe ()J
+	public final fun captureInputOwnership ()Lcom/opencapture/opencine/media/DecoderInputOwnership$Token;
+	public final fun claimInputOwner ()J
+	public final fun decode ([B)Z
+	public final fun decode ([BJJ)Z
+	public final fun detachSurface (Landroid/view/Surface;)V
+	public final fun endIDRHold ()Z
+	public final fun flushForRecovery ()V
+	public final fun getAwaitingIdr ()Z
+	public final fun getDecoderErrors ()Ljava/util/concurrent/atomic/AtomicInteger;
+	public final fun getDecoderOutputExpected ()Z
+	public final fun getErrorLifetime ()Lcom/opencapture/opencine/media/DecoderErrorLifetime;
+	public final fun getFailedThisGeneration ()Z
+	public final fun getFramesEnqueued ()Ljava/util/concurrent/atomic/AtomicInteger;
+	public final fun getFramesPresented ()Ljava/util/concurrent/atomic/AtomicInteger;
+	public final fun getHasDecodableReferences ()Z
+	public final fun getHasFormat ()Z
+	public final fun getHasPicture ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getLastDecoderAcceptedAt ()Ljava/lang/Long;
+	public final fun getLastDecoderOutputAt ()Ljava/lang/Long;
+	public final fun getLastIrapAt ()Ljava/lang/Long;
+	public final fun getLastKeyframeAt ()Ljava/lang/Long;
+	public final fun getLastPresentedAt ()Ljava/lang/Long;
+	public final fun getNalTypesSeen ()Ljava/lang/String;
+	public final fun getOnOutputSizeChanged ()Lkotlin/jvm/functions/Function2;
+	public final fun getOnParameterSetsChanged ()Lkotlin/jvm/functions/Function0;
+	public final fun getPictureAspect ()D
+	public final fun getPictureHeight ()I
+	public final fun getPictureWidth ()I
+	public final fun getRandomAccess ()Lcom/opencapture/opencine/media/DecoderRandomAccessHold;
+	public final fun getReferenceRecoveryNeeded ()Z
+	public final fun isConfigured ()Z
+	public final fun isPresentationReady ()Z
+	public final fun isVerticalPicture ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun notePresented (J)V
+	public final fun noteReferenceDiscontinuity ()V
+	public final fun noteReferenceDiscontinuity (JJ)V
+	public final fun prepareAfterForeground ()V
+	public final fun rebuildPresentation ()Z
+	public final fun rebuildPresentationIfNeeded (ZLcom/opencapture/opencine/media/DecoderInputOwnership$Token;)Z
+	public final fun reset ()V
+	public final fun setOnOutputSizeChanged (Lkotlin/jvm/functions/Function2;)V
+	public final fun setOnParameterSetsChanged (Lkotlin/jvm/functions/Function0;)V
+}
+
+public final class com/opencapture/opencine/decoder/HevcDecoder$Companion {
+}
+

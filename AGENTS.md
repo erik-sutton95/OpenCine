@@ -288,8 +288,10 @@ The atlas routes and coordinates; product code lives in this package and the app
    candidate, integrated, released, unsupported, untested.
 
 A change to public API updates its snapshot in the same PR (CI fails otherwise): Swift
-`atlas api --write --build` (atlas/api/swift), Kotlin `cd Android && ./gradlew updateKotlinAbi`
-(`<module>/api/*.api`).
+`atlas api --write --build` (atlas/api/swift), Kotlin and Android
+`cd Android && ./gradlew updateKotlinAbi updateAndroidApi` (`<module>/api/*.api`: Kotlin/JVM modules
+through the Kotlin plugin's ABI validation, Android library modules through `dumpAndroidApi`, the
+same JetBrains ABI tool over the release variant's classes).
 
 Before changing atlas files read [atlas/docs/MAINTENANCE.md](atlas/docs/MAINTENANCE.md) and run
 `atlas check`. Machine paths and task notes go in the ignored `atlas/.local/`.

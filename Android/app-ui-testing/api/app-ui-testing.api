@@ -1,0 +1,239 @@
+public abstract class com/opencapture/opencine/appuitesting/AccessibilityTraversal : com/opencapture/opencine/appuitesting/ConformanceTest {
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun aPresentedConfirmationHasAFiniteLabelledTree ()V
+	public final fun everyStagedScreenHasAFiniteLabelledTree ()V
+}
+
+public final class com/opencapture/opencine/appuitesting/Box {
+	public fun <init> (IIII)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun contains (Lcom/opencapture/opencine/appuitesting/Box;I)Z
+	public static synthetic fun contains$default (Lcom/opencapture/opencine/appuitesting/Box;Lcom/opencapture/opencine/appuitesting/Box;IILjava/lang/Object;)Z
+	public final fun containsPoint (II)Z
+	public final fun copy (IIII)Lcom/opencapture/opencine/appuitesting/Box;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appuitesting/Box;IIIIILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/Box;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBottom ()I
+	public final fun getCenterX ()I
+	public final fun getCenterY ()I
+	public final fun getHeight ()I
+	public final fun getLeft ()I
+	public final fun getRight ()I
+	public final fun getTop ()I
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public final fun intersection (Lcom/opencapture/opencine/appuitesting/Box;)Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun isEmpty ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appuitesting/CheckpointControl {
+	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/appuitesting/Box;ILcom/opencapture/opencine/appuitesting/Box;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun component3 ()I
+	public final fun component4 ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun component5 ()Z
+	public final fun copy (Ljava/lang/String;Lcom/opencapture/opencine/appuitesting/Box;ILcom/opencapture/opencine/appuitesting/Box;Z)Lcom/opencapture/opencine/appuitesting/CheckpointControl;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appuitesting/CheckpointControl;Ljava/lang/String;Lcom/opencapture/opencine/appuitesting/Box;ILcom/opencapture/opencine/appuitesting/Box;ZILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/CheckpointControl;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBounds ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun getCovered ()Z
+	public final fun getTag ()Ljava/lang/String;
+	public final fun getWindow ()I
+	public final fun getWindowBounds ()Lcom/opencapture/opencine/appuitesting/Box;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appuitesting/CheckpointGeometry {
+	public static final field INSTANCE Lcom/opencapture/opencine/appuitesting/CheckpointGeometry;
+	public final fun evidenceName (Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun violations (Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;II)Ljava/util/List;
+}
+
+public abstract class com/opencapture/opencine/appuitesting/ChromeEditReturn : com/opencapture/opencine/appuitesting/ConformanceTest {
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun doneReturnsToDisplaySettingsAndCloseToTheMonitor ()V
+}
+
+public abstract class com/opencapture/opencine/appuitesting/ConfirmationCancel : com/opencapture/opencine/appuitesting/ConformanceTest {
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun cancellingClearCacheKeepsStorageSettings ()V
+	public final fun cancellingGalleryDeleteKeepsTheSelection ()V
+	public final fun cancellingPlaybackDeleteKeepsTheClip ()V
+}
+
+public abstract interface annotation class com/opencapture/opencine/appuitesting/Conformance : java/lang/annotation/Annotation {
+}
+
+public abstract interface class com/opencapture/opencine/appuitesting/ConformanceApp {
+	public abstract fun getActivity ()Ljava/lang/Class;
+	public abstract fun getProfile ()Lcom/opencapture/opencine/appuitesting/ConformanceProfile;
+}
+
+public abstract class com/opencapture/opencine/appuitesting/ConformanceCoverageTest : com/opencapture/opencine/appuitesting/ConformanceTest {
+	public static final field Companion Lcom/opencapture/opencine/appuitesting/ConformanceCoverageTest$Companion;
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun theAppRunsEveryScenario ()V
+}
+
+public final class com/opencapture/opencine/appuitesting/ConformanceCoverageTest$Companion {
+	public final fun getSCENARIOS ()Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/appuitesting/ConformanceProfile {
+	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;
+	public final fun copy (Ljava/lang/String;Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;)Lcom/opencapture/opencine/appuitesting/ConformanceProfile;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appuitesting/ConformanceProfile;Ljava/lang/String;Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;ILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/ConformanceProfile;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getApp ()Ljava/lang/String;
+	public final fun getCapabilities ()Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class com/opencapture/opencine/appuitesting/ConformanceTest {
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun appearance (Z)V
+	public final fun await (Ljava/lang/String;JLkotlin/jvm/functions/Function1;)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public static synthetic fun await$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;Ljava/lang/String;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public final fun awaitGone (JLkotlin/jvm/functions/Function1;)Z
+	public static synthetic fun awaitGone$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Z
+	public final fun awaitLabel (Ljava/lang/String;J)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public static synthetic fun awaitLabel$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;Ljava/lang/String;JILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public final fun awaitTag (Ljava/lang/String;J)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public static synthetic fun awaitTag$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;Ljava/lang/String;JILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public final fun backOutOfConfirmation (Lkotlin/jvm/functions/Function1;)V
+	public final fun cancelConfirmation (Lkotlin/jvm/functions/Function1;)V
+	public final fun capture (Ljava/lang/String;)V
+	public final fun checkpoint (Ljava/lang/String;Ljava/lang/String;Z)V
+	public static synthetic fun checkpoint$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)V
+	public final fun closeTheApp ()V
+	public final fun drag (IIIIJJ)V
+	public static synthetic fun drag$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;IIIIJJILjava/lang/Object;)V
+	public final fun evidence (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun fail (Ljava/lang/String;Z)Ljava/lang/Void;
+	public static synthetic fun fail$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;Ljava/lang/String;ZILjava/lang/Object;)Ljava/lang/Void;
+	public final fun getAutomation ()Landroid/app/UiAutomation;
+	public final fun getDensity ()F
+	public final fun getDevice ()Ljava/lang/String;
+	public final fun getInstrumentation ()Landroid/app/Instrumentation;
+	public final fun getProfile ()Lcom/opencapture/opencine/appuitesting/ConformanceProfile;
+	protected final fun getSubject ()Lcom/opencapture/opencine/appuitesting/ConformanceApp;
+	public final fun hiddenAreas ()Ljava/util/List;
+	public final fun isDark ()Z
+	public final fun launch (Lcom/opencapture/monitorui/ReviewLaunch;)Landroidx/test/core/app/ActivityScenario;
+	public final fun launchProduction ()Landroidx/test/core/app/ActivityScenario;
+	public final fun mainWindow ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun node (Ljava/lang/String;)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public final fun pause (J)V
+	public final fun pressAndDrag (Lcom/opencapture/opencine/appuitesting/Box;Lcom/opencapture/opencine/appuitesting/Box;)V
+	public final fun pressBack ()V
+	public final fun reveal (Ljava/lang/String;JLjava/lang/String;Lkotlin/jvm/functions/Function1;)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public static synthetic fun reveal$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;Ljava/lang/String;JLjava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public final fun rotate (ZLkotlin/jvm/functions/Function0;)V
+	public static synthetic fun rotate$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;ZLkotlin/jvm/functions/Function0;ILjava/lang/Object;)V
+	public final fun settle (Lkotlin/jvm/functions/Function0;)V
+	public final fun shell (Ljava/lang/String;)Ljava/lang/String;
+	public final fun snapshot (I)Lcom/opencapture/opencine/appuitesting/UiSnapshot;
+	public static synthetic fun snapshot$default (Lcom/opencapture/opencine/appuitesting/ConformanceTest;IILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/UiSnapshot;
+	public final fun startInPortrait ()V
+	public final fun swipeUp (Lcom/opencapture/opencine/appuitesting/Box;)V
+	public final fun tap (Lcom/opencapture/opencine/appuitesting/UiNode;)V
+	public final fun tapAt (II)V
+}
+
+public abstract class com/opencapture/opencine/appuitesting/GalleryRoundTrip : com/opencapture/opencine/appuitesting/ConformanceTest {
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun gridGalleryReturnsFromPlaybackWhereItWas ()V
+	public final fun listGalleryReturnsFromPlaybackWhereItWas ()V
+}
+
+public final class com/opencapture/opencine/appuitesting/MediaGalleryProbe {
+	public static final field CLIP Ljava/lang/String;
+	public static final field Companion Lcom/opencapture/opencine/appuitesting/MediaGalleryProbe$Companion;
+	public static final field GALLERY Ljava/lang/String;
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceTest;)V
+	public final fun scrollTwoScreens ()V
+	public final fun selected (Ljava/lang/String;)Ljava/lang/String;
+	public final fun settledAnchor (J)Lcom/opencapture/opencine/appuitesting/MediaGalleryProbe$Clip;
+	public static synthetic fun settledAnchor$default (Lcom/opencapture/opencine/appuitesting/MediaGalleryProbe;JILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/MediaGalleryProbe$Clip;
+	public final fun sweepPair ()Lkotlin/Pair;
+	public final fun viewport ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun visibleClips ()Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/appuitesting/MediaGalleryProbe$Clip {
+	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/appuitesting/Box;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun copy (Ljava/lang/String;Lcom/opencapture/opencine/appuitesting/Box;)Lcom/opencapture/opencine/appuitesting/MediaGalleryProbe$Clip;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appuitesting/MediaGalleryProbe$Clip;Ljava/lang/String;Lcom/opencapture/opencine/appuitesting/Box;ILjava/lang/Object;)Lcom/opencapture/opencine/appuitesting/MediaGalleryProbe$Clip;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBounds ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appuitesting/MediaGalleryProbe$Companion {
+}
+
+public abstract class com/opencapture/opencine/appuitesting/PhysicalRecordProbe : com/opencapture/opencine/appuitesting/ConformanceTest {
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun recordsAShortClipThroughThePublicControl ()V
+	public final fun stopOwnedRecording ()V
+}
+
+public abstract class com/opencapture/opencine/appuitesting/ScreenMatrix : com/opencapture/opencine/appuitesting/ConformanceTest {
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun cameras ()V
+	public final fun gallery ()V
+	public final fun live ()V
+	public final fun pairing ()V
+	public final fun player ()V
+	public final fun restoreAppearance ()V
+	public final fun settings ()V
+}
+
+public abstract class com/opencapture/opencine/appuitesting/ShareRoundTrip : com/opencapture/opencine/appuitesting/ConformanceTest {
+	public fun <init> (Lcom/opencapture/opencine/appuitesting/ConformanceApp;)V
+	public final fun galleryAndPlayerSurviveShareAndDelivery ()V
+}
+
+public final class com/opencapture/opencine/appuitesting/UiNode {
+	public final fun getBounds ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun getEnabled ()Z
+	public final fun getInScroll ()Z
+	public final fun getInfo ()Landroid/view/accessibility/AccessibilityNodeInfo;
+	public final fun getLabel ()Ljava/lang/String;
+	public final fun getParent ()I
+	public final fun getSelected ()Z
+	public final fun getState ()Ljava/lang/String;
+	public final fun getTag ()Ljava/lang/String;
+	public final fun getVisible ()Z
+	public final fun getWindow ()Lcom/opencapture/opencine/appuitesting/UiWindow;
+}
+
+public final class com/opencapture/opencine/appuitesting/UiSnapshot {
+	public final fun covers (Lcom/opencapture/opencine/appuitesting/UiNode;)Z
+	public final fun descendants (Lcom/opencapture/opencine/appuitesting/UiNode;)Ljava/util/List;
+	public final fun getComplete ()Z
+	public final fun getNodes ()Ljava/util/List;
+	public final fun getWindows ()Ljava/util/List;
+	public final fun scroller (Lcom/opencapture/opencine/appuitesting/UiNode;)Lcom/opencapture/opencine/appuitesting/UiNode;
+	public final fun viewport (Lcom/opencapture/opencine/appuitesting/UiNode;)Lcom/opencapture/opencine/appuitesting/Box;
+}
+
+public final class com/opencapture/opencine/appuitesting/UiWindow {
+	public final fun getBounds ()Lcom/opencapture/opencine/appuitesting/Box;
+	public final fun getId ()I
+	public final fun getLayer ()I
+}
+

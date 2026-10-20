@@ -1,0 +1,176 @@
+public final class com/opencapture/opencine/platform/CallbackOperationOwner {
+	public fun <init> ()V
+	public final fun attach (Lcom/opencapture/opencine/platform/CallbackOperationOwner$Token;Ljava/lang/Object;)V
+	public final fun begin ()Lcom/opencapture/opencine/platform/CallbackOperationOwner$Token;
+	public final fun current ()Lcom/opencapture/opencine/platform/CallbackOperationOwner$Token;
+	public final fun detach (Lcom/opencapture/opencine/platform/CallbackOperationOwner$Token;)V
+	public final fun finish (Lcom/opencapture/opencine/platform/CallbackOperationOwner$Token;)V
+	public final fun runIfCurrent (Lcom/opencapture/opencine/platform/CallbackOperationOwner$Token;Ljava/lang/Object;Lkotlin/jvm/functions/Function0;)Z
+	public static synthetic fun runIfCurrent$default (Lcom/opencapture/opencine/platform/CallbackOperationOwner;Lcom/opencapture/opencine/platform/CallbackOperationOwner$Token;Ljava/lang/Object;Lkotlin/jvm/functions/Function0;ILjava/lang/Object;)Z
+}
+
+public final class com/opencapture/opencine/platform/CallbackOperationOwner$Token {
+	public fun <init> ()V
+	public final fun getResource ()Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/platform/CameraApAvailabilityTracker {
+	public fun <init> ()V
+	public final fun hasEstablishedNetwork ()Z
+	public final fun nextReassociationGeneration ()Ljava/lang/Long;
+	public final fun onAvailable (Ljava/lang/Object;)Lcom/opencapture/opencine/platform/CameraApAvailabilityTracker$AvailableResult;
+	public final fun onLost (Ljava/lang/Object;)Z
+	public final fun onUnavailable ()V
+	public final fun release ()V
+	public final fun requestStarted ()V
+}
+
+public final class com/opencapture/opencine/platform/CameraApAvailabilityTracker$AvailableResult {
+	public fun <init> (ZLjava/lang/Long;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ljava/lang/Long;
+	public final fun copy (ZLjava/lang/Long;)Lcom/opencapture/opencine/platform/CameraApAvailabilityTracker$AvailableResult;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/platform/CameraApAvailabilityTracker$AvailableResult;ZLjava/lang/Long;ILjava/lang/Object;)Lcom/opencapture/opencine/platform/CameraApAvailabilityTracker$AvailableResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReassociationGeneration ()Ljava/lang/Long;
+	public final fun getShouldBind ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/platform/CameraApJoinPolicy {
+	public fun <init> ()V
+	public fun <init> (Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;JLkotlin/jvm/functions/Function3;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;JLkotlin/jvm/functions/Function3;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getLog ()Lkotlin/jvm/functions/Function3;
+	public final fun getReassociationGraceMillis ()J
+	public final fun getScanMatches ()Lkotlin/jvm/functions/Function2;
+	public final fun isCameraClientAddress ()Lkotlin/jvm/functions/Function1;
+}
+
+public final class com/opencapture/opencine/platform/CameraApJoiner {
+	public static final field Companion Lcom/opencapture/opencine/platform/CameraApJoiner$Companion;
+	public static final field DEFAULT_PRE_SCAN_MILLIS J
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/platform/CameraApJoinPolicy;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/platform/CameraApJoinPolicy;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun adoptJoinedNetwork ()Z
+	public final fun awaitReassociation (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun bindSocket (Ljava/net/DatagramSocket;)V
+	public final fun bindSocket (Ljava/net/Socket;)V
+	public final fun cameraLocalIPv4 ()Ljava/lang/String;
+	public final fun getOnPathLost ()Lkotlin/jvm/functions/Function0;
+	public final fun getOnReassociated ()Lkotlin/jvm/functions/Function0;
+	public final fun hasUsableCameraNetwork ()Z
+	public final fun isProcessBound ()Z
+	public final fun isWifiEnabled ()Z
+	public final fun join (Ljava/lang/String;Ljava/lang/String;IZZZJZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun join$default (Lcom/opencapture/opencine/platform/CameraApJoiner;Ljava/lang/String;Ljava/lang/String;IZZZJZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun network ()Landroid/net/Network;
+	public final fun primeScan ()V
+	public final fun release ()V
+	public final fun setOnPathLost (Lkotlin/jvm/functions/Function0;)V
+	public final fun setOnReassociated (Lkotlin/jvm/functions/Function0;)V
+}
+
+public final class com/opencapture/opencine/platform/CameraApJoiner$Companion {
+	public final fun canReadWifiScans (Landroid/content/Context;)Z
+	public final fun isPathReady (ZZ)Z
+}
+
+public final class com/opencapture/opencine/platform/CameraCredentialIOKt {
+	public static final fun withCredentialIO (Lkotlin/jvm/functions/Function0;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlinx/coroutines/sync/Mutex;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun withCredentialIO$default (Lkotlin/jvm/functions/Function0;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlinx/coroutines/sync/Mutex;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/platform/CameraWifiCredentialStore {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/platform/CameraWifiStorageConfiguration;)V
+	public final fun load (Ljava/lang/String;)Lkotlin/Pair;
+	public final fun passphrase (Ljava/lang/String;)Ljava/lang/String;
+	public final fun remove (Ljava/lang/String;)V
+	public final fun save (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/platform/CameraWifiStorageConfiguration {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/platform/CameraWifiStorageConfiguration;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/platform/CameraWifiStorageConfiguration;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/platform/CameraWifiStorageConfiguration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKeyAlias ()Ljava/lang/String;
+	public final fun getPasswordKeySuffix ()Ljava/lang/String;
+	public final fun getPreferencesName ()Ljava/lang/String;
+	public final fun getSsidIndexPrefix ()Ljava/lang/String;
+	public final fun getSsidKeySuffix ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/platform/KeystoreSeal {
+	public static final field Companion Lcom/opencapture/opencine/platform/KeystoreSeal$Companion;
+	public static final field SEPARATOR Ljava/lang/String;
+	public fun <init> (Ljava/lang/String;)V
+	public final fun open (Ljava/lang/String;)Ljava/lang/String;
+	public final fun opened (Ljava/lang/String;)Lcom/opencapture/opencine/platform/KeystoreSeal$Opened;
+	public final fun seal (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/platform/KeystoreSeal$Companion {
+}
+
+public abstract interface class com/opencapture/opencine/platform/KeystoreSeal$Opened {
+}
+
+public final class com/opencapture/opencine/platform/KeystoreSeal$Opened$Failed : com/opencapture/opencine/platform/KeystoreSeal$Opened {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/platform/KeystoreSeal$Opened$Failed;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/platform/KeystoreSeal$Opened$Failed;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/platform/KeystoreSeal$Opened$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/platform/KeystoreSeal$Opened$KeyGone : com/opencapture/opencine/platform/KeystoreSeal$Opened {
+	public static final field INSTANCE Lcom/opencapture/opencine/platform/KeystoreSeal$Opened$KeyGone;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/platform/KeystoreSeal$Opened$Secret : com/opencapture/opencine/platform/KeystoreSeal$Opened {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/platform/KeystoreSeal$Opened$Secret;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/platform/KeystoreSeal$Opened$Secret;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/platform/KeystoreSeal$Opened$Secret;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSecret ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/platform/LocalVPNProbe {
+	public static final field INSTANCE Lcom/opencapture/opencine/platform/LocalVPNProbe;
+	public final fun isActive (Landroid/content/Context;)Z
+	public final fun isActive (Landroid/net/ConnectivityManager;)Z
+	public final fun noteIfActive (Landroid/content/Context;Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class com/opencapture/opencine/platform/ReviewClip {
+	public static final field HEIGHT I
+	public static final field INSTANCE Lcom/opencapture/opencine/platform/ReviewClip;
+	public static final field SECONDS I
+	public static final field WIDTH I
+	public final fun write (Ljava/io/File;)V
+}
+
+public final class com/opencapture/opencine/platform/WifiLowLatencyLock {
+	public fun <init> (Landroid/content/Context;)V
+	public final fun acquire ()V
+	public final fun release ()V
+}
+
