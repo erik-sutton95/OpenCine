@@ -1,6 +1,7 @@
 package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.core.FocusMode
+import com.opencapture.opencine.vocabulary.ApertureStrategy
 import com.opencapture.opencine.vocabulary.FocusOption
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,5 +34,17 @@ class CaptureNativeReadoutPresentationTest {
         assertEquals("--", CaptureNativeReadoutPresentation.focus(null, FocusOption.CONTINUOUS_DEFAULT))
         assertEquals("AF-C", CaptureNativeReadoutPresentation.focus(FocusMode.CONTINUOUS, FocusOption.SINGLE))
         assertEquals("AF-S", CaptureNativeReadoutPresentation.focus(FocusMode.SINGLE, null))
+    }
+
+    /**
+     * Behavior audit PIA-269: until the measured iris arrives the APERTURE tile reads the requested
+     * strategy (Action 6), as the standalone apps did, never a dash.
+     */
+    @Test fun apertureFallsBackToTheRequestedStrategyUntilTheIrisIsMeasured() {
+        assertEquals("Starburst f/4", CaptureNativeReadoutPresentation.aperture(null, ApertureStrategy.STARBURST))
+        assertEquals("--", CaptureNativeReadoutPresentation.aperture(null, -1))
+        assertEquals(com.opencapture.opencine.appkit.MonitorCapturePresentation.label(
+            com.opencapture.opencine.core.SettingValue.Aperture(2.8)),
+            CaptureNativeReadoutPresentation.aperture(2.8, ApertureStrategy.STARBURST))
     }
 }

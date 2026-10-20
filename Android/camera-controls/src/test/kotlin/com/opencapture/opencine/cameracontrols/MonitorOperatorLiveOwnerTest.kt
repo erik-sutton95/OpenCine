@@ -167,6 +167,33 @@ class MonitorOperatorLiveOwnerTest {
         assertTrue(host.commits.isEmpty(), "Common ISO crosses Core, not the native index adapter")
     }
 
+    /**
+     * Behavior audit PAA-221: holding the WB tile in Custom scrubbed Kelvin only in the standalone
+     * apps; leaving Custom for Auto took the popup, so the hold drum offers no "Auto" detent.
+     */
+    @Test fun customWhiteBalanceHoldDrumScrubsKelvinOnly() = runTest {
+        val host = Reports()
+        host.status = host.status.copy(wbMode = CameraCommands.WB_CUSTOM, wbKelvin = 5600)
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(whiteBalanceCamera())
+        val quick = requireNotNull(host.source(control).quick(LiveSheet.WB, host.status))
+        assertEquals(listOf("3200K", "5600K"), quick.options)
+        assertTrue(quick.enabled)
+    }
+
+    /**
+     * Behavior audit PAA-204: the ISO hold drum starred the log curve's native ISO (1600 in D-Log2)
+     * in the standalone apps, also when the drum comes from the common ISO field.
+     */
+    @Test fun commonIsoHoldDrumStarsTheNativeIso() = runTest {
+        val host = Reports()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(ReportedCamera())
+        val quick = requireNotNull(host.source(control).quick(LiveSheet.ISO, host.status))
+        assertEquals(listOf("100", "200", "400", "1600"), quick.options)
+        assertEquals(setOf("1600"), quick.marked)
+    }
+
     @Test fun removedThenRestoredDescriptorStillRetiresTheOriginalRelease() = runTest {
         val camera = ReportedCamera()
         val host = Reports()
@@ -321,11 +348,23 @@ class MonitorOperatorLiveOwnerTest {
 
     companion object {
         private fun iso(value: Int) = SettingValue.Iso(ISOValue.Manual(value))
+        private fun whiteBalanceCamera(): FakeCameraSession {
+            val original = FakeCameraSession.lunaLike()
+            val kelvin = { k: Int -> SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(k)) }
+            val mode = original.behavior.modes.getValue(0x01).copy(
+                descriptors = listOf(SettingDescriptor(SettingKey.WHITE_BALANCE, domain = SettingDomain(listOf(
+                    SettingValue.WhiteBalance(WhiteBalanceValue.Auto), kelvin(3200), kelvin(5600))))),
+                unsupported = emptySet(),
+            )
+            return FakeCameraSession(original.behavior.copy(modes = mapOf(0x01 to mode)),
+                original.device.copy(settings = mapOf(SettingKey.WHITE_BALANCE to kelvin(5600))))
+                .also { it.cameraReportsStatus() }
+        }
         private fun isoCamera(): FakeCameraSession {
             val original = FakeCameraSession.lunaLike()
             val mode = original.behavior.modes.getValue(0x01).copy(
                 descriptors = listOf(SettingDescriptor(SettingKey.ISO,
-                    domain = SettingDomain(listOf(iso(100), iso(200), iso(400))))),
+                    domain = SettingDomain(listOf(iso(100), iso(200), iso(400), iso(1600))))),
                 unsupported = emptySet(),
             )
             val withoutIso = mode.copy(descriptors = emptyList(), unsupported = setOf(SettingKey.ISO))
