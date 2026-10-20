@@ -388,7 +388,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private let facts: MonitorOperatorLiveFacts<Key, NativeIdentity>
     private let assists: MonitorOperatorLiveAssists
     private let cameraViews: MonitorOperatorBodyViews
-    /// Nil when the source offers no fit/fill choice (a stills image area is always laid out whole).
+    /// Nil when the source offers no fit/fill choice: the key hides and the caller's `live` layout
+    /// decides the picture (Z lays a still out whole). Kotlin's null aspect hides the key the same way.
     private let portraitAspect: Binding<PortraitFeedAspect>?
     private let telemetryMetrics: MonitorTelemetryMetrics?
     private let picture: () -> Picture
