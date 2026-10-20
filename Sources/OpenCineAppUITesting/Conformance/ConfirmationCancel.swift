@@ -48,7 +48,7 @@ open class ConfirmationCancel: SharedAppUITestCase {
             return XCTFail("Two neighbouring clips wholly in view are required")
         }
         gallery.center(pair.0).press(
-            forDuration: 0.4, thenDragTo: gallery.center(pair.1), withVelocity: .slow,
+            forDuration: GallerySweep.pressSeconds, thenDragTo: gallery.center(pair.1), withVelocity: .slow,
             thenHoldForDuration: 0)
         XCTAssertTrue(app.staticTexts["2 selected"].waitForExistence(timeout: 5))
         // The clips listed once selected (a sweep near an edge may scroll the gallery): cancelling keeps them.
@@ -77,11 +77,13 @@ open class ConfirmationCancel: SharedAppUITestCase {
         let clear = app.buttons["Clear"]
         let settings = app.scrollViews.containing(NSPredicate(format: "label == 'Clear'"))
             .firstMatch
-        let clearDeadline = Date().addingTimeInterval(15)
         XCTAssertTrue(
             settings.waitForExistence(timeout: 15), "Storage settings show Clear cache")
-        for _ in 0..<6 where !clear.isHittable { settings.swipeUp() }
-        guard tapWhenReady(clear, in: app, deadline: clearDeadline) else { return }
+        // The page has its own wait above. Clear gets its readiness budget once the page shows
+        // (a hosted launch took 14 s to show Storage, leaving 1 s), and the swipes are test time.
+        var clearBudget = TransitionBudget(seconds: 15)
+        clearBudget.excluding { for _ in 0..<6 where !clear.isHittable { settings.swipeUp() } }
+        guard tapWhenReady(clear, in: app, deadline: clearBudget.deadline) else { return }
         let title = app.staticTexts["Clear cache?"]
         XCTAssertTrue(title.waitForExistence(timeout: 5), "Clear cache asks for confirmation")
         checkpoint("clear-cache-confirmation")

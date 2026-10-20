@@ -37,10 +37,10 @@ open class GalleryRoundTrip: SharedAppUITestCase {
             XCTAssertEqual(layoutBefore, "monitor.media.layout.\(layout.rawValue)")
             gallery.center(anchor).tap()
             let back = app.buttons["monitor.playback.back"]
-            let backDeadline = Date().addingTimeInterval(10)
+            var backBudget = TransitionBudget(seconds: 10)
             XCTAssertTrue(back.waitForExistence(timeout: 10), "The clip must open in playback")
-            checkpoint("playback")
-            guard tapWhenReady(back, in: app, deadline: backDeadline) else { return }
+            backBudget.excluding { checkpoint("playback") }
+            guard tapWhenReady(back, in: app, deadline: backBudget.deadline) else { return }
             XCTAssertTrue(back.waitForNonExistence(timeout: 10))
             let returned = gallery.settledAnchor()
             XCTAssertEqual(returned?.id, anchor.id, "The gallery must return to the clip it opened")
