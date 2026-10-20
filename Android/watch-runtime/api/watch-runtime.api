@@ -1,0 +1,247 @@
+public final class com/opencapture/opencine/watchruntime/WatchCommandAdmission {
+	public fun <init> (Ljava/util/UUID;Ljava/lang/String;J)V
+	public final fun component1 ()Ljava/util/UUID;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()J
+	public final fun copy (Ljava/util/UUID;Ljava/lang/String;J)Lcom/opencapture/opencine/watchruntime/WatchCommandAdmission;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchCommandAdmission;Ljava/util/UUID;Ljava/lang/String;JILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchCommandAdmission;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPeer ()Ljava/lang/String;
+	public final fun getRequest ()J
+	public final fun getSource ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/watchruntime/WatchMessagePort {
+	public abstract fun send (Ljava/lang/String;Ljava/lang/String;[BLkotlin/jvm/functions/Function0;)V
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchPhoneOwner {
+	public fun <init> (Lkotlinx/coroutines/CoroutineScope;Lcom/opencapture/opencine/watchruntime/WatchRelayCodec;Lcom/opencapture/opencine/watchruntime/WatchRuntimeScheduler;Lcom/opencapture/opencine/watchruntime/WatchMessagePort;Lcom/opencapture/opencine/watchruntime/WatchPhonePolicy;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Lkotlinx/coroutines/CoroutineScope;Lcom/opencapture/opencine/watchruntime/WatchRelayCodec;Lcom/opencapture/opencine/watchruntime/WatchRuntimeScheduler;Lcom/opencapture/opencine/watchruntime/WatchMessagePort;Lcom/opencapture/opencine/watchruntime/WatchPhonePolicy;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun acceptNodes (Ljava/util/Set;Ljava/util/UUID;)V
+	public final fun activate ()Z
+	public final fun admits (Lcom/opencapture/opencine/watchruntime/WatchCommandAdmission;)Z
+	public final fun close ()V
+	public final fun currentProfile ()Lcom/opencapture/opencine/relay/RelayPreviewProfile;
+	public final fun deactivate ()Z
+	public final fun getCanPreview ()Z
+	public final fun getCurrentState ()Ljava/lang/Object;
+	public final fun getOnCommand ()Lkotlin/jvm/functions/Function3;
+	public final fun getOnSourceRetired ()Lkotlin/jvm/functions/Function1;
+	public final fun getSource ()Ljava/util/UUID;
+	public final fun ingestPreview (Ljava/lang/Object;Ljava/util/UUID;)V
+	public static synthetic fun ingestPreview$default (Lcom/opencapture/opencine/watchruntime/WatchPhoneOwner;Ljava/lang/Object;Ljava/util/UUID;ILjava/lang/Object;)V
+	public final fun isActive ()Z
+	public final fun publishState (Ljava/lang/Object;Z)V
+	public static synthetic fun publishState$default (Lcom/opencapture/opencine/watchruntime/WatchPhoneOwner;Ljava/lang/Object;ZILjava/lang/Object;)V
+	public final fun receive (Ljava/lang/String;Ljava/lang/String;[BLjava/util/UUID;)V
+	public final fun retireSource (ZZ)V
+	public static synthetic fun retireSource$default (Lcom/opencapture/opencine/watchruntime/WatchPhoneOwner;ZZILjava/lang/Object;)V
+	public final fun setOnCommand (Lkotlin/jvm/functions/Function3;)V
+	public final fun setOnSourceRetired (Lkotlin/jvm/functions/Function1;)V
+	public final fun updateFrameState (Ljava/lang/Object;)V
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchPhonePolicy {
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayPreviewPacingPolicy;IJJ)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/relay/RelayPreviewPacingPolicy;IJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/relay/RelayPreviewPacingPolicy;
+	public final fun component2 ()I
+	public final fun component3 ()J
+	public final fun component4 ()J
+	public final fun copy (Lcom/opencapture/opencine/relay/RelayPreviewPacingPolicy;IJJ)Lcom/opencapture/opencine/watchruntime/WatchPhonePolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchPhonePolicy;Lcom/opencapture/opencine/relay/RelayPreviewPacingPolicy;IJJILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchPhonePolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAcknowledgementTimeoutMillis ()J
+	public final fun getHeartbeatMillis ()J
+	public final fun getMaximumInFlight ()I
+	public final fun getPacing ()Lcom/opencapture/opencine/relay/RelayPreviewPacingPolicy;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchReceiverOwner {
+	public fun <init> (Lcom/opencapture/opencine/watchruntime/WatchRelayCodec;Lcom/opencapture/opencine/watchruntime/WatchRuntimeScheduler;Lcom/opencapture/opencine/watchruntime/WatchMessagePort;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/watchruntime/WatchReceiverPolicy;)V
+	public final fun acceptNodes (Ljava/util/Set;Ljava/util/UUID;)V
+	public final fun close ()V
+	public final fun getOnSourceRetired ()Lkotlin/jvm/functions/Function1;
+	public final fun getSnapshot ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getSource ()Ljava/util/UUID;
+	public final fun isActive ()Z
+	public final fun receive (Ljava/lang/String;Ljava/lang/String;[BLjava/util/UUID;)V
+	public final fun sendToggleRecord ()Z
+	public final fun setOnSourceRetired (Lkotlin/jvm/functions/Function1;)V
+	public final fun start ()Z
+	public final fun stop ()V
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchReceiverPolicy {
+	public fun <init> (JJLjava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (JJLjava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component2 ()J
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (JJLjava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/watchruntime/WatchReceiverPolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchReceiverPolicy;JJLjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchReceiverPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCommandTimeoutMillis ()J
+	public final fun getStateFreshnessMillis ()J
+	public final fun getTimeoutError ()Ljava/lang/String;
+	public final fun getUnavailableError ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchReceiverSnapshot {
+	public fun <init> ()V
+	public fun <init> (JLjava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;ZZLjava/lang/String;)V
+	public synthetic fun <init> (JLjava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;ZZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun component3 ()Ljava/lang/Object;
+	public final fun component4 ()Ljava/lang/Object;
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun component7 ()Ljava/lang/String;
+	public final fun copy (JLjava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;ZZLjava/lang/String;)Lcom/opencapture/opencine/watchruntime/WatchReceiverSnapshot;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchReceiverSnapshot;JLjava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;ZZLjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchReceiverSnapshot;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCommandMessage ()Ljava/lang/String;
+	public final fun getImage ()Ljava/lang/Object;
+	public final fun getPhoneReachable ()Z
+	public final fun getPresentationRevision ()J
+	public final fun getState ()Ljava/lang/Object;
+	public final fun getTimecode ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public final fun isSendingCommand ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchRelayAction : java/lang/Enum {
+	public static final field CAPTURE Lcom/opencapture/opencine/watchruntime/WatchRelayAction;
+	public static final field RESUME Lcom/opencapture/opencine/watchruntime/WatchRelayAction;
+	public static final field TOGGLE_RECORD Lcom/opencapture/opencine/watchruntime/WatchRelayAction;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/watchruntime/WatchRelayAction;
+	public static fun values ()[Lcom/opencapture/opencine/watchruntime/WatchRelayAction;
+}
+
+public abstract interface class com/opencapture/opencine/watchruntime/WatchRelayCodec {
+	public abstract fun action (Ljava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayAction;
+	public abstract fun decode ([B)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage;
+	public abstract fun encodeCommand (Lcom/opencapture/opencine/watchruntime/WatchRelayAction;)[B
+	public abstract fun encodeFrame (Ljava/lang/Object;)[B
+	public abstract fun encodeResult (Ljava/lang/Object;)[B
+	public abstract fun encodeState (Ljava/lang/Object;)[B
+	public abstract fun error (Ljava/lang/Object;)Ljava/lang/String;
+	public abstract fun facts (Ljava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelaySourceFacts;
+	public abstract fun getPaths ()Lcom/opencapture/opencine/watchruntime/WatchRelayPaths;
+	public abstract fun image (Ljava/lang/Object;)[B
+	public abstract fun replacing (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+	public abstract fun result (ZZLjava/lang/String;)Ljava/lang/Object;
+	public abstract fun stateMatches (Ljava/lang/Object;Ljava/lang/Object;)Z
+	public abstract fun timecode (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchRelayConnection : java/lang/Enum {
+	public static final field CONNECTED Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;
+	public static final field DISCONNECTED Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;
+	public static final field NO_CAMERA Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;
+	public static fun values ()[Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;
+}
+
+public abstract interface class com/opencapture/opencine/watchruntime/WatchRelayMessage {
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchRelayMessage$Command : com/opencapture/opencine/watchruntime/WatchRelayMessage {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Command;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Command;Ljava/lang/Object;ILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Command;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchRelayMessage$Frame : com/opencapture/opencine/watchruntime/WatchRelayMessage {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Frame;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Frame;Ljava/lang/Object;ILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Frame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchRelayMessage$Result : com/opencapture/opencine/watchruntime/WatchRelayMessage {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Result;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Result;Ljava/lang/Object;ILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$Result;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchRelayMessage$State : com/opencapture/opencine/watchruntime/WatchRelayMessage {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$State;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$State;Ljava/lang/Object;ILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayMessage$State;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchRelayPaths {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/watchruntime/WatchRelayPaths;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchRelayPaths;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelayPaths;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCommand ()Ljava/lang/String;
+	public final fun getFrame ()Ljava/lang/String;
+	public final fun getFrameAck ()Ljava/lang/String;
+	public final fun getResult ()Ljava/lang/String;
+	public final fun getState ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun path (Ljava/lang/String;J)Ljava/lang/String;
+	public final fun requestID (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Long;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/watchruntime/WatchRelaySourceFacts {
+	public fun <init> (Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;Z)V
+	public final fun component1 ()Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;
+	public final fun component2 ()Z
+	public final fun copy (Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;Z)Lcom/opencapture/opencine/watchruntime/WatchRelaySourceFacts;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/watchruntime/WatchRelaySourceFacts;Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;ZILjava/lang/Object;)Lcom/opencapture/opencine/watchruntime/WatchRelaySourceFacts;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConnection ()Lcom/opencapture/opencine/watchruntime/WatchRelayConnection;
+	public final fun getFeedLive ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/watchruntime/WatchRuntimeScheduler {
+	public abstract fun nowMillis ()J
+	public abstract fun schedule (JLkotlin/jvm/functions/Function0;)Lcom/opencapture/opencine/watchruntime/WatchScheduled;
+}
+
+public abstract interface class com/opencapture/opencine/watchruntime/WatchScheduled {
+	public abstract fun cancel ()V
+}
+

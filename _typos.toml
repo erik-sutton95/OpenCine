@@ -7,6 +7,9 @@ extend-exclude = [
     "**/*.storyboard",
     "**/*.pbxproj",
     "**/*.excalidraw",
+    # Generated public API snapshots (JVM descriptors such as `(IZ)Z`, upstream names).
+    "Android/*/api/*.api",
+    "atlas/api/**",
 ]
 
 [default.extend-words]

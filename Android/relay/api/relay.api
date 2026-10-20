@@ -1,0 +1,991 @@
+public final class com/opencapture/opencine/relay/RelayBitrate {
+	public fun <init> ()V
+	public fun <init> (IDLcom/opencapture/opencine/relay/RelayBitratePolicy;)V
+	public synthetic fun <init> (IDLcom/opencapture/opencine/relay/RelayBitratePolicy;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getBitsPerSecond ()I
+	public final fun getCeilingIndex ()I
+	public final fun getMaxFrameQP ()I
+	public final fun getPolicy ()Lcom/opencapture/opencine/relay/RelayBitratePolicy;
+	public final fun getRungIndex ()I
+	public final fun recordTick (ZZD)Ljava/lang/Integer;
+	public static synthetic fun recordTick$default (Lcom/opencapture/opencine/relay/RelayBitrate;ZZDILjava/lang/Object;)Ljava/lang/Integer;
+	public final fun setCeilingIndex (I)V
+}
+
+public final class com/opencapture/opencine/relay/RelayBitratePolicy {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/List;Ljava/util/List;DDDD)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;DDDDILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getLadder ()Ljava/util/List;
+	public final fun getMaxFrameQPLadder ()Ljava/util/List;
+	public final fun getStepDownSaturation ()D
+	public final fun getStepUpAfterCleanSeconds ()D
+	public final fun getStepUpSaturation ()D
+	public final fun getWindowSeconds ()D
+}
+
+public final class com/opencapture/opencine/relay/RelayBroadcast {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Z)Lcom/opencapture/opencine/relay/RelayBroadcast;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayBroadcast;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayBroadcast;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPort ()I
+	public final fun getServedCameraHost ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isWatchable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayBroadcastStages {
+	public fun <init> ()V
+	public fun <init> (II)V
+	public synthetic fun <init> (IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun admit (Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;)Lcom/opencapture/opencine/relay/RelayBroadcastStages$Ticket;
+	public final fun admits (Ljava/util/UUID;)Z
+	public final fun close ()V
+	public final fun complete (Lcom/opencapture/opencine/relay/RelayBroadcastStages$Ticket;)Z
+	public final fun getEncodingDepth ()I
+	public final fun getJpegDepth ()I
+	public final fun getToken ()Ljava/util/UUID;
+	public final fun inFlight (Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;)I
+	public final fun isActive ()Z
+	public final fun replace ()V
+}
+
+public final class com/opencapture/opencine/relay/RelayBroadcastStages$Lane : java/lang/Enum {
+	public static final field ENCODING Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;
+	public static final field JPEG Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;
+	public static fun values ()[Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;
+}
+
+public final class com/opencapture/opencine/relay/RelayBroadcastStages$Ticket {
+	public fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;Ljava/util/UUID;)V
+	public final fun component1 ()Ljava/util/UUID;
+	public final fun component2 ()Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;
+	public final fun component3 ()Ljava/util/UUID;
+	public final fun copy (Ljava/util/UUID;Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;Ljava/util/UUID;)Lcom/opencapture/opencine/relay/RelayBroadcastStages$Ticket;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayBroadcastStages$Ticket;Ljava/util/UUID;Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;Ljava/util/UUID;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayBroadcastStages$Ticket;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/util/UUID;
+	public final fun getLane ()Lcom/opencapture/opencine/relay/RelayBroadcastStages$Lane;
+	public final fun getStage ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayCameraStarvationPolicy {
+	public fun <init> (DD)V
+	public final fun getAbsoluteFloorFPS ()D
+	public final fun getBaselineFraction ()D
+	public final fun threshold (D)D
+}
+
+public final class com/opencapture/opencine/relay/RelayConnectionLifetime {
+	public fun <init> ()V
+	public final fun admits (Ljava/util/UUID;)Z
+	public final fun begin ()Ljava/util/UUID;
+	public final fun getActive ()Z
+	public final fun getToken ()Ljava/util/UUID;
+	public final fun retire ()V
+}
+
+public abstract interface class com/opencapture/opencine/relay/RelayControlWireCodec : com/opencapture/opencine/relay/RelayWireCodec {
+	public abstract fun decodeControl ([B)Ljava/lang/Object;
+	public abstract fun decodeDenied ([B)Ljava/lang/Object;
+	public abstract fun encodeControl (Ljava/lang/String;Z)[B
+	public abstract fun encodeDenied (Ljava/lang/String;Z)[B
+	public abstract fun holderIsRecipient (Ljava/lang/Object;)Z
+}
+
+public final class com/opencapture/opencine/relay/RelayDiscoveryIndex {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayDiscoveryIndex$Order;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/relay/RelayDiscoveryIndex$Order;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun admits (Ljava/util/UUID;)Z
+	public final fun getResults ()Ljava/util/List;
+	public final fun replace (Ljava/util/List;Ljava/lang/String;Ljava/util/UUID;)Z
+	public final fun start ()Ljava/util/UUID;
+	public final fun stop ()V
+}
+
+public final class com/opencapture/opencine/relay/RelayDiscoveryIndex$Order : java/lang/Enum {
+	public static final field LOCALIZED_CASE_INSENSITIVE Lcom/opencapture/opencine/relay/RelayDiscoveryIndex$Order;
+	public static final field NAME Lcom/opencapture/opencine/relay/RelayDiscoveryIndex$Order;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayDiscoveryIndex$Order;
+	public static fun values ()[Lcom/opencapture/opencine/relay/RelayDiscoveryIndex$Order;
+}
+
+public final class com/opencapture/opencine/relay/RelayDiscoveryRow {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Object;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Z)Lcom/opencapture/opencine/relay/RelayDiscoveryRow;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayDiscoveryRow;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayDiscoveryRow;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEndpoint ()Ljava/lang/Object;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getServedCameraHost ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isWatchable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayEncodePolicy {
+	public static final field Companion Lcom/opencapture/opencine/relay/RelayEncodePolicy$Companion;
+	public static final field DEFAULT_DEPTH I
+	public fun <init> ()V
+	public fun <init> (ID)V
+	public synthetic fun <init> (IDILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun admit ()Z
+	public final fun complete ()V
+	public final fun forceKeyframe (ZD)Z
+	public final fun getDepth ()I
+	public final fun getInFlight ()I
+	public final fun getMinimumKeyframeSeconds ()D
+}
+
+public final class com/opencapture/opencine/relay/RelayEncodePolicy$Companion {
+}
+
+public final class com/opencapture/opencine/relay/RelayEncoderProfile : java/lang/Enum {
+	public static final field Companion Lcom/opencapture/opencine/relay/RelayEncoderProfile$Companion;
+	public static final field LOW_LATENCY Lcom/opencapture/opencine/relay/RelayEncoderProfile;
+	public static final field QUALITY Lcom/opencapture/opencine/relay/RelayEncoderProfile;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getMaxInFlightFramesPerPeer ()I
+	public final fun getMaxKeyframeInterval ()I
+	public final fun getTitle ()Ljava/lang/String;
+	public final fun getWireValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayEncoderProfile;
+	public static fun values ()[Lcom/opencapture/opencine/relay/RelayEncoderProfile;
+}
+
+public final class com/opencapture/opencine/relay/RelayEncoderProfile$Companion {
+	public final fun fromWireValue (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayEncoderProfile;
+}
+
+public final class com/opencapture/opencine/relay/RelayEnvelopeFraming {
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayEnvelopeFraming;
+	public final fun encode (I[B)[B
+	public final fun kind ([BLjava/util/Set;)I
+	public final fun payload ([B)[B
+}
+
+public abstract class com/opencapture/opencine/relay/RelayEnvelopeFraming$DecodeError : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/relay/RelayEnvelopeFraming$DecodeError$Empty : com/opencapture/opencine/relay/RelayEnvelopeFraming$DecodeError {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/relay/RelayEnvelopeFraming$DecodeError$UnknownKind : com/opencapture/opencine/relay/RelayEnvelopeFraming$DecodeError {
+	public fun <init> (I)V
+	public final fun getKind ()I
+}
+
+public final class com/opencapture/opencine/relay/RelayFrameAdmission {
+	public fun <init> (Lkotlin/jvm/functions/Function0;)V
+	public final fun isCurrent ()Lkotlin/jvm/functions/Function0;
+}
+
+public final class com/opencapture/opencine/relay/RelayFrameBlob {
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayFrameBlob;
+	public final fun decode ([B)Lcom/opencapture/opencine/relay/RelayFrameBlob$Decoded;
+	public final fun encode ([B[B)[B
+}
+
+public final class com/opencapture/opencine/relay/RelayFrameBlob$Decoded {
+	public fun <init> ([B[B)V
+	public final fun component1 ()[B
+	public final fun component2 ()[B
+	public final fun copy ([B[B)Lcom/opencapture/opencine/relay/RelayFrameBlob$Decoded;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayFrameBlob$Decoded;[B[BILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayFrameBlob$Decoded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getImage ()[B
+	public final fun getMetadata ()[B
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayFrameBlob$Truncated : java/lang/Exception {
+	public fun <init> (J)V
+	public final fun getDeclared ()J
+}
+
+public final class com/opencapture/opencine/relay/RelayFramePayload {
+	public fun <init> (Ljava/lang/Object;[B)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()[B
+	public final fun copy (Ljava/lang/Object;[B)Lcom/opencapture/opencine/relay/RelayFramePayload;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayFramePayload;Ljava/lang/Object;[BILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayFramePayload;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getImage ()[B
+	public final fun getMetadata ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayHostCommandGate {
+	public fun <init> ()V
+	public final fun admits (Lcom/opencapture/opencine/relay/RelayHostControl$Admission;)Z
+	public final fun admits (Ljava/lang/String;)Z
+	public final fun admits (Ljava/util/UUID;J)Z
+	public final fun getPublication ()Lcom/opencapture/opencine/relay/RelayHostCommandGate$Publication;
+	public final fun isCurrent (Lcom/opencapture/opencine/relay/RelayHostCommandGate$Publication;)Z
+	public final fun publish (Lcom/opencapture/opencine/relay/RelayHostCommandGate$Publication;Ljava/util/UUID;JLcom/opencapture/opencine/relay/RelayHostControl$Admission;Ljava/lang/String;)Z
+	public final fun retire ()Lcom/opencapture/opencine/relay/RelayHostCommandGate$Publication;
+}
+
+public final class com/opencapture/opencine/relay/RelayHostCommandGate$Publication {
+}
+
+public final class com/opencapture/opencine/relay/RelayHostControl {
+	public fun <init> ()V
+	public fun <init> (J)V
+	public synthetic fun <init> (JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun admission (Ljava/util/UUID;)Lcom/opencapture/opencine/relay/RelayHostControl$Admission;
+	public final fun admits (Lcom/opencapture/opencine/relay/RelayHostControl$Admission;)Z
+	public final fun admits (Lcom/opencapture/opencine/relay/RelayHostControl$PendingRequest;)Z
+	public final fun declinePending ()V
+	public final fun declinePending (Lcom/opencapture/opencine/relay/RelayHostControl$PendingRequest;)Z
+	public final fun drop (Ljava/util/UUID;J)Ljava/lang/Long;
+	public final fun expire (JJ)Z
+	public final fun getHolder ()Ljava/util/UUID;
+	public final fun getHolderName ()Ljava/lang/String;
+	public final fun getPending ()Ljava/util/UUID;
+	public final fun getPendingName ()Ljava/lang/String;
+	public final fun getPendingRequest ()Lcom/opencapture/opencine/relay/RelayHostControl$PendingRequest;
+	public final fun getPendingRequestRevision ()Ljava/lang/Long;
+	public final fun getRequestRevision ()J
+	public final fun getRevision ()J
+	public final fun getSource ()Ljava/util/UUID;
+	public final fun grantPending ()Z
+	public final fun grantPending (Lcom/opencapture/opencine/relay/RelayHostControl$PendingRequest;)Z
+	public final fun introduce (Ljava/util/UUID;Lcom/opencapture/opencine/relay/RelayPeerHello;ZJ)Z
+	public final fun reclaim ()V
+	public final fun register (Ljava/util/UUID;Ljava/lang/String;Z)V
+	public final fun request (Ljava/util/UUID;Z)Z
+	public final fun resetSource ()V
+}
+
+public final class com/opencapture/opencine/relay/RelayHostControl$Admission {
+	public fun <init> (Ljava/util/UUID;Ljava/util/UUID;J)V
+	public final fun component1 ()Ljava/util/UUID;
+	public final fun component2 ()Ljava/util/UUID;
+	public final fun component3 ()J
+	public final fun copy (Ljava/util/UUID;Ljava/util/UUID;J)Lcom/opencapture/opencine/relay/RelayHostControl$Admission;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayHostControl$Admission;Ljava/util/UUID;Ljava/util/UUID;JILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayHostControl$Admission;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPeer ()Ljava/util/UUID;
+	public final fun getRevision ()J
+	public final fun getSource ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayHostControl$PendingRequest {
+	public fun <init> (Ljava/util/UUID;Ljava/util/UUID;J)V
+	public final fun component1 ()Ljava/util/UUID;
+	public final fun component2 ()Ljava/util/UUID;
+	public final fun component3 ()J
+	public final fun copy (Ljava/util/UUID;Ljava/util/UUID;J)Lcom/opencapture/opencine/relay/RelayHostControl$PendingRequest;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayHostControl$PendingRequest;Ljava/util/UUID;Ljava/util/UUID;JILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayHostControl$PendingRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPeer ()Ljava/util/UUID;
+	public final fun getRequestRevision ()J
+	public final fun getSource ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayJoinPolicy {
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayJoinPolicy;
+	public final fun normalizedPasscode (Ljava/lang/String;)Ljava/lang/String;
+	public final fun refusal (Lcom/opencapture/opencine/relay/RelayPeerHello;Lcom/opencapture/opencine/relay/RelayWireProfile;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)Lcom/opencapture/opencine/relay/RelayJoinPolicy$Refusal;
+	public static synthetic fun refusal$default (Lcom/opencapture/opencine/relay/RelayJoinPolicy;Lcom/opencapture/opencine/relay/RelayPeerHello;Lcom/opencapture/opencine/relay/RelayWireProfile;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayJoinPolicy$Refusal;
+}
+
+public final class com/opencapture/opencine/relay/RelayJoinPolicy$Refusal {
+	public fun <init> (Ljava/lang/String;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun copy (Ljava/lang/String;Z)Lcom/opencapture/opencine/relay/RelayJoinPolicy$Refusal;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayJoinPolicy$Refusal;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayJoinPolicy$Refusal;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPasscodeRequired ()Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayLatestPreviewPump {
+	public fun <init> (IZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (IZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun complete (J)V
+	public final fun invalidate ()V
+	public final fun isActive (J)Z
+	public final fun isBusy ()Z
+	public final fun offer (Ljava/lang/Object;)V
+}
+
+public final class com/opencapture/opencine/relay/RelayLatestPreviewPump$Dispatch {
+	public fun <init> (Ljava/lang/Object;J)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()J
+	public final fun copy (Ljava/lang/Object;J)Lcom/opencapture/opencine/relay/RelayLatestPreviewPump$Dispatch;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayLatestPreviewPump$Dispatch;Ljava/lang/Object;JILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayLatestPreviewPump$Dispatch;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getToken ()J
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyLedgerPolicy {
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;ZJLcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;ZJLcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;
+	public final fun component2 ()Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;
+	public final fun component3 ()Z
+	public final fun component4 ()J
+	public final fun component5 ()Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;
+	public final fun copy (Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;ZJLcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;)Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy;Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;ZJLcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConfirmation ()Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;
+	public final fun getDuplicateIdentity ()Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;
+	public final fun getFilteringThresholdMillis ()J
+	public final fun getHiddenIdentity ()Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;
+	public final fun getRemovesPresenceOnListingRemoval ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation : java/lang/Enum {
+	public static final field ALL_ANSWERS Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;
+	public static final field WATCHABLE_ANSWERS Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;
+	public static fun values ()[Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$Confirmation;
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity : java/lang/Enum {
+	public static final field ALL_LISTINGS Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;
+	public static final field UNREFUTED_LISTINGS Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;
+	public static fun values ()[Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$DuplicateIdentity;
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity : java/lang/Enum {
+	public static final field NAME Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;
+	public static final field SOURCE_ADDRESS Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;
+	public static fun values ()[Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy$HiddenIdentity;
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyListingFacts {
+	public fun <init> (Ljava/lang/String;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun copy (Ljava/lang/String;Z)Lcom/opencapture/opencine/relay/RelayNearbyListingFacts;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayNearbyListingFacts;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayNearbyListingFacts;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isWatchable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyOwner {
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayNearbyLedgerPolicy;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;)V
+	public final fun acceptListingEvent (Ljava/util/List;)V
+	public final fun applySweep (Ljava/util/Map;Ljava/lang/String;J)V
+	public final fun applySweep (Ljava/util/Map;Ljava/lang/String;JLjava/util/UUID;)Z
+	public final fun beginSweep ()Ljava/util/UUID;
+	public final fun evaluateFiltering (Ljava/lang/String;J)V
+	public final fun evaluateFiltering (Ljava/lang/String;JLjava/util/UUID;)Z
+	public final fun getListings ()Ljava/util/List;
+	public final fun getNetworkFiltersDiscovery ()Z
+	public final fun getPresences ()Ljava/util/Map;
+	public final fun getPublication ()Lcom/opencapture/opencine/relay/RelayNearbyPublication;
+	public final fun getRefutedNames ()Ljava/util/Set;
+	public final fun mergedListings (Ljava/lang/String;)Ljava/util/List;
+	public final fun mergedListings (Ljava/util/List;Ljava/lang/String;)Ljava/util/List;
+	public final fun replaceListings (Ljava/util/List;)V
+	public final fun retireSweep (Ljava/util/UUID;)V
+	public final fun watchableListings (Ljava/lang/String;)Ljava/util/List;
+	public final fun watchableListings (Ljava/util/List;Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyPolicy {
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayNearbyPolicy;
+	public final fun hiddenSince (Ljava/util/Map;Ljava/util/Set;Ljava/lang/String;Ljava/util/Map;J)Ljava/util/Map;
+	public final fun merge (Ljava/util/List;Ljava/util/Map;Ljava/lang/String;Ljava/util/Set;)Ljava/util/List;
+	public static synthetic fun merge$default (Lcom/opencapture/opencine/relay/RelayNearbyPolicy;Ljava/util/List;Ljava/util/Map;Ljava/lang/String;Ljava/util/Set;ILjava/lang/Object;)Ljava/util/List;
+	public final fun provesFiltering (Ljava/util/Map;JJ)Z
+	public static synthetic fun provesFiltering$default (Lcom/opencapture/opencine/relay/RelayNearbyPolicy;Ljava/util/Map;JJILjava/lang/Object;)Z
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyPresenceFacts {
+	public fun <init> (Ljava/lang/String;ZLjava/lang/Integer;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/String;ZLjava/lang/Integer;)Lcom/opencapture/opencine/relay/RelayNearbyPresenceFacts;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayNearbyPresenceFacts;Ljava/lang/String;ZLjava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayNearbyPresenceFacts;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRelayPort ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public final fun isWatchable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayNearbyPublication {
+	public fun <init> (Ljava/util/Map;Ljava/util/Set;Z)V
+	public final fun component1 ()Ljava/util/Map;
+	public final fun component2 ()Ljava/util/Set;
+	public final fun component3 ()Z
+	public final fun copy (Ljava/util/Map;Ljava/util/Set;Z)Lcom/opencapture/opencine/relay/RelayNearbyPublication;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayNearbyPublication;Ljava/util/Map;Ljava/util/Set;ZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayNearbyPublication;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNetworkFiltersDiscovery ()Z
+	public final fun getPresences ()Ljava/util/Map;
+	public final fun getRefutedNames ()Ljava/util/Set;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayNetworkPolicy {
+	public fun <init> ()V
+	public fun <init> (ZZIII)V
+	public synthetic fun <init> (ZZIIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun copy (ZZIII)Lcom/opencapture/opencine/relay/RelayNetworkPolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayNetworkPolicy;ZZIIIILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayNetworkPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIncludePeerToPeer ()Z
+	public final fun getKeepaliveCount ()I
+	public final fun getKeepaliveIdle ()I
+	public final fun getKeepaliveInterval ()I
+	public final fun getProhibitsCellular ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayParkedControlLease {
+	public static final field Companion Lcom/opencapture/opencine/relay/RelayParkedControlLease$Companion;
+	public static final field DEFAULT_WINDOW_MILLIS J
+	public fun <init> ()V
+	public fun <init> (J)V
+	public synthetic fun <init> (JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun claim (Ljava/lang/String;J)Z
+	public final fun clear ()V
+	public final fun getWindowMillis ()J
+	public final fun isParked (J)Z
+	public final fun park (Ljava/lang/String;J)Z
+	public final fun parkedWatcherID (J)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayParkedControlLease$Companion {
+}
+
+public final class com/opencapture/opencine/relay/RelayPeerDelivery {
+	public fun <init> ()V
+	public fun <init> (Z)V
+	public synthetic fun <init> (ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun admitFrame (ZZIZ)Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+	public static synthetic fun admitFrame$default (Lcom/opencapture/opencine/relay/RelayPeerDelivery;ZZIZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+	public final fun admitState (I)Z
+	public static synthetic fun admitState$default (Lcom/opencapture/opencine/relay/RelayPeerDelivery;IILjava/lang/Object;)Z
+	public final fun completeFrame ()V
+	public final fun completeState ()V
+	public final fun getAcceptsHevc ()Z
+	public final fun getAuthorized ()Z
+	public final fun getClosing ()Z
+	public final fun getInFlightFrames ()I
+	public final fun getInFlightStates ()I
+	public final fun getNeedsKeyframe ()Z
+	public final fun readyForFrame (I)Z
+	public final fun setAcceptsHevc (Z)V
+	public final fun setAuthorized (Z)V
+	public final fun setClosing (Z)V
+	public final fun setInFlightFrames (I)V
+	public final fun setNeedsKeyframe (Z)V
+}
+
+public final class com/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision : java/lang/Enum {
+	public static final field NEEDS_KEYFRAME Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+	public static final field SATURATED Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+	public static final field SEND Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+	public static final field UNAVAILABLE Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+	public static final field WRONG_CODEC Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+	public static fun values ()[Lcom/opencapture/opencine/relay/RelayPeerDelivery$FrameDecision;
+}
+
+public final class com/opencapture/opencine/relay/RelayPeerHello {
+	public fun <init> (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)V
+	public synthetic fun <init> (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/util/List;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayPeerHello;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayPeerHello;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayPeerHello;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAcceptsHevc ()Z
+	public final fun getCameraName ()Ljava/lang/String;
+	public final fun getCodecs ()Ljava/util/List;
+	public final fun getHostName ()Ljava/lang/String;
+	public final fun getPasscode ()Ljava/lang/String;
+	public final fun getVersion ()I
+	public final fun getWatcherID ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayPresence {
+	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Integer;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Integer;)Lcom/opencapture/opencine/relay/RelayPresence;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayPresence;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayPresence;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRelayPort ()Ljava/lang/Integer;
+	public final fun getServedCameraHost ()Ljava/lang/String;
+	public final fun getWatchable ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayPreviewPacing {
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayPreviewPacingPolicy;)V
+	public final fun acknowledge (D)Lcom/opencapture/opencine/relay/RelayPreviewProfile;
+	public final fun acknowledgeInSampleUnits (D)Lcom/opencapture/opencine/relay/RelayPreviewProfile;
+	public final fun getCurrentProfile ()Lcom/opencapture/opencine/relay/RelayPreviewProfile;
+	public final fun getObservedRoundTripSeconds ()Ljava/lang/Double;
+	public final fun getPolicy ()Lcom/opencapture/opencine/relay/RelayPreviewPacingPolicy;
+	public final fun getProfileIndex ()I
+	public final fun reset ()V
+	public final fun timedOut ()Lcom/opencapture/opencine/relay/RelayPreviewProfile;
+}
+
+public final class com/opencapture/opencine/relay/RelayPreviewPacingPolicy {
+	public fun <init> (Ljava/util/List;Ljava/util/List;ILjava/lang/Double;DDLjava/lang/Double;D)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;ILjava/lang/Double;DDLjava/lang/Double;DILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCurrentSampleWeight ()D
+	public final fun getInitialIndex ()I
+	public final fun getInitialRoundTripHint ()Ljava/lang/Double;
+	public final fun getMaximumSampleSeconds ()Ljava/lang/Double;
+	public final fun getPreviousSampleWeight ()D
+	public final fun getProfiles ()Ljava/util/List;
+	public final fun getRoundTripThresholds ()Ljava/util/List;
+	public final fun getSampleUnitsPerSecond ()D
+}
+
+public final class com/opencapture/opencine/relay/RelayPreviewProfile {
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun copy (II)Lcom/opencapture/opencine/relay/RelayPreviewProfile;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayPreviewProfile;IIILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayPreviewProfile;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMaximumWidth ()I
+	public final fun getQualityPercent ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayPreviewReservations {
+	public fun <init> ()V
+	public fun <init> (I)V
+	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun complete (Lcom/opencapture/opencine/relay/RelayPreviewReservations$Ticket;)Z
+	public final fun getInFlightCount ()I
+	public final fun getMaximumInFlight ()I
+	public final fun invalidate (Z)V
+	public static synthetic fun invalidate$default (Lcom/opencapture/opencine/relay/RelayPreviewReservations;ZILjava/lang/Object;)V
+	public final fun isCurrent (Lcom/opencapture/opencine/relay/RelayPreviewReservations$Ticket;)Z
+	public final fun reserve ()Lcom/opencapture/opencine/relay/RelayPreviewReservations$Ticket;
+}
+
+public final class com/opencapture/opencine/relay/RelayPreviewReservations$Ticket {
+	public fun <init> (JJ)V
+	public final fun component1 ()J
+	public final fun component2 ()J
+	public final fun copy (JJ)Lcom/opencapture/opencine/relay/RelayPreviewReservations$Ticket;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayPreviewReservations$Ticket;JJILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayPreviewReservations$Ticket;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGeneration ()J
+	public final fun getSequence ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayProbeShield {
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayProbeShieldPolicy;)V
+	public final fun getHosts ()Ljava/util/Set;
+	public final fun getPolicy ()Lcom/opencapture/opencine/relay/RelayProbeShieldPolicy;
+	public final fun update (Ljava/util/List;Ljava/util/Set;Ljava/util/Set;D)Ljava/util/Set;
+}
+
+public final class com/opencapture/opencine/relay/RelayProbeShieldPolicy {
+	public fun <init> (DZ)V
+	public final fun component1 ()D
+	public final fun component2 ()Z
+	public final fun copy (DZ)Lcom/opencapture/opencine/relay/RelayProbeShieldPolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayProbeShieldPolicy;DZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayProbeShieldPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLinger ()D
+	public final fun getShieldsSavedHostsForUnnamedBroadcast ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelaySocketPolicy {
+	public fun <init> ()V
+	public fun <init> (IIIJJZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (IIIJJZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()J
+	public final fun component5 ()J
+	public final fun component6 ()Z
+	public final fun component7 ()Ljava/lang/String;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Ljava/lang/String;
+	public final fun copy (IIIJJZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelaySocketPolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelaySocketPolicy;IIIJJZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelaySocketPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConnectTimeoutMillis ()I
+	public final fun getCourtesyCloseMillis ()J
+	public final fun getMaximumControlQueue ()I
+	public final fun getMissingPasscodeReason ()Ljava/lang/String;
+	public final fun getParkedLeaseMillis ()J
+	public final fun getReceiveChunkBytes ()I
+	public final fun getRequiresHostVersionMatch ()Z
+	public final fun getVersionMismatchReason ()Ljava/lang/String;
+	public final fun getWrongPasscodeReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayStreamBuffer {
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayWireProfile;)V
+	public final fun append ([B)Ljava/util/List;
+	public final fun getPendingByteCount ()I
+	public final fun getProfile ()Lcom/opencapture/opencine/relay/RelayWireProfile;
+	public final fun reset ()V
+}
+
+public final class com/opencapture/opencine/relay/RelayStreamFraming {
+	public static final field HEADER_BYTES I
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayStreamFraming;
+	public final fun decode ([BLcom/opencapture/opencine/relay/RelayWireProfile;I)Lcom/opencapture/opencine/relay/RelayStreamFraming$Decoded;
+	public static synthetic fun decode$default (Lcom/opencapture/opencine/relay/RelayStreamFraming;[BLcom/opencapture/opencine/relay/RelayWireProfile;IILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayStreamFraming$Decoded;
+	public final fun encode (I[B)[B
+}
+
+public abstract class com/opencapture/opencine/relay/RelayStreamFraming$DecodeError : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/relay/RelayStreamFraming$DecodeError$PayloadTooLarge : com/opencapture/opencine/relay/RelayStreamFraming$DecodeError {
+	public fun <init> (J)V
+	public final fun getDeclared ()J
+}
+
+public final class com/opencapture/opencine/relay/RelayStreamFraming$DecodeError$UnknownKind : com/opencapture/opencine/relay/RelayStreamFraming$DecodeError {
+	public fun <init> (I)V
+	public final fun getKind ()I
+}
+
+public final class com/opencapture/opencine/relay/RelayStreamFraming$Decoded {
+	public fun <init> (I[BI)V
+	public final fun component1 ()I
+	public final fun component2 ()[B
+	public final fun component3 ()I
+	public final fun copy (I[BI)Lcom/opencapture/opencine/relay/RelayStreamFraming$Decoded;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayStreamFraming$Decoded;I[BIILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayStreamFraming$Decoded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConsumedBytes ()I
+	public final fun getKind ()I
+	public final fun getPayload ()[B
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayVideoDescription {
+	public fun <init> (IZLjava/util/List;)V
+	public final fun component1 ()I
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (IZLjava/util/List;)Lcom/opencapture/opencine/relay/RelayVideoDescription;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayVideoDescription;IZLjava/util/List;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayVideoDescription;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCodec ()I
+	public final fun getParameterSets ()Ljava/util/List;
+	public fun hashCode ()I
+	public final fun isKeyframe ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatchFrameSequence {
+	public fun <init> ()V
+	public final fun accept (J)Z
+	public final fun clear ()V
+}
+
+public final class com/opencapture/opencine/relay/RelayWatchFreshness {
+	public fun <init> (D)V
+	public final fun accept (D)V
+	public final fun clear ()V
+	public final fun getMaximumAgeSeconds ()D
+	public final fun isFresh (D)Z
+	public final fun remainingSeconds (D)Ljava/lang/Double;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatchPendingCommand {
+	public fun <init> (Ljava/lang/String;JLjava/util/UUID;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()J
+	public final fun component3 ()Ljava/util/UUID;
+	public final fun copy (Ljava/lang/String;JLjava/util/UUID;)Lcom/opencapture/opencine/relay/RelayWatchPendingCommand;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayWatchPendingCommand;Ljava/lang/String;JLjava/util/UUID;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayWatchPendingCommand;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPeer ()Ljava/lang/String;
+	public final fun getRequest ()J
+	public final fun getSource ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public final fun matches (Ljava/lang/String;JLjava/util/UUID;)Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/relay/RelayWatcherPhase {
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherPhase$Connecting : com/opencapture/opencine/relay/RelayWatcherPhase {
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayWatcherPhase$Connecting;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherPhase$Failed : com/opencapture/opencine/relay/RelayWatcherPhase {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/relay/RelayWatcherPhase$Failed;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayWatcherPhase$Failed;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayWatcherPhase$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherPhase$Idle : com/opencapture/opencine/relay/RelayWatcherPhase {
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayWatcherPhase$Idle;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherPhase$Live : com/opencapture/opencine/relay/RelayWatcherPhase {
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayWatcherPhase$Live;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherPhase$NeedsPasscode : com/opencapture/opencine/relay/RelayWatcherPhase {
+	public static final field INSTANCE Lcom/opencapture/opencine/relay/RelayWatcherPhase$NeedsPasscode;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherPhase$Reconnecting : com/opencapture/opencine/relay/RelayWatcherPhase {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/relay/RelayWatcherPhase$Reconnecting;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayWatcherPhase$Reconnecting;IILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayWatcherPhase$Reconnecting;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttempt ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherRefusal {
+	public fun <init> (Ljava/lang/String;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun copy (Ljava/lang/String;Z)Lcom/opencapture/opencine/relay/RelayWatcherRefusal;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayWatcherRefusal;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayWatcherRefusal;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPasscodeRequired ()Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherSession {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayWatcherTimingPolicy;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/relay/RelayWatcherTimingPolicy;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun admitsFrame (Ljava/lang/Double;D)Z
+	public final fun begin (D)V
+	public final fun beginConnection ()V
+	public final fun connected (D)V
+	public final fun denied (ZLjava/lang/String;)V
+	public final fun disconnected (D)Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+	public final fun fail (Ljava/lang/String;)V
+	public final fun getActive ()Z
+	public final fun getPolicy ()Lcom/opencapture/opencine/relay/RelayWatcherTimingPolicy;
+	public final fun getStatus ()Lcom/opencapture/opencine/relay/RelayWatcherStatus;
+	public final fun leave ()V
+	public final fun presentedPicture (DD)V
+	public final fun receivedControl (D)V
+	public final fun receivedState (D)V
+	public final fun requestControl (D)Z
+	public final fun tick (D)Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherStatus {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/relay/RelayWatcherPhase;IZZ)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/relay/RelayWatcherPhase;IZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/relay/RelayWatcherPhase;
+	public final fun component2 ()I
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun copy (Lcom/opencapture/opencine/relay/RelayWatcherPhase;IZZ)Lcom/opencapture/opencine/relay/RelayWatcherStatus;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayWatcherStatus;Lcom/opencapture/opencine/relay/RelayWatcherPhase;IZZILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayWatcherStatus;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getControlRequested ()Z
+	public final fun getPhase ()Lcom/opencapture/opencine/relay/RelayWatcherPhase;
+	public final fun getReceivedFPS ()I
+	public final fun getWaitingForPicture ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWatcherTimingPolicy {
+	public fun <init> ()V
+	public fun <init> (DDDD)V
+	public synthetic fun <init> (DDDDILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun component4 ()D
+	public final fun copy (DDDD)Lcom/opencapture/opencine/relay/RelayWatcherTimingPolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/relay/RelayWatcherTimingPolicy;DDDDILjava/lang/Object;)Lcom/opencapture/opencine/relay/RelayWatcherTimingPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getControlRequestTimeout ()D
+	public final fun getFpsWindow ()D
+	public final fun getPictureWait ()D
+	public final fun getPollInterval ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/relay/RelayWireCodec {
+	public abstract fun decodeCommand ([B)Ljava/lang/Object;
+	public abstract fun decodeFrame ([B)Lcom/opencapture/opencine/relay/RelayFramePayload;
+	public abstract fun decodeHello ([B)Lcom/opencapture/opencine/relay/RelayPeerHello;
+	public abstract fun decodeState ([B)Ljava/lang/Object;
+	public abstract fun encodeCommand (Ljava/lang/Object;)[B
+	public abstract fun encodeFrame (Ljava/lang/Object;[B)[B
+	public abstract fun encodeHello (Lcom/opencapture/opencine/relay/RelayPeerHello;)[B
+	public abstract fun encodeState (Ljava/lang/Object;)[B
+	public abstract fun getProfile ()Lcom/opencapture/opencine/relay/RelayWireProfile;
+	public abstract fun videoDescription (Ljava/lang/Object;)Lcom/opencapture/opencine/relay/RelayVideoDescription;
+}
+
+public final class com/opencapture/opencine/relay/RelayWireProfile {
+	public static final field Companion Lcom/opencapture/opencine/relay/RelayWireProfile$Companion;
+	public fun <init> (Ljava/lang/String;IILjava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;IZLjava/util/Set;)V
+	public synthetic fun <init> (Ljava/lang/String;IILjava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;IZLjava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAcceptsPeerCodecDeclaration ()Z
+	public final fun getHevcCodec ()I
+	public final fun getJpegCodec ()Ljava/lang/Integer;
+	public final fun getMaximumPayloadBytes ()I
+	public final fun getMessageKinds ()Ljava/util/Set;
+	public final fun getPresenceTcpPort ()Ljava/lang/Integer;
+	public final fun getServedCameraTXTKey ()Ljava/lang/String;
+	public final fun getServiceType ()Ljava/lang/String;
+	public final fun getVersion ()I
+	public final fun getWatchableTXTKey ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/relay/RelayWireProfile$Companion {
+	public final fun getSHARED_MONITOR ()Lcom/opencapture/opencine/relay/RelayWireProfile;
+}
+
+public final class com/opencapture/opencine/relay/WatcherRelayFrameFreshness {
+	public static final field Companion Lcom/opencapture/opencine/relay/WatcherRelayFrameFreshness$Companion;
+	public static final field MAXIMUM_ADDED_DELAY D
+	public fun <init> ()V
+	public final fun isFallingBehind (Ljava/lang/Double;D)Z
+}
+
+public final class com/opencapture/opencine/relay/WatcherRelayFrameFreshness$Companion {
+}
+
+public final class com/opencapture/opencine/relay/WatcherRelayRecovery {
+	public static final field Companion Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Companion;
+	public static final field JOIN_TIMEOUT D
+	public static final field MAXIMUM_RETRIES I
+	public static final field SILENCE_TIMEOUT D
+	public fun <init> (D)V
+	public final fun connected (D)V
+	public final fun disconnected (D)Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+	public final fun getRetryAt ()Ljava/lang/Double;
+	public final fun getRetryCount ()I
+	public final fun received (DZ)V
+	public static synthetic fun received$default (Lcom/opencapture/opencine/relay/WatcherRelayRecovery;DZILjava/lang/Object;)V
+	public final fun stop ()V
+	public final fun tick (D)Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+}
+
+public final class com/opencapture/opencine/relay/WatcherRelayRecovery$Action : java/lang/Enum {
+	public static final field EXHAUSTED Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+	public static final field NONE Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+	public static final field RECONNECT Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+	public static fun values ()[Lcom/opencapture/opencine/relay/WatcherRelayRecovery$Action;
+}
+
+public final class com/opencapture/opencine/relay/WatcherRelayRecovery$Companion {
+}
+
