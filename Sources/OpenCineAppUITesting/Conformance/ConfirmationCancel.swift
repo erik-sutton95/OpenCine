@@ -48,7 +48,7 @@ open class ConfirmationCancel: SharedAppUITestCase {
             return XCTFail("Two neighbouring clips wholly in view are required")
         }
         gallery.center(pair.0).press(
-            forDuration: 0.4, thenDragTo: gallery.center(pair.1), withVelocity: .slow,
+            forDuration: GallerySweep.pressSeconds, thenDragTo: gallery.center(pair.1), withVelocity: .slow,
             thenHoldForDuration: 0)
         XCTAssertTrue(app.staticTexts["2 selected"].waitForExistence(timeout: 5))
         // The clips listed once selected (a sweep near an edge may scroll the gallery): cancelling keeps them.
