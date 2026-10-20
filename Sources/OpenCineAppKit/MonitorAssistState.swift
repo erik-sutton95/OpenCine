@@ -43,6 +43,29 @@ public struct MonitorAssistPreferenceKeys: Sendable {
     }
 }
 
+/// The option values a fresh install and each settings card's Reset land on. Most apps take the
+/// shared `standard` set; an app whose cameras shipped other defaults declares its own, so its
+/// operators keep the defaults they had. A value the operator saved always wins over these.
+///
+/// Kotlin mirror: `MonitorAssistDefaults` in `:appkit`, same names.
+public struct MonitorAssistDefaults: Hashable, Sendable {
+    /// Highlight zebra threshold, in monitor IRE.
+    public var zebraHighlightIRE: Double
+    /// Crush and clip tolerance shared by the histogram's traffic lights and the LIGHTS tool.
+    public var crushClipCompensation: MonitorCrushClipCompensation
+
+    public init(
+        zebraHighlightIRE: Double = LiveZebra.highlightIRE,
+        crushClipCompensation: MonitorCrushClipCompensation = .zero
+    ) {
+        self.zebraHighlightIRE = zebraHighlightIRE
+        self.crushClipCompensation = crushClipCompensation
+    }
+
+    /// The shared defaults, for an app that declares none.
+    public static let standard = Self()
+}
+
 /// Owns operator state, independent live/playback visibility, saved schema and LUT preparation.
 @available(macOS 14, *)
 @MainActor @Observable
@@ -260,15 +283,20 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     @ObservationIgnored private let keys: MonitorAssistPreferenceKeys
     @ObservationIgnored private let onToggle: (@MainActor (MonitorAssistSelection, Bool) -> Void)?
     @ObservationIgnored private let cleanPinCases: [MonitorAssistSelection]
+    /// What a fresh state and each Reset land on.
+    public let defaults: MonitorAssistDefaults
 
     /// Explicit toggle side effect after mutation: live before persistence, playback after.
     /// Direct assignments and visibility changes do not invoke this callback.
     public init(looks: Looks, storage: UserDefaults, keys: MonitorAssistPreferenceKeys,
-        cleanPinCases: [MonitorAssistSelection],
+        cleanPinCases: [MonitorAssistSelection], defaults: MonitorAssistDefaults = .standard,
         onToggle: (@MainActor (MonitorAssistSelection, Bool) -> Void)? = nil
     ) {
         self.onToggle = onToggle
         self.looks = looks; self.storage = storage; self.keys = keys; self.cleanPinCases = cleanPinCases
+        self.defaults = defaults
+        zebraHighlightIRE = defaults.zebraHighlightIRE
+        crushClipCompensation = defaults.crushClipCompensation
         if let data = storage.data(forKey: keys.assist),
             let snapshot = try? JSONDecoder().decode(MonitorAssistSnapshot.self, from: data) {
             snapshot.apply(to: self)
