@@ -147,6 +147,8 @@ public final class CamerasModel {
             discoveryRunningTasks[index] = Task { [weak self] in
                 for await running in statuses {
                     guard let self else { return }
+                    // An unchanged report must not re-arm the still-looking wait (Kotlin twin guards too).
+                    guard self.discoveryRunning[index] != running else { continue }
                     self.discoveryRunning[index] = running
                     self.updateScanning()
                 }
