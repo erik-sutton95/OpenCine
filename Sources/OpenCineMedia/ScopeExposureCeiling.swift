@@ -22,8 +22,16 @@ public struct ScopeClipCalibration: Equatable, Sendable {
 public struct ScopeClipProfile: Equatable, Sendable {
     public var calibrations: [MonitorTransfer: ScopeClipCalibration]
     public var defaultISO: Int?
-    public init(calibrations: [MonitorTransfer: ScopeClipCalibration] = [:], defaultISO: Int? = nil) {
+    /// ISO the ceiling assumes when the source reports that its ISO is not known (an Auto ISO
+    /// camera that does not publish the applied value). `nil` keeps the last known report.
+    /// A source whose clip falls below its reference ISO names its lowest ISO here, so an
+    /// unreported Auto ISO can only warn early, never miss a clip.
+    public var unreportedISO: Int?
+    public init(calibrations: [MonitorTransfer: ScopeClipCalibration] = [:], defaultISO: Int? = nil,
+        unreportedISO: Int? = nil) {
+        precondition(unreportedISO.map { (50...102_400).contains($0) } ?? true)
         self.calibrations = calibrations; self.defaultISO = defaultISO
+        self.unreportedISO = unreportedISO
     }
 }
 
@@ -54,8 +62,17 @@ open class ScopeExposureCeiling: @unchecked Sendable {
         guard (50...102_400).contains(iso) else { return }
         withLock { $0.iso = iso }
     }
-    public func syncISO(_ iso: Int) { if iso > 0 { setISO(iso) } }
+    /// Applies a camera report. A positive ISO is set as ``setISO(_:)`` does. `nil`, zero or a
+    /// negative value means the camera did not report its applied ISO: the ceiling moves to the
+    /// profile's ``ScopeClipProfile/unreportedISO`` when it names one, else keeps the last report.
+    public func syncISO(_ iso: Int?) {
+        if let iso, iso > 0 { setISO(iso); return }
+        guard let unreported = profile.unreportedISO else { return }
+        withLock { $0.iso = unreported }
+    }
     public func resolvedISO() -> Int? { withLock { $0.iso } }
+    /// The profile's assumption for an unreported ISO; `nil` keeps the last report.
+    public var unreportedISO: Int? { profile.unreportedISO }
     /// A clip the source states for `transfer` at its current settings (a camera's published
     /// overexposure warning code for its ISO), in place of measured calibration and tap
     /// history for that transfer. `nil` withdraws it. The source restates it when a setting

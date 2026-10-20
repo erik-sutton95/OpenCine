@@ -595,6 +595,9 @@ class NativeVulkanFeedSession(
         val includeVectorPoints = policy.includeVectorPoints
         val look = policy.vectorLut
         val iso = policy.iso
+        // Keep this feed's ceiling on the reported ISO (or the profile's unreported assumption)
+        // so readers without an ISO argument (traffic lights) agree with the sampled clip.
+        if (scopeDue) currentSamples.ceiling.syncISO(iso)
         val previous = currentSamples.previous
         val packed =
             if ((scopeDue && (includePoints || includeVectorPoints) || previewTicket != null || backdropTicket != null) &&

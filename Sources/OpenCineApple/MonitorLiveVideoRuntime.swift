@@ -344,14 +344,22 @@ open class MonitorLiveVideoRuntime {
         accepts(source) && vt.fence.isCurrent(generation)
     }
 
-    /// Applies a known camera report to this live source, even when playback owns the display.
-    /// Capture the token before queuing a report. Unknown or retired reports preserve calibration.
+    /// Applies a camera ISO report to this live source, even when playback owns the display.
+    /// Capture the token before queuing a report. Retired reports and out-of-range ISOs preserve
+    /// calibration. `nil` or a value of zero or less is an unreported ISO (Auto without its
+    /// applied value): the source's profile decides (``ScopeClipProfile/unreportedISO``).
     @discardableResult public func updateSourceCalibration(
         iso: Int?, source: MonitorVideoSourceToken?
     ) -> Bool {
-        guard accepts(source), let sampleSource, sampleBus?.isCurrent(sampleSource) == true,
-            let iso, (50...102_400).contains(iso) else { return false }
-        sampleSource.exposureCeiling.syncISO(iso)
+        guard accepts(source), let sampleSource, sampleBus?.isCurrent(sampleSource) == true
+        else { return false }
+        if let iso, iso > 0 {
+            guard (50...102_400).contains(iso) else { return false }
+            sampleSource.exposureCeiling.syncISO(iso)
+        } else {
+            guard sampleSource.exposureCeiling.unreportedISO != nil else { return false }
+            sampleSource.exposureCeiling.syncISO(nil)
+        }
         return true
     }
 
