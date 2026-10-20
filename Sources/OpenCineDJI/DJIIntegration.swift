@@ -363,8 +363,12 @@ public final class DJIIntegration: CameraIntegration {
         guard current === attempt else { return }
         current = nil
         if !(error is CancellationError) {
+            let joinFailure =
+                (error as? CameraHotspotJoinRefusal)?.failure(
+                    integration: DJICameraSessionAdapter.integration)
             var failure =
                 error as? ConnectionFailure
+                ?? joinFailure
                 ?? Self.failure(
                     .other, "connect.failed",
                     (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)

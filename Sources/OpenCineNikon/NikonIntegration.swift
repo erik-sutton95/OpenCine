@@ -489,6 +489,11 @@ public final class NikonIntegration: CameraIntegration {
 
     /// A connect error, typed. `message`: the app's operator copy for it; `nil` uses the error's.
     public static func failure(_ error: Error, message: String?) -> ConnectionFailure {
+        // A refused camera Wi-Fi join keeps the shared copy and its Settings fallback; the host's
+        // message is often the platform's developer text.
+        if let refusal = error as? CameraHotspotJoinRefusal {
+            return refusal.failure(integration: NikonCameraSession.integration)
+        }
         let text = message ?? (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         guard let error = error as? NativeCameraSessionError else { return failure(.other, "connect.failed", text) }
         return switch error {
