@@ -231,6 +231,8 @@ internal object LunaControl {
 
     val startLive = Request(1, LunaWire.liveBody)
     val stopLive = Request(2, ByteArray(0))
+    /** `IFRAME_REQUEST`: the body answers with a keyframe in about a second. */
+    val keyframe = Request(105, ByteArray(0))
     /** Mode 0 (normal) is omitted; 5 is 360 gimbal pano. */
     fun takePicture(mode: Long = 0) = Request(3, if (mode == 0L) ByteArray(0) else LunaWire.integer(1, mode))
     /**

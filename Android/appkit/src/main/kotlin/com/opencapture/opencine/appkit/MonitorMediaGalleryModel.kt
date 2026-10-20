@@ -119,6 +119,8 @@ public class MonitorMediaGalleryModel<P>(public val library: MonitorMediaLibrary
         tasks.values.forEach { it.cancel() }; tasks.clear(); deletion = null
         mutable.value = MonitorMediaGalleryState(presentationRevision = mutable.value.presentationRevision + 1)
     }
+    /** The operator closes the browser: the next visit starts without a selection, as covers keep it. */
+    public fun leave(): Unit { library.clearSelection(); retire() }
     public fun sourceChanged(): Unit {
         val retained = acceptedDeletions.filterValues { it.isPrepared && it.isCurrent }.keys.toSet()
         if (retained.isEmpty()) { retire(); activate(); return }

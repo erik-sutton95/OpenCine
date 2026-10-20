@@ -272,8 +272,8 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         let byteLabel = bytes.map(MediaClipFormatting.byteLabel)
         let color = values.colorLabel ?? asset.colorLabel
         let frameRate = asset.frameRate.map { String(format: "%g", $0) }
-        let subtitle = [record.facts.resolution, frameRate.map { $0 + "p" }, color, byteLabel]
-            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        let subtitle = values.headerSubtitle(facts: [record.facts.resolution, frameRate.map { $0 + "p" }, color, byteLabel]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
         var metadata = [MonitorMetadataRow("File", asset.filename)]
         if let date = asset.capturedAt { metadata.append(.init("Captured", date.formatted(date: .abbreviated, time: .standard))) }
         if let resolution = record.facts.resolution { metadata.append(.init("Format", resolution)) }

@@ -91,12 +91,14 @@ public struct MonitorMediaLibraryCopy: Sendable {
     public let downloadFailed: String
     public let listing: String?
     public let empty: String?
+    /// Shown when the camera holds its own gallery, so it lists nothing here.
+    public let sourceHeld: String?
     public init(
         openFailed: String = "Could not open the camera library.",
         listFailed: String = "Could not list camera clips.",
         favoriteSaveFailed: String = "Could not save local clip favorites.",
         downloadFailed: String = "Could not download that clip.",
-        listing: String? = nil, empty: String? = nil
+        listing: String? = nil, empty: String? = nil, sourceHeld: String? = nil
     ) {
         self.openFailed = openFailed
         self.listFailed = listFailed
@@ -104,6 +106,7 @@ public struct MonitorMediaLibraryCopy: Sendable {
         self.downloadFailed = downloadFailed
         self.listing = listing
         self.empty = empty
+        self.sourceHeld = sourceHeld
     }
 }
 
@@ -672,6 +675,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             }
         }
     }
+    /// A host operation's outcome (a refused delete, a failed download) for the gallery's note line.
+    public func showNote(_ value: String?) { note = value }
     public func close() { _ = retireGallery() }
     /// Final host disposal drains captured leases; borrowed covers should only call close.
     public func dispose() async {
@@ -791,9 +796,10 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                 guard self.admitted(generation, request, binding: browse.binding) else { return }
                 self.cursor = nil
                 self.listTask = nil
+                let held = browse.heldBySource == true ? self.copy.sourceHeld : nil
                 self.commit {
                     $0.fetching = false
-                    $0.note = $0.records.isEmpty ? self.copy.empty : nil
+                    $0.note = held ?? ($0.records.isEmpty ? self.copy.empty : nil)
                 }
             } catch {
                 guard self.admitted(generation, request, binding: browse.binding) else { return }
