@@ -4,7 +4,11 @@
 
     /// The command dashboard, SwiftUI twin of the Compose `MonitorCommandDashboard`: a reorderable
     /// grid of `tiles` and the `sections` column; landscape adds the `health` strip ending in
-    /// `healthTrailing`. Portrait stacks the compact grid over the sections in one scroller.
+    /// `healthTrailing`. `hero`, the header's status presentation, heads it with the record chip and
+    /// hero timecode. Landscape stacks
+    /// hero, health and grid on the left beside a full-height side column; portrait pins the hero
+    /// over the compact grid and the sections in one scroller. Type is the live surface's: readout
+    /// labels and Sora tabular values (`MonitorReadoutTypography`).
     /// `pending` is true while any write is in flight and `applying` names the request it carries.
     /// Long press and drag reorders a tile with a `kind` through `onMoveTile` (kind, target slot);
     /// a tap opens its request. `sideColumnWidth` is the landscape column width (default: its share
@@ -16,11 +20,13 @@
         private let portrait: Bool
         private let controls: CommandControls<Kind, Request>
         private let sideColumnWidth: CGFloat?
+        private let hero: MonitorStatusPresentation?
         private let healthTrailing: HealthTrailing
 
         public init(
             tiles: [MonitorCommandTile<Kind, Request>], sections: [MonitorCommandSection<Kind, Request>],
-            health: MonitorCommandHealth, portrait: Bool, controlsEnabled: Bool, pending: Bool = false,
+            health: MonitorCommandHealth, hero: MonitorStatusPresentation? = nil, portrait: Bool, controlsEnabled: Bool,
+            pending: Bool = false,
             applying: @escaping (Request) -> Bool = { _ in false }, sideColumnWidth: CGFloat? = nil,
             onOpenControl: @escaping (Request) -> Void, onMoveTile: @escaping (Kind, Int) -> Void,
             @ViewBuilder healthTrailing: () -> HealthTrailing
@@ -28,6 +34,7 @@
             self.tiles = tiles
             self.sections = sections
             self.health = health
+            self.hero = hero
             self.portrait = portrait
             controls = CommandControls(
                 enabled: controlsEnabled, pending: pending, applying: applying, open: onOpenControl,
@@ -38,24 +45,31 @@
 
         public var body: some View {
             if portrait {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 12) {
-                        MonitorCommandGrid(tiles: tiles, controls: controls)
-                            .frame(height: MonitorCommandGridLayout.portraitGridHeight(tileCount: tiles.count))
-                        CommandSections(sections: sections, controls: controls, compact: false)
+                VStack(spacing: MonitorCommandGridLayout.stackSpacing) {
+                    if let hero { CommandHeroBand(hero: hero, portrait: true) }
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 12) {
+                            MonitorCommandGrid(tiles: tiles, controls: controls)
+                                .frame(height: MonitorCommandGridLayout.portraitGridHeight(tileCount: tiles.count))
+                            CommandSections(sections: sections, controls: controls, compact: false)
+                        }
                     }
                 }
             } else {
                 GeometryReader { proxy in
-                    VStack(spacing: 12) {
-                        CommandHealthStrip(health: health, trailing: healthTrailing)
-                        HStack(alignment: .top, spacing: 12) {
+                    // The baseline `.cmd-body` split: hero, health and grid on the left; the side
+                    // column runs the full height beside them.
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: MonitorCommandGridLayout.stackSpacing) {
+                            if let hero { CommandHeroBand(hero: hero, portrait: false) }
+                            CommandHealthStrip(health: health, trailing: healthTrailing)
                             MonitorCommandGrid(tiles: tiles, controls: controls)
-                            CommandSideColumn(sections: sections, controls: controls)
-                                .frame(
-                                    width: sideColumnWidth
-                                        ?? MonitorCommandGridLayout.sideColumnWidth(pictureWidth: proxy.size.width))
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        CommandSideColumn(sections: sections, controls: controls)
+                            .frame(
+                                width: sideColumnWidth
+                                    ?? MonitorCommandGridLayout.sideColumnWidth(pictureWidth: proxy.size.width))
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height)
                 }
@@ -275,19 +289,11 @@
 
         var body: some View {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 10, weight: .bold, design: .default))
-                    .foregroundStyle(MonitorTheme.faint)
-                    .textCase(.uppercase)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.64)
+                CommandLabel(text: title, color: MonitorTheme.muted, minimumScale: 0.64)
                 Spacer(minLength: 0)
                 Text(value)
-                    .font(
-                        .system(
-                            size: MonitorCommandGridLayout.valueFontSize(rowHeight: height), weight: .medium,
-                            design: .monospaced)
-                    )
+                    .font(MonitorTheme.font(MonitorCommandGridLayout.valueFontSize(rowHeight: height), weight: .medium))
+                    .monospacedDigit()
                     .foregroundStyle(MonitorTheme.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.46)
@@ -299,7 +305,7 @@
             .background(MonitorTheme.surface, in: RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius))
             .overlay {
                 RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius)
-                    .stroke(MonitorTheme.border, lineWidth: 1)
+                    .strokeBorder(MonitorTheme.border, lineWidth: 1)
             }
         }
     }
@@ -328,7 +334,7 @@
             .background(MonitorTheme.surface, in: RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius)
-                    .stroke(MonitorTheme.border, lineWidth: 1))
+                    .strokeBorder(MonitorTheme.border, lineWidth: 1))
         }
     }
 
@@ -339,12 +345,9 @@
 
         var body: some View {
             VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.system(size: 8.5, weight: .bold, design: .default))
-                    .foregroundStyle(MonitorTheme.faint)
-                    .textCase(.uppercase)
+                CommandLabel(text: label, color: MonitorTheme.muted, minimumScale: 0.8)
                 Text(value)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(MonitorTheme.font(12, weight: .medium)).monospacedDigit()
                     .foregroundStyle(color)
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
@@ -400,9 +403,9 @@
             .overlay(alignment: .bottom) {
                 if !atBottom {
                     Text("MORE ⌄")
-                        .font(.system(size: 9, weight: .semibold, design: .default))
+                        .font(MonitorTheme.font(CGFloat(MonitorReadoutTypography.labelSize), weight: .semibold))
                         .foregroundStyle(MonitorTheme.muted)
-                        .tracking(0.8)
+                        .tracking(CGFloat(MonitorReadoutTypography.labelTracking))
                         .frame(maxWidth: .infinity)
                         .padding(.bottom, 2)
                         .allowsHitTesting(false)
@@ -425,10 +428,7 @@
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(section.title)
-                            .font(.system(size: 9.5, weight: .bold, design: .default))
-                            .foregroundStyle(MonitorTheme.faint)
-                            .textCase(.uppercase)
+                        CommandLabel(text: section.title, color: MonitorTheme.faint, minimumScale: 0.8)
                             .padding(.leading, 2)
                         // Pairs; a leftover cell spans the row (the prototype's `.span2`).
                         VStack(spacing: 5) {
@@ -463,14 +463,9 @@
                 if let request { controls.open(request) }
             } label: {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(cell.title)
-                        .font(.system(size: 9, weight: .bold, design: .default))
-                        .foregroundStyle(MonitorTheme.muted)
-                        .textCase(.uppercase)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.66)
+                    CommandLabel(text: cell.title, color: MonitorTheme.muted, minimumScale: 0.66)
                     Text(cell.value)
-                        .font(.system(size: 15, weight: .medium, design: .monospaced))
+                        .font(MonitorTheme.font(15, weight: .medium)).monospacedDigit()
                         .foregroundStyle(valueColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.55)
@@ -488,13 +483,85 @@
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius)
-                        .stroke(MonitorTheme.border, lineWidth: 1))
+                        .strokeBorder(MonitorTheme.border, lineWidth: 1))
             }
             .buttonStyle(.monitorTapTarget)
             .disabled(request == nil)
             .accessibilityLabel(cell.title)
             .accessibilityValue(cell.value)
             .accessibilityHint(controls.hint(cell, reorderable: false))
+        }
+    }
+
+    /// The live surface's readout caption (`MonitorReadout` label): uppercase Sora semibold at the
+    /// shared label size and tracking.
+    private struct CommandLabel: View {
+        let text: String
+        let color: Color
+        let minimumScale: CGFloat
+
+        var body: some View {
+            Text(text.uppercased())
+                .font(MonitorTheme.font(CGFloat(MonitorReadoutTypography.labelSize), weight: .semibold))
+                .tracking(CGFloat(MonitorReadoutTypography.labelTracking))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(minimumScale)
+        }
+    }
+
+    /// The hero band: the record chip, then the hero timecode with its frame field in the accent.
+    /// The timecode is omitted when the body runs none.
+    private struct CommandHeroBand: View {
+        let hero: MonitorStatusPresentation
+        let portrait: Bool
+
+        var body: some View {
+            HStack(spacing: 11) {
+                CommandRecordChip(hero: hero)
+                if let parts = hero.commandHeroTimecode {
+                    (Text(parts.seconds).foregroundStyle(MonitorTheme.text)
+                        + Text(parts.frames).foregroundStyle(MonitorTheme.accent))
+                        .font(MonitorTheme.font(MonitorCommandGridLayout.heroTimecodeSize(portrait: portrait), weight: .medium))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(MonitorCommandGridLayout.heroMinimumScale)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(height: MonitorCommandGridLayout.heroHeight(portrait: portrait))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Timecode")
+            .accessibilityValue(hero.commandHeroAccessibilityValue)
+            .accessibilityIdentifier("monitor.command.hero")
+        }
+    }
+
+    /// The header's record word: REC in the recording red with its lamp, STBY muted, unknown a
+    /// dash (never standby).
+    private struct CommandRecordChip: View {
+        let hero: MonitorStatusPresentation
+
+        var body: some View {
+            let recording = hero.recording == true
+            HStack(spacing: 6) {
+                if recording {
+                    Circle().fill(MonitorTheme.recording).frame(width: 8, height: 8)
+                        .monitorPulse(period: MonitorMotion.recPulseDuration)
+                } else {
+                    Circle().fill(MonitorTheme.faint).frame(width: 8, height: 8)
+                        .opacity(hero.recording == nil ? 0.5 : 1)
+                }
+                Text(hero.recordingLabel)
+                    .font(MonitorTheme.font(11, weight: .semibold))
+                    .tracking(CGFloat(MonitorReadoutTypography.labelTracking))
+                    .foregroundStyle(recording ? MonitorTheme.recording : MonitorTheme.muted)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(MonitorTheme.surface, in: Capsule())
+            .overlay(Capsule().strokeBorder(recording ? MonitorTheme.recording.opacity(0.6) : MonitorTheme.border, lineWidth: 1))
+            .fixedSize()
         }
     }
 #endif

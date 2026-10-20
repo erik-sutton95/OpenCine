@@ -80,10 +80,10 @@ public data class PairingWizard(
             val state = model.state.value
             if (state.attempts.isNotEmpty()) return@primary
             val sighting = state.nearby.firstOrNull { it.id == state.selection }
-            val cameraID = sighting?.let { ConnectTarget.Nearby(it.camera).cameraID }
+            val failure = model.failureFor(state.selection)
             when {
-                cameraID != null && cameraID in state.failures -> {
-                    model.dismissFailure(cameraID)
+                failure != null -> {
+                    model.dismissFailure(failure.target.cameraID)
                     rescan()
                 }
                 blocker != null -> onBlocker()
@@ -104,7 +104,8 @@ public fun CamerasMapping.wizard(model: CamerasModel, wizard: PairingWizard): Mo
     val selected = state.nearby.firstOrNull { it.id == state.selection }
     val cameraID = selected?.let { ConnectTarget.Nearby(it.camera).cameraID }
     val busy = state.attempts.isNotEmpty()
-    val failure = if (busy) null else cameraID?.let { state.failures[it] }?.failure
+    val failed = if (busy) null else model.failureFor(state.selection)
+    val failure = failed?.failure
     val page = if (failure != null) 0 else PairingWizard.page(cameraID?.let { state.attempts[it] })
     val choosing = page == 0
     val instructions = when (page) {
@@ -129,7 +130,13 @@ public fun CamerasMapping.wizard(model: CamerasModel, wizard: PairingWizard): Mo
             emptyList()
         }
     }
-    val name = selected?.let { device(it, state, model).name }
+    val failedName = when (val target = failed?.target) {
+        is ConnectTarget.Nearby -> target.camera.name
+        is ConnectTarget.Saved -> target.camera.displayName
+        is ConnectTarget.AddRoute -> target.camera.displayName
+        null -> null
+    }
+    val name = selected?.let { device(it, state, model).name } ?: failedName
     val checks = if (page >= 2) {
         listOf(
             MonitorPairingCheck("Bluetooth link", name ?: "Camera connected", MonitorPairingCheckState.COMPLETE, "OK"),

@@ -85,6 +85,15 @@ private struct TestConfirmationPrompt: ConfirmationPrompt {
     }
 
     @available(macOS 14, *)
+    @Test func aBlockedDiscoveryDoesNotClaimToScan() async {
+        let blocked = FakeIntegration(
+            id: IntegrationID("test.blocked"), discoveryModes: [.passive], discoveryRunning: false)
+        let store = SavedCamerasStore(document: Defaults([:]).at("document"))
+        let model = CamerasModel(integrations: [AppIntegration(blocked)], store: store)
+        #expect(await eventually { !model.scanning })
+    }
+
+    @available(macOS 14, *)
     @Test func thePairPageDiscoversActively() async {
         let model = model()
         model.beginPairing()

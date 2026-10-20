@@ -82,8 +82,10 @@ public final class MonitorDeliveryCoordinator {
 
     public init(
         exports: MonitorDeliveryExportStore = .shared,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: (@MainActor (Duration) async throws -> Void)? = nil
     ) {
+        // Resolved here, not as a closure-literal default: see `hostSleep(for:)` (swiftlang/swift#92017).
+        let sleep = sleep ?? { try await Task.sleep(for: $0) }
         self.exports = exports
         self.sleep = sleep
         // Exports a crash left behind go now; anything a live run or share holds stays.

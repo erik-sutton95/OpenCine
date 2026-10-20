@@ -8,6 +8,10 @@ import com.opencapture.opencine.insta360.shell.LunaMediaTransferPort
 import com.opencapture.opencine.media.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.TimeZone
 import kotlin.test.*
 
 /** Controlled transport behind the actual producer, mirrored with LunaMediaServiceTests. */
@@ -76,8 +80,9 @@ private class MediaPort : LunaMediaSourcePort {
 }
 
 // SIMULATED protocol-shaped metadata; the producer must retain the returned path verbatim.
-private fun mediaInfo(uri: String, size: Long): ByteArray =
-    LunaWire.blob(1, LunaWire.blob(1, uri.toByteArray()) + LunaWire.blob(2, LunaWire.integer(9, size)))
+private fun mediaInfo(uri: String, size: Long, stamp: Long? = null): ByteArray =
+    LunaWire.blob(1, LunaWire.blob(1, uri.toByteArray()) + LunaWire.blob(2,
+        LunaWire.integer(9, size) + (stamp?.let { LunaWire.integer(7, it) } ?: ByteArray(0))))
 
 private fun mediaLocations(requests: List<LunaControl.Request>, code: Int): List<Long> =
     requests.filter { it.code == code }.map { LunaProto(it.body).u(if (code == 13) 4 else 1, 0) }
@@ -399,5 +404,23 @@ class LunaMediaServiceTest {
         assertFailsWith<IllegalStateException> { session.mediaRequest(LunaControl.startLive, epoch) }
         assertEquals(1, sent)
         session.closeNow(SessionCloseReason.REQUESTED)
+    }
+
+    @Test fun creationStampPrintsTheCameraWallClockInUtc() = runTest {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("Europe/Berlin"))
+        try {
+            val port = MediaPort()
+            port.metadataByLocation = mapOf(2L to mediaInfo(port.paths[0], 101, 20261003140001))
+            val service = port.service(backgroundScope)
+            try {
+                val page = assertNotNull(service.openBrowse().catalog().next())
+                val captured = assertNotNull(page.upserts.first().capturedAt)
+                val label = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    .withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(captured))
+                assertEquals("2026-10-03 14:00:01", label,
+                    "The phone's UTC offset must not shift the camera's wall clock")
+            } finally { service.retire() }
+        } finally { TimeZone.setDefault(previous) }
     }
 }

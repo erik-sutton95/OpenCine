@@ -98,6 +98,14 @@ object IsoPickerPolicy {
         !isR3DNECodec(codec) && isoAuto == true
 
     /**
+     * The movie ISO readout while Auto ISO is active: the body's working sensitivity with an `A`
+     * prefix ("A3200"). `null` when Auto is not active or the working ISO is unknown. Twin of
+     * Swift `ISOPickerPolicy.autoISOLabel`.
+     */
+    fun autoISOLabel(iso: Long?, isoAuto: Boolean?, codec: String): String? =
+        iso?.takeIf { it > 0 && isAutoISOActive(isoAuto, codec) }?.let { "A$it" }
+
+    /**
      * Whether the operator may write a manual movie ISO for this codec / mode.
      *
      * - **R3D NE**: always manual dual-base (even in A/S/P).

@@ -22,23 +22,32 @@ public struct MonitorOperatorLiveReadout<Key: Hashable, Section: Hashable>: Iden
     public let marked: Set<String>
     /// The complete spoken readout when the shown value is compacted ("20282 shots remaining" for "20.2k").
     public let accessibilityLabel: String?
+    /// The camera owns or locks this value: the cell reads muted, as the source decides.
+    public let dimmed: Bool
+    /// A hold on the cell while it has no quick adjust (for example a camera-side lock toggle).
+    public let holdAction: (() -> Void)?
 
     public init(id: Key, title: String, value: String, section: Section? = nil,
         field: MonitorCaptureField? = nil, action: (() -> Void)? = nil,
         valueIcon: MonitorIcon? = nil, badgeIcon: MonitorIcon? = nil,
         quickEnabled: Bool = true, accessibilityIdentifier: String = "", accessibilityLabel: String? = nil,
-        marked: Set<String> = []) {
+        marked: Set<String> = [], dimmed: Bool = false, holdAction: (() -> Void)? = nil) {
         self.id = id; self.title = title; self.value = value; self.section = section
         self.field = field; self.action = action; self.valueIcon = valueIcon; self.badgeIcon = badgeIcon
         self.quickEnabled = quickEnabled; self.accessibilityIdentifier = accessibilityIdentifier
         self.accessibilityLabel = accessibilityLabel
-        self.marked = marked
+        self.marked = marked; self.dimmed = dimmed; self.holdAction = holdAction
     }
 
     /// The hold drum a common field opens: its choices, its reported label and the starred detents.
     public var fieldSnapshot: MonitorReadoutSnapshot? {
         field.map { .init(title: title, options: $0.choices.map(\.label), selection: $0.label ?? "", marked: marked) }
     }
+}
+
+/// Shared look of a camera-owned readout; the Kotlin twin uses the same value.
+public enum MonitorOperatorLiveReadoutStyle {
+    public static let dimmedOpacity: Double = 0.55
 }
 
 /// A coherent native action has its own identity without becoming a common setting or sheet.
@@ -306,6 +315,7 @@ private struct CaptureStripReadout<Key: Hashable, Section: Hashable,
                 Text(readout.value)
                 if let icon = readout.badgeIcon { icon.frame(width: 11, height: 11) }
             }
+            .opacity(readout.dimmed ? MonitorOperatorLiveReadoutStyle.dimmedOpacity : 1)
         }.modifier(CaptureReadoutGesture(inputs: inputs, readout: readout, control: control,
             state: state, source: source, enabled: enabled, commandEnabled: commandEnabled,
             currentSource: currentSource))
@@ -413,9 +423,15 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
         }
         return capturedSource.native.flatMap { $0.enabled ? $0.snapshot : nil }
     }
+    /// The readout's own hold, only where no quick adjust owns the hold.
+    private var holdAction: (@MainActor () -> Void)? {
+        guard commandEnabled, quickSnapshot == nil, let action = readout.holdAction else { return nil }
+        return { if canInspect, inputs.panel == nil, inputs.commitAdmission() { action() } }
+    }
     func body(content: Content) -> some View {
         content.modifier(MonitorReadoutGesture(snapshot: quickSnapshot, sourceIdentity: capturedSource,
-            isEnabled: canInspect, ownership: $state.ownership, presentationOwner: { presentationOwner }, onEvent: handle))
+            isEnabled: canInspect, ownership: $state.ownership, presentationOwner: { presentationOwner },
+            holdAction: holdAction, onEvent: handle))
             .accessibilityLabel(readout.title)
             .accessibilityValue(MonitorCapturePresentation.spokenValue(readout.value))
             .accessibilityIdentifier(readout.accessibilityIdentifier)
