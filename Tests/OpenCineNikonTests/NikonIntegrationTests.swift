@@ -481,6 +481,18 @@ private final class LegacyNikonPort: NikonConnectPort {
         #expect(NikonIntegration.failure(CocoaError(.fileNoSuchFile), message: "x").reason == .other)
     }
 
+    @Test func aRefusedWiFiJoinKeepsTheSharedCopyAndSettingsFallback() {
+        // The host's own message (often the platform's developer text) never replaces the shared copy.
+        let refusal = CameraHotspotJoinRefusal(code: 8, network: "Z_6002199")
+        let failure = NikonIntegration.failure(refusal, message: "internal error.")
+        #expect(failure == refusal.failure(integration: NikonCameraSession.integration))
+        #expect(failure.reason == .joinFailed && failure.actions == [.openSettings, .retry])
+        #expect(failure.message.contains("Z_6002199") && !failure.message.contains("internal error"))
+        #expect(failure.code == "org.opencapture.nikon-ptp.error.connection.wifi-join.code8")
+        let declined = NikonIntegration.failure(CameraHotspotJoinRefusal(code: 7, network: "Z_6002199"), message: nil)
+        #expect(declined.reason == .cancelled && declined.actions == [.retry])
+    }
+
     @Test func droppingTheAttemptCancelsTheFunnel() async throws {
         let nikon = integration()
         let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).last)
