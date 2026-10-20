@@ -37,14 +37,16 @@ public final class FakeLuna {
     public func makeSession(settle: Duration = .seconds(5), admittedSends: Bool = false,
         backendCapabilities: @escaping @MainActor () -> CameraCapabilities? = { nil },
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now) -> LunaCameraSession {
-        let admitted: LunaAdmittedCommandSend? = admittedSends
-            ? { [unowned self] build, admission, didDispatch in
+        var admitted: LunaAdmittedCommandSend?
+        var admittedWithin: LunaAdmittedCommandSendWithin?
+        if admittedSends {
+            admitted = { @MainActor [unowned self] build, admission, didDispatch in
                 try await self.receive(build, admission: admission, didDispatch: didDispatch)
-            } : nil
-        let admittedWithin: LunaAdmittedCommandSendWithin? = admittedSends
-            ? { [unowned self] build, admission, _, didDispatch in
+            }
+            admittedWithin = { @MainActor [unowned self] build, admission, _, didDispatch in
                 try await self.receive(build, admission: admission, didDispatch: didDispatch)
-            } : nil
+            }
+        }
         let session = LunaCameraSession(
             send: { [unowned self] in try await self.receive($0) },
             functionMode: { LunaFunctionMode.normalVideo.rawValue },
