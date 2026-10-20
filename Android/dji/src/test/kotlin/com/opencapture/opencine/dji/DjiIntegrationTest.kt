@@ -198,6 +198,35 @@ class DjiIntegrationTest {
     }
 
     @Test
+    fun aWifiSetupKeepsTheFindingNoteWhileTheCameraMoves() = runTest {
+        val port = FakeDjiPort()
+        val events = collect(integration(port).connect(ConnectTarget.Saved(saved, wifi.id)))
+        runCurrent()
+        port.setupProgress.value = "Finding the camera on studio"
+        port.phaseFlow.value = ConnectionPhase.JOINING_WIFI
+        runCurrent()
+        val finding = events.filterIsInstance<ConnectionEvent.Progress>().last().progress
+        assertEquals(2, finding.current)
+        assertEquals("Finding the camera on studio", finding.note)
+    }
+
+    @Test
+    fun theFindingNoteFollowsTheSetupTextWithinOnePhase() = runTest {
+        val port = FakeDjiPort()
+        val events = collect(integration(port).connect(ConnectTarget.Saved(saved, wifi.id)))
+        runCurrent()
+        port.phaseFlow.value = ConnectionPhase.JOINING_WIFI
+        runCurrent()
+        assertEquals(1, events.filterIsInstance<ConnectionEvent.Progress>().last().progress.current)
+        // The station search starts while the session stays in JOINING_WIFI.
+        port.setupProgress.value = "Finding the camera on studio"
+        runCurrent()
+        val finding = events.filterIsInstance<ConnectionEvent.Progress>().last().progress
+        assertEquals(2, finding.current)
+        assertEquals("Finding the camera on studio", finding.note)
+    }
+
+    @Test
     fun addingARouteSavesTheNetworkFirst() = runTest {
         val port = FakeDjiPort()
         val draft = RouteDraft(RouteKind.PHONE_HOTSPOT, network = "phone", secret = "hunter22")
@@ -216,11 +245,11 @@ class DjiIntegrationTest {
     fun typedFailuresKeepTheirCopy() = runTest {
         val silent = DjiFailures.classify(DatalinkHandshakeException("camera never answered the datalink handshake"), ConnectionPhase.OPENING_DATALINK, "camera never answered the datalink handshake")
         assertTrue(silent.reason == ConnectionFailure.Reason.TimedOut && silent.phase == CorePhase.NEGOTIATING)
-        assertEquals("Camera never answered the datalink handshake. ${DjiFailures.DJI_APPS_TIP}", silent.message, "the card copy with the DJI apps tip")
+        assertEquals("The camera never answered the video link. ${DjiFailures.DJI_APPS_TIP}", silent.message, "the friendly copy with the DJI apps tip")
         val approval = DjiFailures.classify(IllegalStateException("pairing timed out"), ConnectionPhase.AWAITING_APPROVAL, "pairing timed out")
         assertEquals(ConnectionFailure.Reason.NotApproved, approval.reason)
         assertEquals("Turn off DJI Frame Tap and force quit DJI Mimo on every phone near the camera.", DjiFailures.DJI_APPS_TIP)
-        assertEquals("Pairing timed out. ${DjiFailures.DJI_APPS_TIP}", approval.message)
+        assertEquals("The camera didn't respond in time. Check Bluetooth and try again. ${DjiFailures.DJI_APPS_TIP}", approval.message)
         assertEquals("The camera ended the link.", DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "the camera ended the link").message)
         assertEquals(DjiFailures.HOTSPOT_OFF, DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "no hotspot", hotspotOff = true).message)
         val denied = DjiFailures.classify(SecurityException("no"), ConnectionPhase.SCANNING, "no")

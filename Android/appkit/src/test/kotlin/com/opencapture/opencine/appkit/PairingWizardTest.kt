@@ -175,6 +175,27 @@ class PairingWizardTest {
     }
 
     @Test
+    fun aFailedPairKeepsItsReasonAfterTheRescanClearsSightings() = runTest {
+        val fake = FakeIntegration(id = IntegrationID("test.cameras"))
+        val model = model(fake, backgroundScope)
+        model.beginPairing()
+        fake.publish(listOf(Values.sighting))
+        runCurrent()
+        model.select("n2")
+        model.connect(model.state.value.nearby.first())
+        runCurrent()
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        fake.publish(emptyList())
+        runCurrent()
+        assertTrue(model.state.value.nearby.isEmpty())
+        val failed = CamerasMapping.wizard(model, wizard)
+        assertEquals(Values.failure.message, failed.error)
+        assertEquals("Try again", failed.primaryAction)
+        assertEquals("CAM-2", failed.target)
+    }
+
+    @Test
     fun theAppWordsNearbyCards() = runTest {
         val fake = FakeIntegration(id = IntegrationID("test.cameras"))
         val model = model(fake, backgroundScope, copy = { NearbyCardCopy(it.name, "Brand · nearby", "Needs approval on the camera") })
