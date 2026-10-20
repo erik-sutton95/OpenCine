@@ -296,6 +296,9 @@ class NativeVulkanFeedSession(
         if (native == 0L || presentGate.isReleased) return
         backdrop?.updatePlan(this, plan)
         lastPlan = plan
+        // Apply the plan's ISO report (or the profile's unreported assumption) before the IRE
+        // table below reads the ceiling, so it never waits for the next scope tick.
+        samples.ceiling.syncISO(plan.scopeTap.iso)
         OpcVulkan.nativeSetUiScale(native, uiScale)
         uploadCube(0, plan.lutCube, lastLut) { lastLut = it }
         uploadCube(1, plan.falseColorPaint, lastPaint) { lastPaint = it }
