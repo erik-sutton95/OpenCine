@@ -1,0 +1,38 @@
+{
+  "local_published_head": "8851f520fa3c88813912c3add9ebe2670ff23ddd",
+  "runtime_baseline": "836ba69f666716dd08a488cabe68a06fba27d6b8",
+  "paths": [
+    {
+      "path": "Sources/OpenCineApple/MonitorAssistEngine.swift",
+      "sha256": "1174f862a1a4bc9d6ad25f4d4a8e8391f06dfa6dd9a091c08d6cae05428d8e31",
+      "git_blob": "05e26c1e74baac459e074bd63309e45d60ba904a",
+      "byte_equal_actual836": true
+    },
+    {
+      "path": "Sources/OpenCineApple/MonitorWorkingRaster.swift",
+      "sha256": "e9cc8bdba76eba42afce35fe2c013aafeb4486fbb462500c6a224a3253379778",
+      "git_blob": "a71c6d7e8fa87d6fd7c75ca79f4611249689a18f",
+      "byte_equal_actual836": true
+    },
+    {
+      "path": "Sources/OpenCineMedia/LiveFrameTap.swift",
+      "sha256": "46972ce8920b29ea1af892fc0309d3bd77f014923063892e4999093dd9c0bf52",
+      "git_blob": "a55f88eaf57aa448276e9bf1f7863c15610c70a2",
+      "byte_equal_actual836": true
+    },
+    {
+      "path": "Tests/OpenCineAppleTests/MonitorAssistEngineStillTests.swift",
+      "sha256": "082b4d4b294ec3da8689ac19f8489adbd309da49fe1c5c61b82768dfb12f7a4b",
+      "git_blob": "c356c17d3faa7c7c6962cdbd7f3b965118ef8444",
+      "byte_equal_actual836": true
+    },
+    {
+      "path": "Sources/OpenCineMedia/ScopeSampling.swift",
+      "sha256": "751d94c5d186951d4fe838e6a05171054b07f0ae05ad8fe2bfd3c4240479e831",
+      "git_blob": "b1d6f58b8e32443e6dbe4266cc269eb737a9609b",
+      "byte_equal_actual836": true
+    }
+  ],
+  "temporary_patch_sha256": "0042f5c38f6715f9d26974398fc203d4ed6bcc617a4f5a59c49e1e72ef00f327",
+  "trace_m_sha256": "79f2d1cd8dfc75b0668ed97e9e380a6f028aa9ce3a088cee7a3500cbb958e244"
+}

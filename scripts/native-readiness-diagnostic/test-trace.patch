@@ -1,0 +1,108 @@
+diff --git a/Tests/OpenCineAppleTests/MonitorAssistEngineStillTests.swift b/Tests/OpenCineAppleTests/MonitorAssistEngineStillTests.swift
+index c356c17d..bd89b935 100644
+--- a/Tests/OpenCineAppleTests/MonitorAssistEngineStillTests.swift
++++ b/Tests/OpenCineAppleTests/MonitorAssistEngineStillTests.swift
+@@ -1,4 +1,5 @@
+ #if canImport(CoreImage) && canImport(CoreVideo) && canImport(Metal)
++import Darwin
+ import CoreGraphics
+ import CoreVideo
+ import Foundation
+@@ -18,6 +19,14 @@ private final class StillScopeClock: @unchecked Sendable {
+ /// A source that presents its own decoded stills (motion JPEG) runs the same scope tap, lamps
+ /// and ceiling as a video source. SIMULATED frames.
+ @Suite struct MonitorAssistEngineStillTests {
++    nonisolated(unsafe) private static let phaseLibrary = dlopen("__OPENCINE_READINESS_TRACE_DYLIB__", RTLD_NOW)
++    private static func trace(_ name: String) {
++        _ = phaseLibrary
++        var now = timespec()
++        clock_gettime(CLOCK_MONOTONIC_RAW, &now)
++        let message = "TEST_PHASE ns=\(UInt64(now.tv_sec) * 1_000_000_000 + UInt64(now.tv_nsec)) event=\(name)\n"
++        FileHandle.standardError.write(Data(message.utf8))
++    }
+     private static let width = 160
+     private static let height = 90
+
+@@ -67,10 +76,13 @@ private final class StillScopeClock: @unchecked Sendable {
+     }
+
+     @Test func aStillGetsTheVideoTapsBundleOnTheDeclaredCeiling() async throws {
++        Self.trace("aStillGetsTheVideoTapsBundleOnTheDeclaredCeiling-start")
+         let rgba = Self.rgba()
+         let ceiling = ScopeExposureCeiling()
+         ceiling.declare(clipByte: 180, for: .log3G10)
++        Self.trace("bundle-engine-init-begin")
+         let engine = MonitorAssistEngine()
++        Self.trace("bundle-engine-init-end")
+         engine.adopt(exposureCeiling: ceiling)
+         var policy = MonitorAssistPolicy()
+         policy.waveform = true
+@@ -78,6 +90,7 @@ private final class StillScopeClock: @unchecked Sendable {
+         policy.trafficThreshold = 0.05
+         let results = AsyncStream<MonitorAssistEngine.Result>.makeStream()
+         engine.sample(try Self.image(rgba), effects: policy, transfer: .log3G10) {
++            Self.trace("completion")
+             results.continuation.yield($0)
+         }
+         var iterator = results.stream.makeAsyncIterator()
+@@ -107,17 +120,23 @@ private final class StillScopeClock: @unchecked Sendable {
+     }
+
+     private static func finishPendingWork(on queue: DispatchQueue) async throws {
++        trace("\(queue.label)-barrier-submit")
+         let finished = XCTestExpectation(description: "still samples and deferred drain finished")
+         // drain schedules one more pass after the submitted sample blocks.
+-        queue.async { queue.async { finished.fulfill() } }
++        queue.async { trace("\(queue.label)-barrier-first"); queue.async { trace("\(queue.label)-barrier-final"); finished.fulfill() } }
++        trace("\(queue.label)-wait-begin")
+         let result = await XCTWaiter.fulfillment(of: [finished], timeout: 0.3)
++        trace("\(queue.label)-wait-end-\(result.rawValue)")
+         try #require(result == .completed, "retain the original 300 ms readiness budget")
+     }
+
+     @Test func aStillBeforeTheTapIsDueIsDropped() async throws {
++        Self.trace("aStillBeforeTheTapIsDueIsDropped-start")
+         let clock = StillScopeClock()
+         let queue = DispatchQueue(label: "opencine.test.still-before-due")
++        Self.trace("\(queue.label)-engine-init-begin")
+         let engine = MonitorAssistEngine(scopeNow: { clock.now }, queue: queue)
++        Self.trace("\(queue.label)-engine-init-end")
+         var policy = MonitorAssistPolicy()
+         // Three scopes share the dense (slowest) cadence.
+         policy.histogram = true
+@@ -127,11 +146,13 @@ private final class StillScopeClock: @unchecked Sendable {
+         let results = AsyncStream<MonitorAssistEngine.Result>.makeStream()
+         for _ in 0..<3 {
+             engine.sample(image, effects: policy, transfer: .rec709) {
+-                results.continuation.yield($0)
++                Self.trace("completion")
++            results.continuation.yield($0)
+             }
+         }
+         // A scope-free policy never converts or taps.
+         engine.sample(image, effects: MonitorAssistPolicy(), transfer: .rec709) {
++            Self.trace("completion")
+             results.continuation.yield($0)
+         }
+         // Frozen cadence time establishes that all three admissions are pre-due,
+@@ -147,9 +168,12 @@ private final class StillScopeClock: @unchecked Sendable {
+     }
+
+     @Test func theNextDueStillIsAcceptedAfterAnEarlyStillIsDropped() async throws {
++        Self.trace("theNextDueStillIsAcceptedAfterAnEarlyStillIsDropped-start")
+         let clock = StillScopeClock()
+         let queue = DispatchQueue(label: "opencine.test.still-next-due")
++        Self.trace("\(queue.label)-engine-init-begin")
+         let engine = MonitorAssistEngine(scopeNow: { clock.now }, queue: queue)
++        Self.trace("\(queue.label)-engine-init-end")
+         var policy = MonitorAssistPolicy()
+         policy.histogram = true
+         policy.waveform = true
+@@ -158,6 +182,7 @@ private final class StillScopeClock: @unchecked Sendable {
+         let interval = MonitorAssistEngine.minInterval(activeScopeCount: policy.activeScopeCount)
+         let results = AsyncStream<MonitorAssistEngine.Result>.makeStream()
+         let receive: @Sendable (MonitorAssistEngine.Result) -> Void = {
++            Self.trace("completion")
+             results.continuation.yield($0)
+         }
+         engine.sample(image, effects: policy, transfer: .rec709, completion: receive)

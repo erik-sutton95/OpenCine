@@ -9,6 +9,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      native_readiness_diagnostic:
+        description: Run only the temporary native readiness observation
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       full:
@@ -26,8 +31,72 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  native-readiness-diagnostic:
+    name: Native readiness diagnostic (SIMULATED)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.native_readiness_diagnostic }}
+    runs-on: macos-latest
+    # Ten minutes for setup/restore, forty for the bounded observation, five for artifacts.
+    timeout-minutes: 55
+    env:
+      SWIFT_BACKTRACE: enable=yes,interactive=no
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 2
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        timeout-minutes: 3
+        with:
+          xcode-version: latest-stable
+      - name: Xcode version for the existing CI cache key
+        id: xcode
+        timeout-minutes: 1
+        run: |
+          perl -e 'alarm 30; exec @ARGV' python3 - <<'PY'
+          import os, subprocess
+          from pathlib import Path
+          text = subprocess.check_output(['xcodebuild', '-version'], text=True, timeout=20)
+          with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+              output.write('version=' + text.splitlines()[0].split()[1] + '\n')
+          PY
+      - name: Restore the existing CI Xcode package and compilation caches
+        id: cache
+        timeout-minutes: 4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/ci-dd/SourcePackages/checkouts
+            ~/ci-dd/SourcePackages/repositories
+            ~/ci-dd/CompilationCache.noindex
+            ~/ci-dd/ModuleCache.noindex
+          key: core-ios-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}-${{ github.sha }}
+          restore-keys: |
+            core-ios-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}-
+            core-ios-xcode-${{ steps.xcode.outputs.version }}-
+      - name: Observe original readiness assertions and native phases
+        timeout-minutes: 40
+        env:
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+          CACHE_MATCHED_KEY: ${{ steps.cache.outputs.cache-matched-key }}
+          CACHE_PRIMARY_KEY: ${{ steps.cache.outputs.cache-primary-key }}
+        run: |
+          perl -e 'alarm 2400; exec @ARGV' python3 scripts/native-readiness-diagnostic/run.py \
+            --output "$RUNNER_TEMP/native-readiness"
+      # No diagnostic build, dylib or cache is saved. All original assertion exits remain visible.
+      - name: Upload raw diagnostic evidence
+        if: always()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-readiness-diagnostic
+          path: ${{ runner.temp }}/native-readiness
+          if-no-files-found: error
+          retention-days: 7
+
   meta:
     name: Meta checks
+    if: ${{ !inputs.native_readiness_diagnostic }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -76,6 +145,7 @@ jobs:
 
   swift:
     name: Swift package (macOS host tests, iOS builds)
+    if: ${{ !inputs.native_readiness_diagnostic }}
     runs-on: macos-latest
     timeout-minutes: 45
     env:
@@ -258,6 +328,7 @@ jobs:
 
   android:
     name: Android (test, lint, assemble, Vulkan regression)
+    if: ${{ !inputs.native_readiness_diagnostic }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -296,6 +367,7 @@ jobs:
     # It reads the public app repositories for the duplication check. The pinned-path eval test
     # skips without app checkouts and reports as skipped, not passed.
     name: Atlas check
+    if: ${{ !inputs.native_readiness_diagnostic }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -330,7 +402,7 @@ jobs:
   # self-test and the native view tests that use it, on a private simulator with accessibility on.
   kit-ios:
     name: Conformance kit, iOS (hosted walk self-test)
-    if: ${{ inputs.full }}
+    if: ${{ inputs.full && !inputs.native_readiness_diagnostic }}
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
@@ -383,7 +455,7 @@ jobs:
   playback-native-ios:
     name: Playback labels, native typed cancellation (SIMULATED)
     needs: kit-ios
-    if: ${{ inputs.full }}
+    if: ${{ inputs.full && !inputs.native_readiness_diagnostic }}
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -445,7 +517,7 @@ jobs:
   # contract test (OpenCine's fake integration; no camera, no hardware).
   template-ios:
     name: New-app template, iOS (SIMULATED)
-    if: ${{ inputs.full }}
+    if: ${{ inputs.full && !inputs.native_readiness_diagnostic }}
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -470,7 +542,7 @@ jobs:
 
   template-android:
     name: New-app template, Android (SIMULATED)
-    if: ${{ inputs.full }}
+    if: ${{ inputs.full && !inputs.native_readiness_diagnostic }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -503,7 +575,7 @@ jobs:
   # tracking issue instead of blocking pull requests.
   gate:
     name: CI gate
-    if: always()
+    if: ${{ always() && !inputs.native_readiness_diagnostic }}
     needs: [meta, swift, android, atlas]
     runs-on: ubuntu-latest
     timeout-minutes: 10
