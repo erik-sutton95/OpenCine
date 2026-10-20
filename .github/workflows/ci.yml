@@ -21,7 +21,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Cancel only a superseded pull-request run. Main pushes, dispatches and the nightly's call run
+  # to completion (a newer pending main run still replaces an older pending one).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   meta:
@@ -44,6 +46,10 @@ jobs:
           args: "detect --source=. --log-opts=HEAD --redact --no-banner --config=.gitleaks.toml"
       - name: Repository hygiene
         run: scripts/check-repository-hygiene.sh
+      - name: No async closure-literal default arguments (swiftlang/swift#92017)
+        run: |
+          scripts/check-async-closure-defaults-test.sh
+          scripts/check-async-closure-defaults.sh
       - name: Sentry release tooling shared by the apps (offline)
         run: bash scripts/sentry/sentry-test.sh
       - name: Spell check
@@ -78,23 +84,49 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The parent commit decides whether the Sentry adapter's simulator test runs.
+          fetch-depth: 2
           persist-credentials: false
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest-stable
+      - name: Xcode version for the cache key
+        id: xcode
+        run: echo "version=$(xcodebuild -version | awk 'NR == 1 { print $2 }')" >> "$GITHUB_OUTPUT"
+      # SwiftPM checkouts (not the 2.9 GB sentry-cocoa binary artifact, a quick download) and Xcode's
+      # content-addressed compilation cache for the xcodebuild
+      # steps below. Restored on every run, saved only from main (pull requests read main's).
+      - name: Restore Xcode package and compilation caches
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/ci-dd/SourcePackages/checkouts
+            ~/ci-dd/SourcePackages/repositories
+            ~/ci-dd/SourcePackages/workspace-state.json
+            ~/ci-dd/CompilationCache.noindex
+            ~/ci-dd/ModuleCache.noindex
+          key: core-ios-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}-${{ github.sha }}
+          restore-keys: |
+            core-ios-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}-
+            core-ios-xcode-${{ steps.xcode.outputs.version }}-
       - name: Build, strict concurrency
-        run: swift build --build-tests -Xswiftc -strict-concurrency=complete
-      # Every listed portable area and its tests remain warning-free. Apple runtime
-      # deprecations stay visible in the complete package checks; see the runtime guide.
+        shell: bash
+        run: swift build --build-tests -Xswiftc -strict-concurrency=complete 2>&1 | tee build-strict.log
+      # Every listed portable area and its tests remain warning-free. The clean strict build above
+      # compiles each of their files once, so its own diagnostics are the check (no second build).
+      # Apple runtime deprecations stay visible in the complete package checks; see the runtime guide.
       - name: Portable areas, strict concurrency, warnings are errors
+        shell: bash
         run: |
-          for target in OpenCineCore OpenCineCoreTestSupport OpenCineMedia OpenCineFrameIO \
-            OpenCineMotion OpenCineRelay OpenCineMulticam OpenCineCoreTests \
-            OpenCineMediaTests OpenCineFrameIOTests OpenCineMotionTests OpenCineRelayTests \
-            OpenCineMulticamTests; do
-            swift build --scratch-path "$RUNNER_TEMP/opencine-portable-wae" --target "$target" \
-              -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-          done
+          portable='OpenCineCore|OpenCineCoreTestSupport|OpenCineMedia|OpenCineFrameIO|OpenCineMotion|OpenCineRelay|OpenCineMulticam'
+          portable="$portable|OpenCineCoreTests|OpenCineMediaTests|OpenCineFrameIOTests|OpenCineMotionTests|OpenCineRelayTests|OpenCineMulticamTests"
+          warnings="$(grep -E "^$PWD/(Sources|Tests)/($portable)/[^:]+:[0-9]+:[0-9]+: warning:" build-strict.log | sort -u || true)"
+          if [ -n "$warnings" ]; then
+            printf '%s\n' "$warnings"
+            echo "::error::portable areas must stay warning-free under strict concurrency"
+            exit 1
+          fi
+          echo "Portable areas compiled without warnings."
       - name: Test cache admission (isolated real I/O)
         if: always()
         shell: bash  # -o pipefail, so a failing swift test fails the step
@@ -125,22 +157,51 @@ jobs:
         if: always()
         shell: bash
         run: '! grep -q "implemented in both" test-cache.log test.log test-luna.log'
-      - name: Build MonitorUI (iOS Simulator)
-        run: xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
-      - name: Build OpenCineApple (iOS Simulator)
-        run: xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
+      - name: Build MonitorUI and OpenCineApple (iOS Simulator)
+        run: |
+          for scheme in MonitorUI OpenCineApple; do
+            # Hosted runners are arm64: an x86_64 simulator slice only doubles the compile.
+            xcodebuild -scheme "$scheme" -destination 'generic/platform=iOS Simulator' -derivedDataPath ~/ci-dd \
+              -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES \
+              ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
+          done
+      # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
+      - name: Build Insta360Apple (iOS devices)
+        run: |
+          xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' -derivedDataPath ~/ci-dd \
+            -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES CODE_SIGNING_ALLOWED=NO build
+      - name: Did this change reach the Sentry adapter?
+        id: sentry
+        run: |
+          if git diff --quiet HEAD^1 HEAD -- Packages/OpenCineSentryApple Sources/OpenCineAppKit Sources/OpenCineMedia Package.swift; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       # The optional Sentry adapter is its own package (it alone takes sentry-cocoa) and starts the
       # SDK in its tests, so they run in an iOS simulator rather than the shared macOS test process.
+      # Building sentry-cocoa costs about four minutes: the PR tier runs it when the adapter or what
+      # it links changed, the nightly tier always.
       - name: Test OpenCineSentryApple (iOS Simulator)
+        if: ${{ inputs.full || steps.sentry.outputs.changed != 'false' }}
         working-directory: Packages/OpenCineSentryApple
         run: |
           set -euo pipefail
           udid="$(xcrun simctl create opencine-sentry "iPhone 16 Pro")"
           trap 'xcrun simctl delete "$udid"' EXIT
-          xcodebuild -scheme OpenCineSentryApple -destination "platform=iOS Simulator,id=$udid" test
-      # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
-      - name: Build Insta360Apple (iOS devices)
-        run: xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+          xcodebuild -scheme OpenCineSentryApple -destination "platform=iOS Simulator,id=$udid" -derivedDataPath ~/ci-dd \
+            -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES test
+      - name: Save Xcode package and compilation caches
+        if: ${{ success() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/ci-dd/SourcePackages/checkouts
+            ~/ci-dd/SourcePackages/repositories
+            ~/ci-dd/SourcePackages/workspace-state.json
+            ~/ci-dd/CompilationCache.noindex
+            ~/ci-dd/ModuleCache.noindex
+          key: core-ios-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}-${{ github.sha }}
       - name: Collect Swift crash reports
         if: always()
         shell: bash
@@ -269,8 +330,10 @@ jobs:
         run: |
           python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
-      # QUARANTINE (docs/testing/CI.md): digitizer cancel on hosted Xcode 26.6.
+      # QUARANTINE (docs/testing/CI.md, #109): digitizer cancel on hosted Xcode 26.6. Its failure is
+      # reported on the step but does not fail the kit's other checks.
       - name: Native playback labels and confirmation input
+        continue-on-error: true
         run: |
           python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-labels-dd" --output "$RUNNER_TEMP/kit-ios/playback-labels"

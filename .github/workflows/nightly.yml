@@ -40,4 +40,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SUITE_RESULT: ${{ needs.suite.result }}
+          # Whole jobs in QUARANTINE (docs/testing/CI.md); they keep their own issues.
+          QUARANTINED_JOBS: |
+            Playback labels, native typed cancellation (SIMULATED)
         run: scripts/ci-nightly-report.sh

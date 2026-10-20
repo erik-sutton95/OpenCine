@@ -58,7 +58,7 @@ public class MonitorMediaPlaybackModel<P, L>(
     private val resolveLook: suspend (MonitorMediaRecord<P>, MonitorPlaybackItem) -> MonitorPlaybackLook<L>? = { _, _ -> null },
     private val now: () -> MonotonicInstant = { MonotonicInstant.now() },
     seekEndClearance: Double = 0.05,
-    private val sceneLossPolicy: MonitorPlaybackSceneLossPolicy = MonitorPlaybackSceneLossPolicy.PRESERVE_REQUEST,
+    private val sceneLossPolicy: MonitorPlaybackSceneLossPolicy = MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST,
 ) {
     private val seekEndClearance = seekEndClearance.takeIf { it.isFinite() && it >= 0.0 } ?: 0.05
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
@@ -399,7 +399,10 @@ public class MonitorMediaPlaybackModel<P, L>(
         if (!value) {
             if (sceneLossPolicy == MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST) {
                 playRequestRevision += 1
-                if (!mutate { it.copy(playRequested = false) } || !admit(token)) return
+                // The cleared request reads paused before native reports it, so the first toggle on return resumes.
+                mutate { it.copy(playRequested = false, reportedPlaying = false, reportedTransport = null) }
+                // A same-item observer may publish during that commit; only a successor or a regained scene skips the pause.
+                if (!admit(token) || sceneActive) return
             }
             cancelScrub(false, token)
             if (admit(token)) native.pause(token)

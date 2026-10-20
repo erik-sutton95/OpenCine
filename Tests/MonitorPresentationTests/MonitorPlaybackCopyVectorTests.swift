@@ -32,6 +32,8 @@ import Testing
         "deleteConfirmationTitle": MonitorPlaybackCopy.deleteConfirmationTitle,
         "deleteConfirm": MonitorPlaybackCopy.deleteConfirm,
         "deleteCancel": MonitorPlaybackCopy.deleteCancel,
+        "deleteCancelDescription": MonitorPlaybackCopy.deleteCancelDescription,
+        "deleteConfirmDescription": MonitorPlaybackCopy.deleteConfirmDescription,
         "backFifteen": MonitorPlaybackCopy.backFifteen,
         "forwardFifteen": MonitorPlaybackCopy.forwardFifteen,
         "play": MonitorPlaybackCopy.play,

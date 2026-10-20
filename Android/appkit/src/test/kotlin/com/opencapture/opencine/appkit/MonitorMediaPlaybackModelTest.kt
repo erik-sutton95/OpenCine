@@ -116,7 +116,7 @@ class MonitorMediaPlaybackModelTest {
         startTiming: MonitorPlaybackStartTiming = MonitorPlaybackStartTiming.AFTER_NATIVE_READINESS,
         records: List<MonitorMediaRecord<String>> = emptyList(), service: CameraMediaService? = null,
         seekEndClearance: Double = 0.05,
-        sceneLossPolicy: MonitorPlaybackSceneLossPolicy = MonitorPlaybackSceneLossPolicy.PRESERVE_REQUEST,
+        sceneLossPolicy: MonitorPlaybackSceneLossPolicy? = null,
         candidate: ((MonitorMediaRecord<String>) -> List<MonitorPlaybackCandidate>)? = null,
         resolveLook: suspend (MonitorMediaRecord<String>, MonitorPlaybackItem) -> MonitorPlaybackLook<String>? = { _, _ -> null }): Fixture {
         val root = Files.createTempDirectory("opencine-playback-").toFile()
@@ -125,9 +125,13 @@ class MonitorMediaPlaybackModelTest {
         cache.directory.write("[]".toByteArray(), "index.json")
         val library = MonitorMediaLibraryModel(cache, PlaybackTestFavorites(), service = service, scope = scope); library.begin()
         val port = native ?: PlaybackTestPort()
-        val model = MonitorMediaPlaybackModel<String, String>(library, port, scope, lookTiming = lookTiming, startTiming = startTiming,
-            candidates = candidate ?: { listOf(MonitorPlaybackCandidate.Cached(MonitorPlaybackItem(URI("file:/${it.payload}.mov"), "video/mp4", it.payload))) },
-            resolveLook = resolveLook, now = { clock.instant }, seekEndClearance = seekEndClearance,
+        val candidates = candidate ?: { listOf(MonitorPlaybackCandidate.Cached(MonitorPlaybackItem(URI("file:/${it.payload}.mov"), "video/mp4", it.payload))) }
+        val model = if (sceneLossPolicy == null)
+            MonitorMediaPlaybackModel<String, String>(library, port, scope, lookTiming = lookTiming, startTiming = startTiming,
+                candidates = candidates, resolveLook = resolveLook, now = { clock.instant },
+                seekEndClearance = seekEndClearance)
+        else MonitorMediaPlaybackModel<String, String>(library, port, scope, lookTiming = lookTiming, startTiming = startTiming,
+            candidates = candidates, resolveLook = resolveLook, now = { clock.instant }, seekEndClearance = seekEndClearance,
             sceneLossPolicy = sceneLossPolicy)
         return Fixture(root, library, port, model)
     }
@@ -318,7 +322,8 @@ class MonitorMediaPlaybackModelTest {
         } finally { fixture.close() }
     }
     @Test fun coverAndSceneLossKeepNativeOwnerWithoutResumingInterruptedScrub() = runTest {
-        val fixture = fixture(backgroundScope); val model = fixture.model; val port = fixture.port
+        val fixture = fixture(backgroundScope, sceneLossPolicy = MonitorPlaybackSceneLossPolicy.PRESERVE_REQUEST)
+        val model = fixture.model; val port = fixture.port
         try {
             val a = record("A"); model.load(a, listOf(a)); runCurrent(); port.release(0); runCurrent()
             val token = model.state.value.token; model.beginScrub(); model.cancelScrub(true); model.setSceneActive(false); runCurrent()
@@ -326,6 +331,51 @@ class MonitorMediaPlaybackModelTest {
             model.setPresentationActive(false); model.setSceneActive(true)
             assertEquals(token, model.state.value.token); assertEquals(0, port.closes); assertTrue(fixture.library.state.value.browsing)
             model.setPresentationActive(true); assertEquals(listOf(token, token), port.played); assertTrue(model.state.value.ready)
+        } finally { fixture.close() }
+    }
+    @Test fun defaultSceneLossLeavesPlaybackPausedOnForegroundReturn() = runTest {
+        val fixture = fixture(backgroundScope)
+        val model = fixture.model; val port = fixture.port
+        try {
+            val row = record("scene-default")
+            model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            assertTrue(model.state.value.ready); assertEquals(1, port.played.size)
+            model.setSceneActive(false); runCurrent()
+            assertFalse(model.state.value.playRequested)
+            model.setSceneActive(true); runCurrent()
+            assertFalse(model.state.value.playRequested)
+            assertEquals(1, port.played.size, "Returning from the background must not restart playback")
+            model.setPlaying(true); runCurrent()
+            assertEquals(2, port.played.size)
+        } finally { fixture.close() }
+    }
+    @Test fun firstToggleAfterSceneLossResumesWhenNativeNeverReportedThePause() = runTest {
+        val fixture = fixture(backgroundScope)
+        val model = fixture.model; val port = fixture.port
+        try {
+            val row = record("scene-toggle")
+            model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token
+            port.onEvent?.invoke(item, MonitorPlaybackEvent.Playing(true))
+            model.setSceneActive(false); model.setSceneActive(true); runCurrent()
+            assertFalse(model.state.value.canPause, "A cleared request reads paused until native reports again")
+            model.togglePlaying(); runCurrent()
+            assertTrue(model.state.value.playRequested); assertEquals(listOf(item, item), port.played)
+        } finally { fixture.close() }
+    }
+    @Test fun sameItemObserverDuringSceneLossCannotSkipTheNativePause() = runTest {
+        val fixture = fixture(backgroundScope)
+        val model = fixture.model; val port = fixture.port
+        try {
+            val row = record("scene-observer")
+            model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            var pauses = 0; port.onPause = { pauses += 1 }; var looped = false
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                model.state.collect { if (!looped && !it.playRequested) { looped = true; model.setLooping(true) } }
+            }
+            model.setSceneActive(false)
+            assertTrue(looped); assertTrue(model.state.value.looping); assertFalse(model.state.value.playRequested)
+            assertEquals(1, pauses, "Losing the scene must still pause the native player")
         } finally { fixture.close() }
     }
     @Test fun closeRejectsLateReadyAndLeavesBorrowedGalleryOpen() = runTest {

@@ -11,7 +11,7 @@ deterministic: under about 20 minutes, every job bounded by `timeout-minutes`.
 | Job | Checks | Bound |
 | --- | --- | --- |
 | Meta checks | gitleaks, hygiene, Sentry tooling, typos, Markdown, offline links, EditorConfig, release-notes and nightly-report tooling tests, actionlint | 30 min |
-| Swift package | strict-concurrency build, warnings-as-errors on portable targets, host tests, iOS Simulator builds, Sentry adapter test, Insta360 device build | 45 min |
+| Swift package | strict-concurrency build (its diagnostics are the warnings-as-errors check for the portable targets), host tests, iOS Simulator and Insta360 device builds with Xcode's compilation cache, Sentry adapter simulator test when the adapter or what it links changed | 45 min |
 | Android | `test lint assembleRelease`, build-logic tests, Vulkan sync, release dex registrars | 30 min |
 | Atlas check | registry, direction, cycles, duplication must not grow | 10 min |
 | CI gate | every job above reported `success` | 10 min |
@@ -22,12 +22,14 @@ oracle or quarantined test runs here.
 
 ## Nightly tier: `.github/workflows/nightly.yml`
 
-Every night at 02:30 UTC on `main`, and on `workflow_dispatch`. It calls `ci.yml` with
+Every night at 02:30 UTC on `main` (the apps follow at 03:15, 04:00 and 04:45 so their macOS
+jobs do not queue behind each other), and on `workflow_dispatch`. It calls `ci.yml` with
 `full: true`: the whole PR tier for every platform regardless of paths, plus:
 
 - Conformance kit, iOS (hosted walk self-test, command dashboard, playback labels)
 - Playback labels, native typed cancellation (SIMULATED)
 - New-app template, iOS and Android (SIMULATED)
+- The Sentry adapter's simulator test, also when nothing it links changed
 - In the apps: shared conformance scenarios on iOS and the iPad storage oracle
 
 On `main`, `scripts/ci-nightly-report.sh` keeps one issue per repository, **Nightly CI failing
@@ -47,6 +49,10 @@ test is quarantined here, in the same pull request, with its issue.
 | Native playback labels and confirmation input (digitizer cancel, hosted Xcode 26.6) | `kit-ios` step | [#109](https://github.com/erik-sutton95/OpenCine/issues/109) |
 | Playback labels, native typed cancellation (SIMULATED) | `playback-native-ios` | [#110](https://github.com/erik-sutton95/OpenCine/issues/110) |
 | Private simulator setup: `simctl list` timeouts | every simulator suite | [#111](https://github.com/erik-sutton95/OpenCine/issues/111) |
+
+Quarantined tests still run every night and their failures are listed in the run summary, but
+they neither open nor keep open the nightly tracking issue: a quarantined step has
+`continue-on-error`, a quarantined job is named in `QUARANTINED_JOBS` in `nightly.yml`.
 
 A test leaves quarantine when its issue is fixed and several consecutive nightlies pass; move
 it back to the PR tier and close the issue in the same pull request.
