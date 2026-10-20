@@ -2378,6 +2378,7 @@ var NikonMemberControl.session: NikonCameraSession!
 var NikonMonitorLink.serialNumber: Swift.String
 var NikonMonitorRelayHello.acceptsHEVC: Swift.Bool
 var NikonMonitorRelayState.allowsControlRequests: Swift.Bool?
+var NikonMonitorRuntime.hasBackgroundPumps: Swift.Bool
 var NikonMonitorRuntime.hasQueuedCommands: Swift.Bool
 var NikonMonitorRuntime.nikonControlFacts: NikonControlFacts
 var NikonMonitorRuntime.onClosed: (OpenCineCore.SessionCloseReason) -> Swift.Void

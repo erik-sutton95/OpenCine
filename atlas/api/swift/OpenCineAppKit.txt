@@ -976,7 +976,7 @@ init MonitorOperatorPreferences(storage: Foundation.UserDefaults, keys: MonitorO
 init MonitorOperatorPreferences.Defaults(keepScreenAwake: Swift.Bool, hdrDisplay: Swift.Bool, recordConfirmation: Swift.Bool, haptics: Swift.Bool, cacheOriginals: Swift.Bool, remoteShutter: Swift.Bool)
 init MonitorOperatorPreferences.Keys(keepScreenAwake: Swift.String, hdrDisplay: Swift.String, recordConfirmation: Swift.String, haptics: Swift.String, cacheOriginals: Swift.String, legacyKeepScreenAwake: Swift.String?, remoteShutter: Swift.String?)
 init MonitorOperatorSessionModel(shell: ShellModel, assist: MonitorAssistState<Looks>, display: MonitorDisplayPreferences, sleep: (Swift.Duration) async -> Swift.Void)<Looks where Looks : MonitorLookProvider>
-init MonitorOperatorSupplementaryCaptureReadout(id: Swift.String, after: Key, title: Swift.String, value: Swift.String, accessibilityValue: Swift.String, accessibilityIdentifier: Swift.String, section: Section?, enabled: Swift.Bool, isCurrent: () -> Swift.Bool, action: () -> Swift.Void)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
+init MonitorOperatorSupplementaryCaptureReadout(id: Swift.String, after: Key, title: Swift.String, value: Swift.String, accessibilityLabel: Swift.String?, accessibilityValue: Swift.String, accessibilityHint: Swift.String?, accessibilityIdentifier: Swift.String, section: Section?, enabled: Swift.Bool, isCurrent: () -> Swift.Bool, action: () -> Swift.Void)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 init MonitorPlaybackAdmission(isCurrent: () -> Swift.Bool)
 init MonitorPlaybackLook(transfer: OpenCineMedia.MonitorTransfer?, source: Source)<Source where Source : Swift.Sendable>
 init MonitorPlaybackScopeFrame(revision: Swift.UInt64, samples: OpenCineMedia.ScopeSamples)
@@ -1394,7 +1394,9 @@ let MonitorOperatorPreferences.Keys.legacyKeepScreenAwake: Swift.String?
 let MonitorOperatorPreferences.Keys.recordConfirmation: Swift.String
 let MonitorOperatorPreferences.Keys.remoteShutter: Swift.String?
 let MonitorOperatorSessionModel.assist: MonitorAssistState<Looks>
+let MonitorOperatorSupplementaryCaptureReadout.accessibilityHint: Swift.String?
 let MonitorOperatorSupplementaryCaptureReadout.accessibilityIdentifier: Swift.String
+let MonitorOperatorSupplementaryCaptureReadout.accessibilityLabel: Swift.String
 let MonitorOperatorSupplementaryCaptureReadout.accessibilityValue: Swift.String
 let MonitorOperatorSupplementaryCaptureReadout.after: Key
 let MonitorOperatorSupplementaryCaptureReadout.enabled: Swift.Bool
@@ -2135,6 +2137,7 @@ var MonitorInteractionContext.orientationRevision: Swift.Int
 var MonitorInteractionContext.toolbarMounted: Swift.Bool
 var MonitorInteractionContext.transientPanelPresented: Swift.Bool
 var MonitorInteractionLifecycle.context: MonitorInteractionContext?
+var MonitorInteractionTransition.cameraReplaced: Swift.Bool
 var MonitorInternetHop.isActive: Swift.Bool
 var MonitorInternetHop.onCameraNetwork: Swift.Bool
 var MonitorInternetHop.token: MonitorInternetHop<Route>.Token?
