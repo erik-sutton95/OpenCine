@@ -827,6 +827,8 @@ static func MonitorCapturePopupChrome.showsRecordingCategoryTabs(portrait: Swift
 static func MonitorCapturePopupLayout.topMargin(safeTop: Swift.Double) -> Swift.Double
 static func MonitorCommandDashboardLayout.frame(layout: FieldMonitorLayout) -> MonitorRect
 static func MonitorCommandGridLayout.dragCenter(_: CoreFoundation.CGPoint, tileWidth: CoreGraphics.CGFloat, rowHeight: CoreGraphics.CGFloat, in: CoreFoundation.CGSize) -> CoreFoundation.CGPoint
+static func MonitorCommandGridLayout.heroHeight(portrait: Swift.Bool) -> CoreGraphics.CGFloat
+static func MonitorCommandGridLayout.heroTimecodeSize(portrait: Swift.Bool) -> CoreGraphics.CGFloat
 static func MonitorCommandGridLayout.hitSlot(at: CoreFoundation.CGPoint, tileWidth: CoreGraphics.CGFloat, rowHeight: CoreGraphics.CGFloat, spacing: CoreGraphics.CGFloat, columns: Swift.Int, itemCount: Swift.Int) -> Swift.Int?
 static func MonitorCommandGridLayout.portraitGridHeight(tileCount: Swift.Int) -> CoreGraphics.CGFloat
 static func MonitorCommandGridLayout.rowHeight(height: CoreGraphics.CGFloat, rows: Swift.Int) -> CoreGraphics.CGFloat
@@ -858,6 +860,7 @@ static func MonitorLegalDocuments.bundledText(_: [Swift.String?]) -> MonitorLega
 static func MonitorLegalDocuments.resource(_: Swift.String, extension: Swift.String?, subdirectory: Swift.String?, in: Foundation.Bundle) -> Swift.String?
 static func MonitorLiveViewViewport.fullWidth(layoutWidth: Swift.Double, safeArea: MonitorEdgeInsets, screenWidth: Swift.Double?, geometrySpace: MonitorLiveViewGeometrySpace) -> Swift.Double
 static func MonitorMediaFilterPopupLayout.card(viewportWidth: Swift.Double, viewportHeight: Swift.Double, safeTop: Swift.Double, safeLeading: Swift.Double, safeBottom: Swift.Double, safeTrailing: Swift.Double, topControlInset: Swift.Double) -> MonitorRect
+static func MonitorMediaGalleryCopy.emptySubtitle(sourceAvailable: Swift.Bool, hasRecords: Swift.Bool, activeFilterCount: Swift.Int, tab: Swift.String) -> Swift.String
 static func MonitorMediaGalleryLabels.date(_: Swift.String) -> Swift.String
 static func MonitorMediaGalleryLabels.metadata(resolution: Swift.String?, bytes: Swift.String?, duration: Swift.String?, levels: [MonitorMediaResolutionLevel]) -> Swift.String
 static func MonitorMediaGalleryLabels.resolution(_: Swift.String?, levels: [MonitorMediaResolutionLevel]) -> Swift.String?
@@ -960,6 +963,7 @@ static let MonitorCapturePopupChrome.stackSpacing: Swift.Double
 static let MonitorCapturePopupLayout.topMarginMinimum: Swift.Double
 static let MonitorCommandGridLayout.columns: Swift.Int
 static let MonitorCommandGridLayout.cornerRadius: CoreGraphics.CGFloat
+static let MonitorCommandGridLayout.heroMinimumScale: CoreGraphics.CGFloat
 static let MonitorCommandGridLayout.maximumRowHeight: CoreGraphics.CGFloat
 static let MonitorCommandGridLayout.minimumRowHeight: CoreGraphics.CGFloat
 static let MonitorCommandGridLayout.portraitRowHeight: CoreGraphics.CGFloat
@@ -968,6 +972,7 @@ static let MonitorCommandGridLayout.reorderPressDuration: Foundation.TimeInterva
 static let MonitorCommandGridLayout.reorderTapSuppression: Foundation.TimeInterval
 static let MonitorCommandGridLayout.sideTileMinHeight: CoreGraphics.CGFloat
 static let MonitorCommandGridLayout.spacing: CoreGraphics.CGFloat
+static let MonitorCommandGridLayout.stackSpacing: CoreGraphics.CGFloat
 static let MonitorCompactTelemetryBudget.cutoutClearance: Swift.Double
 static let MonitorDialHaptic.coarseLimit: Swift.Int
 static let MonitorDrumSelection.pointsPerValue: Swift.Double
@@ -1442,6 +1447,8 @@ var MonitorSettingsTab.rail: Swift.String
 var MonitorSettingsTab.subtitle: Swift.String
 var MonitorSideRailPlan.isEmpty: Swift.Bool
 var MonitorStatusPresentation.clock: Swift.String
+var MonitorStatusPresentation.commandHeroAccessibilityValue: Swift.String
+var MonitorStatusPresentation.commandHeroTimecode: (seconds: Swift.String, frames: Swift.String)?
 var MonitorStatusPresentation.elapsedLabel: Swift.String
 var MonitorStatusPresentation.elapsedSeconds: Swift.Int?
 var MonitorStatusPresentation.recording: Swift.Bool?

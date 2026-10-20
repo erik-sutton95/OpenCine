@@ -26,6 +26,10 @@ case CameraPreviewTransfer.hlg
 case CameraPreviewTransfer.iLog
 case CameraPreviewTransfer.rec709
 case LunaCommandAdmissionError.expired
+case LunaFeedStall.Action.escalate
+case LunaFeedStall.Action.none
+case LunaFeedStall.Action.requestKeyframe
+case LunaFeedStall.Action.restartLive
 class LunaCameraBackend: CameraBackend, LunaConnectPort, LunaMediaCatalogRecordSource, Sendable
 class LunaCameraSession: CameraSession, Sendable
 class LunaCommandOwner: Sendable
@@ -40,6 +44,7 @@ enum CameraConnectionPhase: Equatable, Hashable, Sendable
 enum CameraMediaRepresentation: Equatable, Hashable, Sendable
 enum CameraPreviewTransfer: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum LunaCommandAdmissionError: Equatable, Error, Hashable, Sendable
+enum LunaFeedStall.Action: Equatable, Hashable, Sendable
 enum LunaSessionRecovery
 extension Insta360Protocol.LunaColorMode
 func CameraBackend.connect(to: MonitorCamera) async throws -> ()
@@ -106,6 +111,8 @@ func LunaConnectPort.mediaService(for: OpenCineCore.CameraSessionID) -> (any Ope
 func LunaConnectPort.openSession() -> LunaCameraSession
 func LunaConnectPort.startScan() async throws -> ()
 func LunaConnectPort.stopScan() -> ()
+func LunaFeedStall.restartFinished() -> ()
+func LunaFeedStall.tick(silence: Foundation.TimeInterval, now: Foundation.TimeInterval) -> LunaFeedStall.Action
 func LunaFrameTimecode.note(frameClock: Swift.UInt64, arrival: Swift.Double, timeZoneSeconds: Swift.Int) -> OpenCineCore.CameraTimecodeReading?
 func LunaFrameTimecode.note(frameClock: Swift.UInt64, arrival: Swift.Double, timeZoneSeconds: Swift.Int, fps: Swift.Int) -> OpenCineCore.CameraTimecode?
 func LunaFrameTimecode.reset() -> ()
@@ -156,6 +163,7 @@ init LunaCameraSession.Timing(settle: [OpenCineCore.SettingKey : Swift.Duration]
 init LunaColorMode(gammaLabel: Swift.String?)
 init LunaCommandAdmission(owner: LunaCommandOwner, isCurrent: () -> Swift.Bool)
 init LunaCommandOwner()
+init LunaFeedStall()
 init LunaFrameTimecode()
 init LunaHeadTrackSteering(now: Foundation.TimeInterval)
 init LunaHeadTrackSteering.Tuning(panDegPerSec: Swift.Double, tiltDegPerSec: Swift.Double, gain: Swift.Double, accelFeed: Swift.Double)
@@ -227,6 +235,11 @@ static let LunaCameraSession.isoValues: [Swift.Int]
 static let LunaCameraSession.motion: OpenCineMotion.MotionCapabilities
 static let LunaCameraSession.shutterDenominators: [Swift.Int]
 static let LunaCameraSession.unsupported: Swift.Set<OpenCineCore.SettingKey>
+static let LunaFeedStall.escalateAfter: Foundation.TimeInterval
+static let LunaFeedStall.keyframeAfter: Foundation.TimeInterval
+static let LunaFeedStall.maximumRestarts: Swift.Int
+static let LunaFeedStall.restartAfter: Foundation.TimeInterval
+static let LunaFeedStall.restartSpacing: Foundation.TimeInterval
 static let LunaFrameTimecode.frameLatencySeconds: Swift.Double
 static let LunaHeadTrackSteering.angleReadLatency: Swift.Double
 static let LunaHeadTrackSteering.stickLagSeconds: Swift.Double
@@ -241,6 +254,7 @@ struct CameraInformation: Equatable, Sendable
 struct CameraMediaAsset: Decodable, Encodable, Equatable, Identifiable, Sendable
 struct LunaCameraSession.Timing: Sendable
 struct LunaCommandAdmission: Sendable
+struct LunaFeedStall: Equatable, Sendable
 struct LunaFrameTimecode: Sendable
 struct LunaHeadTrackSteering.Step: Equatable, Sendable
 struct LunaHeadTrackSteering.Tuning: Equatable, Sendable
@@ -295,6 +309,8 @@ var LunaCommandOwner.source: Foundation.UUID
 var LunaConnectPort.connectedSerial: Swift.String?
 var LunaConnectPort.eventHandler: ((CameraBackendEvent) -> Swift.Void)?
 var LunaConnectPort.joinedNetwork: Swift.String?
+var LunaFeedStall.restartInFlight: Swift.Bool
+var LunaFeedStall.restarts: Swift.Int
 var LunaFrameTimecode.offset: Swift.Double?
 var LunaHeadTrackSteering.Step.pan: Swift.Int32
 var LunaHeadTrackSteering.Step.pitch: Swift.Double

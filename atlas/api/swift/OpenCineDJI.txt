@@ -251,6 +251,7 @@ func DJICameraSessionAdapter.shutter(aimedAt: ControlTarget, admission: DJIComma
 func DJICameraSessionAdapter.snapshots() -> _Concurrency.AsyncStream<OpenCineCore.CameraSnapshot>
 func DJICameraSessionAdapter.submit(_: OpenCineCore.CameraCommand) -> OpenCineCore.CommandReceipt
 func DJICameraSessionAdapter.submit(_: OpenCineCore.CameraCommand, admission: DJICommandAdmission) -> OpenCineCore.CommandReceipt
+func DJICaptureControlState.admitsShutterWrite(_: Swift.Int) -> Swift.Bool
 func DJICommandAdmission.admits(_: DJICommandOwner?) -> Swift.Bool
 func DJICommandAdmission.perform(_: () throws -> Result)<Result> throws -> Result
 func DJICommandAdmission.require(owner: DJICommandOwner?) throws -> ()
@@ -807,6 +808,7 @@ var DJICameraSessionAdapter.readbackTimeout: Swift.Duration
 var DJICameraSessionAdapter.target: ControlTarget
 var DJICameraSessionAdapter.wireTimeout: Swift.Duration
 var DJICaptureControlState.model: OpenCineCameraVocabulary.CameraModel?
+var DJICaptureControlState.offeredShutterDenoms: [Swift.Int]
 var DJICaptureControlState.reported: OpenCineCameraVocabulary.CameraStatus
 var DJICaptureControlState.shutterPresentation: OpenCineMedia.HostShutterPresentation
 var DJICommandAdmission.isCurrent: Swift.Bool

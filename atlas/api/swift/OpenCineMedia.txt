@@ -439,6 +439,7 @@ func MonitorPlaybackPort.retireItem(for: MonitorPlaybackItemToken) -> ()
 func MonitorPlaybackPort.seek(seconds: Swift.Double, tolerance: Swift.Double, token: MonitorPlaybackItemToken) async -> Swift.Bool
 func MonitorPlaybackPort.setMuted(_: Swift.Bool, token: MonitorPlaybackItemToken) -> ()
 func MonitorPlaybackSourceValues.bufferedTemporalFraction(nativeDuration: Swift.Double?) -> Swift.Double?
+func MonitorPlaybackSourceValues.headerSubtitle(facts: Swift.String) -> Swift.String
 func MonitorPlaybackSourceValues.resolvedTransfer(fallback: () -> MonitorTransfer?) -> MonitorTransfer?
 func MonitorPreviewAdmission.acquire(owner: Foundation.UUID, nowNanoseconds: Swift.UInt64, minimumIntervalNanoseconds: Swift.UInt64) -> MonitorPreviewAdmission.Ticket?
 func MonitorPreviewAdmission.activate(owner: Foundation.UUID) -> ()
@@ -556,7 +557,7 @@ init MonitorPlaybackItemToken(owner: Foundation.UUID, revision: Swift.UInt64)
 init MonitorPlaybackMetadata(duration: Swift.Double?, width: Swift.Double?, height: Swift.Double?, conform: MonitorConformPreview.Source)
 init MonitorPlaybackMetadataValue(_: Swift.String, _: Swift.String)
 init MonitorPlaybackScrubToken(item: MonitorPlaybackItemToken, edit: Foundation.UUID)
-init MonitorPlaybackSourceValues(availability: MonitorPlaybackAvailability?, progress: Swift.Double?, buffered: Swift.Double?, colorLabel: Swift.String?, transfer: MonitorTransfer?, clipByte: Swift.Int?, metadata: [MonitorPlaybackMetadataValue], clockStyle: MonitorPlaybackClockStyle, bufferedThroughSeconds: Swift.Double?, allowsSignalFallback: Swift.Bool)
+init MonitorPlaybackSourceValues(availability: MonitorPlaybackAvailability?, progress: Swift.Double?, buffered: Swift.Double?, colorLabel: Swift.String?, transfer: MonitorTransfer?, clipByte: Swift.Int?, metadata: [MonitorPlaybackMetadataValue], clockStyle: MonitorPlaybackClockStyle, bufferedThroughSeconds: Swift.Double?, allowsSignalFallback: Swift.Bool, notice: Swift.String?)
 init MonitorPreviewAdmission()
 init MonitorSceneToneMap(sceneWhite: Swift.Double, contrast: Swift.Double)
 init MonitorTransferInferenceRule(fallback: MonitorTransfer, transfer: MonitorTransfer, minByte: Swift.ClosedRange<Swift.UInt8>, maxByte: Swift.ClosedRange<Swift.UInt8>)
@@ -1217,6 +1218,7 @@ var CameraLinkHealthSnapshot.detailCaption: Swift.String
 var CameraLinkHealthSnapshot.linkHealthScore: Swift.Int
 var CameraMediaBrowse.binding: MediaBrowseBinding
 var CameraMediaBrowse.deletion: (any CameraMediaDeleteService)?
+var CameraMediaBrowse.heldBySource: Swift.Bool?
 var CameraMediaBrowse.thumbnails: (any CameraMediaThumbnailService)?
 var CameraMediaBrowse.transfers: (any CameraMediaTransferService)?
 var CameraMediaService.sessionID: OpenCineCore.CameraSessionID
@@ -1607,6 +1609,7 @@ var MonitorPlaybackSourceValues.clipByte: Swift.Int?
 var MonitorPlaybackSourceValues.clockStyle: MonitorPlaybackClockStyle
 var MonitorPlaybackSourceValues.colorLabel: Swift.String?
 var MonitorPlaybackSourceValues.metadata: [MonitorPlaybackMetadataValue]
+var MonitorPlaybackSourceValues.notice: Swift.String?
 var MonitorPlaybackSourceValues.progress: Swift.Double?
 var MonitorPlaybackSourceValues.sourceLabel: Swift.String?
 var MonitorPlaybackSourceValues.transfer: MonitorTransfer?
