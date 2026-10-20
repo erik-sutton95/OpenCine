@@ -1602,6 +1602,7 @@ static let MonitorChromeEditBadgeLayout.edgeInset: CoreGraphics.CGFloat
 static let MonitorChromeEditBadgeLayout.overhang: CoreGraphics.CGFloat
 static let MonitorChromeEditBadgeLayout.touchTarget: CoreGraphics.CGFloat
 static let MonitorControlModel.connectFirst: Swift.String
+static let MonitorControlModel.rateChangeHold: Swift.Duration
 static let MonitorControlModel.recordingUnknown: Swift.String
 static let MonitorDeliveryBatchPolicy.emptySelection: Swift.String
 static let MonitorDeliveryBatchPolicy.internetFailure: Swift.String
@@ -2029,6 +2030,7 @@ var MonitorCapturePolicy.tapAction: MonitorCapturePolicy.Action?
 var MonitorCapturePopupContainer.body: some SwiftUI.View
 var MonitorCapturePopupContainer.placement: MonitorPresentation.MonitorCapturePopupLayout
 var MonitorCaptureReadout.body: some SwiftUI.View
+var MonitorControlModel.frameRateSettling: Swift.Bool
 var MonitorControlModel.isRecording: Swift.Bool?
 var MonitorControlModel.noteFor: (OpenCineCore.CommandStage, Swift.String) -> Swift.String?
 var MonitorControlModel.onChange: () -> Swift.Void

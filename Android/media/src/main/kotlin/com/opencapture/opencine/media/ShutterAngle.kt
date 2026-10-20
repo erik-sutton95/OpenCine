@@ -67,6 +67,17 @@ object ShutterAngle {
         return 360.0 * fps.toDouble() / denom.toDouble()
     }
 
+    /**
+     * What the camera really makes while it holds the operator's angle through the nearest legal
+     * speed, e.g. "1/250 (172.8°)" for 180° at 120 fps on a body without 1/240; null when the
+     * speed is exact or either value is unknown. Swift twin.
+     */
+    fun achieved(preferredDegrees: Double, denom: Int, fps: Int): String? {
+        val actual = degrees(denom, fps) ?: return null
+        if (abs(actual - nearestDegrees(preferredDegrees)) < 0.05) return null
+        return "1/$denom (${label(actual)})"
+    }
+
     fun nearestDegrees(value: Double): Double =
         degrees.minByOrNull { abs(it - value) } ?: DEFAULT_DEGREES
 

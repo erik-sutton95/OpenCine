@@ -381,14 +381,15 @@ object CaptureLists {
         return ShutterSeat(next)
     }
 
-    fun reseatShutterAngle(status: CameraStatus, preferredAngle: Double): ShutterSeat {
+    /** The angle drum holds the operator's angle while the camera holds it or a change is [settling]. */
+    fun reseatShutterAngle(status: CameraStatus, preferredAngle: Double, settling: Boolean = false): ShutterSeat {
         val labels = ShutterAngle.labels
         val fps = status.fps
         val liveDenom = status.shutterDenom
         val preferred = ShutterAngle.label(preferredAngle)
         if (liveDenom > 0) {
             val mapped = ShutterAngle.denom(preferredAngle, fps, shutterDenoms(status))
-            if (mapped == liveDenom && preferred in labels) {
+            if ((mapped == liveDenom || settling) && preferred in labels) {
                 return ShutterSeat(preferred, preferredAngle, persistAngle = false)
             }
             val next = ShutterAngle.nearestLabel(liveDenom, fps)
@@ -402,9 +403,10 @@ object CaptureLists {
         selectedMode: Int,
         isEvSheet: Boolean,
         preferredAngle: Double,
+        settling: Boolean = false,
     ): ShutterSeat =
         if (selectedMode == 1 && !isEvSheet) {
-            reseatShutterAngle(status, preferredAngle)
+            reseatShutterAngle(status, preferredAngle, settling)
         } else {
             reseatShutterSpeed(status)
         }

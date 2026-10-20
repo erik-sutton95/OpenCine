@@ -230,6 +230,12 @@ public class FakeCameraSession(
         cameraReportsStatus()
     }
 
+    /** The camera reports a setting changed on its own side (a body dial, a format readback). Swift twin. */
+    public fun cameraReportsSetting(value: SettingValue) {
+        device = device.copy(settings = device.settings + (value.key to value))
+        cameraReportsStatus()
+    }
+
     /** A camera-body recording report, independent of any app command. */
     public fun cameraReportsRecording(recording: Boolean?) {
         device = device.copy(recording = recording)

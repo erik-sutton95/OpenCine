@@ -26,6 +26,8 @@ object ShutterAngle {
         com.opencapture.opencine.media.ShutterAngle.degrees(denom, effectiveFps(fps)) ?: DEFAULT_DEGREES
 
     fun nearestDegrees(value: Double): Double = com.opencapture.opencine.media.ShutterAngle.nearestDegrees(value)
+    fun achieved(preferredDegrees: Double, denom: Int, fps: Int): String? =
+        com.opencapture.opencine.media.ShutterAngle.achieved(preferredDegrees, denom, fps)
     fun nearestLabel(denom: Int, fps: Int): String = label(nearestDegrees(degrees(denom, fps)))
 }
 
