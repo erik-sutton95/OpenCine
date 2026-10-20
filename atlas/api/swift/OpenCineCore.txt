@@ -549,6 +549,7 @@ var CameraHotspotJoinRefusal.message: Swift.String
 var CameraHotspotJoinRefusal.network: Swift.String
 var CameraHotspotJoinRefusal.rawCode: Swift.Int
 var CameraHotspotJoinRefusal.reason: CameraHotspotJoinRefusal.Reason
+var CameraHotspotJoinRefusal.retryMayJoin: Swift.Bool
 var CameraHotspotJoinRefusal.title: Swift.String
 var CameraHotspotOperations.apply: (CameraHotspotConfiguration) async throws -> Swift.Void
 var CameraHotspotOperations.remove: (Swift.String) -> Swift.Void
