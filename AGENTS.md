@@ -32,6 +32,8 @@ Python; nothing to install.
 | Which repositories a change reaches, in order | `atlas impact <repo> --include-candidates` |
 | Start work on an issue | `atlas task start <repo>#<n> [--with opencine] [--with <app>]` |
 | Start a linked app issue from Orca | `atlas task start opencine#<n> --orca` ([linked issues](atlas/docs/LINKED_ISSUES.md)) |
+| Which apps adopt a Core symbol, module or file, and through which files | `atlas consumers <symbol, module or path>` |
+| Each app's OpenCine pin, how far behind, and changed API it uses | `atlas pins` |
 | Public API of an OpenCine module (the contract apps compile against) | `atlas api <module> [--grep text]` |
 | How much code is still copied between repositories | `atlas dupes [--top N]` (CI: `--check` against `atlas/compat/dupes-baseline.json`) |
 | Where a checkout is, its branch and worktrees | `atlas locate <repo>` |
@@ -281,6 +283,14 @@ The atlas routes and coordinates; product code lives in this package and the app
    docs, then the atlas.
 3. Status words stay honest: implemented, automated checks passed, hardware-qualified,
    candidate, integrated, released, unsupported, untested.
+
+Before changing shared API, read the contract and its consumers, not the app trees:
+`atlas/consumers/<app>.md` (what each app adopts, adapter files, app-owned views, pins, twins,
+capabilities), then `atlas consumers <symbol>` and `atlas api <module>`. The same queries are MCP
+tools (`consumers`, `api`, `pins`, `impact`) from the read-only `opencine-atlas` server in
+`.mcp.json`. Inside one checkout, the swift-lsp and kotlin-lsp plugins answer definitions and
+references; the atlas answers across repositories. If CI says the index is stale, run
+`atlas consumers --write` and commit `atlas/consumers`.
 
 A change to public API updates its snapshot in the same PR (CI fails otherwise): Swift
 `atlas api --write --build` (atlas/api/swift), Kotlin `cd Android && ./gradlew updateKotlinAbi`

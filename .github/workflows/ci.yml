@@ -228,6 +228,12 @@ jobs:
         env:
           OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
         run: python3 atlas/tools/atlas.py dupes --check --top 3
+      # The committed consumer index must equal a regeneration at the app commits it records, so an
+      # OpenCine public API change updates atlas/consumers in the same PR.
+      - name: Consumer index (atlas/consumers matches the API snapshots and recorded app commits)
+        env:
+          OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
+        run: python3 atlas/tools/atlas.py consumers --check
 
   # The conformance kit's own checks (docs/conformance/SCENARIOS.md): the hosted accessibility walk's
   # self-test and the native view tests that use it, on a private simulator with accessibility on.
