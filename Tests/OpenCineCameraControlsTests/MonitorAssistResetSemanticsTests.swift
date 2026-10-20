@@ -102,5 +102,22 @@ final class MonitorAssistResetSemanticsTests: XCTestCase {
         XCTAssertEqual(assist.crushClipCompensation, TrafficLightsAssist.defaultCompensation,
             "The traffic-lights reset restores the default shared compensation")
     }
+
+    /// ZAA-227 / ZAA-228: a camera's declared defaults are where the shared Reset buttons land.
+    func testResetsLandOnTheDeclaredDefaults() async throws {
+        assist = MonitorAssistState(looks: SimulatedLooks(), storage: storage,
+            keys: .init(assist: "assist", cleanPins: "pins", playback: "playback"), cleanPinCases: [],
+            defaults: .init(zebraHighlightIRE: 100, crushClipCompensation: .quarter))
+        assist.zebraHighlightIRE = 80; assist.persist()
+        try await tapReset(tool: .zebra)
+        XCTAssertEqual(assist.zebraHighlightIRE, 100)
+        assist.crushClipCompensation = .one; assist.persist()
+        try await tapReset(tool: .histogram)
+        XCTAssertEqual(assist.crushClipCompensation, .quarter)
+        XCTAssertEqual(stores.histogram.options.crushClipCompensation, .quarter)
+        assist.crushClipCompensation = .one; assist.persist()
+        try await tapReset(tool: .trafficLights)
+        XCTAssertEqual(assist.crushClipCompensation, .quarter)
+    }
 }
 #endif
