@@ -14,9 +14,15 @@ public final class FakeLunaPort: LunaConnectPort {
     public var makeMediaService: ((CameraSessionID) -> (any CameraMediaService)?)?
     /// Thrown by `startScan()` when set (Bluetooth off, for example).
     public var scanFailure: Error?
+    /// Cameras this run has heard advertise (the backend's Bluetooth reachability).
+    public var seen: Set<UUID> = []
+    /// Cameras with saved Wi-Fi credentials in the backend's store.
+    public var savedWiFi: Set<UUID> = []
     public private(set) var scans = 0
     public private(set) var scanStops = 0
     public private(set) var connects: [MonitorCamera] = []
+    /// Whether the most recent connect started after the camera had advertised.
+    public private(set) var connectSawSighting: Bool?
     public private(set) var disconnects = 0
     public private(set) var forgotten: [UUID] = []
     /// The camera behind every session this port opens.
@@ -41,9 +47,14 @@ public final class FakeLunaPort: LunaConnectPort {
 
     public func stopScan() { scanStops += 1 }
 
+    public func hasSeen(_ cameraID: UUID) -> Bool { seen.contains(cameraID) }
+
+    public func hasSavedWiFi(cameraID: UUID) -> Bool { savedWiFi.contains(cameraID) }
+
     public func connect(to camera: MonitorCamera) async throws {
         cancelPending()
         connects.append(camera)
+        connectSawSighting = seen.contains(camera.id)
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { pending = $0 }
         } onCancel: {

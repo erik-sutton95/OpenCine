@@ -741,9 +741,12 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             capturePresented: transient, visible: !motionCovering, interactive: editing == nil,
             navigationHidden: captureState.preview != nil || (panel != nil && !layout.portrait)) {
             if let returnToStage = source.returnToStage {
-                MonitorChromeButton("Return to Multicam", size: CGSize(width: layout.lock.width, height: layout.lock.height),
-                    action: { if exposed { returnToStage() } }) { Image(systemName: "square.grid.2x2") }
-                    .accessibilityIdentifier("monitor.system.multicamReturn")
+                MonitorChromeButton("Return to Multiview", size: CGSize(width: layout.lock.width, height: layout.lock.height),
+                    action: { if exposed { returnToStage() } }) {
+                    MonitorIcon.layoutGrid.frame(
+                        width: layout.lock.width * 29 / 54, height: layout.lock.height * 29 / 54)
+                }
+                .accessibilityIdentifier("monitor.system.multicamReturn")
             } else {
                 MonitorLockButton(locked: lockBinding, side: layout.lock.width)
             }

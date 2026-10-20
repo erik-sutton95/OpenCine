@@ -109,7 +109,6 @@ class LunaBackend(
     @Volatile private var socket: Socket? = null
     @Volatile private var tcp: LunaChannel? = null
     private var gatt: LunaGatt? = null
-    private var wasInactive = false
     // Status, merged across partial reads like the iOS session. Main thread only.
     private var settings: LunaPhotographySettings? = null
     private var device: LunaDeviceStatus? = null
@@ -186,6 +185,9 @@ class LunaBackend(
     }
     private fun fail(failure: ConnectionFailure) { _failure.value = failure.message; _failureDetail.value = failure }
     override fun stopScan() { if (scanActive) runCatching { bluetooth?.adapter?.bluetoothLeScanner?.stopScan(scanner) }; scanActive = false }
+    override fun hasSeen(id: String): Boolean = _found.value.any { it.id == id }
+    override suspend fun hasSavedWiFi(id: String): Boolean =
+        withCredentialIO({ true }, transaction = credentialTransaction) { savedWifi(id) != null }
     override fun connect(id: String) {
         connectedMedia?.retire()
         mediaConnectionGeneration += 1
@@ -407,9 +409,9 @@ class LunaBackend(
     }
     override fun close() { disconnect(); cleanup(); scope.cancel() }
     override fun sceneActive(active: Boolean) {
-        if (!active) { wasInactive = true; return }
-        if (wasInactive && _phase.value == ConnectionPhase.FAILED) _connected.value?.let { connect(it.id) }
-        wasInactive = false
+        // A foreground reconnect belongs to CamerasModel: the app asks it on resume so the card
+        // and wizard show the attempt. A backend dial here connected outside every attempt, with
+        // no progress and no monitor opened (IA-320).
     }
 
     // Status. Same reads as iOS `LunaCameraBackend.refreshStatus` and its notification handling.

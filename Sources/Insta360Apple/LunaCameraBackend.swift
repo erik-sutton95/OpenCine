@@ -125,6 +125,12 @@ public final class LunaCameraBackend: CameraBackend {
         store.credentials(cameraID: cameraID)
     }
 
+    /// Whether this run has heard the camera advertise (Bluetooth can reach it now).
+    public func hasSeen(_ cameraID: UUID) -> Bool { bluetooth.hasSeen(cameraID) }
+
+    /// Whether saved camera Wi-Fi exists for a camera that is not advertising.
+    public func hasSavedWiFi(cameraID: UUID) -> Bool { store.credentials(cameraID: cameraID) != nil }
+
     public func startScan() async throws {
         try Task.checkCancellation()
         emit(.scanning)
