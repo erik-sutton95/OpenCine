@@ -61,6 +61,27 @@ class MediaResumeOwnershipTest {
     }
 
     @Test
+    fun refusedResendAfterAKeptEnableRetriesAtTheLoopPace() = runBlocking {
+        var now = 0L
+        val attempts = mutableListOf<Long>()
+        var first = true
+        val result = MediaLiveResumeRunner.run(16_000, { now }, { true }, { false },
+            pictureFresh = { now >= 3_500 },
+            exitPlayback = { now += 450; true }, enableLiveView = {
+                attempts += now
+                if (first) {
+                    first = false
+                    true
+                } else {
+                    false
+                }
+            }, sleep = { now += it })
+        assertEquals(MediaLiveResumeRunner.Result.RESTORED, result)
+        // The refused 2.63 s resend must not push the next ask to 4.63 s.
+        assertEquals(listOf(630L, 2_630L, 2_730L), attempts.take(3))
+    }
+
+    @Test
     fun pictureBudgetStartsAtTheFirstLiveViewRequestNotAtPlaybackExit() = runBlocking {
         var now = 0L
         var exits = 0

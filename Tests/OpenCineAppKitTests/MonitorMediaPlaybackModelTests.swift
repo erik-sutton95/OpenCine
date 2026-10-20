@@ -107,7 +107,7 @@ import Testing
         startTiming: MonitorPlaybackStartTiming = .afterNativeReadiness,
         records: [MonitorMediaRecord<String>] = [], service: (any CameraMediaService)? = nil,
         seekEndClearance: Double = 0.05,
-        sceneLossPolicy: MonitorPlaybackSceneLossPolicy = .preserveRequest,
+        sceneLossPolicy: MonitorPlaybackSceneLossPolicy? = nil,
         candidate: (@MainActor @Sendable (MonitorMediaRecord<String>) -> [MonitorPlaybackCandidate])? = nil,
         resolveLook: @escaping @MainActor @Sendable (MonitorMediaRecord<String>, MonitorPlaybackItem) async -> MonitorPlaybackLook<String>? = { _, _ in nil }) ->
         (URL, MonitorMediaLibraryModel<String>, PlaybackTestPort, MonitorMediaPlaybackModel<String, String>) {
@@ -119,10 +119,20 @@ import Testing
         let library = MonitorMediaLibraryModel(cache: cache, favorites: PlaybackTestFavorites(), service: service)
         library.begin()
         let port = native ?? PlaybackTestPort()
-        let model = MonitorMediaPlaybackModel<String, String>(library: library, native: port, lookTiming: lookTiming, startTiming: startTiming,
-            candidates: candidate ?? { [.cached(.init(url: URL(fileURLWithPath: "/" + $0.payload + ".mov"), mimeType: "video/mp4", sourceKey: $0.payload))] },
-            resolveLook: resolveLook, now: { clock.instant }, seekEndClearance: seekEndClearance,
-            sceneLossPolicy: sceneLossPolicy)
+        let candidates = candidate ?? {
+            [.cached(.init(url: URL(fileURLWithPath: "/" + $0.payload + ".mov"),
+                mimeType: "video/mp4", sourceKey: $0.payload))]
+        }
+        let model = if let sceneLossPolicy {
+            MonitorMediaPlaybackModel<String, String>(library: library, native: port, lookTiming: lookTiming,
+                startTiming: startTiming, candidates: candidates, resolveLook: resolveLook,
+                now: { clock.instant }, seekEndClearance: seekEndClearance,
+                sceneLossPolicy: sceneLossPolicy)
+        } else {
+            MonitorMediaPlaybackModel<String, String>(library: library, native: port, lookTiming: lookTiming,
+                startTiming: startTiming, candidates: candidates, resolveLook: resolveLook,
+                now: { clock.instant }, seekEndClearance: seekEndClearance)
+        }
         return (root, library, port, model)
     }
     private func eventually(_ predicate: () -> Bool) async -> Bool {
@@ -330,7 +340,7 @@ import Testing
         #expect(port.seeks.map(\.target) == [10, 30, 30]); port.finishSeek(2)
     }
     @available(macOS 14, *) @Test func coverAndSceneLossKeepNativeOwnerWithoutResumingInterruptedScrub() async {
-        let (root, library, port, model) = fixture()
+        let (root, library, port, model) = fixture(sceneLossPolicy: .preserveRequest)
         defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
         let a = record("A"); model.load(a, playlist: [a]); #expect(await eventually { port.preparations.count == 1 })
         port.release(0); #expect(await eventually { model.ready })
@@ -339,6 +349,48 @@ import Testing
         model.setPresentationActive(false); model.setSceneActive(true)
         #expect(model.token == token && port.closes == 0 && library.browsing)
         model.setPresentationActive(true); #expect(port.played == [token, token] && model.ready)
+    }
+    @available(macOS 14, *) @Test func defaultSceneLossLeavesPlaybackPausedOnForegroundReturn() async {
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("scene-default")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        model.setSceneActive(false); await Task.yield()
+        #expect(!model.playRequested)
+        model.setSceneActive(true); await Task.yield()
+        #expect(!model.playRequested)
+        #expect(port.played.count == 1, "Returning from the background must not restart playback")
+        model.setPlaying(true); await Task.yield()
+        #expect(port.played.count == 2)
+    }
+    @available(macOS 14, *) @Test func firstToggleAfterSceneLossResumesWhenNativeNeverReportedThePause() async {
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("scene-toggle")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let item = model.token
+        port.onEvent?(item, .playing(true))
+        model.setSceneActive(false); model.setSceneActive(true); await Task.yield()
+        #expect(!model.canPause, "A cleared request reads paused until native reports again")
+        model.togglePlaying(); await Task.yield()
+        #expect(model.playRequested && port.played == [item, item])
+    }
+    @available(macOS 14, *) @Test func sameItemObserverDuringSceneLossCannotSkipTheNativePause() async {
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("scene-observer")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        var pauses = 0
+        port.onPause = { pauses += 1 }
+        withObservationTracking { _ = model.playRequested } onChange: {
+            MainActor.assumeIsolated { model.setLooping(true) }
+        }
+        model.setSceneActive(false)
+        #expect(model.looping && !model.playRequested)
+        #expect(pauses == 1, "Losing the scene must still pause the native player")
     }
     @available(macOS 14, *) @Test func closeRejectsLateReadyAndLeavesBorrowedGalleryOpen() async {
         let (root, library, port, model) = fixture()

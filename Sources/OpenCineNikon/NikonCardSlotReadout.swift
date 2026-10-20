@@ -4,15 +4,20 @@ import Foundation
 public struct NikonStorageCard: Equatable, Sendable {
     /// Authoritative PTP storage identifier.
     public let storageID: UInt32
-    /// One-based physical slot, from the storage ID's high word when it follows the Nikon pattern.
+    /// One-based slot: the physical slot from the storage ID's high word when it follows the Nikon
+    /// pattern, otherwise a display number that no other card holds.
     public let slot: Int
     /// Capacity, free space and free frames reported for this card alone.
     public let info: PTPStorageInfo
+    /// Whether `slot` is the physical slot rather than a display number. Only a physical slot can
+    /// be matched to the body's slot properties.
+    public let slotIsPhysical: Bool
 
-    public init(storageID: UInt32, slot: Int, info: PTPStorageInfo) {
+    public init(storageID: UInt32, slot: Int, info: PTPStorageInfo, slotIsPhysical: Bool = true) {
         self.storageID = storageID
         self.slot = slot
         self.info = info
+        self.slotIsPhysical = slotIsPhysical
     }
 }
 
@@ -40,25 +45,33 @@ public struct NikonCardSlotReadout: Equatable, Sendable {
         self.activeSlot = activeSlot
     }
 
-    /// Orders storage-info results by physical slot. IDs outside the Nikon `0x000S_xxxx` pattern,
-    /// or a repeated slot number, fall back to the enumeration order so no card is dropped.
+    /// Orders storage-info results by physical slot. A card keeps the slot in its `0x000S_xxxx`
+    /// storage ID when no other card claims the same one. Any other card (outside the pattern, or
+    /// sharing a slot number) gets the lowest free display number in enumeration order, marked as
+    /// not physical, so no card is dropped and no known card is moved to another slot.
     public init(
         storage: [(id: UInt32, info: PTPStorageInfo)],
         primarySlot: NikonScalarPropertyDescriptor? = nil,
         activeSlot: NikonScalarPropertyDescriptor? = nil
     ) {
-        var cards = storage.enumerated().map { index, entry in
-            NikonStorageCard(
-                storageID: entry.id, slot: Self.physicalSlot(storageID: entry.id) ?? index + 1,
-                info: entry.info)
-        }
-        .sorted { $0.slot < $1.slot }
-        if Set(cards.map(\.slot)).count != cards.count {
-            cards = storage.enumerated().map { index, entry in
-                NikonStorageCard(storageID: entry.id, slot: index + 1, info: entry.info)
+        let patterned = storage.map { Self.physicalSlot(storageID: $0.id) }
+        let claims = Dictionary(grouping: patterned.compactMap { $0 }, by: { $0 })
+        var taken = Set(claims.filter { $0.value.count == 1 }.keys)
+        var cards: [NikonStorageCard] = []
+        for (entry, slot) in zip(storage, patterned) {
+            if let slot, claims[slot]?.count == 1 {
+                cards.append(NikonStorageCard(storageID: entry.id, slot: slot, info: entry.info))
+                continue
             }
+            let display = (1...).first { !taken.contains($0) }!
+            taken.insert(display)
+            cards.append(
+                NikonStorageCard(
+                    storageID: entry.id, slot: display, info: entry.info, slotIsPhysical: false))
         }
-        self.init(cards: cards, primarySlot: primarySlot, activeSlot: activeSlot)
+        self.init(
+            cards: cards.sorted { $0.slot < $1.slot }, primarySlot: primarySlot,
+            activeSlot: activeSlot)
     }
 
     /// The physical slot in a Nikon storage ID's high word (`0x000S_0001`); nil outside it.
@@ -86,10 +99,10 @@ public struct NikonCardSlotReadout: Equatable, Sendable {
     /// The slot the body writes stills to; nil when the body does not say.
     public var stillsSlot: Int? { Self.slot(selectedBy: primarySlot) }
 
-    /// The card the body writes stills to, when it is inserted.
+    /// The card the body writes stills to, when it is inserted and its physical slot is known.
     public var stillsCard: NikonStorageCard? {
         guard let stillsSlot else { return nil }
-        return cards.first { $0.slot == stillsSlot }
+        return cards.first { $0.slotIsPhysical && $0.slot == stillsSlot }
     }
 
     /// Frames left on the stills card alone. nil with fewer than two cards (the body's own figure

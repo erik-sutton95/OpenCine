@@ -238,6 +238,8 @@ import Testing
         #expect(try await cursor.next() == nil)
         #expect(peer.entries == 0 && peer.writes.isEmpty)
         #expect(browse.thumbnails == nil && browse.transfers == nil && browse.deletion == nil)
+        // PIB-082: the gallery says the camera holds its own gallery instead of "No clips".
+        #expect(browse.heldBySource == true)
         await browse.close()
         await browse.close()
         #expect(peer.returns == 1 && peer.enables == 1 && peer.exits == 1)

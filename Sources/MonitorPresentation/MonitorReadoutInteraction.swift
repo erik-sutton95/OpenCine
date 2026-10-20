@@ -10,6 +10,8 @@ public struct MonitorReadoutInteraction: Equatable, Sendable {
         case cancelled
     }
     public static let holdMilliseconds = 280
+    /// A readout's own hold action (no quick drum), as long as the panel's hold to lock.
+    public static let holdActionMilliseconds = 450
     public static let dragThreshold: Double = 14
     public static let tapSlop: Double = 8
     public private(set) var phase: Phase = .idle

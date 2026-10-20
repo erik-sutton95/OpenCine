@@ -206,12 +206,14 @@ public struct LunaPhotoSize: Equatable, Sendable {
 }
 
 enum LunaAspect {
-    static let known: [(Double, Double)] = [(16, 9), (9, 16), (4, 3), (3, 4), (2, 1), (1, 2), (1, 1), (3, 2), (2, 3), (21, 9)]
+    static let known: [(Double, Double)] = [(16, 9), (9, 16), (4, 3), (3, 4), (2, 1), (1, 2), (1, 1), (3, 2), (2, 3)]
 
-    /// Nearest common ratio within 1%, else "r:1". 1728x3072 -> 9:16, 2720x1530 -> 16:9.
+    /// Nearest common ratio within 1%, else "r:1". 1728x3072 -> 9:16, 2720x1530 -> 16:9. The wide
+    /// sizes read "2.35:1" as the shared resolution readout names them (`MonitorCapturePresentation`).
     static func label(width: Int, height: Int) -> String {
         guard width > 0, height > 0 else { return "?" }
         let ratio = Double(width) / Double(height)
+        if abs(ratio - 2.35) < 0.03 { return "2.35:1" }
         if let match = known.first(where: { abs($0.0 / $0.1 - ratio) / ratio < 0.01 }) {
             return "\(Int(match.0)):\(Int(match.1))"
         }

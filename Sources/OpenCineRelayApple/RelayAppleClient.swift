@@ -76,9 +76,7 @@
             codec: Codec, network: RelayNetworkPolicy = .init(), racePeerToPeer: Bool = false,
             watcherID: String?, versionMismatchReason: String, unreachableSuffix: String = "",
             journal: @escaping @Sendable (String) -> Void = { _ in },
-            sleep: @escaping @MainActor (TimeInterval) async -> Void = { seconds in
-                try? await Task.sleep(for: .seconds(seconds))
-            }, now: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+            sleep: (@MainActor (TimeInterval) async -> Void)? = nil, now: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
             watcher: RelayAppleWatcherConfiguration<Codec.FrameMetadata, Codec.ControlToken, Codec.JoinDenied>? = nil
         ) {
             self.codec = codec
@@ -88,7 +86,8 @@
             self.versionMismatchReason = versionMismatchReason
             self.unreachableSuffix = unreachableSuffix
             self.journal = journal
-            self.sleep = sleep
+            // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+            self.sleep = sleep ?? { seconds in try? await Task.sleep(for: .seconds(seconds)) }
             self.now = now; self.watcher = watcher
             self.watcherSession = watcher.map { RelayWatcherSession(policy: $0.timing) }
         }

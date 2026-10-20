@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -100,8 +101,9 @@ public fun <P> MonitorOperatorPhotoScreen(library: MonitorMediaLibraryModel<P>, 
                         modifier = Modifier.offset { IntOffset(fitted.x.roundToInt(), fitted.y.roundToInt()) }
                             .size(with(density) { fitted.width.toDp() }, with(density) { fitted.height.toDp() }),
                         enabled = model.isCurrent && !coverPresented && !state.optionsPresented && state.deleteRequestID == null,
-                        onTransform = { transform = it }) {
-                            Image(image.asImageBitmap(), displayRecord.asset.filename, contentScale = ContentScale.FillBounds,
+                        onTransform = { transform = it },
+                        contentDescription = "Photo preview for ${displayRecord.asset.filename}") {
+                            Image(image.asImageBitmap(), null, contentScale = ContentScale.FillBounds,
                                 modifier = Modifier.fillMaxSize())
                         }
                 }
@@ -126,9 +128,12 @@ public fun <P> MonitorOperatorPhotoScreen(library: MonitorMediaLibraryModel<P>, 
                         !state.variantSwitching && model.isCurrent) { model.selectVariant(it, loaders, policy) }
                     if (collection.isNotEmpty() && model.canDelete(operations)) Text("Delete all",
                         style = LiveType.ui(13f, FontWeight.SemiBold), color = Color(0xFFFF5A54),
-                        modifier = Modifier.chromeClickable { model.requestDelete(operations, collection) }.padding(8.dp))
+                        modifier = Modifier
+                            .semantics { contentDescription = "Delete the whole burst series"; role = Role.Button }
+                            .chromeClickable { model.requestDelete(operations, collection) }.padding(8.dp))
                     if (model.canDelete(operations))
-                        MediaCircleIconButton(MonitorIcon.TRASH, "Delete photo", { model.requestDelete(operations) })
+                        MediaCircleIconButton(MonitorIcon.TRASH, "Delete photo from the camera card",
+                            { model.requestDelete(operations) })
                     if (share != null) {
                         if (state.preparingShare) CircularProgressIndicator(color = LiveDesign.accent, modifier = Modifier.size(34.dp))
                         else MediaCircleIconButton(MonitorIcon.SHARE, "Share photo", { model.share(share, sharing) },
@@ -174,6 +179,8 @@ public fun <P> MonitorOperatorPhotoScreen(library: MonitorMediaLibraryModel<P>, 
             val deleteID = state.deleteRequestID
             if (deleteID != null) MonitorConfirmPopup(title = state.deletionMessage ?: "Delete this photo from the camera?", confirmTitle = "Delete",
                 onClickFeedback = haptics::selection, onDismiss = { model.cancelDelete(deleteID) },
+                cancelDescription = MonitorPlaybackCopy.DELETE_CANCEL_DESCRIPTION,
+                confirmDescription = MonitorPlaybackCopy.DELETE_CONFIRM_DESCRIPTION,
                 onConfirm = { model.confirmDelete(deleteID, operations) {
                     val proof = model.deletionCompletion
                     if (deletedReturning != null && proof != null && proof.removedCount > 0 && proof.isCurrent)
@@ -189,7 +196,11 @@ public fun <P> MonitorOperatorPhotoScreen(library: MonitorMediaLibraryModel<P>, 
 @Composable private fun <P> photoVariantChoices(choices: List<MonitorMediaPictureVariant<P>>,
     selected: com.opencapture.opencine.media.MediaAssetID, enabled: Boolean,
     select: (com.opencapture.opencine.media.MediaAssetID) -> Unit) {
-    Row(Modifier.background(Color.Black.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape).padding(2.dp),
+    Row(Modifier.background(Color.Black.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape).padding(2.dp)
+        .semantics {
+            contentDescription = "Photo format"
+            stateDescription = choices.firstOrNull { it.id == selected }?.label.orEmpty()
+        },
         horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         choices.forEach { choice ->
             Text(choice.label, color = if (choice.id == selected) LiveDesign.accent else LiveDesign.muted,

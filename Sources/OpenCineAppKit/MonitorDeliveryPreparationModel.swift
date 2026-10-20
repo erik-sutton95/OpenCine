@@ -76,6 +76,10 @@ public final class MonitorDeliveryPreparationModel<
         destination = preferredDestination
         step = preferredDestination == nil ? .destination : .options
     }
+    /// The export options the selection can use: none when every file is a still (ZIB-469).
+    public var clipExportOptions: MonitorDeliveryExportOptions<Curve, Format>? {
+        selection.allStills ? nil : exportOptions
+    }
     public var remotePresentation: MonitorDeliveryRemotePresentation? { remote?.presentation }
     /// Re-upload is a choice only where the remote skips already uploaded records.
     public var offersReupload: Bool { destination == .remoteUpload && remote?.skipsUploaded == true }
@@ -92,8 +96,8 @@ public final class MonitorDeliveryPreparationModel<
         guard destination != nil, selection.hasDeliverable, !hopping, !closed else { return false }
         if exportOptions != nil && configuration == nil { return false }
         if let configuration {
-            if configuration.bakeLUT && exportOptions?.lutAvailable() != true { return false }
-            if configuration.convertLog && exportOptions?.convertLogAvailable() != true {
+            if configuration.bakeLUT && clipExportOptions?.lutAvailable() != true { return false }
+            if configuration.convertLog && clipExportOptions?.convertLogAvailable() != true {
                 return false
             }
         }
@@ -114,8 +118,8 @@ public final class MonitorDeliveryPreparationModel<
         guard current(captured) else { return }
         refresh(captured)
         guard current(captured) else { return }
-        if exportOptions?.lutAvailable() != true { configuration?.bakeLUT = false }
-        if exportOptions?.convertLogAvailable() != true { configuration?.convertLog = false }
+        if clipExportOptions?.lutAvailable() != true { configuration?.bakeLUT = false }
+        if clipExportOptions?.convertLogAvailable() != true { configuration?.convertLog = false }
         selectedProjectID = remoteFacts?.savedProjectID
         guard current(captured) else { return }
         pollingTask = Task { [weak self] in
@@ -151,7 +155,7 @@ public final class MonitorDeliveryPreparationModel<
     }
     public func setConvertLog(_ value: Bool) {
         let captured = epoch
-        guard current(captured), !value || exportOptions?.convertLogAvailable() == true,
+        guard current(captured), !value || clipExportOptions?.convertLogAvailable() == true,
             current(captured)
         else { return }
         configuration?.convertLog = value
@@ -159,7 +163,7 @@ public final class MonitorDeliveryPreparationModel<
     }
     public func setBakeLUT(_ value: Bool) {
         let captured = epoch
-        guard current(captured), !value || exportOptions?.lutAvailable() == true, current(captured)
+        guard current(captured), !value || clipExportOptions?.lutAvailable() == true, current(captured)
         else { return }
         configuration?.bakeLUT = value
         if value { configuration?.convertLog = false }

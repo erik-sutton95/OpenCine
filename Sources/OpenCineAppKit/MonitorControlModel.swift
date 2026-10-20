@@ -71,6 +71,9 @@ public final class MonitorControlModel {
     }
     /// A record operation finished (any stage), for the app's follow-up (refresh media).
     @ObservationIgnored public var onRecordFinished: (CommandReceipt) -> Void = { _ in }
+    /// Every setting write's outcome with its operator label, including one refused before it was
+    /// sent (out of domain, unavailable): for the app's diagnostic journal, never operator copy.
+    @ObservationIgnored public var onWriteFinished: (String, CommandReceipt) -> Void = { _, _ in }
     /// The reported state or a pending target changed: for projections that still copy it.
     @ObservationIgnored public var onChange: () -> Void = {}
     /// The bound session reported `.disconnected` or ended its snapshots. Called once per binding.
@@ -369,6 +372,7 @@ public final class MonitorControlModel {
         Task { [weak self] in
             let receipt = await Self.finished(command, on: session, admission: admission)
             guard let self else { return }
+            self.onWriteFinished(label, receipt)
             self.finish(key, operation, current, note: self.noteFor(receipt.stage, label))
         }
     }

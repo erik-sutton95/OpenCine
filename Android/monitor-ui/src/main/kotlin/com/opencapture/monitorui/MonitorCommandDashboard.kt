@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
@@ -45,14 +47,17 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -95,6 +100,23 @@ data class MonitorCommandHealth(
     val lens: String,
 )
 
+/**
+ * The hero band reads the header's own [MonitorStatusPresentation] (SwiftUI twin:
+ * `MonitorStatusPresentation.commandHeroTimecode`): the timecode split before its frame field (the
+ * part the accent paints). A body without timecode leaves it null, so the hero shows no frozen
+ * 00:00:00:00.
+ */
+val MonitorStatusPresentation.commandHeroTimecode: Pair<String, String>?
+    get() {
+        val value = timecode?.takeIf { it.isNotEmpty() } ?: return null
+        val split = value.indexOfLast { it == ':' || it == ';' }
+        return if (split < 0) value to "" else value.substring(0, split) to value.substring(split)
+    }
+
+/** The hero's spoken value: the header's record words, then the timecode when there is one. */
+val MonitorStatusPresentation.commandHeroAccessibilityValue: String
+    get() = listOfNotNull(recordingAccessibilityLabel, timecode?.takeIf { it.isNotEmpty() }).joinToString(", ")
+
 /** Drops duplicates and kinds outside [all], then appends the kinds the order lacks in [all]'s order. */
 fun <K> monitorCommandTileOrder(order: List<K>, all: List<K>): List<K> {
     val unique = order.distinct().filter(all::contains)
@@ -117,6 +139,17 @@ private const val COMMAND_PORTRAIT_GRID_ROW_HEIGHT_DP = 76
 private val COMMAND_SIDE_TILE_MIN_HEIGHT = 42.dp
 private val COMMAND_PORTRAIT_SIDE_TILE_HEIGHT = 44.dp
 private val CommandShape = RoundedCornerShape(12.dp)
+/** Gap between the hero, the health strip and the grid (iOS `MonitorCommandGridLayout.stackSpacing`). */
+private val COMMAND_STACK_SPACING = 8.dp
+
+/** Hero band height (iOS `MonitorCommandGridLayout.heroHeight`). */
+internal fun commandHeroHeightDp(portrait: Boolean): Float = if (portrait) 80f else 56f
+
+/** Hero timecode size (iOS `MonitorCommandGridLayout.heroTimecodeSize`). */
+internal fun commandHeroTimecodeSize(portrait: Boolean): Float = if (portrait) 60f else 46f
+
+/** Landscape side column width: 27 percent of the dashboard, never under 160 (iOS `sideColumnWidth`). */
+internal fun commandSideColumnWidthDp(dashboardWidthDp: Float): Float = maxOf(160f, dashboardWidthDp * 0.27f)
 private val CommandGood = Color(0.18f, 0.78f, 0.42f)
 
 /** Rows of the primary grid. */
@@ -191,20 +224,24 @@ internal fun commandSideDescription(titles: List<String>): String {
     return "$list controls. Swipe up to reveal more command controls."
 }
 
-/** iOS `.system(size:weight:design:)`: the platform sans or mono face without font padding. */
+/** The live surface's Sora face (tabular figures for values) without font padding. */
 private fun commandStyle(size: Float, weight: FontWeight, mono: Boolean = false): TextStyle =
-    TextStyle(
-        fontSize = size.sp,
+    (if (mono) MonitorTypography.readout(size, weight) else MonitorTypography.text(size, weight)).copy(
         lineHeight = size.sp,
-        fontWeight = weight,
-        fontFamily = if (mono) FontFamily.Monospace else FontFamily.SansSerif,
         platformStyle = PlatformTextStyle(includeFontPadding = false),
     )
 
+/** The live readout caption (`MonitorCameraValues` label): Sora semibold at the shared size and tracking. */
+private val commandLabelStyle: TextStyle
+    get() = commandStyle(MonitorLayoutPolicy.READOUT_LABEL_SIZE, FontWeight.SemiBold)
+        .copy(letterSpacing = MonitorLayoutPolicy.READOUT_LABEL_TRACKING.sp)
+
 /**
  * The command dashboard (SwiftUI twin: MonitorUI `MonitorCommandDashboard`): a reorderable grid of [tiles] and the
- * [sections] column; landscape adds the [health] strip ending in [healthTrailing]. Portrait
- * stacks a compact grid over the sections in one scroller. [pending] is true while any write
+ * [sections] column; landscape adds the [health] strip ending in [healthTrailing]. [hero], the
+ * header's status presentation, heads it with the record chip and hero timecode. Landscape stacks hero, health and grid on the left
+ * beside a full-height side column; portrait pins the hero over the compact grid and the sections
+ * in one scroller. Type is the live surface's readout captions and Sora tabular values. [pending] is true while any write
  * is in flight and [applying] names the request it carries. Long press and drag reorders a
  * tile with a [MonitorCommandTile.kind] through [onMoveTile]; a tap opens its request.
  */
@@ -219,33 +256,109 @@ fun <K : Any, R : Any> MonitorCommandDashboard(
     applying: (R) -> Boolean,
     onOpenControl: (R) -> Unit,
     onMoveTile: (K, Int) -> Unit,
+    hero: MonitorStatusPresentation? = null,
     healthTrailing: @Composable () -> Unit,
 ) {
     if (portrait) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            MonitorCommandGrid(
-                tiles, controlsEnabled, pending, applying, onOpenControl, onMoveTile,
-                Modifier.fillMaxWidth().height(commandPortraitGridHeightDp(tiles.size).dp),
-            )
-            CommandSections(sections, controlsEnabled, pending, applying, onOpenControl, compact = false)
-        }
-    } else {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(2.35f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                CommandHealthStrip(health, healthTrailing)
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(COMMAND_STACK_SPACING)) {
+            hero?.let { CommandHeroBand(it, portrait = true) }
+            Column(
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 MonitorCommandGrid(
                     tiles, controlsEnabled, pending, applying, onOpenControl, onMoveTile,
-                    Modifier.fillMaxWidth().weight(1f),
+                    Modifier.fillMaxWidth().height(commandPortraitGridHeightDp(tiles.size).dp),
+                )
+                CommandSections(sections, controlsEnabled, pending, applying, onOpenControl, compact = false)
+            }
+        }
+    } else {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val sideWidth = commandSideColumnWidthDp(maxWidth.value).dp
+            // The baseline `.cmd-body` split: hero, health and grid on the left; the side column
+            // runs the full height beside them.
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    Modifier.weight(1f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(COMMAND_STACK_SPACING),
+                ) {
+                    hero?.let { CommandHeroBand(it, portrait = false) }
+                    CommandHealthStrip(health, healthTrailing)
+                    MonitorCommandGrid(
+                        tiles, controlsEnabled, pending, applying, onOpenControl, onMoveTile,
+                        Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+                CommandSideColumn(
+                    sections, controlsEnabled, pending, applying, onOpenControl,
+                    Modifier.width(sideWidth).fillMaxHeight(),
                 )
             }
-            CommandSideColumn(
-                sections, controlsEnabled, pending, applying, onOpenControl,
-                Modifier.weight(.85f).fillMaxHeight(),
-            )
         }
+    }
+}
+
+/** The hero band: the record chip, then the hero timecode with its frame field in the accent. */
+@Composable
+private fun CommandHeroBand(hero: MonitorStatusPresentation, portrait: Boolean) {
+    val description = hero.commandHeroAccessibilityValue
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(commandHeroHeightDp(portrait).dp)
+            .semantics(mergeDescendants = true) { contentDescription = "Timecode $description" }
+            .testTag("monitor.command.hero"),
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CommandRecordChip(hero)
+        hero.commandHeroTimecode?.let { (seconds, frames) ->
+            // Fit both ways: the user's font scale can make even a short timecode taller than the band.
+            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                FitScale(maxWidth, maxHeight) {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = MonitorPalette.text)) { append(seconds) }
+                            withStyle(SpanStyle(color = MonitorPalette.accent)) { append(frames) }
+                        },
+                        style = commandStyle(commandHeroTimecodeSize(portrait), FontWeight.Medium, mono = true),
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The header's record word: REC in the recording red with its lamp, STBY muted, unknown a dash. */
+@Composable
+private fun CommandRecordChip(hero: MonitorStatusPresentation) {
+    val recording = hero.recording == true
+    // iOS `monitorPulse(period: recPulseDuration)`: 1.6 s cycle down to a 0.25 floor while recording.
+    val pulse = monitorPulsePhase(1600, enabled = recording)
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .background(MonitorPalette.surface, CircleShape)
+            .border(1.dp, if (recording) MonitorPalette.recording.copy(alpha = .6f) else MonitorPalette.border, CircleShape)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .graphicsLayer { alpha = if (hero.recording == null) .5f else 1f - .75f * pulse }
+                .background(if (recording) MonitorPalette.recording else MonitorDesign.faint, CircleShape),
+        )
+        Text(
+            hero.recordingLabel,
+            style = commandStyle(11f, FontWeight.SemiBold).copy(letterSpacing = MonitorLayoutPolicy.READOUT_LABEL_TRACKING.sp),
+            color = if (recording) MonitorPalette.recording else MonitorPalette.muted,
+            maxLines = 1,
+        )
     }
 }
 
@@ -284,14 +397,13 @@ private fun CommandStatusBlock(label: String, value: String, modifier: Modifier 
     ) {
         Text(
             label.uppercase(),
-            // iOS CommandStatusBlock: 8.5 bold
-            style = commandStyle(8.5f, FontWeight.Bold),
-            color = MonitorPalette.faint,
+            style = commandLabelStyle,
+            color = MonitorPalette.muted,
             maxLines = 1,
         )
         Text(
             value,
-            // iOS: 12 medium mono, shrinking to fit (`minimumScaleFactor(0.55)`).
+            // iOS: 12 medium Sora tabular, shrinking to fit (`minimumScaleFactor(0.55)`).
             style = commandStyle(12f, FontWeight.Medium, mono = true),
             color = if (good) CommandGood else MonitorPalette.text,
             maxLines = 1,
@@ -479,7 +591,7 @@ private fun <K : Any, R : Any> CommandTile(
                 )
             }
         }
-    // iOS CommandTile: pad h12/v8, title 10 bold, value 24 medium mono, corner radius 12.
+    // iOS CommandTile: pad h12/v8, readout caption title, value 24 medium Sora tabular, corner radius 12.
     Column(
         modifier
             .clip(CommandShape)
@@ -500,11 +612,11 @@ private fun <K : Any, R : Any> CommandTile(
     ) {
         Text(
             tile.title.uppercase(),
-            // iOS CommandTile title: 10 bold, shrinking to fit (`minimumScaleFactor(0.64)`).
-            style = commandStyle(10f, FontWeight.Bold),
-            color = MonitorPalette.faint,
+            // iOS CommandTile title: the readout caption, shrinking to fit (`minimumScaleFactor(0.64)`).
+            style = commandLabelStyle,
+            color = MonitorPalette.muted,
             maxLines = 1,
-            autoSize = TextAutoSize.StepBased(6.4.sp, 10.sp, 0.5.sp),
+            autoSize = TextAutoSize.StepBased(5.8.sp, 9.sp, 0.2.sp),
             overflow = TextOverflow.Clip,
         )
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -521,16 +633,23 @@ private fun <K : Any, R : Any> CommandTile(
     }
 }
 
+/** The scale that fits a [width] x [height] child inside [maxWidth] x [maxHeight]; never above 1. */
+internal fun commandFitScale(width: Float, height: Float, maxWidth: Float, maxHeight: Float): Float =
+    minOf(1f, if (width > 0f) maxWidth / width else 1f, if (height > 0f) maxHeight / height else 1f)
+        .coerceAtLeast(0f)
+
 /**
- * Measures its child unbounded and scales it down (top-start anchored) to fit [maxWidth], the
- * Compose analog of iOS `minimumScaleFactor`.
+ * Measures its child unbounded and scales it down (top-start anchored) to fit [maxWidth] and
+ * [maxHeight], the Compose analog of iOS `minimumScaleFactor`.
  */
 @Composable
-private fun FitScale(maxWidth: Dp, content: @Composable () -> Unit) {
+private fun FitScale(maxWidth: Dp, maxHeight: Dp = Dp.Infinity, content: @Composable () -> Unit) {
     Layout(content) { measurables, _ ->
         val placeable = measurables.first().measure(Constraints())
-        val maxPx = maxWidth.roundToPx()
-        val scale = if (placeable.width > maxPx) maxPx / placeable.width.toFloat() else 1f
+        val heightPx = if (maxHeight == Dp.Infinity) Float.POSITIVE_INFINITY else maxHeight.toPx()
+        val scale = commandFitScale(
+            placeable.width.toFloat(), placeable.height.toFloat(), maxWidth.toPx(), heightPx,
+        )
         layout((placeable.width * scale).toInt(), (placeable.height * scale).toInt()) {
             placeable.placeWithLayer(0, 0) {
                 scaleX = scale
@@ -575,7 +694,7 @@ private fun <K : Any, R : Any> CommandSideColumn(
             )
             Text(
                 "MORE ⌄",
-                style = commandStyle(9f, FontWeight.Bold),
+                style = commandLabelStyle,
                 color = MonitorPalette.muted,
                 modifier =
                     Modifier
@@ -598,14 +717,15 @@ private fun <K : Any, R : Any> CommandSections(
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    // iOS CommandSections VStack spacing: 4 between sections; section title 9.5 bold,
+    // iOS CommandSections VStack spacing: 4 between sections; section title the readout caption,
     // rows VStack spacing 5, row HStack spacing 6.
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         sections.forEach { section ->
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     section.title.uppercase(),
-                    style = commandStyle(9.5f, FontWeight.Bold),
+                    style = commandLabelStyle,
+                    maxLines = 1,
                     color = MonitorPalette.faint,
                     modifier = Modifier.padding(start = 2.dp),
                 )
@@ -652,7 +772,7 @@ private fun <K : Any, R : Any> CommandSmallTile(
                 else -> append(". Double tap to change.")
             }
         }
-    // iOS CommandSmallTile: minHeight 42, pad h10/v6, title 9 bold muted, value 15 medium mono.
+    // iOS CommandSmallTile: minHeight 42, pad h10/v6, caption title muted, value 15 medium Sora tabular.
     val valueColor =
         when {
             cell.amber -> MonitorPalette.accent
@@ -681,10 +801,10 @@ private fun <K : Any, R : Any> CommandSmallTile(
         // Both shrink to fit rather than clip, matching iOS's 0.66 / 0.55 minimum scale factors.
         Text(
             cell.title.uppercase(),
-            style = commandStyle(9f, FontWeight.Bold),
+            style = commandLabelStyle,
             color = MonitorPalette.muted,
             maxLines = 1,
-            autoSize = TextAutoSize.StepBased(5.9.sp, 9.sp, 0.5.sp),
+            autoSize = TextAutoSize.StepBased(5.9.sp, 9.sp, 0.2.sp),
             overflow = TextOverflow.Clip,
         )
         Text(

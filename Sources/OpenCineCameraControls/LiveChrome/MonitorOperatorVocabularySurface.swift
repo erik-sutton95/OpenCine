@@ -171,7 +171,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                     controlsEnabled: !host.sessionLocked, chromeless: true) { host.captureSheet = nil }
             }, photoRelease: { diameter in
                 MonitorCaptureButton(control: host.control, diameter: diameter,
-                    enabled: !host.operatorSession.locked && !host.sessionLocked && !capture.busy(), photo: true,
+                    enabled: !host.operatorSession.locked && !host.sessionLocked, busy: capture.busy(), photo: true,
                     confirm: capture.confirmRecording, haptics: host.hapticsEnabled, takePhoto: capture.takePhoto,
                     openMode: { host.captureSheet = .mode })
             }, preview: preview, lookMenu: lookMenu)

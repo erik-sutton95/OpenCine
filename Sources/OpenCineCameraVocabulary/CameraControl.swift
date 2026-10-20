@@ -1802,10 +1802,11 @@ public enum CamFov {
         return stops[0]
     }
 
-    /// True on a chip detent (0.1× quantized). Default is 4 Pro 1/3/6/12.
+    /// True on a chip detent (0.1× quantized). Default is 4 Pro 1/3/6/12. A host stop past the
+    /// default ceiling (Luna 15×) raises the quantizing ceiling to it.
     public static func isJumpStop(_ factor: Double, stops: [Double] = jumps) -> Bool {
-        let shown = displayTenths(factor)
         let stops = stops.isEmpty ? jumps : stops
+        let shown = displayTenths(factor, ceiling: max(maxFactor, stops.max() ?? maxFactor))
         return stops.contains { abs(shown - $0) < 0.05 }
     }
 

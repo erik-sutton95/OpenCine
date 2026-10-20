@@ -17,7 +17,14 @@ struct SIMULATEDLadderHost: App {
             VStack(spacing: 8) {
                 Text("SIMULATED shared label ladder")
                 Text(fixture.status).accessibilityIdentifier("fixture.status")
-                if let editor = fixture.control.edit(.iso) {
+                if ProcessInfo.processInfo.arguments.contains("tint") {
+                    LadderSheet(
+                        presentation: fixture.tintPresentation, enabled: true,
+                        onWrite: { fixture.tintWrites.append($0.value) },
+                        tintLabel: { $0.greenMagenta == 0 && ($0.amberBlue ?? 0) == 0
+                            ? "Neutral" : "A\($0.amberBlue ?? 0) G\($0.greenMagenta)" })
+                        .environment(\.ladderOperatorHaptics, false)
+                } else if let editor = fixture.control.edit(.iso) {
                     LadderSheet(
                         presentation: fixture.presentation, enabled: true,
                         onWrite: { fixture.write($0, editor: editor) },
@@ -46,6 +53,7 @@ private final class LadderFixture {
     var wire: [String] = []
     var submitted = "none"
     var holds = 0
+    var tintWrites: [String] = []
 
     init() {
         let clock = LadderClock()
@@ -89,8 +97,18 @@ private final class LadderFixture {
                     lock: ProcessInfo.processInfo.arguments.contains("locked") ? .cameraControl : nil))])
     }
 
+    /// One Tint tab, off neutral, so a reset is visible.
+    var tintPresentation: LadderSheetPresentation<String> {
+        LadderSheetPresentation(
+            title: "SIMULATED WB", subtitle: "",
+            tabs: [LadderTab(
+                label: "Tint", key: "tint", ladder: CaptureLadder(current: nil, values: []),
+                tint: CaptureTint(greenMagenta: 2, amberBlue: 2, range: -6...6))])
+    }
+
     var status: String {
-        "observed=\(label(control.snapshot?.value(of: .iso).value) ?? "unknown") "
+        "tintWrites=\(tintWrites.count) tint=\(tintWrites.last ?? "none") "
+            + "observed=\(label(control.snapshot?.value(of: .iso).value) ?? "unknown") "
             + "pending=\(label(control.pending[.iso]) ?? "unknown") "
             + "host=\(hostCalls) accepted=\(accepted) wire=\(wire.count) "
             + "submitted=\(submitted) sleepers=\(clock.pendingSleeps) holds=\(holds)"

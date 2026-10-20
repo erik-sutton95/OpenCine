@@ -21,6 +21,7 @@ import com.opencapture.opencine.core.testing.FakeIntegration
 import com.opencapture.opencine.core.testing.lunaLike
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -128,6 +129,19 @@ class CamerasModelTest {
     }
 
     @Test
+    fun aBlockedDiscoveryDoesNotClaimToScan() = runTest {
+        val blocked =
+            FakeIntegration(
+                id = IntegrationID("test.blocked"),
+                discoveryModes = setOf(DiscoveryMode.PASSIVE),
+                discoveryRunning = flowOf(false),
+            )
+        val model = Values.model(listOf(blocked), backgroundScope)
+        runCurrent()
+        assertFalse(model.state.value.scanning)
+    }
+
+    @Test
     fun thePairPageDiscoversActively() = runTest {
         val model = model()
         model.beginPairing()
@@ -218,7 +232,10 @@ class CamerasModelTest {
         runCurrent()
         assertEquals(Values.failure, model.now.failures["camera-1"]?.failure)
         assertTrue(model.now.attempts.isEmpty())
-        assertEquals(CamerasModel.Request.OpenSettings, model.perform(RecoveryAction.OpenSettings, "camera-1"))
+        assertEquals(
+            CamerasModel.Request.OpenSettings(Values.failure.reason),
+            model.perform(RecoveryAction.OpenSettings, "camera-1"),
+        )
         assertEquals(
             CamerasModel.Request.EditRoute(Values.camera, Values.wifi.id),
             model.perform(RecoveryAction.EditRoute(Values.wifi.id), "camera-1"),

@@ -22,7 +22,7 @@ repository, and the atlas finds, clones and branches the apps for you. Layout an
 ## Workspace and daily work
 
 `atlas` below means `python3 atlas/tools/atlas.py`, run from this checkout. Standard library
-Python; nothing to install. Graphify (`graphifyy` 0.9.11, macOS) is optional.
+Python; nothing to install.
 
 | Need | Command |
 |---|---|
@@ -32,7 +32,6 @@ Python; nothing to install. Graphify (`graphifyy` 0.9.11, macOS) is optional.
 | Which repositories a change reaches, in order | `atlas impact <repo> --include-candidates` |
 | Start work on an issue | `atlas task start <repo>#<n> [--with opencine] [--with <app>]` |
 | Start a linked app issue from Orca | `atlas task start opencine#<n> --orca` ([linked issues](atlas/docs/LINKED_ISSUES.md)) |
-| Navigation graph of all repositories (optional) | `atlas graph build --all --local-only` |
 | How much code is still copied between repositories | `atlas dupes [--top N]` (CI: `--check` against `atlas/compat/dupes-baseline.json`) |
 | Where a checkout is, its branch and worktrees | `atlas locate <repo>` |
 
@@ -231,6 +230,11 @@ python3 -m unittest discover -s atlas/tests && python3 atlas/tools/atlas.py chec
 ```
 
 - Apps: run each app's own checks (its `AGENTS.md` or `README.md`) in its task worktree.
+- Hosted CI has two tiers ([docs/testing/CI.md](docs/testing/CI.md)): the PR tier feeds the one
+  required check, `CI gate`; the nightly tier runs the full suite on `main` and keeps one
+  "Nightly CI failing on main" issue. A PR-tier failure is fixed, or the test is quarantined with
+  an issue; there are no accepted reds. CodeRabbit is advisory: read, verify and fix or answer
+  its findings, but it does not block merges.
 - iOS tests run on a private simulator, never the shared default one (parallel sessions replace
   each other's test host): `UDID=$(xcrun simctl create opc-<task> "iPhone 16 Pro")`, then
   `xcodebuild ... -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath <scratch>/dd test`,
@@ -278,7 +282,7 @@ The atlas routes and coordinates; product code lives in this package and the app
 1. Route with [atlas/docs/ROUTING.md](atlas/docs/ROUTING.md) and `atlas/repos/<id>/SUMMARY.md`,
    then confirm ownership in current source and manifests (`atlas impact`, `atlas deps`).
 2. Evidence order: pinned source and manifests, exercised tests and hardware evidence, source
-   docs, the atlas, then Graphify output. A graph edge is a search hint, never proof.
+   docs, then the atlas.
 3. Status words stay honest: implemented, automated checks passed, hardware-qualified,
    candidate, integrated, released, unsupported, untested.
 

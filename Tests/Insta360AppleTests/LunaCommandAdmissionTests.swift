@@ -30,6 +30,33 @@ struct LunaCommandAdmissionTests {
             ])
     }
 
+    /// The fake's admitted port stands in for the backend's (`LunaCameraBackend.sendAdmitted`):
+    /// an app's native `control(_:admission:)` write reaches the camera, a refusal surfaces as
+    /// the camera's error, and a retired owner sends nothing.
+    @Test func aFakeWithTheAdmittedPortCarriesAdmittedControlToTheCamera() async throws {
+        let camera = FakeLuna()
+        let session = camera.connectedSession(admittedSends: true)
+        defer { session.close(.requested) }
+        let request = try LunaProtocol.setColorMode(.iLog, functionMode: 7)
+        let admission = LunaCommandAdmission(owner: session.commandOwner, isCurrent: { true })
+        _ = try await session.control(request, admission: admission)
+        _ = try await session.control(request, admission: admission, timeout: .seconds(1))
+        #expect(camera.sent == [request, request])
+        let supplied = await session.submit(command(.iso(.manual(800)), session), admission: admission)
+        #expect(supplied.stage == .awaitingObservation)
+        camera.refuses = true
+        await #expect(throws: FakeLunaRefusal.self) {
+            try await session.control(request, admission: admission)
+        }
+        camera.refuses = false
+        let count = camera.sent.count
+        session.retireCommandSource()
+        await #expect(throws: LunaCommandAdmissionError.expired) {
+            try await session.control(request, admission: admission)
+        }
+        #expect(camera.sent.count == count)
+    }
+
     @Test func revocationAtTheNativeQueueSendsNothingAndCloseNeverDispatches() async {
         let wire = Wire()
         let gate = Gate()
