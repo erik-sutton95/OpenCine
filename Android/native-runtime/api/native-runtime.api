@@ -1,0 +1,941 @@
+public final class com/opencapture/opencine/runtime/BackdropFrameAdmission {
+	public fun <init> ()V
+	public fun <init> (J)V
+	public synthetic fun <init> (JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun accepts (Lcom/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket;Lkotlin/jvm/functions/Function0;)Z
+	public final fun acquire (Ljava/lang/Object;J)Lcom/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket;
+	public final fun attach (Ljava/lang/Object;)V
+	public final fun complete (Lcom/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket;)V
+	public final fun generation ()J
+	public final fun hasDemand (Ljava/lang/Object;)Z
+	public final fun invalidate (Ljava/lang/Object;)Z
+	public final fun invalidateAll ()V
+	public final fun isCurrent (Lcom/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket;)Z
+	public final fun owns (Ljava/lang/Object;)Z
+	public final fun setActive (Z)V
+}
+
+public final class com/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket {
+	public final fun getEpoch ()J
+	public final fun getProducer ()Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/runtime/FeedEffectsGlProgram {
+	public fun <init> (Lcom/opencapture/opencine/runtime/NativeGlBackend;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZLkotlin/jvm/functions/Function4;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/runtime/NativeGlBackend;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZLkotlin/jvm/functions/Function4;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun adopt (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)Z
+	public final fun draw (IFFFFZZZZZ)V
+	public static synthetic fun draw$default (Lcom/opencapture/opencine/runtime/FeedEffectsGlProgram;IFFFFZZZZZILjava/lang/Object;)V
+	public final fun release ()V
+}
+
+public final class com/opencapture/opencine/runtime/GlesPresentationOptions {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;
+	public final fun copy (Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;)Lcom/opencapture/opencine/runtime/GlesPresentationOptions;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/GlesPresentationOptions;Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/GlesPresentationOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getUpscaler ()Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/GpuLiveLayout {
+	public static final field INSTANCE Lcom/opencapture/opencine/runtime/GpuLiveLayout;
+	public static final field PANEL_CORNER_RADIUS_DP F
+	public static final field PANEL_FILL_A F
+	public static final field PANEL_FILL_B F
+	public static final field PANEL_FILL_G F
+	public static final field PANEL_FILL_R F
+	public static final field PLATE_STRIDE I
+	public static final field SLOT_STRIDE I
+	public final fun packSlot ([FIZFFFFIFF)V
+	public static synthetic fun packSlot$default (Lcom/opencapture/opencine/runtime/GpuLiveLayout;[FIZFFFFIFFILjava/lang/Object;)V
+}
+
+public final class com/opencapture/opencine/runtime/InspectorPreviewAdmission {
+	public static final field Companion Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Companion;
+	public static final field MIN_INTERVAL_NS J
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/runtime/ScopeSampleBus;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/runtime/ScopeSampleBus;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun acquire (Ljava/lang/Object;ZJLcom/opencapture/opencine/runtime/ScopeSampleBus$Source;)Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket;
+	public static synthetic fun acquire$default (Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission;Ljava/lang/Object;ZJLcom/opencapture/opencine/runtime/ScopeSampleBus$Source;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket;
+	public final fun activate (Ljava/lang/Object;Z)V
+	public final fun complete (Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket;)V
+	public final fun currentEpoch (Ljava/lang/Object;)Ljava/lang/Long;
+	public final fun deactivate (Ljava/lang/Object;)V
+	public final fun invalidate (Ljava/lang/Object;)V
+	public final fun invalidateSource (Ljava/lang/Object;Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;)Z
+	public final fun isCurrent (Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket;)Z
+}
+
+public final class com/opencapture/opencine/runtime/InspectorPreviewAdmission$Companion {
+}
+
+public final class com/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket {
+	public final fun getEpoch ()J
+	public final fun getOwner ()Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/runtime/InspectorPreviewFrame {
+	public static final field Companion Lcom/opencapture/opencine/runtime/InspectorPreviewFrame$Companion;
+	public fun <init> (II[B)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()[B
+	public final fun copy (II[B)Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;II[BILjava/lang/Object;)Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeight ()I
+	public final fun getRgba ()[B
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/InspectorPreviewFrame$Companion {
+	public final fun fromTap ([BIIZ)Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;
+}
+
+public final class com/opencapture/opencine/runtime/InspectorPreviewPipeline : java/lang/AutoCloseable {
+	public fun <init> (Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lkotlin/jvm/functions/Function1;Ljava/lang/String;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lkotlin/jvm/functions/Function1;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun acquire (Ljava/lang/Object;ZJLcom/opencapture/opencine/runtime/ScopeSampleBus$Source;)Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket;
+	public final fun cancel (Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket;)V
+	public fun close ()V
+	public final fun close (Ljava/lang/Object;)V
+	public final fun open (Ljava/lang/Object;ZLandroid/content/Context;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;Lkotlin/jvm/functions/Function1;)V
+	public final fun sourceChanged (Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;)V
+	public final fun submit (Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket;Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;)V
+	public final fun submit (Lcom/opencapture/opencine/runtime/InspectorPreviewAdmission$Ticket;Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;Lkotlin/jvm/functions/Function0;)V
+	public final fun update (Ljava/lang/Object;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)V
+}
+
+public final class com/opencapture/opencine/runtime/InspectorPreviewRenderer : java/lang/AutoCloseable {
+	public fun <init> (Lkotlin/jvm/functions/Function1;)V
+	public fun close ()V
+	public final fun render (Landroid/content/Context;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;)Landroid/graphics/Bitmap;
+}
+
+public final class com/opencapture/opencine/runtime/InspectorPreviewSource {
+	public fun <init> ()V
+	public final fun admits (Lkotlin/jvm/functions/Function1;)Z
+	public final fun beginLatch ()Ljava/lang/Long;
+	public final fun captureEpoch ()Ljava/lang/Long;
+	public final fun configure (Ljava/lang/Object;Z)Z
+	public final fun didLatch (Ljava/lang/Long;)V
+	public final fun invalidate ()V
+	public final fun isCurrent (Ljava/lang/Long;)Z
+	public final fun isCurrent (Ljava/lang/Long;Lkotlin/jvm/functions/Function1;)Z
+	public final fun present (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)Z
+}
+
+public final class com/opencapture/opencine/runtime/MonitorAssistEngine {
+	public static final field Companion Lcom/opencapture/opencine/runtime/MonitorAssistEngine$Companion;
+	public fun <init> ()V
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun run (Lcom/opencapture/opencine/runtime/MonitorAssistScopeSource;Lcom/opencapture/opencine/runtime/MonitorAssistScopeConfiguration;Lcom/opencapture/opencine/media/ScopeTapPolicy;Lcom/opencapture/opencine/runtime/ScopeSampleBus;DLcom/opencapture/opencine/runtime/ScopeSampleBus$Role;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun run$default (Lcom/opencapture/opencine/runtime/MonitorAssistEngine;Lcom/opencapture/opencine/runtime/MonitorAssistScopeSource;Lcom/opencapture/opencine/runtime/MonitorAssistScopeConfiguration;Lcom/opencapture/opencine/media/ScopeTapPolicy;Lcom/opencapture/opencine/runtime/ScopeSampleBus;DLcom/opencapture/opencine/runtime/ScopeSampleBus$Role;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorAssistEngine$Companion {
+	public final fun bundle (Lcom/opencapture/opencine/media/ScopeSamples;Lcom/opencapture/opencine/runtime/MonitorAssistScopeConfiguration;Lcom/opencapture/opencine/media/ScopeTapPolicy;Lcom/opencapture/opencine/media/ScopeAssistBundle;)Lcom/opencapture/opencine/media/ScopeAssistBundle;
+	public static synthetic fun bundle$default (Lcom/opencapture/opencine/runtime/MonitorAssistEngine$Companion;Lcom/opencapture/opencine/media/ScopeSamples;Lcom/opencapture/opencine/runtime/MonitorAssistScopeConfiguration;Lcom/opencapture/opencine/media/ScopeTapPolicy;Lcom/opencapture/opencine/media/ScopeAssistBundle;ILjava/lang/Object;)Lcom/opencapture/opencine/media/ScopeAssistBundle;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorAssistScopeConfiguration {
+	public fun <init> (Lcom/opencapture/opencine/media/MonitorTransfer;Lcom/opencapture/opencine/media/ScopeClipSnapshot;Lcom/opencapture/opencine/media/MonitorLUTCube;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/media/MonitorTransfer;Lcom/opencapture/opencine/media/ScopeClipSnapshot;Lcom/opencapture/opencine/media/MonitorLUTCube;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/media/MonitorTransfer;
+	public final fun component2 ()Lcom/opencapture/opencine/media/ScopeClipSnapshot;
+	public final fun component3 ()Lcom/opencapture/opencine/media/MonitorLUTCube;
+	public final fun copy (Lcom/opencapture/opencine/media/MonitorTransfer;Lcom/opencapture/opencine/media/ScopeClipSnapshot;Lcom/opencapture/opencine/media/MonitorLUTCube;)Lcom/opencapture/opencine/runtime/MonitorAssistScopeConfiguration;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/MonitorAssistScopeConfiguration;Lcom/opencapture/opencine/media/MonitorTransfer;Lcom/opencapture/opencine/media/ScopeClipSnapshot;Lcom/opencapture/opencine/media/MonitorLUTCube;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorAssistScopeConfiguration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCeiling ()Lcom/opencapture/opencine/media/ScopeClipSnapshot;
+	public final fun getDefaultScopeLook ()Lcom/opencapture/opencine/media/MonitorLUTCube;
+	public final fun getTransfer ()Lcom/opencapture/opencine/media/MonitorTransfer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorAssistScopeSource {
+	public abstract fun read (ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorAudioMeterSampler {
+	public fun <init> (Lcom/opencapture/opencine/runtime/MonitorAudioPeakAccumulator;)V
+	public final fun reset ()V
+	public final fun step (DZ)Lcom/opencapture/opencine/media/MonitorAudioMeterLevels;
+	public static synthetic fun step$default (Lcom/opencapture/opencine/runtime/MonitorAudioMeterSampler;DZILjava/lang/Object;)Lcom/opencapture/opencine/media/MonitorAudioMeterLevels;
+}
+
+public class com/opencapture/opencine/runtime/MonitorAudioPeakAccumulator {
+	public fun <init> ()V
+	public final fun beginSource ()Lcom/opencapture/opencine/runtime/MonitorAudioPeakLease;
+	public final fun close ()V
+	public final fun sampleAndReset ()Lcom/opencapture/opencine/runtime/MonitorAudioPeakSample;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorAudioPeakLease {
+	public final fun close ()Z
+	public final fun ingest (FF)Z
+	public final fun isActive ()Z
+	public final fun prepare ()Lcom/opencapture/opencine/runtime/MonitorAudioPeakWriter;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorAudioPeakSample {
+	public fun <init> (JJFF)V
+	public final fun component1 ()J
+	public final fun component2 ()J
+	public final fun component3 ()F
+	public final fun component4 ()F
+	public final fun copy (JJFF)Lcom/opencapture/opencine/runtime/MonitorAudioPeakSample;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/MonitorAudioPeakSample;JJFFILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorAudioPeakSample;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLeft ()F
+	public final fun getPreparationGeneration ()J
+	public final fun getRight ()F
+	public final fun getSourceGeneration ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorAudioPeakWriter {
+	public final fun ingest (FF)Z
+	public final fun isActive ()Z
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapEffects : com/opencapture/opencine/runtime/MonitorBitmapPreviewBaker, java/lang/AutoCloseable {
+	public static final field Companion Lcom/opencapture/opencine/runtime/MonitorBitmapEffects$Companion;
+	public fun bakePreview (Landroid/graphics/Bitmap;I)Landroid/graphics/Bitmap;
+	public fun close ()V
+	public final fun draw (Landroid/graphics/Canvas;Landroid/graphics/Bitmap;FFFF)V
+	public final fun getFalseColorReady ()Z
+	public final fun viewRenderEffect (II)Landroid/graphics/RenderEffect;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapEffects$Companion {
+	public final fun create (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZLcom/opencapture/opencine/media/MonitorZebraMaskPolicy;)Lcom/opencapture/opencine/runtime/MonitorBitmapEffects;
+	public static synthetic fun create$default (Lcom/opencapture/opencine/runtime/MonitorBitmapEffects$Companion;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZLcom/opencapture/opencine/media/MonitorZebraMaskPolicy;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorBitmapEffects;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapFrameLease {
+	public fun <init> (Landroid/graphics/Bitmap;Lkotlin/jvm/functions/Function0;)V
+	public final fun getBitmap ()Landroid/graphics/Bitmap;
+	public final fun release ()V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapFramePool {
+	public fun <init> ()V
+	public fun <init> (I)V
+	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun close ()V
+	public final fun copy (Landroid/graphics/Bitmap;)Lcom/opencapture/opencine/runtime/MonitorBitmapFrameLease;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapGlViewport {
+	public fun <init> (IIII)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun copy (IIII)Lcom/opencapture/opencine/runtime/MonitorBitmapGlViewport;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/MonitorBitmapGlViewport;IIIIILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorBitmapGlViewport;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeight ()I
+	public final fun getWidth ()I
+	public final fun getX ()I
+	public final fun getY ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapGlesSession {
+	public fun <init> ()V
+	public final fun attach (Lcom/opencapture/opencine/runtime/MonitorBitmapGlesSurface;)V
+	public final fun clear ()V
+	public final fun detach (Lcom/opencapture/opencine/runtime/MonitorBitmapGlesSurface;)V
+	public final fun dispose ()V
+	public final fun getOnFailureStateChanged ()Lkotlin/jvm/functions/Function1;
+	public final fun getRenderFailed ()Z
+	public final fun pause ()V
+	public final fun recordRenderFailure (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)Z
+	public final fun resume ()V
+	public final fun setOnFailureStateChanged (Lkotlin/jvm/functions/Function1;)V
+	public final fun submit (Landroid/graphics/Bitmap;)V
+	public final fun update (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZ)V
+	public static synthetic fun update$default (Lcom/opencapture/opencine/runtime/MonitorBitmapGlesSession;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZILjava/lang/Object;)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapGlesSessionKt {
+	public static final fun monitorBitmapGlViewport (IIIIZ)Lcom/opencapture/opencine/runtime/MonitorBitmapGlViewport;
+}
+
+public class com/opencapture/opencine/runtime/MonitorBitmapGlesSurface : android/opengl/GLSurfaceView {
+	public fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;)V
+	public final fun clearFrame ()V
+	public final fun closeForFrameSubmission ()V
+	public final fun getOnRenderFailure ()Lkotlin/jvm/functions/Function2;
+	protected fun onDetachedFromWindow ()V
+	public final fun setOnRenderFailure (Lkotlin/jvm/functions/Function2;)V
+	public final fun submit (Lcom/opencapture/opencine/runtime/MonitorBitmapFrameLease;)V
+	public final fun update (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZ)V
+	public static synthetic fun update$default (Lcom/opencapture/opencine/runtime/MonitorBitmapGlesSurface;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZILjava/lang/Object;)V
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorBitmapPreviewBaker {
+	public abstract fun bakePreview (Landroid/graphics/Bitmap;I)Landroid/graphics/Bitmap;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapPreviewEncoder {
+	public static final field INSTANCE Lcom/opencapture/opencine/runtime/MonitorBitmapPreviewEncoder;
+	public final fun encode (Landroid/graphics/Bitmap;Lcom/opencapture/opencine/runtime/MonitorBitmapPreviewEncoding;)[B
+	public final fun snapshot (Landroid/graphics/Bitmap;I)Landroid/graphics/Bitmap;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapPreviewEncoding {
+	public fun <init> (IILjava/util/List;III)V
+	public final fun getFallbackWidths ()Ljava/util/List;
+	public final fun getMaximumEncodedBytes ()I
+	public final fun getMaximumWidth ()I
+	public final fun getMinimumQuality ()I
+	public final fun getQualityPercent ()I
+	public final fun getQualityReduction ()I
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapVulkanSession {
+	public fun <init> ()V
+	public fun <init> (Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attach (Landroid/view/View;)V
+	public final fun clearFrame ()V
+	public final fun close ()V
+	public final fun createView (Landroid/content/Context;)Landroid/view/SurfaceView;
+	public final fun detach (Landroid/view/View;)V
+	public final fun getFailed ()Z
+	public final fun pause ()V
+	public final fun resume ()V
+	public final fun submit (Landroid/graphics/Bitmap;)V
+	public final fun updatePlan (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZ)V
+	public static synthetic fun updatePlan$default (Lcom/opencapture/opencine/runtime/MonitorBitmapVulkanSession;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZILjava/lang/Object;)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorBitmapVulkanSessionKt {
+	public static final fun bitmapVulkanUniforms (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZ)[F
+	public static synthetic fun bitmapVulkanUniforms$default (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZILjava/lang/Object;)[F
+}
+
+public final class com/opencapture/opencine/runtime/MonitorDecodedFramePumpKt {
+	public static final fun monitorPumpFramesWithSourceFrame (Lkotlinx/coroutines/flow/Flow;Lcom/opencapture/opencine/runtime/MonitorFramePacingStats;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function3;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun monitorPumpFramesWithSourceFrame (Lkotlinx/coroutines/flow/Flow;Lcom/opencapture/opencine/runtime/MonitorFramePacingStats;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun monitorPumpFramesWithSourceFrame$default (Lkotlinx/coroutines/flow/Flow;Lcom/opencapture/opencine/runtime/MonitorFramePacingStats;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function3;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun monitorPumpFramesWithSourceFrame$default (Lkotlinx/coroutines/flow/Flow;Lcom/opencapture/opencine/runtime/MonitorFramePacingStats;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorDecoderTextureProgram : com/opencapture/opencine/runtime/MonitorTexturePictureProgram {
+	public fun <init> (Lkotlin/jvm/functions/Function1;)V
+	public fun attach (Landroid/graphics/SurfaceTexture;II)V
+	public fun detach ()V
+	public fun resize (II)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorFrameDecodeWorker : java/lang/AutoCloseable {
+	public fun <init> (Ljava/lang/String;I)V
+	public synthetic fun <init> (Ljava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public final fun run (Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorFramePacingStats {
+	public fun <init> (JLkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (JLkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun framePresented (JJJJ)V
+	public static synthetic fun framePresented$default (Lcom/opencapture/opencine/runtime/MonitorFramePacingStats;JJJJILjava/lang/Object;)V
+	public final fun frameReceived ()V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorGlesUpscaler : java/lang/Enum {
+	public static final field Companion Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler$Companion;
+	public static final field FAST Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;
+	public static final field OFF Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getLabel ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;
+	public static fun values ()[Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorGlesUpscaler$Companion {
+	public final fun fromStored (Ljava/lang/String;)Lcom/opencapture/opencine/runtime/MonitorGlesUpscaler;
+	public final fun getSupported ()Ljava/util/List;
+	public final fun shouldReconstructToDisplay (FFFF)Z
+}
+
+public final class com/opencapture/opencine/runtime/MonitorHDRDisplay {
+	public static final field INSTANCE Lcom/opencapture/opencine/runtime/MonitorHDRDisplay;
+	public static final field REQUESTED_HEADROOM F
+	public final fun apply (Landroid/app/Activity;Z)V
+	public final fun apply (Landroid/view/SurfaceView;Z)V
+	public final fun apply (Landroid/view/Window;Z)V
+	public final fun isEffective (ZZ)Z
+}
+
+public final class com/opencapture/opencine/runtime/MonitorHevcDecodeLogLevel : java/lang/Enum {
+	public static final field INFO Lcom/opencapture/opencine/runtime/MonitorHevcDecodeLogLevel;
+	public static final field WARNING Lcom/opencapture/opencine/runtime/MonitorHevcDecodeLogLevel;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/runtime/MonitorHevcDecodeLogLevel;
+	public static fun values ()[Lcom/opencapture/opencine/runtime/MonitorHevcDecodeLogLevel;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorHevcJpegBytes {
+	public static final field INSTANCE Lcom/opencapture/opencine/runtime/MonitorHevcJpegBytes;
+	public final fun annexBFrame ([B)[B
+	public final fun annexBParameterSets (Ljava/util/List;)[B
+	public final fun yuv420ToNv21 (IILcom/opencapture/opencine/runtime/MonitorHevcYuvPlane;Lcom/opencapture/opencine/runtime/MonitorHevcYuvPlane;Lcom/opencapture/opencine/runtime/MonitorHevcYuvPlane;)[B
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorHevcJpegCodec {
+	public abstract fun dequeueInputBuffer (J)I
+	public abstract fun dequeueOutputBuffer (J)I
+	public abstract fun getName ()Ljava/lang/String;
+	public abstract fun inputBuffer (I)Ljava/nio/ByteBuffer;
+	public abstract fun outputImage (I)Lcom/opencapture/opencine/runtime/MonitorHevcJpegOutput;
+	public abstract fun queueInputBuffer (IIJ)V
+	public abstract fun release ()V
+	public abstract fun releaseOutputBuffer (I)V
+	public abstract fun stop ()V
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorHevcJpegCodecFactory {
+	public abstract fun create (ZLcom/opencapture/opencine/runtime/MonitorHevcJpegDecodePolicy;)Lcom/opencapture/opencine/runtime/MonitorHevcJpegCodec;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorHevcJpegDecodePolicy {
+	public fun <init> ()V
+	public fun <init> (IIJJJIILjava/lang/String;I)V
+	public synthetic fun <init> (IIJJJIILjava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()J
+	public final fun component4 ()J
+	public final fun component5 ()J
+	public final fun component6 ()I
+	public final fun component7 ()I
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()I
+	public final fun copy (IIJJJIILjava/lang/String;I)Lcom/opencapture/opencine/runtime/MonitorHevcJpegDecodePolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/MonitorHevcJpegDecodePolicy;IIJJJIILjava/lang/String;IILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorHevcJpegDecodePolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFirstDrainTimeoutMicros ()J
+	public final fun getFrameStepMicros ()J
+	public final fun getHeight ()I
+	public final fun getInputTimeoutMicros ()J
+	public final fun getJpegQuality ()I
+	public final fun getMaximumConsecutiveSoftwareRebuilds ()I
+	public final fun getSoftwareDecoderName ()Ljava/lang/String;
+	public final fun getSoftwareFallbackFedFrames ()I
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorHevcJpegOutput {
+	public abstract fun close ()V
+	public abstract fun jpeg (I)[B
+}
+
+public final class com/opencapture/opencine/runtime/MonitorHevcYuvPlane {
+	public fun <init> (Ljava/nio/ByteBuffer;II)V
+	public final fun component1 ()Ljava/nio/ByteBuffer;
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun copy (Ljava/nio/ByteBuffer;II)Lcom/opencapture/opencine/runtime/MonitorHevcYuvPlane;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/MonitorHevcYuvPlane;Ljava/nio/ByteBuffer;IIILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorHevcYuvPlane;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBytes ()Ljava/nio/ByteBuffer;
+	public final fun getPixelStride ()I
+	public final fun getRowStride ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorJpegFrameDecoder {
+	public fun <init> ()V
+	public fun <init> (I)V
+	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun decode ([B)Landroid/graphics/Bitmap;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorJpegFrameDecoderKt {
+	public static final fun monitorJpegSampleSizeForLongSide (III)I
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorLutMovieExporter {
+	public abstract fun export (Ljava/nio/file/Path;Ljava/nio/file/Path;Lcom/opencapture/opencine/runtime/MonitorMovieExportLut;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorMediaReadSource {
+	public abstract fun cancel ()V
+	public abstract fun open ()Lcom/opencapture/opencine/runtime/MonitorMediaReadStream;
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorMediaReadStream : java/lang/AutoCloseable {
+	public abstract fun getContentLength ()Ljava/lang/Long;
+	public abstract fun getInput ()Ljava/io/InputStream;
+	public abstract fun getStatus ()Ljava/lang/Integer;
+}
+
+public abstract class com/opencapture/opencine/runtime/MonitorMediaStreamException : java/io/IOException {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMediaStreamException$Empty : com/opencapture/opencine/runtime/MonitorMediaStreamException {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMediaStreamException$Limit : com/opencapture/opencine/runtime/MonitorMediaStreamException {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMediaStreamException$Status : com/opencapture/opencine/runtime/MonitorMediaStreamException {
+	public fun <init> (I)V
+	public final fun getStatus ()I
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMediaStreamPump {
+	public fun <init> ()V
+	public fun <init> (I)V
+	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun transfer (Lcom/opencapture/opencine/runtime/MonitorMediaReadSource;Ljava/lang/Long;Lcom/opencapture/opencine/media/MediaByteSink;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun transfer$default (Lcom/opencapture/opencine/runtime/MonitorMediaStreamPump;Lcom/opencapture/opencine/runtime/MonitorMediaReadSource;Ljava/lang/Long;Lcom/opencapture/opencine/media/MediaByteSink;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorMovieCodec {
+	public abstract fun cancel ()V
+	public abstract fun progressPercent ()Ljava/lang/Integer;
+	public abstract fun start ()V
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorMovieCodecCompletion {
+	public abstract fun completed ()V
+	public abstract fun failed ()V
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorMovieCodecFactory {
+	public abstract fun create (Ljava/nio/file/Path;Ljava/nio/file/Path;Lcom/opencapture/opencine/runtime/MonitorMovieExportLut;Lcom/opencapture/opencine/runtime/MonitorMovieCodecCompletion;)Lcom/opencapture/opencine/runtime/MonitorMovieCodec;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMovieExportContainer : java/lang/Enum {
+	public static final field MOV Lcom/opencapture/opencine/runtime/MonitorMovieExportContainer;
+	public static final field MP4 Lcom/opencapture/opencine/runtime/MonitorMovieExportContainer;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getExtension ()Ljava/lang/String;
+	public final fun getLabel ()Ljava/lang/String;
+	public final fun getMimeType ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/runtime/MonitorMovieExportContainer;
+	public static fun values ()[Lcom/opencapture/opencine/runtime/MonitorMovieExportContainer;
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorMovieExportErrorFactory {
+	public abstract fun make (Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;Ljava/lang/String;)Ljava/lang/Throwable;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMovieExportFailure : java/lang/Enum {
+	public static final field APPROVED_LUT_UNAVAILABLE Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field CODEC_FAILED Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field CODEC_STALLED Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field INCOMPLETE_CLEANUP Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field INCOMPLETE_EXPORT Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field INCOMPLETE_MOV_HEADER Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field INVALID_MOV_FILE Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field TEMPORARY_CLEANUP Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field UNSUPPORTED_BAKE Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static final field UNSUPPORTED_MOV_HEADER Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+	public static fun values ()[Lcom/opencapture/opencine/runtime/MonitorMovieExportFailure;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMovieExportInput {
+	public fun <init> (Ljava/nio/file/Path;Ljava/lang/String;Ljava/lang/String;JZ)V
+	public final fun getByteCount ()J
+	public final fun getDisplayName ()Ljava/lang/String;
+	public final fun getFile ()Ljava/nio/file/Path;
+	public final fun getMimeType ()Ljava/lang/String;
+	public final fun getSupportsLutBake ()Z
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMovieExportKt {
+	public static final fun finalizeMovieExportContainer (Ljava/nio/file/Path;Lcom/opencapture/opencine/runtime/MonitorMovieExportContainer;Lcom/opencapture/opencine/runtime/MonitorMovieExportErrorFactory;)V
+	public static final fun pruneOwnedMovieExports (Ljava/nio/file/Path;Ljava/util/Set;JJJLjava/lang/String;)V
+	public static synthetic fun pruneOwnedMovieExports$default (Ljava/nio/file/Path;Ljava/util/Set;JJJLjava/lang/String;ILjava/lang/Object;)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMovieExportLut {
+	public fun <init> (Ljava/lang/String;I[B)V
+	public final fun getCubeSize ()I
+	public final fun getDisplayName ()Ljava/lang/String;
+	public final fun getPackedRgba ()[B
+	public final fun toArgbCube ()[[[I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMovieExportPreparer {
+	public fun <init> (Ljava/nio/file/Path;Lcom/opencapture/opencine/runtime/MonitorLutMovieExporter;Lcom/opencapture/opencine/runtime/MonitorMovieExportErrorFactory;Ljava/lang/String;Ljava/lang/String;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Ljava/nio/file/Path;Lcom/opencapture/opencine/runtime/MonitorLutMovieExporter;Lcom/opencapture/opencine/runtime/MonitorMovieExportErrorFactory;Ljava/lang/String;Ljava/lang/String;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun prepare (Lcom/opencapture/opencine/runtime/MonitorMovieExportInput;ZLcom/opencapture/opencine/runtime/MonitorMovieExportContainer;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun release (Lcom/opencapture/opencine/runtime/MonitorPreparedMovieExport;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMovieExportProgressWatchdog {
+	public fun <init> (JLkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (JLkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun hasStalled ()Z
+	public final fun recordProgress (I)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorMovieTimecode {
+	public static final field INSTANCE Lcom/opencapture/opencine/runtime/MonitorMovieTimecode;
+	public final fun copyTimecodeTrack (Ljava/nio/file/Path;Ljava/nio/file/Path;)Z
+}
+
+public final class com/opencapture/opencine/runtime/MonitorNativeMovieExporter : com/opencapture/opencine/runtime/MonitorLutMovieExporter {
+	public fun <init> (Lcom/opencapture/opencine/runtime/MonitorMovieCodecFactory;Lcom/opencapture/opencine/runtime/MonitorMovieExportErrorFactory;Lkotlinx/coroutines/CoroutineDispatcher;JJLkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/runtime/MonitorMovieCodecFactory;Lcom/opencapture/opencine/runtime/MonitorMovieExportErrorFactory;Lkotlinx/coroutines/CoroutineDispatcher;JJLkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun export (Ljava/nio/file/Path;Ljava/nio/file/Path;Lcom/opencapture/opencine/runtime/MonitorMovieExportLut;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorPcmAudioInput {
+	public fun <init> (Lcom/opencapture/opencine/runtime/MonitorAudioPeakAccumulator;)V
+	public final fun close ()V
+	public final fun ingest (Ljava/nio/ByteBuffer;)Z
+	public final fun prepare (Lcom/opencapture/opencine/runtime/MonitorPcmFormat;)Z
+}
+
+public final class com/opencapture/opencine/runtime/MonitorPcmFormat {
+	public fun <init> (Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;ILjava/nio/ByteOrder;)V
+	public final fun component1 ()Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/nio/ByteOrder;
+	public final fun copy (Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;ILjava/nio/ByteOrder;)Lcom/opencapture/opencine/runtime/MonitorPcmFormat;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/MonitorPcmFormat;Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;ILjava/nio/ByteOrder;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorPcmFormat;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getByteOrder ()Ljava/nio/ByteOrder;
+	public final fun getChannels ()I
+	public final fun getSampleType ()Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorPcmPeaks {
+	public static final field INSTANCE Lcom/opencapture/opencine/runtime/MonitorPcmPeaks;
+	public final fun ingest (Ljava/nio/ByteBuffer;Lcom/opencapture/opencine/runtime/MonitorPcmFormat;)Lkotlin/Pair;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorPcmSampleType : java/lang/Enum {
+	public static final field FLOAT32 Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+	public static final field SIGNED16 Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+	public static final field SIGNED24 Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+	public static final field SIGNED32 Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+	public static final field UNSIGNED8 Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getSampleBytes ()I
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+	public static fun values ()[Lcom/opencapture/opencine/runtime/MonitorPcmSampleType;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorPictureViewsKt {
+	public static final fun keepPicturePointersTogether (Landroid/view/View;)V
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorPlaybackPictureOwner {
+	public abstract fun attachPicture (Landroid/view/Surface;Ljava/util/UUID;)V
+	public abstract fun bindPicture (Ljava/util/UUID;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V
+	public abstract fun claimPicture ()Ljava/util/UUID;
+	public abstract fun releasePicture (Ljava/util/UUID;)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorPreparedMovieExport {
+	public fun <init> (Ljava/nio/file/Path;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;Ljava/nio/file/Path;)V
+	public final fun getAppliedLutName ()Ljava/lang/String;
+	public final fun getByteCount ()J
+	public final fun getDisplayName ()Ljava/lang/String;
+	public final fun getFile ()Ljava/nio/file/Path;
+	public final fun getMimeType ()Ljava/lang/String;
+	public final fun getTransientExport ()Ljava/nio/file/Path;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorRelayHevcJpegDecoder {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/runtime/MonitorHevcJpegDecodePolicy;Lcom/opencapture/opencine/runtime/MonitorHevcJpegCodecFactory;Lkotlin/jvm/functions/Function3;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/runtime/MonitorHevcJpegDecodePolicy;Lcom/opencapture/opencine/runtime/MonitorHevcJpegCodecFactory;Lkotlin/jvm/functions/Function3;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun beginSource (Ljava/util/UUID;)Z
+	public final fun close ()V
+	public final fun decodeToJpeg ([BZLjava/util/List;Ljava/util/UUID;)[B
+	public static synthetic fun decodeToJpeg$default (Lcom/opencapture/opencine/runtime/MonitorRelayHevcJpegDecoder;[BZLjava/util/List;Ljava/util/UUID;ILjava/lang/Object;)[B
+	public final fun getSourceToken ()Ljava/util/UUID;
+	public final fun isPausedForStream ()Z
+	public final fun release ()V
+	public final fun retireSource (Ljava/util/UUID;)Z
+}
+
+public final class com/opencapture/opencine/runtime/MonitorSurfacePictureHost : android/view/SurfaceView {
+	public fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorTexturePictureHost : android/view/TextureView {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/MonitorTexturePictureProgram;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/MonitorTexturePictureProgram;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public abstract interface class com/opencapture/opencine/runtime/MonitorTexturePictureProgram {
+	public abstract fun attach (Landroid/graphics/SurfaceTexture;II)V
+	public abstract fun detach ()V
+	public abstract fun resize (II)V
+}
+
+public final class com/opencapture/opencine/runtime/NativeBackdropFeed : java/lang/AutoCloseable {
+	public fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;JLkotlin/jvm/functions/Function1;Ljava/lang/String;)V
+	public synthetic fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;JLkotlin/jvm/functions/Function1;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun acquire (Ljava/lang/Object;J)Lcom/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket;
+	public final fun attach (Ljava/lang/Object;)V
+	public final fun cancel (Lcom/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket;)V
+	public fun close ()V
+	public final fun hasDemand (Ljava/lang/Object;)Z
+	public final fun invalidate (Ljava/lang/Object;)V
+	public final fun setActive (Z)V
+	public final fun sourceChanged ()V
+	public final fun submit (Lcom/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket;Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)V
+	public final fun submit (Lcom/opencapture/opencine/runtime/BackdropFrameAdmission$Ticket;Lcom/opencapture/opencine/runtime/InspectorPreviewFrame;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;Lkotlin/jvm/functions/Function0;)V
+	public final fun updatePlan (Ljava/lang/Object;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)V
+}
+
+public final class com/opencapture/opencine/runtime/NativeFeedContentRect {
+	public fun <init> (IIII)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun copy (IIII)Lcom/opencapture/opencine/runtime/NativeFeedContentRect;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/NativeFeedContentRect;IIIIILjava/lang/Object;)Lcom/opencapture/opencine/runtime/NativeFeedContentRect;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeight ()I
+	public final fun getLeft ()I
+	public final fun getTop ()I
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/NativeFeedContentRectKt {
+	public static final fun nativeFeedContentRect (FFIIZ)Lcom/opencapture/opencine/runtime/NativeFeedContentRect;
+	public static synthetic fun nativeFeedContentRect$default (FFIIZILjava/lang/Object;)Lcom/opencapture/opencine/runtime/NativeFeedContentRect;
+}
+
+public abstract interface class com/opencapture/opencine/runtime/NativeGlBackend {
+	public static final field Companion Lcom/opencapture/opencine/runtime/NativeGlBackend$Companion;
+	public abstract fun checkError ()V
+	public abstract fun createFramebuffer (I)I
+	public abstract fun createProgram (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/runtime/NativeGlProgram;
+	public abstract fun createTexture (II)I
+	public abstract fun createTexture (Landroid/graphics/Bitmap;)I
+	public abstract fun deleteFramebuffer (I)V
+	public abstract fun deleteTexture (I)V
+	public abstract fun focusFramebuffer (III)V
+	public abstract fun getHomogeneousCoordinateVectorSize ()I
+	public abstract fun normalizedCoordinateBounds ()[F
+}
+
+public final class com/opencapture/opencine/runtime/NativeGlBackend$Companion {
+	public final fun create (Landroid/content/Context;)Lcom/opencapture/opencine/runtime/NativeGlBackend;
+}
+
+public abstract interface class com/opencapture/opencine/runtime/NativeGlProgram {
+	public abstract fun bindAttributesAndUniforms ()V
+	public abstract fun delete ()V
+	public abstract fun setBufferAttribute (Ljava/lang/String;[FI)V
+	public abstract fun setFloatsUniform (Ljava/lang/String;[F)V
+	public abstract fun setSamplerTexIdUniform (Ljava/lang/String;II)V
+	public abstract fun use ()V
+}
+
+public final class com/opencapture/opencine/runtime/NativeGlesFeedSession {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/runtime/NativeBackdropFeed;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/runtime/NativeBackdropFeed;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attachDisplay (Landroid/graphics/SurfaceTexture;II)V
+	public final fun close ()V
+	public final fun configurePreviewSource (Ljava/lang/Object;ZZ)V
+	public static synthetic fun configurePreviewSource$default (Lcom/opencapture/opencine/runtime/NativeGlesFeedSession;Ljava/lang/Object;ZZILjava/lang/Object;)V
+	public final fun detachDisplay ()V
+	public final fun getPictureProgram ()Lcom/opencapture/opencine/runtime/MonitorTexturePictureProgram;
+	public final fun resize (II)V
+	public final fun setSourceAdmission (Lkotlin/jvm/functions/Function1;)V
+	public final fun setSourceSize (II)V
+	public final fun setStretchToRect (Z)V
+	public final fun updatePlan (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)V
+}
+
+public final class com/opencapture/opencine/runtime/NativeRenderLifetime {
+	public fun <init> ()V
+	public final fun isCurrent (J)Z
+	public final fun start ()J
+	public final fun stop ()V
+}
+
+public final class com/opencapture/opencine/runtime/NativeVulkanFeedSession {
+	public static final field Companion Lcom/opencapture/opencine/runtime/NativeVulkanFeedSession$Companion;
+	public static final field FACE_TAP_HEIGHT I
+	public static final field FACE_TAP_WIDTH I
+	public static final field SOURCE_H I
+	public static final field SOURCE_W I
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/runtime/NativeBackdropFeed;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/runtime/NativeBackdropFeed;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attachWindow (Landroid/view/Surface;II)V
+	public final fun configureScopeSource (Ljava/lang/Object;ZZ)V
+	public final fun copyHistogram ()[I
+	public final fun detachWindow ()V
+	public final fun getFramesPresented ()Ljava/util/concurrent/atomic/AtomicInteger;
+	public final fun getWindowReady ()Z
+	public final fun isReady ()Z
+	public final fun redrawLast ()V
+	public final fun release ()V
+	public final fun requestFaceTap ()V
+	public final fun resize (II)V
+	public final fun setFeedRect (FFFFZ)V
+	public static synthetic fun setFeedRect$default (Lcom/opencapture/opencine/runtime/NativeVulkanFeedSession;FFFFZILjava/lang/Object;)V
+	public final fun setPlates ([F)V
+	public final fun setSourceSize (II)V
+	public final fun slotsMoved ()V
+	public final fun takeFaceNv21 ()[B
+	public final fun updateEffects (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;FZZLcom/opencapture/opencine/runtime/GlesPresentationOptions;)V
+	public static synthetic fun updateEffects$default (Lcom/opencapture/opencine/runtime/NativeVulkanFeedSession;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;FZZLcom/opencapture/opencine/runtime/GlesPresentationOptions;ILjava/lang/Object;)V
+}
+
+public final class com/opencapture/opencine/runtime/NativeVulkanFeedSession$Companion {
+	public final fun getTAP_H ()I
+	public final fun getTAP_W ()I
+	public final fun isAvailable ()Z
+}
+
+public final class com/opencapture/opencine/runtime/OesCopyGlProgram {
+	public static final field Companion Lcom/opencapture/opencine/runtime/OesCopyGlProgram$Companion;
+	public fun <init> (Landroid/content/Context;)V
+	public final fun draw (I[FFF)V
+	public static synthetic fun draw$default (Lcom/opencapture/opencine/runtime/OesCopyGlProgram;I[FFFILjava/lang/Object;)V
+	public final fun release ()V
+}
+
+public final class com/opencapture/opencine/runtime/OesCopyGlProgram$Companion {
+}
+
+public final class com/opencapture/opencine/runtime/ScopePublication {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/media/ScopeAssistBundle;J)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/media/ScopeAssistBundle;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/media/ScopeAssistBundle;
+	public final fun component2 ()J
+	public final fun copy (Lcom/opencapture/opencine/media/ScopeAssistBundle;J)Lcom/opencapture/opencine/runtime/ScopePublication;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/ScopePublication;Lcom/opencapture/opencine/media/ScopeAssistBundle;JILjava/lang/Object;)Lcom/opencapture/opencine/runtime/ScopePublication;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBundle ()Lcom/opencapture/opencine/media/ScopeAssistBundle;
+	public final fun getGeneration ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/ScopeSampleBus {
+	public fun <init> ()V
+	public final fun closeSource (Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;)V
+	public final fun getBundle ()Lcom/opencapture/opencine/media/ScopeAssistBundle;
+	public final fun getGeneration ()J
+	public final fun getPublications ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun isCurrent (Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;)Z
+	public final fun openSource (Lcom/opencapture/opencine/runtime/ScopeSampleBus$Role;)Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;
+	public static synthetic fun openSource$default (Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/ScopeSampleBus$Role;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;
+	public final fun publish (Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;Lcom/opencapture/opencine/media/ScopeAssistBundle;)Z
+	public final fun replaceSource (Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;)Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;
+}
+
+public final class com/opencapture/opencine/runtime/ScopeSampleBus$Role : java/lang/Enum {
+	public static final field LIVE Lcom/opencapture/opencine/runtime/ScopeSampleBus$Role;
+	public static final field PLAYBACK Lcom/opencapture/opencine/runtime/ScopeSampleBus$Role;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/runtime/ScopeSampleBus$Role;
+	public static fun values ()[Lcom/opencapture/opencine/runtime/ScopeSampleBus$Role;
+}
+
+public final class com/opencapture/opencine/runtime/ScopeSampleBus$Source {
+}
+
+public final class com/opencapture/opencine/runtime/ScopeSourceLifetime {
+	public fun <init> (Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/ScopeSampleBus$Role;)V
+	public final fun attach ()V
+	public final fun detach ()V
+	public final fun getOwnedSource ()Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;
+	public final fun getSource ()Lcom/opencapture/opencine/runtime/ScopeSampleBus$Source;
+	public final fun invalidate (Z)V
+}
+
+public final class com/opencapture/opencine/runtime/ScopeTapHzLog {
+	public fun <init> ()V
+	public final fun note (Ljava/lang/String;IJ)V
+	public final fun reset ()V
+}
+
+public final class com/opencapture/opencine/runtime/VulkanCrashGuard {
+	public static final field Companion Lcom/opencapture/opencine/runtime/VulkanCrashGuard$Companion;
+	public static final field FRAMES_TO_CLEAR I
+	public static final field STRIKES_TO_DISABLE I
+	public fun <init> (Ljava/lang/String;I)V
+	public final fun arm (Landroid/content/Context;)V
+	public final fun clear (Landroid/content/Context;)V
+	public final fun getPreferencesName ()Ljava/lang/String;
+	public final fun getVersionCode ()I
+	public final fun isTripped (Landroid/content/Context;)Z
+}
+
+public final class com/opencapture/opencine/runtime/VulkanCrashGuard$Companion {
+	public final fun atLaunch (Lcom/opencapture/opencine/runtime/VulkanCrashGuard$State;I)Lcom/opencapture/opencine/runtime/VulkanCrashGuard$State;
+	public final fun isTripped (Lcom/opencapture/opencine/runtime/VulkanCrashGuard$State;)Z
+}
+
+public final class com/opencapture/opencine/runtime/VulkanCrashGuard$State {
+	public fun <init> (IZI)V
+	public final fun component1 ()I
+	public final fun component2 ()Z
+	public final fun component3 ()I
+	public final fun copy (IZI)Lcom/opencapture/opencine/runtime/VulkanCrashGuard$State;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/VulkanCrashGuard$State;IZIILjava/lang/Object;)Lcom/opencapture/opencine/runtime/VulkanCrashGuard$State;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArmed ()Z
+	public final fun getStrikes ()I
+	public final fun getVersion ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/runtime/VulkanPresentGate {
+	public fun <init> ()V
+	public final fun attach ()V
+	public final fun beginSubmit ()Z
+	public final fun detach ()V
+	public final fun endSubmit ()V
+	public final fun getWindowReady ()Z
+	public final fun isReleased ()Z
+	public final fun release ()V
+	public final fun shouldFallbackOnSubmitFailure ()Z
+}
+
+public final class com/opencapture/opencine/runtime/VulkanWindowAttach {
+	public static final field INSTANCE Lcom/opencapture/opencine/runtime/VulkanWindowAttach;
+	public static final field SURFACE_LIFECYCLE_FOLLOWS_ATTACHMENT_API I
+	public final fun shouldCreateSwapchain (II)Z
+	public final fun shouldFallbackToGlesOnAttachFailure ()Z
+}
+

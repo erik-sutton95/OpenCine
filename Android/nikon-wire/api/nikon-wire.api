@@ -1,0 +1,693 @@
+public abstract interface class com/opencapture/opencine/nikon/NikonCameraBatteryGauge {
+	public static final field BAR_COUNT I
+	public static final field Companion Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Companion;
+	public fun getBatteryReading ()Lcom/opencapture/opencine/core/BatteryReading;
+	public fun getExhaustion ()Ljava/lang/Boolean;
+	public fun getFilledBars ()I
+	public fun getPowerStatus ()Lcom/opencapture/opencine/core/PowerStatus;
+	public fun getPulses ()Z
+	public fun getUrgency ()Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public fun isCritical ()Z
+}
+
+public final class com/opencapture/opencine/nikon/NikonCameraBatteryGauge$Bars : com/opencapture/opencine/nikon/NikonCameraBatteryGauge {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Bars;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Bars;IILjava/lang/Object;)Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Bars;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBatteryReading ()Lcom/opencapture/opencine/core/BatteryReading;
+	public final fun getCount ()I
+	public fun getExhaustion ()Ljava/lang/Boolean;
+	public fun getFilledBars ()I
+	public fun getPowerStatus ()Lcom/opencapture/opencine/core/PowerStatus;
+	public fun getPulses ()Z
+	public fun getUrgency ()Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public fun hashCode ()I
+	public fun isCritical ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonCameraBatteryGauge$Companion {
+	public static final field BAR_COUNT I
+	public final fun gauge (I)Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge;
+}
+
+public final class com/opencapture/opencine/nikon/NikonCameraBatteryGauge$Critical : com/opencapture/opencine/nikon/NikonCameraBatteryGauge {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Critical;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBatteryReading ()Lcom/opencapture/opencine/core/BatteryReading;
+	public fun getExhaustion ()Ljava/lang/Boolean;
+	public fun getFilledBars ()I
+	public fun getPowerStatus ()Lcom/opencapture/opencine/core/PowerStatus;
+	public fun getPulses ()Z
+	public fun getUrgency ()Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public fun hashCode ()I
+	public fun isCritical ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonCameraBatteryGauge$DefaultImpls {
+	public static fun getBatteryReading (Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge;)Lcom/opencapture/opencine/core/BatteryReading;
+	public static fun getExhaustion (Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge;)Ljava/lang/Boolean;
+	public static fun getFilledBars (Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge;)I
+	public static fun getPowerStatus (Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge;)Lcom/opencapture/opencine/core/PowerStatus;
+	public static fun getPulses (Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge;)Z
+	public static fun getUrgency (Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge;)Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public static fun isCritical (Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge;)Z
+}
+
+public final class com/opencapture/opencine/nikon/NikonCameraBatteryGauge$Unknown : com/opencapture/opencine/nikon/NikonCameraBatteryGauge {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Unknown;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBatteryReading ()Lcom/opencapture/opencine/core/BatteryReading;
+	public fun getExhaustion ()Ljava/lang/Boolean;
+	public fun getFilledBars ()I
+	public fun getPowerStatus ()Lcom/opencapture/opencine/core/PowerStatus;
+	public fun getPulses ()Z
+	public fun getUrgency ()Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public fun hashCode ()I
+	public fun isCritical ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency : java/lang/Enum {
+	public static final field DEPLETED Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public static final field LOW Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public static final field NOMINAL Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+	public static fun values ()[Lcom/opencapture/opencine/nikon/NikonCameraBatteryGauge$Urgency;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikonwire/MonitorRelayWire;
+	public static final field MAXIMUM_PAYLOAD_BYTES I
+	public static final field PRESENCE_TCP_PORT I
+	public static final field SERVED_CAMERA_TXT_KEY Ljava/lang/String;
+	public static final field SERVICE_TYPE Ljava/lang/String;
+	public static final field VERSION I
+	public static final field WATCHABLE_TXT_KEY Ljava/lang/String;
+	public final fun decodeFrame ([BI)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Decoded;
+	public final fun decodeFramePayload ([B)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FramePayload;
+	public final fun encodeFrame (I[B)[B
+	public final fun encodeFramePayload (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;[B)[B
+	public final fun parsePresenceLine (Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Presence;
+	public final fun readUInt32BE ([BI)I
+	public final fun relayPresenceLine (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Integer;)Ljava/lang/String;
+	public static synthetic fun relayPresenceLine$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Integer;ILjava/lang/Object;)Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/nikonwire/MonitorRelayWire$Command {
+	public static final field Companion Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command$Companion;
+	public fun toJson ()Lorg/json/JSONObject;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Command$Companion {
+	public final fun fromJson (Lorg/json/JSONObject;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Command$DefaultImpls {
+	public static fun toJson (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command;)Lorg/json/JSONObject;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Command$FocusPoint : com/opencapture/opencine/nikonwire/MonitorRelayWire$Command {
+	public fun <init> (IIII)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun copy (IIII)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command$FocusPoint;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command$FocusPoint;IIIIILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command$FocusPoint;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraX ()I
+	public final fun getCameraY ()I
+	public final fun getCoordinateHeight ()I
+	public final fun getCoordinateWidth ()I
+	public fun hashCode ()I
+	public fun toJson ()Lorg/json/JSONObject;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Command$PickerValue : com/opencapture/opencine/nikonwire/MonitorRelayWire$Command {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command$PickerValue;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command$PickerValue;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command$PickerValue;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPicker ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toJson ()Lorg/json/JSONObject;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Command$ToggleRecording : com/opencapture/opencine/nikonwire/MonitorRelayWire$Command {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Command$ToggleRecording;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toJson ()Lorg/json/JSONObject;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$ControlToken {
+	public static final field Companion Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$ControlToken$Companion;
+	public fun <init> (Ljava/lang/String;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun copy (Ljava/lang/String;Z)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$ControlToken;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$ControlToken;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$ControlToken;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHolderIsRecipient ()Z
+	public final fun getHolderName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun toJson ()Lorg/json/JSONObject;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$ControlToken$Companion {
+	public final fun fromJson (Lorg/json/JSONObject;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$ControlToken;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Decoded {
+	public fun <init> (I[BI)V
+	public final fun component1 ()I
+	public final fun component2 ()[B
+	public final fun component3 ()I
+	public final fun copy (I[BI)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Decoded;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Decoded;I[BIILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Decoded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConsumedBytes ()I
+	public final fun getKind ()I
+	public final fun getPayload ()[B
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$DesynchronizedStreamException : java/lang/Exception {
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Focus {
+	public fun <init> (IIIZZLjava/lang/Integer;Ljava/util/List;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()Z
+	public final fun component5 ()Z
+	public final fun component6 ()Ljava/lang/Integer;
+	public final fun component7 ()Ljava/util/List;
+	public final fun copy (IIIZZLjava/lang/Integer;Ljava/util/List;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;IIIZZLjava/lang/Integer;Ljava/util/List;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBoxes ()Ljava/util/List;
+	public final fun getCoordinateHeight ()I
+	public final fun getCoordinateWidth ()I
+	public final fun getFocusResult ()I
+	public final fun getSelectedBoxIndex ()Ljava/lang/Integer;
+	public final fun getSubjectDetectionActive ()Z
+	public final fun getTrackingAFActive ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$FocusBox {
+	public fun <init> (IIII)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun copy (IIII)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FocusBox;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FocusBox;IIIIILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FocusBox;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCenterX ()I
+	public final fun getCenterY ()I
+	public final fun getHeight ()I
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$FrameCodec {
+	public static final field HEVC I
+	public static final field INSTANCE Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameCodec;
+	public static final field JPEG I
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata {
+	public static final field Companion Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata$Companion;
+	public fun <init> (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;ZLcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;Ljava/lang/Double;Ljava/lang/Double;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;IZLjava/util/List;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;ZLcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;Ljava/lang/Double;Ljava/lang/Double;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;IZLjava/util/List;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;
+	public final fun component10 ()Ljava/lang/Integer;
+	public final fun component2 ()Z
+	public final fun component3 ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;
+	public final fun component4 ()Ljava/lang/Double;
+	public final fun component5 ()Ljava/lang/Double;
+	public final fun component6 ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;
+	public final fun component7 ()I
+	public final fun component8 ()Z
+	public final fun component9 ()Ljava/util/List;
+	public final fun copy (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;ZLcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;Ljava/lang/Double;Ljava/lang/Double;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;IZLjava/util/List;Ljava/lang/Integer;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;ZLcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;Ljava/lang/Double;Ljava/lang/Double;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;IZLjava/util/List;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCodec ()I
+	public final fun getFocus ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Focus;
+	public final fun getLevelPitch ()Ljava/lang/Double;
+	public final fun getLevelRoll ()Ljava/lang/Double;
+	public final fun getParameterSets ()Ljava/util/List;
+	public final fun getRotation ()Ljava/lang/Integer;
+	public final fun getSound ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;
+	public final fun getTimecode ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;
+	public fun hashCode ()I
+	public final fun isKeyframe ()Z
+	public final fun isRecording ()Z
+	public final fun toJson ()Lorg/json/JSONObject;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata$Companion {
+	public final fun fromJson (Lorg/json/JSONObject;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$FramePayload {
+	public fun <init> (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;[B)V
+	public final fun component1 ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;
+	public final fun component2 ()[B
+	public final fun copy (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;[B)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FramePayload;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FramePayload;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;[BILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FramePayload;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getImage ()[B
+	public final fun getMetadata ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$FrameMetadata;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Hello {
+	public static final field Companion Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Hello$Companion;
+	public fun <init> (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)V
+	public synthetic fun <init> (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/util/List;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Hello;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Hello;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Hello;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraName ()Ljava/lang/String;
+	public final fun getCodecs ()Ljava/util/List;
+	public final fun getHostName ()Ljava/lang/String;
+	public final fun getPasscode ()Ljava/lang/String;
+	public final fun getVersion ()I
+	public final fun getWatcherId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun toJson ()Lorg/json/JSONObject;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Hello$Companion {
+	public final fun fromJson (Lorg/json/JSONObject;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Hello;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$JoinDenied {
+	public static final field Companion Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$JoinDenied$Companion;
+	public fun <init> (Ljava/lang/String;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun copy (Ljava/lang/String;Z)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$JoinDenied;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$JoinDenied;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$JoinDenied;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPasscodeRequired ()Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun toJson ()Lorg/json/JSONObject;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$JoinDenied$Companion {
+	public final fun fromJson (Lorg/json/JSONObject;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$JoinDenied;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Kind {
+	public static final field COMMAND I
+	public static final field CONTROL_TOKEN I
+	public static final field FRAME I
+	public static final field HELLO I
+	public static final field INSTANCE Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Kind;
+	public static final field JOIN_DENIED I
+	public static final field RELEASE_CONTROL I
+	public static final field REQUEST_CONTROL I
+	public static final field STATE I
+	public final fun getAll ()Ljava/util/Set;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus {
+	public fun <init> (IIILjava/lang/Integer;Ljava/lang/Long;)V
+	public synthetic fun <init> (IIILjava/lang/Integer;Ljava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/lang/Integer;
+	public final fun component5 ()Ljava/lang/Long;
+	public final fun copy (IIILjava/lang/Integer;Ljava/lang/Long;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;IIILjava/lang/Integer;Ljava/lang/Long;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEstimatedMinutesRemaining ()Ljava/lang/Integer;
+	public final fun getFreeBytes ()Ljava/lang/Long;
+	public final fun getGigabytesFree ()I
+	public final fun getMinutesRemaining ()I
+	public final fun getPercentFree ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Presence {
+	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Integer;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Integer;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Presence;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Presence;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Presence;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRelayPort ()Ljava/lang/Integer;
+	public final fun getServedCameraHost ()Ljava/lang/String;
+	public final fun getWatchable ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Sound {
+	public fun <init> (IIII)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun copy (IIII)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;IIIIILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Sound;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCurrentLeft ()I
+	public final fun getCurrentRight ()I
+	public final fun getPeakLeft ()I
+	public final fun getPeakRight ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$State {
+	public static final field Companion Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$State$Companion;
+	public static final field RECORD_STATE_RECORDING Ljava/lang/String;
+	public static final field RECORD_STATE_STANDBY Ljava/lang/String;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;ZLjava/lang/Boolean;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;ZLjava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;ZLjava/lang/Boolean;Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;ZLjava/lang/Boolean;Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Ljava/util/List;
+	public final fun component11 ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;
+	public final fun component12 ()Z
+	public final fun component13 ()Ljava/lang/Boolean;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()I
+	public final fun component7 ()Ljava/lang/String;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;ZLjava/lang/Boolean;Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;ZZ)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$State;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$State;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;ZLjava/lang/Boolean;Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;ZZILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$State;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAllowsControlRequests ()Ljava/lang/Boolean;
+	public final fun getBatteryExhausted ()Ljava/lang/Boolean;
+	public final fun getBatteryReading ()Lcom/opencapture/opencine/core/BatteryReading;
+	public final fun getCameraBatteryPercent ()I
+	public final fun getCameraName ()Ljava/lang/String;
+	public final fun getCodec ()Ljava/lang/String;
+	public final fun getLens ()Ljava/lang/String;
+	public final fun getLiveFPS ()Ljava/lang/String;
+	public final fun getMedia ()Ljava/lang/String;
+	public final fun getMediaStatus ()Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$MediaStatus;
+	public final fun getRecordState ()Ljava/lang/String;
+	public final fun getResolutionFrameRate ()Ljava/lang/String;
+	public final fun getTemperature ()Ljava/lang/String;
+	public final fun getValues ()Ljava/util/List;
+	public fun hashCode ()I
+	public final fun isRecording ()Z
+	public final fun toJson ()Lorg/json/JSONObject;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$State$Companion {
+	public final fun fromJson (Lorg/json/JSONObject;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$State;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$StateValue {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$StateValue;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$StateValue;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$StateValue;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLabel ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode {
+	public fun <init> (ZIIII)V
+	public final fun component1 ()Z
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun copy (ZIIII)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;ZIIIIILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/MonitorRelayWire$Timecode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrame ()I
+	public final fun getHour ()I
+	public final fun getMinute ()I
+	public final fun getOn ()Z
+	public final fun getSecond ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchCommandResult : com/opencapture/opencine/nikonwire/WatchRelayPayload {
+	public fun <init> (ZZLjava/lang/String;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (ZZLjava/lang/String;)Lcom/opencapture/opencine/nikonwire/WatchCommandResult;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/WatchCommandResult;ZZLjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/WatchCommandResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccepted ()Z
+	public final fun getError ()Ljava/lang/String;
+	public fun getKind ()Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public fun hashCode ()I
+	public final fun isRecording ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchConnectionState : java/lang/Enum {
+	public static final field CONNECTED Lcom/opencapture/opencine/nikonwire/WatchConnectionState;
+	public static final field DISCONNECTED Lcom/opencapture/opencine/nikonwire/WatchConnectionState;
+	public static final field NO_CAMERA Lcom/opencapture/opencine/nikonwire/WatchConnectionState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWireValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/WatchConnectionState;
+	public static fun values ()[Lcom/opencapture/opencine/nikonwire/WatchConnectionState;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchMediaStatus {
+	public fun <init> (IIILjava/lang/Long;)V
+	public synthetic fun <init> (IIILjava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/lang/Long;
+	public final fun copy (IIILjava/lang/Long;)Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;IIILjava/lang/Long;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFreeBytes ()Ljava/lang/Long;
+	public final fun getGigabytesFree ()I
+	public final fun getMinutesRemaining ()I
+	public final fun getPercentFree ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRecordState : java/lang/Enum {
+	public static final field RECORDING Lcom/opencapture/opencine/nikonwire/WatchRecordState;
+	public static final field STANDBY Lcom/opencapture/opencine/nikonwire/WatchRecordState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWireValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/WatchRecordState;
+	public static fun values ()[Lcom/opencapture/opencine/nikonwire/WatchRecordState;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayCommand : java/lang/Enum, com/opencapture/opencine/nikonwire/WatchRelayPayload {
+	public static final field TOGGLE_RECORD Lcom/opencapture/opencine/nikonwire/WatchRelayCommand;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public fun getKind ()Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public final fun getWireValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/WatchRelayCommand;
+	public static fun values ()[Lcom/opencapture/opencine/nikonwire/WatchRelayCommand;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayEnvelope {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikonwire/WatchRelayEnvelope;
+	public static final field MAX_ENVELOPE_BYTES I
+	public static final field MAX_PREVIEW_JPEG_BYTES I
+	public final fun decode ([B)Lcom/opencapture/opencine/nikonwire/WatchRelayPayload;
+	public final fun encode (Lcom/opencapture/opencine/nikonwire/WatchRelayPayload;)[B
+	public final fun kindOf ([B)Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayFrame : com/opencapture/opencine/nikonwire/WatchRelayPayload {
+	public fun <init> ([BLcom/opencapture/opencine/nikonwire/WatchTimecode;Z)V
+	public final fun getJpeg ()[B
+	public fun getKind ()Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public final fun getTimecode ()Lcom/opencapture/opencine/nikonwire/WatchTimecode;
+	public final fun isRecording ()Z
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayKind : java/lang/Enum {
+	public static final field COMMAND Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public static final field FRAME Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public static final field RESULT Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public static final field STATE Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getTag ()I
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public static fun values ()[Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+}
+
+public abstract interface class com/opencapture/opencine/nikonwire/WatchRelayPayload {
+	public abstract fun getKind ()Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayState : com/opencapture/opencine/nikonwire/WatchRelayPayload {
+	public fun <init> (Lcom/opencapture/opencine/nikonwire/WatchRecordState;Lcom/opencapture/opencine/nikonwire/WatchTimecode;Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;Ljava/lang/String;ILjava/lang/String;ZLcom/opencapture/opencine/nikonwire/WatchConnectionState;ZLjava/lang/String;)V
+	public fun <init> (Lcom/opencapture/opencine/nikonwire/WatchRecordState;Lcom/opencapture/opencine/nikonwire/WatchTimecode;Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;Ljava/lang/String;ILjava/lang/String;ZLcom/opencapture/opencine/nikonwire/WatchConnectionState;ZLjava/lang/String;Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/nikonwire/WatchRecordState;Lcom/opencapture/opencine/nikonwire/WatchTimecode;Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;Ljava/lang/String;ILjava/lang/String;ZLcom/opencapture/opencine/nikonwire/WatchConnectionState;ZLjava/lang/String;Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/nikonwire/WatchRecordState;
+	public final fun component10 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/opencapture/opencine/nikonwire/WatchTimecode;
+	public final fun component3 ()Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()I
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Z
+	public final fun component8 ()Lcom/opencapture/opencine/nikonwire/WatchConnectionState;
+	public final fun component9 ()Z
+	public final fun copy (Lcom/opencapture/opencine/nikonwire/WatchRecordState;Lcom/opencapture/opencine/nikonwire/WatchTimecode;Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;Ljava/lang/String;ILjava/lang/String;ZLcom/opencapture/opencine/nikonwire/WatchConnectionState;ZLjava/lang/String;Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;ZZ)Lcom/opencapture/opencine/nikonwire/WatchRelayState;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/WatchRelayState;Lcom/opencapture/opencine/nikonwire/WatchRecordState;Lcom/opencapture/opencine/nikonwire/WatchTimecode;Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;Ljava/lang/String;ILjava/lang/String;ZLcom/opencapture/opencine/nikonwire/WatchConnectionState;ZLjava/lang/String;Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;ZZILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/WatchRelayState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBatteryExhausted ()Ljava/lang/Boolean;
+	public final fun getBatteryReading ()Lcom/opencapture/opencine/core/BatteryReading;
+	public final fun getCameraBatteryPercent ()I
+	public final fun getCameraName ()Ljava/lang/String;
+	public final fun getConnection ()Lcom/opencapture/opencine/nikonwire/WatchConnectionState;
+	public final fun getFeedLive ()Z
+	public fun getKind ()Lcom/opencapture/opencine/nikonwire/WatchRelayKind;
+	public final fun getLiveFPS ()Ljava/lang/String;
+	public final fun getMedia ()Ljava/lang/String;
+	public final fun getMediaStatus ()Lcom/opencapture/opencine/nikonwire/WatchMediaStatus;
+	public final fun getRecordState ()Lcom/opencapture/opencine/nikonwire/WatchRecordState;
+	public final fun getTimecode ()Lcom/opencapture/opencine/nikonwire/WatchTimecode;
+	public fun hashCode ()I
+	public final fun isRecording ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class com/opencapture/opencine/nikonwire/WatchRelayWireException : java/lang/IllegalArgumentException {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayWireException$EmptyEnvelope : com/opencapture/opencine/nikonwire/WatchRelayWireException {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikonwire/WatchRelayWireException$EmptyEnvelope;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayWireException$MalformedPayload : com/opencapture/opencine/nikonwire/WatchRelayWireException {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/nikonwire/WatchRelayWireException$MalformedPayload;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/WatchRelayWireException$MalformedPayload;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/WatchRelayWireException$MalformedPayload;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayWireException$PayloadTooLarge : com/opencapture/opencine/nikonwire/WatchRelayWireException {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikonwire/WatchRelayWireException$PayloadTooLarge;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchRelayWireException$UnknownKind : com/opencapture/opencine/nikonwire/WatchRelayWireException {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/nikonwire/WatchRelayWireException$UnknownKind;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/WatchRelayWireException$UnknownKind;IILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/WatchRelayWireException$UnknownKind;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getTag ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchTimecode {
+	public static final field Companion Lcom/opencapture/opencine/nikonwire/WatchTimecode$Companion;
+	public fun <init> (ZIIII)V
+	public final fun component1 ()Z
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun copy (ZIIII)Lcom/opencapture/opencine/nikonwire/WatchTimecode;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikonwire/WatchTimecode;ZIIIIILjava/lang/Object;)Lcom/opencapture/opencine/nikonwire/WatchTimecode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrame ()I
+	public final fun getHour ()I
+	public final fun getMinute ()I
+	public final fun getOn ()Z
+	public final fun getSecond ()I
+	public fun hashCode ()I
+	public final fun label ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikonwire/WatchTimecode$Companion {
+	public final fun unavailable ()Lcom/opencapture/opencine/nikonwire/WatchTimecode;
+}
+
+public final class com/opencapture/opencine/nikonwire/WearRelayTransport {
+	public static final field COMMAND_PATH Ljava/lang/String;
+	public static final field FRAME_ACK_PATH Ljava/lang/String;
+	public static final field FRAME_PATH Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/opencine/nikonwire/WearRelayTransport;
+	public static final field PHONE_CAPABILITY Ljava/lang/String;
+	public static final field PROTOCOL_VERSION I
+	public static final field RESULT_PATH Ljava/lang/String;
+	public static final field STATE_PATH Ljava/lang/String;
+	public static final field WEAR_CAPABILITY Ljava/lang/String;
+	public final fun commandPath (J)Ljava/lang/String;
+	public final fun commandRequestID (Ljava/lang/String;)Ljava/lang/Long;
+	public final fun frameAckPath (J)Ljava/lang/String;
+	public final fun frameAckRequestID (Ljava/lang/String;)Ljava/lang/Long;
+	public final fun framePath (J)Ljava/lang/String;
+	public final fun frameRequestID (Ljava/lang/String;)Ljava/lang/Long;
+	public final fun resultPath (J)Ljava/lang/String;
+	public final fun resultRequestID (Ljava/lang/String;)Ljava/lang/Long;
+}
+

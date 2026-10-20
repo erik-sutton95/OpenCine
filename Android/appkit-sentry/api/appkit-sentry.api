@@ -1,0 +1,16 @@
+public final class com/opencapture/opencine/appkit/sentry/OkHttpManualReportUpload : com/opencapture/opencine/appkit/diagnostics/ManualReportUpload {
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/sentry/OkHttpManualReportUpload;
+	public fun call (Ljava/lang/String;Ljava/lang/String;[BLjava/util/Map;)Lcom/opencapture/opencine/appkit/diagnostics/ManualReportCall;
+}
+
+public final class com/opencapture/opencine/appkit/sentry/SentryReliabilitySink : com/opencapture/opencine/appkit/diagnostics/ReliabilityReportingSink {
+	public fun <init> (Lcom/opencapture/opencine/appkit/diagnostics/ReliabilityReporting;)V
+	public fun addBreadcrumb (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
+	public fun capture (Lcom/opencapture/opencine/appkit/diagnostics/ReliabilityEvent;[BLjava/lang/String;)V
+	public fun close ()V
+	public fun flush (J)V
+	public fun record (Lcom/opencapture/opencine/appkit/diagnostics/ReliabilityMetric;)V
+	public fun setTags (Ljava/util/Map;)V
+	public fun start (Landroid/content/Context;Ljava/lang/String;Ljava/io/File;)V
+}
+

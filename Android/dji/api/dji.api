@@ -1,0 +1,2320 @@
+public final class com/opencapture/opencine/dji/ApertureStrategyWireKt {
+	public static final fun getCAPABILITY_KEY (Lcom/opencapture/opencine/vocabulary/ApertureStrategy;)Ljava/lang/String;
+	public static final fun getSTATE_KEY (Lcom/opencapture/opencine/vocabulary/ApertureStrategy;)Ljava/lang/String;
+	public static final fun irisHundredths (Lcom/opencapture/opencine/vocabulary/ApertureStrategy;[B)Ljava/lang/Integer;
+	public static final fun parseCapability (Lcom/opencapture/opencine/vocabulary/ApertureStrategy;[B)Ljava/util/List;
+	public static final fun parseState (Lcom/opencapture/opencine/vocabulary/ApertureStrategy;[B)Ljava/lang/Integer;
+}
+
+public final class com/opencapture/opencine/dji/BleLink {
+	public static final field Companion Lcom/opencapture/opencine/dji/BleLink$Companion;
+	public static final field MTU_DISCOVERY_FALLBACK_MS J
+	public fun <init> (Landroid/content/Context;)V
+	public final fun close ()V
+	public final fun connect (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun disconnect ()V
+	public final fun getFound ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getFrames ()Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun getOnLinkLost ()Lkotlin/jvm/functions/Function0;
+	public final fun getRadioOn ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun send ([B)V
+	public final fun setOnLinkLost (Lkotlin/jvm/functions/Function0;)V
+	public final fun startScan ()V
+	public final fun stopScan ()V
+}
+
+public final class com/opencapture/opencine/dji/BleLink$Companion {
+	public final fun discoveryPermissions (I)Ljava/util/List;
+	public static synthetic fun discoveryPermissions$default (Lcom/opencapture/opencine/dji/BleLink$Companion;IILjava/lang/Object;)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/dji/CamFovWireKt {
+	public static final fun factorFromValue (Lcom/opencapture/opencine/vocabulary/CamFov;[B)Ljava/lang/Double;
+	public static final fun lensAt14 (Lcom/opencapture/opencine/vocabulary/CamFov;[B)Ljava/lang/Integer;
+	public static final fun rawAt0 (Lcom/opencapture/opencine/vocabulary/CamFov;[B)Ljava/lang/Integer;
+}
+
+public final class com/opencapture/opencine/dji/CameraCommandsWireKt {
+	public static final fun audioDspBytes (Lcom/opencapture/opencine/vocabulary/CameraCommands;Ljava/lang/String;)[B
+	public static final fun audioDspGet (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun audioDspHex (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Ljava/lang/String;
+	public static final fun audioDspSet (Lcom/opencapture/opencine/vocabulary/CameraCommands;[BI)[B
+	public static final fun captureKind (Lcom/opencapture/opencine/vocabulary/CaptureShutterPolicy;ILjava/lang/String;)Lcom/opencapture/opencine/vocabulary/CaptureShutterPolicy$CaptureKind;
+	public static final fun deleteMedia (Lcom/opencapture/opencine/vocabulary/CameraCommands;II)[B
+	public static final fun directionalFrom (Lcom/opencapture/opencine/vocabulary/CameraCommands;I)I
+	public static final fun enterPlayback (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun exitPlayback (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun expoWireExtra (Lcom/opencapture/opencine/vocabulary/CameraCommands;I)Ljava/lang/String;
+	public static final fun focusMode (Lcom/opencapture/opencine/vocabulary/CameraCommands;Z)[B
+	public static final fun formatCommandExtra (Lcom/opencapture/opencine/vocabulary/CameraCommands;IIILjava/lang/String;)Ljava/lang/String;
+	public static synthetic fun formatCommandExtra$default (Lcom/opencapture/opencine/vocabulary/CameraCommands;IIILjava/lang/String;ILjava/lang/Object;)Ljava/lang/String;
+	public static final fun getATTITUDE_LENGTH (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getAUDIO_DSP_SIZE (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_AUDIO_DSP_GET (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_AUDIO_DSP_SET (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_COLOR (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_EV (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_EXPO (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_FOCUS (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_GIMBAL_ANGLE (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_GIMBAL_MODE (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_GIMBAL_PARAMS (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_ISO (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_LIVE_VIEW (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_MEDIA_DELETE (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_MEDIA_FAVORITE (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_MEDIA_LIST (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_NANO_GATE (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_PARAM (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_PHOTO (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_PLAYBACK (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_RECORD (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_RES_FPS (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_SHUTTER (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_TAP_COMMIT (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_TAP_HINT (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_TAP_POINT (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_TAP_PREPARE (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_TRACK_POLL (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_TRACK_SET (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_WB (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getCMD_ZOOM (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getFLAG_REQUEST (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getLIVE_VIEW_ENABLE_RECEIVER_NANO (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getLIVE_VIEW_ENABLE_RECEIVER_POCKET (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getPID_AUDIO_CHANNEL (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getPID_FOCUS_TRACK (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getPID_ISO_LIMIT (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getPID_SELFIE_FLIP (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getPID_VOCAL_BOOST (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getRX_CAMERA (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getRX_GIMBAL (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getSENDER_APP (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getSET (Lcom/opencapture/opencine/vocabulary/CameraCommands;)I
+	public static final fun getVIDEO_FORMAT_TRAILER (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun gimbalDirectionLock (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun gimbalFlip (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun gimbalFollowFamily (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun gimbalFpv (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun gimbalParamsGet (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun gimbalRecenter (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun gimbalStickPayload (Lcom/opencapture/opencine/vocabulary/CameraCommands;II)[B
+	public static final fun gimbalTimedStop (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun gimbalTimedTarget (Lcom/opencapture/opencine/vocabulary/CameraCommands;DDD)[B
+	public static final fun gimbalTimedTarget (Lcom/opencapture/opencine/vocabulary/CameraCommands;Lcom/opencapture/opencine/motion/GimbalWaypoint;D)[B
+	public static final fun isAttitude (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Z
+	public static final fun isSelfieFlipGetReply (Lcom/opencapture/opencine/vocabulary/CameraCommands;II[B)Z
+	public static final fun lensForZoomFactor (Lcom/opencapture/opencine/vocabulary/CameraCommands;D)I
+	public static final fun liveViewEnablePayload (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun mediaList (Lcom/opencapture/opencine/vocabulary/CameraCommands;II)[B
+	public static final fun mediaListTrigger (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun nanoLiveViewGate (Lcom/opencapture/opencine/vocabulary/CameraCommands;Z)[B
+	public static final fun nativePitchTenthDeg (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Ljava/lang/Integer;
+	public static final fun parseColorMode (Lcom/opencapture/opencine/vocabulary/CameraCommands;ILjava/lang/String;Ljava/lang/String;)I
+	public static synthetic fun parseColorMode$default (Lcom/opencapture/opencine/vocabulary/CameraCommands;ILjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)I
+	public static final fun parseColorModes (Lcom/opencapture/opencine/vocabulary/CameraCommands;[BLjava/lang/String;Ljava/lang/String;)Ljava/util/List;
+	public static synthetic fun parseColorModes$default (Lcom/opencapture/opencine/vocabulary/CameraCommands;[BLjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/List;
+	public static final fun parseIsoIndices (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Ljava/util/List;
+	public static final fun parseReply (Lcom/opencapture/opencine/vocabulary/FocusTrackMode$Companion;[B)Lcom/opencapture/opencine/vocabulary/FocusTrackMode;
+	public static final fun parseShutterDenoms (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Ljava/util/List;
+	public static final fun parseVideoFormats (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Ljava/util/List;
+	public static final fun patchDirectional (Lcom/opencapture/opencine/vocabulary/CameraCommands;[BI)[B
+	public static final fun patchWind (Lcom/opencapture/opencine/vocabulary/CameraCommands;[BZ)[B
+	public static final fun photoModeRaw (Lcom/opencapture/opencine/vocabulary/CameraCommands;Ljava/lang/String;)I
+	public static final fun pitchTenthDeg (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Ljava/lang/Integer;
+	public static final fun pollTracking (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun recordStart (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun recordStop (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun resolutionFps (Lcom/opencapture/opencine/vocabulary/CameraCommands;III)[B
+	public static synthetic fun resolutionFps$default (Lcom/opencapture/opencine/vocabulary/CameraCommands;IIIILjava/lang/Object;)[B
+	public static final fun setGimbalSpeed (Lcom/opencapture/opencine/vocabulary/CameraCommands;I)[B
+	public static final fun setGimbalTiltLock (Lcom/opencapture/opencine/vocabulary/CameraCommands;Z)[B
+	public static final fun setMediaFavorite (Lcom/opencapture/opencine/vocabulary/CameraCommands;IZILjava/lang/String;)[B
+	public static synthetic fun setMediaFavorite$default (Lcom/opencapture/opencine/vocabulary/CameraCommands;IZILjava/lang/String;ILjava/lang/Object;)[B
+	public static final fun shootPhoto (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun shootPhotoExtra (Lcom/opencapture/opencine/vocabulary/CaptureShutterPolicy;Z)Ljava/lang/String;
+	public static final fun shootingModeCarousel (Lcom/opencapture/opencine/vocabulary/CameraCommands;Ljava/lang/String;)Ljava/util/List;
+	public static final fun slowMoFormatTrailer (Lcom/opencapture/opencine/vocabulary/CameraCommands;I)[B
+	public static final fun tapCommit (Lcom/opencapture/opencine/vocabulary/CameraCommands;FF)[B
+	public static final fun tapHint (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun tapPoint (Lcom/opencapture/opencine/vocabulary/CameraCommands;FF)[B
+	public static final fun tapPrepare (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+	public static final fun trackingBox (Lcom/opencapture/opencine/vocabulary/CameraCommands;IFFFF)[B
+	public static final fun usesShutterTriggerOnPocket3 (Lcom/opencapture/opencine/vocabulary/CaptureShutterPolicy;ILjava/lang/String;)Z
+	public static final fun windFrom (Lcom/opencapture/opencine/vocabulary/CameraCommands;I)I
+	public static final fun wireColorMode (Lcom/opencapture/opencine/vocabulary/CameraCommands;ILjava/lang/String;Ljava/lang/String;)I
+	public static synthetic fun wireColorMode$default (Lcom/opencapture/opencine/vocabulary/CameraCommands;ILjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)I
+	public static final fun yawTenthDeg (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Ljava/lang/Integer;
+	public static final fun zoomForFactor (Lcom/opencapture/opencine/vocabulary/CameraCommands;D)[B
+	public static final fun zoomLens (Lcom/opencapture/opencine/vocabulary/CameraCommands;I)[B
+	public static final fun zoomSlew (Lcom/opencapture/opencine/vocabulary/CameraCommands;I)[B
+	public static final fun zoomStop (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
+}
+
+public final class com/opencapture/opencine/dji/CameraConnectionSetup : java/lang/Enum {
+	public static final field CAMERA_WIFI Lcom/opencapture/opencine/dji/CameraConnectionSetup;
+	public static final field Companion Lcom/opencapture/opencine/dji/CameraConnectionSetup$Companion;
+	public static final field PHONE_HOTSPOT Lcom/opencapture/opencine/dji/CameraConnectionSetup;
+	public static final field WIFI Lcom/opencapture/opencine/dji/CameraConnectionSetup;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getMovesCamera ()Z
+	public final fun getRaw ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/CameraConnectionSetup;
+	public static fun values ()[Lcom/opencapture/opencine/dji/CameraConnectionSetup;
+}
+
+public final class com/opencapture/opencine/dji/CameraConnectionSetup$Companion {
+	public final fun fromRaw (Ljava/lang/String;)Lcom/opencapture/opencine/dji/CameraConnectionSetup;
+}
+
+public abstract interface class com/opencapture/opencine/dji/CameraNetworkPath {
+	public abstract fun bindSocket (Ljava/net/DatagramSocket;)V
+	public abstract fun bindSocket (Ljava/net/Socket;)V
+	public abstract fun cameraLocalIPv4 ()Ljava/lang/String;
+	public abstract fun isProcessBound ()Z
+}
+
+public final class com/opencapture/opencine/dji/CameraNetworkPathKt {
+	public static final fun asNetworkPath (Lcom/opencapture/opencine/platform/CameraApJoiner;)Lcom/opencapture/opencine/dji/CameraNetworkPath;
+}
+
+public abstract class com/opencapture/opencine/dji/CameraReply {
+	public static final field Companion Lcom/opencapture/opencine/dji/CameraReply$Companion;
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun isSuccess ()Z
+}
+
+public final class com/opencapture/opencine/dji/CameraReply$BadParameter : com/opencapture/opencine/dji/CameraReply {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/CameraReply$BadParameter;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/CameraReply$Companion {
+	public final fun parse ([B)Lcom/opencapture/opencine/dji/CameraReply;
+}
+
+public final class com/opencapture/opencine/dji/CameraReply$Ok : com/opencapture/opencine/dji/CameraReply {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/CameraReply$Ok;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/CameraReply$Other : com/opencapture/opencine/dji/CameraReply {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/dji/CameraReply$Other;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/CameraReply$Other;IILjava/lang/Object;)Lcom/opencapture/opencine/dji/CameraReply$Other;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCode ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/CameraReply$Unsupported : com/opencapture/opencine/dji/CameraReply {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/CameraReply$Unsupported;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/CameraReply$WrongState : com/opencapture/opencine/dji/CameraReply {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/CameraReply$WrongState;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/CameraStatusJsonKt {
+	public static final fun fromJson (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;)Lcom/opencapture/opencine/vocabulary/CameraModel;
+	public static final fun fromJson (Lcom/opencapture/opencine/vocabulary/CameraStatus$Companion;Ljava/lang/String;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public static final fun toJson (Lcom/opencapture/opencine/vocabulary/CameraStatus;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/CameraStatusWireKt {
+	public static final fun applyingAudioBlob (Lcom/opencapture/opencine/vocabulary/CameraStatus;[B)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public static final fun applyingAudioByte2 (Lcom/opencapture/opencine/vocabulary/CameraStatus;I)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public static final fun withAudioDspAt2 (Lcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+}
+
+public final class com/opencapture/opencine/dji/CameraWifiCredentialStore {
+	public fun <init> (Landroid/content/Context;)V
+	public final fun load (Ljava/lang/String;)Lkotlin/Pair;
+	public final fun passphrase (Ljava/lang/String;)Ljava/lang/String;
+	public final fun remove (Ljava/lang/String;)V
+	public final fun save (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/dji/CameraWifiResolution {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/CameraWifiResolution;
+	public final fun liveAdvertisedSSID (Ljava/lang/String;)Ljava/lang/String;
+	public final fun resolve (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/dji/CameraWifiResolution$Result;
+	public static synthetic fun resolve$default (Lcom/opencapture/opencine/dji/CameraWifiResolution;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/CameraWifiResolution$Result;
+}
+
+public final class com/opencapture/opencine/dji/CameraWifiResolution$Result {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)Lcom/opencapture/opencine/dji/CameraWifiResolution$Result;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/CameraWifiResolution$Result;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/dji/CameraWifiResolution$Result;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPassword ()Ljava/lang/String;
+	public final fun getSkipBle ()Z
+	public final fun getSource ()Ljava/lang/String;
+	public final fun getSsid ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/ClipColorProfileMp4Kt {
+	public static final fun colorModeFromMp4 (Lcom/opencapture/opencine/vocabulary/ClipColorProfile;[B)I
+	public static final fun gammaFromMp4 (Lcom/opencapture/opencine/vocabulary/ClipColorProfile;[B)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/ControlWireEvent : java/lang/Enum {
+	public static final field ACKNOWLEDGED Lcom/opencapture/opencine/dji/ControlWireEvent;
+	public static final field CONFIRMED Lcom/opencapture/opencine/dji/ControlWireEvent;
+	public static final field NOT_SENT Lcom/opencapture/opencine/dji/ControlWireEvent;
+	public static final field REFUSED Lcom/opencapture/opencine/dji/ControlWireEvent;
+	public static final field SENT Lcom/opencapture/opencine/dji/ControlWireEvent;
+	public static final field UNCONFIRMED Lcom/opencapture/opencine/dji/ControlWireEvent;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/ControlWireEvent;
+	public static fun values ()[Lcom/opencapture/opencine/dji/ControlWireEvent;
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaCatalogRecord {
+	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaFile;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-eCAwNfc ()Ljava/lang/String;
+	public final fun component2 ()Lcom/opencapture/opencine/vocabulary/MediaFile;
+	public final fun copy-j2sKh3w (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaFile;)Lcom/opencapture/opencine/dji/DJIMediaCatalogRecord;
+	public static synthetic fun copy-j2sKh3w$default (Lcom/opencapture/opencine/dji/DJIMediaCatalogRecord;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaFile;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DJIMediaCatalogRecord;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAsset-eCAwNfc ()Ljava/lang/String;
+	public final fun getFile ()Lcom/opencapture/opencine/vocabulary/MediaFile;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/dji/DJIMediaCatalogRecordSource {
+	public abstract fun mediaCatalogRecord-j2sKh3w (Ljava/lang/String;Lcom/opencapture/opencine/media/MediaBrowseBinding;)Lcom/opencapture/opencine/dji/DJIMediaCatalogRecord;
+}
+
+public abstract class com/opencapture/opencine/dji/DJIMediaHTTPError : java/io/IOException {
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaHTTPError$BadResponse : com/opencapture/opencine/dji/DJIMediaHTTPError {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DJIMediaHTTPError$BadResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaHTTPError$HttpStatus : com/opencapture/opencine/dji/DJIMediaHTTPError {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/dji/DJIMediaHTTPError$HttpStatus;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DJIMediaHTTPError$HttpStatus;IILjava/lang/Object;)Lcom/opencapture/opencine/dji/DJIMediaHTTPError$HttpStatus;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCode ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaHTTPError$Timeout : com/opencapture/opencine/dji/DJIMediaHTTPError {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DJIMediaHTTPError$Timeout;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaHTTPResource {
+	public fun <init> (ILjava/lang/String;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (ILjava/lang/String;)Lcom/opencapture/opencine/dji/DJIMediaHTTPResource;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DJIMediaHTTPResource;ILjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DJIMediaHTTPResource;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getStorage ()I
+	public final fun getUrl ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaHTTPSource {
+	public static final field Companion Lcom/opencapture/opencine/dji/DJIMediaHTTPSource$Companion;
+	public fun <init> ()V
+	public final fun read (Ljava/lang/String;ILkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun rememberStorage (ILjava/lang/String;)V
+	public final fun reset ()V
+	public final fun resolvedStorage (Lcom/opencapture/opencine/vocabulary/MediaFile;Z)I
+	public final fun resources (Ljava/lang/String;I)Ljava/util/List;
+	public final fun transferPlan (Lcom/opencapture/opencine/vocabulary/MediaFile;Ljava/lang/String;ZLkotlin/jvm/functions/Function4;)Lcom/opencapture/opencine/media/MediaTransferPlan;
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaHTTPSource$Companion {
+	public final fun retryDownload (Ljava/lang/Throwable;)Z
+	public final fun storageOrder (I)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaSourcePolicy {
+	public static final field Companion Lcom/opencapture/opencine/dji/DJIMediaSourcePolicy$Companion;
+	public fun <init> (Ljava/lang/Boolean;Ljava/lang/Boolean;)V
+	public final fun component1 ()Ljava/lang/Boolean;
+	public final fun component2 ()Ljava/lang/Boolean;
+	public final fun copy (Ljava/lang/Boolean;Ljava/lang/Boolean;)Lcom/opencapture/opencine/dji/DJIMediaSourcePolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DJIMediaSourcePolicy;Ljava/lang/Boolean;Ljava/lang/Boolean;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DJIMediaSourcePolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSingleSDStorage ()Ljava/lang/Boolean;
+	public final fun getSourceOwnsFavorites ()Ljava/lang/Boolean;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DJIMediaSourcePolicy$Companion {
+	public final fun observed (Lcom/opencapture/opencine/vocabulary/CameraModel;ZI)Lcom/opencapture/opencine/dji/DJIMediaSourcePolicy;
+}
+
+public final class com/opencapture/opencine/dji/DatalinkDriver {
+	public static final field CAMERA_HOST Ljava/lang/String;
+	public static final field Companion Lcom/opencapture/opencine/dji/DatalinkDriver$Companion;
+	public static final field WILDCARD_BIND_HOST Ljava/lang/String;
+	public fun <init> (Lcom/opencapture/opencine/dji/CameraNetworkPath;IZLjava/lang/String;Lcom/opencapture/opencine/media/LivePipelineCadence;Lcom/opencapture/opencine/dji/LiveSessionVideoHistory;Lcom/opencapture/opencine/vocabulary/CameraModel;Lkotlin/jvm/functions/Function0;Ljava/lang/String;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/dji/CameraNetworkPath;IZLjava/lang/String;Lcom/opencapture/opencine/media/LivePipelineCadence;Lcom/opencapture/opencine/dji/LiveSessionVideoHistory;Lcom/opencapture/opencine/vocabulary/CameraModel;Lkotlin/jvm/functions/Function0;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun armLiveVideo ()V
+	public final fun cancelNativeProgram (J)Z
+	public final fun clearNativeCurveTargets ()V
+	public final fun close ()V
+	public final fun completeRegistration ()V
+	public final fun exitPlayback ()V
+	public final fun getAdmissionAwaitingRandomAccess ()Z
+	public final fun getAdmissionDrops ()I
+	public final fun getAdmissionGateDrops ()I
+	public final fun getAdmissionIrapSeen ()I
+	public final fun getAdmissionParameterSetsSeen ()I
+	public final fun getDroppedIncomplete ()I
+	public final fun getLastAccessUnitAt ()Ljava/lang/Long;
+	public final fun getLastProgrammedZoomAt ()Ljava/lang/Long;
+	public final fun getLastRebuildAt ()Ljava/lang/Long;
+	public final fun getLastStatusAt ()Ljava/lang/Long;
+	public final fun getLastVideoPacketAt ()Ljava/lang/Long;
+	public final fun getLatestNativeProgramFeedback ()Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
+	public final fun getMediaIngress ()Lcom/opencapture/opencine/dji/DjiAndroidMediaIngressSlot;
+	public final fun getNeedsRebuild ()Z
+	public final fun getOnAccessUnit ()Lkotlin/jvm/functions/Function2;
+	public final fun getOnReferenceDiscontinuity ()Lkotlin/jvm/functions/Function1;
+	public final fun getOnStatusFrame ()Lkotlin/jvm/functions/Function1;
+	public final fun getOnVideoEpochChanged ()Lkotlin/jvm/functions/Function1;
+	public final fun getPendingAccessUnitBytes ()I
+	public final fun getPendingAccessUnits ()I
+	public final fun getVideoPackets ()I
+	public final fun ingressSnapshot (D)Lcom/opencapture/opencine/media/FeedIncidentIngress;
+	public final fun isClosed ()Z
+	public final fun isRebuilding ()Z
+	public final fun isTcpPokeReady ()Z
+	public final fun keepalive ()V
+	public final fun noteGimbalStick (II)V
+	public final fun noteNativeCurveTarget ([B)V
+	public final fun open (ZLkotlin/jvm/functions/Function0;)V
+	public static synthetic fun open$default (Lcom/opencapture/opencine/dji/DatalinkDriver;ZLkotlin/jvm/functions/Function0;ILjava/lang/Object;)V
+	public final fun pauseNativeProgram (J)Z
+	public final fun programmedZoomFailure (Lcom/opencapture/opencine/motion/GimbalProgram;)Ljava/lang/String;
+	public final fun reRegister ()V
+	public final fun rebuildUdp ()V
+	public final fun restGimbalStick ()V
+	public final fun resumeNativeProgram (J)Z
+	public final fun sendCommand (ILjava/lang/String;)V
+	public static synthetic fun sendCommand$default (Lcom/opencapture/opencine/dji/DatalinkDriver;ILjava/lang/String;ILjava/lang/Object;)V
+	public final fun sendDuml (II[BIII)V
+	public static synthetic fun sendDuml$default (Lcom/opencapture/opencine/dji/DatalinkDriver;II[BIIIILjava/lang/Object;)V
+	public final fun sendNanoGate (Z)V
+	public final fun setMediaBrowsing (Z)V
+	public final fun setOnAccessUnit (Lkotlin/jvm/functions/Function2;)V
+	public final fun setOnReferenceDiscontinuity (Lkotlin/jvm/functions/Function1;)V
+	public final fun setOnStatusFrame (Lkotlin/jvm/functions/Function1;)V
+	public final fun setOnVideoEpochChanged (Lkotlin/jvm/functions/Function1;)V
+	public final fun startLiveView (I)V
+	public static synthetic fun startLiveView$default (Lcom/opencapture/opencine/dji/DatalinkDriver;IILjava/lang/Object;)V
+	public final fun startNativeProgram (Lcom/opencapture/opencine/motion/GimbalProgram;Lkotlin/jvm/functions/Function1;)J
+}
+
+public final class com/opencapture/opencine/dji/DatalinkDriver$Companion {
+	public final fun handshakeTimeoutFailure ()Ljava/lang/Exception;
+	public final fun subscriptionKeys (Lcom/opencapture/opencine/vocabulary/CameraModel;)Ljava/util/List;
+	public final fun udpBindHost (Ljava/lang/String;)Ljava/lang/String;
+	public final fun udpBindPort ()I
+}
+
+public abstract class com/opencapture/opencine/dji/DatalinkDriver$DatalinkError : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/dji/DatalinkDriver$DatalinkError$NoHandshake : com/opencapture/opencine/dji/DatalinkDriver$DatalinkError {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/DatalinkHandshakeException : java/io/IOException {
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/dji/DatalinkOpenLoopKt {
+	public static final fun interruptibleDatalinkOpen (Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaAssets {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiAndroidMediaAssets;
+	public final fun asset (Lcom/opencapture/opencine/vocabulary/MediaFile;)Lcom/opencapture/opencine/media/MediaAsset;
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaFacts {
+	public fun <init> (Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;ZZZLcom/opencapture/opencine/dji/DJIMediaSourcePolicy;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;ZZZLcom/opencapture/opencine/dji/DJIMediaSourcePolicy;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun component5 ()Lcom/opencapture/opencine/dji/DJIMediaSourcePolicy;
+	public final fun copy (Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;ZZZLcom/opencapture/opencine/dji/DJIMediaSourcePolicy;)Lcom/opencapture/opencine/dji/DjiAndroidMediaFacts;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DjiAndroidMediaFacts;Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;ZZZLcom/opencapture/opencine/dji/DJIMediaSourcePolicy;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DjiAndroidMediaFacts;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBodyGalleryOpen ()Z
+	public final fun getCanQuery ()Z
+	public final fun getIdentity ()Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;
+	public final fun getInPlayback ()Z
+	public final fun getSourcePolicy ()Lcom/opencapture/opencine/dji/DJIMediaSourcePolicy;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaGalleryCover {
+	public final fun close ()V
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaIdentity {
+	public synthetic fun <init> (Ljava/util/UUID;JLjava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-knA1ijU ()Ljava/util/UUID;
+	public final fun component2-atwjfzU ()J
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy-10cOs2Q (Ljava/util/UUID;JLjava/lang/String;)Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;
+	public static synthetic fun copy-10cOs2Q$default (Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;Ljava/util/UUID;JLjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraID ()Ljava/lang/String;
+	public final fun getEpoch-atwjfzU ()J
+	public final fun getSession-knA1ijU ()Ljava/util/UUID;
+	public fun hashCode ()I
+	public final fun sameConnection (Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;)Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaIngress {
+	public final fun copy (Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;Lcom/opencapture/opencine/media/MediaBrowseBinding;Ljava/util/UUID;Z)Lcom/opencapture/opencine/dji/DjiAndroidMediaIngress;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DjiAndroidMediaIngress;Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;Lcom/opencapture/opencine/media/MediaBrowseBinding;Ljava/util/UUID;ZILjava/lang/Object;)Lcom/opencapture/opencine/dji/DjiAndroidMediaIngress;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaIngressSlot {
+	public fun <init> ()V
+	public final fun capture ()Lcom/opencapture/opencine/dji/DjiAndroidMediaIngress;
+	public final fun captureFrame (Lcom/opencapture/opencine/dji/DumlFrame;)Lcom/opencapture/opencine/dji/DjiAndroidMediaQueuedFrame;
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaMutationSubmission {
+	public final fun component1-eCAwNfc ()Ljava/lang/String;
+	public final fun component2 ()Lcom/opencapture/opencine/media/MediaBrowseBinding;
+	public final fun copy-cCl6_Rs (Ljava/lang/String;Lcom/opencapture/opencine/media/MediaBrowseBinding;Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;)Lcom/opencapture/opencine/dji/DjiAndroidMediaMutationSubmission;
+	public static synthetic fun copy-cCl6_Rs$default (Lcom/opencapture/opencine/dji/DjiAndroidMediaMutationSubmission;Ljava/lang/String;Lcom/opencapture/opencine/media/MediaBrowseBinding;Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DjiAndroidMediaMutationSubmission;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAsset-eCAwNfc ()Ljava/lang/String;
+	public final fun getBinding ()Lcom/opencapture/opencine/media/MediaBrowseBinding;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/dji/DjiAndroidMediaPort {
+	public abstract fun claimMediaReturn (Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Deferred;
+	public abstract fun enterMediaPlayback (Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;)V
+	public abstract fun getMediaFacts ()Lcom/opencapture/opencine/dji/DjiAndroidMediaFacts;
+	public abstract fun mediaBrowseChanged (ZLcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;)V
+	public abstract fun setMediaWireHeld (ZLcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;)V
+	public abstract fun writeMedia (II[BLcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;)V
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaQueuedFrame {
+	public final fun deliver ()Z
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaReturnAuthority {
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)V
+	public final fun component1 ()Lkotlin/jvm/functions/Function0;
+	public final fun component2 ()Lkotlin/jvm/functions/Function0;
+	public final fun component3 ()Lkotlin/jvm/functions/Function0;
+	public final fun component4 ()Lkotlin/jvm/functions/Function0;
+	public final fun component5 ()Lkotlin/jvm/functions/Function0;
+	public final fun component6 ()Lkotlin/jvm/functions/Function1;
+	public final fun copy (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)Lcom/opencapture/opencine/dji/DjiAndroidMediaReturnAuthority;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DjiAndroidMediaReturnAuthority;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DjiAndroidMediaReturnAuthority;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCompleted ()Lkotlin/jvm/functions/Function1;
+	public final fun getEnableLiveView ()Lkotlin/jvm/functions/Function0;
+	public final fun getInPlayback ()Lkotlin/jvm/functions/Function0;
+	public final fun getPictureFresh ()Lkotlin/jvm/functions/Function0;
+	public final fun getWriteExit ()Lkotlin/jvm/functions/Function0;
+	public fun hashCode ()I
+	public final fun isCurrent ()Lkotlin/jvm/functions/Function0;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaService : com/opencapture/opencine/dji/DJIMediaCatalogRecordSource, com/opencapture/opencine/media/CameraMediaService {
+	public synthetic fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/dji/DjiAndroidMediaPort;Lcom/opencapture/opencine/dji/DjiAndroidMediaTiming;Lcom/opencapture/opencine/dji/DjiAndroidMediaIngressSlot;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/dji/DjiAndroidMediaPort;Lcom/opencapture/opencine/dji/DjiAndroidMediaTiming;Lcom/opencapture/opencine/dji/DjiAndroidMediaIngressSlot;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attachIngress (Lcom/opencapture/opencine/dji/DjiAndroidMediaIngressSlot;)V
+	public fun getSessionID-knA1ijU ()Ljava/util/UUID;
+	public final fun getSourcePolicy ()Lcom/opencapture/opencine/dji/DJIMediaSourcePolicy;
+	public final fun ingest (Lcom/opencapture/opencine/dji/DumlFrame;Lcom/opencapture/opencine/dji/DjiAndroidMediaIngress;)Z
+	public final fun isCurrent (Lcom/opencapture/opencine/dji/DjiAndroidMediaMutationSubmission;)Z
+	public fun mediaCatalogRecord-j2sKh3w (Ljava/lang/String;Lcom/opencapture/opencine/media/MediaBrowseBinding;)Lcom/opencapture/opencine/dji/DJIMediaCatalogRecord;
+	public final fun newestCatalog (Lcom/opencapture/opencine/media/MediaBrowseBinding;)Lcom/opencapture/opencine/media/MediaCatalogCursor;
+	public fun openBrowse (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun retire ()V
+	public final fun submitDeletion-j2sKh3w (Ljava/lang/String;Lcom/opencapture/opencine/media/MediaBrowseBinding;)Lcom/opencapture/opencine/dji/DjiAndroidMediaMutationSubmission;
+	public final fun submitFavorite-cCl6_Rs (Ljava/lang/String;ZLcom/opencapture/opencine/media/MediaBrowseBinding;)Lcom/opencapture/opencine/dji/DjiAndroidMediaMutationSubmission;
+}
+
+public final class com/opencapture/opencine/dji/DjiAndroidMediaTiming {
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;)V
+	public final fun component1 ()Lkotlin/jvm/functions/Function0;
+	public final fun component2 ()Lkotlin/jvm/functions/Function2;
+	public final fun copy (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;)Lcom/opencapture/opencine/dji/DjiAndroidMediaTiming;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DjiAndroidMediaTiming;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DjiAndroidMediaTiming;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNowMs ()Lkotlin/jvm/functions/Function0;
+	public final fun getSleep ()Lkotlin/jvm/functions/Function2;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraAp {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiCameraAp;
+	public final fun cameraLocalIPv4 (Ljava/lang/Iterable;)Ljava/lang/String;
+	public final fun isAssociatedIPv4 (Ljava/lang/String;)Z
+	public final fun joiner (Landroid/content/Context;)Lcom/opencapture/opencine/platform/CameraApJoiner;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraLUTProfile {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiCameraLUTProfile;
+	public final fun make (Lcom/opencapture/opencine/vocabulary/CameraModel;)Lcom/opencapture/opencine/vocabulary/CameraLUTProfile;
+	public final fun make (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/vocabulary/CameraLUTProfile;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraNetwork {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiCameraNetwork;
+	public final fun isAccessPoint (Ljava/lang/String;)Z
+	public final fun redact (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraSessionAdapter : com/opencapture/opencine/core/CameraSession {
+	public static final field Companion Lcom/opencapture/opencine/dji/DjiCameraSessionAdapter$Companion;
+	public fun <init> (Lcom/opencapture/opencine/dji/PocketControlPort;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/dji/PocketControlPort;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/opencapture/opencine/dji/PocketControlPort;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/dji/PocketControlPort;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close (Lcom/opencapture/opencine/core/SessionCloseReason;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun closeNow (Lcom/opencapture/opencine/core/SessionCloseReason;)V
+	public final fun controlCapabilities (Lcom/opencapture/opencine/vocabulary/CaptureCodecColorChoices;)Lcom/opencapture/opencine/vocabulary/ControlCapabilities;
+	public static synthetic fun controlCapabilities$default (Lcom/opencapture/opencine/dji/DjiCameraSessionAdapter;Lcom/opencapture/opencine/vocabulary/CaptureCodecColorChoices;ILjava/lang/Object;)Lcom/opencapture/opencine/vocabulary/ControlCapabilities;
+	public final fun getCurrent ()Lcom/opencapture/opencine/core/CameraSnapshot;
+	public fun getId-knA1ijU ()Ljava/util/UUID;
+	public final fun getReadbackTimeout-UwyO8pc ()J
+	public fun getSnapshots ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getWireTimeout-UwyO8pc ()J
+	public final fun layout (Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;)Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;
+	public static synthetic fun layout$default (Lcom/opencapture/opencine/dji/DjiCameraSessionAdapter;Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;ILjava/lang/Object;)Lcom/opencapture/opencine/core/MonitorLayoutCapabilities;
+	public final fun linkDidChange ()V
+	public fun outcome-Lqx2lCU (Ljava/util/UUID;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun receipt-Cb-qs4A (Ljava/util/UUID;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun request (Lcom/opencapture/opencine/core/CameraCommandIntent;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun request (Lcom/opencapture/opencine/core/CameraCommandIntent;Lcom/opencapture/opencine/dji/DjiCommandAdmission;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun send (Lcom/opencapture/opencine/core/CameraCommand;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun sessionDidChange ()V
+	public final fun setIsoIndex (I)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun setIsoIndex (ILcom/opencapture/opencine/dji/DjiCommandAdmission;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun setReadbackTimeout-LRDsOJo (J)V
+	public final fun setWhiteBalanceAuto (Ljava/lang/Integer;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun setWhiteBalanceAuto (Ljava/lang/Integer;Lcom/opencapture/opencine/dji/DjiCommandAdmission;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public static synthetic fun setWhiteBalanceAuto$default (Lcom/opencapture/opencine/dji/DjiCameraSessionAdapter;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public static synthetic fun setWhiteBalanceAuto$default (Lcom/opencapture/opencine/dji/DjiCameraSessionAdapter;Ljava/lang/Integer;Lcom/opencapture/opencine/dji/DjiCommandAdmission;ILjava/lang/Object;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun setWhiteBalanceCustom (II)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun setWhiteBalanceCustom (IILcom/opencapture/opencine/dji/DjiCommandAdmission;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun setWireTimeout-LRDsOJo (J)V
+	public final fun shutter ()Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun shutter (Lcom/opencapture/opencine/dji/DjiCommandAdmission;)Lcom/opencapture/opencine/core/CommandReceipt;
+	public final fun submit (Lcom/opencapture/opencine/core/CameraCommand;Lcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun submit (Lcom/opencapture/opencine/core/CameraCommand;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraSessionAdapter$Companion {
+	public final fun audioLevels (Lcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/core/AudioLevels;
+	public final fun audioLevelsSupport (Lcom/opencapture/opencine/vocabulary/CameraModel;)Lcom/opencapture/opencine/core/SupportStatus;
+	public final fun getINTEGRATION-xwq1tjI ()Ljava/lang/String;
+	public final fun iso (I)Lcom/opencapture/opencine/core/ISOValue;
+	public final fun isoIndex (Lcom/opencapture/opencine/core/ISOValue;)Ljava/lang/Integer;
+	public final fun timecode (Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraTimecode;
+	public final fun timecodeCapability (Lcom/opencapture/opencine/vocabulary/CameraModel;)Lcom/opencapture/opencine/core/TimecodeCapability;
+	public final fun timecodeSupport (Lcom/opencapture/opencine/vocabulary/CameraModel;)Lcom/opencapture/opencine/core/SupportStatus;
+	public final fun whiteBalance (Lcom/opencapture/opencine/dji/ReportedWhiteBalance;)Lcom/opencapture/opencine/core/WhiteBalanceValue;
+}
+
+public final class com/opencapture/opencine/dji/DjiCaptureCapabilityProfile {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiCaptureCapabilityProfile;
+	public final fun controls (Lcom/opencapture/opencine/vocabulary/CameraModel;)Ljava/util/Map;
+	public final fun make (Lcom/opencapture/opencine/vocabulary/CameraModel;)Lcom/opencapture/opencine/vocabulary/CameraCaptureProfile;
+}
+
+public final class com/opencapture/opencine/dji/DjiCaptureCapabilityProfileKt {
+	public static final fun colorModesFor (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;
+	public static final fun getDefault (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;)Lcom/opencapture/opencine/vocabulary/CameraModel;
+	public static final fun getPocket3ZoomMax (Lcom/opencapture/opencine/vocabulary/VideoResolution;)Ljava/lang/Double;
+	public static final fun isoAutoRangeFloorFor (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;)I
+	public static final fun looksLikeAction6 (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;)Z
+	public static final fun looksLikeNano (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;Ljava/lang/String;)Z
+	public static synthetic fun looksLikeNano$default (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
+	public static final fun looksLikePocket3 (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;)Z
+	public static final fun looksLikePocket4Pro (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;)Z
+	public static final fun supportsSlowMoFormatTrailer (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;)Z
+	public static final fun zoomStopsFor (Lcom/opencapture/opencine/vocabulary/CameraModel$Companion;Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/dji/DjiCaptureControlState {
+	public fun <init> (Lcom/opencapture/opencine/vocabulary/CameraStatus;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/media/HostShutterPresentation;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/vocabulary/CameraStatus;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/media/HostShutterPresentation;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun admitsShutterWrite (I)Z
+	public final fun component1 ()Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun component2 ()Lcom/opencapture/opencine/vocabulary/CameraModel;
+	public final fun component3 ()Lcom/opencapture/opencine/media/HostShutterPresentation;
+	public final fun copy (Lcom/opencapture/opencine/vocabulary/CameraStatus;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/media/HostShutterPresentation;)Lcom/opencapture/opencine/dji/DjiCaptureControlState;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DjiCaptureControlState;Lcom/opencapture/opencine/vocabulary/CameraStatus;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/media/HostShutterPresentation;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/DjiCaptureControlState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getModel ()Lcom/opencapture/opencine/vocabulary/CameraModel;
+	public final fun getOfferedShutterDenoms ()Ljava/util/List;
+	public final fun getReported ()Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun getShutterPresentation ()Lcom/opencapture/opencine/media/HostShutterPresentation;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiCommandAdmission {
+	public fun <init> (Lcom/opencapture/opencine/dji/DjiCommandOwner;Lkotlin/jvm/functions/Function0;)V
+	public final fun admits (Lcom/opencapture/opencine/dji/DjiCommandOwner;)Z
+	public final fun getOwner ()Lcom/opencapture/opencine/dji/DjiCommandOwner;
+	public final fun getSource ()Ljava/util/UUID;
+	public final fun isCurrent ()Z
+	public final fun perform (Lkotlin/jvm/functions/Function0;)Ljava/lang/Object;
+	public final fun require (Lcom/opencapture/opencine/dji/DjiCommandOwner;)V
+	public final fun requireCurrent ()V
+}
+
+public final class com/opencapture/opencine/dji/DjiCommandAdmissionException : java/lang/IllegalStateException {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/DjiCommandOwner {
+	public fun <init> ()V
+	public final fun getSource ()Ljava/util/UUID;
+	public final fun replaceSource ()V
+	public final fun retire ()V
+}
+
+public abstract interface class com/opencapture/opencine/dji/DjiConnectPort {
+	public abstract fun disconnect ()V
+	public abstract fun getControl ()Lcom/opencapture/opencine/core/CameraSession;
+	public abstract fun getFailureDetail ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getFound ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getJoinedSSID ()Ljava/lang/String;
+	public abstract fun getPhaseFlow ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getServices ()Lcom/opencapture/opencine/core/CameraServices;
+	public abstract fun getSetupProgress ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun reconnect (Ljava/lang/String;)V
+	public abstract fun startScan ()V
+	public abstract fun stopScan ()V
+	public abstract fun useSetup (Lcom/opencapture/opencine/dji/CameraConnectionSetup;Lcom/opencapture/opencine/dji/MultiviewNetworkStore$Network;Z)V
+}
+
+public final class com/opencapture/opencine/dji/DjiConnectPort$DefaultImpls {
+	public static fun getServices (Lcom/opencapture/opencine/dji/DjiConnectPort;)Lcom/opencapture/opencine/core/CameraServices;
+}
+
+public final class com/opencapture/opencine/dji/DjiControlSessionBinding {
+	public fun <init> (Lcom/opencapture/opencine/dji/PocketControlPort;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/dji/PocketControlPort;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun beginConnection ()V
+	public final fun getCached ()Lcom/opencapture/opencine/dji/DjiCameraSessionAdapter;
+	public final fun getSession ()Lcom/opencapture/opencine/dji/DjiCameraSessionAdapter;
+	public final fun retire (Lcom/opencapture/opencine/core/SessionCloseReason;)V
+}
+
+public final class com/opencapture/opencine/dji/DjiFailures {
+	public static final field DJI_APPS_TIP Ljava/lang/String;
+	public static final field HOTSPOT_OFF Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiFailures;
+	public final fun classify (Ljava/lang/Throwable;Lcom/opencapture/opencine/vocabulary/ConnectionPhase;Ljava/lang/String;Z)Lcom/opencapture/opencine/core/ConnectionFailure;
+	public static synthetic fun classify$default (Lcom/opencapture/opencine/dji/DjiFailures;Ljava/lang/Throwable;Lcom/opencapture/opencine/vocabulary/ConnectionPhase;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectionFailure;
+	public final fun copy (Ljava/lang/String;)Ljava/lang/String;
+	public final fun corePhase (Lcom/opencapture/opencine/vocabulary/ConnectionPhase;)Lcom/opencapture/opencine/core/ConnectionPhase;
+	public final fun linkLost (Ljava/lang/String;)Lcom/opencapture/opencine/core/ConnectionFailure;
+}
+
+public final class com/opencapture/opencine/dji/DjiIntegration : com/opencapture/opencine/core/CameraIntegration {
+	public static final field APPROVE Ljava/lang/String;
+	public static final field Companion Lcom/opencapture/opencine/dji/DjiIntegration$Companion;
+	public static final field JOINING Ljava/lang/String;
+	public static final field LOOKING Ljava/lang/String;
+	public static final field READING Ljava/lang/String;
+	public fun <init> (Lcom/opencapture/opencine/dji/DjiConnectPort;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/dji/DjiConnectPort;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/opencapture/opencine/dji/DjiConnectPort;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/dji/DjiConnectPort;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun connect (Lcom/opencapture/opencine/core/ConnectTarget;)Lkotlinx/coroutines/flow/Flow;
+	public fun discover (Lcom/opencapture/opencine/core/DiscoveryMode;)Lkotlinx/coroutines/flow/Flow;
+	public fun forget (Lcom/opencapture/opencine/core/SavedCamera;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getDiscoveryModes ()Ljava/util/Set;
+	public fun getDiscoveryRunning ()Lkotlinx/coroutines/flow/Flow;
+	public fun getId-xwq1tjI ()Ljava/lang/String;
+	public fun getPresentation ()Lcom/opencapture/opencine/core/IntegrationPresentation;
+	public fun getProfiles ()Ljava/util/List;
+	public final fun getSaveRecord ()Lkotlin/jvm/functions/Function1;
+	public final fun getSavedCameras ()Lkotlin/jvm/functions/Function0;
+	public final fun setSaveRecord (Lkotlin/jvm/functions/Function1;)V
+	public final fun setSavedCameras (Lkotlin/jvm/functions/Function0;)V
+}
+
+public final class com/opencapture/opencine/dji/DjiIntegration$Companion {
+	public final fun getALL_ROUTES ()Ljava/util/Set;
+	public final fun getMOVING_ROUTES ()Ljava/util/Set;
+	public final fun ownedElsewhere (Ljava/lang/String;Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/List;)Z
+	public final fun setup (Lcom/opencapture/opencine/core/RouteKind;)Lcom/opencapture/opencine/dji/CameraConnectionSetup;
+	public final fun stamping (Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/RouteKind;)Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun steps (Lcom/opencapture/opencine/core/SavedRoute;)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/dji/DjiLog {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiLog;
+	public final fun getSink ()Lkotlin/jvm/functions/Function4;
+	public final fun log (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun setSink (Lkotlin/jvm/functions/Function4;)V
+}
+
+public final class com/opencapture/opencine/dji/DjiMonitorColorProfile {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiMonitorColorProfile;
+	public final fun getValue ()Lcom/opencapture/opencine/media/MonitorColorSourceProfile;
+	public final fun inferredTransfer (IILcom/opencapture/opencine/media/MonitorTransfer;)Lcom/opencapture/opencine/media/MonitorTransfer;
+}
+
+public final class com/opencapture/opencine/dji/DjiMonitorColorProfileKt {
+	public static final fun inferred (Lcom/opencapture/opencine/media/MonitorTransfer$Companion;IILcom/opencapture/opencine/media/MonitorTransfer;)Lcom/opencapture/opencine/media/MonitorTransfer;
+}
+
+public final class com/opencapture/opencine/dji/DjiNative {
+	public static final field CMD_APP_DEVICE_INFO I
+	public static final field CMD_APP_PRESENCE I
+	public static final field CMD_AUDIO_DSP_GET I
+	public static final field CMD_AUDIO_DSP_PATCH_DIRECTIONAL I
+	public static final field CMD_AUDIO_DSP_PATCH_WIND I
+	public static final field CMD_AUDIO_DSP_SET I
+	public static final field CMD_CLEAR_TRACKING_BOX I
+	public static final field CMD_DELETE_MEDIA I
+	public static final field CMD_ENTER_PLAYBACK I
+	public static final field CMD_EXIT_PLAYBACK I
+	public static final field CMD_GET_AUDIO_CHANNEL I
+	public static final field CMD_GET_FOCUS_TRACK I
+	public static final field CMD_GET_GLAMOUR I
+	public static final field CMD_GET_ISO_LIMIT I
+	public static final field CMD_GET_SELFIE_FLIP I
+	public static final field CMD_GET_VOCAL_BOOST I
+	public static final field CMD_GET_WIFI_PASSWORD I
+	public static final field CMD_GET_WIFI_SSID I
+	public static final field CMD_GIMBAL_FLIP I
+	public static final field CMD_GIMBAL_INIT I
+	public static final field CMD_GIMBAL_RECENTER I
+	public static final field CMD_GIMBAL_STICK I
+	public static final field CMD_LIVE_VIEW_ENABLE I
+	public static final field CMD_MEDIA_LIST I
+	public static final field CMD_MEDIA_LIST_TRIGGER I
+	public static final field CMD_MULTICAM_JOIN I
+	public static final field CMD_MULTICAM_STATION_MODE I
+	public static final field CMD_MULTICAM_VIDEO_MODE I
+	public static final field CMD_MULTICAM_WIFI_SCAN I
+	public static final field CMD_MULTICAM_WIFI_WORK_MODE I
+	public static final field CMD_NANO_LIVE_VIEW_GATE I
+	public static final field CMD_PAIR_APPROVAL_ACK I
+	public static final field CMD_POLL_TRACKING I
+	public static final field CMD_RECORD_START I
+	public static final field CMD_RECORD_STOP I
+	public static final field CMD_SESSION_5310 I
+	public static final field CMD_SESSION_KEEPALIVE I
+	public static final field CMD_SESSION_WAKE I
+	public static final field CMD_SET_APERTURE_STRATEGY I
+	public static final field CMD_SET_AUDIO_CHANNEL I
+	public static final field CMD_SET_COLOR_MODE I
+	public static final field CMD_SET_EV I
+	public static final field CMD_SET_EXPO_MODE I
+	public static final field CMD_SET_FOCUS_MODE I
+	public static final field CMD_SET_FOCUS_TRACK I
+	public static final field CMD_SET_FOV I
+	public static final field CMD_SET_GLAMOUR I
+	public static final field CMD_SET_ISO_INDEX I
+	public static final field CMD_SET_ISO_LIMIT I
+	public static final field CMD_SET_MEDIA_FAVORITE I
+	public static final field CMD_SET_PAIRING_PIN I
+	public static final field CMD_SET_SHOOTING_MODE I
+	public static final field CMD_SET_SHUTTER I
+	public static final field CMD_SET_TRACKING_BOX I
+	public static final field CMD_SET_VIDEO_FORMAT I
+	public static final field CMD_SET_VOCAL_BOOST I
+	public static final field CMD_SET_WB_AUTO I
+	public static final field CMD_SET_WB_CUSTOM I
+	public static final field CMD_SET_ZOOM_LENS I
+	public static final field CMD_SET_ZOOM_SLEW I
+	public static final field CMD_SET_ZOOM_STOP I
+	public static final field CMD_SHOOT_PHOTO I
+	public static final field CMD_SUBSCRIBE I
+	public static final field CMD_TAP_FOCUS_COMMIT I
+	public static final field CMD_TAP_FOCUS_HINT I
+	public static final field CMD_TAP_FOCUS_POINT I
+	public static final field CMD_TAP_FOCUS_PREPARE I
+	public static final field FLAG_NOTIFY I
+	public static final field FLAG_REQUEST I
+	public static final field FLAG_RESPONSE I
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiNative;
+	public static final field RX_GIMBAL I
+	public static final field SENDER_APP I
+	public final fun ackPayload (III)[B
+	public final fun applyStatus (II[BLjava/lang/String;)Ljava/lang/String;
+	public final fun bleAdvertModelId ([B)I
+	public final fun camFovChipWrite (D)Ljava/lang/String;
+	public final fun cameraSoftAPDecision (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun command (IILjava/lang/String;)[B
+	public static synthetic fun command$default (Lcom/opencapture/opencine/dji/DjiNative;IILjava/lang/String;ILjava/lang/Object;)[B
+	public final fun depacketizerCreate ()J
+	public final fun depacketizerDestroy (J)V
+	public final fun depacketizerDropped (J)I
+	public final fun depacketizerFeed (J[B)[B
+	public final fun depacketizerReset (J)V
+	public final fun encodeCommand (IILjava/lang/String;)[B
+	public final fun encodeDuml (IIIIII[B)[B
+	public final fun exposureLockDecision (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun feedWatchdogAction (Ljava/lang/String;)Ljava/lang/String;
+	public final fun feedWatchdogCreate ()J
+	public final fun feedWatchdogDestroy (J)V
+	public final fun feedWatchdogReset (J)V
+	public final fun feedWatchdogTick (JLjava/lang/String;)Ljava/lang/String;
+	public final fun gimbalStickEncode (DDZI)Ljava/lang/String;
+	public final fun handshakePayload (I)[B
+	public final fun isAvailable ()Z
+	public final fun load (Ljava/lang/String;)Z
+	public final fun multicamDecision (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun multiviewRecoveryCall (JLjava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun multiviewRecoveryCreate ()J
+	public final fun multiviewRecoveryDestroy (J)V
+	public final fun resolveCameraModel (ILjava/lang/String;Ljava/lang/String;Z)Ljava/lang/String;
+	public final fun routingHeader (IIZ)[B
+	public final fun scanDuml ([B)[B
+	public final fun subscribe (Ljava/lang/String;JI)[B
+	public static synthetic fun subscribe$default (Lcom/opencapture/opencine/dji/DjiNative;Ljava/lang/String;JIILjava/lang/Object;)[B
+	public final fun transportHeader (IIII)[B
+	public final fun transportSeq ([B)I
+	public final fun unpackStatusString ([B)Ljava/lang/String;
+	public final fun waitKey (I)I
+}
+
+public final class com/opencapture/opencine/dji/DjiScopeExposureCeiling : com/opencapture/opencine/media/ScopeExposureCeiling {
+	public static final field CLIP_SHELF_CODES I
+	public static final field Companion Lcom/opencapture/opencine/dji/DjiScopeExposureCeiling$Companion;
+	public static final field DLOG2_LIVE_TAP_BYTE_AT_1600 I
+	public static final field DLOG2_LIVE_TAP_BYTE_AT_1600_HIGH I
+	public static final field DLOG_LIVE_TAP_BYTE_AT_NATIVE I
+	public static final field DLOG_LIVE_TAP_BYTE_AT_NATIVE_HIGH I
+	public static final field DLOG_REFERENCE_EI I
+	public static final field REFERENCE_EI I
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/DjiScopeExposureCeiling$Companion {
+	public final fun getPROFILE ()Lcom/opencapture/opencine/media/ScopeClipProfile;
+	public final fun getUNOBSERVED ()Lcom/opencapture/opencine/dji/DjiScopeExposureCeiling;
+}
+
+public final class com/opencapture/opencine/dji/DumlCodec {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DumlCodec;
+	public final fun unpackFrames ([B)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/dji/DumlFrame {
+	public fun <init> (IIIIII[B)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()I
+	public final fun component7 ()[B
+	public final fun copy (IIIIII[B)Lcom/opencapture/opencine/dji/DumlFrame;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/DumlFrame;IIIIII[BILjava/lang/Object;)Lcom/opencapture/opencine/dji/DumlFrame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCmdId ()I
+	public final fun getCmdSet ()I
+	public final fun getFlags ()I
+	public final fun getKey ()I
+	public final fun getPayload ()[B
+	public final fun getReceiver ()I
+	public final fun getSender ()I
+	public final fun getSeq ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DumlHold {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DumlHold;
+	public final fun isLiveCameraControl (II)Z
+	public final fun shouldHoldReply (II)Z
+}
+
+public final class com/opencapture/opencine/dji/EncoderPresentPathDjiKt {
+	public static final fun shouldRequestEnableAfterParameterChange (Lcom/opencapture/opencine/media/EncoderPresentPath;ZZLjava/lang/Double;)Z
+	public static synthetic fun shouldRequestEnableAfterParameterChange$default (Lcom/opencapture/opencine/media/EncoderPresentPath;ZZLjava/lang/Double;ILjava/lang/Object;)Z
+}
+
+public abstract interface class com/opencapture/opencine/dji/FaceDetectorPort {
+	public abstract fun consider (Lcom/opencapture/opencine/dji/FaceFrame;Lkotlin/jvm/functions/Function1;)V
+	public abstract fun shutdown ()V
+	public abstract fun wantsFrame ()Z
+}
+
+public abstract interface class com/opencapture/opencine/dji/FaceFrame {
+	public abstract fun release ()V
+}
+
+public final class com/opencapture/opencine/dji/FoundCameraIdentity {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/FoundCameraIdentity;
+	public final fun isGenericName (Ljava/lang/String;)Z
+	public final fun listSubtitle (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun listTitle (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun shouldReplace (Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;)Z
+}
+
+public final class com/opencapture/opencine/dji/GimbalControl {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/GimbalControl;
+	public final fun modeFromFamily (ILcom/opencapture/opencine/vocabulary/GimbalMode;)Lcom/opencapture/opencine/vocabulary/GimbalMode;
+	public final fun modeFromGet (ZLcom/opencapture/opencine/vocabulary/GimbalMode;)Lcom/opencapture/opencine/vocabulary/GimbalMode;
+}
+
+public final class com/opencapture/opencine/dji/GimbalMoveEngine {
+	public static final field ARRIVE_DEG D
+	public static final field Companion Lcom/opencapture/opencine/dji/GimbalMoveEngine$Companion;
+	public static final field DEBUG_HUD Z
+	public static final field HOLD_SECONDS D
+	public static final field PITCH_UP_SIGN D
+	public static final field WIDE_HFOV D
+	public fun <init> ()V
+	public final fun cancel ()V
+	public final fun consumeProgrammedZoomTarget ()Ljava/lang/Double;
+	public final fun getFailure ()Ljava/lang/String;
+	public final fun getNextWakeInterval ()D
+	public final fun getProgrammedZoomTarget ()Ljava/lang/Double;
+	public final fun getRunning ()Z
+	public final fun getVerificationInterruptedByPause ()Z
+	public final fun hudText (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;)Ljava/lang/String;
+	public final fun hudText (Lcom/opencapture/opencine/motion/GimbalWaypoint;)Ljava/lang/String;
+	public final fun isPaused ()Z
+	public final fun pause (Lcom/opencapture/opencine/motion/GimbalWaypoint;)Z
+	public final fun readout (Lcom/opencapture/opencine/motion/GimbalWaypoint;)Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;
+	public final fun resume (Lcom/opencapture/opencine/motion/GimbalWaypoint;)Z
+	public final fun start (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;)Z
+	public final fun tick (DLcom/opencapture/opencine/motion/GimbalWaypoint;D)Lcom/opencapture/opencine/dji/GimbalMoveEngine$Output;
+	public static synthetic fun tick$default (Lcom/opencapture/opencine/dji/GimbalMoveEngine;DLcom/opencapture/opencine/motion/GimbalWaypoint;DILjava/lang/Object;)Lcom/opencapture/opencine/dji/GimbalMoveEngine$Output;
+}
+
+public final class com/opencapture/opencine/dji/GimbalMoveEngine$Companion {
+	public final fun angularDistance (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;)D
+	public final fun canSendNativeTarget (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;)Z
+	public final fun formatDebug (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;)Ljava/lang/String;
+	public final fun formatHud (Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;)Ljava/lang/String;
+	public final fun lerp (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;D)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun pitchDelta (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;)D
+	public final fun planFromLive (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;)Lcom/opencapture/opencine/motion/GimbalProgram;
+	public final fun project (Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;D)Lkotlin/Triple;
+	public final fun tanHalfHFov (D)D
+	public final fun wrapAngle (D)D
+}
+
+public final class com/opencapture/opencine/dji/GimbalMoveEngine$Output {
+	public fun <init> ()V
+	public fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;DZZ)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;DZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun component2 ()D
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun copy (Lcom/opencapture/opencine/motion/GimbalWaypoint;DZZ)Lcom/opencapture/opencine/dji/GimbalMoveEngine$Output;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/GimbalMoveEngine$Output;Lcom/opencapture/opencine/motion/GimbalWaypoint;DZZILjava/lang/Object;)Lcom/opencapture/opencine/dji/GimbalMoveEngine$Output;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDuration ()D
+	public final fun getFinished ()Z
+	public final fun getStop ()Z
+	public final fun getTarget ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/GimbalMoveEngine$Readout {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;DDDDDDD)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()D
+	public final fun component4 ()D
+	public final fun component5 ()D
+	public final fun component6 ()D
+	public final fun component7 ()D
+	public final fun component8 ()D
+	public final fun component9 ()D
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;DDDDDDD)Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;Ljava/lang/String;Ljava/lang/String;DDDDDDDILjava/lang/Object;)Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getElapsed ()D
+	public final fun getLabel ()Ljava/lang/String;
+	public final fun getLivePitch ()D
+	public final fun getLiveYaw ()D
+	public final fun getPhase ()Ljava/lang/String;
+	public final fun getRemainingDeg ()D
+	public final fun getSetDuration ()D
+	public final fun getTargetPitch ()D
+	public final fun getTargetYaw ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/GimbalOverlayMotion {
+	public static final field Companion Lcom/opencapture/opencine/dji/GimbalOverlayMotion$Companion;
+	public static final field PREDICTION_HORIZON D
+	public static final field STALE_AFTER D
+	public fun <init> ()V
+	public final fun observe (Lcom/opencapture/opencine/motion/GimbalWaypoint;D)V
+	public final fun pose (D)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun reset ()V
+}
+
+public final class com/opencapture/opencine/dji/GimbalOverlayMotion$Companion {
+}
+
+public final class com/opencapture/opencine/dji/GimbalParamPoll {
+	public fun <init> ()V
+	public final fun shouldRequest (J)Z
+}
+
+public final class com/opencapture/opencine/dji/GimbalPrepRestore {
+	public static final field Companion Lcom/opencapture/opencine/dji/GimbalPrepRestore$Companion;
+	public static final field IDLE_DELAY D
+	public fun <init> ()V
+	public final fun getMode ()Lcom/opencapture/opencine/vocabulary/GimbalMode;
+	public final fun getSpeed ()Lcom/opencapture/opencine/vocabulary/GimbalSpeed;
+	public final fun isHolding ()Z
+	public final fun prep (Lcom/opencapture/opencine/vocabulary/GimbalSpeed;Lcom/opencapture/opencine/vocabulary/GimbalMode;)Ljava/util/List;
+	public final fun restore (ZD)Lcom/opencapture/opencine/dji/GimbalPrepRestore$Restore;
+	public final fun restoreNow ()Lcom/opencapture/opencine/dji/GimbalPrepRestore$Restore;
+	public final fun setMode (Lcom/opencapture/opencine/vocabulary/GimbalMode;)V
+	public final fun setSpeed (Lcom/opencapture/opencine/vocabulary/GimbalSpeed;)V
+}
+
+public final class com/opencapture/opencine/dji/GimbalPrepRestore$Companion {
+}
+
+public final class com/opencapture/opencine/dji/GimbalPrepRestore$Restore {
+	public fun <init> (Lcom/opencapture/opencine/vocabulary/GimbalSpeed;Lcom/opencapture/opencine/vocabulary/GimbalMode;)V
+	public final fun component1 ()Lcom/opencapture/opencine/vocabulary/GimbalSpeed;
+	public final fun component2 ()Lcom/opencapture/opencine/vocabulary/GimbalMode;
+	public final fun copy (Lcom/opencapture/opencine/vocabulary/GimbalSpeed;Lcom/opencapture/opencine/vocabulary/GimbalMode;)Lcom/opencapture/opencine/dji/GimbalPrepRestore$Restore;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/GimbalPrepRestore$Restore;Lcom/opencapture/opencine/vocabulary/GimbalSpeed;Lcom/opencapture/opencine/vocabulary/GimbalMode;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/GimbalPrepRestore$Restore;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMode ()Lcom/opencapture/opencine/vocabulary/GimbalMode;
+	public final fun getPayloads ()Ljava/util/List;
+	public final fun getSpeed ()Lcom/opencapture/opencine/vocabulary/GimbalSpeed;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/GimbalProgramKt {
+	public static final fun clamped (Lcom/opencapture/opencine/motion/GimbalWaypoint;)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public static final fun from (Lcom/opencapture/opencine/motion/GimbalWaypoint$Companion;Ljava/lang/Integer;Ljava/lang/Integer;DLjava/lang/Integer;)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public static synthetic fun from$default (Lcom/opencapture/opencine/motion/GimbalWaypoint$Companion;Ljava/lang/Integer;Ljava/lang/Integer;DLjava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public static final fun getMotion (Lcom/opencapture/opencine/vocabulary/CameraModel;)Lcom/opencapture/opencine/motion/MotionCapabilities;
+	public static final fun getPAN_MAX_DEG (Lcom/opencapture/opencine/motion/GimbalWaypoint$Companion;)D
+	public static final fun getPAN_MIN_DEG (Lcom/opencapture/opencine/motion/GimbalWaypoint$Companion;)D
+	public static final fun getPocketGimbal ()Lcom/opencapture/opencine/motion/MotionCapabilities;
+	public static final fun getTILT_MAX_DEG (Lcom/opencapture/opencine/motion/GimbalWaypoint$Companion;)D
+	public static final fun getTILT_MIN_DEG (Lcom/opencapture/opencine/motion/GimbalWaypoint$Companion;)D
+	public static final fun project (Lcom/opencapture/opencine/motion/GimbalWaypointOverlay;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;D)Lkotlin/Triple;
+	public static final fun unwrapYaw (Lcom/opencapture/opencine/motion/GimbalWaypoint$Companion;D)D
+}
+
+public final class com/opencapture/opencine/dji/GimbalRampFilter {
+	public fun <init> ()V
+	public final fun getX ()D
+	public final fun getY ()D
+	public final fun reset ()V
+	public final fun setX (D)V
+	public final fun setY (D)V
+	public final fun tick (DDLcom/opencapture/opencine/vocabulary/GimbalRamp;D)Lkotlin/Pair;
+}
+
+public final class com/opencapture/opencine/dji/KeystoreSeal {
+	public static final field Companion Lcom/opencapture/opencine/dji/KeystoreSeal$Companion;
+	public static final field SEPARATOR Ljava/lang/String;
+	public fun <init> (Ljava/lang/String;)V
+	public final fun open (Ljava/lang/String;)Ljava/lang/String;
+	public final fun seal (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/KeystoreSeal$Companion {
+}
+
+public final class com/opencapture/opencine/dji/LiveSessionVideoHistory {
+	public fun <init> ()V
+	public final fun hadVideo (ILjava/lang/Long;)Z
+	public final fun noteVideoPacket ()V
+	public final fun reset ()V
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicy {
+	public static final field ANALOG_LIFT_STALE_MS J
+	public static final field COMMAND_TIMEOUT_REBUILD_COUNT I
+	public static final field COMMAND_TIMEOUT_WINDOW_MS J
+	public static final field COOLDOWN_MS J
+	public static final field ENABLE_ANSWER_MS J
+	public static final field ENDPOINT_PICTURE_GRACE_MS J
+	public static final field ESCALATE_MS J
+	public static final field FIRST_PICTURE_RESEND_MS J
+	public static final field FOREGROUND_PICTURE_GRACE_MS J
+	public static final field FORMAT_POKE_MIN_SETTLE_MS J
+	public static final field FORMAT_STALL_MS J
+	public static final field GOP_GRACE_MS J
+	public static final field HANDSHAKE_OPEN_RETRY_LIMIT I
+	public static final field HANDSHAKE_REBIND_LIMIT I
+	public static final field HANDSHAKE_RETRY_PAUSE_MS J
+	public static final field HANDSHAKE_SENDS_PER_BIND I
+	public static final field HANDSHAKE_SEND_INTERVAL_MS J
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/LiveViewEnablePolicy;
+	public static final field KEYFRAME_REQUEST_LIMIT I
+	public static final field KEYFRAME_RESEND_MS J
+	public static final field MAX_HELD_REPAIR_CYCLES I
+	public static final field REBUILD_BACKOFF_MS J
+	public static final field REBUILD_COOLDOWN_MS J
+	public static final field STALL_MS J
+	public final fun age (JLjava/lang/Long;)Ljava/lang/Long;
+	public final fun canSendHandshake (ZZ)Z
+	public final fun controlReceiveAlive (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Snapshot;)Z
+	public final fun decoderRepairStep (JJLjava/lang/Long;I)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$DecoderRepairStep;
+	public final fun enableRestartedVideo (Ljava/lang/Long;Ljava/lang/Long;)Z
+	public final fun firstPictureStep (IIJLjava/lang/Long;Ljava/lang/Long;ZZZZZ)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+	public static synthetic fun firstPictureStep$default (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy;IIJLjava/lang/Long;Ljava/lang/Long;ZZZZZILjava/lang/Object;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+	public final fun hadVideo (ILjava/lang/Long;)Z
+	public final fun handshakeOpenTimeoutMs ()J
+	public final fun handshakeTimeoutStep (ZIII)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$HandshakeTimeoutStep;
+	public static synthetic fun handshakeTimeoutStep$default (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy;ZIIIILjava/lang/Object;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$HandshakeTimeoutStep;
+	public final fun holdUdpRebuildAfcLog (Ljava/lang/Long;Ljava/lang/Long;)Ljava/lang/String;
+	public final fun holdUdpRebuildGopLog (Ljava/lang/Long;Ljava/lang/Long;)Ljava/lang/String;
+	public final fun holdUdpRebuildZoomLog (Ljava/lang/Long;Ljava/lang/Long;)Ljava/lang/String;
+	public final fun nextSessionHoldCycles (Ljava/lang/Long;IZ)I
+	public final fun shouldBeginIDRHoldOnEnable (Z)Z
+	public final fun shouldClearForegroundRecoverWithoutRebuild (Z)Z
+	public final fun shouldCommitLiveHandshake (ZZZ)Z
+	public final fun shouldContinueFirstPictureAfterStrayPlayback (Z)Z
+	public final fun shouldDeferRecordingFormatPoke (ZJ)Z
+	public final fun shouldEscalateForegroundRecover (Ljava/lang/Double;ZZD)Z
+	public static synthetic fun shouldEscalateForegroundRecover$default (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy;Ljava/lang/Double;ZZDILjava/lang/Object;)Z
+	public final fun shouldExitPlaybackBeforeLiveEnable (Z)Z
+	public final fun shouldForceEnableAfterUDPRebuild (Z)Z
+	public final fun shouldGiveUpOpenRetry (I)Z
+	public final fun shouldHoldBind (ZLjava/lang/Long;)Z
+	public final fun shouldHoldForGopReset (Ljava/lang/Long;Ljava/lang/Long;)Z
+	public final fun shouldHoldRebuildAfterRecentUdp (Ljava/lang/Long;ZLjava/lang/Long;Z)Z
+	public final fun shouldIngestLiveVideo (Z)Z
+	public final fun shouldIngestLiveVideo (ZZZ)Z
+	public final fun shouldKeepUdpForLeftoverGop (ZILjava/lang/Long;)Z
+	public final fun shouldKeepaliveRebuildUDP (ZZLjava/lang/Long;ZZZLjava/lang/Long;Z)Z
+	public static synthetic fun shouldKeepaliveRebuildUDP$default (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy;ZZLjava/lang/Long;ZZZLjava/lang/Long;ZILjava/lang/Object;)Z
+	public final fun shouldKickAfterHandshakeTimeout (Z)Z
+	public final fun shouldMarkFirstPictureSettled (Ljava/lang/Long;J)Z
+	public final fun shouldPokeRecordingFormat (ZZZZIJ)Z
+	public final fun shouldRearmLiveIngestAfterUDPRebuild (Z)Z
+	public final fun shouldRebuildAfterCommandTimeouts (IZZZLjava/lang/Long;Z)Z
+	public static synthetic fun shouldRebuildAfterCommandTimeouts$default (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy;IZZZLjava/lang/Long;ZILjava/lang/Object;)Z
+	public final fun shouldRecoverAfterForeground (Ljava/lang/Double;ZZD)Z
+	public static synthetic fun shouldRecoverAfterForeground$default (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy;Ljava/lang/Double;ZZDILjava/lang/Object;)Z
+	public final fun shouldReleaseIDRHold (ZZLjava/lang/Long;Z)Z
+	public final fun shouldRepeatRecoverEnable (JLjava/lang/Long;ZLjava/lang/Long;ZILjava/lang/Long;)Z
+	public final fun shouldReuseDatalink (Z)Z
+	public final fun shouldRunFirstPictureRecover (Ljava/lang/Long;Z)Z
+	public final fun shouldSendLiveViewPrepare (Z)Z
+	public final fun shouldSendRecoverEnable (ZZ)Z
+	public final fun shouldStartFeedRecovery (Z)Z
+	public final fun shouldTreatLiveVideoAsStale (Ljava/lang/Long;ZZ)Z
+	public static synthetic fun shouldTreatLiveVideoAsStale$default (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy;Ljava/lang/Long;ZZILjava/lang/Object;)Z
+	public final fun tick (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$State;Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Snapshot;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Action;
+	public final fun udpReceiveAlive (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Snapshot;)Z
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicy$Action : java/lang/Enum {
+	public static final field FULL_REJOIN Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Action;
+	public static final field NONE Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Action;
+	public static final field REBUILD_DECODER Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Action;
+	public static final field REBUILD_UDP Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Action;
+	public static final field RESEND_ENABLE Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Action;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Action;
+	public static fun values ()[Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Action;
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicy$DecoderRepairStep : java/lang/Enum {
+	public static final field DEADLINE Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$DecoderRepairStep;
+	public static final field REBUILD_ENDPOINT Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$DecoderRepairStep;
+	public static final field RESEND_KEYFRAME Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$DecoderRepairStep;
+	public static final field WAIT Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$DecoderRepairStep;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$DecoderRepairStep;
+	public static fun values ()[Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$DecoderRepairStep;
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep : java/lang/Enum {
+	public static final field POKE_RECORDING_FORMAT Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+	public static final field REBUILD_UDP Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+	public static final field REJOIN Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+	public static final field RESEND_ENABLE Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+	public static final field WAIT Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+	public static fun values ()[Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$FirstPictureStep;
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicy$HandshakeTimeoutStep : java/lang/Enum {
+	public static final field FAIL Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$HandshakeTimeoutStep;
+	public static final field KEEP_SOCKET Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$HandshakeTimeoutStep;
+	public static final field REBIND_UDP Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$HandshakeTimeoutStep;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$HandshakeTimeoutStep;
+	public static fun values ()[Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$HandshakeTimeoutStep;
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicy$Snapshot {
+	public fun <init> (JILjava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;JZZIZZLjava/lang/Long;Ljava/lang/Long;ZLjava/lang/Long;ZLjava/lang/Boolean;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;ZZLjava/lang/Long;Z)V
+	public synthetic fun <init> (JILjava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;JZZIZZLjava/lang/Long;Ljava/lang/Long;ZLjava/lang/Long;ZLjava/lang/Boolean;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;ZZLjava/lang/Long;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component10 ()Z
+	public final fun component11 ()I
+	public final fun component12 ()Z
+	public final fun component13 ()Z
+	public final fun component14 ()Ljava/lang/Long;
+	public final fun component15 ()Ljava/lang/Long;
+	public final fun component16 ()Z
+	public final fun component17 ()Ljava/lang/Long;
+	public final fun component18 ()Z
+	public final fun component19 ()Ljava/lang/Boolean;
+	public final fun component2 ()I
+	public final fun component20 ()Ljava/lang/Long;
+	public final fun component21 ()Ljava/lang/Long;
+	public final fun component22 ()Ljava/lang/Long;
+	public final fun component23 ()Z
+	public final fun component24 ()Z
+	public final fun component25 ()Ljava/lang/Long;
+	public final fun component26 ()Z
+	public final fun component3 ()Ljava/lang/Long;
+	public final fun component4 ()Ljava/lang/Long;
+	public final fun component5 ()Ljava/lang/Long;
+	public final fun component6 ()Ljava/lang/Long;
+	public final fun component7 ()Ljava/lang/Long;
+	public final fun component8 ()J
+	public final fun component9 ()Z
+	public final fun copy (JILjava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;JZZIZZLjava/lang/Long;Ljava/lang/Long;ZLjava/lang/Long;ZLjava/lang/Boolean;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;ZZLjava/lang/Long;Z)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Snapshot;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Snapshot;JILjava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;JZZIZZLjava/lang/Long;Ljava/lang/Long;ZLjava/lang/Long;ZLjava/lang/Boolean;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;ZZLjava/lang/Long;ZILjava/lang/Object;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Snapshot;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDecoderErrors ()I
+	public final fun getDecoderOutputExpected ()Z
+	public final fun getGimbalStickHeld ()Z
+	public final fun getHadVideo ()Ljava/lang/Boolean;
+	public final fun getHasFormat ()Z
+	public final fun getLastAccessUnitAt ()Ljava/lang/Long;
+	public final fun getLastBleNotifyAt ()Ljava/lang/Long;
+	public final fun getLastCameraSetAt ()Ljava/lang/Long;
+	public final fun getLastDecoderOutputAt ()Ljava/lang/Long;
+	public final fun getLastEnableAt ()J
+	public final fun getLastFocusTrackAt ()Ljava/lang/Long;
+	public final fun getLastGimbalThrowAt ()Ljava/lang/Long;
+	public final fun getLastIrapAt ()Ljava/lang/Long;
+	public final fun getLastPresentedAt ()Ljava/lang/Long;
+	public final fun getLastRebuildAt ()Ljava/lang/Long;
+	public final fun getLastStatusAt ()Ljava/lang/Long;
+	public final fun getLastVideoPacketAt ()Ljava/lang/Long;
+	public final fun getLastZoomAt ()Ljava/lang/Long;
+	public final fun getLive ()Z
+	public final fun getNow ()J
+	public final fun getPathReady ()Z
+	public final fun getReferenceRecoveryNeeded ()Z
+	public final fun getRepairReady ()Z
+	public final fun getSawPicture ()Z
+	public final fun getVideoPackets ()I
+	public final fun getZoomPinchActive ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicy$Stage : java/lang/Enum {
+	public static final field COOLDOWN Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+	public static final field FULL_REJOIN Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+	public static final field IDLE Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+	public static final field REBUILD_DECODER Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+	public static final field REBUILD_UDP Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+	public static final field RESEND_ENABLE Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+	public static fun values ()[Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicy$State {
+	public fun <init> ()V
+	public final fun capture ()Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$State;
+	public final fun getEncoderPauseEnables ()I
+	public final fun getLastActionAt ()J
+	public final fun getStage ()Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;
+	public final fun reset ()V
+	public final fun restore (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$State;)V
+	public final fun setEncoderPauseEnables (I)V
+	public final fun setLastActionAt (J)V
+	public final fun setStage (Lcom/opencapture/opencine/dji/LiveViewEnablePolicy$Stage;)V
+}
+
+public final class com/opencapture/opencine/dji/LiveViewEnablePolicyKt {
+	public static final fun phaseAllowsReconnect (Lcom/opencapture/opencine/vocabulary/ConnectionPhase;)Z
+}
+
+public final class com/opencapture/opencine/dji/MediaBrowsePolicy {
+	public static final field Companion Lcom/opencapture/opencine/dji/MediaBrowsePolicy$Companion;
+	public fun <init> (ZZZ)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun copy (ZZZ)Lcom/opencapture/opencine/dji/MediaBrowsePolicy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/MediaBrowsePolicy;ZZZILjava/lang/Object;)Lcom/opencapture/opencine/dji/MediaBrowsePolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKeepBrowsing ()Z
+	public final fun getListNewestPage ()Z
+	public final fun getListOlderPages ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/MediaBrowsePolicy$Companion {
+	public final fun afterEnterPlayback (Z)Lcom/opencapture/opencine/dji/MediaBrowsePolicy;
+}
+
+public final class com/opencapture/opencine/dji/MediaChunkAssembler {
+	public fun <init> ()V
+	public final fun assembled (I)[B
+	public final fun assembledMerged ()[B
+	public final fun chunkCount (I)I
+	public final fun didEnd (I)Z
+	public final fun getChunkCount ()I
+	public final fun getHasResponse ()Z
+	public final fun getSawEnd ()Z
+	public final fun ingest (II[B)Z
+	public final fun ingest (Lcom/opencapture/opencine/dji/DumlFrame;)Z
+	public final fun ingestPayload ([B)Z
+	public final fun isClosed (I)Z
+	public final fun isEmpty ()Z
+	public final fun reset ()V
+	public final fun reset (I)V
+	public final fun streamsEnded (Ljava/util/Set;)Z
+}
+
+public final class com/opencapture/opencine/dji/MediaCommands {
+	public static final field CMD_MEDIA_CHUNK I
+	public static final field CMD_MEDIA_DELETE I
+	public static final field CMD_MEDIA_FAVORITE I
+	public static final field CMD_MEDIA_LIST I
+	public static final field CMD_PLAYBACK I
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/MediaCommands;
+	public static final field SET_CAMERA I
+	public static final field SET_GENERAL I
+	public final fun deletePayload (JJ)[B
+	public final fun enterPlaybackPayload ()[B
+	public final fun exitPlaybackPayload ()[B
+	public final fun favoritePayload (JZJ)[B
+	public final fun isReplySuccess ([B)Z
+}
+
+public final class com/opencapture/opencine/dji/MediaListCommand {
+	public static final field COUNT_MAX I
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/MediaListCommand;
+	public static final field INTERNAL_BIT J
+	public static final field INTERNAL_COUNTER I
+	public static final field INTERNAL_STORAGE I
+	public static final field NEWEST_INTERNAL J
+	public static final field NEWEST_SD J
+	public static final field PAGE_SIZE I
+	public static final field SD_COUNTER I
+	public static final field SD_STORAGE I
+	public final fun getListTemplate ()[B
+	public final fun getTriggerPayload ()[B
+	public final fun hasOlderPage (ILjava/lang/Long;)Z
+	public final fun listPayload (IJ)[B
+	public final fun oldestHandle (Ljava/util/List;ILjava/lang/Long;)Ljava/lang/Long;
+	public static synthetic fun oldestHandle$default (Lcom/opencapture/opencine/dji/MediaListCommand;Ljava/util/List;ILjava/lang/Long;ILjava/lang/Object;)Ljava/lang/Long;
+	public final fun pageKey (Lcom/opencapture/opencine/vocabulary/MediaFile;)Ljava/lang/String;
+	public final fun seedPagination (Ljava/util/List;Ljava/util/Set;Ljava/util/Map;)Lcom/opencapture/opencine/dji/MediaPageStep;
+	public static synthetic fun seedPagination$default (Lcom/opencapture/opencine/dji/MediaListCommand;Ljava/util/List;Ljava/util/Set;Ljava/util/Map;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/MediaPageStep;
+	public final fun stepPagination (JJLjava/util/List;Ljava/util/Set;Ljava/util/Map;)Lcom/opencapture/opencine/dji/MediaPageStep;
+	public static synthetic fun stepPagination$default (Lcom/opencapture/opencine/dji/MediaListCommand;JJLjava/util/List;Ljava/util/Set;Ljava/util/Map;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/MediaPageStep;
+	public final fun storeHasOlderPage (IZLcom/opencapture/opencine/dji/MediaPageSliceInfo;)Z
+	public final fun storeOf (Lcom/opencapture/opencine/vocabulary/MediaFile;)I
+	public final fun storeSlice (Ljava/util/List;I)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/dji/MediaLiveResume {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/MediaLiveResume;
+	public static final field MAX_EXIT_ATTEMPTS I
+	public final fun action (IZZZZZZ)Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+	public static synthetic fun action$default (Lcom/opencapture/opencine/dji/MediaLiveResume;IZZZZZZILjava/lang/Object;)Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+	public final fun isCurrentPictureOwner (JJZ)Z
+	public final fun strayPlaybackAction (ZZ)Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+}
+
+public final class com/opencapture/opencine/dji/MediaLiveResume$Action : java/lang/Enum {
+	public static final field DONE Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+	public static final field ENABLE_LIVE_VIEW Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+	public static final field EXHAUSTED Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+	public static final field EXIT_PLAYBACK Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+	public static final field WAIT_FOR_PICTURE Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+	public static fun values ()[Lcom/opencapture/opencine/dji/MediaLiveResume$Action;
+}
+
+public final class com/opencapture/opencine/dji/MediaLiveResumeRunner {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/MediaLiveResumeRunner;
+	public final fun awaitRepairSlot (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun awaitRepairSlot$default (Lcom/opencapture/opencine/dji/MediaLiveResumeRunner;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun run (JLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun run$default (Lcom/opencapture/opencine/dji/MediaLiveResumeRunner;JLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/MediaLiveResumeRunner$Result : java/lang/Enum {
+	public static final field EXHAUSTED Lcom/opencapture/opencine/dji/MediaLiveResumeRunner$Result;
+	public static final field RESTORED Lcom/opencapture/opencine/dji/MediaLiveResumeRunner$Result;
+	public static final field SUPERSEDED Lcom/opencapture/opencine/dji/MediaLiveResumeRunner$Result;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/MediaLiveResumeRunner$Result;
+	public static fun values ()[Lcom/opencapture/opencine/dji/MediaLiveResumeRunner$Result;
+}
+
+public final class com/opencapture/opencine/dji/MediaManifest {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/MediaManifest;
+	public final fun decode ([B)Ljava/util/List;
+	public final fun decodeStores (Lcom/opencapture/opencine/dji/MediaChunkAssembler;)Ljava/util/List;
+	public final fun getPhotoExtensions ()Ljava/util/Set;
+	public final fun getVideoExtensions ()Ljava/util/Set;
+	public final fun hasEndMarker ([B)Z
+	public final fun headerCount ([B)I
+	public final fun recordCount ([B)I
+	public final fun sliceInfo (Lcom/opencapture/opencine/dji/MediaChunkAssembler;I)Lcom/opencapture/opencine/dji/MediaPageSliceInfo;
+}
+
+public final class com/opencapture/opencine/dji/MediaPageSliceInfo {
+	public fun <init> (IIZZ)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun copy (IIZZ)Lcom/opencapture/opencine/dji/MediaPageSliceInfo;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/MediaPageSliceInfo;IIZZILjava/lang/Object;)Lcom/opencapture/opencine/dji/MediaPageSliceInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeclared ()I
+	public final fun getEndMarker ()Z
+	public final fun getEnded ()Z
+	public final fun getIncomplete ()Z
+	public final fun getRecords ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/MediaPageStep {
+	public fun <init> (Ljava/util/List;JJZ)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()J
+	public final fun component3 ()J
+	public final fun component4 ()Z
+	public final fun copy (Ljava/util/List;JJZ)Lcom/opencapture/opencine/dji/MediaPageStep;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/MediaPageStep;Ljava/util/List;JJZILjava/lang/Object;)Lcom/opencapture/opencine/dji/MediaPageStep;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFresh ()Ljava/util/List;
+	public final fun getInternalCursor ()J
+	public final fun getMoreAvailable ()Z
+	public final fun getSdCursor ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/MotionStartCountdownKt {
+	public static final fun awaitMotionStartCountdown (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/MulticamSupportInfo {
+	public fun <init> (ZZZZ)V
+	public synthetic fun <init> (ZZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun copy (ZZZZ)Lcom/opencapture/opencine/dji/MulticamSupportInfo;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/MulticamSupportInfo;ZZZZILjava/lang/Object;)Lcom/opencapture/opencine/dji/MulticamSupportInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAppears ()Z
+	public final fun getKnown ()Z
+	public final fun getMissingRoleQueryE0 ()Z
+	public final fun getPreview ()Z
+	public fun hashCode ()I
+	public final fun qualification (Z)Lcom/opencapture/opencine/core/MulticamQualification;
+	public static synthetic fun qualification$default (Lcom/opencapture/opencine/dji/MulticamSupportInfo;ZILjava/lang/Object;)Lcom/opencapture/opencine/core/MulticamQualification;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/MulticamSupportKt {
+	public static final fun getAppearsInMultiview (Lcom/opencapture/opencine/vocabulary/FoundCamera;)Z
+	public static final fun getHasMultiviewPreview (Lcom/opencapture/opencine/vocabulary/FoundCamera;)Z
+	public static final fun multicamSupport (Lcom/opencapture/opencine/vocabulary/FoundCamera;)Lcom/opencapture/opencine/dji/MulticamSupportInfo;
+}
+
+public final class com/opencapture/opencine/dji/MultiviewControlLease {
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)V
+	public final fun allows ()Z
+	public final fun invalidate ()V
+	public final fun noteSet (J)V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewDiscovery {
+	public fun <init> (Lcom/opencapture/opencine/dji/SharedWiFi;)V
+	public final fun cancel ()V
+	public final fun candidates (Ljava/util/Set;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/MultiviewDiscovery$UnsupportedSubnet : java/lang/Exception {
+	public fun <init> ()V
+}
+
+public abstract class com/opencapture/opencine/dji/MultiviewFailure : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewFailure$Message : com/opencapture/opencine/dji/MultiviewFailure {
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewFailure$Network : com/opencapture/opencine/dji/MultiviewFailure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewFailure$PairingDeferred : com/opencapture/opencine/dji/MultiviewFailure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewFailure$Rejected : com/opencapture/opencine/dji/MultiviewFailure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewFailure$Timeout : com/opencapture/opencine/dji/MultiviewFailure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewFailure$Unavailable : com/opencapture/opencine/dji/MultiviewFailure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewNetworkKt {
+	public static final fun restoreCameraWiFiWithRetry (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun restoreCameraWiFiWithRetry$default (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/MultiviewNetworkStore {
+	public fun <init> (Landroid/content/Context;)V
+	public final fun load (Ljava/lang/String;Z)Lcom/opencapture/opencine/dji/MultiviewNetworkStore$Network;
+	public final fun save (Ljava/lang/String;Ljava/lang/String;Z)V
+	public final fun savedNetworks ()Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/dji/MultiviewNetworkStore$Network {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Z)Lcom/opencapture/opencine/dji/MultiviewNetworkStore$Network;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/MultiviewNetworkStore$Network;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/dji/MultiviewNetworkStore$Network;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHotspot ()Z
+	public final fun getPassword ()Ljava/lang/String;
+	public final fun getSsid ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/MultiviewProvisioner {
+	public fun <init> (Landroid/content/Context;)V
+	public final fun close ()V
+	public final fun connect (Lcom/opencapture/opencine/vocabulary/FoundCamera;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun connect$default (Lcom/opencapture/opencine/dji/MultiviewProvisioner;Lcom/opencapture/opencine/vocabulary/FoundCamera;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun exchange (ILjava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun exchange$default (Lcom/opencapture/opencine/dji/MultiviewProvisioner;ILjava/lang/String;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun getOnWiFiScan ()Lkotlin/jvm/functions/Function1;
+	public final fun next ()I
+	public final fun scanNetworks (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun send (ILjava/lang/String;)I
+	public static synthetic fun send$default (Lcom/opencapture/opencine/dji/MultiviewProvisioner;ILjava/lang/String;ILjava/lang/Object;)I
+	public final fun setOnWiFiScan (Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class com/opencapture/opencine/dji/NativeGimbalFeedback {
+	public static final field Companion Lcom/opencapture/opencine/dji/NativeGimbalFeedback$Companion;
+	public fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun component2 ()D
+	public final fun component3 ()Ljava/lang/Double;
+	public final fun copy (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;)Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/NativeGimbalFeedback;Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPose ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getReceivedAt ()D
+	public final fun getZoomReceivedAt ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/NativeGimbalFeedback$Companion {
+	public final fun from (Lcom/opencapture/opencine/dji/DumlFrame;DD)Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
+	public static synthetic fun from$default (Lcom/opencapture/opencine/dji/NativeGimbalFeedback$Companion;Lcom/opencapture/opencine/dji/DumlFrame;DDILjava/lang/Object;)Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
+}
+
+public final class com/opencapture/opencine/dji/NativeGimbalProgramRunner {
+	public final fun cancel (J)Z
+	public final fun interrupt ()V
+	public final fun invalidate ()V
+	public final fun isCurrentProgress (Lcom/opencapture/opencine/dji/NativeGimbalProgramRunner$Progress;)Z
+	public final fun pause (J)Z
+	public final fun resume (J)Z
+	public final fun start (Lcom/opencapture/opencine/motion/GimbalProgram;Lkotlin/jvm/functions/Function1;)J
+}
+
+public final class com/opencapture/opencine/dji/NativeGimbalProgramRunner$Progress {
+	public fun <init> (JLcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;Ljava/lang/String;ZZLjava/lang/String;JZ)V
+	public synthetic fun <init> (JLcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;Ljava/lang/String;ZZLjava/lang/String;JZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component10 ()Z
+	public final fun component2 ()Lcom/opencapture/opencine/motion/GimbalProgram;
+	public final fun component3 ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun component4 ()Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Z
+	public final fun component7 ()Z
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()J
+	public final fun copy (JLcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;Ljava/lang/String;ZZLjava/lang/String;JZ)Lcom/opencapture/opencine/dji/NativeGimbalProgramRunner$Progress;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/NativeGimbalProgramRunner$Progress;JLcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;Ljava/lang/String;ZZLjava/lang/String;JZILjava/lang/Object;)Lcom/opencapture/opencine/dji/NativeGimbalProgramRunner$Progress;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEpoch ()J
+	public final fun getFailure ()Ljava/lang/String;
+	public final fun getFinished ()Z
+	public final fun getLive ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getNote ()Ljava/lang/String;
+	public final fun getPaused ()Z
+	public final fun getProgram ()Lcom/opencapture/opencine/motion/GimbalProgram;
+	public final fun getReadout ()Lcom/opencapture/opencine/dji/GimbalMoveEngine$Readout;
+	public final fun getToken ()J
+	public final fun getVerificationInterruptedByPause ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/NativeGimbalProgramRunnerKt {
+	public static final fun nativeProgramZoomFailure (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/Double;)Ljava/lang/String;
+	public static synthetic fun nativeProgramZoomFailure$default (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/Double;ILjava/lang/Object;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/PocketCameraSession : com/opencapture/opencine/dji/DjiConnectPort, com/opencapture/opencine/dji/PocketControlPort {
+	public static final field Companion Lcom/opencapture/opencine/dji/PocketCameraSession$Companion;
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/dji/PocketSessionHost;Lcom/opencapture/opencine/decoder/HevcDecoder;Lcom/opencapture/opencine/dji/MultiviewControlLease;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/dji/PocketSessionHost;Lcom/opencapture/opencine/decoder/HevcDecoder;Lcom/opencapture/opencine/dji/MultiviewControlLease;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun abandonRecoveryToMenu ()V
+	public final fun adoptMultiviewPose (Lcom/opencapture/opencine/vocabulary/GimbalStickMapping;)V
+	public final fun applyDetectedFaces (Ljava/util/List;)V
+	public final fun attachSurface (Landroid/view/Surface;)V
+	public final fun autoWhiteBalanceLock (Lcom/opencapture/opencine/vocabulary/CameraStatus;)Lkotlin/Pair;
+	public static synthetic fun autoWhiteBalanceLock$default (Lcom/opencapture/opencine/dji/PocketCameraSession;Lcom/opencapture/opencine/vocabulary/CameraStatus;ILjava/lang/Object;)Lkotlin/Pair;
+	public final fun beginMediaBrowse ()V
+	public final fun cancelProgrammedMove ()V
+	public final fun cancelSubjectTracking ()V
+	public final fun cancelTracking ()V
+	public fun captureControlState ()Lcom/opencapture/opencine/dji/DjiCaptureControlState;
+	public final fun claimMediaGalleryCover ()Lcom/opencapture/opencine/dji/DjiAndroidMediaGalleryCover;
+	public final fun clearControlNoteIf (Ljava/lang/String;)V
+	public final fun clearGimbalProgram ()V
+	public final fun clearGimbalWaypoint (Lcom/opencapture/opencine/motion/GimbalWaypointSlot;)V
+	public final fun close ()V
+	public final fun connect (Lcom/opencapture/opencine/vocabulary/FoundCamera;)V
+	public final fun considerFaceFrame (Lcom/opencapture/opencine/dji/FaceFrame;)V
+	public fun controlState ()Lcom/opencapture/opencine/dji/PocketControlState;
+	public final fun deleteMedia (I)V
+	public fun disconnect ()V
+	public final fun endGimbalStick ()V
+	public final fun endMediaBrowse ()V
+	public final fun endZoomPinch ()V
+	public final fun flipGimbal ()V
+	public final fun forgetWifiCredentials (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getAccessUnits ()I
+	public final fun getAeLock ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getAwbLockKelvin ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getBle ()Lcom/opencapture/opencine/dji/BleLink;
+	public final fun getBrowsingMedia ()Z
+	public final fun getCadence ()Lcom/opencapture/opencine/media/LivePipelineCadence;
+	public final fun getCameraGalleryOpen ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getCanLockAutoExposure ()Z
+	public final fun getCanRunProgrammedMove ()Z
+	public final fun getChromeStatus ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getCommandOwner ()Lcom/opencapture/opencine/dji/DjiCommandOwner;
+	public final fun getConnectedCamera ()Lcom/opencapture/opencine/vocabulary/FoundCamera;
+	public final fun getConnectionSetup ()Lcom/opencapture/opencine/dji/CameraConnectionSetup;
+	public final fun getConnectionTargetId ()Lkotlinx/coroutines/flow/StateFlow;
+	public synthetic fun getControl ()Lcom/opencapture/opencine/core/CameraSession;
+	public fun getControl ()Lcom/opencapture/opencine/dji/DjiCameraSessionAdapter;
+	public final fun getControlBusy ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getControlNote ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getDebugCameraSetResult ()Lkotlin/jvm/functions/Function2;
+	public final fun getDebugVideoPacketAdmission ()Lkotlin/jvm/functions/Function0;
+	public final fun getDecoder ()Lcom/opencapture/opencine/decoder/HevcDecoder;
+	public final fun getDecoderErrors ()I
+	public final fun getDroppedIncomplete ()I
+	public final fun getFaceAFArmed ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getFailure ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getFailureDetail ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getFocusPoint ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getFound ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getFramesEnqueued ()I
+	public final fun getGimbalDoubleTap ()Lcom/opencapture/opencine/vocabulary/GimbalDoubleTap;
+	public final fun getGimbalLimitPulse ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalMode ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalMoveCountdown ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalMovePaused ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalMoveReadout ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalMoveRunning ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalPoseInvertPan ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalPoseViewFlip ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalProgram ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getGimbalRamp ()Lcom/opencapture/opencine/vocabulary/GimbalRamp;
+	public final fun getGimbalSpeed ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getHasGimbal ()Z
+	public final fun getHasVideoFormat ()Z
+	public final fun getHoldsMonitor ()Z
+	public final fun getIsoLimit ()V
+	public fun getJoinedSSID ()Ljava/lang/String;
+	public final fun getLastGimbalLimitContact ()Lcom/opencapture/opencine/vocabulary/GimbalLimitContact;
+	public final fun getLastGimbalLimitPanSign ()D
+	public final fun getLastGimbalLimitTiltSign ()D
+	public final fun getLastKeyframeAge ()Ljava/lang/String;
+	public final fun getLevelReading ()Lcom/opencapture/opencine/motion/LevelReading;
+	public final fun getLiveGimbalWaypoint ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun getMediaConnectionIdentity ()Lcom/opencapture/opencine/dji/DjiAndroidMediaIdentity;
+	public final fun getMultiviewPose ()Lcom/opencapture/opencine/vocabulary/GimbalStickMapping;
+	public final fun getNalTypes ()Ljava/lang/String;
+	public final fun getNativeISOCapabilities ()Lcom/opencapture/opencine/vocabulary/CaptureNativeISOCapabilities;
+	public final fun getPendingCameraSetCount ()I
+	public final fun getPhase ()Lcom/opencapture/opencine/vocabulary/ConnectionPhase;
+	public fun getPhaseFlow ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getRadioOn ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getRecoveryState ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getServices ()Lcom/opencapture/opencine/core/CameraServices;
+	public fun getSetupProgress ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getStationHost ()Ljava/lang/String;
+	public final fun getStatus ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getSupportsFocusMode ()Z
+	public final fun getSupportsTapFocus ()Z
+	public final fun getSupportsZoom ()Z
+	public final fun getTrackingHud ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getVideoPackets ()I
+	public final fun getWantsFaceDetect ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getZoomColorHopPending ()Z
+	public final fun getZoomDialReadout ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getZoomOptimistic ()Ljava/lang/Double;
+	public final fun getZoomPinchPreview ()Ljava/lang/Double;
+	public final fun getZoomPinching ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getZoomReadout ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun gimbalDebugText ()Ljava/lang/String;
+	public final fun handleFeedTap (FF)V
+	public final fun handleGamepadAction (Lcom/opencapture/opencine/vocabulary/GamepadOperatorAction;)V
+	public final fun handleGamepadTrackToggle ()V
+	public final fun hasRecoveryPicture (J)Z
+	public final fun isFeedRecovering ()Z
+	public final fun isFocusResetAvailable ()Z
+	public final fun isFormatPinActive ()Z
+	public final fun isMultiviewBorrowed ()Z
+	public final fun isMultiviewControlOnly ()Z
+	public final fun isReconnecting ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun isTrackingActive ()Z
+	public final fun levelGimbalToWorld ()V
+	public final fun listMedia ()V
+	public final fun lockAutoExposure ()Z
+	public final fun lockAutoWhiteBalance ()V
+	public final fun markBrowsingMedia (ZZ)J
+	public static synthetic fun markBrowsingMedia$default (Lcom/opencapture/opencine/dji/PocketCameraSession;ZZILjava/lang/Object;)J
+	public final fun mediaLiveResumeExhausted (J)V
+	public fun noteControlRejection (Ljava/lang/String;)V
+	public final fun noteLiveFrame ()V
+	public final fun noteSceneBecameActive ()V
+	public final fun noteSceneBecameInactive ()V
+	public final fun ownsMediaLiveResume (J)Z
+	public final fun pauseProgrammedMove ()V
+	public final fun pendingCameraSetExtra (I)Ljava/lang/String;
+	public final fun performGimbalDoubleTap ()V
+	public final fun predictedGimbalWaypoint (D)Lcom/opencapture/opencine/motion/GimbalWaypoint;
+	public final fun presentControlNote (Ljava/lang/String;)V
+	public final fun programmedZoomUnavailableReason (Lcom/opencapture/opencine/vocabulary/CameraStatus;)Ljava/lang/String;
+	public static synthetic fun programmedZoomUnavailableReason$default (Lcom/opencapture/opencine/dji/PocketCameraSession;Lcom/opencapture/opencine/vocabulary/CameraStatus;ILjava/lang/Object;)Ljava/lang/String;
+	public final fun receiveMultiview (Lcom/opencapture/opencine/dji/DumlFrame;)V
+	public final fun recenterGimbal ()V
+	public fun reconnect (Ljava/lang/String;)V
+	public final fun refreshAudio ()V
+	public final fun refreshFocusTrack ()V
+	public final fun refreshIsoLimit (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun releaseMultiview ()V
+	public final fun resetFocusPoint ()V
+	public final fun restartLiveViewAfterMedia ()Z
+	public final fun restartProgrammedMove ()V
+	public final fun resumeProgrammedMove ()V
+	public final fun retrySessionRecovery ()V
+	public final fun runProgrammedMove ()V
+	public final fun setAccessUnits (I)V
+	public final fun setApertureStrategy (I)V
+	public final fun setAudioChannel (I)V
+	public final fun setColorMode (IZ)V
+	public static synthetic fun setColorMode$default (Lcom/opencapture/opencine/dji/PocketCameraSession;IZILjava/lang/Object;)V
+	public final fun setDebugCameraSetResult (Lkotlin/jvm/functions/Function2;)V
+	public final fun setDebugVideoPacketAdmission (Lkotlin/jvm/functions/Function0;)V
+	public final fun setDecoderErrors (I)V
+	public final fun setDirectionalAudio (I)V
+	public final fun setDroppedIncomplete (I)V
+	public final fun setEv (I)V
+	public final fun setExpoMode (I)V
+	public final fun setFacePriorityEnabled (Z)V
+	public final fun setFocusMode (Z)V
+	public final fun setFocusTrack (I)V
+	public final fun setFramesEnqueued (I)V
+	public final fun setGimbalDoubleTap (Lcom/opencapture/opencine/vocabulary/GimbalDoubleTap;)V
+	public final fun setGimbalLegDuration (Ljava/lang/Double;Ljava/lang/Double;)V
+	public static synthetic fun setGimbalLegDuration$default (Lcom/opencapture/opencine/dji/PocketCameraSession;Ljava/lang/Double;Ljava/lang/Double;ILjava/lang/Object;)V
+	public final fun setGimbalLoop (Z)V
+	public final fun setGimbalMode (Lcom/opencapture/opencine/vocabulary/GimbalMode;)V
+	public final fun setGimbalRamp (Lcom/opencapture/opencine/vocabulary/GimbalRamp;)V
+	public final fun setGimbalSmoothness (D)V
+	public final fun setGimbalSpeed (Lcom/opencapture/opencine/vocabulary/GimbalSpeed;)V
+	public final fun setGimbalWaypoint (Lcom/opencapture/opencine/motion/GimbalWaypointSlot;)V
+	public final fun setHasVideoFormat (Z)V
+	public fun setIsoIndex (ILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun setIsoIndex (ILkotlin/jvm/functions/Function1;)V
+	public final fun setIsoLimit (I)V
+	public final fun setLastKeyframeAge (Ljava/lang/String;)V
+	public final fun setMediaFavorite (IZ)V
+	public final fun setMediaTransportBrowsing (Z)V
+	public final fun setNalTypes (Ljava/lang/String;)V
+	public final fun setOperatorOverlayHeld (Z)V
+	public fun setRecording (ZLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun setRecording (ZLkotlin/jvm/functions/Function1;)V
+	public final fun setResolutionFps (II)Z
+	public final fun setShootingMode (I)V
+	public final fun setShutterAngle (D)V
+	public final fun setShutterDenom (I)V
+	public final fun setVideoFormat (Lcom/opencapture/opencine/vocabulary/VideoFormat;Z)Z
+	public static synthetic fun setVideoFormat$default (Lcom/opencapture/opencine/dji/PocketCameraSession;Lcom/opencapture/opencine/vocabulary/VideoFormat;ZILjava/lang/Object;)Z
+	public final fun setVideoPackets (I)V
+	public final fun setVocalBoost (Z)V
+	public fun setWhiteBalance (IILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun setWhiteBalance (IILkotlin/jvm/functions/Function1;)V
+	public fun setWhiteBalanceAuto (Ljava/lang/Integer;Lcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun setWhiteBalanceAuto (Ljava/lang/Integer;Lkotlin/jvm/functions/Function1;)V
+	public final fun setWindNr (Z)V
+	public final fun setZoom (D)V
+	public final fun setZoomLens (I)V
+	public final fun setZoomSlew (I)V
+	public final fun setZoomSlider (D)V
+	public final fun setZoomStop ()V
+	public final fun stageSimulatedLive (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lcom/opencapture/opencine/vocabulary/CameraStatus;)V
+	public fun startScan ()V
+	public final fun startScan (Ljava/lang/String;)V
+	public final fun startTracking (FFFF)V
+	public final fun startTracking (Lcom/opencapture/opencine/vocabulary/TrackingBox;)V
+	public static synthetic fun startTracking$default (Lcom/opencapture/opencine/dji/PocketCameraSession;FFFFILjava/lang/Object;)V
+	public fun stopScan ()V
+	public fun takePhoto ()V
+	public fun takePhoto (Lcom/opencapture/opencine/dji/DjiCommandAdmission;)V
+	public final fun tapFocus (FF)V
+	public final fun unlockAutoExposure ()V
+	public final fun updateGimbalStick (FFIZZLcom/opencapture/opencine/vocabulary/CameraCommands$VirtualJoystickMapping;)V
+	public static synthetic fun updateGimbalStick$default (Lcom/opencapture/opencine/dji/PocketCameraSession;FFIZZLcom/opencapture/opencine/vocabulary/CameraCommands$VirtualJoystickMapping;ILjava/lang/Object;)V
+	public final fun updateMultiview (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lcom/opencapture/opencine/dji/DatalinkDriver;Lcom/opencapture/opencine/vocabulary/CameraStatus;)V
+	public final fun updateZoomPinch (D)V
+	public fun useSetup (Lcom/opencapture/opencine/dji/CameraConnectionSetup;Lcom/opencapture/opencine/dji/MultiviewNetworkStore$Network;Z)V
+	public final fun wantsFaceFrame ()Z
+	public final fun withMediaLiveResumeOwner (JLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun writeExposureCompensation (Lcom/opencapture/opencine/vocabulary/EvComp;Lcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeExposureCompensation (Lcom/opencapture/opencine/vocabulary/EvComp;Lkotlin/jvm/functions/Function1;)V
+	public fun writeFocusMode (ZLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeFocusMode (ZLkotlin/jvm/functions/Function1;)V
+	public fun writeHostShutterAngle (DILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeShutter (ILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeShutter (ILkotlin/jvm/functions/Function1;)V
+	public fun writeZoom (DLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeZoom (DLkotlin/jvm/functions/Function1;)V
+	public final fun zoomCycleFrom ()D
+	public final fun zoomMax ()D
+	public final fun zoomNextJump ()D
+	public final fun zoomStops ()Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/dji/PocketCameraSession$Companion {
+}
+
+public abstract interface class com/opencapture/opencine/dji/PocketControlPort {
+	public fun captureControlState ()Lcom/opencapture/opencine/dji/DjiCaptureControlState;
+	public abstract fun controlState ()Lcom/opencapture/opencine/dji/PocketControlState;
+	public fun getCommandOwner ()Lcom/opencapture/opencine/dji/DjiCommandOwner;
+	public abstract fun noteControlRejection (Ljava/lang/String;)V
+	public fun setIsoIndex (ILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public abstract fun setIsoIndex (ILkotlin/jvm/functions/Function1;)V
+	public static synthetic fun setIsoIndex$default (Lcom/opencapture/opencine/dji/PocketControlPort;ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public fun setRecording (ZLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public abstract fun setRecording (ZLkotlin/jvm/functions/Function1;)V
+	public static synthetic fun setRecording$default (Lcom/opencapture/opencine/dji/PocketControlPort;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public fun setWhiteBalance (IILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public abstract fun setWhiteBalance (IILkotlin/jvm/functions/Function1;)V
+	public static synthetic fun setWhiteBalance$default (Lcom/opencapture/opencine/dji/PocketControlPort;IILkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public fun setWhiteBalanceAuto (Ljava/lang/Integer;Lcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public abstract fun setWhiteBalanceAuto (Ljava/lang/Integer;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun setWhiteBalanceAuto$default (Lcom/opencapture/opencine/dji/PocketControlPort;Ljava/lang/Integer;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public abstract fun takePhoto ()V
+	public fun takePhoto (Lcom/opencapture/opencine/dji/DjiCommandAdmission;)V
+	public fun writeExposureCompensation (Lcom/opencapture/opencine/vocabulary/EvComp;Lcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeExposureCompensation (Lcom/opencapture/opencine/vocabulary/EvComp;Lkotlin/jvm/functions/Function1;)V
+	public fun writeFocusMode (ZLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeFocusMode (ZLkotlin/jvm/functions/Function1;)V
+	public fun writeHostShutterAngle (DILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeShutter (ILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeShutter (ILkotlin/jvm/functions/Function1;)V
+	public fun writeZoom (DLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public fun writeZoom (DLkotlin/jvm/functions/Function1;)V
+}
+
+public final class com/opencapture/opencine/dji/PocketControlPort$DefaultImpls {
+	public static fun captureControlState (Lcom/opencapture/opencine/dji/PocketControlPort;)Lcom/opencapture/opencine/dji/DjiCaptureControlState;
+	public static fun getCommandOwner (Lcom/opencapture/opencine/dji/PocketControlPort;)Lcom/opencapture/opencine/dji/DjiCommandOwner;
+	public static fun setIsoIndex (Lcom/opencapture/opencine/dji/PocketControlPort;ILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun setIsoIndex$default (Lcom/opencapture/opencine/dji/PocketControlPort;ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public static fun setRecording (Lcom/opencapture/opencine/dji/PocketControlPort;ZLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun setRecording$default (Lcom/opencapture/opencine/dji/PocketControlPort;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public static fun setWhiteBalance (Lcom/opencapture/opencine/dji/PocketControlPort;IILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun setWhiteBalance$default (Lcom/opencapture/opencine/dji/PocketControlPort;IILkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public static fun setWhiteBalanceAuto (Lcom/opencapture/opencine/dji/PocketControlPort;Ljava/lang/Integer;Lcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun setWhiteBalanceAuto$default (Lcom/opencapture/opencine/dji/PocketControlPort;Ljava/lang/Integer;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public static fun takePhoto (Lcom/opencapture/opencine/dji/PocketControlPort;Lcom/opencapture/opencine/dji/DjiCommandAdmission;)V
+	public static fun writeExposureCompensation (Lcom/opencapture/opencine/dji/PocketControlPort;Lcom/opencapture/opencine/vocabulary/EvComp;Lcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static fun writeExposureCompensation (Lcom/opencapture/opencine/dji/PocketControlPort;Lcom/opencapture/opencine/vocabulary/EvComp;Lkotlin/jvm/functions/Function1;)V
+	public static fun writeFocusMode (Lcom/opencapture/opencine/dji/PocketControlPort;ZLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static fun writeFocusMode (Lcom/opencapture/opencine/dji/PocketControlPort;ZLkotlin/jvm/functions/Function1;)V
+	public static fun writeHostShutterAngle (Lcom/opencapture/opencine/dji/PocketControlPort;DILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static fun writeShutter (Lcom/opencapture/opencine/dji/PocketControlPort;ILcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static fun writeShutter (Lcom/opencapture/opencine/dji/PocketControlPort;ILkotlin/jvm/functions/Function1;)V
+	public static fun writeZoom (Lcom/opencapture/opencine/dji/PocketControlPort;DLcom/opencapture/opencine/dji/DjiCommandAdmission;Lkotlin/jvm/functions/Function1;)V
+	public static fun writeZoom (Lcom/opencapture/opencine/dji/PocketControlPort;DLkotlin/jvm/functions/Function1;)V
+}
+
+public final class com/opencapture/opencine/dji/PocketControlState {
+	public fun <init> ()V
+	public fun <init> (ZZZLcom/opencapture/opencine/vocabulary/ConnectionPhase;Ljava/lang/String;IZLjava/util/List;Ljava/lang/Integer;Lcom/opencapture/opencine/dji/ReportedWhiteBalance;Lcom/opencapture/opencine/dji/ReportedWhiteBalance;Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/Integer;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/core/CameraTimecode;Lcom/opencapture/opencine/core/AudioLevels;Ljava/lang/Boolean;Lcom/opencapture/opencine/core/ObservedValue;Ljava/lang/Integer;)V
+	public synthetic fun <init> (ZZZLcom/opencapture/opencine/vocabulary/ConnectionPhase;Ljava/lang/String;IZLjava/util/List;Ljava/lang/Integer;Lcom/opencapture/opencine/dji/ReportedWhiteBalance;Lcom/opencapture/opencine/dji/ReportedWhiteBalance;Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/Integer;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/core/CameraTimecode;Lcom/opencapture/opencine/core/AudioLevels;Ljava/lang/Boolean;Lcom/opencapture/opencine/core/ObservedValue;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component10 ()Lcom/opencapture/opencine/dji/ReportedWhiteBalance;
+	public final fun component11 ()Lcom/opencapture/opencine/dji/ReportedWhiteBalance;
+	public final fun component12 ()Ljava/lang/Boolean;
+	public final fun component13 ()Ljava/lang/Integer;
+	public final fun component14 ()Ljava/lang/Integer;
+	public final fun component15 ()Lcom/opencapture/opencine/vocabulary/CameraModel;
+	public final fun component16 ()Lcom/opencapture/opencine/core/CameraTimecode;
+	public final fun component17 ()Lcom/opencapture/opencine/core/AudioLevels;
+	public final fun component18 ()Ljava/lang/Boolean;
+	public final fun component19 ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun component2 ()Z
+	public final fun component20 ()Ljava/lang/Integer;
+	public final fun component3 ()Z
+	public final fun component4 ()Lcom/opencapture/opencine/vocabulary/ConnectionPhase;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()I
+	public final fun component7 ()Z
+	public final fun component8 ()Ljava/util/List;
+	public final fun component9 ()Ljava/lang/Integer;
+	public final fun copy (ZZZLcom/opencapture/opencine/vocabulary/ConnectionPhase;Ljava/lang/String;IZLjava/util/List;Ljava/lang/Integer;Lcom/opencapture/opencine/dji/ReportedWhiteBalance;Lcom/opencapture/opencine/dji/ReportedWhiteBalance;Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/Integer;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/core/CameraTimecode;Lcom/opencapture/opencine/core/AudioLevels;Ljava/lang/Boolean;Lcom/opencapture/opencine/core/ObservedValue;Ljava/lang/Integer;)Lcom/opencapture/opencine/dji/PocketControlState;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/PocketControlState;ZZZLcom/opencapture/opencine/vocabulary/ConnectionPhase;Ljava/lang/String;IZLjava/util/List;Ljava/lang/Integer;Lcom/opencapture/opencine/dji/ReportedWhiteBalance;Lcom/opencapture/opencine/dji/ReportedWhiteBalance;Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/Integer;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/core/CameraTimecode;Lcom/opencapture/opencine/core/AudioLevels;Ljava/lang/Boolean;Lcom/opencapture/opencine/core/ObservedValue;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/PocketControlState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAudioLevels ()Lcom/opencapture/opencine/core/AudioLevels;
+	public final fun getAuthorized ()Z
+	public final fun getBatteryPercent ()Ljava/lang/Integer;
+	public final fun getBusy ()Z
+	public final fun getCameraId ()Ljava/lang/String;
+	public final fun getCharging ()Ljava/lang/Boolean;
+	public final fun getIsoChoices ()Ljava/util/List;
+	public final fun getIsoIndex ()Ljava/lang/Integer;
+	public final fun getLinkReady ()Z
+	public final fun getModel ()Lcom/opencapture/opencine/vocabulary/CameraModel;
+	public final fun getPendingWhiteBalance ()Lcom/opencapture/opencine/dji/ReportedWhiteBalance;
+	public final fun getPhase ()Lcom/opencapture/opencine/vocabulary/ConnectionPhase;
+	public final fun getRecording ()Ljava/lang/Boolean;
+	public final fun getRecovering ()Z
+	public final fun getShootingMode ()I
+	public final fun getStorage ()Lcom/opencapture/opencine/core/ObservedValue;
+	public final fun getStorageFreeMb ()Ljava/lang/Integer;
+	public final fun getStorageTotalMb ()Ljava/lang/Integer;
+	public final fun getTimecode ()Lcom/opencapture/opencine/core/CameraTimecode;
+	public final fun getWhiteBalance ()Lcom/opencapture/opencine/dji/ReportedWhiteBalance;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/dji/PocketSessionHost {
+	public abstract fun beginCameraPath ()Ljava/lang/AutoCloseable;
+	public abstract fun createFaceDetector ()Lcom/opencapture/opencine/dji/FaceDetectorPort;
+	public abstract fun getAppBuild ()Ljava/lang/String;
+	public abstract fun getAppVersion ()Ljava/lang/String;
+	public abstract fun getDebugBuild ()Z
+	public abstract fun getIncidents ()Lcom/opencapture/opencine/media/FeedIncidentSink;
+	public abstract fun getSourceRevision ()Ljava/lang/String;
+	public abstract fun incidentBuildIdentity ()Ljava/lang/String;
+	public fun incidentSessionContext (Ljava/lang/String;Ljava/lang/String;II)Lcom/opencapture/opencine/media/FeedIncidentSessionContext;
+	public static synthetic fun incidentSessionContext$default (Lcom/opencapture/opencine/dji/PocketSessionHost;Ljava/lang/String;Ljava/lang/String;IIILjava/lang/Object;)Lcom/opencapture/opencine/media/FeedIncidentSessionContext;
+	public abstract fun incidentTestSource ()Lcom/opencapture/opencine/media/FeedIncidentTestSource;
+	public abstract fun nativeISOHopEnabled ()Z
+	public abstract fun setShutterAngleDegrees (D)V
+	public abstract fun shutterAngleDegrees ()D
+	public abstract fun shutterUsesAngle ()Z
+}
+
+public final class com/opencapture/opencine/dji/PocketSessionHost$DefaultImpls {
+	public static fun incidentSessionContext (Lcom/opencapture/opencine/dji/PocketSessionHost;Ljava/lang/String;Ljava/lang/String;II)Lcom/opencapture/opencine/media/FeedIncidentSessionContext;
+	public static synthetic fun incidentSessionContext$default (Lcom/opencapture/opencine/dji/PocketSessionHost;Ljava/lang/String;Ljava/lang/String;IIILjava/lang/Object;)Lcom/opencapture/opencine/media/FeedIncidentSessionContext;
+}
+
+public final class com/opencapture/opencine/dji/ReportedWhiteBalance {
+	public fun <init> (III)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun copy (III)Lcom/opencapture/opencine/dji/ReportedWhiteBalance;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/ReportedWhiteBalance;IIIILjava/lang/Object;)Lcom/opencapture/opencine/dji/ReportedWhiteBalance;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKelvin ()I
+	public final fun getMode ()I
+	public final fun getTint ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/SharedWiFi : com/opencapture/opencine/dji/CameraNetworkPath {
+	public static final field Companion Lcom/opencapture/opencine/dji/SharedWiFi$Companion;
+	public fun <init> (Landroid/content/Context;)V
+	public final fun address (Z)Ljava/lang/String;
+	public static synthetic fun address$default (Lcom/opencapture/opencine/dji/SharedWiFi;ZILjava/lang/Object;)Ljava/lang/String;
+	public fun bindSocket (Ljava/net/DatagramSocket;)V
+	public fun bindSocket (Ljava/net/Socket;)V
+	public fun cameraLocalIPv4 ()Ljava/lang/String;
+	public final fun currentSsid ()Ljava/lang/String;
+	public final fun getHotspot ()Z
+	public fun isProcessBound ()Z
+	public final fun join (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun netmask (Z)Ljava/lang/String;
+	public static synthetic fun netmask$default (Lcom/opencapture/opencine/dji/SharedWiFi;ZILjava/lang/Object;)Ljava/lang/String;
+	public final fun release ()V
+	public final fun setHotspot (Z)V
+}
+
+public final class com/opencapture/opencine/dji/SharedWiFi$Companion {
+	public final fun mask (I)Ljava/lang/String;
+	public final fun validAddress (Ljava/lang/String;)Z
+}
+
+public final class com/opencapture/opencine/dji/StationJoin {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZZZLcom/opencapture/opencine/dji/StationJoin$Policy;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZZZLcom/opencapture/opencine/dji/StationJoin$Policy;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun run ([BLkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun run$default (Lcom/opencapture/opencine/dji/StationJoin;[BLkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract class com/opencapture/opencine/dji/StationJoin$Failure : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Failure$HotspotUnavailable : com/opencapture/opencine/dji/StationJoin$Failure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Failure$JoinRejected : com/opencapture/opencine/dji/StationJoin$Failure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Failure$JoinSilent : com/opencapture/opencine/dji/StationJoin$Failure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Failure$Rejected : com/opencapture/opencine/dji/StationJoin$Failure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Failure$RoleRefused : com/opencapture/opencine/dji/StationJoin$Failure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Failure$RoleStarting : com/opencapture/opencine/dji/StationJoin$Failure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Failure$UnsupportedRole : com/opencapture/opencine/dji/StationJoin$Failure {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Outcome : java/lang/Enum {
+	public static final field JOINED Lcom/opencapture/opencine/dji/StationJoin$Outcome;
+	public static final field VERIFIED Lcom/opencapture/opencine/dji/StationJoin$Outcome;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/StationJoin$Outcome;
+	public static fun values ()[Lcom/opencapture/opencine/dji/StationJoin$Outcome;
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Policy {
+	public static final field Companion Lcom/opencapture/opencine/dji/StationJoin$Policy$Companion;
+	public fun <init> ()V
+	public fun <init> (IJJJ)V
+	public synthetic fun <init> (IJJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()J
+	public final fun component3 ()J
+	public final fun component4 ()J
+	public final fun copy (IJJJ)Lcom/opencapture/opencine/dji/StationJoin$Policy;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/StationJoin$Policy;IJJJILjava/lang/Object;)Lcom/opencapture/opencine/dji/StationJoin$Policy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMaximumAttempts ()I
+	public final fun getPrepareSettleMs ()J
+	public final fun getReplyTimeoutMs ()J
+	public final fun getRetryDelayMs ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/StationJoin$Policy$Companion {
+	public final fun fromCore ()Lcom/opencapture/opencine/dji/StationJoin$Policy;
+}
+
+public final class com/opencapture/opencine/dji/StatusExtras {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/StatusExtras;
+	public final fun apply (Lcom/opencapture/opencine/dji/DumlFrame;Lcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public static synthetic fun apply$default (Lcom/opencapture/opencine/dji/StatusExtras;Lcom/opencapture/opencine/dji/DumlFrame;Lcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyAudioBlob ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyAudioDsp ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lkotlin/Pair;
+	public final fun applyColorCap ([BLcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public static synthetic fun applyColorCap$default (Lcom/opencapture/opencine/dji/StatusExtras;[BLcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyExpo ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyFov ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyGimbalParams ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyImageEffect ([BLcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public static synthetic fun applyImageEffect$default (Lcom/opencapture/opencine/dji/StatusExtras;[BLcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyIsoCap ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyLens ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyParamReply ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyShutterCap ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applySubscribe ([BLcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public static synthetic fun applySubscribe$default (Lcom/opencapture/opencine/dji/StatusExtras;[BLcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyVideo ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun applyVideoCap ([BLcom/opencapture/opencine/vocabulary/CameraStatus;)Lcom/opencapture/opencine/vocabulary/CameraStatus;
+	public final fun isGimbalParamsReply ([B)Z
+	public final fun packSubscribe (Ljava/lang/String;[BI)[B
+	public static synthetic fun packSubscribe$default (Lcom/opencapture/opencine/dji/StatusExtras;Ljava/lang/String;[BIILjava/lang/Object;)[B
+	public final fun parseSubscribe ([B)Lcom/opencapture/opencine/dji/StatusExtras$SubscribeItem;
+	public final fun reportsShootingMode (Lcom/opencapture/opencine/dji/DumlFrame;)Z
+}
+
+public final class com/opencapture/opencine/dji/StatusExtras$SubscribeItem {
+	public fun <init> (Ljava/lang/String;[B)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()[B
+	public final fun copy (Ljava/lang/String;[B)Lcom/opencapture/opencine/dji/StatusExtras$SubscribeItem;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/StatusExtras$SubscribeItem;Ljava/lang/String;[BILjava/lang/Object;)Lcom/opencapture/opencine/dji/StatusExtras$SubscribeItem;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getValue ()[B
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/TrackingBoxWireKt {
+	public static final fun parseLivePush (Lcom/opencapture/opencine/vocabulary/TrackingBox$Companion;[B)Lcom/opencapture/opencine/vocabulary/TrackingBox;
+	public static final fun parseNormalized (Lcom/opencapture/opencine/vocabulary/TrackingBox$Companion;[BIDZ)Lcom/opencapture/opencine/vocabulary/TrackingBox;
+	public static synthetic fun parseNormalized$default (Lcom/opencapture/opencine/vocabulary/TrackingBox$Companion;[BIDZILjava/lang/Object;)Lcom/opencapture/opencine/vocabulary/TrackingBox;
+}
+
+public abstract class com/opencapture/opencine/dji/TrackingPoll {
+	public static final field Companion Lcom/opencapture/opencine/dji/TrackingPoll$Companion;
+}
+
+public final class com/opencapture/opencine/dji/TrackingPoll$Companion {
+	public final fun parse ([B)Lcom/opencapture/opencine/dji/TrackingPoll;
+}
+
+public final class com/opencapture/opencine/dji/TrackingPoll$Idle : com/opencapture/opencine/dji/TrackingPoll {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/TrackingPoll$Idle;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/TrackingPoll$Locked : com/opencapture/opencine/dji/TrackingPoll {
+	public fun <init> (Lcom/opencapture/opencine/vocabulary/TrackingBox;)V
+	public final fun component1 ()Lcom/opencapture/opencine/vocabulary/TrackingBox;
+	public final fun copy (Lcom/opencapture/opencine/vocabulary/TrackingBox;)Lcom/opencapture/opencine/dji/TrackingPoll$Locked;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/TrackingPoll$Locked;Lcom/opencapture/opencine/vocabulary/TrackingBox;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/TrackingPoll$Locked;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBox ()Lcom/opencapture/opencine/vocabulary/TrackingBox;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/VideoFormatWireKt {
+	public static final fun applyAttitude (Lcom/opencapture/opencine/vocabulary/GimbalStickMapping;[B)Lcom/opencapture/opencine/vocabulary/GimbalStickMapping;
+	public static final fun commandExtra (Lcom/opencapture/opencine/vocabulary/VideoFormat;ILjava/lang/String;)Ljava/lang/String;
+	public static synthetic fun commandExtra$default (Lcom/opencapture/opencine/vocabulary/VideoFormat;ILjava/lang/String;ILjava/lang/Object;)Ljava/lang/String;
+	public static final fun getSetPayload (Lcom/opencapture/opencine/vocabulary/VideoFormat;)[B
+	public static final fun parseVideoParamV2 (Lcom/opencapture/opencine/vocabulary/VideoFormat$Companion;[B)Lcom/opencapture/opencine/vocabulary/VideoFormat;
+	public static final fun payload (Lcom/opencapture/opencine/vocabulary/VideoFormat;I)[B
+}
+
+public final class com/opencapture/opencine/dji/WorldLevelDjiKt {
+	public static final fun attitude (Lcom/opencapture/opencine/motion/WorldLevel;[B)Lcom/opencapture/opencine/motion/WorldLevel$Quat;
+	public static final fun failureNote (Lcom/opencapture/opencine/motion/WorldLevelSnap$Companion;Ljava/lang/Double;)Ljava/lang/String;
+	public static final fun ingest (Lcom/opencapture/opencine/motion/LevelReading;[BD)V
+	public static final fun plan (Lcom/opencapture/opencine/motion/WorldLevelSnap$Companion;DLcom/opencapture/opencine/motion/GimbalWaypoint;D)Lkotlin/Pair;
+}
+
