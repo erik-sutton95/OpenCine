@@ -18,4 +18,9 @@ class MonitorPlaybackCapturedAtTest {
         assertNull(MonitorPlaybackCapturedAt.stampInstant("not-a-stamp"))
         assertNull(MonitorPlaybackCapturedAt.label(null, null))
     }
+
+    @Test fun impossibleCalendarDatesAreNotDates() {
+        assertNull(MonitorPlaybackCapturedAt.stampInstant("20260230140001"), "February 30 must not become February 28")
+        assertNull(MonitorPlaybackCapturedAt.stampInstant("20261003250001"))
+    }
 }

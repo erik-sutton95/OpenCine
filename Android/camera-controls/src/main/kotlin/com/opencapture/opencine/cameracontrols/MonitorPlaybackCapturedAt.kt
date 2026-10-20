@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 import java.util.Locale
 
 /**
@@ -12,7 +13,8 @@ import java.util.Locale
  * that UTC wall clock; a cached record without it keeps the same digits in the filename order key.
  */
 internal object MonitorPlaybackCapturedAt {
-    private val stamp = DateTimeFormatter.ofPattern("yyyyMMddHHmmss", Locale.US)
+    // STRICT with `uuuu`: an impossible date such as February 30 is no date, never February 28.
+    private val stamp = DateTimeFormatter.ofPattern("uuuuMMddHHmmss", Locale.US).withResolverStyle(ResolverStyle.STRICT)
     private val row = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US)
         .withZone(ZoneOffset.UTC)
 
