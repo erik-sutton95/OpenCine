@@ -54,6 +54,23 @@ struct PaintedCapacityMatchTests {
             control: control, viewport: viewport) == nil)
     }
 
+    /// Z landscape (local run, 2026-10-20): Vision read the readout's card glyph as "G" left of
+    /// "521 GB". The glyph is not capacity text; the capacity itself must still read in full.
+    @Test func theLeadingGlyphReadAsALetterDoesNotHideTheCapacity() {
+        let glyph = PaintedCapacityToken(value: "G", frame: CGRect(x: 101, y: 29, width: 9, height: 11))
+        #expect(PaintedCapacityMatch.frame(expected: "521 GB", tokens: [glyph, token("521 GB", x: 118)],
+            control: control, viewport: viewport) != nil)
+        #expect(PaintedCapacityMatch.frame(expected: "115GB", tokens: [glyph, token("115", x: 118),
+            token("GB", x: 150)], control: control, viewport: viewport) != nil)
+        // Only a lone non-digit glyph before the text is set aside, never a digit or a trailing token.
+        #expect(PaintedCapacityMatch.frame(expected: "521 GB", tokens: [
+            PaintedCapacityToken(value: "1", frame: glyph.frame), token("521 GB", x: 118),
+        ], control: control, viewport: viewport) == nil)
+        #expect(PaintedCapacityMatch.frame(expected: "521 GB", tokens: [
+            token("521 GB", x: 104), PaintedCapacityToken(value: "G", frame: CGRect(x: 190, y: 29, width: 9, height: 11)),
+        ], control: control, viewport: viewport) == nil)
+    }
+
     @Test func capacityPartsAreParsedFromCompactAndSpacedForms() {
         #expect(PaintedCapacityMatch.parts("115GB")?.number == "115")
         #expect(PaintedCapacityMatch.parts("115GB")?.unit == "GB")
