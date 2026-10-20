@@ -209,7 +209,7 @@ extension NikonCapturePopupState {
                     greenMagenta: tintCells.greenMagenta, amberBlue: tintCells.amberBlue,
                     range: WhiteBalanceTint.cellRange) : nil,
             values: grown,
-            steps: steps(kelvin: kelvin))
+            steps: steps(kelvin: kelvin), stepsHint: stepsHint(kelvin: kelvin))
     }
 
     func tabLock(_ mode: NikonLadderMode) -> CaptureLock? {
@@ -286,6 +286,15 @@ extension NikonCapturePopupState {
         return CaptureLadderSetting(
             key: typed.key,
             offered: options.compactMap { NikonCameraSession.setting(typed, label: $0) })
+    }
+
+    public static let kelvinStepsHint: String? =
+        "Use minus 10 and plus 10 beside the selected value to fine-adjust"
+    public static let codecStepsHint: String? =
+        "Use the bit-depth buttons beside the codec to switch depth"
+
+    func stepsHint(kelvin: Bool) -> String? {
+        kind == .codec ? Self.codecStepsHint : kelvin ? Self.kelvinStepsHint : nil
     }
 
     func steps(kelvin: Bool) -> (@Sendable (String) -> (LadderStep, LadderStep)?)? {

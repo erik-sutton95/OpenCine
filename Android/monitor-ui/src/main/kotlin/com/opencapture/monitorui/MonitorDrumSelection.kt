@@ -8,6 +8,8 @@ import kotlin.math.sin
 object MonitorDrumSelection {
     const val POINTS_PER_VALUE = 56f
     const val HOLD_MILLISECONDS = 280L
+    /** A readout's own hold action (no quick drum), as long as the panel's hold to lock. */
+    const val HOLD_ACTION_MILLISECONDS = 450L
     const val DRAG_THRESHOLD = 14f
 
     data class Metrics(val cellWidth: Float, val selectedScale: Float)

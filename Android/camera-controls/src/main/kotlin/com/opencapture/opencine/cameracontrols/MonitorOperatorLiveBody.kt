@@ -209,6 +209,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val panel = captureInputs.panel
     val dismiss = captureInputs.dismiss
     var paletteRevision by remember { mutableLongStateOf(0) }
+    val displayHaptics = LocalOperatorHaptics.current
     val exposed = !covered && current(identity)
     val interactive = exposed && !locked && editing == null && interactionEnabled
     val admitted = interactive && !readOnly
@@ -406,12 +407,13 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 record = { enabled ->
                     val decoration = edit(sections.record).testTag("monitor.system.record")
                     if (photo) photoRelease?.invoke(enabled && admitted && recordEnabled, decoration)
-                    else MonitorCaptureButton(control, layout.record.width, enabled && admitted && recordEnabled, decoration,
-                        confirm = confirmRecord,
+                    else MonitorCaptureButton(control, layout.record.width, enabled && admitted, decoration,
+                        busy = !recordEnabled, confirm = confirmRecord,
                         openMode = openMode?.let { action -> { if (admits() && recordEnabled) action() } }, onConfirmingChange = onRecordConfirming)
                 }, display = { enabled -> MonitorDisplayButton(displayIndex, displayCount,
                     displayTitle ?: displayIndex?.let { "DISP ${it + 1}" } ?: "Display mode unavailable",
-                    layout.display.width, layout.display.height, (sections.display?.let { edit(it) } ?: Modifier).testTag("monitor.system.display"), enabled = enabled && interactive, onClick = cycleDisplay) })
+                    layout.display.width, layout.display.height, (sections.display?.let { edit(it) } ?: Modifier).testTag("monitor.system.display"), enabled = enabled && interactive,
+                    onClick = cycleDisplay, onLongClick = null, onClickFeedback = { displayHaptics.selection() }) })
         }, tools = { accepts ->
             cameraViews.feedGestures?.invoke(this, accepts && interactive)
             if (command) cameraViews.dashboard?.let { dashboard ->
@@ -471,7 +473,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             (it.left - origin.x).toDp().value, (it.top - origin.y).toDp().value,
                             it.width.toDp().value, it.height.toDp().value) } })
                     })
-                cameraViews.focusDrive?.let { drive ->
+                // Hidden under the lock like focus reset (pre-shared Z Android hid the MF strip there).
+                if (!locked) cameraViews.focusDrive?.let { drive ->
                     val height = minOf(280f, layout.viewport.height * .55f)
                     val center = max(layout.picture.x + 30f, layout.record.x - 34f)
                     Box(Modifier.descriptorFrame(MonitorRect(center - FOCUS_DRIVE_WIDTH / 2f, layout.picture.midY - height / 2f,

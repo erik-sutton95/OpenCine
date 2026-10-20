@@ -99,6 +99,8 @@ class NikonCapturePopupTest {
         assertEquals(WbPickerPolicy.kelvinOptions, sheet.tabs[1].ladder.values)
         assertNull(sheet.tabs[1].setting)
         val steps = sheet.tabs[1].steps?.invoke("5600K")
+        assertEquals("Use minus 10 and plus 10 beside the selected value to fine-adjust", sheet.tabs[1].stepsHint)
+        assertNull(sheet.tabs[0].stepsHint)
         assertEquals("−10", steps?.first?.label)
         assertEquals(true, steps?.second?.lands)
         assertTrue(sheet.tabs[1].values?.invoke("5610K")?.contains("5610K") == true)
@@ -169,5 +171,7 @@ class NikonCapturePopupTest {
         assertEquals("Record H.265 at 10 bit", steps?.second?.description)
         assertEquals(true, steps?.second?.selected)
         assertNull(tab.steps?.invoke("ProRes 422 HQ"))
+        // Behavior audit ZIA-145: the drum tells the screen reader what the buttons beside it do.
+        assertEquals("Use the bit-depth buttons beside the codec to switch depth", tab.stepsHint)
     }
 }
