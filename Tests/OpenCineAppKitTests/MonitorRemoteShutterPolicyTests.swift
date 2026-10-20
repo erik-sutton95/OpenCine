@@ -81,4 +81,34 @@ import Testing
         #expect(!presses.repins(volume: 0.8125, at: 50.3), "not inside the re-anchor echo window")
         #expect(!presses.repins(volume: 0.75, at: 51), "nothing to pin at the anchor")
     }
+
+    /// Arming at an ordinary level and stopping where the operator left it write nothing, so they
+    /// lease no volume view; only a rail pin or a real restore does.
+    @Test func onlyARealVolumeChangeIsAWrite() {
+        #expect(!Policy.needsWrite(from: 0.5, to: Policy.anchor(forCurrentVolume: 0.5)))
+        #expect(Policy.needsWrite(from: 1, to: Policy.anchor(forCurrentVolume: 1)), "the top rail is pinned")
+        #expect(Policy.needsWrite(from: 0, to: Policy.anchor(forCurrentVolume: 0)), "the bottom rail is pinned")
+        #expect(!Policy.needsWrite(from: 0.5, to: 0.5005), "a float echo is no write")
+        #expect(Policy.needsWrite(from: 0.9375, to: 1), "stopping returns a pinned rail")
+    }
+
+    /// The idle regression (an armed shutter kept the app from ever idling): the volume view is
+    /// needed only while a write waits and for a short hold after it, never at rest.
+    @Test func theVolumeViewIsLeasedOnlyAroundAWrite() {
+        var lease = MonitorRemoteShutterVolumeLease()
+        #expect(!lease.needsView(at: 10), "an armed shutter at rest leases no view")
+        lease.request(volume: 0.25)
+        lease.request(volume: 0.5)
+        #expect(lease.pendingVolume == 0.5, "the newest write wins")
+        #expect(lease.needsView(at: 99), "a waiting write holds the view however long the slider takes")
+        lease.wrote(at: 20)
+        #expect(lease.pendingVolume == nil)
+        #expect(lease.needsView(at: 20 + MonitorRemoteShutterVolumeLease.hold - 0.01), "held for the echo")
+        #expect(!lease.needsView(at: 20 + MonitorRemoteShutterVolumeLease.hold), "released after the hold")
+        lease.request(volume: 0.75)
+        lease.end()
+        #expect(lease == MonitorRemoteShutterVolumeLease(), "stop or a route change drops the lease")
+        #expect(MonitorRemoteShutterVolumeLease.hold < Policy.debounceInterval * 2,
+            "the view goes well before the next deliberate press")
+    }
 }
