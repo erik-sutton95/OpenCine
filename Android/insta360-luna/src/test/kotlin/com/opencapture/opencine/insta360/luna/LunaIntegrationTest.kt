@@ -153,6 +153,40 @@ class LunaIntegrationTest {
         assertTrue(CorePhase.JOINING_NETWORK !in phases, "saved Wi-Fi is not dialled before the advert")
     }
 
+    private fun TestScope.savedGrace(): Pair<FakeLunaPort, Pair<LunaIntegration, ConnectTarget>> {
+        val port = FakeLunaPort(backgroundScope)
+        val luna = LunaIntegration(port, now = { testScheduler.currentTime })
+        port.savedWiFi += camera
+        val ap = SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = "LUNA-1A2B", bluetooth = true)
+        val saved = SavedCamera(
+            id = camera, integration = luna.id, advertisedName = "Luna 1A2B", model = "Insta360 Luna Ultra",
+            routes = listOf(ap), preferredRoute = ap.id,
+        )
+        return port to (luna to ConnectTarget.Saved(saved, ap.id))
+    }
+
+    @Test
+    fun aCancelledSightingGraceStopsTheScanItStarted() = runTest {
+        val (port, pair) = savedGrace()
+        val (luna, target) = pair
+        val attempt = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { luna.connect(target).collect {} }
+        runCurrent()
+        assertEquals(1, port.scans); assertEquals(0, port.connects.size)
+        attempt.cancel(); runCurrent()
+        assertEquals(1, port.scanStops, "a cancelled grace must not leave the Bluetooth scan running")
+    }
+
+    @Test
+    fun theSightingGraceKeepsTheScanWhenTheLastListenerLeaves() = runTest {
+        val (port, pair) = savedGrace()
+        val (luna, target) = pair
+        val listening = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { luna.discover(DiscoveryMode.PASSIVE).collect {} }
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { luna.connect(target).collect {} }
+        runCurrent()
+        listening.cancel(); runCurrent()
+        assertEquals(0, port.scanStops, "the grace still needs the scan after the last listener leaves")
+    }
+
     @Test
     fun discoveryListensPassivelyOverBluetooth() = runTest {
         val (port, luna) = setup()

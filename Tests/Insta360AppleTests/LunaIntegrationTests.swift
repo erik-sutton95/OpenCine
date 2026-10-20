@@ -142,6 +142,29 @@ import Testing
         #expect(!seen.contains { $0.phase == .joiningNetwork }, "saved Wi-Fi is not dialled before the advert")
     }
 
+    @Test func theSightingGraceKeepsTheScanWhenTheLastListenerLeaves() async throws {
+        let port = FakeLunaPort()
+        let gate = StepGate()
+        let luna = LunaIntegration(port: port, now: { [when] in when }, sleep: { _ in await gate.wait() })
+        port.savedWiFi.insert(camera)
+        let listening = Task { for await _ in luna.discover(.passive) {} }
+        #expect(await eventually { port.scans == 1 })
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B",
+            model: LunaProtocol.model, routes: [ap], preferredRoute: ap.id)
+        let consumer = Task { for await _ in luna.connect(.saved(saved, route: ap.id)) {} }
+        #expect(await eventually { gate.waits == 1 })
+        listening.cancel()
+        await listening.value
+        #expect(port.scanStops == 0, "the grace still needs the scan after the last listener leaves")
+        port.seen.insert(camera)
+        gate.release()
+        #expect(await eventually { port.connects.count == 1 })
+        port.finishConnect()
+        await consumer.value
+    }
+
     @Test func aSavedCameraKeepsItsRecord() async throws {
         let luna = integration()
         let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-OLD", bluetooth: true)

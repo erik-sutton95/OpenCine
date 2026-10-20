@@ -200,10 +200,19 @@ class LunaIntegration(
         if (target is ConnectTarget.Saved && port.hasSavedWiFi(cameraID) && !port.hasSeen(cameraID)) {
             progress(attempt, ConnectionPhase.SCANNING)?.let { send(it) }
             // A radio that cannot scan still has the saved Wi-Fi route (the baseline did the same).
+            // The grace holds the scan like a listener, so a discovery page closing meanwhile
+            // cannot stop it; a cancelled grace stops the scan unless a listener still wants it.
+            listening++
             runCatching { port.startScan() }
-            val deadline = now() + SIGHTING_GRACE_MS
-            while (!port.hasSeen(cameraID) && now() < deadline) {
-                sleep(SIGHTING_STEP_MS)
+            var waited = false
+            try {
+                val deadline = now() + SIGHTING_GRACE_MS
+                while (!port.hasSeen(cameraID) && now() < deadline) {
+                    sleep(SIGHTING_STEP_MS)
+                }
+                waited = true
+            } finally {
+                if (--listening == 0 && !waited) port.stopScan()
             }
         }
         // One backend, one connection: a newer attempt ends the older one (its job is cancelled).

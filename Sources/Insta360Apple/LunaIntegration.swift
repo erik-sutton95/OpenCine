@@ -97,6 +97,8 @@ public final class LunaIntegration: CameraIntegration {
     private let sleep: (Duration) async throws -> Void
     private var sightings: [NearbyCamera] = []
     private var listeners: [UUID: AsyncStream<[NearbyCamera]>.Continuation] = [:]
+    /// Sighting graces holding the scan, so the last discovery listener leaving cannot stop it.
+    private var graceScans = 0
     private var current: Attempt?
 
     @MainActor
@@ -166,7 +168,8 @@ public final class LunaIntegration: CameraIntegration {
     private func stopListening(_ key: UUID) {
         guard listeners.removeValue(forKey: key) != nil, listeners.isEmpty else { return }
         discoveryFailure = nil
-        port.stopScan()
+        // A sighting grace still waiting for the advert keeps the scan (Kotlin twin: `listening`).
+        if graceScans == 0 { port.stopScan() }
     }
 
     // MARK: Connecting
@@ -222,6 +225,12 @@ public final class LunaIntegration: CameraIntegration {
         guard (try? await port.startScan()) != nil else {
             attempt.note = nil
             return
+        }
+        graceScans += 1
+        defer {
+            graceScans -= 1
+            // A cancelled grace stops the scan it needed unless a listener still wants it.
+            if Task.isCancelled, graceScans == 0, listeners.isEmpty { port.stopScan() }
         }
         let deadline = now().addingTimeInterval(Self.sightingGrace)
         while !port.hasSeen(id), now() < deadline {
