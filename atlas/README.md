@@ -54,6 +54,8 @@ python3 tools/atlas.py impact MonitorTheme # owner, apps that link it, call site
 python3 tools/atlas.py task start openpocketcine#12 [--with opencine]   # task folder + TASK.md
 python3 tools/atlas.py task start opencine#70 --orca                   # resolve tracker, adopt physical sibling tasks in Orca
 python3 tools/linked_issues.py                                        # read-only linked issue plan; --execute needs authority
+python3 tools/atlas.py api OpenCineCore --grep Camera  # public API snapshot of one module (Swift or :gradle)
+python3 tools/atlas.py api --check --build # Swift snapshots versus an iOS Simulator build (CI); --write records them
 python3 tools/atlas.py dupes --top 3       # duplicated code per repository pair vs compat/dupes-baseline.json
 python3 tools/atlas.py dupes --candidate opencine-thin-app  # apps at a candidate's consumer commits
 python3 tools/atlas.py new-app OpenFooCine  # a thin app next to OpenCine from templates/app (below)
