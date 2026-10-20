@@ -27,6 +27,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
@@ -311,7 +312,9 @@ class DjiIntegration(
         var last: ConnectionEvent.Progress? = null
         var outcome: ConnectionEvent? = null
         try {
-            port.phaseFlow.first { phase ->
+            // The setup's live text can change within one phase (the station search starts while
+            // JOINING_WIFI holds), so the card follows both.
+            combine(port.phaseFlow, port.setupProgress) { phase, _ -> phase }.first { phase ->
                 // ponytail: a replaced attempt ends at the session's next phase, not at once; a
                 // shared StateFlow of the owner would end it at once if a card ever lingers.
                 if (current != attempt) return@first true

@@ -211,6 +211,22 @@ class DjiIntegrationTest {
     }
 
     @Test
+    fun theFindingNoteFollowsTheSetupTextWithinOnePhase() = runTest {
+        val port = FakeDjiPort()
+        val events = collect(integration(port).connect(ConnectTarget.Saved(saved, wifi.id)))
+        runCurrent()
+        port.phaseFlow.value = ConnectionPhase.JOINING_WIFI
+        runCurrent()
+        assertEquals(1, events.filterIsInstance<ConnectionEvent.Progress>().last().progress.current)
+        // The station search starts while the session stays in JOINING_WIFI.
+        port.setupProgress.value = "Finding the camera on studio"
+        runCurrent()
+        val finding = events.filterIsInstance<ConnectionEvent.Progress>().last().progress
+        assertEquals(2, finding.current)
+        assertEquals("Finding the camera on studio", finding.note)
+    }
+
+    @Test
     fun addingARouteSavesTheNetworkFirst() = runTest {
         val port = FakeDjiPort()
         val draft = RouteDraft(RouteKind.PHONE_HOTSPOT, network = "phone", secret = "hunter22")
