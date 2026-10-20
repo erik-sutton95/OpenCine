@@ -1405,6 +1405,27 @@ public final class com/opencapture/opencine/nikon/NikonAndroidGalleryProjectionP
 	public final fun windowContains (Ljava/lang/String;JLjava/time/LocalDate;)Z
 }
 
+public final class com/opencapture/opencine/nikon/NikonBodyCaptureFilter {
+	public static final field APP_RELEASE_TAIL_MILLIS J
+	public static final field BODY_RUN_DEBOUNCE_MILLIS J
+	public static final field Companion Lcom/opencapture/opencine/nikon/NikonBodyCaptureFilter$Companion;
+	public fun <init> ()V
+	public final fun action (JZZZ)Lcom/opencapture/opencine/nikon/NikonBodyCaptureSync;
+	public final fun appReleaseCompleted (J)V
+}
+
+public final class com/opencapture/opencine/nikon/NikonBodyCaptureFilter$Companion {
+}
+
+public final class com/opencapture/opencine/nikon/NikonBodyCaptureSync : java/lang/Enum {
+	public static final field IGNORE Lcom/opencapture/opencine/nikon/NikonBodyCaptureSync;
+	public static final field REVIEW_AND_SHOTS Lcom/opencapture/opencine/nikon/NikonBodyCaptureSync;
+	public static final field SHOTS_ONLY Lcom/opencapture/opencine/nikon/NikonBodyCaptureSync;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonBodyCaptureSync;
+	public static fun values ()[Lcom/opencapture/opencine/nikon/NikonBodyCaptureSync;
+}
+
 public final class com/opencapture/opencine/nikon/NikonBodyWake {
 	public static final field DIALS I
 	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonBodyWake;
@@ -2739,6 +2760,37 @@ public final class com/opencapture/opencine/nikon/StillReleasePoll : java/lang/E
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/StillReleasePoll;
 	public static fun values ()[Lcom/opencapture/opencine/nikon/StillReleasePoll;
+}
+
+public final class com/opencapture/opencine/nikon/StillShutterHold {
+	public static final field Companion Lcom/opencapture/opencine/nikon/StillShutterHold$Companion;
+	public static final field MAXIMUM_BURST_RUNS I
+	public fun <init> (Z)V
+	public final fun fingerUp ()Lcom/opencapture/opencine/nikon/StillShutterHold$FingerUp;
+	public final fun getBurstRuns ()I
+	public final fun getContinuousDrive ()Z
+	public final fun getNextRelease ()Lcom/opencapture/opencine/nikon/StillShutterHold$Release;
+	public final fun isHeld ()Z
+	public final fun releaseCompleted ()Z
+}
+
+public final class com/opencapture/opencine/nikon/StillShutterHold$Companion {
+}
+
+public final class com/opencapture/opencine/nikon/StillShutterHold$FingerUp : java/lang/Enum {
+	public static final field END_BURST Lcom/opencapture/opencine/nikon/StillShutterHold$FingerUp;
+	public static final field LET_RELEASE_FINISH Lcom/opencapture/opencine/nikon/StillShutterHold$FingerUp;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/StillShutterHold$FingerUp;
+	public static fun values ()[Lcom/opencapture/opencine/nikon/StillShutterHold$FingerUp;
+}
+
+public final class com/opencapture/opencine/nikon/StillShutterHold$Release : java/lang/Enum {
+	public static final field BURST_RUN Lcom/opencapture/opencine/nikon/StillShutterHold$Release;
+	public static final field SINGLE_FRAME Lcom/opencapture/opencine/nikon/StillShutterHold$Release;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/StillShutterHold$Release;
+	public static fun values ()[Lcom/opencapture/opencine/nikon/StillShutterHold$Release;
 }
 
 public final class com/opencapture/opencine/nikon/SwiftCoreCameraSession : com/opencapture/opencine/nikon/CameraSession {
