@@ -11,8 +11,9 @@ Swift: `swift-api-digester -dump-sdk` reads each library product's module from t
 build of the package (what the apps ship; watchOS- or macOS-only `#if` API is not listed) and
 every public declaration becomes one sorted line. The lines do not depend on the Xcode version
 (CI runs Xcode 26, contributors may run 27; see `_type` and `_conformances`). Kotlin: the Kotlin
-Gradle plugin's ABI validation keeps Android/<module>/api/<module>.api (`./gradlew checkKotlinAbi`, update with
-`./gradlew updateKotlinAbi`); this command only reads those files.
+Gradle plugin's ABI validation (Kotlin/JVM modules) and `dumpAndroidApi` (Android library modules, the same
+ABI tool) keep Android/<module>/api/<module>.api (`./gradlew checkKotlinAbi checkAndroidApi`, update with
+`./gradlew updateKotlinAbi updateAndroidApi`); this command only reads those files.
 """
 from __future__ import annotations
 

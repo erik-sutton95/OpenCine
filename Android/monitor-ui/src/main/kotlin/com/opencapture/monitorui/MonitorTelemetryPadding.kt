@@ -43,14 +43,18 @@ internal data class MonitorTelemetryPixelPadding(val width: Int, val padding: In
 /**
  * The compact row's storage allowance in pixels. The adaptive link pill can exceed its nominal
  * dp width, so the measured width is the reservation held before a top cutout; the nominal width
- * only describes the resting pill and would let a long value reach the cutout.
+ * only describes the resting pill and would let a long value reach the cutout. [minimumLink] is
+ * the pill without decorative padding: before a cutout storage may use that padding, so an
+ * ordinary capacity such as "521GB" stays readable, and the link then takes
+ * [MonitorCompactTelemetryBudget.linkWidthBeforeCutout].
  */
 internal fun Density.legacyStorageWidthPixels(layout: MonitorFieldLayout, topCutout: MonitorRect?,
-    preferredLink: Int, minimumTarget: Float): Int {
+    preferredLink: Int, minimumTarget: Float, minimumLink: Int = preferredLink): Int {
     // Match the old row's roundToPx at each term, including fractional native densities.
     val rowWidth = max(0f, layout.telemetry.x - layout.status.x - 8f).dp.roundToPx()
     val cornerWidth = (rowWidth - preferredLink - 8.dp.roundToPx()).coerceAtLeast(0)
-    val linkWidth = if (preferredLink > 0) preferredLink / density else 0f
+    // Before a cutout the pill yields its decorative padding before storage truncates.
+    val linkWidth = if (preferredLink > 0) minimumLink / density else 0f
     return MonitorCompactTelemetryBudget.storageWidthBeforeCutout(
         layout, topCutout, linkWidth, minimumTarget)
         ?.let { minOf(cornerWidth, it.dp.toPx().toInt()) } ?: cornerWidth
@@ -109,10 +113,25 @@ class MonitorCompactTelemetryBudget private constructor(viewportWidth: Float,
          */
         fun storageWidthBeforeCutout(layout: MonitorFieldLayout, topCutout: MonitorRect?,
             linkWidth: Float, minimumTarget: Float): Float? {
-            val cutout = topCutout ?: return null
-            if (cutout.y >= layout.telemetry.maxY || cutout.maxY <= layout.telemetry.y || cutout.x <= layout.status.x) return null
+            val cutout = crossingCutout(layout, topCutout) ?: return null
             val width = cutout.x - CUTOUT_CLEARANCE - layout.status.x - linkWidth - (if (linkWidth > 0f) 8f else 0f)
             return width.takeIf { it >= minimumTarget }
+        }
+
+        /**
+         * The widest link pill that starts at [linkX] and still ends [CUTOUT_CLEARANCE] before a top
+         * cutout the telemetry band crosses; null when no cutout crosses it.
+         * Swift twin: `MonitorCompactTelemetryBudget.linkWidthBeforeCutout`.
+         */
+        fun linkWidthBeforeCutout(layout: MonitorFieldLayout, topCutout: MonitorRect?, linkX: Float): Float? {
+            val cutout = crossingCutout(layout, topCutout) ?: return null
+            return (cutout.x - CUTOUT_CLEARANCE - linkX).coerceAtLeast(0f)
+        }
+
+        private fun crossingCutout(layout: MonitorFieldLayout, topCutout: MonitorRect?): MonitorRect? {
+            val cutout = topCutout ?: return null
+            if (cutout.y >= layout.telemetry.maxY || cutout.maxY <= layout.telemetry.y || cutout.x <= layout.status.x) return null
+            return cutout
         }
 
         /** The same budget in the native lattice, preserving each original independently rounded term. */

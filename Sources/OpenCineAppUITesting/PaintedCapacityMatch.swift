@@ -30,9 +30,17 @@ public enum PaintedCapacityMatch {
     /// The painted ink for `expected`, or nil when Vision did not read it inside the control.
     public static func frame(expected: String, tokens: [PaintedCapacityToken],
         control: CGRect, viewport: CGRect) -> CGRect? {
-        let contained = tokens.filter {
+        let inside = tokens.filter {
             control.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
                 && viewport.contains($0.frame)
+        }
+        // The readout's leading glyph (the card or picture icon) can come back as one letter, such
+        // as "G" before "521 GB" (Z landscape). A lone non-digit token left of every other token is
+        // that glyph, not capacity text; a digit or a trailing token still spoils the read.
+        let contained = inside.filter { candidate in
+            let others = inside.filter { $0 != candidate }
+            return !(candidate.value.count == 1 && !candidate.value.contains(where: \.isNumber)
+                && !others.isEmpty && others.allSatisfy { candidate.frame.maxX <= $0.frame.minX })
         }
         if contained.count == 1, let complete = contained.first,
             complete.value == expected, control.contains(complete.frame) {

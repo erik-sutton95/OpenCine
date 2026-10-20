@@ -142,25 +142,29 @@ private struct CompactTelemetryRowLayout: Layout {
     )? {
         guard subviews.count == 3 else { return nil }
         let preferredLink = subviews[1].sizeThatFits(.unspecified)
+        let minimumLink = subviews[1].sizeThatFits(ProposedViewSize(width: 0, height: 48))
         // The adaptive pill can exceed its nominal width: reserve what it actually draws.
         let linkReference = preferredLink.width > 0 ? preferredLink.width : 0
         let cornerWidth = max(0, layout.telemetry.x - layout.status.x - 8 - linkReference - 8)
-        let legacyWidth = MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout: layout,
-            topCutout: topCutout, linkWidth: linkReference, minimumTarget: FieldMonitorLayout.minimumTapTarget)
-            .map { min(cornerWidth, $0) } ?? cornerWidth
+        // Before a cutout the pill yields its decorative padding before storage truncates.
+        let cutoutStorage = MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout: layout,
+            topCutout: topCutout, linkWidth: preferredLink.width > 0 ? minimumLink.width : 0,
+            minimumTarget: FieldMonitorLayout.minimumTapTarget)
+        let legacyWidth = cutoutStorage.map { min(cornerWidth, $0) } ?? cornerWidth
         let original = subviews[0].sizeThatFits(
             ProposedViewSize(width: legacyWidth, height: 48))
         let storage = CGSize(width: min(legacyWidth, original.width), height: original.height)
         let power = subviews[2].sizeThatFits(ProposedViewSize(
             width: layout.viewport.width - max(14, safeArea.leading) - max(14, safeArea.trailing), height: nil))
-        let minimumLink = subviews[1].sizeThatFits(ProposedViewSize(width: 0, height: 48))
         let budget = MonitorCompactTelemetryBudget(layout: layout, safeLeading: safeArea.leading,
             safeTrailing: safeArea.trailing, storageWidth: Double(storage.width),
             powerWidth: Double(power.width), linkWidth: Double(preferredLink.width),
             minimumTarget: FieldMonitorLayout.minimumTapTarget, scale: scale,
             minimumLinkWidth: Double(minimumLink.width))
-        let link = subviews[1].sizeThatFits(
-            ProposedViewSize(width: budget.performanceWidth, height: 48))
+        let beforeCutout = cutoutStorage == nil ? nil : MonitorCompactTelemetryBudget.linkWidthBeforeCutout(
+            layout: layout, topCutout: topCutout, linkX: budget.performanceX)
+        let link = subviews[1].sizeThatFits(ProposedViewSize(
+            width: beforeCutout.map { min(budget.performanceWidth, $0) } ?? budget.performanceWidth, height: 48))
         let extraHeight = CGFloat(budget.wrapsPower ? 56 : 0)
             + max(0, power.height - CGFloat(powerHeight))
         return (storage: storage, link: link, power: power, budget: budget, extraHeight: extraHeight)

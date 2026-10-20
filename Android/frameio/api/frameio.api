@@ -1,0 +1,626 @@
+public final class com/opencapture/opencine/frameio/AndroidFrameioDestinationStore : com/opencapture/opencine/frameio/FrameioDestinationStore {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/frameio/FrameioStorageNamespace;)V
+	public fun clear ()V
+	public fun load ()Lcom/opencapture/opencine/frameio/FrameioDestination;
+	public fun save (Lcom/opencapture/opencine/frameio/FrameioDestination;)V
+}
+
+public final class com/opencapture/opencine/frameio/AndroidFrameioHttpClient : com/opencapture/opencine/frameio/FrameioHttpClient {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/AndroidFrameioHttpClient;
+	public fun execute (Lcom/opencapture/opencine/frameio/FrameioHttpRequest;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun putUploadPart (Ljava/lang/String;Ljava/nio/file/Path;JJLjava/lang/String;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/frameio/AndroidFrameioMetadataSidecarWriter : com/opencapture/opencine/frameio/FrameioMetadataSidecarWriter {
+	public fun <init> (Ljava/nio/file/Path;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/nio/file/Path;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun recordSuccessfulDelivery (Lcom/opencapture/opencine/frameio/FrameioSidecarFacts;Ljava/lang/String;JLcom/opencapture/opencine/frameio/FrameioDestination;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/frameio/AndroidFrameioReachability : com/opencapture/opencine/frameio/FrameioReachability {
+	public fun <init> (Landroid/content/Context;)V
+	public fun state ()Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+}
+
+public final class com/opencapture/opencine/frameio/AndroidFrameioSecretStore : com/opencapture/opencine/frameio/FrameioSecretStore {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/frameio/FrameioStorageNamespace;)V
+	public fun clearAll ()V
+	public fun clearPendingAuthorization ()V
+	public fun clearToken ()V
+	public fun load ()Lcom/opencapture/opencine/frameio/FrameioSecretState;
+	public fun savePendingAuthorization (Lcom/opencapture/opencine/frameio/FrameioPendingAuthorization;)V
+	public fun saveToken (Lcom/opencapture/opencine/frameio/FrameioStoredToken;)V
+}
+
+public final class com/opencapture/opencine/frameio/AndroidFrameioUploadHistoryStore : com/opencapture/opencine/frameio/FrameioUploadHistoryStore {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/frameio/FrameioStorageNamespace;)V
+	public fun recordUploaded (Ljava/lang/String;)Z
+	public fun wasUploaded (Ljava/lang/String;)Z
+}
+
+public final class com/opencapture/opencine/frameio/FrameioAccessToken {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V
+	public final fun getAccessToken ()Ljava/lang/String;
+	public final fun getExpiresInSeconds ()J
+	public final fun getRefreshToken ()Ljava/lang/String;
+	public final fun getTokenType ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioAccount {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioAccount;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioAccount;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioAccount;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDisplayName ()Ljava/lang/String;
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioAuthorizationTransaction {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)V
+	public final fun getAuthorizationURL ()Ljava/lang/String;
+	public final fun getCreatedAtEpochMillis ()J
+	public final fun getState ()Ljava/lang/String;
+	public final fun getVerifier ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioCameraHop {
+	public abstract fun getAvailability ()Lcom/opencapture/opencine/frameio/FrameioHopAvailability;
+	public abstract fun leaveCameraNetwork (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun rejoinCameraNetwork (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioCameraHopKt {
+	public static final fun blocksDismissal (Lcom/opencapture/opencine/frameio/FrameioInternetHopState;)Z
+}
+
+public final class com/opencapture/opencine/frameio/FrameioCameraRejoinEvidence {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;J)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()J
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;J)Lcom/opencapture/opencine/frameio/FrameioCameraRejoinEvidence;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioCameraRejoinEvidence;Ljava/lang/String;Ljava/lang/String;JILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioCameraRejoinEvidence;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraModel ()Ljava/lang/String;
+	public final fun getCameraName ()Ljava/lang/String;
+	public final fun getVerifiedAtEpochMillis ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioCapturedProjectListing {
+	public final fun getListing ()Lcom/opencapture/opencine/frameio/FrameioProjectListing;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioConnectionState : java/lang/Enum {
+	public static final field AUTHORIZING Lcom/opencapture/opencine/frameio/FrameioConnectionState;
+	public static final field CONNECTED Lcom/opencapture/opencine/frameio/FrameioConnectionState;
+	public static final field ERROR Lcom/opencapture/opencine/frameio/FrameioConnectionState;
+	public static final field SIGNED_OUT Lcom/opencapture/opencine/frameio/FrameioConnectionState;
+	public static final field UNCONFIGURED Lcom/opencapture/opencine/frameio/FrameioConnectionState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioConnectionState;
+	public static fun values ()[Lcom/opencapture/opencine/frameio/FrameioConnectionState;
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioCoreBridge {
+	public abstract fun apiRequest (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Lcom/opencapture/opencine/frameio/FrameioHttpRequest;
+	public static synthetic fun apiRequest$default (Lcom/opencapture/opencine/frameio/FrameioCoreBridge;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioHttpRequest;
+	public abstract fun beginAuthorization (Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;J)Lcom/opencapture/opencine/frameio/FrameioAuthorizationTransaction;
+	public abstract fun decodeAccounts (Ljava/lang/String;)Ljava/util/List;
+	public abstract fun decodeProject (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioProject;
+	public abstract fun decodeProjects (Ljava/lang/String;)Ljava/util/List;
+	public abstract fun decodeToken (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioAccessToken;
+	public abstract fun decodeUploadComplete (Ljava/lang/String;)Ljava/lang/Boolean;
+	public abstract fun decodeUploadPlan (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioUploadPlan;
+	public abstract fun decodeWorkspaces (Ljava/lang/String;)Ljava/util/List;
+	public abstract fun mediaTypeFor (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun parseRedirect (Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun tokenRequest (Ljava/lang/String;Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioHttpRequest;
+	public static synthetic fun tokenRequest$default (Lcom/opencapture/opencine/frameio/FrameioCoreBridge;Ljava/lang/String;Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioHttpRequest;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioCoreBridge$DefaultImpls {
+	public static synthetic fun apiRequest$default (Lcom/opencapture/opencine/frameio/FrameioCoreBridge;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioHttpRequest;
+	public static synthetic fun tokenRequest$default (Lcom/opencapture/opencine/frameio/FrameioCoreBridge;Ljava/lang/String;Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioHttpRequest;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioCoreOperation {
+	public static final field ACCOUNTS Ljava/lang/String;
+	public static final field CREATE_FILE Ljava/lang/String;
+	public static final field CREATE_PROJECT Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioCoreOperation;
+	public static final field PROJECTS Ljava/lang/String;
+	public static final field TOKEN Ljava/lang/String;
+	public static final field UPLOAD_STATUS Ljava/lang/String;
+	public static final field WORKSPACES Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioDeliveryController {
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/frameio/FrameioCoreBridge;Lcom/opencapture/opencine/frameio/FrameioHttpClient;Lcom/opencapture/opencine/frameio/FrameioSecretStore;Lcom/opencapture/opencine/frameio/FrameioDestinationStore;Lcom/opencapture/opencine/frameio/FrameioReachability;Ljava/util/List;Ljava/lang/String;Lcom/opencapture/opencine/frameio/FrameioMetadataSidecarWriter;Lcom/opencapture/opencine/frameio/FrameioUploadHistoryStore;Lkotlin/jvm/functions/Function0;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/frameio/FrameioCoreBridge;Lcom/opencapture/opencine/frameio/FrameioHttpClient;Lcom/opencapture/opencine/frameio/FrameioSecretStore;Lcom/opencapture/opencine/frameio/FrameioDestinationStore;Lcom/opencapture/opencine/frameio/FrameioReachability;Ljava/util/List;Ljava/lang/String;Lcom/opencapture/opencine/frameio/FrameioMetadataSidecarWriter;Lcom/opencapture/opencine/frameio/FrameioUploadHistoryStore;Lkotlin/jvm/functions/Function0;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attachCameraHop (Lcom/opencapture/opencine/frameio/FrameioCameraHop;)V
+	public final fun beginInternetHop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun beginSignIn ()Ljava/lang/String;
+	public final fun claimInternetHop (Lkotlin/jvm/functions/Function0;)Lcom/opencapture/opencine/frameio/FrameioInternetLease;
+	public final fun completeRedirect (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun createProject (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun createProjectCaptured (Ljava/lang/String;Lcom/opencapture/opencine/frameio/FrameioCapturedProjectListing;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun disconnect ()V
+	public final fun endInternetHop (Lcom/opencapture/opencine/frameio/FrameioInternetLease;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun endInternetHop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun endInternetHopAfterDismiss ()V
+	public final fun endedInternetHop (Lcom/opencapture/opencine/frameio/FrameioInternetLease;)Z
+	public final fun getAccountRevision ()Ljava/util/UUID;
+	public final fun getCameraHopAvailability ()Lcom/opencapture/opencine/frameio/FrameioHopAvailability;
+	public final fun getConnectionState ()Lcom/opencapture/opencine/frameio/FrameioConnectionState;
+	public final fun getErrorMessage ()Ljava/lang/String;
+	public final fun getInternetHopState ()Lcom/opencapture/opencine/frameio/FrameioInternetHopState;
+	public final fun getNetworkState ()Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+	public final fun getProjectListing ()Lcom/opencapture/opencine/frameio/FrameioProjectListing;
+	public final fun getProjectState ()Lcom/opencapture/opencine/frameio/FrameioProjectState;
+	public final fun getSelectedDestination ()Lcom/opencapture/opencine/frameio/FrameioDestination;
+	public final fun isConfigured ()Z
+	public final fun isConnected ()Z
+	public final fun isInternetHopActive ()Z
+	public final fun loadProjects (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun loadProjectsCaptured (Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun ownsInternetHop (Lcom/opencapture/opencine/frameio/FrameioInternetLease;)Z
+	public final fun ownsProjects (Lcom/opencapture/opencine/frameio/FrameioCapturedProjectListing;)Z
+	public final fun refresh ()V
+	public final fun remoteRun (Lcom/opencapture/opencine/appkit/MonitorDeliveryPreparedRequest;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Lcom/opencapture/opencine/appkit/MonitorDeliveryRemoteRun;
+	public static synthetic fun remoteRun$default (Lcom/opencapture/opencine/frameio/FrameioDeliveryController;Lcom/opencapture/opencine/appkit/MonitorDeliveryPreparedRequest;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MonitorDeliveryRemoteRun;
+	public final fun remoteService (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)Lcom/opencapture/opencine/appkit/MonitorDeliveryRemoteService;
+	public static synthetic fun remoteService$default (Lcom/opencapture/opencine/frameio/FrameioDeliveryController;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MonitorDeliveryRemoteService;
+	public final fun restoreInternetHopAfterDismiss (Lcom/opencapture/opencine/frameio/FrameioInternetLease;)V
+	public final fun selectProject (Lcom/opencapture/opencine/frameio/FrameioProject;)Z
+	public final fun selectProjectCaptured (Lcom/opencapture/opencine/frameio/FrameioProject;Lcom/opencapture/opencine/frameio/FrameioCapturedProjectListing;Lkotlin/jvm/functions/Function0;)Z
+	public final fun signInBrowserUnavailable ()V
+	public final fun transferInternetHop (Lcom/opencapture/opencine/frameio/FrameioInternetLease;)Lcom/opencapture/opencine/frameio/FrameioInternetLease;
+	public final fun upload (Ljava/nio/file/Path;Ljava/lang/String;Lcom/opencapture/opencine/frameio/FrameioDestination;Lcom/opencapture/opencine/appkit/MonitorDeliveryAdmission;Lcom/opencapture/opencine/frameio/FrameioSidecarFacts;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun uploadHistory (Lkotlin/jvm/functions/Function1;)Lcom/opencapture/opencine/appkit/MonitorDeliveryUploadHistory;
+	public final fun waitInternetHop (Lcom/opencapture/opencine/frameio/FrameioInternetLease;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioDeliveryException : java/io/IOException {
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/frameio/FrameioDestination {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioDestination;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioDestination;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioDestination;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccountID ()Ljava/lang/String;
+	public final fun getFolderID ()Ljava/lang/String;
+	public final fun getProjectID ()Ljava/lang/String;
+	public final fun getProjectName ()Ljava/lang/String;
+	public final fun getWorkspaceID ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioDestinationCodec {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioDestinationCodec;
+	public final fun decode (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioDestination;
+	public final fun encode (Lcom/opencapture/opencine/frameio/FrameioDestination;)Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioDestinationStore {
+	public abstract fun clear ()V
+	public abstract fun load ()Lcom/opencapture/opencine/frameio/FrameioDestination;
+	public abstract fun save (Lcom/opencapture/opencine/frameio/FrameioDestination;)V
+}
+
+public final class com/opencapture/opencine/frameio/FrameioHopAvailability : java/lang/Enum {
+	public static final field FIXTURE_UNAVAILABLE Lcom/opencapture/opencine/frameio/FrameioHopAvailability;
+	public static final field MISSING_SAVED_PROFILE Lcom/opencapture/opencine/frameio/FrameioHopAvailability;
+	public static final field NOT_CAMERA_ACCESS_POINT Lcom/opencapture/opencine/frameio/FrameioHopAvailability;
+	public static final field READY Lcom/opencapture/opencine/frameio/FrameioHopAvailability;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getOperatorMessage ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioHopAvailability;
+	public static fun values ()[Lcom/opencapture/opencine/frameio/FrameioHopAvailability;
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioHttpClient {
+	public abstract fun execute (Lcom/opencapture/opencine/frameio/FrameioHttpRequest;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun execute$default (Lcom/opencapture/opencine/frameio/FrameioHttpClient;Lcom/opencapture/opencine/frameio/FrameioHttpRequest;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun putUploadPart (Ljava/lang/String;Ljava/nio/file/Path;JJLjava/lang/String;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioHttpClient$DefaultImpls {
+	public static synthetic fun execute$default (Lcom/opencapture/opencine/frameio/FrameioHttpClient;Lcom/opencapture/opencine/frameio/FrameioHttpRequest;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioHttpRequest {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun getBody ()Ljava/lang/String;
+	public final fun getMethod ()Ljava/lang/String;
+	public final fun getUrl ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioHttpResponse {
+	public fun <init> (ILjava/lang/String;)V
+	public final fun getBody ()Ljava/lang/String;
+	public final fun getStatusCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioInternetHopState {
+}
+
+public final class com/opencapture/opencine/frameio/FrameioInternetHopState$Failed : com/opencapture/opencine/frameio/FrameioInternetHopState {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioInternetHopState$Failed;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioInternetHopState$Failed;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioInternetHopState$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioInternetHopState$Idle : com/opencapture/opencine/frameio/FrameioInternetHopState {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioInternetHopState$Idle;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioInternetHopState$LeavingCamera : com/opencapture/opencine/frameio/FrameioInternetHopState {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioInternetHopState$LeavingCamera;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioInternetHopState$Online : com/opencapture/opencine/frameio/FrameioInternetHopState {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioInternetHopState$Online;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioInternetHopState$Rejoined : com/opencapture/opencine/frameio/FrameioInternetHopState {
+	public fun <init> (Lcom/opencapture/opencine/frameio/FrameioCameraRejoinEvidence;)V
+	public final fun component1 ()Lcom/opencapture/opencine/frameio/FrameioCameraRejoinEvidence;
+	public final fun copy (Lcom/opencapture/opencine/frameio/FrameioCameraRejoinEvidence;)Lcom/opencapture/opencine/frameio/FrameioInternetHopState$Rejoined;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioInternetHopState$Rejoined;Lcom/opencapture/opencine/frameio/FrameioCameraRejoinEvidence;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioInternetHopState$Rejoined;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEvidence ()Lcom/opencapture/opencine/frameio/FrameioCameraRejoinEvidence;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioInternetHopState$RejoiningCamera : com/opencapture/opencine/frameio/FrameioInternetHopState {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioInternetHopState$RejoiningCamera;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioInternetHopState$WaitingForInternet : com/opencapture/opencine/frameio/FrameioInternetHopState {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioInternetHopState$WaitingForInternet;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioInternetLease {
+	public final fun getLeftCamera ()Ljava/lang/Boolean;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioMetadataSidecar {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun component8 ()J
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Lcom/opencapture/opencine/frameio/FrameioMetadataSidecar;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioMetadataSidecar;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioMetadataSidecar;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraID ()Ljava/lang/String;
+	public final fun getCaptureDate ()Ljava/lang/String;
+	public final fun getDeliveredAt ()Ljava/lang/String;
+	public final fun getDeliveryFilename ()Ljava/lang/String;
+	public final fun getLutName ()Ljava/lang/String;
+	public final fun getOriginalFilename ()Ljava/lang/String;
+	public final fun getProjectName ()Ljava/lang/String;
+	public final fun getSizeBytes ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioMetadataSidecarCodec {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioMetadataSidecarCodec;
+	public final fun encode (Lcom/opencapture/opencine/frameio/FrameioMetadataSidecar;)Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioMetadataSidecarWriter {
+	public abstract fun recordSuccessfulDelivery (Lcom/opencapture/opencine/frameio/FrameioSidecarFacts;Ljava/lang/String;JLcom/opencapture/opencine/frameio/FrameioDestination;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioNative {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioNative;
+	public final fun apiRequest (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
+	public final fun beginAuthorization (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun decodeResponse (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun isAvailable ()Z
+	public final fun load (Ljava/lang/String;)Z
+	public final fun mediaTypeForFilename (Ljava/lang/String;)Ljava/lang/String;
+	public final fun parseRedirect (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun sha256 ([B)[B
+	public final fun tokenRequest (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioNetworkSnapshot {
+	public fun <init> (ZZZ)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun copy (ZZZ)Lcom/opencapture/opencine/frameio/FrameioNetworkSnapshot;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioNetworkSnapshot;ZZZILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioNetworkSnapshot;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActiveNetworkHasValidatedInternet ()Z
+	public final fun getBoundNetworkHasValidatedInternet ()Z
+	public final fun getProcessBound ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioNetworkState : java/lang/Enum {
+	public static final field CAMERA_ACCESS_POINT Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+	public static final field OFFLINE Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+	public static final field ONLINE Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+	public static fun values ()[Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioPendingAuthorization {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)V
+	public final fun getCreatedAtEpochMillis ()J
+	public final fun getRedirectURI ()Ljava/lang/String;
+	public final fun getState ()Ljava/lang/String;
+	public final fun getVerifier ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioProject {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioProject;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioProject;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioProject;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRootFolderID ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioProjectListing {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lcom/opencapture/opencine/frameio/FrameioProjectListing;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioProjectListing;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioProjectListing;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccountID ()Ljava/lang/String;
+	public final fun getProjects ()Ljava/util/List;
+	public final fun getWorkspaceID ()Ljava/lang/String;
+	public final fun getWorkspaceName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioProjectState : java/lang/Enum {
+	public static final field ERROR Lcom/opencapture/opencine/frameio/FrameioProjectState;
+	public static final field IDLE Lcom/opencapture/opencine/frameio/FrameioProjectState;
+	public static final field LOADING Lcom/opencapture/opencine/frameio/FrameioProjectState;
+	public static final field READY Lcom/opencapture/opencine/frameio/FrameioProjectState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioProjectState;
+	public static fun values ()[Lcom/opencapture/opencine/frameio/FrameioProjectState;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioPublicConfiguration {
+	public static final field Companion Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getClientID ()Ljava/lang/String;
+	public final fun getRedirectURI ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioPublicConfiguration$Companion {
+	public final fun from (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;
+	public static synthetic fun from$default (Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration$Companion;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioReachability {
+	public abstract fun state ()Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioReachabilityPolicy {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioReachabilityPolicy;
+	public final fun operatorMessage (Lcom/opencapture/opencine/frameio/FrameioNetworkState;)Ljava/lang/String;
+	public final fun state (Lcom/opencapture/opencine/frameio/FrameioNetworkSnapshot;)Lcom/opencapture/opencine/frameio/FrameioNetworkState;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioRedirectCallback {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getUri ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioSecretCodec {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/FrameioSecretCodec;
+	public final fun decode (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioSecretState;
+	public final fun encode (Lcom/opencapture/opencine/frameio/FrameioSecretState;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioSecretState {
+	public fun <init> (Lcom/opencapture/opencine/frameio/FrameioStoredToken;Lcom/opencapture/opencine/frameio/FrameioPendingAuthorization;)V
+	public final fun getPendingAuthorization ()Lcom/opencapture/opencine/frameio/FrameioPendingAuthorization;
+	public final fun getToken ()Lcom/opencapture/opencine/frameio/FrameioStoredToken;
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioSecretStore {
+	public abstract fun clearAll ()V
+	public abstract fun clearPendingAuthorization ()V
+	public abstract fun clearToken ()V
+	public abstract fun load ()Lcom/opencapture/opencine/frameio/FrameioSecretState;
+	public abstract fun savePendingAuthorization (Lcom/opencapture/opencine/frameio/FrameioPendingAuthorization;)V
+	public abstract fun saveToken (Lcom/opencapture/opencine/frameio/FrameioStoredToken;)V
+}
+
+public final class com/opencapture/opencine/frameio/FrameioSidecarFacts {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioSidecarFacts;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioSidecarFacts;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioSidecarFacts;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraID ()Ljava/lang/String;
+	public final fun getCaptureDate ()Ljava/lang/String;
+	public final fun getLutName ()Ljava/lang/String;
+	public final fun getOriginalFilename ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioStorageNamespace {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioStorageNamespace;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioStorageNamespace;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioStorageNamespace;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHistoryPreferences ()Ljava/lang/String;
+	public final fun getKeyAlias ()Ljava/lang/String;
+	public final fun getPreferences ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioStoredToken {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V
+	public final fun getAccessToken ()Ljava/lang/String;
+	public final fun getExpiresAtEpochMillis ()J
+	public final fun getRefreshToken ()Ljava/lang/String;
+	public final fun getTokenType ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioUploadHistoryIndex : com/opencapture/opencine/frameio/FrameioUploadHistoryStore {
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;I)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun recordUploaded (Ljava/lang/String;)Z
+	public fun wasUploaded (Ljava/lang/String;)Z
+}
+
+public abstract interface class com/opencapture/opencine/frameio/FrameioUploadHistoryStore {
+	public abstract fun recordUploaded (Ljava/lang/String;)Z
+	public abstract fun wasUploaded (Ljava/lang/String;)Z
+}
+
+public final class com/opencapture/opencine/frameio/FrameioUploadPart {
+	public fun <init> (JLjava/lang/String;)V
+	public final fun getSizeBytes ()J
+	public final fun getUrl ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioUploadPlan {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public final fun getFileID ()Ljava/lang/String;
+	public final fun getMediaType ()Ljava/lang/String;
+	public final fun getParts ()Ljava/util/List;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/FrameioWireKt {
+	public static final fun isHTTPS (Ljava/lang/String;)Z
+	public static final fun isSafeHeaderValue (Ljava/lang/String;)Z
+	public static final fun isSafeMediaType (Ljava/lang/String;)Z
+}
+
+public final class com/opencapture/opencine/frameio/FrameioWorkspace {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioWorkspace;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/frameio/FrameioWorkspace;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/frameio/FrameioWorkspace;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/frameio/NativeFrameioCoreBridge : com/opencapture/opencine/frameio/FrameioCoreBridge {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/NativeFrameioCoreBridge;
+	public fun apiRequest (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Lcom/opencapture/opencine/frameio/FrameioHttpRequest;
+	public fun beginAuthorization (Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;J)Lcom/opencapture/opencine/frameio/FrameioAuthorizationTransaction;
+	public fun decodeAccounts (Ljava/lang/String;)Ljava/util/List;
+	public fun decodeProject (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioProject;
+	public fun decodeProjects (Ljava/lang/String;)Ljava/util/List;
+	public fun decodeToken (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioAccessToken;
+	public fun decodeUploadComplete (Ljava/lang/String;)Ljava/lang/Boolean;
+	public fun decodeUploadPlan (Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioUploadPlan;
+	public fun decodeWorkspaces (Ljava/lang/String;)Ljava/util/List;
+	public fun mediaTypeFor (Ljava/lang/String;)Ljava/lang/String;
+	public fun parseRedirect (Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public fun tokenRequest (Ljava/lang/String;Lcom/opencapture/opencine/frameio/FrameioPublicConfiguration;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/frameio/FrameioHttpRequest;
+}
+
+public final class com/opencapture/opencine/frameio/NoFrameioMetadataSidecarWriter : com/opencapture/opencine/frameio/FrameioMetadataSidecarWriter {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/NoFrameioMetadataSidecarWriter;
+	public fun recordSuccessfulDelivery (Lcom/opencapture/opencine/frameio/FrameioSidecarFacts;Ljava/lang/String;JLcom/opencapture/opencine/frameio/FrameioDestination;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/frameio/NoFrameioUploadHistoryStore : com/opencapture/opencine/frameio/FrameioUploadHistoryStore {
+	public static final field INSTANCE Lcom/opencapture/opencine/frameio/NoFrameioUploadHistoryStore;
+	public fun recordUploaded (Ljava/lang/String;)Z
+	public fun wasUploaded (Ljava/lang/String;)Z
+}
+
+public final class com/opencapture/opencine/frameio/UrlConnectionFrameioHttpClient : com/opencapture/opencine/frameio/FrameioHttpClient {
+	public fun <init> ()V
+	public fun <init> (Lkotlin/jvm/functions/Function1;J)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function1;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun execute (Lcom/opencapture/opencine/frameio/FrameioHttpRequest;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun putUploadPart (Ljava/lang/String;Ljava/nio/file/Path;JJLjava/lang/String;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+

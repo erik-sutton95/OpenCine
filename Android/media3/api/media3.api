@@ -1,0 +1,50 @@
+public final class com/opencapture/opencine/media3/Media3AudioMeter : androidx/media3/exoplayer/audio/TeeAudioProcessor$AudioBufferSink {
+	public static final field Companion Lcom/opencapture/opencine/media3/Media3AudioMeter$Companion;
+	public fun <init> ()V
+	public final fun close ()V
+	public fun flush (III)V
+	public fun handleBuffer (Ljava/nio/ByteBuffer;)V
+	public final fun session (Lkotlinx/coroutines/CoroutineScope;)Lcom/opencapture/opencine/appkit/MonitorPlaybackAudioSession;
+}
+
+public final class com/opencapture/opencine/media3/Media3AudioMeter$Companion {
+	public final fun format (II)Lcom/opencapture/opencine/runtime/MonitorPcmFormat;
+}
+
+public final class com/opencapture/opencine/media3/Media3Playback {
+	public static final field INSTANCE Lcom/opencapture/opencine/media3/Media3Playback;
+	public final fun player (Landroid/content/Context;Lcom/opencapture/opencine/media3/Media3AudioMeter;)Landroidx/media3/exoplayer/ExoPlayer;
+	public final fun transport (Landroidx/media3/common/Player;)Lcom/opencapture/opencine/media/MonitorPlaybackTransportState;
+}
+
+public final class com/opencapture/opencine/media3/Media3PlaybackOwner {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/appkit/MonitorMediaLibraryModel;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public final fun close ()V
+	public final fun getAudio ()Lcom/opencapture/opencine/appkit/MonitorPlaybackAudioSession;
+	public final fun getNative ()Lcom/opencapture/opencine/media3/Media3PlaybackPort;
+	public final fun getPlayback ()Lcom/opencapture/opencine/appkit/MonitorMediaPlaybackModel;
+}
+
+public final class com/opencapture/opencine/media3/Media3PlaybackPort : com/opencapture/opencine/media/MonitorPlaybackPort, com/opencapture/opencine/runtime/MonitorPlaybackPictureOwner {
+	public fun <init> (Landroidx/media3/exoplayer/ExoPlayer;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun attachPicture (Landroid/view/Surface;Ljava/util/UUID;)V
+	public fun bindPicture (Ljava/util/UUID;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V
+	public final fun bufferedThroughSeconds (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;)Ljava/lang/Double;
+	public fun claimPicture ()Ljava/util/UUID;
+	public fun close (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;)V
+	public final fun getListedFrameRate ()Lkotlin/jvm/functions/Function1;
+	public fun getOnEvent ()Lkotlin/jvm/functions/Function2;
+	public final fun getPlayer ()Landroidx/media3/exoplayer/ExoPlayer;
+	public final fun getSourceAdmission ()Lkotlin/jvm/functions/Function1;
+	public fun pause (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;)V
+	public fun play (DLcom/opencapture/opencine/media/MonitorPlaybackItemToken;)V
+	public fun prepare-5_5nbZA (Lcom/opencapture/opencine/media/MonitorPlaybackItem;Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun releasePicture (Ljava/util/UUID;)V
+	public fun retireItem (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;)V
+	public fun seek (DDLcom/opencapture/opencine/media/MonitorPlaybackItemToken;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun setListedFrameRate (Lkotlin/jvm/functions/Function1;)V
+	public fun setMuted (ZLcom/opencapture/opencine/media/MonitorPlaybackItemToken;)V
+	public fun setOnEvent (Lkotlin/jvm/functions/Function2;)V
+	public final fun setSourceAdmission (Lkotlin/jvm/functions/Function1;)V
+}
+
