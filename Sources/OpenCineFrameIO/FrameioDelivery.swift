@@ -55,8 +55,10 @@ public enum FrameioDelivery {
         identity: (Item) -> String? = { _ in nil },
         prepare: (Item) async throws -> Prepared?,
         upload: (Item, Prepared) async throws -> FrameioItemUpload,
-        release: (Prepared) async throws -> Void = { _ in }
+        release: ((Prepared) async throws -> Void)? = nil
     ) async throws -> FrameioDeliveryReport {
+        // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+        let release = release ?? { _ in }
         var report = FrameioDeliveryReport()
         for item in items {
             try Task.checkCancellation()

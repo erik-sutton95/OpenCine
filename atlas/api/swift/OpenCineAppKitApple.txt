@@ -18,17 +18,17 @@ case WatcherJoinStatus.idle
 case WatcherJoinStatus.live
 case WatcherJoinStatus.needsPasscode
 case WatcherJoinStatus.reconnecting(Swift.Int, Swift.Int)
-class DiagnosticCenterRuntime: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable
-class HDRChromeHost.Probe: CALayerDelegate, CLBodyIdentifiable, CMBodyIdentifiable, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSObjectProtocol, UIAccessibilityIdentification, UIActivityItemsConfigurationProviding, UIAppearance, UIAppearanceContainer, UICoordinateSpace, UIDynamicItem, UIFocusEnvironment, UIFocusItem, UIFocusItemContainer, UILargeContentViewerItem, UIPasteConfigurationSupporting, UIPopoverPresentationControllerSourceItem, UIResponderStandardEditActions, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring
-class HeadphoneMotionBridge: CMHeadphoneMotionManagerDelegate, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable
+class DiagnosticCenterRuntime: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class HDRChromeHost.Probe: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class HeadphoneMotionBridge: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class LiveHDRDisplay: Sendable
 class MonitorApplePlaybackPresentation<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>: Observable, Sendable
 class MonitorBackdropRenderer
 class MonitorDeliveryCoordinator: Observable, Sendable
-class MonitorDeliveryShareItem: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, UIActivityItemSource
+class MonitorDeliveryShareItem: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorInspectorPreviewSession<Meaning where Meaning : Swift.Equatable>: Observable, Sendable
-class MonitorLiveDisplayLayerView<App where App : MonitorLivePictureApp>: CALayerDelegate, CLBodyIdentifiable, CMBodyIdentifiable, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSObjectProtocol, UIAccessibilityIdentification, UIActivityItemsConfigurationProviding, UIAppearance, UIAppearanceContainer, UICoordinateSpace, UIDynamicItem, UIFocusEnvironment, UIFocusItem, UIFocusItemContainer, UILargeContentViewerItem, UIPasteConfigurationSupporting, UIPopoverPresentationControllerSourceItem, UIResponderStandardEditActions, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring
-class MonitorLiveFeedView<App where App : MonitorLivePictureApp>: CALayerDelegate, CLBodyIdentifiable, CMBodyIdentifiable, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSCoding, NSObjectProtocol, UIAccessibilityIdentification, UIActivityItemsConfigurationProviding, UIAppearance, UIAppearanceContainer, UICoordinateSpace, UIDynamicItem, UIFocusEnvironment, UIFocusItem, UIFocusItemContainer, UILargeContentViewerItem, UIPasteConfigurationSupporting, UIPopoverPresentationControllerSourceItem, UIResponderStandardEditActions, UITraitChangeObservable, UITraitEnvironment, UIUserActivityRestoring
+class MonitorLiveDisplayLayerView<App where App : MonitorLivePictureApp>: OpenCineApple.MonitorVideoPictureContainer, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class MonitorLiveFeedView<App where App : MonitorLivePictureApp>: OpenCineApple.MonitorPictureHost, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorPlaybackAssistSession: MonitorPlaybackAssistService, Observable, Sendable
 class MonitorPlaybackLayerView.Coordinator: Sendable
 class MonitorRemoteShutter: Sendable
@@ -156,7 +156,7 @@ init HeadphoneMotionBridge(appName: Swift.String, bounds: OpenCineMotion.MotionB
 init LiveHDRDisplay()
 init MonitorApplePlaybackPresentation(makeFeed: () -> OpenCineApple.MonitorPlaybackFeedSession, audioSession: OpenCineApple.MonitorPlaybackAudioSession, samples: () -> OpenCineApple.LiveFrameSampleBus, projectEffects: (OpenCineMedia.MonitorFrameEffects) -> OpenCineMedia.MonitorFrameEffects, onTapFailure: (Swift.Int32) -> Swift.Void, onAudioFailure: (Swift.String) -> Swift.Void, audioOwnership: ((Swift.Bool) -> Swift.Void)?)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>
 init MonitorBackdropRenderer()
-init MonitorDeliveryCoordinator(exports: OpenCineMedia.MonitorDeliveryExportStore, sleep: (Swift.Duration) async throws -> Swift.Void)
+init MonitorDeliveryCoordinator(exports: OpenCineMedia.MonitorDeliveryExportStore, sleep: ((Swift.Duration) async throws -> Swift.Void)?)
 init MonitorDeliveryRemoteRun(progressCaption: Swift.String, upload: (Record, Foundation.URL, @escaping (Swift.Double) -> Swift.Void) async throws -> Swift.Void, history: OpenCineAppKit.MonitorDeliveryUploadHistory<Record>?, reupload: Swift.Bool)<Record where Record : Swift.Sendable>
 init MonitorDeliveryShareItem(fileURL: Foundation.URL, contentType: UniformTypeIdentifiers.UTType?)
 init MonitorDeliverySource(originals: OpenCineAppKit.MonitorDeliveryOriginalService<Record>, still: (Record) -> Foundation.URL?, export: (Record, OpenCineMedia.MonitorDeliveryExportStore, @escaping (Swift.Double) -> Swift.Void) async throws -> Foundation.URL?, filename: (Record) -> Swift.String, metadata: ([Record]) -> Swift.String?, noPrepared: ([Record]) -> Swift.String?)<Record where Record : Swift.Sendable>

@@ -205,12 +205,14 @@ public abstract interface class com/opencapture/opencine/core/CameraIntegration 
 	public abstract fun discover (Lcom/opencapture/opencine/core/DiscoveryMode;)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun forget (Lcom/opencapture/opencine/core/SavedCamera;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun getDiscoveryModes ()Ljava/util/Set;
+	public fun getDiscoveryRunning ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getId-xwq1tjI ()Ljava/lang/String;
 	public fun getPresentation ()Lcom/opencapture/opencine/core/IntegrationPresentation;
 	public abstract fun getProfiles ()Ljava/util/List;
 }
 
 public final class com/opencapture/opencine/core/CameraIntegration$DefaultImpls {
+	public static fun getDiscoveryRunning (Lcom/opencapture/opencine/core/CameraIntegration;)Lkotlinx/coroutines/flow/Flow;
 	public static fun getPresentation (Lcom/opencapture/opencine/core/CameraIntegration;)Lcom/opencapture/opencine/core/IntegrationPresentation;
 }
 

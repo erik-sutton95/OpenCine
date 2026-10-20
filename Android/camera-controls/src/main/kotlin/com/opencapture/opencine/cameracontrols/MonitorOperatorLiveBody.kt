@@ -81,6 +81,8 @@ public class MonitorOperatorPowerReading(
     public val camera: Boolean, public val percent: Int?, public val charging: Boolean? = null,
     public val bars: Int? = null, public val barCount: Int = 5, public val warning: Boolean = false,
     public val exhausted: Boolean = false,
+    /** The body reports running on external power (the bolt shows through [charging]). */
+    public val externalPower: Boolean? = null,
 )
 
 /**
@@ -89,17 +91,25 @@ public class MonitorOperatorPowerReading(
  * battery is absent rather than an empty gauge (D11). iOS `MonitorOperatorPowerReading.camera`.
  */
 public fun cameraPowerReading(power: PowerStatus): MonitorOperatorPowerReading? =
-    cameraPowerReading(power.batteryReading, power.exhausted.value, power.charging.value ?: power.externalPower.value)
+    cameraPowerReading(power.batteryReading, power.exhausted.value, power.charging.value ?: power.externalPower.value,
+        power.externalPower.value)
 
+/**
+ * A body on external power that reports no level keeps its pill ("EXT"), as the standalone apps
+ * showed it; without power facts an unknown level stays absent.
+ */
 public fun cameraPowerReading(reading: BatteryReading?, exhausted: Boolean? = null,
-    charging: Boolean? = null): MonitorOperatorPowerReading? =
+    charging: Boolean? = null, externalPower: Boolean? = null): MonitorOperatorPowerReading? =
     when (reading) {
         is BatteryReading.Fraction -> if (reading.value.isFinite() && reading.value in 0.0..1.0)
-            MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), charging, exhausted = exhausted == true) else null
+            MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), charging, exhausted = exhausted == true,
+                externalPower = externalPower) else null
         is BatteryReading.Steps -> if (reading.of > 0 && reading.filled in 0..reading.of)
             MonitorOperatorPowerReading(true, null, charging, reading.filled, reading.of,
-                warning = reading.filled.toDouble() / reading.of <= 0.4, exhausted = exhausted == true) else null
-        null -> null
+                warning = reading.filled.toDouble() / reading.of <= 0.4, exhausted = exhausted == true,
+                externalPower = externalPower) else null
+        null -> if (charging == true || externalPower == true)
+            MonitorOperatorPowerReading(true, null, true, exhausted = exhausted == true, externalPower = externalPower) else null
     }
 
 public fun cameraBatteryReadoutLabel(reading: BatteryReading?): String? = when (reading) {
@@ -209,6 +219,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val panel = captureInputs.panel
     val dismiss = captureInputs.dismiss
     var paletteRevision by remember { mutableLongStateOf(0) }
+    val displayHaptics = LocalOperatorHaptics.current
     val exposed = !covered && current(identity)
     val interactive = exposed && !locked && editing == null && interactionEnabled
     val admitted = interactive && !readOnly
@@ -302,7 +313,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val captureHidden = panel?.top == false
     @Composable fun TelemetryPower() {
         MonitorTelemetry(status.signalBars, status.fps, power.map {
-            MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted)
+            MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted,
+                it.externalPower)
         }, horizontal = layout.portrait && !layout.tablet, metrics = telemetryMetrics,
             modifier = edit(sections.power), showsLink = linkMounted && (!layout.portrait || layout.tablet))
     }
@@ -406,12 +418,13 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 record = { enabled ->
                     val decoration = edit(sections.record).testTag("monitor.system.record")
                     if (photo) photoRelease?.invoke(enabled && admitted && recordEnabled, decoration)
-                    else MonitorCaptureButton(control, layout.record.width, enabled && admitted && recordEnabled, decoration,
-                        confirm = confirmRecord,
+                    else MonitorCaptureButton(control, layout.record.width, enabled && admitted, decoration,
+                        busy = !recordEnabled, confirm = confirmRecord,
                         openMode = openMode?.let { action -> { if (admits() && recordEnabled) action() } }, onConfirmingChange = onRecordConfirming)
                 }, display = { enabled -> MonitorDisplayButton(displayIndex, displayCount,
                     displayTitle ?: displayIndex?.let { "DISP ${it + 1}" } ?: "Display mode unavailable",
-                    layout.display.width, layout.display.height, (sections.display?.let { edit(it) } ?: Modifier).testTag("monitor.system.display"), enabled = enabled && interactive, onClick = cycleDisplay) })
+                    layout.display.width, layout.display.height, (sections.display?.let { edit(it) } ?: Modifier).testTag("monitor.system.display"), enabled = enabled && interactive,
+                    onClick = cycleDisplay, onLongClick = null, onClickFeedback = { displayHaptics.selection() }) })
         }, tools = { accepts ->
             cameraViews.feedGestures?.invoke(this, accepts && interactive)
             if (command) cameraViews.dashboard?.let { dashboard ->
@@ -471,7 +484,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             (it.left - origin.x).toDp().value, (it.top - origin.y).toDp().value,
                             it.width.toDp().value, it.height.toDp().value) } })
                     })
-                cameraViews.focusDrive?.let { drive ->
+                // Hidden under the lock like focus reset (pre-shared Z Android hid the MF strip there).
+                if (!locked) cameraViews.focusDrive?.let { drive ->
                     val height = minOf(280f, layout.viewport.height * .55f)
                     val center = max(layout.picture.x + 30f, layout.record.x - 34f)
                     Box(Modifier.descriptorFrame(MonitorRect(center - FOCUS_DRIVE_WIDTH / 2f, layout.picture.midY - height / 2f,

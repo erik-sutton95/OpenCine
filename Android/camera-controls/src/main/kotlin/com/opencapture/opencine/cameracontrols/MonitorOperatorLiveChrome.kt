@@ -97,7 +97,8 @@ public fun MonitorOperatorCaptureStrip(source: MonitorOperatorCaptureSource, sta
         quickControl = { id -> if (id == METER) null else source.quick(LiveSheet.valueOf(id), status, lifetime) },
         onQuickCommit = { id, captured, selected -> source.release(LiveSheet.valueOf(id), captured, selected, lifetime, enabled && active == null) },
         quickPreview = { id, preview, maximum -> LiveControlSheet(LiveSheet.valueOf(id), source.host, status,
-            locked = false, onDismiss = {}, maxHeightDp = maximum, preview = preview, portrait = portrait) },
+            locked = false, onDismiss = {}, maxHeightDp = maximum, preview = preview, portrait = portrait,
+            shutterAngleSettling = source.shutterAngleSettling) },
         onQuickActiveChange = onQuickActiveChange, quickBottomClearanceDp = quickBottomClearanceDp,
         onOpen = { if (it == METER) metering?.perform() else onOpen(LiveSheet.valueOf(it)) })
 }

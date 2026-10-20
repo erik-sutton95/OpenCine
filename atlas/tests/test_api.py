@@ -65,6 +65,39 @@ class Render(unittest.TestCase):
         self.assertEqual(text, api.render_dump("Mod", DUMP), "deterministic")
 
 
+    def test_the_snapshot_does_not_depend_on_the_xcode_version(self):
+        # Xcode 26 prints a non-escaping closure parameter's typealias as the function type and
+        # Xcode 27 keeps the alias; iOS 27 adds SDK protocols (CLBodyIdentifiable) to UIView.
+        func = {"kind": "TypeFunc", "printedName": "(Foundation.Data) -> Foundation.Data", "children": []}
+        alias = {"kind": "TypeNameAlias", "printedName": "Mod.PKCE.Digest", "children": [func], "typeAttributes": ["noescape"]}
+        stored = dict(alias, typeAttributes=[])
+
+        def view(conformances, parameter):
+            return {"ABIRoot": {"children": [
+                {"kind": "TypeDecl", "name": "Host", "printedName": "Host", "declKind": "Class",
+                 "superclassNames": ["UIKit.UIView", "UIKit.UIResponder", "ObjectiveC.NSObject"],
+                 "conformances": [{"printedName": n, "usr": u} for n, u in conformances]},
+                {"kind": "TypeDecl", "name": "Live", "printedName": "Live", "declKind": "Class",
+                 "superclassNames": ["Other.Host", "UIKit.UIView"],
+                 "conformances": [{"printedName": "Feed", "usr": "s:5Other4FeedP"}, {"printedName": "UIAppearance", "usr": "c:objc(pl)UIAppearance"}]},
+                {"kind": "TypeDecl", "name": "Codec", "printedName": "Codec", "declKind": "Class", "superclassNames": ["Other.Base"],
+                 "conformances": [{"printedName": "Wire", "usr": "s:5Other4WireP"}]},
+                {"kind": "Function", "name": "sign", "printedName": "sign(_:)", "declKind": "Func", "children": [nominal("Swift.Void"), parameter]},
+                {"kind": "Var", "name": "digest", "printedName": "digest", "declKind": "Var", "isLet": True, "children": [stored]},
+            ]}}
+        base = [("Equatable", "s:SQ"), ("Sendable", "s:s8SendableP"), ("UIAppearance", "c:objc(pl)UIAppearance"),
+                ("UITraitChangeObservable", "s:5UIKit23UITraitChangeObservableP"), ("Feed", "s:5Other4FeedP")]
+        xcode26 = api.render_dump("Mod", view(base, func), {"Other"})
+        xcode27 = api.render_dump("Mod", view(base + [("CLBodyIdentifiable", "c:objc(pl)CLBodyIdentifiable")], alias), {"Other"})
+        self.assertEqual(xcode26, xcode27)
+        lines = [ln for ln in xcode27.splitlines() if not ln.startswith("#")]
+        self.assertIn("class Host: UIKit.UIView, Equatable, Feed, Sendable", lines)
+        self.assertIn("class Live: Other.Host, Feed", lines)  # an SDK class up the chain still counts
+        self.assertIn("class Codec: Other.Base, Wire", lines)  # package superclass: nothing dropped
+        self.assertIn("func sign(_: (Foundation.Data) -> Foundation.Data) -> Swift.Void", lines)
+        self.assertIn("let digest: PKCE.Digest", lines)  # a stored alias reads the same on both
+
+
 class Digest(unittest.TestCase):
     def test_a_module_that_fails_to_load_is_an_error_not_an_empty_snapshot(self):
         def fake(cmd, **_):
@@ -100,6 +133,7 @@ class Command(AtlasCase):
 
     def test_products_come_from_the_package_manifest(self):
         self.assertEqual(api.swift_products(self.top), ["Core", "UI"])
+        self.assertEqual(api.package_modules(self.top), {"Core", "UI"})
 
     def test_lists_and_prints_swift_and_kotlin_snapshots(self):
         code, out = self.run_atlas("api")

@@ -62,6 +62,8 @@ func LunaCameraBackend.connect(to: MonitorCamera) async throws -> ()
 func LunaCameraBackend.deleteFile(uri: Swift.String) async throws -> ()
 func LunaCameraBackend.disconnect() -> ()
 func LunaCameraBackend.forget(cameraID: Foundation.UUID) -> ()
+func LunaCameraBackend.hasSavedWiFi(cameraID: Foundation.UUID) -> Swift.Bool
+func LunaCameraBackend.hasSeen(_: Foundation.UUID) -> Swift.Bool
 func LunaCameraBackend.leaveCameraNetwork() -> ()
 func LunaCameraBackend.leaveNetwork(ssid: Swift.String, isCurrent: OpenCineCore.CameraNetworkIsCurrent) -> ()
 func LunaCameraBackend.listFiles() async throws -> [Insta360Protocol.LunaMediaFile]
@@ -107,6 +109,8 @@ func LunaCommandOwner.retire() -> ()
 func LunaConnectPort.connect(to: MonitorCamera) async throws -> ()
 func LunaConnectPort.disconnect() -> ()
 func LunaConnectPort.forget(cameraID: Foundation.UUID) -> ()
+func LunaConnectPort.hasSavedWiFi(cameraID: Foundation.UUID) -> Swift.Bool
+func LunaConnectPort.hasSeen(_: Foundation.UUID) -> Swift.Bool
 func LunaConnectPort.mediaService(for: OpenCineCore.CameraSessionID) -> (any OpenCineMedia.CameraMediaService)?
 func LunaConnectPort.openSession() -> LunaCameraSession
 func LunaConnectPort.startScan() async throws -> ()
@@ -167,7 +171,7 @@ init LunaFeedStall()
 init LunaFrameTimecode()
 init LunaHeadTrackSteering(now: Foundation.TimeInterval)
 init LunaHeadTrackSteering.Tuning(panDegPerSec: Swift.Double, tiltDegPerSec: Swift.Double, gain: Swift.Double, accelFeed: Swift.Double)
-init LunaIntegration(port: any LunaConnectPort, now: () -> Foundation.Date)
+init LunaIntegration(port: any LunaConnectPort, now: () -> Foundation.Date, sleep: (Swift.Duration) async throws -> Swift.Void)
 init LunaIntegrationConfiguration(keychainService: Swift.String, appName: Swift.String, logPrefix: Swift.String)
 init LunaMediaCatalogRecord(asset: OpenCineMedia.MediaAssetID, file: Insta360Protocol.LunaMediaFile)
 init LunaMotionService(session: () -> LunaCameraSession?, sleep: (Swift.Duration) async throws -> Swift.Void, now: () -> OpenCineCore.MonotonicInstant)
@@ -322,6 +326,7 @@ var LunaHeadTrackSteering.Tuning.gain: Swift.Double
 var LunaHeadTrackSteering.Tuning.panDegPerSec: Swift.Double
 var LunaHeadTrackSteering.Tuning.tiltDegPerSec: Swift.Double
 var LunaIntegration.discoveryFailure: OpenCineCore.ConnectionFailure?
+var LunaIntegration.discoveryRunning: _Concurrency.AsyncStream<Swift.Bool>
 var LunaIntegration.id: OpenCineCore.IntegrationID
 var LunaIntegration.onDiscoveryFailure: ((OpenCineCore.ConnectionFailure?) -> Swift.Void)?
 var LunaIntegration.onEvent: ((CameraBackendEvent) -> Swift.Void)?

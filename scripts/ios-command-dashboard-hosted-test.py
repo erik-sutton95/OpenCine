@@ -29,12 +29,15 @@ names = [
     "testPortraitStacksTheGridOverTheSectionsWithoutTheHealthStrip",
     "testOverflowingSideColumnShowsItsCueAndClearsItAtTheRealBottom",
     "testSideColumnWithoutOverflowHasNoCue",
+    "testHeroLeadsTheDashboardWithRecordStateAndTimecode",
+    "testHeroAndNineTilesStayInsideTheLandscapeFrameWithoutClipping",
 ]
 assert re.findall(r"\bfunc (test\w+)\(", source.read_text()) == names
 waiting_names = [
     "testPortraitCommandPaintExcludesWaitingPicture",
     "testLandscapeCommandPaintExcludesWaitingPicture",
     "testLiveAndCleanKeepWaitingPresentationVisible",
+    "testTheLockSlotReturnControlUsesTheSharedMultiviewLabel",
     "testModeChangesRetainTheNativePictureOwnerAndReturnItsPaint",
 ]
 assert re.findall(r"\bfunc (test\w+)\(", waiting_source.read_text()) == waiting_names

@@ -35,6 +35,18 @@ import Testing
         #expect(!GamepadGimbalStick.restHeldMotion(from: .left, to: .right, driving: false))
     }
 
+    /// A rate and a speed from two moments are no angle: while a change settles the HUD holds the
+    /// operator's angle (owner 2026-10-20, "42°" flashed during a 4K30/4K120 change).
+    @Test func shutterHudHoldsThePreferredAngleWhileSettling() {
+        let luna = [1000, 500, 250, 125, 60, 50]
+        #expect(GamepadShutterSync.angleLabel(denom: 250, fps: 30, available: luna, preferredAngle: 180) == "45°")
+        #expect(GamepadShutterSync.angleLabel(denom: 250, fps: 30, available: luna, preferredAngle: 180,
+            settling: true) == "180°")
+        #expect(GamepadShutterSync.angleLabel(denom: 60, fps: 120, available: luna, preferredAngle: 180,
+            settling: true) == "180°")
+        #expect(GamepadShutterSync.angleLabel(denom: 250, fps: 120, available: luna, preferredAngle: 180) == "180°")
+    }
+
     @Test func shutterHudUsesLiveDenomWhenPreferredDoesNotMap() throws {
         let available = [24, 48, 50, 60, 120]
         #expect(

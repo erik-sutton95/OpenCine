@@ -564,8 +564,8 @@ class NikonMonitorRuntime: NikonControlDriver, Sendable
 class NikonPropertyBootstrap: Sendable
 class NikonStillReviewObjectTracker: Sendable
 class PTPIPTransport: CameraTransport, Sendable
-class USBCameraDeviceBrowser: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, ICDeviceBrowserDelegate, NSObjectProtocol, Sendable
-class USBCameraTransport: CVarArg, CameraTransport, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, ICCameraDeviceDelegate, ICDeviceDelegate, NSObjectProtocol, Sendable
+class USBCameraDeviceBrowser: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class USBCameraTransport: ObjectiveC.NSObject, CVarArg, CameraTransport, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 enum BodyBusyHoldPolicy
 enum BurstSeriesGrouping
 enum ByteCoding
@@ -882,7 +882,7 @@ func NikonDialer.isAlive(_: Swift.String) async -> Swift.Bool
 func NikonDialer.presence(_: Swift.String) async -> NikonPresence?
 func NikonDialer.scanControlPort(_: [Swift.String]) async -> [Swift.String : HostProbeVerdict]
 func NikonDiscovery.currentHolder(of: Swift.String, priorityHosts: [Swift.String]) async -> Swift.String?
-func NikonDiscovery.discover(_: OpenCineCore.DiscoveryMode, guid: Foundation.Data, priorityHosts: [Swift.String], excludedHosts: () async -> Swift.Set<Swift.String>, browsesUSB: Swift.Bool, status: (Swift.String) async -> Swift.Void, onPresences: ([Swift.String : NikonPresence]) async -> Swift.Void) async throws -> [DiscoveredCamera]
+func NikonDiscovery.discover(_: OpenCineCore.DiscoveryMode, guid: Foundation.Data, priorityHosts: [Swift.String], excludedHosts: (() async -> Swift.Set<Swift.String>)?, browsesUSB: Swift.Bool, status: ((Swift.String) async -> Swift.Void)?, onPresences: (([Swift.String : NikonPresence]) async -> Swift.Void)?) async throws -> [DiscoveredCamera]
 func NikonDiscoverySources.bonjour(timeout: Swift.Duration) async -> [DiscoveredCamera]
 func NikonDiscoverySources.interfaces() -> [NikonLocalInterface]
 func NikonDiscoverySources.log(_: Swift.String) -> ()
@@ -1107,7 +1107,7 @@ init NikonSavedRecordsV0()
 init NikonStillReviewObjectKind(filename: Swift.String)
 init NikonStillReviewObjectTracker()
 init NikonStillReviewSelection()
-init NikonStorageCard(storageID: Swift.UInt32, slot: Swift.Int, info: PTPStorageInfo)
+init NikonStorageCard(storageID: Swift.UInt32, slot: Swift.Int, info: PTPStorageInfo, slotIsPhysical: Swift.Bool)
 init NikonTakeOverPrompt(camera: Swift.String, holder: Swift.String?, message: Swift.String?, confirm: () -> Swift.Void, cancel: () -> Swift.Void)
 init NikonWatchCommandResult(accepted: Swift.Bool, isRecording: Swift.Bool, error: Swift.String?)
 init NikonWatchRelayFrame(jpeg: Foundation.Data, timecode: Timecode, isRecording: Swift.Bool)
@@ -1396,6 +1396,7 @@ let NikonStillReviewSelection.Choice.handle: Swift.UInt32
 let NikonStillReviewSelection.Choice.kind: NikonStillReviewObjectKind
 let NikonStorageCard.info: PTPStorageInfo
 let NikonStorageCard.slot: Swift.Int
+let NikonStorageCard.slotIsPhysical: Swift.Bool
 let NikonStorageCard.storageID: Swift.UInt32
 let NikonTakeOverPrompt.confirmationID: Swift.String
 let NikonWatchCommandResult.accepted: Swift.Bool
@@ -1668,6 +1669,7 @@ static func FocusResetRestorePolicy.shouldRestoreFocusArea(demoted: Swift.Bool, 
 static func FocusResetRestorePolicy.shouldRestoreSubjectDetection(suspended: Swift.Bool, currentFocusSubject: Swift.String, savedFocusSubject: Swift.String, focusMode: Swift.String?) -> Swift.Bool
 static func FocusResetSettlePolicy.shouldRecenter(framesSinceRelease: Swift.Int, isTrackingLatched: Swift.Bool, trackingAFActive: Swift.Bool) -> Swift.Bool
 static func ISOPickerPolicy.allowsManualISO(codec: Swift.String, exposureMode: Swift.String?) -> Swift.Bool
+static func ISOPickerPolicy.autoISOLabel(iso: Swift.Int?, isoAuto: Swift.Bool?, codec: Swift.String) -> Swift.String?
 static func ISOPickerPolicy.autoISOModeIndex(codec: Swift.String, isoAuto: Swift.Bool?, exposureMode: Swift.String?) -> Swift.Int
 static func ISOPickerPolicy.blocksISOChangeWhileRecording(codec: Swift.String, isRecording: Swift.Bool) -> Swift.Bool
 static func ISOPickerPolicy.isAutoISOActive(isoAuto: Swift.Bool?, codec: Swift.String) -> Swift.Bool
@@ -2019,6 +2021,8 @@ static let NikonBodyWake.interval: Swift.Duration
 static let NikonCameraBatteryGauge.barCount: Swift.Int
 static let NikonCameraSession.captureProfile: OpenCineCameraVocabulary.CameraCaptureProfile
 static let NikonCameraSession.integration: OpenCineCore.IntegrationID
+static let NikonCapturePopupState.codecStepsHint: Swift.String?
+static let NikonCapturePopupState.kelvinStepsHint: Swift.String?
 static let NikonDiscovery.presenceSweepInterval: Foundation.TimeInterval
 static let NikonMediaFilterOptions.none: NikonMediaFilterOptions
 static let NikonMonitorColorProfile.log3G10Rec709: OpenCineMedia.MonitorLogDisplayTransform
@@ -2374,6 +2378,7 @@ var NikonMemberControl.session: NikonCameraSession!
 var NikonMonitorLink.serialNumber: Swift.String
 var NikonMonitorRelayHello.acceptsHEVC: Swift.Bool
 var NikonMonitorRelayState.allowsControlRequests: Swift.Bool?
+var NikonMonitorRuntime.hasBackgroundPumps: Swift.Bool
 var NikonMonitorRuntime.hasQueuedCommands: Swift.Bool
 var NikonMonitorRuntime.nikonControlFacts: NikonControlFacts
 var NikonMonitorRuntime.onClosed: (OpenCineCore.SessionCloseReason) -> Swift.Void

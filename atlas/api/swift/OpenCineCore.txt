@@ -521,6 +521,7 @@ var CameraHotspotHost.withAttempt: (@escaping CameraNetworkIsCurrent, @escaping 
 var CameraHotspotOperations.apply: (CameraHotspotConfiguration) async throws -> Swift.Void
 var CameraHotspotOperations.remove: (Swift.String) -> Swift.Void
 var CameraIntegration.discoveryModes: Swift.Set<DiscoveryMode>
+var CameraIntegration.discoveryRunning: _Concurrency.AsyncStream<Swift.Bool>
 var CameraIntegration.id: IntegrationID
 var CameraIntegration.profiles: [CameraProfile]
 var CameraNetworkPermissionObservation.state: CameraNetworkPermissionState

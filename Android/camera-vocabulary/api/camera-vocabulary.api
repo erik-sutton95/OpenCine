@@ -1612,6 +1612,8 @@ public final class com/opencapture/opencine/vocabulary/GamepadShoulder : java/la
 public final class com/opencapture/opencine/vocabulary/GamepadShutterSync {
 	public static final field INSTANCE Lcom/opencapture/opencine/vocabulary/GamepadShutterSync;
 	public final fun angleLabel (IILjava/util/List;D)Ljava/lang/String;
+	public final fun angleLabel (IILjava/util/List;DZ)Ljava/lang/String;
+	public static synthetic fun angleLabel$default (Lcom/opencapture/opencine/vocabulary/GamepadShutterSync;IILjava/util/List;DZILjava/lang/Object;)Ljava/lang/String;
 	public final fun preferredAngle (II)D
 	public final fun shouldPersistPreferredAngle (ZZZ)Z
 }
@@ -1892,11 +1894,12 @@ public final class com/opencapture/opencine/vocabulary/LadderStep {
 }
 
 public final class com/opencapture/opencine/vocabulary/LadderTab {
-	public fun <init> (Ljava/lang/String;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/CaptureLadder;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/LadderWrite;ZZLcom/opencapture/opencine/vocabulary/CaptureLadderSetting;Lcom/opencapture/opencine/vocabulary/CaptureTint;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/CaptureLadder;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/LadderWrite;ZZLcom/opencapture/opencine/vocabulary/CaptureLadderSetting;Lcom/opencapture/opencine/vocabulary/CaptureTint;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/CaptureLadder;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/LadderWrite;ZZLcom/opencapture/opencine/vocabulary/CaptureLadderSetting;Lcom/opencapture/opencine/vocabulary/CaptureTint;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/CaptureLadder;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/LadderWrite;ZZLcom/opencapture/opencine/vocabulary/CaptureLadderSetting;Lcom/opencapture/opencine/vocabulary/CaptureTint;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component10 ()Lkotlin/jvm/functions/Function1;
 	public final fun component11 ()Lkotlin/jvm/functions/Function1;
+	public final fun component12 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/Object;
 	public final fun component3 ()Lcom/opencapture/opencine/vocabulary/CaptureLadder;
 	public final fun component4 ()Ljava/lang/String;
@@ -1905,8 +1908,8 @@ public final class com/opencapture/opencine/vocabulary/LadderTab {
 	public final fun component7 ()Z
 	public final fun component8 ()Lcom/opencapture/opencine/vocabulary/CaptureLadderSetting;
 	public final fun component9 ()Lcom/opencapture/opencine/vocabulary/CaptureTint;
-	public final fun copy (Ljava/lang/String;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/CaptureLadder;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/LadderWrite;ZZLcom/opencapture/opencine/vocabulary/CaptureLadderSetting;Lcom/opencapture/opencine/vocabulary/CaptureTint;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Lcom/opencapture/opencine/vocabulary/LadderTab;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/vocabulary/LadderTab;Ljava/lang/String;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/CaptureLadder;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/LadderWrite;ZZLcom/opencapture/opencine/vocabulary/CaptureLadderSetting;Lcom/opencapture/opencine/vocabulary/CaptureTint;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/opencapture/opencine/vocabulary/LadderTab;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/CaptureLadder;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/LadderWrite;ZZLcom/opencapture/opencine/vocabulary/CaptureLadderSetting;Lcom/opencapture/opencine/vocabulary/CaptureTint;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/lang/String;)Lcom/opencapture/opencine/vocabulary/LadderTab;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/vocabulary/LadderTab;Ljava/lang/String;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/CaptureLadder;Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/LadderWrite;ZZLcom/opencapture/opencine/vocabulary/CaptureLadderSetting;Lcom/opencapture/opencine/vocabulary/CaptureTint;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/vocabulary/LadderTab;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getActivate ()Lcom/opencapture/opencine/vocabulary/LadderWrite;
 	public final fun getApplyOnActivate ()Z
@@ -1917,6 +1920,7 @@ public final class com/opencapture/opencine/vocabulary/LadderTab {
 	public final fun getLadder ()Lcom/opencapture/opencine/vocabulary/CaptureLadder;
 	public final fun getSetting ()Lcom/opencapture/opencine/vocabulary/CaptureLadderSetting;
 	public final fun getSteps ()Lkotlin/jvm/functions/Function1;
+	public final fun getStepsHint ()Ljava/lang/String;
 	public final fun getTint ()Lcom/opencapture/opencine/vocabulary/CaptureTint;
 	public final fun getValues ()Lkotlin/jvm/functions/Function1;
 	public fun hashCode ()I
@@ -2802,6 +2806,7 @@ public final class com/opencapture/opencine/vocabulary/ShootingModePin$Companion
 public final class com/opencapture/opencine/vocabulary/ShutterAngle {
 	public static final field DEFAULT_DEGREES D
 	public static final field INSTANCE Lcom/opencapture/opencine/vocabulary/ShutterAngle;
+	public final fun achieved (DII)Ljava/lang/String;
 	public final fun degrees (II)D
 	public final fun denom (DI)I
 	public final fun denom (DILjava/util/List;)I

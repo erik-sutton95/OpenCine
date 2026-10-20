@@ -305,7 +305,7 @@
             .background(MonitorTheme.surface, in: RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius))
             .overlay {
                 RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius)
-                    .stroke(MonitorTheme.border, lineWidth: 1)
+                    .strokeBorder(MonitorTheme.border, lineWidth: 1)
             }
         }
     }
@@ -334,7 +334,7 @@
             .background(MonitorTheme.surface, in: RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius)
-                    .stroke(MonitorTheme.border, lineWidth: 1))
+                    .strokeBorder(MonitorTheme.border, lineWidth: 1))
         }
     }
 
@@ -483,7 +483,7 @@
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: MonitorCommandGridLayout.cornerRadius)
-                        .stroke(MonitorTheme.border, lineWidth: 1))
+                        .strokeBorder(MonitorTheme.border, lineWidth: 1))
             }
             .buttonStyle(.monitorTapTarget)
             .disabled(request == nil)
@@ -560,7 +560,7 @@
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(MonitorTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(recording ? MonitorTheme.recording.opacity(0.6) : MonitorTheme.border, lineWidth: 1))
+            .overlay(Capsule().strokeBorder(recording ? MonitorTheme.recording.opacity(0.6) : MonitorTheme.border, lineWidth: 1))
             .fixedSize()
         }
     }

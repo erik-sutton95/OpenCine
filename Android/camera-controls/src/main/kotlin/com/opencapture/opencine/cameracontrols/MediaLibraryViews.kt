@@ -160,6 +160,14 @@ fun MediaCatalogHeaderRow(
         onSort = onSort, onFilter = onFilter)
 }
 
+/** Selection actions name how many items they act on and where deletion happens (ZAB-440). */
+internal fun selectionDeleteDescription(count: Int, enabled: Boolean): String =
+    if (enabled) "Delete $count selected ${if (count == 1) "item" else "items"} from the camera card"
+    else "Delete selected media"
+
+internal fun selectionShareDescription(count: Int): String =
+    "Share $count selected ${if (count == 1) "item" else "items"}"
+
 @Composable
 fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean,
     onAll: () -> Unit, onClear: () -> Unit, onCache: () -> Unit, onStar: () -> Unit,
@@ -169,8 +177,10 @@ fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean
         TrayTextChip(MonitorIcon.X, "Clear", "Clear selection", LiveDesign.muted, onClear)
         MediaCircleIconButton(MonitorIcon.DOWNLOAD, "Cache selected clips", onCache, enabled = cacheEnabled, size = 34.dp)
         MediaCircleIconButton(MonitorIcon.STAR, "Favorite selected clips", onStar, enabled = count > 0, size = 34.dp)
-        MediaCircleIconButton(MonitorIcon.TRASH, "Delete selected clips", onDelete, enabled = deleteEnabled, size = 34.dp)
-        if (shareEnabled) MediaCircleIconButton(MonitorIcon.SHARE, "Share selected clips", onShare, enabled = count > 0, size = 34.dp)
+        MediaCircleIconButton(MonitorIcon.TRASH, selectionDeleteDescription(count, deleteEnabled), onDelete,
+            enabled = deleteEnabled, size = 34.dp)
+        if (shareEnabled) MediaCircleIconButton(MonitorIcon.SHARE, selectionShareDescription(count), onShare,
+            enabled = count > 0, size = 34.dp)
     }
 }
 
@@ -480,7 +490,7 @@ fun MediaCircleIconButton(
             .then(if (highlighted) Modifier.background(LiveDesign.accentDim, CircleShape) else Modifier)
             .mediaGlass(CircleShape)
             .chromeClickable(enabled = enabled, onClick = onClick)
-            .semantics { this.contentDescription = contentDescription },
+            .semantics { this.contentDescription = contentDescription; role = Role.Button },
         contentAlignment = Alignment.Center,
     ) {
         MonitorIcon(

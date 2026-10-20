@@ -50,10 +50,11 @@ public struct MonitorMediaCatalogArtwork<Identity: Hashable, Reload: Hashable, P
     /// `afterLoad` reads metadata only after the image is published for the current admission.
     public init(identity: Identity, reload: Reload, isCurrent: @escaping @MainActor () -> Bool,
         load: @escaping @MainActor () async -> UIImage?,
-        afterLoad: @escaping @MainActor () async -> Void = {},
+        afterLoad: (@MainActor () async -> Void)? = nil,
         @ViewBuilder placeholder: @escaping @MainActor () -> Placeholder) {
         self.identity = identity; self.reload = reload; self.isCurrent = isCurrent; self.load = load
-        self.afterLoad = afterLoad; self.placeholder = placeholder
+        // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+        self.afterLoad = afterLoad ?? {}; self.placeholder = placeholder
     }
 
     public var body: some View {

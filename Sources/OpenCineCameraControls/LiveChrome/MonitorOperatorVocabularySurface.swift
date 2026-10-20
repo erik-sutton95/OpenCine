@@ -171,7 +171,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                     controlsEnabled: !host.sessionLocked, chromeless: true) { host.captureSheet = nil }
             }, photoRelease: { diameter in
                 MonitorCaptureButton(control: host.control, diameter: diameter,
-                    enabled: !host.operatorSession.locked && !host.sessionLocked && !capture.busy(), photo: true,
+                    enabled: !host.operatorSession.locked && !host.sessionLocked, busy: capture.busy(), photo: true,
                     confirm: capture.confirmRecording, haptics: host.hapticsEnabled, takePhoto: capture.takePhoto,
                     openMode: { host.captureSheet = .mode })
             }, preview: preview, lookMenu: lookMenu)
@@ -212,7 +212,8 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             signalBars: host.chromeSectionMounts(.batteries) ? host.liveSignalBars : nil, fpsSection: .batteries,
             portraitFormat: setup, portraitCaption: photo ? nil : recordingFormat?.profile,
             color: color, mode: mode,
-            storageAlternative: photo ? nil : host.control.snapshot?.storage.recordingTimeLabel)
+            storageAlternatives: MonitorStorageReadoutFormat.alternatives(percent: readout?.percent,
+                recordingTime: host.control.snapshot?.storage.recordingTimeLabel, photo: photo))
     }
 }
 

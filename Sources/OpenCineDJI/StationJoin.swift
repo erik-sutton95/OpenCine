@@ -65,10 +65,10 @@ public struct StationJoin {
         hotspotReady: () -> Bool,
         verifyOnNetwork: () async throws -> Bool,
         log: (String) -> Void = { _ in },
-        sleep: (TimeInterval) async throws -> Void = {
-            try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000))
-        }
+        sleep: ((TimeInterval) async throws -> Void)? = nil
     ) async throws -> Outcome {
+        // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+        let sleep = sleep ?? { try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
         guard identity.count > 2, identity[0] == 0 else { throw Failure.rejected }
         _ = try MulticamCommands.join(ssid: ssid, password: password, seq: 0)
         if MulticamSupport.hasPreview(model) && !experimental {

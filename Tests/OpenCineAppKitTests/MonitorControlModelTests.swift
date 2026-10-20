@@ -35,6 +35,35 @@ import Testing
             sleep: { [clock] in await clock.sleep($0) })
     }
 
+    /// A reported frame-rate change opens the window in which an emulated shutter angle keeps the
+    /// operator's value while the re-sent speed lands (owner 2026-10-20, Luna 30 to 120 fps).
+    @available(macOS 14, *)
+    @Test func aReportedFrameRateChangeOpensTheRateChangeWindow() async throws {
+        let model = elapsedModel()
+        var changes = 0
+        model.onChange = { changes += 1 }
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsSetting(.frameRate(Rational(30)))
+        model.bind(camera)
+        try #require(await eventually { model.snapshot?.value(of: .frameRate).value == .frameRate(Rational(30)) })
+        #expect(!model.frameRateSettling, "the first report is no change")
+        await camera.cameraReportsSetting(.frameRate(Rational(60)))
+        try #require(await eventually { model.snapshot?.value(of: .frameRate).value == .frameRate(Rational(60)) })
+        #expect(model.frameRateSettling)
+        try #require(await eventually { clock.pendingSleeps > 0 })
+        clock.advance(by: .seconds(2))
+        #expect(model.frameRateSettling)
+        let before = changes
+        // The hold ends on its own, without a later snapshot: observers and `onChange` redraw.
+        clock.advance(by: .seconds(1))
+        #expect(await eventually { !model.frameRateSettling })
+        #expect(changes > before, "the expiry must redraw the held readout")
+        await camera.cameraReportsSetting(.frameRate(Rational(30)))
+        try #require(await eventually { model.frameRateSettling })
+        model.unbind()
+        #expect(!model.frameRateSettling)
+    }
+
     @available(macOS 14, *)
     @Test func idleRecordingReportsKeepElapsedObservationStable() async throws {
         let model = elapsedModel()

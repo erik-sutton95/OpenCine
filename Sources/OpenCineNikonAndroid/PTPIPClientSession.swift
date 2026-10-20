@@ -371,7 +371,8 @@ private struct AndroidRawControlCatalog: Sendable {
             switch properties.shutterMode {
             case .angle: activeShutterValues = shutterAngles.map(\.label)
             case .speed: activeShutterValues = shutterSpeeds.map(\.label)
-            case nil: activeShutterValues = []
+            // No `MovieShutterMode` (non-ZR bodies): the encoder writes by label shape.
+            case nil: activeShutterValues = (shutterAngles + shutterSpeeds).map(\.label)
             }
         }
         let irisValues: [String]
@@ -695,6 +696,10 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// A flip marked the descriptor domains stale; the pass runs once after
     /// the value queue drains.
     private var androidDescriptorsDueForModeFlip = false
+    /// Storage reads left for a flip's stills card and ActiveSlot alignment;
+    /// they run after the value queue drains, even while streaming, until one
+    /// completes. Bounded so a body that keeps refusing cannot tax every frame.
+    private var androidStorageAttemptsForModeFlip = 0
     private var nextTransactionID: UInt32 = 1
     private var isClosed = false
 
@@ -1599,6 +1604,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 // at flip time; mark them due; the maintenance pass below
                 // picks them up once the value queue drains.
                 androidDescriptorsDueForModeFlip = true
+                androidStorageAttemptsForModeFlip = Self.androidModeFlipStorageAttempts
             }
             // Drain a bounded slice of a pending flip queue each tick; frames
             // keep flowing between ticks and the whole set lands within a few
@@ -1617,6 +1623,19 @@ public final class PTPIPClientSession: @unchecked Sendable {
             // drained (chrome + readouts are already live), so the flip itself
             // never blocks on ~24 descriptor reads. [verify-on-HW: pass length
             // vs frame cadence on-body]
+            // The storage interval below waits for live view to stop, so the new
+            // mode's stills card and ActiveSlot alignment would never land while
+            // streaming. One storage read after the queue drains covers a flip.
+            if androidPendingModeFlipBurst.isEmpty,
+                androidStorageAttemptsForModeFlip > 0,
+                result != .transportFailed,
+                !isRecording
+            {
+                let storage = refreshAndroidStorage()
+                androidStorageAttemptsForModeFlip =
+                    storage == .accepted ? 0 : androidStorageAttemptsForModeFlip - 1
+                result = mergedAndroidPropertyRefreshResult(result, storage)
+            }
             if androidPendingModeFlipBurst.isEmpty,
                 androidDescriptorsDueForModeFlip,
                 result != .transportFailed,
@@ -1697,6 +1716,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                     )
                     .filter { $0 != .liveViewSelector }
                 androidDescriptorsDueForModeFlip = true
+                androidStorageAttemptsForModeFlip = Self.androidModeFlipStorageAttempts
             }
             return androidPropertyReadback(result: result)
         case .autoExposure:
@@ -1800,18 +1820,16 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 AndroidCameraStorageSlot(
                     storageID: $0.storageID, slotNumber: $0.slot, storage: $0.info)
             }
+            // The shots counter follows the stills card, and in photo mode a remote release
+            // is pointed at it when the body lets the host choose (ZT-04/ZT-05). An empty read
+            // applies too, so a removed card's count does not linger.
+            androidPropertySnapshot = androidPropertySnapshot.applyingCardSlots(readout)
             guard !slots.isEmpty else {
                 androidStorageInfo = nil
                 androidStorageSlots = []
-                // A removed card must release the photo counter it used to supply;
-                // another card's capacity is never retained as the stills count.
-                androidPropertySnapshot = androidPropertySnapshot.applyingCardSlots(readout)
                 return .unsupported
             }
             androidStorageSlots = slots
-            // The shots counter follows the stills card, and in photo mode a remote release
-            // is pointed at it when the body lets the host choose (ZT-04/ZT-05).
-            androidPropertySnapshot = androidPropertySnapshot.applyingCardSlots(readout)
             if androidPropertySnapshot.captureSelector == .photo,
                 let value = readout.activeSlotAlignment
             {
@@ -2641,6 +2659,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// few fast Kotlin polls land the whole set in ~1-2 s, small enough that
     /// live-view frames interleave between ticks.
     static let androidModeFlipBurstChunk = 8
+    /// Storage reads a flip may spend before the next storage interval takes over.
+    static let androidModeFlipStorageAttempts = 5
 
     /// The aperture enum property for the active selector: photo mode
     /// describes the STANDARD aperture property; the movie enum is not

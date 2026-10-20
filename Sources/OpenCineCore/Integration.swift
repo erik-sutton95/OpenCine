@@ -294,6 +294,10 @@ public protocol CameraIntegration: AnyObject {
     /// `discoveryModes` finishes at once. In `.passive` it never opens a control-port connection
     /// or sends protocol bytes.
     func discover(_ mode: DiscoveryMode) -> AsyncStream<[NearbyCamera]>
+    /// Whether discovery is running now: `false` while the radio is off, the permission is denied
+    /// or the last scan failed, so the pages never claim to scan when nothing can (IA-336). The
+    /// default reports running once for an integration that cannot tell.
+    var discoveryRunning: AsyncStream<Bool> { get }
     /// One attempt; cancelling the consumer cancels it. `.connected` and `.failed` are terminal.
     /// Events from an older attempt are never emitted after a newer attempt for the same camera
     /// (`ConnectTarget.cameraID`) starts.
@@ -301,4 +305,14 @@ public protocol CameraIntegration: AnyObject {
     /// Drops what the integration stores per camera (route credentials). Never the per-install
     /// identity (an approval or pairing identity shared by every camera).
     func forget(_ camera: SavedCamera) async
+}
+
+extension CameraIntegration {
+    /// An integration that cannot tell whether its radio can scan keeps today's status.
+    public var discoveryRunning: AsyncStream<Bool> {
+        AsyncStream<Bool> { continuation in
+            continuation.yield(true)
+            continuation.finish()
+        }
+    }
 }

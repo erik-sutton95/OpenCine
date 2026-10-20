@@ -102,6 +102,12 @@ import Testing
         let steps = sheet.tabs[1].steps?("5600K")
         #expect(steps?.0.label == "\u{2212}10")
         #expect(steps?.1.lands == true)
+        // Behavior audit ZIA-145: the drum tells VoiceOver what the buttons beside it do.
+        #expect(sheet.tabs[1].stepsHint == NikonCapturePopupState.kelvinStepsHint)
+        #expect(
+            NikonCapturePopupState.kelvinStepsHint
+                == "Use minus 10 and plus 10 beside the selected value to fine-adjust")
+        #expect(sheet.tabs[0].stepsHint == nil)
         #expect(sheet.tabs[1].values?("5610K").contains("5610K") == true)
         #expect(
             sheet.tabs[0].ladder.values

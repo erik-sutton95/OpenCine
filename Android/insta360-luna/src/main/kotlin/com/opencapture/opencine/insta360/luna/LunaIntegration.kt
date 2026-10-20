@@ -27,12 +27,14 @@ import com.opencapture.opencine.insta360.shell.CameraIdentity
 import com.opencapture.opencine.insta360.shell.ConnectionPhase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -47,10 +49,16 @@ interface LunaConnectPort : CameraMediaServiceSource {
     val joinedSSID: StateFlow<String?>
     /** Why the last attempt failed, typed; `null` while none has. */
     val failureDetail: StateFlow<ConnectionFailure?>
+    /** `true` while discovery cannot run: radio off, permission denied or the scanner refused. */
+    val scanBlocked: StateFlow<Boolean>
     /** The connection job [connect] started; it keeps running while the camera is live. */
     val attempt: Job?
     fun startScan()
     fun stopScan()
+    /** Whether this run has heard the camera advertise, so Bluetooth can reach it now. */
+    fun hasSeen(id: String): Boolean
+    /** Whether saved camera Wi-Fi exists for a camera that is not advertising. */
+    suspend fun hasSavedWiFi(id: String): Boolean
     fun connect(id: String)
     fun disconnect()
     /** A new core session for the next connection; the previous one closes as replaced. */
@@ -136,7 +144,12 @@ object LunaFailures {
  * network-join prompts, typed failures with the backend's copy, and forget. Collect on the main
  * thread, like the backend.
  */
-class LunaIntegration(private val port: LunaConnectPort, private val now: () -> Long = System::currentTimeMillis) : CameraIntegration {
+class LunaIntegration(
+    private val port: LunaConnectPort,
+    private val now: () -> Long = System::currentTimeMillis,
+    /** The grace loop's pause; tests run it on their virtual clock. */
+    private val sleep: suspend (Long) -> Unit = { delay(it) },
+) : CameraIntegration {
     override val id: IntegrationID = LunaCameraSession.INTEGRATION
     override val profiles: List<CameraProfile> =
         listOf(CameraProfile("${id.rawValue}.luna-ultra", "Luna Ultra", setOf(RouteKind.CAMERA_ACCESS_POINT)))
@@ -155,6 +168,9 @@ class LunaIntegration(private val port: LunaConnectPort, private val now: () -> 
             ConnectionStep("Opening the video link"), ConnectionStep("Starting the picture"),
         )
         const val APPROVE = "Approve on the camera"
+        /** How long a saved connection gives Bluetooth to hear the camera before saved Wi-Fi. */
+        const val SIGHTING_GRACE_MS = 4_000L
+        const val SIGHTING_STEP_MS = 100L
     }
 
     override fun discover(mode: DiscoveryMode): Flow<List<NearbyCamera>> {
@@ -169,6 +185,13 @@ class LunaIntegration(private val port: LunaConnectPort, private val now: () -> 
         }
     }
 
+    /**
+     * Discovery runs unless the scan itself is blocked (Bluetooth off, permission denied, scanner
+     * refused), so the pages show no scanning status then; a failed connect leaves it running
+     * (IA-336, Swift `discoveryFailure`).
+     */
+    override val discoveryRunning: Flow<Boolean> = port.scanBlocked.map { !it }.distinctUntilChanged()
+
     override fun connect(target: ConnectTarget): Flow<ConnectionEvent> = channelFlow {
         val cameraID = when (target) {
             is ConnectTarget.Saved -> target.camera.id
@@ -181,6 +204,27 @@ class LunaIntegration(private val port: LunaConnectPort, private val now: () -> 
         }
         val attempt = ConnectionAttemptID()
         val session = port.openSession()
+        // The baseline grace, before a newer attempt retires the old one: a saved camera that has
+        // not advertised yet gets Bluetooth first, because an advert proves it is awake and waking
+        // its Wi-Fi is quicker than dialling a sleeping access point.
+        if (target is ConnectTarget.Saved && port.hasSavedWiFi(cameraID) && !port.hasSeen(cameraID)) {
+            progress(attempt, ConnectionPhase.SCANNING)?.let { send(it) }
+            // A radio that cannot scan still has the saved Wi-Fi route (the baseline did the same).
+            // The grace holds the scan like a listener, so a discovery page closing meanwhile
+            // cannot stop it; a cancelled grace stops the scan unless a listener still wants it.
+            listening++
+            runCatching { port.startScan() }
+            var waited = false
+            try {
+                val deadline = now() + SIGHTING_GRACE_MS
+                while (!port.hasSeen(cameraID) && now() < deadline) {
+                    sleep(SIGHTING_STEP_MS)
+                }
+                waited = true
+            } finally {
+                if (--listening == 0 && !waited) port.stopScan()
+            }
+        }
         // One backend, one connection: a newer attempt ends the older one (its job is cancelled).
         port.disconnect()
         port.connect(cameraID)

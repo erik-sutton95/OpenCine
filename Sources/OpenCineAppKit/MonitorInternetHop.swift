@@ -34,13 +34,14 @@ public final class MonitorInternetHop<Route> {
             leave: @escaping @MainActor (Route, _ current: @escaping @MainActor () -> Bool) async -> Route?,
             admitsReturn: @escaping @MainActor (Route) -> Bool = { _ in true },
             rejoin: @escaping @MainActor (Route, _ current: @escaping @MainActor () -> Bool) async -> Void,
-            online: @escaping @MainActor () async -> Bool = { await MonitorInternetPath.satisfied() }
+            online: (@MainActor () async -> Bool)? = nil
         ) {
             self.onCameraNetwork = onCameraNetwork
             self.leave = leave
             self.admitsReturn = admitsReturn
             self.rejoin = rejoin
-            self.online = online
+            // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+            self.online = online ?? { await MonitorInternetPath.satisfied() }
         }
     }
 

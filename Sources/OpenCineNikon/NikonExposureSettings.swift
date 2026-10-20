@@ -53,7 +53,9 @@ public enum NikonExposureSettings {
         }
     }
 
-    /// Readback values follow the active circuit. Unknown mode and stills do not become movie facts.
+    /// Readback values follow the active circuit. Stills do not become movie facts. A body that
+    /// never reports `MovieShutterMode` (only the ZR does) shows the circuit it reports, angle
+    /// first.
     public static func reported(_ properties: PTPCameraPropertySnapshot) -> [SettingKey:
         SettingValue?]
     {
@@ -62,7 +64,7 @@ public enum NikonExposureSettings {
             switch properties.shutterMode {
             case .angle: properties.shutterAngle.flatMap(Self.shutter)
             case .speed: properties.shutterSpeed.flatMap(Self.shutter)
-            case nil: nil
+            case nil: (properties.shutterAngle ?? properties.shutterSpeed).flatMap(Self.shutter)
             }
         return [.shutter: shutter, .aperture: properties.fNumber.flatMap(Self.aperture)]
     }
@@ -70,6 +72,9 @@ public enum NikonExposureSettings {
     /// The active movie write domain. A reported value does not imply permission to write it.
     /// Locks and unknown prerequisites
     /// constrain admission; the existing transaction encoder and body remain write authorities.
+    /// While the shutter mode is unknown the encoder writes by label shape, so each circuit the
+    /// body reports a value for is the domain: the advertised labels, else the picker ladders.
+    /// A body that reports no shutter value publishes no shutter descriptor.
     public static func descriptors(
         _ properties: PTPCameraPropertySnapshot, shutterLabels: [String], apertureLabels: [String]
     ) -> [SettingDescriptor] {
@@ -78,10 +83,16 @@ public enum NikonExposureSettings {
         // Flatten unknown dictionary values before admission checks.
         let reportedShutter: SettingValue? = reported[.shutter].flatMap { $0 }
         let reportedAperture: SettingValue? = reported[.aperture].flatMap { $0 }
+        let labels =
+            properties.shutterMode == nil && shutterLabels.isEmpty
+            ? ShutterPickerPolicy.angleOptions + ShutterPickerPolicy.speedOptions : shutterLabels
         let shutter = unique(
-            shutterLabels.compactMap(Self.shutter).filter {
+            labels.compactMap(Self.shutter).filter {
                 switch ($0, properties.shutterMode) {
                 case (.shutter(.angle), .angle), (.shutter(.duration), .speed): true
+                // Unknown mode: only a circuit the body reports a value for is writable.
+                case (.shutter(.angle), nil): properties.shutterAngle != nil
+                case (.shutter(.duration), nil): properties.shutterSpeed != nil
                 default: false
                 }
             })

@@ -187,6 +187,12 @@ public actor FakeCameraSession: CameraSession {
     }
 
 
+    /// The camera reports a setting changed on its own side (a body dial, a format readback).
+    public func cameraReportsSetting(_ value: SettingValue) {
+        device.settings[value.key] = value
+        cameraReportsStatus()
+    }
+
     /// A camera-body recording report, independent of any app command.
     public func cameraReportsRecording(_ recording: Bool?) {
         device.recording = recording

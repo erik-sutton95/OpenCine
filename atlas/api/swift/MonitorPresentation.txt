@@ -28,6 +28,9 @@ case MonitorAssistTool.waveform
 case MonitorAssistTool.zebra
 case MonitorAudioOrientation.horizontal
 case MonitorAudioOrientation.vertical
+case MonitorBatteryUrgency.depleted
+case MonitorBatteryUrgency.low
+case MonitorBatteryUrgency.nominal
 case MonitorCapturePopupEdge.bottom
 case MonitorCapturePopupEdge.top
 case MonitorCapturePopupKind.compact
@@ -217,6 +220,7 @@ enum MonitorAssistTool: CaseIterable, Equatable, Hashable, Identifiable, RawRepr
 enum MonitorAudioOrientation: CaseIterable, Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorAudioReadout
 enum MonitorBackdropPolicy
+enum MonitorBatteryUrgency: Equatable, Hashable, Sendable
 enum MonitorCapturePopupChrome: Sendable
 enum MonitorCapturePopupEdge: Equatable, Hashable, Sendable
 enum MonitorCapturePopupKind: Equatable, Hashable, Sendable
@@ -274,6 +278,7 @@ enum MonitorSideRailControlLayout
 enum MonitorStorageReadoutFormat
 enum MonitorSystemButtonMetrics: Sendable
 enum MonitorTelemetryMetrics: Equatable, Hashable, Sendable
+enum MonitorTelemetryValues
 enum MonitorThumbnailSize: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorTopCutout
 enum MonitorVectorscopeZoom: CaseIterable, Decodable, Encodable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
@@ -820,6 +825,7 @@ static func MonitorAssistPaletteReveal.translationAlongExpand(dx: Swift.Double, 
 static func MonitorAssistPaletteReveal.visibleEdge(finger: Swift.Double, grabOffset: Swift.Double, compact: Swift.Double, full: Swift.Double) -> Swift.Double
 static func MonitorAudioReadout.fraction(_: Swift.Double) -> Swift.Double
 static func MonitorAudioReadout.label(_: Swift.Double) -> Swift.String
+static func MonitorBatteryUrgency.of(percent: Swift.Int?, bars: Swift.Int?, barCount: Swift.Int, warning: Swift.Bool, exhausted: Swift.Bool) -> MonitorBatteryUrgency?
 static func MonitorCapturePopupChrome.compactBottomPadding(topPadding: Swift.Double) -> Swift.Double
 static func MonitorCapturePopupChrome.compactHeight(topPadding: Swift.Double) -> Swift.Double
 static func MonitorCapturePopupChrome.showsGrabber(kind: MonitorCapturePopupKind, edge: MonitorCapturePopupEdge) -> Swift.Bool
@@ -887,11 +893,16 @@ static func MonitorScopeSizing.scale(portrait: Swift.Bool, tablet: Swift.Bool, p
 static func MonitorSettingsCardMetrics.contentOriginY(titleLineHeight: Swift.Double) -> Swift.Double
 static func MonitorSideRailPlan.showsLock(visible: Swift.Bool, interfaceLocked: Swift.Bool) -> Swift.Bool
 static func MonitorSideRailPlan.showsSettings(visible: Swift.Bool, reachable: Swift.Bool) -> Swift.Bool
+static func MonitorStorageReadoutFormat.alternatives(percent: Swift.String?, recordingTime: Swift.String?, photo: Swift.Bool) -> [Swift.String]
 static func MonitorStorageReadoutFormat.capacity(gigabytes: Swift.Int64?) -> Swift.String
+static func MonitorStorageReadoutFormat.nextForm(after: Swift.Int, count: Swift.Int) -> Swift.Int
 static func MonitorStorageReadoutFormat.remainingMinutes(_: Swift.Int?) -> Swift.String
 static func MonitorStorageReadoutFormat.wholeUnitCapacity(bytes: Swift.UInt64?) -> Swift.String
 static func MonitorSystemButtonMetrics.iconSide(tablet: Swift.Bool) -> Swift.Double
 static func MonitorSystemButtonMetrics.side(tablet: Swift.Bool) -> Swift.Double
+static func MonitorTelemetryValues.batterySpokenValue(percent: Swift.Int?, bars: Swift.Int?, barCount: Swift.Int, charging: Swift.Bool?, externalPower: Swift.Bool?, exhausted: Swift.Bool) -> Swift.String?
+static func MonitorTelemetryValues.batteryValue(percent: Swift.Int?, bars: Swift.Int?, charging: Swift.Bool?, externalPower: Swift.Bool?) -> Swift.String?
+static func MonitorTelemetryValues.linkValue(fps: Swift.String?, signalBars: Swift.Int?, showsRate: Swift.Bool) -> Swift.String?
 static func MonitorTopCutout.estimated(width: Swift.Double, height: Swift.Double, safeTop: Swift.Double) -> MonitorRect?
 static func MonitorVectorscopeOptions.clampedBrightness(_: Swift.Int) -> Swift.Int
 static func MonitorVectorscopeOptions.clampedScale(_: Swift.Double) -> Swift.Double
@@ -1021,7 +1032,9 @@ static let MonitorPlaybackCopy.conformPreview: Swift.String
 static let MonitorPlaybackCopy.conformTitle: Swift.String
 static let MonitorPlaybackCopy.delete: Swift.String
 static let MonitorPlaybackCopy.deleteCancel: Swift.String
+static let MonitorPlaybackCopy.deleteCancelDescription: Swift.String
 static let MonitorPlaybackCopy.deleteConfirm: Swift.String
+static let MonitorPlaybackCopy.deleteConfirmDescription: Swift.String
 static let MonitorPlaybackCopy.deleteConfirmationTitle: Swift.String
 static let MonitorPlaybackCopy.favorite: Swift.String
 static let MonitorPlaybackCopy.forwardFifteen: Swift.String
@@ -1050,6 +1063,7 @@ static let MonitorPlaybackLayout.transportSize: Swift.Double
 static let MonitorPlaybackLayout.transportSpacing: Swift.Double
 static let MonitorPlaybackZoom.maxScale: CoreGraphics.CGFloat
 static let MonitorReadoutInteraction.dragThreshold: Swift.Double
+static let MonitorReadoutInteraction.holdActionMilliseconds: Swift.Int
 static let MonitorReadoutInteraction.holdMilliseconds: Swift.Int
 static let MonitorReadoutInteraction.tapSlop: Swift.Double
 static let MonitorReadoutTypography.labelSize: Swift.Double

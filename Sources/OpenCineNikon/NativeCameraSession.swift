@@ -899,15 +899,23 @@
             }
         }
 
-        /// A slot property's scalar descriptor at whichever width the body reports.
+        /// A slot property's scalar descriptor at whichever width the body reports. 2-byte codes go
+        /// through plain GetDevicePropDesc, as the slot writes and Android's reads do.
         private func slotDescriptor(
             _ property: PTPPropertyCode
         ) async -> NikonScalarPropertyDescriptor? {
             guard supportsProperty(property) else { return nil }
+            let operation: PTPOperationCode =
+                property.rawValue <= 0xFFFF ? .getDevicePropDesc : .getDevicePropDescEx
+            guard
+                let result = try? await transact(
+                    operationCode: operation, parameters: [property.rawValue], dataPhase: .dataIn),
+                result.operationResponse.responseCode == .ok
+            else { return nil }
             for width in [1, 2] {
-                if let descriptor = await observeCameraPropertyDescriptor(
-                    property, valueByteCount: width
-                ).descriptor {
+                if let descriptor = NikonScalarPropertyDescriptor.parse(
+                    result.data, property: property.rawValue, valueByteCount: width)
+                {
                     return descriptor
                 }
             }

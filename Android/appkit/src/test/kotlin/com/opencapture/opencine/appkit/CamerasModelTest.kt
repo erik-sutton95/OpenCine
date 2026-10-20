@@ -21,12 +21,14 @@ import com.opencapture.opencine.core.testing.FakeIntegration
 import com.opencapture.opencine.core.testing.lunaLike
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -128,6 +130,19 @@ class CamerasModelTest {
     }
 
     @Test
+    fun aBlockedDiscoveryDoesNotClaimToScan() = runTest {
+        val blocked =
+            FakeIntegration(
+                id = IntegrationID("test.blocked"),
+                discoveryModes = setOf(DiscoveryMode.PASSIVE),
+                discoveryRunning = flowOf(false),
+            )
+        val model = Values.model(listOf(blocked), backgroundScope)
+        runCurrent()
+        assertFalse(model.state.value.scanning)
+    }
+
+    @Test
     fun thePairPageDiscoversActively() = runTest {
         val model = model()
         model.beginPairing()
@@ -218,7 +233,10 @@ class CamerasModelTest {
         runCurrent()
         assertEquals(Values.failure, model.now.failures["camera-1"]?.failure)
         assertTrue(model.now.attempts.isEmpty())
-        assertEquals(CamerasModel.Request.OpenSettings, model.perform(RecoveryAction.OpenSettings, "camera-1"))
+        assertEquals(
+            CamerasModel.Request.OpenSettings(Values.failure.reason),
+            model.perform(RecoveryAction.OpenSettings, "camera-1"),
+        )
         assertEquals(
             CamerasModel.Request.EditRoute(Values.camera, Values.wifi.id),
             model.perform(RecoveryAction.EditRoute(Values.wifi.id), "camera-1"),
@@ -226,6 +244,72 @@ class CamerasModelTest {
         assertNull(model.perform(RecoveryAction.Retry, "camera-1"))
         assertTrue(fake.attempts.size == 2 && fake.attempts[1].target == ConnectTarget.Saved(Values.camera, Values.wifi.id))
         assertTrue(model.now.failures.isEmpty() && model.now.attempts["camera-1"] != null)
+    }
+
+    @Test
+    fun returningToTheAppRetriesARecordedFailureThroughAnAttempt() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        assertEquals(1, fake.attempts.size)
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        assertEquals(2, fake.attempts.size, "the foreground retry is a real attempt with card progress")
+        assertEquals(ConnectTarget.Saved(Values.camera, Values.ap.id), fake.attempts[1].target)
+        assertNull(model.now.failures[Values.camera.id])
+        assertNotNull(model.now.attempts[Values.camera.id])
+    }
+
+    @Test
+    fun aForegroundRetryUsesTheCurrentSavedRecord() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        model.rename(Values.camera.id, "Renamed")
+        runCurrent()
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        val target = assertIs<ConnectTarget.Saved>(fake.attempts.last().target)
+        assertEquals("Renamed", target.camera.name, "the retry must not restore the record from the failure")
+        assertEquals(Values.ap.id, target.route)
+    }
+
+    @Test
+    fun aForegroundRetrySkipsAFailedRouteTheOperatorForgot() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        model.forgetRoute(Values.ap.id, Values.camera.id)
+        runCurrent()
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        assertEquals(1, fake.attempts.size, "a forgotten route must not come back through the retry")
+    }
+
+    @Test
+    fun aForegroundRetryLeavesALiveSessionAlone() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        model.connect(Values.camera)
+        fake.attempts[1].connect(FakeCameraSession.lunaLike())
+        runCurrent()
+        assertEquals(2, fake.attempts.size)
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        assertEquals(2, fake.attempts.size, "a live camera is never re-dialled")
     }
 
     @Test

@@ -586,7 +586,7 @@ init ISOOffer(setting: SettingOffer?, autoRangeFloor: Swift.Int?, nativeISO: Cap
 init LUTPreferences(storage: Foundation.UserDefaults, namespace: Swift.String)
 init LadderSheetPresentation(title: Swift.String, subtitle: Swift.String, tabs: [LadderTab<Key>], initialTab: Swift.Int, lock: CaptureLock?, lockBanner: Swift.String?)<Key where Key : Swift.Equatable, Key : Swift.Sendable>
 init LadderStep(label: Swift.String, value: Swift.String?, description: Swift.String, selected: Swift.Bool, lands: Swift.Bool)
-init LadderTab(label: Swift.String, key: Key, ladder: CaptureLadder, detail: Swift.String?, activate: LadderWrite<Key>?, applyOnActivate: Swift.Bool, disabled: Swift.Bool, setting: CaptureLadderSetting?, tint: CaptureTint?, values: ((Swift.String) -> [Swift.String])?, steps: ((Swift.String) -> (LadderStep, LadderStep)?)?)<Key where Key : Swift.Equatable, Key : Swift.Sendable>
+init LadderTab(label: Swift.String, key: Key, ladder: CaptureLadder, detail: Swift.String?, activate: LadderWrite<Key>?, applyOnActivate: Swift.Bool, disabled: Swift.Bool, setting: CaptureLadderSetting?, tint: CaptureTint?, values: ((Swift.String) -> [Swift.String])?, steps: ((Swift.String) -> (LadderStep, LadderStep)?)?, stepsHint: Swift.String?)<Key where Key : Swift.Equatable, Key : Swift.Sendable>
 init LadderWrite(key: Key, value: Swift.String)<Key where Key : Swift.Equatable, Key : Swift.Sendable>
 init MediaFile(path: Swift.String, thumbPath: Swift.String, handle: Swift.UInt32, cmdHandle: Swift.UInt32, sizeBytes: Swift.UInt64, durationSeconds: Swift.Int, isStarred: Swift.Bool, resolution: Swift.String?, fps: Swift.Int?, proxyPath: Swift.String?, storage: Swift.Int, storageKnown: Swift.Bool?, group: Swift.Int, handleShared: Swift.Bool, handleCandidate: Swift.UInt32)
 init MediaHTTP.Route(host: Swift.String, addressing: MediaHTTP.Addressing)
@@ -603,7 +603,7 @@ init SessionRecoveryDrive()
 init SessionRecoveryEpisode(port: SessionRecoveryEpisode.Port, attemptDeadline: SessionRecoveryEpisode.AttemptDeadline, timing: SessionRecoveryEpisode.Timing, changed: (SessionRecoveryEpisode.Snapshot, Foundation.UUID?) -> Swift.Void)
 init SessionRecoveryEpisode.AttemptDeadline(attempt: Swift.Duration, stages: [SessionRecoveryEpisode.Stage : Swift.Duration])
 init SessionRecoveryEpisode.Observation(ownsConnection: Swift.Bool?, progress: SessionRecoveryEpisode.Progress, stage: SessionRecoveryEpisode.Stage?, sourceAt: Foundation.TimeInterval?, presentedAt: Foundation.TimeInterval?)
-init SessionRecoveryEpisode.Port(observe: () -> SessionRecoveryEpisode.Observation, cleanup: (SessionRecoveryEpisode.Cleanup, SessionRecoveryEpisode.Attempt) -> Swift.Void, connect: (SessionRecoveryEpisode.Attempt) async throws -> Swift.Bool, currentRun: () -> Foundation.UUID?, retireRun: () -> Swift.Void, holder: (SessionRecoveryEpisode.Attempt, Swift.Int) async -> Swift.String?)
+init SessionRecoveryEpisode.Port(observe: () -> SessionRecoveryEpisode.Observation, cleanup: (SessionRecoveryEpisode.Cleanup, SessionRecoveryEpisode.Attempt) -> Swift.Void, connect: (SessionRecoveryEpisode.Attempt) async throws -> Swift.Bool, currentRun: () -> Foundation.UUID?, retireRun: () -> Swift.Void, holder: ((SessionRecoveryEpisode.Attempt, Swift.Int) async -> Swift.String?)?)
 init SessionRecoveryEpisode.Snapshot(state: SessionRecoveryState, targetID: Swift.String?, holdsPicture: Swift.Bool, cardGraceElapsed: Swift.Bool, reconnecting: Swift.Bool)
 init SessionRecoveryEpisode.Timing(monotonicNow: () -> _Concurrency.ContinuousClock.Instant, uptime: () -> Foundation.TimeInterval, wallNow: () -> Foundation.TimeInterval, sleep: (Swift.Duration) async throws -> Swift.Void, jitter: () -> Swift.Double)
 init SessionRecoveryPolicy(backoff: ReconnectBackoff, maxAutomaticAttempts: Swift.Int)
@@ -671,6 +671,7 @@ let LadderTab.label: Swift.String
 let LadderTab.ladder: CaptureLadder
 let LadderTab.setting: CaptureLadderSetting?
 let LadderTab.steps: ((Swift.String) -> (LadderStep, LadderStep)?)?
+let LadderTab.stepsHint: Swift.String?
 let LadderTab.tint: CaptureTint?
 let LadderTab.values: ((Swift.String) -> [Swift.String])?
 let LadderWrite.key: Key
@@ -853,7 +854,7 @@ static func GamepadGimbalStick.restHeldMotion(from: GamepadGimbalStick, to: Game
 static func GamepadOperatorMap.dpad(_: GamepadDpad) -> GamepadOperatorAction
 static func GamepadOperatorMap.face(_: GamepadFaceButton) -> GamepadOperatorAction
 static func GamepadOperatorMap.shoulder(_: GamepadShoulder) -> GamepadOperatorAction
-static func GamepadShutterSync.angleLabel(denom: Swift.Int, fps: Swift.Int, available: [Swift.Int], preferredAngle: Swift.Double) -> Swift.String
+static func GamepadShutterSync.angleLabel(denom: Swift.Int, fps: Swift.Int, available: [Swift.Int], preferredAngle: Swift.Double, settling: Swift.Bool) -> Swift.String
 static func GamepadShutterSync.preferredAngle(afterDenom: Swift.Int, fps: Swift.Int) -> Swift.Double?
 static func GamepadShutterSync.shouldPersistPreferredAngle(usesAngle: Swift.Bool, isPhoto: Swift.Bool, expoIsAuto: Swift.Bool) -> Swift.Bool
 static func GimbalStick.ResponseCurve.fromLabel(_: Swift.String) -> GimbalStick.ResponseCurve

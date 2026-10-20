@@ -47,7 +47,7 @@ import kotlin.math.roundToInt
 fun MonitorValueDrum(options: List<String>, selection: String, modifier: Modifier = Modifier,
     markedValues: Set<String> = emptySet(), interactive: Boolean = true,
     displayPosition: Float? = null, dimDisabled: Boolean = true,
-    onDetent: () -> Unit = {}, onSelect: (String) -> Unit) {
+    onDetent: () -> Unit = {}, hint: String? = null, onSelect: (String) -> Unit) {
     if (options.isEmpty()) return
     var cursor by remember(options) { mutableFloatStateOf(options.indexOf(selection).coerceAtLeast(0).toFloat()) }
     var dragOrigin by remember(options) { mutableFloatStateOf(cursor) }
@@ -112,7 +112,7 @@ fun MonitorValueDrum(options: List<String>, selection: String, modifier: Modifie
     )
     Canvas(modifier.fillMaxWidth().height(86.dp).alpha(if (interactive || !dimDisabled) 1f else .45f)
         .semantics {
-            contentDescription = selection.ifBlank { "Choose value" }
+            contentDescription = monitorDrumDescription(selection, hint)
             progressBarRangeInfo = ProgressBarRangeInfo(cursor, 0f..options.lastIndex.toFloat(), (options.size - 2).coerceAtLeast(0))
             if (interactive) setProgress { choose(it.roundToInt().toFloat()); true }
         }
@@ -177,4 +177,13 @@ fun MonitorValueDrum(options: List<String>, selection: String, modifier: Modifie
                 strokeWidth = 2.dp.toPx())
         }
     }
+}
+
+/**
+ * The drum's spoken text: its value, then what the buttons beside it do. TalkBack has no hint slot,
+ * so the hint (the Swift drum's `accessibilityHint`) follows the value.
+ */
+internal fun monitorDrumDescription(selection: String, hint: String?): String {
+    val value = selection.ifBlank { "Choose value" }
+    return if (hint.isNullOrBlank()) value else "$value. $hint"
 }

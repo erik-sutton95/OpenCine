@@ -1140,7 +1140,7 @@ class PocketCameraSession(
         try {
             completePairing()
         } catch (_: TimeoutCancellationException) {
-            error("pairing timed out — tap Approve on the camera if it asked")
+            error("pairing timed out. Tap Approve on the camera if it asked.")
         }
 
         startKeepalive(joinedSSID)

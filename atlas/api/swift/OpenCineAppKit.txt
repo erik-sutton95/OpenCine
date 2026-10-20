@@ -11,6 +11,8 @@ case CamerasModel.Request.pairAgain
 case CamerasModel.RoutePolicy.preferReachable
 case CamerasModel.RoutePolicy.preferred
 case FeedIncidentStore.StorageError.bundleTooLarge
+case MonitorCapturePolicy.Action.openMode
+case MonitorCapturePolicy.Action.press
 case MonitorCaptureSelection.pending
 case MonitorCaptureSelection.reported
 case MonitorDeliveryBatchOutcome.failed(Swift.String)
@@ -223,8 +225,8 @@ class ReliabilityReporting: Sendable
 class ReliabilityReportingConsent: Sendable
 class ReliabilityReportingForwarder: Sendable
 class ReliabilityReportingGate: Sendable
-class ReliabilityReportingRedirectGuard: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable, URLSessionDelegate, URLSessionTaskDelegate
-class ReliabilityReportingURLProtocol: CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, NSObjectProtocol, Sendable
+class ReliabilityReportingRedirectGuard: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
+class ReliabilityReportingURLProtocol: Foundation.URLProtocol, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class SavedCamerasStore: Sendable
 class ShellModel: Observable, Sendable
 enum BodyRecordsV0.Dates: Equatable, Hashable, Sendable
@@ -233,6 +235,7 @@ enum CamerasModel.Request: Equatable
 enum CamerasModel.RoutePolicy: Equatable, Hashable, Sendable
 enum FeedIncidentStore.StorageError: Equatable, Error, Hashable, Sendable
 enum FeedSessionSummaryStore
+enum MonitorCapturePolicy.Action: Equatable, Hashable, Sendable
 enum MonitorCapturePresentation
 enum MonitorCaptureSelection: Equatable, Hashable, Sendable
 enum MonitorChromeEditBadgeLayout
@@ -269,6 +272,7 @@ enum MonitorMediaPictureRatingResult: Equatable, Sendable
 enum MonitorMediaPictureShareReadiness: Equatable, Hashable, Sendable
 enum MonitorMediaSort: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorOperatorCameraPanelChrome: Equatable, Hashable, Sendable
+enum MonitorOperatorLiveReadoutStyle
 enum MonitorPlaybackCandidate: Sendable
 enum MonitorPlaybackRemovalAdmission
 enum MonitorRemoteShutterPolicy
@@ -322,6 +326,7 @@ func CamerasModel.defaultRoute(of: OpenCineCore.SavedCamera) -> OpenCineCore.Con
 func CamerasModel.discoveryMode(of: any OpenCineCore.CameraIntegration) -> OpenCineCore.DiscoveryMode?
 func CamerasModel.dismissFailure(_: Swift.String) -> ()
 func CamerasModel.endPairing() -> ()
+func CamerasModel.failure(for: Swift.String?) -> CamerasModel.Failure?
 func CamerasModel.forget(_: Swift.String) async -> ()
 func CamerasModel.forgetRoute(_: OpenCineCore.ConnectionRouteID, of: Swift.String) -> ()
 func CamerasModel.perform(_: OpenCineCore.RecoveryAction, for: Swift.String) -> CamerasModel.Request?
@@ -706,6 +711,10 @@ func MonitorRemoteShutterPresses.observe(volume: Swift.Float, at: Foundation.Tim
 func MonitorRemoteShutterPresses.pinned(at: Foundation.TimeInterval) -> ()
 func MonitorRemoteShutterPresses.reanchor(volume: Swift.Float) -> ()
 func MonitorRemoteShutterPresses.repins(volume: Swift.Float, at: Foundation.TimeInterval) -> Swift.Bool
+func MonitorRemoteShutterVolumeLease.end() -> ()
+func MonitorRemoteShutterVolumeLease.needsView(at: Foundation.TimeInterval) -> Swift.Bool
+func MonitorRemoteShutterVolumeLease.request(volume: Swift.Float) -> ()
+func MonitorRemoteShutterVolumeLease.wrote(at: Foundation.TimeInterval) -> ()
 func MonitorScopePanelStore.beginDrag(center: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
 func MonitorScopePanelStore.beginDrag(center: MonitorPresentation.MonitorScopePoint, slot: MonitorPresentation.MonitorScopeCanvasSlot)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
 func MonitorScopePanelStore.cancelDrag(bounds: CoreFoundation.CGRect)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
@@ -860,9 +869,10 @@ init MonitorAssistState(looks: Looks, storage: Foundation.UserDefaults, keys: Mo
 init MonitorAudioPreferenceStore(storage: Foundation.UserDefaults, key: Swift.String)
 init MonitorAudioStoredCenter(_: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)
 init MonitorBrowserInternetHandoff(hop: MonitorInternetHop<Route>)<Route>
-init MonitorCaptureButton(control: MonitorControlModel, diameter: CoreGraphics.CGFloat, enabled: Swift.Bool, photo: Swift.Bool, confirm: Swift.Bool, haptics: Swift.Bool, takePhoto: () -> Swift.Void, openMode: (() -> Swift.Void)?)
+init MonitorCaptureButton(control: MonitorControlModel, diameter: CoreGraphics.CGFloat, enabled: Swift.Bool, busy: Swift.Bool, photo: Swift.Bool, confirm: Swift.Bool, haptics: Swift.Bool, takePhoto: () -> Swift.Void, openMode: (() -> Swift.Void)?)
 init MonitorCaptureChoice(value: OpenCineCore.SettingValue, label: Swift.String)
 init MonitorCaptureDrum(control: MonitorControlModel, field: MonitorCaptureField, enabled: Swift.Bool, haptics: Swift.Bool, previewPosition: Swift.Double?, previewSelection: Swift.String?, choices: [MonitorCaptureChoice]?, marked: Swift.Set<Swift.String>, onCommitted: (OpenCineCore.SettingValue) -> Swift.Void)
+init MonitorCapturePolicy(enabled: Swift.Bool, busy: Swift.Bool, pending: Swift.Bool, photo: Swift.Bool, canRecord: Swift.Bool, recording: Swift.Bool?, offersMode: Swift.Bool)
 init MonitorCapturePopupContainer(layout: MonitorPresentation.FieldMonitorLayout, safeArea: MonitorPresentation.MonitorSafeArea, top: Swift.Bool, content: (MonitorPresentation.MonitorCapturePopupLayout) -> Content)<Content where Content : SwiftUI.View>
 init MonitorCaptureReadout(control: MonitorControlModel, field: MonitorCaptureField, enabled: Swift.Bool, active: Swift.Bool, ownership: SwiftUI.Binding<MonitorPresentation.MonitorReadoutOwnership>, presentationOwner: () -> Foundation.UUID?, admission: () -> Swift.Bool, onEvent: (MonitorPresentation.MonitorReadoutEvent<MonitorCaptureField>) -> Swift.Void)
 init MonitorCaptureSourceIdentity(camera: OpenCineCore.CameraSessionID?, epoch: OpenCineCore.ControlEpoch?, monitor: Foundation.UUID?, pictureOwner: Swift.ObjectIdentifier?, picture: Swift.String, phase: Swift.String?)
@@ -915,14 +925,14 @@ init MonitorFalseColorReferencePositionStore(storage: Foundation.UserDefaults, k
 init MonitorInteractionContext(locked: Swift.Bool, covered: Swift.Bool, editing: Swift.Bool, clean: Swift.Bool, toolbarMounted: Swift.Bool, transientPanelPresented: Swift.Bool, camera: OpenCineCore.CameraSessionID?, orientationRevision: Swift.Int)
 init MonitorInteractionLifecycle()
 init MonitorInternetHop(port: MonitorInternetHop<Route>.Port, sleep: (Swift.Duration) async -> Swift.Void)<Route>
-init MonitorInternetHop.Port(onCameraNetwork: () -> Swift.Bool, leave: (Route, @escaping () -> Swift.Bool) async -> Route?, admitsReturn: (Route) -> Swift.Bool, rejoin: (Route, @escaping () -> Swift.Bool) async -> Swift.Void, online: () async -> Swift.Bool)<Route>
+init MonitorInternetHop.Port(onCameraNetwork: () -> Swift.Bool, leave: (Route, @escaping () -> Swift.Bool) async -> Route?, admitsReturn: (Route) -> Swift.Bool, rejoin: (Route, @escaping () -> Swift.Bool) async -> Swift.Void, online: (() async -> Swift.Bool)?)<Route>
 init MonitorMediaCache(directory: MonitorMediaCacheDirectory, codec: any MonitorMediaCatalogCodec<Payload>, eligibility: MonitorMediaOriginalEligibility, catalogAddress: Swift.String, preservedMetadata: [Swift.String], persistEmptyCatalog: Swift.Bool, catalogStore: (any MonitorMediaCatalogByteStore)?)<Payload where Payload : Swift.Sendable>
 init MonitorMediaCacheAddress(thumbnail: Swift.String?, representations: [OpenCineMedia.MediaRepresentationID : Swift.String], favoriteKey: Swift.String, readAlternatives: [OpenCineMedia.MediaRepresentationID : [Swift.String]])
 init MonitorMediaCacheDirectory(root: Foundation.URL, fileManager: Foundation.FileManager, accountLegacyUnpreparedRoots: Swift.Bool)
 init MonitorMediaCacheRoot(root: Foundation.URL, fileManager: Foundation.FileManager, accountLegacyUnpreparedRoots: Swift.Bool)
 init MonitorMediaCacheStorage(fileManager: Foundation.FileManager)
 init MonitorMediaCatalogCapture(resetLibrary: Swift.Bool, upserts: [MonitorMediaRecord<Payload>], removed: [OpenCineMedia.MediaAssetID], amendments: [MonitorMediaRecord<Payload>], order: [OpenCineMedia.MediaAssetID]?, sourceFavoriteKeys: Swift.Set<Swift.String>?)<Payload where Payload : Swift.Sendable>
-init MonitorMediaDeletionPort(remove: (Location) async -> MonitorMediaDeleteAcknowledgement, commit: (Value, [Location]) async -> Swift.Bool, finish: () async -> Swift.Void)<Value, Location where Value : Swift.Sendable, Location : Swift.Sendable>
+init MonitorMediaDeletionPort(remove: (Location) async -> MonitorMediaDeleteAcknowledgement, commit: (Value, [Location]) async -> Swift.Bool, finish: (() async -> Swift.Void)?)<Value, Location where Value : Swift.Sendable, Location : Swift.Sendable>
 init MonitorMediaDeletionProgress(completed: Swift.Int, total: Swift.Int, selectedCount: Swift.Int)
 init MonitorMediaDeletionTarget(value: Value, locations: [Location], canRemove: Swift.Bool)<Value, Location where Value : Swift.Sendable, Location : Swift.Sendable>
 init MonitorMediaFilterFacts(format: Swift.String?, resolution: Swift.String?, dateKey: Swift.String?, orderKey: Swift.String?, color: Swift.String?, presentationKind: OpenCineMedia.MediaAssetKind?, playbackEligible: Swift.Bool?)
@@ -934,7 +944,7 @@ init MonitorMediaGalleryOperations(download: ((MonitorMediaRecord<Payload>) asyn
 init MonitorMediaLibraryCopy(openFailed: Swift.String, listFailed: Swift.String, favoriteSaveFailed: Swift.String, downloadFailed: Swift.String, listing: Swift.String?, empty: Swift.String?, sourceHeld: Swift.String?)
 init MonitorMediaLibraryIOKey(_: Swift.String)
 init MonitorMediaLibraryIOKey(rawValue: Swift.String)
-init MonitorMediaLibraryModel(cache: MonitorMediaCache<Payload>, favorites: any MonitorMediaFavoritesStore, service: (any OpenCineMedia.CameraMediaService)?, cacheScanning: MonitorMediaCacheScanning, catalogPersistence: MonitorMediaCatalogPersistence, catalogBase: MonitorMediaCatalogBase, initialCatalog: OpenCineMedia.MediaCatalog?, initialRecords: [MonitorMediaRecord<Payload>]?, copy: MonitorMediaLibraryCopy, readSnapshot: (MonitorMediaCacheReadPlan) async throws -> MonitorMediaCacheSnapshot, sleep: (Swift.Duration) async throws -> Swift.Void)<Payload where Payload : Swift.Sendable>
+init MonitorMediaLibraryModel(cache: MonitorMediaCache<Payload>, favorites: any MonitorMediaFavoritesStore, service: (any OpenCineMedia.CameraMediaService)?, cacheScanning: MonitorMediaCacheScanning, catalogPersistence: MonitorMediaCatalogPersistence, catalogBase: MonitorMediaCatalogBase, initialCatalog: OpenCineMedia.MediaCatalog?, initialRecords: [MonitorMediaRecord<Payload>]?, copy: MonitorMediaLibraryCopy, readSnapshot: ((MonitorMediaCacheReadPlan) async throws -> MonitorMediaCacheSnapshot)?, sleep: (Swift.Duration) async throws -> Swift.Void)<Payload where Payload : Swift.Sendable>
 init MonitorMediaLibraryState()<Payload where Payload : Swift.Sendable>
 init MonitorMediaPictureLoaders(preview: MonitorMediaPictureLoaders<Payload, Picture>.Load?, cached: MonitorMediaPictureLoaders<Payload, Picture>.Load?, source: MonitorMediaPictureLoaders<Payload, Picture>.Load?, progressive: ((MonitorMediaPicturePublication<Payload, Picture>) async -> Picture?)?)<Payload, Picture where Payload : Swift.Sendable>
 init MonitorMediaPictureModel(library: MonitorMediaLibraryModel<Payload>, record: MonitorMediaRecord<Payload>, admission: MonitorMediaLibraryActionToken?, variants: [MonitorMediaPictureVariant<Payload>], sleep: (Swift.Duration) async throws -> Swift.Void, sourceCurrent: () -> Swift.Bool)<Payload, Picture where Payload : Swift.Sendable>
@@ -959,7 +969,7 @@ init MonitorOperatorCaptureInputs(readouts: [MonitorOperatorLiveReadout<Key, Sec
 init MonitorOperatorCapturePopup(inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>, control: MonitorControlModel, state: MonitorOperatorCaptureState<Key, NativeIdentity>, layout: MonitorPresentation.FieldMonitorLayout, safeArea: MonitorPresentation.MonitorSafeArea, enabled: Swift.Bool, commandEnabled: Swift.Bool, currentSource: () -> Swift.Bool, passthroughFrames: [CoreFoundation.CGRect], coordinateSpace: Swift.String, content: (Key, MonitorPresentation.MonitorCapturePopupLayout) -> Content)<Key, Section, NativeIdentity, Content where Key : Swift.Hashable, Section : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable, Content : SwiftUI.View>
 init MonitorOperatorCaptureState()<Key, NativeIdentity where Key : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable>
 init MonitorOperatorCaptureStrip(inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>, control: MonitorControlModel, state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity, enabled: Swift.Bool, commandEnabled: Swift.Bool, currentSource: () -> Swift.Bool, coordinateSpace: Swift.String, portrait: Swift.Bool, tablet: Swift.Bool)<Key, Section, NativeIdentity where Key : Swift.Hashable, Section : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable>
-init MonitorOperatorLiveReadout(id: Key, title: Swift.String, value: Swift.String, section: Section?, field: MonitorCaptureField?, action: (() -> Swift.Void)?, valueIcon: MonitorUI.MonitorIcon?, badgeIcon: MonitorUI.MonitorIcon?, quickEnabled: Swift.Bool, accessibilityIdentifier: Swift.String, accessibilityLabel: Swift.String?)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
+init MonitorOperatorLiveReadout(id: Key, title: Swift.String, value: Swift.String, section: Section?, field: MonitorCaptureField?, action: (() -> Swift.Void)?, valueIcon: MonitorUI.MonitorIcon?, badgeIcon: MonitorUI.MonitorIcon?, quickEnabled: Swift.Bool, accessibilityIdentifier: Swift.String, accessibilityLabel: Swift.String?, marked: Swift.Set<Swift.String>, dimmed: Swift.Bool, holdAction: (() -> Swift.Void)?)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 init MonitorOperatorMediaModel(library: MonitorMediaLibraryModel<Payload>, recordAdmission: ((MonitorMediaRecord<Payload>) -> MonitorPlaybackAdmission)?, sleep: (Swift.Duration) async throws -> Swift.Void, makeAdmittedPlayback: (MonitorMediaLibraryModel<Payload>, MonitorPlaybackAdmission) -> MonitorMediaPlaybackModel<Payload, Look>?)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>
 init MonitorOperatorMediaModel(library: MonitorMediaLibraryModel<Payload>, recordAdmission: ((MonitorMediaRecord<Payload>) -> MonitorPlaybackAdmission)?, sleep: (Swift.Duration) async throws -> Swift.Void, makePlayback: (MonitorMediaLibraryModel<Payload>) -> MonitorMediaPlaybackModel<Payload, Look>)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>
 init MonitorOperatorNativeCaptureQuick(identity: Identity, snapshot: MonitorPresentation.MonitorReadoutSnapshot, enabled: Swift.Bool, delayed: Swift.Bool)<Identity where Identity : Swift.Hashable, Identity : Swift.Sendable>
@@ -970,13 +980,14 @@ init MonitorOperatorPreferences(storage: Foundation.UserDefaults, keys: MonitorO
 init MonitorOperatorPreferences.Defaults(keepScreenAwake: Swift.Bool, hdrDisplay: Swift.Bool, recordConfirmation: Swift.Bool, haptics: Swift.Bool, cacheOriginals: Swift.Bool, remoteShutter: Swift.Bool)
 init MonitorOperatorPreferences.Keys(keepScreenAwake: Swift.String, hdrDisplay: Swift.String, recordConfirmation: Swift.String, haptics: Swift.String, cacheOriginals: Swift.String, legacyKeepScreenAwake: Swift.String?, remoteShutter: Swift.String?)
 init MonitorOperatorSessionModel(shell: ShellModel, assist: MonitorAssistState<Looks>, display: MonitorDisplayPreferences, sleep: (Swift.Duration) async -> Swift.Void)<Looks where Looks : MonitorLookProvider>
-init MonitorOperatorSupplementaryCaptureReadout(id: Swift.String, after: Key, title: Swift.String, value: Swift.String, accessibilityValue: Swift.String, accessibilityIdentifier: Swift.String, section: Section?, enabled: Swift.Bool, isCurrent: () -> Swift.Bool, action: () -> Swift.Void)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
+init MonitorOperatorSupplementaryCaptureReadout(id: Swift.String, after: Key, title: Swift.String, value: Swift.String, accessibilityLabel: Swift.String?, accessibilityValue: Swift.String, accessibilityHint: Swift.String?, accessibilityIdentifier: Swift.String, section: Section?, enabled: Swift.Bool, isCurrent: () -> Swift.Bool, action: () -> Swift.Void)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 init MonitorPlaybackAdmission(isCurrent: () -> Swift.Bool)
 init MonitorPlaybackLook(transfer: OpenCineMedia.MonitorTransfer?, source: Source)<Source where Source : Swift.Sendable>
 init MonitorPlaybackScopeFrame(revision: Swift.UInt64, samples: OpenCineMedia.ScopeSamples)
 init MonitorPlaybackScopeSession(cadence: Swift.Duration, sleep: (Swift.Duration) async throws -> Swift.Void, derive: (OpenCineMedia.ScopeSamples, Configuration, OpenCineMedia.ScopeAssistBundle) async -> OpenCineMedia.ScopeAssistBundle)<Configuration where Configuration : Swift.Equatable, Configuration : Swift.Sendable>
 init MonitorRect(_: CoreFoundation.CGRect)
 init MonitorRemoteShutterPresses(volume: Swift.Float)
+init MonitorRemoteShutterVolumeLease()
 init MonitorReviewOptions(duration: MonitorReviewDuration, showsFocusPoint: Swift.Bool, showsCaptureInfo: Swift.Bool)
 init MonitorScopePanelStore(options: Options?, storage: Foundation.UserDefaults, key: Swift.String)<Options where Options : MonitorPresentation.MonitorScopePanelOptions>
 init MonitorScopePoint(_: CoreFoundation.CGPoint)
@@ -1065,6 +1076,13 @@ let MonitorCaptureField.editor: MonitorControlModel.Editor?
 let MonitorCaptureField.key: OpenCineCore.SettingKey
 let MonitorCaptureField.selection: OpenCineCore.SettingValue?
 let MonitorCaptureField.title: Swift.String
+let MonitorCapturePolicy.busy: Swift.Bool
+let MonitorCapturePolicy.canRecord: Swift.Bool
+let MonitorCapturePolicy.enabled: Swift.Bool
+let MonitorCapturePolicy.offersMode: Swift.Bool
+let MonitorCapturePolicy.pending: Swift.Bool
+let MonitorCapturePolicy.photo: Swift.Bool
+let MonitorCapturePolicy.recording: Swift.Bool?
 let MonitorCaptureSourceIdentity.camera: OpenCineCore.CameraSessionID?
 let MonitorCaptureSourceIdentity.epoch: OpenCineCore.ControlEpoch?
 let MonitorCaptureSourceIdentity.monitor: Foundation.UUID?
@@ -1349,8 +1367,11 @@ let MonitorOperatorLiveReadout.accessibilityIdentifier: Swift.String
 let MonitorOperatorLiveReadout.accessibilityLabel: Swift.String?
 let MonitorOperatorLiveReadout.action: (() -> Swift.Void)?
 let MonitorOperatorLiveReadout.badgeIcon: MonitorUI.MonitorIcon?
+let MonitorOperatorLiveReadout.dimmed: Swift.Bool
 let MonitorOperatorLiveReadout.field: MonitorCaptureField?
+let MonitorOperatorLiveReadout.holdAction: (() -> Swift.Void)?
 let MonitorOperatorLiveReadout.id: Key
+let MonitorOperatorLiveReadout.marked: Swift.Set<Swift.String>
 let MonitorOperatorLiveReadout.quickEnabled: Swift.Bool
 let MonitorOperatorLiveReadout.section: Section?
 let MonitorOperatorLiveReadout.title: Swift.String
@@ -1379,7 +1400,9 @@ let MonitorOperatorPreferences.Keys.legacyKeepScreenAwake: Swift.String?
 let MonitorOperatorPreferences.Keys.recordConfirmation: Swift.String
 let MonitorOperatorPreferences.Keys.remoteShutter: Swift.String?
 let MonitorOperatorSessionModel.assist: MonitorAssistState<Looks>
+let MonitorOperatorSupplementaryCaptureReadout.accessibilityHint: Swift.String?
 let MonitorOperatorSupplementaryCaptureReadout.accessibilityIdentifier: Swift.String
+let MonitorOperatorSupplementaryCaptureReadout.accessibilityLabel: Swift.String
 let MonitorOperatorSupplementaryCaptureReadout.accessibilityValue: Swift.String
 let MonitorOperatorSupplementaryCaptureReadout.after: Key
 let MonitorOperatorSupplementaryCaptureReadout.enabled: Swift.Bool
@@ -1506,6 +1529,7 @@ static func MonitorMediaOrderedDeletion.run(_: [MonitorMediaDeletionTarget<Value
 static func MonitorPlaybackRemovalAdmission.accepts(removed: OpenCineMedia.MediaAssetID?, captured: OpenCineMedia.MediaAssetID, token: OpenCineMedia.MonitorPlaybackItemToken, current: OpenCineMedia.MonitorPlaybackItemToken, active: OpenCineMedia.MediaAssetID?, closed: Swift.Bool, sameComposition: Swift.Bool, sameGallery: Swift.Bool, sameContent: Swift.Bool) -> Swift.Bool
 static func MonitorRemoteShutterPolicy.anchor(forCurrentVolume: Swift.Float) -> Swift.Float
 static func MonitorRemoteShutterPolicy.decision(newVolume: Swift.Float, now: Foundation.TimeInterval, lastTriggerAt: Foundation.TimeInterval, lastAnchorAt: Foundation.TimeInterval, anchor: Swift.Float) -> MonitorRemoteShutterPolicy.Decision
+static func MonitorRemoteShutterPolicy.needsWrite(from: Swift.Float, to: Swift.Float) -> Swift.Bool
 static func MonitorRemoteShutterPolicy.shouldRun(enabled: Swift.Bool, monitorPresented: Swift.Bool, liveViewFront: Swift.Bool, applicationIsActive: Swift.Bool, audioSessionAvailable: Swift.Bool) -> Swift.Bool
 static func MonitorReviewDuration.fromSeconds(_: Swift.Int) -> MonitorReviewDuration
 static func MonitorScopePanelStore.load(storage: Foundation.UserDefaults, key: Swift.String)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> Options
@@ -1578,14 +1602,17 @@ static let MonitorChromeEditBadgeLayout.edgeInset: CoreGraphics.CGFloat
 static let MonitorChromeEditBadgeLayout.overhang: CoreGraphics.CGFloat
 static let MonitorChromeEditBadgeLayout.touchTarget: CoreGraphics.CGFloat
 static let MonitorControlModel.connectFirst: Swift.String
+static let MonitorControlModel.rateChangeHold: Swift.Duration
 static let MonitorControlModel.recordingUnknown: Swift.String
 static let MonitorDeliveryBatchPolicy.emptySelection: Swift.String
 static let MonitorDeliveryBatchPolicy.internetFailure: Swift.String
 static let MonitorDisplayChrome.cleanDefaults: MonitorDisplayChrome
 static let MonitorDisplayChrome.liveDefaults: MonitorDisplayChrome
+static let MonitorOperatorLiveReadoutStyle.dimmedOpacity: Swift.Double
 static let MonitorRemoteShutterPolicy.debounceInterval: Foundation.TimeInterval
 static let MonitorRemoteShutterPolicy.railHeadroom: Swift.Float
 static let MonitorRemoteShutterPolicy.selfInflictedWindow: Foundation.TimeInterval
+static let MonitorRemoteShutterVolumeLease.hold: Foundation.TimeInterval
 static let MultiviewCameraAction.liveView: Swift.String
 static let MultiviewNetworkRestore.closeAction: Swift.String
 static let MultiviewRecordContext.groupNote: Swift.String
@@ -1635,6 +1662,7 @@ struct MonitorCaptureButton: Sendable, View
 struct MonitorCaptureChoice: Equatable, Hashable, Sendable
 struct MonitorCaptureDrum: Sendable, View
 struct MonitorCaptureField: Equatable, Hashable, Sendable
+struct MonitorCapturePolicy: Equatable, Sendable
 struct MonitorCapturePopupContainer<Content where Content : SwiftUI.View>: Sendable, View
 struct MonitorCaptureReadout: Sendable, View
 struct MonitorCaptureSourceIdentity: Equatable, Hashable, Sendable
@@ -1731,6 +1759,7 @@ struct MonitorPlaybackAdmission: Sendable
 struct MonitorPlaybackLook<Source where Source : Swift.Sendable>: Sendable
 struct MonitorPlaybackScopeFrame: Sendable
 struct MonitorRemoteShutterPresses: Equatable, Sendable
+struct MonitorRemoteShutterVolumeLease: Equatable, Sendable
 struct MonitorReviewOptions: Decodable, Encodable, Equatable, Hashable, Sendable
 struct MonitorScopeStoredPanel<Options, Content where Options : MonitorPresentation.MonitorScopePanelOptions, Content : SwiftUI.View>: Sendable, View
 struct MonitorScreen<Picture, Assists, Signal, Status, Power, Capture, System, Tools, Panels, Cover, Recovery where Picture : SwiftUI.View, Assists : SwiftUI.View, Signal : SwiftUI.View, Status : SwiftUI.View, Power : SwiftUI.View, Capture : SwiftUI.View, System : SwiftUI.View, Tools : SwiftUI.View, Panels : SwiftUI.View, Cover : SwiftUI.View, Recovery : SwiftUI.View>: Sendable, View
@@ -1987,10 +2016,21 @@ var MonitorBrowserInternetHandoff.isHolding: Swift.Bool
 var MonitorCaptureButton.body: some SwiftUI.View
 var MonitorCaptureDrum.body: some SwiftUI.View
 var MonitorCaptureField.isEditable: Swift.Bool
+var MonitorCaptureField.kelvinScrub: MonitorCaptureField
 var MonitorCaptureField.label: Swift.String?
+var MonitorCapturePolicy.accessibilityLabel: Swift.String
+var MonitorCapturePolicy.holdAccessibilityLabel: Swift.String?
+var MonitorCapturePolicy.holdAction: MonitorCapturePolicy.Action?
+var MonitorCapturePolicy.interactive: Swift.Bool
+var MonitorCapturePolicy.modeAdmitted: Swift.Bool
+var MonitorCapturePolicy.opacity: Swift.Double
+var MonitorCapturePolicy.pressAdmitted: Swift.Bool
+var MonitorCapturePolicy.stateDescription: Swift.String?
+var MonitorCapturePolicy.tapAction: MonitorCapturePolicy.Action?
 var MonitorCapturePopupContainer.body: some SwiftUI.View
 var MonitorCapturePopupContainer.placement: MonitorPresentation.MonitorCapturePopupLayout
 var MonitorCaptureReadout.body: some SwiftUI.View
+var MonitorControlModel.frameRateSettling: Swift.Bool
 var MonitorControlModel.isRecording: Swift.Bool?
 var MonitorControlModel.noteFor: (OpenCineCore.CommandStage, Swift.String) -> Swift.String?
 var MonitorControlModel.onChange: () -> Swift.Void
@@ -2109,6 +2149,7 @@ var MonitorInteractionContext.orientationRevision: Swift.Int
 var MonitorInteractionContext.toolbarMounted: Swift.Bool
 var MonitorInteractionContext.transientPanelPresented: Swift.Bool
 var MonitorInteractionLifecycle.context: MonitorInteractionContext?
+var MonitorInteractionTransition.cameraReplaced: Swift.Bool
 var MonitorInternetHop.isActive: Swift.Bool
 var MonitorInternetHop.onCameraNetwork: Swift.Bool
 var MonitorInternetHop.token: MonitorInternetHop<Route>.Token?
@@ -2291,6 +2332,7 @@ var MonitorOperatorCaptureState.frames: [Key : CoreFoundation.CGRect]
 var MonitorOperatorCaptureState.ownership: MonitorPresentation.MonitorReadoutOwnership
 var MonitorOperatorCaptureState.preview: MonitorOperatorCapturePreview<Key, NativeIdentity>?
 var MonitorOperatorCaptureStrip.body: some SwiftUI.View
+var MonitorOperatorLiveReadout.fieldSnapshot: MonitorPresentation.MonitorReadoutSnapshot?
 var MonitorOperatorMediaModel.deliveryPresented: Swift.Bool
 var MonitorOperatorMediaModel.galleryOpen: Swift.Bool
 var MonitorOperatorMediaModel.playback: MonitorMediaPlaybackModel<Payload, Look>?
@@ -2328,6 +2370,8 @@ var MonitorPlaybackScopeSession.bundle: OpenCineMedia.ScopeAssistBundle
 var MonitorRemoteShutterPresses.anchor: Swift.Float
 var MonitorRemoteShutterPresses.lastAnchorAt: Foundation.TimeInterval
 var MonitorRemoteShutterPresses.lastTriggerAt: Foundation.TimeInterval
+var MonitorRemoteShutterVolumeLease.heldUntil: Foundation.TimeInterval
+var MonitorRemoteShutterVolumeLease.pendingVolume: Swift.Float?
 var MonitorReviewDuration.automaticDismissDuration: Swift.Duration?
 var MonitorReviewDuration.label: Swift.String
 var MonitorReviewOptions.duration: MonitorReviewDuration

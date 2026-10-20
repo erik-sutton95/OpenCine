@@ -108,9 +108,48 @@ class NikonOpenCineSessionTest {
         assertNull(seam.refresh().value(SettingKey.SHUTTER).value)
         assertEquals(CommandStage.Rejected(CommandRejection.SupportUnknown), seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0)))).stage)
         assertTrue(native.writes.isEmpty())
-        val unknown = properties.copy(shutterMode = null, iris = null)
-        assertNull(NikonExposureSettings.reported(unknown)[SettingKey.SHUTTER])
-        assertTrue(NikonExposureSettings.descriptors(unknown).isEmpty())
+        // An unreported mode is not a lock: the label shape picks the circuit (baseline Z).
+        val unknown = properties.copy(shutterMode = null, shutterAngle = null, iris = null)
+        assertEquals(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50))),
+            NikonExposureSettings.reported(unknown)[SettingKey.SHUTTER])
+        assertEquals(listOf<com.opencapture.opencine.core.Availability>(com.opencapture.opencine.core.Availability.Available),
+            NikonExposureSettings.descriptors(unknown).map { it.availability })
+        // No reported shutter value at all: still unknown, nothing to write.
+        assertTrue(NikonExposureSettings.descriptors(unknown.copy(shutterSpeed = null)).isEmpty())
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
+    @Test
+    fun `auto ISO readout carries the working ISO`() {
+        // ZAA-142 / ZIA-112: twin of Swift isoPickerPolicyLabelsTheWorkingISOUnderAuto.
+        assertEquals("A3200", IsoPickerPolicy.autoISOLabel(3200, true, "H.265 10-bit MOV"))
+        assertNull(IsoPickerPolicy.autoISOLabel(null, true, "H.265 10-bit MOV"))
+        assertNull(IsoPickerPolicy.autoISOLabel(800, false, "H.265 10-bit MOV"))
+        assertNull(IsoPickerPolicy.autoISOLabel(800, true, "R3D NE 12-bit R3D"))
+    }
+
+    @Test
+    fun `a body that never reports its shutter mode reads and writes movie shutter by label shape`() = runTest {
+        // Z6III-class bodies have no MovieShutterMode; the baseline encoder wrote by label shape.
+        val properties = movie().copy(shutterMode = null, shutterSpeed = "1/50", shutterAngle = null)
+        val native = FakeNikon(properties)
+        val seam = NikonOpenCineSession(native, backgroundScope)
+        assertEquals(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50))), seam.refresh().value(SettingKey.SHUTTER).value)
+        assertEquals(com.opencapture.opencine.core.Availability.Available, seam.refresh().capabilities[SettingKey.SHUTTER]?.availability)
+        assertEquals(CommandStage.Confirmed, seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100))))).stage)
+        assertEquals(listOf(CameraControl.SHUTTER to "1/100"), native.writes)
+        // The body reports no angle, so the angle circuit is not offered.
+        assertEquals(CommandStage.Rejected(CommandRejection.OutOfDomain),
+            seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0)))).stage)
+        // Advertised labels of a reported circuit are the domain while the mode is unknown.
+        native.cameraProperties.value = properties.copy(controlCapabilities = properties.controlCapabilities.copy(
+            shutterValues = listOf("1/50", "1/100")))
+        assertEquals(CommandStage.Rejected(CommandRejection.OutOfDomain),
+            seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 200))))).stage)
+        // A camera lock still wins.
+        native.cameraProperties.value = native.cameraProperties.value.copy(shutterLocked = true)
+        assertEquals(CommandStage.Rejected(CommandRejection.Unavailable(UnavailableReason.Busy)),
+            seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100))))).stage)
         seam.closeNow(SessionCloseReason.REQUESTED)
     }
 

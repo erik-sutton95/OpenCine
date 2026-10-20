@@ -47,12 +47,12 @@ class SwiftCoreCameraSessionTest {
         val legacy = legacyWire.snapshot
         assertEquals(listOf("f/2.8", "f/4.0"), legacy.controlCapabilities.irisValues)
         assertTrue(legacy.controlCapabilities.advertisedIrisValues.isEmpty())
-        assertTrue(NikonExposureSettings.descriptors(legacy).single().domain!!.choices.isEmpty())
+        assertTrue(NikonExposureSettings.descriptors(legacy).single { it.key == SettingKey.APERTURE }.domain!!.choices.isEmpty())
         val actualWire = CameraPropertySnapshotWire.decode(base + "\noptions.advertisedIris\tf/4.0")
         assertTrue(actualWire.isValid)
         val actual = actualWire.snapshot
         assertEquals(listOf("f/4.0"), actual.controlCapabilities.advertisedIrisValues)
-        assertEquals(listOf(SettingValue.Aperture(4.0)), NikonExposureSettings.descriptors(actual).single().domain!!.choices)
+        assertEquals(listOf(SettingValue.Aperture(4.0)), NikonExposureSettings.descriptors(actual).single { it.key == SettingKey.APERTURE }.domain!!.choices)
     }
 
     @Test

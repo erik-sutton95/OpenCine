@@ -33,10 +33,10 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         var readouts: [MonitorOperatorLiveReadout<CaptureSheet, Section>] = []
         func append(_ sheet: CaptureSheet, _ title: String, _ value: String,
             field: MonitorCaptureField? = nil, icon: MonitorIcon? = nil, badge: MonitorIcon? = nil,
-            quickEnabled: Bool = true) {
+            quickEnabled: Bool = true, marked: Set<String> = []) {
             readouts.append(.init(id: sheet, title: title, value: value, section: section,
                 field: field, valueIcon: icon, badgeIcon: badge, quickEnabled: quickEnabled,
-                accessibilityIdentifier: "monitor.capture.\(sheet.rawValue)"))
+                accessibilityIdentifier: "monitor.capture.\(sheet.rawValue)", marked: marked))
         }
         let selection: MonitorCaptureSelection = host.captureStripShowsPendingEdits ? .pending : .reported
         func commonValue(_ key: SettingKey) -> String {
@@ -44,8 +44,9 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         }
         let nativeISO = status.isoIndex == .auto && controls.nativeISO.ceiling == true
         let isoField = nativeISO ? nil : host.control.captureField(.iso, selection: selection)
+        // The ISO drum stars the curve's native ISO whichever source owns it.
         append(.iso, "ISO", commonValue(.iso), field: isoField,
-            quickEnabled: nativeISO || isoField != nil)
+            quickEnabled: nativeISO || isoField != nil, marked: CaptureLists.isoMarkedLabels(from: status))
         // One rule for the tile and its panel: the common program, else the native report.
         let automatic = host.control.snapshot?.exposureProgram.value == .automatic || status.expoMode == .auto
         if automatic {
@@ -55,19 +56,14 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         } else {
             let nativeAngle = host.shutterUsesAngle && !status.isPhoto
             let field = nativeAngle ? nil : host.control.captureField(.shutter, selection: selection)
-            let shutter: ShutterValue?
-            if case .shutter(let value)? = host.control.captureValue(.shutter, selection: selection) { shutter = value } else { shutter = nil }
-            let rate: Rational?
-            if case .frameRate(let value)? = host.control.snapshot?.value(of: .frameRate).value { rate = value } else { rate = nil }
-            append(.shutter, "SHUTTER", nativeAngle ? CaptureNativeReadoutPresentation.shutterAngle(
-                common: shutter, frameRate: rate, available: CaptureLists.shutterDenoms(from: status),
-                preferredAngle: host.shutterAngleDegrees) : commonValue(.shutter), field: field,
+            append(.shutter, "SHUTTER", nativeAngle ? host.shutterAngleReadout(selection: selection).value
+                : commonValue(.shutter), field: field,
                 quickEnabled: nativeAngle || field != nil)
         }
         let exposure = host.autoExposureLocked ? CaptureLists.aeLock : host.control.snapshot?.exposureProgram.value.map(MonitorCapturePresentation.exposureProgram) ?? "--"
         append(.exposure, "EXPOSURE", exposure)
         let pendingWB = host.captureStripShowsPendingEdits && status.whiteBalance?.mode == .custom && !host.autoWhiteBalanceLocked
-        let wbField = pendingWB ? host.control.captureField(.whiteBalance, selection: selection) : nil
+        let wbField = pendingWB ? host.control.captureField(.whiteBalance, selection: selection)?.kelvinScrub : nil
         let wbValue = host.autoWhiteBalanceLocked ? CaptureLists.awbLockTile : commonValue(.whiteBalance)
         let wbIcon: MonitorIcon?
         if case .whiteBalance(.auto)? = host.control.captureValue(.whiteBalance, selection: selection) {
@@ -85,24 +81,22 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
                 native: FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)))
         }
         if controls.iris.isOffered {
-            append(.aperture, "APERTURE", commonValue(.aperture))
+            let iris: Double?
+            if case .aperture(let value)? = host.control.captureValue(.aperture, selection: selection) { iris = value } else { iris = nil }
+            append(.aperture, "APERTURE", CaptureNativeReadoutPresentation.aperture(
+                common: iris, strategy: status.apertureStrategy))
         }
         if controls.audio.isOffered && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
         let supplementary: [MonitorOperatorSupplementaryCaptureReadout<CaptureSheet, Section>]
         if let meter = host.nativeMeteringSource {
-            supplementary = [.init(id: "native.metering", after: .exposure, title: "METER",
-                value: meter.face.map { $0 ? "Face" : "Matrix" } ?? "--",
-                accessibilityValue: meter.face.map { $0 ? "Face Priority" : "Matrix" } ?? "Unknown",
-                accessibilityIdentifier: "monitor.capture.metering", section: section,
-                enabled: meter.face != nil, isCurrent: meter.isCurrent,
-                action: { if let face = meter.face { meter.setFace(!face) } })]
+            supplementary = [.metering(meter, section: section)]
         } else { supplementary = [] }
         let presented = presentedSheet.map { $0() } ?? host.captureSheet
         let panel = presented.map { sheet in
             let ev = sheet == .shutter && automatic
             return MonitorOperatorCameraPanel(key: sheet, top: sheet.isTopAnchored, chrome: .content,
                 title: ev ? "EXPOSURE" : sheet.headerLabel,
-                subtitle: ev ? "Compensation" : sheet == .shutter ? (status.isPhoto ? "Speed" : "Angle · speed")
+                subtitle: ev ? "Compensation" : sheet == .shutter ? host.shutterPanelSubtitle(selection: selection)
                     : sheet == .resolution && status.isPhoto ? "Photo" : sheet.subtitle)
         }
         var ownedPreview: UUID?
@@ -138,6 +132,19 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
                 !host.sessionLocked && !host.operatorPanelOpen && !host.coverOpen && host.captureSheet == nil
                     && (presentedSheet == nil || presentedSheet?() == nil)
             }, presentationOwner: { host.captureDrum?.id }, supplementaryReadouts: supplementary)
+    }
+}
+extension MonitorOperatorSupplementaryCaptureReadout where Key == CaptureSheet {
+    /// The face-priority metering toggle beside EXPOSURE: two values, so it switches in place.
+    /// It speaks its full name and what a tap does, not the visual caption.
+    @MainActor static func metering(_ meter: CaptureNativeMeteringSource, section: Section?) -> Self {
+        .init(id: "native.metering", after: .exposure, title: "METER",
+            value: meter.face.map { $0 ? "Face" : "Matrix" } ?? "--", accessibilityLabel: "Metering",
+            accessibilityValue: meter.face.map { $0 ? "Face Priority" : "Matrix" } ?? "Unknown",
+            accessibilityHint: "Switches between Matrix and Face Priority metering",
+            accessibilityIdentifier: "monitor.capture.metering", section: section,
+            enabled: meter.face != nil, isCurrent: meter.isCurrent,
+            action: { if let face = meter.face { meter.setFace(!face) } })
     }
 }
 #endif
