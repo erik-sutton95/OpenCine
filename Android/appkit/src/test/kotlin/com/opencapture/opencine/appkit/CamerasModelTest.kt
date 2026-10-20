@@ -28,6 +28,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -243,6 +244,72 @@ class CamerasModelTest {
         assertNull(model.perform(RecoveryAction.Retry, "camera-1"))
         assertTrue(fake.attempts.size == 2 && fake.attempts[1].target == ConnectTarget.Saved(Values.camera, Values.wifi.id))
         assertTrue(model.now.failures.isEmpty() && model.now.attempts["camera-1"] != null)
+    }
+
+    @Test
+    fun returningToTheAppRetriesARecordedFailureThroughAnAttempt() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        assertEquals(1, fake.attempts.size)
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        assertEquals(2, fake.attempts.size, "the foreground retry is a real attempt with card progress")
+        assertEquals(ConnectTarget.Saved(Values.camera, Values.ap.id), fake.attempts[1].target)
+        assertNull(model.now.failures[Values.camera.id])
+        assertNotNull(model.now.attempts[Values.camera.id])
+    }
+
+    @Test
+    fun aForegroundRetryUsesTheCurrentSavedRecord() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        model.rename(Values.camera.id, "Renamed")
+        runCurrent()
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        val target = assertIs<ConnectTarget.Saved>(fake.attempts.last().target)
+        assertEquals("Renamed", target.camera.name, "the retry must not restore the record from the failure")
+        assertEquals(Values.ap.id, target.route)
+    }
+
+    @Test
+    fun aForegroundRetrySkipsAFailedRouteTheOperatorForgot() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        model.forgetRoute(Values.ap.id, Values.camera.id)
+        runCurrent()
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        assertEquals(1, fake.attempts.size, "a forgotten route must not come back through the retry")
+    }
+
+    @Test
+    fun aForegroundRetryLeavesALiveSessionAlone() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        model.connect(Values.camera)
+        fake.attempts[1].connect(FakeCameraSession.lunaLike())
+        runCurrent()
+        assertEquals(2, fake.attempts.size)
+
+        model.retryCurrentFailures()
+        runCurrent()
+
+        assertEquals(2, fake.attempts.size, "a live camera is never re-dialled")
     }
 
     @Test
