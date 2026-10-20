@@ -158,8 +158,10 @@ jobs:
       - name: Build MonitorUI and OpenCineApple (iOS Simulator)
         run: |
           for scheme in MonitorUI OpenCineApple; do
+            # Hosted runners are arm64: an x86_64 simulator slice only doubles the compile.
             xcodebuild -scheme "$scheme" -destination 'generic/platform=iOS Simulator' -derivedDataPath ~/ci-dd \
-              -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES build
+              -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES \
+              ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
           done
       # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
       - name: Build Insta360Apple (iOS devices)
