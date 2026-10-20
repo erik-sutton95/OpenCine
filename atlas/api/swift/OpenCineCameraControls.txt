@@ -213,6 +213,8 @@ func CaptureSheetHost.commitRecordingCodec(_: Swift.String) -> ()
 func CaptureSheetHost.nativeCapturePanel(_: CaptureSheet, enabled: Swift.Bool) -> Self.NativeCapturePanel?
 func CaptureSheetHost.quickSnapshot(_: CaptureSheet) -> CaptureQuickSnapshot?
 func CaptureSheetHost.refreshIsoLimit() async -> ()
+func CaptureSheetHost.shutterAngleReadout(selection: OpenCineAppKit.MonitorCaptureSelection) -> (value: Swift.String, achieved: Swift.String?)
+func CaptureSheetHost.shutterPanelSubtitle(selection: OpenCineAppKit.MonitorCaptureSelection) -> Swift.String
 func CaptureSheetReadoutGesture.body(content: CaptureSheetReadoutGesture<Host>.Content)<Host where Host : CaptureSheetHost> -> some SwiftUI.View
 func ChromeEditHost.chromeModeTitle(_: OpenCineAppKit.MonitorDisplayMode)<Self where Self : ChromeEditHost, Self.ChromeMode == OpenCineAppKit.MonitorDisplayMode, Self.ChromeSection == OpenCineAppKit.MonitorDisplayChrome.Section> -> Swift.String
 func ChromeEditHost.chromeModeTitle(_: Self.ChromeMode) -> Swift.String
@@ -1000,7 +1002,8 @@ static func CaptureLists.shutterLabels(from: OpenCineCameraVocabulary.CameraStat
 static func CaptureLists.whiteBalanceModeLabels(offersLock: Swift.Bool) -> [Swift.String]
 static func CaptureLists.whiteBalanceModeSelection(_: OpenCineCameraVocabulary.WhiteBalance?, awbLocked: Swift.Bool) -> Swift.String?
 static func CaptureNativeReadoutPresentation.focus(common: OpenCineCore.FocusMode?, native: OpenCineCameraVocabulary.FocusOption?) -> Swift.String
-static func CaptureNativeReadoutPresentation.shutterAngle(common: OpenCineCore.ShutterValue?, frameRate: OpenCineCore.Rational?, available: [Swift.Int], preferredAngle: Swift.Double) -> Swift.String
+static func CaptureNativeReadoutPresentation.shutterAngle(common: OpenCineCore.ShutterValue?, frameRate: OpenCineCore.Rational?, available: [Swift.Int], preferredAngle: Swift.Double, settling: Swift.Bool) -> Swift.String
+static func CaptureNativeReadoutPresentation.shutterAngleAchieved(common: OpenCineCore.ShutterValue?, frameRate: OpenCineCore.Rational?, available: [Swift.Int], preferredAngle: Swift.Double, settling: Swift.Bool) -> Swift.String?
 static func CaptureQuickSnapshot.common(_: OpenCineAppKit.MonitorCaptureField) -> CaptureQuickSnapshot
 static func CaptureQuickSnapshot.native(sheet: CaptureSheet, title: Swift.String, options: [Swift.String], selection: Swift.String, context: Swift.String, enabled: Swift.Bool) -> CaptureQuickSnapshot?
 static func CaptureQuickSnapshot.persistPreferredAngle(afterDenom: Swift.Int, fps: Swift.Int, usesAngle: Swift.Bool, isPhoto: Swift.Bool, expoIsAuto: Swift.Bool) -> Swift.Double?
@@ -1179,6 +1182,7 @@ static let CaptureLists.facePriorityTitle: Swift.String
 static let CaptureLists.kelvinLabels: [Swift.String]
 static let CaptureLists.kelvinValues: [Swift.Int]
 static let CaptureLists.nativeIsoHopTitle: Swift.String
+static let CaptureNativeReadoutPresentation.rateChangeHold: Swift.Duration
 static let CrosshairAssist.armLength: CoreGraphics.CGFloat
 static let CrosshairAssist.helpCopy: Swift.String
 static let CrosshairAssist.opacity: Swift.Double
@@ -1745,6 +1749,7 @@ var CaptureSheetHost.recordingCodecColor: OpenCineCameraVocabulary.CaptureCodecC
 var CaptureSheetHost.sessionLocked: Swift.Bool
 var CaptureSheetHost.sessionPhaseLabel: Swift.String
 var CaptureSheetHost.shutterAngleDegrees: Swift.Double
+var CaptureSheetHost.shutterAngleSettling: Swift.Bool
 var CaptureSheetHost.shutterUsesAngle: Swift.Bool
 var CaptureSheetModal.body: some SwiftUI.View
 var CaptureSheetModal.onClose: (() -> Swift.Void)?

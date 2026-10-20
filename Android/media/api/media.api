@@ -1632,9 +1632,12 @@ public final class com/opencapture/opencine/media/Hlg {
 
 public final class com/opencapture/opencine/media/HostShutterAngle {
 	public static final field INSTANCE Lcom/opencapture/opencine/media/HostShutterAngle;
+	public static final field SPEED_SNAP_TOLERANCE D
 	public final fun denominator (DLjava/lang/Double;Ljava/util/List;)Ljava/lang/Integer;
 	public final fun getChoices ()Ljava/util/List;
+	public final fun readback (D)Lcom/opencapture/opencine/core/Rational;
 	public final fun reported (ILjava/lang/Double;)Ljava/lang/Double;
+	public final fun reported (Lcom/opencapture/opencine/core/Rational;Ljava/lang/Double;)Ljava/lang/Double;
 }
 
 public final class com/opencapture/opencine/media/HostShutterPresentation : java/lang/Enum {
@@ -4308,6 +4311,7 @@ public final class com/opencapture/opencine/media/SerialSessionGate {
 public final class com/opencapture/opencine/media/ShutterAngle {
 	public static final field DEFAULT_DEGREES D
 	public static final field INSTANCE Lcom/opencapture/opencine/media/ShutterAngle;
+	public final fun achieved (DII)Ljava/lang/String;
 	public final fun degrees (II)Ljava/lang/Double;
 	public final fun denom (DI)I
 	public final fun denom (DILjava/util/List;)I

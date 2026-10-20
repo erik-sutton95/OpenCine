@@ -22,6 +22,7 @@ func FakeAttempt.progress(_: OpenCineCore.ConnectionPhase, step: Swift.Int, prom
 func FakeCameraSession.advance(by: Swift.Duration) -> ()
 func FakeCameraSession.beginAttempt() -> OpenCineCore.ConnectionAttemptID
 func FakeCameraSession.cameraReportsRecording(_: Swift.Bool?) -> ()
+func FakeCameraSession.cameraReportsSetting(_: OpenCineCore.SettingValue) -> ()
 func FakeCameraSession.cameraReportsStatus(from: OpenCineCore.ConnectionAttemptID?) -> ()
 func FakeCameraSession.cameraReportsTimecode(_: OpenCineCore.CameraTimecode?) -> ()
 func FakeCameraSession.cameraReportsTimecodeReading(_: OpenCineCore.CameraTimecodeReading?) -> ()

@@ -90,6 +90,7 @@ object GamepadShutterSync {
      * speed for it at the live rate, and throughout a format or shutter change still settling (a
      * rate and a speed from two moments are no angle). Otherwise the nearest live label.
      */
+    @JvmOverloads
     fun angleLabel(denom: Int, fps: Int, available: List<Int>, preferredAngle: Double, settling: Boolean = false): String {
         val preferred = ShutterAngle.label(ShutterAngle.nearestDegrees(preferredAngle))
         if (denom <= 0 || settling) return preferred

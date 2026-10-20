@@ -423,6 +423,7 @@ func MonitorControlModel.commit(_: OpenCineCore.SettingValue, from: MonitorContr
 func MonitorControlModel.commitRecord(from: MonitorControlModel.RecordEditor) -> Swift.Bool
 func MonitorControlModel.commitRecord(from: MonitorControlModel.RecordEditor, admission: OpenCineCore.CommandDispatchAdmission) -> Swift.Bool
 func MonitorControlModel.edit(_: OpenCineCore.SettingKey) -> MonitorControlModel.Editor?
+func MonitorControlModel.frameRateChanged(within: Swift.Duration) -> Swift.Bool
 func MonitorControlModel.isCurrent(_: MonitorControlModel.Editor) -> Swift.Bool
 func MonitorControlModel.record(start: Swift.Bool?) -> ()
 func MonitorControlModel.record(start: Swift.Bool?, admission: OpenCineCore.CommandDispatchAdmission) -> ()
@@ -2019,6 +2020,7 @@ var MonitorCapturePolicy.tapAction: MonitorCapturePolicy.Action?
 var MonitorCapturePopupContainer.body: some SwiftUI.View
 var MonitorCapturePopupContainer.placement: MonitorPresentation.MonitorCapturePopupLayout
 var MonitorCaptureReadout.body: some SwiftUI.View
+var MonitorControlModel.frameRateChangedAt: OpenCineCore.MonotonicInstant?
 var MonitorControlModel.isRecording: Swift.Bool?
 var MonitorControlModel.noteFor: (OpenCineCore.CommandStage, Swift.String) -> Swift.String?
 var MonitorControlModel.onChange: () -> Swift.Void
