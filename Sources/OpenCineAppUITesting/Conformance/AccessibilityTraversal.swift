@@ -42,10 +42,12 @@ open class AccessibilityTraversal: SharedAppUITestCase {
         let clear = app.buttons["Clear"]
         let settings = app.scrollViews.containing(NSPredicate(format: "label == 'Clear'"))
             .firstMatch
-        let clearDeadline = Date().addingTimeInterval(15)
         XCTAssertTrue(settings.waitForExistence(timeout: 15))
-        for _ in 0..<6 where !clear.isHittable { settings.swipeUp() }
-        guard tapWhenReady(clear, in: app, deadline: clearDeadline) else { return }
+        // The page has its own wait above. Clear gets its readiness budget once the page shows
+        // (a hosted launch took 14 s to show Storage, leaving 1 s), and the swipes are test time.
+        var clearBudget = TransitionBudget(seconds: 15)
+        clearBudget.excluding { for _ in 0..<6 where !clear.isHittable { settings.swipeUp() } }
+        guard tapWhenReady(clear, in: app, deadline: clearBudget.deadline) else { return }
         XCTAssertTrue(app.staticTexts["Clear cache?"].waitForExistence(timeout: 5))
         assertTree("clear-cache-confirmation")
     }

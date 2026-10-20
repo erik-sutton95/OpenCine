@@ -263,6 +263,39 @@
             }
         }
 
+        /// SIMULATED Dynamic Island phones: an ordinary capacity ("115GB" on Pocket, "521GB" on Z in
+        /// the Z nightly, run 39422965987) must stay readable beside the link pill. The pill may drop
+        /// its decorative padding first; the readout may shrink only within its declared readable
+        /// range (MonitorBoundedReadoutText, 14 to 11 pt) and must not truncate.
+        func testOrdinaryCapacityStaysReadableBesideTheLinkPillOnDynamicIslandPhones() async throws {
+            let phones: [(width: CGFloat, height: CGFloat, safeTop: CGFloat)] = [
+                (393, 852, 59), (402, 874, 62), (430, 932, 59), (440, 956, 62),
+            ]
+            let link = "Live link 4 of 4 bars, feed 25 fps frames per second"
+            for phone in phones {
+                for value in ["115GB", "521GB", "99.9k"] {
+                    let fixture = try ProductionHeaderFixture(
+                        ProductionHeaderCase(width: phone.width, safeTop: phone.safeTop, sideSafe: 0,
+                            height: phone.height), storage: (value, nil, nil))
+                    defer { fixture.close() }
+                    let frames = try await fixture.nativeFrames(labels: ["Storage remaining", link])
+                    let island = CGRect(x: (phone.width - 126) / 2, y: 11, width: 126, height: 40)
+                    let storage = try XCTUnwrap(frames["Storage remaining"])
+                    let pill = try XCTUnwrap(frames[link])
+                    // The readout at its smallest readable size: the card glyph, its 5 pt gap, the text.
+                    let smallest = UIHostingController(rootView: HStack(spacing: 5) {
+                        MonitorIcon.cardSim.frame(width: 12, height: 12)
+                        Text(value).font(MonitorTheme.font(11, weight: .medium)).monospacedDigit()
+                    }.fixedSize()).sizeThatFits(in: CGSize(width: CGFloat.infinity, height: 48))
+                    XCTAssertGreaterThanOrEqual(storage.width + monitorFloorMeasurementTolerance, smallest.width,
+                        "\(value) truncates at \(phone): \(storage.width) pt for \(smallest.width) pt at 11 pt")
+                    XCTAssertLessThanOrEqual(pill.maxX, island.minX + 0.5,
+                        "\(value) must not push the link pill under the island: \(phone) \(pill)")
+                    XCTAssertLessThanOrEqual(storage.maxX, pill.minX + 0.5, "\(value) \(phone)")
+                }
+            }
+        }
+
         func testCompactPortraitStorageAndPerformanceRemainAdjacentBeforePower() async throws {
             for safeTop in Self.safeTops {
                 for width in [CGFloat(320), 360, 440] {

@@ -80,11 +80,27 @@ extension MonitorCompactTelemetryBudget {
     /// The widest storage that keeps storage and the link pill left of a top cutout the telemetry
     /// band crosses. Nil when no cutout crosses it, or when that leading space cannot hold a
     /// minimum storage target and the link (a wide notch): the row keeps its original corners.
+    /// The compact row passes the link's minimum width (its pill without decorative padding), so
+    /// an ordinary capacity such as "521GB" keeps a readable size and the link pill gives up its
+    /// padding first (`linkWidthBeforeCutout`).
     public static func storageWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?,
         linkWidth: Double, minimumTarget: Double) -> Double? {
-        guard let cutout = topCutout, cutout.y < layout.telemetry.maxY, cutout.maxY > layout.telemetry.y,
-            cutout.x > layout.status.x else { return nil }
+        guard let cutout = crossingCutout(layout: layout, topCutout: topCutout) else { return nil }
         let width = cutout.x - cutoutClearance - layout.status.x - linkWidth - (linkWidth > 0 ? 8 : 0)
         return width >= minimumTarget ? width : nil
+    }
+
+    /// The widest link pill that starts at `linkX` and still ends `cutoutClearance` before a top
+    /// cutout the telemetry band crosses; nil when no cutout crosses it.
+    public static func linkWidthBeforeCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?,
+        linkX: Double) -> Double? {
+        guard let cutout = crossingCutout(layout: layout, topCutout: topCutout) else { return nil }
+        return max(0, cutout.x - cutoutClearance - linkX)
+    }
+
+    private static func crossingCutout(layout: FieldMonitorLayout, topCutout: MonitorRect?) -> MonitorRect? {
+        guard let cutout = topCutout, cutout.y < layout.telemetry.maxY, cutout.maxY > layout.telemetry.y,
+            cutout.x > layout.status.x else { return nil }
+        return cutout
     }
 }
