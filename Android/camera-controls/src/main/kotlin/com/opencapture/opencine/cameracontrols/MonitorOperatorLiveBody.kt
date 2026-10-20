@@ -109,7 +109,7 @@ public fun cameraPowerReading(reading: BatteryReading?, exhausted: Boolean? = nu
                 warning = reading.filled.toDouble() / reading.of <= 0.4, exhausted = exhausted == true,
                 externalPower = externalPower) else null
         null -> if (charging == true || externalPower == true)
-            MonitorOperatorPowerReading(true, null, true, externalPower = externalPower) else null
+            MonitorOperatorPowerReading(true, null, true, exhausted = exhausted == true, externalPower = externalPower) else null
     }
 
 public fun cameraBatteryReadoutLabel(reading: BatteryReading?): String? = when (reading) {

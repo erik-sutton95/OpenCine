@@ -43,8 +43,9 @@ public object MonitorTelemetryValues {
     public fun batterySpokenValue(percent: Int?, bars: Int?, barCount: Int, charging: Boolean?,
         externalPower: Boolean?, exhausted: Boolean): String? {
         val power = if (externalPower == true) "external power" else if (charging == true) "charging" else null
-        val level = bars?.let { "$it of $barCount bars" } ?: percent?.let { "$it percent" } ?: return power
-        return (listOf(level) + listOfNotNull("exhausted".takeIf { exhausted }, power)).joinToString(", ")
+        val level = bars?.let { "$it of $barCount bars" } ?: percent?.let { "$it percent" }
+        val parts = listOfNotNull(level, "exhausted".takeIf { exhausted }, power)
+        return if (parts.isEmpty()) null else parts.joinToString(", ")
     }
 
     /**
@@ -54,8 +55,13 @@ public object MonitorTelemetryValues {
      */
     public fun linkValue(fps: String?, signalBars: Int?, showsRate: Boolean): String? =
         if (fps != null && isStateWord(fps)) fps
-        else if (showsRate) fps?.toDoubleOrNull()?.let { "${Math.round(it)} fps" } ?: fps ?: "\u2014"
+        // Only a finite rate in frame-rate range is rounded; anything else prints as reported.
+        else if (showsRate) fps?.toDoubleOrNull()?.takeIf { it.isFinite() && kotlin.math.abs(it) <= MAXIMUM_RATE }
+            ?.let { "${Math.round(it)} fps" } ?: fps ?: "\u2014"
         else if (signalBars == null) "\u2014" else null
+
+    /** The largest rate printed as a rounded frame rate. */
+    internal const val MAXIMUM_RATE: Double = 100_000.0
 
     /** A link reading that is a word rather than a measured rate or the idle dash. */
     internal fun isStateWord(fps: String): Boolean = fps.isNotEmpty() && fps != "\u2014" && fps.toDoubleOrNull() == null

@@ -39,10 +39,9 @@ public enum MonitorTelemetryValues {
     public static func batterySpokenValue(percent: Int?, bars: Int?, barCount: Int, charging: Bool?,
         externalPower: Bool?, exhausted: Bool) -> String? {
         let power = externalPower == true ? "external power" : charging == true ? "charging" : nil
-        guard let level = bars.map({ "\($0) of \(barCount) bars" }) ?? percent.map({ "\($0) percent" }) else {
-            return power
-        }
-        return ([level] + (exhausted ? ["exhausted"] : []) + [power].compactMap { $0 }).joined(separator: ", ")
+        let level = bars.map { "\($0) of \(barCount) bars" } ?? percent.map { "\($0) percent" }
+        let parts = [level, exhausted ? "exhausted" : nil, power].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     /// The link pill's printed value: nil while bars draw the link, else the frame rate or a dash.
@@ -52,10 +51,15 @@ public enum MonitorTelemetryValues {
         if let fps, isStateWord(fps) { return fps }
         if showsRate {
             guard let fps else { return "\u{2014}" }
-            return Double(fps).map { "\(Int($0.rounded())) fps" } ?? fps
+            // Only a finite rate in frame-rate range is rounded; anything else prints as reported.
+            guard let rate = Double(fps), rate.isFinite, abs(rate) <= maximumRate else { return fps }
+            return "\(Int(rate.rounded())) fps"
         }
         return signalBars == nil ? "\u{2014}" : nil
     }
+
+    /// The largest rate printed as a rounded frame rate.
+    static let maximumRate = 100_000.0
 
     /// A link reading that is a word rather than a measured rate or the idle dash.
     static func isStateWord(_ fps: String) -> Bool {

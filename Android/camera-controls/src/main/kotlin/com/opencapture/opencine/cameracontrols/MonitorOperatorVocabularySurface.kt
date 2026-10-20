@@ -83,6 +83,7 @@ public class MonitorOperatorLiveState {
     public val capturePresented: Boolean get() = sheet != null || topQuickActive || stripQuickActive
     public fun dismiss(): Unit { sheet = null; topQuickActive = false; stripQuickActive = false }
     public fun apply(transition: MonitorInteractionTransition, capture: MonitorOperatorCaptureSource): Unit {
+        if (transition.cameraReplaced) storageForm = 0
         if (transition.dismissTransients) dismiss()
         if (transition.retireReadout) {
             topQuickActive = false
@@ -131,7 +132,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
         picture = MonitorOperatorLivePicture(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect,
             waiting = !hasPicture, vertical = verticalPicture, flipped = mirrored, recovering = recovering),
         status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars,
-            state.storageForm) { state.storageForm++ },
+            state.storageForm) { count -> state.storageForm = MonitorStorageReadoutFormat.nextForm(state.storageForm, count) },
         cameraBattery = control.snapshot?.power?.let(::cameraPowerReading),
         capture = captureSheetHostInputs(chrome.capture, status, state.sheet, { state.sheet = it },
             section = MonitorDisplaySection.CAMERA_VALUES, metering = metering, quickEnabled = !busy,
@@ -231,6 +232,7 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
             usage, { usage = it; usageStore.value = it }, MONITOR_OPERATOR_USAGE_SEED),
         native, modifier, portraitAspect = chrome.portraitAspect, setPortraitAspect = chrome.setPortraitAspect,
         transitionChanged = { transition ->
+            if (transition.cameraReplaced) state.storageForm = 0
             if (transition.dismissTransients) state.dismiss()
             if (transition.retireReadout) { state.topQuickActive = false; state.stripQuickActive = false }
             val admission = transition.inputAdmission
@@ -298,7 +300,7 @@ private fun Modifier.operatorFrame(rect: MonitorRect): Modifier = offset(rect.x.
 
 private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSource<Host>, layout: LiveMonitorLayout,
     status: CameraStatus, fps: String, bars: Int,
-    storageForm: Int, toggleStorage: () -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
+    storageForm: Int, toggleStorage: (Int) -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
     val storage = source.capture.control.state.value.snapshot?.storage
@@ -325,7 +327,7 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.REC_READOUT),
         if (source.session.mounts(MonitorDisplaySection.STORAGE)) MonitorOperatorLiveReadout("STORAGE", "Storage remaining",
             storageLabel, MonitorDisplaySection.STORAGE,
-            action = toggleStorage, icon = MonitorIcon.CARD_SIM) else null,
+            action = { toggleStorage(storageForms.size) }, icon = MonitorIcon.CARD_SIM) else null,
         format, fps, bars, MonitorDisplaySection.BATTERIES,
         portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",
             if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) CaptureShutterPolicy.portraitSetupLabel(status) else formatLabel ?: "REC SETUP"),

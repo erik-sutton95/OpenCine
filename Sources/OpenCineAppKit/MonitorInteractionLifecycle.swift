@@ -71,7 +71,7 @@ public struct MonitorInteractionLifecycle: Sendable {
             // Held input (a quick drag in flight) never survives a turn or a cover.
             retireReadout: dismiss || rotated || enteredCover,
             collapseAssists: dismiss || !next.toolbarMounted || next.transientPanelPresented,
-            inputAdmission: admission)
+            inputAdmission: admission, cameraReplaced: replaced)
     }
 
     public mutating func close() -> MonitorInteractionTransition {

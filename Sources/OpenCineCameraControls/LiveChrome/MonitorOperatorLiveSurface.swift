@@ -74,8 +74,8 @@ extension MonitorOperatorPowerReading {
         charging: Bool? = nil, externalPower: Bool? = nil) -> MonitorOperatorPowerReading? {
         guard let reading else {
             guard charging == true || externalPower == true else { return nil }
-            return .init(id: "camera", title: "Camera battery", camera: true, charging: true,
-                externalPower: externalPower)
+            return .init(id: "camera", title: "Camera battery", camera: true, exhausted: exhausted == true,
+                charging: true, externalPower: externalPower)
         }
         switch reading {
         case .fraction(let value):
@@ -542,6 +542,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
 
     private func apply(_ transition: MonitorInteractionTransition) {
         if transition.retireReadout { captureState.retire() }
+        if transition.cameraReplaced { storageForm = 0 }
         if transition.collapseAssists { expanded = false }
         if transition.dismissTransients { dismiss(); assist.configureTool = nil }
         assist.liveCovered = covered && editing == nil
@@ -650,8 +651,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         return Button {
             if exposed && !locked && editing == nil {
                 // Storage has no sheet: without alternatives a tap runs the source's action only.
-                if forms.count > 1 { storageForm = (storageForm + 1) % forms.count }
-                else if let action = value.action { action() }
+                if forms.count > 1 {
+                    storageForm = MonitorStorageReadoutFormat.nextForm(after: storageForm, count: forms.count)
+                } else if let action = value.action { action() }
             }
         } label: {
             HStack(spacing: 5) {

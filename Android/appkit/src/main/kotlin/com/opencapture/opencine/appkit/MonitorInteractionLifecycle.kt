@@ -58,7 +58,7 @@ public class MonitorInteractionLifecycle {
         } else null
         // Held input (a quick drag in flight) never survives a turn or a cover.
         return MonitorInteractionTransition(dismiss, dismiss || rotated || enteredCover,
-            dismiss || !next.toolbarMounted || next.transientPanelPresented, admission)
+            dismiss || !next.toolbarMounted || next.transientPanelPresented, admission, replaced)
     }
 
     public fun close(): MonitorInteractionTransition {

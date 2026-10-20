@@ -104,7 +104,7 @@
 
         private var storageButton: some View {
             Button {
-                storageForm += 1
+                storageForm = MonitorStorageReadoutFormat.nextForm(after: storageForm, count: storageForms.count)
             } label: {
                 HStack(spacing: 5) {
                     MonitorIcon.cardSim.frame(width: 12, height: 12)
@@ -122,7 +122,9 @@
             .accessibilityValue(storage)
         }
 
-        private var storage: String {
+        private var storage: String { storageForms[storageForm % storageForms.count] }
+
+        private var storageForms: [String] {
             // The unified capability readout owns the values; a tap steps from the free space to
             // its percentage, then (video) the remaining recording time, marked estimated (A5-11).
             let readout = host.control.snapshot?.storage.storageReadout
@@ -131,9 +133,8 @@
                 layout.presentation?.portrait == true
                     ? MonitorStorageReadoutFormat.wholeUnitCapacity(bytes: $0.freeBytes) : $0.free
             } ?? StorageReadout.unavailable
-            let forms = [free] + MonitorStorageReadoutFormat.alternatives(percent: readout?.percent,
+            return [free] + MonitorStorageReadoutFormat.alternatives(percent: readout?.percent,
                 recordingTime: host.control.snapshot?.storage.recordingTimeLabel, photo: host.cameraStatus.isPhoto)
-            return forms[storageForm % forms.count]
         }
 
         private func topButton(_ item: LiveTopMenu, value: String) -> some View {
