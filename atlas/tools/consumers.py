@@ -36,7 +36,8 @@ OUT_DIR = Path("atlas/consumers")
 BUDGET = {".md": 15 * 1024, ".json": 64 * 1024}
 SAMPLE_FILES = 2    # files kept per symbol in the JSON; `atlas impact` lists every call site
 UPDATE = "python3 atlas/tools/atlas.py consumers --write, then commit atlas/consumers"
-TEST_PATH = re.compile(r"(^|/)(Tests?|tests?|androidTest|testFixtures|[A-Za-z0-9]*(UI)?Tests)/")
+# Android variant source sets count too: testDebug, androidTestRelease, testFixturesDebug.
+TEST_PATH = re.compile(r"(^|/)(Tests?|tests?|test[A-Z]\w*|androidTest\w*|[A-Za-z0-9]*(UI)?Tests)/")
 SWIFT_DECL = re.compile(r"^(?:struct|enum|class|protocol|actor|typealias|extension) ([A-Za-z_]\w*)(?=[<:\s=]|$)")
 SWIFT_FREE = re.compile(r"^(?:func|var|let) ([A-Za-z_]\w*)[(:<]")
 SWIFT_EXTERNAL = re.compile(r"^extension (?:\w+\.)*(\w+)$")
@@ -408,9 +409,19 @@ def run(args, reg, root):
                         current.write_text(text)
             print(f"{rid}: {rec['ref']} {rec['commit'][:12]}, {sum(len(s.split()) for s in rec['modules'].values())} symbols in "
                   f"{len(rec['files'])} files, {len(texts[f'{rid}.json'])} B json")
+        # Reports of an app that is no longer registered would still answer queries (load()).
+        expected = {f"{rid}{ext}" for rid in fresh for ext in BUDGET}
+        surplus = sorted(p.name for p in out_dir.glob("*") if p.suffix in BUDGET and p.name not in expected) if out_dir.is_dir() else []
+        for name in surplus:
+            print(f"{name}: no registered app; {'removed' if args.write else 'remove it'}")
+            changed.append(name)
+            if args.write:
+                (out_dir / name).unlink()
         if args.write:
-            print(f"consumers: {len(changed)} file(s) written")
-            return code if code == FAIL else OK
+            print(f"consumers: {len(changed)} file(s) written or removed")
+            if code == INCOMPLETE:
+                print("consumers: incomplete (an app was not written)")
+            return code
         if changed:
             why = ("the committed index does not match a regeneration at its recorded commits (OpenCine API or generator changed)"
                    if args.check else "an app's ref moved and the index would change")

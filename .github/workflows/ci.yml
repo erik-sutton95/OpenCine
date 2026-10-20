@@ -309,7 +309,16 @@ jobs:
       - name: Consumer index (atlas/consumers matches the API snapshots and recorded app commits)
         env:
           OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
-        run: python3 atlas/tools/atlas.py consumers --check
+        # Exit 3 (an app checkout or its recorded commit unavailable, as the best-effort step above
+        # allows) is reported as not checked, like the duplication check; a stale index fails.
+        run: |
+          code=0
+          python3 atlas/tools/atlas.py consumers --check || code=$?
+          if [ "$code" -eq 3 ]; then
+            echo "::warning::consumer index not checked: an app checkout or recorded commit is unavailable"
+            exit 0
+          fi
+          exit "$code"
 
   # Nightly tier from here to the gate: hosted simulator and SIMULATED suites, which are slower
   # and carry the quarantined hosted flakes (docs/testing/CI.md). They never feed "CI gate".

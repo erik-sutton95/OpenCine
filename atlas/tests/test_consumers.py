@@ -138,6 +138,39 @@ class Consumers(Fixture):
         self.assertEqual(code, 3, out)
         self.assertIn("NOT CHECKED", out)
 
+    def test_android_test_variant_source_sets_are_not_adoption(self):
+        tip = commit(self.ws / "App", {
+            "app/src/testDebug/kotlin/T.kt": "import com.x.core.Thing\nval t = Thing()\n",
+            "app/src/androidTestRelease/kotlin/U.kt": "import com.x.core.makeThing\nval u = makeThing()\n",
+            "app/src/testFixturesDebug/kotlin/V.kt": "import com.x.core.Thing\nval v = Thing()\n",
+        }, "variant tests")
+        code, out = self.run_atlas("consumers", "--write")
+        self.assertEqual(code, 0, out)
+        rec = consumers.unpack(json.loads((self.top / "atlas/consumers/app.json").read_text()))
+        self.assertEqual(rec["commit"], tip)
+        self.assertEqual(rec["files"], ["Sources/App/A.swift", "app/src/main/kotlin/K.kt"])
+
+    def test_write_that_skips_an_app_is_incomplete(self):
+        (self.root / ".local").mkdir()
+        (self.root / ".local/checkouts.json").write_text(json.dumps({"repos": {"app": str(self.ws / "Gone")}}))
+        code, out = self.run_atlas("consumers", "--write")
+        self.assertEqual(code, 3, out)
+        self.assertIn("NOT CHECKED", out)
+
+    def test_reports_of_an_unregistered_app_are_stale_and_write_removes_them(self):
+        self.write()
+        for name in ("gone.json", "gone.md"):
+            (self.top / "atlas/consumers" / name).write_text((self.top / "atlas/consumers" / name.replace("gone", "app")).read_text())
+        code, out = self.run_atlas("consumers", "--check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("gone.json", out)
+        self.assertIn("no registered app", out)
+        code, out = self.run_atlas("consumers", "--write")
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.top / "atlas/consumers/gone.json").exists())
+        self.assertFalse((self.top / "atlas/consumers/gone.md").exists())
+        self.assertEqual(self.run_atlas("consumers", "--check")[0], 0)
+
     def test_budget_is_enforced(self):
         self.write()
         with mock.patch.dict(consumers.BUDGET, {".json": 10}):
@@ -176,6 +209,20 @@ class McpServer(Fixture):
         self.assertEqual(reply["error"]["code"], -32601)
         reply, = self.ask({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "write", "arguments": {}}})
         self.assertEqual(reply["error"]["code"], -32602)
+
+    def test_non_object_requests_and_params_are_errors_and_the_server_keeps_answering(self):
+        lines = "[]\n" + "".join(json.dumps(m) + "\n" for m in (
+            {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": ["consumers"]},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "consumers", "arguments": ["Thing"]}},
+            {"jsonrpc": "2.0", "id": 3, "method": "ping"},
+        ))
+        out = io.StringIO()
+        mcp_server.main(io.StringIO(lines), out)
+        array, params, arguments, ping = [json.loads(line) for line in out.getvalue().splitlines()]
+        self.assertEqual((array["id"], array["error"]["code"]), (None, -32600))
+        self.assertEqual((params["id"], params["error"]["code"]), (1, -32602))
+        self.assertEqual((arguments["id"], arguments["error"]["code"]), (2, -32602))
+        self.assertEqual(ping, {"jsonrpc": "2.0", "id": 3, "result": {}})
 
     def test_tools_write_nothing(self):
         self.write()

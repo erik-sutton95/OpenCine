@@ -95,6 +95,8 @@ def handle(msg):
         result = {"tools": TOOLS}
     elif method == "tools/call":
         params = msg.get("params") or {}
+        if not isinstance(params, dict) or not isinstance(params.get("arguments") or {}, dict):
+            return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "params and arguments must be objects"}}
         if params.get("name") not in NAMES:
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": f"unknown tool {params.get('name')!r}"}}
         text, is_error = call(params["name"], params.get("arguments") or {})
@@ -113,7 +115,9 @@ def main(stdin=sys.stdin, stdout=sys.stdout):
         except ValueError:
             reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "parse error"}}
         else:
-            reply = handle(msg)
+            # Valid JSON that is not a request object (`[]`, `1`) gets an error, not a crash.
+            reply = handle(msg) if isinstance(msg, dict) else {
+                "jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "invalid request: not an object"}}
         if reply is not None:
             stdout.write(json.dumps(reply) + "\n")
             stdout.flush()

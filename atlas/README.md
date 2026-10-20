@@ -44,7 +44,8 @@ map). Candidate entries and edges are never live dependencies.
 
 `tools/atlas.py` is a Python 3 standard-library CLI. Every command except `ensure` (clones
 missing checkouts), `task start` (task worktrees and a brief), `new-app` (a new app folder),
-`dupes --write-baseline` and `compat run` is read-only. Run it from this folder as below, or
+`dupes --write-baseline`, `api --write` (rewrites `api/swift`), `consumers --write` (rewrites
+`consumers/`) and `compat run` is read-only. Run it from this folder as below, or
 from the repository root with an `atlas/` prefix (`python3 atlas/tools/atlas.py check`, as CI does).
 
 ```sh
