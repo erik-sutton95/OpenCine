@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
@@ -58,7 +59,12 @@ import kotlin.math.roundToInt
 @Immutable
 data class MonitorValue(val id: String, val label: String, val value: String,
     val selected: Boolean = false, val annotation: String? = null,
-    val valueIcon: MonitorIcon? = null, val badgeIcon: MonitorIcon? = null, val enabled: Boolean = true)
+    val valueIcon: MonitorIcon? = null, val badgeIcon: MonitorIcon? = null, val enabled: Boolean = true,
+    /** The camera owns or locks this value: drawn muted (iOS `MonitorOperatorLiveReadoutStyle`). */
+    val dimmed: Boolean = false)
+
+/** Opacity of a camera-owned value; twin of Swift `MonitorOperatorLiveReadoutStyle.dimmedOpacity`. */
+const val MONITOR_DIMMED_VALUE_ALPHA: Float = 0.55f
 
 /** Camera values are ready-to-display data; adapters retain interpretation and writes. */
 @Composable
@@ -71,6 +77,7 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
     quickBottomClearanceDp: Float = 0f,
     columns: Int? = null,
     gestureOwner: MonitorQuickGestureOwner? = null,
+    onHold: (String) -> (() -> Unit)? = { null },
     onOpen: (String) -> Unit) {
     val owner = gestureOwner ?: remember { MonitorQuickGestureOwner() }
     val notifyQuickActive by rememberUpdatedState(onQuickActiveChange)
@@ -111,7 +118,7 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
                             .monitorReadoutGesture(quickControl(item.id), enabled && item.enabled && (owner.owner == null || owner.owner == item.id),
                                 { onOpen(item.id) }, { source, value -> onQuickCommit(item.id, source, value) },
                                 quickBottomClearanceDp, owner, item.id,
-                                renderPreview, onPreviewBegin = { notifyQuickActive(true) })
+                                renderPreview, onPreviewBegin = { notifyQuickActive(true) }, onHold = onHold(item.id))
                             .semantics {
                                 contentDescription = "${item.label} ${item.value}${item.annotation?.let { ", $it" }.orEmpty()}"
                                 if (!item.enabled) disabled()
@@ -121,7 +128,8 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
                             val valueTint = if (item.selected) MonitorPalette.accent else MonitorPalette.text
-                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.alpha(if (item.dimmed) MONITOR_DIMMED_VALUE_ALPHA else 1f),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
                                 item.valueIcon?.let { MonitorIcon(it, null, Modifier.size(17.dp), valueTint) }
                                 Text(item.value, color = valueTint, style = valueStyle, maxLines = 1, softWrap = false)
                                 item.badgeIcon?.let { MonitorIcon(it, null, Modifier.size(11.dp), valueTint) }

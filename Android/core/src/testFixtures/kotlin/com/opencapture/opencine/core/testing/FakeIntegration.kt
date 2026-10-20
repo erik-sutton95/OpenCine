@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * A scripted [CameraIntegration] (Swift `FakeIntegration`). Tests publish nearby lists, drive each
@@ -52,6 +53,8 @@ public class FakeIntegration(
     /** Hosts discovery dials. */
     public var endpoints: List<String> = emptyList(),
     override val presentation: IntegrationPresentation = IntegrationPresentation(),
+    /** What discovery reports about running; `flowOf(false)` scripts a blocked radio (IA-336). */
+    override val discoveryRunning: Flow<Boolean> = flowOf(true),
 ) : CameraIntegration {
     /**
      * Called with each new attempt when its flow is collected: a SIMULATED app answers every

@@ -155,9 +155,10 @@ public final class SessionRecoveryEpisode {
             connect: @escaping @MainActor (Attempt) async throws -> Bool,
             currentRun: @escaping @MainActor () -> UUID? = { nil },
             retireRun: @escaping @MainActor () -> Void = {},
-            holder: @escaping @MainActor (Attempt, Int) async -> String? = { _, _ in nil }
+            holder: (@MainActor (Attempt, Int) async -> String?)? = nil
         ) {
-            self.holder = holder
+            // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+            self.holder = holder ?? { _, _ in nil }
             self.observe = observe
             self.cleanup = cleanup
             self.connect = connect

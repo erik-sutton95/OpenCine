@@ -1,5 +1,6 @@
 package com.opencapture.monitorui
 
+import androidx.compose.ui.unit.Density
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -122,6 +123,17 @@ class MonitorCompactTelemetryTest {
         val storage = MonitorCompactTelemetryBudget.storageWidthBeforeCutout(layout, hole, 58f, 48f)!!
         // Storage, its 8 dp gap and the 58 dp link end 6 dp before the cutout.
         assertEquals(hole.x - 6f, layout.status.x + storage + 8f + 58f)
+    }
+
+    @Test fun aMeasuredWideLinkReservesItsRealWidthBeforeTheCutout() {
+        val layout = MonitorLayoutPolicy.fieldMonitor(412f, 915f, safeTop = 52f)
+        val hole = MonitorRect(193f, 12f, 26f, 26f)
+        val density = Density(1f, 1f)
+        val resting = density.legacyStorageWidthPixels(layout, hole, preferredLink = 58, minimumTarget = 48f)
+        val wide = density.legacyStorageWidthPixels(layout, hole, preferredLink = 90, minimumTarget = 48f)
+        // The extra 32 dp of live text is taken from storage, never from the cutout clearance.
+        assertEquals(resting - 32, wide)
+        assertTrue(wide < resting)
     }
 
     @Test fun aWideNotchOrACutoutOutsideTheBandKeepsTheOriginalCorners() {

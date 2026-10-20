@@ -35,6 +35,10 @@ public protocol LunaConnectPort: AnyObject {
     var joinedNetwork: String? { get }
     func startScan() async throws
     func stopScan()
+    /// Whether this run has heard the camera advertise, so Bluetooth can reach it now.
+    func hasSeen(_ cameraID: UUID) -> Bool
+    /// Whether saved camera Wi-Fi exists for a camera that is not advertising.
+    func hasSavedWiFi(cameraID: UUID) -> Bool
     /// Bluetooth bootstrap or saved Wi-Fi, then the control link. Throws `ConnectionFailure`.
     func connect(to camera: MonitorCamera) async throws
     func disconnect()
@@ -72,7 +76,12 @@ public final class LunaIntegration: CameraIntegration {
     /// Discovery stays subscribed: the app shows this in its pairing slot and calls
     /// `retryDiscovery()` (back from Settings, for example).
     public private(set) var discoveryFailure: ConnectionFailure? {
-        didSet { if discoveryFailure != oldValue { onDiscoveryFailure?(discoveryFailure) } }
+        didSet {
+            if discoveryFailure != oldValue {
+                onDiscoveryFailure?(discoveryFailure)
+                publishDiscoveryRunning()
+            }
+        }
     }
     public var onDiscoveryFailure: ((ConnectionFailure?) -> Void)?
 
@@ -81,14 +90,21 @@ public final class LunaIntegration: CameraIntegration {
         ConnectionStep(title: "Connecting over Bluetooth"), ConnectionStep(title: "Joining camera Wi-Fi"),
         ConnectionStep(title: "Opening the video link"), ConnectionStep(title: "Starting the picture"),
     ]
+    /// How long a saved connection gives Bluetooth to hear the camera before saved Wi-Fi.
+    static let sightingGrace: TimeInterval = 4
+    static let sightingStep = Duration.milliseconds(100)
     static let approve = "Approve on the camera"
     static let reading = "Reading Wi-Fi credentials…"
     static let joining = "Joining camera Wi-Fi…"
 
     private let port: any LunaConnectPort
     private let now: () -> Date
+    private let sleep: (Duration) async throws -> Void
     private var sightings: [NearbyCamera] = []
     private var listeners: [UUID: AsyncStream<[NearbyCamera]>.Continuation] = [:]
+    /// Sighting graces holding the scan, so the last discovery listener leaving cannot stop it.
+    private var graceScans = 0
+    private var runningListeners: [UUID: AsyncStream<Bool>.Continuation] = [:]
     private var current: Attempt?
 
     @MainActor
@@ -110,9 +126,13 @@ public final class LunaIntegration: CameraIntegration {
         }
     }
 
-    public init(port: any LunaConnectPort, now: @escaping () -> Date = Date.init) {
+    public init(
+        port: any LunaConnectPort, now: @escaping () -> Date = Date.init,
+        sleep: @escaping (Duration) async throws -> Void = hostSleep(for:)
+    ) {
         self.port = port
         self.now = now
+        self.sleep = sleep
         port.eventHandler = { [weak self] event in self?.handle(event) }
     }
 
@@ -138,6 +158,23 @@ public final class LunaIntegration: CameraIntegration {
         if !listeners.isEmpty, discoveryFailure != nil { startScanning() }
     }
 
+    /// Whether passive discovery is running now (IA-336): a failed start leaves the pages without
+    /// a scanning status until `retryDiscovery()` succeeds.
+    public var discoveryRunning: AsyncStream<Bool> {
+        AsyncStream<Bool> { continuation in
+            let key = UUID()
+            runningListeners[key] = continuation
+            continuation.yield(discoveryFailure == nil)
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor in self?.runningListeners[key] = nil }
+            }
+        }
+    }
+
+    private func publishDiscoveryRunning() {
+        for continuation in runningListeners.values { continuation.yield(discoveryFailure == nil) }
+    }
+
     private func startScanning() {
         Task { [weak self] in
             do {
@@ -154,7 +191,8 @@ public final class LunaIntegration: CameraIntegration {
     private func stopListening(_ key: UUID) {
         guard listeners.removeValue(forKey: key) != nil, listeners.isEmpty else { return }
         discoveryFailure = nil
-        port.stopScan()
+        // A sighting grace still waiting for the advert keeps the scan (Kotlin twin: `listening`).
+        if graceScans == 0 { port.stopScan() }
     }
 
     // MARK: Connecting
@@ -180,6 +218,8 @@ public final class LunaIntegration: CameraIntegration {
         attempt.task = Task { [weak self] in
             // Replaced before it started: never dial the older camera.
             if let self, self.current !== attempt { return }
+            await self?.waitForSightingIfSaved(attempt)
+            if let self, self.current !== attempt { return }
             do {
                 try await self?.port.connect(to: camera)
                 self?.connected(attempt, session: session)
@@ -192,6 +232,35 @@ public final class LunaIntegration: CameraIntegration {
 
     public func forget(_ camera: SavedCamera) async {
         if let id = UUID(uuidString: camera.id) { port.forget(cameraID: id) }
+    }
+
+    /// The baseline grace for a saved camera: Bluetooth for a few seconds first, because an
+    /// advert proves the camera is awake and waking its Wi-Fi is quicker than dialling a sleeping
+    /// access point. Only a camera with saved Wi-Fi is dialled after the grace; one without it
+    /// stays on the Bluetooth path, which the backend has always taken at once.
+    private func waitForSightingIfSaved(_ attempt: Attempt) async {
+        guard case .saved(let saved, _) = attempt.target, let id = UUID(uuidString: saved.id),
+            port.hasSavedWiFi(cameraID: id), !port.hasSeen(id)
+        else { return }
+        attempt.note = "Looking for the camera"
+        report(attempt)
+        // A radio that cannot scan still has the saved Wi-Fi route (the baseline did the same).
+        guard (try? await port.startScan()) != nil else {
+            attempt.note = nil
+            return
+        }
+        graceScans += 1
+        defer {
+            graceScans -= 1
+            // A cancelled grace stops the scan it needed unless a listener still wants it.
+            if Task.isCancelled, graceScans == 0, listeners.isEmpty { port.stopScan() }
+        }
+        let deadline = now().addingTimeInterval(Self.sightingGrace)
+        while !port.hasSeen(id), now() < deadline {
+            if Task.isCancelled { return }
+            do { try await sleep(Self.sightingStep) } catch { return }
+        }
+        attempt.note = nil
     }
 
     private func cancel(_ attempt: Attempt) {

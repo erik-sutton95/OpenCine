@@ -1,18 +1,29 @@
 name: CI
 
+# Two tiers (docs/testing/CI.md). Pull requests and pushes to main run the fast, deterministic
+# PR tier, which alone feeds the required "CI gate". The nightly workflow calls this file with
+# `full: true` to add the hosted simulator, SIMULATED and quarantined suites on main.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      full:
+        description: Also run the nightly-only suites
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Cancel only a superseded pull-request run. Main pushes, dispatches and the nightly's call run
+  # to completion (a newer pending main run still replaces an older pending one).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   meta:
@@ -35,6 +46,10 @@ jobs:
           args: "detect --source=. --log-opts=HEAD --redact --no-banner --config=.gitleaks.toml"
       - name: Repository hygiene
         run: scripts/check-repository-hygiene.sh
+      - name: No async closure-literal default arguments (swiftlang/swift#92017)
+        run: |
+          scripts/check-async-closure-defaults-test.sh
+          scripts/check-async-closure-defaults.sh
       - name: Sentry release tooling shared by the apps (offline)
         run: bash scripts/sentry/sentry-test.sh
       - name: Spell check
@@ -50,6 +65,10 @@ jobs:
           fail: true
       - name: EditorConfig check
         uses: editorconfig-checker/action-editorconfig-checker@51f63319f592f97930c73d9c46184d20bd206393 # v3.0.0
+      - name: Release notes and nightly report tooling
+        run: |
+          scripts/tester-notes-release-check-test.sh
+          scripts/ci-nightly-report-test.sh
       - name: Actionlint
         uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         with:
@@ -58,30 +77,56 @@ jobs:
   swift:
     name: Swift package (macOS host tests, iOS builds)
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     env:
       # Surface the crashing frame if a test process aborts; failure-only reports are uploaded below.
       SWIFT_BACKTRACE: enable=yes,interactive=no
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The parent commit decides whether the Sentry adapter's simulator test runs.
+          fetch-depth: 2
           persist-credentials: false
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest-stable
+      - name: Xcode version for the cache key
+        id: xcode
+        run: echo "version=$(xcodebuild -version | awk 'NR == 1 { print $2 }')" >> "$GITHUB_OUTPUT"
+      # SwiftPM checkouts (not the 2.9 GB sentry-cocoa binary artifact, a quick download) and Xcode's
+      # content-addressed compilation cache for the xcodebuild
+      # steps below. Restored on every run, saved only from main (pull requests read main's).
+      # No workspace-state.json either: it records that artifact as present, so Xcode skips the download.
+      - name: Restore Xcode package and compilation caches
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/ci-dd/SourcePackages/checkouts
+            ~/ci-dd/SourcePackages/repositories
+            ~/ci-dd/CompilationCache.noindex
+            ~/ci-dd/ModuleCache.noindex
+          key: core-ios-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}-${{ github.sha }}
+          restore-keys: |
+            core-ios-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}-
+            core-ios-xcode-${{ steps.xcode.outputs.version }}-
       - name: Build, strict concurrency
-        run: swift build --build-tests -Xswiftc -strict-concurrency=complete
-      # Every listed portable area and its tests remain warning-free. Apple runtime
-      # deprecations stay visible in the complete package checks; see the runtime guide.
+        shell: bash
+        run: swift build --build-tests -Xswiftc -strict-concurrency=complete 2>&1 | tee build-strict.log
+      # Every listed portable area and its tests remain warning-free. The clean strict build above
+      # compiles each of their files once, so its own diagnostics are the check (no second build).
+      # Apple runtime deprecations stay visible in the complete package checks; see the runtime guide.
       - name: Portable areas, strict concurrency, warnings are errors
+        shell: bash
         run: |
-          for target in OpenCineCore OpenCineCoreTestSupport OpenCineMedia OpenCineFrameIO \
-            OpenCineMotion OpenCineRelay OpenCineMulticam OpenCineCoreTests \
-            OpenCineMediaTests OpenCineFrameIOTests OpenCineMotionTests OpenCineRelayTests \
-            OpenCineMulticamTests; do
-            swift build --scratch-path "$RUNNER_TEMP/opencine-portable-wae" --target "$target" \
-              -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-          done
+          portable='OpenCineCore|OpenCineCoreTestSupport|OpenCineMedia|OpenCineFrameIO|OpenCineMotion|OpenCineRelay|OpenCineMulticam'
+          portable="$portable|OpenCineCoreTests|OpenCineMediaTests|OpenCineFrameIOTests|OpenCineMotionTests|OpenCineRelayTests|OpenCineMulticamTests"
+          warnings="$(grep -E "^$PWD/(Sources|Tests)/($portable)/[^:]+:[0-9]+:[0-9]+: warning:" build-strict.log | sort -u || true)"
+          if [ -n "$warnings" ]; then
+            printf '%s\n' "$warnings"
+            echo "::error::portable areas must stay warning-free under strict concurrency"
+            exit 1
+          fi
+          echo "Portable areas compiled without warnings."
       - name: Test cache admission (isolated real I/O)
         if: always()
         shell: bash  # -o pipefail, so a failing swift test fails the step
@@ -112,22 +157,57 @@ jobs:
         if: always()
         shell: bash
         run: '! grep -q "implemented in both" test-cache.log test.log test-luna.log'
-      - name: Build MonitorUI (iOS Simulator)
-        run: xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
-      - name: Build OpenCineApple (iOS Simulator)
-        run: xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
+      - name: Build MonitorUI and OpenCineApple (iOS Simulator)
+        run: |
+          for scheme in MonitorUI OpenCineApple; do
+            # Hosted runners are arm64: an x86_64 simulator slice only doubles the compile.
+            xcodebuild -scheme "$scheme" -destination 'generic/platform=iOS Simulator' -derivedDataPath ~/ci-dd \
+              -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES \
+              ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
+          done
+      # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
+      - name: Build Insta360Apple (iOS devices)
+        run: |
+          xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' -derivedDataPath ~/ci-dd \
+            -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES CODE_SIGNING_ALLOWED=NO build
+      # Every library product's public Swift API, from an iOS Simulator build of the whole package
+      # (reusing the builds above), is recorded in atlas/api/swift. A failure lists the changed lines
+      # and the update command.
+      - name: Public API snapshots (Swift)
+        env:
+          ATLAS_API_DERIVED: ~/ci-dd
+        run: python3 atlas/tools/atlas.py api --check --build
+      - name: Did this change reach the Sentry adapter?
+        id: sentry
+        run: |
+          if git diff --quiet HEAD^1 HEAD -- Packages/OpenCineSentryApple Sources/OpenCineAppKit Sources/OpenCineMedia Package.swift; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       # The optional Sentry adapter is its own package (it alone takes sentry-cocoa) and starts the
       # SDK in its tests, so they run in an iOS simulator rather than the shared macOS test process.
+      # Building sentry-cocoa costs about four minutes: the PR tier runs it when the adapter or what
+      # it links changed, the nightly tier always.
       - name: Test OpenCineSentryApple (iOS Simulator)
+        if: ${{ inputs.full || steps.sentry.outputs.changed != 'false' }}
         working-directory: Packages/OpenCineSentryApple
         run: |
           set -euo pipefail
           udid="$(xcrun simctl create opencine-sentry "iPhone 16 Pro")"
           trap 'xcrun simctl delete "$udid"' EXIT
-          xcodebuild -scheme OpenCineSentryApple -destination "platform=iOS Simulator,id=$udid" test
-      # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
-      - name: Build Insta360Apple (iOS devices)
-        run: xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+          xcodebuild -scheme OpenCineSentryApple -destination "platform=iOS Simulator,id=$udid" -derivedDataPath ~/ci-dd \
+            -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES test
+      - name: Save Xcode package and compilation caches
+        if: ${{ success() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/ci-dd/SourcePackages/checkouts
+            ~/ci-dd/SourcePackages/repositories
+            ~/ci-dd/CompilationCache.noindex
+            ~/ci-dd/ModuleCache.noindex
+          key: core-ios-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}-${{ github.sha }}
       - name: Collect Swift crash reports
         if: always()
         shell: bash
@@ -177,6 +257,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Test, lint and assemble (Kotlin warnings are errors in core, media, multicam)
         run: ./gradlew test lint assembleRelease
+      # Each module's Kotlin public API is recorded in <module>/api/<module>.api.
+      - name: Public API snapshots (Kotlin)
+        run: |
+          ./gradlew checkKotlinAbi || {
+            echo "::error::Unrecorded Kotlin public API change. If it is intended, run (cd Android && ./gradlew updateKotlinAbi) and commit the changed <module>/api/*.api files."
+            exit 1
+          }
       - name: Apps' Gradle plugins (build-logic)
         run: ./gradlew -p build-logic test
       - name: Vulkan present synchronization regression (host CPU)
@@ -188,8 +275,8 @@ jobs:
 
   atlas:
     # Nothing here builds an app, writes to another repository, publishes, schedules or merges.
-    # It reads the public app repositories for the duplication check. The Graphify build test
-    # and the pinned-path eval test skip without app checkouts and report as skipped, not passed.
+    # It reads the public app repositories for the duplication check. The pinned-path eval test
+    # skips without app checkouts and reports as skipped, not passed.
     name: Atlas check
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -199,7 +286,7 @@ jobs:
           persist-credentials: false
       - name: Unit tests
         run: python3 -m unittest discover -s atlas/tests -v
-      - name: Registry, direction, cycles, snapshots, candidates and private paths
+      - name: Registry, direction, cycles, candidates and private paths
         run: python3 atlas/tools/atlas.py check
       # Informational: consumer builds (`compat run`) need macOS, Xcode and the Android SDK.
       - name: Candidate consumer matrix
@@ -218,10 +305,14 @@ jobs:
           OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
         run: python3 atlas/tools/atlas.py dupes --check --top 3
 
+  # Nightly tier from here to the gate: hosted simulator and SIMULATED suites, which are slower
+  # and carry the quarantined hosted flakes (docs/testing/CI.md). They never feed "CI gate".
+  #
   # The conformance kit's own checks (docs/conformance/SCENARIOS.md): the hosted accessibility walk's
   # self-test and the native view tests that use it, on a private simulator with accessibility on.
   kit-ios:
     name: Conformance kit, iOS (hosted walk self-test)
+    if: ${{ inputs.full }}
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
@@ -252,7 +343,10 @@ jobs:
         run: |
           python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
+      # QUARANTINE (docs/testing/CI.md, #109): digitizer cancel on hosted Xcode 26.6. Its failure is
+      # reported on the step but does not fail the kit's other checks.
       - name: Native playback labels and confirmation input
+        continue-on-error: true
         run: |
           python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-labels-dd" --output "$RUNNER_TEMP/kit-ios/playback-labels"
@@ -266,11 +360,12 @@ jobs:
           path: ${{ runner.temp }}/kit-ios
           if-no-files-found: warn
 
-  # The original three-case fixture remains required in kit-ios. This separate standard UI
-  # target exercises the typed system-dismissal counterpart with the same shared screen.
+  # The original three-case fixture remains in kit-ios. This separate standard UI target
+  # exercises the typed system-dismissal counterpart with the same shared screen. QUARANTINE.
   playback-native-ios:
     name: Playback labels, native typed cancellation (SIMULATED)
     needs: kit-ios
+    if: ${{ inputs.full }}
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -332,6 +427,7 @@ jobs:
   # contract test (OpenCine's fake integration; no camera, no hardware).
   template-ios:
     name: New-app template, iOS (SIMULATED)
+    if: ${{ inputs.full }}
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -356,6 +452,7 @@ jobs:
 
   template-android:
     name: New-app template, Android (SIMULATED)
+    if: ${{ inputs.full }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -384,14 +481,16 @@ jobs:
             ${{ runner.temp }}/template
             !${{ runner.temp }}/template/acceptance/avd/**
 
+  # The one required check on main. PR tier only: a nightly-tier failure opens the nightly
+  # tracking issue instead of blocking pull requests.
   gate:
     name: CI gate
     if: always()
-    needs: [meta, swift, android, atlas, kit-ios, playback-native-ios, template-ios, template-android]
+    needs: [meta, swift, android, atlas]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
-      - name: Require every shared and template check to pass
+      - name: Require every PR-tier check to pass
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |

@@ -1,6 +1,7 @@
 package com.opencapture.opencine.core
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlin.reflect.KClass
 
 // The integration contract: how shared code finds, pairs, connects and forgets cameras of any
@@ -261,6 +262,13 @@ public interface CameraIntegration {
      * connection or sends protocol bytes.
      */
     public fun discover(mode: DiscoveryMode): Flow<List<NearbyCamera>>
+
+    /**
+     * Whether discovery is running now: `false` while the radio is off, the permission is denied
+     * or the last scan failed, so the pages never claim to scan when nothing can (IA-336). The
+     * default reports running for an integration that cannot tell.
+     */
+    public val discoveryRunning: Flow<Boolean> get() = flowOf(true)
 
     /**
      * One attempt per collection; cancelling the collector cancels it. [ConnectionEvent.Connected]

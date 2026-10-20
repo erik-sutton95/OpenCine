@@ -21,7 +21,16 @@ data class ScopeClipCalibration(
 data class ScopeClipProfile(
     val calibrations: Map<MonitorTransfer, ScopeClipCalibration> = emptyMap(),
     val defaultIso: Int? = null,
-)
+    /**
+     * ISO the ceiling assumes when the source reports that its ISO is not known (an Auto ISO
+     * camera that does not publish the applied value). `null` keeps the last known report.
+     * A source whose clip falls below its reference ISO names its lowest ISO here, so an
+     * unreported Auto ISO can only warn early, never miss a clip. Swift `unreportedISO`.
+     */
+    val unreportedIso: Int? = null,
+) {
+    init { require(unreportedIso == null || unreportedIso in 50..102_400) }
+}
 
 /** Read-only clip facts accepted by portable scope math. */
 interface ScopeClipSource {
@@ -50,8 +59,19 @@ open class ScopeExposureCeiling(private val profile: ScopeClipProfile = ScopeCli
     fun setISO(value: Int) {
         if (value in 50..102_400) synchronized(lock) { iso = value }
     }
-    fun syncISO(value: Int) { if (value > 0) setISO(value) }
+    /**
+     * Applies a camera report. A positive ISO is set as [setISO] does. `null`, zero or a negative
+     * value means the camera did not report its applied ISO: the ceiling moves to the profile's
+     * [ScopeClipProfile.unreportedIso] when it names one, else keeps the last report.
+     */
+    fun syncISO(value: Int?) {
+        if (value != null && value > 0) { setISO(value); return }
+        val unreported = profile.unreportedIso ?: return
+        synchronized(lock) { iso = unreported }
+    }
     fun resolvedISO(): Int? = synchronized(lock) { iso }
+    /** The profile's assumption for an unreported ISO; `null` keeps the last report. */
+    val unreportedIso: Int? get() = profile.unreportedIso
     /**
      * A clip the source states for [transfer] at its current settings (a camera's published
      * overexposure warning code for its ISO), in place of measured calibration and tap history

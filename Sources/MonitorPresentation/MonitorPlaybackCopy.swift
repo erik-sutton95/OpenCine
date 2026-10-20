@@ -29,6 +29,8 @@ public enum MonitorPlaybackCopy {
     public static let deleteConfirmationTitle = "Delete this clip from the camera?"
     public static let deleteConfirm = "Delete"
     public static let deleteCancel = "Cancel"
+    public static let deleteCancelDescription = "Cancel deletion"
+    public static let deleteConfirmDescription = "Delete from the camera card"
 
     // Transport.
     public static let backFifteen = "Back 15 seconds"

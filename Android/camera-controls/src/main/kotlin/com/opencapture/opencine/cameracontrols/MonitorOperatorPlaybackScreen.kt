@@ -36,9 +36,6 @@ import com.opencapture.monitorui.*
 import com.opencapture.opencine.appkit.*
 import com.opencapture.opencine.media.*
 import com.opencapture.opencine.vocabulary.MediaClipFormatting
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 /** Complete playback. Only the real native picture, preview and source facts arrive from an app. */
 @Composable
@@ -198,8 +195,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         row("Playback source", sourceLabel)
         row("Size", asset.representations.firstOrNull { it.role == MediaRepresentationRole.ORIGINAL }
             ?.byteCount?.takeIf { it > 0 }?.let(MediaClipFormatting::byteLabel))
-        row("Created", asset.capturedAt?.let { DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-            .withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(it)) })
+        row("Created", MonitorPlaybackCapturedAt.label(asset.capturedAt, record.facts.orderKey))
         row("Favorite", if (favorite) "Yes" else "No")
         facts.metadata.forEach { row(it.title, it.value) }
     }
@@ -207,7 +203,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     val mayShare = share != null && (operations.access == null || access?.share == true)
     val mayDelete = if (operations.access == null) asset.deletable == true else access?.delete == true
     val presentation = MonitorPlaybackPresentation(value.token, asset.filename,
-        listOfNotNull(record.facts.resolution, asset.frameRate?.let { number(it) + "p" }, record.facts.format).joinToString(" · "),
+        facts.headerSubtitle(listOfNotNull(record.facts.resolution, asset.frameRate?.let { number(it) + "p" }, record.facts.format).joinToString(" · ")),
         sourceLabel, metadata, assist?.presentedAspect((width / height).toFloat(), playback = true) ?: (width / height).toFloat(),
         value.ready, value.error ?: if (value.closed) MediaOperatorCopy.CLIP_NOT_CACHED else null,
         facts.progress, position.toFloat(), duration.toFloat(), clock(position), clock(duration),

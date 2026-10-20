@@ -21,6 +21,7 @@ change that explains why they moved, for example an extraction before the app dr
 """
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
 import re
@@ -31,13 +32,23 @@ from itertools import combinations
 from pathlib import Path
 
 import atlas
-import graph
 import hub
 import resolver
 
 OK, FAIL = atlas.OK, atlas.FAIL
 EXTS = {".swift", ".kt", ".java", ".c", ".h", ".cc", ".cpp", ".hpp", ".m", ".mm", ".metal", ".glsl", ".vert", ".frag", ".comp"}
 MIN_FILE_LINES = 3
+# Never measured: credentials, build products, binary captures and vendored reference copies.
+EXCLUDE = {
+    "credentials": ["*.p12", "*.pem", "*.key", "*.keystore", "*.jks", "*.mobileprovision", "*.provisionprofile",
+                    ".env", ".env.*", "*.local.xcconfig", "google-services.json", "GoogleService-Info.plist",
+                    ".local/*", "*.properties.local"],
+    "build-products": ["build/*", ".build/*", "DerivedData/*", "node_modules/*", "dist/*", ".gradle/*",
+                       "*.so", "*.a", "*.dylib", "*.apk", "*.aab", "*.ipa", "*.xcframework/*", "jniLibs/*"],
+    "binary-captures": ["*.pcap", "*.pcapng", "*.mp4", "*.mov", "*.m4v", "*.h264", "*.h265", "*.hevc", "*.bin",
+                        "*.raw", "*.dng", "*.jpg", "*.jpeg", "*.png", "*.heic", "*.cube", "*.wav", "*.zip"],
+    "vendor-reference-copies": ["vendor/*", "Vendor/*", "reference/*", "ref/*", "third_party/*", "ThirdParty/*"],
+}
 MIN_BLOCK_LINES = 6
 BASELINE = "compat/dupes-baseline.json"
 COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
@@ -97,8 +108,18 @@ def index(files, app_names):
     return out
 
 
+def excluded_class(rel):
+    """The EXCLUDE class a repository-relative path falls in, matched at any depth, or None."""
+    parts = rel.split("/")
+    suffixes = ["/".join(parts[i:]) for i in range(len(parts))]
+    for cls, patterns in EXCLUDE.items():
+        if any(fnmatch.fnmatchcase(s, p) for p in patterns for s in suffixes):
+            return cls
+    return None
+
+
 def code_path(rel):
-    return Path(rel).suffix in EXTS and not graph.excluded_class(rel)
+    return Path(rel).suffix in EXTS and not excluded_class(rel)
 
 
 def working_tree_files(top):

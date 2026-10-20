@@ -2,12 +2,14 @@
 # Generated files carry pseudo-random IDs that trip typos: Xcode projects (hex UUIDs)
 # and other machine-generated tables.
 extend-exclude = [
-    "graphify-out/**",
     "CHANGELOG.md",
     "*.lock",
     "**/*.storyboard",
     "**/*.pbxproj",
     "**/*.excalidraw",
+    # Generated public API snapshots (JVM descriptors such as `(IZ)Z`, upstream names).
+    "Android/*/api/*.api",
+    "atlas/api/**",
 ]
 
 [default.extend-words]

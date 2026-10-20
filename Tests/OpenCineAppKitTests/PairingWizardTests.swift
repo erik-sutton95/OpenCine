@@ -146,6 +146,27 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func aFailedPairKeepsItsReasonAfterTheRescanClearsSightings() async throws {
+        let (model, fake) = model()
+        model.beginPairing()
+        fake.publish([T.sighting])
+        #expect(await eventually { !model.nearby.isEmpty })
+        model.selection = "n2"
+        model.connect(try #require(model.nearby.first))
+        #expect(await eventually { model.attempts["n2"] != nil })
+        var failure = T.failure
+        failure.actions = [.retry]
+        fake.attempts[0].fail(failure)
+        #expect(await eventually { model.failures["n2"] != nil })
+        fake.publish([])
+        #expect(await eventually { model.nearby.isEmpty })
+        let failed = CamerasMapping.wizard(model, Self.wizard)
+        #expect(failed.error == failure.message)
+        #expect(failed.primaryAction == "Try again")
+        #expect(failed.target == "CAM-2")
+    }
+
+    @available(macOS 14, *)
     @Test func theAppWordsNearbyCards() async {
         let (model, fake) = model(copy: { NearbyCardCopy(name: $0.name, subtitle: "Brand · nearby", status: "Needs approval on the camera") })
         fake.publish([

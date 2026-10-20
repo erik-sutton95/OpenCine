@@ -37,8 +37,9 @@ public struct MonitorMediaDeletionTarget<Value: Sendable, Location: Sendable>: S
     var completed: (@MainActor (Int) -> Void)?
     public init(remove: @escaping @MainActor (Location) async -> MonitorMediaDeleteAcknowledgement,
         commit: @escaping @MainActor (Value, [Location]) async -> Bool,
-        finish: @escaping @MainActor () async -> Void = {}) {
-        self.remove = remove; self.commit = commit; self.finish = finish
+        finish: (@MainActor () async -> Void)? = nil) {
+        // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+        self.remove = remove; self.commit = commit; self.finish = finish ?? {}
     }
 }
 

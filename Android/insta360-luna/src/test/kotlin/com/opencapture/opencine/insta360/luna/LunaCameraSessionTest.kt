@@ -232,6 +232,73 @@ class LunaCameraSessionTest {
         assertNull(session.snapshots.value.value(SettingKey.SHUTTER).value)
     }
 
+    /**
+     * II-061/069/070, IA-115..119: angle is a presentation. The host still writes the camera's own
+     * durations (an angle pick, Manual from Auto, AE-L) and Auto, and the first manual shutter may
+     * leave Auto, as before the shared session.
+     */
+    @Test fun emulatedAngleStillAdmitsNativeDurationsAutoAndLeavingAuto() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 0
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        reportCadence(48, session)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertEquals(com.opencapture.opencine.core.Availability.Available,
+            session.snapshots.value.capabilities[SettingKey.SHUTTER]?.availability)
+        val (_, manual) = session.run(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50)))))
+        assertEquals(CommandStage.Confirmed, manual.stage, "Manual from Auto in angle mode")
+        assertEquals(1.0 / 50, requireNotNull(LunaPhotographySettings.parse(camera.sent.last().body).videoExposure).shutterSeconds, 1e-9)
+        val (_, faster) = session.run(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100)))))
+        assertEquals(CommandStage.Confirmed, faster.stage, "an angle pick sent as its 1/N")
+        val (_, auto) = session.run(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Auto)))
+        assertEquals(CommandStage.Confirmed, auto.stage, "Auto exposure from angle mode")
+        val (_, angle) = session.run(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0))))
+        assertEquals(CommandStage.Confirmed, angle.stage, "an angle from Auto composes 1/N from the cadence")
+        assertEquals(1.0 / 50, requireNotNull(LunaPhotographySettings.parse(camera.sent.last().body).videoExposure).shutterSeconds, 1e-9)
+    }
+
+    private fun reportPhotoMode(session: LunaCameraSession) {
+        session.ingest(LunaDeviceStatus.parse(LunaWire.blob(2, LunaWire.integer(40, 0) + LunaWire.integer(41, 100))))
+    }
+
+    private fun offersAngles(session: LunaCameraSession): Boolean =
+        session.snapshots.value.capabilities[SettingKey.SHUTTER]?.domain?.choices.orEmpty()
+            .any { it is SettingValue.Shutter && it.value is ShutterValue.Angle }
+
+    /** CodeRabbit on #114: photo exposure never composes an angle, so photo offers durations only. Swift twin. */
+    @Test fun emulatedAngleOffersNoAnglesInPhotoMode() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 3
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        reportCadence(48, session)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertTrue(offersAngles(session), "video with a cadence offers angles")
+        reportPhotoMode(session)
+        assertFalse(offersAngles(session), "photo mode offered an angle it cannot write")
+        assertEquals(com.opencapture.opencine.core.Availability.Available,
+            session.snapshots.value.capabilities[SettingKey.SHUTTER]?.availability)
+    }
+
+    /** CodeRabbit on #114: an unknown cadence withholds only the angles; durations stay writable. Swift twin. */
+    @Test fun unknownCadenceWithholdsOnlyTheAngles() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 3
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertFalse(offersAngles(session), "an angle offered without a cadence to compose it")
+        assertEquals(com.opencapture.opencine.core.Availability.Available,
+            session.snapshots.value.capabilities[SettingKey.SHUTTER]?.availability)
+        val (_, outcome) = session.run(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100)))))
+        assertEquals(CommandStage.Confirmed, outcome.stage)
+        assertEquals(1.0 / 100, requireNotNull(LunaPhotographySettings.parse(camera.sent.last().body).videoExposure).shutterSeconds, 1e-9)
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @AfterTest fun tearDown() = scope.cancel()

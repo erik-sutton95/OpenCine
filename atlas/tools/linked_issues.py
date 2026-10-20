@@ -163,10 +163,10 @@ def inventory(api, repo):
         page += 1
 
 
-def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]"):
+def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]", full=False):
     """The hosted all-field engine is also available for optional local diagnostics."""
     import issue_sync
-    return issue_sync.reconcile(reg, api, execute=execute, bot_login=bot_login)
+    return issue_sync.reconcile(reg, api, execute=execute, bot_login=bot_login, full=full)
 
 
 class GitHubAPI:
@@ -203,6 +203,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true", help="write central trackers; requires explicit publication authority")
     args = parser.parse_args(argv)
+    full = os.environ.get("ATLAS_SYNC_FULL") == "1"
     root = atlas.atlas_root()
     reg, errors = atlas.load_registry(root)
     if errors:
@@ -236,9 +237,9 @@ def main(argv=None):
                     fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError:
                     raise SyncError("another local sync is executing") from None
-                result = reconcile(reg, api, execute=True, bot_login=bot_login)
+                result = reconcile(reg, api, execute=True, bot_login=bot_login, full=full)
         else:
-            result = reconcile(reg, api, bot_login=bot_login)
+            result = reconcile(reg, api, bot_login=bot_login, full=full)
     except (SyncError, OSError, ValueError) as exc:
         result = {"complete": False, "errors": [str(exc)], "applied": []}
     print(json.dumps(result, indent=2, sort_keys=True))

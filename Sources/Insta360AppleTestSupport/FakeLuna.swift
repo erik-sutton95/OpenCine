@@ -23,20 +23,36 @@ public final class FakeLuna {
     /// A stored value changes this long after its SET is acknowledged.
     public var applyDelay: Duration = .zero
     public var silent = false
+    /// The camera answers every request with a refusal (Kotlin `FakeLuna.refuses`).
+    public var refuses = false
     public private(set) var sent: [LunaRequest] = []
     private var lastApply: Task<Void, Never>?
     public weak var session: LunaCameraSession?
 
     /// Confirmations return as soon as a readback matches, so only failure tests pass a short
     /// settle; the long default absorbs main-thread stalls while the host app launches.
-    public func makeSession(settle: Duration = .seconds(5),
+    /// `admittedSends` gives the session the backend's admitted port (`LunaCameraBackend`
+    /// always supplies one), so app writes made with a `LunaCommandAdmission` reach this camera
+    /// instead of failing as expired; without it the session has no admitted port.
+    public func makeSession(settle: Duration = .seconds(5), admittedSends: Bool = false,
         backendCapabilities: @escaping @MainActor () -> CameraCapabilities? = { nil },
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now) -> LunaCameraSession {
+        var admitted: LunaAdmittedCommandSend?
+        var admittedWithin: LunaAdmittedCommandSendWithin?
+        if admittedSends {
+            admitted = { @MainActor [unowned self] build, admission, didDispatch in
+                try await self.receive(build, admission: admission, didDispatch: didDispatch)
+            }
+            admittedWithin = { @MainActor [unowned self] build, admission, _, didDispatch in
+                try await self.receive(build, admission: admission, didDispatch: didDispatch)
+            }
+        }
         let session = LunaCameraSession(
             send: { [unowned self] in try await self.receive($0) },
             functionMode: { LunaFunctionMode.normalVideo.rawValue },
             readSettings: { [unowned self] in self.reportSettings() },
             readCapture: { [unowned self] in self.reportCapture() },
+            sendAdmitted: admitted, sendAdmittedWithin: admittedWithin,
             timing: .init(
                 settle: [
                     .iso: settle, .shutter: settle, .whiteBalance: settle, .recording: settle,
@@ -48,10 +64,11 @@ public final class FakeLuna {
     }
 
     /// A live session that has heard every report once.
-    public func connectedSession(settle: Duration = .seconds(5),
+    public func connectedSession(settle: Duration = .seconds(5), admittedSends: Bool = false,
         backendCapabilities: @escaping @MainActor () -> CameraCapabilities? = { nil },
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now) -> LunaCameraSession {
-        let session = makeSession(settle: settle, backendCapabilities: backendCapabilities, now: now)
+        let session = makeSession(settle: settle, admittedSends: admittedSends,
+            backendCapabilities: backendCapabilities, now: now)
         session.linkChanged(.streaming, serial: "LUNA-TEST")
         reportDevice()
         reportSettings()
@@ -59,8 +76,20 @@ public final class FakeLuna {
         return session
     }
 
+    /// The backend's admitted send: the owner is checked and the request built at dispatch.
+    private func receive(
+        _ build: LunaCommandRequestBuilder, admission: LunaCommandAdmission,
+        didDispatch: LunaCommandDidDispatch
+    ) async throws -> Data {
+        try admission.require(owner: session?.commandOwner)
+        let request = try build()
+        didDispatch()
+        return try await receive(request)
+    }
+
     private func receive(_ request: LunaRequest) async throws -> Data {
         sent.append(request)
+        if refuses { throw FakeLunaRefusal() }
         guard !ignoresWrites else { return Data() }
         if applyDelay == .zero {
             apply(request)
@@ -136,3 +165,6 @@ public final class FakeLuna {
             device: try! LunaDeviceStatus(response: ProtoMessage.blob(field: 2, value: nested)))
     }
 }
+
+/// The error a refusing `FakeLuna` throws.
+public struct FakeLunaRefusal: Error {}

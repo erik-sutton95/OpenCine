@@ -296,6 +296,9 @@ class NativeVulkanFeedSession(
         if (native == 0L || presentGate.isReleased) return
         backdrop?.updatePlan(this, plan)
         lastPlan = plan
+        // Apply the plan's ISO report (or the profile's unreported assumption) before the IRE
+        // table below reads the ceiling, so it never waits for the next scope tick.
+        samples.ceiling.syncISO(plan.scopeTap.iso)
         OpcVulkan.nativeSetUiScale(native, uiScale)
         uploadCube(0, plan.lutCube, lastLut) { lastLut = it }
         uploadCube(1, plan.falseColorPaint, lastPaint) { lastPaint = it }
@@ -595,6 +598,9 @@ class NativeVulkanFeedSession(
         val includeVectorPoints = policy.includeVectorPoints
         val look = policy.vectorLut
         val iso = policy.iso
+        // Keep this feed's ceiling on the reported ISO (or the profile's unreported assumption)
+        // so readers without an ISO argument (traffic lights) agree with the sampled clip.
+        if (scopeDue) currentSamples.ceiling.syncISO(iso)
         val previous = currentSamples.previous
         val packed =
             if ((scopeDue && (includePoints || includeVectorPoints) || previewTicket != null || backdropTicket != null) &&

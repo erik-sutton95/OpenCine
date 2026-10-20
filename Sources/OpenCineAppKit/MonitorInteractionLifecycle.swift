@@ -40,6 +40,8 @@ public struct MonitorInteractionTransition: Equatable, Sendable {
     public let retireReadout: Bool
     public let collapseAssists: Bool
     public let inputAdmission: MonitorInputAdmission?
+    /// A different camera replaced the previous one: per-camera readout choices start over.
+    public var cameraReplaced = false
 }
 
 /// Shared lock, cover, chrome-edit, clean-view, rotation and replacement lifecycle.
@@ -69,7 +71,7 @@ public struct MonitorInteractionLifecycle: Sendable {
             // Held input (a quick drag in flight) never survives a turn or a cover.
             retireReadout: dismiss || rotated || enteredCover,
             collapseAssists: dismiss || !next.toolbarMounted || next.transientPanelPresented,
-            inputAdmission: admission)
+            inputAdmission: admission, cameraReplaced: replaced)
     }
 
     public mutating func close() -> MonitorInteractionTransition {

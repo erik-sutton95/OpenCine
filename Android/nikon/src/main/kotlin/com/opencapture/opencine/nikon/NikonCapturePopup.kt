@@ -217,6 +217,7 @@ data class NikonCapturePopupState(
             },
             values = if (kelvin) ({ landed -> WbPickerPolicy.kelvinOptions(emptyList(), landed) }) else null,
             steps = steps(kelvin),
+            stepsHint = stepsHint(kelvin),
         )
     }
 
@@ -279,6 +280,12 @@ data class NikonCapturePopupState(
         return CaptureLadderSetting(typed.key, options.mapNotNull(typed::setting))
     }
 
+    internal fun stepsHint(kelvin: Boolean): String? = when {
+        kind == NikonCapturePopupKind.CODEC -> CODEC_STEPS_HINT
+        kelvin -> KELVIN_STEPS_HINT
+        else -> null
+    }
+
     internal fun steps(kelvin: Boolean): ((String) -> Pair<LadderStep, LadderStep>?)? {
         if (kind == NikonCapturePopupKind.CODEC) {
             val depths = codecDepths
@@ -289,6 +296,8 @@ data class NikonCapturePopupState(
     }
 
     companion object {
+        const val KELVIN_STEPS_HINT: String = "Use minus 10 and plus 10 beside the selected value to fine-adjust"
+        const val CODEC_STEPS_HINT: String = "Use the bit-depth buttons beside the codec to switch depth"
         const val KELVIN_TAB: String = "Kelvin"
         const val TINT_TAB: String = "Tint"
         const val PRESET_TAB: String = "Preset"

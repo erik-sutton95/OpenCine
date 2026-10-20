@@ -1,7 +1,12 @@
 """Linked issues use disposable API data; these tests never contact GitHub."""
+import contextlib
+import io
 import json
+import os
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from support import meta
@@ -38,6 +43,31 @@ class LinkedIssues(unittest.TestCase):
         block = linked.managed_block("app", issue(), registry())
         self.assertIn("opencine#<this-tracking-issue-number> --orca", block)
         self.assertIn("current agent", block)
+
+    def test_cli_full_pass_comes_only_from_atlas_sync_full(self):
+        calls = []
+
+        def reconcile(reg, api, execute=False, bot_login="", full=False):
+            calls.append(full)
+            return {"complete": True, "applied": []}
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "issue-sync.json").write_text(json.dumps(
+                {"schema_version": 1, "bot_login": "opencine-atlas-sync[bot]"}))
+            with mock.patch.object(linked.atlas, "atlas_root", return_value=root), \
+                    mock.patch.object(linked.atlas, "load_registry", return_value=(registry(), [])), \
+                    mock.patch.object(linked, "GitHubAPI", return_value=object()), \
+                    mock.patch.object(linked, "reconcile", side_effect=reconcile), \
+                    mock.patch.dict(os.environ, {}, clear=False), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                os.environ.pop("ATLAS_SYNC_FULL", None)
+                os.environ.pop("ATLAS_SYNC_BOT_LOGIN", None)
+                os.environ.pop("GITHUB_ACTIONS", None)
+                self.assertEqual(linked.main([]), 0)
+                os.environ["ATLAS_SYNC_FULL"] = "1"
+                self.assertEqual(linked.main([]), 0)
+        self.assertEqual(calls, [False, True])
 
     def test_marker_requires_canonical_positive_registered_app_identity(self):
         for app, number, url in (("opencine", 12, "https://github.com/o/OpenCine/issues/12"),

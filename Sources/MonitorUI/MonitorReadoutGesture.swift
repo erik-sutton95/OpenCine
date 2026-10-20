@@ -16,6 +16,7 @@
         private let isEnabled: Bool
         @Binding private var ownership: MonitorReadoutOwnership
         private let presentationOwner: @MainActor () -> UUID?
+        private let holdAction: (@MainActor () -> Void)?
         private let onEvent: @MainActor (MonitorReadoutEvent<SourceIdentity>) -> Void
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.monitorWindowGeometry) private var windowGeometry
@@ -36,6 +37,7 @@
             snapshot: MonitorReadoutSnapshot?, sourceIdentity: SourceIdentity,
             isEnabled: Bool, ownership: Binding<MonitorReadoutOwnership>,
             presentationOwner: @escaping @MainActor () -> UUID?,
+            holdAction: (@MainActor () -> Void)? = nil,
             onEvent: @escaping @MainActor (MonitorReadoutEvent<SourceIdentity>) -> Void
         ) {
             self.snapshot = snapshot
@@ -43,6 +45,7 @@
             self.isEnabled = isEnabled
             _ownership = ownership
             self.presentationOwner = presentationOwner
+            self.holdAction = holdAction
             self.onEvent = onEvent
         }
 
@@ -179,6 +182,21 @@
                 revision: revision)
             interaction.begin()
             holdTask?.cancel()
+            if let holdAction, snapshot?.options.isEmpty ?? true {
+                // No quick drum to own the hold: a still press runs the readout's own action,
+                // and the lift then opens nothing.
+                holdTask = Task { @MainActor in
+                    try? await Task.sleep(
+                        for: .milliseconds(MonitorReadoutInteraction.holdActionMilliseconds))
+                    guard !Task.isCancelled, canInteract, ownsPointer, admissionIsCurrent,
+                        interaction.phase == .pressing
+                    else { return }
+                    holdTask = nil
+                    holdAction()
+                    cancel()
+                }
+                return true
+            }
             holdTask = Task { @MainActor in
                 try? await Task.sleep(
                     for: .milliseconds(MonitorReadoutInteraction.holdMilliseconds))

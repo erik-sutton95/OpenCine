@@ -25,13 +25,23 @@ data class DjiCaptureControlState(
     val reported: CameraStatus, val model: CameraModel?,
     val shutterPresentation: HostShutterPresentation = HostShutterPresentation.CAMERA_VALUE,
 ) {
+    /**
+     * The speeds a common 1/N edit may use: the camera's `camcap_shutter` list, or the documented
+     * video ladder (plus the live 1/N) when the body publishes none (Pocket 3).
+     */
+    val offeredShutterDenoms: List<Int>
+        get() = CameraCommands.shutterWheelDenoms(reported.availableShutterDenoms.filter { it > 0 }, reported.shutterDenom)
+
+    /** The angle presentation is a video one; a still always speaks in 1/N. */
+    internal val emulatesShutterAngle: Boolean
+        get() = shutterPresentation == HostShutterPresentation.EMULATED_ANGLE &&
+            !CameraCommands.isPhotoMode(reported.shootingMode)
+
     internal val descriptors: List<SettingDescriptor>
         get() {
             val body = model ?: return emptyList()
-            val shutter = reported.availableShutterDenoms.filter { it > 0 }.map {
-                SettingValue.Shutter(ShutterValue.Duration(Rational(1, it)))
-            }
-            val emulated = shutterPresentation == HostShutterPresentation.EMULATED_ANGLE
+            val shutter = offeredShutterDenoms.map { SettingValue.Shutter(ShutterValue.Duration(Rational(1, it))) }
+            val emulated = emulatesShutterAngle
             val video = reported.shootingMode in setOf(0x00, 0x01, 0x02, 0x0A, 0x28)
             val ready = reported.expoMode == CameraCommands.EXPO_MANUAL &&
                 (!emulated || (video && reported.fps > 0 && reported.shutterDenom > 0))
@@ -64,12 +74,16 @@ data class DjiCaptureControlState(
             }
         }
 
+    /** A common 1/N edit reaches the wire only in Manual and inside the offered speeds. */
+    fun admitsShutterWrite(denominator: Int): Boolean =
+        reported.expoMode == CameraCommands.EXPO_MANUAL && denominator in offeredShutterDenoms
+
     internal val settings: Map<SettingKey, ObservedValue<SettingValue>>
         get() = buildMap {
             fun report(value: SettingValue) {
                 put(value.key, ObservedValue(value, ObservationOrigin.CAMERA_REPORTED, null))
             }
-            if (shutterPresentation == HostShutterPresentation.EMULATED_ANGLE) {
+            if (emulatesShutterAngle) {
                 HostShutterAngle.reported(reported.shutterDenom, reported.fps.takeIf { it > 0 }?.toDouble())?.let {
                     put(SettingKey.SHUTTER, ObservedValue(SettingValue.Shutter(ShutterValue.Angle(it)), ObservationOrigin.PROTOCOL_DERIVED, null))
                 }

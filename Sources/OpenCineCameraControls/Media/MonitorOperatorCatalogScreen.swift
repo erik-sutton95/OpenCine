@@ -335,14 +335,15 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     private var emptySubtitle: String {
-        if !sourceAvailable { return library.records.isEmpty ? MonitorMediaGalleryCopy.disconnected : MonitorMediaGalleryCopy.disconnectedEmptyCache }
-        if library.activeFilterCount > 0 { return MonitorMediaGalleryCopy.filterEmpty }
+        let tab: String
         switch library.category {
-        case .all: return MonitorMediaGalleryCopy.emptyAll
-        case .videos: return MonitorMediaGalleryCopy.emptyVideos
-        case .photos: return MonitorMediaGalleryCopy.emptyPhotos
-        case .favorites: return MonitorMediaGalleryCopy.emptyFavorites
+        case .all: tab = MonitorMediaGalleryCopy.emptyAll
+        case .videos: tab = MonitorMediaGalleryCopy.emptyVideos
+        case .photos: tab = MonitorMediaGalleryCopy.emptyPhotos
+        case .favorites: tab = MonitorMediaGalleryCopy.emptyFavorites
         }
+        return MonitorMediaGalleryCopy.emptySubtitle(sourceAvailable: sourceAvailable, hasRecords: !library.records.isEmpty,
+            activeFilterCount: presentation?.activeFilterCount ?? library.activeFilterCount, tab: tab)
     }
     private func selectionFeedback(_ began: Bool) { if began { UIImpactFeedbackGenerator(style: .medium).impactOccurred() } }
     private func navigate(_ action: MonitorMediaGalleryNavigation, snapshot: MonitorMediaGallerySnapshot<Payload>) {
@@ -353,7 +354,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
     private func action(_ action: MonitorMediaAction, snapshot: MonitorMediaGallerySnapshot<Payload>) {
         guard gallery.isCurrent(snapshot) else { return }
         switch action {
-        case .back: gallery.retire(); close()
+        case .back: gallery.leave(); close()
         case .refresh: refresh()
         case .cycleSort:
             if navigation != nil { navigate(.cycleSort, snapshot: snapshot); return }

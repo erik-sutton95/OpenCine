@@ -74,6 +74,8 @@ public interface CameraMediaBrowse {
     public val thumbnails: CameraMediaThumbnailService?
     public val transfers: CameraMediaTransferService?
     public val deletion: CameraMediaDeleteService?
+    /** True while the camera holds its own media (its own gallery is open), so this browse lists nothing; null when unknown. */
+    public val heldBySource: Boolean? get() = null
     public suspend fun catalog(): MediaCatalogCursor
     /** Retires before suspension; idempotent and source-owned safe return to the same session. */
     public suspend fun close()

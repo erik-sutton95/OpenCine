@@ -30,6 +30,17 @@ public struct MonitorCaptureField: Hashable, Sendable {
     public var isEditable: Bool { editor != nil && !choices.isEmpty }
 }
 
+@available(macOS 14, *)
+extension MonitorCaptureField {
+    /// The Custom white balance hold drum: Kelvin detents only. Leaving Custom for Auto or a
+    /// preset takes the panel, so a quick drag never flips the white balance mode.
+    public var kelvinScrub: MonitorCaptureField {
+        MonitorCaptureField(key: key, title: title, selection: selection, choices: choices.filter {
+            if case .whiteBalance(.kelvin) = $0.value { true } else { false }
+        }, editor: editor)
+    }
+}
+
 /// Common setting copy and bounded drum sampling. Integrations own the accepted domain.
 public enum MonitorCapturePresentation {
     public static func title(_ key: SettingKey) -> String? {
@@ -91,7 +102,8 @@ public enum MonitorCapturePresentation {
         case .shutter(.duration(let seconds)):
             seconds.numerator == 1 ? "1/\(seconds.denominator)" : "\(number(seconds.doubleValue))s"
         case .shutter(.angle(let angle)): "\(number(angle))°"
-        case .aperture(let aperture): "f/\(number(aperture))"
+        // One decimal, as every body and its menus spell it ("f/4.0").
+        case .aperture(let aperture): String(format: "f/%.1f", aperture)
         case .whiteBalance(.auto): "Auto"
         case .whiteBalance(.preset(let name)): name
         case .whiteBalance(.kelvin(let kelvin)): "\(kelvin)K"
@@ -175,6 +187,7 @@ public enum MonitorCapturePresentation {
         case 2880..<3500: label = "3K"
         case 2500..<2880: label = "2.7K"
         case 2160 where size.width == size.height: label = "2160p"
+        case 1080 where size.width == size.height: label = "1080p"
         case 1920: label = "1080p"
         default: return "\(size.width)×\(size.height)"
         }

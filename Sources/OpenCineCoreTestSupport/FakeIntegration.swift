@@ -20,6 +20,8 @@ public final class FakeIntegration: CameraIntegration {
     public nonisolated let id: IntegrationID
     public nonisolated let profiles: [CameraProfile]
     public nonisolated let discoveryModes: Set<DiscoveryMode>
+    /// What `discoveryRunning` reports; `false` scripts a blocked radio or denied permission.
+    public nonisolated let discoveryIsRunning: Bool
     /// The plan every attempt reports.
     public var steps: [ConnectionStep]
     /// Hosts discovery dials.
@@ -53,13 +55,24 @@ public final class FakeIntegration: CameraIntegration {
             ConnectionStep(title: "Link"), ConnectionStep(title: "Approve"),
             ConnectionStep(title: "Join network"), ConnectionStep(title: "Video"),
         ],
-        endpoints: [String] = []
+        endpoints: [String] = [],
+        discoveryRunning: Bool = true
     ) {
         self.id = id
         self.profiles = profiles
         self.discoveryModes = discoveryModes
         self.steps = steps
         self.endpoints = endpoints
+        self.discoveryIsRunning = discoveryRunning
+    }
+
+    /// A stable status stream, as an integration that cannot change its radio reports.
+    public nonisolated var discoveryRunning: AsyncStream<Bool> {
+        let running = discoveryIsRunning
+        return AsyncStream<Bool> { continuation in
+            continuation.yield(running)
+            continuation.finish()
+        }
     }
 
     /// Modes of the discovery runs whose consumer is still listening.

@@ -215,6 +215,15 @@ PY
         template_sdk=${ANDROID_HOME:?ANDROID_HOME is required for private emulator provisioning}
         template_image='system-images;android-36;google_apis;x86_64'
         yes | template_step android-sdk-licenses.log sdkmanager --licenses
+        # Hosted runners sometimes receive a corrupt SDK archive ("Error on ZipFile unknown archive").
+        # Retry the download twice; the logged step then fails only on a persistent error.
+        for template_attempt in 1 2; do
+            if sdkmanager emulator platform-tools "$template_image" \
+                > "$template_out/android-emulator-tools-attempt-$template_attempt.log" 2>&1; then
+                break
+            fi
+            sleep 15
+        done
         template_step android-emulator-tools.log sdkmanager emulator platform-tools "$template_image"
         mkdir -p "$template_out/avd"
         printf 'no\n' | template_step android-avd.log env ANDROID_AVD_HOME="$template_out/avd" avdmanager create avd \

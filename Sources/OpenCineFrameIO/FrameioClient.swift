@@ -78,13 +78,15 @@ public struct FrameioClient: Sendable {
         transport: any FrameioHTTPTransport,
         tokens: any FrameioTokenStorage,
         now: @escaping @Sendable () -> Date = { Date() },
-        pause: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        pause: (@Sendable (Duration) async throws -> Void)? = nil
     ) {
         self.config = config
         self.transport = transport
         self.tokens = tokens
         self.now = now
-        self.pause = pause
+        // Resolved here, not as a closure-literal default: a public async default is copied into
+        // each client and the copies can disagree on context size (swiftlang/swift#92017).
+        self.pause = pause ?? { try await Task.sleep(for: $0) }
     }
 
     // MARK: - Auth
@@ -178,8 +180,9 @@ public struct FrameioClient: Sendable {
     public func upload(
         fileURL: URL, name: String, mediaType: String, fileSize: Int,
         accountID: String, folderID: String,
-        progress: @escaping @Sendable (Double) async -> Void = { _ in }
+        progress: (@Sendable (Double) async -> Void)? = nil
     ) async throws -> String {
+        let progress = progress ?? { _ in }
         await progress(0.05)
         let created = try await authorized(
             FrameioAPI.createFile(

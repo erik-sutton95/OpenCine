@@ -47,6 +47,20 @@ class MonitorMediaGalleryModelTest {
     private fun projection(ids: List<String> = listOf("A", "B"),
         scope: MonitorMediaProjectionSelectionScope = MonitorMediaProjectionSelectionScope.REPRESENTATIVES) =
         MonitorMediaProjection.project(ids.map(::MediaAssetID), MonitorMediaProjectionRequest(selectionScope = scope), GalleryGrouping())
+    @Test fun leavingTheBrowserEndsSelectionButACoverKeepsIt() = runTest {
+        // PAB-M-09 / II-351: closing Media starts the next visit clean, as the baseline screen did.
+        val f = Fixture(backgroundScope)
+        try {
+            f.library.select(setOf(MediaAssetID("A"), MediaAssetID("B")))
+            f.gallery.retire()
+            assertTrue(f.library.state.value.selecting)
+            assertEquals(setOf(MediaAssetID("A"), MediaAssetID("B")), f.library.state.value.selectedIDs)
+            f.gallery.activate()
+            f.gallery.leave()
+            assertFalse(f.library.state.value.selecting)
+            assertTrue(f.library.state.value.selectedIDs.isEmpty())
+        } finally { f.close() }
+    }
     @Test fun sourceReplacementInvalidatesRenderedGallerySnapshot() = runTest {
         val f = Fixture(backgroundScope)
         try {

@@ -38,6 +38,15 @@ public data class MonitorCaptureField(
     public val isEditable: Boolean get() = editor != null && choices.isNotEmpty()
 }
 
+/**
+ * The Custom white balance hold drum: Kelvin detents only (Swift `MonitorCaptureField.kelvinScrub`).
+ * Leaving Custom for Auto or a preset takes the panel, so a quick drag never flips the mode.
+ */
+public val MonitorCaptureField.kelvinScrub: MonitorCaptureField
+    get() = copy(choices = choices.filter {
+        (it.value as? SettingValue.WhiteBalance)?.value is com.opencapture.opencine.core.WhiteBalanceValue.Kelvin
+    })
+
 /** Common setting copy and bounded drum sampling. Integrations own the accepted domain. */
 public object MonitorCapturePresentation {
     /** The dashes a readout draws for a value the camera has not reported. */
@@ -87,7 +96,8 @@ public object MonitorCapturePresentation {
                 else "${number(shutter.seconds.doubleValue)}s"
             is ShutterValue.Angle -> "${number(shutter.degrees)}°"
         }
-        is SettingValue.Aperture -> "f/${number(value.fNumber)}"
+        // One decimal, as every body and its menus spell it ("f/4.0").
+        is SettingValue.Aperture -> "f/%.1f".format(java.util.Locale.ROOT, value.fNumber)
         is SettingValue.WhiteBalance -> when (val wb = value.value) {
             WhiteBalanceValue.Auto -> "Auto"
             is WhiteBalanceValue.Preset -> wb.id
@@ -162,6 +172,7 @@ public object MonitorCapturePresentation {
             in 2880..3499 -> "3K"
             in 2500..2879 -> "2.7K"
             2160 -> if (size.width == size.height) "2160p" else return "${size.width}×${size.height}"
+            1080 -> if (size.width == size.height) "1080p" else return "${size.width}×${size.height}"
             1920 -> "1080p"
             else -> return "${size.width}×${size.height}"
         }

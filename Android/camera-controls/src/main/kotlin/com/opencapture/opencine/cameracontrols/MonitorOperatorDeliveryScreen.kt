@@ -56,6 +56,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -267,7 +268,7 @@ fun <C, F, P, X, H> MonitorOperatorDeliveryPopupOverlay(
  */
 private fun <C, F, P, X, H> deliveryPanelValue(model: MonitorDeliveryPreparationModel<C, F, P, X, H>,
     state: MonitorDeliveryPreparationModel.State<C, F, P, X>, busy: Boolean): MonitorMediaDeliveryValue {
-    val serviceName = model.remotePresentation?.displayName ?: "Upload service"; val selection = state.selection; val remote = state.remoteFacts; val config = state.configuration; val options = model.exportOptions
+    val serviceName = model.remotePresentation?.displayName ?: "Upload service"; val selection = state.selection; val remote = state.remoteFacts; val config = state.configuration; val options = model.clipExportOptions
     val notices = buildList {
         selection.cachedCount?.let { cached -> if (cached < selection.files.size) {
             if (selection.connected == true) add(MonitorMediaDeliveryValue.Notice("${selection.files.size - cached} on-camera clip(s) will be cached from the camera first."))
@@ -360,7 +361,9 @@ fun MonitorOperatorDeliveryChrome(
     LaunchedEffect(state.share?.id) {
         val ready = state.share ?: return@LaunchedEffect
         if (presenting != null) return@LaunchedEffect
-        val intent = share.chooserIntent(context, ready.payload.urls, mimeType, ready.payload.metadataText, displayName)
+        val intent = withContext(Dispatchers.IO) {
+            share.chooserIntent(context, ready.payload.urls, mimeType, ready.payload.metadataText, displayName)
+        }
         val launched = intent != null && runCatching { presenting = ready.id; chooser.launch(intent) }.isSuccess
         if (!launched) {
             presenting = null; delivery.clearSharePresentation(ready.id)

@@ -74,7 +74,8 @@ public class MonitorOperatorLiveState {
     public var sheet: LiveSheet? by mutableStateOf(null)
     public var topQuickActive: Boolean by mutableStateOf(false)
     public var stripQuickActive: Boolean by mutableStateOf(false)
-    public var showStorageDuration: Boolean by mutableStateOf(false)
+    /** Which storage form the readout shows: the free space, then its alternatives in turn. */
+    public var storageForm: Int by mutableStateOf(0)
     /** The record confirmation is open: a remote press must not bypass a dialog the operator sees. */
     public var recordConfirming: Boolean by mutableStateOf(false)
     public var paletteRevision: Long by mutableStateOf(0L)
@@ -82,6 +83,7 @@ public class MonitorOperatorLiveState {
     public val capturePresented: Boolean get() = sheet != null || topQuickActive || stripQuickActive
     public fun dismiss(): Unit { sheet = null; topQuickActive = false; stripQuickActive = false }
     public fun apply(transition: MonitorInteractionTransition, capture: MonitorOperatorCaptureSource): Unit {
+        if (transition.cameraReplaced) storageForm = 0
         if (transition.dismissTransients) dismiss()
         if (transition.retireReadout) {
             topQuickActive = false
@@ -130,7 +132,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
         picture = MonitorOperatorLivePicture(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect,
             waiting = !hasPicture, vertical = verticalPicture, flipped = mirrored, recovering = recovering),
         status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars,
-            state.showStorageDuration) { state.showStorageDuration = !state.showStorageDuration },
+            state.storageForm) { count -> state.storageForm = MonitorStorageReadoutFormat.nextForm(state.storageForm, count) },
         cameraBattery = control.snapshot?.power?.let(::cameraPowerReading),
         capture = captureSheetHostInputs(chrome.capture, status, state.sheet, { state.sheet = it },
             section = MonitorDisplaySection.CAMERA_VALUES, metering = metering, quickEnabled = !busy,
@@ -230,6 +232,7 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
             usage, { usage = it; usageStore.value = it }, MONITOR_OPERATOR_USAGE_SEED),
         native, modifier, portraitAspect = chrome.portraitAspect, setPortraitAspect = chrome.setPortraitAspect,
         transitionChanged = { transition ->
+            if (transition.cameraReplaced) state.storageForm = 0
             if (transition.dismissTransients) state.dismiss()
             if (transition.retireReadout) { state.topQuickActive = false; state.stripQuickActive = false }
             val admission = transition.inputAdmission
@@ -240,8 +243,11 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
                 onDismiss = { state.sheet = null }, maxHeightDp = frame.height, portrait = field.portrait,
                 chromeless = true, onHeaderChanged = { title, subtitle -> captureState.publishHeader(key, title, subtitle) })
         }, photoRelease = { enabled, decoration ->
+            // A still in flight keeps the lamp lit (inert): only the lock dims it.
+            val busy = source.record.busy
             com.opencapture.opencine.appkit.MonitorCaptureButton(chrome.capture.control, field.record.width,
-                enabled && chrome.capture.isReady, decoration, photo = true, confirm = chrome.capture.confirmRecording(),
+                (enabled || (busy && !locked)) && chrome.capture.isReady, decoration, busy = busy, photo = true,
+                confirm = chrome.capture.confirmRecording(),
                 takePhoto = chrome.capture.takePhoto, openMode = { state.sheet = LiveSheet.MODE })
         })
 }
@@ -297,14 +303,18 @@ private fun Modifier.operatorFrame(rect: MonitorRect): Modifier = offset(rect.x.
 
 private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSource<Host>, layout: LiveMonitorLayout,
     status: CameraStatus, fps: String, bars: Int,
-    duration: Boolean, toggleStorage: () -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
+    storageForm: Int, toggleStorage: (Int) -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
     val storage = source.capture.control.state.value.snapshot?.storage
+    val readout = storage?.storageReadout
     // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
-    val storageLabel = if (duration) storage?.recordingTimeLabel else storage?.storageReadout?.let { readout ->
-        if (field.portrait) MonitorStorageReadoutFormat.wholeUnitCapacity(readout.freeBytes) else readout.free
-    }
+    val free = readout?.let {
+        if (field.portrait) MonitorStorageReadoutFormat.wholeUnitCapacity(it.freeBytes) else it.free
+    } ?: StorageReadout.UNAVAILABLE
+    val storageForms = listOf(free) + MonitorStorageReadoutFormat.alternatives(readout?.percent,
+        storage?.recordingTimeLabel, CameraCommands.isPhotoMode(status.shootingMode))
+    val storageLabel = storageForms[storageForm.mod(storageForms.size)]
     fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
         MonitorOperatorLiveReadout(sheet.name, title, value, section)
     val labels = source.host.labelProfile
@@ -319,8 +329,8 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.TIMECODE),
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.REC_READOUT),
         if (source.session.mounts(MonitorDisplaySection.STORAGE)) MonitorOperatorLiveReadout("STORAGE", "Storage remaining",
-            storageLabel ?: StorageReadout.UNAVAILABLE, MonitorDisplaySection.STORAGE,
-            action = toggleStorage, icon = MonitorIcon.CARD_SIM) else null,
+            storageLabel, MonitorDisplaySection.STORAGE,
+            action = { toggleStorage(storageForms.size) }, icon = MonitorIcon.CARD_SIM) else null,
         format, fps, bars, MonitorDisplaySection.BATTERIES,
         portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",
             if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) CaptureShutterPolicy.portraitSetupLabel(status) else formatLabel ?: "REC SETUP"),

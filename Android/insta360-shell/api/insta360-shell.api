@@ -1,0 +1,423 @@
+public abstract interface class com/opencapture/opencine/insta360/shell/CameraBackend {
+	public abstract fun close ()V
+	public abstract fun connect (Ljava/lang/String;)V
+	public abstract fun disconnect ()V
+	public abstract fun getCapabilities ()Ljava/util/Set;
+	public abstract fun getConnected ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getFailure ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getFound ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getFrameConnectionGeneration ()Ljava/lang/Long;
+	public abstract fun getFrames ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun getJoinedSSID ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getPhase ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getRadioOn ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getSnapshot ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun sceneActive (Z)V
+	public abstract fun startScan ()V
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraBackend$DefaultImpls {
+	public static fun getFrameConnectionGeneration (Lcom/opencapture/opencine/insta360/shell/CameraBackend;)Ljava/lang/Long;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraCapability : java/lang/Enum {
+	public static final field AUDIO Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field CAMERA_MEDIA Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field CAMERA_SETTINGS Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field FOCUS Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field GIMBAL Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field LIVE_VIDEO Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field METERED_EV Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field NATIVE_ISO_HOP Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field RECORD Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field TRACKING Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static final field ZOOM Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+	public static fun values ()[Lcom/opencapture/opencine/insta360/shell/CameraCapability;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraColorProfile : java/lang/Enum {
+	public static final field DOLBY_VISION Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+	public static final field HDR Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+	public static final field LOG Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+	public static final field STANDARD Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+	public static final field VIVID Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+	public static fun values ()[Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+}
+
+public abstract interface class com/opencapture/opencine/insta360/shell/CameraControls {
+	public abstract fun getGimbalHeadPitch ()Ljava/lang/Double;
+	public abstract fun getNotices ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun getReadout ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getTrackFrames ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun getZoomRange ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public abstract fun gimbalAngle (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun gimbalFlip (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun gimbalRecenter (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun gimbalSetAngle (DDLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun gimbalStick (DDLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun requestSettingsRefresh ()V
+	public abstract fun setColorProfile (Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setExposureBias (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setFaceMetering (ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setFocusMode (Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setGimbalMode (Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setGimbalSpeed (Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setRecordFormat (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setShootingMode (Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setZoom (DLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun startTracking (DDDDLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun stopTracking (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun takePhoto (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun tapFocus (DDLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraExposure {
+	public fun <init> (IID)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()D
+	public final fun copy (IID)Lcom/opencapture/opencine/insta360/shell/CameraExposure;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraExposure;IIDILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraExposure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIso ()I
+	public final fun getProgram ()I
+	public final fun getShutterSeconds ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraFocusMode : java/lang/Enum {
+	public static final field CONTINUOUS Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;
+	public static final field PRODUCT_SHOWCASE Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;
+	public static final field SINGLE Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;
+	public static fun values ()[Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraGimbalAngle {
+	public fun <init> (DD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun copy (DD)Lcom/opencapture/opencine/insta360/shell/CameraGimbalAngle;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraGimbalAngle;DDILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraGimbalAngle;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPitch ()D
+	public final fun getYaw ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraGimbalMode : java/lang/Enum {
+	public static final field FPV Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public static final field FPV_VERTICAL Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public static final field LOCK Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public static final field ROLL_LOCK Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public static final field ROLL_TILT_LOCK Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public static final field STABILIZED_VERTICAL Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public static fun values ()[Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraGimbalSpeed : java/lang/Enum {
+	public static final field FAST Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;
+	public static final field MEDIUM Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;
+	public static final field SENSITIVE Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;
+	public static final field SLOW Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;
+	public static fun values ()[Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraIdentity {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraIdentity;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraIdentity;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraIdentity;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdvertisedName ()Ljava/lang/String;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getModelName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraMediaItem {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;JILjava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;JILjava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()J
+	public final fun component4 ()I
+	public final fun component5 ()Ljava/lang/Integer;
+	public final fun component6 ()Ljava/lang/Integer;
+	public final fun component7 ()Ljava/lang/Integer;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;JILjava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraMediaItem;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraMediaItem;Ljava/lang/String;Ljava/lang/String;JILjava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraMediaItem;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDurationSeconds ()I
+	public final fun getFps ()Ljava/lang/Integer;
+	public final fun getGamma ()Ljava/lang/String;
+	public final fun getHeight ()Ljava/lang/Integer;
+	public final fun getPath ()Ljava/lang/String;
+	public final fun getProxyPath ()Ljava/lang/String;
+	public final fun getSizeBytes ()J
+	public final fun getWidth ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/insta360/shell/CameraMediaServiceSource {
+	public fun mediaService-wUZJOdQ (Ljava/util/UUID;)Lcom/opencapture/opencine/media/CameraMediaService;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraMediaServiceSource$DefaultImpls {
+	public static fun mediaService-wUZJOdQ (Lcom/opencapture/opencine/insta360/shell/CameraMediaServiceSource;Ljava/util/UUID;)Lcom/opencapture/opencine/media/CameraMediaService;
+}
+
+public abstract interface class com/opencapture/opencine/insta360/shell/CameraMediaStore {
+	public abstract fun deleteMedia (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun listMedia (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun pauseLive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun resumeLive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun thumbnailJpeg (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract class com/opencapture/opencine/insta360/shell/CameraNotice {
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraNotice$CaptureStopped : com/opencapture/opencine/insta360/shell/CameraNotice {
+	public fun <init> (J)V
+	public final fun component1 ()J
+	public final fun copy (J)Lcom/opencapture/opencine/insta360/shell/CameraNotice$CaptureStopped;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraNotice$CaptureStopped;JILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraNotice$CaptureStopped;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getErrorCode ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraNotice$Tracking : com/opencapture/opencine/insta360/shell/CameraNotice {
+	public fun <init> (Z)V
+	public final fun component1 ()Z
+	public final fun copy (Z)Lcom/opencapture/opencine/insta360/shell/CameraNotice$Tracking;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraNotice$Tracking;ZILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraNotice$Tracking;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActive ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraReadout {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Integer;Ljava/lang/Boolean;Ljava/util/List;Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;Ljava/lang/Boolean;ILcom/opencapture/opencine/insta360/shell/CameraExposure;Lcom/opencapture/opencine/insta360/shell/CameraExposure;Ljava/lang/Integer;Ljava/lang/Integer;Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;Ljava/util/List;Ljava/lang/Double;Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;Ljava/lang/Boolean;)V
+	public synthetic fun <init> (Ljava/lang/Integer;Ljava/lang/Boolean;Ljava/util/List;Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;Ljava/lang/Boolean;ILcom/opencapture/opencine/insta360/shell/CameraExposure;Lcom/opencapture/opencine/insta360/shell/CameraExposure;Ljava/lang/Integer;Ljava/lang/Integer;Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;Ljava/util/List;Ljava/lang/Double;Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Integer;
+	public final fun component10 ()Ljava/lang/Integer;
+	public final fun component11 ()Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+	public final fun component12 ()Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;
+	public final fun component13 ()Ljava/util/List;
+	public final fun component14 ()Ljava/lang/Double;
+	public final fun component15 ()Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public final fun component16 ()Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;
+	public final fun component17 ()Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;
+	public final fun component18 ()Ljava/lang/Boolean;
+	public final fun component2 ()Ljava/lang/Boolean;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public final fun component5 ()Ljava/lang/Boolean;
+	public final fun component6 ()I
+	public final fun component7 ()Lcom/opencapture/opencine/insta360/shell/CameraExposure;
+	public final fun component8 ()Lcom/opencapture/opencine/insta360/shell/CameraExposure;
+	public final fun component9 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/Integer;Ljava/lang/Boolean;Ljava/util/List;Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;Ljava/lang/Boolean;ILcom/opencapture/opencine/insta360/shell/CameraExposure;Lcom/opencapture/opencine/insta360/shell/CameraExposure;Ljava/lang/Integer;Ljava/lang/Integer;Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;Ljava/util/List;Ljava/lang/Double;Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;Ljava/lang/Boolean;)Lcom/opencapture/opencine/insta360/shell/CameraReadout;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraReadout;Ljava/lang/Integer;Ljava/lang/Boolean;Ljava/util/List;Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;Ljava/lang/Boolean;ILcom/opencapture/opencine/insta360/shell/CameraExposure;Lcom/opencapture/opencine/insta360/shell/CameraExposure;Ljava/lang/Integer;Ljava/lang/Integer;Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;Ljava/util/List;Ljava/lang/Double;Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;Ljava/lang/Boolean;ILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraReadout;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBatteryPercent ()Ljava/lang/Integer;
+	public final fun getCaptureSeconds ()I
+	public final fun getCharging ()Ljava/lang/Boolean;
+	public final fun getColor ()Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;
+	public final fun getExposureBiasTenths ()Ljava/lang/Integer;
+	public final fun getFaceMetering ()Ljava/lang/Boolean;
+	public final fun getFocusMode ()Lcom/opencapture/opencine/insta360/shell/CameraFocusMode;
+	public final fun getGimbalMode ()Lcom/opencapture/opencine/insta360/shell/CameraGimbalMode;
+	public final fun getGimbalSpeed ()Lcom/opencapture/opencine/insta360/shell/CameraGimbalSpeed;
+	public final fun getRecordFormat ()Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;
+	public final fun getRecordFormats ()Ljava/util/List;
+	public final fun getRecording ()Ljava/lang/Boolean;
+	public final fun getShootingMode ()Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public final fun getStillExposure ()Lcom/opencapture/opencine/insta360/shell/CameraExposure;
+	public final fun getStorages ()Ljava/util/List;
+	public final fun getVideoExposure ()Lcom/opencapture/opencine/insta360/shell/CameraExposure;
+	public final fun getWhiteBalanceKelvin ()Ljava/lang/Integer;
+	public final fun getZoom ()Ljava/lang/Double;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraRecordFormat {
+	public fun <init> (JIID)V
+	public final fun component1 ()J
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()D
+	public final fun copy (JIID)Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;JIIDILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFps ()D
+	public final fun getHeight ()I
+	public final fun getId ()J
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraRecordingValuesKt {
+	public static final fun aspectLabel (II)Ljava/lang/String;
+	public static final fun getAspectLabel (Lcom/opencapture/opencine/insta360/shell/CameraRecordFormat;)Ljava/lang/String;
+	public static final fun getLabel (Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;)Ljava/lang/String;
+	public static final fun getNativeRecordingColorProfiles ()Ljava/util/List;
+	public static final fun nativeRecordingColorDrum (Lcom/opencapture/opencine/insta360/shell/CameraColorProfile;)Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraShootingMode : java/lang/Enum {
+	public static final field PANO Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public static final field PHOTO Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public static final field PURE_VIDEO Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public static final field SLOW_MOTION Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public static final field TIMELAPSE Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public static final field TIMESHIFT Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public static final field VIDEO Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+	public static fun values ()[Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraSnapshot {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/lang/Integer;III)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Integer;IIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Integer;
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun copy (Ljava/lang/String;Ljava/lang/Integer;III)Lcom/opencapture/opencine/insta360/shell/CameraSnapshot;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraSnapshot;Ljava/lang/String;Ljava/lang/Integer;IIIILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraSnapshot;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBatteryPercent ()Ljava/lang/Integer;
+	public final fun getFirmware ()Ljava/lang/String;
+	public final fun getPreviewFps ()I
+	public final fun getPreviewHeight ()I
+	public final fun getPreviewWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraStorage {
+	public fun <init> (IZJJ)V
+	public final fun component1 ()I
+	public final fun component2 ()Z
+	public final fun component3 ()J
+	public final fun component4 ()J
+	public final fun copy (IZJJ)Lcom/opencapture/opencine/insta360/shell/CameraStorage;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraStorage;IZJJILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraStorage;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFreeBytes ()J
+	public final fun getLocation ()I
+	public final fun getTotalBytes ()J
+	public final fun getUsable ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraTrackFrame {
+	public fun <init> (Lcom/opencapture/opencine/insta360/shell/CameraTrackState;DDDD)V
+	public final fun component1 ()Lcom/opencapture/opencine/insta360/shell/CameraTrackState;
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun component4 ()D
+	public final fun component5 ()D
+	public final fun copy (Lcom/opencapture/opencine/insta360/shell/CameraTrackState;DDDD)Lcom/opencapture/opencine/insta360/shell/CameraTrackFrame;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/CameraTrackFrame;Lcom/opencapture/opencine/insta360/shell/CameraTrackState;DDDDILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/CameraTrackFrame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeight ()D
+	public final fun getState ()Lcom/opencapture/opencine/insta360/shell/CameraTrackState;
+	public final fun getWidth ()D
+	public final fun getX ()D
+	public final fun getY ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/shell/CameraTrackState : java/lang/Enum {
+	public static final field IDLE Lcom/opencapture/opencine/insta360/shell/CameraTrackState;
+	public static final field LOST Lcom/opencapture/opencine/insta360/shell/CameraTrackState;
+	public static final field TRACKING Lcom/opencapture/opencine/insta360/shell/CameraTrackState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/CameraTrackState;
+	public static fun values ()[Lcom/opencapture/opencine/insta360/shell/CameraTrackState;
+}
+
+public final class com/opencapture/opencine/insta360/shell/ConnectionPhase : java/lang/Enum {
+	public static final field AWAITING_APPROVAL Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field CONNECTING_GATT Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field FAILED Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field IDLE Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field JOINING_WIFI Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field LIVE Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field OPENING_DATALINK Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field PAIRING Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field READING_WIFI_CREDS Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static final field SCANNING Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+	public static fun values ()[Lcom/opencapture/opencine/insta360/shell/ConnectionPhase;
+}
+
+public abstract interface class com/opencapture/opencine/insta360/shell/CoreSessionSource {
+	public abstract fun openSession ()Lcom/opencapture/opencine/core/CameraSession;
+}
+
+public final class com/opencapture/opencine/insta360/shell/EncodedVideoFrame {
+	public fun <init> ([BJLjava/lang/Long;)V
+	public synthetic fun <init> ([BJLjava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()[B
+	public final fun component2 ()J
+	public final fun component3 ()Ljava/lang/Long;
+	public final fun copy ([BJLjava/lang/Long;)Lcom/opencapture/opencine/insta360/shell/EncodedVideoFrame;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/shell/EncodedVideoFrame;[BJLjava/lang/Long;ILjava/lang/Object;)Lcom/opencapture/opencine/insta360/shell/EncodedVideoFrame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAnnexB ()[B
+	public final fun getConnectionGeneration ()Ljava/lang/Long;
+	public final fun getTimestampMicros ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/insta360/shell/LunaMediaTransferPort {
+	public abstract fun transfer (Ljava/lang/String;Lcom/opencapture/opencine/media/MediaByteSink;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun transfer (Ljava/lang/String;Ljava/lang/Long;Lcom/opencapture/opencine/media/MediaByteSink;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/insta360/shell/LunaMediaTransferPort$DefaultImpls {
+	public static fun transfer (Lcom/opencapture/opencine/insta360/shell/LunaMediaTransferPort;Ljava/lang/String;Ljava/lang/Long;Lcom/opencapture/opencine/media/MediaByteSink;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/insta360/shell/LunaScopeClip {
+	public static final field ILOG_CLIP_BYTE_AT_NATIVE I
+	public static final field ILOG_CLIP_BYTE_AT_NATIVE_HIGH I
+	public static final field INSTANCE Lcom/opencapture/opencine/insta360/shell/LunaScopeClip;
+	public static final field LOWEST_ISO I
+	public static final field NATIVE_ISO I
+	public final fun getPROFILE ()Lcom/opencapture/opencine/media/ScopeClipProfile;
+}
+

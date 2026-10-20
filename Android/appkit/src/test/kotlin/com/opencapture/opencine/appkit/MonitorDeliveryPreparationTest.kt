@@ -30,11 +30,12 @@ class MonitorDeliveryPreparationTest {
         var savedID: String? = null; var sourceHook: (() -> Boolean)? = null
         var persistHook: (() -> Unit)? = null; var restoreHook: (() -> Unit)? = null
         var lut: Boolean? = true; var convert: Boolean? = true; var skips = true
+        var files = listOf(MonitorDeliveryFileFacts("SIMULATED.mov", null)); var bakeLUT = false
         val nativeWaits = mutableListOf<Int>()
         fun model(scope: CoroutineScope, preferred: MonitorDeliveryDestination? = MonitorDeliveryDestination.REMOTE_UPLOAD,
             export: Boolean = true, missingConfiguration: Boolean = false) = MonitorDeliveryPreparationModel<Int, Int, String, String, Int>(scope,
-            observeSelection = { MonitorDeliverySelectionFacts(listOf(MonitorDeliveryFileFacts("SIMULATED.mov", null)), 1, null) },
-            configuration = if (export && !missingConfiguration) MonitorDeliveryExportConfiguration(1, 1, bakeLUT = false) else null,
+            observeSelection = { MonitorDeliverySelectionFacts(files, 1, null) },
+            configuration = if (export && !missingConfiguration) MonitorDeliveryExportConfiguration(1, 1, bakeLUT = bakeLUT) else null,
             exportOptions = if (export) MonitorDeliveryExportOptions(listOf(MonitorDeliveryChoice("1", "SIMULATED curve", 1)),
                 listOf(MonitorDeliveryChoice("1", "SIMULATED format", 1)), { lut }, { convert }, { null },
                 "SIMULATED", "SIMULATED", { "SIMULATED.mov" }) else null,
@@ -60,6 +61,22 @@ class MonitorDeliveryPreparationTest {
         assertEquals("SIMULATED upload", model.remotePresentation?.displayName)
         assertEquals("SIMULATED uploading", model.remotePresentation?.progressCaption)
         fixture.finish(model)
+    }
+    @Test fun stillsOnlySelectionOffersNoClipExport() = runTest {
+        // ZIB-469: a still travels as its original, so no Bake LUT, curve or container is offered for it.
+        val fixture = Fixture(); fixture.bakeLUT = true
+        fixture.files = listOf(MonitorDeliveryFileFacts("DSC_0001.JPG", null, isStill = true))
+        val model = fixture.model(backgroundScope, MonitorDeliveryDestination.NATIVE_SHARE)
+        model.start(); runCurrent()
+        assertNull(model.clipExportOptions)
+        assertFalse(model.state.value.configuration!!.bakeLUT)
+        model.setBakeLUT(true); assertFalse(model.state.value.configuration!!.bakeLUT)
+        assertTrue(model.canContinue)
+        fixture.files = listOf(MonitorDeliveryFileFacts("DSC_0001.JPG", null, isStill = true), MonitorDeliveryFileFacts("DSC_0002.MOV", null, isStill = false))
+        val mixed = fixture.model(backgroundScope, MonitorDeliveryDestination.NATIVE_SHARE)
+        mixed.start(); runCurrent()
+        assertNotNull(mixed.clipExportOptions); assertTrue(mixed.state.value.configuration!!.bakeLUT)
+        fixture.finish(mixed); fixture.finish(model); runCurrent()
     }
     @Test fun unknownExportFactsCannotEnableInventedOptions() = runTest {
         val fixture = Fixture(); fixture.lut = null; fixture.convert = null
