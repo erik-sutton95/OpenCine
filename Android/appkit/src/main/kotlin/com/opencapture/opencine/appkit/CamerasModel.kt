@@ -200,7 +200,11 @@ public class CamerasModel(
             failure.target is ConnectTarget.Saved && now.saved.any { it.id == id }
         } ?: return
         val camera = now.saved.first { it.id == cameraID }
-        start(failure.target, camera.integration)
+        // The current record, not the failure's snapshot: a retry must not restore a renamed
+        // camera or a route the operator forgot since.
+        val route = (failure.target as ConnectTarget.Saved).route
+        if (camera.routes.none { it.id == route }) return
+        start(ConnectTarget.Saved(camera, route), camera.integration)
     }
 
     /** Connects a saved camera over [route], else its [defaultRoute]. */
