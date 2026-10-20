@@ -231,7 +231,8 @@ private class CaptureReadoutActions(
     readout: MonitorOperatorLiveReadout<K, S>, enabled: Boolean, commandEnabled: Boolean = true,
     currentSource: () -> Boolean, portrait: Boolean, modifier: Modifier = Modifier,
     fromTop: Boolean = true, ceilingY: Float? = null, bottomClearanceDp: Float = 0f,
-    displayValue: String? = null, content: @Composable () -> Unit,
+    displayValue: String? = null, accessibilityLabel: String? = null,
+    accessibilityValue: String? = null, content: @Composable () -> Unit,
 ): Unit {
     val owner = state.gestureOwner
     val ownerId = "header:${readout.id}"
@@ -260,8 +261,8 @@ private class CaptureReadoutActions(
             fromTop = fromTop, ceilingY = ceilingY,
             onPreviewBegin = { if (state.gestureOwner === owner) currentInputs.quickActiveChanged(true) },
             onHold = actions.hold).clearAndSetSemantics {
-            contentDescription = readout.title
-            (displayValue ?: readout.value)?.let { stateDescription = it }
+            contentDescription = accessibilityLabel ?: readout.title
+            (accessibilityValue ?: displayValue ?: readout.value)?.let { stateDescription = it }
             if (actions.inert) disabled()
         }) {
             content()

@@ -1,7 +1,10 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CapabilitySnapshot
 import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.vocabulary.ControlCapabilities
 import com.opencapture.opencine.vocabulary.ControlCapabilityVectors
+import com.opencapture.opencine.vocabulary.MonitorHeaderAccent
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,5 +37,11 @@ class ControlCapabilityFixtureTest {
         val fixture = File(System.getProperty("opencine.fixtures"), "control-capabilities-nikon.tsv")
         assertEquals(fixture.readText(), rendered)
         seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
+    @Test
+    fun theHeaderAccentsTheCodec() {
+        val controls = ControlCapabilities.derive(CapabilitySnapshot(), NIKON_CAPTURE_PROFILE)
+        assertEquals(MonitorHeaderAccent.CODEC, controls.headerAccent)
     }
 }

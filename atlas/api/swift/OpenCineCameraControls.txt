@@ -153,6 +153,7 @@ enum MirrorAssist
 enum MonitorClipDelivery: Sendable
 enum MonitorClipDeliveryError: Error, LocalizedError, Sendable
 enum MonitorDefaultLivePalette: LiveChromePalette
+enum MonitorHeaderReadoutPolicy
 enum MonitorLutPackNetwork: Equatable, Hashable, Sendable
 enum MonitorLutPackOutcome: Equatable, Sendable
 enum MonitorMediaGalleryFilterAction: Sendable
@@ -299,6 +300,7 @@ func MonitorAssistState.syncLUT(to: OpenCineCameraVocabulary.ColorMode?, family:
 func MonitorAssistState.updateDesqueezeCustom(_: Swift.Double)<Looks where Looks : OpenCineAppKit.MonitorLookProvider> -> ()
 func MonitorAssistState.zebraOptions(stores: AssistPanelStores)<Looks where Looks : OpenCineAppKit.MonitorLookProvider> -> ZebraAssist.Options
 func MonitorDeliveryBatchProgress.chromeFacts(remoteDisplayName: Swift.String?) -> MonitorOperatorDeliveryFacts
+func MonitorHeaderReadoutPlan.accessibility(for: MonitorOperatorLiveReadout<Key, Section>)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable> -> (label: Swift.String, value: Swift.String)?
 func MonitorLUTLooks.lutExposureTransfer(for: OpenCineMedia.MonitorTransfer) -> OpenCineMedia.MonitorTransfer
 func MonitorLUTLooks.resolvedSource() -> OpenCineCameraVocabulary.LUTSource
 func MonitorLUTLooks.statusLabel(enabled: Swift.Bool) -> Swift.String
@@ -437,6 +439,8 @@ init ModeBar(tabs: [Swift.String], selected: Swift.Int, enabled: Swift.Bool, upp
 init MonitorCaptureOperatorPreferences(storage: Foundation.UserDefaults, prefix: Swift.String)
 init MonitorClipDeliveryCopy(convertHelp: Swift.String, convertUnavailableHelp: Swift.String, notLog: (Swift.String) -> Swift.String)
 init MonitorClipLibrary(isCurrent: () -> Swift.Bool, connected: () -> Swift.Bool, cameraName: () -> Swift.String?, isDownloaded: (OpenCineCameraVocabulary.MediaFile) -> Swift.Bool, download: (OpenCineCameraVocabulary.MediaFile) async -> Swift.Void, downloadProgress: (OpenCineCameraVocabulary.MediaFile) -> Swift.Double?, localURL: (OpenCineCameraVocabulary.MediaFile) -> Foundation.URL?, shotColor: (OpenCineCameraVocabulary.MediaFile) -> OpenCineCameraVocabulary.ColorMode?, rememberShotColor: (OpenCineCameraVocabulary.ColorMode, OpenCineCameraVocabulary.MediaFile) -> Swift.Void)
+init MonitorHeaderCombinedCodec(codec: MonitorOperatorLiveReadout<Key, Section>, color: MonitorOperatorLiveReadout<Key, Section>)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
+init MonitorHeaderReadoutPlan(format: [MonitorOperatorLiveReadout<Key, Section>], color: MonitorOperatorLiveReadout<Key, Section>?, foldedColor: MonitorOperatorLiveReadout<Key, Section>?, combined: MonitorHeaderCombinedCodec<Key, Section>?, accented: Key?)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 init MonitorIndependentSettingsPanel(rows: [IndependentSettingRow<RowID, Request>], interactionEnabled: Swift.Bool, currentSource: () -> Swift.Bool, onSelect: (Request, Swift.String) -> Swift.Void, onUnavailable: (RowID, Swift.String?) -> Swift.Void)<RowID, Request where RowID : Swift.Hashable>
 init MonitorInspectorRenderedPicture(image: CoreGraphics.CGImage, aspectMultiplier: Swift.Double, mirrorHorizontal: Swift.Bool, mirrorVertical: Swift.Bool)
 init MonitorInspectorRenderedPictureSource(identity: MonitorInspectorRenderedPictureSource.Identity?, read: () -> MonitorInspectorRenderedPicture?, run: () async -> Swift.Void)
@@ -498,7 +502,7 @@ init MonitorOperatorLivePresentation(pictureAspect: Swift.Double, pictureWaiting
 init MonitorOperatorLivePresentation(pictureAspect: Swift.Double, pictureWaiting: Swift.Bool, verticalPicture: Swift.Bool, recovering: Swift.Bool, zoom: Swift.Bool?, gimbal: Swift.Bool?, headTracking: Swift.Bool?, watching: Swift.Bool)
 init MonitorOperatorLiveScreen()<Host where Host : MonitorLiveScreenHost>
 init MonitorOperatorLiveSource(identity: () -> MonitorOperatorLiveIdentity, available: () -> Swift.Set<OpenCineAppKit.MonitorDisplayChrome.Section>, picture: () -> MonitorOperatorLivePicture, status: () -> MonitorOperatorLiveStatus<Key, OpenCineAppKit.MonitorDisplayChrome.Section>, cameraBattery: () -> MonitorOperatorPowerReading?, capture: () -> OpenCineAppKit.MonitorOperatorCaptureInputs<Key, OpenCineAppKit.MonitorDisplayChrome.Section, NativeIdentity>, record: () -> MonitorOperatorRecordSource, exposure: (() -> OpenCineCameraVocabulary.ExposureMeterReading)?, level: ((Foundation.TimeInterval, Swift.Bool) -> MonitorUI.MonitorLevelDisplay)?, audio: () -> MonitorOperatorLiveAudio?, readOnly: () -> Swift.Bool, borrowed: () -> Swift.Bool, returnToStage: (() -> Swift.Void)?, coverOpen: () -> Swift.Bool, note: SwiftUI.Binding<Swift.String?>, settings: () -> Swift.Void, media: () -> Swift.Void)<Key, NativeIdentity where Key : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable>
-init MonitorOperatorLiveStatus(recording: MonitorPresentation.MonitorStatusPresentation, showsTimecode: Swift.Bool, showsRecording: Swift.Bool, storage: MonitorOperatorLiveReadout<Key, Section>?, format: [MonitorOperatorLiveReadout<Key, Section>], fps: Swift.String?, signalBars: Swift.Int?, fpsSection: Section?, portraitFormat: MonitorOperatorLiveReadout<Key, Section>?, portraitCaption: Swift.String?, color: MonitorOperatorLiveReadout<Key, Section>?, mode: MonitorOperatorLiveReadout<Key, Section>?, storageAlternative: Swift.String?, storageAlternatives: [Swift.String]?)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
+init MonitorOperatorLiveStatus(recording: MonitorPresentation.MonitorStatusPresentation, showsTimecode: Swift.Bool, showsRecording: Swift.Bool, storage: MonitorOperatorLiveReadout<Key, Section>?, format: [MonitorOperatorLiveReadout<Key, Section>], fps: Swift.String?, signalBars: Swift.Int?, fpsSection: Section?, portraitFormat: MonitorOperatorLiveReadout<Key, Section>?, portraitCaption: Swift.String?, color: MonitorOperatorLiveReadout<Key, Section>?, mode: MonitorOperatorLiveReadout<Key, Section>?, storageAlternative: Swift.String?, storageAlternatives: [Swift.String]?, headerAccent: OpenCineCameraVocabulary.MonitorHeaderAccent)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 init MonitorOperatorLiveSurface(host: Host, control: OpenCineAppKit.MonitorControlModel, session: OpenCineAppKit.MonitorOperatorSessionModel<Looks>, layout: MonitorUI.LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>, assists: MonitorOperatorLiveAssists, views: MonitorOperatorBodyViews, portraitAspect: SwiftUI.Binding<OpenCineMedia.PortraitFeedAspect>?, telemetryMetrics: MonitorPresentation.MonitorTelemetryMetrics?, picture: () -> Picture, cameraPanel: (Key, MonitorPresentation.MonitorCapturePopupLayout) -> CameraPanel, photoRelease: (CoreGraphics.CGFloat) -> PhotoRelease, preview: (MonitorPresentation.MonitorAssistSelection) -> Preview, lookMenu: () -> LookMenu)<Host, Key, NativeIdentity, Looks, Picture, CameraPanel, PhotoRelease, Preview, LookMenu where Host : ChromeEditHost, Key : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable, Looks : OpenCineAppKit.MonitorLookProvider, Picture : SwiftUI.View, CameraPanel : SwiftUI.View, PhotoRelease : SwiftUI.View, Preview : SwiftUI.View, LookMenu : SwiftUI.View, Host.ChromeMode == OpenCineAppKit.MonitorDisplayMode, Host.ChromeSection == OpenCineAppKit.MonitorDisplayChrome.Section>
 init MonitorOperatorLiveSurface(host: Host, layout: MonitorUI.LiveMonitorLayout, interaction: MonitorOperatorInteraction, source: MonitorOperatorLivePresentation, capture: MonitorOperatorLiveCaptureSource, zoom: MonitorOperatorZoomPresentation, focus: MonitorOperatorFocusSource, assists: MonitorOperatorLiveAssistSource, portraitAspect: SwiftUI.Binding<OpenCineMedia.PortraitFeedAspect>, orientation: MonitorPresentation.MonitorDeviceOrientation, controlNote: SwiftUI.Binding<Swift.String?>, headTracking: MonitorOperatorHeadTrackingSource?, readLevel: ((Foundation.TimeInterval, Swift.Bool) -> MonitorUI.MonitorLevelDisplay)?, pictureEV: (() -> OpenCineCameraVocabulary.EvComp?)?, picture: () -> Picture, preview: (MonitorPresentation.MonitorAssistSelection) -> Preview, lookMenu: () -> LookMenu)<Host, Key, NativeIdentity, Looks, Picture, CameraPanel, PhotoRelease, Preview, LookMenu where Host : GimbalPanelHost, Host : GimbalStickHost, Host : LiveChromeHost, Key == CaptureSheet, NativeIdentity == MonitorOperatorLegacyCaptureIdentity, Looks == MonitorLUTLooks, Picture : SwiftUI.View, CameraPanel == CaptureSheetPanel<Host>, PhotoRelease == OpenCineAppKit.MonitorCaptureButton, Preview : SwiftUI.View, LookMenu : SwiftUI.View>
 init MonitorOperatorLookComparison(assist: OpenCineAppKit.MonitorAssistState<Looks>, haptics: OperatorHaptics, exposure: MonitorOperatorLookComparison<Looks>.Exposure)<Looks where Looks : OpenCineAppKit.MonitorLookProvider>
@@ -691,6 +695,13 @@ let MonitorClipLibrary.isDownloaded: (OpenCineCameraVocabulary.MediaFile) -> Swi
 let MonitorClipLibrary.localURL: (OpenCineCameraVocabulary.MediaFile) -> Foundation.URL?
 let MonitorClipLibrary.rememberShotColor: (OpenCineCameraVocabulary.ColorMode, OpenCineCameraVocabulary.MediaFile) -> Swift.Void
 let MonitorClipLibrary.shotColor: (OpenCineCameraVocabulary.MediaFile) -> OpenCineCameraVocabulary.ColorMode?
+let MonitorHeaderCombinedCodec.codec: MonitorOperatorLiveReadout<Key, Section>
+let MonitorHeaderCombinedCodec.color: MonitorOperatorLiveReadout<Key, Section>
+let MonitorHeaderReadoutPlan.accented: Key?
+let MonitorHeaderReadoutPlan.color: MonitorOperatorLiveReadout<Key, Section>?
+let MonitorHeaderReadoutPlan.combined: MonitorHeaderCombinedCodec<Key, Section>?
+let MonitorHeaderReadoutPlan.foldedColor: MonitorOperatorLiveReadout<Key, Section>?
+let MonitorHeaderReadoutPlan.format: [MonitorOperatorLiveReadout<Key, Section>]
 let MonitorInspectorRenderedPicture.aspectMultiplier: Swift.Double
 let MonitorInspectorRenderedPicture.image: CoreGraphics.CGImage
 let MonitorInspectorRenderedPicture.mirrorHorizontal: Swift.Bool
@@ -892,6 +903,7 @@ let MonitorOperatorLiveStatus.color: MonitorOperatorLiveReadout<Key, Section>?
 let MonitorOperatorLiveStatus.format: [MonitorOperatorLiveReadout<Key, Section>]
 let MonitorOperatorLiveStatus.fps: Swift.String?
 let MonitorOperatorLiveStatus.fpsSection: Section?
+let MonitorOperatorLiveStatus.headerAccent: OpenCineCameraVocabulary.MonitorHeaderAccent
 let MonitorOperatorLiveStatus.mode: MonitorOperatorLiveReadout<Key, Section>?
 let MonitorOperatorLiveStatus.portraitCaption: Swift.String?
 let MonitorOperatorLiveStatus.portraitFormat: MonitorOperatorLiveReadout<Key, Section>?
@@ -1093,6 +1105,7 @@ static func MonitorClipDelivery.metadataSummary(for: [OpenCineCameraVocabulary.M
 static func MonitorClipDelivery.popup(files: [OpenCineCameraVocabulary.MediaFile], library: MonitorClipLibrary, assist: () -> MonitorClipDelivery.Assist, copy: MonitorClipDeliveryCopy, coordinator: OpenCineAppKitApple.MonitorDeliveryCoordinator, remote: OpenCineAppKit.MonitorDeliveryRemoteService<Project, Context, Lease>?, remoteRun: (MonitorClipDelivery.Request<Project, Context, Lease>, OpenCineAppKit.MonitorDeliveryAdmission) -> OpenCineAppKitApple.MonitorDeliveryRemoteRun<OpenCineCameraVocabulary.MediaFile>?, preferredDestination: OpenCineAppKit.MonitorDeliveryDestination?)<Project, Context, Lease where Project : Swift.Sendable, Context : Swift.Sendable, Lease : Swift.Sendable> -> (model: MonitorClipDelivery.Preparation<Project, Context, Lease>, begin: (MonitorClipDelivery.Request<Project, Context, Lease>) -> Swift.Void)
 static func MonitorClipDelivery.selectionFile(_: OpenCineCameraVocabulary.MediaFile) -> OpenCineAppKit.MonitorDeliveryFileFacts
 static func MonitorDefaultLivePalette.chromeColor(red: CoreGraphics.CGFloat, green: CoreGraphics.CGFloat, blue: CoreGraphics.CGFloat) -> SwiftUI.Color
+static func MonitorHeaderReadoutPolicy.plan(format: [MonitorOperatorLiveReadout<Key, Section>], color: MonitorOperatorLiveReadout<Key, Section>?, mode: MonitorOperatorLiveReadout<Key, Section>?, accent: OpenCineCameraVocabulary.MonitorHeaderAccent, portrait: Swift.Bool, photo: Swift.Bool, isMounted: (Section) -> Swift.Bool, codecSection: Section)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable> -> MonitorHeaderReadoutPlan<Key, Section>
 static func MonitorLivePictureApp.scopeDisplay(_: MetalKit.MTKView) -> MonitorUI.MonitorScopeDisplayOptions
 static func MonitorLiveScreenHost.headphoneBridge() -> OpenCineAppKitApple.HeadphoneMotionBridge
 static func MonitorMotionPreferences.camera(storage: Foundation.UserDefaults, prefix: Swift.String) -> OpenCineAppKit.MonitorMotionPreferences
@@ -1483,6 +1496,8 @@ struct ModeBar: Sendable, View
 struct MonitorClipDeliveryCopy: Sendable
 struct MonitorClipDeliveryMetadata: Decodable, Encodable, Sendable
 struct MonitorClipLibrary: Sendable
+struct MonitorHeaderCombinedCodec<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
+struct MonitorHeaderReadoutPlan<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 struct MonitorIndependentSettingsPanel<RowID, Request where RowID : Swift.Hashable>: Sendable, View
 struct MonitorInspectorRenderedPicture: Sendable
 struct MonitorInspectorRenderedPictureSource.Identity: Equatable, Hashable
@@ -1952,6 +1967,9 @@ var MonitorFalseColorSelection.referenceScaleLabel: Swift.String
 var MonitorFrameEffects.falseColorOptions: FalseColorAssist.Options
 var MonitorFrameEffects.peakingOptions: OpenCineMedia.MonitorPeakingOptions
 var MonitorFrameEffects.zebraOptions: ZebraAssist.Options
+var MonitorHeaderCombinedCodec.title: Swift.String
+var MonitorHeaderCombinedCodec.value: Swift.String
+var MonitorHeaderReadoutPlan.foldsColor: Swift.Bool
 var MonitorIndependentSettingsPanel.body: some SwiftUI.View
 var MonitorLUTLooks.appliesLUTExposure: Swift.Bool
 var MonitorLUTLooks.cube: OpenCineMedia.CubeLUT?

@@ -106,6 +106,28 @@ private final class StillScopeClock: @unchecked Sendable {
                 trafficThreshold: 0.05, previous: .empty) == expected)
     }
 
+    // Native preparation is fixture setup, not a cold-start latency contract. Each cadence
+    // scenario starts after the real per-owner conversion and a queued reset have completed.
+    private static func prepareNativeStill(
+        _ engine: MonitorAssistEngine, image: CGImage, effects: MonitorAssistPolicy,
+        on queue: DispatchQueue
+    ) async throws {
+        let ready = XCTestExpectation(description: "native still fixture prepared")
+        let first = AsyncStream<MonitorAssistEngine.Result>.makeStream()
+        engine.sample(image, effects: effects, transfer: .rec709) {
+            first.continuation.yield($0)
+            first.continuation.finish()
+            ready.fulfill()
+        }
+        let preparation = await XCTWaiter.fulfillment(of: [ready], timeout: 5.0)
+        try #require(preparation == .completed, "real native fixture preparation has a separate 5 s bound")
+        var iterator = first.stream.makeAsyncIterator()
+        let result = try #require(await iterator.next())
+        try #require(result.bundle != nil, "fixture preparation must process a real native still")
+        engine.reset()
+        try await finishPendingWork(on: queue)
+    }
+
     private static func finishPendingWork(on queue: DispatchQueue) async throws {
         let finished = XCTestExpectation(description: "still samples and deferred drain finished")
         // drain schedules one more pass after the submitted sample blocks.
@@ -124,7 +146,10 @@ private final class StillScopeClock: @unchecked Sendable {
         policy.waveform = true
         policy.parade = true
         let image = try Self.image(Self.rgba())
+        try await Self.prepareNativeStill(engine, image: image, effects: policy, on: queue)
         let results = AsyncStream<MonitorAssistEngine.Result>.makeStream()
+        // Keep the first scenario sample pending until all original submissions are queued.
+        queue.suspend()
         for _ in 0..<3 {
             engine.sample(image, effects: policy, transfer: .rec709) {
                 results.continuation.yield($0)
@@ -134,6 +159,7 @@ private final class StillScopeClock: @unchecked Sendable {
         engine.sample(image, effects: MonitorAssistPolicy(), transfer: .rec709) {
             results.continuation.yield($0)
         }
+        queue.resume()
         // Frozen cadence time establishes that all three admissions are pre-due,
         // even when native work or scheduling takes longer than a real interval.
         try await Self.finishPendingWork(on: queue)
@@ -155,6 +181,7 @@ private final class StillScopeClock: @unchecked Sendable {
         policy.waveform = true
         policy.parade = true
         let image = try Self.image(Self.rgba())
+        try await Self.prepareNativeStill(engine, image: image, effects: policy, on: queue)
         let interval = MonitorAssistEngine.minInterval(activeScopeCount: policy.activeScopeCount)
         let results = AsyncStream<MonitorAssistEngine.Result>.makeStream()
         let receive: @Sendable (MonitorAssistEngine.Result) -> Void = {

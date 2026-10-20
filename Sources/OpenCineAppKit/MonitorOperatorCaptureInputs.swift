@@ -340,6 +340,8 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
     private let coordinateSpace: String
     private let expandsHeight: Bool
     private let displayValue: String?
+    private let accessibilityLabel: String?
+    private let accessibilityValue: String?
     private let content: () -> Content
     @State private var measuredSize: CGSize = .zero
 
@@ -347,11 +349,14 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
         state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity,
         readout: MonitorOperatorLiveReadout<Key, Section>, enabled: Bool, commandEnabled: Bool = true,
         currentSource: @escaping () -> Bool, coordinateSpace: String = "monitor.canvas",
-        expandsHeight: Bool = true, displayValue: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+        expandsHeight: Bool = true, displayValue: String? = nil, accessibilityLabel: String? = nil,
+        accessibilityValue: String? = nil, @ViewBuilder content: @escaping () -> Content) {
         self.inputs = inputs; self.control = control; self.state = state; self.source = source
         self.readout = readout; self.enabled = enabled; self.commandEnabled = commandEnabled
         self.currentSource = currentSource; self.coordinateSpace = coordinateSpace
-        self.expandsHeight = expandsHeight; self.displayValue = displayValue; self.content = content
+        self.expandsHeight = expandsHeight; self.displayValue = displayValue
+        self.accessibilityLabel = accessibilityLabel; self.accessibilityValue = accessibilityValue
+        self.content = content
     }
 
     public var body: some View {
@@ -369,8 +374,9 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
             .contentShape(Rectangle())
             .modifier(CaptureReadoutGesture(inputs: inputs, readout: readout, control: control,
                 state: state, source: source, enabled: enabled, commandEnabled: commandEnabled,
-                currentSource: currentSource))
-            .accessibilityValue(MonitorCapturePresentation.spokenValue(displayValue ?? readout.value))
+                currentSource: currentSource, spokenTitle: accessibilityLabel))
+            .accessibilityValue(MonitorCapturePresentation.spokenValue(
+                accessibilityValue ?? displayValue ?? readout.value))
             .padding(.horizontal, -horizontal).padding(.vertical, -vertical)
     }
 }
@@ -393,6 +399,8 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
     let enabled: Bool
     let commandEnabled: Bool
     let currentSource: () -> Bool
+    /// A combined control speaks both of its values; nil keeps the readout's own title.
+    var spokenTitle: String? = nil
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.monitorWindowGeometry) private var windowGeometry
     @State private var commitTask: Task<Void, Never>?
@@ -436,7 +444,7 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
         content.modifier(MonitorReadoutGesture(snapshot: quickSnapshot, sourceIdentity: capturedSource,
             isEnabled: canInspect, ownership: $state.ownership, presentationOwner: { presentationOwner },
             holdAction: holdAction, onEvent: handle))
-            .accessibilityLabel(readout.title)
+            .accessibilityLabel(spokenTitle ?? readout.title)
             .accessibilityValue(MonitorCapturePresentation.spokenValue(readout.value))
             .accessibilityIdentifier(readout.accessibilityIdentifier)
             .disabled(!canInspect)

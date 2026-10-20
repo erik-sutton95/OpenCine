@@ -64,4 +64,9 @@ import Testing
         }
         #expect(try String(contentsOf: Self.fixture, encoding: .utf8) == rendered)
     }
+
+    /// A Z body has no shooting-mode readout, so the header accent sits on the codec.
+    @Test func theHeaderAccentsTheCodec() {
+        #expect(Self.controls(Self.movie()).headerAccent == .codec)
+    }
 }
