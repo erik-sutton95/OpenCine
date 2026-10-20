@@ -137,14 +137,30 @@ jobs:
           cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --filter "$cache_test" 2>&1 | tee test-cache.log
-      - name: Test package (real-clock join prompts excluded)
+      - name: Test package (isolated readiness suites excluded)
         if: always()
         shell: bash
         run: |
-          # The real-clock join prompt suite runs by itself below; every other test stays here.
+          # The real-clock join prompt and native still-readiness suites run below.
+          # Every other test stays in this concurrent invocation.
           cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
-            --skip "$cache_test" --skip LunaJoinPromptTests 2>&1 | tee test.log
+            --skip "$cache_test" --skip LunaJoinPromptTests \
+            --skip MonitorAssistEngineStillTests 2>&1 | tee test.log
+      - name: Test still scope cadence (isolated native readiness)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep all three tests and their original 300 ms readiness assertions.
+          # Fresh processes exercise cold native readiness without unrelated suites.
+          for attempt in 1 2 3; do
+            log="test-still-${attempt}.log"
+            swift test --skip-build -Xswiftc -strict-concurrency=complete \
+              --filter MonitorAssistEngineStillTests 2>&1 | tee "$log"
+            # A missing or changed selection must fail rather than silently skip coverage.
+            grep -Eq 'Test run with 3 tests in 1 suite passed' "$log"
+          done
       - name: Test join prompt retry (real clock, isolated)
         if: always()
         shell: bash
@@ -156,7 +172,7 @@ jobs:
       - name: No duplicate test class warning
         if: always()
         shell: bash
-        run: '! grep -q "implemented in both" test-cache.log test.log test-luna.log'
+        run: '! grep -q "implemented in both" test-cache.log test.log test-still-*.log test-luna.log'
       - name: Build MonitorUI and OpenCineApple (iOS Simulator)
         run: |
           for scheme in MonitorUI OpenCineApple; do
@@ -233,6 +249,7 @@ jobs:
           path: |
             test-cache.log
             test.log
+            test-still-*.log
             test-luna.log
             swift-crash-reports/**/*.ips
             swift-crash-reports/**/*.crash
