@@ -1,3 +1,4 @@
+#if os(iOS)
 import OpenCineAppKit
 import OpenCineCameraVocabulary
 import Testing
@@ -111,3 +112,4 @@ import Testing
         #expect(none.accented == nil)
     }
 }
+#endif

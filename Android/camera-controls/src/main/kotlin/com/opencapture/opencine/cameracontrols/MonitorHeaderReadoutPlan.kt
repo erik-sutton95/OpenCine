@@ -64,7 +64,8 @@ public object MonitorHeaderReadoutPolicy {
         mode: MonitorOperatorLiveReadout<K, S>?,
         accent: MonitorHeaderAccent,
         portrait: Boolean, photo: Boolean,
-        mounted: Set<S>, codecSection: S,
+        // The live body is generic over its section type; the codec section is matched by equality.
+        mounted: Set<S>, codecSection: Any,
     ): MonitorHeaderReadoutPlan<K, S> {
         fun shown(section: S?): Boolean = section?.let { it in mounted } ?: true
         val shownFormat = format.filter { shown(it.section) }

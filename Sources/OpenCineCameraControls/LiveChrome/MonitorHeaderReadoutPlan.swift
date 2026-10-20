@@ -1,3 +1,4 @@
+#if os(iOS)
 import OpenCineAppKit
 import OpenCineCameraVocabulary
 
@@ -83,3 +84,4 @@ public enum MonitorHeaderReadoutPolicy {
             foldedColor: foldedColor, combined: combined, accented: accented)
     }
 }
+#endif
