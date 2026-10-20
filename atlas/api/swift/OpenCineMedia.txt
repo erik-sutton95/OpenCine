@@ -462,7 +462,7 @@ func ScopeExposureCeiling.observeTapMax(_: Swift.UInt8, transfer: MonitorTransfe
 func ScopeExposureCeiling.reset() -> ()
 func ScopeExposureCeiling.resolvedISO() -> Swift.Int?
 func ScopeExposureCeiling.setISO(_: Swift.Int) -> ()
-func ScopeExposureCeiling.syncISO(_: Swift.Int) -> ()
+func ScopeExposureCeiling.syncISO(_: Swift.Int?) -> ()
 func ScopeLevelAxis.remapHistogram(_: [Swift.Int]) -> [Swift.Int]
 func SerialSessionGate.begin() -> Swift.Bool
 func SerialSessionGate.end() -> ()
@@ -567,7 +567,7 @@ init ReviewCard(clips: [Clip])<Clip>
 init ScopeAssistBundle(revision: Swift.UInt64, samples: ScopeSamples, vectorscopePoints: [ScopePoint], trailSamples: ScopeSamples, trailVectorscopePoints: [ScopePoint], traffic: ScopeTrafficLightsReading, histogramDisplay: ScopeHistogramDisplay, transfer: MonitorTransfer, clipByte: Swift.Int, levelAxis: ScopeLevelAxis?)
 init ScopeChannelLight(clip: Swift.Bool, crush: Swift.Bool, level: Swift.Double)
 init ScopeClipCalibration(referenceISO: Swift.Int, referenceByte: Swift.UInt8, refinementMaximumByte: Swift.UInt8?, noiseAllowance: Swift.Int, refinementAtOrAboveReference: Swift.Bool)
-init ScopeClipProfile(calibrations: [MonitorTransfer : ScopeClipCalibration], defaultISO: Swift.Int?)
+init ScopeClipProfile(calibrations: [MonitorTransfer : ScopeClipCalibration], defaultISO: Swift.Int?, unreportedISO: Swift.Int?)
 init ScopeExposureCeiling(profile: ScopeClipProfile)
 init ScopeHistogramDisplay(luma: [Swift.Float], red: [Swift.Float], green: [Swift.Float], blue: [Swift.Float])
 init ScopeLevelAxis(table: [Swift.Float], middleGrayIRE: Swift.Double, supportsCalibratedReferences: Swift.Bool)
@@ -1657,6 +1657,8 @@ var ScopeClipCalibration.refinementAtOrAboveReference: Swift.Bool
 var ScopeClipCalibration.refinementMaximumByte: Swift.UInt8
 var ScopeClipProfile.calibrations: [MonitorTransfer : ScopeClipCalibration]
 var ScopeClipProfile.defaultISO: Swift.Int?
+var ScopeClipProfile.unreportedISO: Swift.Int?
+var ScopeExposureCeiling.unreportedISO: Swift.Int?
 var ScopeHistogramDisplay.blue: [Swift.Float]
 var ScopeHistogramDisplay.green: [Swift.Float]
 var ScopeHistogramDisplay.luma: [Swift.Float]

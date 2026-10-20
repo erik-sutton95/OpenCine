@@ -39,6 +39,13 @@ public enum MonitorRemoteShutterPolicy {
         min(max(volume, railHeadroom), 1 - railHeadroom)
     }
 
+    /// Whether moving the system volume from `current` to `target` is a real write: arming at an
+    /// ordinary level and stopping where the operator left it touch nothing, so no volume view is
+    /// leased for them.
+    public static func needsWrite(from current: Float, to target: Float) -> Bool {
+        abs(current - target) > 0.001
+    }
+
     public static func decision(
         newVolume: Float, now: TimeInterval, lastTriggerAt: TimeInterval, lastAnchorAt: TimeInterval,
         anchor: Float
@@ -85,5 +92,42 @@ public struct MonitorRemoteShutterPresses: Equatable, Sendable {
     /// never walks to a rail (never inside the re-anchor's own echo window).
     public func repins(volume: Float, at now: TimeInterval) -> Bool {
         abs(volume - anchor) > 0.001 && now - lastAnchorAt >= MonitorRemoteShutterPolicy.selfInflictedWindow
+    }
+}
+
+/// When the owner's volume view may be in the window. The view is the only way to write the system
+/// volume, but left in the window it keeps the app from ever idling on device (constant frame
+/// commits, an XCUITest that never reaches idle, battery cost), so it is leased around each write
+/// and released a short hold after the last one: armed at an ordinary level, nothing is installed.
+public struct MonitorRemoteShutterVolumeLease: Equatable, Sendable {
+    /// How long the view outlives its last write: long enough for the write's own echo and a quick
+    /// second press, short enough that the live view idles between presses.
+    public static let hold: TimeInterval = 1.0
+
+    /// The volume still waiting for the view's slider, if any.
+    public private(set) var pendingVolume: Float?
+    public private(set) var heldUntil: TimeInterval = 0
+
+    public init() {}
+
+    /// A write is wanted; the newest one wins.
+    public mutating func request(volume: Float) {
+        pendingVolume = volume
+    }
+
+    /// The pending write landed at `now`.
+    public mutating func wrote(at now: TimeInterval) {
+        pendingVolume = nil
+        heldUntil = now + Self.hold
+    }
+
+    /// Whether the view must stay: a write is waiting, or the last one is inside its hold.
+    public func needsView(at now: TimeInterval) -> Bool {
+        pendingVolume != nil || now < heldUntil
+    }
+
+    /// Stop, a route change or a new listening period drops the lease at once.
+    public mutating func end() {
+        self = .init()
     }
 }

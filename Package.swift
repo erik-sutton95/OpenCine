@@ -274,9 +274,10 @@ let package = Package(
         .testTarget(name: "OpenCineFrameIOAndroidTests", dependencies: ["OpenCineFrameIOAndroid", "OpenCineFrameIO"]),
 
         // MARK: Insta360
-        // Luna wire protocol (Foundation only) and the Apple I/O adapter with its KCP C code.
-        .target(name: "Insta360Protocol"),
-        .testTarget(name: "Insta360ProtocolTests", dependencies: ["Insta360Protocol"]),
+        // Luna wire protocol (Foundation and portable Media) and the Apple I/O adapter with its KCP C code.
+        // OpenCineMedia: the Luna preview clip calibration over the portable scope ceiling.
+        .target(name: "Insta360Protocol", dependencies: ["OpenCineMedia"]),
+        .testTarget(name: "Insta360ProtocolTests", dependencies: ["Insta360Protocol", "OpenCineMedia"]),
         // ikcp (MIT, LICENSE) plus two thin C shims. Public API: include/.
         .target(name: "CKcp", exclude: ["LICENSE"]),
         .target(

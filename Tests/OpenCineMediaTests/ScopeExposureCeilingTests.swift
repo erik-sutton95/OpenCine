@@ -2,6 +2,28 @@ import Testing
 @testable import OpenCineMedia
 
 @Suite struct ScopeExposureCeilingTests {
+    @Test func anUnreportedISOKeepsTheLastReportUnlessTheProfileNamesAnAssumption() {
+        let calibrations: [MonitorTransfer: ScopeClipCalibration] = [
+            .dlog2: ScopeClipCalibration(referenceISO: 1600, referenceByte: 247, refinementMaximumByte: 248),
+        ]
+        let keeps = ScopeExposureCeiling(profile: ScopeClipProfile(calibrations: calibrations, defaultISO: 1600))
+        keeps.syncISO(800)
+        keeps.syncISO(0)
+        keeps.syncISO(-1)
+        keeps.syncISO(nil)
+        #expect(keeps.resolvedISO() == 800)
+        let assumes = ScopeExposureCeiling(profile: ScopeClipProfile(
+            calibrations: calibrations, defaultISO: 1600, unreportedISO: 100))
+        assumes.syncISO(800)
+        #expect(assumes.clipByte(transfer: .dlog2) == 231)
+        assumes.syncISO(0)
+        #expect(assumes.resolvedISO() == 100)
+        #expect(assumes.clipByte(transfer: .dlog2) < 231)
+        assumes.syncISO(25)
+        #expect(assumes.resolvedISO() == 100)
+        assumes.syncISO(1600)
+        #expect(assumes.clipByte(transfer: .dlog2) == 247)
+    }
     @Test func unknownSourceDoesNotInventISOOrCalibration() {
         let source = ScopeExposureCeiling()
         #expect(source.resolvedISO() == nil)

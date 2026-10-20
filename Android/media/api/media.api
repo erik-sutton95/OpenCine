@@ -4017,15 +4017,17 @@ public final class com/opencapture/opencine/media/ScopeClipCalibration {
 
 public final class com/opencapture/opencine/media/ScopeClipProfile {
 	public fun <init> ()V
-	public fun <init> (Ljava/util/Map;Ljava/lang/Integer;)V
-	public synthetic fun <init> (Ljava/util/Map;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/util/Map;
 	public final fun component2 ()Ljava/lang/Integer;
-	public final fun copy (Ljava/util/Map;Ljava/lang/Integer;)Lcom/opencapture/opencine/media/ScopeClipProfile;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/ScopeClipProfile;Ljava/util/Map;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/media/ScopeClipProfile;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;)Lcom/opencapture/opencine/media/ScopeClipProfile;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/ScopeClipProfile;Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/media/ScopeClipProfile;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCalibrations ()Ljava/util/Map;
 	public final fun getDefaultIso ()Ljava/lang/Integer;
+	public final fun getUnreportedIso ()Ljava/lang/Integer;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -4082,11 +4084,12 @@ public class com/opencapture/opencine/media/ScopeExposureCeiling : com/opencaptu
 	public fun clipByte (Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;)I
 	public fun clipEncoded (Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;)D
 	public final fun declare (Ljava/lang/Integer;Lcom/opencapture/opencine/media/MonitorTransfer;)Ljava/lang/Object;
+	public final fun getUnreportedIso ()Ljava/lang/Integer;
 	public final fun observeTapMax (ILcom/opencapture/opencine/media/MonitorTransfer;)Lkotlin/Pair;
 	public final fun reset ()V
 	public final fun resolvedISO ()Ljava/lang/Integer;
 	public final fun setISO (I)V
-	public final fun syncISO (I)V
+	public final fun syncISO (Ljava/lang/Integer;)V
 }
 
 public final class com/opencapture/opencine/media/ScopeExposureCeiling$Companion {

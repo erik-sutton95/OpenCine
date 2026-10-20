@@ -140,6 +140,50 @@ final class LunaCameraSessionTests: XCTestCase {
         }
     }
 
+    private func reportPhotoMode(to session: LunaCameraSession) throws {
+        let nested = try ProtoMessage.integer(field: 40, value: 0) + ProtoMessage.integer(field: 41, value: 100)
+        session.ingest(device: try LunaDeviceStatus(response: ProtoMessage.blob(field: 2, value: nested)))
+    }
+
+    private func offersAngles(_ session: LunaCameraSession) -> Bool {
+        let choices = session.current.capabilities[.shutter]?.domain?.choices ?? []
+        return choices.contains { if case .shutter(.angle) = $0 { true } else { false } }
+    }
+
+    /// CodeRabbit on #114: photo exposure never composes an angle, so angle mode in photo offers
+    /// the camera's durations only.
+    func testEmulatedAngleOffersNoAnglesInPhotoMode() async throws {
+        let camera = FakeLuna()
+        camera.program = LunaExposureProgram.manual.rawValue
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        let session = camera.connectedSession(now: { MonotonicInstant(.zero) })
+        try reportCadence(48, to: session)
+        session.configureShutter(presentation: .emulatedAngle)
+        XCTAssertTrue(offersAngles(session), "video with a cadence offers angles")
+        try reportPhotoMode(to: session)
+        XCTAssertFalse(offersAngles(session), "photo mode offered an angle it cannot write")
+        XCTAssertEqual(session.current.capabilities[.shutter]?.availability, .available)
+    }
+
+    /// CodeRabbit on #114: an unknown cadence withholds only the angles; the camera's durations
+    /// stay writable, as in camera-value mode.
+    func testUnknownCadenceWithholdsOnlyTheAngles() async throws {
+        let camera = FakeLuna()
+        camera.program = LunaExposureProgram.manual.rawValue
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        let session = camera.connectedSession(now: { MonotonicInstant(.zero) })
+        session.configureShutter(presentation: .emulatedAngle)
+        XCTAssertFalse(offersAngles(session), "an angle offered without a cadence to compose it")
+        XCTAssertEqual(session.current.capabilities[.shutter]?.availability, .available)
+        let (_, outcome) = await submit(.set(.shutter(.duration(Rational(1, 100)))), to: session)
+        XCTAssertEqual(outcome.stage, .confirmed)
+        let exposure = try XCTUnwrap(
+            LunaPhotographySettings(response: try XCTUnwrap(camera.sent.last).body).videoExposure)
+        XCTAssertEqual(exposure.shutterSeconds, 1.0 / 100, accuracy: 1e-9)
+    }
+
     private func submit(
         _ intent: CameraCommandIntent, to session: LunaCameraSession
     ) async -> (submitted: CommandReceipt, outcome: CommandReceipt) {
