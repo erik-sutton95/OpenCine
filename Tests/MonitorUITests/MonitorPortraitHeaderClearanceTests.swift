@@ -3,7 +3,6 @@
     import MonitorUI
     import Observation
     import OpenCineAppKit
-    import OpenCineCameraVocabulary
     import OpenCineCore
     import OpenCineHostedAccessibility
     import OpenCineHostedTestSupport
@@ -785,14 +784,14 @@
             }
             do {
                 let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true,
-                    headerAccent: .codec, mode: "Video")
+                    accentCodec: true, mode: "Video")
                 defer { fixture.close() }
                 try await fixture.assertAccent(on: "Codec and color", off: "Shooting mode")
             }
             // The Nikon app supplies no shooting-mode readout at all and declares the codec.
             do {
                 let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true,
-                    headerAccent: .codec)
+                    accentCodec: true)
                 defer { fixture.close() }
                 try await fixture.assertAccent(on: "Codec and color")
             }
@@ -810,7 +809,7 @@
             let sample = ProductionHeaderCase(width: 360, safeTop: 62, sideSafe: 0)
             do {
                 let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true,
-                    headerAccent: .codec)
+                    accentCodec: true)
                 defer { fixture.close() }
                 try await fixture.assertAccent(on: "Codec")
             }
@@ -843,7 +842,7 @@
         var typedPortraitHeader = false
         var sensorArea = "FX"
         var colorOnly = false
-        var headerAccent: MonitorHeaderAccent = .shootingMode
+        var accentCodec = false
         var modeValue: String?
         var formatCalls = 0
         var codecCalls = 0
@@ -946,7 +945,7 @@
                                 action: { probe.colorCalls += 1 }, quickEnabled: false),
                             mode: probe.modeValue.map { .init(id: "mode", title: "Shooting mode", value: $0,
                                 action: { probe.modeCalls += 1 }, quickEnabled: false) },
-                            headerAccent: probe.headerAccent)
+                            headerAccent: probe.accentCodec ? .codec : .shootingMode)
                     }, cameraBattery: {
                         cameraBatteryOverride ?? .init(id: "camera", title: "Camera battery", camera: true, percent: 68)
                     }, capture: { .init(readouts: [], haptics: false, open: { _ in }, dismiss: {}) },
@@ -978,7 +977,7 @@
         init(_ sample: ProductionHeaderCase, codecOnly: Bool = false, passiveBackdrop: Bool = false,
             typedPortraitHeader: Bool = false, colorOnly: Bool = false, sensorArea: String = "FX",
             photo: Bool = false, storage: (value: String, icon: MonitorIcon?, spoken: String?)? = nil,
-            headerAccent: MonitorHeaderAccent = .shootingMode, mode: String? = nil) throws {
+            accentCodec: Bool = false, mode: String? = nil) throws {
             self.sample = sample
             probe = try ProductionHeaderProbe(codecOnly: codecOnly)
             probe.photo = photo
@@ -989,7 +988,7 @@
             probe.typedPortraitHeader = typedPortraitHeader
             probe.sensorArea = sensorArea
             probe.colorOnly = colorOnly
-            probe.headerAccent = headerAccent
+            probe.accentCodec = accentCodec
             probe.modeValue = mode
             live = LiveMonitorLayout.fieldMonitor(size: CGSize(width: sample.width, height: sample.height),
                 safeArea: EdgeInsets(top: sample.safeTop, leading: sample.sideSafe, bottom: 0,
