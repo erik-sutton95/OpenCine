@@ -1606,6 +1606,34 @@ public final class com/opencapture/opencine/cameracontrols/MonitorFeedEffectsPla
 	public static final fun rememberMonitorFeedEffectsPlans (Lcom/opencapture/opencine/cameracontrols/MonitorFeedEffectsPacker;Landroidx/compose/runtime/Composer;I)Lcom/opencapture/opencine/cameracontrols/MonitorFeedEffectsPlans;
 }
 
+public final class com/opencapture/opencine/cameracontrols/MonitorHeaderCombinedCodec {
+	public static final field $stable I
+	public fun <init> (Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;)V
+	public final fun getCodec ()Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;
+	public final fun getColor ()Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;
+	public final fun getTitle ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/cameracontrols/MonitorHeaderReadoutPlan {
+	public static final field $stable I
+	public fun <init> (Ljava/util/List;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/cameracontrols/MonitorHeaderCombinedCodec;Ljava/lang/Object;)V
+	public final fun accessibility (Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;)Lkotlin/Pair;
+	public final fun getAccented ()Ljava/lang/Object;
+	public final fun getColor ()Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;
+	public final fun getCombined ()Lcom/opencapture/opencine/cameracontrols/MonitorHeaderCombinedCodec;
+	public final fun getFoldedColor ()Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;
+	public final fun getFoldsColor ()Z
+	public final fun getFormat ()Ljava/util/List;
+}
+
+public final class com/opencapture/opencine/cameracontrols/MonitorHeaderReadoutPolicy {
+	public static final field $stable I
+	public static final field COMBINED_CODEC_TITLE Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/opencine/cameracontrols/MonitorHeaderReadoutPolicy;
+	public final fun plan (Ljava/util/List;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/vocabulary/MonitorHeaderAccent;ZZLjava/util/Set;Ljava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorHeaderReadoutPlan;
+}
+
 public final class com/opencapture/opencine/cameracontrols/MonitorIndependentSettingsPanelKt {
 	public static final fun MonitorIndependentSettingsPanel (Ljava/util/List;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)V
 }
@@ -2789,12 +2817,13 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLiveSt
 
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLiveStatus {
 	public static final field $stable I
-	public fun <init> (Lkotlin/jvm/functions/Function0;ZZLcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/util/List;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Object;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/lang/String;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/lang/Object;Ljava/lang/Object;)V
-	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;ZZLcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/util/List;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Object;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/lang/String;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/lang/Object;Ljava/lang/Object;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lkotlin/jvm/functions/Function0;ZZLcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/util/List;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Object;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/lang/String;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/lang/Object;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/MonitorHeaderAccent;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;ZZLcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/util/List;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Object;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/lang/String;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;Ljava/lang/Object;Ljava/lang/Object;Lcom/opencapture/opencine/vocabulary/MonitorHeaderAccent;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getColor ()Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;
 	public final fun getFormat ()Ljava/util/List;
 	public final fun getFps ()Ljava/lang/String;
 	public final fun getFpsSection ()Ljava/lang/Object;
+	public final fun getHeaderAccent ()Lcom/opencapture/opencine/vocabulary/MonitorHeaderAccent;
 	public final fun getMode ()Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;
 	public final fun getPortraitCaption ()Ljava/lang/String;
 	public final fun getPortraitFormat ()Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;

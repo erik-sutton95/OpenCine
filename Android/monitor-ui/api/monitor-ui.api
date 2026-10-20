@@ -665,6 +665,7 @@ public final class com/opencapture/monitorui/MonitorCompactTelemetryBudget {
 }
 
 public final class com/opencapture/monitorui/MonitorCompactTelemetryBudget$Companion {
+	public final fun linkWidthBeforeCutout (Lcom/opencapture/monitorui/MonitorFieldLayout;Lcom/opencapture/monitorui/MonitorRect;F)Ljava/lang/Float;
 	public final fun storageWidthBeforeCutout (Lcom/opencapture/monitorui/MonitorFieldLayout;Lcom/opencapture/monitorui/MonitorRect;FF)Ljava/lang/Float;
 }
 
