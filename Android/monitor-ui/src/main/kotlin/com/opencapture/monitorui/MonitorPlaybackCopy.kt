@@ -32,6 +32,8 @@ object MonitorPlaybackCopy {
     const val DELETE_CONFIRMATION_TITLE = "Delete this clip from the camera?"
     const val DELETE_CONFIRM = "Delete"
     const val DELETE_CANCEL = "Cancel"
+    const val DELETE_CANCEL_DESCRIPTION = "Cancel deletion"
+    const val DELETE_CONFIRM_DESCRIPTION = "Delete from the camera card"
 
     // Transport.
     const val BACK_FIFTEEN = "Back 15 seconds"

@@ -36,9 +36,6 @@ import com.opencapture.monitorui.*
 import com.opencapture.opencine.appkit.*
 import com.opencapture.opencine.media.*
 import com.opencapture.opencine.vocabulary.MediaClipFormatting
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 /** Complete playback. Only the real native picture, preview and source facts arrive from an app. */
 @Composable
@@ -198,8 +195,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         row("Playback source", sourceLabel)
         row("Size", asset.representations.firstOrNull { it.role == MediaRepresentationRole.ORIGINAL }
             ?.byteCount?.takeIf { it > 0 }?.let(MediaClipFormatting::byteLabel))
-        row("Created", asset.capturedAt?.let { DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-            .withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(it)) })
+        row("Created", MonitorPlaybackCapturedAt.label(asset.capturedAt, record.facts.orderKey))
         row("Favorite", if (favorite) "Yes" else "No")
         facts.metadata.forEach { row(it.title, it.value) }
     }

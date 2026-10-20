@@ -21,7 +21,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Cancel only a superseded pull-request run. Main pushes, dispatches and the nightly's call run
+  # to completion (a newer pending main run still replaces an older pending one).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   meta:
@@ -44,6 +46,10 @@ jobs:
           args: "detect --source=. --log-opts=HEAD --redact --no-banner --config=.gitleaks.toml"
       - name: Repository hygiene
         run: scripts/check-repository-hygiene.sh
+      - name: No async closure-literal default arguments (swiftlang/swift#92017)
+        run: |
+          scripts/check-async-closure-defaults-test.sh
+          scripts/check-async-closure-defaults.sh
       - name: Sentry release tooling shared by the apps (offline)
         run: bash scripts/sentry/sentry-test.sh
       - name: Spell check
@@ -154,8 +160,10 @@ jobs:
       - name: Build MonitorUI and OpenCineApple (iOS Simulator)
         run: |
           for scheme in MonitorUI OpenCineApple; do
+            # Hosted runners are arm64: an x86_64 simulator slice only doubles the compile.
             xcodebuild -scheme "$scheme" -destination 'generic/platform=iOS Simulator' -derivedDataPath ~/ci-dd \
-              -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES build
+              -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES \
+              ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
           done
       # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
       - name: Build Insta360Apple (iOS devices)
@@ -336,8 +344,10 @@ jobs:
         run: |
           python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
-      # QUARANTINE (docs/testing/CI.md): digitizer cancel on hosted Xcode 26.6.
+      # QUARANTINE (docs/testing/CI.md, #109): digitizer cancel on hosted Xcode 26.6. Its failure is
+      # reported on the step but does not fail the kit's other checks.
       - name: Native playback labels and confirmation input
+        continue-on-error: true
         run: |
           python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-labels-dd" --output "$RUNNER_TEMP/kit-ios/playback-labels"

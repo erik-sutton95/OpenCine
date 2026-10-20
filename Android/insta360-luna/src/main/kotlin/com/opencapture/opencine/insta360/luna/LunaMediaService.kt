@@ -9,6 +9,7 @@ import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.Base64
 import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 
@@ -287,8 +288,15 @@ internal class LunaMediaBrowse(
                 ?: metadata?.durationSeconds?.toDouble()
             val kind = if (file.isVideo) MediaAssetKind.VIDEO
                 else if (metadata?.subMediaType == 3L || file.uri.substringAfterLast('.').lowercase() in setOf("jpg", "jpeg", "dng")) MediaAssetKind.PHOTO else null
+            // The camera reports its local wall clock; read it as UTC so the shared info sheet,
+            // which prints camera stamps in UTC, shows the digits the camera recorded.
             val date = metadata?.creationStamp?.takeIf { it >= 1_000_000_000_000 }?.let {
-                runCatching { SimpleDateFormat("yyyyMMddHHmmss", Locale.ROOT).apply { isLenient = false }.parse(it.toString())?.time }.getOrNull()
+                runCatching {
+                    SimpleDateFormat("yyyyMMddHHmmss", Locale.ROOT).apply {
+                        isLenient = false
+                        timeZone = TimeZone.getTimeZone("UTC")
+                    }.parse(it.toString())?.time
+                }.getOrNull()
             }
             return MediaAsset(id, filename = file.uri.substringAfterLast('/'), kind = kind,
                 capturedAt = date, durationSeconds = duration, pixelSize = pixels,

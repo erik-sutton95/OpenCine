@@ -100,10 +100,14 @@ public final class NikonDiscovery: @unchecked Sendable {
     /// - `onPresences`: every completed presence sweep's answers (empty is a verdict too).
     public func discover(
         _ mode: DiscoveryMode, guid: Data, priorityHosts: [String] = [],
-        excludedHosts: @escaping @Sendable () async -> Set<String> = { [] }, browsesUSB: Bool = true,
-        status: @escaping @Sendable (String) async -> Void = { _ in },
-        onPresences: @escaping @Sendable ([String: NikonPresence]) async -> Void = { _ in }
+        excludedHosts: (@Sendable () async -> Set<String>)? = nil, browsesUSB: Bool = true,
+        status: (@Sendable (String) async -> Void)? = nil,
+        onPresences: (@Sendable ([String: NikonPresence]) async -> Void)? = nil
     ) async throws -> [DiscoveredCamera] {
+        // Resolved here, not as closure-literal defaults (swiftlang/swift#92017).
+        let excludedHosts = excludedHosts ?? { [] }
+        let status = status ?? { _ in }
+        let onPresences = onPresences ?? { _ in }
         let dialer: any NikonDialer = mode == .passive ? PassiveDialer(base: dialer) : dialer
         let usbCameras = browsesUSB ? await sources.usbCameras(start: true) : []
 

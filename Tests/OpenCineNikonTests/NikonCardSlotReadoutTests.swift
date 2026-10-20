@@ -119,3 +119,31 @@ private func twoCards(slot1: UInt32?, slot2: UInt32?) -> [(id: UInt32, info: PTP
         activeSlot: slotDescriptor(.activeSlot, current: 0, values: [0, 1], writable: true))
     #expect(full.activeSlotAlignment == nil)
 }
+
+@Test func aKnownSlotIsNeverMovedAndAnUnresolvedCardNeverStandsInForTheStillsCard() {
+    let slot2ThenUnpatterned: [(id: UInt32, info: PTPStorageInfo)] = [
+        (0x0002_0001, card(freeImages: 200)), (0x0000_0007, card(freeImages: 900)),
+    ]
+    let active = slotDescriptor(.activeSlot, current: 2, values: [1, 2], writable: true)
+    let slot1Stills = NikonCardSlotReadout(
+        storage: slot2ThenUnpatterned,
+        primarySlot: slotDescriptor(.primarySlot, current: 1, values: [1, 2], writable: true),
+        activeSlot: active)
+    #expect(slot1Stills.cards.map(\.storageID) == [0x0000_0007, 0x0002_0001])
+    #expect(slot1Stills.cards.map(\.slot) == [1, 2])
+    #expect(slot1Stills.cards.map(\.slotIsPhysical) == [false, true])
+    #expect(slot1Stills.stillsCard == nil)
+    #expect(slot1Stills.stillsCardShots == nil)
+    #expect(slot1Stills.activeSlotAlignment == nil)
+    let slot2Stills = NikonCardSlotReadout(
+        storage: slot2ThenUnpatterned,
+        primarySlot: slotDescriptor(.primarySlot, current: 2, values: [1, 2], writable: true))
+    #expect(slot2Stills.stillsCard?.storageID == 0x0002_0001)
+    #expect(slot2Stills.stillsCardShots == 200)
+    let sharedSlot = NikonCardSlotReadout(
+        storage: [(0x0001_0001, card(freeImages: 1)), (0x0001_0002, card(freeImages: 2))],
+        primarySlot: slotDescriptor(.primarySlot, current: 1, values: [1, 2], writable: true))
+    #expect(sharedSlot.cards.map(\.slot) == [1, 2])
+    #expect(sharedSlot.cards.allSatisfy { !$0.slotIsPhysical })
+    #expect(sharedSlot.stillsCardShots == nil)
+}

@@ -50,6 +50,10 @@ test is quarantined here, in the same pull request, with its issue.
 | Playback labels, native typed cancellation (SIMULATED) | `playback-native-ios` | [#110](https://github.com/erik-sutton95/OpenCine/issues/110) |
 | Private simulator setup: `simctl list` timeouts | every simulator suite | [#111](https://github.com/erik-sutton95/OpenCine/issues/111) |
 
+Quarantined tests still run every night and their failures are listed in the run summary, but
+they neither open nor keep open the nightly tracking issue: a quarantined step has
+`continue-on-error`, a quarantined job is named in `QUARANTINED_JOBS` in `nightly.yml`.
+
 A test leaves quarantine when its issue is fixed and several consecutive nightlies pass; move
 it back to the PR tier and close the issue in the same pull request.
 
