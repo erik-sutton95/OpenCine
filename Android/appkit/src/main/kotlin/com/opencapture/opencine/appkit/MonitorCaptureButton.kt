@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,7 +41,11 @@ import com.opencapture.monitorui.MonitorRecordLamp
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.monitorMaterial
 
-/** Common capture control. Only the photo service and integration mode editor are slots. */
+/**
+ * Common capture control. Only the photo service and integration mode editor are slots.
+ * [enabled] is the surface admission (the lock dims it); [busy] keeps it inert without that look.
+ * Press, hold, look and spoken state come from [MonitorCapturePolicy].
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 public fun MonitorCaptureButton(
@@ -48,6 +53,7 @@ public fun MonitorCaptureButton(
     diameter: Float,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    busy: Boolean = false,
     photo: Boolean = false,
     confirm: Boolean = false,
     takePhoto: () -> Unit = {},
@@ -56,8 +62,10 @@ public fun MonitorCaptureButton(
 ): Unit {
     val state by control.state.collectAsState()
     val editor = control.recordEditor()
-    val recording = control.isRecording == true
-    val interactive = enabled && !state.recordPending && (photo || editor != null)
+    val policy = MonitorCapturePolicy(enabled, busy, state.recordPending, photo, editor != null,
+        control.isRecording, openMode != null)
+    val interactive = policy.pressAdmitted
+    val haptics = LocalOperatorHaptics.current
     var approved by remember { mutableStateOf<MonitorControlModel.RecordEditor?>(null) }
     LaunchedEffect(editor) {
         approved?.let { if (!control.canCommitRecord(it)) approved = null }
@@ -92,29 +100,29 @@ public fun MonitorCaptureButton(
                     style = MonitorTypography.text(16f, FontWeight.SemiBold), textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) {
                         approved = null
+                        haptics.selection()
                         if (interactive && !photo) control.commitRecord(approval)
                     }.padding(vertical = 14.dp))
                 Text("Cancel", color = MonitorPalette.muted,
                     style = MonitorTypography.text(15f, FontWeight.Medium), textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { approved = null }
+                    modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { haptics.selection(); approved = null }
                         .padding(vertical = 12.dp))
             }
         }
     }
+    // Without a mode sheet Compose reads a held press as a tap, so any press length records.
     Box(modifier.size(diameter.dp)
-        .alpha(if (!enabled) .4f else if (recording && state.recordPending) .72f else 1f)
-        .then(if (interactive) Modifier.combinedClickable(onClick = ::press, onLongClick = openMode)
+        .alpha(policy.alpha)
+        .then(if (policy.interactive) Modifier.combinedClickable(onClickLabel = policy.accessibilityLabel,
+            onLongClickLabel = policy.holdAccessibilityLabel,
+            onClick = { policy.tap(haptics, ::press) },
+            onLongClick = openMode?.let { mode -> { policy.hold(haptics, ::press, mode) } })
             else Modifier.semantics { disabled() })
         .semantics {
-            contentDescription = when {
-                photo -> "Take photo"
-                recording && state.recordPending -> "Stopping recording"
-                recording -> "Stop recording"
-                control.isRecording == null -> "Recording state unknown"
-                else -> "Start recording"
-            }
+            contentDescription = policy.accessibilityLabel
+            policy.stateDescription?.let { stateDescription = it }
             role = Role.Button
         }, contentAlignment = Alignment.Center) {
-        MonitorRecordLamp(recording = recording, photo = photo, modifier = Modifier.fillMaxSize())
+        MonitorRecordLamp(recording = control.isRecording == true, photo = photo, modifier = Modifier.fillMaxSize())
     }
 }
