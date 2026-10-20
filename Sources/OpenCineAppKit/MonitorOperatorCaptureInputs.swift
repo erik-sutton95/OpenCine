@@ -49,16 +49,19 @@ public enum MonitorOperatorLiveReadoutStyle {
     public let after: Key
     public let title: String
     public let value: String
+    public let accessibilityLabel: String
     public let accessibilityValue: String
+    public let accessibilityHint: String?
     public let accessibilityIdentifier: String
     public let section: Section?
     public let enabled: Bool
     private let isCurrent: () -> Bool
     private let action: () -> Void
-    public init(id: String, after: Key, title: String, value: String,
-        accessibilityValue: String, accessibilityIdentifier: String, section: Section? = nil,
-        enabled: Bool, isCurrent: @escaping () -> Bool, action: @escaping () -> Void) {
+    public init(id: String, after: Key, title: String, value: String, accessibilityLabel: String? = nil,
+        accessibilityValue: String, accessibilityHint: String? = nil, accessibilityIdentifier: String,
+        section: Section? = nil, enabled: Bool, isCurrent: @escaping () -> Bool, action: @escaping () -> Void) {
         self.id = id; self.after = after; self.title = title; self.value = value
+        self.accessibilityLabel = accessibilityLabel ?? title; self.accessibilityHint = accessibilityHint
         self.accessibilityValue = accessibilityValue; self.accessibilityIdentifier = accessibilityIdentifier
         self.section = section; self.enabled = enabled; self.isCurrent = isCurrent; self.action = action
     }
@@ -287,7 +290,8 @@ private struct CaptureSupplementaryReadout<Key: Hashable, Section: Hashable,
         }
         .buttonStyle(.plain).disabled(!admitted || !readout.enabled)
         .accessibilityIdentifier(readout.accessibilityIdentifier)
-        .accessibilityLabel(readout.title).accessibilityValue(readout.accessibilityValue)
+        .accessibilityLabel(readout.accessibilityLabel).accessibilityValue(readout.accessibilityValue)
+        .accessibilityHint(readout.accessibilityHint ?? "")
     }
 }
 

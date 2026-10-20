@@ -15,7 +15,7 @@
         @Environment(\.interfaceLocked) private var locked
         @Binding var menu: LiveTopMenu?
         var layout: LiveMonitorLayout
-        @State private var showStorageDuration = false
+        @State private var storageForm = 0
         @State private var readoutOwnership = MonitorReadoutOwnership()
 
         public init(menu: Binding<LiveTopMenu?>, layout: LiveMonitorLayout) {
@@ -104,7 +104,7 @@
 
         private var storageButton: some View {
             Button {
-                showStorageDuration.toggle()
+                storageForm = MonitorStorageReadoutFormat.nextForm(after: storageForm, count: storageForms.count)
             } label: {
                 HStack(spacing: 5) {
                     MonitorIcon.cardSim.frame(width: 12, height: 12)
@@ -122,19 +122,19 @@
             .accessibilityValue(storage)
         }
 
-        private var storage: String {
-            // The unified capability readout owns the values; the toggle shows the volume's
-            // remaining recording time in video, marked estimated by the shared observation.
-            if showStorageDuration && !host.cameraStatus.isPhoto {
-                return host.control.snapshot?.storage.recordingTimeLabel
-                    ?? MonitorStorageReadoutFormat.remainingMinutes(nil)
-            }
-            guard let readout = host.control.snapshot?.storage.storageReadout else { return StorageReadout.unavailable }
+        private var storage: String { storageForms[storageForm % storageForms.count] }
+
+        private var storageForms: [String] {
+            // The unified capability readout owns the values; a tap steps from the free space to
+            // its percentage, then (video) the remaining recording time, marked estimated (A5-11).
+            let readout = host.control.snapshot?.storage.storageReadout
             // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
-            if layout.presentation?.portrait == true {
-                return MonitorStorageReadoutFormat.wholeUnitCapacity(bytes: readout.freeBytes)
-            }
-            return readout.free
+            let free = readout.map {
+                layout.presentation?.portrait == true
+                    ? MonitorStorageReadoutFormat.wholeUnitCapacity(bytes: $0.freeBytes) : $0.free
+            } ?? StorageReadout.unavailable
+            return [free] + MonitorStorageReadoutFormat.alternatives(percent: readout?.percent,
+                recordingTime: host.control.snapshot?.storage.recordingTimeLabel, photo: host.cameraStatus.isPhoto)
         }
 
         private func topButton(_ item: LiveTopMenu, value: String) -> some View {

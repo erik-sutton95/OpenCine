@@ -49,6 +49,10 @@ struct MonitorInteractionLifecycleTests {
         let replaced = owner.update(.init(camera: b))
         #expect(replaced.dismissTransients && replaced.retireReadout)
         #expect(replaced.inputAdmission == .resumed)
+        // Only a new camera resets per-camera readout choices (the storage form).
+        #expect(replaced.cameraReplaced)
+        #expect(!owner.update(.init(locked: true, camera: b)).cameraReplaced)
+        _ = owner.update(.init(camera: b))
         #expect(owner.close().inputAdmission == .blocked(.disappeared))
         #expect(owner.context == nil)
         let reentry = owner.update(.init(covered: true, camera: b))
