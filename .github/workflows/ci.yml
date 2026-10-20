@@ -257,11 +257,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Test, lint and assemble (Kotlin warnings are errors in core, media, multicam)
         run: ./gradlew test lint assembleRelease
-      # Each module's Kotlin public API is recorded in <module>/api/<module>.api.
-      - name: Public API snapshots (Kotlin)
+      # Each module's Kotlin public API is recorded in <module>/api/<module>.api: Kotlin/JVM modules
+      # by the Kotlin plugin's ABI validation, Android library modules by dumpAndroidApi.
+      - name: Public API snapshots (Kotlin and Android)
         run: |
-          ./gradlew checkKotlinAbi || {
-            echo "::error::Unrecorded Kotlin public API change. If it is intended, run (cd Android && ./gradlew updateKotlinAbi) and commit the changed <module>/api/*.api files."
+          ./gradlew checkKotlinAbi checkAndroidApi || {
+            echo "::error::Unrecorded public API change. If it is intended, run (cd Android && ./gradlew updateKotlinAbi updateAndroidApi) and commit the changed <module>/api/*.api files."
             exit 1
           }
       - name: Apps' Gradle plugins (build-logic)
