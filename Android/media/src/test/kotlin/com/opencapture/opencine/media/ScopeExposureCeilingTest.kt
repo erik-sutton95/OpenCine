@@ -6,6 +6,25 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class ScopeExposureCeilingTest {
+    @Test fun anUnreportedISOKeepsTheLastReportUnlessTheProfileNamesAnAssumption() {
+        val calibrations = mapOf(MonitorTransfer.DLOG2 to ScopeClipCalibration(1600, 247, 248))
+        val keeps = ScopeExposureCeiling(ScopeClipProfile(calibrations, defaultIso = 1600))
+        keeps.syncISO(800)
+        keeps.syncISO(0)
+        keeps.syncISO(-1)
+        keeps.syncISO(null)
+        assertEquals(800, keeps.resolvedISO())
+        val assumes = ScopeExposureCeiling(ScopeClipProfile(calibrations, defaultIso = 1600, unreportedIso = 100))
+        assumes.syncISO(800)
+        assertEquals(231, assumes.clipByte(MonitorTransfer.DLOG2))
+        assumes.syncISO(0)
+        assertEquals(100, assumes.resolvedISO())
+        kotlin.test.assertTrue(assumes.clipByte(MonitorTransfer.DLOG2) < 231)
+        assumes.syncISO(25)
+        assertEquals(100, assumes.resolvedISO())
+        assumes.syncISO(1600)
+        assertEquals(247, assumes.clipByte(MonitorTransfer.DLOG2))
+    }
     @Test fun unknownSourceDoesNotInventISOOrCalibration() {
         val source = ScopeExposureCeiling()
         assertNull(source.resolvedISO())

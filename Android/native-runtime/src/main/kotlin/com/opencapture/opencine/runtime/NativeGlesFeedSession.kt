@@ -303,7 +303,8 @@ class NativeGlesFeedSession(
                     if (!scopeDue || !sourceCurrent(sourceEpoch) ||
                         !scopeBus.isCurrent(scopeOwner)) return@execute
                     var transfer = policy.transfer
-                    policy.iso?.let(currentSamples.ceiling::syncISO)
+                    // An absent ISO is an unreported one: the source profile decides (Swift twin).
+                    currentSamples.ceiling.syncISO(policy.iso)
                     val (minC, maxC) = ScopeSampler.minMaxRGB(packed)
                     if (policy.allowsTransferInference) {
                         transfer = inferTransfer?.invoke(minC, maxC, transfer) ?: transfer
