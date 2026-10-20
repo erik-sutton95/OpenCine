@@ -412,3 +412,12 @@ public final class com/opencapture/opencine/insta360/shell/LunaMediaTransferPort
 	public static fun transfer (Lcom/opencapture/opencine/insta360/shell/LunaMediaTransferPort;Ljava/lang/String;Ljava/lang/Long;Lcom/opencapture/opencine/media/MediaByteSink;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public final class com/opencapture/opencine/insta360/shell/LunaScopeClip {
+	public static final field ILOG_CLIP_BYTE_AT_NATIVE I
+	public static final field ILOG_CLIP_BYTE_AT_NATIVE_HIGH I
+	public static final field INSTANCE Lcom/opencapture/opencine/insta360/shell/LunaScopeClip;
+	public static final field LOWEST_ISO I
+	public static final field NATIVE_ISO I
+	public final fun getPROFILE ()Lcom/opencapture/opencine/media/ScopeClipProfile;
+}
+
