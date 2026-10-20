@@ -92,19 +92,26 @@ import Testing
     }
 
     @Test func shootingModeAccentStaysOnTheModeReadout() {
-        let dji = plan(portrait: false, mode: modeReadout)
-        #expect(dji.accented == "mode")
+        let modeBody = plan(portrait: false, mode: modeReadout)
+        #expect(modeBody.accented == "mode")
     }
 
     @Test func aDeclaredCodecAccentMovesOffTheModeReadout() {
-        let nikon = plan(portrait: false, mode: modeReadout, accent: .codec)
-        #expect(nikon.accented == "codec")
+        let codecBody = plan(portrait: false, mode: modeReadout, accent: .codec)
+        #expect(codecBody.accented == "codec")
     }
 
-    @Test func aBodyWithoutAShootingModeReadoutAccentsTheCodec() {
-        // Nikon: no shooting-mode readout, so the declared default still finds the codec.
-        let nikon = plan(portrait: false)
-        #expect(nikon.accented == "codec")
+    @Test func aDeclaredCodecAccentWithoutAModeReadoutAccentsTheCodec() {
+        // A body with no shooting-mode readout declares the codec.
+        let codecBody = plan(portrait: false, accent: .codec)
+        #expect(codecBody.accented == "codec")
+    }
+
+    @Test func aShootingModeDeclarationNeverMovesTheAccentToTheCodec() {
+        // Portrait (and a narrow landscape) draws no mode slot: a shooting-mode body stays
+        // unaccented there, as before, instead of borrowing the codec.
+        #expect(plan(portrait: true).accented == nil)
+        #expect(plan(portrait: false).accented == nil)
     }
 
     @Test func neitherReadoutLeavesTheHeaderUnaccented() {

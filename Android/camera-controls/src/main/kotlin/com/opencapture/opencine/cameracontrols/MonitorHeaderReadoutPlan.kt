@@ -20,8 +20,8 @@ public class MonitorHeaderReadoutPlan<K, S>(
      */
     public val combined: MonitorHeaderCombinedCodec<K, S>?,
     /**
-     * The readout that carries the accent: the declared slot when the header shows it, else the
-     * codec (a body with no shooting-mode readout, as Nikon). Null when neither shows.
+     * The readout that carries the accent: the declared slot, only while the header shows it.
+     * Null otherwise; the accent never moves to another readout.
      */
     public val accented: K?,
 ) {
@@ -75,8 +75,8 @@ public object MonitorHeaderReadoutPolicy {
         val combined = if (!portrait && foldedColor != null && codec != null)
             MonitorHeaderCombinedCodec(codec, foldedColor) else null
         val accented = when (accent) {
-            MonitorHeaderAccent.SHOOTING_MODE -> mode?.id ?: codec?.id
-            MonitorHeaderAccent.CODEC -> codec?.id ?: mode?.id
+            MonitorHeaderAccent.SHOOTING_MODE -> mode?.id
+            MonitorHeaderAccent.CODEC -> codec?.id
         }
         return MonitorHeaderReadoutPlan(shownFormat, if (foldedColor == null) shownColor else null,
             foldedColor, combined, accented)

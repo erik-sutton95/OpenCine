@@ -132,7 +132,7 @@ public data class ControlCapabilities(
     public val multiview: ControlCapability<NoOffer> = ControlCapability.unknown(),
     /**
      * Which live header readout carries the app accent, from the body's static profile. The
-     * shared header accents the declared slot when it shows, else the codec readout.
+     * shared header accents the declared slot only when it shows.
      */
     public val headerAccent: MonitorHeaderAccent = MonitorHeaderAccent.SHOOTING_MODE,
 ) {

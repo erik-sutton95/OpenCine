@@ -14,8 +14,8 @@ public struct MonitorHeaderReadoutPlan<Key: Hashable, Section: Hashable> {
     /// The landscape codec control that also speaks the folded colour. Portrait keeps its spoken
     /// codec value, as it already showed it.
     public let combined: MonitorHeaderCombinedCodec<Key, Section>?
-    /// The readout that carries the accent: the declared slot when the header shows it, else the
-    /// codec (a body with no shooting-mode readout, as Nikon). Nil when neither shows.
+    /// The readout that carries the accent: the declared slot, only while the header shows it.
+    /// Nil otherwise; the accent never moves to another readout.
     public let accented: Key?
 
     public init(format: [MonitorOperatorLiveReadout<Key, Section>],
@@ -76,8 +76,8 @@ public enum MonitorHeaderReadoutPolicy {
             codec.map { MonitorHeaderCombinedCodec(codec: $0, color: color) }
         } : nil
         let accented: Key? = switch accent {
-        case .shootingMode: mode?.id ?? codec?.id
-        case .codec: codec?.id ?? mode?.id
+        case .shootingMode: mode?.id
+        case .codec: codec?.id
         }
         return MonitorHeaderReadoutPlan(
             format: shownFormat, color: foldedColor == nil ? shownColor : nil,

@@ -111,7 +111,7 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
     public let signalBars: Int?
     public let fpsSection: Section?
     /// Which readout carries the accent, declared by the body's capability profile. The header
-    /// accents this slot when it shows, else the codec readout.
+    /// accents this slot only when it shows; it never moves to another readout.
     public let headerAccent: MonitorHeaderAccent
     public init(recording: MonitorStatusPresentation, showsTimecode: Bool, showsRecording: Bool,
         storage: MonitorOperatorLiveReadout<Key, Section>? = nil,

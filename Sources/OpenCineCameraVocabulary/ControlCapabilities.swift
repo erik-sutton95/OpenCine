@@ -134,7 +134,7 @@ public struct ControlCapabilities: Equatable, Sendable {
     /// The body can join a multi-camera stage.
     public var multiview: ControlCapability<NoOffer>
     /// Which live header readout carries the app accent, from the body's static profile. The
-    /// shared header accents the declared slot when it shows, else the codec readout.
+    /// shared header accents the declared slot only when it shows.
     public var headerAccent: MonitorHeaderAccent
 
     /// Nothing known: every family unknown.

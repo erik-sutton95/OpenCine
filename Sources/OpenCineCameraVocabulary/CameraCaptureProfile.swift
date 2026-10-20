@@ -19,7 +19,7 @@ public struct CameraCaptureProfile: Equatable, Sendable {
     /// listed is unknown. `ControlCapabilities` merges this with the live snapshot.
     public var controls: [ControlFamily: SupportStatus] = [:]
     /// Which live header readout carries the app accent. The default keeps the shooting-mode
-    /// readout; a body with no shooting mode declares the codec (Nikon).
+    /// readout; a body with no shooting-mode readout declares the codec.
     public var headerAccent: MonitorHeaderAccent = .shootingMode
 
     public init(

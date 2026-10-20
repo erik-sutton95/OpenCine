@@ -21,7 +21,7 @@ data class CameraCaptureProfile(
     val controls: Map<ControlFamily, com.opencapture.opencine.core.SupportStatus> = emptyMap(),
     /**
      * Which live header readout carries the app accent. The default keeps the shooting-mode
-     * readout; a body with no shooting mode declares the codec (Nikon).
+     * readout; a body with no shooting-mode readout declares the codec.
      */
     val headerAccent: MonitorHeaderAccent = MonitorHeaderAccent.SHOOTING_MODE,
 )

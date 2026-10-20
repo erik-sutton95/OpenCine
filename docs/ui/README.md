@@ -143,8 +143,9 @@ both values from the combined control (`Codec and color`, `R3D NE · D-Log2`). P
 keeps its existing stack.
 
 The header accent follows the body's declared `MonitorHeaderAccent`: the shooting-mode
-readout where the header shows one (DJI and Insta), else the codec readout (Nikon, which
-has no shooting mode). The profile carries the declaration; the header never tests a brand.
+readout by default, or the codec readout for a body that has no shooting mode. The accent
+stays on the declared readout only, so a header that does not show it (portrait, a narrow
+landscape) stays unaccented. The profile carries the declaration; the header never tests a brand.
 
 Phone portrait telemetry uses separate `telemetry` bounds below the safe top,
 with eight points/dp of clearance and side reserves for rounded corners. The

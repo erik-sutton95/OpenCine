@@ -79,7 +79,7 @@ public class MonitorOperatorLiveStatus<K, S>(
     public val recordingSection: S? = null, public val timecodeSection: S? = null,
     /**
      * Which readout carries the accent, declared by the body's capability profile. The header
-     * accents this slot when it shows, else the codec readout.
+     * accents this slot only when it shows; it never moves to another readout.
      */
     public val headerAccent: MonitorHeaderAccent = MonitorHeaderAccent.SHOOTING_MODE,
 )
@@ -336,7 +336,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         modifier, picture = picture,
         status = {
             val recording = status.recording()
-            // Portrait never draws the mode slot, so the accent falls back to the codec there.
+            // Portrait never draws the mode slot, so a shooting-mode accent shows nothing there.
             val modeShown = if (layout.portrait) null else status.mode
             val plan = MonitorHeaderReadoutPolicy.plan(status.format, status.color, modeShown,
                 status.headerAccent, layout.portrait, photo, mounted, MonitorDisplaySection.CODEC)

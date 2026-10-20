@@ -80,19 +80,26 @@ class MonitorHeaderReadoutPlanTest {
     }
 
     @Test fun shootingModeAccentStaysOnTheModeReadout() {
-        val dji = plan(portrait = false, mode = mode)
-        assertEquals("mode", dji.accented)
+        val modeBody = plan(portrait = false, mode = mode)
+        assertEquals("mode", modeBody.accented)
     }
 
     @Test fun aDeclaredCodecAccentMovesOffTheModeReadout() {
-        val nikon = plan(portrait = false, mode = mode, accent = MonitorHeaderAccent.CODEC)
-        assertEquals("codec", nikon.accented)
+        val codecBody = plan(portrait = false, mode = mode, accent = MonitorHeaderAccent.CODEC)
+        assertEquals("codec", codecBody.accented)
     }
 
-    @Test fun aBodyWithoutAShootingModeReadoutAccentsTheCodec() {
-        // Nikon: no shooting-mode readout, so the declared default still finds the codec.
-        val nikon = plan(portrait = false)
-        assertEquals("codec", nikon.accented)
+    @Test fun aDeclaredCodecAccentWithoutAModeReadoutAccentsTheCodec() {
+        // A body with no shooting-mode readout declares the codec.
+        val codecBody = plan(portrait = false, accent = MonitorHeaderAccent.CODEC)
+        assertEquals("codec", codecBody.accented)
+    }
+
+    @Test fun aShootingModeDeclarationNeverMovesTheAccentToTheCodec() {
+        // Portrait (and a narrow landscape) draws no mode slot: a shooting-mode body stays
+        // unaccented there, as before, instead of borrowing the codec.
+        assertNull(plan(portrait = true).accented)
+        assertNull(plan(portrait = false).accented)
     }
 
     @Test fun neitherReadoutLeavesTheHeaderUnaccented() {

@@ -756,21 +756,36 @@
                 defer { fixture.close() }
                 try await fixture.assertAccent(on: "Codec and color", off: "Shooting mode")
             }
-            // The Nikon app supplies no shooting-mode readout at all; the default declaration
-            // still finds the codec.
+            // The Nikon app supplies no shooting-mode readout at all and declares the codec.
             do {
-                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true)
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true,
+                    headerAccent: .codec)
                 defer { fixture.close() }
                 try await fixture.assertAccent(on: "Codec and color")
             }
+            // A shooting-mode declaration with no mode readout keeps the codec unaccented.
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true)
+                defer { fixture.close() }
+                try await fixture.assertUnaccented("Codec and color")
+            }
         }
 
-        /// The same declaration carries into portrait: no shooting mode, so the codec is accented.
-        func testPortraitAccentsTheCodecWithoutAShootingMode() async throws {
+        /// The same declaration carries into portrait: Nikon accents the codec, while DJI and
+        /// Insta (shooting mode declared, no mode slot in portrait) keep the codec plain.
+        func testPortraitAccentsTheCodecOnlyWhenDeclared() async throws {
             let sample = ProductionHeaderCase(width: 360, safeTop: 62, sideSafe: 0)
-            let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true)
-            defer { fixture.close() }
-            try await fixture.assertAccent(on: "Codec")
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true,
+                    headerAccent: .codec)
+                defer { fixture.close() }
+                try await fixture.assertAccent(on: "Codec")
+            }
+            do {
+                let fixture = try ProductionHeaderFixture(sample, typedPortraitHeader: true)
+                defer { fixture.close() }
+                try await fixture.assertUnaccented("Codec")
+            }
         }
     }
 
@@ -1347,6 +1362,14 @@
                 XCTAssertEqual(raster.accentPixelCount(in: try frame(off)), 0,
                     "\(off) stays unaccented")
             }
+        }
+        func assertUnaccented(_ label: String) async throws {
+            let nodes = try await settledNodes(labels: ["Recording format", label])
+            let raster = try HeaderRaster(try native.renderedImage())
+            let node = try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
+                "Production node \(label) at \(sample)")
+            XCTAssertEqual(raster.accentPixelCount(in: native.window.convert(node.accessibilityFrame, from: nil)), 0,
+                "\(label) stays unaccented")
         }
         func assertCodecOnly() async throws {
             var nodes: [NSObject] = []
