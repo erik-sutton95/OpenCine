@@ -29,7 +29,7 @@ import hub
 import resolver
 
 OK, FAIL, USAGE, INCOMPLETE = atlas.OK, atlas.FAIL, atlas.USAGE, atlas.INCOMPLETE
-GENERATOR = 1
+GENERATOR = 2
 OUT_DIR = Path("atlas/consumers")
 # Bytes per committed file. Agents read the Markdown; the JSON is the complete index the CLI and
 # the MCP server query (about 30 bytes per used symbol; the largest app uses about 1000).
@@ -243,12 +243,22 @@ def markdown(rec, display):
 
 
 def serialize(rec):
-    return json.dumps(rec, sort_keys=True, separators=(",", ":")) + "\n"
+    # Android package paths repeat across many files. Keep their directory once without reducing
+    # adoption or sample coverage; unpack restores the full paths for every reader.
+    directories = sorted({p.rpartition("/")[0] for p in rec["files"]})
+    ids = {directory: i for i, directory in enumerate(directories)}
+    packed = dict(rec, directories=directories)
+    packed["files"] = [f"{ids[parent]}:{name}" for parent, _, name in (p.rpartition("/") for p in rec["files"])]
+    return json.dumps(packed, sort_keys=True, separators=(",", ":")) + "\n"
 
 
 def unpack(rec):
     """The record with each module's packed `Name:files:sample,ids` string as {name: [files, ids...]}."""
     out = dict(rec)
+    directories = out.pop("directories", None)
+    if directories is not None:
+        out["files"] = [f"{directories[int(i)]}/{name}" if directories[int(i)] else name
+                        for i, name in (p.split(":", 1) for p in rec["files"])]
     out["modules"] = {mod: {s: [int(n)] + [int(i) for i in ids.split(",") if i]
                             for s, n, ids in (e.split(":") for e in packed.split())}
                       for mod, packed in rec["modules"].items()}

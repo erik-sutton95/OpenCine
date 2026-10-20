@@ -171,6 +171,43 @@ class Consumers(Fixture):
         self.assertFalse((self.top / "atlas/consumers/gone.md").exists())
         self.assertEqual(self.run_atlas("consumers", "--check")[0], 0)
 
+    def test_large_cross_platform_index_keeps_all_adoption_within_budget(self):
+        # Android library snapshots add about 1500 symbols and long package paths to an app.
+        rec = self.write()
+        paths = [f"Apps/Android/app/src/main/kotlin/com/opencapture/camera/Screen{i:03d}.kt" for i in range(222)]
+        rec["files"] = paths
+        rec["modules"] = {":core": " ".join(f"CameraSettingDescriptor{i:04d}:2:0,221" for i in range(1560))}
+        original = json.loads(json.dumps(rec))
+        text = consumers.serialize(rec)
+        self.assertLessEqual(len(text.encode()), consumers.BUDGET[".json"])
+        self.assertEqual(rec, original)  # serializing must not change a later Markdown render
+        self.assertEqual(consumers.serialize(rec), text)
+        decoded = consumers.unpack(json.loads(text))
+        self.assertEqual(decoded["files"], paths)
+        self.assertEqual(len(decoded["modules"][":core"]), 1560)
+        self.assertEqual(set(tuple(value) for value in decoded["modules"][":core"].values()), {(2, 0, 221)})
+        # File IDs and both sample paths still reach the query result, including the last file.
+        query = consumers.query({"app": decoded}, {":core": {"lang": "kotlin", "symbols": {"CameraSettingDescriptor1559": "com.x.core"}}},
+                                "CameraSettingDescriptor1559", self.top, 10)
+        self.assertEqual(query[-1], "    CameraSettingDescriptor1559 [:core] 2: " + paths[0] + ", " + paths[221])
+
+    def test_path_roundtrip_preserves_root_names_colons_and_empty_files(self):
+        rec = self.write()
+        for paths in ([], ["Root.swift", "Sources/Camera:A.swift", "Sources/Caméra.kt"]):
+            with self.subTest(paths=paths):
+                rec["files"] = paths
+                self.assertEqual(consumers.unpack(json.loads(consumers.serialize(rec)))["files"], paths)
+
+    def test_existing_unpacked_paths_still_load_and_query(self):
+        rec = self.write()
+        rec["files"] = ["Sources/App/A.swift", "app/src/main/kotlin/K.kt"]
+        rec.pop("directories", None)
+        (self.top / "atlas/consumers/app.json").write_text(json.dumps(rec))
+        code, out = self.run_atlas("consumers", "Thing")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Thing [Core] 1: Sources/App/A.swift", out)
+        self.assertIn("Thing [:core] 1: app/src/main/kotlin/K.kt", out)
+
     def test_budget_is_enforced(self):
         self.write()
         with mock.patch.dict(consumers.BUDGET, {".json": 10}):
