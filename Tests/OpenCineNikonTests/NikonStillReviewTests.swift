@@ -193,3 +193,52 @@ struct NikonStillReviewImageReaderTests {
         #expect(data == expected)
     }
 }
+
+@Suite("Instant review: body capture attribution")
+struct NikonBodyCaptureFilterTests {
+    private func event(
+        _ filter: inout NikonBodyCaptureFilter, at now: Int64, photo: Bool = true,
+        review: Bool = true, inFlight: Bool = false
+    ) -> NikonBodyCaptureSync {
+        filter.action(
+            at: now, isPhotography: photo, instantReviewEnabled: review,
+            appReleaseInFlight: inFlight)
+    }
+
+    @Test func theLateHalfOfAnAppRawPlusJPEGPairIsNotABodyShot() {
+        var filter = NikonBodyCaptureFilter()
+        #expect(event(&filter, at: 0, inFlight: true) == .ignore)
+        filter.appReleaseCompleted(at: 100)
+        // The pair's second object lands after the release completed.
+        #expect(event(&filter, at: 1_400) == .ignore)
+    }
+
+    @Test func lateObjectsOfAnAppBurstKeepExtendingTheTail() {
+        var filter = NikonBodyCaptureFilter()
+        filter.appReleaseCompleted(at: 0)
+        let window = Int64(NikonStillReviewPolicy.objectWindowMilliseconds)
+        #expect(event(&filter, at: window - 100) == .ignore)
+        #expect(event(&filter, at: 2 * window - 300) == .ignore)
+    }
+
+    @Test func aBodyShotAfterTheTailIsReviewed() {
+        var filter = NikonBodyCaptureFilter()
+        filter.appReleaseCompleted(at: 0)
+        let window = Int64(NikonStillReviewPolicy.objectWindowMilliseconds)
+        #expect(event(&filter, at: window + 1) == .reviewAndShots)
+    }
+
+    @Test func aBodyRunSyncsOnce() {
+        var filter = NikonBodyCaptureFilter()
+        #expect(event(&filter, at: 10_000) == .reviewAndShots)
+        #expect(event(&filter, at: 10_500) == .ignore)
+        #expect(event(&filter, at: 11_200) == .ignore)
+        #expect(event(&filter, at: 12_100) == .reviewAndShots)
+    }
+
+    @Test func movieModeAndReviewOffKeepTheirOldActions() {
+        var filter = NikonBodyCaptureFilter()
+        #expect(event(&filter, at: 0, photo: false) == .ignore)
+        #expect(event(&filter, at: 0, review: false) == .shotsOnly)
+    }
+}
