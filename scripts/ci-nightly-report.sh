@@ -31,7 +31,10 @@ if [ "${GITHUB_REF:-}" != refs/heads/main ]; then
   exit 0
 fi
 
-open_issue="$(gh issue list --repo "$repo" --label "$label" --state open --json number --jq '.[0].number // empty')"
+# Match the exact title: linked-issue sync mirrors other repositories' trackers here with the same
+# label and a "[Repo#n] " prefix, and those belong to their own repository's nightly.
+open_issue="$(gh issue list --repo "$repo" --label "$label" --state open --json number,title \
+  --jq "[.[] | select(.title == \"$title\")][0].number // empty")"
 
 case "$result" in
   success)

@@ -13,7 +13,15 @@ cat > "$temp_dir/bin/gh" <<'EOF'
 printf '%s\n' "$*" >> "$GH_LOG"
 case "$1 $2" in
   "api --paginate") printf '%s' "${FAKE_FAILED_JOBS:-}" ;;
-  "issue list") printf '%s' "${FAKE_OPEN_ISSUE:-}" ;;
+  "issue list")
+    # Apply the caller's --jq filter to a listing that also holds a mirrored tracker.
+    arguments="$*"
+    issues='{"number":9,"title":"[OpenZCine#457] Nightly CI failing on main"}'
+    if [ -n "${FAKE_OPEN_ISSUE:-}" ]; then
+      issues="$issues,{\"number\":$FAKE_OPEN_ISSUE,\"title\":\"Nightly CI failing on main\"}"
+    fi
+    printf '[%s]' "$issues" | jq -r "${arguments##*--jq }"
+    ;;
 esac
 EOF
 chmod +x "$temp_dir/bin/gh"
@@ -57,6 +65,13 @@ run env SUITE_RESULT=success GITHUB_REF=refs/heads/main FAKE_OPEN_ISSUE=7
 expect_log 'issue close 7 --repo owner/repo --reason completed'
 run env SUITE_RESULT=success GITHUB_REF=refs/heads/main
 expect_no_log 'issue close'
+
+# A mirrored tracker from another repository is never this repository's issue.
+run env SUITE_RESULT=success GITHUB_REF=refs/heads/main
+expect_no_log 'issue close 9'
+run env SUITE_RESULT=failure GITHUB_REF=refs/heads/main
+expect_no_log 'issue edit 9'
+expect_log 'issue create'
 
 # Other refs and cancelled runs leave the issue alone.
 run env SUITE_RESULT=failure GITHUB_REF=refs/heads/ci/branch
