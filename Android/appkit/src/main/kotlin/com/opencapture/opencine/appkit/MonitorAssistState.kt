@@ -49,6 +49,8 @@ public class MonitorAssistState(
     private val onPersistPlayback: ((Set<String>) -> Unit)? = null,
     // Explicit toggle only: live before persistence; playback after persistence.
     private val onToggle: ((MonitorAssistTool, Boolean) -> Unit)? = null,
+    /** What a fresh state and each Reset land on. */
+    public val defaults: MonitorAssistDefaults = MonitorAssistDefaults.STANDARD,
 ) {
     public var lutOn: Boolean by mutableStateOf(true)
         private set
@@ -183,7 +185,7 @@ public class MonitorAssistState(
     public var zebraUnit: MonitorZebraUnit by mutableStateOf(MonitorZebraUnit.IRE)
     public var zebraHighlight: Boolean by mutableStateOf(true)
     public var zebraMidtone: Boolean by mutableStateOf(true)
-    public var zebraHighlightIRE: Double by mutableDoubleStateOf(99.0)
+    public var zebraHighlightIRE: Double by mutableDoubleStateOf(defaults.zebraHighlightIRE)
     public var zebraMidtoneIRE: Double by mutableDoubleStateOf(55.0)
     public var zebraHighlightColor: MonitorZebraPaint by mutableStateOf(MonitorZebraPaint.WHITE)
     public var zebraMidtoneColor: MonitorZebraPaint by mutableStateOf(MonitorZebraPaint.AMBER)
@@ -213,7 +215,7 @@ public class MonitorAssistState(
     public var vectorCenter: MonitorScopeStoredCenter? by mutableStateOf<MonitorScopeStoredCenter?>(null)
     public var vectorCenterPortrait: MonitorScopeStoredCenter? by mutableStateOf<MonitorScopeStoredCenter?>(null)
 
-    public var crushClipCompensation: MonitorCrushClipCompensation by mutableStateOf(MonitorCrushClipCompensation.ZERO)
+    public var crushClipCompensation: MonitorCrushClipCompensation by mutableStateOf(defaults.crushClipCompensation)
     public var lightsScale: Double by mutableDoubleStateOf(1.0)
     public var lightsCenter: MonitorScopeStoredCenter? by mutableStateOf<MonitorScopeStoredCenter?>(null)
     public var lightsCenterPortrait: MonitorScopeStoredCenter? by mutableStateOf<MonitorScopeStoredCenter?>(null)
@@ -464,21 +466,21 @@ public class MonitorAssistState(
         persist()
     }
 
-    /** One settings card's Reset: the shared defaults, leaving panel sizes and positions where the operator put them. */
+    /** One settings card's Reset: this state's [defaults], leaving panel sizes and positions where the operator put them. */
     public fun resetSettings(tool: MonitorAssistTool): Unit {
         when (tool) {
             MonitorAssistTool.PEAK -> setPeaking(MonitorPeakingColor.RED, MonitorPeakingSense.MED)
             MonitorAssistTool.FALSE -> setFalseColor(MonitorFalseColorSelection.SCENE_STOPS, reference = true)
             MonitorAssistTool.ZEBRA -> {
                 updateZebraUnit(MonitorZebraUnit.IRE)
-                setZebraHighlight(enabled = true, ire = 99.0, color = MonitorZebraPaint.WHITE)
+                setZebraHighlight(enabled = true, ire = defaults.zebraHighlightIRE, color = MonitorZebraPaint.WHITE)
                 setZebraMidtone(enabled = true, ire = 55.0, color = MonitorZebraPaint.AMBER)
             }
             MonitorAssistTool.WAVE -> setWaveform(MonitorWaveformMode.RGB, brightness = 100, guides = MonitorScopeGuides())
             MonitorAssistTool.PARADE -> setParade(MonitorParadeMode.RGB, brightness = 100, guides = MonitorScopeGuides())
-            MonitorAssistTool.HISTO -> setHistogram(traffic = true, compensation = MonitorCrushClipCompensation.ZERO)
+            MonitorAssistTool.HISTO -> setHistogram(traffic = true, compensation = defaults.crushClipCompensation)
             MonitorAssistTool.VECTOR -> setVectorscope(MonitorVectorscopeZoom.X1, brightness = 100)
-            MonitorAssistTool.LIGHTS -> setCompensation(MonitorCrushClipCompensation.ZERO)
+            MonitorAssistTool.LIGHTS -> setCompensation(defaults.crushClipCompensation)
             else -> Unit
         }
     }
@@ -717,11 +719,11 @@ public class MonitorAssistState(
         zebraUnit = MonitorZebraUnit.fromPersisted(obj.optString("zebraUnit", MonitorZebraUnit.IRE.persisted))
         zebraHighlight = obj.optBoolean("zebraHighlight", true)
         zebraMidtone = obj.optBoolean("zebraMidtone", true)
-        zebraHighlightIRE = obj.optDouble("zebraHighlightIRE", 99.0)
+        zebraHighlightIRE = obj.optDouble("zebraHighlightIRE", defaults.zebraHighlightIRE)
         zebraMidtoneIRE = obj.optDouble("zebraMidtoneIRE", 55.0)
         zebraHighlightColor = MonitorZebraPaint.fromPersisted(obj.optString("zebraHighlightColor", MonitorZebraPaint.WHITE.label))
         zebraMidtoneColor = MonitorZebraPaint.fromPersisted(obj.optString("zebraMidtoneColor", MonitorZebraPaint.AMBER.label))
-        crushClipCompensation = MonitorCrushClipCompensation.fromRaw(obj.optInt("crushClipCompensation", 0))
+        crushClipCompensation = MonitorCrushClipCompensation.fromRaw(obj.optInt("crushClipCompensation", defaults.crushClipCompensation.raw))
         waveMode = MonitorWaveformMode.fromPersisted(obj.optString("waveMode", MonitorWaveformMode.RGB.label))
         waveBrightness = obj.optInt("waveBrightness", 100).coerceIn(0, 200)
         waveGuides = decodeGuides(obj.optJSONObject("waveGuides"))
