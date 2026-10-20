@@ -113,6 +113,9 @@ case NativeCameraSessionError.pairingRejected
 case NativeCameraSessionError.savedProfileRequired
 case NativeCameraSessionError.timeout(Swift.String)
 case NativeCameraSessionError.unexpectedPacket(Swift.String, PTPIPPacketType)
+case NikonBodyCaptureSync.ignore
+case NikonBodyCaptureSync.reviewAndShots
+case NikonBodyCaptureSync.shotsOnly
 case NikonBodyWake.Outcome.answered(Swift.Int)
 case NikonBodyWake.Outcome.silent(Swift.Int)
 case NikonBootstrapObservation.apertures([Swift.String])
@@ -534,6 +537,10 @@ case StillReleaseReadiness.complete
 case StillReleaseReadiness.failed(PTPResponseCode)
 case StillReleaseReadiness.inProgress
 case StillReleaseReadiness.openShutterInProgress
+case StillShutterHold.FingerUp.endBurst
+case StillShutterHold.FingerUp.letReleaseFinish
+case StillShutterHold.Release.burstRun
+case StillShutterHold.Release.singleFrame
 case USBCameraBrowserEvent.authorizationDenied
 case USBCameraBrowserEvent.authorizationGranted
 case USBCameraBrowserEvent.cameraAttached
@@ -620,6 +627,7 @@ enum MonitorTextFormat
 enum NativeCameraSession.MFDriveOutcome: Equatable, Sendable
 enum NativeCameraSessionError: Error, LocalizedError, Sendable
 enum NikonAppleNetworkInterfaces
+enum NikonBodyCaptureSync: Equatable, Hashable, Sendable
 enum NikonBodyWake
 enum NikonBodyWake.Outcome: Equatable, Sendable
 enum NikonBootstrapObservation: Sendable
@@ -719,6 +727,8 @@ enum StillImageArea: CaseIterable, Equatable, Hashable, RawRepresentable, Sendab
 enum StillPickerLadders: Sendable
 enum StillQualityConfiguration.Tier: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum StillReleaseReadiness: Equatable, Sendable
+enum StillShutterHold.FingerUp: Equatable, Hashable, Sendable
+enum StillShutterHold.Release: Equatable, Hashable, Sendable
 enum SubnetScanPlan: Sendable
 enum USBCameraBrowserEvent: Equatable, Hashable, Sendable
 enum USBHandshakeDiagnostic: Equatable, Hashable, RawRepresentable, Sendable
@@ -823,6 +833,8 @@ func NikonAppleGalleryProjectionPolicy.compare(_: OpenCineMedia.MediaAssetID, _:
 func NikonAppleGalleryProjectionPolicy.groups(_: [OpenCineMedia.MediaAssetID]) -> [OpenCineMedia.MonitorMediaProjectionGroup]
 func NikonAppleGalleryProjectionPolicy.prepareCategory(_: [OpenCineMedia.MediaAssetID], category: OpenCineMedia.MonitorMediaProjectionCategory) -> OpenCineMedia.MonitorMediaProjectionCategoryFacts
 func NikonAppleGalleryProjectionPolicy.rawCompanion(of: OpenCineMedia.MediaAssetID) -> OpenCineMedia.MediaAssetID?
+func NikonBodyCaptureFilter.action(at: Swift.Int64, isPhotography: Swift.Bool, instantReviewEnabled: Swift.Bool, appReleaseInFlight: Swift.Bool) -> NikonBodyCaptureSync
+func NikonBodyCaptureFilter.appReleaseCompleted(at: Swift.Int64) -> ()
 func NikonBootstrapLink.changeCameraMode(remote: Swift.Bool) async throws -> ()
 func NikonBootstrapLink.controlOptions(for: PTPPropertyCode, valueByteCount: Swift.Int) async throws -> [Swift.String]
 func NikonBootstrapLink.describeCameraPropertyEnum(_: PTPPropertyCode, valueByteCount: Swift.Int) async throws -> [Swift.UInt32]
@@ -1000,6 +1012,8 @@ func R3DClipIndex.hasProxy(forR3DFilename: Swift.String) -> Swift.Bool
 func R3DClipIndex.noteProxy(_: Swift.String) -> ()
 func R3DClipIndex.registerR3D(filename: Swift.String, width: Swift.UInt32, height: Swift.UInt32) -> ()
 func R3DClipIndex.siblingForProxy(_: Swift.String) -> R3DClipIndex.Sibling?
+func StillShutterHold.fingerUp() -> StillShutterHold.FingerUp
+func StillShutterHold.releaseCompleted() -> Swift.Bool
 func USBCameraDeviceBrowser.attachedCameras() -> [DiscoveredCamera]
 func USBCameraDeviceBrowser.cardScanProgress(forHostKey: Swift.String) -> (ready: Swift.Bool, percent: Swift.Int)?
 func USBCameraDeviceBrowser.device(forHostKey: Swift.String) -> ImageCaptureCore.ICCameraDevice?
@@ -1057,6 +1071,7 @@ init MediaStatus(storage: PTPStorageInfo, codec: Swift.String?, resolution: Swif
 init NikonAppleDiscoverySources(log: (Swift.String) -> Swift.Void)
 init NikonAppleDiscoverySources(usbBrowser: USBCameraDeviceBrowser, log: (Swift.String) -> Swift.Void)
 init NikonAppleGalleryProjectionPolicy(items: [NikonGallerySourceItem], now: Foundation.Date, calendar: Foundation.Calendar)
+init NikonBodyCaptureFilter()
 init NikonCameraSession(driver: any NikonControlDriver, serialNumber: Swift.String, recordObservationTimeout: Swift.Duration, now: () -> OpenCineCore.MonotonicInstant, onClose: (OpenCineCore.SessionCloseReason) -> Swift.Void)
 init NikonCapturePopupState(kind: NikonCapturePopupKind, title: Swift.String, subtitle: Swift.String, modes: [NikonLadderMode])
 init NikonCardSlotReadout(cards: [NikonStorageCard], primarySlot: NikonScalarPropertyDescriptor?, activeSlot: NikonScalarPropertyDescriptor?)
@@ -1158,6 +1173,7 @@ init ProactiveWiFiJoinSessionPolicy()
 init R3DClipIndex()
 init R3DClipIndex.Sibling(filename: Swift.String, width: Swift.UInt32, height: Swift.UInt32)
 init StillQualityConfiguration(rawEnabled: Swift.Bool, tier: StillQualityConfiguration.Tier, starred: Swift.Bool)
+init StillShutterHold(continuousDrive: Swift.Bool)
 init Timecode(on: Swift.Bool, hour: Swift.Int, minute: Swift.Int, second: Swift.Int, frame: Swift.Int)
 init USBCameraTransport(device: ImageCaptureCore.ICCameraDevice)
 init ZCameraOperationPolicy(deviceInfo: PTPDeviceInfo)
@@ -1575,6 +1591,7 @@ let PTPUSBContainer.type: PTPUSBContainerType
 let R3DClipIndex.Sibling.filename: Swift.String
 let R3DClipIndex.Sibling.height: Swift.UInt32
 let R3DClipIndex.Sibling.width: Swift.UInt32
+let StillShutterHold.continuousDrive: Swift.Bool
 let Timecode.frame: Swift.Int
 let Timecode.hour: Swift.Int
 let Timecode.minute: Swift.Int
@@ -2016,6 +2033,7 @@ static let MFDriveChannelBudget.settlePollLimit: Swift.Int
 static let MediaClipFilename.photoExtensions: Swift.Set<Swift.String>
 static let MediaObjectFormats.photo: [Swift.UInt32]
 static let MediaObjectFormats.video: [Swift.UInt32]
+static let NikonBodyCaptureFilter.bodyRunDebounceMilliseconds: Swift.Int64
 static let NikonBodyWake.dials: Swift.Int
 static let NikonBodyWake.interval: Swift.Duration
 static let NikonCameraBatteryGauge.barCount: Swift.Int
@@ -2094,6 +2112,7 @@ static let StillPickerLadders.qualityOptions: [Swift.String]
 static let StillPickerLadders.shutterOptions: [Swift.String]
 static let StillPickerLadders.sizeOptions: [Swift.String]
 static let StillPickerLadders.userModeOptions: [Swift.String]
+static let StillShutterHold.maximumBurstRuns: Swift.Int
 static let USBCameraDeviceBrowser.shared: USBCameraDeviceBrowser
 static let WhiteBalanceKelvinPolicy.defaultKelvin: Swift.Int
 static let WhiteBalanceKelvinPolicy.defaultLabel: Swift.String
@@ -2136,6 +2155,7 @@ struct MediaStillPreview: Equatable, Sendable
 struct NativeCameraIdentity: Equatable, Sendable
 struct NativeCameraSession.CameraClip: Equatable, Sendable
 struct NikonAppleGalleryProjectionPolicy: MonitorMediaProjectionPolicy, Sendable
+struct NikonBodyCaptureFilter: Equatable, Sendable
 struct NikonCapturePopupState: Sendable
 struct NikonCardSlotReadout: Equatable, Sendable
 struct NikonCommandAdmission: Sendable
@@ -2221,6 +2241,7 @@ struct ProactiveWiFiJoinSessionPolicy: Sendable
 struct R3DClipIndex.Sibling: Equatable, Sendable
 struct R3DClipIndex: Sendable
 struct StillQualityConfiguration: Equatable, Sendable
+struct StillShutterHold: Equatable, Sendable
 struct Timecode: Decodable, Encodable, Equatable, Sendable
 struct ZCameraOperationPolicy: Equatable, Sendable
 typealias NativePairingChallengeHandler = (PTPIPPairingChallenge) async -> Swift.Bool
@@ -2500,6 +2521,9 @@ var StillQualityConfiguration.compressionLabel: Swift.String?
 var StillQualityConfiguration.rawEnabled: Swift.Bool
 var StillQualityConfiguration.starred: Swift.Bool
 var StillQualityConfiguration.tier: StillQualityConfiguration.Tier
+var StillShutterHold.burstRuns: Swift.Int
+var StillShutterHold.isHeld: Swift.Bool
+var StillShutterHold.nextRelease: StillShutterHold.Release
 var Timecode.label: Swift.String
 var Timecode.running: OpenCineCore.CameraTimecode?
 var USBCameraDeviceBrowser.isControlAuthorizationDenied: Swift.Bool
