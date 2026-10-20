@@ -485,6 +485,27 @@ public final class com/opencapture/opencine/appkit/MonitorAppStartupKt {
 	public static synthetic fun awaitMonitorLaunch$default (Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
+public final class com/opencapture/opencine/appkit/MonitorAssistDefaults {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/opencine/appkit/MonitorAssistDefaults$Companion;
+	public fun <init> ()V
+	public fun <init> (DLcom/opencapture/opencine/media/MonitorCrushClipCompensation;)V
+	public synthetic fun <init> (DLcom/opencapture/opencine/media/MonitorCrushClipCompensation;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()D
+	public final fun component2 ()Lcom/opencapture/opencine/media/MonitorCrushClipCompensation;
+	public final fun copy (DLcom/opencapture/opencine/media/MonitorCrushClipCompensation;)Lcom/opencapture/opencine/appkit/MonitorAssistDefaults;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkit/MonitorAssistDefaults;DLcom/opencapture/opencine/media/MonitorCrushClipCompensation;ILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MonitorAssistDefaults;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCrushClipCompensation ()Lcom/opencapture/opencine/media/MonitorCrushClipCompensation;
+	public final fun getZebraHighlightIRE ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/MonitorAssistDefaults$Companion {
+	public final fun getSTANDARD ()Lcom/opencapture/opencine/appkit/MonitorAssistDefaults;
+}
+
 public final class com/opencapture/opencine/appkit/MonitorAssistRasterValues {
 	public static final field $stable I
 	public fun <init> ()V
@@ -529,8 +550,8 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public static final field $stable I
 	public static final field Companion Lcom/opencapture/opencine/appkit/MonitorAssistState$Companion;
 	public fun <init> ()V
-	public fun <init> (Ljava/lang/String;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lcom/opencapture/opencine/appkit/MonitorAssistDefaults;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lcom/opencapture/opencine/appkit/MonitorAssistDefaults;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun acceptScopeBundle (Lcom/opencapture/opencine/media/ScopeAssistBundle;)V
 	public final fun armLut ()V
 	public final fun audioCenterFor (Z)Lcom/opencapture/monitorui/MonitorScopeStoredCenter;
@@ -547,6 +568,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun getConfigureTool ()Lcom/opencapture/monitorui/MonitorAssistTool;
 	public final fun getCrosshair ()Z
 	public final fun getCrushClipCompensation ()Lcom/opencapture/opencine/media/MonitorCrushClipCompensation;
+	public final fun getDefaults ()Lcom/opencapture/opencine/appkit/MonitorAssistDefaults;
 	public final fun getDesqueeze ()Z
 	public final fun getDesqueezeCustom ()Z
 	public final fun getDesqueezeCustomFactor ()D
