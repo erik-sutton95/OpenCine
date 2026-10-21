@@ -1,0 +1,31 @@
+name: Atlas consumer index freshness
+
+# Daily: regenerate atlas/consumers at each app's current ref tip (read-only). The run fails when
+# an app moved and the index would change, and the log names the refresh command. Pull requests
+# are covered by the `Atlas check` job of ci.yml (`consumers --check`).
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    name: Consumer index is current
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: App sources
+        env:
+          OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
+          GIT_TERMINAL_PROMPT: "0"
+        run: mkdir -p "$OPENCAPTURE_WORKSPACE" && python3 atlas/tools/atlas.py ensure
+      - name: Index versus the apps' current refs
+        env:
+          OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
+        run: python3 atlas/tools/atlas.py consumers --stale

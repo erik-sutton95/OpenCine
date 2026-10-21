@@ -44,7 +44,8 @@ map). Candidate entries and edges are never live dependencies.
 
 `tools/atlas.py` is a Python 3 standard-library CLI. Every command except `ensure` (clones
 missing checkouts), `task start` (task worktrees and a brief), `new-app` (a new app folder),
-`dupes --write-baseline` and `compat run` is read-only. Run it from this folder as below, or
+`dupes --write-baseline`, `api --write` (rewrites `api/swift`), `consumers --write` (rewrites
+`consumers/`) and `compat run` is read-only. Run it from this folder as below, or
 from the repository root with an `atlas/` prefix (`python3 atlas/tools/atlas.py check`, as CI does).
 
 ```sh
@@ -54,6 +55,10 @@ python3 tools/atlas.py impact MonitorTheme # owner, apps that link it, call site
 python3 tools/atlas.py task start openpocketcine#12 [--with opencine]   # task folder + TASK.md
 python3 tools/atlas.py task start opencine#70 --orca                   # resolve tracker, adopt physical sibling tasks in Orca
 python3 tools/linked_issues.py                                        # read-only linked issue plan; --execute needs authority
+python3 tools/atlas.py consumers MonitorTheme  # apps that adopt a symbol, module (OpenCineCore, :core) or path, and where
+python3 tools/atlas.py consumers --write   # regenerate consumers/<app>.{md,json} at each app's ref tip (--check in CI)
+python3 tools/atlas.py pins                # each app's OpenCine pin, commits behind, changed public API it uses
+python3 tools/mcp_server.py                # the same as read-only MCP tools over stdio (registered in ../.mcp.json)
 python3 tools/atlas.py api OpenCineCore --grep Camera  # public API snapshot of one module (Swift or :gradle)
 python3 tools/atlas.py api --check --build # Swift snapshots versus an iOS Simulator build (CI); --write records them
 python3 tools/atlas.py dupes --top 3       # duplicated code per repository pair vs compat/dupes-baseline.json

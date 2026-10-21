@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "opencine-atlas": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["atlas/tools/mcp_server.py"]
+    }
+  }
+}
