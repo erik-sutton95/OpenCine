@@ -109,6 +109,19 @@ class Digest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Core: Failed to load module"):
                 api.digest(tmp, "Core", tmp, tmp)
 
+    def test_the_digester_is_asked_to_abort_when_a_module_fails_to_load(self):
+        # Any load failure, whatever its message, must fail the digester rather than leave an empty
+        # dump: the fake behaves like the real tool, aborting only when given the flag.
+        def fake(cmd, **_):
+            if "swift-api-digester" in cmd:
+                Path(cmd[cmd.index("-o") + 1]).write_text('{"ABIRoot": {"children": []}}')
+                code = 1 if "-abort-on-module-fail" in cmd else 0
+                return subprocess.CompletedProcess(cmd, code, "", "error: could not build module 'Core'\n")
+            return subprocess.CompletedProcess(cmd, 0, "/sdk\n", "")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(api.subprocess, "run", side_effect=fake):
+            with self.assertRaisesRegex(RuntimeError, "Core: error: could not build module"):
+                api.digest(tmp, "Core", tmp, tmp)
+
 
 PACKAGE = '''let package = Package(name: "OpenCine", products: [
     .library(name: "Core", targets: ["Core"]),

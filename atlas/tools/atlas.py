@@ -2,7 +2,7 @@
 """OpenCine atlas CLI (formerly opencapture-atlas). Standard library only.
 
 Read-only commands: doctor, locate, deps, impact, stale, check, issues, ensure --check, dupes
-(without --write-baseline), api (without --write), compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
+(without --write-baseline), api and consumers (without --write), pins, compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
 `ensure` clones missing checkouts; `task start` creates task worktrees and a brief (never commits).
 Exit codes: 0 ok, 1 failed check, 2 unusable input, 3 incomplete (something requested
 could not be obtained or parsed; never reported as success).
@@ -778,6 +778,15 @@ def main(argv=None):
     g.add_argument("--check", action="store_true", help="fail when the iOS Simulator build's public API differs from atlas/api/swift")
     g.add_argument("--write", action="store_true", help="rewrite atlas/api/swift from the iOS Simulator build")
     p.add_argument("--build", action="store_true", help="with --check/--write: build the package for the iOS Simulator first")
+    p = sub.add_parser("consumers", help="which apps use an OpenCine symbol, module or path, from atlas/consumers")
+    p.add_argument("target", nargs="?", help="symbol (CameraSession), module (OpenCineCore, :core) or OpenCine path")
+    p.add_argument("--limit", type=int, default=12, help="symbols or files shown per app")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--write", action="store_true", help="regenerate the index at each app's ref tip")
+    g.add_argument("--check", action="store_true", help="fail when a regeneration at the recorded commits differs (CI)")
+    g.add_argument("--stale", action="store_true", help="fail when the apps' current ref tips would change the index (daily)")
+    p = sub.add_parser("pins", help="each app's OpenCine pin, commits behind HEAD and changed public API it uses")
+    p.add_argument("--limit", type=int, default=12, help="changed lines shown per app")
     cp = sub.add_parser("compat", help="candidate package versus recorded consumers (OPS-01)").add_subparsers(dest="ccmd", required=True)
     p = cp.add_parser("plan", help="read-only: workspace layout and what each check would do")
     p.add_argument("candidate", nargs="?")
@@ -801,6 +810,9 @@ def main(argv=None):
     if args.cmd == "api":
         import api  # noqa: PLC0415
         return api.run(args, reg, root)
+    if args.cmd in ("consumers", "pins"):
+        import consumers  # noqa: PLC0415
+        return consumers.run(args, reg, root)
     if args.cmd == "compat":
         import compat  # noqa: PLC0415
         return compat.run(args, reg, root)
