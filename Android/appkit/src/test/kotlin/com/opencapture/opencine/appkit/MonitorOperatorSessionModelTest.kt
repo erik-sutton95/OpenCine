@@ -30,6 +30,41 @@ class MonitorOperatorSessionModelTest {
         return Fixture(MonitorOperatorSessionModel(shell, assist, display, backgroundScope), shell, assist, display)
     }
 
+    @Test fun interactionHooksPrecedeAcceptedModeAndEditorChanges() = runTest {
+        val (model, shell) = fixture()
+        val modeChanges = mutableListOf<MonitorDisplayMode>()
+        val previousModes = mutableListOf<MonitorDisplayMode>()
+        model.onModeWillChange = { next ->
+            modeChanges += next
+            previousModes += model.mode
+        }
+        assertFalse(model.select(MonitorDisplayMode.COMMAND))
+        model.declare(listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN, MonitorDisplayMode.COMMAND))
+        assertFalse(model.select(MonitorDisplayMode.LIVE))
+        assertTrue(model.select(MonitorDisplayMode.CLEAN))
+        model.locked = true
+        assertFalse(model.select(MonitorDisplayMode.COMMAND))
+        model.locked = false
+        assertTrue(model.select(MonitorDisplayMode.COMMAND))
+        assertEquals(listOf(MonitorDisplayMode.CLEAN, MonitorDisplayMode.COMMAND), modeChanges)
+        assertEquals(listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN), previousModes)
+
+        val editorsBeforeChange = mutableListOf<MonitorDisplayMode?>()
+        val coveredBeforeChange = mutableListOf<Boolean>()
+        model.onEditingWillBegin = {
+            editorsBeforeChange += model.editingMode
+            coveredBeforeChange += shell.state.value.cover == ShellModel.Cover.SETTINGS
+        }
+        shell.open(ShellModel.Cover.SETTINGS)
+        model.beginEditing(MonitorDisplayMode.LIVE)
+        model.beginEditing(MonitorDisplayMode.LIVE)
+        model.editingMode = null
+        model.editingMode = MonitorDisplayMode.COMMAND
+        model.editingMode = MonitorDisplayMode.COMMAND
+        assertEquals(listOf<MonitorDisplayMode?>(null, null), editorsBeforeChange)
+        assertEquals(listOf(true, false), coveredBeforeChange)
+    }
+
     @Test fun editedModePersistsWithoutChangingOtherMode() = runTest {
         val (model, _, _, display) = fixture()
         model.clean = MonitorDisplayChrome.liveDefaults

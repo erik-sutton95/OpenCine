@@ -1,9 +1,12 @@
 package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.ObservedValue
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.RecordingState
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.core.MonotonicInstant
-import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CommandDispatchAdmission
@@ -220,6 +223,22 @@ class MonitorControlModelTest {
     private fun TestScope.tick() {
         advanceTimeBy(120)
         runCurrent()
+    }
+
+    @Test fun settingHookRunsBeforePendingAndCoalescing() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        val beforePending = mutableListOf<SettingValue?>()
+        model.onSettingQueued = { key -> beforePending += model.state.value.pending[key] }
+        model.set(iso(400), "First")
+        model.set(iso(800), "Replacement")
+        assertEquals(listOf<SettingValue?>(null, iso(400)), beforePending)
+        assertTrue(camera.wire.isEmpty())
+        tick()
+        assertEquals(1, camera.wire.size)
+        model.unbind()
     }
 
     @Test fun coalescedReplacementCarriesItsOwnAdmission() = runTest {
@@ -453,8 +472,11 @@ class MonitorControlModelTest {
         model.bind(camera)
         assertEquals(false, model.isRecording)
         val finished = mutableListOf<CommandReceipt>()
+        val stopPendingAtReceipt = mutableListOf<Boolean>()
         model.onRecordFinished = { finished += it }
+        model.onRecordingStopRequested = { stopPendingAtReceipt += model.state.value.recordPending }
         model.record(null)
+        assertTrue(stopPendingAtReceipt.isEmpty())
         runCurrent()
         assertEquals(listOf("record-start"), camera.wire)
         camera.advance(3.seconds)
@@ -466,6 +488,53 @@ class MonitorControlModelTest {
         runCurrent()
         assertEquals(2, finished.size)
         assertEquals(listOf("record-start"), camera.wire)
+        assertTrue(stopPendingAtReceipt.isEmpty())
+        model.record(null)
+        assertEquals(listOf(false), stopPendingAtReceipt)
+        model.record(false)
+        assertEquals(listOf(false), stopPendingAtReceipt)
+        runCurrent()
+        assertEquals(listOf("record-start", "record-stop"), camera.wire)
+        camera.advance(3.seconds)
+        runCurrent()
+        assertTrue(!model.state.value.recordPending && model.isRecording == false)
+        model.record(false)
+        assertEquals(listOf(false, false), stopPendingAtReceipt)
+        runCurrent()
+        assertFalse(model.state.value.recordPending)
+    }
+
+    @Test fun freshRecordingStopCancelsBeforeSubmissionWhenDisplayIsStale() = runTest {
+        for (unknown in listOf(false, true)) {
+            val fixture = FakeCameraSession.lunaLike()
+            val camera = FakeCameraSession(fixture.behavior, fixture.device.copy(recording = true))
+            camera.cameraReportsStatus()
+            val fresh = camera.current
+            val reports = MutableStateFlow(fresh.copy(recording = if (unknown) ObservedValue.unknown else
+                ObservedValue(RecordingState.IDLE, ObservationOrigin.CAMERA_REPORTED, fresh.recording.observedAt)))
+            val order = mutableListOf<String>()
+            val session = object : CameraSession by camera {
+                override val snapshots = reports
+                override suspend fun submit(command: CameraCommand): CommandReceipt {
+                    order += "submit"
+                    return camera.submit(command)
+                }
+            }
+            val model = model()
+            model.bind(session)
+            assertEquals(if (unknown) null else false, model.isRecording)
+            model.onRecordingStopRequested = { order += "stop" }
+            reports.value = fresh
+            model.record(null)
+            assertTrue(order.isEmpty())
+            runCurrent()
+            assertEquals(listOf("stop", "submit"), order)
+            assertEquals(listOf("record-stop"), camera.wire)
+            camera.advance(3.seconds)
+            runCurrent()
+            assertFalse(model.state.value.recordPending)
+            model.unbind()
+        }
     }
 
     @Test

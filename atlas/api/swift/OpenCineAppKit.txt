@@ -2042,6 +2042,8 @@ var MonitorControlModel.noteFor: (OpenCineCore.CommandStage, Swift.String) -> Sw
 var MonitorControlModel.onChange: () -> Swift.Void
 var MonitorControlModel.onNote: (Swift.String) -> Swift.Void
 var MonitorControlModel.onRecordFinished: (OpenCineCore.CommandReceipt) -> Swift.Void
+var MonitorControlModel.onRecordingStopRequested: () -> Swift.Void
+var MonitorControlModel.onSettingQueued: (OpenCineCore.SettingKey) -> Swift.Void
 var MonitorControlModel.onWriteFinished: (Swift.String, OpenCineCore.CommandReceipt) -> Swift.Void
 var MonitorControlModel.pending: [OpenCineCore.SettingKey : OpenCineCore.SettingValue]
 var MonitorControlModel.recordPending: Swift.Bool
@@ -2369,6 +2371,8 @@ var MonitorOperatorSessionModel.live: MonitorDisplayChrome
 var MonitorOperatorSessionModel.locked: Swift.Bool
 var MonitorOperatorSessionModel.mode: MonitorDisplayMode
 var MonitorOperatorSessionModel.modes: [MonitorDisplayMode]
+var MonitorOperatorSessionModel.onEditingWillBegin: () -> Swift.Void
+var MonitorOperatorSessionModel.onModeWillChange: (MonitorDisplayMode) -> Swift.Void
 var MonitorOperatorSessionModel.returnedMode: MonitorDisplayMode?
 var MonitorOperatorSessionModel.settingsScrollOffsets: [MonitorPresentation.MonitorSettingsTab : Swift.Double]
 var MonitorOperatorSessionModel.settingsTab: MonitorPresentation.MonitorSettingsTab

@@ -63,6 +63,30 @@ swift test --filter OpenCineNikonAndroidTests          # from the repository roo
 (cd Android && ./gradlew :nikon:test)
 ```
 
+## Focus-rack execution
+
+Owner-bound `NikonFocusRackAccess` executes bounded relative chunks without retries. The portable
+controller owns focus-mode/tracking admission, timing, the session ledger and run lifetime.
+The Android shell forwards observations and semantic intents; it does not execute returned camera
+commands. Existing `mfDrive` behavior is unchanged.
+
+Stop publication takes no camera command lock. The active executor sends `AfDriveCancel` at its next
+safe transaction boundary and then confirms `DeviceReady`. Outcomes distinguish completed movement,
+explicit activation refusal, insufficient stepping, end-of-travel, cancellation confirmed ready,
+unconfirmed cancellation and transport/completion uncertainty. A cancel acknowledgment does not
+establish displacement. Cancelled or replaced runs cannot be rearmed. Transaction deadlines still
+apply; there is no immediate physical-stop guarantee.
+
+`refreshSafety` reads only the selector, movie focus mode/area/subject, focal length and lens facts.
+Every field must have valid fresh bytes and the burst must finish with actual `DeviceReady` OK within
+two seconds. Busy, refused, short or failed readings never establish freshness from retained values.
+The controller timestamps a successful burst from its start. Normal monitor polling is unchanged.
+The earlier optional Kotlin chunk driver and diagnostic property-refresh request have been retired;
+production and diagnostic traces use the same Swift access and controller.
+
+The sequencing tests are SIMULATED. They do not establish optical displacement, smoothness,
+repeatability or physical stop latency on a real lens.
+
 ## iOS transports (SHELL-04)
 
 `PTPIPTransport` (two BSD TCP sockets, the PTP-IP Init handshake and framing, port probes for
@@ -228,3 +252,22 @@ new Kotlin wire types or JNI members are introduced.
 those scenarios are SIMULATED. The extended operation layout and reserved-sentinel
 behavior still require verification against a real ZR clip above 4 GiB. These changes
 do not establish hardware support or recover an already corrupted partial cache.
+
+
+### Owner-bound focus-rack execution
+
+`NativeCameraSession.focusRackAccess(isAdmitted:)` and Android Swift
+`NikonAndroidFocusRackAccess.capture(connectionOwner:isAdmitted:)` bind an established native
+owner to a portable controller. Kotlin exposes only `CameraSession.focusRackConnectionOwner`;
+production scheduling does not cross back into Kotlin. The authority closure must read a
+thread-safe revocable receipt. Revoke it and publish stop before enqueueing lifecycle changes.
+Activation checks it again inside the transport gate; admitted cancellation and readiness
+cleanup can finish after revocation. Recording stop and disconnect publish current-run stop
+before waiting for command ownership. Pause stops dispatch and waits for completion without
+cancelling the native run.
+
+`refreshSafety` returns only newly decoded focus/lens fields after actual `DeviceReady` OK.
+The controller owns freshness timestamps and must use one monotonic clock for scheduling,
+safety and accepted frames. Stamp each actual frame sequence once; repeated observations must
+not make an old frame fresh. Transport deadlines and bounded readiness polls still apply;
+there is no whole-chunk one-second completion guarantee.

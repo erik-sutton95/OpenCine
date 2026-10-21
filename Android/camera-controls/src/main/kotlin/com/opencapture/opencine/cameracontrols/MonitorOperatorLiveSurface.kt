@@ -208,6 +208,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
     val chromeEdit = MonitorOperatorChromeEdit(host, session.editingMode, boxes)
     val bodyViews = MonitorOperatorBodyViews(focusDrive = views.focusDrive, dashboard = views.dashboard,
         resetFocus = views.resetFocus, comparison = views.comparison,
+        focusAccessory = views.focusAccessory,
         focusMarks = views.focusMarks, feedGestures = views.feedGestures, motion = views.motion, focusControls = { enabled ->
             source.exposure?.let { read ->
                 if (assist.evMeter && mode == MonitorDisplayMode.LIVE) {

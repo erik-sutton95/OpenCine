@@ -1008,6 +1008,8 @@ public final class com/opencapture/opencine/appkit/MonitorControlModel {
 	public final fun getOnChange ()Lkotlin/jvm/functions/Function0;
 	public final fun getOnNote ()Lkotlin/jvm/functions/Function1;
 	public final fun getOnRecordFinished ()Lkotlin/jvm/functions/Function1;
+	public final fun getOnRecordingStopRequested ()Lkotlin/jvm/functions/Function0;
+	public final fun getOnSettingQueued ()Lkotlin/jvm/functions/Function1;
 	public final fun getOnWriteFinished ()Lkotlin/jvm/functions/Function2;
 	public final fun getRecording ()Lcom/opencapture/opencine/core/RecordingState;
 	public final fun getRecordingElapsed ()Lcom/opencapture/opencine/core/ObservedValue;
@@ -1027,6 +1029,8 @@ public final class com/opencapture/opencine/appkit/MonitorControlModel {
 	public final fun setOnChange (Lkotlin/jvm/functions/Function0;)V
 	public final fun setOnNote (Lkotlin/jvm/functions/Function1;)V
 	public final fun setOnRecordFinished (Lkotlin/jvm/functions/Function1;)V
+	public final fun setOnRecordingStopRequested (Lkotlin/jvm/functions/Function0;)V
+	public final fun setOnSettingQueued (Lkotlin/jvm/functions/Function1;)V
 	public final fun setOnWriteFinished (Lkotlin/jvm/functions/Function2;)V
 	public final fun shown (Lcom/opencapture/opencine/core/SettingKey;)Lcom/opencapture/opencine/core/SettingValue;
 	public final fun unbind ()V
@@ -3769,6 +3773,8 @@ public final class com/opencapture/opencine/appkit/MonitorOperatorSessionModel {
 	public final fun getLocked ()Z
 	public final fun getMode ()Lcom/opencapture/opencine/appkit/MonitorDisplayMode;
 	public final fun getModes ()Ljava/util/List;
+	public final fun getOnEditingWillBegin ()Lkotlin/jvm/functions/Function0;
+	public final fun getOnModeWillChange ()Lkotlin/jvm/functions/Function1;
 	public final fun getReturnedMode ()Lcom/opencapture/opencine/appkit/MonitorDisplayMode;
 	public final fun getSettingsScrollOffsets ()Ljava/util/Map;
 	public final fun getSettingsTab ()Lcom/opencapture/monitorui/settings/MonitorSettingsTab;
@@ -3782,6 +3788,8 @@ public final class com/opencapture/opencine/appkit/MonitorOperatorSessionModel {
 	public final fun setEditingMode (Lcom/opencapture/opencine/appkit/MonitorDisplayMode;)V
 	public final fun setLive (Lcom/opencapture/opencine/appkit/MonitorDisplayChrome;)V
 	public final fun setLocked (Z)V
+	public final fun setOnEditingWillBegin (Lkotlin/jvm/functions/Function0;)V
+	public final fun setOnModeWillChange (Lkotlin/jvm/functions/Function1;)V
 	public final fun setReturnedMode (Lcom/opencapture/opencine/appkit/MonitorDisplayMode;)V
 	public final fun setSettingsTab (Lcom/opencapture/monitorui/settings/MonitorSettingsTab;)V
 	public final fun synchronize (Ljava/lang/String;)V

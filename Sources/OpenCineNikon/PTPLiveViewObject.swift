@@ -206,11 +206,18 @@ public struct PTPLiveViewFocusInfo: Equatable, Sendable {
     /// True when the body reports an active subject-tracking lock — header tracking status and/or
     /// face/eye box selection while subject detection is on.
     public var isSubjectTrackingLatched: Bool {
-        if trackingAFActive { return true }
-        guard subjectDetectionActive else { return false }
-        if boxes.count > 1 { return true }
-        if let selectedBoxIndex, selectedBoxIndex > 0 { return true }
-        return false
+        Self.isTrackingLatched(
+            trackingAFActive: trackingAFActive, subjectDetectionActive: subjectDetectionActive,
+            boxCount: boxes.count, selectedBoxIndex: selectedBoxIndex)
+    }
+
+    /// Resolves tracking from header evidence without treating detection alone as a lock.
+    public static func isTrackingLatched(
+        trackingAFActive: Bool, subjectDetectionActive: Bool, boxCount: Int,
+        selectedBoxIndex: Int?
+    ) -> Bool {
+        trackingAFActive
+            || (subjectDetectionActive && (boxCount > 1 || (selectedBoxIndex ?? 0) > 0))
     }
 }
 

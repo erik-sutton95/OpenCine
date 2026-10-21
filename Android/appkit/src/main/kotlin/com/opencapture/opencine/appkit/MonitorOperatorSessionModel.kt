@@ -49,7 +49,10 @@ public class MonitorOperatorSessionModel(
     private val displaySession = MonitorDisplaySession(MonitorDisplayMode.LIVE)
     public var editingMode: MonitorDisplayMode?
         get() = displaySession.editingMode
-        set(value) { displaySession.editingMode = value }
+        set(value) {
+            if (value != null && value != displaySession.editingMode) onEditingWillBegin()
+            displaySession.editingMode = value
+        }
     public var returnedMode: MonitorDisplayMode?
         get() = displaySession.returnedMode
         set(value) { displaySession.returnedMode = value }
@@ -76,6 +79,10 @@ public class MonitorOperatorSessionModel(
     /** Command has no assist-state twin; Live and Clean stay `assist.clean`, which assist filtering and
      * saved assist state already follow. */
     private var commandShown by mutableStateOf(false)
+    /** Called synchronously before an accepted display-mode change mutates presentation. */
+    public var onModeWillChange: (MonitorDisplayMode) -> Unit = {}
+    /** Called before a new chrome editor opens, including direct editing-mode assignment. */
+    public var onEditingWillBegin: () -> Unit = {}
     private var source: String? = null
     private var revision: Long = 0
     private var armJob: Job? = null
@@ -128,6 +135,7 @@ public class MonitorOperatorSessionModel(
     public fun cycle(): Boolean = MonitorDisplaySession.next(modes, mode)?.let(::select) ?: false
 
     public fun beginEditing(mode: MonitorDisplayMode): Unit {
+        if (mode != editingMode) onEditingWillBegin()
         shell.dismissCover()
         show(mode)
         displaySession.beginEditing(mode)
@@ -167,6 +175,7 @@ public class MonitorOperatorSessionModel(
     public fun close(): Unit { retire(); source = null }
 
     private fun show(next: MonitorDisplayMode) {
+        if (next != mode) onModeWillChange(next)
         if (commandShown != (next == MonitorDisplayMode.COMMAND)) commandShown = next == MonitorDisplayMode.COMMAND
         if (assist.clean != (next == MonitorDisplayMode.CLEAN)) assist.clean = next == MonitorDisplayMode.CLEAN
     }

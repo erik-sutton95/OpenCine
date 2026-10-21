@@ -165,6 +165,24 @@ case NikonDescriptorReadOutcome.unknown
 case NikonDescriptorReadOutcome.unsupported
 case NikonDialPurpose.cameraControl
 case NikonDialPurpose.presence
+case NikonFocusRackAccessError.authorityExpired
+case NikonFocusRackAccessError.safetyUnavailable
+case NikonFocusRackAccessError.unavailable
+case NikonFocusRackCadence.fastExperimental
+case NikonFocusRackCadence.standard
+case NikonFocusRackDriveMachine.Action.activate
+case NikonFocusRackDriveMachine.Action.cancel
+case NikonFocusRackDriveMachine.Action.finished(NikonFocusRackDriveOutcome)
+case NikonFocusRackDriveMachine.Action.poll
+case NikonFocusRackDriveMachine.Action.wait(Swift.Double)
+case NikonFocusRackDriveOutcome.activationRejected(Swift.UInt16)
+case NikonFocusRackDriveOutcome.cancelledBeforeActivation
+case NikonFocusRackDriveOutcome.cancelledReady
+case NikonFocusRackDriveOutcome.cancelledUnconfirmed
+case NikonFocusRackDriveOutcome.complete
+case NikonFocusRackDriveOutcome.endOfTravel
+case NikonFocusRackDriveOutcome.stepTooSmall
+case NikonFocusRackDriveOutcome.uncertain
 case NikonLadderControl.autoISO
 case NikonLadderControl.baseISO
 case NikonLadderControl.shutterMode
@@ -563,6 +581,8 @@ class NikonAppleDiscoverySources: NikonDiscoverySources, Sendable
 class NikonCameraSession: CameraSession, Sendable
 class NikonCommandOwner: Sendable
 class NikonDiscovery: Sendable
+class NikonFocusRackCancellation: Sendable
+class NikonFocusRackRunRegistry: Sendable
 class NikonIntegration: CameraIntegration, Sendable
 class NikonLiveViewPump: Sendable
 class NikonMediaService: CameraMediaService, NikonMediaCatalogRecordSource, Sendable
@@ -640,6 +660,10 @@ enum NikonDescriptorOptionOrigin: Equatable, Hashable, RawRepresentable, Sendabl
 enum NikonDescriptorReadOutcome: Equatable, Hashable, RawRepresentable, Sendable
 enum NikonDialPurpose: Equatable, Hashable, Sendable
 enum NikonExposureSettings
+enum NikonFocusRackAccessError: Equatable, Error, Hashable, LocalizedError, Sendable
+enum NikonFocusRackCadence: Equatable, Hashable, Sendable
+enum NikonFocusRackDriveMachine.Action: Equatable, Sendable
+enum NikonFocusRackDriveOutcome: Decodable, Encodable, Equatable, Sendable
 enum NikonLadderControl: Equatable, Hashable, Sendable
 enum NikonLiveViewPump.Outcome: Equatable, Sendable
 enum NikonMediaCategory: Equatable, Hashable, Sendable
@@ -776,6 +800,9 @@ func NativeCameraSession.describeCameraPropertyEnum(_: PTPPropertyCode, valueByt
 func NativeCameraSession.endTracking() async throws -> ()
 func NativeCameraSession.fetchMediaClip(handle: Swift.UInt32, storageID: Swift.UInt32) async -> NativeCameraSession.CameraClip?
 func NativeCameraSession.fileTypeModes() async throws -> [PTPCameraFileTypeMode]
+func NativeCameraSession.focusRackAccess(cadence: NikonFocusRackCadence, isAdmitted: () -> Swift.Bool) -> NikonFocusRackAccess?
+func NativeCameraSession.focusRackAccess(isAdmitted: () -> Swift.Bool) -> NikonFocusRackAccess?
+func NativeCameraSession.focusRackDrive(towardNear: Swift.Bool, pulses: Swift.UInt32, cancellation: NikonFocusRackCancellation) async -> NikonFocusRackDriveOutcome
 func NativeCameraSession.getObjectHandles(storageID: Swift.UInt32, format: Swift.UInt32, association: Swift.UInt32) async throws -> [Swift.UInt32]
 func NativeCameraSession.getObjectInfo(handle: Swift.UInt32) async throws -> PTPObjectInfo
 func NativeCameraSession.getPartialObject(_: PTPPartialObjectRequest) async throws -> Foundation.Data
@@ -899,6 +926,14 @@ func NikonDiscoverySources.bonjour(timeout: Swift.Duration) async -> [Discovered
 func NikonDiscoverySources.interfaces() -> [NikonLocalInterface]
 func NikonDiscoverySources.log(_: Swift.String) -> ()
 func NikonDiscoverySources.usbCameras(start: Swift.Bool) async -> [DiscoveredCamera]
+func NikonFocusRackCancellation.requestStop() -> ()
+func NikonFocusRackDriveMachine.next(stopRequested: Swift.Bool) -> NikonFocusRackDriveMachine.Action
+func NikonFocusRackDriveMachine.received(_: PTPResponseCode, rawResponseCode: Swift.UInt16?) -> ()
+func NikonFocusRackDriveMachine.transportFailed() -> ()
+func NikonFocusRackRunRegistry.prepare(runID: Swift.Int64) -> Swift.Bool
+func NikonFocusRackRunRegistry.receipt(runID: Swift.Int64) -> NikonFocusRackCancellation?
+func NikonFocusRackRunRegistry.requestStop(runID: Swift.Int64) -> ()
+func NikonFocusRackRunRegistry.requestStopCurrent() -> ()
 func NikonIntegration.connect(_: OpenCineCore.ConnectTarget) -> _Concurrency.AsyncStream<OpenCineCore.ConnectionEvent>
 func NikonIntegration.discover(_: OpenCineCore.DiscoveryMode) -> _Concurrency.AsyncStream<[OpenCineCore.NearbyCamera]>
 func NikonIntegration.forget(_: OpenCineCore.SavedCamera) async -> ()
@@ -1084,6 +1119,11 @@ init NikonDescriptorEvidence(observation: NikonDescriptorObservation, latestAtte
 init NikonDescriptorObservation(outcome: NikonDescriptorReadOutcome, descriptor: NikonScalarPropertyDescriptor?, operation: PTPOperationCode?, response: Swift.UInt16?)
 init NikonDiscovery(dialer: any NikonDialer, sources: any NikonDiscoverySources, now: () -> Foundation.Date)
 init NikonEmbeddedPreviewRange(offset: Swift.UInt32, length: Swift.UInt32, orientation: Swift.UInt16?)
+init NikonFocusRackAccess(isCurrent: () -> Swift.Bool, prepareRun: (Swift.Int64) -> Swift.Bool, requestStop: (Swift.Int64) -> Swift.Void, driveChunk: (Swift.Int64, Swift.Bool, Swift.UInt32) async -> NikonFocusRackDriveOutcome, refreshSafety: () async throws -> NikonFocusRackSafetySnapshot)
+init NikonFocusRackCancellation()
+init NikonFocusRackDriveMachine(cadence: NikonFocusRackCadence, capturesDiagnostics: Swift.Bool)
+init NikonFocusRackRunRegistry()
+init NikonFocusRackSafetySnapshot(reported: PTPCameraPropertySnapshot) throws
 init NikonGallerySourceItem(id: OpenCineMedia.MediaAssetID, legacyID: Swift.String, namespace: Swift.String, filename: Swift.String, captureDate: Swift.String, pixelWidth: Swift.UInt32?, pixelHeight: Swift.UInt32?, sourcePixelWidth: Swift.UInt32?, storageID: Swift.UInt32?, storageMembership: Swift.Set<Swift.UInt32>?, handle: Swift.UInt32?, favorite: Swift.Bool, rating: Swift.Int?, localEligible: Swift.Bool?)
 init NikonIntegration(port: any NikonConnectPort)
 init NikonLadderMode(index: Swift.Int, title: Swift.String, detail: Swift.String?, options: [Swift.String], base: Swift.String, current: Swift.String, disabled: Swift.Bool, advertised: [Swift.String]?)
@@ -1272,6 +1312,17 @@ let NikonDescriptorObservation.response: Swift.UInt16?
 let NikonEmbeddedPreviewRange.length: Swift.UInt32
 let NikonEmbeddedPreviewRange.offset: Swift.UInt32
 let NikonEmbeddedPreviewRange.orientation: Swift.UInt16?
+let NikonFocusRackAccess.driveChunk: (Swift.Int64, Swift.Bool, Swift.UInt32) async -> NikonFocusRackDriveOutcome
+let NikonFocusRackAccess.isCurrent: () -> Swift.Bool
+let NikonFocusRackAccess.prepareRun: (Swift.Int64) -> Swift.Bool
+let NikonFocusRackAccess.refreshSafety: () async throws -> NikonFocusRackSafetySnapshot
+let NikonFocusRackAccess.requestStop: (Swift.Int64) -> Swift.Void
+let NikonFocusRackSafetySnapshot.focalLength: Swift.String
+let NikonFocusRackSafetySnapshot.focusArea: Swift.String
+let NikonFocusRackSafetySnapshot.focusMode: Swift.String
+let NikonFocusRackSafetySnapshot.focusSubject: Swift.String
+let NikonFocusRackSafetySnapshot.lens: Swift.String
+let NikonFocusRackSafetySnapshot.movieMode: Swift.Bool
 let NikonGallerySourceItem.captureDate: Swift.String
 let NikonGallerySourceItem.favorite: Swift.Bool
 let NikonGallerySourceItem.filename: Swift.String
@@ -1908,6 +1959,7 @@ static func PTPIPTransport.probeCameraName(host: Swift.String, guid: Foundation.
 static func PTPIPTransport.probePort(host: Swift.String, timeoutMilliseconds: Swift.UInt64) -> HostProbeVerdict
 static func PTPIPTransport.scanPorts(hosts: [Swift.String], width: Swift.Int, timeoutMilliseconds: Swift.UInt64) -> [Swift.String : HostProbeVerdict]
 static func PTPLevelAngles.signedDegrees(_: Swift.Double) -> Swift.Double
+static func PTPLiveViewFocusInfo.isTrackingLatched(trackingAFActive: Swift.Bool, subjectDetectionActive: Swift.Bool, boxCount: Swift.Int, selectedBoxIndex: Swift.Int?) -> Swift.Bool
 static func PTPLiveViewObject.focusInfo(from: Foundation.Data) -> PTPLiveViewFocusInfo?
 static func PTPLiveViewObject.frame(from: Foundation.Data) throws -> PTPLiveViewFrame
 static func PTPLiveViewObject.jpeg(from: Foundation.Data) throws -> Foundation.Data
@@ -2042,6 +2094,8 @@ static let NikonCameraSession.integration: OpenCineCore.IntegrationID
 static let NikonCapturePopupState.codecStepsHint: Swift.String?
 static let NikonCapturePopupState.kelvinStepsHint: Swift.String?
 static let NikonDiscovery.presenceSweepInterval: Foundation.TimeInterval
+static let NikonFocusRackDriveMachine.readinessPollLimit: Swift.Int
+static let NikonFocusRackSafetySnapshot.properties: [(PTPPropertyCode, Swift.Int)]
 static let NikonMediaFilterOptions.none: NikonMediaFilterOptions
 static let NikonMonitorColorProfile.log3G10Rec709: OpenCineMedia.MonitorLogDisplayTransform
 static let NikonMonitorColorProfile.nLogRec709: OpenCineMedia.MonitorLogDisplayTransform
@@ -2164,6 +2218,9 @@ struct NikonControlFacts: Sendable
 struct NikonDescriptorEvidence: Equatable, Sendable
 struct NikonDescriptorObservation: Equatable, Sendable
 struct NikonEmbeddedPreviewRange: Equatable, Sendable
+struct NikonFocusRackAccess: Sendable
+struct NikonFocusRackDriveMachine: Sendable
+struct NikonFocusRackSafetySnapshot: Equatable, Sendable
 struct NikonGallerySourceItem: Sendable
 struct NikonLadderMode: Sendable
 struct NikonLiveViewPump.Delivery: Sendable
@@ -2372,6 +2429,10 @@ var NikonDescriptorEvidence.latestAttempt: NikonDescriptorObservation
 var NikonDescriptorEvidence.observation: NikonDescriptorObservation
 var NikonDescriptorEvidence.optionOrigin: NikonDescriptorOptionOrigin
 var NikonDescriptorObservation.capability: OpenCineCameraVocabulary.ControlCapability<[Swift.String]>
+var NikonFocusRackAccessError.errorDescription: Swift.String?
+var NikonFocusRackCancellation.isStopRequested: Swift.Bool
+var NikonFocusRackDriveMachine.diagnosticLines: [Swift.String]
+var NikonFocusRackDriveOutcome.wireValue: Swift.Int32
 var NikonIntegration.id: OpenCineCore.IntegrationID
 var NikonLocalInterface.address: Swift.String
 var NikonLocalInterface.name: Swift.String

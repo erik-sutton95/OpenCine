@@ -618,6 +618,7 @@ public abstract interface class com/opencapture/opencine/nikon/CameraSession {
 	public fun getCameraProperties ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getConnectionProgress ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public fun getFocusRackConnectionOwner ()Ljava/lang/Long;
 	public fun getInitialMonitorPropertiesReady ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getLatestCommandRoundTripMilliseconds ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getLiveTimecode ()Lkotlinx/coroutines/flow/StateFlow;
@@ -653,6 +654,7 @@ public final class com/opencapture/opencine/nikon/CameraSession$DefaultImpls {
 	public static fun getCameraProperties (Lcom/opencapture/opencine/nikon/CameraSession;)Lkotlinx/coroutines/flow/StateFlow;
 	public static fun getConnectionProgress (Lcom/opencapture/opencine/nikon/CameraSession;)Lkotlinx/coroutines/flow/StateFlow;
 	public static fun getEvents (Lcom/opencapture/opencine/nikon/CameraSession;)Lkotlinx/coroutines/flow/SharedFlow;
+	public static fun getFocusRackConnectionOwner (Lcom/opencapture/opencine/nikon/CameraSession;)Ljava/lang/Long;
 	public static fun getInitialMonitorPropertiesReady (Lcom/opencapture/opencine/nikon/CameraSession;)Lkotlinx/coroutines/flow/StateFlow;
 	public static fun getLatestCommandRoundTripMilliseconds (Lcom/opencapture/opencine/nikon/CameraSession;)Lkotlinx/coroutines/flow/StateFlow;
 	public static fun getLiveTimecode (Lcom/opencapture/opencine/nikon/CameraSession;)Lkotlinx/coroutines/flow/StateFlow;
@@ -881,6 +883,7 @@ public final class com/opencapture/opencine/nikon/FakeCameraSession : com/openca
 	public fun getCameraProperties ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getConnectionProgress ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public fun getFocusRackConnectionOwner ()Ljava/lang/Long;
 	public fun getInitialMonitorPropertiesReady ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getLatestCommandRoundTripMilliseconds ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getLiveTimecode ()Lkotlinx/coroutines/flow/StateFlow;
@@ -2261,6 +2264,7 @@ public final class com/opencapture/opencine/nikon/NikonNative {
 	public final fun sessionPollStillRelease (J)I
 	public final fun sessionReadProperty (JI)Ljava/lang/String;
 	public final fun sessionRefreshPropertySnapshot (JIZJ)Ljava/lang/String;
+	public final fun sessionRequestActiveFocusRackStop (J)V
 	public final fun sessionResetDropStormGuard ()V
 	public final fun sessionResetFocusPoint (J)I
 	public final fun sessionResolveMediaSize (JIJ)J
@@ -2813,6 +2817,7 @@ public final class com/opencapture/opencine/nikon/SwiftCoreCameraSession : com/o
 	public final fun getConnectionOwner ()Ljava/lang/Long;
 	public fun getConnectionProgress ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public fun getFocusRackConnectionOwner ()Ljava/lang/Long;
 	public fun getInitialMonitorPropertiesReady ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getLatestCommandRoundTripMilliseconds ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getLiveFrames ()Lcom/opencapture/opencine/nikon/LiveFrameSource;

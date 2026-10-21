@@ -76,6 +76,10 @@ public final class MonitorControlModel {
     @ObservationIgnored public var onWriteFinished: (String, CommandReceipt) -> Void = { _, _ in }
     /// The reported state or a pending target changed: for projections that still copy it.
     @ObservationIgnored public var onChange: () -> Void = {}
+    /// Called synchronously before an admitted setting edit becomes pending or is queued.
+    @ObservationIgnored public var onSettingQueued: (SettingKey) -> Void = { _ in }
+    /// Called before submitting recording Stop; explicit or already-known Stop is published synchronously.
+    @ObservationIgnored public var onRecordingStopRequested: () -> Void = {}
     /// The bound session reported `.disconnected` or ended its snapshots. Called once per binding.
     @ObservationIgnored var onEnded: () -> Void = {}
     /// Each field's drum, rebuilt only when its domain changes (`captureField`): a body pass
@@ -368,6 +372,7 @@ public final class MonitorControlModel {
     ) {
         guard session != nil else { return onNote(Self.connectFirst) }
         let key = value.key
+        onSettingQueued(key)
         pending[key] = value
         operations[key] = (OperationID(), label, editor, admission)
         onChange()
@@ -514,6 +519,8 @@ public final class MonitorControlModel {
             onNote(Self.connectFirst)
             return nil
         }
+        let stopPublished = start == false || (start == nil && isRecording == true)
+        if stopPublished { onRecordingStopRequested() }
         let operation = OperationID()
         let current = binding
         recordOperation = operation
@@ -540,6 +547,9 @@ public final class MonitorControlModel {
             guard let intent, let fresh else {
                 self.finishRecord(operation, current, note: Self.recordingUnknown, receipt: nil)
                 return nil
+            }
+            if intent == .stopRecording && !stopPublished {
+                self.onRecordingStopRequested()
             }
             let command = CameraCommand(
                 intent, preconditions: CommandPreconditions(fresh), operation: operation)

@@ -1116,6 +1116,9 @@ public interface CameraSession {
     public suspend fun mfDrive(towardNear: Boolean, pulses: Int): MFDriveOutcome =
         MFDriveOutcome.Refused(rawResponseCode = 0)
 
+    /** Established native owner for a shared Swift rack controller; unavailable sessions return null. */
+    public val focusRackConnectionOwner: Long? get() = null
+
     /**
      * Seeds the instant-review baseline (the card's current object handles)
      * so the first post-capture diff has something to diff against.
