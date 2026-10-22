@@ -264,7 +264,7 @@ import OpenCineCore
 }
 #endif
 
-#if os(iOS)
+#if os(iOS) && !targetEnvironment(macCatalyst)
 import NetworkExtension
 
 extension CameraHotspotSystem {

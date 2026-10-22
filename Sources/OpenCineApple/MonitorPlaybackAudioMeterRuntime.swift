@@ -1,5 +1,7 @@
 #if os(iOS)
     import AVFoundation
+import AudioToolbox
+    import CoreAudio
     import Accelerate
     import MediaToolbox
     import os
