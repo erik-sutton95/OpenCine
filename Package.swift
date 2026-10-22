@@ -145,7 +145,7 @@ let package = Package(
         .target(
             name: "OpenCineWatch",
             dependencies: [
-                "OpenCineCore", "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS])),
+                "OpenCineCore", "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS, .macCatalyst])),
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]),
         // iOS only (xcodebuild on a simulator); empty under macOS `swift test`.

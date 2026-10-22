@@ -352,6 +352,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
                 }
             }
         }
+        switch row {
+        case .sharing, .sharingUnavailable, .watchFeed:
+            MonitorSettingsSourceGroups(groups: source.additionalGroups)
+        default: EmptyView()
+        }
     }
     private func watcherRows(_ source: MonitorSettingsWatchersSource) -> some View {
         MonitorSettingsRowCard(title: "Watchers") {

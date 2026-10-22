@@ -1,5 +1,5 @@
 #if os(iOS) || os(watchOS)
-    #if canImport(WatchConnectivity)
+    #if canImport(WatchConnectivity) && !targetEnvironment(macCatalyst)
         import Foundation
         import OpenCineRelay
         import SwiftUI
