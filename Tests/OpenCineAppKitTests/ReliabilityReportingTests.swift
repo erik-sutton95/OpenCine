@@ -293,6 +293,7 @@ final class ReliabilityReportingTests: XCTestCase {
     func testIncidentEventCarriesDecoderStatusCodecAndWatchdogHold() throws {
         consent.setOptedIn(true)
         var bundle = try stallBundle(id: "5a1d3c6e8f2b4d7a9c0e1f2a3b4c5d6e")
+        bundle.header.outcome = .recovered
         var snapshot = try XCTUnwrap(bundle.during.last ?? bundle.prelude.last)
         snapshot.decoder = FeedIncidentDecoder(
             codec: "hevc", lastStatus: -12909, errorClass: "nativeDecoder",
