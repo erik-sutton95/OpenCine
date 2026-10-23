@@ -72,11 +72,18 @@ public enum FeedIncidentExport: Sendable {
         // The incident's own snapshots: its opening tick and everything recorded while it was open.
         let window =
             bundle.prelude.filter { $0.monotonicNow >= header.startedAtMonotonic - 1.5 } + bundle.during
+        // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
+        let sceneInactive = bundle.breadcrumbs.contains {
+            $0.kind == .sceneActivity && $0.detail == "inactive"
+                && $0.monotonicAt >= header.startedAtMonotonic - 1.5
+        }
         let background: String
-        if window.isEmpty {
-            background = "unknown"
-        } else if window.contains(where: { !$0.lifecycle.foreground || !$0.lifecycle.sceneActive }) {
+        if sceneInactive
+            || window.contains(where: { !$0.lifecycle.foreground || !$0.lifecycle.sceneActive })
+        {
             background = "yes"
+        } else if window.isEmpty {
+            background = "unknown"
         } else {
             background = "no"
         }

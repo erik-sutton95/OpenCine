@@ -334,6 +334,15 @@ import Testing
         early.during = []
         #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
         #expect(FeedIncidentExport.envelope(from: early).awaitingIrap == "unknown")
+        // A session drop stops the snapshots; the scene breadcrumb still marks the app switch.
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 5, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "yes")
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 1, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
     }
 
     @Test func coveredUnobservableFeedCannotClaimRecoveryOrHealthyExposure() {

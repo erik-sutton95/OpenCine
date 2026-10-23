@@ -717,7 +717,8 @@ data class FeedIncidentVendorEnvelope(
     val recoveredBy: String = "none",
     /**
      * Diagnostic: `yes` when any snapshot of the incident was taken off screen (not foreground or
-     * scene inactive), `no` when none was, `unknown` without a snapshot. Sentry carries no bundle
+     * scene inactive) or a scene-inactive breadcrumb falls inside it, `no` when neither, `unknown`
+     * without a snapshot. Sentry carries no bundle
      * attachment, so a long gap (PA-A, 290 s) could not tell an app switch from a dead feed.
      */
     val background: String = "unknown",
@@ -757,6 +758,11 @@ object FeedIncidentExport {
         val own = from.repairs.filter { it.monotonicAt >= header.startedAtMonotonic - 1.5 }.map { it.closed() }
         // The incident's own snapshots: its opening tick and everything recorded while it was open.
         val window = from.prelude.filter { it.monotonicNow >= header.startedAtMonotonic - 1.5 } + from.during
+        // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
+        val sceneInactive = from.breadcrumbs.any {
+            it.kind == FeedIncidentBreadcrumbKind.SCENE_ACTIVITY && it.detail == "inactive" &&
+                it.monotonicAt >= header.startedAtMonotonic - 1.5
+        }
         val grouping =
             FeedIncidentGrouping(
                 schemaVersion = header.schemaVersion,
@@ -798,8 +804,8 @@ object FeedIncidentExport {
                 },
             background =
                 when {
+                    sceneInactive || window.any { !it.lifecycle.foreground || !it.lifecycle.sceneActive } -> "yes"
                     window.isEmpty() -> "unknown"
-                    window.any { !it.lifecycle.foreground || !it.lifecycle.sceneActive } -> "yes"
                     else -> "no"
                 },
             awaitingIrap = window.lastOrNull()?.let { if (it.decoder.awaitingIrap) "yes" else "no" } ?: "unknown",
