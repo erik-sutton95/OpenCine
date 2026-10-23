@@ -806,6 +806,13 @@ public struct FeedIncidentVendorEnvelope: Equatable, Sendable, Codable {
     public var irapAge: String = "unknown"
     /// Decoder submits against accepts at onset (`FeedIncidentExport.decodeFlow`).
     public var decodeFlow: String = "unknown"
+    /// Diagnostic: `yes` when any snapshot of the incident was taken off screen (not foreground
+    /// or scene inactive) or a scene-inactive breadcrumb falls inside it, `no` when neither,
+    /// `unknown` without a snapshot. Kotlin twin.
+    public var background: String = "unknown"
+    /// Diagnostic: whether the decoder still waited for an IRAP at the incident's newest
+    /// snapshot (`yes`/`no`/`unknown`). Kotlin twin.
+    public var awaitingIrap: String = "unknown"
 }
 
 public struct FeedIncidentVerdict: Equatable, Sendable {

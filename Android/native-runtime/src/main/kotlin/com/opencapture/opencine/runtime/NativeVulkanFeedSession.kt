@@ -66,6 +66,8 @@ class NativeVulkanFeedSession(
     private val imageHandler = Handler(imageThread.looper)
     private val gpuThread = HandlerThread("opc.vk.gpu").apply { start() }
     private val gpuHandler = Handler(gpuThread.looper)
+    /** UI-thread inputs reach native only on [imageThread]; the UI never takes the renderer mutex. */
+    private val rendererInputs = VulkanRendererInputs { imageHandler.post(it) }
     private val sampleExecutor =
         Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, "opc.vk.scope").apply { isDaemon = true }
@@ -139,6 +141,7 @@ class NativeVulkanFeedSession(
             handle = created
             Log.i(logTag, "vulkan renderer ready")
             imageHandler.post { flushAttach() }
+            rendererInputs.bind(RendererInputSink())
         }
     }
 
@@ -201,8 +204,15 @@ class NativeVulkanFeedSession(
         redrawLast()
     }
 
-    /** Re-present the last imported AHB after overlay dismiss or a swapchain rebuild. */
+    /**
+     * Re-present the last imported AHB after overlay dismiss or a swapchain rebuild. Off the
+     * renderer thread this only asks for it; [rendererInputs] presents on the renderer thread.
+     */
     fun redrawLast() {
+        if (Looper.myLooper() != imageHandler.looper) {
+            if (!presentGate.isReleased) rendererInputs.requestRedraw()
+            return
+        }
         val native = handle
         if (native == 0L || presentGate.isReleased || !presentGate.windowReady) return
         if (!presentGate.beginSubmit()) return
@@ -271,20 +281,20 @@ class NativeVulkanFeedSession(
         backdrop?.invalidate(this)
     }
 
+    /** UI thread: stored whole and applied by the renderer thread before its next present. */
     fun setFeedRect(x: Float, y: Float, w: Float, h: Float, stretchToRect: Boolean = false) {
-        val native = handle
-        if (native == 0L || presentGate.isReleased) return
+        if (presentGate.isReleased) return
         feedW = w
         feedH = h
-        OpcVulkan.nativeSetFeedRect(native, x, y, w, h, stretchToRect)
+        rendererInputs.offerFeedRect(VulkanRendererInputs.FeedRect(x, y, w, h, stretchToRect))
     }
 
     fun setPlates(packed: FloatArray) {
         plates.set(packed)
-        val native = handle
-        if (native != 0L && !presentGate.isReleased) OpcVulkan.nativeSetPlates(native, packed)
+        if (!presentGate.isReleased) rendererInputs.offerPlates(packed)
     }
 
+    /** UI thread: computes the renderer values here; the renderer thread uploads and presents them. */
     fun updateEffects(
         plan: FeedEffectsRenderPlan,
         uiScale: Float = 1f,
@@ -292,62 +302,92 @@ class NativeVulkanFeedSession(
         pictureFlippedVertically: Boolean = false,
         options: GlesPresentationOptions = GlesPresentationOptions(),
     ) {
-        val native = handle
-        if (native == 0L || presentGate.isReleased) return
+        if (presentGate.isReleased) return
         backdrop?.updatePlan(this, plan)
         lastPlan = plan
         // Apply the plan's ISO report (or the profile's unreported assumption) before the IRE
         // table below reads the ceiling, so it never waits for the next scope tick.
         samples.ceiling.syncISO(plan.scopeTap.iso)
-        OpcVulkan.nativeSetUiScale(native, uiScale)
-        uploadCube(0, plan.lutCube, lastLut) { lastLut = it }
-        uploadCube(1, plan.falseColorPaint, lastPaint) { lastPaint = it }
-        uploadCube(2, plan.falseColorWeight, lastWeight) { lastWeight = it }
         val transfer = plan.scopeTap.transfer
         val ire = WaveformIre.levelTable(transfer, plan.scopeTap.iso, samples.ceiling)
         val luma = LiveColorScience.lumaWeights(transfer)
-        OpcVulkan.nativeSetIre(
-            native,
-            ire,
-            luma.first.toFloat(),
-            luma.second.toFloat(),
-            luma.third.toFloat(),
-            8,
+        val flags =
+            floatArrayOf(
+                plan.lutCube?.size?.toFloat() ?: 0f,
+                if (plan.falseColorOn) 1f else 0f,
+                if (plan.splitComparison) 1f else 0f,
+                if (plan.splitVertical) 1f else 0f,
+                if (plan.zebraHighlightOn) 1f else 0f,
+                plan.zebraHighlightCode,
+                if (plan.zebraMidtoneOn) 1f else 0f,
+                plan.zebraMidtoneCode,
+                plan.zebraMidtoneHalf,
+                if (options.upscaler == MonitorGlesUpscaler.FAST &&
+                    MonitorGlesUpscaler.shouldReconstructToDisplay(
+                        SOURCE_W.toFloat(),
+                        SOURCE_H.toFloat(),
+                        feedW,
+                        feedH,
+                    )
+                ) {
+                    1f
+                } else {
+                    0f
+                },
+                if (pictureMirrored) 1f else 0f,
+                if (pictureFlippedVertically) 1f else 0f,
+                if (plan.peaking) 1f else 0f,
+                plan.peakingRatioThreshold,
+                plan.peakingNoiseGate,
+                plan.peakingColor.getOrElse(0) { 1f },
+                plan.peakingColor.getOrElse(1) { 72f / 255f },
+                plan.peakingColor.getOrElse(2) { 64f / 255f },
+            )
+        rendererInputs.offerEffects(
+            VulkanRendererInputs.Effects(
+                uiScale = uiScale,
+                lut = plan.lutCube,
+                falseColorPaint = plan.falseColorPaint,
+                falseColorWeight = plan.falseColorWeight,
+                ire = ire,
+                luma = floatArrayOf(luma.first.toFloat(), luma.second.toFloat(), luma.third.toFloat()),
+                flags = flags,
+            ),
         )
-        OpcVulkan.nativeSetFeedFlags(
-            native,
-            plan.lutCube?.size?.toFloat() ?: 0f,
-            if (plan.falseColorOn) 1f else 0f,
-            if (plan.splitComparison) 1f else 0f,
-            if (plan.splitVertical) 1f else 0f,
-            if (plan.zebraHighlightOn) 1f else 0f,
-            plan.zebraHighlightCode,
-            if (plan.zebraMidtoneOn) 1f else 0f,
-            plan.zebraMidtoneCode,
-            plan.zebraMidtoneHalf,
-            if (options.upscaler == MonitorGlesUpscaler.FAST &&
-                MonitorGlesUpscaler.shouldReconstructToDisplay(
-                    SOURCE_W.toFloat(),
-                    SOURCE_H.toFloat(),
-                    feedW,
-                    feedH,
-                )
-            ) {
-                1f
-            } else {
-                0f
-            },
-            if (pictureMirrored) 1f else 0f,
-            if (pictureFlippedVertically) 1f else 0f,
-            if (plan.peaking) 1f else 0f,
-            plan.peakingRatioThreshold,
-            plan.peakingNoiseGate,
-            plan.peakingColor.getOrElse(0) { 1f },
-            plan.peakingColor.getOrElse(1) { 72f / 255f },
-            plan.peakingColor.getOrElse(2) { 64f / 255f },
-        )
-        packScopeSlotsOff()
-        redrawLast()
+    }
+
+    /** Renderer thread ([imageThread]): the only caller of the native setters below. */
+    private inner class RendererInputSink : VulkanRendererInputSink {
+        private fun native(): Long = handle.takeIf { it != 0L && !presentGate.isReleased } ?: 0L
+
+        override fun applyFeedRect(rect: VulkanRendererInputs.FeedRect) {
+            val native = native()
+            if (native == 0L) return
+            OpcVulkan.nativeSetFeedRect(native, rect.x, rect.y, rect.w, rect.h, rect.stretchToRect)
+        }
+
+        override fun applyPlates(plates: FloatArray) {
+            val native = native()
+            if (native != 0L) OpcVulkan.nativeSetPlates(native, plates)
+        }
+
+        override fun applyEffects(effects: VulkanRendererInputs.Effects) {
+            val native = native()
+            if (native == 0L) return
+            OpcVulkan.nativeSetUiScale(native, effects.uiScale)
+            uploadCube(0, effects.lut, lastLut) { lastLut = it }
+            uploadCube(1, effects.falseColorPaint, lastPaint) { lastPaint = it }
+            uploadCube(2, effects.falseColorWeight, lastWeight) { lastWeight = it }
+            OpcVulkan.nativeSetIre(native, effects.ire, effects.luma[0], effects.luma[1], effects.luma[2], 8)
+            val f = effects.flags
+            OpcVulkan.nativeSetFeedFlags(
+                native, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11], f[12], f[13],
+                f[14], f[15], f[16], f[17],
+            )
+            packScopeSlotsOff()
+        }
+
+        override fun redraw() = redrawLast()
     }
 
     /** Compose owns the plates; drag does not re-present the swapchain. */

@@ -388,6 +388,13 @@ class ReliabilityReportingTest {
         assertEquals("10-20s", captured.tags?.get("gap"))
         assertEquals("bleDropped", captured.extras?.get("trigger"))
         assertEquals("endpoint", captured.contexts["feed"]?.get("recoveredBy"))
+        // Diagnostics derived from the incident's own snapshots (Swift twin asserts the same).
+        val envelope = FeedIncidentExport.envelope(bundle)
+        assertEquals(envelope.background, captured.tags?.get("background"))
+        assertEquals(envelope.awaitingIrap, captured.tags?.get("awaitingIrap"))
+        assertEquals(envelope.background, captured.extras?.get("background"))
+        assertTrue(captured.tags?.get("background") in setOf("yes", "no", "unknown"))
+        assertEquals("other", ReliabilityReportingPrivacy.value("background", "SSID_ZR_6002199"))
     }
 
     @Test

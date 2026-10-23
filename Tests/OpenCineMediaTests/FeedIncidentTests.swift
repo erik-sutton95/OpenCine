@@ -306,6 +306,55 @@ import Testing
         #expect(FeedIncidentExport.envelope(from: bundle).trigger == "none")
     }
 
+    /// Kotlin twin: `envelopeCarriesBackgroundAndIrapDiagnostics` (FeedIncidentExportTest).
+    @Test func envelopeCarriesBackgroundAndIrapDiagnostics() throws {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-diagnostics" })
+        _ = recorder.beginSession(Fixture.context())
+        func stale(_ now: TimeInterval, foreground: Bool, awaiting: Bool) -> FeedIncidentSnapshot {
+            var snapshot = Fixture.stall(now: now, outputAge: now, foreground: foreground)
+            snapshot.lifecycle.sceneActive = foreground
+            snapshot.decoder.awaitingIrap = awaiting
+            return snapshot
+        }
+        var bundle = try #require(
+            recorder.recordSnapshot(stale(4, foreground: true, awaiting: false))?.bundle)
+        var envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.background == "no")
+        #expect(envelope.awaitingIrap == "no")
+        // Still open: an app switch, then back with the decoder waiting for a keyframe.
+        _ = recorder.recordSnapshot(stale(5, foreground: false, awaiting: false))
+        _ = recorder.recordSnapshot(stale(6, foreground: true, awaiting: true))
+        bundle = try #require(recorder.exportOpen())
+        envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.background == "yes", "one off-screen snapshot inside the incident")
+        #expect(envelope.awaitingIrap == "yes", "the newest snapshot decides")
+        // Snapshots before the incident opened are not its own.
+        var early = bundle
+        early.prelude = [stale(1, foreground: false, awaiting: true)]
+        early.during = []
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
+        #expect(FeedIncidentExport.envelope(from: early).awaitingIrap == "unknown")
+        // Not even one tick before the opening snapshot.
+        var tickBefore = early
+        tickBefore.prelude = [stale(3, foreground: false, awaiting: true)]
+        #expect(FeedIncidentExport.envelope(from: tickBefore).background == "unknown")
+        // A session drop stops the snapshots; the scene breadcrumb still marks the app switch.
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 5, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "yes")
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 1, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
+        // An app switch during the aftermath (the picture was already back) is not this incident's.
+        early.header.endedAtMonotonic = 4.5
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 5, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
+    }
+
     /// PA-1V and the decoder clusters: the call that raised the error class and the decode state
     /// the incident opened on are searchable tags, as buckets. Kotlin twin in FeedIncidentExportTest.
     @Test func envelopeTagsTheDecodeStateTheIncidentOpenedOn() throws {

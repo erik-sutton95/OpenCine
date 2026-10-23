@@ -555,6 +555,31 @@ final class ReliabilityReportingTests: XCTestCase {
         XCTAssertNil(policy.tags(["soc": "SIMULATED-private-device-value"]))
     }
 
+    /// Kotlin twin: the diagnostics half of
+    /// `incidentTitleNamesItsKindAndTagsCarryTriggerRecoveryAndGapLikeIos`.
+    func testIncidentDiagnosticsAreTaggedAndClosed() throws {
+        consent.setOptedIn(true)
+        var bundle = try stallBundle(id: UUID().uuidString)
+        bundle.header.outcome = .recovered
+        let envelope = FeedIncidentExport.envelope(from: bundle)
+        let sent = TextLog()
+        let delivered = expectation(description: "incident event")
+        reporting.setCaptureHandlerForTests { event, _ in
+            sent.append("tag background=\(event.tags?["background"] ?? "missing")")
+            sent.append("tag awaitingIrap=\(event.tags?["awaitingIrap"] ?? "missing")")
+            sent.append("extra background=\(event.extra?["background"] as? String ?? "missing")")
+            delivered.fulfill()
+        }
+        reporting.enqueueFinalized(bundle)
+        wait(for: [delivered], timeout: 5)
+        XCTAssertTrue(["yes", "no", "unknown"].contains(envelope.background))
+        XCTAssertTrue(sent.all.contains("tag background=\(envelope.background)"))
+        XCTAssertTrue(sent.all.contains("tag awaitingIrap=\(envelope.awaitingIrap)"))
+        XCTAssertTrue(sent.all.contains("extra background=\(envelope.background)"))
+        let policy = ReliabilityReportingPrivacy(redact: { PrivacyRedactor.redact($0) })
+        XCTAssertEqual(policy.tags(["background": "ZR_6002199"])?["background"], "other")
+    }
+
     func testTransportSuccessConfirmsOnlyMatchingEventID() {
         consent.setOptedIn(true)
         ReliabilityReportingReceipts.store(

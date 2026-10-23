@@ -295,6 +295,8 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                 "buildIdentity",
                 "trigger",
                 "recoveredBy",
+                "background",
+                "awaitingIrap",
             )
 
         public val contextAllowlist: Map<String, Set<String>> =
@@ -346,6 +348,9 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                 "keyframeWait" to setOf("awaiting", "none", "unknown", "other"),
                 "irapAge" to setOf("never", "0-1s", "1-5s", "5-30s", "30s+", "unknown", "other"),
                 "decodeFlow" to setOf("idle", "rejecting", "partial", "flowing", "unknown", "other"),
+                // Incident diagnostics (FeedIncidentVendorEnvelope.background / awaitingIrap).
+                "background" to setOf("yes", "no", "unknown", "other"),
+                "awaitingIrap" to setOf("yes", "no", "unknown", "other"),
                 // MonitorGlesUpscaler labels (Swift MonitorUpscaler raw values).
                 "feedUpscaler" to setOf("Off", "Fast", "Quality", "AI", "other"),
                 // Incident outcomes and the session summary's own.
@@ -422,6 +427,8 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                 "keyframeWait",
                 "irapAge",
                 "decodeFlow",
+                "background",
+                "awaitingIrap",
             )
 
         /** 32 hex digits from an incident or session id, as the SDK prints its event id. */

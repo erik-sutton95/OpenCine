@@ -1464,6 +1464,8 @@ var FeedIncidentStageCounts.decodedOutput: Swift.Int?
 var FeedIncidentStageCounts.packet: Swift.Int?
 var FeedIncidentStageCounts.present: Swift.Int?
 var FeedIncidentTestSource.rank: Swift.Int
+var FeedIncidentVendorEnvelope.awaitingIrap: Swift.String
+var FeedIncidentVendorEnvelope.background: Swift.String
 var FeedIncidentVendorEnvelope.buildIdentity: Swift.String
 var FeedIncidentVendorEnvelope.decodeFlow: Swift.String
 var FeedIncidentVendorEnvelope.decoderCall: Swift.String
