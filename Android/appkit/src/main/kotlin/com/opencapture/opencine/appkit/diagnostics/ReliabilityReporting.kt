@@ -547,6 +547,10 @@ public class ReliabilityReporting(
                         "keyframeWait" to envelope.keyframeWait,
                         "irapAge" to envelope.irapAge,
                         "decodeFlow" to envelope.decodeFlow,
+                        // Diagnostics: no bundle attachment reaches the issue, so these two say
+                        // whether the gap spanned an app switch and whether a keyframe was pending.
+                        "background" to envelope.background,
+                        "awaitingIrap" to envelope.awaitingIrap,
                     ),
                 extras =
                     linkedMapOf(
@@ -567,6 +571,8 @@ public class ReliabilityReporting(
                         "buildIdentity" to envelope.buildIdentity,
                         "trigger" to envelope.trigger,
                         "recoveredBy" to envelope.recoveredBy,
+                        "background" to envelope.background,
+                        "awaitingIrap" to envelope.awaitingIrap,
                     ),
                 contexts =
                     mapOf(

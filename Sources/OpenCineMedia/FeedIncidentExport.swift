@@ -125,6 +125,28 @@ public enum FeedIncidentExport: Sendable {
         let own = bundle.repairs.filter { $0.monotonicAt >= header.startedAtMonotonic - 1.5 }.map {
             $0.closed()
         }
+        // The incident's own snapshots: its opening tick and everything recorded while it was open.
+        let window =
+            bundle.prelude.filter { $0.monotonicNow >= header.startedAtMonotonic } + bundle.during
+        // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
+        // One recorded after the incident ended (aftermath collection) is not the incident's.
+        let incidentEnd = header.endedAtMonotonic
+        let sceneInactive = bundle.breadcrumbs.contains { crumb in
+            crumb.kind == .sceneActivity && crumb.detail == "inactive"
+                && crumb.monotonicAt >= header.startedAtMonotonic - 1.5
+                && incidentEnd.map { crumb.monotonicAt <= $0 } ?? true
+        }
+        let background: String
+        if sceneInactive
+            || window.contains(where: { !$0.lifecycle.foreground || !$0.lifecycle.sceneActive })
+        {
+            background = "yes"
+        } else if window.isEmpty {
+            background = "unknown"
+        } else {
+            background = "no"
+        }
+        let awaitingIrap = window.last.map { $0.decoder.awaitingIrap ? "yes" : "no" } ?? "unknown"
         let grouping = FeedIncidentGrouping(
             schemaVersion: header.schemaVersion,
             failingStage: header.failingStage.rawValue,
@@ -169,7 +191,9 @@ public enum FeedIncidentExport: Sendable {
                 }
                 return decodeFlow(
                     submitHz: $0.rates.decodeSubmitHz, acceptHz: $0.rates.decodeAcceptHz)
-            } ?? "unknown")
+            } ?? "unknown",
+            background: background,
+            awaitingIrap: awaitingIrap)
         // The snapshot that opened the incident is the prelude's last; a short incident may have
         // no `during` snapshot yet.
         let during = Array(bundle.prelude.suffix(1)) + bundle.during

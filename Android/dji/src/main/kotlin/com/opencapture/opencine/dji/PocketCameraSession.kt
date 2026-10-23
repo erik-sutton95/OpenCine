@@ -2942,7 +2942,7 @@ class PocketCameraSession(
         override fun cleanup(kind: SessionRecoveryEpisode.Cleanup, attempt: SessionRecoveryEpisode.Attempt) {
             when (kind) {
                 SessionRecoveryEpisode.Cleanup.INITIAL_DROP -> {
-                    incidentSource?.noteUnexpectedDisconnect(SystemClock.elapsedRealtime() / 1000.0)
+                    SessionDropIncident.record(incidentSource, attempt.trigger, SystemClock.elapsedRealtime() / 1000.0)
                     holdsMonitor = true
                     feedRecoveryJob?.cancel()
                     feedRecoveryJob = null

@@ -733,6 +733,10 @@ public final class ReliabilityReporting: @unchecked Sendable {
             "keyframeWait": envelope.keyframeWait,
             "irapAge": envelope.irapAge,
             "decodeFlow": envelope.decodeFlow,
+            // Diagnostics: no bundle attachment reaches the issue, so these two say whether
+            // the gap spanned an app switch and whether a keyframe was pending.
+            "background": envelope.background,
+            "awaitingIrap": envelope.awaitingIrap,
             "decoderStatus": envelope.decoderStatus,
             "decoderCodec": envelope.decoderCodec,
             "watchdogHold": envelope.watchdogHold,
@@ -754,6 +758,8 @@ public final class ReliabilityReporting: @unchecked Sendable {
             "buildIdentity": envelope.buildIdentity,
             "trigger": envelope.trigger,
             "recoveredBy": envelope.recoveredBy,
+            "background": envelope.background,
+            "awaitingIrap": envelope.awaitingIrap,
             "decoderStatus": envelope.decoderStatus,
             "decoderCodec": envelope.decoderCodec,
             "watchdogHold": envelope.watchdogHold,

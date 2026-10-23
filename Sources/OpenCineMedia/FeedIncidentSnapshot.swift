@@ -817,6 +817,13 @@ public struct FeedIncidentVendorEnvelope: Equatable, Sendable, Codable {
     public var irapAge: String = "unknown"
     /// Decoder submits against accepts at onset (`FeedIncidentExport.decodeFlow`).
     public var decodeFlow: String = "unknown"
+    /// Diagnostic: `yes` when any snapshot of the incident was taken off screen (not foreground
+    /// or scene inactive) or a scene-inactive breadcrumb falls inside it, `no` when neither,
+    /// `unknown` without a snapshot. Kotlin twin.
+    public var background: String = "unknown"
+    /// Diagnostic: whether the decoder still waited for an IRAP at the incident's newest
+    /// snapshot (`yes`/`no`/`unknown`). Kotlin twin.
+    public var awaitingIrap: String = "unknown"
     /// The episode's first decoder error status (VideoToolbox `OSStatus`), else the last
     /// non-zero one, as decimal digits; `none` when the decoder reported no error.
     public var decoderStatus: String = "none"
@@ -849,6 +856,8 @@ extension FeedIncidentVendorEnvelope {
         keyframeWait = try values.decodeIfPresent(String.self, forKey: .keyframeWait) ?? "unknown"
         irapAge = try values.decodeIfPresent(String.self, forKey: .irapAge) ?? "unknown"
         decodeFlow = try values.decodeIfPresent(String.self, forKey: .decodeFlow) ?? "unknown"
+        background = try values.decodeIfPresent(String.self, forKey: .background) ?? "unknown"
+        awaitingIrap = try values.decodeIfPresent(String.self, forKey: .awaitingIrap) ?? "unknown"
         decoderStatus = try values.decodeIfPresent(String.self, forKey: .decoderStatus) ?? "none"
         decoderCodec = try values.decodeIfPresent(String.self, forKey: .decoderCodec) ?? "unknown"
         watchdogHold = try values.decodeIfPresent(String.self, forKey: .watchdogHold) ?? "none"

@@ -16,7 +16,7 @@ public struct ReliabilityReportingPrivacy: Sendable {
         "incidentCount", "sourceRevision", "hardwareClass", "cameraFirmware", "assistState",
         "decoderGeneration",
         "socketGeneration", "worstGapSeconds", "healthyExposureSeconds", "incidentCount",
-        "testSource", "buildIdentity", "trigger", "recoveredBy",
+        "testSource", "buildIdentity", "trigger", "recoveredBy", "background", "awaitingIrap",
         "decoderStatus", "decoderCodec", "watchdogHold",
     ]
 
@@ -55,6 +55,9 @@ public struct ReliabilityReportingPrivacy: Sendable {
         "keyframeWait": ["awaiting", "none", "unknown", "other"],
         "irapAge": ["never", "0-1s", "1-5s", "5-30s", "30s+", "unknown", "other"],
         "decodeFlow": ["idle", "rejecting", "partial", "flowing", "unknown", "other"],
+        // Incident diagnostics (FeedIncidentVendorEnvelope.background / awaitingIrap).
+        "background": ["yes", "no", "unknown", "other"],
+        "awaitingIrap": ["yes", "no", "unknown", "other"],
         // MonitorUpscaler raw values (Kotlin MonitorGlesUpscaler labels).
         "feedUpscaler": ["Off", "Fast", "Quality", "AI", "other"],
         "decoderCodec": FeedIncidentExport.decoderCodecs.union(["other"]),
@@ -111,6 +114,7 @@ public struct ReliabilityReportingPrivacy: Sendable {
         "sourceRevision", "cameraFamily", "cameraFirmware", "hardwareClass",
         "testSource", "buildIdentity", "trigger", "recoveredBy", "gap", "feedUpscaler",
         "decoderCall", "keyframeWait", "irapAge", "decodeFlow",
+        "background", "awaitingIrap",
         "decoderStatus", "decoderCodec", "watchdogHold",
     ]
 

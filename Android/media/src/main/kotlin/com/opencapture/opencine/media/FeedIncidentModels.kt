@@ -725,6 +725,19 @@ data class FeedIncidentVendorEnvelope(
     val irapAge: String = "unknown",
     /** Decoder submits against accepts at onset ([FeedIncidentExport.decodeFlow]). */
     val decodeFlow: String = "unknown",
+    /**
+     * Diagnostic: `yes` when any snapshot of the incident was taken off screen (not foreground or
+     * scene inactive) or a scene-inactive breadcrumb falls inside it, `no` when neither, `unknown`
+     * without a snapshot. Sentry carries no bundle
+     * attachment, so a long gap (PA-A, 290 s) could not tell an app switch from a dead feed.
+     */
+    val background: String = "unknown",
+    /**
+     * Diagnostic: whether the decoder still waited for an IRAP at the incident's newest snapshot
+     * (`yes`/`no`/`unknown`). An exhausted decoder repair (PA-1) then says if no keyframe arrived
+     * or one arrived and still produced no picture.
+     */
+    val awaitingIrap: String = "unknown",
 )
 
 data class FeedIncidentSessionSummary(
@@ -798,6 +811,16 @@ object FeedIncidentExport {
         val opening = onset(from)
         // The 1 Hz snapshot opens an incident up to a tick after its first repair.
         val own = from.repairs.filter { it.monotonicAt >= header.startedAtMonotonic - 1.5 }.map { it.closed() }
+        // The incident's own snapshots: its opening tick and everything recorded while it was open.
+        val window = from.prelude.filter { it.monotonicNow >= header.startedAtMonotonic } + from.during
+        // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
+        // One recorded after the incident ended (aftermath collection) is not the incident's.
+        val incidentEnd = header.endedAtMonotonic
+        val sceneInactive = from.breadcrumbs.any {
+            it.kind == FeedIncidentBreadcrumbKind.SCENE_ACTIVITY && it.detail == "inactive" &&
+                it.monotonicAt >= header.startedAtMonotonic - 1.5 &&
+                (incidentEnd == null || it.monotonicAt <= incidentEnd)
+        }
         val grouping =
             FeedIncidentGrouping(
                 schemaVersion = header.schemaVersion,
@@ -851,6 +874,13 @@ object FeedIncidentExport {
                     decodeFlow(it.rates.decodeSubmitHz, it.rates.decodeAcceptHz)
                 }
             } ?: "unknown",
+            background =
+                when {
+                    sceneInactive || window.any { !it.lifecycle.foreground || !it.lifecycle.sceneActive } -> "yes"
+                    window.isEmpty() -> "unknown"
+                    else -> "no"
+                },
+            awaitingIrap = window.lastOrNull()?.let { if (it.decoder.awaitingIrap) "yes" else "no" } ?: "unknown",
         )
     }
 }
