@@ -403,7 +403,7 @@ init MonitorFalseColorMapper(lookCurves: [OpenCineMedia.MonitorTransfer : [Swift
 init MonitorFrameBakeSource(lease: LiveFrameSampleBus.Source)
 init MonitorFrameBaker(device: any Metal.MTLDevice, workingSpace: MonitorFrameBakeWorkingSpace, scheduling: MonitorFrameBakeScheduling, unavailableTarget: MonitorFrameBakeUnavailableTarget)
 init MonitorImageEffects()
-init MonitorInspectorImageRenderer(lookCurves: [OpenCineMedia.MonitorTransfer : [Swift.Double]], now: MonitorInspectorImageRenderer.Clock, operation: MonitorInspectorImageRenderer.RenderOperation?)
+init MonitorInspectorImageRenderer(lookCurves: [OpenCineMedia.MonitorTransfer : [Swift.Double]], now: MonitorInspectorImageRenderer.Clock, operation: MonitorInspectorImageRenderer.RenderOperation?, workerQoS: Dispatch.DispatchQoS)
 init MonitorJPEGImageDecoder(logSubsystem: Swift.String, denoiseStrength: () -> Swift.Float?, unavailable: (Swift.String?) -> Swift.Void)
 init MonitorLiveVideoDecoder(configuration: MonitorVideoConfiguration, simulator: MonitorSimulatorVideoConfiguration?)
 init MonitorLiveVideoRuntime(configuration: MonitorVideoConfiguration)
@@ -610,6 +610,7 @@ static let JPEGPixelBufferDecoder.pixelFormat: Darwin.OSType
 static let LiveViewPresentTiming.timescale: Swift.Int32
 static let MediaCellImageLoader.shared: MediaCellImageLoader
 static let MonitorImageSampling.fileCodeColorSpace: CoreGraphics.CGColorSpace
+static let MonitorInspectorImageRenderer.defaultWorkerQoS: Dispatch.DispatchQoS
 static let MonitorPeakingSensitivity.medium: MonitorPeakingSensitivity
 static let MonitorPlaybackDisplayLink.parkAfter: CoreFoundation.CFTimeInterval
 static let MonitorPlaybackDisplayLink.pollRange: QuartzCore.CAFrameRateRange

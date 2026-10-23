@@ -283,8 +283,9 @@ import XCTest
             provider: try XCTUnwrap(CGDataProvider(data: Data([255, 255, 255, 255]) as CFData)),
             decode: nil, shouldInterpolate: false, intent: .defaultIntent))
         let captured = probe
+        // The test blocks this worker and awaits it from the main actor: same tier as the waiter.
         let renderer = MonitorInspectorImageRenderer(lookCurves: [:], now: { captured.now },
-            operation: { _, _ in captured.render(); return image })
+            operation: { _, _ in captured.render(); return image }, workerQoS: .userInitiated)
         source = MonitorInspectorImageSource(renderer: renderer, samples: samples)
         var allocated: CVPixelBuffer?
         let result = CVPixelBufferCreate(kCFAllocatorDefault, 8, 8, kCVPixelFormatType_32BGRA,

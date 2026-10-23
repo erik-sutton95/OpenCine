@@ -18,7 +18,9 @@ public final class MonitorInspectorImageRenderer: @unchecked Sendable {
     }
 
     public let falseColorMapper: MonitorFalseColorMapper
-    private let queue = DispatchQueue(label: "opencine.assist-inspector", qos: .utility)
+    /// Inspector previews yield to the live picture: production work runs at utility QoS.
+    public static let defaultWorkerQoS: DispatchQoS = .utility
+    private let queue: DispatchQueue
     private let lock = NSLock()
     private var admission = MonitorPreviewAdmission()
     private let now: Clock
@@ -27,10 +29,15 @@ public final class MonitorInspectorImageRenderer: @unchecked Sendable {
     private var displayContext: CIContext?
     private var cubeContext: CIContext?
 
+    /// `workerQoS` is a scheduling choice only; admission and ownership never depend on it.
+    /// Hosted tests that block a worker and await its events from the main thread pass the
+    /// waiter's tier: at utility, a loaded simulator can delay worker entry past any event budget.
     public init(lookCurves: [MonitorTransfer: [Double]],
         now: @escaping Clock = { DispatchTime.now().uptimeNanoseconds },
-        operation: RenderOperation? = nil
+        operation: RenderOperation? = nil,
+        workerQoS: DispatchQoS = MonitorInspectorImageRenderer.defaultWorkerQoS
     ) {
+        queue = DispatchQueue(label: "opencine.assist-inspector", qos: workerQoS)
         falseColorMapper = MonitorFalseColorMapper(lookCurves: lookCurves)
         self.now = now
         self.operation = operation

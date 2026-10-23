@@ -38,6 +38,20 @@ next passing night closes it. Dispatches on other branches only write the run su
 cannot stay red unnoticed, and a red nightly is fixed like any other bug: in a pull request
 that passes the PR tier, then confirmed by dispatching the nightly.
 
+## Hosted test timing
+
+On a hosted runner the test host app launches its real interface beside the first unit tests,
+and the fresh simulator is busy at the same time. Main-thread and waiting test work then runs
+within milliseconds while utility-QoS work can wait several seconds (an inspector render worker
+entered 6 s after admission, 2026-10-23). A test that blocks a native worker and awaits its events
+runs that worker at the waiter's tier (`MonitorInspectorImageRenderer(workerQoS:)`); production
+keeps its own QoS.
+
+XCTest reports the last Swift error it observed in a failed test, and UIKit teardown in a
+`defer` throws and swallows private framework errors (`InvalidTransition { phase: idle,
+targetPhase: failed(removedFromContainer) }` from Gestures). An event wait therefore records its
+own failure (`XCTFail`) before it throws, so the report names the missed event.
+
 ## QUARANTINE
 
 Tests with a known hosted flake run only in the nightly tier, each with an open issue (label
