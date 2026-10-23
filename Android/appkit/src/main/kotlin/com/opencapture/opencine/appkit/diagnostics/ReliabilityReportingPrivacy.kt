@@ -295,6 +295,8 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                 "buildIdentity",
                 "trigger",
                 "recoveredBy",
+                "background",
+                "awaitingIrap",
             )
 
         public val contextAllowlist: Map<String, Set<String>> =
@@ -337,6 +339,9 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
             mapOf(
                 "trigger" to FeedIncidentNativeBreadcrumb.allowedValues.getValue("repairReason") + setOf("none", "other"),
                 "recoveredBy" to FeedIncidentNativeBreadcrumb.allowedValues.getValue("repairAction") + setOf("none", "other"),
+                // Incident diagnostics (FeedIncidentVendorEnvelope.background / awaitingIrap).
+                "background" to setOf("yes", "no", "unknown", "other"),
+                "awaitingIrap" to setOf("yes", "no", "unknown", "other"),
                 // MonitorGlesUpscaler labels (Swift MonitorUpscaler raw values).
                 "feedUpscaler" to setOf("Off", "Fast", "Quality", "AI", "other"),
                 // Incident outcomes and the session summary's own.
@@ -409,6 +414,8 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                 "recoveredBy",
                 "gap",
                 "feedUpscaler",
+                "background",
+                "awaitingIrap",
             )
 
         /** 32 hex digits from an incident or session id, as the SDK prints its event id. */

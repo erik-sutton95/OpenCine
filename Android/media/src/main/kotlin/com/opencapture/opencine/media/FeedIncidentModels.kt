@@ -715,6 +715,18 @@ data class FeedIncidentVendorEnvelope(
     val trigger: String = "none",
     /** Last repair action before a recovered outcome, else `none`. */
     val recoveredBy: String = "none",
+    /**
+     * Diagnostic: `yes` when any snapshot of the incident was taken off screen (not foreground or
+     * scene inactive), `no` when none was, `unknown` without a snapshot. Sentry carries no bundle
+     * attachment, so a long gap (PA-A, 290 s) could not tell an app switch from a dead feed.
+     */
+    val background: String = "unknown",
+    /**
+     * Diagnostic: whether the decoder still waited for an IRAP at the incident's newest snapshot
+     * (`yes`/`no`/`unknown`). An exhausted decoder repair (PA-1) then says if no keyframe arrived
+     * or one arrived and still produced no picture.
+     */
+    val awaitingIrap: String = "unknown",
 )
 
 data class FeedIncidentSessionSummary(
@@ -743,6 +755,8 @@ object FeedIncidentExport {
         val header = from.header
         // The 1 Hz snapshot opens an incident up to a tick after its first repair.
         val own = from.repairs.filter { it.monotonicAt >= header.startedAtMonotonic - 1.5 }.map { it.closed() }
+        // The incident's own snapshots: its opening tick and everything recorded while it was open.
+        val window = from.prelude.filter { it.monotonicNow >= header.startedAtMonotonic - 1.5 } + from.during
         val grouping =
             FeedIncidentGrouping(
                 schemaVersion = header.schemaVersion,
@@ -782,6 +796,13 @@ object FeedIncidentExport {
                 } else {
                     "none"
                 },
+            background =
+                when {
+                    window.isEmpty() -> "unknown"
+                    window.any { !it.lifecycle.foreground || !it.lifecycle.sceneActive } -> "yes"
+                    else -> "no"
+                },
+            awaitingIrap = window.lastOrNull()?.let { if (it.decoder.awaitingIrap) "yes" else "no" } ?: "unknown",
         )
     }
 }

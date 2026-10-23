@@ -306,6 +306,36 @@ import Testing
         #expect(FeedIncidentExport.envelope(from: bundle).trigger == "none")
     }
 
+    /// Kotlin twin: `envelopeCarriesBackgroundAndIrapDiagnostics` (FeedIncidentExportTest).
+    @Test func envelopeCarriesBackgroundAndIrapDiagnostics() throws {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-diagnostics" })
+        _ = recorder.beginSession(Fixture.context())
+        func stale(_ now: TimeInterval, foreground: Bool, awaiting: Bool) -> FeedIncidentSnapshot {
+            var snapshot = Fixture.stall(now: now, outputAge: now, foreground: foreground)
+            snapshot.lifecycle.sceneActive = foreground
+            snapshot.decoder.awaitingIrap = awaiting
+            return snapshot
+        }
+        var bundle = try #require(
+            recorder.recordSnapshot(stale(4, foreground: true, awaiting: false))?.bundle)
+        var envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.background == "no")
+        #expect(envelope.awaitingIrap == "no")
+        // Still open: an app switch, then back with the decoder waiting for a keyframe.
+        _ = recorder.recordSnapshot(stale(5, foreground: false, awaiting: false))
+        _ = recorder.recordSnapshot(stale(6, foreground: true, awaiting: true))
+        bundle = try #require(recorder.exportOpen())
+        envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.background == "yes", "one off-screen snapshot inside the incident")
+        #expect(envelope.awaitingIrap == "yes", "the newest snapshot decides")
+        // Snapshots before the incident opened are not its own.
+        var early = bundle
+        early.prelude = [stale(1, foreground: false, awaiting: true)]
+        early.during = []
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
+        #expect(FeedIncidentExport.envelope(from: early).awaitingIrap == "unknown")
+    }
+
     @Test func coveredUnobservableFeedCannotClaimRecoveryOrHealthyExposure() {
         var recorder = FeedIncidentRecorder()
         _ = recorder.beginSession(Fixture.context())

@@ -794,6 +794,12 @@ public struct FeedIncidentVendorEnvelope: Equatable, Sendable, Codable {
     public var trigger: String
     /// Last repair action before a recovered outcome, else `none`.
     public var recoveredBy: String
+    /// Diagnostic: `yes` when any snapshot of the incident was taken off screen (not foreground
+    /// or scene inactive), `no` when none was, `unknown` without a snapshot. Kotlin twin.
+    public var background: String = "unknown"
+    /// Diagnostic: whether the decoder still waited for an IRAP at the incident's newest
+    /// snapshot (`yes`/`no`/`unknown`). Kotlin twin.
+    public var awaitingIrap: String = "unknown"
 }
 
 public struct FeedIncidentVerdict: Equatable, Sendable {

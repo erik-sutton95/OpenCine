@@ -69,6 +69,18 @@ public enum FeedIncidentExport: Sendable {
         let own = bundle.repairs.filter { $0.monotonicAt >= header.startedAtMonotonic - 1.5 }.map {
             $0.closed()
         }
+        // The incident's own snapshots: its opening tick and everything recorded while it was open.
+        let window =
+            bundle.prelude.filter { $0.monotonicNow >= header.startedAtMonotonic - 1.5 } + bundle.during
+        let background: String
+        if window.isEmpty {
+            background = "unknown"
+        } else if window.contains(where: { !$0.lifecycle.foreground || !$0.lifecycle.sceneActive }) {
+            background = "yes"
+        } else {
+            background = "no"
+        }
+        let awaitingIrap = window.last.map { $0.decoder.awaitingIrap ? "yes" : "no" } ?? "unknown"
         let grouping = FeedIncidentGrouping(
             schemaVersion: header.schemaVersion,
             failingStage: header.failingStage.rawValue,
@@ -98,6 +110,8 @@ public enum FeedIncidentExport: Sendable {
             recoveredBy: header.outcome == .recovered
                 ? own.last(where: { $0.reason != FeedRepairRecord.firstPictureReason })?.action
                     ?? "none"
-                : "none")
+                : "none",
+            background: background,
+            awaitingIrap: awaitingIrap)
     }
 }

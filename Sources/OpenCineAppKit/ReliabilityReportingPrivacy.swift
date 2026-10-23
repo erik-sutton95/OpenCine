@@ -16,7 +16,7 @@ public struct ReliabilityReportingPrivacy: Sendable {
         "incidentCount", "sourceRevision", "hardwareClass", "cameraFirmware", "assistState",
         "decoderGeneration",
         "socketGeneration", "worstGapSeconds", "healthyExposureSeconds", "incidentCount",
-        "testSource", "buildIdentity", "trigger", "recoveredBy",
+        "testSource", "buildIdentity", "trigger", "recoveredBy", "background", "awaitingIrap",
     ]
 
     public static let contextAllowlist: [String: Set<String>] = [
@@ -48,6 +48,9 @@ public struct ReliabilityReportingPrivacy: Sendable {
             .union(["none", "other"]),
         "recoveredBy": FeedIncidentNativeBreadcrumb.allowedValues["repairAction", default: []]
             .union(["none", "other"]),
+        // Incident diagnostics (FeedIncidentVendorEnvelope.background / awaitingIrap).
+        "background": ["yes", "no", "unknown", "other"],
+        "awaitingIrap": ["yes", "no", "unknown", "other"],
         // MonitorUpscaler raw values (Kotlin MonitorGlesUpscaler labels).
         "feedUpscaler": ["Off", "Fast", "Quality", "AI", "other"],
         // Incident outcomes and the session summary's own.
@@ -98,6 +101,7 @@ public struct ReliabilityReportingPrivacy: Sendable {
         "failingStage", "errorClass", "outcome", "kind",
         "sourceRevision", "cameraFamily", "cameraFirmware", "hardwareClass",
         "testSource", "buildIdentity", "trigger", "recoveredBy", "gap", "feedUpscaler",
+        "background", "awaitingIrap",
     ]
 
     /// 32 lowercase hex digits from an incident or session id, as the SDK reads and prints a
