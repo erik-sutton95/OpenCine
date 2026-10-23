@@ -737,6 +737,9 @@ public final class ReliabilityReporting: @unchecked Sendable {
             // the gap spanned an app switch and whether a keyframe was pending.
             "background": envelope.background,
             "awaitingIrap": envelope.awaitingIrap,
+            "decoderStatus": envelope.decoderStatus,
+            "decoderCodec": envelope.decoderCodec,
+            "watchdogHold": envelope.watchdogHold,
         ]
         event.extra = [
             "schemaVersion": envelope.schemaVersion,
@@ -757,6 +760,9 @@ public final class ReliabilityReporting: @unchecked Sendable {
             "recoveredBy": envelope.recoveredBy,
             "background": envelope.background,
             "awaitingIrap": envelope.awaitingIrap,
+            "decoderStatus": envelope.decoderStatus,
+            "decoderCodec": envelope.decoderCodec,
+            "watchdogHold": envelope.watchdogHold,
         ]
         event.context = [
             "feed": [

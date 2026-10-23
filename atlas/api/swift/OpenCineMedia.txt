@@ -500,6 +500,7 @@ init FeedIncidentSessionSummary(sessionID: Swift.String, healthyExposureSeconds:
 init FeedIncidentSnapshot(monotonicNow: Foundation.TimeInterval, wallClock: Foundation.Date, rates: FeedIncidentRates, ages: FeedIncidentAges, queue: FeedIncidentQueue, decoder: FeedIncidentDecoder, lifecycle: FeedIncidentLifecycle, watchdogAction: Swift.String, diagnoserFailure: Swift.String, diagnoserRepair: Swift.String)
 init FeedIncidentSnapshot(monotonicNow: Foundation.TimeInterval, wallClock: Foundation.Date, rates: FeedIncidentRates, ages: FeedIncidentAges, queue: FeedIncidentQueue, decoder: FeedIncidentDecoder, lifecycle: FeedIncidentLifecycle, watchdogAction: Swift.String, diagnoserFailure: Swift.String, diagnoserRepair: Swift.String, ingress: FeedIncidentIngress?, watchdogGate: FeedIncidentWatchdogGate?)
 init FeedIncidentStageCounts(packet: Swift.Int?, accessUnit: Swift.Int?, decodeSubmit: Swift.Int?, decodeAccept: Swift.Int?, decodedOutput: Swift.Int?, assistOutput: Swift.Int?, present: Swift.Int?, ack: Swift.Int?)
+init FeedIncidentVendorEnvelope(from: any Swift.Decoder) throws
 init FeedIncidentWatchdogGate(from: any Swift.Decoder) throws
 init FeedIncidentWatchdogGate(pathReady: Swift.Bool?, repairReady: Swift.Bool?, outputExpected: Swift.Bool?, hold: Swift.String?)
 init FeedIngressMetrics(generation: Swift.Int)
@@ -1000,11 +1001,13 @@ static let FeedIncidentBounds.stringLength: Swift.Int
 static let FeedIncidentBuildIdentity.maxLength: Swift.Int
 static let FeedIncidentDecodeErrorContext.maxNalTypes: Swift.Int
 static let FeedIncidentExport.decoderCalls: Swift.Set<Swift.String>
+static let FeedIncidentExport.decoderCodecs: Swift.Set<Swift.String>
 static let FeedIncidentLimits.production: FeedIncidentLimits
 static let FeedIncidentNativeBreadcrumb.allowedValues: [Swift.String : Swift.Set<Swift.String>]
 static let FeedIncidentRecorder.aftermathSeconds: Foundation.TimeInterval
 static let FeedIncidentRecorder.preludeSeconds: Foundation.TimeInterval
 static let FeedIncidentSchema.version: Swift.Int
+static let FeedIncidentWatchdogGate.holdValues: Swift.Set<Swift.String>
 static let FeedPresentPolicy.extraMirrorHoldFrames: Swift.Int
 static let FeedPresentPolicy.extraMirrorHoldSeconds: Foundation.TimeInterval
 static let FeedPresentPolicy.freezeThreshold: Foundation.TimeInterval
@@ -1469,7 +1472,9 @@ var FeedIncidentVendorEnvelope.background: Swift.String
 var FeedIncidentVendorEnvelope.buildIdentity: Swift.String
 var FeedIncidentVendorEnvelope.decodeFlow: Swift.String
 var FeedIncidentVendorEnvelope.decoderCall: Swift.String
+var FeedIncidentVendorEnvelope.decoderCodec: Swift.String
 var FeedIncidentVendorEnvelope.decoderGeneration: Swift.Int
+var FeedIncidentVendorEnvelope.decoderStatus: Swift.String
 var FeedIncidentVendorEnvelope.eventName: Swift.String
 var FeedIncidentVendorEnvelope.grouping: FeedIncidentGrouping
 var FeedIncidentVendorEnvelope.healthyExposureSeconds: Foundation.TimeInterval
@@ -1483,6 +1488,7 @@ var FeedIncidentVendorEnvelope.sessionID: Swift.String
 var FeedIncidentVendorEnvelope.socketGeneration: Swift.Int
 var FeedIncidentVendorEnvelope.testSource: Swift.String
 var FeedIncidentVendorEnvelope.trigger: Swift.String
+var FeedIncidentVendorEnvelope.watchdogHold: Swift.String
 var FeedIncidentVendorEnvelope.worstGapSeconds: Foundation.TimeInterval
 var FeedIncidentVerdict.failingStage: FeedIncidentFailingStage?
 var FeedIncidentVerdict.kind: FeedIncidentKind?

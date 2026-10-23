@@ -487,6 +487,17 @@ public struct FeedIncidentWatchdogGate: Equatable, Sendable, Codable {
     }
 }
 
+extension FeedIncidentWatchdogGate {
+    /// Every hold a producer records: `FeedWatchdog.Hold` raw values plus the shells' own pre-tick
+    /// holds. Reporting exports anything else as `other`.
+    public static let holdValues: Set<String> = [
+        "fired", "notLive", "pathNotReady", "repairNotReady", "repairDeadline", "rejoinCooldown",
+        "gopReset", "controlGrace", "receiveAlive", "outputNotExpected", "accessUnitStale",
+        "firstVideoWait", "rungWait", "rebuildBackoff", "cooldown",
+        "foregroundRecover", "endpointRebuild", "repairInFlight",
+    ]
+}
+
 /// One-second allowlisted stage snapshot. No compressed payload, footage, or PII.
 public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
     public var monotonicNow: TimeInterval
@@ -813,6 +824,44 @@ public struct FeedIncidentVendorEnvelope: Equatable, Sendable, Codable {
     /// Diagnostic: whether the decoder still waited for an IRAP at the incident's newest
     /// snapshot (`yes`/`no`/`unknown`). Kotlin twin.
     public var awaitingIrap: String = "unknown"
+    /// The episode's first decoder error status (VideoToolbox `OSStatus`), else the last
+    /// non-zero one, as decimal digits; `none` when the decoder reported no error.
+    public var decoderStatus: String = "none"
+    /// The live codec during the incident: `avc`, `hevc`, `unknown` or `other`.
+    public var decoderCodec: String = "unknown"
+    /// The feed watchdog's last hold during the incident (`FeedWatchdog.Hold`), else `none`.
+    public var watchdogHold: String = "none"
+}
+
+extension FeedIncidentVendorEnvelope {
+    /// Envelopes written before the decode-state, decoder and watchdog fields read them as unknown.
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        eventName = try values.decode(String.self, forKey: .eventName)
+        grouping = try values.decode(FeedIncidentGrouping.self, forKey: .grouping)
+        incidentID = try values.decode(String.self, forKey: .incidentID)
+        sessionID = try values.decode(String.self, forKey: .sessionID)
+        kind = try values.decode(String.self, forKey: .kind)
+        worstGapSeconds = try values.decode(TimeInterval.self, forKey: .worstGapSeconds)
+        healthyExposureSeconds = try values.decode(
+            TimeInterval.self, forKey: .healthyExposureSeconds)
+        decoderGeneration = try values.decode(Int.self, forKey: .decoderGeneration)
+        socketGeneration = try values.decode(Int.self, forKey: .socketGeneration)
+        testSource = try values.decode(String.self, forKey: .testSource)
+        buildIdentity = try values.decode(String.self, forKey: .buildIdentity)
+        trigger = try values.decode(String.self, forKey: .trigger)
+        recoveredBy = try values.decode(String.self, forKey: .recoveredBy)
+        decoderCall = try values.decodeIfPresent(String.self, forKey: .decoderCall) ?? "none"
+        keyframeWait = try values.decodeIfPresent(String.self, forKey: .keyframeWait) ?? "unknown"
+        irapAge = try values.decodeIfPresent(String.self, forKey: .irapAge) ?? "unknown"
+        decodeFlow = try values.decodeIfPresent(String.self, forKey: .decodeFlow) ?? "unknown"
+        background = try values.decodeIfPresent(String.self, forKey: .background) ?? "unknown"
+        awaitingIrap = try values.decodeIfPresent(String.self, forKey: .awaitingIrap) ?? "unknown"
+        decoderStatus = try values.decodeIfPresent(String.self, forKey: .decoderStatus) ?? "none"
+        decoderCodec = try values.decodeIfPresent(String.self, forKey: .decoderCodec) ?? "unknown"
+        watchdogHold = try values.decodeIfPresent(String.self, forKey: .watchdogHold) ?? "none"
+    }
 }
 
 public struct FeedIncidentVerdict: Equatable, Sendable {

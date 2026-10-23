@@ -32,6 +32,42 @@ import Testing
         #expect(port.fired.isEmpty)
     }
 
+    /// OPENPOCKETCINE-IOS-44: SwiftUI bodies read `current` many times per frame. A read with the
+    /// same session state reuses the snapshot; each input the mapping reads rebuilds it once.
+    @Test func repeatedReadsReuseTheSnapshotUntilTheSessionChanges() {
+        let port = FakePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        let first = seam.current
+        for _ in 0..<50 { _ = seam.current }
+        _ = seam.controlCapabilities()
+        _ = seam.layout()
+        #expect(seam.snapshotBuilds == 1)
+        #expect(seam.current == first)
+
+        port.status.isoIndex = .iso400
+        #expect(seam.current.settings[.iso]?.value == .iso(.manual(400)))
+        _ = seam.current
+        #expect(seam.snapshotBuilds == 2)
+
+        port.isBusy = true
+        #expect(seam.current.capabilities.descriptors[.recording]?.availability == .unavailable(.busy))
+        port.link = .recovering
+        #expect(seam.current.authority == .unavailable(.link))
+        port.admitsMultiviewControl = false
+        port.link = .ready
+        #expect(seam.current.authority == .unavailable(.authority))
+        port.connectedCameraID = "another"
+        _ = seam.current
+        port.connectedModel = nil
+        #expect(seam.current.capabilities.unsupported.isEmpty)
+        port.captureControlState = DJICaptureControlState(reported: port.status, model: port.connectedModel)
+        _ = seam.current
+        seam.linkDidChange()
+        _ = seam.current
+        _ = seam.current
+        #expect(seam.snapshotBuilds == 9)
+    }
+
     /// SIMULATED Nano report: the recording profile reads in the body's own colour names.
     @Test func recordingProfileUsesTheBodyColourNames() {
         let port = FakePort()

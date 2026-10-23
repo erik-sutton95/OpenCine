@@ -306,6 +306,49 @@ import Testing
         #expect(FeedIncidentExport.envelope(from: bundle).trigger == "none")
     }
 
+    /// Pocket iOS Q/22/16/48 report `errorClass nativeDecoder` with no status, and K/2E/1T a
+    /// presentation stall with no trigger. The on-device bundle already holds the VideoToolbox
+    /// status, the codec and the watchdog's hold; the envelope carries them so the next build's
+    /// events can be split by cause.
+    @Test func envelopeCarriesTheDecoderStatusCodecAndWatchdogHold() throws {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-status" })
+        _ = recorder.beginSession(Fixture.context())
+        var bundle = try #require(
+            recorder.recordSnapshot(Fixture.stall(now: 4, outputAge: 3))?.bundle)
+        var plain = FeedIncidentExport.envelope(from: bundle)
+        #expect(plain.decoderStatus == "none")
+        #expect(plain.watchdogHold == "none")
+
+        var first = try #require(bundle.during.first ?? bundle.prelude.last)
+        first.decoder = FeedIncidentDecoder(
+            codec: "avc", lastStatus: -12911, errorClass: "nativeDecoder",
+            firstError: FeedIncidentDecodeErrorContext(
+                status: -12909, nalTypes: [1], accessUnitBytes: 900))
+        first.watchdogGate = FeedIncidentWatchdogGate(hold: "rungWait")
+        var later = first
+        later.decoder = FeedIncidentDecoder(codec: "avc", lastStatus: -12911)
+        later.watchdogGate = FeedIncidentWatchdogGate(hold: "repairDeadline")
+        bundle.during = [first, later]
+        plain = FeedIncidentExport.envelope(from: bundle)
+        #expect(plain.decoderStatus == "-12909", "the episode's first error names the failure")
+        #expect(plain.decoderCodec == "avc")
+        #expect(plain.watchdogHold == "repairDeadline", "the last hold is what kept the ladder idle")
+
+        bundle.during = [later]
+        #expect(FeedIncidentExport.envelope(from: bundle).decoderStatus == "-12911")
+        later.decoder = FeedIncidentDecoder(codec: "SIMULATED camera 6002199", lastStatus: 0)
+        bundle.during = [later]
+        let closed = FeedIncidentExport.envelope(from: bundle)
+        #expect(closed.decoderStatus == "none")
+        #expect(closed.decoderCodec == "other")
+
+        let legacy = try JSONDecoder().decode(
+            FeedIncidentVendorEnvelope.self,
+            from: try JSONEncoder().encode(FeedIncidentExport.envelope(from: bundle))
+                .replacingKeys(["decoderStatus", "decoderCodec", "watchdogHold"]))
+        #expect(legacy.decoderStatus == "none" && legacy.watchdogHold == "none")
+    }
+
     /// Kotlin twin: `envelopeCarriesBackgroundAndIrapDiagnostics` (FeedIncidentExportTest).
     @Test func envelopeCarriesBackgroundAndIrapDiagnostics() throws {
         var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-diagnostics" })
@@ -752,5 +795,14 @@ private final class StubIDs: @unchecked Sendable {
     init(_ values: [String]) { self.values = values }
     func next() -> String {
         values.isEmpty ? "overflow" : values.removeFirst()
+    }
+}
+
+extension Data {
+    /// The same JSON object without `keys`: what a record written before those keys existed holds.
+    fileprivate func replacingKeys(_ keys: [String]) throws -> Data {
+        var object = try #require(JSONSerialization.jsonObject(with: self) as? [String: Any])
+        for key in keys { object[key] = nil }
+        return try JSONSerialization.data(withJSONObject: object)
     }
 }

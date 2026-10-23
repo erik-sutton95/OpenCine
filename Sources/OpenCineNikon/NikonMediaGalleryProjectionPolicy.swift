@@ -61,6 +61,8 @@ public struct NikonAppleGalleryProjectionPolicy: MonitorMediaProjectionPolicy {
     public let groupStage = MonitorMediaProjectionGroupStage.beforeSort
     private let items: [NikonGallerySourceItem]
     private let byID: [MediaAssetID: NikonGallerySourceItem]
+    /// The first RAW of each pair key, in item order: what `rawCompanion` answers per cell.
+    private let firstRawByPairKey: [String: MediaAssetID]
     private let now: Date
     private let calendar: Calendar
     public init(items: [NikonGallerySourceItem], now: Date, calendar: Calendar) {
@@ -68,6 +70,11 @@ public struct NikonAppleGalleryProjectionPolicy: MonitorMediaProjectionPolicy {
         self.now = now
         self.calendar = calendar
         byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var firstRaw: [String: MediaAssetID] = [:]
+        for item in items where item.raw && firstRaw[item.pairKey] == nil {
+            firstRaw[item.pairKey] = item.id
+        }
+        firstRawByPairKey = firstRaw
     }
     public func prepareCategory(_ ids: [MediaAssetID], category: MonitorMediaProjectionCategory)
         -> MonitorMediaProjectionCategoryFacts
@@ -172,8 +179,10 @@ public struct NikonAppleGalleryProjectionPolicy: MonitorMediaProjectionPolicy {
         }
     }
     /// Unfiltered lookup remains available to unchanged native RAW widening/viewer operations.
+    /// The gallery asks it for every cell on each render, so it never rescans the library
+    /// (OPENZCINE-IOS-6/-7).
     public func rawCompanion(of id: MediaAssetID) -> MediaAssetID? {
         guard let item = byID[id], item.jpeg else { return nil }
-        return items.first { $0.raw && $0.pairKey == item.pairKey }?.id
+        return firstRawByPairKey[item.pairKey]
     }
 }
