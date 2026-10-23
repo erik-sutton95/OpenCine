@@ -4,8 +4,10 @@
 
     /// SIMULATED: codec and colour are one popup. In portrait and landscape, the colour readout
     /// opens the codec and colour popup, and so does the codec readout where the camera has one.
-    /// Portrait folds the colour readout into that codec readout, so it is not shown beside it.
-    /// Screenshots of the popup are kept as attachments. Apps supply only their review launch values.
+    /// Both orientations fold the colour readout into that codec readout, so it is not shown
+    /// beside it; landscape names the folded control "Codec and color" (`MonitorHeaderReadoutPolicy`,
+    /// c999fea2). Screenshots of the popup are kept as attachments. Apps supply only their review
+    /// launch values.
     open class CodecColorPopupUITests: SharedAppUITestCase {
         open var reviewLaunchEnvironment: [String: String] {
             [
@@ -100,22 +102,18 @@
                 let name = orientation == .portrait ? "portrait" : "landscape"
                 let color = app.buttons["monitor.capture.color"]
                 if hasCodecReadout {
-                    let codec = app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).firstMatch
-                    XCTAssertTrue(codec.waitForExistence(timeout: 5), "The codec readout must be shown")
-                    // Portrait folds the colour readout into the codec readout (1ea73c92).
-                    if orientation == .portrait {
-                        XCTAssertFalse(
-                            color.exists,
-                            "Portrait shows the colour through the codec readout, not beside it")
-                    }
-                }
-                if !hasCodecReadout || orientation != .portrait {
+                    // Both orientations fold the colour into the codec readout (1ea73c92 portrait,
+                    // c999fea2 landscape); landscape speaks both values from the one control.
+                    let label = orientation == .portrait ? "Codec" : Self.foldedCodecLabel
+                    let codec = app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
+                    XCTAssertTrue(codec.waitForExistence(timeout: 5), "The \(label) readout must be shown")
+                    XCTAssertFalse(
+                        color.exists,
+                        "The \(name) header shows the colour through the codec readout, not beside it")
+                    try open(codec, orientation: name, readout: "codec")
+                } else {
                     XCTAssertTrue(color.waitForExistence(timeout: 10), "The colour readout must be shown")
                     try open(color, orientation: name, readout: "color")
-                }
-                if hasCodecReadout {
-                    let codec = app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).firstMatch
-                    try open(codec, orientation: name, readout: "codec")
                 }
             }
         }
@@ -123,14 +121,19 @@
         /// The smallest popup top margin in points (`MonitorCapturePopupLayout`).
         static let popupTopMargin: CGFloat = 8
 
+        /// The landscape codec readout's label once it carries the colour
+        /// (`MonitorHeaderCombinedCodec.title`).
+        static let foldedCodecLabel = "Codec and color"
+
         /// The capture readouts' labels and values, so the check reads the header, not the popup.
         private func headerValues() -> [String] {
             ["monitor.capture.color", "monitor.capture.format"].flatMap { id -> [String] in
                 let element = app.buttons[id]
                 guard element.exists else { return [] }
                 return [element.label, element.value as? String ?? ""]
-            } + app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).allElementsBoundByIndex
-                .map { $0.value as? String ?? "" }
+            } + app.buttons.matching(
+                NSPredicate(format: "label IN %@", ["Codec", Self.foldedCodecLabel])
+            ).allElementsBoundByIndex.map { $0.value as? String ?? "" }
         }
 
         private func tap(_ point: CGPoint) {
@@ -141,7 +144,9 @@
         private func open(_ readout: XCUIElement, orientation: String, readout name: String,
             point: CGPoint? = nil) throws {
             // What the header shows before the popup covers it.
-            let shown = [readout.label, readout.value as? String ?? ""] + headerValues()
+            // A folded codec readout reads "H.265 · N-Log": either part is a value the popup may open on.
+            let shown = ([readout.label, readout.value as? String ?? ""] + headerValues())
+                .flatMap { [$0] + $0.components(separatedBy: " · ") }
             if let point { tap(point) } else { readout.tap() }
             // The popup container (`monitor.capture.codecColor`) or, where a host draws its own
             // codec control above it, the colour section (`monitor.capture.codecColor.color`).
