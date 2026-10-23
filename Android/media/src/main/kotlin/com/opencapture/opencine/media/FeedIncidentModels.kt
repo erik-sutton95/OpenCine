@@ -759,9 +759,12 @@ object FeedIncidentExport {
         // The incident's own snapshots: its opening tick and everything recorded while it was open.
         val window = from.prelude.filter { it.monotonicNow >= header.startedAtMonotonic - 1.5 } + from.during
         // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
+        // One recorded after the incident ended (aftermath collection) is not the incident's.
+        val incidentEnd = header.endedAtMonotonic
         val sceneInactive = from.breadcrumbs.any {
             it.kind == FeedIncidentBreadcrumbKind.SCENE_ACTIVITY && it.detail == "inactive" &&
-                it.monotonicAt >= header.startedAtMonotonic - 1.5
+                it.monotonicAt >= header.startedAtMonotonic - 1.5 &&
+                (incidentEnd == null || it.monotonicAt <= incidentEnd)
         }
         val grouping =
             FeedIncidentGrouping(

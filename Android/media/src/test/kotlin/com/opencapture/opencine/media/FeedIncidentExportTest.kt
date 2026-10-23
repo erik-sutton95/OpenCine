@@ -92,5 +92,8 @@ class FeedIncidentExportTest {
         assertEquals("yes", FeedIncidentExport.envelope(early.copy(breadcrumbs = listOf(inactive))).background)
         val before = inactive.copy(monotonicAt = 1.0)
         assertEquals("unknown", FeedIncidentExport.envelope(early.copy(breadcrumbs = listOf(before))).background)
+        // An app switch during the aftermath (the picture was already back) is not this incident's.
+        val ended = early.copy(header = early.header.copy(endedAtMonotonic = 4.5), breadcrumbs = listOf(inactive))
+        assertEquals("unknown", FeedIncidentExport.envelope(ended).background)
     }
 }

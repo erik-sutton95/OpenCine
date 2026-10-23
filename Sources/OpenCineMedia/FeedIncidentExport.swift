@@ -73,9 +73,12 @@ public enum FeedIncidentExport: Sendable {
         let window =
             bundle.prelude.filter { $0.monotonicNow >= header.startedAtMonotonic - 1.5 } + bundle.during
         // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
-        let sceneInactive = bundle.breadcrumbs.contains {
-            $0.kind == .sceneActivity && $0.detail == "inactive"
-                && $0.monotonicAt >= header.startedAtMonotonic - 1.5
+        // One recorded after the incident ended (aftermath collection) is not the incident's.
+        let incidentEnd = header.endedAtMonotonic
+        let sceneInactive = bundle.breadcrumbs.contains { crumb in
+            crumb.kind == .sceneActivity && crumb.detail == "inactive"
+                && crumb.monotonicAt >= header.startedAtMonotonic - 1.5
+                && incidentEnd.map { crumb.monotonicAt <= $0 } ?? true
         }
         let background: String
         if sceneInactive

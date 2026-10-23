@@ -343,6 +343,12 @@ import Testing
             FeedIncidentBreadcrumb(monotonicAt: 1, kind: .sceneActivity, detail: "inactive")
         ]
         #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
+        // An app switch during the aftermath (the picture was already back) is not this incident's.
+        early.header.endedAtMonotonic = 4.5
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 5, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
     }
 
     @Test func coveredUnobservableFeedCannotClaimRecoveryOrHealthyExposure() {
