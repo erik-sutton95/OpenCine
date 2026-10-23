@@ -209,6 +209,63 @@ arguments; Nikon uses `RunnerPhysicalQualification`. Scheme names alone do not e
 whether a run used a real camera. Bluetooth, Local Network and hotspot joins do not work in
 the Simulator.
 
+### Opt-in camera-network automation (iOS hardware pass)
+
+`PhysicalCameraNetworkTests` (every app) and `PhysicalCameraPairingTests` (OpenZCine only)
+drive the Z3 network and first-pair checks on a real iPhone through the production UI, the
+system alerts and the Settings app (the only way to change a permission on hardware). They
+live in `Sources/OpenCineAppUITesting` and each app's UI test bundle subclasses them in one
+line. They skip unless the test runner sees `OPV_PHYSICAL_NETWORK_PROBE=1`, and they skip on
+a simulator, so hosted CI and ordinary local test runs never execute them. They issue no
+camera setting, record or media command; a case that turns the Local Network switch off turns
+it back in its teardown.
+
+Device and camera: an unlocked iPhone signed for UI testing (paid team, see step 3 above),
+with Wi-Fi on and the camera saved in the app once (one normal pairing). OpenZCine runs against
+a Nikon Z body, OpenPocketCine against the Pocket 3, OpenInstaCine against the Luna. Schemes:
+`RunnerPhysicalQualification` (OpenZCine, `ios/Runner.xcodeproj`), `OpenPocketCineUIReview`
+and `OpenInstaCineUIReview` (after `xcodegen generate`). xcodebuild hands an environment
+variable to the test runner when it carries the `TEST_RUNNER_` prefix:
+
+```sh
+cd "$T/OpenZCine/ios"
+TEST_RUNNER_OPV_PHYSICAL_NETWORK_PROBE=1 \
+TEST_RUNNER_OPV_PHYSICAL_CAMERA_NAME="<saved camera name, as its row reads>" \
+TEST_RUNNER_OPV_PHYSICAL_CAMERA_SSID="<the camera's Wi-Fi name>" \
+xcodebuild test -project Runner.xcodeproj -scheme RunnerPhysicalQualification \
+  -destination "platform=iOS,id=<iPhone UDID>" -resultBundlePath "$OUT/z-network.xcresult" \
+  -only-testing:RunnerUITests/PhysicalCameraNetworkTests/testCancelSystemJoinThenRetry
+```
+
+Run one case per invocation with `-only-testing` (Pocket: `OpenPocketCineUITests/...`, Insta:
+`OpenInstaCineUITests/...`). Every case attaches screenshots, the system alerts it met and its
+timings to the result bundle (`camera-network.*`). In the table, `CAMERA_NAME` and `CAMERA_SSID`
+are `OPV_PHYSICAL_CAMERA_NAME` and `OPV_PHYSICAL_CAMERA_SSID`; every input takes the
+`TEST_RUNNER_` prefix on the command line.
+
+| Case | Z3 item | Inputs and operator step |
+|---|---|---|
+| `PhysicalCameraNetworkTests/testLocalNetworkDeniedThenAllowedOnSavedCamera` | 6, 7a | `CAMERA_NAME`; optional `OPV_PHYSICAL_DENIAL_MAX_SECONDS` (default 60) |
+| `PhysicalCameraNetworkTests/testLocalNetworkAllowedBeforeDeadlineConnects` | 7b | `CAMERA_NAME` |
+| `PhysicalCameraNetworkTests/testJoinAnsweredLateConnectsWithoutSecondPrompt` | 7c | `CAMERA_NAME`, `CAMERA_SSID` (the case forgets that Wi-Fi first) |
+| `PhysicalCameraNetworkTests/testCameraOffFailsTypedThenRecovers` | 7d | `CAMERA_NAME`; switch the camera off before the run and back on once the app shows its failure (the case waits 10 minutes); optional `OPV_PHYSICAL_MISSING_MAX_SECONDS` |
+| `PhysicalCameraNetworkTests/testCancelSystemJoinThenRetry` | 8 | `CAMERA_NAME`, `CAMERA_SSID` (the case forgets that Wi-Fi first) |
+| `PhysicalCameraPairingTests/testFirstRunPairsNearbyCameraOnSharedPage` | first run | OpenZCine, fresh install; camera in "connect to smart device" mode on the same Wi-Fi |
+| `PhysicalCameraPairingTests/testWiFiPairingAsksLocalNetworkOnceAfterTransportChoice` | 1 | OpenZCine, fresh install as above |
+| `PhysicalCameraPairingTests/testUSBPairingAsksNoLocalNetwork` | 2 | OpenZCine, fresh install, camera on USB-C |
+| `PhysicalCameraPairingTests/testHDMIMonitoringAsksNoLocalNetwork` | 2 | OpenZCine on an iPad with a capture device; skips without one |
+| `PhysicalCameraPairingTests/testCameraAccessPointManualPairingWithCameraOff` | 3 | OpenZCine, fresh install; `OPV_PHYSICAL_AP_SSID`, `OPV_PHYSICAL_AP_KEY` from the camera's screen |
+| `PhysicalCameraPairingTests/testLocalNetworkDeniedThenAllowedOnPermissionsStep` | 5 | OpenZCine, fresh install |
+
+A fresh install means deleting the app from the iPhone before the case (that resets its privacy
+answers); the case then counts the Local Network and camera prompts exactly. On an install that
+already answered them, `TEST_RUNNER_OPV_PHYSICAL_STRICT_PROMPTS=0` records the counts without
+asserting them. If a fresh OpenZCine install opens the shared "Find your camera" page instead
+of the wizard, run `testFirstRunPairsNearbyCameraOnSharedPage` first (it saves the camera) and
+the wizard cases after it with strict prompts off. `OPV_PHYSICAL_PAIR_SECONDS` (default 240) bounds a pairing that waits on the
+camera. A case that could not reach its precondition (iOS joined the camera Wi-Fi without
+asking, no capture device) ends as skipped with the reason, never as passed.
+
 ### Android (all three apps)
 
 Every app is one Gradle project in `Apps/Android`, arm64-v8a only, Android 10 (API 29) or

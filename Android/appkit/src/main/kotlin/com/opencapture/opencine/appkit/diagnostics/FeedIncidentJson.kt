@@ -136,6 +136,7 @@ public object FeedIncidentJson {
                         snap.decoder.lastStatus?.let { obj.put("lastStatus", it) }
                         snap.decoder.lastFlags?.let { obj.put("lastFlags", it) }
                         snap.decoder.errorClass?.let { obj.put("errorClass", it) }
+                        snap.decoder.errorCall?.let { obj.put("errorCall", it) }
                         snap.decoder.errorAge?.let { obj.put("errorAge", it) }
                         snap.decoder.lastIrapAge?.let { obj.put("lastIrapAge", it) }
                         snap.decoder.lastSuccessfulOutputAge?.let { obj.put("lastSuccessfulOutputAge", it) }
@@ -404,6 +405,7 @@ public object FeedIncidentJson {
                         lastFlags = decoder.optLongOrNull("lastFlags"),
                         origin = FeedDecoderErrorOrigin.fromWire(decoder.optString("origin", "none")),
                         errorClass = decoder.optStringOrNull("errorClass"),
+                        errorCall = decoder.optStringOrNull("errorCall"),
                         errorCount = decoder.optInt("errorCount"),
                         decoderFailed = decoder.optBoolean("decoderFailed"),
                         errorAge = decoder.optDoubleOrNull("errorAge"),

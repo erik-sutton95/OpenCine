@@ -55,6 +55,61 @@ public enum FeedIncidentExport: Sendable {
         return PrivacyRedactor.redact(lines.joined(separator: "\n"))
     }
 
+    /// The decoder calls an incident may name: MediaCodec's on Android, VideoToolbox's and the
+    /// display layer's on Apple. Kotlin twin: `FeedIncidentExport.decoderCalls`.
+    public static let decoderCalls: Set<String> = [
+        "createCodec", "configure", "start", "dequeueInput", "getInputBuffer", "fillInput",
+        "queueInput", "dequeueOutput", "releaseOutput",
+        "createSession", "decodeFrame", "outputCallback", "displayLayer",
+    ]
+
+    /// The Apple decoder's error origin (`VideoToolboxDecoder.lastDecodeOrigin`) as a call.
+    public static func appleDecoderCall(origin: String) -> String? {
+        switch origin {
+        case "create": return "createSession"
+        case "submit", "sync": return "decodeFrame"
+        case "callback": return "outputCallback"
+        case "display": return "displayLayer"
+        default: return nil
+        }
+    }
+
+    /// The snapshot the incident opened on: the last one before it, else its first.
+    public static func onset(_ bundle: FeedIncidentBundle) -> FeedIncidentSnapshot? {
+        bundle.prelude.last ?? bundle.during.first
+    }
+
+    /// Coarse, searchable keyframe age. Exact seconds stay in the attachment.
+    public static func irapAgeBucket(_ seconds: TimeInterval?) -> String {
+        guard let seconds else { return "never" }
+        if seconds < 1 { return "0-1s" }
+        if seconds < 5 { return "1-5s" }
+        if seconds < 30 { return "5-30s" }
+        return "30s+"
+    }
+
+    /// Whether the decoder took what it was given: `idle` (nothing submitted), `rejecting`
+    /// (submits, no accepts), `partial` (under 80 % accepted) or `flowing`. Exact rates stay in
+    /// the attachment.
+    public static func decodeFlow(submitHz: Double, acceptHz: Double) -> String {
+        if submitHz < 0.5 { return "idle" }
+        if acceptHz < 0.5 { return "rejecting" }
+        if acceptHz < submitHz * 0.8 { return "partial" }
+        return "flowing"
+    }
+
+    /// The call that raised the incident's error class, from the snapshots that carry it.
+    public static func decoderCall(_ bundle: FeedIncidentBundle) -> String {
+        guard let errorClass = bundle.header.errorClass else { return "none" }
+        let candidates = [onset(bundle)].compactMap { $0 } + bundle.during + bundle.prelude.reversed()
+        guard
+            let call = candidates.first(where: {
+                $0.decoder.errorClass == errorClass && $0.decoder.errorCall != nil
+            })?.decoder.errorCall
+        else { return "none" }
+        return decoderCalls.contains(call) ? call : "other"
+    }
+
     /// Coarse, searchable picture-gap tag. Exact seconds stay in extras.
     public static func gapBucket(_ seconds: TimeInterval) -> String {
         let edges: [TimeInterval] = [2, 5, 10, 20, 40, 120]
@@ -65,6 +120,7 @@ public enum FeedIncidentExport: Sendable {
 
     public static func envelope(from bundle: FeedIncidentBundle) -> FeedIncidentVendorEnvelope {
         let header = bundle.header
+        let opening = onset(bundle)
         // The 1 Hz snapshot opens an incident up to a tick after its first repair.
         let own = bundle.repairs.filter { $0.monotonicAt >= header.startedAtMonotonic - 1.5 }.map {
             $0.closed()
@@ -98,7 +154,22 @@ public enum FeedIncidentExport: Sendable {
             recoveredBy: header.outcome == .recovered
                 ? own.last(where: { $0.reason != FeedRepairRecord.firstPictureReason })?.action
                     ?? "none"
-                : "none")
+                : "none",
+            decoderCall: decoderCall(bundle),
+            keyframeWait: opening.map { $0.decoder.awaitingIrap ? "awaiting" : "none" } ?? "unknown",
+            irapAge: opening.map { irapAgeBucket($0.decoder.lastIrapAge) } ?? "unknown",
+            decodeFlow: opening.map {
+                // Absent observations stay unknown; numeric rates support legacy producers.
+                if let observed = $0.rates.observed {
+                    guard
+                        let submitHz = observed.decodeSubmitHz,
+                        let acceptHz = observed.decodeAcceptHz
+                    else { return "unknown" }
+                    return decodeFlow(submitHz: submitHz, acceptHz: acceptHz)
+                }
+                return decodeFlow(
+                    submitHz: $0.rates.decodeSubmitHz, acceptHz: $0.rates.decodeAcceptHz)
+            } ?? "unknown")
         // The snapshot that opened the incident is the prelude's last; a short incident may have
         // no `during` snapshot yet.
         let during = Array(bundle.prelude.suffix(1)) + bundle.during

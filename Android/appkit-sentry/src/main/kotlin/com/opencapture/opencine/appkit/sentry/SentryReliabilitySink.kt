@@ -22,6 +22,7 @@ import io.sentry.SentryLevel
 import io.sentry.SentryOptions
 import io.sentry.android.core.SentryAndroid
 import io.sentry.android.core.SentryAndroidOptions
+import io.sentry.cache.EnvelopeCache
 import io.sentry.metrics.SentryMetricsParameters
 import io.sentry.protocol.Message
 import io.sentry.protocol.SentryId
@@ -276,14 +277,31 @@ internal class ReliabilityReportingTransport(
         (sdkHint as? io.sentry.hints.SubmissionResult)?.setResult(success)
     }
 
-    private fun key(envelope: SentryEnvelope): String =
-        envelope.header.eventId?.toString() ?: System.identityHashCode(envelope).toString()
+    /** One pending key per report: its event id, else its cache file, else the instance. */
+    private fun key(envelope: SentryEnvelope, file: File? = null): String =
+        envelope.header.eventId?.toString()
+            ?: file?.let { "file:${it.name}" }
+            ?: System.identityHashCode(envelope).toString()
 
-    /** Files of envelopes reloaded past the SDK's reader; its `discard` cannot find them. */
+    /**
+     * Each pending report's cache file, deleted on delivery. The SDK's `discard` finds a file only
+     * through the name map of the process that stored it: a report reloaded after a restart kept
+     * its file after HTTP 2xx and was sent again on every drain.
+     */
     private val cachedFiles = java.util.concurrent.ConcurrentHashMap<String, File>()
+
+    /** The SDK's own file cache, which this transport reads and deletes file by file. */
+    private val cacheDirectory: File?
+        get() = options.cacheDirPath?.takeIf { options.envelopeDiskCache is EnvelopeCache }?.let(::File)
 
     /** Admits cached envelopes to the pending queue. */
     private fun reloadDiskCache() {
+        // The SDK's file cache is read file by file, so every reloaded report keeps its file.
+        if (cacheDirectory != null) {
+            reloadCacheFiles()
+            return
+        }
+        // Another cache owns its own discard; only its iterator can be read.
         try {
             for (envelope in options.envelopeDiskCache.take(options.maxCacheItems)) {
                 if (envelope == null) continue // The SDK's Java iterator can yield null.
@@ -311,7 +329,7 @@ internal class ReliabilityReportingTransport(
             }
             for ((file, envelope) in read.entries) {
                 if (pending.size >= options.maxCacheItems) break
-                val id = envelope.header.eventId?.toString() ?: "file:${file.name}"
+                val id = key(envelope, file)
                 if (pending.putIfAbsent(id, envelope to Hint()) == null) cachedFiles[id] = file
             }
         } catch (error: Exception) {
@@ -395,14 +413,29 @@ internal class ReliabilityReportingTransport(
         }
         // Own a bounded durable copy even for native/outbox hints. The SDK's
         // original is acknowledged only after HTTP acceptance.
+        val directory = cacheDirectory
+        val before = CachedEnvelopeFiles.names(directory)
         val stored = options.envelopeDiskCache.storeEnvelope(envelope, hint)
+        // The file this report was stored in, so the next reload finds it pending (an envelope
+        // without an event id was otherwise sent twice) and delivery deletes it.
+        val file =
+            if (stored && directory != null) {
+                (CachedEnvelopeFiles.names(directory) - before).singleOrNull()?.let { File(directory, it) }
+            } else {
+                null
+            }
+        val id = key(envelope, file)
         val diskHint = io.sentry.util.HintUtils.getSentrySdkHint(hint) as?
             io.sentry.hints.DiskFlushNotification
         if (stored && diskHint != null && diskHint.isFlushable(envelope.header.eventId)) {
             diskHint.markFlushed()
         }
-        if (pending.size < options.maxCacheItems || pending.containsKey(key(envelope))) {
-            pending.putIfAbsent(key(envelope), envelope to hint)
+        if (pending.size < options.maxCacheItems || pending.containsKey(id)) {
+            val admitted = pending.putIfAbsent(id, envelope to hint) == null
+            if (file != null) {
+                // A report already pending with its own file (resent by the SDK) needs no second copy.
+                if (!admitted && cachedFiles[id] != null) file.delete() else cachedFiles.putIfAbsent(id, file)
+            }
         }
         if (decision != ReliabilityReportingLoadDecision.FORWARD) {
             finishHint(hint, false)

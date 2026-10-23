@@ -1158,7 +1158,37 @@ public final class PTPIPClientSession: @unchecked Sendable {
 
     /// Opens both TCP channels and runs the PTP-IP Init handshake; returns a
     /// session whose identity carries only the handshake camera name so far.
+    ///
+    /// A first command-channel dial that fails with no route or a connect timeout (a dozing body
+    /// whose radio stopped answering ARP) wakes the body once with `NikonBodyWake` and dials once
+    /// more. Both the saved-profile and first-time-pairing strategies reach the link through this
+    /// one function, so neither can miss the wake. A body that answers goes on to the normal
+    /// handshake; one that stays silent ends with the wake's honest asleep-or-off-network copy.
     private static func establishLink(
+        host: String,
+        port: UInt16,
+        guid: Data,
+        friendlyName: String,
+        timeoutMilliseconds: Int32
+    ) throws -> PTPIPClientSession {
+        try NikonBodyWake.dialBlocking(
+            host: host,
+            isAlive: presenceAlive,
+            dial: {
+                try establishLinkOnce(
+                    host: host,
+                    port: port,
+                    guid: guid,
+                    friendlyName: friendlyName,
+                    timeoutMilliseconds: timeoutMilliseconds
+                )
+            }
+        )
+    }
+
+    /// One full PTP-IP dial. Only the command channel's TCP connect is wrapped as a
+    /// `DialFailure`: a handshake refusal means the body is up and must never be woken.
+    private static func establishLinkOnce(
         host: String,
         port: UInt16,
         guid: Data,
@@ -1170,7 +1200,14 @@ public final class PTPIPClientSession: @unchecked Sendable {
         let event = PosixTCPSocket(
             host: host, port: port, label: "event", timeoutMilliseconds: timeoutMilliseconds)
         do {
-            try command.open()
+            do {
+                try command.open()
+            } catch {
+                throw NikonBodyWake.DialFailure(
+                    underlying: error,
+                    wakeWorthy: isWakeWorthyDial(error: error, errno: command.lastErrno)
+                )
+            }
             let initRequest = try PTPIPInitCommandRequest(guid: guid, friendlyName: friendlyName)
             try command.send(
                 PTPIPPacket(type: .initCommandRequest, payload: Data(initRequest.payloadBytes)))
@@ -1206,6 +1243,35 @@ public final class PTPIPClientSession: @unchecked Sendable {
             command.close()
             event.close()
             throw error
+        }
+    }
+
+    /// Presence-port liveness on 15741: a connect or a refusal proves the host is up, and the
+    /// probe sends zero PTP bytes, so it cannot disturb a body on its pairing wizard.
+    private static func presenceAlive(_ host: String) -> Bool {
+        let probe = PosixTCPSocket(
+            host: host, port: 15_741, label: "liveness", timeoutMilliseconds: 1_500)
+        do {
+            try probe.open()
+            probe.close()
+            return true
+        } catch {
+            let refused = probe.lastErrno == ECONNREFUSED
+            probe.close()
+            return refused
+        }
+    }
+    /// No route to the body, or the connect deadline; a refusal means the host is up and serving
+    /// something else, so waking it cannot change the answer.
+    static func isWakeWorthyDial(error: Error, errno: Int32) -> Bool {
+        if let sessionError = error as? PTPIPClientSessionError,
+            case .timeout = sessionError
+        {
+            return true
+        }
+        switch errno {
+        case EHOSTUNREACH, ENETUNREACH, ETIMEDOUT, ETIME: return true
+        default: return false
         }
     }
 
@@ -4892,6 +4958,10 @@ final class PosixTCPSocket: @unchecked Sendable {
     private let descriptorLock = NSLock()
     private var descriptor: Int32 = -1
     private var readBuffer = PTPIPReadBuffer()
+    /// The errno behind the last `socketError` this socket raised, or 0. The connect wake reads it
+    /// to tell a silent host from one that refused service; the wrapped message stays the copy a
+    /// person reads.
+    private(set) var lastErrno: Int32 = 0
 
     func open() throws {
         close()
@@ -5170,6 +5240,7 @@ final class PosixTCPSocket: @unchecked Sendable {
     }
 
     private func socketError(_ code: Int32, context: String) -> PTPIPClientSessionError {
+        lastErrno = code
         if code == ECONNREFUSED {
             return .connectionFailed(
                 "No PTP-IP service answered at \(host):\(port). Confirm the camera is in PC/remote network mode."

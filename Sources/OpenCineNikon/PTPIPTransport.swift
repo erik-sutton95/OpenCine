@@ -54,6 +54,12 @@
         private let transactionGate = AsyncSerialGate()
 
         /// Opens the command + event TCP connections and runs the PTP-IP Init handshake.
+        ///
+        /// A first dial that fails with no route or a connect timeout (a dozing body whose radio
+        /// stopped answering ARP) wakes the body once with `NikonBodyWake` and dials once more.
+        /// Both the pairing handshake and the saved-profile reconnect come through here, so both
+        /// get the same bounded wake. A body that answers goes on to the normal handshake; one
+        /// that stays silent ends with the wake's honest asleep-or-off-network copy.
         public static func connect(
             host rawHost: String,
             guid: Data,
@@ -62,10 +68,31 @@
             let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !host.isEmpty else { throw NativeCameraSessionError.noHost }
 
+            return try await NikonBodyWake.dial(
+                host: host,
+                isAlive: { await presenceAlive($0) },
+                dial: { try await connectOnce(host: host, guid: guid, friendlyName: friendlyName) }
+            )
+        }
+
+        /// One full PTP-IP dial. Only the command channel's TCP connect is wrapped as a
+        /// `DialFailure`: a handshake refusal means the body is up and must never be woken.
+        private static func connectOnce(
+            host: String,
+            guid: Data,
+            friendlyName: String
+        ) async throws -> PTPIPTransport {
             let command = PTPIPSocket(host: host, port: UInt16(ptpIPPort), label: "command")
             var event: PTPIPSocket?
             do {
-                try await command.start()
+                do {
+                    try await command.start()
+                } catch {
+                    throw NikonBodyWake.DialFailure(
+                        underlying: error,
+                        wakeWorthy: isWakeWorthyDial(error: error, errno: command.lastErrno)
+                    )
+                }
                 let initRequest = try PTPIPInitCommandRequest(
                     guid: guid, friendlyName: friendlyName)
                 try await command.send(
@@ -115,6 +142,28 @@
                 command.close()
                 event?.close()
                 throw error
+            }
+        }
+
+        /// The presence-port liveness dial discovery already uses: a bounded connect to 15741 and
+        /// hang-up, always sending zero PTP bytes, so it cannot disturb a body on its pairing
+        /// wizard or one held by another device.
+        private static func presenceAlive(_ host: String) async -> Bool {
+            let dialer = PosixNikonDialer(decodePresence: { (_: Data) -> NikonPresence? in nil })
+            return await dialer.isAlive(host)
+        }
+
+        /// No route to the body, or the connect deadline; a refusal means the host is up and
+        /// serving something else, so waking it cannot change the answer.
+        static func isWakeWorthyDial(error: Error, errno: Int32) -> Bool {
+            if let sessionError = error as? NativeCameraSessionError,
+                case .timeout = sessionError
+            {
+                return true
+            }
+            switch errno {
+            case EHOSTUNREACH, ENETUNREACH, ETIMEDOUT, ETIME: return true
+            default: return false
             }
         }
 

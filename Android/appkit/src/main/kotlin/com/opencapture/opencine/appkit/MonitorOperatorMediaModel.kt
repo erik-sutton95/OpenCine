@@ -199,7 +199,7 @@ public class MonitorOperatorMediaModel<P, L>(
         owner.setPlaying(false)
         if (!isCurrent(token)) return false
         deliveryPresented(true)
-        return true
+        return isCurrent(token)
     }
     public fun deliveryPresented(value: Boolean): Unit {
         val capturedPage = page; val owner = state.value.playback

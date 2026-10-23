@@ -321,6 +321,8 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
     public var lastFlags: UInt32?
     public var origin: FeedDecoderErrorOrigin
     public var errorClass: String?
+    /// The platform call that raised the last error (`FeedIncidentExport.decoderCalls`), else nil.
+    public var errorCall: String?
     public var errorCount: Int
     public var decoderFailed: Bool
     public var errorAge: TimeInterval?
@@ -343,6 +345,7 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
         lastFlags: UInt32? = nil,
         origin: FeedDecoderErrorOrigin = .none,
         errorClass: String? = nil,
+        errorCall: String? = nil,
         errorCount: Int = 0,
         decoderFailed: Bool = false,
         errorAge: TimeInterval? = nil,
@@ -363,6 +366,7 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
         self.lastFlags = lastFlags
         self.origin = origin
         self.errorClass = errorClass.map { FeedIncidentPrivacy.token($0, max: 32) }
+        self.errorCall = errorCall.map { FeedIncidentPrivacy.token($0, max: 32) }
         self.errorCount = max(0, errorCount)
         self.decoderFailed = decoderFailed
         self.errorAge = FeedIncidentPrivacy.age(errorAge)
@@ -805,6 +809,14 @@ public struct FeedIncidentVendorEnvelope: Equatable, Sendable, Codable {
     public var trigger: String
     /// Last repair action before a recovered outcome, else `none`.
     public var recoveredBy: String
+    /// The decoder call behind `grouping.errorClass` (`FeedIncidentExport.decoderCalls`), else `none`.
+    public var decoderCall: String = "none"
+    /// `awaiting` when the decoder held for a keyframe (IRAP) as the incident opened, else `none`.
+    public var keyframeWait: String = "unknown"
+    /// Age of the last accepted IRAP at onset, bucketed (`FeedIncidentExport.irapAgeBucket`).
+    public var irapAge: String = "unknown"
+    /// Decoder submits against accepts at onset (`FeedIncidentExport.decodeFlow`).
+    public var decodeFlow: String = "unknown"
     /// The episode's first decoder error status (VideoToolbox `OSStatus`), else the last
     /// non-zero one, as decimal digits; `none` when the decoder reported no error.
     public var decoderStatus: String = "none"
@@ -815,7 +827,7 @@ public struct FeedIncidentVendorEnvelope: Equatable, Sendable, Codable {
 }
 
 extension FeedIncidentVendorEnvelope {
-    /// Envelopes written before the decoder and watchdog fields read them as unknown.
+    /// Envelopes written before the decode-state, decoder and watchdog fields read them as unknown.
     public init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
@@ -833,6 +845,10 @@ extension FeedIncidentVendorEnvelope {
         buildIdentity = try values.decode(String.self, forKey: .buildIdentity)
         trigger = try values.decode(String.self, forKey: .trigger)
         recoveredBy = try values.decode(String.self, forKey: .recoveredBy)
+        decoderCall = try values.decodeIfPresent(String.self, forKey: .decoderCall) ?? "none"
+        keyframeWait = try values.decodeIfPresent(String.self, forKey: .keyframeWait) ?? "unknown"
+        irapAge = try values.decodeIfPresent(String.self, forKey: .irapAge) ?? "unknown"
+        decodeFlow = try values.decodeIfPresent(String.self, forKey: .decodeFlow) ?? "unknown"
         decoderStatus = try values.decodeIfPresent(String.self, forKey: .decoderStatus) ?? "none"
         decoderCodec = try values.decodeIfPresent(String.self, forKey: .decoderCodec) ?? "unknown"
         watchdogHold = try values.decodeIfPresent(String.self, forKey: .watchdogHold) ?? "none"
