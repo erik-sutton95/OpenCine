@@ -1072,6 +1072,8 @@ init NikonAppleDiscoverySources(log: (Swift.String) -> Swift.Void)
 init NikonAppleDiscoverySources(usbBrowser: USBCameraDeviceBrowser, log: (Swift.String) -> Swift.Void)
 init NikonAppleGalleryProjectionPolicy(items: [NikonGallerySourceItem], now: Foundation.Date, calendar: Foundation.Calendar)
 init NikonBodyCaptureFilter()
+init NikonBodyWake.DialFailure(underlying: any Swift.Error, wakeWorthy: Swift.Bool)
+init NikonBodyWake.SilentError(deviceName: Swift.String)
 init NikonCameraSession(driver: any NikonControlDriver, serialNumber: Swift.String, recordObservationTimeout: Swift.Duration, now: () -> OpenCineCore.MonotonicInstant, onClose: (OpenCineCore.SessionCloseReason) -> Swift.Void)
 init NikonCapturePopupState(kind: NikonCapturePopupKind, title: Swift.String, subtitle: Swift.String, modes: [NikonLadderMode])
 init NikonCardSlotReadout(cards: [NikonStorageCard], primarySlot: NikonScalarPropertyDescriptor?, activeSlot: NikonScalarPropertyDescriptor?)
@@ -1260,6 +1262,9 @@ let NativeCameraSession.operationPolicy: ZCameraOperationPolicy
 let NativeCameraSession.propertiesSupported: Swift.Set<Swift.UInt16>
 let NativeCameraSession.vendorPropertiesSupported: Swift.Set<Swift.UInt32>
 let NikonAppleGalleryProjectionPolicy.groupStage: OpenCineMedia.MonitorMediaProjectionGroupStage
+let NikonBodyWake.DialFailure.underlying: any Swift.Error
+let NikonBodyWake.DialFailure.wakeWorthy: Swift.Bool
+let NikonBodyWake.SilentError.deviceName: Swift.String
 let NikonCameraSession.id: OpenCineCore.CameraSessionID
 let NikonCardSlotReadout.activeSlot: NikonScalarPropertyDescriptor?
 let NikonCardSlotReadout.cards: [NikonStorageCard]
@@ -1740,6 +1745,8 @@ static func NikonAppleNetworkInterfaces.isPersonalHotspotActive() -> Swift.Bool
 static func NikonAppleNetworkInterfaces.isWiFiRadioOn() -> Swift.Bool
 static func NikonAppleNetworkInterfaces.snapshot() -> [NikonLocalInterface]
 static func NikonBodyWake.awaitAnswer(host: Swift.String, dials: Swift.Int, interval: Swift.Duration, isAlive: (Swift.String) async -> Swift.Bool, sleep: (Swift.Duration) async throws -> Swift.Void) -> NikonBodyWake.Outcome
+static func NikonBodyWake.dial(host: Swift.String, deviceName: Swift.String, isAlive: (Swift.String) async -> Swift.Bool, onWake: () async -> Swift.Void, sleep: (Swift.Duration) async throws -> Swift.Void, dial: () async throws -> Value)<Value> throws -> Value
+static func NikonBodyWake.dialBlocking(host: Swift.String, deviceName: Swift.String, dials: Swift.Int, interval: Foundation.TimeInterval, isAlive: (Swift.String) -> Swift.Bool, onWake: () -> Swift.Void, dial: () throws -> Value)<Value> throws -> Value
 static func NikonBodyWake.silentMessage(deviceName: Swift.String) -> Swift.String
 static func NikonBodyWake.wakingMessage(deviceName: Swift.String) -> Swift.String
 static func NikonCameraBatteryGauge.gauge(rawBatteryLevel: Swift.Int) -> NikonCameraBatteryGauge
@@ -2156,6 +2163,8 @@ struct NativeCameraIdentity: Equatable, Sendable
 struct NativeCameraSession.CameraClip: Equatable, Sendable
 struct NikonAppleGalleryProjectionPolicy: MonitorMediaProjectionPolicy, Sendable
 struct NikonBodyCaptureFilter: Equatable, Sendable
+struct NikonBodyWake.DialFailure: Error, Sendable
+struct NikonBodyWake.SilentError: Error, LocalizedError, Sendable
 struct NikonCapturePopupState: Sendable
 struct NikonCardSlotReadout: Equatable, Sendable
 struct NikonCommandAdmission: Sendable
@@ -2306,6 +2315,7 @@ var NativeCameraSession.serialNumber: Swift.String
 var NativeCameraSession.transportKind: CameraTransportKind
 var NativeCameraSessionError.errorDescription: Swift.String?
 var NikonBodyWake.Outcome.answered: Swift.Bool
+var NikonBodyWake.SilentError.errorDescription: Swift.String?
 var NikonCameraBatteryGauge.batteryReading: OpenCineCore.BatteryReading?
 var NikonCameraBatteryGauge.exhaustion: Swift.Bool?
 var NikonCameraBatteryGauge.filledBars: Swift.Int
