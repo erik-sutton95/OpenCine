@@ -217,7 +217,8 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
                 if let access = operations.access {
                     guard access(record).share == true, model.isCurrent(token) else { return }
                 }
-                model.setDeliveryPresented(true); share(record)
+                guard model.beginShare(token) else { return }
+                share(record)
             } },
             delete: mayDelete(owner.active) ? operations.delete.map { _ in {
                 model.deleteCurrent(admitted: $0, operations: operations) } } : nil,

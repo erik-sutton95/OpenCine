@@ -672,6 +672,7 @@ func MonitorNDPreferenceStore.persist() -> ()
 func MonitorOperatorCaptureInputs.columns(portrait: Swift.Bool, tablet: Swift.Bool)<Key, Section, NativeIdentity where Key : Swift.Hashable, Section : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable> -> Swift.Int
 func MonitorOperatorCaptureState.retire()<Key, NativeIdentity where Key : Swift.Hashable, NativeIdentity : Swift.Hashable, NativeIdentity : Swift.Sendable> -> ()
 func MonitorOperatorMediaModel.adjacent(_: Swift.Int, admitted: OpenCineMedia.MonitorPlaybackItemToken)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> Swift.Bool
+func MonitorOperatorMediaModel.beginShare(_: OpenCineMedia.MonitorPlaybackItemToken)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> Swift.Bool
 func MonitorOperatorMediaModel.bind(_: OpenCineCore.ConnectedCamera?)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> ()
 func MonitorOperatorMediaModel.cancelDeletion(admitted: Foundation.UUID)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> ()
 func MonitorOperatorMediaModel.captureDeletion(admitted: OpenCineMedia.MonitorPlaybackItemToken, operations: MonitorOperatorPlaybackOperations<Payload, Look>)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> OpenCineMedia.MonitorPlaybackDeletionConfirmation?

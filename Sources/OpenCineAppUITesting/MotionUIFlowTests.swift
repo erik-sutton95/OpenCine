@@ -175,90 +175,115 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         attachScreenshot("motion-zoom-dlog2-unavailable")
     }
 
-    func testZoomChipAndDiscKeepFullEditorInBothOrientations() {
-        continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
-        app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
-        app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
-        app.launchEnvironment["OPV_UI_REVIEW_MOTION"] = "1"
-        app.launchEnvironment["OPV_UI_REVIEW_ZOOM_CONTROLS"] = "1"
-        app.launch()
-        defer {
-            app.terminate()
+        func testZoomChipAndDiscKeepFullEditorInBothOrientations() {
+            continueAfterFailure = false
             XCUIDevice.shared.orientation = .portrait
-        }
-        XCTAssertTrue(app.buttons["monitor.system.gimbalControls"].waitForExistence(timeout: 10))
-        app.buttons["monitor.system.gimbalControls"].tap()
-        let open = app.buttons["motion.openEditor"]
-        XCTAssertTrue(open.waitForExistence(timeout: 5))
-        open.tap()
-
-        let title = app.staticTexts["motion.editor.title"]
-        let zoom = app.buttons["monitor.system.zoom"]
-        let scroll = app.scrollViews["motion.editor.scroll"]
-        let clear = app.buttons["motion.clear"]
-        let start = app.buttons["motion.startStop"]
-        let points = ["A", "B", "C"].map { app.staticTexts["motion.waypoint.\($0).readout"] }
-        let savedPoints = points.map(\.label)
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-
-        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
-            XCUIDevice.shared.orientation = orientation
-            let settled = NSPredicate { _, _ in
-                (app.frame.width > app.frame.height) == orientation.isLandscape
-                    && zoom.isHittable && clear.isHittable
+            let app = XCUIApplication()
+            app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
+            app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
+            app.launchEnvironment["OPV_UI_REVIEW_MOTION"] = "1"
+            app.launchEnvironment["OPV_UI_REVIEW_ZOOM_CONTROLS"] = "1"
+            app.launch()
+            defer {
+                app.terminate()
+                XCUIDevice.shared.orientation = .portrait
             }
-            expectation(for: settled, evaluatedWith: app)
-            waitForExpectations(timeout: 10)
-            let titleFrame = title.frame
-            let clearFrame = clear.frame
-            let startFrame = start.frame
-            if !orientation.isLandscape {
-                XCTAssertLessThanOrEqual(clearFrame.maxY, zoom.frame.minY - 8,
-                    "The default editor must leave the original zoom chip exposed")
-            }
-            let beforeTap = zoom.label
-            zoom.tap()
-            XCTAssertTrue(title.exists, "The existing zoom chip must not minimize Motion Control")
-            XCTAssertFalse(app.buttons["motion.expand"].exists)
-            expectation(for: NSPredicate { _, _ in zoom.label != beforeTap }, evaluatedWith: zoom)
-            waitForExpectations(timeout: 5)
-            XCTAssertNotEqual(zoom.label, beforeTap, "The original single-tap action must receive the touch")
-            let beforeDoubleTap = zoom.label
-            zoom.doubleTap()
-            XCTAssertTrue(title.exists, "Extended zoom must also leave the full editor open")
-            expectation(for: NSPredicate { _, _ in zoom.label != beforeDoubleTap }, evaluatedWith: zoom)
-            waitForExpectations(timeout: 5)
-            XCTAssertNotEqual(zoom.label, beforeDoubleTap, "The original double-tap action must receive the touch")
-            zoom.press(forDuration: 0.55)
-            let dial = app.descendants(matching: .any)["monitor.zoom.dial"].firstMatch
-            XCTAssertTrue(dial.waitForExistence(timeout: 5))
-            XCTAssertTrue(dial.isHittable, "The zoom disc must be above the Motion Control card")
-            XCTAssertFalse(clear.isHittable, "The disc owns input while open")
-            XCTAssertFalse(app.buttons["motion.minimizeBackdrop"].isHittable,
-                "The covered backdrop must not receive a minimize action")
-            attachScreenshot(orientation.isLandscape ? "motion-zoom-disc-landscape" : "motion-zoom-disc-portrait")
-            app.buttons["Close zoom dial"].tap()
-            expectation(for: NSPredicate { _, _ in !dial.isHittable && clear.isHittable },
-                evaluatedWith: app)
-            waitForExpectations(timeout: 5)
-            XCTAssertTrue(title.exists)
-            XCTAssertTrue(clear.isHittable)
-            XCTAssertTrue(zoom.isHittable)
-            XCTAssertFalse(app.buttons["motion.expand"].exists)
-            XCTAssertFalse(app.sliders["motion.zoom"].exists, "Motion Control uses the existing zoom controls")
-            XCTAssertEqual(title.frame.minY, titleFrame.minY, accuracy: 1)
-            XCTAssertEqual(points.map(\.label), savedPoints)
+            tapWhenReady(app.buttons["monitor.system.gimbalControls"], in: app, timeout: 10)
+            let open = app.buttons["motion.openEditor"]
+            tapWhenReady(open, in: app, timeout: 5)
 
-            scrollSettingsToBottom(scroll)
-            XCTAssertEqual(clear.frame.minY, clearFrame.minY, accuracy: 1)
-            XCTAssertEqual(start.frame.minY, startFrame.minY, accuracy: 1)
-            XCTAssertTrue(clear.isHittable)
-            XCTAssertTrue(start.isHittable)
-            attachScreenshot(orientation.isLandscape ? "motion-zoom-chip-landscape" : "motion-zoom-chip-portrait")
+            let title = app.staticTexts["motion.editor.title"]
+            let zoom = app.buttons["monitor.system.zoom"]
+            let scroll = app.scrollViews["motion.editor.scroll"]
+            let clear = app.buttons["motion.clear"]
+            let start = app.buttons["motion.startStop"]
+            let points = ["A", "B", "C"].map { app.staticTexts["motion.waypoint.\($0).readout"] }
+            let savedPoints = points.map(\.label)
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+
+            for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
+                XCUIDevice.shared.orientation = orientation
+                let readinessDeadline = Date().addingTimeInterval(10)
+                let turned = NSPredicate { _, _ in
+                    (app.frame.width > app.frame.height) == orientation.isLandscape
+                }
+                expectation(for: turned, evaluatedWith: app)
+                waitForExpectations(timeout: max(0, readinessDeadline.timeIntervalSinceNow))
+                XCTAssertTrue(
+                    waitUntilReady(
+                        zoom, in: app,
+                        timeout: max(0, readinessDeadline.timeIntervalSinceNow)))
+                XCTAssertTrue(
+                    waitUntilReady(
+                        clear, in: app,
+                        timeout: max(0, readinessDeadline.timeIntervalSinceNow)))
+                let titleFrame = title.frame
+                let clearFrame = clear.frame
+                let startFrame = start.frame
+                if !orientation.isLandscape {
+                    XCTAssertLessThanOrEqual(
+                        clearFrame.maxY, zoom.frame.minY - 8,
+                        "The default editor must leave the original zoom chip exposed")
+                }
+                XCTAssertTrue(waitUntilReady(zoom, in: app, timeout: 10))
+                let beforeTap = zoom.label
+                zoom.tap()
+                XCTAssertTrue(
+                    title.exists, "The existing zoom chip must not minimize Motion Control")
+                XCTAssertFalse(app.buttons["motion.expand"].exists)
+                expectation(
+                    for: NSPredicate { _, _ in zoom.label != beforeTap }, evaluatedWith: zoom)
+                waitForExpectations(timeout: 5)
+                XCTAssertNotEqual(
+                    zoom.label, beforeTap, "The original single-tap action must receive the touch")
+                XCTAssertTrue(waitUntilReady(zoom, in: app, timeout: 10))
+                let beforeDoubleTap = zoom.label
+                zoom.doubleTap()
+                XCTAssertTrue(title.exists, "Extended zoom must also leave the full editor open")
+                expectation(
+                    for: NSPredicate { _, _ in zoom.label != beforeDoubleTap }, evaluatedWith: zoom)
+                waitForExpectations(timeout: 5)
+                XCTAssertNotEqual(
+                    zoom.label, beforeDoubleTap,
+                    "The original double-tap action must receive the touch")
+                XCTAssertTrue(waitUntilReady(zoom, in: app, timeout: 10))
+                zoom.press(forDuration: 0.55)
+                let dial = app.descendants(matching: .any)["monitor.zoom.dial"].firstMatch
+                XCTAssertTrue(dial.waitForExistence(timeout: 5))
+                XCTAssertTrue(
+                    dial.isHittable, "The zoom disc must be above the Motion Control card")
+                XCTAssertFalse(clear.isHittable, "The disc owns input while open")
+                XCTAssertFalse(
+                    app.buttons["motion.minimizeBackdrop"].isHittable,
+                    "The covered backdrop must not receive a minimize action")
+                attachScreenshot(
+                    orientation.isLandscape
+                        ? "motion-zoom-disc-landscape" : "motion-zoom-disc-portrait")
+                tapWhenReady(app.buttons["Close zoom dial"], in: app, timeout: 5)
+                expectation(
+                    for: NSPredicate { _, _ in !dial.isHittable && clear.isHittable },
+                    evaluatedWith: app)
+                waitForExpectations(timeout: 5)
+                XCTAssertTrue(title.exists)
+                XCTAssertTrue(clear.isHittable)
+                XCTAssertTrue(zoom.isHittable)
+                XCTAssertFalse(app.buttons["motion.expand"].exists)
+                XCTAssertFalse(
+                    app.sliders["motion.zoom"].exists,
+                    "Motion Control uses the existing zoom controls")
+                XCTAssertEqual(title.frame.minY, titleFrame.minY, accuracy: 1)
+                XCTAssertEqual(points.map(\.label), savedPoints)
+
+                scrollSettingsToBottom(scroll)
+                XCTAssertEqual(clear.frame.minY, clearFrame.minY, accuracy: 1)
+                XCTAssertEqual(start.frame.minY, startFrame.minY, accuracy: 1)
+                XCTAssertTrue(clear.isHittable)
+                XCTAssertTrue(start.isHittable)
+                attachScreenshot(
+                    orientation.isLandscape
+                        ? "motion-zoom-chip-landscape" : "motion-zoom-chip-portrait")
+            }
         }
-    }
 
     func testZoomChipKeepsRecordingColorGateWithEditorOpen() {
         continueAfterFailure = false

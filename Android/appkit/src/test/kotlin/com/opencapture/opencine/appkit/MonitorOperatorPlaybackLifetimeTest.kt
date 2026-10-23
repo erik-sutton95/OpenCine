@@ -23,6 +23,7 @@ private class OperatorPlaybackPort : MonitorPlaybackPort {
     override var onEvent: ((MonitorPlaybackItemToken, MonitorPlaybackEvent) -> Unit)? = null
     val played = mutableListOf<MonitorPlaybackItemToken>()
     val paused = mutableListOf<MonitorPlaybackItemToken>()
+    var onPause: ((MonitorPlaybackItemToken) -> Unit)? = null
     var closed = false
     var preparations = 0
     var pendingPrepare: CompletableDeferred<Unit>? = null
@@ -35,7 +36,10 @@ private class OperatorPlaybackPort : MonitorPlaybackPort {
         return MonitorPlaybackMetadata(duration = 8.0, conform = MonitorConformPreview.Source(captureRate = 60.0))
     }
     override fun play(rate: Double, token: MonitorPlaybackItemToken) { played += token }
-    override fun pause(token: MonitorPlaybackItemToken) { paused += token }
+    override fun pause(token: MonitorPlaybackItemToken) {
+        paused += token
+        onPause?.invoke(token)
+    }
     override suspend fun seek(seconds: Double, tolerance: Double, token: MonitorPlaybackItemToken) = true
     override fun setMuted(muted: Boolean, token: MonitorPlaybackItemToken) {}
     override fun close(token: MonitorPlaybackItemToken) { closed = true }
@@ -319,6 +323,41 @@ class MonitorOperatorPlaybackLifetimeTest {
             assertFalse(owner.state.value.playRequested); assertEquals(plays, f.ports[0].played.size)
             assertFalse(f.model.beginShare(token.copy(revision = token.revision + 1)))
         } finally { f.close() }
+    }
+    @Test fun shareRetirementDuringCoverPauseCannotAdmitAStaleShare() = runTest {
+        val f = Fixture(backgroundScope)
+        try {
+            f.model.playerVisible(true)
+            assertTrue(f.open(0))
+            val owner = assertNotNull(f.model.state.value.playback)
+            runCurrent()
+            assertTrue(owner.state.value.ready)
+            val port = f.ports[0]
+            val token = owner.state.value.token
+            var coverPauseToken: MonitorPlaybackItemToken? = null
+            var sameOwnerDuringCoverPause = false
+            port.onPause = { observed ->
+                if (f.model.state.value.deliveryPresented) {
+                    coverPauseToken = observed
+                    sameOwnerDuringCoverPause = f.model.state.value.playback === owner
+                    f.model.closePlayback()
+                }
+            }
+            val admitted = f.model.beginShare(token)
+            var shares = 0
+            if (admitted) shares += 1
+            assertEquals(token, coverPauseToken)
+            assertTrue(sameOwnerDuringCoverPause)
+            assertTrue(owner.state.value.closed)
+            assertNull(f.model.state.value.playback)
+            assertFalse(f.model.state.value.deliveryPresented)
+            assertFalse(f.model.isCurrent(token))
+            assertFalse(admitted)
+            assertEquals(0, shares)
+        } finally {
+            f.ports.forEach { it.onPause = null }
+            f.close()
+        }
     }
     @Test fun realRemovalMayRetireTheOutgoingItemOnceAndOpenTheAdjacentOwner() = runTest {
         val f = Fixture(backgroundScope)

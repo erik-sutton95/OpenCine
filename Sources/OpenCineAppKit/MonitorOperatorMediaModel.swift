@@ -245,6 +245,15 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
         playback?.setSceneActive(value)
     }
 
+    /// Explicit Share pauses the admitted item before delivery and leaves it paused on return.
+    @discardableResult public func beginShare(_ token: MonitorPlaybackItemToken) -> Bool {
+        guard let owner = playback, isCurrent(token) else { return false }
+        owner.setPlaying(false)
+        guard isCurrent(token) else { return false }
+        setDeliveryPresented(true)
+        return isCurrent(token)
+    }
+
     public func setDeliveryPresented(_ value: Bool) {
         let capturedPage = page, owner = playback
         deliveryPresented = value
