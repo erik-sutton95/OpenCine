@@ -71,6 +71,34 @@ class NikonBodyWakeTest {
     }
 
     @Test
+    fun `a body the pre-dial wake already heard costs one presence dial and no second wait`() = runTest {
+        // The app's saved-setup step (#91) asks the network before dialling an unseen setup; the
+        // dial's own wake runs only if the dial still fails at the link layer. A body the first
+        // step just heard answers the first presence dial, so the two never stack.
+        var alive = 0
+        var dials = 0
+        var wakes = 0
+        val pre = NikonBodyWake.awaitAnswer("192.168.1.20") { alive++; true }
+        assertEquals(NikonBodyWake.Outcome.Answered(1), pre)
+        val value =
+            NikonBodyWake.dial<String>(
+                host = "192.168.1.20",
+                isAlive = { alive++; true },
+                onWake = { wakes++ },
+                dial = {
+                    dials++
+                    if (dials == 1) throw NikonBodyWake.DialFailure(DialTestFailure(), wakeWorthy = true)
+                    "connected"
+                },
+            )
+        assertEquals("connected", value)
+        assertEquals(2, alive)
+        assertEquals(2, dials)
+        assertEquals(1, wakes)
+        assertEquals(0, currentTime)
+    }
+
+    @Test
     fun `a silent wake ends with the honest copy and never redials`() = runTest {
         var dials = 0
         var alive = 0

@@ -137,6 +137,7 @@ struct NikonBodyWakeTests {
             _ = try await NikonBodyWake.dial(
                 host: "192.168.1.20", deviceName: "ZR_6002199",
                 isAlive: { await probe.isAlive($0) },
+                sleep: { _ in },
                 dial: { () -> String in
                     _ = await probe.attempt()
                     throw NikonBodyWake.DialFailure(
@@ -197,6 +198,35 @@ struct NikonBodyWakeTests {
         #expect(await probe.attempts == 1)
         #expect(await probe.wakes == 0)
         #expect(await probe.aliveDials == 0)
+    }
+
+    @Test("A body the pre-dial wake already heard costs one presence dial and no second wait")
+    func preDialWakeAndDialWakeDoNotStack() async throws {
+        // The app's saved-setup step (#91) asks the network before dialling an unseen setup; the
+        // dial's own wake then runs only if the dial still fails at the link layer. A body the
+        // first step just heard answers the dial wake's first presence dial, so the two never
+        // stack into a second bounded wait.
+        let probe = DialProbe(answerOn: 1)
+        let pre = await NikonBodyWake.awaitAnswer(
+            host: "192.168.1.20", isAlive: { await probe.isAlive($0) },
+            sleep: { _ in Issue.record("an answering body needs no pause") })
+        #expect(pre == .answered(dials: 1))
+        let value = try await NikonBodyWake.dial(
+            host: "192.168.1.20",
+            isAlive: { await probe.isAlive($0) },
+            onWake: { await probe.woke() },
+            sleep: { _ in Issue.record("an answering body needs no pause") },
+            dial: {
+                guard await probe.attempt() > 1 else {
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                }
+                return "connected"
+            })
+        #expect(value == "connected")
+        #expect(await probe.aliveDials == 2)
+        #expect(await probe.attempts == 2)
+        #expect(await probe.wakes == 1)
     }
 
     @Test("The blocking dial used by Android wakes and retries exactly once")

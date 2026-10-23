@@ -155,7 +155,7 @@
 
         /// No route to the body, or the connect deadline; a refusal means the host is up and
         /// serving something else, so waking it cannot change the answer.
-        private static func isWakeWorthyDial(error: Error, errno: Int32) -> Bool {
+        static func isWakeWorthyDial(error: Error, errno: Int32) -> Bool {
             if let sessionError = error as? NativeCameraSessionError,
                 case .timeout = sessionError
             {
