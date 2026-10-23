@@ -2160,7 +2160,7 @@ struct NikonCapturePopupState: Sendable
 struct NikonCardSlotReadout: Equatable, Sendable
 struct NikonCommandAdmission: Sendable
 struct NikonConnection: Sendable
-struct NikonControlFacts: Sendable
+struct NikonControlFacts: Equatable, Sendable
 struct NikonDescriptorEvidence: Equatable, Sendable
 struct NikonDescriptorObservation: Equatable, Sendable
 struct NikonEmbeddedPreviewRange: Equatable, Sendable
