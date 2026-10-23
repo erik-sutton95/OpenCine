@@ -66,6 +66,8 @@
         let safeArea: ((GeometryProxy) -> EdgeInsets)?
         @Environment(\.monitorWindowGeometry) private var windowGeometry
         @State private var pageOrientation = InterfaceOrientationObserver()
+        /// The retained monitor's own `.statusBarHidden`, read across its native boundary.
+        @State private var monitorHidesStatusBar = false
         let extraNearby: [CameraListItem]
         let pairingFlow: IntegrationPairingFlow?
         let prePage: (EdgeInsets) -> PrePage?
@@ -102,8 +104,15 @@
 
         public var body: some View {
             ZStack {
+                // The monitor's child host keeps its presentation preferences to itself; this
+                // sibling restates a hidden status bar for the window (never shows one an app hid).
+                if model.monitor != nil && monitorHidesStatusBar {
+                    Color.clear.frame(width: 0, height: 0).accessibilityHidden(true).statusBarHidden(true)
+                }
                 if let live = model.monitor {
-                    ShellMonitorAccessibilityContainer(hidden: hidesMonitor) { monitor(live) }
+                    ShellMonitorAccessibilityContainer(
+                        hidden: hidesMonitor, hidesStatusBar: $monitorHidesStatusBar
+                    ) { monitor(live) }
                         .ignoresSafeArea()
                         .id(live.id)
                         .monitorPresentationVisibility(!hidesMonitor)
@@ -157,23 +166,34 @@
     private struct ShellMonitorAccessibilityContainer<Content: View>: UIViewControllerRepresentable
     {
         let hidden: Bool
+        @Binding var hidesStatusBar: Bool
         let content: Content
         @Environment(\.self) private var environment
 
-        init(hidden: Bool, @ViewBuilder content: () -> Content) {
+        init(hidden: Bool, hidesStatusBar: Binding<Bool>, @ViewBuilder content: () -> Content) {
             self.hidden = hidden
+            _hidesStatusBar = hidesStatusBar
             self.content = content()
         }
 
         func makeUIViewController(context: Context) -> ShellMonitorAccessibilityController {
             let controller = ShellMonitorAccessibilityController()
-            controller.update(root: root, covered: hidden)
+            update(controller)
             return controller
         }
 
         func updateUIViewController(
             _ controller: ShellMonitorAccessibilityController, context: Context
         ) {
+            update(controller)
+        }
+
+        private func update(_ controller: ShellMonitorAccessibilityController) {
+            let binding = $hidesStatusBar
+            controller.onStatusBarHidden = { hidden in
+                // Reported from UIKit layout; state changes wait for the current update to end.
+                Task { @MainActor in if binding.wrappedValue != hidden { binding.wrappedValue = hidden } }
+            }
             controller.update(root: root, covered: hidden)
         }
 
@@ -184,7 +204,10 @@
 
     private final class ShellMonitorAccessibilityController: UIViewController {
         private let container = ShellMonitorAccessibilityView()
-        private var host: UIHostingController<AnyView>?
+        private var host: ShellMonitorHostingController?
+        var onStatusBarHidden: ((Bool) -> Void)? {
+            didSet { host?.onStatusBarHidden = onStatusBarHidden }
+        }
 
         override func loadView() {
             container.backgroundColor = .clear
@@ -197,7 +220,8 @@
             if let host {
                 host.rootView = root
             } else {
-                let host = UIHostingController(rootView: root)
+                let host = ShellMonitorHostingController(rootView: root)
+                host.onStatusBarHidden = onStatusBarHidden
                 host.safeAreaRegions = []
                 host.view.backgroundColor = .clear
                 addChild(host)
@@ -215,6 +239,32 @@
 
         private func placeHost() {
             host?.view.frame = container.bounds
+        }
+    }
+
+    /// Reports the monitor tree's status bar preference, which a child host cannot hand to the window.
+    private final class ShellMonitorHostingController: UIHostingController<AnyView> {
+        var onStatusBarHidden: ((Bool) -> Void)? {
+            didSet { report() }
+        }
+        private var reported: Bool?
+
+        override func setNeedsStatusBarAppearanceUpdate() {
+            super.setNeedsStatusBarAppearanceUpdate()
+            report()
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            report()
+        }
+
+        private func report() {
+            guard let onStatusBarHidden, isViewLoaded else { return }
+            let hidden = prefersStatusBarHidden
+            guard hidden != reported else { return }
+            reported = hidden
+            onStatusBarHidden(hidden)
         }
     }
 

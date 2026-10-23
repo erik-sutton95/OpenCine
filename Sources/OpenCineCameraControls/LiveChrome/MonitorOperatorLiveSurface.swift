@@ -778,7 +778,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var systemChrome: some View {
         let modes = session.modes
         let index = modes.firstIndex(of: session.mode)
-        return MonitorSystemControls(layout: layout, visibility: .init(lock: mounts(.lockButton),
+        return MonitorSystemControls(layout: layout, visibility: .init(lock: source.returnToStage != nil || mounts(.lockButton),
             settings: mounts(.railSettings), media: mounts(.railMedia), record: mounts(.railRecord), display: true)
             .resolved(locked: locked, recording: control.isRecording, borrowed: facts.borrowed),
             capturePresented: transient, visible: !motionCovering, interactive: editing == nil,
