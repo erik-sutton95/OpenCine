@@ -321,6 +321,8 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
     public var lastFlags: UInt32?
     public var origin: FeedDecoderErrorOrigin
     public var errorClass: String?
+    /// The platform call that raised the last error (`FeedIncidentExport.decoderCalls`), else nil.
+    public var errorCall: String?
     public var errorCount: Int
     public var decoderFailed: Bool
     public var errorAge: TimeInterval?
@@ -343,6 +345,7 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
         lastFlags: UInt32? = nil,
         origin: FeedDecoderErrorOrigin = .none,
         errorClass: String? = nil,
+        errorCall: String? = nil,
         errorCount: Int = 0,
         decoderFailed: Bool = false,
         errorAge: TimeInterval? = nil,
@@ -363,6 +366,7 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
         self.lastFlags = lastFlags
         self.origin = origin
         self.errorClass = errorClass.map { FeedIncidentPrivacy.token($0, max: 32) }
+        self.errorCall = errorCall.map { FeedIncidentPrivacy.token($0, max: 32) }
         self.errorCount = max(0, errorCount)
         self.decoderFailed = decoderFailed
         self.errorAge = FeedIncidentPrivacy.age(errorAge)
@@ -794,6 +798,14 @@ public struct FeedIncidentVendorEnvelope: Equatable, Sendable, Codable {
     public var trigger: String
     /// Last repair action before a recovered outcome, else `none`.
     public var recoveredBy: String
+    /// The decoder call behind `grouping.errorClass` (`FeedIncidentExport.decoderCalls`), else `none`.
+    public var decoderCall: String = "none"
+    /// `awaiting` when the decoder held for a keyframe (IRAP) as the incident opened, else `none`.
+    public var keyframeWait: String = "unknown"
+    /// Age of the last accepted IRAP at onset, bucketed (`FeedIncidentExport.irapAgeBucket`).
+    public var irapAge: String = "unknown"
+    /// Decoder submits against accepts at onset (`FeedIncidentExport.decodeFlow`).
+    public var decodeFlow: String = "unknown"
 }
 
 public struct FeedIncidentVerdict: Equatable, Sendable {

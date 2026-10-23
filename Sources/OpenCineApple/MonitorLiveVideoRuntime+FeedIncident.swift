@@ -15,7 +15,9 @@
                 origin: lastDecodeOrigin == "submit"
                     ? .sync
                     : FeedDecoderErrorOrigin(rawValue: lastDecodeOrigin) ?? .none,
-                errorClass: failed ? "nativeDecoder" : nil, errorCount: decoderErrors,
+                errorClass: failed ? "nativeDecoder" : nil,
+                errorCall: FeedIncidentExport.appleDecoderCall(origin: lastDecodeOrigin),
+                errorCount: decoderErrors,
                 decoderFailed: failed,
                 errorAge: FeedIncidentRateSampler.age(since: lastDecodeErrorAt, now: wall),
                 receivedIrap: sawKeyframe, awaitingIrap: awaitingIDR,

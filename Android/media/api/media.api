@@ -234,6 +234,22 @@ public final class com/opencapture/opencine/media/DLog2 {
 	public final fun encode (D)D
 }
 
+public final class com/opencapture/opencine/media/DecoderErrorCall : java/lang/Enum {
+	public static final field CONFIGURE Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static final field CREATE_CODEC Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static final field DEQUEUE_INPUT Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static final field DEQUEUE_OUTPUT Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static final field FILL_INPUT Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static final field GET_INPUT_BUFFER Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static final field QUEUE_INPUT Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static final field RELEASE_OUTPUT Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static final field START Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/media/DecoderErrorCall;
+	public static fun values ()[Lcom/opencapture/opencine/media/DecoderErrorCall;
+}
+
 public final class com/opencapture/opencine/media/DecoderErrorLifetime {
 	public fun <init> ()V
 	public final fun bumpFormatGeneration ()V
@@ -258,9 +274,11 @@ public final class com/opencapture/opencine/media/DecoderErrorOrigin : java/lang
 }
 
 public final class com/opencapture/opencine/media/DecoderErrorRecord {
-	public fun <init> (Lcom/opencapture/opencine/media/DecoderErrorOrigin;Ljava/lang/String;IILjava/lang/String;IILjava/lang/Boolean;Ljava/lang/Long;J)V
+	public fun <init> (Lcom/opencapture/opencine/media/DecoderErrorOrigin;Ljava/lang/String;IILjava/lang/String;IILjava/lang/Boolean;Ljava/lang/Long;JLcom/opencapture/opencine/media/DecoderErrorCall;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/media/DecoderErrorOrigin;Ljava/lang/String;IILjava/lang/String;IILjava/lang/Boolean;Ljava/lang/Long;JLcom/opencapture/opencine/media/DecoderErrorCall;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lcom/opencapture/opencine/media/DecoderErrorOrigin;
 	public final fun component10 ()J
+	public final fun component11 ()Lcom/opencapture/opencine/media/DecoderErrorCall;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()I
 	public final fun component4 ()I
@@ -269,10 +287,11 @@ public final class com/opencapture/opencine/media/DecoderErrorRecord {
 	public final fun component7 ()I
 	public final fun component8 ()Ljava/lang/Boolean;
 	public final fun component9 ()Ljava/lang/Long;
-	public final fun copy (Lcom/opencapture/opencine/media/DecoderErrorOrigin;Ljava/lang/String;IILjava/lang/String;IILjava/lang/Boolean;Ljava/lang/Long;J)Lcom/opencapture/opencine/media/DecoderErrorRecord;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/DecoderErrorRecord;Lcom/opencapture/opencine/media/DecoderErrorOrigin;Ljava/lang/String;IILjava/lang/String;IILjava/lang/Boolean;Ljava/lang/Long;JILjava/lang/Object;)Lcom/opencapture/opencine/media/DecoderErrorRecord;
+	public final fun copy (Lcom/opencapture/opencine/media/DecoderErrorOrigin;Ljava/lang/String;IILjava/lang/String;IILjava/lang/Boolean;Ljava/lang/Long;JLcom/opencapture/opencine/media/DecoderErrorCall;)Lcom/opencapture/opencine/media/DecoderErrorRecord;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/DecoderErrorRecord;Lcom/opencapture/opencine/media/DecoderErrorOrigin;Ljava/lang/String;IILjava/lang/String;IILjava/lang/Boolean;Ljava/lang/Long;JLcom/opencapture/opencine/media/DecoderErrorCall;ILjava/lang/Object;)Lcom/opencapture/opencine/media/DecoderErrorRecord;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAtElapsedMs ()J
+	public final fun getCall ()Lcom/opencapture/opencine/media/DecoderErrorCall;
 	public final fun getCode ()Ljava/lang/String;
 	public final fun getCodec ()Ljava/lang/String;
 	public final fun getFormatGeneration ()I
@@ -709,20 +728,21 @@ public final class com/opencapture/opencine/media/FeedIncidentDecodeErrorContext
 
 public final class com/opencapture/opencine/media/FeedIncidentDecoder {
 	public fun <init> ()V
-	public fun <init> (IILjava/lang/String;IILjava/lang/Integer;Ljava/lang/Long;Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;Ljava/lang/String;IZLjava/lang/Double;ZZZLjava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;)V
-	public synthetic fun <init> (IILjava/lang/String;IILjava/lang/Integer;Ljava/lang/Long;Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;Ljava/lang/String;IZLjava/lang/Double;ZZZLjava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (IILjava/lang/String;IILjava/lang/Integer;Ljava/lang/Long;Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;Ljava/lang/String;Ljava/lang/String;IZLjava/lang/Double;ZZZLjava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;)V
+	public synthetic fun <init> (IILjava/lang/String;IILjava/lang/Integer;Ljava/lang/Long;Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;Ljava/lang/String;Ljava/lang/String;IZLjava/lang/Double;ZZZLjava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()I
-	public final fun component10 ()I
-	public final fun component11 ()Z
-	public final fun component12 ()Ljava/lang/Double;
-	public final fun component13 ()Z
+	public final fun component10 ()Ljava/lang/String;
+	public final fun component11 ()I
+	public final fun component12 ()Z
+	public final fun component13 ()Ljava/lang/Double;
 	public final fun component14 ()Z
 	public final fun component15 ()Z
-	public final fun component16 ()Ljava/lang/Double;
+	public final fun component16 ()Z
 	public final fun component17 ()Ljava/lang/Double;
-	public final fun component18 ()Ljava/lang/String;
-	public final fun component19 ()Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;
+	public final fun component18 ()Ljava/lang/Double;
+	public final fun component19 ()Ljava/lang/String;
 	public final fun component2 ()I
+	public final fun component20 ()Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()I
 	public final fun component5 ()I
@@ -730,13 +750,14 @@ public final class com/opencapture/opencine/media/FeedIncidentDecoder {
 	public final fun component7 ()Ljava/lang/Long;
 	public final fun component8 ()Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;
 	public final fun component9 ()Ljava/lang/String;
-	public final fun copy (IILjava/lang/String;IILjava/lang/Integer;Ljava/lang/Long;Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;Ljava/lang/String;IZLjava/lang/Double;ZZZLjava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;)Lcom/opencapture/opencine/media/FeedIncidentDecoder;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/FeedIncidentDecoder;IILjava/lang/String;IILjava/lang/Integer;Ljava/lang/Long;Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;Ljava/lang/String;IZLjava/lang/Double;ZZZLjava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;ILjava/lang/Object;)Lcom/opencapture/opencine/media/FeedIncidentDecoder;
+	public final fun copy (IILjava/lang/String;IILjava/lang/Integer;Ljava/lang/Long;Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;Ljava/lang/String;Ljava/lang/String;IZLjava/lang/Double;ZZZLjava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;)Lcom/opencapture/opencine/media/FeedIncidentDecoder;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/FeedIncidentDecoder;IILjava/lang/String;IILjava/lang/Integer;Ljava/lang/Long;Lcom/opencapture/opencine/media/FeedDecoderErrorOrigin;Ljava/lang/String;Ljava/lang/String;IZLjava/lang/Double;ZZZLjava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;ILjava/lang/Object;)Lcom/opencapture/opencine/media/FeedIncidentDecoder;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAwaitingIrap ()Z
 	public final fun getCodec ()Ljava/lang/String;
 	public final fun getDecoderFailed ()Z
 	public final fun getErrorAge ()Ljava/lang/Double;
+	public final fun getErrorCall ()Ljava/lang/String;
 	public final fun getErrorClass ()Ljava/lang/String;
 	public final fun getErrorCount ()I
 	public final fun getFirstError ()Lcom/opencapture/opencine/media/FeedIncidentDecodeErrorContext;
@@ -771,8 +792,13 @@ public final class com/opencapture/opencine/media/FeedIncidentErrorCount {
 
 public final class com/opencapture/opencine/media/FeedIncidentExport {
 	public static final field INSTANCE Lcom/opencapture/opencine/media/FeedIncidentExport;
+	public final fun decodeFlow (DD)Ljava/lang/String;
+	public final fun decoderCall (Lcom/opencapture/opencine/media/FeedIncidentBundle;)Ljava/lang/String;
 	public final fun envelope (Lcom/opencapture/opencine/media/FeedIncidentBundle;)Lcom/opencapture/opencine/media/FeedIncidentVendorEnvelope;
 	public final fun gapBucket (D)Ljava/lang/String;
+	public final fun getDecoderCalls ()Ljava/util/Set;
+	public final fun irapAgeBucket (Ljava/lang/Double;)Ljava/lang/String;
+	public final fun onset (Lcom/opencapture/opencine/media/FeedIncidentBundle;)Lcom/opencapture/opencine/media/FeedIncidentSnapshot;
 }
 
 public final class com/opencapture/opencine/media/FeedIncidentFailingStage : java/lang/Enum {
@@ -1412,8 +1438,8 @@ public final class com/opencapture/opencine/media/FeedIncidentThermal {
 }
 
 public final class com/opencapture/opencine/media/FeedIncidentVendorEnvelope {
-	public fun <init> (ILjava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentGrouping;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIIJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
-	public synthetic fun <init> (ILjava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentGrouping;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIIJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (ILjava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentGrouping;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIIJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (ILjava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentGrouping;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIIJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()I
 	public final fun component10 ()I
 	public final fun component11 ()J
@@ -1426,6 +1452,10 @@ public final class com/opencapture/opencine/media/FeedIncidentVendorEnvelope {
 	public final fun component18 ()Ljava/lang/String;
 	public final fun component19 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
+	public final fun component20 ()Ljava/lang/String;
+	public final fun component21 ()Ljava/lang/String;
+	public final fun component22 ()Ljava/lang/String;
+	public final fun component23 ()Ljava/lang/String;
 	public final fun component3 ()Lcom/opencapture/opencine/media/FeedIncidentGrouping;
 	public final fun component4 ()Ljava/lang/String;
 	public final fun component5 ()Ljava/lang/String;
@@ -1433,18 +1463,22 @@ public final class com/opencapture/opencine/media/FeedIncidentVendorEnvelope {
 	public final fun component7 ()D
 	public final fun component8 ()D
 	public final fun component9 ()I
-	public final fun copy (ILjava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentGrouping;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIIJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/media/FeedIncidentVendorEnvelope;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/FeedIncidentVendorEnvelope;ILjava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentGrouping;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIIJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/media/FeedIncidentVendorEnvelope;
+	public final fun copy (ILjava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentGrouping;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIIJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/media/FeedIncidentVendorEnvelope;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/FeedIncidentVendorEnvelope;ILjava/lang/String;Lcom/opencapture/opencine/media/FeedIncidentGrouping;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIIJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/media/FeedIncidentVendorEnvelope;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAppBuild ()Ljava/lang/String;
 	public final fun getAppVersion ()Ljava/lang/String;
 	public final fun getBuildIdentity ()Ljava/lang/String;
 	public final fun getCameraFamily ()Ljava/lang/String;
+	public final fun getDecodeFlow ()Ljava/lang/String;
+	public final fun getDecoderCall ()Ljava/lang/String;
 	public final fun getDecoderGeneration ()I
 	public final fun getEventName ()Ljava/lang/String;
 	public final fun getGrouping ()Lcom/opencapture/opencine/media/FeedIncidentGrouping;
 	public final fun getHealthyExposureSeconds ()D
 	public final fun getIncidentID ()Ljava/lang/String;
+	public final fun getIrapAge ()Ljava/lang/String;
+	public final fun getKeyframeWait ()Ljava/lang/String;
 	public final fun getKind ()Ljava/lang/String;
 	public final fun getRecoveredBy ()Ljava/lang/String;
 	public final fun getSchemaVersion ()I
