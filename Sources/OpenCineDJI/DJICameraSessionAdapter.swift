@@ -180,6 +180,8 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     private unowned let session: any DJIControlPort
     private let onClose: (@MainActor (SessionCloseReason) -> Void)?
     private var snapshot: CameraSnapshot
+    /// The port state `snapshot` was mapped from. A read with the same state reuses it.
+    private var mappedInputs: SnapshotInputs?
     /// Snapshot mappings run so far. A test holds repeated reads to one mapping per state change.
     private(set) var snapshotBuilds = 0
     private var epoch = ControlEpoch(1)
@@ -224,9 +226,11 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         snapshot = CameraSnapshot(session: id, epoch: ControlEpoch(1))
     }
 
-    /// A snapshot rebuilt from the session right now.
+    /// The snapshot of the session right now. SwiftUI bodies read this many times per frame
+    /// (OPENPOCKETCINE-IOS-44: a 27 s hang rebuilding it from a capture readout body), so it is
+    /// mapped again only when something the mapping reads has changed.
     public var current: CameraSnapshot {
-        rebuild()
+        refresh()
         return snapshot
     }
 
@@ -273,7 +277,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     /// Status or phase changed. Cheap unless someone listens or a request awaits readback.
     public func sessionDidChange() {
         guard !closed else { return }
-        if !subscribers.isEmpty { rebuild() }
+        if !subscribers.isEmpty { refresh() }
         guard !open.isEmpty else { return }
         let status = session.status
         for (operation, expectation) in open
@@ -291,7 +295,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         guard !closed else { return }
         epoch = epoch.next()
         for operation in open.keys { abandon(operation) }
-        if !subscribers.isEmpty { rebuild() }
+        if !subscribers.isEmpty { refresh() }
     }
 
     // MARK: OpenCineCore.CameraSession
@@ -653,26 +657,58 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
 
     // MARK: Snapshot mapping (raw DJI status to common values)
 
-    private func rebuild() {
-        guard !closed else { return }
-        snapshotBuilds += 1
-        let status = session.status
-        var next = snapshot
-        next.epoch = epoch
-        next.device = session.connectedCameraID.map {
-            .durable($0, integration: Self.integration)
+    /// Everything the mapping reads from the port, plus the control epoch.
+    private struct SnapshotInputs: Equatable {
+        var epoch: ControlEpoch
+        var status: CameraStatus
+        var cameraID: String?
+        var model: CameraModel?
+        var link: DJILinkState
+        var admitsControl: Bool
+        var busy: Bool
+        var capture: DJICaptureControlState?
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.epoch == rhs.epoch && lhs.status == rhs.status && lhs.cameraID == rhs.cameraID
+                && lhs.model == rhs.model && lhs.link == rhs.link
+                && lhs.admitsControl == rhs.admitsControl && lhs.busy == rhs.busy
+                && lhs.capture?.reported == rhs.capture?.reported
+                && lhs.capture?.model == rhs.capture?.model
+                && lhs.capture?.shutterPresentation == rhs.capture?.shutterPresentation
         }
-        next.connection = connection()
+    }
+
+    /// Maps the port's state when it differs from what `snapshot` was mapped from.
+    private func refresh() {
+        guard !closed else { return }
+        let inputs = SnapshotInputs(
+            epoch: epoch, status: session.status, cameraID: session.connectedCameraID,
+            model: session.connectedModel, link: session.link,
+            admitsControl: session.admitsMultiviewControl, busy: session.isBusy,
+            capture: session.captureControlState)
+        guard inputs != mappedInputs else { return }
+        mappedInputs = inputs
+        rebuild(inputs)
+    }
+
+    private func rebuild(_ inputs: SnapshotInputs) {
+        snapshotBuilds += 1
+        let status = inputs.status
+        let capture = inputs.capture
+        var next = snapshot
+        next.epoch = inputs.epoch
+        next.device = inputs.cameraID.map { .durable($0, integration: Self.integration) }
+        next.connection = connection(inputs.link)
         next.authority =
             next.connection != .ready
             ? .unavailable(.link)
-            : session.admitsMultiviewControl ? .owner : .unavailable(.authority)
+            : inputs.admitsControl ? .owner : .unavailable(.authority)
         next.mode = Self.mode(status)
-        next.recordingFormat = DJIRecordingObservations.recording(session.captureControlState?.reported ?? status,
-            labels: session.connectedModel?.captureProfile?.labels ?? .standard)
-        next.exposureProgram = DJIRecordingObservations.exposureProgram(session.captureControlState?.reported ?? status)
+        next.recordingFormat = DJIRecordingObservations.recording(capture?.reported ?? status,
+            labels: inputs.model?.captureProfile?.labels ?? .standard)
+        next.exposureProgram = DJIRecordingObservations.exposureProgram(capture?.reported ?? status)
         next.settings = Self.settings(status)
-        if let capture = session.captureControlState {
+        if let capture {
             next.settings.merge(capture.settings) { _, report in report }
         }
         next.recording =
@@ -687,10 +723,10 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             status.audioMeters.map {
                 ObservedValue(Self.audioLevels($0), origin: .cameraReported, at: nil)
             } ?? .unknown
-        let model = session.connectedModel
+        let model = inputs.model
         let declared = CapabilitySnapshot(
             revision: snapshot.capabilities.revision,
-            descriptors: descriptors(status) + (session.captureControlState?.descriptors ?? []),
+            descriptors: descriptors(status, busy: inputs.busy) + (capture?.descriptors ?? []),
             unsupported: Self.unsupported(model), timecodeCapability: Self.timecodeCapability(model),
             audioLevels: Self.audioLevelsSupport(model))
         if declared != snapshot.capabilities {
@@ -705,8 +741,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         }
     }
 
-    private func connection() -> ConnectionState {
-        let link = session.link
+    private func connection(_ link: DJILinkState) -> ConnectionState {
         if link == .ready { return .ready }
         let continuing: Bool
         switch snapshot.connection {
@@ -728,7 +763,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     }
 
     /// Declared support is exactly what `wirePlan` routes. A test holds the two together.
-    private func descriptors(_ status: CameraStatus) -> [SettingDescriptor] {
+    private func descriptors(_ status: CameraStatus, busy: Bool) -> [SettingDescriptor] {
         var iso = status.isoWheelIndices.map { SettingValue.iso(Self.iso($0)) }
         if status.isoPresentationColor.offersIsoAuto, !iso.contains(.iso(.auto)) {
             iso.insert(.iso(.auto), at: 0)
@@ -736,7 +771,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         let recording: Availability =
             status.isPhoto
             ? .unavailable(.mode)
-            : session.isBusy ? .unavailable(.busy) : .available
+            : busy ? .unavailable(.busy) : .available
         return [
             SettingDescriptor(.iso, domain: SettingDomain(choices: iso)),
             SettingDescriptor(
