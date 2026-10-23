@@ -11,7 +11,7 @@ import OpenCineCore
 // while record keeps its existing live-view preflight as `.unavailable(.notReady)`.
 
 /// Camera facts the adapter maps, read from its integration-owned driver on demand.
-public struct NikonControlFacts: Sendable {
+public struct NikonControlFacts: Equatable, Sendable {
     /// Control-link state. Recovery keeps the common session and its last reported values.
     public var connection: ConnectionState = .ready
     /// False while a relay viewer holds control of this session.
@@ -161,6 +161,8 @@ public final class NikonCameraSession: CameraSession {
     private let now: @Sendable () -> MonotonicInstant
     private let recordObservationTimeout: Duration
     private var current: CameraSnapshot
+    /// The facts `current` was mapped from. `refresh()` with the same facts reuses it.
+    private var mappedFacts: NikonControlFacts?
     /// Snapshot mappings run so far. A test holds unchanged facts to one mapping.
     private(set) var snapshotBuilds = 0
     private nonisolated let commandState: NikonCommandSnapshot
@@ -421,10 +423,25 @@ public final class NikonCameraSession: CameraSession {
     }
 
     /// Re-reads the camera facts, publishes a changed snapshot and confirms record operations the
-    /// camera now reports. The model calls this whenever camera-reported state changes.
+    /// camera now reports. The model calls this whenever camera-reported state changes; app
+    /// getters read it from view code too, so unchanged facts reuse the mapped snapshot.
     @discardableResult
     public func refresh() -> CameraSnapshot {
         guard !isClosed, let facts = driver?.nikonControlFacts else { return current }
+        if facts != mappedFacts {
+            mappedFacts = facts
+            map(facts)
+        }
+        for (operation, start) in recordTargets
+        where receipts[operation]?.stage == .awaitingObservation
+            && current.recording.value == (start ? .recording : .idle)
+        {
+            finish(operation, .confirmed)
+        }
+        return current
+    }
+
+    private func map(_ facts: NikonControlFacts) {
         snapshotBuilds += 1
         let at = now()
         var next = current
@@ -486,13 +503,6 @@ public final class NikonCameraSession: CameraSession {
                 if case .terminated = continuation.yield(current) { subscribers[token] = nil }
             }
         }
-        for (operation, start) in recordTargets
-        where receipts[operation]?.stage == .awaitingObservation
-            && current.recording.value == (start ? .recording : .idle)
-        {
-            finish(operation, .confirmed)
-        }
-        return current
     }
 
     // MARK: PTP to common mapping
