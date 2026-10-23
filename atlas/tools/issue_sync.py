@@ -22,6 +22,10 @@ REPORT = re.compile(r"<pre>([\s\S]*?)</pre>")
 FIELDS = ("title", "body", "state", "labels", "assignees")
 LIMIT = 65000
 SHARD_ENTRIES = 50
+# A routine run sees a few new app issues at most. More planned creates means either a
+# deliberate backfill or a central inventory that read successfully but incompletely
+# (2026-10-22: one tracker per open app issue was duplicated during a GitHub degradation).
+MAX_AUTOMATIC_CREATES = 5
 
 
 def digest(value):
@@ -563,29 +567,43 @@ class Runner:
             self.issue_patch(self.central, b, {"body": body} if body != b["body"] else {}, pair, True, app)
 
 
-def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]", full=False):
+def _mirrors(central, reg, bot_login):
+    mirrors = {}
+    for tracker in central:
+        # Unowned Core text has no routing, pair-selection or write authority,
+        # even when it quotes a structurally valid authenticated marker.
+        if not _bot(tracker, bot_login): continue
+        identity = linked.parse_link(tracker.get("body"), reg)
+        if not identity: continue
+        key = identity["app"], identity["number"]
+        if key in mirrors: raise linked.SyncError("duplicate authenticated central trackers")
+        mirrors[key] = tracker
+    return mirrors
+
+
+def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]", full=False, allow_backfill=False):
     result = {"version": 2, "mode": "execute" if execute else "dry-run", "complete": False,
               "actions": [], "applied": [], "errors": [], "conflicts": [], "tombstones": [], "counts": {}, "uncertain": None}
     try:
         if not re.fullmatch(r"[A-Za-z0-9_-]+\[bot\]", bot_login): raise linked.SyncError("a configured sync App bot identity is required")
         runner = Runner(reg, api, execute, bot_login, result)
         central = linked.inventory(api, runner.central)
-        mirrors = {}
-        for tracker in central:
-            # Unowned Core text has no routing, pair-selection or write authority,
-            # even when it quotes a structurally valid authenticated marker.
-            if not _bot(tracker, bot_login): continue
-            identity = linked.parse_link(tracker.get("body"), reg)
-            if not identity: continue
-            key = identity["app"], identity["number"]
-            if key in mirrors: raise linked.SyncError("duplicate authenticated central trackers")
-            mirrors[key] = tracker
+        mirrors = _mirrors(central, reg, bot_login)
+        result["inventory"] = {"central_issues": len(central), "authenticated_trackers": len(mirrors), "sources": {}}
         sources = {}
         for app, repo in sorted(runner.apps.items()):
-            for item in linked.inventory(api, repo): sources[app, item["number"]] = item
+            items = linked.inventory(api, repo)
+            result["inventory"]["sources"][app] = len(items)
+            for item in items: sources[app, item["number"]] = item
         if set(mirrors) - set(sources): raise linked.SyncError("a tracked original is missing; deletion/transfer/visibility needs review")
         pairs = [(app, item, mirrors.get((app, number))) for (app, number), item in sorted(sources.items())
                  if (app, number) in mirrors or item["state"] == "open"]
+        # A successful read is not proof of absence: GitHub can serve a well-formed but
+        # incomplete listing. Bound automatic creation; a backfill is a reviewed manual run.
+        creates = sum(tracker is None for _, _, tracker in pairs)
+        if execute and not allow_backfill and creates > MAX_AUTOMATIC_CREATES:
+            raise linked.SyncError(f"{creates} new trackers planned; automatic runs create at most "
+                                   f"{MAX_AUTOMATIC_CREATES}; review a dry run and dispatch a manual backfill")
         # A pair whose fields still match the durable baseline and whose endpoint signals
         # still match the poll checkpoint cannot have changed: skip both comment inventories.
         # A forced full pass (the daily workflow schedule) reads every pair anyway.
@@ -608,6 +626,12 @@ def reconcile(reg, api, execute=False, bot_login="opencine-atlas-sync[bot]", ful
         for app, source, tracker in pairs:
             runner.threads[runner.apps[app], source["number"]] = _comments(api, runner.apps[app], source["number"])
             if tracker: runner.threads[runner.central, tracker["number"]] = _comments(api, runner.central, tracker["number"])
+        if execute and creates:
+            # Creation trusts absence, so confirm it with a second complete read that
+            # must name exactly the same authenticated trackers.
+            again = _mirrors(linked.inventory(api, runner.central), reg, bot_login)
+            if {k: v["number"] for k, v in again.items()} != {k: v["number"] for k, v in mirrors.items()}:
+                raise linked.SyncError("central inventory changed between reads; no tracker created, run a fresh plan")
         for app, source, tracker in pairs:
             try:
                 runner.pair(app, source, tracker)

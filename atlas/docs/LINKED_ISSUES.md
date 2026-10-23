@@ -84,6 +84,28 @@ Disable activation while investigating corrupted/duplicate state, retain all sur
 and indexed text, and resolve the identified state deliberately. Do not delete indexes or
 reset baselines to force a green run.
 
+A read that succeeds can still be incomplete: on 2026-10-22, during a GitHub degradation, the
+central listing came back without the existing trackers and one run created a second tracker
+for every open app issue. Creation therefore trusts absence only after a second complete
+central read names exactly the same authenticated trackers, and an automatic run creates at
+most five trackers. A larger backfill is a manual workflow dispatch with `execute` ticked
+(`--allow-backfill`), after a dry run was reviewed. Receipts record inventory sizes
+(`inventory`) so an incomplete read is visible.
+
+### Retiring a duplicate tracker
+
+Keep the older tracker: it holds the durable common baseline, the poll checkpoint and the
+comment index that existing copies bind to. Then:
+
+1. Set `ATLAS_LINKED_ISSUES_ENABLED` to `false` and snapshot both trackers and their comments.
+2. Edit the duplicate's body to a plain note naming the kept tracker, with no
+   `<!-- atlas-linked-issue:` text left (any leftover fragment fails every run). Read it back.
+   Without the marker it is an ordinary Core issue and its comments are never read again.
+3. Only then close it as a duplicate. Never close a tracker that still carries its marker:
+   closing is a paired field and would close the app issue. Never edit the kept tracker.
+4. Run the dry run (locally and as a manual dispatch without `execute`), confirm no create
+   and no unexpected app-side write, then one manual execute, then re-enable activation.
+
 ## One-time hosted setup and activation
 
 The default GITHUB_TOKEN cannot write child repositories: its authority is limited to its

@@ -69,6 +69,37 @@ class LinkedIssues(unittest.TestCase):
                 self.assertEqual(linked.main([]), 0)
         self.assertEqual(calls, [False, True])
 
+    def test_cli_backfill_authority_only_with_explicit_flag_on_execute(self):
+        calls = []
+
+        def reconcile(reg, api, execute=False, bot_login="", full=False, allow_backfill=False):
+            calls.append((execute, allow_backfill))
+            return {"complete": True, "applied": []}
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "issue-sync.json").write_text(json.dumps(
+                {"schema_version": 1, "bot_login": "opencine-atlas-sync[bot]"}))
+            api = mock.Mock(token="installation-token")
+            with mock.patch.object(linked.atlas, "atlas_root", return_value=root), \
+                    mock.patch.object(linked.atlas, "load_registry", return_value=(registry(), [])), \
+                    mock.patch.object(linked, "GitHubAPI", return_value=api), \
+                    mock.patch.object(linked, "reconcile", side_effect=reconcile), \
+                    mock.patch.dict(os.environ, {"ATLAS_SYNC_BOT_LOGIN": "opencine-atlas-sync[bot]"}, clear=False), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                os.environ.pop("GITHUB_ACTIONS", None)
+                self.assertEqual(linked.main(["--execute"]), 0)
+                self.assertEqual(linked.main(["--execute", "--allow-backfill"]), 0)
+                with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+                    linked.main(["--allow-backfill"])
+        self.assertEqual(calls, [(True, False), (True, True)])
+
+    def test_workflow_grants_backfill_only_to_manual_execute(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/atlas-linked-issues.yml").read_text()
+        self.assertIn('if [[ "$EVENT_NAME" == workflow_dispatch && "$EXECUTE" == true ]]; then\n'
+                      '            args+=(--allow-backfill)', workflow)
+        self.assertEqual(workflow.count("--allow-backfill"), 1)
+
     def test_marker_requires_canonical_positive_registered_app_identity(self):
         for app, number, url in (("opencine", 12, "https://github.com/o/OpenCine/issues/12"),
                                  ("unknown", 12, "https://github.com/o/App/issues/12"),
