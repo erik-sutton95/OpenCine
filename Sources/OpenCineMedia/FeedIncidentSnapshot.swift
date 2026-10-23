@@ -794,6 +794,38 @@ public struct FeedIncidentVendorEnvelope: Equatable, Sendable, Codable {
     public var trigger: String
     /// Last repair action before a recovered outcome, else `none`.
     public var recoveredBy: String
+    /// The episode's first decoder error status (VideoToolbox `OSStatus`), else the last
+    /// non-zero one, as decimal digits; `none` when the decoder reported no error.
+    public var decoderStatus: String = "none"
+    /// The live codec during the incident: `avc`, `hevc`, `unknown` or `other`.
+    public var decoderCodec: String = "unknown"
+    /// The feed watchdog's last hold during the incident (`FeedWatchdog.Hold`), else `none`.
+    public var watchdogHold: String = "none"
+}
+
+extension FeedIncidentVendorEnvelope {
+    /// Envelopes written before the decoder and watchdog fields read them as unknown.
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        eventName = try values.decode(String.self, forKey: .eventName)
+        grouping = try values.decode(FeedIncidentGrouping.self, forKey: .grouping)
+        incidentID = try values.decode(String.self, forKey: .incidentID)
+        sessionID = try values.decode(String.self, forKey: .sessionID)
+        kind = try values.decode(String.self, forKey: .kind)
+        worstGapSeconds = try values.decode(TimeInterval.self, forKey: .worstGapSeconds)
+        healthyExposureSeconds = try values.decode(
+            TimeInterval.self, forKey: .healthyExposureSeconds)
+        decoderGeneration = try values.decode(Int.self, forKey: .decoderGeneration)
+        socketGeneration = try values.decode(Int.self, forKey: .socketGeneration)
+        testSource = try values.decode(String.self, forKey: .testSource)
+        buildIdentity = try values.decode(String.self, forKey: .buildIdentity)
+        trigger = try values.decode(String.self, forKey: .trigger)
+        recoveredBy = try values.decode(String.self, forKey: .recoveredBy)
+        decoderStatus = try values.decodeIfPresent(String.self, forKey: .decoderStatus) ?? "none"
+        decoderCodec = try values.decodeIfPresent(String.self, forKey: .decoderCodec) ?? "unknown"
+        watchdogHold = try values.decodeIfPresent(String.self, forKey: .watchdogHold) ?? "none"
+    }
 }
 
 public struct FeedIncidentVerdict: Equatable, Sendable {

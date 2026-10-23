@@ -180,6 +180,8 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     private unowned let session: any DJIControlPort
     private let onClose: (@MainActor (SessionCloseReason) -> Void)?
     private var snapshot: CameraSnapshot
+    /// Snapshot mappings run so far. A test holds repeated reads to one mapping per state change.
+    private(set) var snapshotBuilds = 0
     private var epoch = ControlEpoch(1)
     private var attempt = ConnectionAttemptID()
     private var closed = false
@@ -653,6 +655,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
 
     private func rebuild() {
         guard !closed else { return }
+        snapshotBuilds += 1
         let status = session.status
         var next = snapshot
         next.epoch = epoch

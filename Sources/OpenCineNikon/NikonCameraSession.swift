@@ -161,6 +161,8 @@ public final class NikonCameraSession: CameraSession {
     private let now: @Sendable () -> MonotonicInstant
     private let recordObservationTimeout: Duration
     private var current: CameraSnapshot
+    /// Snapshot mappings run so far. A test holds unchanged facts to one mapping.
+    private(set) var snapshotBuilds = 0
     private nonisolated let commandState: NikonCommandSnapshot
     /// The last published observation, safe to copy at a queued native transaction gate.
     /// Reading it performs no refresh, callbacks or transport work.
@@ -423,6 +425,7 @@ public final class NikonCameraSession: CameraSession {
     @discardableResult
     public func refresh() -> CameraSnapshot {
         guard !isClosed, let facts = driver?.nikonControlFacts else { return current }
+        snapshotBuilds += 1
         let at = now()
         var next = current
         if current.connection != .ready, facts.connection == .ready {

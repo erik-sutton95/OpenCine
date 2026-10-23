@@ -288,6 +288,31 @@ final class ReliabilityReportingTests: XCTestCase {
         wait(for: [again], timeout: 0.3)
     }
 
+    /// The decoder status, codec and watchdog hold reach the event as searchable tags and
+    /// extras, closed or bounded like the other incident fields.
+    func testIncidentEventCarriesDecoderStatusCodecAndWatchdogHold() throws {
+        consent.setOptedIn(true)
+        var bundle = try stallBundle(id: "5a1d3c6e8f2b4d7a9c0e1f2a3b4c5d6e")
+        var snapshot = try XCTUnwrap(bundle.during.last ?? bundle.prelude.last)
+        snapshot.decoder = FeedIncidentDecoder(
+            codec: "hevc", lastStatus: -12909, errorClass: "nativeDecoder",
+            firstError: FeedIncidentDecodeErrorContext(
+                status: -12909, nalTypes: [19], accessUnitBytes: 4_000))
+        snapshot.watchdogGate = FeedIncidentWatchdogGate(hold: "rungWait")
+        bundle.during = [snapshot]
+        let captured = expectation(description: "incident event")
+        reporting.setCaptureHandlerForTests { event, _ in
+            XCTAssertEqual(event.tags?["decoderStatus"], "-12909")
+            XCTAssertEqual(event.tags?["decoderCodec"], "hevc")
+            XCTAssertEqual(event.tags?["watchdogHold"], "rungWait")
+            XCTAssertEqual(event.extra?["decoderStatus"] as? String, "-12909")
+            XCTAssertEqual(event.extra?["watchdogHold"] as? String, "rungWait")
+            captured.fulfill()
+        }
+        reporting.enqueueFinalized(bundle)
+        wait(for: [captured], timeout: 10)
+    }
+
     func testOpenCheckpointDoesNotEnqueueDuplicate() throws {
         consent.setOptedIn(true)
         let open = try stallBundle(id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
