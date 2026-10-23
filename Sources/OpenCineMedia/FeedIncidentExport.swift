@@ -127,7 +127,7 @@ public enum FeedIncidentExport: Sendable {
         }
         // The incident's own snapshots: its opening tick and everything recorded while it was open.
         let window =
-            bundle.prelude.filter { $0.monotonicNow >= header.startedAtMonotonic - 1.5 } + bundle.during
+            bundle.prelude.filter { $0.monotonicNow >= header.startedAtMonotonic } + bundle.during
         // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
         // One recorded after the incident ended (aftermath collection) is not the incident's.
         let incidentEnd = header.endedAtMonotonic

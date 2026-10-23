@@ -143,6 +143,9 @@ class FeedIncidentExportTest {
         val early = bundle.copy(prelude = listOf(stale(1.0, foreground = false, awaiting = true)), during = emptyList())
         assertEquals("unknown", FeedIncidentExport.envelope(early).background)
         assertEquals("unknown", FeedIncidentExport.envelope(early).awaitingIrap)
+        // Not even one tick before the opening snapshot.
+        val tickBefore = early.copy(prelude = listOf(stale(3.0, foreground = false, awaiting = true)))
+        assertEquals("unknown", FeedIncidentExport.envelope(tickBefore).background)
         // A session drop stops the snapshots; the scene breadcrumb still marks the app switch.
         val inactive = FeedIncidentBreadcrumb(5.0, FeedIncidentBreadcrumbKind.SCENE_ACTIVITY, "inactive")
         assertEquals("yes", FeedIncidentExport.envelope(early.copy(breadcrumbs = listOf(inactive))).background)

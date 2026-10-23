@@ -334,6 +334,10 @@ import Testing
         early.during = []
         #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
         #expect(FeedIncidentExport.envelope(from: early).awaitingIrap == "unknown")
+        // Not even one tick before the opening snapshot.
+        var tickBefore = early
+        tickBefore.prelude = [stale(3, foreground: false, awaiting: true)]
+        #expect(FeedIncidentExport.envelope(from: tickBefore).background == "unknown")
         // A session drop stops the snapshots; the scene breadcrumb still marks the app switch.
         early.breadcrumbs = [
             FeedIncidentBreadcrumb(monotonicAt: 5, kind: .sceneActivity, detail: "inactive")

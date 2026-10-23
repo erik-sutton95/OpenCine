@@ -812,7 +812,7 @@ object FeedIncidentExport {
         // The 1 Hz snapshot opens an incident up to a tick after its first repair.
         val own = from.repairs.filter { it.monotonicAt >= header.startedAtMonotonic - 1.5 }.map { it.closed() }
         // The incident's own snapshots: its opening tick and everything recorded while it was open.
-        val window = from.prelude.filter { it.monotonicNow >= header.startedAtMonotonic - 1.5 } + from.during
+        val window = from.prelude.filter { it.monotonicNow >= header.startedAtMonotonic } + from.during
         // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
         // One recorded after the incident ended (aftermath collection) is not the incident's.
         val incidentEnd = header.endedAtMonotonic
