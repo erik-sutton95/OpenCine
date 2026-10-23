@@ -1,6 +1,8 @@
 package com.opencapture.opencine.nikon
 
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /**
  * The wake step before a saved Wi-Fi connect dials a body that discovery does not currently see
@@ -31,6 +33,17 @@ object NikonBodyWake {
         data class Silent(override val dials: Int) : Outcome
     }
 
+    /**
+     * One TCP dial that failed before the PTP-IP handshake (Swift `NikonBodyWake.DialFailure`).
+     * [wakeWorthy] is true only when the body did not answer at the link layer; a refusal proves
+     * the host is up, so waking it cannot help.
+     */
+    class DialFailure(val underlying: Throwable, val wakeWorthy: Boolean) :
+        Exception(underlying.message, underlying)
+
+    /** The wake dials all went unanswered: the body is asleep or off this network. */
+    class SilentException(val deviceName: String = "") : Exception(silentMessage(deviceName))
+
     /** Dials [host] until it answers or [dials] dials went unanswered; cancellation propagates. */
     suspend fun awaitAnswer(
         host: String,
@@ -46,6 +59,36 @@ object NikonBodyWake {
             if (made < bound) delay(intervalMillis)
         }
         return Outcome.Silent(made)
+    }
+
+    /**
+     * Runs [dial] once. When it fails with a wake-worthy [DialFailure], asks the network with
+     * [awaitAnswer] and then dials exactly once more: a silent body, or a retry that is still
+     * unreachable, ends with [SilentException]; a different second failure surfaces its own
+     * error. There is no loop beyond that one retry (Swift twin `NikonBodyWake.dial`).
+     */
+    suspend fun <T> dial(
+        host: String,
+        deviceName: String = "",
+        isAlive: suspend (String) -> Boolean,
+        onWake: suspend () -> Unit = {},
+        dial: suspend () -> T,
+    ): T {
+        try {
+            return dial()
+        } catch (failure: DialFailure) {
+            if (!failure.wakeWorthy || !currentCoroutineContext().isActive) throw failure.underlying
+            onWake()
+            if (awaitAnswer(host, isAlive = isAlive) is Outcome.Silent) throw SilentException(deviceName)
+            try {
+                return dial()
+            } catch (retry: DialFailure) {
+                // The single retry was unreachable too: surface the honest cause instead of a raw
+                // socket sentence or a second wake.
+                if (retry.wakeWorthy) throw SilentException(deviceName)
+                throw retry.underlying
+            }
+        }
     }
 
     /** Progress copy while the dials run. */

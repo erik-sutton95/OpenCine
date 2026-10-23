@@ -103,6 +103,15 @@
             )
         }
 
+        @Test("A silent wake is not retried in place: the bounded wake already asked the network")
+        func silentWakeDoesNotRetry() {
+            #expect(
+                !NativeCameraSession.isRetryableEstablishFailure(
+                    NikonBodyWake.SilentError(deviceName: "ZR_6002199"), requestPairing: false
+                )
+            )
+        }
+
         @Test("Raw socket-layer errors (not session errors) are treated as transient")
         func unknownErrorsRetry() {
             let posixError = NSError(domain: NSPOSIXErrorDomain, code: 61)  // ECONNREFUSED
