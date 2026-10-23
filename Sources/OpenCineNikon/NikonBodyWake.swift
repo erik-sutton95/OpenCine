@@ -95,7 +95,7 @@ public enum NikonBodyWake {
         host: String,
         deviceName: String = "",
         isAlive: @Sendable (String) async -> Bool,
-        onWake: @Sendable () async -> Void = {},
+        onWake: (@Sendable () async -> Void)? = nil,
         sleep: @Sendable (Duration) async throws -> Void = hostSleep(for:),
         dial: @Sendable () async throws -> Value
     ) async throws -> Value {
@@ -103,7 +103,7 @@ public enum NikonBodyWake {
             return try await dial()
         } catch let failure as DialFailure {
             guard failure.wakeWorthy, !Task.isCancelled else { throw failure.underlying }
-            await onWake()
+            await onWake?()
             let outcome = await awaitAnswer(host: host, isAlive: isAlive, sleep: sleep)
             guard outcome.answered else { throw SilentError(deviceName: deviceName) }
             do {

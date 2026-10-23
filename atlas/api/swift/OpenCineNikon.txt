@@ -1745,7 +1745,7 @@ static func NikonAppleNetworkInterfaces.isPersonalHotspotActive() -> Swift.Bool
 static func NikonAppleNetworkInterfaces.isWiFiRadioOn() -> Swift.Bool
 static func NikonAppleNetworkInterfaces.snapshot() -> [NikonLocalInterface]
 static func NikonBodyWake.awaitAnswer(host: Swift.String, dials: Swift.Int, interval: Swift.Duration, isAlive: (Swift.String) async -> Swift.Bool, sleep: (Swift.Duration) async throws -> Swift.Void) -> NikonBodyWake.Outcome
-static func NikonBodyWake.dial(host: Swift.String, deviceName: Swift.String, isAlive: (Swift.String) async -> Swift.Bool, onWake: () async -> Swift.Void, sleep: (Swift.Duration) async throws -> Swift.Void, dial: () async throws -> Value)<Value> throws -> Value
+static func NikonBodyWake.dial(host: Swift.String, deviceName: Swift.String, isAlive: (Swift.String) async -> Swift.Bool, onWake: (() async -> Swift.Void)?, sleep: (Swift.Duration) async throws -> Swift.Void, dial: () async throws -> Value)<Value> throws -> Value
 static func NikonBodyWake.dialBlocking(host: Swift.String, deviceName: Swift.String, dials: Swift.Int, interval: Foundation.TimeInterval, isAlive: (Swift.String) -> Swift.Bool, onWake: () -> Swift.Void, dial: () throws -> Value)<Value> throws -> Value
 static func NikonBodyWake.silentMessage(deviceName: Swift.String) -> Swift.String
 static func NikonBodyWake.wakingMessage(deviceName: Swift.String) -> Swift.String
