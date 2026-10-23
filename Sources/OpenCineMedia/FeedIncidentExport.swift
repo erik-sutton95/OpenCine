@@ -79,7 +79,7 @@ public enum FeedIncidentExport: Sendable {
             hardwareClass: header.hardwareClass,
             cameraFirmware: header.cameraFirmware ?? "none",
             assistState: header.assistState)
-        return FeedIncidentVendorEnvelope(
+        var envelope = FeedIncidentVendorEnvelope(
             schemaVersion: header.schemaVersion,
             eventName: "feed.incident",
             grouping: grouping,
@@ -99,5 +99,19 @@ public enum FeedIncidentExport: Sendable {
                 ? own.last(where: { $0.reason != FeedRepairRecord.firstPictureReason })?.action
                     ?? "none"
                 : "none")
+        // The snapshot that opened the incident is the prelude's last; a short incident may have
+        // no `during` snapshot yet.
+        let during = Array(bundle.prelude.suffix(1)) + bundle.during
+        let firstError = during.lazy.compactMap(\.decoder.firstError?.status).first { $0 != 0 }
+        let lastStatus = during.lazy.reversed().compactMap(\.decoder.lastStatus).first { $0 != 0 }
+        envelope.decoderStatus = (firstError ?? lastStatus).map(String.init) ?? "none"
+        let codec = during.last?.decoder.codec ?? "unknown"
+        envelope.decoderCodec = decoderCodecs.contains(codec) ? codec : "other"
+        envelope.watchdogHold =
+            during.lazy.reversed().compactMap(\.watchdogGate?.hold).first ?? "none"
+        return envelope
     }
+
+    /// The codec names producers report (`MonitorLiveVideoRuntime.incidentCodec`, MediaCodec).
+    public static let decoderCodecs: Set<String> = ["avc", "hevc", "unknown"]
 }

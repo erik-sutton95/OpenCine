@@ -483,6 +483,17 @@ public struct FeedIncidentWatchdogGate: Equatable, Sendable, Codable {
     }
 }
 
+extension FeedIncidentWatchdogGate {
+    /// Every hold a producer records: `FeedWatchdog.Hold` raw values plus the shells' own pre-tick
+    /// holds. Reporting exports anything else as `other`.
+    public static let holdValues: Set<String> = [
+        "fired", "notLive", "pathNotReady", "repairNotReady", "repairDeadline", "rejoinCooldown",
+        "gopReset", "controlGrace", "receiveAlive", "outputNotExpected", "accessUnitStale",
+        "firstVideoWait", "rungWait", "rebuildBackoff", "cooldown",
+        "foregroundRecover", "endpointRebuild", "repairInFlight",
+    ]
+}
+
 /// One-second allowlisted stage snapshot. No compressed payload, footage, or PII.
 public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
     public var monotonicNow: TimeInterval

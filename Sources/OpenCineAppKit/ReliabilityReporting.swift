@@ -729,6 +729,9 @@ public final class ReliabilityReporting: @unchecked Sendable {
             "trigger": envelope.trigger,
             "recoveredBy": envelope.recoveredBy,
             "gap": FeedIncidentExport.gapBucket(envelope.worstGapSeconds),
+            "decoderStatus": envelope.decoderStatus,
+            "decoderCodec": envelope.decoderCodec,
+            "watchdogHold": envelope.watchdogHold,
         ]
         event.extra = [
             "schemaVersion": envelope.schemaVersion,
@@ -747,6 +750,9 @@ public final class ReliabilityReporting: @unchecked Sendable {
             "buildIdentity": envelope.buildIdentity,
             "trigger": envelope.trigger,
             "recoveredBy": envelope.recoveredBy,
+            "decoderStatus": envelope.decoderStatus,
+            "decoderCodec": envelope.decoderCodec,
+            "watchdogHold": envelope.watchdogHold,
         ]
         event.context = [
             "feed": [

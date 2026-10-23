@@ -17,6 +17,7 @@ public struct ReliabilityReportingPrivacy: Sendable {
         "decoderGeneration",
         "socketGeneration", "worstGapSeconds", "healthyExposureSeconds", "incidentCount",
         "testSource", "buildIdentity", "trigger", "recoveredBy",
+        "decoderStatus", "decoderCodec", "watchdogHold",
     ]
 
     public static let contextAllowlist: [String: Set<String>] = [
@@ -50,6 +51,9 @@ public struct ReliabilityReportingPrivacy: Sendable {
             .union(["none", "other"]),
         // MonitorUpscaler raw values (Kotlin MonitorGlesUpscaler labels).
         "feedUpscaler": ["Off", "Fast", "Quality", "AI", "other"],
+        "decoderCodec": FeedIncidentExport.decoderCodecs.union(["other"]),
+        // FeedWatchdog.Hold raw values plus the shell's own pre-tick holds.
+        "watchdogHold": FeedIncidentWatchdogGate.holdValues.union(["none", "other"]),
         // Incident outcomes and the session summary's own.
         "outcome": [
             "open", "recovered", "interrupted", "exhausted", "suppressed", "userEnded", "live",
@@ -63,6 +67,8 @@ public struct ReliabilityReportingPrivacy: Sendable {
         "sourceRevision": #"^([0-9a-f]{7,40}(\+|-dirty)?|unknown)$"#,
         "buildIdentity": #"^((ios|android|watchos|wearos|macos)-[0-9a-z]{8,64}|unknown)$"#,
         "appBuild": #"^[0-9]{1,10}$"#,
+        // A decoder OSStatus as decimal digits.
+        "decoderStatus": #"^(-?[0-9]{1,10}|none)$"#,
     ]
 
     /// A string as it may leave the phone under `key`: a closed vocabulary or a fixed shape where
@@ -98,6 +104,7 @@ public struct ReliabilityReportingPrivacy: Sendable {
         "failingStage", "errorClass", "outcome", "kind",
         "sourceRevision", "cameraFamily", "cameraFirmware", "hardwareClass",
         "testSource", "buildIdentity", "trigger", "recoveredBy", "gap", "feedUpscaler",
+        "decoderStatus", "decoderCodec", "watchdogHold",
     ]
 
     /// 32 lowercase hex digits from an incident or session id, as the SDK reads and prints a
