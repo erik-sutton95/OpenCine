@@ -89,16 +89,11 @@
                 app.terminate()
                 XCUIDevice.shared.orientation = .portrait
             }
-            XCTAssertTrue(app.buttons["monitor.system.record"].waitForExistence(timeout: 20))
+            let record = app.buttons["monitor.system.record"]
+            XCTAssertTrue(record.waitForExistence(timeout: 20))
             for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
-                XCUIDevice.shared.orientation = orientation
-                let shaped = XCTNSPredicateExpectation(
-                    predicate: NSPredicate { [app] _, _ in
-                        guard let app else { return false }
-                        return orientation == .portrait
-                            ? app.frame.height > app.frame.width : app.frame.width > app.frame.height
-                    }, object: nil)
-                XCTAssertEqual(XCTWaiter.wait(for: [shaped], timeout: 10), .completed)
+                // Settled first, so the absent colour readout below is not read mid-rotation.
+                rotate(orientation, settling: record)
                 let name = orientation == .portrait ? "portrait" : "landscape"
                 let color = app.buttons["monitor.capture.color"]
                 if hasCodecReadout {
@@ -174,7 +169,7 @@
             if drum.exists {
                 let selected = drum.value as? String ?? ""
                 XCTAssertTrue(
-                    shown.contains { !$0.isEmpty && ($0 == selected || $0.hasSuffix(selected)) }
+                    shown.contains { !$0.isEmpty && $0 == selected }
                         && selected != "Not set",
                     "The \(name) popup must open on the current value, not \(selected); header \(shown)")
             }
