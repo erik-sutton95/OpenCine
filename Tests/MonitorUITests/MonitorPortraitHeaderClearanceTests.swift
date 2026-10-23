@@ -2378,11 +2378,11 @@
             for count in counts {
                 let reference = try HeaderWindow(rootView: AnyView(
                     Text(verbatim: "\(count)/\(count)").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle(.white).padding(20)
+                        .foregroundStyle(MonitorDefaultLivePalette.good).padding(20)
                         .frame(width: 320, height: 80, alignment: .topLeading)
                         .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
                 let image = try reference.renderedImage()
-                let ink = try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size))
+                let ink = try HeaderRaster(image).greenGlyphBounds(in: CGRect(origin: .zero, size: image.size))
                 reference.close()
                 let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
                 defer { fixture.close() }
@@ -2394,7 +2394,7 @@
         func testCompactDeclaredGaugeRetainsClearanceWhenSafeTopChanges() async throws {
             let reference = try HeaderWindow(rootView: AnyView(
                 Text(verbatim: "100/100").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
-                    .foregroundStyle(.white).padding(20)
+                    .foregroundStyle(MonitorDefaultLivePalette.good).padding(20)
                     .frame(width: 320, height: 80, alignment: .topLeading)
                     .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
             let image = try reference.renderedImage()
@@ -2404,7 +2404,7 @@
                 "The original storage pixel oracle requires a native iPad host")
             XCTAssertEqual(image.scale, 2,
                 "The original 132x16 storage oracle requires native 2x layout and capture")
-            let ink = try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size))
+            let ink = try HeaderRaster(image).greenGlyphBounds(in: CGRect(origin: .zero, size: image.size))
             reference.close()
             let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
             defer { fixture.close() }
@@ -2477,6 +2477,10 @@
 
         fileprivate func assertDeclaredGaugeFits(filled: Int, count: Int, literalInk: CGRect, safeTop: CGFloat? = nil) async throws {
             let reading = try XCTUnwrap(MonitorOperatorPowerReading.camera(.steps(filled: filled, of: count)))
+            // A full declared gauge reads nominal, so its count glyphs paint in the shared good tint
+            // (behavior audit ZAA-302/ZIA-227); the literal reference is drawn in that same tint.
+            XCTAssertEqual(MonitorBatteryUrgency.of(percent: nil, bars: filled, barCount: count,
+                warning: false, exhausted: false), .nominal)
             let initialCalls = (probe.formatCalls, probe.codecCalls, probe.colorCalls)
             let resolvedLive = safeTop.map { top in
                 LiveMonitorLayout.fieldMonitor(size: native.window.bounds.size,
@@ -2524,7 +2528,7 @@
             }
             let image = try native.renderedImage()
             let raster = try HeaderRaster(image)
-            let ink = try raster.inkBounds(in: CGRect(x: camera.minX + 22, y: camera.minY,
+            let ink = try raster.greenGlyphBounds(in: CGRect(x: camera.minX + 22, y: camera.minY,
                 width: camera.width - 28, height: camera.height))
             XCTAssertEqual(ink.width, literalInk.width, accuracy: 1, "Every original 10pt count glyph must remain visible")
             XCTAssertEqual(ink.height, literalInk.height, accuracy: 1)
