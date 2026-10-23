@@ -86,6 +86,10 @@ jobs:
           if [[ "$EVENT_NAME" != workflow_dispatch || "$EXECUTE" == true ]]; then
             args+=(--execute)
           fi
+          # Only a reviewed manual execute may create more than a few trackers at once.
+          if [[ "$EVENT_NAME" == workflow_dispatch && "$EXECUTE" == true ]]; then
+            args+=(--allow-backfill)
+          fi
           python3 atlas/tools/linked_issues.py "${args[@]}" | tee linked-issues-report.json
       - name: Report actual reconciliation outcome
         if: always()
@@ -100,5 +104,5 @@ jobs:
           report = json.loads(path.read_text())
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
               out.write("Atlas linked issues: " + json.dumps({key: report.get(key) for key in
-                  ("mode", "complete", "counts", "errors", "conflicts", "tombstones", "applied", "uncertain")}, sort_keys=True) + "\n")
+                  ("mode", "complete", "counts", "inventory", "errors", "conflicts", "tombstones", "applied", "uncertain")}, sort_keys=True) + "\n")
           PY
