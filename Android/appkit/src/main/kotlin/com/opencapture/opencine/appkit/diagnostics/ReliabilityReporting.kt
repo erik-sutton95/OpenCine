@@ -543,6 +543,10 @@ public class ReliabilityReporting(
                         "trigger" to envelope.trigger,
                         "recoveredBy" to envelope.recoveredBy,
                         "gap" to FeedIncidentExport.gapBucket(envelope.worstGapSeconds),
+                        "decoderCall" to envelope.decoderCall,
+                        "keyframeWait" to envelope.keyframeWait,
+                        "irapAge" to envelope.irapAge,
+                        "decodeFlow" to envelope.decodeFlow,
                         // Diagnostics: no bundle attachment reaches the issue, so these two say
                         // whether the gap spanned an app switch and whether a keyframe was pending.
                         "background" to envelope.background,
@@ -586,6 +590,10 @@ public class ReliabilityReporting(
                                 "trigger" to envelope.trigger,
                                 "recoveredBy" to envelope.recoveredBy,
                                 "worstGapSeconds" to envelope.worstGapSeconds,
+                                "decoderCall" to envelope.decoderCall,
+                                "keyframeWait" to envelope.keyframeWait,
+                                "irapAge" to envelope.irapAge,
+                                "decodeFlow" to envelope.decodeFlow,
                             ),
                     ),
             ),

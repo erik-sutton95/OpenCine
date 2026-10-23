@@ -242,6 +242,9 @@
         {
             if requestPairing { return false }
             if error is CancellationError { return false }
+            // The wake already asked the network and got no answer; a second in-place retry would
+            // only run the same bounded wait again.
+            if error is NikonBodyWake.SilentError { return false }
             guard let sessionError = error as? NativeCameraSessionError else { return true }
             switch sessionError {
             case .noHost, .localNetworkPermissionDenied, .pairingRejected,

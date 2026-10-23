@@ -319,6 +319,10 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                         "trigger",
                         "recoveredBy",
                         "worstGapSeconds",
+                        "decoderCall",
+                        "keyframeWait",
+                        "irapAge",
+                        "decodeFlow",
                     ),
             )
 
@@ -339,6 +343,11 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
             mapOf(
                 "trigger" to FeedIncidentNativeBreadcrumb.allowedValues.getValue("repairReason") + setOf("none", "other"),
                 "recoveredBy" to FeedIncidentNativeBreadcrumb.allowedValues.getValue("repairAction") + setOf("none", "other"),
+                // The decode state an incident opened on (FeedIncidentExport); buckets, never counts.
+                "decoderCall" to FeedIncidentExport.decoderCalls + setOf("none", "other"),
+                "keyframeWait" to setOf("awaiting", "none", "unknown", "other"),
+                "irapAge" to setOf("never", "0-1s", "1-5s", "5-30s", "30s+", "unknown", "other"),
+                "decodeFlow" to setOf("idle", "rejecting", "partial", "flowing", "unknown", "other"),
                 // Incident diagnostics (FeedIncidentVendorEnvelope.background / awaitingIrap).
                 "background" to setOf("yes", "no", "unknown", "other"),
                 "awaitingIrap" to setOf("yes", "no", "unknown", "other"),
@@ -414,6 +423,10 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                 "recoveredBy",
                 "gap",
                 "feedUpscaler",
+                "decoderCall",
+                "keyframeWait",
+                "irapAge",
+                "decodeFlow",
                 "background",
                 "awaitingIrap",
             )

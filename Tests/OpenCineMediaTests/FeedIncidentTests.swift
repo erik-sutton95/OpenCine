@@ -351,6 +351,92 @@ import Testing
         #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
     }
 
+    /// PA-1V and the decoder clusters: the call that raised the error class and the decode state
+    /// the incident opened on are searchable tags, as buckets. Kotlin twin in FeedIncidentExportTest.
+    @Test func envelopeTagsTheDecodeStateTheIncidentOpenedOn() throws {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-decode" })
+        _ = recorder.beginSession(Fixture.context())
+        var onset = Fixture.snap(now: 3, acceptHz: 0, errorClass: "nativeDecoder")
+        onset.decoder.errorCall = "outputCallback"
+        onset.decoder.awaitingIrap = true
+        onset.decoder.lastIrapAge = 7
+        _ = recorder.recordSnapshot(onset)
+        var bundle = try #require(recorder.noteUnexpectedDisconnect(now: 4)?.bundle)
+        #expect(bundle.header.errorClass == "nativeDecoder")
+        var envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.decoderCall == "outputCallback")
+        #expect(envelope.keyframeWait == "awaiting")
+        #expect(envelope.irapAge == "5-30s")
+        #expect(envelope.decodeFlow == "rejecting")
+
+        bundle.prelude[bundle.prelude.count - 1].decoder.errorCall = "somethingNew"
+        #expect(FeedIncidentExport.envelope(from: bundle).decoderCall == "other")
+        bundle.header.errorClass = nil
+        #expect(FeedIncidentExport.envelope(from: bundle).decoderCall == "none")
+        bundle.prelude = []
+        bundle.during = []
+        envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect([envelope.keyframeWait, envelope.irapAge, envelope.decodeFlow] == ["unknown", "unknown", "unknown"])
+
+        #expect(FeedIncidentExport.irapAgeBucket(nil) == "never")
+        #expect(FeedIncidentExport.irapAgeBucket(0.4) == "0-1s")
+        #expect(FeedIncidentExport.irapAgeBucket(1) == "1-5s")
+        #expect(FeedIncidentExport.irapAgeBucket(30) == "30s+")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 0, acceptHz: 0) == "idle")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 25, acceptHz: 12) == "partial")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 25, acceptHz: 25) == "flowing")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "submit") == "decodeFrame")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "display") == "displayLayer")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "none") == nil)
+        #expect(
+            FeedIncidentExport.decoderCalls.isSuperset(of: [
+                "createSession", "decodeFrame", "outputCallback", "displayLayer", "getInputBuffer",
+            ]))
+    }
+
+    @Test func decodeFlowKeepsFirstRateSampleUnknown() throws {
+        var sampler = FeedIncidentRateSampler()
+        let rates = sampler.sample(now: 1, counts: .init(decodeSubmit: 25, decodeAccept: 25))
+        #expect(try decodeFlowTag(rates) == "unknown")
+    }
+
+    @Test func decodeFlowKeepsJPEGAcceptanceUnknown() throws {
+        var sampler = FeedIncidentRateSampler()
+        _ = sampler.sample(now: 1, counts: .init(decodeSubmit: 0, decodedOutput: 0))
+        let rates = sampler.sample(now: 2, counts: .init(decodeSubmit: 25, decodedOutput: 25))
+        #expect(rates.observed?.decodedOutputHz == 25)
+        #expect(rates.observed?.decodeAcceptHz == nil)
+        #expect(try decodeFlowTag(rates) == "unknown")
+    }
+
+    @Test func decodeFlowUsesExplicitObservationsAndKeepsLegacyRates() throws {
+        let cases: [(Double?, Double?, String)] = [
+            (nil, 25, "unknown"),
+            (0, 0, "idle"),
+            (25, 0, "rejecting"),
+            (25, 12, "partial"),
+            (25, 25, "flowing"),
+        ]
+        for (submit, accept, expected) in cases {
+            // Compatibility fields cannot override an explicit measurement or its absence.
+            let rates = FeedIncidentRates(
+                decodeSubmitHz: 25, decodeAcceptHz: 0,
+                observed: .init(decodeSubmitHz: submit, decodeAcceptHz: accept))
+            #expect(try decodeFlowTag(rates) == expected)
+        }
+        #expect(try decodeFlowTag(.init(decodeSubmitHz: 25, decodeAcceptHz: 25)) == "flowing")
+    }
+
+    private func decodeFlowTag(_ rates: FeedIncidentRates) throws -> String {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-observed-decode" })
+        _ = recorder.beginSession(Fixture.context())
+        var sample = Fixture.healthy(now: 3)
+        sample.rates = rates
+        _ = recorder.recordSnapshot(sample)
+        let bundle = try #require(recorder.noteUnexpectedDisconnect(now: 4)?.bundle)
+        return FeedIncidentExport.envelope(from: bundle).decodeFlow
+    }
+
     @Test func coveredUnobservableFeedCannotClaimRecoveryOrHealthyExposure() {
         var recorder = FeedIncidentRecorder()
         _ = recorder.beginSession(Fixture.context())

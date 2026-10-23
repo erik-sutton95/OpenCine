@@ -729,6 +729,10 @@ public final class ReliabilityReporting: @unchecked Sendable {
             "trigger": envelope.trigger,
             "recoveredBy": envelope.recoveredBy,
             "gap": FeedIncidentExport.gapBucket(envelope.worstGapSeconds),
+            "decoderCall": envelope.decoderCall,
+            "keyframeWait": envelope.keyframeWait,
+            "irapAge": envelope.irapAge,
+            "decodeFlow": envelope.decodeFlow,
             // Diagnostics: no bundle attachment reaches the issue, so these two say whether
             // the gap spanned an app switch and whether a keyframe was pending.
             "background": envelope.background,
@@ -768,6 +772,10 @@ public final class ReliabilityReporting: @unchecked Sendable {
                 "trigger": envelope.trigger,
                 "recoveredBy": envelope.recoveredBy,
                 "worstGapSeconds": envelope.worstGapSeconds,
+                "decoderCall": envelope.decoderCall,
+                "keyframeWait": envelope.keyframeWait,
+                "irapAge": envelope.irapAge,
+                "decodeFlow": envelope.decodeFlow,
             ]
         ]
         return privacy.scrub(event)

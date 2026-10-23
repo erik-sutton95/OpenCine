@@ -14,10 +14,13 @@ class GalleryRoundTrip: SharedAppUITestCase, CVarArg, CustomDebugStringConvertib
 class MonitorScreenshotLayoutTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MotionUIFlowTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PerfSoakTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class PhysicalCameraNetworkTests: PhysicalNetworkUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class PhysicalCameraPairingTests: PhysicalNetworkUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalDesqueezeTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalMigrationQualificationTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalMotionZoomTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalNavigationTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class PhysicalNetworkUITestCase: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalReferenceAppTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalShootingModeTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalVirtualJoystickTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
@@ -42,8 +45,21 @@ func FeedStressTests.tearDown() -> ()
 func GalleryRoundTrip.setUp() -> ()
 func GalleryRoundTrip.tearDown() -> ()
 func MotionUIFlowTests.setUpWithError() throws -> ()
+func PhysicalCameraNetworkTests.testCameraOffFailsTypedThenRecovers() throws -> ()
+func PhysicalCameraNetworkTests.testCancelSystemJoinThenRetry() throws -> ()
+func PhysicalCameraNetworkTests.testJoinAnsweredLateConnectsWithoutSecondPrompt() throws -> ()
+func PhysicalCameraNetworkTests.testLocalNetworkAllowedBeforeDeadlineConnects() throws -> ()
+func PhysicalCameraNetworkTests.testLocalNetworkDeniedThenAllowedOnSavedCamera() throws -> ()
+func PhysicalCameraPairingTests.testCameraAccessPointManualPairingWithCameraOff() throws -> ()
+func PhysicalCameraPairingTests.testFirstRunPairsNearbyCameraOnSharedPage() throws -> ()
+func PhysicalCameraPairingTests.testHDMIMonitoringAsksNoLocalNetwork() throws -> ()
+func PhysicalCameraPairingTests.testLocalNetworkDeniedThenAllowedOnPermissionsStep() throws -> ()
+func PhysicalCameraPairingTests.testUSBPairingAsksNoLocalNetwork() throws -> ()
+func PhysicalCameraPairingTests.testWiFiPairingAsksLocalNetworkOnceAfterTransportChoice() throws -> ()
 func PhysicalDesqueezeTests.setUpWithError() throws -> ()
 func PhysicalDesqueezeTests.tearDown() -> ()
+func PhysicalNetworkUITestCase.setUpWithError() throws -> ()
+func PhysicalNetworkUITestCase.tearDownWithError() throws -> ()
 func ScreenMatrix.setUp() -> ()
 func ScreenMatrix.tearDown() -> ()
 func ShareRoundTrip.setUp() -> ()

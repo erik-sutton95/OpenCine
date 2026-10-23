@@ -21,7 +21,7 @@ public fun HevcDecoder.incidentDecoder(nowElapsedMs: Long,
             DecoderErrorOrigin.QUEUE -> FeedDecoderErrorOrigin.SYNC
             DecoderErrorOrigin.OUTPUT, DecoderErrorOrigin.OUTPUT_RELEASE -> FeedDecoderErrorOrigin.CALLBACK
             null -> FeedDecoderErrorOrigin.NONE
-        }, errorClass = error?.code, errorCount = errorLifetime.countThisGeneration,
+        }, errorClass = error?.code, errorCall = error?.call?.wire, errorCount = errorLifetime.countThisGeneration,
         decoderFailed = error != null && failedThisGeneration,
         errorAge = FeedIncidentRateSampler.ageMilliseconds(error?.atElapsedMs, nowElapsedMs),
         receivedIrap = receivedIrap, awaitingIrap = awaitingIdr,
