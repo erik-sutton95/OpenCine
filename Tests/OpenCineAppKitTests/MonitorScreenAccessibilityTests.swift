@@ -14,6 +14,84 @@ import XCTest
 /// elements rather than XCUITest's inventory of mounted containers.
 @MainActor
 final class MonitorScreenAccessibilityTests: XCTestCase {
+        /// The monitor's own `.statusBarHidden` must still reach the window through the native
+        /// accessibility boundary, also while a cover hides the retained monitor. Without it the
+        /// status bar returns after a rotation and covers the monitor's top-left Back control.
+        /// The bridge only restates a hidden status bar: an app that hides it at its root keeps it
+        /// hidden, and a monitor that asks for nothing does not hide it.
+        func testShellMonitorWithoutAStatusBarPreferenceLeavesTheAppsChoice() async throws {
+            for appHides in [true, false] {
+                let shell = ShellModel(cameras: CamerasModelTests().model())
+                shell.present(ConnectedCamera(saved: CamerasModelTests.camera, session: FakeCameraSession.lunaLike()))
+                let host = UIHostingController(
+                    rootView: AppShell(
+                        model: shell, brand: ShellBrand(name: "SIMULATED"),
+                        actions: ShellActions(diagnostics: {}, reportProblem: {}),
+                        coverPresentation: .shell
+                    ) { _ in
+                        Color.black.ignoresSafeArea()
+                    } page: { _ in
+                        Button("Status cover") {}
+                    }.statusBarHidden(appHides))
+                let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+                window.rootViewController = host
+                window.makeKeyAndVisible()
+                host.view.frame = window.bounds
+                for _ in 0..<20 {
+                    window.layoutIfNeeded()
+                    host.view.layoutIfNeeded()
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                XCTAssertEqual(host.prefersStatusBarHidden, appHides)
+                window.isHidden = true
+                window.rootViewController = nil
+                shell.close()
+            }
+        }
+
+        func testShellMonitorStatusBarPreferenceReachesTheWindowAcrossCovers() async throws {
+            let shell = ShellModel(cameras: CamerasModelTests().model())
+            shell.present(ConnectedCamera(saved: CamerasModelTests.camera, session: FakeCameraSession.lunaLike()))
+            let host = UIHostingController(
+                rootView: AppShell(
+                    model: shell, brand: ShellBrand(name: "SIMULATED"),
+                    actions: ShellActions(diagnostics: {}, reportProblem: {}),
+                    coverPresentation: .shell
+                ) { _ in
+                    Color.black.ignoresSafeArea().statusBarHidden(true)
+                } page: { _ in
+                    Button("Status cover") {}.accessibilityIdentifier("probe.status.cover")
+                })
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+            window.rootViewController = host
+            window.makeKeyAndVisible()
+            host.view.frame = window.bounds
+            defer {
+                window.isHidden = true
+                window.rootViewController = nil
+                shell.close()
+            }
+            func statusBarHidden() async -> Bool {
+                await HostedCondition.wait {
+                    window.layoutIfNeeded()
+                    host.view.layoutIfNeeded()
+                    return host.prefersStatusBarHidden
+                }
+            }
+            let live = await statusBarHidden()
+            XCTAssertTrue(live, "The live monitor's hidden status bar must reach the window's root controller")
+            shell.open(.settings)
+            window.frame = CGRect(origin: .zero, size: CGSize(width: 874, height: 402))
+            host.view.frame = window.bounds
+            let covered = await statusBarHidden()
+            XCTAssertTrue(covered, "The retained monitor keeps its status bar preference under a cover")
+            shell.dismissCover()
+            window.frame = CGRect(origin: .zero, size: CGSize(width: 402, height: 874))
+            host.view.frame = window.bounds
+            let revealed = await statusBarHidden()
+            XCTAssertTrue(revealed, "Returning from a rotated cover must keep the status bar hidden")
+        }
+
         func testShellMonitorKeepsItsNativeGlobalFrameAcrossAnInsetParentAndCovers() async throws {
             let shell = ShellModel(cameras: CamerasModelTests().model())
             let camera = FakeCameraSession.lunaLike()
