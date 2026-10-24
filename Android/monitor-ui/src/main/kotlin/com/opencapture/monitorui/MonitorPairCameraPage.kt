@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -215,13 +216,13 @@ private fun PairingRail(
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
-                    "STEP ${current + 1} OF ${presentation.steps.size}",
+                    stringResource(R.string.monitor_step_x_of_y, current + 1, presentation.steps.size),
                     color = MonitorPalette.accent,
                     style = MonitorTypography.text(8f, FontWeight.Bold).copy(letterSpacing = 1.4.sp),
                     maxLines = 1,
                 )
                 Text(
-                    "Pair a camera",
+                    stringResource(R.string.monitor_pair_a_camera),
                     color = MonitorPalette.text,
                     style = MonitorTypography.text(13f, FontWeight.SemiBold),
                     maxLines = 1,
@@ -254,7 +255,7 @@ private fun PairingRail(
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(
-                "TARGET",
+                stringResource(R.string.monitor_target),
                 color = MonitorPalette.faint,
                 style = MonitorTypography.text(8f, FontWeight.Bold).copy(letterSpacing = 1.3.sp),
                 maxLines = 1,
@@ -274,7 +275,7 @@ private fun PairingRail(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                "Report a problem",
+                stringResource(R.string.monitor_report_a_problem),
                 color = MonitorPalette.accent,
                 style = MonitorTypography.text(12f, FontWeight.SemiBold),
             )
@@ -286,11 +287,12 @@ private fun PairingRail(
 @Composable
 private fun PairingOverflowMenu(onDiagnostics: () -> Unit, onWatchFeed: (() -> Unit)?) {
     var open by remember { mutableStateOf(false) }
+    val helpAndDiagnostics = stringResource(R.string.monitor_pairing_help_and_diagnostics)
     Box {
         Box(
             Modifier.size(width = 32.dp, height = 44.dp)
                 .clickable(role = Role.Button, onClick = { open = true })
-                .semantics { contentDescription = "Pairing help and diagnostics" },
+                .semantics { contentDescription = helpAndDiagnostics },
             contentAlignment = Alignment.Center,
         ) {
             MonitorIcon(MonitorIcon.ELLIPSIS, null, Modifier.size(15.dp), MonitorPalette.text)
@@ -298,7 +300,7 @@ private fun PairingOverflowMenu(onDiagnostics: () -> Unit, onWatchFeed: (() -> U
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = {
-                    Text("Share Diagnostics", style = MonitorTypography.text(13f, FontWeight.SemiBold))
+                    Text(stringResource(R.string.monitor_share_diagnostics), style = MonitorTypography.text(13f, FontWeight.SemiBold))
                 },
                 onClick = {
                     open = false
@@ -308,7 +310,7 @@ private fun PairingOverflowMenu(onDiagnostics: () -> Unit, onWatchFeed: (() -> U
             if (onWatchFeed != null) {
                 DropdownMenuItem(
                     text = {
-                        Text("Watch a feed", style = MonitorTypography.text(13f, FontWeight.SemiBold))
+                        Text(stringResource(R.string.monitor_watch_a_feed), style = MonitorTypography.text(13f, FontWeight.SemiBold))
                     },
                     onClick = {
                         open = false
@@ -331,10 +333,11 @@ private fun PairingStepRow(
     val active = index == current
     val complete = index < current
     val status = when {
-        complete -> "complete"
-        active -> "current"
-        else -> "waiting"
+        complete -> stringResource(R.string.monitor_status_complete)
+        active -> stringResource(R.string.monitor_status_current)
+        else -> stringResource(R.string.monitor_status_waiting)
     }
+    val stepContentDescription = stringResource(R.string.monitor_step_x_title_status, index + 1, step.title, status)
     Row(
         modifier
             .heightIn(min = if (portrait) 34.dp else 42.dp)
@@ -344,7 +347,7 @@ private fun PairingStepRow(
             )
             .padding(horizontal = 9.dp)
             .semantics(mergeDescendants = true) {
-                contentDescription = "Step ${index + 1}: ${step.title}, $status"
+                contentDescription = stepContentDescription
             },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(
@@ -496,6 +499,7 @@ private fun PairingPane(
 @Composable
 private fun PairingDeviceRow(device: MonitorPairingDevice, onSelect: (String) -> Unit) {
     val shape = RoundedCornerShape(11.dp)
+    val connectDeviceContentDescription = stringResource(R.string.monitor_connect_device, device.name)
     Row(
         Modifier.fillMaxWidth()
             .clip(shape)
@@ -507,7 +511,7 @@ private fun PairingDeviceRow(device: MonitorPairingDevice, onSelect: (String) ->
             )
             .clickable(enabled = !device.busy, role = Role.Button, onClick = { onSelect(device.id) })
             .testTag("pair.device.${device.id}")
-            .semantics { contentDescription = "Connect ${device.name}" }
+            .semantics { contentDescription = connectDeviceContentDescription }
             .padding(horizontal = 13.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -706,10 +710,11 @@ private fun PairingProgressLabel(title: String, modifier: Modifier = Modifier) {
 @Composable
 private fun PairingSignalBars(count: Int) {
     val bars = count.coerceIn(0, 4)
+    val signalBarsDescription = stringResource(R.string.monitor_signal_bars, bars)
     Row(
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = Modifier.semantics { contentDescription = "Signal $bars of 4" },
+        modifier = Modifier.semantics { contentDescription = signalBarsDescription },
     ) {
         repeat(4) { index ->
             Box(

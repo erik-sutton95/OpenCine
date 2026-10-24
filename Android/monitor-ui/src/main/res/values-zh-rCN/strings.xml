@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OpenCine/Android · monitor-ui module · Simplified Chinese (zh-rCN)
+  简体中文翻译。占位符（%1$s / %1$d）与英文版一致；品牌名与机身缩写保留英文。
+-->
+<resources>
+    <string name="monitor_step_x_of_y">第 %1$d 步 / 共 %2$d 步</string>
+    <string name="monitor_pair_a_camera">配对相机</string>
+    <string name="monitor_target">目标</string>
+    <string name="monitor_report_a_problem">报告问题</string>
+    <string name="monitor_pairing_help_and_diagnostics">配对帮助与诊断</string>
+    <string name="monitor_share_diagnostics">分享诊断信息</string>
+    <string name="monitor_watch_a_feed">观看画面</string>
+    <string name="monitor_privacy">隐私</string>
+    <string name="monitor_terms">条款</string>
+    <string name="monitor_status_complete">已完成</string>
+    <string name="monitor_status_current">进行中</string>
+    <string name="monitor_status_waiting">等待中</string>
+    <string name="monitor_step_x_title_status">第 %1$d 步：%2$s，%3$s</string>
+    <string name="monitor_connect_device">连接 %1$s</string>
+    <string name="monitor_signal_bars">信号 %1$d / 4</string>
+</resources>

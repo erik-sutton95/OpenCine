@@ -18,6 +18,42 @@ import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SavedRoute
 
+import android.content.Context
+import java.util.Locale
+
+/**
+ * Resolves a string resource, or — when no Android [Context] is available (e.g. JVM unit tests) —
+ * falls back to the bundled English copy so behaviour and assertions are unchanged off-device.
+ * Pass a [Context] from a Composable (`LocalContext.current`) to localize the presentation.
+ */
+private val ENGLISH_STRINGS = mapOf(
+    R.string.appkit_on_the_camera to "On the camera",
+    R.string.appkit_on_this_phone to "On this phone",
+    R.string.appkit_next to "Next",
+    R.string.appkit_find_your_camera to "Find your camera",
+    R.string.appkit_nearby_cameras to "Nearby cameras",
+    R.string.appkit_turn_camera_on to "Turn the camera on and keep this phone nearby.",
+    R.string.appkit_nothing_selected_yet to "Nothing selected yet",
+    R.string.appkit_selected_camera to "Selected %1\$s",
+    R.string.appkit_choose_camera to "Choose the camera that matches your screen",
+    R.string.appkit_monitoring_opens to "Monitoring opens when the picture is ready",
+    R.string.appkit_connecting to "Connecting…",
+    R.string.appkit_camera_model_nearby to "%1\$s · nearby",
+    R.string.appkit_looking_for_cameras to "Looking for cameras",
+    R.string.appkit_no_cameras_yet to "No cameras yet",
+    R.string.appkit_open_settings to "Open Settings",
+    R.string.appkit_try_again to "Try again",
+    R.string.appkit_continue to "Continue",
+    R.string.appkit_cancel to "Cancel",
+    R.string.appkit_back to "Back",
+)
+
+private fun lstr(context: Context?, resId: Int, vararg args: Any): String {
+    if (context != null) return context.getString(resId, *args)
+    val template = ENGLISH_STRINGS[resId] ?: return ""
+    return if (args.isEmpty()) template else String.format(Locale.US, template, *args)
+}
+
 /** One card of the cameras page (Swift `CameraListItem`). */
 public data class CameraItem(
     public val id: String,
@@ -171,7 +207,7 @@ public object CamerasMapping {
     public fun action(id: String, cameraID: String, model: CamerasModel): RecoveryAction? =
         model.state.value.failures[cameraID]?.failure?.actions?.firstOrNull { id(it) == id }
 
-    public fun pairing(model: CamerasModel): MonitorPairingPresentation {
+    public fun pairing(model: CamerasModel, context: Context? = null): MonitorPairingPresentation {
         val state = model.state.value
         val selected = state.nearby.firstOrNull { it.id == state.selection }
         val cameraID = selected?.let { ConnectTarget.Nearby(it.camera).cameraID }
@@ -183,31 +219,31 @@ public object CamerasMapping {
         val step = attempt?.progress?.let { it.steps.getOrNull(it.current) }
         val instructions = when (val prompt = attempt?.prompt) {
             is ConnectionPrompt.ApproveOnCamera ->
-                listOf(MonitorPairingInstruction("On the camera", MonitorPairingInstructionIcon.CAMERA, listOf(prompt.text)))
+                listOf(MonitorPairingInstruction(lstr(context, R.string.appkit_on_the_camera), MonitorPairingInstructionIcon.CAMERA, listOf(prompt.text)))
             is ConnectionPrompt.AcceptNetworkJoin ->
-                listOf(MonitorPairingInstruction("On this phone", MonitorPairingInstructionIcon.PHONE, listOf(prompt.text)))
+                listOf(MonitorPairingInstruction(lstr(context, R.string.appkit_on_this_phone), MonitorPairingInstructionIcon.PHONE, listOf(prompt.text)))
             is ConnectionPrompt.Integration ->
-                listOf(MonitorPairingInstruction("Next", MonitorPairingInstructionIcon.CAMERA, listOf(prompt.text)))
+                listOf(MonitorPairingInstruction(lstr(context, R.string.appkit_next), MonitorPairingInstructionIcon.CAMERA, listOf(prompt.text)))
             null -> emptyList()
         }
         val settings = failure?.actions?.contains(RecoveryAction.OpenSettings) == true
         return MonitorPairingPresentation(
-            steps = listOf(MonitorPairingStep("Find your camera", "Nearby cameras")) + plan.map { MonitorPairingStep(it.title, it.detail) },
+            steps = listOf(MonitorPairingStep(lstr(context, R.string.appkit_find_your_camera), lstr(context, R.string.appkit_nearby_cameras))) + plan.map { MonitorPairingStep(it.title, it.detail) },
             currentStep = current,
-            title = failure?.title ?: step?.title ?: "Find your camera",
-            body = failure?.message ?: step?.detail ?: "Turn the camera on and keep this phone nearby.",
-            target = selected?.camera?.name ?: "Nothing selected yet",
+            title = failure?.title ?: step?.title ?: lstr(context, R.string.appkit_find_your_camera),
+            body = failure?.message ?: step?.detail ?: lstr(context, R.string.appkit_turn_camera_on),
+            target = selected?.camera?.name ?: lstr(context, R.string.appkit_nothing_selected_yet),
             hint = if (choosing) {
-                selected?.let { "Selected ${it.camera.name}" } ?: "Choose the camera that matches your screen"
+                selected?.let { lstr(context, R.string.appkit_selected_camera, it.camera.name) } ?: lstr(context, R.string.appkit_choose_camera)
             } else {
-                "Monitoring opens when the picture is ready"
+                lstr(context, R.string.appkit_monitoring_opens)
             },
             // The prompt has its own card; the live line is the integration's note or step.
-            progress = attempt?.let { it.progress?.note ?: step?.title ?: "Connecting…" },
+            progress = attempt?.let { it.progress?.note ?: step?.title ?: lstr(context, R.string.appkit_connecting) },
             devices = if (choosing) {
                 state.nearby.map {
                     MonitorPairingDevice(
-                        it.id, it.camera.name, "${it.camera.model} · nearby", selected = state.selection == it.id,
+                        it.id, it.camera.name, lstr(context, R.string.appkit_camera_model_nearby, it.camera.model), selected = state.selection == it.id,
                         busy = state.attempts.isNotEmpty(), signalBars = it.camera.signalBars,
                     )
                 }
@@ -216,20 +252,20 @@ public object CamerasMapping {
             },
             instructions = instructions,
             emptyTitle = if (choosing && state.nearby.isEmpty()) {
-                if (state.scanning) "Looking for cameras" else "No cameras yet"
+                if (state.scanning) lstr(context, R.string.appkit_looking_for_cameras) else lstr(context, R.string.appkit_no_cameras_yet)
             } else {
                 null
             },
             primaryAction = when {
-                failure != null -> if (settings) "Open Settings" else "Try again"
-                choosing -> "Continue"
+                failure != null -> if (settings) lstr(context, R.string.appkit_open_settings) else lstr(context, R.string.appkit_try_again)
+                choosing -> lstr(context, R.string.appkit_continue)
                 else -> null
             },
             primaryActionEnabled = failure != null || (choosing && selected != null),
             backAction = when {
-                !choosing -> "Cancel"
+                !choosing -> lstr(context, R.string.appkit_cancel)
                 state.saved.isEmpty() -> null
-                else -> "Back"
+                else -> lstr(context, R.string.appkit_back)
             },
         )
     }

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OpenCine/Android · monitor-ui module (namespace: com.opencapture.monitorui)
+  English is the default locale. The paired values-zh-rCN/strings.xml overrides these for
+  Simplified Chinese. Copy that was previously hardcoded in the pairing screen Composables.
+-->
+<resources>
+    <string name="monitor_step_x_of_y">STEP %1$d OF %2$d</string>
+    <string name="monitor_pair_a_camera">Pair a camera</string>
+    <string name="monitor_target">TARGET</string>
+    <string name="monitor_report_a_problem">Report a problem</string>
+    <string name="monitor_pairing_help_and_diagnostics">Pairing help and diagnostics</string>
+    <string name="monitor_share_diagnostics">Share Diagnostics</string>
+    <string name="monitor_watch_a_feed">Watch a feed</string>
+    <string name="monitor_privacy">Privacy</string>
+    <string name="monitor_terms">Terms</string>
+    <string name="monitor_status_complete">complete</string>
+    <string name="monitor_status_current">current</string>
+    <string name="monitor_status_waiting">waiting</string>
+    <string name="monitor_step_x_title_status">Step %1$d: %2$s, %3$s</string>
+    <string name="monitor_connect_device">Connect %1$s</string>
+    <string name="monitor_signal_bars">Signal %1$d of 4</string>
+</resources>

@@ -303,7 +303,7 @@ public fun PairScreen(
     val cameraID = sighting?.let { ConnectTarget.Nearby(it.camera).cameraID }
     val attempt = cameraID?.let { state.attempts[it] }
     MonitorPairCameraPage(
-        presentation = pairingFlow?.presentation ?: CamerasMapping.pairing(model),
+        presentation = pairingFlow?.presentation ?: CamerasMapping.pairing(model, context),
         onSelect = pairingFlow?.onSelect ?: model::select,
         onPrimary = pairingFlow?.onPrimary ?: {
             if (sighting != null && cameraID != null) {

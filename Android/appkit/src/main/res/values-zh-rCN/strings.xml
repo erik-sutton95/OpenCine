@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OpenCine/Android · appkit module · Simplified Chinese (zh-rCN)
+  简体中文翻译。占位符（%1$s / %1$d）与英文版一致；品牌名与机身缩写保留英文。
+-->
+<resources>
+    <string name="appkit_on_the_camera">在相机上</string>
+    <string name="appkit_on_this_phone">在此手机上</string>
+    <string name="appkit_next">下一步</string>
+    <string name="appkit_find_your_camera">查找你的相机</string>
+    <string name="appkit_nearby_cameras">附近相机</string>
+    <string name="appkit_turn_camera_on">打开相机，并让手机保持在附近。</string>
+    <string name="appkit_nothing_selected_yet">尚未选择</string>
+    <string name="appkit_selected_camera">已选择 %1$s</string>
+    <string name="appkit_choose_camera">选择与屏幕匹配的相机</string>
+    <string name="appkit_monitoring_opens">画面就绪后将进入监看</string>
+    <string name="appkit_connecting">连接中…</string>
+    <string name="appkit_camera_model_nearby">%1$s · 附近</string>
+    <string name="appkit_looking_for_cameras">正在查找相机</string>
+    <string name="appkit_no_cameras_yet">暂无相机</string>
+    <string name="appkit_open_settings">打开设置</string>
+    <string name="appkit_try_again">重试</string>
+    <string name="appkit_continue">继续</string>
+    <string name="appkit_cancel">取消</string>
+    <string name="appkit_back">返回</string>
+</resources>

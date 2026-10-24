@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OpenCine/Android · appkit module (namespace: com.opencapture.opencine.appkit)
+  English is the default locale. The paired values-zh-rCN/strings.xml overrides these for
+  Simplified Chinese. Strings here mirror the previous hardcoded English copy so behaviour
+  (and JVM unit tests that assert on these values) is unchanged when no Context is supplied.
+-->
+<resources>
+    <string name="appkit_on_the_camera">On the camera</string>
+    <string name="appkit_on_this_phone">On this phone</string>
+    <string name="appkit_next">Next</string>
+    <string name="appkit_find_your_camera">Find your camera</string>
+    <string name="appkit_nearby_cameras">Nearby cameras</string>
+    <string name="appkit_turn_camera_on">Turn the camera on and keep this phone nearby.</string>
+    <string name="appkit_nothing_selected_yet">Nothing selected yet</string>
+    <string name="appkit_selected_camera">Selected %1$s</string>
+    <string name="appkit_choose_camera">Choose the camera that matches your screen</string>
+    <string name="appkit_monitoring_opens">Monitoring opens when the picture is ready</string>
+    <string name="appkit_connecting">Connecting…</string>
+    <string name="appkit_camera_model_nearby">%1$s · nearby</string>
+    <string name="appkit_looking_for_cameras">Looking for cameras</string>
+    <string name="appkit_no_cameras_yet">No cameras yet</string>
+    <string name="appkit_open_settings">Open Settings</string>
+    <string name="appkit_try_again">Try again</string>
+    <string name="appkit_continue">Continue</string>
+    <string name="appkit_cancel">Cancel</string>
+    <string name="appkit_back">Back</string>
+</resources>
