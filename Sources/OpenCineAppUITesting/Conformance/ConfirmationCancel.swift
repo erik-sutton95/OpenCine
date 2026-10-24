@@ -20,13 +20,15 @@ open class ConfirmationCancel: SharedAppUITestCase {
         try requireClipDelete()
         launch(ReviewLaunch(screen: .playback, source: .camera, connected: true))
         let delete = app.buttons[MonitorPlaybackCopy.delete]
-        let deleteDeadline = Date().addingTimeInterval(15)
+        // The player has its own wait. The tap gets its readiness budget once Delete shows: one
+        // shared deadline let a hosted launch that stalled the first snapshot 8 s spend it on the
+        // page, leaving the tap's fresh settle 3 s (OpenInstaCine nightly run 40038938458).
         XCTAssertTrue(
-            waitUntilReady(delete, in: app, deadline: deleteDeadline),
+            waitUntilReady(delete, in: app, timeout: 15),
             "Connected camera playback offers Delete")
         let title = app.staticTexts["monitor.playback.title"]
         let clipTitle = title.label
-        guard tapWhenReady(delete, in: app, deadline: deleteDeadline) else { return }
+        guard tapWhenReady(delete, in: app, timeout: 5) else { return }
         let confirm = app.buttons["Delete"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Delete asks for confirmation")
         checkpoint("playback-delete-confirmation")
