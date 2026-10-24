@@ -119,10 +119,25 @@ private final class SimulatedNativeCancelScenario: NSObject {
         window.makeKeyAndVisible()
         host.view.frame = window.bounds
         let timer = Timer(
-            timeInterval: 0.05, target: self, selector: #selector(observe), userInfo: nil,
+            timeInterval: 0.05, target: self, selector: #selector(tick), userInfo: nil,
             repeats: true)
         self.timer = timer
         RunLoop.main.add(timer, forMode: .common)
+        observe()
+    }
+
+    // The shared input guard rejects any visible scene window covering the dismissal point
+    // (nativeContractInputRejections). UIKit adds its own UITextEffectsWindow above this one when
+    // the confirmation is presented, so, like the hosted fixture's hideOtherWindows, this host
+    // owns every other scene window: hidden and transparent before each observation. A window
+    // UIKit adds or shows again later is hidden again on the next tick (50 ms).
+    @objc private func tick() {
+        if let scene = window.windowScene {
+            for other in scene.windows where other !== window {
+                other.isHidden = true
+                other.alpha = 0
+            }
+        }
         observe()
     }
 

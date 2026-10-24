@@ -25,7 +25,7 @@ NAMES = [
 FROZEN = {
     'NativeCancelReceipt.swift': '748421482fd6f26e78293f9a9b1071237edd5332079169fbf52b3305bfd2af63',
     'NativeCancelUITests.swift': 'e055cb956f243b6fd47ea5e06560899c830da1795856b171a33aeb669f067bb2',
-    'SimulatedNativeCancelHost.swift': '181554d188ea52679ef0ec90ff45fd6615515d229d3a92d26120b9b72395b364',
+    'SimulatedNativeCancelHost.swift': 'ee2ed248c02d74d4dfddf52ca4a29a018d2d31fc4cb2b5aef6c80cff58dc0190',
 }
 
 OBSERVER = r'''import MonitorPresentation
