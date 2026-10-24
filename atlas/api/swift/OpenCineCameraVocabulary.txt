@@ -377,7 +377,7 @@ enum FaceTrackHold
 enum FaceTrackTap
 enum FeedWatchdog.Action: Equatable, Hashable, Sendable
 enum FeedWatchdog.DecoderRepairStep: Equatable, Hashable, RawRepresentable, Sendable
-enum FeedWatchdog.Hold: Equatable, Hashable, RawRepresentable, Sendable
+enum FeedWatchdog.Hold: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum FeedWatchdog.Stage: Equatable, Hashable, RawRepresentable, Sendable
 enum FocusMode: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum FocusOption: CaseIterable, Equatable, Hashable, Sendable

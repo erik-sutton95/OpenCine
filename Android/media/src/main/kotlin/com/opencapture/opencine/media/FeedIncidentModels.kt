@@ -215,6 +215,8 @@ data class FeedIncidentDecoder(
     val lastFlags: Long? = null,
     val origin: FeedDecoderErrorOrigin = FeedDecoderErrorOrigin.NONE,
     val errorClass: String? = null,
+    /** The platform call that raised the last error ([FeedIncidentExport.decoderCalls]), else null. */
+    val errorCall: String? = null,
     val errorCount: Int = 0,
     val decoderFailed: Boolean = false,
     val errorAge: Double? = null,
@@ -715,6 +717,27 @@ data class FeedIncidentVendorEnvelope(
     val trigger: String = "none",
     /** Last repair action before a recovered outcome, else `none`. */
     val recoveredBy: String = "none",
+    /** The decoder call behind [FeedIncidentGrouping.errorClass] ([FeedIncidentExport.decoderCalls]), else `none`. */
+    val decoderCall: String = "none",
+    /** `awaiting` when the decoder held for a keyframe (IRAP) as the incident opened, else `none`. */
+    val keyframeWait: String = "unknown",
+    /** Age of the last accepted IRAP at onset, bucketed ([FeedIncidentExport.irapAgeBucket]). */
+    val irapAge: String = "unknown",
+    /** Decoder submits against accepts at onset ([FeedIncidentExport.decodeFlow]). */
+    val decodeFlow: String = "unknown",
+    /**
+     * Diagnostic: `yes` when any snapshot of the incident was taken off screen (not foreground or
+     * scene inactive) or a scene-inactive breadcrumb falls inside it, `no` when neither, `unknown`
+     * without a snapshot. Sentry carries no bundle
+     * attachment, so a long gap (PA-A, 290 s) could not tell an app switch from a dead feed.
+     */
+    val background: String = "unknown",
+    /**
+     * Diagnostic: whether the decoder still waited for an IRAP at the incident's newest snapshot
+     * (`yes`/`no`/`unknown`). An exhausted decoder repair (PA-1) then says if no keyframe arrived
+     * or one arrived and still produced no picture.
+     */
+    val awaitingIrap: String = "unknown",
 )
 
 data class FeedIncidentSessionSummary(
@@ -731,6 +754,50 @@ data class FeedIncidentSessionSummary(
 )
 
 object FeedIncidentExport {
+    /**
+     * The decoder calls an incident may name: MediaCodec's on Android, VideoToolbox's and the
+     * display layer's on Apple. Swift twin: `FeedIncidentExport.decoderCalls`.
+     */
+    val decoderCalls: Set<String> =
+        DecoderErrorCall.entries.map { it.wire }.toSet() +
+            setOf("createSession", "decodeFrame", "outputCallback", "displayLayer")
+
+    /** The snapshot the incident opened on: the last one before it, else its first. */
+    fun onset(bundle: FeedIncidentBundle): FeedIncidentSnapshot? =
+        bundle.prelude.lastOrNull() ?: bundle.during.firstOrNull()
+
+    /** Coarse, searchable keyframe age. Exact seconds stay in the attachment. */
+    fun irapAgeBucket(seconds: Double?): String =
+        when {
+            seconds == null -> "never"
+            seconds < 1 -> "0-1s"
+            seconds < 5 -> "1-5s"
+            seconds < 30 -> "5-30s"
+            else -> "30s+"
+        }
+
+    /**
+     * Whether the decoder took what it was given: `idle` (nothing submitted), `rejecting` (submits,
+     * no accepts), `partial` (under 80 % accepted) or `flowing`. Exact rates stay in the attachment.
+     */
+    fun decodeFlow(submitHz: Double, acceptHz: Double): String =
+        when {
+            submitHz < 0.5 -> "idle"
+            acceptHz < 0.5 -> "rejecting"
+            acceptHz < submitHz * 0.8 -> "partial"
+            else -> "flowing"
+        }
+
+    /** The call that raised the incident's error class, from the snapshots that carry it. */
+    fun decoderCall(bundle: FeedIncidentBundle): String {
+        val errorClass = bundle.header.errorClass ?: return "none"
+        val call =
+            (listOfNotNull(onset(bundle)) + bundle.during + bundle.prelude.asReversed())
+                .firstOrNull { it.decoder.errorClass == errorClass && it.decoder.errorCall != null }
+                ?.decoder?.errorCall ?: return "none"
+        return if (call in decoderCalls) call else "other"
+    }
+
     /** Coarse, searchable picture-gap tag. Exact seconds stay in extras. */
     fun gapBucket(seconds: Double): String {
         val edges = listOf(2.0, 5.0, 10.0, 20.0, 40.0, 120.0)
@@ -741,8 +808,19 @@ object FeedIncidentExport {
 
     fun envelope(from: FeedIncidentBundle): FeedIncidentVendorEnvelope {
         val header = from.header
+        val opening = onset(from)
         // The 1 Hz snapshot opens an incident up to a tick after its first repair.
         val own = from.repairs.filter { it.monotonicAt >= header.startedAtMonotonic - 1.5 }.map { it.closed() }
+        // The incident's own snapshots: its opening tick and everything recorded while it was open.
+        val window = from.prelude.filter { it.monotonicNow >= header.startedAtMonotonic } + from.during
+        // A session drop stops the snapshots, so an app switch inside it shows only as a breadcrumb.
+        // One recorded after the incident ended (aftermath collection) is not the incident's.
+        val incidentEnd = header.endedAtMonotonic
+        val sceneInactive = from.breadcrumbs.any {
+            it.kind == FeedIncidentBreadcrumbKind.SCENE_ACTIVITY && it.detail == "inactive" &&
+                it.monotonicAt >= header.startedAtMonotonic - 1.5 &&
+                (incidentEnd == null || it.monotonicAt <= incidentEnd)
+        }
         val grouping =
             FeedIncidentGrouping(
                 schemaVersion = header.schemaVersion,
@@ -782,6 +860,27 @@ object FeedIncidentExport {
                 } else {
                     "none"
                 },
+            decoderCall = decoderCall(from),
+            keyframeWait = opening?.let { if (it.decoder.awaitingIrap) "awaiting" else "none" } ?: "unknown",
+            irapAge = opening?.let { irapAgeBucket(it.decoder.lastIrapAge) } ?: "unknown",
+            decodeFlow = opening?.let {
+                // Absent observations stay unknown; numeric rates support legacy producers.
+                val observed = it.rates.observed
+                if (observed != null) {
+                    val submitHz = observed.decodeSubmitHz ?: return@let "unknown"
+                    val acceptHz = observed.decodeAcceptHz ?: return@let "unknown"
+                    decodeFlow(submitHz, acceptHz)
+                } else {
+                    decodeFlow(it.rates.decodeSubmitHz, it.rates.decodeAcceptHz)
+                }
+            } ?: "unknown",
+            background =
+                when {
+                    sceneInactive || window.any { !it.lifecycle.foreground || !it.lifecycle.sceneActive } -> "yes"
+                    window.isEmpty() -> "unknown"
+                    else -> "no"
+                },
+            awaitingIrap = window.lastOrNull()?.let { if (it.decoder.awaitingIrap) "yes" else "no" } ?: "unknown",
         )
     }
 }

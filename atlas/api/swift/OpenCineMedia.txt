@@ -484,7 +484,7 @@ init FeedIncidentAges(packetAge: Foundation.TimeInterval?, accessUnitAge: Founda
 init FeedIncidentBreadcrumb(monotonicAt: Foundation.TimeInterval, kind: FeedIncidentBreadcrumbKind, detail: Swift.String)
 init FeedIncidentCounterEpoch(decoderGeneration: Swift.Int?, socketGeneration: Swift.Int?, processedPresentation: Swift.Bool?)
 init FeedIncidentDecodeErrorContext(status: Swift.Int32, nalTypes: [Swift.Int], accessUnitBytes: Swift.Int, irapAge: Foundation.TimeInterval?, parameterSetChangeAge: Foundation.TimeInterval?, inputHz: Swift.Double)
-init FeedIncidentDecoder(generation: Swift.Int, formatGeneration: Swift.Int, codec: Swift.String, width: Swift.Int, height: Swift.Int, lastStatus: Swift.Int32?, lastFlags: Swift.UInt32?, origin: FeedDecoderErrorOrigin, errorClass: Swift.String?, errorCount: Swift.Int, decoderFailed: Swift.Bool, errorAge: Foundation.TimeInterval?, receivedIrap: Swift.Bool, awaitingIrap: Swift.Bool, hasDecodableReferences: Swift.Bool, lastIrapAge: Foundation.TimeInterval?, lastSuccessfulOutputAge: Foundation.TimeInterval?, rebuildReason: Swift.String?, firstError: FeedIncidentDecodeErrorContext?)
+init FeedIncidentDecoder(generation: Swift.Int, formatGeneration: Swift.Int, codec: Swift.String, width: Swift.Int, height: Swift.Int, lastStatus: Swift.Int32?, lastFlags: Swift.UInt32?, origin: FeedDecoderErrorOrigin, errorClass: Swift.String?, errorCall: Swift.String?, errorCount: Swift.Int, decoderFailed: Swift.Bool, errorAge: Foundation.TimeInterval?, receivedIrap: Swift.Bool, awaitingIrap: Swift.Bool, hasDecodableReferences: Swift.Bool, lastIrapAge: Foundation.TimeInterval?, lastSuccessfulOutputAge: Foundation.TimeInterval?, rebuildReason: Swift.String?, firstError: FeedIncidentDecodeErrorContext?)
 init FeedIncidentErrorCount(errorClass: Swift.String, count: Swift.Int)
 init FeedIncidentIngress(socketGeneration: Swift.Int, receivedDatagrams: Swift.Int, videoDatagrams: Swift.Int, videoGateDrops: Swift.Int, injectedVideoDrops: Swift.Int, registrationSubmissions: Swift.Int, receiveErrors: Swift.Int, lastDatagramAge: Foundation.TimeInterval?, lastVideoDatagramAge: Foundation.TimeInterval?, lastRegistrationSubmissionAge: Foundation.TimeInterval?, videoGateOpen: Swift.Bool)
 init FeedIncidentLifecycle(foreground: Swift.Bool, settingsCovered: Swift.Bool, playbackActive: Swift.Bool, connected: Swift.Bool, liveEstablished: Swift.Bool, thermalState: Swift.String, memoryWarning: Swift.Bool, lowPower: Swift.Bool, sceneActive: Swift.Bool, assistState: Swift.String, outputObservable: Swift.Bool, presentationExpected: Swift.Bool)
@@ -500,6 +500,7 @@ init FeedIncidentSessionSummary(sessionID: Swift.String, healthyExposureSeconds:
 init FeedIncidentSnapshot(monotonicNow: Foundation.TimeInterval, wallClock: Foundation.Date, rates: FeedIncidentRates, ages: FeedIncidentAges, queue: FeedIncidentQueue, decoder: FeedIncidentDecoder, lifecycle: FeedIncidentLifecycle, watchdogAction: Swift.String, diagnoserFailure: Swift.String, diagnoserRepair: Swift.String)
 init FeedIncidentSnapshot(monotonicNow: Foundation.TimeInterval, wallClock: Foundation.Date, rates: FeedIncidentRates, ages: FeedIncidentAges, queue: FeedIncidentQueue, decoder: FeedIncidentDecoder, lifecycle: FeedIncidentLifecycle, watchdogAction: Swift.String, diagnoserFailure: Swift.String, diagnoserRepair: Swift.String, ingress: FeedIncidentIngress?, watchdogGate: FeedIncidentWatchdogGate?)
 init FeedIncidentStageCounts(packet: Swift.Int?, accessUnit: Swift.Int?, decodeSubmit: Swift.Int?, decodeAccept: Swift.Int?, decodedOutput: Swift.Int?, assistOutput: Swift.Int?, present: Swift.Int?, ack: Swift.Int?)
+init FeedIncidentVendorEnvelope(from: any Swift.Decoder) throws
 init FeedIncidentWatchdogGate(from: any Swift.Decoder) throws
 init FeedIncidentWatchdogGate(pathReady: Swift.Bool?, repairReady: Swift.Bool?, outputExpected: Swift.Bool?, hold: Swift.String?)
 init FeedIngressMetrics(generation: Swift.Int)
@@ -778,9 +779,14 @@ static func FeedIncidentClassifier.isRecovered(_: FeedIncidentSnapshot) -> Swift
 static func FeedIncidentClassifier.suppression(of: FeedIncidentSnapshot) -> FeedIncidentSuppression?
 static func FeedIncidentCoding.decoder() -> Foundation.JSONDecoder
 static func FeedIncidentCoding.encoder() -> Foundation.JSONEncoder
+static func FeedIncidentExport.appleDecoderCall(origin: Swift.String) -> Swift.String?
+static func FeedIncidentExport.decodeFlow(submitHz: Swift.Double, acceptHz: Swift.Double) -> Swift.String
+static func FeedIncidentExport.decoderCall(_: FeedIncidentBundle) -> Swift.String
 static func FeedIncidentExport.envelope(from: FeedIncidentBundle) -> FeedIncidentVendorEnvelope
 static func FeedIncidentExport.extras(from: [FeedIncidentBundle], product: Swift.String) -> [(name: Swift.String, body: Swift.String)]
 static func FeedIncidentExport.gapBucket(_: Foundation.TimeInterval) -> Swift.String
+static func FeedIncidentExport.irapAgeBucket(_: Foundation.TimeInterval?) -> Swift.String
+static func FeedIncidentExport.onset(_: FeedIncidentBundle) -> FeedIncidentSnapshot?
 static func FeedIncidentExport.text(from: [FeedIncidentBundle], product: Swift.String) -> Swift.String
 static func FeedIncidentFileNaming.incident(id: Swift.String) -> Swift.String
 static func FeedIncidentFileNaming.metricKit(kind: Swift.String, deliveredAt: Foundation.Date, deliveryID: Foundation.UUID, index: Swift.Int) -> Swift.String
@@ -994,11 +1000,14 @@ static let FeedIncidentBounds.stallThreshold: Foundation.TimeInterval
 static let FeedIncidentBounds.stringLength: Swift.Int
 static let FeedIncidentBuildIdentity.maxLength: Swift.Int
 static let FeedIncidentDecodeErrorContext.maxNalTypes: Swift.Int
+static let FeedIncidentExport.decoderCalls: Swift.Set<Swift.String>
+static let FeedIncidentExport.decoderCodecs: Swift.Set<Swift.String>
 static let FeedIncidentLimits.production: FeedIncidentLimits
 static let FeedIncidentNativeBreadcrumb.allowedValues: [Swift.String : Swift.Set<Swift.String>]
 static let FeedIncidentRecorder.aftermathSeconds: Foundation.TimeInterval
 static let FeedIncidentRecorder.preludeSeconds: Foundation.TimeInterval
 static let FeedIncidentSchema.version: Swift.Int
+static let FeedIncidentWatchdogGate.holdValues: Swift.Set<Swift.String>
 static let FeedPresentPolicy.extraMirrorHoldFrames: Swift.Int
 static let FeedPresentPolicy.extraMirrorHoldSeconds: Foundation.TimeInterval
 static let FeedPresentPolicy.freezeThreshold: Foundation.TimeInterval
@@ -1300,6 +1309,7 @@ var FeedIncidentDecoder.awaitingIrap: Swift.Bool
 var FeedIncidentDecoder.codec: Swift.String
 var FeedIncidentDecoder.decoderFailed: Swift.Bool
 var FeedIncidentDecoder.errorAge: Foundation.TimeInterval?
+var FeedIncidentDecoder.errorCall: Swift.String?
 var FeedIncidentDecoder.errorClass: Swift.String?
 var FeedIncidentDecoder.errorCount: Swift.Int
 var FeedIncidentDecoder.firstError: FeedIncidentDecodeErrorContext?
@@ -1457,12 +1467,20 @@ var FeedIncidentStageCounts.decodedOutput: Swift.Int?
 var FeedIncidentStageCounts.packet: Swift.Int?
 var FeedIncidentStageCounts.present: Swift.Int?
 var FeedIncidentTestSource.rank: Swift.Int
+var FeedIncidentVendorEnvelope.awaitingIrap: Swift.String
+var FeedIncidentVendorEnvelope.background: Swift.String
 var FeedIncidentVendorEnvelope.buildIdentity: Swift.String
+var FeedIncidentVendorEnvelope.decodeFlow: Swift.String
+var FeedIncidentVendorEnvelope.decoderCall: Swift.String
+var FeedIncidentVendorEnvelope.decoderCodec: Swift.String
 var FeedIncidentVendorEnvelope.decoderGeneration: Swift.Int
+var FeedIncidentVendorEnvelope.decoderStatus: Swift.String
 var FeedIncidentVendorEnvelope.eventName: Swift.String
 var FeedIncidentVendorEnvelope.grouping: FeedIncidentGrouping
 var FeedIncidentVendorEnvelope.healthyExposureSeconds: Foundation.TimeInterval
 var FeedIncidentVendorEnvelope.incidentID: Swift.String
+var FeedIncidentVendorEnvelope.irapAge: Swift.String
+var FeedIncidentVendorEnvelope.keyframeWait: Swift.String
 var FeedIncidentVendorEnvelope.kind: Swift.String
 var FeedIncidentVendorEnvelope.recoveredBy: Swift.String
 var FeedIncidentVendorEnvelope.schemaVersion: Swift.Int
@@ -1470,6 +1488,7 @@ var FeedIncidentVendorEnvelope.sessionID: Swift.String
 var FeedIncidentVendorEnvelope.socketGeneration: Swift.Int
 var FeedIncidentVendorEnvelope.testSource: Swift.String
 var FeedIncidentVendorEnvelope.trigger: Swift.String
+var FeedIncidentVendorEnvelope.watchdogHold: Swift.String
 var FeedIncidentVendorEnvelope.worstGapSeconds: Foundation.TimeInterval
 var FeedIncidentVerdict.failingStage: FeedIncidentFailingStage?
 var FeedIncidentVerdict.kind: FeedIncidentKind?

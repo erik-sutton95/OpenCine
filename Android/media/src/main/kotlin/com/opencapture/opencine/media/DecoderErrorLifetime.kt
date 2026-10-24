@@ -8,6 +8,26 @@ enum class DecoderErrorOrigin(val wire: String) {
 }
 
 /**
+ * The MediaCodec call that threw, finer than [DecoderErrorOrigin] (PA-1V: an
+ * IllegalArgumentException rode a disconnect incident and nothing said which call raised it).
+ * The wire values are a closed vocabulary shared with Apple's in `FeedIncidentDecoder.errorCall`.
+ */
+enum class DecoderErrorCall(val wire: String) {
+    /** Picking and instantiating the codec (`MediaCodec.createByCodecName`). */
+    CREATE_CODEC("createCodec"),
+    /** Building the format and `MediaCodec.configure`. */
+    CONFIGURE("configure"),
+    START("start"),
+    DEQUEUE_INPUT("dequeueInput"),
+    GET_INPUT_BUFFER("getInputBuffer"),
+    /** Copying the access unit into the codec's input buffer. */
+    FILL_INPUT("fillInput"),
+    QUEUE_INPUT("queueInput"),
+    DEQUEUE_OUTPUT("dequeueOutput"),
+    RELEASE_OUTPUT("releaseOutput"),
+}
+
+/**
  * Typed decoder failure for one codec generation. Reset with the decoder so a
  * previous lifetime cannot mark the next one wedged.
  */
@@ -22,9 +42,10 @@ data class DecoderErrorRecord(
     val inputIsIrap: Boolean?,
     val lastOutputAgeMs: Long?,
     val atElapsedMs: Long,
+    val call: DecoderErrorCall? = null,
 ) {
     fun journalLine(): String =
-        "decoder error origin=${origin.wire} code=$code gen=$generation fmt=$formatGeneration " +
+        "decoder error origin=${origin.wire} call=${call?.wire ?: "none"} code=$code gen=$generation fmt=$formatGeneration " +
             "codec=${codec ?: "none"} ${width}x$height irap=${
                 when (inputIsIrap) {
                     true -> 1

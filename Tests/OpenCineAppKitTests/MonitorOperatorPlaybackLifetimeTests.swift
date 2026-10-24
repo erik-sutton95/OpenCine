@@ -22,6 +22,7 @@ import Testing
     var onEvent: (@MainActor @Sendable (MonitorPlaybackItemToken, MonitorPlaybackEvent) -> Void)?
     var played: [MonitorPlaybackItemToken] = []
     var paused: [MonitorPlaybackItemToken] = []
+    var onPause: (@MainActor (MonitorPlaybackItemToken) -> Void)?
     var closed = false
     var preparations = 0
     var pendingPrepare: OperatorPlaybackPending?
@@ -34,7 +35,10 @@ import Testing
         return .init(duration: 8, conform: .init(captureRate: 60))
     }
     func play(rate: Double, token: MonitorPlaybackItemToken) { played.append(token) }
-    func pause(token: MonitorPlaybackItemToken) { paused.append(token) }
+    func pause(token: MonitorPlaybackItemToken) {
+        paused.append(token)
+        onPause?(token)
+    }
     func seek(seconds: Double, tolerance: Double, token: MonitorPlaybackItemToken) async -> Bool { true }
     func setMuted(_ muted: Bool, token: MonitorPlaybackItemToken) {}
     func close(token: MonitorPlaybackItemToken) { closed = true }
@@ -314,6 +318,101 @@ import Testing
         f.model.setSceneActive(false); f.model.setDeliveryPresented(true)
         f.model.setSceneActive(true); f.model.setDeliveryPresented(false)
         #expect(!owner.playRequested && f.ports[0].played.count == plays && f.model.playback === owner)
+    }
+
+    @Test func shareFromPlaybackPausesAndDismissLeavesTheTransportPaused() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture()
+        defer { f.close() }
+        f.model.setPlayerVisible(true)
+        #expect(f.open(0))
+        let owner = try #require(f.model.playback)
+        #expect(await settled { owner.ready })
+        owner.setPlaying(true)
+        let token = owner.token
+        let port = f.ports[0]
+        let plays = port.played.count
+        var deliveryAtPause: [Bool] = []
+        port.onPause = { _ in deliveryAtPause.append(f.model.deliveryPresented) }
+        defer { port.onPause = nil }
+        #expect(f.model.beginShare(token))
+        #expect(deliveryAtPause.first == false)
+        #expect(f.model.deliveryPresented)
+        #expect(!owner.playRequested && port.paused.last == token)
+        f.model.setDeliveryPresented(false)
+        #expect(!owner.playRequested && port.played.count == plays)
+        let stale = MonitorPlaybackItemToken(owner: token.owner, revision: token.revision &+ 1)
+        #expect(!f.model.beginShare(stale))
+    }
+
+    @Test func staleShareCannotPauseOrCoverTheReplacementItem() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture()
+        defer { f.close() }
+        f.model.setPlayerVisible(true)
+        #expect(f.open(0))
+        let original = try #require(f.model.playback)
+        #expect(await settled { original.ready })
+        let stale = original.token
+        #expect(f.open(1))
+        let replacement = try #require(f.model.playback)
+        #expect(await settled { replacement.ready })
+        let port = try #require(f.ports.last)
+        let plays = port.played.count
+        let pauses = port.paused.count
+        #expect(!f.model.beginShare(stale))
+        #expect(!f.model.deliveryPresented && replacement.playRequested)
+        #expect(f.model.playback === replacement && replacement.active?.payload == "B")
+        #expect(port.played.count == plays && port.paused.count == pauses)
+    }
+
+    @Test func shareRetirementDuringNativePauseCannotPresentDelivery() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture()
+        defer { f.close() }
+        f.model.setPlayerVisible(true)
+        #expect(f.open(0))
+        let owner = try #require(f.model.playback)
+        #expect(await settled { owner.ready })
+        let port = f.ports[0]
+        let token = owner.token
+        var deliveryDuringPause: Bool?
+        port.onPause = { _ in
+            deliveryDuringPause = f.model.deliveryPresented
+            f.model.closePlayback()
+        }
+        defer { port.onPause = nil }
+        #expect(!f.model.beginShare(token))
+        #expect(deliveryDuringPause == false)
+        #expect(!f.model.deliveryPresented && f.model.playback == nil && owner.closed)
+    }
+
+    @Test func shareRetirementDuringCoverPauseCannotAdmitAStaleShare() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture()
+        defer { f.close() }
+        f.model.setPlayerVisible(true)
+        #expect(f.open(0))
+        let owner = try #require(f.model.playback)
+        #expect(await settled { owner.ready })
+        let port = f.ports[0]
+        let token = owner.token
+        var coverPauseToken: MonitorPlaybackItemToken?
+        var sameOwnerDuringCoverPause = false
+        port.onPause = { observed in
+            guard f.model.deliveryPresented else { return }
+            coverPauseToken = observed
+            sameOwnerDuringCoverPause = f.model.playback === owner
+            f.model.closePlayback()
+        }
+        defer { port.onPause = nil }
+        let admitted = f.model.beginShare(token)
+        var shares = 0
+        if admitted { shares += 1 }
+        #expect(coverPauseToken == token && sameOwnerDuringCoverPause)
+        #expect(owner.closed && f.model.playback == nil)
+        #expect(!f.model.deliveryPresented && !f.model.isCurrent(token))
+        #expect(!admitted && shares == 0)
     }
 
     @Test func realRemovalMayRetireTheOutgoingItemOnceAndOpenTheAdjacentOwner() async throws {

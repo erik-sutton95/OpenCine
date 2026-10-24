@@ -51,6 +51,27 @@ struct NikonCameraSessionTests {
             whiteBalancePresets: ["Auto", "Natural auto", "Sunny", "Cloudy", "0x8099"])
     }
 
+    /// Z app getters (multicam slots, media source identity) call `refresh()` from view code.
+    /// Unchanged camera facts reuse the published snapshot; changed facts map it once.
+    @Test func refreshWithUnchangedFactsReusesTheSnapshot() {
+        let driver = Driver(Self.movieFacts())
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        let first = session.refresh()
+        for _ in 0..<50 { _ = session.refresh() }
+        #expect(session.snapshotBuilds == 1)
+        #expect(session.refresh() == first)
+
+        driver.nikonControlFacts.reported = PTPCameraPropertySnapshot(
+            iso: 1600, isoAuto: false, exposureMode: "M", wbMode: "Auto", wbKelvin: 5560,
+            fileType: "H.265 10-bit MOV", batteryPercent: 80, captureSelector: .video)
+        #expect(session.refresh().settings[.iso]?.value == .iso(.manual(1600)))
+        _ = session.refresh()
+        #expect(session.snapshotBuilds == 2)
+        driver.nikonControlFacts.holdsControl = false
+        #expect(session.refresh().authority == .unavailable(.authority))
+        #expect(session.snapshotBuilds == 3)
+    }
+
     @Test func recordingFactsUseReportedDimensionsAndNeverPreviewCodec() {
         var facts = Self.movieFacts()
         facts.reported = PTPCameraPropertySnapshot(exposureMode: "S", resolution: "6048x3402", fps: 25,

@@ -402,6 +402,46 @@ class TwoWay(unittest.TestCase):
         self.assertFalse(self.run_sync()["complete"])
         self.assertEqual(self.api.writes, [])
 
+    def test_successful_empty_central_inventory_never_duplicates_trackers(self):
+        # 2026-10-22: during a GitHub degradation the central listing read successfully but
+        # without the existing trackers, and the engine created a second tracker per issue.
+        self.created()
+        count, trackers = len(self.api.writes), len(self.api.issues["o/OpenCine"])
+        request, served = self.api.request, []
+        def degraded(method, path, payload=None):
+            if method == "GET" and path.startswith("/repos/o/OpenCine/issues?") and not served:
+                served.append(path)
+                return []
+            return request(method, path, payload)
+        self.api.request = degraded
+        result = self.run_sync()
+        self.assertFalse(result["complete"], result)
+        self.assertEqual(len(self.api.writes), count, "an unconfirmed absence must never create a tracker")
+        self.assertEqual(len(self.api.issues["o/OpenCine"]), trackers)
+        self.assertIn("central inventory changed between reads", json.dumps(result["errors"]))
+
+    def test_automatic_run_refuses_mass_tracker_creation(self):
+        self.api.issues["o/App"] = [issue(n) for n in range(1, 7)]
+        planned = self.run_sync(False)
+        self.assertTrue(planned["complete"], planned)
+        self.assertEqual(planned["counts"]["create"], 6)
+        result = self.run_sync()
+        self.assertFalse(result["complete"], result)
+        self.assertEqual(self.api.writes, [])
+        self.assertIn("6 new trackers planned", json.dumps(result["errors"]))
+        result = sync.reconcile(registry(), self.api, execute=True, bot_login=BOT, allow_backfill=True)
+        self.assertTrue(result["complete"], result)
+        self.assertEqual(result["counts"]["create"], 6)
+
+    def test_receipt_records_inventory_sizes(self):
+        self.api.issues["o/Future"] = [issue(3, "o/Future"), issue(4, "o/Future", state="closed")]
+        self.api.issues["o/OpenCine"] = [issue(70, "o/OpenCine", body="Native Core issue")]
+        result = self.run_sync()
+        self.assertTrue(result["complete"], result)
+        self.assertEqual(result["inventory"], {"central_issues": 1, "authenticated_trackers": 0,
+                                               "sources": {"app": 1, "future": 2}})
+        self.assertEqual(self.run_sync()["inventory"]["authenticated_trackers"], 2)
+
     def test_uncertain_comment_post_recovers_from_carrier_without_duplicate(self):
         for origin_repo in ("o/App", "o/OpenCine"):
             with self.subTest(origin=origin_repo):

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import com.opencapture.opencine.media.CodecFailureAction
 import com.opencapture.opencine.media.CodecFailurePolicy
 import com.opencapture.opencine.media.DecoderErrorLifetime
+import com.opencapture.opencine.media.DecoderErrorCall
 import com.opencapture.opencine.media.DecoderErrorOrigin
 import com.opencapture.opencine.media.DecoderErrorRecord
 import com.opencapture.opencine.media.DecoderInputOwnership
@@ -545,6 +546,8 @@ class HevcDecoder(
         val detected = LiveAccessUnit.detectCodec(csd, nalTypes) ?: return false
         liveCodec = detected
         var decoder: MediaCodec? = null
+        // The call in flight when the block throws, for the incident (PA-1V).
+        var call = DecoderErrorCall.CONFIGURE
         return try {
             val mime =
                 if (detected == LiveVideoCodec.AVC) MediaFormat.MIMETYPE_VIDEO_AVC
@@ -572,6 +575,7 @@ class HevcDecoder(
                 }
                 return format
             }
+            call = DecoderErrorCall.CREATE_CODEC
             var created = LiveHevcCodec.createDecoder(mime)
             decoder = created
             val lowLatency = LiveDecoderTuning.lowLatencyRequested(Build.VERSION.SDK_INT)
@@ -581,6 +585,7 @@ class HevcDecoder(
                     "${pictureWidth}x$pictureHeight lowLatency=$lowLatency",
             )
             try {
+                call = DecoderErrorCall.CONFIGURE
                 created.configure(buildFormat(lowLatency), target, null, 0)
             } catch (refusal: Exception) {
                 val code = (refusal as? MediaCodec.CodecException)?.errorCode
@@ -590,10 +595,13 @@ class HevcDecoder(
                 // fresh one; losing low latency beats losing the picture.
                 Log.w(TAG, "decoder ${created.name} refused low latency (codec:$code); retrying without it")
                 runCatching { created.release() }
+                call = DecoderErrorCall.CREATE_CODEC
                 created = LiveHevcCodec.createDecoder(mime)
                 decoder = created
+                call = DecoderErrorCall.CONFIGURE
                 created.configure(buildFormat(lowLatency = false), target, null, 0)
             }
+            call = DecoderErrorCall.START
             created.start()
             codec = created
             inputCodec = NativeHevcInputCodec(created)
@@ -617,7 +625,9 @@ class HevcDecoder(
                                 try {
                                     started.dequeueOutputBuffer(info, 10_000)
                                 } catch (error: Exception) {
-                                    val action = noteOutputError(started, DecoderErrorOrigin.OUTPUT, error)
+                                    val action = noteOutputError(
+                                        started, DecoderErrorOrigin.OUTPUT, DecoderErrorCall.DEQUEUE_OUTPUT, error,
+                                    )
                                     if (action != CodecFailureAction.RETRY) break
                                     // ponytail: fixed 10 ms pause so a persisting transient
                                     // error cannot spin; a backoff if field data asks for one.
@@ -643,7 +653,10 @@ class HevcDecoder(
                                     runCatching {
                                         started.releaseOutputBuffer(index, stamp)
                                     }.onFailure { error ->
-                                        noteOutputError(started, DecoderErrorOrigin.OUTPUT_RELEASE, error)
+                                        noteOutputError(
+                                            started, DecoderErrorOrigin.OUTPUT_RELEASE,
+                                            DecoderErrorCall.RELEASE_OUTPUT, error,
+                                        )
                                     }
                                     // Output to an ImageReader is not a displayed image.
                                     // Vulkan/GLES/TextureView reports the actual present.
@@ -672,7 +685,7 @@ class HevcDecoder(
                 configured = false
                 liveCodec = null
             }
-            noteError(DecoderErrorOrigin.CONFIGURE, e)
+            noteError(DecoderErrorOrigin.CONFIGURE, call, e)
             false
         }
     }
@@ -697,6 +710,7 @@ class HevcDecoder(
     private fun queue(accessUnit: ByteArray, keyframe: Boolean, retried: Boolean = false): Boolean {
         val decoder = inputCodec ?: return false
         val source = inputOwnership.capture()
+        var call = DecoderErrorCall.DEQUEUE_INPUT
         return try {
             val index = decoder.dequeueInputBuffer(LiveViewPresentTiming.inputWaitUs(keyframe))
             if (!ownsInput(decoder, source)) return false
@@ -705,13 +719,16 @@ class HevcDecoder(
                 Log.w(TAG, "no input buffer (nals=$nalTypesSeen)")
                 return false
             }
+            call = DecoderErrorCall.GET_INPUT_BUFFER
             val buffer = decoder.getInputBuffer(index) ?: return false
             if (!ownsInput(decoder, source)) return false
+            call = DecoderErrorCall.FILL_INPUT
             buffer.clear()
             buffer.put(accessUnit)
             val flags = if (keyframe) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
             val pts = LiveViewPresentTiming.ptsUs(inputElapsedNanos(), ptsUs)
             ptsUs = pts
+            call = DecoderErrorCall.QUEUE_INPUT
             decoder.queueInputBuffer(index, accessUnit.size, pts, flags)
             if (!ownsInput(decoder, source)) return false
             lastDecoderAcceptedAt = inputElapsedMs()
@@ -720,7 +737,7 @@ class HevcDecoder(
             true
         } catch (e: Exception) {
             if (!ownsInput(decoder, source)) return false
-            noteError(DecoderErrorOrigin.QUEUE, e, inputIsIrap = keyframe)
+            noteError(DecoderErrorOrigin.QUEUE, call, e, inputIsIrap = keyframe)
             // Callers hold the codec lock. Only the captured codec may recover or retry.
             val action = decoder.failure(e)?.let {
                 onCodecFailureLocked(it.errorCode, it.isTransient, it.isRecoverable)
@@ -756,11 +773,12 @@ class HevcDecoder(
     private fun noteOutputError(
         started: MediaCodec,
         origin: DecoderErrorOrigin,
+        call: DecoderErrorCall,
         error: Throwable,
     ): CodecFailureAction {
         val (record, action) = synchronized(lock) {
             if (!ownsOutput(started)) return CodecFailureAction.REPORT
-            recordError(origin, error) to onCodecFailureLocked(error)
+            recordError(origin, call, error) to onCodecFailureLocked(error)
         }
         // The admitted record retains its original generation. Host callbacks do not run under
         // the codec lock and cannot mutate a replacement decoder's error lifetime.
@@ -770,14 +788,16 @@ class HevcDecoder(
 
     private fun noteError(
         origin: DecoderErrorOrigin,
+        call: DecoderErrorCall,
         error: Throwable,
         inputIsIrap: Boolean? = null,
     ) {
-        recordError(origin, error, inputIsIrap)?.let(inputErrors::add)
+        recordError(origin, call, error, inputIsIrap)?.let(inputErrors::add)
     }
 
     private fun recordError(
         origin: DecoderErrorOrigin,
+        call: DecoderErrorCall,
         error: Throwable,
         inputIsIrap: Boolean? = null,
     ): DecoderErrorRecord? {
@@ -798,6 +818,7 @@ class HevcDecoder(
                 inputIsIrap = inputIsIrap,
                 lastOutputAgeMs = lastDecoderOutputAt?.let { now - it },
                 atElapsedMs = now,
+                call = call,
             )
         return errorLifetime.note(record, now)
     }

@@ -171,15 +171,10 @@ struct FocusRackDriveTests {
         let session = try connect(server)
         defer { session.disconnect() }
         #expect(session.prepareFocusRackRun(runID: 1))
-        var diagnosticLines: [String] = []
         #expect(
             session.focusRackDrive(
-                runID: 1, towardNear: true, pulses: 40, diagnostics: { diagnosticLines = $0 })
+                runID: 1, towardNear: true, pulses: 40)
                 == .complete)
-        #expect(
-            diagnosticLines == [
-                "activation response=0x2001", "driving response=0x2001", "finished outcome=0",
-            ])
         let requests = server.receivedRequests()
         #expect(requests.last { $0.operation == .mfDrive }?.parameters == [1, 40])
         #expect(requests.suffix(2).map(\.operation) == [.mfDrive, .deviceReady])

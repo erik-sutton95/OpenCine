@@ -306,6 +306,184 @@ import Testing
         #expect(FeedIncidentExport.envelope(from: bundle).trigger == "none")
     }
 
+    /// Pocket iOS Q/22/16/48 report `errorClass nativeDecoder` with no status, and K/2E/1T a
+    /// presentation stall with no trigger. The on-device bundle already holds the VideoToolbox
+    /// status, the codec and the watchdog's hold; the envelope carries them so the next build's
+    /// events can be split by cause.
+    @Test func envelopeCarriesTheDecoderStatusCodecAndWatchdogHold() throws {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-status" })
+        _ = recorder.beginSession(Fixture.context())
+        var bundle = try #require(
+            recorder.recordSnapshot(Fixture.stall(now: 4, outputAge: 3))?.bundle)
+        var plain = FeedIncidentExport.envelope(from: bundle)
+        #expect(plain.decoderStatus == "none")
+        #expect(plain.watchdogHold == "none")
+
+        var first = try #require(bundle.during.first ?? bundle.prelude.last)
+        first.decoder = FeedIncidentDecoder(
+            codec: "avc", lastStatus: -12911, errorClass: "nativeDecoder",
+            firstError: FeedIncidentDecodeErrorContext(
+                status: -12909, nalTypes: [1], accessUnitBytes: 900))
+        first.watchdogGate = FeedIncidentWatchdogGate(hold: "rungWait")
+        var later = first
+        later.decoder = FeedIncidentDecoder(codec: "avc", lastStatus: -12911)
+        later.watchdogGate = FeedIncidentWatchdogGate(hold: "repairDeadline")
+        bundle.during = [first, later]
+        plain = FeedIncidentExport.envelope(from: bundle)
+        #expect(plain.decoderStatus == "-12909", "the episode's first error names the failure")
+        #expect(plain.decoderCodec == "avc")
+        #expect(plain.watchdogHold == "repairDeadline", "the last hold is what kept the ladder idle")
+
+        bundle.during = [later]
+        #expect(FeedIncidentExport.envelope(from: bundle).decoderStatus == "-12911")
+        later.decoder = FeedIncidentDecoder(codec: "SIMULATED camera 6002199", lastStatus: 0)
+        bundle.during = [later]
+        let closed = FeedIncidentExport.envelope(from: bundle)
+        #expect(closed.decoderStatus == "none")
+        #expect(closed.decoderCodec == "other")
+
+        let legacy = try JSONDecoder().decode(
+            FeedIncidentVendorEnvelope.self,
+            from: try JSONEncoder().encode(FeedIncidentExport.envelope(from: bundle))
+                .replacingKeys(["decoderStatus", "decoderCodec", "watchdogHold"]))
+        #expect(legacy.decoderStatus == "none" && legacy.watchdogHold == "none")
+    }
+
+    /// Kotlin twin: `envelopeCarriesBackgroundAndIrapDiagnostics` (FeedIncidentExportTest).
+    @Test func envelopeCarriesBackgroundAndIrapDiagnostics() throws {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-diagnostics" })
+        _ = recorder.beginSession(Fixture.context())
+        func stale(_ now: TimeInterval, foreground: Bool, awaiting: Bool) -> FeedIncidentSnapshot {
+            var snapshot = Fixture.stall(now: now, outputAge: now, foreground: foreground)
+            snapshot.lifecycle.sceneActive = foreground
+            snapshot.decoder.awaitingIrap = awaiting
+            return snapshot
+        }
+        var bundle = try #require(
+            recorder.recordSnapshot(stale(4, foreground: true, awaiting: false))?.bundle)
+        var envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.background == "no")
+        #expect(envelope.awaitingIrap == "no")
+        // Still open: an app switch, then back with the decoder waiting for a keyframe.
+        _ = recorder.recordSnapshot(stale(5, foreground: false, awaiting: false))
+        _ = recorder.recordSnapshot(stale(6, foreground: true, awaiting: true))
+        bundle = try #require(recorder.exportOpen())
+        envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.background == "yes", "one off-screen snapshot inside the incident")
+        #expect(envelope.awaitingIrap == "yes", "the newest snapshot decides")
+        // Snapshots before the incident opened are not its own.
+        var early = bundle
+        early.prelude = [stale(1, foreground: false, awaiting: true)]
+        early.during = []
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
+        #expect(FeedIncidentExport.envelope(from: early).awaitingIrap == "unknown")
+        // Not even one tick before the opening snapshot.
+        var tickBefore = early
+        tickBefore.prelude = [stale(3, foreground: false, awaiting: true)]
+        #expect(FeedIncidentExport.envelope(from: tickBefore).background == "unknown")
+        // A session drop stops the snapshots; the scene breadcrumb still marks the app switch.
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 5, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "yes")
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 1, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
+        // An app switch during the aftermath (the picture was already back) is not this incident's.
+        early.header.endedAtMonotonic = 4.5
+        early.breadcrumbs = [
+            FeedIncidentBreadcrumb(monotonicAt: 5, kind: .sceneActivity, detail: "inactive")
+        ]
+        #expect(FeedIncidentExport.envelope(from: early).background == "unknown")
+    }
+
+    /// PA-1V and the decoder clusters: the call that raised the error class and the decode state
+    /// the incident opened on are searchable tags, as buckets. Kotlin twin in FeedIncidentExportTest.
+    @Test func envelopeTagsTheDecodeStateTheIncidentOpenedOn() throws {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-decode" })
+        _ = recorder.beginSession(Fixture.context())
+        var onset = Fixture.snap(now: 3, acceptHz: 0, errorClass: "nativeDecoder")
+        onset.decoder.errorCall = "outputCallback"
+        onset.decoder.awaitingIrap = true
+        onset.decoder.lastIrapAge = 7
+        _ = recorder.recordSnapshot(onset)
+        var bundle = try #require(recorder.noteUnexpectedDisconnect(now: 4)?.bundle)
+        #expect(bundle.header.errorClass == "nativeDecoder")
+        var envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.decoderCall == "outputCallback")
+        #expect(envelope.keyframeWait == "awaiting")
+        #expect(envelope.irapAge == "5-30s")
+        #expect(envelope.decodeFlow == "rejecting")
+
+        bundle.prelude[bundle.prelude.count - 1].decoder.errorCall = "somethingNew"
+        #expect(FeedIncidentExport.envelope(from: bundle).decoderCall == "other")
+        bundle.header.errorClass = nil
+        #expect(FeedIncidentExport.envelope(from: bundle).decoderCall == "none")
+        bundle.prelude = []
+        bundle.during = []
+        envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect([envelope.keyframeWait, envelope.irapAge, envelope.decodeFlow] == ["unknown", "unknown", "unknown"])
+
+        #expect(FeedIncidentExport.irapAgeBucket(nil) == "never")
+        #expect(FeedIncidentExport.irapAgeBucket(0.4) == "0-1s")
+        #expect(FeedIncidentExport.irapAgeBucket(1) == "1-5s")
+        #expect(FeedIncidentExport.irapAgeBucket(30) == "30s+")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 0, acceptHz: 0) == "idle")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 25, acceptHz: 12) == "partial")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 25, acceptHz: 25) == "flowing")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "submit") == "decodeFrame")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "display") == "displayLayer")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "none") == nil)
+        #expect(
+            FeedIncidentExport.decoderCalls.isSuperset(of: [
+                "createSession", "decodeFrame", "outputCallback", "displayLayer", "getInputBuffer",
+            ]))
+    }
+
+    @Test func decodeFlowKeepsFirstRateSampleUnknown() throws {
+        var sampler = FeedIncidentRateSampler()
+        let rates = sampler.sample(now: 1, counts: .init(decodeSubmit: 25, decodeAccept: 25))
+        #expect(try decodeFlowTag(rates) == "unknown")
+    }
+
+    @Test func decodeFlowKeepsJPEGAcceptanceUnknown() throws {
+        var sampler = FeedIncidentRateSampler()
+        _ = sampler.sample(now: 1, counts: .init(decodeSubmit: 0, decodedOutput: 0))
+        let rates = sampler.sample(now: 2, counts: .init(decodeSubmit: 25, decodedOutput: 25))
+        #expect(rates.observed?.decodedOutputHz == 25)
+        #expect(rates.observed?.decodeAcceptHz == nil)
+        #expect(try decodeFlowTag(rates) == "unknown")
+    }
+
+    @Test func decodeFlowUsesExplicitObservationsAndKeepsLegacyRates() throws {
+        let cases: [(Double?, Double?, String)] = [
+            (nil, 25, "unknown"),
+            (0, 0, "idle"),
+            (25, 0, "rejecting"),
+            (25, 12, "partial"),
+            (25, 25, "flowing"),
+        ]
+        for (submit, accept, expected) in cases {
+            // Compatibility fields cannot override an explicit measurement or its absence.
+            let rates = FeedIncidentRates(
+                decodeSubmitHz: 25, decodeAcceptHz: 0,
+                observed: .init(decodeSubmitHz: submit, decodeAcceptHz: accept))
+            #expect(try decodeFlowTag(rates) == expected)
+        }
+        #expect(try decodeFlowTag(.init(decodeSubmitHz: 25, decodeAcceptHz: 25)) == "flowing")
+    }
+
+    private func decodeFlowTag(_ rates: FeedIncidentRates) throws -> String {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-observed-decode" })
+        _ = recorder.beginSession(Fixture.context())
+        var sample = Fixture.healthy(now: 3)
+        sample.rates = rates
+        _ = recorder.recordSnapshot(sample)
+        let bundle = try #require(recorder.noteUnexpectedDisconnect(now: 4)?.bundle)
+        return FeedIncidentExport.envelope(from: bundle).decodeFlow
+    }
+
     @Test func coveredUnobservableFeedCannotClaimRecoveryOrHealthyExposure() {
         var recorder = FeedIncidentRecorder()
         _ = recorder.beginSession(Fixture.context())
@@ -617,5 +795,14 @@ private final class StubIDs: @unchecked Sendable {
     init(_ values: [String]) { self.values = values }
     func next() -> String {
         values.isEmpty ? "overflow" : values.removeFirst()
+    }
+}
+
+extension Data {
+    /// The same JSON object without `keys`: what a record written before those keys existed holds.
+    fileprivate func replacingKeys(_ keys: [String]) throws -> Data {
+        var object = try #require(JSONSerialization.jsonObject(with: self) as? [String: Any])
+        for key in keys { object[key] = nil }
+        return try JSONSerialization.data(withJSONObject: object)
     }
 }

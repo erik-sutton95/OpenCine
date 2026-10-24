@@ -126,8 +126,8 @@ struct NikonFocusRackDriveTests {
         #expect(!runs.prepare(runID: 1))
     }
 
-    @Test func optInTraceDistinguishesBothBusyLimitsAndLateOperatorStop() {
-        var machine = NikonFocusRackDriveMachine(capturesDiagnostics: true)
+    @Test func driveAndStopConfirmationPollsAreBounded() {
+        var machine = NikonFocusRackDriveMachine()
         #expect(machine.next(stopRequested: false) == .activate)
         machine.received(.ok)
         for index in 0..<NikonFocusRackDriveMachine.readinessPollLimit {
@@ -151,15 +151,6 @@ struct NikonFocusRackDriveTests {
             }
         }
         #expect(machine.next(stopRequested: true) == .finished(.cancelledUnconfirmed))
-        let trace = machine.diagnosticLines
-        #expect(trace.filter { $0 == "driving response=0x2019" }.count == 17)
-        #expect(trace.filter { $0 == "confirming response=0x2019" }.count == 17)
-        #expect(trace.filter { $0 == "cancellation response=0x2001" }.count == 1)
-        #expect(trace.contains("drivePollLimit count=17"))
-        #expect(trace.contains("confirmationPollLimit count=17"))
-        #expect(trace.contains("stopRequested phase=confirming"))
-        #expect(trace.last == "finished outcome=4")
-        #expect(trace.count <= 48)
     }
 
     @Test func earlyPollsPreserveTheOldSleepBudgetInBothReadinessPhases() throws {
@@ -206,43 +197,27 @@ struct NikonFocusRackDriveTests {
         #expect(machine.next(stopRequested: true) == .finished(.cancelledReady))
     }
 
-    @Test func optInTraceKeepsRawCancelRefusalAndTransportStage() {
-        var refused = NikonFocusRackDriveMachine(capturesDiagnostics: true)
+    @Test func cancelRefusalAndTransportFailurePreserveUnconfirmedStop() {
+        var refused = NikonFocusRackDriveMachine()
         _ = refused.next(stopRequested: false)
         refused.received(.ok)
         #expect(refused.next(stopRequested: true) == .cancel)
         refused.received(.accessDenied, rawResponseCode: 0xAFFF)
         #expect(refused.next(stopRequested: true) == .finished(.cancelledUnconfirmed))
-        #expect(refused.diagnosticLines.contains("cancellation response=0xAFFF"))
 
         for confirming in [false, true] {
-            var failed = NikonFocusRackDriveMachine(capturesDiagnostics: true)
+            var failed = NikonFocusRackDriveMachine()
             _ = failed.next(stopRequested: false)
             failed.received(.ok)
             _ = failed.next(stopRequested: true)
             if confirming { failed.received(.ok) }
             failed.transportFailed()
             #expect(failed.next(stopRequested: true) == .finished(.cancelledUnconfirmed))
-            #expect(
-                failed.diagnosticLines.contains(
-                    "transportFailed phase=\(confirming ? "confirming" : "cancellation")"))
         }
     }
 
-    @Test func normalRackCommandsDoNotCollectDiagnosticRows() {
-        var machine = NikonFocusRackDriveMachine()
-        _ = machine.next(stopRequested: false)
-        machine.received(.ok)
-        _ = machine.next(stopRequested: true)
-        machine.received(.ok)
-        machine.received(.ok)
-        #expect(machine.next(stopRequested: true) == .finished(.cancelledReady))
-        #expect(machine.diagnosticLines.isEmpty)
-    }
-
     @Test func fastCadenceKeepsTheSameWaitBudgetAndTerminalCancellationEvidence() throws {
-        var machine = NikonFocusRackDriveMachine(
-            cadence: .fastExperimental, capturesDiagnostics: true)
+        var machine = NikonFocusRackDriveMachine(cadence: .fastExperimental)
         #expect(machine.next(stopRequested: false) == .activate)
         machine.received(.ok)
         for confirming in [false, true] {
@@ -268,10 +243,6 @@ struct NikonFocusRackDriveTests {
             }
         }
         #expect(machine.next(stopRequested: true) == .finished(.cancelledUnconfirmed))
-        #expect(machine.diagnosticLines.filter { $0 == "driving response=0x2019" }.count == 35)
-        #expect(machine.diagnosticLines.filter { $0 == "confirming response=0x2019" }.count == 35)
-        #expect(machine.diagnosticLines.last == "finished outcome=4")
-        #expect(machine.diagnosticLines.count <= 80)
     }
 
     @Test func fastCadenceStopPreemptsTheFiveMillisecondWait() {

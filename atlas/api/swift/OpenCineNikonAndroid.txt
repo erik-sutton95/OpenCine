@@ -91,7 +91,7 @@ func PTPIPClientSession.enterMediaMode() -> ()
 func PTPIPClientSession.exitMediaMode() -> ()
 func PTPIPClientSession.focusRackAccess(cadence: OpenCineNikon.NikonFocusRackCadence, isAdmitted: () -> Swift.Bool) -> OpenCineNikon.NikonFocusRackAccess
 func PTPIPClientSession.focusRackAccess(isAdmitted: () -> Swift.Bool) -> OpenCineNikon.NikonFocusRackAccess
-func PTPIPClientSession.focusRackDrive(runID: Swift.Int64, towardNear: Swift.Bool, pulses: Swift.UInt32, diagnostics: (([Swift.String]) -> Swift.Void)?) -> OpenCineNikon.NikonFocusRackDriveOutcome
+func PTPIPClientSession.focusRackDrive(runID: Swift.Int64, towardNear: Swift.Bool, pulses: Swift.UInt32) -> OpenCineNikon.NikonFocusRackDriveOutcome
 func PTPIPClientSession.initiateStillCapture(preserveFocus: Swift.Bool) throws -> ()
 func PTPIPClientSession.latestCommandRoundTripMilliseconds() -> Swift.Double?
 func PTPIPClientSession.latestLinkThroughputMegabitsPerSecond() -> Swift.Double?

@@ -243,6 +243,9 @@
         {
             if requestPairing { return false }
             if error is CancellationError { return false }
+            // The wake already asked the network and got no answer; a second in-place retry would
+            // only run the same bounded wait again.
+            if error is NikonBodyWake.SilentError { return false }
             guard let sessionError = error as? NativeCameraSessionError else { return true }
             switch sessionError {
             case .noHost, .localNetworkPermissionDenied, .pairingRejected,
@@ -771,19 +774,7 @@
             let admission = NikonCommandAdmission(owner: owner) {
                 !cancellation.isStopRequested && suppliedAdmission?.admits(owner) != false
             }
-            #if OPENCINE_FOCUS_RACK_TRACE
-                let startedAt = ProcessInfo.processInfo.systemUptime
-                var machine = NikonFocusRackDriveMachine(
-                    cadence: cadence, capturesDiagnostics: true)
-                defer {
-                    let elapsed = (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
-                    connectionLogger.notice(
-                        "focusRack start=\(startedAt, privacy: .public) elapsedMs=\(elapsed, privacy: .public) \(machine.diagnosticLines.joined(separator: "; "), privacy: .public)"
-                    )
-                }
-            #else
-                var machine = NikonFocusRackDriveMachine(cadence: cadence)
-            #endif
+            var machine = NikonFocusRackDriveMachine(cadence: cadence)
             while true {
                 switch machine.next(
                     stopRequested: cancellation.isStopRequested || !owner.isActive

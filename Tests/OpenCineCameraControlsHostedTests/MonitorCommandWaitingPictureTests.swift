@@ -45,6 +45,9 @@ final class MonitorCommandWaitingPictureTests: XCTestCase {
         XCTAssertFalse(
             fixture.labels.contains("Return to Multicam"),
             "iOS must use the shared label the Android twin and the baseline use")
+        // Clean hides the Lock Button by default; the way back to the grid must stay (Android twin).
+        XCTAssertTrue(fixture.probe.session.select(.clean))
+        try await fixture.ready("Return to Multiview")
     }
 
     func testModeChangesRetainTheNativePictureOwnerAndReturnItsPaint() async throws {

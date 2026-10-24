@@ -288,6 +288,32 @@ final class ReliabilityReportingTests: XCTestCase {
         wait(for: [again], timeout: 0.3)
     }
 
+    /// The decoder status, codec and watchdog hold reach the event as searchable tags and
+    /// extras, closed or bounded like the other incident fields.
+    func testIncidentEventCarriesDecoderStatusCodecAndWatchdogHold() throws {
+        consent.setOptedIn(true)
+        var bundle = try stallBundle(id: "5a1d3c6e8f2b4d7a9c0e1f2a3b4c5d6e")
+        bundle.header.outcome = .recovered
+        var snapshot = try XCTUnwrap(bundle.during.last ?? bundle.prelude.last)
+        snapshot.decoder = FeedIncidentDecoder(
+            codec: "hevc", lastStatus: -12909, errorClass: "nativeDecoder",
+            firstError: FeedIncidentDecodeErrorContext(
+                status: -12909, nalTypes: [19], accessUnitBytes: 4_000))
+        snapshot.watchdogGate = FeedIncidentWatchdogGate(hold: "rungWait")
+        bundle.during = [snapshot]
+        let captured = expectation(description: "incident event")
+        reporting.setCaptureHandlerForTests { event, _ in
+            XCTAssertEqual(event.tags?["decoderStatus"], "-12909")
+            XCTAssertEqual(event.tags?["decoderCodec"], "hevc")
+            XCTAssertEqual(event.tags?["watchdogHold"], "rungWait")
+            XCTAssertEqual(event.extra?["decoderStatus"] as? String, "-12909")
+            XCTAssertEqual(event.extra?["watchdogHold"] as? String, "rungWait")
+            captured.fulfill()
+        }
+        reporting.enqueueFinalized(bundle)
+        wait(for: [captured], timeout: 10)
+    }
+
     func testOpenCheckpointDoesNotEnqueueDuplicate() throws {
         consent.setOptedIn(true)
         let open = try stallBundle(id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
@@ -553,6 +579,31 @@ final class ReliabilityReportingTests: XCTestCase {
     func testUndeclaredSocTagIsRemoved() {
         let policy = ReliabilityReportingPrivacy(redact: { PrivacyRedactor.redact($0) })
         XCTAssertNil(policy.tags(["soc": "SIMULATED-private-device-value"]))
+    }
+
+    /// Kotlin twin: the diagnostics half of
+    /// `incidentTitleNamesItsKindAndTagsCarryTriggerRecoveryAndGapLikeIos`.
+    func testIncidentDiagnosticsAreTaggedAndClosed() throws {
+        consent.setOptedIn(true)
+        var bundle = try stallBundle(id: UUID().uuidString)
+        bundle.header.outcome = .recovered
+        let envelope = FeedIncidentExport.envelope(from: bundle)
+        let sent = TextLog()
+        let delivered = expectation(description: "incident event")
+        reporting.setCaptureHandlerForTests { event, _ in
+            sent.append("tag background=\(event.tags?["background"] ?? "missing")")
+            sent.append("tag awaitingIrap=\(event.tags?["awaitingIrap"] ?? "missing")")
+            sent.append("extra background=\(event.extra?["background"] as? String ?? "missing")")
+            delivered.fulfill()
+        }
+        reporting.enqueueFinalized(bundle)
+        wait(for: [delivered], timeout: 5)
+        XCTAssertTrue(["yes", "no", "unknown"].contains(envelope.background))
+        XCTAssertTrue(sent.all.contains("tag background=\(envelope.background)"))
+        XCTAssertTrue(sent.all.contains("tag awaitingIrap=\(envelope.awaitingIrap)"))
+        XCTAssertTrue(sent.all.contains("extra background=\(envelope.background)"))
+        let policy = ReliabilityReportingPrivacy(redact: { PrivacyRedactor.redact($0) })
+        XCTAssertEqual(policy.tags(["background": "ZR_6002199"])?["background"], "other")
     }
 
     func testTransportSuccessConfirmsOnlyMatchingEventID() {

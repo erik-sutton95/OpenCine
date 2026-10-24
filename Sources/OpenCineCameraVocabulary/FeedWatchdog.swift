@@ -72,7 +72,7 @@ public struct FeedWatchdog: Equatable, Sendable {
 
     /// Why the last tick fired nothing. Observation only: incidents record it so a
     /// slow field recovery shows which gate held the ladder. `fired` after an action.
-    public enum Hold: String, Equatable, Sendable {
+    public enum Hold: String, CaseIterable, Equatable, Sendable {
         case fired
         case notLive
         case pathNotReady

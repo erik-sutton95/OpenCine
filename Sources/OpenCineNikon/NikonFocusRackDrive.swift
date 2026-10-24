@@ -10,7 +10,6 @@ public enum NikonFocusRackCadence: Sendable {
     fileprivate var earlyWaitCount: Int { self == .standard ? 6 : 24 }
     fileprivate var earlyWaitSeconds: Double { self == .standard ? 0.02 : 0.005 }
     fileprivate var pollLimit: Int { earlyWaitCount + 11 }
-    fileprivate var diagnosticLimit: Int { self == .standard ? 48 : 80 }
 }
 
 /// A single completed focus-rack chunk, or the reason its displacement cannot be trusted.
@@ -134,21 +133,13 @@ package struct NikonFocusRackDriveMachine {
     private var waits = false
     private var stopRequested = false
     private var outcome = NikonFocusRackDriveOutcome.uncertain
-    private let capturesDiagnostics: Bool
     private let cadence: NikonFocusRackCadence
-    package private(set) var diagnosticLines: [String] = []
 
-    package init(
-        cadence: NikonFocusRackCadence = .standard, capturesDiagnostics: Bool = false
-    ) {
+    package init(cadence: NikonFocusRackCadence = .standard) {
         self.cadence = cadence
-        self.capturesDiagnostics = capturesDiagnostics
     }
 
     package mutating func next(stopRequested requested: Bool) -> Action {
-        if requested, !stopRequested, capturesDiagnostics {
-            record("stopRequested phase=\(phase)")
-        }
         stopRequested = stopRequested || requested
         if stopRequested, phase == .activation {
             finish(.cancelledBeforeActivation)
@@ -171,10 +162,6 @@ package struct NikonFocusRackDriveMachine {
     }
 
     package mutating func received(_ code: PTPResponseCode, rawResponseCode: UInt16? = nil) {
-        if capturesDiagnostics, phase != .finished {
-            record(
-                "\(phase) response=\(String(format: "0x%04X", rawResponseCode ?? code.rawValue))")
-        }
         switch phase {
         case .activation:
             if code == .ok {
@@ -190,7 +177,6 @@ package struct NikonFocusRackDriveMachine {
             case .deviceBusy:
                 polls += 1
                 if polls >= cadence.pollLimit {
-                    if capturesDiagnostics { record("drivePollLimit count=\(polls)") }
                     phase = .cancellation
                 } else {
                     waits = true
@@ -211,9 +197,6 @@ package struct NikonFocusRackDriveMachine {
                 polls += 1
                 waits = true
             } else {
-                if code == .deviceBusy, capturesDiagnostics {
-                    record("confirmationPollLimit count=\(polls + 1)")
-                }
                 finish(stopRequested ? .cancelledUnconfirmed : .uncertain)
             }
         case .finished: break
@@ -221,17 +204,10 @@ package struct NikonFocusRackDriveMachine {
     }
 
     package mutating func transportFailed() {
-        if capturesDiagnostics { record("transportFailed phase=\(phase)") }
         finish(stopRequested && phase != .activation ? .cancelledUnconfirmed : .uncertain)
     }
 
-    private mutating func record(_ line: String) {
-        guard diagnosticLines.count < cadence.diagnosticLimit else { return }
-        diagnosticLines.append(line)
-    }
-
     private mutating func finish(_ result: NikonFocusRackDriveOutcome) {
-        if capturesDiagnostics { record("finished outcome=\(result.wireValue)") }
         outcome = result
         phase = .finished
         waits = false
