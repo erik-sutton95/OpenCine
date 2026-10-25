@@ -242,6 +242,7 @@ enum MonitorGuideFamily: CaseIterable, Decodable, Encodable, Equatable, Hashable
 enum MonitorGuideMaskPolicy: Equatable, Hashable, Sendable
 enum MonitorHorizontalLayoutDirection: Equatable, Hashable, Sendable
 enum MonitorInspectorPreviewPolicy
+enum MonitorInstantReviewLayout
 enum MonitorJoystickSize: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorLaunchTiming
 enum MonitorLegalDocument: Equatable, Sendable
@@ -866,6 +867,9 @@ static func MonitorHorizontalLayoutDirection.resolve(deviceOrientation: MonitorD
 static func MonitorHorizontalLayoutDirection.resolve(for: MonitorEdgeInsets) -> MonitorHorizontalLayoutDirection
 static func MonitorInspectorPreviewPolicy.height(width: Swift.Double, tool: MonitorAssistSelection) -> Swift.Double
 static func MonitorInspectorPreviewPolicy.isImage(_: MonitorAssistSelection) -> Swift.Bool
+static func MonitorInstantReviewLayout.closeFrame(containerWidth: Swift.Double) -> MonitorRect
+static func MonitorInstantReviewLayout.favoriteFrame(containerWidth: Swift.Double, containerHeight: Swift.Double, infoHeight: Swift.Double?) -> MonitorRect
+static func MonitorInstantReviewLayout.imageFrame(imageWidth: Swift.Double, imageHeight: Swift.Double, containerWidth: Swift.Double, containerHeight: Swift.Double) -> MonitorRect
 static func MonitorJoystickSize.fromLabel(_: Swift.String) -> MonitorJoystickSize
 static func MonitorJoystickSize.parse(_: Swift.String?) -> MonitorJoystickSize
 static func MonitorLayoutRegion.viewport(width: Swift.Double, height: Swift.Double) -> MonitorLayoutRegion
@@ -1005,6 +1009,18 @@ static let MonitorHistogramOptions.defaultBrightness: Swift.Int
 static let MonitorHistogramOptions.defaultScale: Swift.Double
 static let MonitorHistogramOptions.scaleRange: Swift.ClosedRange<Swift.Double>
 static let MonitorInspectorPreviewPolicy.maximumImageDimension: Swift.Double
+static let MonitorInstantReviewLayout.bottomInset: Swift.Double
+static let MonitorInstantReviewLayout.closeInset: Swift.Double
+static let MonitorInstantReviewLayout.closeSize: Swift.Double
+static let MonitorInstantReviewLayout.favoriteGlyphSize: Swift.Double
+static let MonitorInstantReviewLayout.favoriteSize: Swift.Double
+static let MonitorInstantReviewLayout.infoFontSize: Swift.Double
+static let MonitorInstantReviewLayout.infoHorizontalPadding: Swift.Double
+static let MonitorInstantReviewLayout.infoVerticalPadding: Swift.Double
+static let MonitorInstantReviewLayout.sharpenSeconds: Swift.Double
+static let MonitorInstantReviewLayout.spinnerSize: Swift.Double
+static let MonitorInstantReviewLayout.stackSpacing: Swift.Double
+static let MonitorInstantReviewLayout.standInBlur: Swift.Double
 static let MonitorLaunchTiming.fadeOutDuration: Foundation.TimeInterval
 static let MonitorLaunchTiming.visibleDuration: Swift.Duration
 static let MonitorLegalDocuments.unavailableText: Swift.String
