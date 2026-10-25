@@ -2,6 +2,8 @@
 public struct GyroMountCalibrationSession: Sendable {
     /// Number of accepted poses, including the independent final verification pose.
     public var poseCount: Int { poses.count }
+    /// Accepted poses in capture order, including the independent final verification pose.
+    var capturedPoses: [GyroCalibrationPose] { poses }
     private var poses: [GyroCalibrationPose] = []
     private var phone: [Reading] = []
     private var camera: [Reading] = []
