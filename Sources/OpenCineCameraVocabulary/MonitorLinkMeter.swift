@@ -50,7 +50,9 @@ public struct MonitorLinkMeter: Sendable {
             connection: connection, feedRecovering: feedRecovering,
             sessionRecovering: sessionRecovering, formattedFPS: sampler.formatted,
             measuredFPS: sampler.displayFPS)
-        if let linkBars { bars = linkBars } else { bars = signalBars.update(score: linkHealthScore) }
+        let scored = linkBars ?? signalBars.update(score: linkHealthScore)
+        // A held frame is not a delivered one: no bars beside the held-frame badge.
+        bars = sessionRecovering ? 0 : scored
     }
 
     /// The chip word: the held-frame badge while a dropped session holds the last frame, FAIL,

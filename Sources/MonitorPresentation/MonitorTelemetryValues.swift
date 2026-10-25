@@ -58,6 +58,32 @@ public enum MonitorTelemetryValues {
         return signalBars == nil ? "\u{2014}" : nil
     }
 
+    /// The link pill's spoken label. A held or failed feed (NO LINK, FAIL) delivers nothing, so it
+    /// names no delivery bars; any other state word is the feed state, not a frame rate.
+    public static func linkSpokenLabel(fps: String?, signalBars: Int?) -> String {
+        let word = fps.flatMap { isStateWord($0) ? $0 : nil }
+        let signal: String
+        if let word, linkDownWords.contains(word) {
+            signal = "down"
+        } else if let signalBars {
+            signal = "\(signalBars) of 4 delivery bars"
+        } else {
+            signal = "unavailable"
+        }
+        let feed: String
+        if let word {
+            feed = word
+        } else if let fps, fps != "\u{2014}" {
+            feed = "\(fps) frames per second"
+        } else {
+            feed = "unavailable"
+        }
+        return "Live link \(signal), feed \(feed)"
+    }
+
+    /// The held-frame badge (`SessionRecoveryCopy.heldFrameBadge`) and the failed-link word.
+    private static let linkDownWords: Set<String> = ["NO LINK", "FAIL"]
+
     /// The largest rate printed as a rounded frame rate.
     static let maximumRate = 100_000.0
 

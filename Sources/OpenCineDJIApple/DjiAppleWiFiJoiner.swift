@@ -120,11 +120,22 @@ public enum DjiAppleWiFiJoiner {
     ) async throws {
         try Task.checkCancellation()
         var kick = Set(knownOtherSSIDs.filter { !$0.isEmpty && $0 != ssid })
+        let joined = await mutations.currentSSID()
+        try Task.checkCancellation()
+        if CameraSoftAPSwitch.isAlreadyJoined(
+            currentSSID: joined, target: ssid, pathReady: isCameraPathReady())
+        {
+            // Applying again (other settings, e.g. join-once from the first pairing) asks the
+            // operator "Wants to Join" for the network the phone is already on.
+            host.journal("wifi: already on \(ssid) with a camera address, no apply")
+            return
+        }
         leave(ssids: Array(kick), mutations: mutations)
         await leaveOtherOsmoSoftAPs(except: ssid, host: host, mutations: mutations)
 
         let deadline = Date().addingTimeInterval(CameraSoftAPSwitch.joinDeadlineSeconds)
         var lastError: Error = JoinError.pathNotReady
+        var applyAnswered = true
         var attempt = 0
         while true {
             attempt += 1
@@ -141,6 +152,7 @@ public enum DjiAppleWiFiJoiner {
             leave(ssids: Array(kick), mutations: mutations)
             await leaveOtherOsmoSoftAPs(except: ssid, host: host, mutations: mutations)
             try await Task.sleep(for: .milliseconds(250))
+            applyAnswered = true
             do {
                 try await mutations.apply(
                     ssid, passphrase, wpa3, persist,
@@ -166,6 +178,11 @@ public enum DjiAppleWiFiJoiner {
             } catch let refusal as CameraHotspotJoinRefusal where !refusal.retryMayJoin {
                 // A decline or a wrong name or key: asking again would only repeat it.
                 throw refusal
+            } catch JoinError.timedOut {
+                // iOS has not answered: "Wants to Join" may still be up. The next apply of this
+                // network waits for that answer (CameraHotspotSystem).
+                applyAnswered = false
+                lastError = JoinError.timedOut
             } catch {
                 lastError = error
             }
@@ -178,12 +195,15 @@ public enum DjiAppleWiFiJoiner {
             }
             let left = deadline.timeIntervalSinceNow
             guard CameraSoftAPSwitch.shouldRetryJoin(secondsLeft: left) else { throw lastError }
-            // 5.8 GHz DFS: the AP may not beacon yet. Drop the config so the
-            // next apply associates fresh instead of "already applied".
+            // 5.8 GHz DFS: the AP may not beacon yet. Drop the config so the next apply associates
+            // fresh instead of "already applied", but never under an unanswered system prompt:
+            // that removal would undo the operator's Join.
             host.journal(
-                "wifi: join \(ssid) #\(attempt) missed (\(lastError.localizedDescription)) \u{2014} retry, \(Int(left)) s left"
+                "wifi: join \(ssid) #\(attempt) missed (\(lastError.localizedDescription)), retry, \(Int(left)) s left"
             )
-            mutations.remove(ssid)
+            if CameraSoftAPSwitch.retryDropsConfiguration(applyAnswered: applyAnswered) {
+                mutations.remove(ssid)
+            }
             try await Task.sleep(for: .seconds(CameraSoftAPSwitch.joinRetryPauseSeconds))
         }
     }

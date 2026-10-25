@@ -15,8 +15,16 @@ class SessionRecoveryCopyTest {
 
     @Test fun pausedCopyNamesAnotherScanningDevice() {
         assertEquals(
-            "The camera reconnected but dropped 3 times in quick succession. Automatic retries are paused to protect the camera \u2014 another device may be scanning for cameras. The frame below is held, not live.",
+            "The camera reconnected but dropped 3 times in quick succession. Automatic retries are paused to protect the camera, since another device may be scanning for cameras. The frame below is held, not live.",
             SessionRecoveryCopy.detail(paused, " ", SessionDropSuspect.OTHER_DEVICE_SCANNING),
+        )
+    }
+
+    /** Hardware pass 5.1: "attempt 1 of 8", then the 3 minute budget stopped at 3 tries. */
+    @Test fun retryingCopyNamesTheTimeBudgetNotAnAttemptCount() {
+        assertEquals(
+            "OsmoPocket4P-EA4A dropped off. Holding the last frame, attempt 1. Reconnecting for up to 3 minutes.",
+            SessionRecoveryCopy.detail(SessionRecoveryUi.Retrying(attempt = 1, maxAttempts = 8), "OsmoPocket4P-EA4A"),
         )
     }
 
