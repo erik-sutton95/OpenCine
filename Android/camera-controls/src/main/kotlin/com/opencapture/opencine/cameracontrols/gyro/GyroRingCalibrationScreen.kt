@@ -31,14 +31,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.opencine.gyro.GyroCalibrationInvalidation
@@ -265,42 +262,6 @@ private fun RingHeader(
             }
         }
     }
-}
-
-/** The 12 sp letter-spaced gray line above a title. */
-@Composable
-private fun GyroOverline(text: String, textAlign: TextAlign) {
-    Text(
-        text = text.uppercase(),
-        modifier = Modifier.fillMaxWidth(),
-        color = GyroPalette.overline,
-        textAlign = textAlign,
-        style = MonitorTypography.text(12f).copy(letterSpacing = 0.8.sp),
-    )
-}
-
-/** A screen title, marked as a heading for TalkBack. */
-@Composable
-private fun GyroTitle(text: String, textAlign: TextAlign) {
-    Text(
-        text = text,
-        modifier = Modifier.fillMaxWidth().semantics { heading() },
-        color = MonitorPalette.text,
-        textAlign = textAlign,
-        style = MonitorTypography.text(22f, FontWeight.SemiBold),
-    )
-}
-
-/** Supporting copy under a title. */
-@Composable
-private fun GyroBody(text: String, textAlign: TextAlign) {
-    Text(
-        text = text,
-        modifier = Modifier.fillMaxWidth(),
-        color = GyroPalette.body,
-        textAlign = textAlign,
-        style = MonitorTypography.text(15f),
-    )
 }
 
 /** The three progress dots, filled up to the captured steps and hidden from TalkBack. */
