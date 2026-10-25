@@ -10,9 +10,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * The Android wire against the shared Swift reply shapes (Tasks 10's GyroRingCalibrationWire,
- * GyroArmingWire and GyroLoggingWire). The JSON below is what the Swift encoders emit.
- */
+    * The Android wire against the shared Swift reply shapes (Tasks 10's GyroRingCalibrationWire,
+    * GyroArmingWire and GyroLoggingWire). The JSON below is what the Swift encoders emit.
+    */
 class GyroWireTest {
     /** The calibration object a completed ring returns, as GyroMountCalibration encodes it. */
     private val calibrationJSON = """
@@ -82,13 +82,13 @@ class GyroWireTest {
             """
             {"effects":[
             {"kind":"writeStabilization","purpose":"turnOff",
-             "values":{"stabilization":"off","electronicStabilization":"off"}},
+                "values":{"stabilization":"off","electronicStabilization":"off"}},
             {"kind":"presentSetup","steps":[
-             {"kind":"stabilization","lensHasVRSwitch":true},
-             {"kind":"calibration","hasSavedCalibration":false}]},
+                {"kind":"stabilization","lensHasVRSwitch":true},
+                {"kind":"calibration","hasSavedCalibration":false}]},
             {"kind":"persistPendingRestores","restores":[
-             {"cameraID":"cam-1","saved":{"stabilization":"on"},
-              "applied":{"stabilization":"off"}}]},
+                {"cameraID":"cam-1","saved":{"stabilization":"on"},
+                "applied":{"stabilization":"off"}}]},
             {"kind":"sessionStarted"},
             {"kind":"sessionEnded"},
             {"kind":"notice","notice":"turnOffFailed"}],
@@ -200,13 +200,13 @@ class GyroWireTest {
             """
             {"updates":[
             {"kind":"opened","id":"11111111-1111-1111-1111-111111111111",
-             "descriptor":{"id":"11111111-1111-1111-1111-111111111111",
-              "cameraLabel":"Camera"}},
+                "descriptor":{"id":"11111111-1111-1111-1111-111111111111",
+                "cameraLabel":"Camera"}},
             {"kind":"appended","id":"11111111-1111-1111-1111-111111111111","data":"AQID"},
             {"kind":"mountMoved","id":"11111111-1111-1111-1111-111111111111",
-             "offsetSeconds":1.25},
+                "offsetSeconds":1.25},
             {"kind":"finished","id":"11111111-1111-1111-1111-111111111111",
-             "summary":{"termination":"normal"}}],
+                "summary":{"termination":"normal"}}],
             "active":true,"gapWarning":false,"finished":false,"termination":null,
             "hasSamples":true}
             """.trimIndent(),
