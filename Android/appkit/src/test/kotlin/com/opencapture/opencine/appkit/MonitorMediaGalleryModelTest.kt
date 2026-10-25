@@ -151,10 +151,10 @@ class MonitorMediaGalleryModelTest {
             f.library.select(setOf(MediaAssetID("A"), MediaAssetID("B")))
             f.gallery.cacheSelection(f.gallery.snapshot(), MonitorMediaGalleryOperations(download = { record ->
                 requested += record.payload
-                if (record.payload == "A") throw CancellationException("transfer retired by its source")
+                if (requested.size == 1) throw CancellationException("transfer retired by its source")
             }))
             runCurrent()
-            assertEquals(listOf("A", "B"), requested)
+            assertEquals(setOf("A", "B"), requested.toSet()); assertEquals(2, requested.size)
             assertEquals("Could not cache that clip.", f.gallery.state.value.failure)
         } finally { f.close() }
     }
