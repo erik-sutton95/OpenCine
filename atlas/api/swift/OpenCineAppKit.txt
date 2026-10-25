@@ -425,6 +425,7 @@ func MonitorControlModel.commitRecord(from: MonitorControlModel.RecordEditor) ->
 func MonitorControlModel.commitRecord(from: MonitorControlModel.RecordEditor, admission: OpenCineCore.CommandDispatchAdmission) -> Swift.Bool
 func MonitorControlModel.edit(_: OpenCineCore.SettingKey) -> MonitorControlModel.Editor?
 func MonitorControlModel.isCurrent(_: MonitorControlModel.Editor) -> Swift.Bool
+func MonitorControlModel.liveStatusPresentation(elapsedSeconds: Swift.Int?) -> (status: MonitorPresentation.MonitorStatusPresentation, clock: () -> Swift.String?)
 func MonitorControlModel.record(start: Swift.Bool?) -> ()
 func MonitorControlModel.record(start: Swift.Bool?, admission: OpenCineCore.CommandDispatchAdmission) -> ()
 func MonitorControlModel.recordAndWait(start: Swift.Bool?) async -> OpenCineCore.CommandReceipt?
@@ -1544,6 +1545,7 @@ static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraSnapshot?) -> Swif
 static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraTimecode, precision: OpenCineCore.TimecodePrecision?) -> Swift.String?
 static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraTimecodeReading, precision: OpenCineCore.TimecodePrecision?) -> Swift.String?
 static func MonitorTimecodeFormat.placeholder(_: OpenCineCore.TimecodePrecision?) -> Swift.String
+static func MonitorTimecodeFormat.widthTemplate(_: Swift.String) -> Swift.String
 static func MultiviewTally.running(_: Swift.Int) -> Swift.String
 static func MultiviewTally.text(recording: Swift.Bool?, seconds: Swift.Int?, waiting: Swift.Bool, holding: Swift.Bool, failed: Swift.Bool) -> Swift.String
 static func MultiviewTile.letter(_: Swift.Int) -> Swift.String
@@ -2056,6 +2058,7 @@ var MonitorControlModel.session: (any OpenCineCore.CameraSession)?
 var MonitorControlModel.snapshot: OpenCineCore.CameraSnapshot?
 var MonitorControlModel.timecode: OpenCineCore.ObservedValue<OpenCineCore.CameraTimecode>
 var MonitorControlModel.timecodeReading: OpenCineCore.ObservedValue<OpenCineCore.CameraTimecodeReading>
+var MonitorControlModel.timecodeTemplate: Swift.String?
 var MonitorCoverPage.body: some SwiftUI.View
 var MonitorDeliveryBatchProgress.clipFraction: Swift.Double
 var MonitorDeliveryBatchProgress.clipIndex: Swift.Int
