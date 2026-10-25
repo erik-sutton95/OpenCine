@@ -24,7 +24,7 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     /// Takes newest first, as the store reports them.
     public private(set) var logs: [GyroLogEntry] = []
     /// The latest problem to show; the shared UI resolves its wording.
-    public private(set) var notice: GyroNotice?
+    public internal(set) var notice: GyroNotice?
     /// Whether raw gyro samples are being collected.
     public private(set) var motionRunning = false
     /// Whether the logs browser is shown.
@@ -39,8 +39,16 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     public private(set) var reportedRecording: Bool?
     /// The active camera body, or nil when not connected.
     public private(set) var camera: GyroCameraIdentity?
+    /// Arming sheet steps; non-empty shows the sheet and the first is the current step.
+    public internal(set) var setupSteps: [GyroArmingStep] = []
     /// Whether the logs tip was dismissed.
     private var tipDismissed: Bool
+    /// Mirrors the arming machine: a session is armed for the current connection.
+    var armed = false
+    /// Mirrors the arming machine: the operator kept stabilization on.
+    var stabilizationWarning = false
+    /// The open take saw a confirmed mount movement.
+    var mountMovedInTake = false
 
     @ObservationIgnored let host: GyroHostConfiguration
     @ObservationIgnored let preferences: GyroPreferences
@@ -52,7 +60,13 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     @ObservationIgnored var hostEligible = false
     @ObservationIgnored var videoMode: Bool?
     @ObservationIgnored var cameraRecording: Bool?
-    @ObservationIgnored var loggingEligible = false
+    @ObservationIgnored var stabilization: GyroStabilizationState?
+    @ObservationIgnored var machine: GyroArmingMachine
+    @ObservationIgnored var cameraWrite: Task<Void, Never>?
+    @ObservationIgnored var disconnecting = false
+    @ObservationIgnored var calibrationDeclined = false
+    /// The longest `prepareForDisconnect` waits for the restore.
+    @ObservationIgnored var restoreTimeout: Duration = .seconds(3)
     @ObservationIgnored var session: GyroTakeSession
     @ObservationIgnored var buffer = GyroSampleBuffer()
     @ObservationIgnored var worker: Task<Void, Never>?
@@ -106,6 +120,7 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
         self.now = now
         self.automaticProcessing = automaticProcessing
         session = GyroTakeSession(appName: host.appName)
+        machine = GyroArmingMachine(pendingRestores: preferences.pendingRestores)
         enabled = preferences.enabled
         tipDismissed = preferences.tipDismissed
         loading = Task { [weak self] in
@@ -169,16 +184,19 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
         switch event {
         case .connected(let identity):
             camera = identity
+            disconnecting = false
         case .disconnected:
             camera = nil
             videoMode = nil
+            stabilization = nil
+            disconnecting = false
             observeCameraRecording(nil)
         case .recording(let recording, _):
             observeCameraRecording(recording)
         case .level:
             break
-        case .stabilization:
-            break
+        case .stabilization(let state):
+            stabilization = state
         case .videoMode(let mode):
             videoMode = mode
         }
@@ -207,23 +225,11 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     /// Clears the visible notice.
     public func clearNotice() { notice = nil }
 
-    // MARK: Eligibility
-
-    /// Recomputes whether a logging session runs and starts or stops motion to match.
-    func evaluateEligibility() {
-        let eligible = enabled && camera != nil && hostEligible && videoMode == true
-        guard eligible != loggingEligible else { return }
-        loggingEligible = eligible
-        if eligible {
-            reconcile()
-        } else {
-            stop(reason: endingReason ?? (enabled ? .disconnected : .disabled))
-        }
-    }
+    // MARK: Calibration choice
 
     /// The calibration a REC observed now would freeze for its take.
     func recordingCalibration() -> GyroMountCalibration? {
-        guard let camera else { return nil }
+        guard let camera, !calibrationDeclined else { return nil }
         return preferences.calibration(for: camera.id)
     }
 
@@ -267,7 +273,7 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     }
 
     func reconcile() {
-        guard loggingEligible, loaded, !failed, worker == nil, !motionRunning else { return }
+        guard armed, loaded, !failed, worker == nil, !motionRunning else { return }
         session = GyroTakeSession(appName: host.appName)
         buffer = GyroSampleBuffer()
         observations.removeAll()

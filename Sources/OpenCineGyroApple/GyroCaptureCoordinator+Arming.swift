@@ -1,0 +1,143 @@
+#if os(iOS)
+import Foundation
+import OpenCineGyro
+
+/// Session arming: the coordinator feeds `GyroArmingMachine` and applies its effects in order.
+/// The machine owns every stabilization save and restore rule; nothing here decides policy.
+@available(iOS 17, *)
+extension GyroCaptureCoordinator {
+    /// What the monitor pill shows.
+    public var pill: GyroPillState {
+        GyroPillState.resolve(
+            enabled: enabled, failed: failed, armed: armed, motionRunning: motionRunning,
+            hasFirstSample: hasFirstSample, activeTake: logs.contains { $0.active },
+            cameraRecording: reportedRecording, gapWarning: hasGapWarning,
+            mountMoved: mountMovedInTake, stabilizationWarning: stabilizationWarning)
+    }
+
+    /// Whether a capture session is armed for the current connection.
+    public var isArmed: Bool { armed }
+
+    /// "Turn off IBIS": writes the off values and closes the stabilization step.
+    public func setupTurnOffStabilization() {
+        apply(machine.chooseTurnOff())
+        dropSetupStep { if case .stabilization = $0 { true } else { false } }
+    }
+
+    /// "Keep it on": arms with the warning mark and closes the stabilization step.
+    public func setupKeepStabilization() {
+        apply(machine.chooseKeepOn())
+        dropSetupStep { if case .stabilization = $0 { true } else { false } }
+    }
+
+    /// Backs out of the calibration offer; the session logs uncalibrated (owner decision 2).
+    public func setupSkipCalibration() {
+        declineCalibrationForSession()
+        dropSetupStep { if case .calibration = $0 { true } else { false } }
+    }
+
+    /// Ends the armed session before the host drops the link and waits for the stabilization
+    /// restore, at most `restoreTimeout` (3 s).
+    public func prepareForDisconnect() async {
+        disconnecting = true
+        evaluateEligibility()
+        let limit = restoreTimeout
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        Task {
+            await self.waitForCameraWrites()
+            continuation.finish()
+        }
+        let timer = Task {
+            try? await Task.sleep(for: limit)
+            continuation.finish()
+        }
+        for await _ in stream {}
+        timer.cancel()
+    }
+
+    /// Waits until no stabilization write is in flight, including writes a finish started.
+    public func waitForCameraWrites() async {
+        while let write = cameraWrite { await write.value }
+    }
+
+    // MARK: Machine wiring
+
+    /// Feeds the arming machine the current observations and applies its effects.
+    func evaluateEligibility() {
+        apply(machine.update(armingInputs()))
+    }
+
+    func armingInputs() -> GyroArmingInputs {
+        GyroArmingInputs(
+            toggleOn: enabled, camera: camera, hostEligible: hostEligible && !disconnecting,
+            videoMode: videoMode, recording: cameraRecording, stabilization: stabilization,
+            settings: adapter?.stabilizationSettings ?? [],
+            providesLevel: adapter?.providesLevel ?? false,
+            hasSavedCalibration: camera.map { preferences.calibration(for: $0.id) != nil } ?? false)
+    }
+
+    /// Applies machine effects in order, then mirrors the machine's armed and warning state.
+    func apply(_ effects: [GyroArmingEffect]) {
+        for effect in effects {
+            switch effect {
+            case .writeStabilization(let values, let purpose):
+                startWrite(values, purpose: purpose)
+            case .presentSetup(let steps):
+                presentSetup(steps)
+            case .persistPendingRestores(let restores):
+                preferences.pendingRestores = restores
+            case .sessionStarted:
+                armed = true
+                sessionDidStart()
+                reconcile()
+            case .sessionEnded:
+                armed = false
+                setupSteps = []
+                stop(reason: endingReason ?? (enabled ? .disconnected : .disabled))
+                sessionDidEnd()
+            case .notice(let notice):
+                self.notice = GyroNotice(rawValue: notice.rawValue)
+            }
+        }
+        armed = machine.isArmed
+        stabilizationWarning = machine.stabilizationWarning
+    }
+
+    private func startWrite(_ values: [String: String], purpose: GyroWritePurpose) {
+        guard let adapter else {
+            apply(machine.writeFinished(purpose, succeeded: false))
+            return
+        }
+        cameraWrite = Task { [weak self] in
+            let succeeded = await adapter.writeStabilization(values)
+            guard let self else { return }
+            cameraWrite = nil
+            apply(machine.writeFinished(purpose, succeeded: succeeded))
+        }
+    }
+
+    func dropSetupStep(where matches: (GyroArmingStep) -> Bool) {
+        setupSteps.removeAll(where: matches)
+    }
+
+    // MARK: Session hooks
+
+    /// A new sheet for a new session.
+    func presentSetup(_ steps: [GyroArmingStep]) {
+        setupSteps = steps
+    }
+
+    /// Per-session choices start fresh with every armed session.
+    func sessionDidStart() {
+        calibrationDeclined = false
+        mountMovedInTake = false
+    }
+
+    func sessionDidEnd() {}
+
+    /// The session logs uncalibrated even when a calibration is saved.
+    func declineCalibrationForSession() {
+        calibrationDeclined = true
+    }
+}
+#endif
