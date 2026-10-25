@@ -13,6 +13,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -302,8 +304,10 @@ public class MonitorMediaGalleryModel<P>(public val library: MonitorMediaLibrary
                 for (record in records) {
                     if (!isActive || lifetime != origin || !isCurrent(snapshot) || snapshot.record(record.asset.id) == null) return@launch
                     try { operation(record) }
-                    catch (cancelled: CancellationException) { throw cancelled }
                     catch (failure: Exception) {
+                        // A record's operation cancelled by its source is that record's failure;
+                        // only this batch's own cancellation ends the batch.
+                        if (failure is CancellationException) currentCoroutineContext().ensureActive()
                         if (isActive && lifetime == origin && isCurrent(snapshot))
                             mutable.value = mutable.value.copy(failure = if (clearSelection)
                                 "Could not delete that clip." else "Could not cache that clip.")
