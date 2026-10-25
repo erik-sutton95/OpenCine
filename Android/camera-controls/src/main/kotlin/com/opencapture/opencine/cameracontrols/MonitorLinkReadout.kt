@@ -75,13 +75,15 @@ class MonitorLinkMeter {
                 sampler.formatted, measured),
             held)
         label = held
-        bars = observation.linkBars ?: signalBars.update(CameraLinkHealthScorer.score(CameraLinkHealthInputs(
+        val scored = observation.linkBars ?: signalBars.update(CameraLinkHealthScorer.score(CameraLinkHealthInputs(
             phase = LiveViewLink.cameraLinkPhase(observation.connection, observation.feedRecovering, measured),
             liveViewFPS = measured.takeIf { it > 0 },
             targetLiveViewFPS = LiveViewLink.TARGET_FPS,
             secondsSinceLastGoodFrame = observation.lastPresentedAtMillis?.let { (nowMillis - it) / 1000.0 },
             isRecoveringStream = observation.feedRecovering,
         )).linkHealthScore)
+        // A held frame is not a delivered one: no bars beside the held-frame badge.
+        bars = if (observation.sessionRecovering) 0 else scored
     }
 
     companion object {

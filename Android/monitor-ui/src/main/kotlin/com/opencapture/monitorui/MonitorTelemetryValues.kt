@@ -60,6 +60,28 @@ public object MonitorTelemetryValues {
             ?.let { "${Math.round(it)} fps" } ?: fps ?: "\u2014"
         else if (signalBars == null) "\u2014" else null
 
+    /**
+     * The link pill's spoken label. A held or failed feed (NO LINK, FAIL) delivers nothing, so it
+     * names no delivery bars; any other state word is the feed state, not a frame rate.
+     */
+    public fun linkSpokenLabel(fps: String?, signalBars: Int?): String {
+        val word = fps?.takeIf(::isStateWord)
+        val signal = when {
+            word in LINK_DOWN_WORDS -> "down"
+            signalBars != null -> "$signalBars of 4 delivery bars"
+            else -> "unavailable"
+        }
+        val feed = when {
+            word != null -> word
+            fps == null || fps == "\u2014" -> "unavailable"
+            else -> "$fps frames per second"
+        }
+        return "Live link $signal, feed $feed"
+    }
+
+    /** The held-frame badge (`SessionRecoveryCopy.HELD_FRAME_BADGE`) and the failed-link word. */
+    private val LINK_DOWN_WORDS = setOf("NO LINK", "FAIL")
+
     /** The largest rate printed as a rounded frame rate. */
     internal const val MAXIMUM_RATE: Double = 100_000.0
 

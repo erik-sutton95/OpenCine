@@ -5052,7 +5052,8 @@ public final class com/opencapture/opencine/appkit/StationNetworkBrand {
 
 public final class com/opencapture/opencine/appkit/StationNetworkSetupKt {
 	public static final fun StationNetworkSetup (Lcom/opencapture/opencine/appkit/StationNetworkBrand;Lcom/opencapture/opencine/appkit/PermissionGate;Ljava/util/List;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/appkit/StationNetwork;Ljava/lang/String;Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/Set;Lcom/opencapture/opencine/appkit/StationSetupPage;Landroidx/compose/runtime/Composer;III)V
-	public static final fun stationSetupChooser (Lcom/opencapture/opencine/core/SavedCamera;)Lcom/opencapture/opencine/appkit/AddSetupChooser;
+	public static final fun stationSetupChooser (Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/List;Lcom/opencapture/opencine/appkit/AddSetupNotice;)Lcom/opencapture/opencine/appkit/AddSetupChooser;
+	public static synthetic fun stationSetupChooser$default (Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/List;Lcom/opencapture/opencine/appkit/AddSetupNotice;ILjava/lang/Object;)Lcom/opencapture/opencine/appkit/AddSetupChooser;
 	public static final fun validStationCredentials (Ljava/lang/String;Ljava/lang/String;Z)Z
 }
 
@@ -5085,6 +5086,28 @@ public final class com/opencapture/opencine/appkit/StationSetupPage$Password : c
 	public final fun getSsid ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/StationSetupRoute {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/opencine/appkit/StationSetupRoute$Companion;
+	public fun <init> (Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Z)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/core/RouteKind;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Z
+	public final fun copy (Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;Z)Lcom/opencapture/opencine/appkit/StationSetupRoute;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkit/StationSetupRoute;Lcom/opencapture/opencine/core/RouteKind;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/appkit/StationSetupRoute;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActionTitle ()Ljava/lang/String;
+	public final fun getEnabled ()Z
+	public final fun getKind ()Lcom/opencapture/opencine/core/RouteKind;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/StationSetupRoute$Companion {
+	public final fun getSTATION_NETWORKS ()Ljava/util/List;
 }
 
 public abstract interface class com/opencapture/opencine/appkit/StoredString {

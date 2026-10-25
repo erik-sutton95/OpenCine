@@ -71,6 +71,13 @@ import Testing
     }
     func release(_ index: Int) { pending[index].continuation.resume() }
 }
+@MainActor private final class ScriptedTransfer: CameraMediaTransferService {
+    let run: @MainActor (any MediaByteSink) async throws -> MediaTransferReceipt
+    init(_ run: @escaping @MainActor (any MediaByteSink) async throws -> MediaTransferReceipt) { self.run = run }
+    func transfer(_ representation: MediaRepresentationID, into sink: any MediaByteSink) async throws -> MediaTransferReceipt {
+        try await run(sink)
+    }
+}
 @MainActor private final class LibraryBrowse: CameraMediaBrowse {
     let binding = MediaBrowseBinding(session: .init(), epoch: .init(1))
     var thumbnails: (any CameraMediaThumbnailService)? { nil }
@@ -234,6 +241,38 @@ import Testing
         source.release(1)
         let committed = try await current.value
         #expect(try Data(contentsOf: committed) == Data([3, 4]))
+        #expect(model.progress.isEmpty && model.transferring.isEmpty)
+    }
+    /// Hardware pass 10.1: a response that ends short of the catalog size must not read as a
+    /// finished cache that stays ON CAMERA without a word.
+    @available(macOS 14, *)
+    @Test func shortTransferIsACacheFailureAndLeavesNoOriginal() async {
+        let source = ScriptedTransfer { sink in
+            try await sink.write(Data([1])); return .init(byteCount: 1, expectedByteCount: 1)
+        }
+        let browse = LibraryBrowse([LibraryCursor([.init(reset: true, upserts: [asset("take")], complete: true)])]); browse.transfers = source
+        let (root, model, _) = model(LibraryService(browse))
+        defer { model.close(); try? FileManager.default.removeItem(at: root) }
+        model.begin(); #expect(await eventually { model.records.count == 1 && !model.fetching })
+        await #expect(throws: MediaServiceError.self) { try await model.cacheOriginal(.init("take")) }
+        #expect(model.note == MonitorMediaLibraryCopy().downloadFailed)
+        #expect(model.entries[.init("take")]?.originalURL == nil)
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("files/take.mov").path))
+        #expect(model.progress.isEmpty && model.transferring.isEmpty)
+    }
+    /// A source that cancels its own transfer (a replaced browse) fails the clip for a caller
+    /// that is still waiting; it is not the caller's cancellation.
+    @available(macOS 14, *)
+    @Test func sourceCancellationIsAFailureForAnActiveCaller() async {
+        let source = ScriptedTransfer { sink in
+            try await sink.write(Data([1])); throw CancellationError()
+        }
+        let browse = LibraryBrowse([LibraryCursor([.init(reset: true, upserts: [asset("take")], complete: true)])]); browse.transfers = source
+        let (root, model, _) = model(LibraryService(browse))
+        defer { model.close(); try? FileManager.default.removeItem(at: root) }
+        model.begin(); #expect(await eventually { model.records.count == 1 && !model.fetching })
+        await #expect(throws: MediaServiceError.retired) { try await model.cacheOriginal(.init("take")) }
+        #expect(model.note == MonitorMediaLibraryCopy().downloadFailed)
         #expect(model.progress.isEmpty && model.transferring.isEmpty)
     }
     @available(macOS 14, *)

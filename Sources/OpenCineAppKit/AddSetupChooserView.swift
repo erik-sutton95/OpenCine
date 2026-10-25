@@ -60,6 +60,8 @@
                 }
             }
             .foregroundStyle(MonitorTheme.text)
+            // Chooser actions read the same in every app, never the host's accent.
+            .tint(MonitorTheme.text)
         }
     }
 
@@ -96,7 +98,9 @@
                                 },
                                 horizontal: windowGeometry.size.width > windowGeometry.size.height,
                                 onNoticeAction: flow.onNoticeAction)
-                            if let title = flow.cancelTitle { Button(title, action: flow.onCancel) }
+                            if let title = flow.cancelTitle {
+                                Button(title, action: flow.onCancel).tint(MonitorTheme.text)
+                            }
                         }
                         .padding(20)
                     }

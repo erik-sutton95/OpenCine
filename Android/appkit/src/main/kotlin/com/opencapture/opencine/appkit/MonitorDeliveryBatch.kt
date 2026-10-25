@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
@@ -45,7 +46,12 @@ public suspend fun <R> MonitorDeliveryModel.Companion.cacheOriginals(
                     if (fraction != null) { value = value.copy(clipFraction = fraction); progress(value) }
                 }
             }
-            try { originals.acquire(record) } finally { active = false; mirror.cancel() }
+            try { originals.acquire(record) }
+            catch (cancelled: CancellationException) {
+                // A transfer its source cancelled leaves this clip uncached (counted below);
+                // only the run's own cancellation ends the run.
+                currentCoroutineContext().ensureActive()
+            } finally { active = false; mirror.cancel() }
         }
         if (!accepts()) return null
         val available = originals.available(record)

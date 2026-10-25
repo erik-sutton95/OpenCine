@@ -2568,6 +2568,9 @@ class PocketCameraSession(
 
     /** iOS `CameraSession.noteSceneBecameInactive`. */
     fun noteSceneBecameInactive() {
+        // In the background Android blocks the camera network (sendto EPERM, Wi-Fi requests
+        // unavailable at once), so recovery attempts there cannot reach the camera. Hold them.
+        recoveryEpisode.pause()
         cancelProgrammedMove()
         endGimbalStick()
         if (_phase.value == ConnectionPhase.LIVE) needsForegroundRecover = true
@@ -2583,6 +2586,7 @@ class PocketCameraSession(
 
     /** Media return owns foreground picture recovery while its bounded task is pending. */
     fun noteSceneBecameActive() {
+        recoveryEpisode.resume()
         if (isBrowsingMedia || mediaReturnPending) {
             needsForegroundRecover = false
             return
