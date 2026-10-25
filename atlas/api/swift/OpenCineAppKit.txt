@@ -71,6 +71,7 @@ case MonitorMediaCacheScanning.immediate
 case MonitorMediaCatalogBase.freshListing
 case MonitorMediaCatalogBase.retainObserved
 case MonitorMediaCatalogPersistence.eachDelta
+case MonitorMediaCatalogPersistence.everyPages(Swift.Int)
 case MonitorMediaCatalogPersistence.listingCompleteOrNonCancelFailure
 case MonitorMediaCategoryFilter.all
 case MonitorMediaCategoryFilter.favorites
@@ -257,7 +258,7 @@ enum MonitorInternetPath
 enum MonitorMediaCacheError: Equatable, Error, Hashable, Sendable
 enum MonitorMediaCacheScanning: Equatable, Hashable, Sendable
 enum MonitorMediaCatalogBase: Equatable, Hashable, Sendable
-enum MonitorMediaCatalogPersistence: Equatable, Hashable, Sendable
+enum MonitorMediaCatalogPersistence: Equatable, Sendable
 enum MonitorMediaCategoryFilter: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorMediaDateBound: Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorMediaDeleteAcknowledgement: Equatable, Hashable, Sendable
@@ -576,6 +577,7 @@ func MonitorMediaGalleryModel.snapshot(projection: OpenCineMedia.MonitorMediaPro
 func MonitorMediaGalleryModel.sourceChanged()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.suspend()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.toggleSelection(_: OpenCineMedia.MediaAssetID, admitted: MonitorMediaGallerySnapshot<Payload>)<Payload where Payload : Swift.Sendable> -> Swift.Bool
+func MonitorMediaGallerySnapshot.displayed(_: OpenCineMedia.MediaAssetID)<Payload where Payload : Swift.Sendable> -> MonitorMediaRecord<Payload>?
 func MonitorMediaGallerySnapshot.record(_: OpenCineMedia.MediaAssetID)<Payload where Payload : Swift.Sendable> -> MonitorMediaRecord<Payload>?
 func MonitorMediaGallerySnapshot.selected(_: Swift.Set<OpenCineMedia.MediaAssetID>, expanded: Swift.Bool)<Payload where Payload : Swift.Sendable> -> [MonitorMediaRecord<Payload>]
 func MonitorMediaLibraryDeletionAuthority.retire() -> ()
@@ -1614,6 +1616,7 @@ static let MonitorDeliveryBatchPolicy.emptySelection: Swift.String
 static let MonitorDeliveryBatchPolicy.internetFailure: Swift.String
 static let MonitorDisplayChrome.cleanDefaults: MonitorDisplayChrome
 static let MonitorDisplayChrome.liveDefaults: MonitorDisplayChrome
+static let MonitorMediaCatalogPersistence.standard: MonitorMediaCatalogPersistence
 static let MonitorOperatorLiveReadoutStyle.dimmedOpacity: Swift.Double
 static let MonitorRemoteShutterPolicy.debounceInterval: Foundation.TimeInterval
 static let MonitorRemoteShutterPolicy.railHeadroom: Swift.Float
@@ -2222,6 +2225,7 @@ var MonitorMediaLibraryModel.lifetimeToken: Foundation.UUID
 var MonitorMediaLibraryModel.note: Swift.String?
 var MonitorMediaLibraryModel.progress: [OpenCineMedia.MediaAssetID : Swift.Double]
 var MonitorMediaLibraryModel.records: [MonitorMediaRecord<Payload>]
+var MonitorMediaLibraryModel.recordsRevision: Swift.UInt64
 var MonitorMediaLibraryModel.resolutions: Swift.Set<Swift.String>
 var MonitorMediaLibraryModel.selectedIDs: Swift.Set<OpenCineMedia.MediaAssetID>
 var MonitorMediaLibraryModel.selectedRecords: [MonitorMediaRecord<Payload>]

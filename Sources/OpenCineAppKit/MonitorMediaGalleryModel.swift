@@ -54,6 +54,10 @@ public struct MonitorMediaGallerySnapshot<Payload: Sendable> {
     public let projection: MonitorMediaProjectionResult?
     private let available: [MediaAssetID: MonitorMediaRecord<Payload>]
     private let selectionOrder: [MediaAssetID]
+    /// Displayed ids and projected group members: O(1) admission (it was a linear scan per
+    /// record, quadratic for select-all and selection expansion on a large card).
+    private let allowed: Set<MediaAssetID>
+    private let shown: Set<MediaAssetID>
     fileprivate let presentation: UUID
     private weak var library: MonitorMediaLibraryModel<Payload>?
     fileprivate init(library: MonitorMediaLibraryModel<Payload>, presentation: UUID,
@@ -63,13 +67,16 @@ public struct MonitorMediaGallerySnapshot<Payload: Sendable> {
         let byID = Dictionary(uniqueKeysWithValues: supplied.map { ($0.asset.id, $0) })
         let order = projection?.displayIDs ?? supplied.map(\.asset.id)
         available = byID; selectionOrder = order
+        var allowed = Set(order)
+        for group in projection?.groups ?? [] { allowed.formUnion(group.members) }
+        self.allowed = allowed
         records = (projection?.gridIDs ?? order).compactMap { byID[$0] }
+        shown = Set(records.map(\.asset.id))
         self.presentation = presentation
     }
     public var isCurrent: Bool { library?.isCurrent(token) == true }
     public func record(_ id: MediaAssetID) -> MonitorMediaRecord<Payload>? {
-        let allowed = selectionOrder.contains(id) || projection?.groups.contains(where: { $0.members.contains(id) }) == true
-        guard allowed, isCurrent, let record = available[id],
+        guard allowed.contains(id), isCurrent, let record = available[id],
             library?.record(id) != nil else { return nil }
         return record
     }
@@ -85,6 +92,10 @@ public struct MonitorMediaGallerySnapshot<Payload: Sendable> {
         }
     }
     public var selectableIDs: Set<MediaAssetID> { Set(selectionOrder.filter { record($0) != nil }) }
+    /// A shown (grid) record for a cell, without admission checks; actions still use record(_:).
+    public func displayed(_ id: MediaAssetID) -> MonitorMediaRecord<Payload>? {
+        shown.contains(id) ? available[id] : nil
+    }
 }
 
 @available(macOS 14, *) @MainActor
