@@ -1,0 +1,17 @@
+active	hasSummary	termination	descriptorPartial	summaryPartial	largestGapMs	rejected	calibrated	mountMovedOffset	expected
+true	true	normal	false	false	20	0	true	1.25	recording
+true	false	-	true	-	-	-	false	-	recording
+false	true	normal	false	true	20	0	true	1.25	mountMoved:1.25
+false	true	normal	true	false	20	0	true	0	mountMoved:0
+false	true	interrupted	false	true	20	0	false	2.5	mountMoved:2.5
+false	true	normal	true	true	20	0	true	-	cutShort
+false	true	interrupted	false	true	20	0	false	-	cutShort
+false	false	-	false	-	-	-	true	-	cutShort
+false	true	recovered	false	true	20	0	false	-	cutShort
+false	true	normal	false	true	20	0	false	-	smallGaps
+false	true	normal	false	false	51	0	true	-	smallGaps
+false	true	normal	false	false	50	0	true	-	ready
+false	true	normal	false	false	50	0	false	-	notCalibrated
+false	true	normal	false	false	20	2	true	-	smallGaps
+false	true	normal	false	false	20	0	false	-	notCalibrated
+false	true	normal	false	false	20	0	true	-	ready
