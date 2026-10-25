@@ -102,6 +102,9 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   `OpenCineRelay` and `OpenCineApple` depend on nothing above Core; Core and Media never import
   `OpenCineApple`. `OpenCineRelayApple` (the relay's Bonjour, socket and encoder shell) depends on
   `OpenCineRelay` and Apple frameworks only, never on UI, an integration or an app.
+  `OpenCineWatch` (the watch companion: the phone's WatchConnectivity relay and the wrist
+  monitor) depends on `OpenCineCore`, `OpenCineRelay`, on iOS also `OpenCineApple`, and Apple frameworks only,
+  never on the shared UI, an integration or an app.
 - `OpenCineGyro` (phone gyro capture for Gyroflow: take segmentation, GCSV, mount calibration,
   drift, stabilization save/restore, take status, log storage and preferences) imports Foundation
   only, depends on nothing and names no app or manufacturer; app names, directories and preference
@@ -109,9 +112,6 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   no project dependencies. `OpenCineGyroAndroid` (the JNI facade) depends on `OpenCineGyro` and
   `OpenCineJNISupport` only. A camera joins through the `GyroCameraAdapter` contract, implemented
   in its integration.
-  `OpenCineWatch` (the watch companion: the phone's WatchConnectivity relay and the wrist
-  monitor) depends on `OpenCineCore`, `OpenCineRelay`, on iOS also `OpenCineApple`, and Apple frameworks only,
-  never on the shared UI, an integration or an app.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.

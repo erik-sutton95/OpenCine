@@ -48,9 +48,10 @@ Everything runs on manual clocks; tests never sleep.
   still window at least 1 s with every reading within 3 degrees of the mean, phone and camera
   timestamps within 0.25 s.
 - Ring zones: level within 12 degrees of camera down `(-1, 0, 0)`; tilt up 25 to 150 degrees from
-  the captured level pose; tilt and lean at least `sin(18 degrees)` along both out-of-plane basis
-  vectors of the first two poses. A pose captures after 2 s still in its zone. Zones are judged
-  from the camera's down vector only, so any phone orientation on the mount works.
+  the captured level pose; tilt and lean at least `sin(18 degrees)` along both the in-plane axis
+  perpendicular to the level pose and the normal of the plane of the first two poses (the solver's
+  mixed check). A pose captures after 2 s still in its zone. Zones are judged from the camera's
+  down vector only, so any phone orientation on the mount works.
 - Drift: steady when rotation rate is below 0.05 rad/s and acceleration within 0.03 g of 1 g;
   camera reading at most 0.25 s old; disagreement above 2.5 degrees sustained for 1 s confirms
   once. Nothing gyro-related ever stops a recording.
@@ -107,5 +108,7 @@ and a valid legacy global calibration is adopted by the first camera that asks f
 `driftClose`, `armingCreate`, `armingUpdate`, `armingChooseTurnOff`, `armingChooseKeepOn`,
 `armingWriteFinished`, `armingClose`, `cameraDown`. The class name, package and member names are
 part of the native contract (`consumer-rules.pro` keeps them); change Swift and Kotlin in step.
-An app links `OpenCineGyroAndroid` into its Swift Android library and calls `GyroNative.load`
-with that library's name. Coordinators take `GyroNativeApi` so tests can pass a fake.
+Camera level crosses the wire as a down vector; a camera that reports roll and pitch converts with
+`cameraDown` first. An app links `OpenCineGyroAndroid` into its Swift Android library and calls
+`GyroNative.load` with that library's name. Coordinators take `GyroNativeApi` so tests can pass a
+fake.
