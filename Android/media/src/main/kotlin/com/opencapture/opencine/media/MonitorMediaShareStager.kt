@@ -10,7 +10,6 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
-import java.util.Locale
 
 /** Base class for a clip that cannot safely enter the Android share flow. */
 public sealed class MonitorMediaShareException(message: String, cause: Throwable? = null) :
@@ -182,7 +181,6 @@ public class MonitorMediaShareStager(
         mimeType: String,
         cancellationCheck: () -> Unit,
     ): MonitorStagedMediaShare {
-        val displayExtension = filename.substringAfterLast('.').lowercase(Locale.ROOT)
         val temporary = Files.createTempFile(stagingDirectory, "share-", ".tmp")
         var movedTarget: Path? = null
         var targetWasPublished = false
@@ -194,7 +192,7 @@ public class MonitorMediaShareStager(
                     temporary = temporary,
                     cancellationCheck = cancellationCheck,
                 )
-            val target = targetPath(copied.contentDigest, displayExtension)
+            val target = targetPath(copied.contentDigest, filename)
 
             synchronized(readyCacheLock) {
                 cancellationCheck()
@@ -220,6 +218,7 @@ public class MonitorMediaShareStager(
                     cancellationCheck = cancellationCheck,
                 )
                 cancellationCheck()
+                ensureDirectory(target.parent)
                 // `ready` is FileProvider-visible, so only an atomically published,
                 // complete file may enter it. Both directories are below cacheDir.
                 Files.move(
@@ -236,7 +235,8 @@ public class MonitorMediaShareStager(
         } finally {
             if (!targetWasPublished) {
                 runCatching { Files.deleteIfExists(temporary) }
-                movedTarget?.let { target -> runCatching { Files.deleteIfExists(target) } }
+                movedTarget?.let { target -> runCatching { deleteReadyFile(target) } }
+                synchronized(readyCacheLock) { removeEmptyArtifactDirectories() }
             }
         }
     }
@@ -407,7 +407,7 @@ public class MonitorMediaShareStager(
                 "An existing share artifact is still within its URI-grant retention window.",
             )
         }
-        if (!Files.deleteIfExists(target)) {
+        if (!deleteReadyFile(target)) {
             throw InvalidMonitorMediaShareSourceException(
                 "Existing share artifact disappeared before it could be safely replaced.",
             )
@@ -442,7 +442,7 @@ public class MonitorMediaShareStager(
         ) {
             cancellationCheck()
             val artifact = evictionCandidates.next()
-            if (Files.deleteIfExists(artifact.path)) {
+            if (deleteReadyFile(artifact.path)) {
                 retainedBytes = (retainedBytes - artifact.byteCount).coerceAtLeast(0)
                 retainedArtifacts -= 1
             }
@@ -457,24 +457,55 @@ public class MonitorMediaShareStager(
         }
     }
 
-    private fun readyArtifacts(): List<ReadyArtifact> =
+    /**
+     * Every provider-visible artifact: `ready/<digest>/<camera filename>`, plus flat
+     * `ready/<digest>.<ext>` files left by builds that named copies by digest alone. Other
+     * folders below `ready` (an app's own diagnostics or log shares) are not this owner's.
+     */
+    private fun readyArtifacts(): List<ReadyArtifact> {
+        val artifacts = mutableListOf<ReadyArtifact>()
+        fun collect(directory: Path, nested: Boolean) {
+            Files.list(directory).use { paths ->
+                val iterator = paths.iterator()
+                while (iterator.hasNext()) {
+                    val path = iterator.next()
+                    if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+                        readyArtifact(path)?.let { artifacts += it }
+                    } else if (!nested && isArtifactDirectory(path)) {
+                        collect(path, nested = true)
+                    }
+                }
+            }
+        }
+        collect(readyDirectory, nested = false)
+        return artifacts
+    }
+
+    private fun isArtifactDirectory(path: Path): Boolean =
+        Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) && path.fileName.toString().matches(DIGEST_NAME)
+
+    /** Removes one ready file and the digest folder it leaves empty. */
+    private fun deleteReadyFile(path: Path): Boolean {
+        val deleted = Files.deleteIfExists(path)
+        val folder = path.parent
+        if (folder != null && folder.parent == readyDirectory && isArtifactDirectory(folder)) {
+            runCatching { Files.deleteIfExists(folder) } // Still holds a twin under another name.
+        }
+        return deleted
+    }
+
+    /** Digest folders a failed or cancelled publish created but never filled. */
+    private fun removeEmptyArtifactDirectories() {
         Files.list(readyDirectory).use { paths ->
-            val artifacts = mutableListOf<ReadyArtifact>()
             val iterator = paths.iterator()
             while (iterator.hasNext()) {
                 val path = iterator.next()
-                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
-                    artifacts +=
-                        ReadyArtifact(
-                            path = path,
-                            byteCount = Files.size(path),
-                            lastGrantedAtMillis =
-                                Files.getLastModifiedTime(path, LinkOption.NOFOLLOW_LINKS).toMillis(),
-                        )
+                if (isArtifactDirectory(path)) {
+                    runCatching { Files.deleteIfExists(path) }
                 }
             }
-            artifacts
         }
+    }
 
     private fun readyArtifact(path: Path): ReadyArtifact? {
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return null
@@ -506,9 +537,13 @@ public class MonitorMediaShareStager(
         Files.setLastModifiedTime(path, FileTime.fromMillis(now))
     }
 
-    private fun targetPath(contentDigest: String, extension: String): Path =
-        readyDirectory.resolve("$contentDigest.$extension").normalize().also { path ->
-            if (path.parent != readyDirectory) {
+    /**
+     * `ready/<digest>/<camera filename>`: the digest keeps distinct content apart, and the last
+     * path segment is what FileProvider reports as the shared file's name to the receiving app.
+     */
+    private fun targetPath(contentDigest: String, filename: String): Path =
+        readyDirectory.resolve(contentDigest).resolve(filename).normalize().also { path ->
+            if (path.parent?.parent != readyDirectory) {
                 throw InvalidMonitorMediaShareSourceException("Share artifact escaped the ready directory.")
             }
         }
@@ -561,6 +596,7 @@ public class MonitorMediaShareStager(
     private companion object {
         val SAFE_MIME_TYPE: Regex = Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+*-]*")
         val SAFE_MIME_FAMILY: Regex = Regex("[a-z0-9][a-z0-9.+-]*/\\*")
+        val DIGEST_NAME: Regex = Regex("[0-9a-f]{64}")
 
         /** Serializes ready-cache publication and eviction across stager instances in this process. */
         val readyCacheLock: Any = Any()

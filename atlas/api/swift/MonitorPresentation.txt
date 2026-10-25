@@ -868,6 +868,8 @@ static func MonitorLegalDocuments.resource(_: Swift.String, extension: Swift.Str
 static func MonitorLiveViewViewport.fullWidth(layoutWidth: Swift.Double, safeArea: MonitorEdgeInsets, screenWidth: Swift.Double?, geometrySpace: MonitorLiveViewGeometrySpace) -> Swift.Double
 static func MonitorMediaFilterPopupLayout.card(viewportWidth: Swift.Double, viewportHeight: Swift.Double, safeTop: Swift.Double, safeLeading: Swift.Double, safeBottom: Swift.Double, safeTrailing: Swift.Double, topControlInset: Swift.Double) -> MonitorRect
 static func MonitorMediaGalleryCopy.emptySubtitle(sourceAvailable: Swift.Bool, hasRecords: Swift.Bool, activeFilterCount: Swift.Int, tab: Swift.String) -> Swift.String
+static func MonitorMediaGalleryCopy.emptyTitle(fetching: Swift.Bool, sourceAvailable: Swift.Bool, hasRecords: Swift.Bool, activeFilterCount: Swift.Int) -> Swift.String
+static func MonitorMediaGalleryCopy.galleryHint(sourceAvailable: Swift.Bool, selecting: Swift.Bool) -> Swift.String
 static func MonitorMediaGalleryLabels.date(_: Swift.String) -> Swift.String
 static func MonitorMediaGalleryLabels.metadata(resolution: Swift.String?, bytes: Swift.String?, duration: Swift.String?, levels: [MonitorMediaResolutionLevel]) -> Swift.String
 static func MonitorMediaGalleryLabels.resolution(_: Swift.String?, levels: [MonitorMediaResolutionLevel]) -> Swift.String?
@@ -1004,15 +1006,23 @@ static let MonitorMediaFilterPopupLayout.belowPageTop: Swift.Double
 static let MonitorMediaFilterPopupLayout.edge: Swift.Double
 static let MonitorMediaFilterPopupLayout.preferredHeight: Swift.Double
 static let MonitorMediaFilterPopupLayout.width: Swift.Double
+static let MonitorMediaGalleryCopy.browseHint: Swift.String
 static let MonitorMediaGalleryCopy.disconnected: Swift.String
+static let MonitorMediaGalleryCopy.disconnectedCachedOnly: Swift.String
 static let MonitorMediaGalleryCopy.disconnectedEmptyCache: Swift.String
+static let MonitorMediaGalleryCopy.disconnectedTitle: Swift.String
 static let MonitorMediaGalleryCopy.emptyAll: Swift.String
 static let MonitorMediaGalleryCopy.emptyFavorites: Swift.String
 static let MonitorMediaGalleryCopy.emptyPhotos: Swift.String
+static let MonitorMediaGalleryCopy.emptyTitle: Swift.String
 static let MonitorMediaGalleryCopy.emptyVideos: Swift.String
 static let MonitorMediaGalleryCopy.filterEmpty: Swift.String
+static let MonitorMediaGalleryCopy.filterEmptyTitle: Swift.String
+static let MonitorMediaGalleryCopy.listingTitle: Swift.String
+static let MonitorMediaGalleryCopy.noCachedTitle: Swift.String
 static let MonitorMediaGalleryCopy.proxyHelp: Swift.String
 static let MonitorMediaGalleryCopy.proxyTag: Swift.String
+static let MonitorMediaGalleryCopy.selectingHint: Swift.String
 static let MonitorMediaPermissions.cache: MonitorMediaPermissions
 static let MonitorMediaPermissions.delete: MonitorMediaPermissions
 static let MonitorMediaPermissions.favorite: MonitorMediaPermissions
