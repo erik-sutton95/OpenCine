@@ -111,22 +111,76 @@ public data class StationNetworkBrand(
 /** The network a camera's saved route of this kind uses. */
 private fun SavedCamera.network(kind: RouteKind): String? = routes.firstOrNull { it.kind == kind }?.network
 
-/** Host copy and supported station routes; scanning, passwords and joining remain in the app. */
-public fun stationSetupChooser(camera: SavedCamera?): AddSetupChooser {
+/**
+ * One route the shared setup chooser offers, as data (Swift `StationSetupRoute`): its kind and,
+ * when the host knows better, the live words of its action ("Connect now" once the camera is in
+ * reach). Copy for every kind lives in the chooser so each app reads the same.
+ */
+public data class StationSetupRoute(
+    public val kind: RouteKind,
+    public val actionTitle: String? = null,
+    public val enabled: Boolean = true,
+) {
+    public companion object {
+        /** Wi-Fi and Hotspot: what a station-network host offers. */
+        public val STATION_NETWORKS: List<StationSetupRoute> =
+            listOf(StationSetupRoute(RouteKind.INFRASTRUCTURE_NETWORK), StationSetupRoute(RouteKind.PHONE_HOTSPOT))
+    }
+}
+
+/** Shared copy for one route kind: option id, title, body, tag and default action. */
+private data class StationRouteCopy(val id: String, val title: String, val body: String, val tag: String, val action: String)
+
+private fun stationRouteCopy(kind: RouteKind): StationRouteCopy = when (kind) {
+    RouteKind.INFRASTRUCTURE_NETWORK -> StationRouteCopy("wifi", "Wi-Fi",
+        "A router, venue network or another device’s hotspot. Cameras and this phone join the same Wi-Fi.",
+        "Best for studios and several cameras", "Choose Wi-Fi")
+    RouteKind.PHONE_HOTSPOT -> StationRouteCopy("phoneHotspot", "Hotspot",
+        "This phone’s hotspot. Works anywhere you have mobile data.", "Best on the move", "Choose hotspot")
+    RouteKind.CAMERA_ACCESS_POINT -> StationRouteCopy("cameraAccessPoint", "Camera Wi-Fi",
+        "This phone joins the camera’s own Wi-Fi. No router or hotspot needed.",
+        "Best in the field with one camera", "Choose camera Wi-Fi")
+    RouteKind.USB -> StationRouteCopy("usb", "USB-C",
+        "Plug the camera straight into this phone. Nothing to set up.", "Best for a fixed rig", "Choose USB-C")
+    RouteKind.CAPTURE_DEVICE -> StationRouteCopy("captureDevice", "HDMI capture",
+        "A USB HDMI capture device on this phone. Picture only, no camera control.",
+        "Best when the camera has no network", "Choose HDMI capture")
+}
+
+/** The order every app lists its routes in: shared networks first, then the host's own. */
+private val STATION_ROUTE_ORDER = listOf(
+    RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT, RouteKind.CAMERA_ACCESS_POINT, RouteKind.USB,
+    RouteKind.CAPTURE_DEVICE,
+)
+
+/**
+ * Host copy and supported station routes; scanning, passwords and joining remain in the app.
+ * [routes] are the kinds this host offers (Wi-Fi and Hotspot by default); a host adds its own,
+ * such as USB-C or the camera's Wi-Fi, as data and keeps what each one does.
+ */
+public fun stationSetupChooser(
+    camera: SavedCamera?,
+    routes: List<StationSetupRoute> = StationSetupRoute.STATION_NETWORKS,
+    notice: AddSetupNotice? = null,
+): AddSetupChooser {
     fun detail(kind: RouteKind, body: String, tag: String): String =
         listOfNotNull(camera?.network(kind)?.let { "Added · $it" }, body, tag).joinToString("\n")
+    val options = STATION_ROUTE_ORDER.mapNotNull { kind ->
+        val route = routes.firstOrNull { it.kind == kind } ?: return@mapNotNull null
+        val copy = stationRouteCopy(kind)
+        AddSetupOption(copy.id, kind, copy.title, detail(kind, copy.body, copy.tag), route.actionTitle ?: copy.action, route.enabled)
+    }
     return AddSetupChooser(
         title = if (camera == null) "How will your cameras connect?" else "How should this camera connect?",
         detail = camera?.let { "${it.displayName} · ${it.model}" }.orEmpty(),
-        options = listOf(
-            AddSetupOption("wifi", RouteKind.INFRASTRUCTURE_NETWORK, "Wi-Fi",
-                detail(RouteKind.INFRASTRUCTURE_NETWORK, "A router, venue network or another device’s hotspot. Cameras and this phone join the same Wi-Fi.", "Best for studios and several cameras"), "Choose Wi-Fi"),
-            AddSetupOption("phoneHotspot", RouteKind.PHONE_HOTSPOT, "Hotspot",
-                detail(RouteKind.PHONE_HOTSPOT, "This phone’s hotspot. Works anywhere you have mobile data.", "Best on the move"), "Choose hotspot"),
-        ),
-        footer = if (camera == null) "Choose the shared network before adding cameras. Saved passwords stay on this phone."
-            else "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time.",
+        options = options,
+        footer = when {
+            camera == null -> "Choose the shared network before adding cameras. Saved passwords stay on this phone."
+            options.any { it.kind == RouteKind.CAMERA_ACCESS_POINT } -> "Switch setups from the camera’s chips at any time."
+            else -> "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time."
+        },
         identifierPrefix = "stationSetup",
+        notice = notice,
     )
 }
 

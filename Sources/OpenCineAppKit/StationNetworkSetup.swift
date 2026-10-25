@@ -48,41 +48,107 @@ public enum StationNetworkSetupContext: Sendable {
     }
 }
 
+/// One route the shared setup chooser offers, as data: its kind and, when the host knows better,
+/// the live words of its action ("Connect now" once the camera is in reach). Copy for every kind
+/// lives in the chooser so each app reads the same.
+public struct StationSetupRoute: Equatable, Sendable {
+    public var kind: RouteKind
+    public var actionTitle: String?
+    public var enabled: Bool
+
+    public init(_ kind: RouteKind, actionTitle: String? = nil, enabled: Bool = true) {
+        self.kind = kind
+        self.actionTitle = actionTitle
+        self.enabled = enabled
+    }
+
+    /// Wi-Fi and Hotspot: what a station-network host offers.
+    public static let stationNetworks: [StationSetupRoute] = [
+        .init(.infrastructureNetwork), .init(.phoneHotspot),
+    ]
+}
+
 /// The station-network wizard's rules, apart from its view: chooser copy and which names count
 /// as camera or phone networks.
 public enum StationNetworkSetupRules {
+    /// Shared copy for one route kind: option id, title, body, tag and default action.
+    private static func copy(_ kind: RouteKind) -> (
+        id: String, title: String, body: String, tag: String, action: String
+    ) {
+        switch kind {
+        case .infrastructureNetwork:
+            return (
+                "wifi", "Wi-Fi",
+                "A router, venue network or another device’s hotspot. Cameras and this iPhone join the same Wi-Fi.",
+                "Best for studios and several cameras", "Choose Wi-Fi"
+            )
+        case .phoneHotspot:
+            return (
+                "phoneHotspot", "Hotspot",
+                "This iPhone’s Personal Hotspot. Works anywhere you have cellular.",
+                "Best on the move", "Choose hotspot"
+            )
+        case .cameraAccessPoint:
+            return (
+                "cameraAccessPoint", "Camera Wi-Fi",
+                "This iPhone joins the camera’s own Wi-Fi. No router or hotspot needed.",
+                "Best in the field with one camera", "Choose camera Wi-Fi"
+            )
+        case .usb:
+            return (
+                "usb", "USB-C",
+                "Plug the camera straight into this iPhone. Nothing to set up.",
+                "Best for a fixed rig", "Choose USB-C"
+            )
+        case .captureDevice:
+            return (
+                "captureDevice", "HDMI capture",
+                "A USB HDMI capture device on this iPhone. Picture only, no camera control.",
+                "Best when the camera has no network", "Choose HDMI capture"
+            )
+        }
+    }
+
+    /// The order every app lists its routes in: shared networks first, then the host's own.
+    private static let order: [RouteKind] = [
+        .infrastructureNetwork, .phoneHotspot, .cameraAccessPoint, .usb, .captureDevice,
+    ]
+
     /// Host copy and supported station routes; the app keeps network and credential steps.
-    public static func setupChooser(context: StationNetworkSetupContext) -> AddSetupChooser {
+    /// `routes` are the kinds this host offers (Wi-Fi and Hotspot by default); a host adds its
+    /// own, such as USB-C or the camera's Wi-Fi, as data and keeps what each one does.
+    public static func setupChooser(
+        context: StationNetworkSetupContext,
+        routes: [StationSetupRoute] = StationSetupRoute.stationNetworks,
+        notice: AddSetupNotice? = nil
+    ) -> AddSetupChooser {
         func detail(_ kind: RouteKind, _ body: String, _ tag: String) -> String {
             [context.camera.flatMap { network($0, kind) }.map { "Added · \($0)" }, body, tag]
                 .compactMap { $0 }.joined(separator: "\n")
+        }
+        let options = order.compactMap { kind -> AddSetupOption? in
+            guard let route = routes.first(where: { $0.kind == kind }) else { return nil }
+            let copy = copy(kind)
+            return AddSetupOption(
+                id: copy.id, kind: kind, title: copy.title,
+                detail: detail(kind, copy.body, copy.tag),
+                actionTitle: route.actionTitle ?? copy.action, enabled: route.enabled)
+        }
+        let footer: String
+        if context.camera == nil {
+            footer =
+                "Choose the shared network before adding cameras. Saved passwords stay on this iPhone."
+        } else if options.contains(where: { $0.kind == .cameraAccessPoint }) {
+            footer = "Switch setups from the camera’s chips at any time."
+        } else {
+            footer =
+                "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time."
         }
         return AddSetupChooser(
             title: context.camera == nil
                 ? "How will your cameras connect?" : "How should this camera connect?",
             detail: context.camera.map { "\($0.displayName) · \($0.model)" } ?? "",
-            options: [
-                AddSetupOption(
-                    id: "wifi", kind: .infrastructureNetwork,
-                    title: "Wi-Fi",
-                    detail: detail(
-                        .infrastructureNetwork,
-                        "A router, venue network or another device’s hotspot. Cameras and this iPhone join the same Wi-Fi.",
-                        "Best for studios and several cameras"),
-                    actionTitle: "Choose Wi-Fi"),
-                AddSetupOption(
-                    id: "phoneHotspot", kind: .phoneHotspot,
-                    title: "Hotspot",
-                    detail: detail(
-                        .phoneHotspot,
-                        "This iPhone’s Personal Hotspot. Works anywhere you have cellular.",
-                        "Best on the move"),
-                    actionTitle: "Choose hotspot"),
-            ],
-            footer: context.camera == nil
-                ? "Choose the shared network before adding cameras. Saved passwords stay on this iPhone."
-                : "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time.",
-            identifierPrefix: context.prefix)
+            options: options, footer: footer, identifierPrefix: context.prefix, notice: notice)
     }
 
     /// A camera's own access point: the brand's prefix, this camera's, or another saved camera's.
