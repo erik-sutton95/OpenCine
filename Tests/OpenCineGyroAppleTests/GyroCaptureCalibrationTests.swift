@@ -68,6 +68,7 @@ struct GyroCaptureCalibrationTests {
         fixture.hold(RingPoses.level, seconds: 3)
         #expect(coordinator.ringCompletedSteps == 1)
         #expect(coordinator.lastRingEvent == .stepCaptured(.level))
+        #expect(coordinator.ringEventToken == 1)
         fixture.hold(RingPoses.tiltUp, seconds: 3)
         fixture.hold(RingPoses.tiltAndLean, seconds: 3)
         guard case .complete(let calibration) = coordinator.ring else {
@@ -76,6 +77,7 @@ struct GyroCaptureCalibrationTests {
         }
         #expect(coordinator.lastRingEvent == .completed(calibration))
         #expect(coordinator.ringCompletedSteps == 3)
+        #expect(coordinator.ringEventToken == 3)
         #expect(coordinator.hasSavedCalibration)
         #expect(fixture.preferences.calibration(for: "fake-1") == calibration)
         coordinator.finishCalibration()
@@ -112,6 +114,7 @@ struct GyroCaptureCalibrationTests {
         #expect(coordinator.ringCompletedSteps == 1)
         fixture.record(true)
         #expect(coordinator.ring == .invalidated(.recordingStarted))
+        #expect(fixture.driver.motionConsumers.isEmpty)
         fixture.record(false)
 
         coordinator.beginCalibration()
@@ -129,6 +132,7 @@ struct GyroCaptureCalibrationTests {
         coordinator.beginCalibration()
         coordinator.appDidEnterBackground()
         #expect(coordinator.ring == .invalidated(.connectionEnded))
+        #expect(fixture.driver.motionConsumers.isEmpty)
         coordinator.cancelCalibration()
         #expect(coordinator.ring == nil)
     }

@@ -93,6 +93,29 @@ struct GyroCaptureDriftTests {
         await coordinator.processPending()
     }
 
+    @Test func notNowStillMarksLaterTakes() async throws {
+        let fixture = GyroCoordinatorFixture()
+        defer { fixture.cleanup() }
+        let coordinator = await calibratedSession(fixture)
+        await recordMovedTake(fixture, coordinator)
+        await stopTake(fixture, coordinator)
+        #expect(coordinator.driftPromptPresented)
+        coordinator.dismissDriftPrompt()
+        for take in 2...3 {
+            await recordMovedTake(fixture, coordinator)
+            #expect(coordinator.driftHapticToken == take)
+            #expect(coordinator.pill.kind == .mountMoved)
+            await stopTake(fixture, coordinator)
+            #expect(!coordinator.driftPromptPresented)
+            let summary = try #require(coordinator.logs.first?.summary)
+            #expect(summary.mountMovedOffset != nil)
+        }
+        #expect(coordinator.logs.count == 3)
+        coordinator.enabled = false
+        await coordinator.processPending()
+        #expect(!coordinator.driftPromptPresented)
+    }
+
     @Test func recordingIsNeverStopped() async throws {
         let fixture = GyroCoordinatorFixture()
         defer { fixture.cleanup() }

@@ -16,20 +16,13 @@ extension GyroCaptureCoordinator {
     public func beginCalibration() {
         guard canCalibrate else { return }
         closeRing()
-        do {
-            ringMotionToken = try driver.startMotion { [weak self] reading in
-                self?.observeRingReading(reading)
-            }
-        } catch {
-            notice = .sensorUnavailable
-            return
-        }
+        guard startRingMotion() else { return }
         ring = .intro
     }
 
     /// "Get started": begins at the level pose unless a block already applies.
     public func startRing() {
-        guard ring != nil else { return }
+        guard ring != nil, startRingMotion() else { return }
         ringCalibration.start(cameraConnected: camera != nil, recording: cameraRecording)
         lastRingEvent = nil
         publishRing()
@@ -92,6 +85,25 @@ extension GyroCaptureCoordinator {
         publishRing()
     }
 
+    /// Subscribes the ring to device motion once; false when the phone has none.
+    private func startRingMotion() -> Bool {
+        guard ringMotionToken == nil else { return true }
+        do {
+            ringMotionToken = try driver.startMotion { [weak self] reading in
+                self?.observeRingReading(reading)
+            }
+            return true
+        } catch {
+            notice = .sensorUnavailable
+            return false
+        }
+    }
+
+    private func stopRingMotion() {
+        if let token = ringMotionToken { driver.stopMotion(token) }
+        ringMotionToken = nil
+    }
+
     /// Keeps the ring's camera view current; it blocks or invalidates by its own rules.
     func updateRingCamera() {
         guard ring != nil else { return }
@@ -100,8 +112,7 @@ extension GyroCaptureCoordinator {
     }
 
     func closeRing() {
-        if let token = ringMotionToken { driver.stopMotion(token) }
-        ringMotionToken = nil
+        stopRingMotion()
         ringCalibration.cancel()
         ring = nil
         ringCompletedSteps = 0
@@ -115,6 +126,7 @@ extension GyroCaptureCoordinator {
             cameraDown: cameraLevel?.down, cameraTimestamp: cameraLevel?.at)
         if let event {
             lastRingEvent = event
+            ringEventToken += 1
             if case .completed(let calibration) = event, let camera {
                 preferences.saveCalibration(calibration, for: camera.id)
                 savedCalibration = calibration
@@ -128,6 +140,8 @@ extension GyroCaptureCoordinator {
 
     private func publishRing() {
         guard ring != nil else { return }
+        // Device motion never runs behind an invalidated screen; "start again" resubscribes.
+        if case .invalidated = ringCalibration.phase { stopRingMotion() }
         ring = ringCalibration.phase
         ringCompletedSteps = ringCalibration.completedSteps
     }

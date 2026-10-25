@@ -55,6 +55,8 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     public internal(set) var ringCompletedSteps = 0
     /// The latest ring transition, for the checkmark, haptic and announcement.
     public internal(set) var lastRingEvent: GyroRingEvent?
+    /// Bumped on every ring event, so a repeated identical event is still observable.
+    public internal(set) var ringEventToken = 0
     /// Whether the post-take "mount moved" prompt is shown.
     public internal(set) var driftPromptPresented = false
     /// Bumped once per confirmed drift; the view plays one light haptic per change.
@@ -76,7 +78,12 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     @ObservationIgnored var cameraRecording: Bool?
     @ObservationIgnored var stabilization: GyroStabilizationState?
     @ObservationIgnored var machine: GyroArmingMachine
-    @ObservationIgnored var cameraWrite: Task<Void, Never>?
+    /// Stabilization writes in flight, keyed by a per-write token.
+    @ObservationIgnored var cameraWrites: [UUID: Task<Void, Never>] = [:]
+    /// Bumped whenever the camera id changes, the arming machine's connection rule; a write
+    /// that finishes under an older generation never reaches the machine.
+    @ObservationIgnored var writeGeneration = 0
+    @ObservationIgnored var armingCameraID: String?
     @ObservationIgnored var disconnecting = false
     @ObservationIgnored var calibrationDeclined = false
     @ObservationIgnored var ringCalibration = GyroRingCalibration()

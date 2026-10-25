@@ -164,6 +164,62 @@ struct GyroCaptureArmingTests {
         fixture.camera.send(.disconnected)
     }
 
+    @Test func prepareForDisconnectGivesUpAfterTheTimeout() async {
+        let fixture = GyroCoordinatorFixture()
+        defer { fixture.cleanup() }
+        let coordinator = await armed(fixture)
+        coordinator.setupTurnOffStabilization()
+        await coordinator.waitForCameraWrites()
+        fixture.camera.holdsWrites = true
+        coordinator.restoreTimeout = .milliseconds(20)
+        await coordinator.prepareForDisconnect()
+        #expect(!coordinator.isArmed)
+        #expect(fixture.camera.heldWriteCount == 1)
+        #expect(fixture.camera.writes.last == ["ibis": "SPORT"])
+        #expect(fixture.preferences.pendingRestores.count == 1)
+        fixture.camera.resolveHeldWrite(succeeded: true)
+        await coordinator.waitForCameraWrites()
+        #expect(fixture.preferences.pendingRestores.isEmpty)
+    }
+
+    @Test func staleWriteFromAnEarlierConnectionIsIgnored() async {
+        let fixture = GyroCoordinatorFixture()
+        defer { fixture.cleanup() }
+        let coordinator = await armed(fixture)
+        coordinator.setupTurnOffStabilization()
+        await coordinator.waitForCameraWrites()
+        fixture.camera.holdsWrites = true
+        coordinator.restoreTimeout = .milliseconds(20)
+        await coordinator.prepareForDisconnect()
+        let stale = Array(coordinator.cameraWrites.values)
+        #expect(stale.count == 1)
+        fixture.camera.send(.disconnected)
+        fixture.camera.connect(
+            stabilization: .init(values: ["ibis": "OFF"], lensHasVRSwitch: true),
+            at: fixture.clock.time)
+        #expect(coordinator.cameraWrites.count == 2)
+        #expect(!coordinator.isArmed)
+        // The new restore reaches the camera when its write task first runs.
+        for _ in 0..<1_000 where fixture.camera.heldWriteCount < 2 { await Task.yield() }
+        #expect(fixture.camera.heldWriteCount == 2)
+
+        fixture.camera.resolveHeldWrite(at: 0, succeeded: false)
+        for write in stale { await write.value }
+        #expect(coordinator.notice == nil)
+        #expect(!coordinator.isArmed)
+        #expect(fixture.preferences.pendingRestores.count == 1)
+
+        fixture.camera.resolveHeldWrite(succeeded: true)
+        await coordinator.waitForCameraWrites()
+        #expect(coordinator.notice == nil)
+        #expect(fixture.preferences.pendingRestores.isEmpty)
+        #expect(coordinator.isArmed)
+        #expect(coordinator.setupSteps.first == .stabilization(lensHasVRSwitch: true))
+        coordinator.enabled = false
+        await coordinator.waitForCameraWrites()
+        await coordinator.processPending()
+    }
+
     @Test func failedTurnOffShowsANotice() async {
         let fixture = GyroCoordinatorFixture()
         defer { fixture.cleanup() }

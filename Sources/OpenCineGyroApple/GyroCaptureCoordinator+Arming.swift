@@ -55,15 +55,20 @@ extension GyroCaptureCoordinator {
         timer.cancel()
     }
 
-    /// Waits until no stabilization write is in flight, including writes a finish started.
+    /// Waits until no stabilization write is in flight, including writes a finish started and
+    /// writes left over from an earlier connection.
     public func waitForCameraWrites() async {
-        while let write = cameraWrite { await write.value }
+        while let write = cameraWrites.values.first { await write.value }
     }
 
     // MARK: Machine wiring
 
     /// Feeds the arming machine the current observations and applies its effects.
     func evaluateEligibility() {
+        if camera?.id != armingCameraID {
+            armingCameraID = camera?.id
+            writeGeneration += 1
+        }
         apply(machine.update(armingInputs()))
     }
 
@@ -96,7 +101,10 @@ extension GyroCaptureCoordinator {
                 stop(reason: endingReason ?? (enabled ? .disconnected : .disabled))
                 sessionDidEnd()
             case .notice(let notice):
-                self.notice = GyroNotice(rawValue: notice.rawValue)
+                switch notice {
+                case .turnOffFailed: self.notice = .turnOffFailed
+                case .restoreFailed: self.notice = .restoreFailed
+                }
             }
         }
         armed = machine.isArmed
@@ -108,10 +116,14 @@ extension GyroCaptureCoordinator {
             apply(machine.writeFinished(purpose, succeeded: false))
             return
         }
-        cameraWrite = Task { [weak self] in
+        let token = UUID()
+        let generation = writeGeneration
+        cameraWrites[token] = Task { [weak self] in
             let succeeded = await adapter.writeStabilization(values)
             guard let self else { return }
-            cameraWrite = nil
+            cameraWrites[token] = nil
+            // A write from an earlier connection must not settle the current connection's write.
+            guard generation == writeGeneration else { return }
             apply(machine.writeFinished(purpose, succeeded: succeeded))
         }
     }
@@ -138,6 +150,7 @@ extension GyroCaptureCoordinator {
 
     func sessionDidEnd() {
         stopDrift()
+        driftPromptPresented = false
     }
 }
 #endif

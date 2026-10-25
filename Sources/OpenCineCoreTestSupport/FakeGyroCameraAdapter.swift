@@ -13,9 +13,12 @@ import OpenCineGyro
     public var writes: [[String: String]] = []
     /// When false, every write is refused and nothing is echoed.
     public var acceptsWrites = true
+    /// When true, each write waits until the test resolves it with `resolveHeldWrite`.
+    public var holdsWrites = false
     /// The stabilization values the fake camera currently reports.
     public private(set) var stabilization: GyroStabilizationState?
     private weak var sink: (any GyroCameraSink)?
+    private var held: [CheckedContinuation<Bool, Never>] = []
 
     /// Creates a fake body; the default has a level sensor and one in-body stabilization control.
     public init(
@@ -31,12 +34,24 @@ import OpenCineGyro
     /// Whether a sink is attached.
     public var isAttached: Bool { sink != nil }
 
+    /// Writes waiting for the test, oldest first.
+    public var heldWriteCount: Int { held.count }
+
+    /// Settles one held write, by default the oldest. A refused write is not echoed.
+    public func resolveHeldWrite(at index: Int = 0, succeeded: Bool) {
+        held.remove(at: index).resume(returning: succeeded)
+    }
+
     public func attach(_ sink: any GyroCameraSink) { self.sink = sink }
 
     public func detach() { sink = nil }
 
     public func writeStabilization(_ values: [String: String]) async -> Bool {
         writes.append(values)
+        if holdsWrites {
+            let succeeded = await withCheckedContinuation { held.append($0) }
+            guard succeeded else { return false }
+        }
         guard acceptsWrites else { return false }
         var merged = stabilization?.values ?? [:]
         for (key, value) in values { merged[key] = value }

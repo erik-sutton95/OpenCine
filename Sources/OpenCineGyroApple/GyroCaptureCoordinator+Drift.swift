@@ -48,6 +48,8 @@ extension GyroCaptureCoordinator {
     func observeDriftRecording(from previous: Bool?, to recording: Bool?) {
         if recording == true, previous != true {
             mountMovedInTake = false
+            // The detector latches; each take watches the mount afresh.
+            refreshDrift(reset: true)
         } else if previous == true, recording != true, mountMovedInTake, !driftPromptSilenced {
             driftPromptPresented = true
         }
@@ -55,12 +57,17 @@ extension GyroCaptureCoordinator {
 
     private func observeDriftReading(_ reading: GyroDriftReading) {
         guard cameraRecording == true, motionRunning, stopping == nil,
-            observations.count < GyroTakeSession.maximumBufferedSamples,
             driftDetector?.observePhone(reading) == true
         else { return }
-        observations.append(.mountMoved(at: reading.timestamp))
         mountMovedInTake = true
         driftHapticToken += 1
+        guard observations.count < GyroTakeSession.maximumBufferedSamples else {
+            // The mark cannot reach the log in time: fail visibly, as a lost REC event does.
+            fail(.recordingEventsLost)
+            stop(reason: .bufferOverflow)
+            return
+        }
+        observations.append(.mountMoved(at: reading.timestamp))
     }
 }
 #endif
