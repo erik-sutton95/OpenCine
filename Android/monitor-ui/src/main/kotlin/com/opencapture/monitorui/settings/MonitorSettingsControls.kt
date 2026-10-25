@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,9 +34,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -110,6 +109,17 @@ fun MonitorSettingsInlineRow(
     showTopDivider: Boolean = true,
     stacked: Boolean = false,
     trailing: @Composable () -> Unit,
+) = SettingsInlineRowLayout(title, help, showTopDivider, stacked, Modifier, trailing)
+
+/** [rowModifier] lands on the label-and-control line, never on the divider or inspector help. */
+@Composable
+private fun SettingsInlineRowLayout(
+    title: String,
+    help: String?,
+    showTopDivider: Boolean,
+    stacked: Boolean,
+    rowModifier: Modifier,
+    trailing: @Composable () -> Unit,
 ) {
     val inspectorHelp = LocalMonitorInspectorHelp.current
     val label = @Composable {
@@ -132,7 +142,7 @@ fun MonitorSettingsInlineRow(
         }
         if (stacked) {
             Column(
-                Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp).padding(vertical = 8.dp),
+                Modifier.fillMaxWidth().then(rowModifier).defaultMinSize(minHeight = 44.dp).padding(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 label()
@@ -140,7 +150,7 @@ fun MonitorSettingsInlineRow(
             }
         } else {
             Row(
-                Modifier.fillMaxWidth().defaultMinSize(minHeight = 50.dp),
+                Modifier.fillMaxWidth().then(rowModifier).defaultMinSize(minHeight = 50.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -174,21 +184,23 @@ fun MonitorSettingsSwitchInlineRow(
     testTag: String? = null,
     onToggle: () -> Unit,
 ) {
-    MonitorSettingsInlineRow(
-        title = title,
-        help = help,
-        showTopDivider = showTopDivider,
-        stacked = stacked,
-    ) {
-        val access =
-            Modifier.settingsClickable(role = Role.Switch, onClick = onToggle).semantics {
-                contentDescription = title
-                toggleableState = if (isOn) ToggleableState.On else ToggleableState.Off
-                stateDescription = if (isOn) "On" else "Off"
-            }.then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
-        Box(access) {
-            MonitorSettingsSwitchGraphic(isOn = isOn)
-        }
+    // The whole line is one switch for TalkBack and UI Automator: its title text, its On or Off
+    // state and a single activation. The drawn switch alone used to carry the state, so the title
+    // node a reader lands on first reported "not checkable" (hardware pass 7.3). The help badge
+    // keeps its own node.
+    val access =
+        Modifier.toggleable(
+            value = isOn,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            role = Role.Switch,
+            onValueChange = { onToggle() },
+        ).semantics {
+            contentDescription = title
+            stateDescription = if (isOn) "On" else "Off"
+        }.then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
+    SettingsInlineRowLayout(title, help, showTopDivider, stacked, access) {
+        MonitorSettingsSwitchGraphic(isOn = isOn)
     }
 }
 
