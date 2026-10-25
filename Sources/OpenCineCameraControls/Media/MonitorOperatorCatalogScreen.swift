@@ -51,12 +51,14 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
         close: @escaping @MainActor () -> Void,
         open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
         share: (@MainActor ([MonitorMediaRecord<Payload>], MonitorMediaLibraryActionToken) -> Void)? = nil,
+        cachingActive: (@MainActor () -> Bool)? = nil,
         @ViewBuilder thumbnail: @escaping @MainActor (MonitorMediaGalleryThumbnail<Payload>) -> Thumbnail) {
         content = .init(library: library, brand: brand, safeArea: safeArea, sourceAvailable: sourceAvailable,
             operations: operations, presentation: presentation, navigation: navigation,
             sourceFilter: sourceFilter, managesVisibility: managesVisibility, deletionDetail: deletionDetail,
             colorChoices: colorChoices, resolutionLevels: resolutionLevels, facts: facts, cell: cell,
-            begin: begin, refresh: refresh, close: close, open: open, share: share, thumbnail: thumbnail)
+            begin: begin, refresh: refresh, close: close, open: open, share: share,
+            cachingActive: cachingActive, thumbnail: thumbnail)
     }
 
     public var body: some View { content.id(content.source) }
@@ -82,6 +84,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
     private let close: @MainActor () -> Void
     private let open: @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void
     private let share: (@MainActor ([MonitorMediaRecord<Payload>], MonitorMediaLibraryActionToken) -> Void)?
+    private let cachingActive: (@MainActor () -> Bool)?
     private let thumbnail: @MainActor (MonitorMediaGalleryThumbnail<Payload>) -> Thumbnail
     @State private var gallery: MonitorMediaGalleryModel<Payload>
     @Environment(\.monitorWindowGeometry) private var windowGeometry
@@ -103,6 +106,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         close: @escaping @MainActor () -> Void,
         open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
         share: (@MainActor ([MonitorMediaRecord<Payload>], MonitorMediaLibraryActionToken) -> Void)? = nil,
+        cachingActive: (@MainActor () -> Bool)? = nil,
         @ViewBuilder thumbnail: @escaping @MainActor (MonitorMediaGalleryThumbnail<Payload>) -> Thumbnail) {
         self.library = library; self.brand = brand; self.safeArea = safeArea
         self.presentation = presentation; self.navigation = navigation; self.sourceFilter = sourceFilter
@@ -111,6 +115,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         self.resolutionLevels = resolutionLevels; self.facts = facts; self.cell = cell
         self.begin = begin ?? { library.begin() }; self.refresh = refresh ?? { library.refresh() }
         self.close = close; self.open = open; self.share = share; self.thumbnail = thumbnail
+        self.cachingActive = cachingActive
         _gallery = State(initialValue: MonitorMediaGalleryModel(library: library))
     }
 
@@ -160,7 +165,8 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                             }
                         }
                     }, accessory: {
-                        MonitorOperatorCachingHeader(records: snapshot.records, hidden: library.selecting, facts: facts)
+                        MonitorOperatorCachingHeader(records: snapshot.records, hidden: library.selecting,
+                            active: cachingActive, facts: facts)
                     })
                     .id(catalogIdentity)
                 if gallery.filterPopupPresented { filterPopup(snapshot: snapshot, size: proxy.size) }
@@ -393,9 +399,12 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
 private struct MonitorOperatorCachingHeader<Payload: Sendable>: View {
     let records: [MonitorMediaRecord<Payload>]
     let hidden: Bool
+    /// The owner's own signal that any record it reports progress for is caching; when false the
+    /// header skips asking every record's facts. Nil keeps the scan.
+    let active: (@MainActor () -> Bool)?
     let facts: @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts
     var body: some View {
-        if !hidden, let (record, progress) = caching {
+        if !hidden, active?() ?? true, let (record, progress) = caching {
             HStack(spacing: 10) {
                 ProgressView(value: progress).tint(MonitorTheme.accent).frame(maxWidth: 120)
                 Text("CACHING \(record.asset.filename) \(Int(progress * 100))%")

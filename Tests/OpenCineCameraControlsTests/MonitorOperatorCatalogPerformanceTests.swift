@@ -35,6 +35,7 @@ import XCTest
 private struct PerfCatalogHost: View {
     let library: MonitorMediaLibraryModel<String>
     let inputs: PerfCatalogInputs
+    var signalsCaching = false
     var body: some View {
         MonitorOperatorCatalogScreen(library: library, brand: "SIMULATED", sourceAvailable: true,
             operations: .init(), managesVisibility: false,
@@ -50,7 +51,8 @@ private struct PerfCatalogHost: View {
                     metadata: "", availability: .camera, progress: progress, favorite: record.favorite,
                     photo: record.asset.kind == .photo,
                     transferCaption: progress.map { "CACHING \(Int($0 * 100))%" })
-            }, begin: {}, refresh: {}, close: {}, open: { _ in }) { _ in Color.gray }
+            }, begin: {}, refresh: {}, close: {}, open: { _ in },
+            cachingActive: signalsCaching ? { !inputs.progress.isEmpty } : nil) { _ in Color.gray }
     }
 }
 
@@ -159,6 +161,22 @@ private struct PerfCatalogHost: View {
         // The tray reads only permissions of the selected records, never their whole items.
         XCTAssertLessThan(selectAllCalls, 600, "select all asked for \(selectAllCalls) records")
         XCTAssertLessThan(toggleCalls, 600, "a selection toggle asked for \(toggleCalls) records")
+    }
+
+    /// With the owner's caching signal, an idle catalog render does not ask every record's facts
+    /// for the caching header (CodeRabbit on #271).
+    func testIdleCachingHeaderDoesNotScanEveryRecord() async throws {
+        let library = try library()
+        let inputs = PerfCatalogInputs()
+        let (window, host) = host(PerfCatalogHost(library: library, inputs: inputs, signalsCaching: true))
+        defer { window.isHidden = true; window.rootViewController = nil; library.close() }
+        _ = try await render(host)
+        _ = try await render(host)
+        inputs.factsCalls = 0
+        library.sort = .newest
+        _ = try await render(host)
+        print("MEDIA-PERF catalog.idleResort.factsCalls: \(inputs.factsCalls)")
+        XCTAssertLessThan(inputs.factsCalls, 600, "an idle re-sort asked \(inputs.factsCalls) facts")
     }
 }
 #endif
