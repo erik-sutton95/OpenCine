@@ -24,7 +24,7 @@ sys.dont_write_bytecode = True
 
 RICH = "testActualCapturedDeleteDialogKeepsRelatedCopyMessageAndCancelSendsNoIO"
 SUITES = ["MonitorOperatorPlaybackOptionsTests", "MonitorPortraitStatusGeometryTests", "MonitorMediaOpeningAdmissionTests"]
-LEGACY_SHA = "24ff4ce65da01ad109dbd55a152dba850d015d7f6a3ffe4951a360c9f3623b40"
+LEGACY_SHA = "fb19a66526b781017e95cd31b640c1caefc67a7d7e0a7d6588dfe0717e27afbf"
 
 # Exact original named-method enrollment, in source order, carried from the
 # preserved baseline WIP runner. Count checks alone would admit renamed,

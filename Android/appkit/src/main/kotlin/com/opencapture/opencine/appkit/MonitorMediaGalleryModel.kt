@@ -49,14 +49,19 @@ public class MonitorMediaGallerySnapshot<P> internal constructor(
 ) {
     private val owner = WeakReference(library)
     public val token: MonitorMediaLibraryActionToken = library.actionToken
-    private val available: Map<MediaAssetID, MonitorMediaRecord<P>> =
-        (if (projection == null) library.displayedRecords else library.state.value.records).associateBy { it.asset.id }
+    /** The supplied list this window was built from; a gallery reuses an unchanged window. */
+    internal val basis: List<MonitorMediaRecord<P>> = if (projection == null) library.displayedRecords else library.state.value.records
+    private val available: Map<MediaAssetID, MonitorMediaRecord<P>> = basis.associateBy { it.asset.id }
     private val selectionOrder: List<MediaAssetID> = projection?.displayIDs ?: available.keys.toList()
+    /** Hash lookups for admission: a whole-card selection resolves in linear time. */
+    private val admittedIDs: Set<MediaAssetID> = HashSet<MediaAssetID>(selectionOrder.size * 2).also { ids ->
+        ids.addAll(selectionOrder); projection?.groups?.forEach { ids.addAll(it.members) }
+    }
     public val records: List<MonitorMediaRecord<P>> = (projection?.gridIDs ?: selectionOrder).mapNotNull(available::get)
     public val isCurrent: Boolean get() = owner.get()?.isCurrent(token) == true
     public fun record(id: MediaAssetID): MonitorMediaRecord<P>? {
         if (!isCurrent || owner.get()?.record(id) == null) return null
-        if (id !in selectionOrder && projection?.groups?.none { id in it.members } != false) return null
+        if (id !in admittedIDs) return null
         return available[id]
     }
     public fun selected(ids: Set<MediaAssetID>, expanded: Boolean = true): List<MonitorMediaRecord<P>> {
@@ -112,8 +117,16 @@ public class MonitorMediaGalleryModel<P>(public val library: MonitorMediaLibrary
     private var noticeID = UUID.randomUUID()
     private var noticeJob: Job? = null
     private val acceptedDeletions = mutableMapOf<UUID, MonitorMediaLibraryDeletionAuthority>()
-    public fun snapshot(projection: MonitorMediaProjectionResult? = null): MonitorMediaGallerySnapshot<P> =
-        MonitorMediaGallerySnapshot(library, lifetime, projection)
+    private var snapshotMemo: MonitorMediaGallerySnapshot<P>? = null
+    /** One window per actual change: a recomposition with the same inputs reuses it. */
+    public fun snapshot(projection: MonitorMediaProjectionResult? = null): MonitorMediaGallerySnapshot<P> {
+        val basis = if (projection == null) library.displayedRecords else library.state.value.records
+        snapshotMemo?.let { memo ->
+            if (memo.presentation == lifetime && memo.projection === projection && memo.basis === basis &&
+                memo.token == library.actionToken) return memo
+        }
+        return MonitorMediaGallerySnapshot(library, lifetime, projection).also { snapshotMemo = it }
+    }
     public fun activate(): Unit { active = true }
     public fun retire(): Unit {
         active = false; lifetime = UUID.randomUUID(); dismissNotice()

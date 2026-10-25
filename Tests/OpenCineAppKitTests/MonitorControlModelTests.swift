@@ -1,8 +1,11 @@
 import Foundation
+import Observation
 import OpenCineAppKit
 import OpenCineCore
 import OpenCineCoreTestSupport
 import Testing
+
+@MainActor private final class RowInvalidation { var changed = false }
 
 /// The monitor's common controls against fake sessions on manual clocks. Kotlin mirror:
 /// `MonitorControlModelTest`, same method names.
@@ -80,6 +83,31 @@ import Testing
         }
         #expect(clock.pendingSleeps == 0)
         model.unbind()
+    }
+
+    @available(macOS 14, *)
+    @Test func liveStatusKeepsTheRowStableWhileOnlyTheClockAdvances() async throws {
+        let model = elapsedModel()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        await camera.cameraReportsTimecodeReading(CameraTimecodeReading(hours: 1, minutes: 0, seconds: 0))
+        try #require(await eventually { model.timecodeReading.value?.hours == 1 })
+        let first = model.liveStatusPresentation()
+        #expect(first.status.timecode == "00:00:00")
+        let row = RowInvalidation()
+        withObservationTracking { _ = model.liveStatusPresentation().status } onChange: {
+            MainActor.assumeIsolated { row.changed = true }
+        }
+        for index in 1...10 {
+            await camera.cameraReportsTimecodeReading(CameraTimecodeReading(hours: 1, minutes: 0, seconds: index))
+            try #require(await eventually { model.timecodeReading.value?.seconds == index })
+            #expect(first.clock() == String(format: "01:00:%02d", index))
+        }
+        #expect(!row.changed, "a per-frame clock must not invalidate the status row that lays it out")
+        model.unbind()
+        #expect(model.timecodeTemplate == nil)
+        #expect(first.clock() == nil)
     }
 
     @available(macOS 14, *)

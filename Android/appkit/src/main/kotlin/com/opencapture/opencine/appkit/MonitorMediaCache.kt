@@ -582,6 +582,8 @@ public class MonitorMediaCacheReadPlan internal constructor(
     public val id: UUID, public val generation: Long,
     private val records: List<MediaCacheRecordReadPlan>, private val eligibility: MonitorMediaOriginalEligibility,
 ) {
+    /** The records this plan covers, in plan order (scan accounting; no filesystem access). */
+    internal val recordIDs: List<MediaAssetID> get() = records.map { it.id }
     public suspend fun read(): MonitorMediaCacheSnapshot = withContext(Dispatchers.IO) {
         val entries = linkedMapOf<MediaAssetID, MonitorMediaCacheEntry>()
         records.forEach { record ->

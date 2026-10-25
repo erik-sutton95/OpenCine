@@ -51,12 +51,14 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
         close: @escaping @MainActor () -> Void,
         open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
         share: (@MainActor ([MonitorMediaRecord<Payload>], MonitorMediaLibraryActionToken) -> Void)? = nil,
+        cachingActive: (@MainActor () -> Bool)? = nil,
         @ViewBuilder thumbnail: @escaping @MainActor (MonitorMediaGalleryThumbnail<Payload>) -> Thumbnail) {
         content = .init(library: library, brand: brand, safeArea: safeArea, sourceAvailable: sourceAvailable,
             operations: operations, presentation: presentation, navigation: navigation,
             sourceFilter: sourceFilter, managesVisibility: managesVisibility, deletionDetail: deletionDetail,
             colorChoices: colorChoices, resolutionLevels: resolutionLevels, facts: facts, cell: cell,
-            begin: begin, refresh: refresh, close: close, open: open, share: share, thumbnail: thumbnail)
+            begin: begin, refresh: refresh, close: close, open: open, share: share,
+            cachingActive: cachingActive, thumbnail: thumbnail)
     }
 
     public var body: some View { content.id(content.source) }
@@ -82,6 +84,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
     private let close: @MainActor () -> Void
     private let open: @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void
     private let share: (@MainActor ([MonitorMediaRecord<Payload>], MonitorMediaLibraryActionToken) -> Void)?
+    private let cachingActive: (@MainActor () -> Bool)?
     private let thumbnail: @MainActor (MonitorMediaGalleryThumbnail<Payload>) -> Thumbnail
     @State private var gallery: MonitorMediaGalleryModel<Payload>
     @Environment(\.monitorWindowGeometry) private var windowGeometry
@@ -103,6 +106,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         close: @escaping @MainActor () -> Void,
         open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
         share: (@MainActor ([MonitorMediaRecord<Payload>], MonitorMediaLibraryActionToken) -> Void)? = nil,
+        cachingActive: (@MainActor () -> Bool)? = nil,
         @ViewBuilder thumbnail: @escaping @MainActor (MonitorMediaGalleryThumbnail<Payload>) -> Thumbnail) {
         self.library = library; self.brand = brand; self.safeArea = safeArea
         self.presentation = presentation; self.navigation = navigation; self.sourceFilter = sourceFilter
@@ -111,6 +115,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         self.resolutionLevels = resolutionLevels; self.facts = facts; self.cell = cell
         self.begin = begin ?? { library.begin() }; self.refresh = refresh ?? { library.refresh() }
         self.close = close; self.open = open; self.share = share; self.thumbnail = thumbnail
+        self.cachingActive = cachingActive
         _gallery = State(initialValue: MonitorMediaGalleryModel(library: library))
     }
 
@@ -121,7 +126,12 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
                 MonitorTheme.canvas
-                MonitorMediaCatalog(brand: brand, safeArea: safeArea, items: snapshot.records.map(item),
+                // Items are built per realized cell (MonitorMediaCatalog is lazy); building all of
+                // them here called the host once or more per record on every render.
+                MonitorMediaCatalog(brand: brand, safeArea: safeArea,
+                    ids: snapshot.records.map(\.asset.id.rawValue),
+                    item: { id in snapshot.displayed(MediaAssetID(id)).map(item) },
+                    permissions: { id in snapshot.displayed(MediaAssetID(id)).map(permissions) },
                     categories: presentation?.categories ?? MonitorMediaCategoryFilter.allCases.map {
                         .init(id: $0.rawValue, title: $0.rawValue.capitalized, count: library.records(in: $0).count)
                     }, category: presentation?.category ?? library.category.rawValue,
@@ -154,7 +164,10 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                                 }
                             }
                         }
-                    }, accessory: { cachingHeader(snapshot) })
+                    }, accessory: {
+                        MonitorOperatorCachingHeader(records: snapshot.records, hidden: library.selecting,
+                            active: cachingActive, facts: facts)
+                    })
                     .id(catalogIdentity)
                 if gallery.filterPopupPresented { filterPopup(snapshot: snapshot, size: proxy.size) }
                 if let progress = library.deletionProgress {
@@ -216,17 +229,14 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
             MonitorMediaGalleryLabels.resolution(reported.resolution, levels: resolutionLevels),
             reported.byteCount.map(MediaClipFormatting.byteLabel), photo ? nil : duration]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
-        var permissions: MonitorMediaPermissions = [.favorite]
-        if gallery.canDownload(record, operations: operations) { permissions.insert(.cache) }
-        if share != nil, gallery.canShare(record, operations: operations) { permissions.insert(.share) }
-        if gallery.canDelete(record, operations: operations) { permissions.insert(.delete) }
+        let allowed = permissions(record)
         if let value = cell?(record, .init(list: (presentation?.layout ?? library.layout) == .list,
             selecting: library.selecting, duration: gallery.resolvedDurations[record.asset.id],
             selected: library.selectedIDs.contains(record.asset.id))) {
             return .init(id: record.asset.id.rawValue, filename: value.filename, metadata: value.metadata,
                 format: value.format, color: value.color, duration: value.duration, date: value.date,
                 availability: value.availability, progress: value.progress, favorite: record.favorite,
-                photo: value.photo, permissions: permissions,
+                photo: value.photo, permissions: allowed,
                 burstCount: library.selecting ? nil : value.burstCount,
                 mediaBadge: library.selecting ? nil : value.mediaBadge,
                 completionBadge: library.selecting ? nil : value.completionBadge, transferCaption: value.transferCaption)
@@ -238,18 +248,14 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
             date: reported.dateKey.map(MonitorMediaGalleryLabels.date) ?? "",
             availability: cached?.originalURL != nil ? .original : cached?.proxyURL != nil ? .proxy : .camera,
             progress: reported.progress ?? library.progress[record.asset.id], favorite: record.favorite, photo: photo,
-            permissions: permissions)
+            permissions: allowed)
     }
-    @ViewBuilder private func cachingHeader(_ snapshot: MonitorMediaGallerySnapshot<Payload>) -> some View {
-        if !library.selecting, let record = snapshot.records.first(where: { facts($0).progress != nil }),
-            let progress = facts(record).progress {
-            HStack(spacing: 10) {
-                ProgressView(value: progress).tint(MonitorTheme.accent).frame(maxWidth: 120)
-                Text("CACHING \(record.asset.filename) \(Int(progress * 100))%")
-                    .font(MonitorTheme.font(10, weight: .medium)).foregroundStyle(MonitorTheme.muted).lineLimit(1)
-            }.padding(.horizontal, 14).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
-                .liquidGlass(in: Capsule(), interactive: false)
-        }
+    private func permissions(_ record: MonitorMediaRecord<Payload>) -> MonitorMediaPermissions {
+        var permissions: MonitorMediaPermissions = [.favorite]
+        if gallery.canDownload(record, operations: operations) { permissions.insert(.cache) }
+        if share != nil, gallery.canShare(record, operations: operations) { permissions.insert(.share) }
+        if gallery.canDelete(record, operations: operations) { permissions.insert(.delete) }
+        return permissions
     }
     private var dateBounds: ClosedRange<Date>? {
         let dates = library.records(in: library.category).compactMap { $0.facts.dateKey.flatMap { MediaLibraryQuery.date(fromKey: $0) } }
@@ -386,6 +392,30 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         case .shareSelection:
             if let records = gallery.shareSelection(admitted: snapshot, operations: operations) { share?(records, snapshot.token) }
         }
+    }
+}
+
+/// The caching readout. Its own view: per-chunk progress re-renders this header, not the grid.
+private struct MonitorOperatorCachingHeader<Payload: Sendable>: View {
+    let records: [MonitorMediaRecord<Payload>]
+    let hidden: Bool
+    /// The owner's own signal that any record it reports progress for is caching; when false the
+    /// header skips asking every record's facts. Nil keeps the scan.
+    let active: (@MainActor () -> Bool)?
+    let facts: @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts
+    var body: some View {
+        if !hidden, active?() ?? true, let (record, progress) = caching {
+            HStack(spacing: 10) {
+                ProgressView(value: progress).tint(MonitorTheme.accent).frame(maxWidth: 120)
+                Text("CACHING \(record.asset.filename) \(Int(progress * 100))%")
+                    .font(MonitorTheme.font(10, weight: .medium)).foregroundStyle(MonitorTheme.muted).lineLimit(1)
+            }.padding(.horizontal, 14).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+                .liquidGlass(in: Capsule(), interactive: false)
+        }
+    }
+    private var caching: (MonitorMediaRecord<Payload>, Double)? {
+        for record in records { if let progress = facts(record).progress { return (record, progress) } }
+        return nil
     }
 }
 

@@ -1829,6 +1829,7 @@ static func NikonMediaFilterDerivation.options(for: [NikonMediaFilterItem], now:
 static func NikonMediaFilterDerivation.partitioning(_: [Value], itemCount: Swift.Int, matchCount: (Value) -> Swift.Int)<Value> -> [Value]
 static func NikonMediaLibraryAssets.asset(namespace: Swift.String, identity: Swift.String, filename: Swift.String, captureDate: Swift.String, sizeBytes: Swift.UInt64, pixelWidth: Swift.UInt32?, pixelHeight: Swift.UInt32?) -> OpenCineMedia.MediaAsset
 static func NikonMediaPhotoSizeClass.rank(pixelWidth: Swift.UInt32, among: some Swift.Sequence<Swift.UInt32>) -> NikonMediaPhotoSizeClass?
+static func NikonMediaPhotoSizeClass.ranking(among: some Swift.Sequence<Swift.UInt32>) -> [Swift.UInt32 : NikonMediaPhotoSizeClass]
 static func NikonMediaResolutionBucket.classify(filename: Swift.String, pixelWidth: Swift.UInt32?, sourcePixelWidth: Swift.UInt32?) -> NikonMediaResolutionBucket?
 static func NikonMediaResolutionBucket.from(pixelWidth: Swift.UInt32) -> NikonMediaResolutionBucket?
 static func NikonMediaResolutionBucket.fromFilename(_: Swift.String) -> NikonMediaResolutionBucket?

@@ -79,7 +79,14 @@ public class NikonAndroidGalleryProjectionPolicy(
     /** The unchanged viewer/deletion widening looks through the full captured bucket. */
     public fun rawCompanion(id: MediaAssetID): MediaAssetID? {
         val item = byID[id] ?: return null
-        return NikonMediaDeletionPlan.rawPartner(items, item, { it.clip }, { it.namespace })?.id
+        if (formatKey(item.clip) != "JPEG") return null
+        return rawByPairKey[pairKey(item)]?.id
+    }
+    /** The first RAW per pair key, as rawPartner's scan would find it; a cell asks in O(1). */
+    private val rawByPairKey: Map<String, NikonGallerySourceItem> by lazy {
+        HashMap<String, NikonGallerySourceItem>().also { map ->
+            items.forEach { if (formatKey(it.clip) == "NEF") map.putIfAbsent(pairKey(it), it) }
+        }
     }
     private fun pairKey(item: NikonGallerySourceItem): String = NikonMediaDeletionPlan.pairKey(item.namespace, item.clip)
     public companion object {
@@ -98,9 +105,12 @@ public class NikonAndroidGalleryProjectionPolicy(
         public fun resolutionKey(clip: NikonMediaClipRecord): String? = resolution(clip)
         public fun stillWidths(clips: List<NikonMediaClipRecord>): List<Int> =
             clips.filter { it.contentKind == NikonMediaContentKind.STILL_PHOTO }.map { it.pixelWidth }
-        public fun photoSizeKey(clip: NikonMediaClipRecord, widths: List<Int>): String? {
+        public fun photoSizeKey(clip: NikonMediaClipRecord, widths: List<Int>): String? =
+            rankedPhotoSizeKey(clip, photoSizeRanking(widths))
+        /** The L/M/S ranking of a listing's still widths, built once per listing (not per photo). */
+        public fun photoSizeRanking(widths: List<Int>): List<Int> = widths.filter { it > 0 }.distinct().sortedDescending()
+        private fun rankedPhotoSizeKey(clip: NikonMediaClipRecord, ranked: List<Int>): String? {
             if (clip.contentKind != NikonMediaContentKind.STILL_PHOTO || clip.pixelWidth <= 0) return null
-            val ranked = widths.filter { it > 0 }.distinct().sortedDescending()
             if (ranked.size > 3) return null
             return listOf("L", "M", "S").getOrNull(ranked.indexOf(clip.pixelWidth))
         }
@@ -109,16 +119,23 @@ public class NikonAndroidGalleryProjectionPolicy(
             return !day.isAfter(today) && !day.isBefore(today.minusDays(dayCount - 1))
         }
         public fun offered(clips: List<NikonMediaClipRecord>, today: LocalDate): MonitorMediaProjectionOffered {
-            fun offered(candidates: List<String>, matches: (NikonMediaClipRecord, String) -> Boolean) =
-                candidates.filter { key -> clips.count { matches(it, key) } in 1 until clips.size }
-            val widths = stillWidths(clips)
+            // One key per clip per facet, then counts: O(n) per listing, not O(n) per candidate per clip.
+            fun offered(candidates: List<String>, keys: (NikonMediaClipRecord) -> Collection<String>): List<String> {
+                val counts = HashMap<String, Int>()
+                clips.forEach { clip -> keys(clip).forEach { counts[it] = (counts[it] ?: 0) + 1 } }
+                return candidates.filter { (counts[it] ?: 0) in 1 until clips.size }
+            }
+            val ranked = photoSizeRanking(stillWidths(clips))
+            val days = HashMap<String, LocalDate?>()
             return MonitorMediaProjectionOffered(
-                formats = offered(formats) { clip, key -> format(clip) == key },
-                resolutions = offered(listOf("HD", "4K", "5.4K", "6K")) { clip, key ->
-                    clip.contentKind != NikonMediaContentKind.STILL_PHOTO && resolution(clip) == key },
-                photoSizes = offered(listOf("L", "M", "S")) { clip, key -> photoSizeKey(clip, widths) == key },
-                dateWindows = offered(dayWindows.map { it.first }) { clip, key ->
-                    windowContains(clip.captureDate, dayWindows.first { it.first == key }.second, today) })
+                formats = offered(formats) { clip -> listOfNotNull(format(clip)) },
+                resolutions = offered(listOf("HD", "4K", "5.4K", "6K")) { clip ->
+                    if (clip.contentKind != NikonMediaContentKind.STILL_PHOTO) listOfNotNull(resolution(clip)) else emptyList() },
+                photoSizes = offered(listOf("L", "M", "S")) { clip -> listOfNotNull(rankedPhotoSizeKey(clip, ranked)) },
+                dateWindows = offered(dayWindows.map { it.first }) { clip ->
+                    val day = days.getOrPut(clip.captureDate.take(8)) { captureDay(clip.captureDate) } ?: return@offered emptyList()
+                    dayWindows.filter { (_, count) -> !day.isAfter(today) && !day.isBefore(today.minusDays(count - 1)) }.map { it.first }
+                })
         }
         private fun format(clip: NikonMediaClipRecord): String? = clip.stillPhoto?.formatLabel?.takeIf { it in formats }
         ?: when (clip.codecLabel) { "MOV", "M4V" -> "MOV"; "MP4" -> "MP4"; else -> null }

@@ -1,4 +1,5 @@
 import Foundation
+import MonitorPresentation
 import Observation
 import OpenCineCore
 
@@ -56,6 +57,10 @@ public final class MonitorControlModel {
         timecodeReading.compactMap { $0.frameTimecode }
     }
     public private(set) var timecodeReading: ObservedValue<CameraTimecodeReading> = .unknown
+    /// The reported clock with every digit as 0, `nil` while unknown. It changes only when the
+    /// clock's shape does (known, precision, hour width), so a status row laid out from it is not
+    /// re-evaluated per frame; the clock readout follows `timecodeReading` on its own.
+    public private(set) var timecodeTemplate: String?
     @ObservationIgnored private var latest: CameraSnapshot?
     /// Operator targets whose operations are unfinished.
     public private(set) var pending: [SettingKey: SettingValue] = [:]
@@ -220,6 +225,7 @@ public final class MonitorControlModel {
         session = nil
         withMutation(keyPath: \.snapshot) { latest = nil }
         if timecodeReading != .unknown { timecodeReading = .unknown }
+        if timecodeTemplate != nil { timecodeTemplate = nil }
         pending = [:]
         operations = [:]
         scheduled = []
@@ -267,6 +273,8 @@ public final class MonitorControlModel {
             withMutation(keyPath: \.snapshot) { latest = snapshot }
         }
         if timecodeReading != snapshot.timecodeReading { timecodeReading = snapshot.timecodeReading }
+        let template = MonitorTimecodeFormat.label(snapshot).map(MonitorTimecodeFormat.widthTemplate)
+        if timecodeTemplate != template { timecodeTemplate = template }
         onChange()
     }
 
