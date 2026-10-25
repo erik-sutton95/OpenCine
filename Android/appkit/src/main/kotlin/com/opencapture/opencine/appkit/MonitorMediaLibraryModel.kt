@@ -586,7 +586,12 @@ public class MonitorMediaLibraryModel<P>(
                         if (!isActive || entryRequest != request || lifetime != generation ||
                             snapshot.planID != plan.id || snapshot.generation != cache.directory.generation) return@launch
                         entryTask = null
-                        mutate { it.copy(entries = snapshot.entries, cacheRevision = it.cacheRevision + 1) }
+                        // A page that removed records during the scan no longer restarts it: keep only
+                        // entries of records that still exist.
+                        mutate { state ->
+                            val current = state.records.mapTo(HashSet()) { it.asset.id }
+                            state.copy(entries = snapshot.entries.filterKeys { it in current }, cacheRevision = state.cacheRevision + 1)
+                        }
                     } catch (error: Exception) { if (entryRequest == request && lifetime == generation) entryTask = null }
                     if (entryRequest == request && lifetime == generation && entryTask == null && dirtyDuringFull.isNotEmpty()) {
                         val dirty = dirtyDuringFull.toSet(); dirtyDuringFull.clear(); reloadEntries(dirty)

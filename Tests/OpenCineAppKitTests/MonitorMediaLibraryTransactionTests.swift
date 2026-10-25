@@ -329,6 +329,32 @@ import Testing
         for _ in 0..<20 { await Task.yield() }
         #expect(model.cacheRevision == 1 && model.entries[.init("A")]?.thumbnailURL == nil)
     }
+    /// A listing page that removes a record while a full background scan is in flight no longer
+    /// restarts that scan (targeted rescans, #271), so the scan's late snapshot must not bring the
+    /// removed record's cache entry back (CodeRabbit on #271).
+    @Test func lateFullScanCannotResurrectAnEntryRemovedDuringTheScan() async throws {
+        let codec = TransactionCodec()
+        codec.loaded = [record("A"), record("B")]
+        let gate = SnapshotGate()
+        let (root, cache) = try cache(codec)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try cache.directory.write(Data([1]), at: "thumb.jpg")
+        let service = TransactionService([.init(removed: [.init("B")], complete: true)])
+        let model = MonitorMediaLibraryModel(
+            cache: cache, favorites: TransactionFavorites(), service: service,
+            cacheScanning: .background, readSnapshot: { try await gate.read($0) })
+        defer { model.close() }
+        model.begin()
+        #expect(await eventually { codec.captures == 1 && !model.fetching })
+        #expect(model.records.map(\.asset.id) == [.init("A")])
+        #expect(await eventually { !gate.waiters.isEmpty })
+        #expect(gate.waiters.last?.snapshot.entries[.init("B")] != nil, "the scan read B before it went")
+        for index in gate.waiters.indices { gate.release(index) }
+        #expect(await eventually { model.cacheRevision > 0 })
+        for _ in 0..<20 { await Task.yield() }
+        #expect(model.entries[.init("A")] != nil)
+        #expect(model.entries[.init("B")] == nil, "a removed record keeps no cache entry")
+    }
     @available(macOS 14, *)
     @Test func localRemovalLeavesCameraObservationAndRejectsRetiredAction() async throws {
         let codec = TransactionCodec()

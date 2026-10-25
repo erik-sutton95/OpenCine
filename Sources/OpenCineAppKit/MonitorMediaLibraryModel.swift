@@ -1157,8 +1157,11 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                         snapshot.generation == self.cache.directory.generation
                     else { return }
                     self.entryTask = nil
+                    // A page that removed records during the scan no longer restarts it: keep
+                    // only entries of records that still exist.
+                    let entries = snapshot.entries.filter { self.record($0.key) != nil }
                     self.commit {
-                        $0.entries = snapshot.entries
+                        $0.entries = entries
                         $0.cacheRevision &+= 1
                     }
                     // Rows written while this scan ran may have been read before the write.
