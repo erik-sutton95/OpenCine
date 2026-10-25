@@ -1,0 +1,365 @@
+#if os(iOS)
+import Foundation
+import Observation
+import OpenCineGyro
+import UIKit
+
+/// Owns a foreground phone-motion session independently of monitor overlays and the log browser.
+/// A host feeds camera state through a `GyroCameraAdapter`; the coordinator never commands
+/// recording.
+@available(iOS 17, *) @MainActor @Observable
+public final class GyroCaptureCoordinator: GyroCameraSink {
+    /// The saved Gyro toggle: arm whenever possible.
+    public var enabled: Bool {
+        didSet {
+            guard enabled != oldValue else { return }
+            preferences.enabled = enabled
+            if enabled {
+                if loaded { latestRecordingCalibration = recordingCalibration() }
+                failed = false
+            }
+            evaluateEligibility()
+        }
+    }
+    /// Takes newest first, as the store reports them.
+    public private(set) var logs: [GyroLogEntry] = []
+    /// The latest problem to show; the shared UI resolves its wording.
+    public private(set) var notice: GyroNotice?
+    /// Whether raw gyro samples are being collected.
+    public private(set) var motionRunning = false
+    /// Whether the logs browser is shown.
+    public var logsPresented = false
+    /// Whether capture failed; cleared when the toggle is turned on again.
+    public private(set) var failed = false
+    /// Whether an open take contains a sensor gap.
+    public private(set) var hasGapWarning = false
+    /// Whether the running session has accepted a sensor sample.
+    public private(set) var hasFirstSample = false
+    /// The recording state the take session last observed.
+    public private(set) var reportedRecording: Bool?
+    /// The active camera body, or nil when not connected.
+    public private(set) var camera: GyroCameraIdentity?
+    /// Whether the logs tip was dismissed.
+    private var tipDismissed: Bool
+
+    @ObservationIgnored let host: GyroHostConfiguration
+    @ObservationIgnored let preferences: GyroPreferences
+    @ObservationIgnored let driver: any GyroMotionDriving
+    @ObservationIgnored let store: any GyroLogStoring
+    @ObservationIgnored let now: () -> Double
+    @ObservationIgnored let automaticProcessing: Bool
+    @ObservationIgnored var adapter: (any GyroCameraAdapter)?
+    @ObservationIgnored var hostEligible = false
+    @ObservationIgnored var videoMode: Bool?
+    @ObservationIgnored var cameraRecording: Bool?
+    @ObservationIgnored var loggingEligible = false
+    @ObservationIgnored var session: GyroTakeSession
+    @ObservationIgnored var buffer = GyroSampleBuffer()
+    @ObservationIgnored var worker: Task<Void, Never>?
+    @ObservationIgnored var loading: Task<Void, Never>?
+    @ObservationIgnored var observations: [PendingObservation] = []
+    @ObservationIgnored var stopping: GyroLogTermination?
+    @ObservationIgnored var latestRecordingCalibration: GyroMountCalibration?
+    @ObservationIgnored var loaded = false
+    @ObservationIgnored var processing = false
+    @ObservationIgnored var endingReason: GyroLogTermination?
+    @ObservationIgnored var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    /// Starts a UIKit background task; replaced in tests that run without an application.
+    @ObservationIgnored var beginBackgroundTask:
+        @MainActor (_ expiration: @escaping @MainActor @Sendable () -> Void)
+            -> UIBackgroundTaskIdentifier = { expiration in
+                UIApplication.shared.beginBackgroundTask(
+                    withName: "Save gyro log", expirationHandler: expiration)
+            }
+    /// Ends a UIKit background task; replaced in tests that run without an application.
+    @ObservationIgnored var endBackgroundTaskHandler: @MainActor (UIBackgroundTaskIdentifier) -> Void =
+        { UIApplication.shared.endBackgroundTask($0) }
+
+    /// One camera observation queued for the take session, in arrival order.
+    enum PendingObservation {
+        case recording(Bool, at: Double, date: Date, label: String, calibration: GyroMountCalibration?)
+        case mountMoved(at: Double)
+
+        var timestamp: Double {
+            switch self {
+            case .recording(_, let at, _, _, _): at
+            case .mountMoved(let at): at
+            }
+        }
+    }
+
+    /// Creates the coordinator for one host. Every collaborator is injectable for tests.
+    public init(
+        host: GyroHostConfiguration, driver: (any GyroMotionDriving)? = nil,
+        store: (any GyroLogStoring)? = nil, keyValueStore: (any GyroKeyValueStore)? = nil,
+        now: @escaping () -> Double = { ProcessInfo.processInfo.systemUptime },
+        automaticProcessing: Bool = true
+    ) {
+        self.host = host
+        let preferences = GyroPreferences(
+            store: keyValueStore ?? UserDefaultsGyroStore(defaults: .standard),
+            keys: host.preferenceKeys, legacy: host.legacyKeys)
+        self.preferences = preferences
+        self.driver = driver ?? PhoneMotionDriver.shared
+        let store = store ?? GyroLogStore(directory: host.logDirectory)
+        self.store = store
+        self.now = now
+        self.automaticProcessing = automaticProcessing
+        session = GyroTakeSession(appName: host.appName)
+        enabled = preferences.enabled
+        tipDismissed = preferences.tipDismissed
+        loading = Task { [weak self] in
+            let result: Result<GyroLogRecoveryResult, any Error>
+            do { result = .success(try await store.load()) } catch { result = .failure(error) }
+            guard let self else { return }
+            switch result {
+            case .success(let recovered):
+                logs = recovered.entries
+                if recovered.warning != nil { notice = .recoveryIncomplete }
+            case .failure:
+                failed = true
+                notice = .openFailed
+            }
+            loaded = true
+            reconcile()
+        }
+    }
+
+    /// Whether the dismissible logs tip is shown.
+    public var tipVisible: Bool { !tipDismissed }
+
+    /// Hides the logs tip for good.
+    public func dismissTip() {
+        tipDismissed = true
+        preferences.tipDismissed = true
+    }
+
+    /// Starts receiving camera observations from an adapter, replacing any previous one.
+    public func attach(_ adapter: any GyroCameraAdapter) {
+        if let current = self.adapter, current !== adapter { detachAdapter() }
+        self.adapter = adapter
+        adapter.attach(self)
+    }
+
+    /// Stops receiving camera observations and treats the camera as disconnected.
+    public func detachAdapter() {
+        guard let adapter else { return }
+        adapter.detach()
+        receive(.disconnected)
+        self.adapter = nil
+    }
+
+    /// Monitor showing, app in front, and no multicam or relay.
+    public func setHostEligible(_ eligible: Bool) {
+        guard hostEligible != eligible else { return }
+        hostEligible = eligible
+        evaluateEligibility()
+    }
+
+    /// Ends capture as backgrounded; the save finishes inside a UIKit background task.
+    public func appDidEnterBackground() {
+        endingReason = .backgrounded
+        hostEligible = false
+        evaluateEligibility()
+        endingReason = nil
+    }
+
+    /// Handles one camera observation in adapter order.
+    public func receive(_ event: GyroCameraEvent) {
+        switch event {
+        case .connected(let identity):
+            camera = identity
+        case .disconnected:
+            camera = nil
+            videoMode = nil
+            observeCameraRecording(nil)
+        case .recording(let recording, _):
+            observeCameraRecording(recording)
+        case .level:
+            break
+        case .stabilization:
+            break
+        case .videoMode(let mode):
+            videoMode = mode
+        }
+        evaluateEligibility()
+        if case .recording(let recording?, let time) = event { observeRecording(recording, at: time) }
+    }
+
+    /// Waits for the saved logs to load.
+    public func waitUntilLoaded() async { await loading?.value }
+
+    /// Copies finished logs for sharing, in order; an empty result means sharing was refused.
+    public func share(_ ids: [UUID]) async -> [URL] {
+        do { return try await store.share(ids) } catch {
+            notice = .shareFailed
+            return []
+        }
+    }
+
+    /// Deletes one finished log.
+    public func delete(_ id: UUID) async {
+        do { logs = try await store.delete(id) } catch {
+            notice = .deleteFailed
+        }
+    }
+
+    /// Clears the visible notice.
+    public func clearNotice() { notice = nil }
+
+    // MARK: Eligibility
+
+    /// Recomputes whether a logging session runs and starts or stops motion to match.
+    func evaluateEligibility() {
+        let eligible = enabled && camera != nil && hostEligible && videoMode == true
+        guard eligible != loggingEligible else { return }
+        loggingEligible = eligible
+        if eligible {
+            reconcile()
+        } else {
+            stop(reason: endingReason ?? (enabled ? .disconnected : .disabled))
+        }
+    }
+
+    /// The calibration a REC observed now would freeze for its take.
+    func recordingCalibration() -> GyroMountCalibration? {
+        guard let camera else { return nil }
+        return preferences.calibration(for: camera.id)
+    }
+
+    private func observeCameraRecording(_ recording: Bool?) {
+        if cameraRecording != recording {
+            latestRecordingCalibration = recordingCalibration()
+        }
+        cameraRecording = recording
+    }
+
+    // MARK: Logging pipeline
+
+    /// Queues a recording change for the take session when capture is running.
+    func observeRecording(_ recording: Bool, at time: Double) {
+        guard motionRunning, stopping == nil, reportedRecording != recording else { return }
+        guard observations.count < GyroTakeSession.maximumBufferedSamples else {
+            fail(.recordingEventsLost)
+            stop(reason: .bufferOverflow)
+            return
+        }
+        reportedRecording = recording
+        observations.append(
+            .recording(
+                recording, at: time, date: Date(), label: camera?.name ?? "",
+                calibration: latestRecordingCalibration))
+    }
+
+    /// Ends motion collection; the next `processPending` finalizes open takes with the reason.
+    func stop(reason: GyroLogTermination) {
+        guard motionRunning, stopping == nil else { return }
+        driver.stopGyro()
+        stopping = reason
+        if reason == .backgrounded, backgroundTask == .invalid {
+            backgroundTask = beginBackgroundTask { [weak self] in self?.endBackgroundTask() }
+        }
+    }
+
+    func fail(_ reason: GyroNotice) {
+        failed = true
+        notice = reason
+    }
+
+    func reconcile() {
+        guard loggingEligible, loaded, !failed, worker == nil, !motionRunning else { return }
+        session = GyroTakeSession(appName: host.appName)
+        buffer = GyroSampleBuffer()
+        observations.removeAll()
+        reportedRecording = nil
+        stopping = nil
+        hasGapWarning = false
+        hasFirstSample = false
+        _ = session.poll(at: now())
+        do { try driver.startGyro(into: buffer) } catch {
+            fail(.sensorUnavailable)
+            return
+        }
+        motionRunning = true
+        if let cameraRecording { observeRecording(cameraRecording, at: now()) }
+        guard automaticProcessing else { return }
+        worker = Task { [weak self] in
+            while let self, self.motionRunning {
+                await self.processPending()
+                if self.motionRunning { try? await Task.sleep(for: .milliseconds(100)) }
+            }
+            guard let self else { return }
+            self.worker = nil
+            self.reconcile()
+        }
+    }
+
+    /// Drains samples before state changes or finalization so pending callback batches are
+    /// retained.
+    public func processPending() async {
+        guard motionRunning, !processing else { return }
+        processing = true
+        defer {
+            processing = false
+            if !motionRunning {
+                endBackgroundTask()
+                if !automaticProcessing { reconcile() }
+            }
+        }
+        let time = now()
+        let batch = buffer.drain()
+        var updates: [GyroLogUpdate] = []
+        var remaining = batch.samples[...]
+        // Interleave camera observations with their sensor-time prefixes. Ingesting a whole
+        // delayed batch first would prune pre-roll that belongs to an earlier REC observation.
+        for observation in observations {
+            let boundary =
+                remaining.firstIndex { $0.timestamp > observation.timestamp } ?? remaining.endIndex
+            updates += session.ingest(Array(remaining[..<boundary]))
+            switch observation {
+            case .recording(let recording, let at, let date, let label, let calibration):
+                updates += session.observeRecording(
+                    recording, at: at, date: date, cameraLabel: label,
+                    mountCalibration: calibration)
+            case .mountMoved(let at):
+                updates += session.observeMountMoved(at: at)
+            }
+            remaining = remaining[boundary...]
+        }
+        updates += session.ingest(Array(remaining))
+        observations.removeAll(keepingCapacity: true)
+        if let reason = stopping ?? batch.failure {
+            updates += session.finish(reason: reason)
+            if let failure = batch.failure, stopping == nil {
+                fail(failure == .bufferOverflow ? .samplesLost : .sensorStalled)
+            }
+            stopping = nil
+        } else {
+            updates += session.poll(at: time)
+        }
+        // A stalled armed session has no open file, so the core can finish without an update.
+        if session.isFinished {
+            motionRunning = false
+            driver.stopGyro()
+            if session.termination == .sensorStalled { fail(.sensorStalled) }
+        }
+        hasGapWarning = session.hasGapWarning
+        hasFirstSample = session.latestSampleTimestamp != nil
+        do { logs = try await store.apply(updates, at: time) } catch {
+            motionRunning = false
+            driver.stopGyro()
+            fail(.saveFailed)
+            // The file may contain only part of this batch. Recover bytes actually written,
+            // never publish the session's in-memory sample count as a successful disk write.
+            let recovered = await store.abort()
+            logs = recovered.entries
+        }
+    }
+
+    private func endBackgroundTask() {
+        guard backgroundTask != .invalid else { return }
+        endBackgroundTaskHandler(backgroundTask)
+        backgroundTask = .invalid
+    }
+}
+#endif

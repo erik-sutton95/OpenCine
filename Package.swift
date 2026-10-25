@@ -99,7 +99,7 @@ let package = Package(
         // MARK: Core
         // Portable common camera, monitoring and capability contracts. Foundation only.
         .target(name: "OpenCineCore"),
-        .target(name: "OpenCineCoreTestSupport", dependencies: ["OpenCineCore"]),
+        .target(name: "OpenCineCoreTestSupport", dependencies: ["OpenCineCore", "OpenCineGyro"]),
         .testTarget(
             name: "OpenCineCoreTests",
             dependencies: ["OpenCineCore", "OpenCineCoreTestSupport"]
