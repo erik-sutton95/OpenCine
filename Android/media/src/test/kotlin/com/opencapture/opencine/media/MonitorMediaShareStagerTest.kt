@@ -29,6 +29,32 @@ class MonitorMediaShareStagerTest {
         assertEquals(0L, fileCount(root.resolve("cache/share/staging")))
     }
 
+    /** Hardware pass 7.3: receivers name a shared file after its URI, so the ready copy keeps the camera's name. */
+    @Test fun readyCopiesKeepTheCameraFileName() = withRoot { root ->
+        val stager = stager(root)
+        val clip = stager.stage(completed(root, "a.media", byteArrayOf(1, 2, 3)), "DJI_20261020092354_0172_D.MP4", "video/*")
+        assertEquals("DJI_20261020092354_0172_D.MP4", clip.file.fileName.toString())
+        val prepared = root.resolve("export.tmp").also { Files.write(it, byteArrayOf(4, 5)) }
+        val export = stager.stagePreparedArtifact(prepared, 2, "C0069.MOV", "video/quicktime")
+        assertEquals("C0069.MOV", export.file.fileName.toString())
+        // Equal bytes under two camera names stay two files, each under its own name.
+        val twin = stager.stage(completed(root, "b.media", byteArrayOf(1, 2, 3)), "DJI_0173.MP4", "video/*")
+        assertEquals("DJI_0173.MP4", twin.file.fileName.toString())
+        assertTrue(Files.exists(clip.file))
+        assertTrue(clip.file.startsWith(root.resolve("cache/share/ready")))
+    }
+
+    /** Ready copies from builds that named them by digest still count against capacity and expire. */
+    @Test fun legacyDigestNamedReadyCopiesAreStillReclaimed() = withRoot { root ->
+        val ready = root.resolve("cache/share/ready").also { Files.createDirectories(it) }
+        val legacy = ready.resolve("0123abcd.mp4").also { Files.write(it, byteArrayOf(9, 9)) }
+        Files.setLastModifiedTime(legacy, java.nio.file.attribute.FileTime.fromMillis(0))
+        val stager = stager(root, bytes = 2, count = 1, retention = 10) { 100L }
+        val next = stager.stage(completed(root, "next.mov", byteArrayOf(3, 4)), "next.mov", "video/*")
+        assertFalse(Files.exists(legacy))
+        assertTrue(Files.exists(next.file))
+    }
+
     @Test fun partialUnsafeAndMalformedSourcesCannotPublishReadyFiles() = withRoot { root ->
         val partial = ProgressiveMediaCache(root.resolve("source")).openEntry(
             "camera", ProgressiveMediaCacheIdentity("partial.mov", "partial"), 4,
