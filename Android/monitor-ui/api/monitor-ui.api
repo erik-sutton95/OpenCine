@@ -312,6 +312,7 @@ public final class com/opencapture/monitorui/MonitorAssistPaletteReveal {
 	public static final field SLOP F
 	public static final field SNAP F
 	public final fun compactToolCount (Z)I
+	public final fun coversValues (Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;)Z
 	public final fun extraToolOpacity (F)F
 	public final fun landscapeCellIndex (II)I
 	public final fun lerp (FFF)F
