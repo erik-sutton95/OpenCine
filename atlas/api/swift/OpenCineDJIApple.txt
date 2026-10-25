@@ -406,6 +406,8 @@ func DjiApplePictureRecovery.retireLiveView(scope: DjiAppleLiveViewScope) -> ()
 func DjiApplePictureRecovery.start(_: (DjiApplePictureRecovery.Attempt) async -> Swift.Void) -> Swift.Bool
 func DjiAppleRecoveryEpisode.begin(targetID: Swift.String?, trigger: OpenCineCameraVocabulary.SessionRecoveryTrigger, reason: Swift.String) -> Swift.Bool
 func DjiAppleRecoveryEpisode.cancel(clearHold: Swift.Bool) -> ()
+func DjiAppleRecoveryEpisode.pause() -> ()
+func DjiAppleRecoveryEpisode.resume() -> ()
 func DjiAppleRecoveryEpisode.retry() -> Swift.Bool
 func DjiAppleSessionHeartbeat.resetPathGrace() -> ()
 func DjiAppleSessionHeartbeat.start(monitorMaintenanceEnabled: Swift.Bool) -> ()
