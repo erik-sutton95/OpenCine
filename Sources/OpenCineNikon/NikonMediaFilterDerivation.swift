@@ -71,11 +71,43 @@ public enum NikonMediaPhotoSizeClass: String, CaseIterable, Codable, Sendable {
         among presentWidths: some Sequence<UInt32>
     ) -> NikonMediaPhotoSizeClass? {
         guard pixelWidth > 0 else { return nil }
+        return ranking(among: presentWidths)[pixelWidth]
+    }
+
+    /// `rank(pixelWidth:among:)` for every present width at once. Callers ranking a whole
+    /// listing build this once: ranking per still rebuilt and sorted the width set for every
+    /// photo, O(photos^2) inside a SwiftUI body (Z iOS 304 watchdog kill, 2026-10-25).
+    public static func ranking(among presentWidths: some Sequence<UInt32>)
+        -> [UInt32: NikonMediaPhotoSizeClass]
+    {
         let ranked = Set(presentWidths.filter { $0 > 0 }).sorted(by: >)
-        guard ranked.count <= allCases.count, let index = ranked.firstIndex(of: pixelWidth) else {
-            return nil
-        }
-        return allCases[index]
+        guard ranked.count <= allCases.count else { return [:] }
+        return Dictionary(uniqueKeysWithValues: zip(ranked, allCases))
+    }
+}
+
+/// Date-window membership for a whole listing: the calendar work runs once per capture day,
+/// not three times per object.
+struct NikonMediaDateWindowClassifier {
+    private let now: Date
+    private let calendar: Calendar
+    private var byDay: [Substring: Set<NikonMediaDateWindow>?] = [:]
+    init(now: Date, calendar: Calendar) {
+        self.now = now
+        self.calendar = calendar
+    }
+    /// Nil when the capture date has no valid day; otherwise the windows containing it.
+    mutating func windows(_ ptpCaptureDate: String) -> Set<NikonMediaDateWindow>? {
+        let day = ptpCaptureDate.prefix(8)
+        if let known = byDay[day] { return known }
+        let value: Set<NikonMediaDateWindow>? =
+            NikonMediaDateWindow.captureDay(ptpCaptureDate, calendar: calendar) == nil
+            ? nil
+            : Set(NikonMediaDateWindow.allCases.filter {
+                $0.contains(ptpCaptureDate: ptpCaptureDate, now: now, calendar: calendar)
+            })
+        byDay[day] = value
+        return value
     }
 }
 
@@ -220,12 +252,15 @@ public enum NikonMediaFilterDerivation {
             guard MediaClipFilename.isPhoto(item.filename) else { return nil }
             return item.pixelWidth
         }
+        let ranking = NikonMediaPhotoSizeClass.ranking(among: stillWidths)
         let sizes = items.map { item -> NikonMediaPhotoSizeClass? in
             guard MediaClipFilename.isPhoto(item.filename), let width = item.pixelWidth else {
                 return nil
             }
-            return NikonMediaPhotoSizeClass.rank(pixelWidth: width, among: stillWidths)
+            return ranking[width]
         }
+        var classifier = NikonMediaDateWindowClassifier(now: now, calendar: calendar)
+        let windows = items.map { classifier.windows($0.captureDate) ?? [] }
         // Resolution buckets describe video frame sizes; a still's rank belongs in the SIZE row.
         let buckets = items.map { item -> NikonMediaResolutionBucket? in
             guard !MediaClipFilename.isPhoto(item.filename) else { return nil }
@@ -247,9 +282,7 @@ public enum NikonMediaFilterDerivation {
                 sizes.count { $0 == size }
             },
             dateWindows: partitioning(NikonMediaDateWindow.allCases, itemCount: count) { window in
-                items.count {
-                    window.contains(ptpCaptureDate: $0.captureDate, now: now, calendar: calendar)
-                }
+                windows.count { $0.contains(window) }
             }
         )
     }
