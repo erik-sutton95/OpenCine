@@ -63,6 +63,7 @@ class PlaybackLabelCITests(unittest.TestCase):
         source = (ROOT / 'scripts/ios-playback-label-native-system-dismissal/NativeCancelUITests.swift').read_text()
         body = source.split('    func testCapturedDeletionConfirmation', 1)[1].split('    private func ', 1)[0]
         self.assertEqual(body.count('dismissalCoordinate('), 1, 'one walk per readiness observation, no recompute')
+        self.assertIn('readyCoordinate = stable ? observed : nil', body, 'bind only the accepted observation')
         self.assertIn('try XCTUnwrap(readyCoordinate)', body)
 
 
