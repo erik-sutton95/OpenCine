@@ -125,16 +125,10 @@
         private var storage: String { storageForms[storageForm % storageForms.count] }
 
         private var storageForms: [String] {
-            // The unified capability readout owns the values; a tap steps from the free space to
-            // its percentage, then (video) the remaining recording time, marked estimated (A5-11).
-            let readout = host.control.snapshot?.storage.storageReadout
-            // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
-            let free = readout.map {
-                layout.presentation?.portrait == true
-                    ? MonitorStorageReadoutFormat.wholeUnitCapacity(bytes: $0.freeBytes) : $0.free
-            } ?? StorageReadout.unavailable
-            return [free] + MonitorStorageReadoutFormat.alternatives(percent: readout?.percent,
-                recordingTime: host.control.snapshot?.storage.recordingTimeLabel, photo: host.cameraStatus.isPhoto)
+            // The unified capability readout owns the values; the one shared cycle (A5-11).
+            let storage = host.control.snapshot?.storage
+            return MonitorStorageReadoutFormat.forms(
+                storage?.storageReadout, recordingTime: storage?.recordingTimeLabel, photo: host.cameraStatus.isPhoto)
         }
 
         private func topButton(_ item: LiveTopMenu, value: String) -> some View {

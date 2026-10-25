@@ -10,6 +10,9 @@ import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.ObservedValue
+import com.opencapture.opencine.media.recordingTimeLabel
+import com.opencapture.opencine.media.storageReadout
 import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.RecordingState
@@ -259,6 +262,22 @@ class NikonOpenCineSessionTest {
     }
 
     /** A ZR in movie mode, exposure M, H.265, with the Swift-authorized domains. */
+    /** Hardware pass 3.4: the shared storage cycle reads the Nikon storage as every app does. */
+    @Test
+    fun storageReadsTheSharedStorageCycle() {
+        val properties = movie(codec = "R3D NE 12-bit R3D").copy(
+            resolution = "6048x3402", frameRate = 25,
+            storage = CameraStorageStatus(1_000_000_000_000, 470_000_000_000),
+        )
+        val storage = ObservedValue(NikonOpenCineSession.storageVolumes(properties)!!, ObservationOrigin.CAMERA_REPORTED, null)
+        assertEquals(listOf("470GB", "47%", "~40 Min"), storageCycle(storage, photo = false))
+        assertEquals(listOf("470GB", "47%"), storageCycle(storage, photo = true))
+    }
+
+    private fun storageCycle(storage: com.opencapture.opencine.core.StorageStatus, photo: Boolean) =
+        com.opencapture.monitorui.MonitorStorageReadoutFormat.forms(
+            storage.storageReadout, storage.recordingTimeLabel, photo)
+
     private fun movie(codec: String = "H.265 10-bit MOV") =
         CameraPropertySnapshot(
             iso = 800,

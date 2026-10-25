@@ -48,4 +48,21 @@ class MonitorStorageReadoutFormatTest {
         assertEquals(0, MonitorStorageReadoutFormat.nextForm(5, 1))
         assertEquals(0, MonitorStorageReadoutFormat.nextForm(5, 2))
     }
+
+    /**
+     * Hardware pass 3.4, 7.5 and 8.4: one storage cycle and one precision on every app and platform.
+     * Video steps free space, percentage, then the recording time; photo steps free space and
+     * percentage; free space is the nearest whole unit in both orientations. Swift twin vectors.
+     */
+    @Test fun oneCycleAndOnePrecisionForEveryApp() {
+        assertEquals(listOf("88GB", "70%", "~51 Min"), MonitorStorageReadoutFormat.forms(87_940_000_000, "70%", "~51 Min", photo = false))
+        assertEquals(listOf("88GB", "70%"), MonitorStorageReadoutFormat.forms(87_940_000_000, "70%", "~51 Min", photo = true))
+        assertEquals(listOf("88GB", "51 Min"), MonitorStorageReadoutFormat.forms(87_940_000_000, null, "51 Min", photo = false))
+        assertEquals(listOf("\u2014"), MonitorStorageReadoutFormat.forms(null, null, null, photo = false))
+        val card = com.opencapture.opencine.media.StorageReadout(595_840_000_000L, 1_024_000_000_000L)
+        assertEquals(listOf("596GB", "58%", "~51 Min"), MonitorStorageReadoutFormat.forms(card, "~51 Min", photo = false))
+        assertEquals(listOf("596GB", "58%"), MonitorStorageReadoutFormat.forms(card, "~51 Min", photo = true))
+        assertEquals(listOf("\u2014"), MonitorStorageReadoutFormat.forms(null, null, photo = false))
+    }
 }
+

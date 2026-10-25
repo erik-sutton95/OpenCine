@@ -1,12 +1,15 @@
 package com.opencapture.monitorui
 
+import com.opencapture.opencine.media.StorageReadout
+
 /** Live storage has two units; unknown readings do not become zero. */
 object MonitorStorageReadoutFormat {
     fun capacity(gigabytes: Long?): String = gigabytes?.takeIf { it >= 0 }?.let { "$it GB" } ?: "\u2014"
 
     /**
-     * Portrait capacity: the nearest whole decimal unit with a compact uppercase unit
-     * (`904.75 GB` reads `905GB`). The underlying bytes and the landscape label are unchanged.
+     * The live storage readout's free space: the nearest whole decimal unit with a compact
+     * uppercase unit (`904.75 GB` reads `905GB`), the one precision in every orientation, app and
+     * platform. Exact bytes stay in `StorageReadout.label` (dashboards, Multiview).
      */
     fun wholeUnitCapacity(bytes: Long?): String {
         if (bytes == null || bytes < 0L) return "\u2014"
@@ -35,6 +38,21 @@ object MonitorStorageReadoutFormat {
      */
     fun alternatives(percent: String?, recordingTime: String?, photo: Boolean): List<String> =
         listOfNotNull(percent, recordingTime.takeUnless { photo })
+
+    /**
+     * The live storage readout's forms, one rule on every app and platform (A5-11): the free space
+     * ([wholeUnitCapacity]), then the free percentage when the volume reports a capacity, then, in
+     * video, the remaining recording time when the camera reports or the integration estimates one.
+     * A tap steps through them ([nextForm]) and back to the free space. Photo steps free space and
+     * percentage only. Callers pass a storage observation's `storageReadout` and `recordingTimeLabel`.
+     * Swift twin: `MonitorStorageReadoutFormat.forms`.
+     */
+    fun forms(readout: StorageReadout?, recordingTime: String?, photo: Boolean): List<String> =
+        forms(readout?.freeBytes, readout?.percent, recordingTime, photo)
+
+    /** The same forms from already-read values (a relayed host's media status). */
+    fun forms(freeBytes: Long?, percent: String?, recordingTime: String?, photo: Boolean): List<String> =
+        listOf(wholeUnitCapacity(freeBytes)) + alternatives(percent, recordingTime, photo)
 
     /**
      * The form a tap selects after [current], of [count] forms. With nothing to step to the

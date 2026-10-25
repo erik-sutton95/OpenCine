@@ -39,6 +39,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
     testImplementation(testFixtures(project(":core")))
+    // The shared storage cycle reads this integration's storage (MonitorStorageReadoutFormat).
+    testImplementation(project(":monitor-ui"))
 }
 
 // The saved-setup fixtures are shared with the Swift OpenCineNikonTests (Fixtures/ at the

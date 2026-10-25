@@ -1,5 +1,7 @@
 import Foundation
 import OpenCineCore
+import enum MonitorPresentation.MonitorStorageReadoutFormat
+import OpenCineMedia
 import Testing
 
 @testable import OpenCineNikon
@@ -106,6 +108,19 @@ struct NikonCameraSessionTests {
         let shared = NikonCameraSession(driver: driver, serialNumber: "3000123")
         let stamped = shared.refresh().recording.observedAt
         #expect(stamped.map { MonotonicInstant.now() - $0 < .seconds(1) } == true)
+    }
+
+    /// Hardware pass 3.4: the shared storage cycle reads the Nikon session's storage as every
+    /// app does (free space, percentage, then the estimated time; photo without the time).
+    @Test func storageReadsTheSharedStorageCycle() {
+        var facts = Self.movieFacts(codec: "R3D NE 12-bit R3D")
+        facts.reported = PTPCameraPropertySnapshot(
+            resolution: "6048x3402", fps: 25, fileType: "R3D NE 12-bit R3D", captureSelector: .video)
+        facts.storage = PTPStorageInfo(totalCapacityBytes: 1_000_000_000_000, freeSpaceBytes: 470_000_000_000)
+        let session = NikonCameraSession(driver: Driver(facts), serialNumber: "3000123")
+        let storage = session.refresh().storage
+        #expect(MonitorStorageReadoutFormat.forms(storage.storageReadout, recordingTime: storage.recordingTimeLabel, photo: false) == ["470GB", "47%", "~40 Min"])
+        #expect(MonitorStorageReadoutFormat.forms(storage.storageReadout, recordingTime: storage.recordingTimeLabel, photo: true) == ["470GB", "47%"])
     }
 
     @Test func storageEstimateRequiresKnownFormatAndRetainsZeroAndOrigin() throws {
