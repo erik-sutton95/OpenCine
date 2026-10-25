@@ -89,6 +89,9 @@ public object GyroCopy {
 
     // Calibration
 
+    /** The overline above the intro, complete and invalidated mount screens. */
+    public const val phoneMount: String = "Phone mount"
+
     /** The calibration screen's title. */
     public const val calibrateTitle: String = "Calibrate your phone mount"
 
