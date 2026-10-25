@@ -270,6 +270,89 @@ struct SessionRecoveryEpisodeTests {
         #expect(captured != host.run)
     }
 
+    /// Hardware pass 7.2a: in the background Android blocks the camera network, so each attempt
+    /// there failed in milliseconds and all 8 were spent before the app came back. A drop admitted
+    /// while the host is paused holds its picture and dials only after `resume()`.
+    @Test func aDropAdmittedWhileTheHostIsPausedWaitsToDialUntilResume() async {
+        let host = Host()
+        host.admits = false
+        host.episode.pause()
+        #expect(host.begin())
+        _ = await host.clock.drive { false }
+        #expect(host.connects == 0)
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        #expect(host.episode.snapshot.holdsPicture)
+        #expect(host.cleanups == [.initialDrop])
+        host.admits = true
+        host.episode.resume()
+        #expect(await host.clock.drive { host.connects == 1 })
+        host.clock.advance(to: host.clock.time + 1)
+        host.picture = (host.clock.time, host.clock.time)
+        #expect(await host.clock.drive { host.episode.snapshot.state == .idle })
+    }
+
+    @Test func anAttemptTheOSRefusesWhilePausedIsNotCounted() async {
+        let host = Host()
+        let gate = Gate()
+        host.onConnect = { await gate.wait() }
+        host.admits = false
+        #expect(host.begin())
+        await host.clock.settle()
+        #expect(gate.isWaiting && host.connects == 1)
+        host.episode.pause()
+        host.onConnect = nil
+        gate.resume()
+        host.clock.advance(to: 60)
+        await host.clock.settle()
+        #expect(host.connects == 1, "no attempt dials while paused")
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        #expect(host.cleanups == [.initialDrop, .failedAttempt])
+        #expect(!host.episode.snapshot.reconnecting)
+        host.admits = true
+        host.episode.resume()
+        #expect(await host.clock.drive { host.connects == 2 })
+        #expect(host.clock.backoffs.isEmpty, "resume dials at once, without a backoff")
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        host.episode.cancel()
+    }
+
+    @Test func theTotalBudgetCountsOnlyTimeTheHostIsActive() async {
+        let host = Host(deadline: .init(attempt: .seconds(1_000_000)))
+        #expect(host.begin())
+        #expect(await host.clock.drive { host.clock.time >= 60 })
+        host.episode.pause()
+        #expect(await host.clock.drive { host.clock.time >= 660 })
+        guard case .retrying = host.episode.snapshot.state else {
+            Issue.record("the budget ran out while paused: \(host.episode.snapshot.state)")
+            return
+        }
+        let resumedAt = host.clock.time
+        host.episode.resume()
+        #expect(
+            await host.clock.drive {
+                if case .waitingForOperator = host.episode.snapshot.state { return true }
+                return false
+            })
+        #expect(abs(host.clock.time - (resumedAt + 120)) < 0.2)
+        #expect(host.cleanups.last == .budgetExhausted)
+    }
+
+    @Test func resumingAnEpisodeThatWaitsForTheOperatorDialsNothing() async {
+        let host = Host()
+        host.admits = false
+        #expect(host.begin())
+        #expect(
+            await host.clock.drive {
+                host.episode.snapshot.state == .waitingForOperator(attemptsMade: 8)
+            })
+        host.episode.pause()
+        host.episode.resume()
+        host.clock.advance(to: host.clock.time + 400)
+        await host.clock.settle()
+        #expect(host.connects == 8)
+        #expect(host.episode.snapshot.state == .waitingForOperator(attemptsMade: 8))
+    }
+
     // MARK: - SIMULATED host
 
     @MainActor final class Host {

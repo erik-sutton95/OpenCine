@@ -100,6 +100,12 @@ public final class DjiAppleRecoveryEpisode {
 
     @discardableResult public func retry() -> Bool { episode.retry() }
 
+    /// The app left the foreground: attempts wait and the budget's clock stops (shared episode).
+    public func pause() { episode.pause() }
+
+    /// The app is back: a paused episode dials and its budget clock runs again.
+    public func resume() { episode.resume() }
+
     public static func deadline(for stage: Stage?) -> Duration {
         switch stage {
         case .joiningWiFi: .seconds(CameraSoftAPSwitch.joinDeadlineSeconds + 15)

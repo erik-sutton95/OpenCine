@@ -404,4 +404,92 @@ class SessionRecoveryEpisodeTest {
         assertEquals(2, host.connects)
         assertEquals(Cleanup.FAILED_ATTEMPT, host.cleanups[1])
     }
+    /**
+     * Hardware pass 7.2a: in the background Android blocks the camera network, so each attempt
+     * there failed in milliseconds and all 8 were spent before the app came back. A drop admitted
+     * while the host is paused holds its picture and dials only after [SessionRecoveryEpisode.resume].
+     */
+    @Test
+    fun `a drop admitted while the host is paused waits to dial until resume`() = runTest {
+        val host = host()
+        host.admits = false
+        host.episode.pause()
+        assertTrue(host.begin())
+        advanceTimeBy(SessionRecoveryPolicy.AUTOMATIC_RECOVERY_BUDGET_MS * 2)
+        runCurrent()
+        assertEquals(0, host.connects)
+        assertEquals(SessionRecoveryUi.Retrying(1, 8), host.state)
+        assertTrue(host.episode.snapshot.value.holdsPicture)
+        assertEquals(listOf(Cleanup.INITIAL_DROP), host.cleanups)
+        host.admits = true
+        host.episode.resume()
+        runCurrent()
+        assertEquals(1, host.connects)
+        advanceTimeBy(1_000)
+        host.present()
+        advanceTimeBy(150)
+        runCurrent()
+        assertEquals(SessionRecoveryUi.Idle, host.state)
+    }
+
+    @Test
+    fun `an attempt the OS refuses while paused is not counted`() = runTest {
+        val host = host()
+        val refused = CompletableDeferred<Unit>()
+        host.onConnect = { refused.await() }
+        host.admits = false
+        assertTrue(host.begin())
+        runCurrent()
+        assertEquals(1, host.connects)
+        host.episode.pause()
+        refused.complete(Unit)
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(1, host.connects, "no attempt dials while paused")
+        assertEquals(SessionRecoveryUi.Retrying(1, 8), host.state)
+        assertEquals(listOf(Cleanup.INITIAL_DROP, Cleanup.FAILED_ATTEMPT), host.cleanups)
+        assertFalse(host.episode.snapshot.value.reconnecting)
+        host.onConnect = null
+        host.episode.resume()
+        runCurrent()
+        assertEquals(2, host.connects, "resume dials at once, without a backoff")
+        assertEquals(SessionRecoveryUi.Retrying(1, 8), host.state)
+    }
+
+    @Test
+    fun `the total budget counts only time the host is active`() = runTest {
+        val host = host(attemptMs = 1_000_000)
+        assertTrue(host.begin())
+        advanceTimeBy(60_000)
+        runCurrent()
+        host.episode.pause()
+        advanceTimeBy(600_000)
+        runCurrent()
+        assertIs<SessionRecoveryUi.Retrying>(host.state)
+        host.episode.resume()
+        runCurrent()
+        advanceTimeBy(SessionRecoveryPolicy.AUTOMATIC_RECOVERY_BUDGET_MS - 60_000 - 1)
+        runCurrent()
+        assertIs<SessionRecoveryUi.Retrying>(host.state)
+        advanceTimeBy(2)
+        runCurrent()
+        assertIs<SessionRecoveryUi.WaitingForOperator>(host.state)
+        assertEquals(Cleanup.BUDGET_EXHAUSTED, host.cleanups.last())
+    }
+
+    @Test
+    fun `resuming an episode that waits for the operator dials nothing`() = runTest {
+        val host = host()
+        host.admits = false
+        assertTrue(host.begin())
+        advanceTimeBy(40_000)
+        runCurrent()
+        assertEquals(SessionRecoveryUi.WaitingForOperator(8), host.state)
+        host.episode.pause()
+        host.episode.resume()
+        advanceTimeBy(400_000)
+        runCurrent()
+        assertEquals(8, host.connects)
+        assertEquals(SessionRecoveryUi.WaitingForOperator(8), host.state)
+    }
 }
