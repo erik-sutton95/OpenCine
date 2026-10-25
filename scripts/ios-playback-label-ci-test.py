@@ -48,6 +48,15 @@ class PlaybackLabelCITests(unittest.TestCase):
         self.assertLess(maximum, 2400)
         self.assertEqual(command[command.index('-test-timeouts-enabled') + 1], 'YES')
 
+    def test_driver_takes_its_screenshot_only_for_a_failed_case(self):
+        # Hosted XCUIApplication.screenshot() after a qualified dismissal never returned
+        # (40143225461, 40149233094) and its timeout failed an otherwise qualified case.
+        source = (ROOT / 'scripts/ios-playback-label-native-system-dismissal/NativeCancelUITests.swift').read_text()
+        calls = source.split('app.screenshot()')
+        self.assertEqual(len(calls), 2, 'exactly one screenshot request in the driver')
+        guard = calls[0].rsplit('{', 1)[0].rstrip()
+        self.assertTrue(guard.endswith('if !qualified'), guard[-80:])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
