@@ -65,6 +65,52 @@
             }
         }
 
+        /// Hardware pass 1.1 (Z + ZR, landscape): the open assist palette sits over the camera
+        /// values, and the values peeked around its edges (the f/2.8 glyph past its trailing
+        /// edge, the ISO, SHUTTER and IRIS labels under it). While the palette is open the values
+        /// it covers hide; closing it brings them back. One shared surface, so every app.
+        func testSIMULATEDOpenLandscapePaletteHidesTheValuesItCovers() throws {
+            #if !targetEnvironment(simulator)
+                throw XCTSkip("SIMULATED palette staging requires a private simulator")
+            #endif
+            continueAfterFailure = false
+            app = XCUIApplication()
+            app.launchEnvironment.merge(reviewLaunchEnvironment) { _, value in value }
+            app.launch()
+            defer {
+                app.terminate()
+                XCUIDevice.shared.orientation = .portrait
+            }
+            XCTAssertTrue(app.buttons["monitor.system.record"].waitForExistence(timeout: 20))
+            let first = app.buttons[readouts[0].identifier]
+            XCTAssertTrue(first.waitForExistence(timeout: 10), "The camera values must be shown")
+            rotate(.landscapeLeft, settling: first)
+            for readout in readouts {
+                XCTAssertTrue(
+                    app.buttons[readout.identifier].waitForExistence(timeout: 5),
+                    "The \(readout.popup) value must be shown while the palette is closed")
+            }
+            tapWhenReady(app.buttons["monitor.assists.expand"], in: app, "The palette expansion")
+            let collapse = app.buttons["monitor.assists.collapse"]
+            XCTAssertTrue(collapse.waitForExistence(timeout: 5), "The palette must open")
+            capture("SIMULATED palette open landscape")
+            for readout in readouts {
+                let gone = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "exists == false"),
+                    object: app.buttons[readout.identifier])
+                XCTAssertEqual(
+                    XCTWaiter.wait(for: [gone], timeout: 5), .completed,
+                    "The \(readout.popup) value must hide under the open palette")
+            }
+            tapWhenReady(collapse, in: app, "The palette collapse")
+            for readout in readouts {
+                XCTAssertTrue(
+                    app.buttons[readout.identifier].waitForExistence(timeout: 5),
+                    "The \(readout.popup) value must return when the palette closes")
+            }
+            capture("SIMULATED palette closed landscape")
+        }
+
         private func open(_ readout: XCUIElement, popup: String, orientation: String) throws {
             // One tap once the readout is on screen and still: the launch splash has left and
             // a rotation has settled. A dropped tap fails here rather than being retried.

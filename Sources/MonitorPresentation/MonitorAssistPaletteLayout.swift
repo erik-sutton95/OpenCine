@@ -93,6 +93,16 @@ public struct MonitorAssistPaletteLayout: Equatable, Sendable {
             layout.anchored(leading: geometry.assists.x, bottom: geometry.assists.maxY))
     }
 
+    /// The palette's rectangle in either state, seated where `fieldMonitor` anchors it: the
+    /// rendered and hit rectangle that obstruction checks (EV meter, camera values) avoid.
+    public static func fieldMonitorFootprint(
+        _ geometry: FieldMonitorLayout, toolCount: Int, safeTop: Double, expanded: Bool
+    ) -> MonitorRect {
+        let palette = fieldMonitor(geometry, toolCount: toolCount, safeTop: safeTop)
+        return palette.layout.resolving(expanded: expanded)
+            .anchored(leading: palette.frame.x, bottom: palette.frame.maxY)
+    }
+
     /// Both states use the same viewport limits during a clipped reveal.
     public func resolving(expanded: Bool) -> Self {
         Self(
