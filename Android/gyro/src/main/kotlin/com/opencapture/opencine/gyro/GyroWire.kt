@@ -26,7 +26,7 @@ enum class GyroCalibrationBlock(private val wire: String) {
 }
 
 /** Why an in-progress ring calibration was discarded. */
-enum class GyroCalibrationInvalidation(private val wire: String) {
+enum class GyroCalibrationInvalidation(internal val wire: String) {
     /** The active camera body changed. */
     CAMERA_CHANGED("cameraChanged"),
 
@@ -122,7 +122,7 @@ fun decodeRingReply(json: String): GyroRingState {
 }
 
 /** Why a stabilization write was sent. */
-enum class GyroWritePurpose(private val wire: String) {
+enum class GyroWritePurpose(internal val wire: String) {
     /** Turn stabilization off for the armed session. */
     TURN_OFF("turnOff"),
 
