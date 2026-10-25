@@ -575,6 +575,7 @@ public final class LunaCameraBackend: CameraBackend {
         }
         await refreshShootingMode()
         await refreshSettings()
+        await refreshRemainingTime()
         await refreshCapture()
     }
 
@@ -594,6 +595,16 @@ public final class LunaCameraBackend: CameraBackend {
         {
             deliver(settings)
         }
+    }
+
+    /// Photography option 99 for the active mode: remaining record time per card, as the
+    /// official app polls it. The reply carries only option 99, so other settings stay.
+    public func refreshRemainingTime() async {
+        guard isTCP,
+            let body = try? await send(LunaProtocol.remainingTimeRequest(functionMode: functionMode)),
+            let settings = try? LunaPhotographySettings(response: body)
+        else { return }
+        deliver(settings)
     }
 
     /// Capture state (cmd 15): recording and the record timer.
@@ -625,6 +636,7 @@ public final class LunaCameraBackend: CameraBackend {
                 {
                     self.deliver(status)
                 }
+                if tick % 5 == 0 { await self.refreshRemainingTime() }
             }
         }
     }

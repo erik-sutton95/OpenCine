@@ -3,6 +3,9 @@ package com.opencapture.opencine.insta360.luna
 import com.opencapture.opencine.insta360.shell.CameraCapability
 
 import com.opencapture.opencine.core.CameraCommand
+import kotlin.test.assertNotNull
+import com.opencapture.opencine.media.storageReadout
+import com.opencapture.opencine.media.recordingTimeLabel
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CameraTimecodeReading
@@ -422,6 +425,48 @@ class LunaCameraSessionTest {
         val (_, outcome) = session.run(CameraCommandIntent.Set(SettingValue.WhiteBalance(WhiteBalanceValue.Auto)))
         assertEquals(CommandStage.Rejected(CommandRejection.CameraRefused), outcome.stage)
         assertEquals(ConnectionState.Ready, session.snapshots.value.connection, "a refusal is not a lost link")
+    }
+
+    /**
+     * Hardware pass 8.4 (Insta + Luna Ultra): the storage tap had no recording time step. The
+     * camera reports remaining record time per card (option 99); each usable volume carries its
+     * own, camera reported. A full card keeps a known zero; a reply without option 99 keeps the
+     * last report. Swift twin `testRemainingRecordTimeReachesEachCardVolume`.
+     */
+    @Test fun remainingRecordTimeReachesEachCardVolume() = runBlocking {
+        val camera = FakeLuna(scope)
+        val session = camera.connectedSession()
+        fun card(state: Long, free: Long, total: Long, location: Long) = LunaWire.integer(1, state) +
+            LunaWire.integer(2, free) + LunaWire.integer(3, total) + LunaWire.integer(4, location)
+        val nested = LunaWire.integer(40, 100) + LunaWire.integer(41, 0) +
+            LunaWire.blob(176, card(0, 99_000_000_000, 125_000_000_000, 2)) +
+            LunaWire.blob(176, card(0, 1_000_000, 64_000_000_000, 3))
+        session.ingest(LunaDeviceStatus.parse(LunaWire.blob(2, nested)))
+        assertNull(session.snapshots.value.storage.recordingTimeLabel, "no option 99 yet: unknown")
+
+        fun remaining(vararg entries: Pair<Long, Long>) = LunaPhotographySettings.parse(
+            LunaWire.blob(1, LunaWire.varint(99)) +
+                LunaWire.blob(2, entries.fold(ByteArray(0)) { acc, (seconds, location) ->
+                    acc + LunaWire.blob(99, LunaWire.integer(1, seconds) + LunaWire.integer(2, location))
+                }) + LunaWire.integer(3, LunaControl.FUNCTION_MODE_VIDEO.toLong()))
+        session.ingest(remaining(3001L to 2L, 0L to 3L))
+        val volumes = assertNotNull(session.snapshots.value.storage.value)
+        val inner = volumes.first { it.id == "location-2" }
+        val sd = volumes.first { it.id == "location-3" }
+        assertEquals(3001.seconds, inner.remainingRecordingTime.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, inner.remainingRecordingTime.origin)
+        assertEquals(0.seconds, sd.remainingRecordingTime.value, "a full card is a known zero")
+        assertEquals(99_000_000_000, inner.freeBytes.value, "the card readout is kept")
+        assertEquals("50 Min", session.snapshots.value.storage.recordingTimeLabel)
+        assertEquals("79%", session.snapshots.value.storage.storageReadout?.percent)
+
+        camera.reportSettings()
+        assertEquals("50 Min", session.snapshots.value.storage.recordingTimeLabel, "the settings poll keeps it")
+        session.ingest(LunaDeviceStatus.parse(LunaWire.blob(2, nested)))
+        assertEquals("50 Min", session.snapshots.value.storage.recordingTimeLabel, "a fresh card report keeps it")
+        session.ingest(remaining(0L to 3L))
+        assertNull(session.snapshots.value.storage.recordingTimeLabel, "no entry for that card: unknown")
+        Unit
     }
 
     @Test fun unknownStaysUnknown() = runBlocking {

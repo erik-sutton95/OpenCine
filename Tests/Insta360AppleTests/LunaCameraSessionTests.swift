@@ -397,6 +397,57 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(session.current.timecode.origin, .clockDerived, "never a camera counter")
     }
 
+    /// Hardware pass 8.4 (Insta iOS + Luna Ultra): the storage tap had no recording time step.
+    /// The camera reports remaining record time per card (photography option 99); each usable
+    /// volume carries its own, camera reported. A full card keeps a known zero; a reply without
+    /// option 99 (the settings poll) keeps the last report.
+    func testRemainingRecordTimeReachesEachCardVolume() throws {
+        let camera = FakeLuna()
+        let session = camera.connectedSession()
+        func card(state: UInt64, free: UInt64, total: UInt64, location: UInt64) throws -> Data {
+            try ProtoMessage.integer(field: 1, value: state) + ProtoMessage.integer(field: 2, value: free)
+                + ProtoMessage.integer(field: 3, value: total) + ProtoMessage.integer(field: 4, value: location)
+        }
+        let nested =
+            try ProtoMessage.integer(field: 40, value: 100) + ProtoMessage.integer(field: 41, value: 0)
+            + ProtoMessage.blob(field: 176, value: card(state: 0, free: 99_000_000_000, total: 125_000_000_000, location: 2))
+            + ProtoMessage.blob(field: 176, value: card(state: 0, free: 1_000_000, total: 64_000_000_000, location: 3))
+        session.ingest(device: try LunaDeviceStatus(response: ProtoMessage.blob(field: 2, value: nested)))
+        XCTAssertNil(session.current.storage.recordingTimeLabel, "no option 99 yet: unknown")
+
+        func remaining(_ entries: [(UInt64, UInt64)]) throws -> LunaPhotographySettings {
+            let options = try entries.reduce(into: Data()) { data, entry in
+                data += try ProtoMessage.blob(
+                    field: 99,
+                    value: ProtoMessage.integer(field: 1, value: entry.0) + ProtoMessage.integer(field: 2, value: entry.1))
+            }
+            return try LunaPhotographySettings(
+                response: ProtoMessage.blob(field: 1, value: ProtoMessage.varint(99))
+                    + ProtoMessage.blob(field: 2, value: options)
+                    + ProtoMessage.integer(field: 3, value: UInt64(LunaFunctionMode.normalVideo.rawValue)))
+        }
+        session.ingest(settings: try remaining([(3001, 2), (0, 3)]))
+        let volumes = try XCTUnwrap(session.current.storage.value)
+        let inner = try XCTUnwrap(volumes.first { $0.id == "location-2" })
+        let sd = try XCTUnwrap(volumes.first { $0.id == "location-3" })
+        XCTAssertEqual(inner.remainingRecordingTime.value, .seconds(3001))
+        XCTAssertEqual(inner.remainingRecordingTime.origin, .cameraReported)
+        XCTAssertEqual(sd.remainingRecordingTime.value, .seconds(0), "a full card is a known zero")
+        XCTAssertEqual(inner.freeBytes.value, 99_000_000_000, "the card readout is kept")
+        XCTAssertEqual(session.current.storage.recordingTimeLabel, "50 Min")
+        XCTAssertEqual(session.current.storage.storageReadout?.percent, "79%")
+
+        // The settings poll does not carry option 99: the last report stands.
+        camera.reportSettings()
+        XCTAssertEqual(session.current.storage.recordingTimeLabel, "50 Min")
+        // A fresh device report keeps the time for its card.
+        session.ingest(device: try LunaDeviceStatus(response: ProtoMessage.blob(field: 2, value: nested)))
+        XCTAssertEqual(session.current.storage.recordingTimeLabel, "50 Min")
+        // A later option 99 without that card leaves it unknown.
+        session.ingest(settings: try remaining([(0, 3)]))
+        XCTAssertNil(session.current.storage.recordingTimeLabel)
+    }
+
     func testUnknownStaysUnknown() {
         let camera = FakeLuna()
         camera.captureState = nil

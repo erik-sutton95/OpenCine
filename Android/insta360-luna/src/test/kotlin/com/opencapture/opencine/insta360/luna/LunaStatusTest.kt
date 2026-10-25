@@ -77,6 +77,16 @@ class LunaStatusTest {
         assertEquals(listOf(21, 24, 100), LunaPhotographySettings.parse(h("081508180864")).types)
     }
 
+    /** Option 99 rides its own poll: a reply that carries it replaces the last report, others keep it. */
+    @Test fun remainingTimeMergesOnlyFromAReplyThatCarriesIt() {
+        val first = LunaPhotographySettings.parse(h("0863120f9a060508b91710029a060408001003"))
+        val settingsPoll = LunaPhotographySettings.parse(h("081508180864"))
+        assertEquals(listOf(3001L to 2L, 0L to 3L), first.merge(settingsPoll).remainingRecordTime)
+        assertEquals(listOf(3001L to 2L, 0L to 3L), settingsPoll.merge(first).remainingRecordTime)
+        val later = LunaPhotographySettings.parse(h("086312079a060408001003"))
+        assertEquals(listOf(0L to 3L), first.merge(later).remainingRecordTime)
+    }
+
     @Test fun resolutionTable() {
         val expected = mapOf(
             24L to listOf(3840, 2160, 30, "16:9"), 43L to listOf(1280, 720, 30, "16:9"), 48L to listOf(3840, 2160, 25, "16:9"),

@@ -358,7 +358,10 @@ class LunaBackend(
                     delay(1_000)
                     tick += 1
                     refreshCapture()
-                    if (tick % 5 == 0) refreshDevice(LunaControl.statusRequest)
+                    if (tick % 5 == 0) {
+                        refreshDevice(LunaControl.statusRequest)
+                        refreshRemainingTime()
+                    }
                 }
             }
             throw channel.failure.await()
@@ -498,11 +501,17 @@ class LunaBackend(
         call(LunaControl.getPhotographyOptions(LunaControl.settingTypes, functionMode))
             ?.let { runCatching { LunaPhotographySettings.parse(it) }.getOrNull() }?.let(::applySettings)
     }
+    /** Option 99 for the active mode: remaining record time per card, as the official app polls it. */
+    private suspend fun refreshRemainingTime() {
+        call(LunaControl.remainingTimeRequest(functionMode))
+            ?.let { runCatching { LunaPhotographySettings.parse(it) }.getOrNull() }?.let(::applySettings)
+    }
     /** One full read: device status, the active mode (so the right settings bank), settings, capture state. */
     private suspend fun refreshStatus() {
         refreshDevice(LunaControl.statusRequest)
         refreshDevice(LunaControl.shootingModeRequest)
         refreshSettings()
+        refreshRemainingTime()
         refreshCapture()
     }
     private suspend fun handle(note: LunaNotification) {

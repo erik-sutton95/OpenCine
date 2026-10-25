@@ -304,6 +304,13 @@ internal object LunaControl {
     fun getPhotographyOptions(types: List<Int>, functionMode: Int = FUNCTION_MODE_VIDEO, packed: Boolean = false) =
         Request(GET_PHOTOGRAPHY_OPTIONS, optionTypes(types, packed) + LunaWire.integer(2, functionMode.toLong()))
 
+    /** Official remaining-record-time poll (photography option 99), per function mode. */
+    fun remainingTimeRequest(functionMode: Int = FUNCTION_MODE_VIDEO) =
+        getPhotographyOptions(listOf(REMAINING_TIME), functionMode, packed = true)
+
+    /** Photography option 99: remaining record time per card location. */
+    const val REMAINING_TIME = 99
+
     /** Every photography type the monitor shows. */
     val settingTypes = listOf(6, 7, 18, 20, 21, 24, 31, 33, 35, 39, 40, 43, 46, 53, 72, 73, 91, 92, 93, 100, 104)
 }

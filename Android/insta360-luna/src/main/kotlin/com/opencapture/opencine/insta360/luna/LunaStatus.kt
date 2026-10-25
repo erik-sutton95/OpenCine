@@ -125,7 +125,10 @@ internal data class LunaPhotographySettings(
         other.fov ?: fov, if (35 in other.types) other.colorMode else other.colorMode ?: colorMode,
         other.whiteBalanceKelvin ?: whiteBalanceKelvin,
         other.photoResolution ?: photoResolution, other.faceMetering ?: faceMetering, other.zoom ?: zoom, other.iLog ?: iLog, other.colorRecovery ?: colorRecovery,
-        other.gimbal ?: gimbal, other.gimbalStatus ?: gimbalStatus, other.afMode ?: afMode, remainingRecordTime,
+        other.gimbal ?: gimbal, other.gimbalStatus ?: gimbalStatus, other.afMode ?: afMode,
+        // Option 99 rides its own poll: only a reply that carries it replaces the last report.
+        if (LunaControl.REMAINING_TIME in other.types || other.remainingRecordTime.isNotEmpty()) other.remainingRecordTime
+        else remainingRecordTime,
         other.iq3AMode ?: iq3AMode, other.filterStrength ?: filterStrength,
     )
 
