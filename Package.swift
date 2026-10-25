@@ -81,6 +81,9 @@ let package = Package(
         // The Swift side of the Android `FrameioNative` JNI facade (`:frameio`): an app links it
         // into its Swift Android library. Its wire helpers also build and test on Darwin.
         .library(name: "OpenCineFrameIOAndroid", targets: ["OpenCineFrameIOAndroid"]),
+        // The Swift side of the Android `GyroNative` JNI facade (`:gyro`): an app links it into
+        // its Swift Android library. Its wire helpers also build and test on Darwin.
+        .library(name: "OpenCineGyroAndroid", targets: ["OpenCineGyroAndroid"]),
         .library(name: "Insta360Protocol", targets: ["Insta360Protocol"]),
         .library(name: "Insta360Apple", targets: ["Insta360Apple"]),
         // A scripted Luna for consumers' test targets only; never link it into an app.
@@ -277,6 +280,11 @@ let package = Package(
         // digest, injected through the JNI object; no cryptography package dependency.
         .target(name: "OpenCineFrameIOAndroid", dependencies: ["OpenCineFrameIO", "OpenCineJNISupport"]),
         .testTarget(name: "OpenCineFrameIOAndroidTests", dependencies: ["OpenCineFrameIOAndroid", "OpenCineFrameIO"]),
+        // Gyro logging, ring calibration, drift and arming wire for every app's Android shell and
+        // the JNI exports of the Kotlin class com.opencapture.opencine.gyro.GyroNative. Everything
+        // but the JNI exports also builds and tests on Darwin.
+        .target(name: "OpenCineGyroAndroid", dependencies: ["OpenCineGyro", "OpenCineJNISupport"]),
+        .testTarget(name: "OpenCineGyroAndroidTests", dependencies: ["OpenCineGyroAndroid", "OpenCineGyro"]),
 
         // MARK: Insta360
         // Luna wire protocol (Foundation and portable Media) and the Apple I/O adapter with its KCP C code.
