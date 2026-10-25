@@ -42,8 +42,8 @@ class PlaybackLabelCITests(unittest.TestCase):
         # 40143225461 reached settlement at 101 s and needed teardown evidence after it.
         default = value('-default-test-execution-time-allowance')
         maximum = value('-maximum-test-execution-time-allowance')
-        self.assertGreaterEqual(default, 300)
-        self.assertGreaterEqual(maximum, default)
+        self.assertEqual(default, 360)
+        self.assertEqual(maximum, 360)
         # The parent's native wall (2400 s) must still end any hang first.
         self.assertLess(maximum, 2400)
         self.assertEqual(command[command.index('-test-timeouts-enabled') + 1], 'YES')
