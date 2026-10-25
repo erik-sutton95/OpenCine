@@ -10,13 +10,14 @@ public final class MonitorWorkingRaster: @unchecked Sendable {
     private struct PoolKey: Hashable { var width: Int; var height: Int }
     private let lock = NSLock()
     private var pools: [PoolKey: CVPixelBufferPool] = [:]
+    /// Scales encoded codes as they are: no working-space linearization on the way in or out.
     private let context: CIContext
 
     public init() {
         if let device = MTLCreateSystemDefaultDevice() {
-            context = CIContext(mtlDevice: device, options: MonitorWorkingSpace.displayContextOptions)
+            context = CIContext(mtlDevice: device, options: MonitorWorkingSpace.contextOptions)
         } else {
-            context = CIContext(options: MonitorWorkingSpace.displayContextOptions)
+            context = CIContext(options: MonitorWorkingSpace.contextOptions)
         }
     }
     public static func targetSize(width: Int, height: Int, maxWidth: Int = FeedPresentPolicy.maxWorkingWidth)
@@ -31,12 +32,17 @@ public final class MonitorWorkingRaster: @unchecked Sendable {
         let target = Self.targetSize(width: width, height: height)
         guard target.width != width, let destination = allocate(width: target.width, height: target.height)
         else { return buffer }
-        let image = CIImage(cvPixelBuffer: buffer)
+        // The assists, the scopes and the cube read this raster as the source's encoded
+        // codes, and the identity picture reads it through the source's color tags. A
+        // color-managed scale wrote linear light here (code 128 became 66), so every source
+        // wider than the working width graded, striped and measured a far darker signal.
+        let image = CIImage(cvPixelBuffer: buffer, options: MonitorWorkingSpace.imageOptions)
         let scaled = image.transformed(by: CGAffineTransform(
             scaleX: CGFloat(target.width) / max(image.extent.width, 1),
             y: CGFloat(target.height) / max(image.extent.height, 1)))
         context.render(scaled, to: destination,
             bounds: CGRect(x: 0, y: 0, width: target.width, height: target.height), colorSpace: nil)
+        CVBufferPropagateAttachments(buffer, destination)
         return destination
     }
     /// A decoded still (motion JPEG) on this raster: its codes copied unmanaged into a pooled
