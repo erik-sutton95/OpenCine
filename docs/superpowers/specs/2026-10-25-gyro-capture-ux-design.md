@@ -217,33 +217,29 @@ must survive the move (migrate storage keys and file locations).
 - Hardware check (owner, Nikon ZR): arm with IBIS on, calibrate in portrait and landscape
   mounts, bump the phone mid-take, disarm and confirm VR restored, open a log in Gyroflow.
 
-## Open decisions (provisional calls, pending the owner)
+## Decisions confirmed by the owner (2026-10-25 evening)
 
-These came out of the builder check. Each has a provisional answer the design uses until
-the owner confirms or changes it.
-
-1. **How long "armed" lasts.** Provisional: one connected session. The saved Gyro toggle
+1. **"Armed" lasts one connected session** (owner chose this). The saved Gyro toggle
    means "arm whenever possible"; a session is armed while the toggle is on and capture is
    eligible (connected, monitor showing, app in front, video mode, no multicam or relay).
    The arming sheet (IBIS step, calibration offer) appears at the start of each armed
-   session, which fits "a mount drifts every time it is put on". IBIS is restored when the
-   armed session ends while the camera is still connected (toggle off, leaving the monitor,
-   switching to photo, disconnecting cleanly). If the link drops before the restore can be
-   written, the restore is owed and applied on the next connection before anything else.
-   This avoids a camera left with IBIS off after the user stops using gyro.
-2. **Logging without a calibration.** Provisional: allowed. Backing out of calibration (or
-   a camera without level readings) still arms and logs. The file carries the unverified
-   default orientation, as uncalibrated takes do today, and the user aligns in Gyroflow.
-   The logs screen adds a **Not calibrated** badge (amber) and the take page says so in
-   place of "calibrated mount". No preset picker returns; any orientation model the engine
-   needs stays internal.
-3. **"Open in Gyroflow".** Provisional: one primary **Share log** button. iOS cannot target
-   a specific app or reliably detect Gyroflow, and Gyroflow starts from the video, so the
-   share sheet (AirDrop, Files, Gyroflow) is the honest action on iOS. On Android, if the
-   Gyroflow app is installed, the button reads **Open in Gyroflow** and sends to it
-   directly; otherwise it is the system share sheet. "Share another way" is dropped on iOS
-   and kept on Android only when the direct path is shown. The tip line becomes "Share a
-   log to Gyroflow with the clip, then pick your lens."
+   session. IBIS is restored when the armed session ends while the camera is still
+   connected (toggle off, leaving the monitor, switching to photo, backgrounding,
+   disconnecting cleanly). If the link drops before the restore can be written, the
+   restore is owed and applied on the next connection before anything else.
+2. **Logging without a calibration is allowed** (owner: yes). Backing out of calibration,
+   or a camera without level readings, still arms and logs. The file carries the
+   unverified default orientation, as uncalibrated takes do today, and the user aligns in
+   Gyroflow. The logs screen adds a **Not calibrated** badge (amber) and the take page says
+   so in place of "calibrated mount". No preset picker returns; any orientation model the
+   engine needs stays internal.
+3. **Gyroflow runs mostly on a desktop** (owner). The take page's primary action is
+   **Share log** on both platforms (system share sheet: AirDrop, Files, Drive); there is no
+   app-specific Gyroflow path, which keeps iOS and Android identical. The tip line becomes
+   "Share a log to your computer, open it in Gyroflow with the clip, then pick your lens."
+   The logs list gets a **Select** mode to share several takes at once (coordinator's
+   call, for desktop batches). This replaces "Open in Gyroflow" and "Share another way"
+   in section 6.
 
 ## Left to the builder
 
