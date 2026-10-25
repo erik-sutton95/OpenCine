@@ -1,0 +1,102 @@
+<style>
+  .row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin:10px 0 4px;align-items:flex-end}
+  .ph{background:#111213;border:6px solid #2a2b2d;position:relative;overflow:hidden;color:#fff;font-family:-apple-system,system-ui,sans-serif;display:flex}
+  .por{width:180px;height:380px;border-radius:32px;flex-direction:column;align-items:center}
+  .lan{width:380px;height:180px;border-radius:32px;flex-direction:row;align-items:stretch}
+  .lan .vis{width:48%;display:flex;align-items:center;justify-content:center}
+  .lan .txt{flex:1;display:flex;flex-direction:column;justify-content:center;padding-right:18px}
+  .top{font-size:10px;color:#8b8d90;letter-spacing:.06em;text-transform:uppercase}
+  .por .top{margin-top:20px}
+  h4{margin:6px 0 0;font-size:15px;font-weight:600;line-height:1.25}
+  .por h4{text-align:center;margin:6px 12px 0}
+  .ph p{margin:5px 0 0;font-size:11px;color:#a7a9ac;line-height:1.35}
+  .por p{text-align:center;margin:5px 14px 0}
+  .por .stage{flex:1;display:flex;align-items:center;justify-content:center;width:100%}
+  .btn{background:#FFE100;color:#111213;border-radius:11px;padding:9px 0;text-align:center;font-weight:600;font-size:13px}
+  .por .btn{margin:0 14px 20px;width:calc(100% - 28px)}
+  .lan .btn{margin-top:12px}
+  .hint{color:#8b8d90;font-size:12px}
+  .por .hint{margin:0 14px 20px;text-align:center}
+  .lan .hint{margin-top:10px}
+  .cap{text-align:center;font-size:12px;color:var(--text-secondary,#888);margin-top:6px}
+  .col{display:flex;flex-direction:column;align-items:center}
+  .grp{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 0;color:var(--text-secondary,#888);text-align:center}
+  @keyframes tilt{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(-4deg)}}
+  @keyframes fill{from{stroke-dashoffset:302}to{stroke-dashoffset:90}}
+  .tilt{animation:tilt 3s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 50%}
+  .fill{stroke-dasharray:302;animation:fill 3s ease-out infinite alternate}
+  .dots{display:flex;gap:6px;margin-top:8px}.dots i{width:7px;height:7px;border-radius:50%;background:#3a3b3d}.dots i.on{background:#FFE100}
+  .por .dots{justify-content:center}
+</style>
+
+<svg width="0" height="0" style="position:absolute">
+ <defs>
+  <g id="cam"><rect x="-25" y="-16" width="50" height="32" rx="6" fill="#2a2b2d"/><rect x="-20" y="-22" width="14" height="7" rx="2" fill="#2a2b2d"/><circle cx="0" cy="0" r="11" fill="#111213" stroke="#FFE100" stroke-width="2"/></g>
+  <g id="ringA"><circle cx="0" cy="0" r="48" fill="none" stroke="#2c2d2f" stroke-width="11" stroke-dasharray="3 6"/></g>
+  <g id="check"><circle cx="0" cy="0" r="40" fill="none" stroke="#FFE100" stroke-width="9"/><path d="M-17 2 l11 11 l24 -25" fill="none" stroke="#FFE100" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <g id="checkB"><circle cx="0" cy="0" r="40" fill="#FFE100"/><path d="M-17 2 l11 11 l24 -25" fill="none" stroke="#111213" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g>
+ </defs>
+</svg>
+
+<h2>Both directions, portrait and landscape</h2>
+<p class="subtitle">The screen follows however the phone sits on the mount. Portrait stacks picture over text; landscape puts the picture on the left and the words and button on the right, so nothing ends up under your thumb or off screen.</p>
+
+<div class="options">
+<div class="option" data-choice="ring">
+<div class="letter">A</div>
+<div class="content">
+<h3>Fill the ring</h3>
+<p>Tilting lights up ticks; hold still until the ring closes.</p>
+
+<div class="grp">Portrait</div>
+<div class="row">
+ <div class="col"><div class="ph por"><div class="top">Phone mount</div><h4>Calibrate your phone mount</h4><p>About 20 seconds. Keep the phone clamped to the camera.</p>
+  <div class="stage"><svg width="120" height="120" viewBox="-60 -60 120 120"><use href="#ringA"/><use href="#cam"/></svg></div><div class="btn">Get started</div></div><div class="cap">Start</div></div>
+ <div class="col"><div class="ph por"><div class="top">Step 2 of 3</div><h4>Slowly tilt the lens up</h4><div class="dots"><i class="on"></i><i class="on"></i><i></i></div>
+  <div class="stage"><svg width="140" height="140" viewBox="-70 -70 140 140"><use href="#ringA"/><circle class="fill" r="48" fill="none" stroke="#FFE100" stroke-width="11" stroke-dasharray="3 6" transform="rotate(-90)"/><g class="tilt"><use href="#cam"/></g></svg></div>
+  <div class="hint">Hold still when the ring turns yellow</div></div><div class="cap">In progress</div></div>
+ <div class="col"><div class="ph por"><div class="top">Phone mount</div><h4>Calibration complete</h4><p>Your gyro data now lines up with this camera.</p>
+  <div class="stage"><svg width="110" height="110" viewBox="-55 -55 110 110"><use href="#check"/></svg></div><div class="btn">Done</div></div><div class="cap">Done</div></div>
+</div>
+
+<div class="grp">Landscape</div>
+<div class="row">
+ <div class="col"><div class="ph lan"><div class="vis"><svg width="120" height="120" viewBox="-60 -60 120 120"><use href="#ringA"/><use href="#cam"/></svg></div>
+  <div class="txt"><div class="top">Phone mount</div><h4>Calibrate your phone mount</h4><p>About 20 seconds. Keep the phone clamped to the camera.</p><div class="btn">Get started</div></div></div><div class="cap">Start</div></div>
+ <div class="col"><div class="ph lan"><div class="vis"><svg width="140" height="140" viewBox="-70 -70 140 140"><use href="#ringA"/><circle class="fill" r="48" fill="none" stroke="#FFE100" stroke-width="11" stroke-dasharray="3 6" transform="rotate(-90)"/><g class="tilt"><use href="#cam"/></g></svg></div>
+  <div class="txt"><div class="top">Step 2 of 3</div><h4>Slowly tilt the lens up</h4><div class="dots"><i class="on"></i><i class="on"></i><i></i></div><div class="hint">Hold still when the ring turns yellow</div></div></div><div class="cap">In progress</div></div>
+ <div class="col"><div class="ph lan"><div class="vis"><svg width="110" height="110" viewBox="-55 -55 110 110"><use href="#check"/></svg></div>
+  <div class="txt"><div class="top">Phone mount</div><h4>Calibration complete</h4><p>Your gyro data now lines up with this camera.</p><div class="btn">Done</div></div></div><div class="cap">Done</div></div>
+</div>
+</div></div>
+
+<div class="option" data-choice="match">
+<div class="letter">B</div>
+<div class="content">
+<h3>Match the outline</h3>
+<p>A live camera silhouette moves with your rig; line it up with the dotted outline and hold.</p>
+
+<div class="grp">Portrait</div>
+<div class="row">
+ <div class="col"><div class="ph por"><div class="top">Step 1 of 3</div><h4>Hold the camera level</h4><div class="dots"><i class="on"></i><i></i><i></i></div>
+  <div class="stage"><svg width="150" height="130" viewBox="-75 -65 150 130"><line x1="-70" y1="0" x2="70" y2="0" stroke="#2c2d2f" stroke-width="2"/><rect x="-35" y="-22" width="70" height="44" rx="8" fill="none" stroke="#FFE100" stroke-width="2" stroke-dasharray="5 5"/><g class="tilt"><rect x="-35" y="-22" width="70" height="44" rx="8" fill="#2a2b2d"/><circle r="14" fill="#111213" stroke="#8b8d90" stroke-width="2"/></g></svg></div>
+  <div class="hint">Line up the camera with the outline</div></div><div class="cap">Lining up</div></div>
+ <div class="col"><div class="ph por"><div class="top">Step 2 of 3</div><h4>Tilt the lens up</h4><div class="dots"><i class="on"></i><i class="on"></i><i></i></div>
+  <div class="stage"><svg width="150" height="130" viewBox="-75 -65 150 130"><g transform="rotate(-30)"><rect x="-35" y="-22" width="70" height="44" rx="8" fill="#2a2b2d" stroke="#FFE100" stroke-width="3"/><circle r="14" fill="#111213" stroke="#FFE100" stroke-width="2"/></g><text y="58" fill="#FFE100" font-size="20" font-weight="700" text-anchor="middle" font-family="-apple-system,system-ui">2</text></svg></div>
+  <div class="hint">Hold it there</div></div><div class="cap">Matched, counting down</div></div>
+ <div class="col"><div class="ph por"><div class="top">Phone mount</div><h4>All set</h4><p>Gyro data lines up with this camera. Recalibrate anytime from Phone mount.</p>
+  <div class="stage"><svg width="110" height="110" viewBox="-55 -55 110 110"><use href="#checkB"/></svg></div><div class="btn">Done</div></div><div class="cap">Done</div></div>
+</div>
+
+<div class="grp">Landscape</div>
+<div class="row">
+ <div class="col"><div class="ph lan"><div class="vis"><svg width="160" height="130" viewBox="-80 -65 160 130"><line x1="-75" y1="0" x2="75" y2="0" stroke="#2c2d2f" stroke-width="2"/><rect x="-35" y="-22" width="70" height="44" rx="8" fill="none" stroke="#FFE100" stroke-width="2" stroke-dasharray="5 5"/><g class="tilt"><rect x="-35" y="-22" width="70" height="44" rx="8" fill="#2a2b2d"/><circle r="14" fill="#111213" stroke="#8b8d90" stroke-width="2"/></g></svg></div>
+  <div class="txt"><div class="top">Step 1 of 3</div><h4>Hold the camera level</h4><div class="dots"><i class="on"></i><i></i><i></i></div><div class="hint">Line up the camera with the outline</div></div></div><div class="cap">Lining up</div></div>
+ <div class="col"><div class="ph lan"><div class="vis"><svg width="160" height="130" viewBox="-80 -65 160 130"><g transform="rotate(-30)"><rect x="-35" y="-22" width="70" height="44" rx="8" fill="#2a2b2d" stroke="#FFE100" stroke-width="3"/><circle r="14" fill="#111213" stroke="#FFE100" stroke-width="2"/></g><text y="58" fill="#FFE100" font-size="20" font-weight="700" text-anchor="middle" font-family="-apple-system,system-ui">2</text></svg></div>
+  <div class="txt"><div class="top">Step 2 of 3</div><h4>Tilt the lens up</h4><div class="dots"><i class="on"></i><i class="on"></i><i></i></div><div class="hint">Hold it there</div></div></div><div class="cap">Matched, counting down</div></div>
+ <div class="col"><div class="ph lan"><div class="vis"><svg width="110" height="110" viewBox="-55 -55 110 110"><use href="#checkB"/></svg></div>
+  <div class="txt"><div class="top">Phone mount</div><h4>All set</h4><p>Gyro data lines up with this camera. Recalibrate anytime from Phone mount.</p><div class="btn">Done</div></div></div><div class="cap">Done</div></div>
+</div>
+</div></div>
+</div>
+<p class="subtitle">Colors are the Z app's own: #111213 background and the #FFE100 accent.</p>

@@ -58,6 +58,9 @@ include(
     // Frame.io: the one Android delivery owner (sign-in, upload, history, hop lease) over the
     // shared Swift wire (JNI facade FrameioNative).
     ":frameio",
+    // Gyro: motion capture take policy, ring calibration, drift and arming over the shared Swift
+    // wire (JNI facade GyroNative).
+    ":gyro",
     // Media3 playback shared by the apps: player recipe, port, audio meter tap and playback owner.
     ":media3",
 )

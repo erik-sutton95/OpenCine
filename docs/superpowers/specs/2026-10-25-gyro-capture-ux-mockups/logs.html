@@ -1,0 +1,81 @@
+<style>
+  .row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin:10px 0 4px;align-items:flex-end}
+  .ph{background:#111213;border:6px solid #2a2b2d;overflow:hidden;color:#fff;font-family:-apple-system,system-ui,sans-serif;display:flex;flex-direction:column}
+  .por{width:200px;height:420px;border-radius:32px}
+  .lan{width:440px;height:210px;border-radius:32px;flex-direction:row}
+  .nav{display:flex;justify-content:space-between;align-items:center;padding:20px 14px 6px;font-size:12px}
+  .nav b{font-size:16px}.nav span{color:#FFE100}
+  .day{font-size:10px;color:#8b8d90;text-transform:uppercase;letter-spacing:.06em;margin:10px 14px 4px}
+  .item{display:flex;align-items:center;gap:9px;background:#1A1B1C;margin:0 10px 6px;border-radius:12px;padding:9px 10px}
+  .item .t{flex:1}.item .t div:first-child{font-size:13px;font-weight:600}.item .t div:last-child{font-size:10.5px;color:#8b8d90;margin-top:2px}
+  .badge{font-size:10px;font-weight:600;border-radius:20px;padding:3px 7px;white-space:nowrap}
+  .ok{background:rgba(46,199,107,.15);color:#2ec76b}.warn{background:rgba(245,133,31,.15);color:#f5851f}.bad{background:rgba(255,69,58,.15);color:#ff453a}.live{background:#ff453a;color:#fff}
+  .ico{width:26px;height:26px;border-radius:8px;background:#222425;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .tip{margin:4px 10px 4px;border:1px solid #2a2b2d;border-radius:12px;padding:8px 10px;font-size:10.5px;color:#a7a9ac;display:flex;gap:8px;align-items:center}
+  .tip b{color:#fff}
+  .btn{background:#FFE100;color:#111213;border-radius:11px;padding:9px 0;text-align:center;font-weight:600;font-size:13px;margin:8px 14px}
+  .sec{color:#8b8d90;font-size:11px;text-align:center;margin:2px 14px}
+  .kv{display:flex;justify-content:space-between;font-size:11px;padding:6px 14px;border-bottom:1px solid #1f2021}.kv span:first-child{color:#8b8d90}
+  .cap{text-align:center;font-size:12px;color:var(--text-secondary,#888);margin-top:6px}
+  .col{display:flex;flex-direction:column;align-items:center}
+  .grp{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:18px 0 0;color:var(--text-secondary,#888);text-align:center}
+  .big{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:0 18px}
+  .big h4{margin:10px 0 4px;font-size:15px}.big p{margin:0;font-size:11.5px;color:#a7a9ac;line-height:1.4}
+  .pane{flex:1;overflow:hidden;display:flex;flex-direction:column}.pane+.pane{border-left:1px solid #222425}
+</style>
+
+<h2>Gyro logs, redesigned</h2>
+<p class="subtitle">Takes grouped by day. Each one shows its time, length and one plain status. The numbers (sample rate, gaps, offsets) move behind a tap. The main action is "Open in Gyroflow"; delete is a swipe.</p>
+
+<div class="grp">Portrait</div>
+<div class="row">
+ <div class="col"><div class="ph por">
+  <div class="nav"><b>Gyro logs</b><span>Done</span></div>
+  <div class="tip"><div class="ico">🎛️</div><div>Open a log in <b>Gyroflow</b>, then pick your lens. That's it.</div></div>
+  <div class="day">Today</div>
+  <div class="item"><div class="ico">⏺</div><div class="t"><div>14:32 · recording</div><div>Nikon ZR · 0:12</div></div><span class="badge live">REC</span></div>
+  <div class="item"><div class="ico">〰️</div><div class="t"><div>14:18</div><div>Nikon ZR · 0:48</div></div><span class="badge ok">Ready</span></div>
+  <div class="item"><div class="ico">〰️</div><div class="t"><div>13:55</div><div>Nikon ZR · 2:10</div></div><span class="badge warn">Small gaps</span></div>
+  <div class="day">Yesterday</div>
+  <div class="item"><div class="ico">〰️</div><div class="t"><div>19:02</div><div>Nikon ZR · 1:05</div></div><span class="badge ok">Ready</span></div>
+  <div class="item"><div class="ico">〰️</div><div class="t"><div>18:40</div><div>Nikon ZR · 0:31</div></div><span class="badge bad">Cut short</span></div>
+ </div><div class="cap">List: one glance tells you if a take is usable</div></div>
+
+ <div class="col"><div class="ph por">
+  <div class="nav"><span>‹ Logs</span><b>14:18</b><span></span></div>
+  <div class="big" style="flex:0 0 150px"><svg width="70" height="70" viewBox="-35 -35 70 70"><circle r="30" fill="rgba(46,199,107,.15)"/><path d="M-12 1 l8 8 l17 -18" fill="none" stroke="#2ec76b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg><h4>Ready for Gyroflow</h4><p>Nikon ZR · 0:48 · calibrated mount</p></div>
+  <div class="btn">Open in Gyroflow</div>
+  <div class="sec">Share another way</div>
+  <div class="day" style="margin-top:14px">Details</div>
+  <div class="kv"><span>Starts</span><span>0.12 s before REC</span></div>
+  <div class="kv"><span>Smoothness</span><span>No gaps</span></div>
+  <div class="kv"><span>Sample rate</span><span>200 Hz</span></div>
+ </div><div class="cap">Tap a take: verdict first, numbers last</div></div>
+
+ <div class="col"><div class="ph por">
+  <div class="nav"><b>Gyro logs</b><span>Done</span></div>
+  <div class="big"><svg width="90" height="90" viewBox="-45 -45 90 90"><circle r="38" fill="none" stroke="#2c2d2f" stroke-width="9" stroke-dasharray="3 6"/><path d="M-20 0 q5 -12 10 0 t10 0 t10 0 t10 0" fill="none" stroke="#FFE100" stroke-width="3" stroke-linecap="round"/></svg>
+   <h4>No logs yet</h4><p>Turn on Gyro, then hit record. Each take saves a log you can open in Gyroflow.</p></div>
+  <div class="btn" style="margin-bottom:20px">Turn on Gyro</div>
+ </div><div class="cap">Empty: one button, not directions</div></div>
+</div>
+
+<div class="grp">Landscape</div>
+<div class="row">
+ <div class="col"><div class="ph lan">
+  <div class="pane">
+   <div class="nav" style="padding-top:12px"><b>Gyro logs</b><span>Done</span></div>
+   <div class="day" style="margin-top:2px">Today</div>
+   <div class="item"><div class="ico">⏺</div><div class="t"><div>14:32 · recording</div><div>Nikon ZR · 0:12</div></div><span class="badge live">REC</span></div>
+   <div class="item" style="outline:1.5px solid #FFE100"><div class="ico">〰️</div><div class="t"><div>14:18</div><div>Nikon ZR · 0:48</div></div><span class="badge ok">Ready</span></div>
+   <div class="item"><div class="ico">〰️</div><div class="t"><div>13:55</div><div>Nikon ZR · 2:10</div></div><span class="badge warn">Small gaps</span></div>
+  </div>
+  <div class="pane">
+   <div class="big" style="flex:0 0 105px;padding-top:10px"><svg width="46" height="46" viewBox="-35 -35 70 70"><circle r="30" fill="rgba(46,199,107,.15)"/><path d="M-12 1 l8 8 l17 -18" fill="none" stroke="#2ec76b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg><h4 style="margin:6px 0 2px">Ready for Gyroflow</h4><p>Nikon ZR · 0:48 · calibrated mount</p></div>
+   <div class="btn" style="margin-top:4px">Open in Gyroflow</div>
+   <div class="sec">Details ›</div>
+  </div>
+ </div><div class="cap">Landscape: list on the left, the selected take on the right</div></div>
+</div>
+
+<p class="subtitle">Statuses in plain words: <b>Ready</b> (complete), <b>Small gaps</b> (usable, a few dropped samples), <b>Cut short</b> (interrupted or partial), <b>REC</b> while recording.</p>
