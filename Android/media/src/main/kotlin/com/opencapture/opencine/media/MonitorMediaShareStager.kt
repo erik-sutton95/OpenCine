@@ -459,7 +459,8 @@ public class MonitorMediaShareStager(
 
     /**
      * Every provider-visible artifact: `ready/<digest>/<camera filename>`, plus flat
-     * `ready/<digest>.<ext>` files left by builds that named copies by digest alone.
+     * `ready/<digest>.<ext>` files left by builds that named copies by digest alone. Other
+     * folders below `ready` (an app's own diagnostics or log shares) are not this owner's.
      */
     private fun readyArtifacts(): List<ReadyArtifact> {
         val artifacts = mutableListOf<ReadyArtifact>()
@@ -470,7 +471,7 @@ public class MonitorMediaShareStager(
                     val path = iterator.next()
                     if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
                         readyArtifact(path)?.let { artifacts += it }
-                    } else if (!nested && Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+                    } else if (!nested && isArtifactDirectory(path)) {
                         collect(path, nested = true)
                     }
                 }
@@ -480,11 +481,14 @@ public class MonitorMediaShareStager(
         return artifacts
     }
 
+    private fun isArtifactDirectory(path: Path): Boolean =
+        Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) && path.fileName.toString().matches(DIGEST_NAME)
+
     /** Removes one ready file and the digest folder it leaves empty. */
     private fun deleteReadyFile(path: Path): Boolean {
         val deleted = Files.deleteIfExists(path)
         val folder = path.parent
-        if (folder != null && folder != readyDirectory && folder.parent == readyDirectory) {
+        if (folder != null && folder.parent == readyDirectory && isArtifactDirectory(folder)) {
             runCatching { Files.deleteIfExists(folder) } // Still holds a twin under another name.
         }
         return deleted
@@ -496,7 +500,7 @@ public class MonitorMediaShareStager(
             val iterator = paths.iterator()
             while (iterator.hasNext()) {
                 val path = iterator.next()
-                if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+                if (isArtifactDirectory(path)) {
                     runCatching { Files.deleteIfExists(path) }
                 }
             }
@@ -592,6 +596,7 @@ public class MonitorMediaShareStager(
     private companion object {
         val SAFE_MIME_TYPE: Regex = Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+*-]*")
         val SAFE_MIME_FAMILY: Regex = Regex("[a-z0-9][a-z0-9.+-]*/\\*")
+        val DIGEST_NAME: Regex = Regex("[0-9a-f]{64}")
 
         /** Serializes ready-cache publication and eviction across stager instances in this process. */
         val readyCacheLock: Any = Any()

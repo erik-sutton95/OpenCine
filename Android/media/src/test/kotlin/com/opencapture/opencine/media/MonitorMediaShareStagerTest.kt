@@ -55,6 +55,25 @@ class MonitorMediaShareStagerTest {
         assertTrue(Files.exists(next.file))
     }
 
+    /** An app's own folders below `ready` (diagnostics, log shares) are never counted or removed. */
+    @Test fun foreignReadyFoldersAreLeftAlone() = withRoot { root ->
+        val ready = root.resolve("cache/share/ready")
+        val report = ready.resolve("diagnostics/report.txt").also { Files.createDirectories(it.parent); Files.write(it, byteArrayOf(1, 2, 3)) }
+        val emptyForeign = Files.createDirectories(ready.resolve("gyro"))
+        Files.setLastModifiedTime(report, java.nio.file.attribute.FileTime.fromMillis(0))
+        val stager = stager(root, bytes = 2, count = 1, retention = 10) { 100L }
+        stager.stage(completed(root, "a.mov", byteArrayOf(4, 5)), "a.mov", "video/*")
+        var checks = 0
+        assertFailsWith<CancellationException> {
+            stager.stage(completed(root, "b.mov", byteArrayOf(6, 7)), "b.mov", "video/*") {
+                checks += 1
+                if (checks == 3) throw CancellationException("cancel")
+            }
+        }
+        assertTrue(Files.exists(report))
+        assertTrue(Files.isDirectory(emptyForeign))
+    }
+
     @Test fun partialUnsafeAndMalformedSourcesCannotPublishReadyFiles() = withRoot { root ->
         val partial = ProgressiveMediaCache(root.resolve("source")).openEntry(
             "camera", ProgressiveMediaCacheIdentity("partial.mov", "partial"), 4,
