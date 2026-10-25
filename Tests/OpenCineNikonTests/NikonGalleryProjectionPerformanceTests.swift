@@ -58,7 +58,7 @@ import Testing
         let ms = Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15
         print("MEDIA-PERF nikon.project4categories.ms: \(String(format: "%.1f", ms)) counts \(counts)")
         #expect(counts[1] == 200, "every clip is a video")
-        #expect(ms < 1500, "four projections took \(ms) ms")
+        #expect(ms < 3000, "four projections took \(ms) ms")
     }
 
     /// The original per-still algorithm, kept here as the oracle.

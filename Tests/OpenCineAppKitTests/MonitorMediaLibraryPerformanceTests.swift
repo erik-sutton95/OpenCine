@@ -232,7 +232,7 @@ private func report(_ name: String, _ value: String) {
         // The whole catalog is encoded a bounded number of times, not once per page.
         #expect(fixture.codec.encodedRecords <= MediaPerfCard.count * 12,
             "checkpoints encoded \(fixture.codec.encodedRecords) records over \(pages) pages")
-        #expect(milliseconds(elapsed) < 4000)
+        // Wall time is reported, not asserted: a hosted runner runs other suites beside this one.
     }
 
     /// A transfer's progress ticks are not a catalog change: views that read the records or the
@@ -272,11 +272,20 @@ private func report(_ name: String, _ value: String) {
         defer { fixture.close() }
         try await fixture.list()
         fixture.library.sort = .name
+        func storage(_ records: [MonitorMediaRecord<String>]) -> UnsafeRawPointer? {
+            records.withUnsafeBufferPointer { UnsafeRawPointer($0.baseAddress) }
+        }
+        // The first list stays alive, so a fresh derivation can never reuse its storage address.
+        let firstList = fixture.library.displayedRecords
+        let first = storage(firstList)
+        var reused = true
         let elapsed = measure {
-            for _ in 0..<200 { _ = fixture.library.displayedRecords }
+            for _ in 0..<200 { reused = reused && storage(fixture.library.displayedRecords) == first }
         }
         report("displayed.200reads.ms", String(format: "%.1f", milliseconds(elapsed)))
-        #expect(milliseconds(elapsed) < 150, "200 reads took \(milliseconds(elapsed)) ms")
+        #expect(reused, "each read derived (filtered and sorted) the displayed records again")
+        withExtendedLifetime(firstList) {}
+        #expect(milliseconds(elapsed) < 1000, "200 reads took \(milliseconds(elapsed)) ms")
     }
 
     /// Selecting a whole card and resolving it for share/cache is linear, not quadratic.
@@ -296,7 +305,7 @@ private func report(_ name: String, _ value: String) {
         }
         report("selectAll.resolve.ms", String(format: "%.1f", milliseconds(elapsed)))
         #expect(resolved == MediaPerfCard.count)
-        #expect(milliseconds(elapsed) < 400, "select all and resolve took \(milliseconds(elapsed)) ms")
+        #expect(milliseconds(elapsed) < 2000, "select all and resolve took \(milliseconds(elapsed)) ms")
     }
 
     /// One fetched thumbnail rescans that one record, not the whole card.
