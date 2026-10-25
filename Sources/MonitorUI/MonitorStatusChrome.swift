@@ -13,6 +13,7 @@
     private let showsRecording: Bool
     private let showsCompactTelemetry: Bool
     private let minimumOccupiedTop: Double
+    private let clock: (() -> String?)?
     private let storage: () -> Storage
     private let format: () -> Format
     private let color: () -> ColorProfile
@@ -22,7 +23,7 @@
     public init(
       layout: FieldMonitorLayout, status: MonitorStatusPresentation,
       showsTimecode: Bool = true, showsRecording: Bool = true, showsCompactTelemetry: Bool = true,
-      minimumOccupiedTop: Double = 0,
+      minimumOccupiedTop: Double = 0, clock: (() -> String?)? = nil,
       @ViewBuilder storage: @escaping () -> Storage,
       @ViewBuilder format: @escaping () -> Format,
       @ViewBuilder color: @escaping () -> ColorProfile,
@@ -35,6 +36,7 @@
       self.showsRecording = showsRecording
       self.showsCompactTelemetry = showsCompactTelemetry
       self.minimumOccupiedTop = minimumOccupiedTop
+      self.clock = clock
       self.storage = storage
       self.format = format
       self.color = color
@@ -53,13 +55,15 @@
             HStack(spacing: 0) { if showsRecording { MonitorRecordingReadout(status: status) } }
             HStack(spacing: 0) {
               if showsTimecode {
-                if let primaryFit, primaryFit.tracking < 0 {
-                  MonitorPortraitTrackedClock(
-                    status.timecode, placeholder: status.timecodePlaceholder, fit: primaryFit)
-                } else {
-                  MonitorClock(
-                    status.timecode, placeholder: status.timecodePlaceholder,
-                    fontSize: primaryFit?.clockSize ?? (layout.tablet ? 25 : 23))
+                MonitorStatusClockSlot(read: clock, fallback: status.timecode) { shown in
+                  if let primaryFit, primaryFit.tracking < 0 {
+                    MonitorPortraitTrackedClock(
+                      shown, placeholder: status.timecodePlaceholder, fit: primaryFit)
+                  } else {
+                    MonitorClock(
+                      shown, placeholder: status.timecodePlaceholder,
+                      fontSize: primaryFit?.clockSize ?? (layout.tablet ? 25 : 23))
+                  }
                 }
               }
             }
@@ -78,7 +82,11 @@
             Spacer(minLength: 4)
             HStack(spacing: 10) {
               if showsRecording { MonitorRecordingReadout(status: status) }
-              if showsTimecode { MonitorClock(status.timecode, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23) }
+              if showsTimecode {
+                MonitorStatusClockSlot(read: clock, fallback: status.timecode) { shown in
+                  MonitorClock(shown, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23)
+                }
+              }
             }
             .padding(.trailing, layout.recordingReadoutTrailingInset)
           }
@@ -105,6 +113,17 @@
         }
       }
     }
+  }
+
+  /// Reads a source's live clock in its own body. A timecode that advances every live view frame
+  /// then re-renders this readout only, not the status composition and the surface that hold it
+  /// (lane media-perf 2026-10-25: Z's per-frame timecode re-evaluated the whole live surface).
+  /// Without a reader the status value shows, as before.
+  private struct MonitorStatusClockSlot<Clock: View>: View {
+    let read: (() -> String?)?
+    let fallback: String?
+    @ViewBuilder let render: (String?) -> Clock
+    var body: some View { render(read.map { $0() } ?? fallback) }
   }
 
   /// Reserve performance first; storage scales inside its remaining slot.
