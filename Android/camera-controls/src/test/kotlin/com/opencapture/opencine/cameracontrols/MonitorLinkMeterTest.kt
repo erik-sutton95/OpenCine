@@ -59,4 +59,16 @@ class MonitorLinkMeterTest {
         meter.tick(observation(frames = 0), 2_000)
         assertEquals("25.13", meter.label, "a new counter shows the last measured rate, unheld, until it measures again")
     }
+
+    /** Hardware pass 7.2a: a held frame drew 3 of 4 bars beside NO LINK. Nothing is delivered. */
+    @Test
+    fun aHeldFrameDrawsNoDeliveryBarsEvenWhenTheSourceScoresSome() {
+        val meter = MonitorLinkMeter()
+        meter.tick(observation(frames = 0, linkBars = 3), 1_000)
+        meter.tick(observation(frames = 5, linkBars = 3), 1_200)
+        assertEquals(3, meter.bars)
+        meter.tick(observation(frames = 5, linkBars = 3, sessionRecovering = true), 1_400)
+        assertEquals(SessionRecoveryCopy.HELD_FRAME_BADGE, meter.label)
+        assertEquals(0, meter.bars)
+    }
 }

@@ -531,7 +531,9 @@ func SessionRecoveryEpisode.Attempt.checkCurrent() throws -> ()
 func SessionRecoveryEpisode.Attempt.retireCapturedRun() -> Swift.Bool
 func SessionRecoveryEpisode.begin(targetID: Swift.String?, trigger: SessionRecoveryTrigger, reason: Swift.String) -> Swift.Bool
 func SessionRecoveryEpisode.cancel(clearHold: Swift.Bool) -> ()
+func SessionRecoveryEpisode.pause() -> ()
 func SessionRecoveryEpisode.resetStorm() -> ()
+func SessionRecoveryEpisode.resume() -> ()
 func SessionRecoveryEpisode.retry() -> Swift.Bool
 func SessionRecoveryPolicy.decision(afterFailedAttempts: Swift.Int, jitter: Swift.Double) -> SessionRecoveryDecision
 func SessionRecoveryPolicy.state(afterFailedAttempts: Swift.Int) -> SessionRecoveryState
@@ -1647,6 +1649,7 @@ var SessionRecoveryEpisode.Timing.sleep: (Swift.Duration) async throws -> Swift.
 var SessionRecoveryEpisode.Timing.uptime: () -> Foundation.TimeInterval
 var SessionRecoveryEpisode.Timing.wallNow: () -> Foundation.TimeInterval
 var SessionRecoveryEpisode.currentEpisodeID: Foundation.UUID?
+var SessionRecoveryEpisode.isPaused: Swift.Bool
 var SessionRecoveryEpisode.isRunning: Swift.Bool
 var SessionRecoveryEpisode.snapshot: SessionRecoveryEpisode.Snapshot
 var SessionRecoveryPolicy.backoff: ReconnectBackoff

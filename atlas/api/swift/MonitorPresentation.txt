@@ -903,6 +903,7 @@ static func MonitorSystemButtonMetrics.iconSide(tablet: Swift.Bool) -> Swift.Dou
 static func MonitorSystemButtonMetrics.side(tablet: Swift.Bool) -> Swift.Double
 static func MonitorTelemetryValues.batterySpokenValue(percent: Swift.Int?, bars: Swift.Int?, barCount: Swift.Int, charging: Swift.Bool?, externalPower: Swift.Bool?, exhausted: Swift.Bool) -> Swift.String?
 static func MonitorTelemetryValues.batteryValue(percent: Swift.Int?, bars: Swift.Int?, charging: Swift.Bool?, externalPower: Swift.Bool?) -> Swift.String?
+static func MonitorTelemetryValues.linkSpokenLabel(fps: Swift.String?, signalBars: Swift.Int?) -> Swift.String
 static func MonitorTelemetryValues.linkValue(fps: Swift.String?, signalBars: Swift.Int?, showsRate: Swift.Bool) -> Swift.String?
 static func MonitorTopCutout.estimated(width: Swift.Double, height: Swift.Double, safeTop: Swift.Double) -> MonitorRect?
 static func MonitorVectorscopeOptions.clampedBrightness(_: Swift.Int) -> Swift.Int
