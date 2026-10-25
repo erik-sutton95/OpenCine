@@ -109,8 +109,9 @@ with a `NikonTakeOverPrompt` (the app's prompt slot renders it). The device that
 never dials it again on its own: only the recovery episode reconnects, and before its first
 attempt it asks for the holder `NikonTakeOverRecovery.firstAttemptAsks` times, spaced, because the
 body drops it before the new holder's presence answer is up. `NikonMonitorRuntime`'s preview
-ladder hands any failure of a link that has streamed (and any lost link) to recovery instead of
-restarting live view or reconnecting in place, and sends nothing more to the body. A device that
+ladder hands a lost link (the camera closed it or the socket failed) and a live-view restart that
+fails after the link has streamed to recovery, instead of reconnecting in place; a lost link gets
+no further command at all. A stalled stream on a live link still restarts live view in place. A device that
 stopped reconnecting stops claiming the camera (`SessionRecoveryState.claimsCamera`), so the new
 holder never reads a later drop of its own as a take-over (hardware pass 4.1: both phones showed
 "Camera taken over" while the loser had taken the ZR back, and the body hung). Pairing and the access point's
