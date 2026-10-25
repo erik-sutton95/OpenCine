@@ -23,8 +23,15 @@ public enum AndroidConnectFailure: Int32, CaseIterable, Sendable {
     case nonNumericHost = 7
     /// The network or the PTP-IP exchange failed below the camera's own answers.
     case unreachable = 8
+    /// The wake asked the network and the body never answered: asleep or not on this network.
+    /// Android shows `NikonBodyWake.silentMessage` with its own camera name, the copy iOS shows.
+    case cameraSilent = 9
 
     public init(_ error: Error) {
+        if error is NikonBodyWake.SilentError {
+            self = .cameraSilent
+            return
+        }
         if let usb = error as? USBHandshakeError {
             self.init(usb.underlying)
             return

@@ -1,5 +1,6 @@
 package com.opencapture.opencine.nikon
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -24,7 +25,8 @@ class NikonBodyWakeTest {
         var dials = 0
         val outcome = NikonBodyWake.awaitAnswer("192.168.1.20") { ++dials >= 4 }
         assertEquals(NikonBodyWake.Outcome.Answered(4), outcome)
-        assertEquals(3 * NikonBodyWake.INTERVAL_MILLIS, currentTime)
+        // These dials end at once, so each pause is the rest of its slot.
+        assertEquals(3 * NikonBodyWake.SLOT_MILLIS, currentTime)
     }
 
     @Test
@@ -33,7 +35,49 @@ class NikonBodyWakeTest {
         val outcome = NikonBodyWake.awaitAnswer("192.168.1.20") { dials++; false }
         assertEquals(NikonBodyWake.Outcome.Silent(NikonBodyWake.DIALS), outcome)
         assertEquals(NikonBodyWake.DIALS, dials)
-        assertEquals((NikonBodyWake.DIALS - 1) * NikonBodyWake.INTERVAL_MILLIS, currentTime)
+        // Hardware pass 2026-10-25 (1.11, 3.7): dials a kernel refuses at once must still span the
+        // whole wait, one slot each, instead of collapsing it to a few seconds.
+        assertEquals((NikonBodyWake.DIALS - 1) * NikonBodyWake.SLOT_MILLIS, currentTime)
+    }
+
+    @Test
+    fun `a dial that used its whole deadline is followed by the shortest pause only`() = runTest {
+        val outcome =
+            NikonBodyWake.awaitAnswer("192.168.1.20", nowMillis = { currentTime }) {
+                delay(1_500)
+                false
+            }
+        assertEquals(NikonBodyWake.Outcome.Silent(NikonBodyWake.DIALS), outcome)
+        assertEquals(
+            NikonBodyWake.DIALS * 1_500L + (NikonBodyWake.DIALS - 1) * NikonBodyWake.INTERVAL_MILLIS,
+            currentTime,
+        )
+    }
+
+    @Test
+    fun `a dial cut short pauses for the rest of its slot, matching Swift`() {
+        assertEquals(NikonBodyWake.SLOT_MILLIS, NikonBodyWake.pauseAfter(0))
+        assertEquals(1_700L, NikonBodyWake.pauseAfter(300))
+        assertEquals(NikonBodyWake.INTERVAL_MILLIS, NikonBodyWake.pauseAfter(1_900))
+        assertEquals(NikonBodyWake.INTERVAL_MILLIS, NikonBodyWake.pauseAfter(5_000))
+    }
+
+    @Test
+    fun `the wake reports waiting, then the answer, before the retry dial`() = runTest {
+        val events = mutableListOf<String>()
+        var dials = 0
+        NikonBodyWake.dial<String>(
+            host = "192.168.1.20",
+            isAlive = { events += "alive"; true },
+            onWakeProgress = { events += it.name },
+            dial = {
+                dials++
+                events += "dial"
+                if (dials == 1) throw NikonBodyWake.DialFailure(DialTestFailure(), wakeWorthy = true)
+                "connected"
+            },
+        )
+        assertEquals(listOf("dial", "WAITING", "alive", "ANSWERED", "dial"), events)
     }
 
     @Test

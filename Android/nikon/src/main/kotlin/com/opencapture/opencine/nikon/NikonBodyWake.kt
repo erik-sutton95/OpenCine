@@ -13,15 +13,32 @@ import kotlinx.coroutines.isActive
  * command-connection timeout or "Host is down". This asks the network first with the cameras
  * list's own liveness dial (the presence port, never a PTP byte). The dials double as the wake: an
  * idle body's radio answers one in about 1.0-1.2 s once it is up. A silent body ends the attempt
- * with copy that says what is actually wrong. Bounded by dial count: each dial has its own
- * deadline, so the worst case is about 20 s with the defaults.
+ * with copy that says what is actually wrong.
+ *
+ * Paced by wall clock, one [SLOT_MILLIS] per dial: a dial that ends before its 1.5 s deadline
+ * waits out the rest of its slot, so the wait is about 20 s with the defaults whatever the dials
+ * do. Instant failures (a kernel that holds the host as unreachable after a failed address
+ * resolution) used to collapse the wait to a few seconds, too short for an operator who wakes the
+ * body by hand during it (hardware pass 2026-10-25, 1.11 and 3.7).
  */
 object NikonBodyWake {
     /** Liveness dials before the body counts as silent. */
     const val DIALS: Int = 10
 
-    /** Pause between two unanswered dials. */
+    /** Shortest pause between two unanswered dials. */
     const val INTERVAL_MILLIS: Long = 500
+
+    /** Wall-clock share of one dial: its 1.5 s deadline plus [INTERVAL_MILLIS]. */
+    const val SLOT_MILLIS: Long = 2_000
+
+    /** What a dial's wake tells the progress surface (Swift `NikonBodyWake.Progress`). */
+    enum class Progress { WAITING, ANSWERED }
+
+    /** The pause after an unanswered dial that took [spentMillis]: the rest of its slot, at least the interval. */
+    fun pauseAfter(spentMillis: Long, intervalMillis: Long = INTERVAL_MILLIS, slotMillis: Long = SLOT_MILLIS): Long =
+        maxOf(intervalMillis, slotMillis - spentMillis)
+
+    private fun monotonicMillis(): Long = System.nanoTime() / 1_000_000
 
     sealed interface Outcome {
         val dials: Int
@@ -44,19 +61,25 @@ object NikonBodyWake {
     /** The wake dials all went unanswered: the body is asleep or off this network. */
     class SilentException(val deviceName: String = "") : Exception(silentMessage(deviceName))
 
-    /** Dials [host] until it answers or [dials] dials went unanswered; cancellation propagates. */
+    /**
+     * Dials [host] until it answers or [dials] dials went unanswered, one slot per dial on
+     * [nowMillis] (a monotonic clock); cancellation propagates.
+     */
     suspend fun awaitAnswer(
         host: String,
         dials: Int = DIALS,
         intervalMillis: Long = INTERVAL_MILLIS,
+        slotMillis: Long = SLOT_MILLIS,
+        nowMillis: () -> Long = ::monotonicMillis,
         isAlive: suspend (String) -> Boolean,
     ): Outcome {
         val bound = dials.coerceAtLeast(1)
         var made = 0
         while (made < bound) {
             made += 1
+            val started = nowMillis()
             if (isAlive(host)) return Outcome.Answered(made)
-            if (made < bound) delay(intervalMillis)
+            if (made < bound) delay(pauseAfter(nowMillis() - started, intervalMillis, slotMillis))
         }
         return Outcome.Silent(made)
     }
@@ -72,6 +95,8 @@ object NikonBodyWake {
         deviceName: String = "",
         isAlive: suspend (String) -> Boolean,
         onWake: suspend () -> Unit = {},
+        onWakeProgress: suspend (Progress) -> Unit = {},
+        nowMillis: () -> Long = ::monotonicMillis,
         dial: suspend () -> T,
     ): T {
         try {
@@ -79,7 +104,11 @@ object NikonBodyWake {
         } catch (failure: DialFailure) {
             if (!failure.wakeWorthy || !currentCoroutineContext().isActive) throw failure.underlying
             onWake()
-            if (awaitAnswer(host, isAlive = isAlive) is Outcome.Silent) throw SilentException(deviceName)
+            onWakeProgress(Progress.WAITING)
+            if (awaitAnswer(host, nowMillis = nowMillis, isAlive = isAlive) is Outcome.Silent) {
+                throw SilentException(deviceName)
+            }
+            onWakeProgress(Progress.ANSWERED)
             try {
                 return dial()
             } catch (retry: DialFailure) {

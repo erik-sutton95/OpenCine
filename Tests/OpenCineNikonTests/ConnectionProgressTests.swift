@@ -74,6 +74,20 @@ import Testing
     #expect(idle == .idle)
 }
 
+/// Hardware pass 2026-10-25 (1.11): while the app waits for a dozing body the sheet showed
+/// "Establishing a secure link" for the whole wait, because the attempt had already begun.
+@Test func connectionProgressShowsTheWaitWhileTheBodyWakes() {
+    func phase(awaiting: Bool, failed: Bool = false) -> CameraConnectionPhase {
+        ConnectionProgressCopy.resolvePhase(
+            isProgressPresented: true, explicitPhase: .handshaking, isEstablishingConnection: true,
+            isPairing: false, isPreparingLiveView: false, isConnected: false, showsFailure: failed,
+            isAwaitingBody: awaiting)
+    }
+    #expect(phase(awaiting: true) == .discovering)
+    #expect(phase(awaiting: false) == .handshaking)
+    #expect(phase(awaiting: true, failed: true) == .failed)
+}
+
 @Test func connectionProgressPhaseResolverPassesReadyToJoinThrough() {
     let ready = ConnectionProgressCopy.resolvePhase(
         isProgressPresented: true,
