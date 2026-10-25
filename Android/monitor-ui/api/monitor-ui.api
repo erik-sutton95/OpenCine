@@ -588,7 +588,17 @@ public final class com/opencapture/monitorui/MonitorCommandDashboardKt {
 public final class com/opencapture/monitorui/MonitorCommandDashboardLayout {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorCommandDashboardLayout;
-	public final fun frame (Lcom/opencapture/monitorui/MonitorFieldLayout;)Lcom/opencapture/monitorui/MonitorRect;
+	public final fun frame (Lcom/opencapture/monitorui/MonitorFieldLayout;F)Lcom/opencapture/monitorui/MonitorRect;
+	public static synthetic fun frame$default (Lcom/opencapture/monitorui/MonitorCommandDashboardLayout;Lcom/opencapture/monitorui/MonitorFieldLayout;FILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorRect;
+	public final fun header (Lcom/opencapture/monitorui/MonitorFieldLayout;)Lcom/opencapture/monitorui/MonitorCommandHeader;
+}
+
+public final class com/opencapture/monitorui/MonitorCommandHeader : java/lang/Enum {
+	public static final field HIDDEN Lcom/opencapture/monitorui/MonitorCommandHeader;
+	public static final field TELEMETRY Lcom/opencapture/monitorui/MonitorCommandHeader;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorCommandHeader;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorCommandHeader;
 }
 
 public final class com/opencapture/monitorui/MonitorCommandHealth {
