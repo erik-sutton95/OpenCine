@@ -56,8 +56,8 @@ public enum MonitorTextFormat {
         let stripped = codec.trimmingCharacters(in: .whitespaces)
         // Drop a trailing `N-bit <name>` qualifier where `<name>` repeats the leading token.
         // "R3D NE 10-bit R3D" → first token group "R3D NE" + redundant "10-bit R3D".
-        if let match = stripped.firstMatch(of: #/\s+\d+-bit\s+.+$/#) {
-            return String(stripped[..<match.range.lowerBound]).trimmingCharacters(in: .whitespaces)
+        if let start = BitDepthQualifier.start(in: stripped, requiresTrailingName: true) {
+            return String(stripped[..<start]).trimmingCharacters(in: .whitespaces)
         }
         return stripped
     }
@@ -67,8 +67,10 @@ public enum MonitorTextFormat {
     /// (`R3D NE`, `N-RAW`) pass through unchanged.
     public static func codecCompactLabel(_ codec: String) -> String {
         var label = codecShortLabel(codec).replacingOccurrences(of: "ProRes", with: "PR")
-        if label.hasPrefix("H.26"), let match = label.firstMatch(of: #/\s+\d+-bit$/#) {
-            label = String(label[..<match.range.lowerBound])
+        if label.hasPrefix("H.26"),
+            let start = BitDepthQualifier.start(in: label, requiresTrailingName: false)
+        {
+            label = String(label[..<start])
         }
         return label.trimmingCharacters(in: .whitespaces)
     }
@@ -84,14 +86,70 @@ public enum MonitorTextFormat {
     }
 }
 
+/// The codec readouts are formatted on every live surface evaluation, which a running timecode
+/// repeats once per live view frame. A Regex literal is parsed again on each call (build 304 CPU
+/// report, 2026-10-25), so the bit-depth qualifier is found by scanning. Strings with newlines or
+/// non-ASCII characters keep the original Regex, whose Unicode classes this scan does not model.
+private enum BitDepthQualifier {
+    /// The start of the first `\s+\d+-bit` run that is followed by `\s+.+` to the end
+    /// (`requiresTrailingName`) or by the end itself, as `firstMatch` reports it.
+    static func start(in text: String, requiresTrailingName: Bool) -> String.Index? {
+        guard text.contains("-bit") else { return nil }
+        guard text.allSatisfy({ $0.isASCII && !$0.isNewline }) else {
+            let match = requiresTrailingName
+                ? text.firstMatch(of: #/\s+\d+-bit\s+.+$/#)?.range
+                : text.firstMatch(of: #/\s+\d+-bit$/#)?.range
+            return match?.lowerBound
+        }
+        let bytes = Array(text.utf8)
+        func isSpace(_ byte: UInt8) -> Bool { byte == 0x20 || (0x09...0x0D).contains(byte) }
+        func isDigit(_ byte: UInt8) -> Bool { (0x30...0x39).contains(byte) }
+        let marker = Array("-bit".utf8)
+        var index = 0
+        while index < bytes.count {
+            // The leftmost match starts at the first space of a space run.
+            guard isSpace(bytes[index]), index == 0 || !isSpace(bytes[index - 1]) else {
+                index += 1
+                continue
+            }
+            var cursor = index
+            while cursor < bytes.count, isSpace(bytes[cursor]) { cursor += 1 }
+            let digits = cursor
+            while cursor < bytes.count, isDigit(bytes[cursor]) { cursor += 1 }
+            if cursor > digits, cursor + marker.count <= bytes.count,
+                Array(bytes[cursor..<cursor + marker.count]) == marker
+            {
+                let after = cursor + marker.count
+                if requiresTrailingName {
+                    var name = after
+                    while name < bytes.count, isSpace(bytes[name]) { name += 1 }
+                    // `\s+` needs one space and `.+` one more character; a space run that
+                    // reaches the end can give its last space to `.+`.
+                    let spaces = name - after
+                    let rest = bytes.count - name
+                    if spaces >= 1 && (rest >= 1 || spaces >= 2) {
+                        return text.utf8.index(text.startIndex, offsetBy: index)
+                    }
+                } else if after == bytes.count {
+                    return text.utf8.index(text.startIndex, offsetBy: index)
+                }
+            }
+            index += 1
+        }
+        return nil
+    }
+}
+
 extension MonitorTextFormat {
-    /// The remaining-shots readout: the count up to four digits, then tenths of a thousand
-    /// (`20.2k`), rounded down so the header never promises a frame the card cannot hold.
-    /// The header pairs it with a picture glyph instead of a "SHOTS" word.
+    /// The remaining-shots readout: the count below a thousand, then thousands with one decimal
+    /// (`6.7k`, `20.2k`) and no trailing zero (`12k`), whole thousands from 100k. Rounded down so
+    /// the header never promises a frame the card cannot hold (hardware pass 1.2). The header
+    /// pairs it with a picture glyph instead of a "SHOTS" word.
     public static func shotsRemainingCompactLabel(_ count: Int) -> String {
         let count = max(0, count)
-        if count <= 9999 { return "\(count)" }
-        if count < 100_000 { return "\(count / 1000).\(count / 100 % 10)k" }
+        if count < 1000 { return "\(count)" }
+        let tenths = count / 100 % 10
+        if count < 100_000, tenths != 0 { return "\(count / 1000).\(tenths)k" }
         return "\(count / 1000)k"
     }
 

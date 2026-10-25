@@ -67,6 +67,41 @@ final class MonitorCommandWaitingPictureTests: XCTestCase {
         try fixture.assertColor(image, point: fixture.picturePoint, color: .blue)
     }
 
+    /// Hardware pass 1.3: DISP 3's hero owns the record state and timecode, so the live header's
+    /// record chip, clock and format readouts leave in every orientation. A phone's portrait
+    /// telemetry row keeps storage and the link; in landscape the gauge column keeps the link and
+    /// the dashboard's health strip carries storage.
+    func testPortraitCommandDropsTheHeaderTimecodeAndKeepsStorageAndLink() async throws {
+        try await commandHeader(size: CGSize(width: 402, height: 874), name: "portrait", keepsStorage: true)
+    }
+
+    func testLandscapeCommandDropsTheWholeHeader() async throws {
+        try await commandHeader(size: CGSize(width: 874, height: 402), name: "landscape", keepsStorage: false)
+    }
+
+    private func commandHeader(size: CGSize, name: String, keepsStorage: Bool) async throws {
+        let fixture = try WaitingFixture(size: size)
+        defer { fixture.close() }
+        fixture.probe.header = true
+        let clock = "Timecode " + WaitingProbe.timecode
+        let link = MonitorTelemetryValues.linkSpokenLabel(fps: "25", signalBars: 3)
+        try await fixture.ready(clock)
+        for label in ["Standby", WaitingProbe.format, WaitingProbe.storage, link] {
+            XCTAssertTrue(fixture.labels.contains(label), "LIVE header must show \(label)")
+        }
+        XCTAssertTrue(fixture.probe.session.select(.command))
+        try await fixture.ready("SIMULATED dashboard")
+        _ = fixture.capture(self, name: "SIMULATED-\(name)-COMMAND-header-window")
+        for label in [clock, "Standby", WaitingProbe.format] {
+            XCTAssertFalse(fixture.labels.contains(label), "DISP 3 must not repeat \(label) above its hero")
+        }
+        XCTAssertTrue(fixture.labels.contains(link), "DISP 3 must keep the link gauge")
+        XCTAssertEqual(fixture.labels.contains(WaitingProbe.storage), keepsStorage,
+            keepsStorage ? "The portrait telemetry row must keep storage" : "Landscape's health strip owns storage")
+        XCTAssertTrue(fixture.probe.session.select(.live))
+        try await fixture.ready(clock)
+    }
+
     private func command(size: CGSize, name: String) async throws {
         let fixture = try WaitingFixture(size: size)
         defer { fixture.close() }
@@ -97,6 +132,11 @@ private final class WaitingProbe: ChromeEditHost {
     let namespace = "SIMULATED.command-waiting." + UUID().uuidString
     var waiting = true
     var returnsToStage = false
+    /// Gives the live header a clock, a record word, a format readout, storage and the link.
+    var header = false
+    static let timecode = "01:02:03:04"
+    static let format = "SIMULATED Resolution"
+    static let storage = "SIMULATED storage 905GB"
     var note: String?
     var usage = MonitorToolUsage()
     var aspect = PortraitFeedAspect.fit16x9
@@ -153,9 +193,20 @@ private struct WaitingSurface: View {
     var body: some View {
         MonitorOperatorLiveSurface(host: probe, control: probe.control, session: probe.session, layout: layout,
             source: MonitorOperatorLiveSource<SettingKey, Never>(
-                identity: { probe.identity }, available: { [] },
+                identity: { probe.identity },
+                available: { probe.header ? Set(MonitorDisplayChrome.Section.allCases) : [] },
                 picture: { .init(aspect: 16 / 9, waiting: probe.waiting, vertical: false, flipped: false, recovering: false) },
-                status: { .init(recording: .init(recording: nil), showsTimecode: false, showsRecording: false) },
+                status: {
+                    probe.header
+                        ? .init(recording: .init(recording: false, timecode: WaitingProbe.timecode),
+                            showsTimecode: true, showsRecording: true,
+                            storage: .init(id: .recording, title: "Storage", value: "905GB",
+                                accessibilityLabel: WaitingProbe.storage),
+                            format: [.init(id: .frameRate, title: WaitingProbe.format, value: "6K",
+                                accessibilityLabel: WaitingProbe.format)],
+                            fps: "25", signalBars: 3)
+                        : .init(recording: .init(recording: nil), showsTimecode: false, showsRecording: false)
+                },
                 cameraBattery: { nil }, capture: { .init(readouts: [], haptics: false, open: { _ in }, dismiss: {}) },
                 record: { .init(photo: false, confirm: false, busy: false, openMode: nil, external: nil) },
                 exposure: nil, level: nil, audio: { nil }, readOnly: { false }, borrowed: { false },

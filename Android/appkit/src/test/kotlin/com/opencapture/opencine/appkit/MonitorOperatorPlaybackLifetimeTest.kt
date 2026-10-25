@@ -47,7 +47,7 @@ private class OperatorPlaybackPort : MonitorPlaybackPort {
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorOperatorPlaybackLifetimeTest {
-    private class Fixture(val scope: CoroutineScope) {
+    private class Fixture(val scope: CoroutineScope, val pageScope: CoroutineScope = scope) {
         val root = Files.createTempDirectory("opencine-operator-playback-").toFile()
         val records = listOf("A", "B", "C").map { id -> MonitorMediaRecord(
             MediaAsset(MediaAssetID(id), filename = "$id.mov", kind = MediaAssetKind.VIDEO,
@@ -67,13 +67,13 @@ class MonitorOperatorPlaybackLifetimeTest {
         var sleep: suspend (Long) -> Unit = { delay(it) }
         val model = MonitorOperatorMediaModel<String, String>(library, makePlayback = { library ->
             val port = OperatorPlaybackPort().also { ports += it; it.pendingPrepare = pendingPrepare }
-            MonitorMediaPlaybackModel<String, String>(library, port, scope, candidates = {
+            MonitorMediaPlaybackModel<String, String>(library, port, pageScope, candidates = {
                 listOf(MonitorPlaybackCandidate.Cached(MonitorPlaybackItem(URI("file:/${it.payload}.mov"), "video/mp4", it.payload)))
             }).also { owner ->
                 owner.setItemAdmission { record -> admission?.invoke(record) ?: MonitorPlaybackAdmission { true } }
                 made?.invoke(owner)
             }
-        }, scope = scope, recordAdmission = { record -> recordAdmission?.invoke(record) ?: MonitorPlaybackAdmission { true } },
+        }, scope = pageScope, recordAdmission = { record -> recordAdmission?.invoke(record) ?: MonitorPlaybackAdmission { true } },
             sleep = { sleep(it) })
         fun open(index: Int) = model.open(records[index], records, library.actionToken)
         fun close() { model.closePlayback(); library.close(); root.deleteRecursively() }
@@ -475,26 +475,98 @@ class MonitorOperatorPlaybackLifetimeTest {
             runCurrent(); assertEquals(1, calls); assertFalse(owner.state.value.ready)
         } finally { pending.complete(Unit); f.close() }
     }
-    @Test fun cancellationCallbackSuccessorCannotBeLoadedOverOrClosed() = runTest {
-        for (closing in listOf(false, true)) {
-            val f = Fixture(backgroundScope); var started = false
-            try {
-                assertTrue(f.open(0)); val owner = assertNotNull(f.model.state.value.playback); runCurrent()
-                f.model.synchronizePlayback(true, MonitorOperatorPlaybackOperations(cacheOriginal = {
-                    suspendCancellableCoroutine<Unit> { continuation ->
-                        started = true
-                        continuation.invokeOnCancellation { f.open(2); f.model.playerVisible(true) }
-                    }
-                }))
-                runCurrent(); assertTrue(started)
-                if (closing) f.model.closePlayback() else assertFalse(f.open(1))
-                assertSame(owner, f.model.state.value.playback); assertEquals("C", owner.state.value.active?.payload)
-                assertFalse(owner.state.value.closed); assertFalse(f.ports[0].closed)
-                assertTrue(f.model.state.value.playerVisible && f.library.state.value.browsing)
-            } finally { f.close() }
-        }
+    @Test fun galleryCloseCancellationCallbackSuccessorKeepsItsPlayer() = runTest {
+        val f = Fixture(backgroundScope); var started = false
+        try {
+            f.model.showGallery(); assertTrue(f.open(0)); runCurrent()
+            f.model.synchronizePlayback(true, MonitorOperatorPlaybackOperations(cacheOriginal = {
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    started = true
+                    continuation.invokeOnCancellation { f.open(2); f.model.playerVisible(true) }
+                }
+            }))
+            runCurrent(); assertTrue(started)
+            f.model.closeGallery()
+            val successor = assertNotNull(f.model.state.value.playback)
+            assertEquals("C", successor.state.value.active?.payload); assertFalse(successor.state.value.closed)
+            assertTrue(f.model.state.value.galleryOpen && f.model.state.value.playerVisible && f.library.state.value.browsing)
+        } finally { f.close() }
     }
-
+    /** Hardware 7.3: with Full Resolution Caching on, the download outlives the player page. */
+    @Test fun fullResolutionDownloadOutlivesClosingThePlayer() = runTest {
+        val f = Fixture(backgroundScope); val release = CompletableDeferred<Unit>()
+        var finished = false; var cancelled = false
+        try {
+            f.model.showGallery(); assertTrue(f.open(0)); runCurrent()
+            f.model.synchronizePlayback(true, MonitorOperatorPlaybackOperations(cacheOriginal = {
+                try { release.await(); finished = true } catch (error: CancellationException) { cancelled = true; throw error }
+            }))
+            runCurrent(); f.model.closePlayback(); runCurrent()
+            release.complete(Unit); runCurrent()
+            assertFalse(cancelled); assertTrue(finished)
+        } finally { release.complete(Unit); f.close() }
+    }
+    /** Pocket and Insta build the media model per player page over that page's scope. */
+    @Test fun fullResolutionDownloadOutlivesThePlayerPageScope() = runTest {
+        val page = CoroutineScope(backgroundScope.coroutineContext + Job(backgroundScope.coroutineContext[Job]))
+        val f = Fixture(backgroundScope, page); val release = CompletableDeferred<Unit>()
+        var finished = false; var cancelled = false
+        try {
+            assertTrue(f.open(0)); runCurrent()
+            f.model.synchronizePlayback(true, MonitorOperatorPlaybackOperations(cacheOriginal = {
+                try { release.await(); finished = true } catch (error: CancellationException) { cancelled = true; throw error }
+            }))
+            runCurrent(); f.model.closePlayback(); page.cancel(); runCurrent()
+            release.complete(Unit); runCurrent()
+            assertFalse(cancelled); assertTrue(finished)
+        } finally { release.complete(Unit); f.close() }
+    }
+    @Test fun fullResolutionDownloadOutlivesMovingToTheNextClipAndStartsItsOwn() = runTest {
+        val f = Fixture(backgroundScope); val release = CompletableDeferred<Unit>()
+        val finished = mutableListOf<String>(); var cancelled = false
+        try {
+            val operations = MonitorOperatorPlaybackOperations<String, String>(cacheOriginal = { record ->
+                try { release.await(); finished += record.payload } catch (error: CancellationException) { cancelled = true; throw error }
+            })
+            f.model.showGallery(); assertTrue(f.open(0)); runCurrent()
+            f.model.synchronizePlayback(true, operations); runCurrent()
+            assertTrue(f.open(1)); runCurrent(); f.model.synchronizePlayback(true, operations); runCurrent()
+            release.complete(Unit); runCurrent()
+            assertFalse(cancelled); assertEquals(setOf("A", "B"), finished.toSet())
+        } finally { release.complete(Unit); f.close() }
+    }
+    @Test fun reopeningAClipWhileItsDownloadRunsDoesNotStartASecondOne() = runTest {
+        val f = Fixture(backgroundScope); val release = CompletableDeferred<Unit>(); var calls = 0
+        try {
+            val operations = MonitorOperatorPlaybackOperations<String, String>(cacheOriginal = { calls += 1; release.await() })
+            f.model.showGallery(); assertTrue(f.open(0)); runCurrent()
+            f.model.synchronizePlayback(true, operations); runCurrent(); f.model.closePlayback()
+            assertTrue(f.open(0)); runCurrent(); f.model.synchronizePlayback(true, operations); runCurrent()
+            assertEquals(1, calls)
+        } finally { release.complete(Unit); f.close() }
+    }
+    @Test fun closingTheGalleryRetiresThePlaybackDownload() = runTest {
+        val f = Fixture(backgroundScope); val release = CompletableDeferred<Unit>(); var cancelled = false
+        try {
+            f.model.showGallery(); assertTrue(f.open(0)); runCurrent()
+            f.model.synchronizePlayback(true, MonitorOperatorPlaybackOperations(cacheOriginal = {
+                try { release.await() } catch (error: CancellationException) { cancelled = true; throw error }
+            }))
+            runCurrent(); f.model.closeGallery(); runCurrent()
+            assertTrue(cancelled)
+        } finally { release.complete(Unit); f.close() }
+    }
+    @Test fun failedPlaybackDownloadStaysInsideTheGallery() = runTest {
+        val f = Fixture(backgroundScope)
+        try {
+            f.model.showGallery(); assertTrue(f.open(0)); runCurrent()
+            f.model.synchronizePlayback(true, MonitorOperatorPlaybackOperations(cacheOriginal = {
+                throw MediaServiceException(MediaServiceFailure.RETIRED)
+            }))
+            runCurrent()
+            assertTrue(f.model.state.value.galleryOpen); assertNotNull(f.model.state.value.playback)
+        } finally { f.close() }
+    }
     @Test fun reportedRatingStaysUnknownAndUsesSourceConfirmedRounding() = runTest {
         val f = Fixture(backgroundScope)
         try {

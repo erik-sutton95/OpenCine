@@ -29,6 +29,10 @@ codec	ProRes 422 HQ 10-bit MOV	ProRes 422 HQ	PR 422 HQ	false
 codec	H.265 10-bit	H.265 10-bit	H.265	false
 codec	H.265 10-bit MP4	H.265	H.265	false
 codec	H.264 8-bit MP4	H.264	H.264	false
+codec	H.265 10-bit 4:2:2	H.265	H.265	false
+codec	10-bit R3D	10-bit R3D	10-bit R3D	true
+codec	X 10-bitR3D	X 10-bitR3D	X 10-bitR3D	true
+codec	A 1-bit B 2-bit C	A	A	false
 codec	N-RAW 12-bit NEV	N-RAW	N-RAW	true
 estimate	R3D NE	6048	3402	25	429	36
 estimate	R3D NE	6048	3402	25	470	40
@@ -47,9 +51,14 @@ media	59600000000	128000000000	-	-	-	59.6 GB · 47%	-- Min
 media	1000	0	H.265 10-bit MP4	3840x2160	24	-	-
 media	2000	1000	H.265 10-bit MP4	3840x2160	24	-	-
 shots	0	0	0 shots remaining
-shots	7149	7149	7149 shots remaining
-shots	9999	9999	9999 shots remaining
-shots	10000	10.0k	10000 shots remaining
+shots	999	999	999 shots remaining
+shots	1000	1k	1000 shots remaining
+shots	1099	1k	1099 shots remaining
+shots	6743	6.7k	6743 shots remaining
+shots	7149	7.1k	7149 shots remaining
+shots	9999	9.9k	9999 shots remaining
+shots	10000	10k	10000 shots remaining
+shots	12000	12k	12000 shots remaining
 shots	20282	20.2k	20282 shots remaining
 shots	99999	99.9k	99999 shots remaining
 shots	100000	100k	100000 shots remaining

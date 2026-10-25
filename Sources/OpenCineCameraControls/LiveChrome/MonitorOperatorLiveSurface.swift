@@ -113,6 +113,11 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
     /// Which readout carries the accent, declared by the body's capability profile. The header
     /// accents this slot only when it shows; it never moves to another readout.
     public let headerAccent: MonitorHeaderAccent
+    /// A clock that advances every live view frame, read only by the clock readout itself. When
+    /// set, `recording.timecode` is the layout template (same width, for example every digit as 0)
+    /// and changes only when the clock's shape does, so the status row fits once instead of
+    /// re-evaluating the whole surface per frame. Nil keeps `recording.timecode` as the clock.
+    public let liveClock: (() -> String?)?
     public init(recording: MonitorStatusPresentation, showsTimecode: Bool, showsRecording: Bool,
         storage: MonitorOperatorLiveReadout<Key, Section>? = nil,
         format: [MonitorOperatorLiveReadout<Key, Section>] = [], fps: String? = nil,
@@ -120,8 +125,9 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
         portraitFormat: MonitorOperatorLiveReadout<Key, Section>? = nil, portraitCaption: String? = nil,
         color: MonitorOperatorLiveReadout<Key, Section>? = nil, mode: MonitorOperatorLiveReadout<Key, Section>? = nil,
         storageAlternative: String? = nil, storageAlternatives: [String]? = nil,
-        headerAccent: MonitorHeaderAccent = .shootingMode) {
+        headerAccent: MonitorHeaderAccent = .shootingMode, liveClock: (() -> String?)? = nil) {
         self.recording = recording; self.showsTimecode = showsTimecode; self.showsRecording = showsRecording
+        self.liveClock = liveClock
         self.storage = storage; self.format = format; self.fps = fps; self.signalBars = signalBars; self.fpsSection = fpsSection
         self.portraitFormat = portraitFormat; self.portraitCaption = portraitCaption
         self.color = color; self.mode = mode
@@ -445,6 +451,11 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var editing: MonitorDisplayMode? { session.editingMode }
     private var locked: Bool { session.locked }
     private var command: Bool { session.mode == .command }
+    /// Command mode keeps no header, or storage and the link alone (`MonitorCommandHeader`): the
+    /// dashboard's hero and tiles carry the record state, timecode and format (hardware pass 1.3).
+    private var commandHeader: MonitorCommandHeader? {
+        command ? MonitorCommandDashboardLayout.header(layout: layout) : nil
+    }
     private var covered: Bool { facts.covered }
     private var readOnly: Bool { facts.readOnly }
     private var status: MonitorOperatorLiveStatus<Key, Section> { facts.status }
@@ -499,7 +510,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             presentation: .init(visible: !covered || editing != nil, interactive: editing == nil && session.interactive,
                 dimmed: cameraViews.motion?.dimmed == true, transientControlsHidden: motionCovering,
                 pictureWaiting: facts.picture.waiting && !command,
-                statusMounted: mounts(.statusBar), powerMounted: mounts(.batteries) && !usesCompactTelemetry,
+                statusMounted: mounts(.statusBar) && commandHeader != .hidden, powerMounted: mounts(.batteries) && !usesCompactTelemetry,
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
                 panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
@@ -576,17 +587,17 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
 
     private var statusChrome: some View {
-            let modeShown = !layout.portrait && layout.viewport.width >= 800 ? status.mode : nil
+            let modeShown = !layout.portrait && layout.viewport.width >= 800 && !command ? status.mode : nil
             let plan = MonitorHeaderReadoutPolicy.plan(
-                format: status.format, color: status.color, mode: modeShown,
+                format: command ? [] : status.format, color: command ? nil : status.color, mode: modeShown,
                 accent: status.headerAccent, portrait: layout.portrait, photo: photo,
                 isMounted: mounts, codecSection: .codec)
             let visibleFormat = plan.format
             let primary =
-                status.portraitFormat.flatMap { value in
+                (command ? nil : status.portraitFormat).flatMap { value in
                     (value.section.map(mounts) ?? true) ? value : nil
                 } ?? visibleFormat.first
-            let inline = layout.portrait && !photo
+            let inline = layout.portrait && !photo && !command
             let color = plan.color
             // A color-only camera shows its selected profile through the same combined codec/color
             // control; the value stays the reported profile and only the display label changes.
@@ -618,9 +629,11 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 } : nil
             return MonitorStatusChrome(
                 layout: layout, status: status.recording,
-                showsTimecode: status.showsTimecode, showsRecording: status.showsRecording,
+                showsTimecode: status.showsTimecode && !command,
+                showsRecording: status.showsRecording && !command,
                 showsCompactTelemetry: !usesCompactTelemetry,
                 minimumOccupiedTop: usesCompactTelemetry ? compactTelemetryMinimumStatusTop : 0,
+                clock: status.liveClock,
             storage: { if let storage = status.storage { storageReadout(storage) } },
             format: {
                     if inline {
@@ -651,6 +664,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                                 }
                             }
                         }
+                    } else if command {
+                        EmptyView()
                     } else if layout.portrait, let value = status.portraitFormat {
                         headerReadout(value, portrait: true, caption: status.portraitCaption)
                 } else {
@@ -848,7 +863,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 recovering: facts.picture.reconnecting, note: source.note, showsStatus: mounts(.statusBar))
             if let motion = cameraViews.motion { motion.controls.allowsHitTesting(admitted && !transient) }
             if command, let dashboard = cameraViews.dashboard {
-                let frame = MonitorCommandDashboardLayout.frame(layout: layout)
+                let frame = MonitorCommandDashboardLayout.frame(layout: layout,
+                    minimumTop: usesCompactTelemetry ? Double(compactTelemetryMinimumStatusTop) : 0)
                 dashboard.frame(width: frame.width, height: frame.height)
                     .position(x: frame.midX, y: frame.midY).allowsHitTesting(admitted)
             }

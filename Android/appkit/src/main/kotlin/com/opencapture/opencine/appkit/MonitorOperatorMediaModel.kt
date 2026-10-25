@@ -8,6 +8,7 @@ import com.opencapture.opencine.media.MonitorPlaybackDeletionConfirmation
 import com.opencapture.opencine.media.MonitorPlaybackItemToken
 import com.opencapture.opencine.media.MonitorPlaybackStartTiming
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -85,7 +86,13 @@ public class MonitorOperatorMediaModel<P, L>(
     private var transition = UUID.randomUUID()
     private var sceneActive = true
     private var cacheRequest: MonitorPlaybackItemToken? = null
-    private var cacheTask: Job? = null
+    /**
+     * Full-resolution downloads started by playback (Full Resolution Caching), keyed by clip. They
+     * run for the library's lifetime, not one player page: closing the player or moving to the
+     * next clip keeps the download running, so the clip reads as cached afterwards. Closing the
+     * gallery this model opened, or the library retiring its source, stops them.
+     */
+    private val originalTasks = mutableMapOf<MediaAssetID, Job>()
     private class CapturedDeletion<P, L>(val request: MonitorOperatorPlaybackDeletionRequest,
         val record: MonitorMediaRecord<P>, val owner: MonitorMediaPlaybackModel<P, L>,
         val token: MonitorPlaybackItemToken, val page: UUID, val generation: Long,
@@ -124,6 +131,9 @@ public class MonitorOperatorMediaModel<P, L>(
     private fun retireGallery(): Boolean {
         if (!retirePlayback()) return false
         val captured = transition
+        val originals = originalTasks.values.toList(); originalTasks.clear()
+        originals.forEach { it.cancel() }
+        if (transition != captured || state.value.playback != null) return false
         if (!state.value.galleryOpen) return true
         mutable.value = state.value.copy(galleryOpen = false)
         if (transition != captured || state.value.galleryOpen) return false
@@ -241,22 +251,27 @@ public class MonitorOperatorMediaModel<P, L>(
         val cache = operations.cacheOriginal ?: return
         val mayCache = if (cacheTiming == MonitorPlaybackStartTiming.AFTER_NATIVE_ITEM_INSTALLATION)
             owner.state.value.nativeItemInstalled else owner.state.value.ready
+        val id = record.asset.id
         if (!cacheOriginal || !mayDownload || !mayCache || cacheRequest == token ||
-            library.state.value.entries[record.asset.id]?.original != null) return
-        val scheduler = requireNotNull(scope) { "Playback IO requires its presentation coroutine scope" }
+            library.state.value.entries[id]?.original != null) return
         cacheRequest = token
+        if (originalTasks[id]?.isActive == true) return
         val source = library.actionToken; val generation = library.cache.directory.generation
-        val previous = cacheTask; cacheTask = null; previous?.cancel()
-        if (page != capturedPage || state.value.playback !== owner || cacheRequest != token || !isCurrent(token)) return
-        val job = scheduler.launch(start = CoroutineStart.LAZY) {
-            if (page != capturedPage || state.value.playback !== owner || !library.isCurrent(source) ||
-                library.cache.directory.generation != generation || !isCurrent(token) || !isActive) return@launch
-            cache(record)
-            if (page != capturedPage || state.value.playback !== owner || !isCurrent(token) ||
-                !library.isCurrent(source) || library.cache.directory.generation != generation || !isActive) return@launch
-            owner.refreshTransfer()
+        // The library's lifetime, not the page's: an app may build this model per player page.
+        val job = library.lifetimeScope.launch(start = CoroutineStart.LAZY) {
+            val self = coroutineContext[Job]
+            try {
+                if (!library.isCurrent(source) || library.cache.directory.generation != generation || !isActive) return@launch
+                try { cache(record) }
+                catch (error: CancellationException) { throw error }
+                // The library reports a failed download in its own note; the clip stays as it was.
+                catch (_: Exception) { return@launch }
+                if (page != capturedPage || state.value.playback !== owner || !isCurrent(token) ||
+                    !library.isCurrent(source) || library.cache.directory.generation != generation || !isActive) return@launch
+                owner.refreshTransfer()
+            } finally { if (originalTasks[id] === self) originalTasks.remove(id) }
         }
-        cacheTask = job; job.start()
+        originalTasks[id] = job; job.start()
     }
     private fun ratingRequest(): MonitorMediaPlaybackRatingRequest<P>? {
         val owner = state.value.playback ?: return null
@@ -505,12 +520,12 @@ public class MonitorOperatorMediaModel<P, L>(
     private fun retireWork(): Unit {
         cancelPendingDeletion()
         enteredDeletion?.authority?.retire(); enteredDeletion = null
-        val previousCache = cacheTask; val previousDelete = deleteTask
+        val previousDelete = deleteTask
         val previousRating = ratingTasks.values.toList()
         ratingTasks.clear(); ratingRevision = UUID.randomUUID(); ratingRead = null; ratingNoticeID = null
         confirmedRating = null
-        cacheTask = null; deleteTask = null; cacheRequest = null; adoptedLook = null
-        previousCache?.cancel(); previousDelete?.cancel()
+        deleteTask = null; cacheRequest = null; adoptedLook = null
+        previousDelete?.cancel()
         previousRating.forEach { it.cancel() }
         mutable.value = state.value.copy(ratingStars = null, ratingPending = false, ratingNotice = null)
     }

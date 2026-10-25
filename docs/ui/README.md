@@ -362,6 +362,13 @@ does not imply relay or account availability where the host supplies none.
   grid only) and the side column is 27 percent of the picture, at least 160 points (Compose
   weights 2.35 to 0.85), with the masked fade and "More" hint. Swift spells accessibility as
   label, value and hint; Compose as one content description.
+  The dashboard's hero owns the record chip and the timecode and its tiles the format, so
+  command mode drops the live header's record chip, clock and format readouts
+  (`MonitorCommandDashboardLayout.header`, both platforms). Landscape and phone portrait have
+  no header at all and the dashboard moves up into its place: in landscape the gauge column
+  keeps the link and the batteries and the health strip storage; in phone portrait the
+  telemetry row keeps all three. A portrait tablet has no telemetry row and no health strip, so
+  its header keeps storage and the link alone.
 - `MonitorFeedGrid`, `MonitorFeedCrosshair` and `MonitorAspectGuideFrames` own native
   picture framing. Guide labels and enum identities retain the persisted app values;
   apps keep selection, storage and source geometry. The guide mask dims only the

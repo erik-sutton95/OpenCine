@@ -106,6 +106,8 @@ public class MonitorMediaLibraryModel<P>(
         service: CameraMediaService? = null, scope: CoroutineScope, sleep: suspend (Long) -> Unit = { delay(it) }) :
         this(cache, favoritesStore, service, scope, cacheScanning = MonitorMediaCacheScanning.IMMEDIATE, sleep = sleep)
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
+    /** Work that belongs to this library's lifetime rather than to one page (a playback download). */
+    public val lifetimeScope: CoroutineScope get() = owner
     private var favorites = favoritesStore.favorites()
     private val mutable = MutableStateFlow((viewOptions?.viewOptions() ?: MonitorMediaViewOptions()).let { view ->
         MonitorMediaLibraryState(records = (initialRecords ?: cache.load()).map { projected(it, favorites) },

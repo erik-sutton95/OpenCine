@@ -211,6 +211,9 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
 ): Unit {
     val density = LocalDensity.current
     val usesCompactTelemetry = layout.portrait && !layout.tablet
+    // Command mode keeps no header, or storage and the link alone: the dashboard's hero and tiles
+    // carry the record state, timecode and format (hardware pass 1.3; Swift `commandHeader`).
+    val commandHeader = if (command) com.opencapture.monitorui.MonitorCommandDashboardLayout.header(layout) else null
     var compactTelemetryMinimumStatusTop by remember { mutableStateOf(0f) }
     // Keep the renderer's existing default; shared measurement and rendering use the same value.
     val telemetryMetrics = MonitorTelemetryMetrics.PHONE
@@ -330,7 +333,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             modifier = edit(sections.power), showsLink = linkMounted && (!layout.portrait || layout.tablet))
     }
     MonitorScreen(control, layout, MonitorScreenPresentation(visible = !covered || editing != null,
-        interactive = editing == null && interactionEnabled, statusMounted = sections.status in mounted,
+        interactive = editing == null && interactionEnabled, statusMounted = sections.status in mounted &&
+            commandHeader != com.opencapture.monitorui.MonitorCommandHeader.HIDDEN,
         powerMounted = sections.power in mounted && !usesCompactTelemetry, captureMounted = sections.capture in mounted && !command,
         captureHidden = captureHidden, captureInteractive = panel == null || panel.top, locked = locked,
         popupInteractive = editing == null && interactionEnabled,
@@ -340,13 +344,14 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         status = {
             val recording = status.recording()
             // Portrait never draws the mode slot, so a shooting-mode accent shows nothing there.
-            val modeShown = if (layout.portrait) null else status.mode
-            val plan = MonitorHeaderReadoutPolicy.plan(status.format, status.color, modeShown,
+            val modeShown = if (layout.portrait || command) null else status.mode
+            val plan = MonitorHeaderReadoutPolicy.plan(if (command) emptyList() else status.format,
+                if (command) null else status.color, modeShown,
                 status.headerAccent, layout.portrait, photo, mounted, MonitorDisplaySection.CODEC)
             val visibleFormat = plan.format
-            val shownPrimary = status.portraitFormat?.takeIf { it.section == null || it.section in mounted }
+            val shownPrimary = status.portraitFormat?.takeIf { !command }?.takeIf { it.section == null || it.section in mounted }
                 ?: visibleFormat.firstOrNull()
-            val inline = layout.portrait && !photo
+            val inline = layout.portrait && !photo && !command
             val shownColor = plan.color
             // A color-only camera shows its selected profile through the same combined codec/color
             // control; the value stays the reported profile and only the display label changes.
@@ -369,7 +374,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     maximumPrimarySize = if (layout.tablet) 22f else 20f, maximumDetailSize = 13f)
             } else null
             CompositionLocalProvider(LocalMonitorPortraitPrimaryFit provides fit) {
-            MonitorStatusChrome(layout, recording, status.showsTimecode, status.showsRecording, !usesCompactTelemetry,
+            MonitorStatusChrome(layout, recording, status.showsTimecode && !command, status.showsRecording && !command,
+                !usesCompactTelemetry,
                 modifier = edit(sections.status),
                 minimumOccupiedTop = if (usesCompactTelemetry) compactTelemetryMinimumStatusTop else 0f,
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
@@ -401,6 +407,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                                 }
                             }
                         })
+                    } else if (command) {
+                        // The dashboard's tiles carry the format.
                     } else if (layout.portrait && status.portraitFormat != null) {
                         Readout(status.portraitFormat, true, status.portraitCaption)
                     } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -447,7 +455,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             cameraViews.feedGestures?.invoke(this, accepts && interactive)
             if (command) cameraViews.dashboard?.let { dashboard ->
                 // A hardware slot cannot outlive its admission: input is refused here, whatever the slot does.
-                Box(Modifier.descriptorFrame(com.opencapture.monitorui.MonitorCommandDashboardLayout.frame(layout))
+                Box(Modifier.descriptorFrame(com.opencapture.monitorui.MonitorCommandDashboardLayout.frame(layout,
+                    minimumTop = if (usesCompactTelemetry) compactTelemetryMinimumStatusTop else 0f))
                     .refusingInput(!(accepts && admitted))) { dashboard(accepts && admitted) }
             } else {
                 val bundle = assists?.scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value ?: assist.scopeBundle
