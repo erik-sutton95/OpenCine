@@ -216,6 +216,82 @@ import Testing
                 == [.writeStabilization(["ibis": "SPORT"], purpose: .restore)])
     }
 
+    @Test func turnOffInFlightThenSessionEndStillRestores() {
+        var machine = GyroArmingMachine(pendingRestores: [])
+        _ = machine.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))
+        _ = machine.chooseTurnOff()
+        #expect(
+            machine.update(
+                inputs(toggleOn: false, stabilization: stabilization(["ibis": "SPORT"])))
+                == [.sessionEnded])
+        #expect(
+            machine.writeFinished(.turnOff, succeeded: true)
+                == [.writeStabilization(["ibis": "SPORT"], purpose: .restore)])
+        #expect(
+            machine.pendingRestores == [
+                GyroPendingRestore(
+                    cameraID: "body-1", saved: ["ibis": "SPORT"], applied: ["ibis": "OFF"])
+            ])
+        #expect(
+            machine.writeFinished(.restore, succeeded: true) == [.persistPendingRestores([])])
+        #expect(machine.pendingRestores.isEmpty)
+    }
+
+    @Test func chooseTurnOffAfterSessionEndDoesNothing() {
+        var machine = GyroArmingMachine(pendingRestores: [])
+        _ = machine.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))
+        #expect(
+            machine.update(
+                inputs(toggleOn: false, stabilization: stabilization(["ibis": "SPORT"])))
+                == [.sessionEnded])
+        #expect(machine.chooseTurnOff().isEmpty)
+        #expect(machine.pendingRestores.isEmpty)
+        #expect(!machine.isArmed)
+    }
+
+    @Test func chooseKeepOnAfterSessionEndDoesNothing() {
+        var machine = GyroArmingMachine(pendingRestores: [])
+        _ = machine.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))
+        #expect(
+            machine.update(
+                inputs(toggleOn: false, stabilization: stabilization(["ibis": "SPORT"])))
+                == [.sessionEnded])
+        #expect(machine.chooseKeepOn().isEmpty)
+        #expect(!machine.stabilizationWarning)
+    }
+
+    @Test func disconnectDuringTurnOffWriteUnblocksTheNextConnection() {
+        var machine = GyroArmingMachine(pendingRestores: [])
+        _ = machine.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))
+        _ = machine.chooseTurnOff()
+        #expect(machine.update(inputs(connected: false, stabilization: nil)) == [.sessionEnded])
+        #expect(
+            machine.update(inputs(stabilization: stabilization(["ibis": "OFF"])))
+                == [.writeStabilization(["ibis": "SPORT"], purpose: .restore)])
+    }
+
+    @Test func lateFinishFromAnOldConnectionIsIgnored() {
+        var machine = GyroArmingMachine(pendingRestores: [])
+        _ = machine.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))
+        _ = machine.chooseTurnOff()
+        _ = machine.update(inputs(connected: false, stabilization: nil))
+        _ = machine.update(inputs(stabilization: stabilization(["ibis": "OFF"])))
+        #expect(machine.writeFinished(.turnOff, succeeded: false).isEmpty)
+        #expect(!machine.stabilizationWarning)
+    }
+
+    @Test func sessionEndClearsTheKeepOnWarning() {
+        var machine = GyroArmingMachine(pendingRestores: [])
+        _ = machine.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))
+        _ = machine.chooseKeepOn()
+        #expect(machine.stabilizationWarning)
+        #expect(
+            machine.update(
+                inputs(toggleOn: false, stabilization: stabilization(["ibis": "SPORT"])))
+                == [.sessionEnded])
+        #expect(!machine.stabilizationWarning)
+    }
+
     @Test func photoModeEndsTheSessionAndRestores() {
         var machine = GyroArmingMachine(pendingRestores: [])
         _ = machine.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))

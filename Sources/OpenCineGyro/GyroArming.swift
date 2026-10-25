@@ -114,6 +114,7 @@ public struct GyroArmingMachine: Sendable {
     private struct WriteContext: Sendable {
         let cameraID: String
         let connection: Int
+        let applied: [String: String]
     }
 
     private var latest: GyroArmingInputs?
@@ -138,9 +139,11 @@ public struct GyroArmingMachine: Sendable {
         if previousCameraID != cameraID {
             connection += 1
             restoreBlocked = false
+            writesInFlight.removeAll()
             if isArmed {
                 isArmed = false
                 deferredSetup = false
+                stabilizationWarning = false
                 effects.append(.sessionEnded)
             }
         }
@@ -151,7 +154,9 @@ public struct GyroArmingMachine: Sendable {
 
     /// Records that the operator chose to turn stabilization off.
     public mutating func chooseTurnOff() -> [GyroArmingEffect] {
-        guard let inputs = latest, let camera = inputs.camera, writesInFlight.isEmpty else {
+        guard isArmed, let inputs = latest, let camera = inputs.camera,
+            writesInFlight.isEmpty
+        else {
             return []
         }
         var saved: [String: String] = [:]
@@ -180,7 +185,8 @@ public struct GyroArmingMachine: Sendable {
             pendingRestores.append(
                 GyroPendingRestore(cameraID: camera.id, saved: saved, applied: applied))
         }
-        writesInFlight[.turnOff] = WriteContext(cameraID: camera.id, connection: connection)
+        writesInFlight[.turnOff] = WriteContext(
+            cameraID: camera.id, connection: connection, applied: applied)
         return [
             .persistPendingRestores(pendingRestores),
             .writeStabilization(applied, purpose: .turnOff),
@@ -189,49 +195,57 @@ public struct GyroArmingMachine: Sendable {
 
     /// Records that the operator chose to keep stabilization on.
     public mutating func chooseKeepOn() -> [GyroArmingEffect] {
+        guard isArmed else { return [] }
         stabilizationWarning = true
         return []
     }
 
     /// Records the outcome of the last stabilization write of the given purpose.
+    /// Call once per write effect; a finish that arrives after the connection changed is ignored.
     public mutating func writeFinished(
         _ purpose: GyroWritePurpose, succeeded: Bool
     ) -> [GyroArmingEffect] {
-        guard let inputs = latest else {
-            writesInFlight[purpose] = nil
-            return []
-        }
-        let context = writesInFlight.removeValue(forKey: purpose)
+        guard let context = writesInFlight[purpose], context.connection == connection,
+            var inputs = latest
+        else { return [] }
+        writesInFlight[purpose] = nil
         var effects: [GyroArmingEffect] = []
         switch purpose {
         case .turnOff:
             if succeeded {
                 stabilizationWarning = false
+                inputs.stabilization = Self.applying(context.applied, to: inputs.stabilization)
             } else {
                 stabilizationWarning = true
                 effects.append(.notice(.turnOffFailed))
             }
         case .restore:
             if succeeded {
-                if let context {
-                    if let index = pendingRestores.firstIndex(where: {
-                        $0.cameraID == context.cameraID
-                    }) {
-                        pendingRestores.remove(at: index)
-                    }
-                    effects.append(.persistPendingRestores(pendingRestores))
+                if let index = pendingRestores.firstIndex(where: {
+                    $0.cameraID == context.cameraID
+                }) {
+                    pendingRestores.remove(at: index)
                 }
+                effects.append(.persistPendingRestores(pendingRestores))
             } else {
                 effects.append(.notice(.restoreFailed))
-                if let context, context.connection == connection,
-                    inputs.camera?.id == context.cameraID
-                {
+                if inputs.camera?.id == context.cameraID {
                     restoreBlocked = true
                 }
             }
         }
+        latest = inputs
         reconcile(inputs, into: &effects)
         return effects
+    }
+
+    private static func applying(
+        _ applied: [String: String], to stabilization: GyroStabilizationState?
+    ) -> GyroStabilizationState {
+        var values = stabilization?.values ?? [:]
+        for (key, value) in applied { values[key] = value }
+        return GyroStabilizationState(
+            values: values, lensHasVRSwitch: stabilization?.lensHasVRSwitch)
     }
 
     private mutating func reconcile(
@@ -243,6 +257,7 @@ public struct GyroArmingMachine: Sendable {
         if isArmed && !eligible {
             isArmed = false
             deferredSetup = false
+            stabilizationWarning = false
             effects.append(.sessionEnded)
         }
         if !writesInFlight.isEmpty {
@@ -270,7 +285,7 @@ public struct GyroArmingMachine: Sendable {
                 effects.append(.persistPendingRestores(pendingRestores))
             } else {
                 writesInFlight[.restore] = WriteContext(
-                    cameraID: cameraID, connection: connection)
+                    cameraID: cameraID, connection: connection, applied: values)
                 effects.append(.writeStabilization(values, purpose: .restore))
                 return
             }
