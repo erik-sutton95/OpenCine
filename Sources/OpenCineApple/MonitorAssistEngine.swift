@@ -120,7 +120,9 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     ) {
         let still = Still(image: image)
         queue.async { [self] in
-            guard effects.needsScopes, scopeNow() >= nextScopeAt,
+            guard effects.needsScopes,
+                Self.scopeDue(now: scopeNow(), deadline: nextScopeAt,
+                    interval: Self.minInterval(activeScopeCount: effects.activeScopeCount)),
                 let buffer = raster.prepared(still.image)
             else { return }
             pendingBuffer = buffer
@@ -203,8 +205,8 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         if fx.needsScopes {
             let now = scopeNow()
             let interval = Self.minInterval(activeScopeCount: fx.activeScopeCount)
-            if now >= nextScopeAt {
-                nextScopeAt = now + interval
+            if Self.scopeDue(now: now, deadline: nextScopeAt, interval: interval) {
+                nextScopeAt = Self.nextScopeDeadline(now: now, deadline: nextScopeAt, interval: interval)
                 packed = LiveFrameTap.copyBGRA8(
                     buffer, maxWidth: ScopeSampler.maxWidth)
                 if packed == nil {
@@ -338,6 +340,23 @@ public final class MonitorAssistEngine: @unchecked Sendable {
             busy = false
             drain()
         }
+    }
+
+    /// A frame that lands a little early for its tap still takes it. Frames arrive at the clip
+    /// rate with scheduling jitter, so a deadline of exactly one interval after the previous tap
+    /// skipped every other frame: a 25 fps clip measured at 12 to 15 Hz instead of its 25 Hz.
+    static func scopeDue(now: CFAbsoluteTime, deadline: CFAbsoluteTime, interval: TimeInterval)
+        -> Bool
+    {
+        now >= deadline - interval * 0.25
+    }
+
+    /// The deadline advances one interval per tap, so the rate never exceeds the budget; a tap
+    /// later than one interval restarts from now instead of catching up.
+    static func nextScopeDeadline(
+        now: CFAbsoluteTime, deadline: CFAbsoluteTime, interval: TimeInterval
+    ) -> CFAbsoluteTime {
+        deadline < now - interval ? now + interval : deadline + interval
     }
 
     public static func minInterval(activeScopeCount: Int,
