@@ -50,6 +50,35 @@ class MonitorSettingsCompositionTest {
         assertEquals(monitorSettingsTabs(null, null, null, gyro = gyro), configuration.tabs)
     }
 
+    /** Gyro capture UX: the calibrate row is shown only for a host that can open calibration (Swift twin: gyroCalibrateRowAppearsOnlyWhenProvided). */
+    @Test
+    fun gyroCalibrateRowOnlyWhenProvided() {
+        var calibrated = 0
+        val withCalibrate = MonitorSettingsGyroSource(true, {}, "SIMULATED", openLogs = {}, calibrate = { calibrated += 1 })
+        assertEquals(listOf(MonitorSettingsGyroRow.LOGGING, MonitorSettingsGyroRow.STATUS, MonitorSettingsGyroRow.CALIBRATE),
+            monitorSettingsGyroRows(withCalibrate))
+        withCalibrate.calibrate?.invoke()
+        assertEquals(1, calibrated)
+        val without = MonitorSettingsGyroSource(true, {}, "SIMULATED", openLogs = {})
+        assertNull(without.calibrate)
+        assertEquals(listOf(MonitorSettingsGyroRow.LOGGING, MonitorSettingsGyroRow.STATUS), monitorSettingsGyroRows(without))
+    }
+
+    /** The mount preset parameters stay for existing callers until a later minor release. */
+    @Test
+    @Suppress("DEPRECATION")
+    fun deprecatedMountPresetParametersStillBind() {
+        val configure = {}
+        val legacy = MonitorSettingsGyroSource(true, {}, "SIMULATED", openLogs = {}, mountName = "SIMULATED mount",
+            configureMount = configure)
+        assertEquals("SIMULATED mount", legacy.mountName)
+        assertSame(configure, legacy.configureMount)
+        assertNull(legacy.calibrate)
+        assertEquals(listOf(MonitorSettingsGyroRow.LOGGING, MonitorSettingsGyroRow.STATUS, MonitorSettingsGyroRow.MOUNT),
+            monitorSettingsGyroRows(legacy))
+        assertNull(MonitorSettingsGyroSource(true, {}, "SIMULATED", openLogs = {}).mountName)
+    }
+
     /** A2-32: the remote shutter and auto-rotate are separate optional capabilities (Swift twin: MonitorRemoteShutterTests). */
     @Test
     fun `each input capability is declared on its own`() {

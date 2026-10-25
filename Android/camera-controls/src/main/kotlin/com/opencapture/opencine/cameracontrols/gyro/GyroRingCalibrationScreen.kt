@@ -215,9 +215,9 @@ public fun GyroRingCalibrationScreen(
     }
 }
 
-/** Posts a TalkBack announcement through the host view. */
+/** Posts a TalkBack announcement through the host view; the feature host shares it. */
 @Suppress("DEPRECATION")
-private fun gyroAnnounce(view: View, text: String) {
+internal fun gyroAnnounce(view: View, text: String) {
     view.announceForAccessibility(text)
 }
 

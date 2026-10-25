@@ -6,16 +6,26 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.opencapture.opencine.appkit.MediaShare
 import com.opencapture.opencine.cameracontrols.GalleryOpeningTestActivity
+import com.opencapture.opencine.gyro.FakeGyroCameraAdapter
+import com.opencapture.opencine.gyro.FakeGyroNative
+import com.opencapture.opencine.gyro.FakeMotionSensors
 import com.opencapture.opencine.gyro.GyroArmingStep
 import com.opencapture.opencine.gyro.GyroCalibrationBlock
 import com.opencapture.opencine.gyro.GyroCalibrationInvalidation
+import com.opencapture.opencine.gyro.GyroCaptureCoordinator
+import com.opencapture.opencine.gyro.GyroHostConfiguration
 import com.opencapture.opencine.gyro.GyroLogEntry
+import com.opencapture.opencine.gyro.GyroPreferenceKeys
 import com.opencapture.opencine.gyro.GyroRingEvent
 import com.opencapture.opencine.gyro.GyroRingPhase
 import com.opencapture.opencine.gyro.GyroRingState
@@ -23,6 +33,8 @@ import com.opencapture.opencine.gyro.GyroTakeStatus
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -31,7 +43,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** SIMULATED arming sheet, calibration and logs screens hosted in a real activity. */
+/** SIMULATED arming sheet, calibration, logs and drift screens and the feature host in a real activity. */
 @RunWith(AndroidJUnit4::class)
 class GyroScreensTest {
     @Test
@@ -477,6 +489,140 @@ class GyroScreensTest {
                     activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 }
             }
+        }
+    }
+
+    @Test
+    fun driftSheetHasOnePrimaryButton() {
+        val recalibrated = AtomicInteger()
+        val notNow = AtomicInteger()
+        withScreen(
+            screen = {
+                GyroDriftSheet(
+                    onRecalibrate = { recalibrated.incrementAndGet() },
+                    onNotNow = { notNow.incrementAndGet() },
+                )
+            },
+            assertions = {
+                awaitNodes("The drift sheet must show its question") { nodes ->
+                    labelsOf(nodes).contains(GyroCopy.driftQuestion)
+                }
+                assertEquals(1, tagged("gyro.primary").size)
+                assertEquals(GyroCopy.recalibrate, deepLabel(tagged("gyro.primary").single()))
+                assertTrue(labels().contains(GyroCopy.driftTitle))
+                assertTrue(labels().contains(GyroCopy.notNow))
+                val dismiss = tagged("gyro.drift.notNow").single()
+                assertTrue(dismiss.clickTarget().performAction(AccessibilityNodeInfo.ACTION_CLICK))
+                awaitCondition("Not now must reach the host") { notNow.get() == 1 }
+                assertEquals(0, recalibrated.get())
+                val primary = tagged("gyro.primary").single()
+                assertTrue(primary.clickTarget().performAction(AccessibilityNodeInfo.ACTION_CLICK))
+                awaitCondition("Recalibrate must reach the host") { recalibrated.get() == 1 }
+            },
+        )
+    }
+
+    @Test
+    fun featureHostPresentsSetupForNewSession() {
+        withFeatureHost { host ->
+            host.coordinator.setEnabled(true)
+            host.coordinator.setHostEligible(true)
+            host.coordinator.bind(host.adapter)
+            host.adapter.connect()
+            awaitNodes("A new session with IBIS on must present the stabilization step") { nodes ->
+                nodes.any { tag(it) == "gyro.setup.turnOff" }
+            }
+            assertEquals(1, tagged("gyro.primary").size)
+            assertTrue(labels().contains(GyroCopy.ibisTitle))
+            val turnOff = tagged("gyro.setup.turnOff").single()
+            assertTrue(turnOff.clickTarget().performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            awaitCondition("Turn off must write OFF to the camera") {
+                // The coordinator thread appends; a read racing it simply retries.
+                runCatching { host.adapter.writes.toList() }.getOrNull() == listOf(mapOf("ibis" to "OFF"))
+            }
+            awaitNodes("The calibration step must follow") { nodes ->
+                labelsOf(nodes).contains(GyroCopy.getStarted)
+            }
+            assertTrue(tagged("gyro.setup.turnOff").isEmpty())
+            assertEquals(1, tagged("gyro.primary").size)
+        }
+    }
+
+    @Test
+    fun featureHostPresentsLogsAndTurnsGyroOn() {
+        withFeatureHost { host ->
+            assertFalse(host.coordinator.state.value.enabled)
+            host.coordinator.presentLogs()
+            awaitNodes("The logs screen must open on its empty state") { nodes ->
+                labelsOf(nodes).contains(GyroCopy.emptyTitle)
+            }
+            val turnOn = tagged("gyro.primary").single()
+            assertEquals(GyroCopy.turnOnGyro, deepLabel(turnOn))
+            assertTrue(turnOn.clickTarget().performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            awaitCondition("Turn on Gyro must save the toggle") { host.coordinator.state.value.enabled }
+            assertTrue(host.coordinator.state.value.logsPresented)
+            host.coordinator.dismissLogs()
+            awaitCondition("Dismissing the logs must close the screen") {
+                !labels().contains(GyroCopy.emptyTitle)
+            }
+        }
+    }
+
+    /** A coordinator over the gyro test fixtures, hosted by [GyroFeatureHost] in a real activity. */
+    private class FeatureHostFixture(
+        val coordinator: GyroCaptureCoordinator,
+        val adapter: FakeGyroCameraAdapter,
+        val sensors: FakeMotionSensors,
+    )
+
+    /**
+     * Runs [body] against a [GyroFeatureHost] over a fresh coordinator with private preferences and
+     * log root. A feeder thread delivers a gyro sample every 10 ms on the coordinator's clock so
+     * armed capture never stalls while the test drives the screens.
+     */
+    private fun withFeatureHost(body: (FeatureHostFixture) -> Unit) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val run = UUID.randomUUID().toString()
+        val root = File(context.cacheDir, "gyro-host-test-$run")
+        val preferences = "gyro-host-test-$run"
+        val sensors = FakeMotionSensors()
+        val adapter = FakeGyroCameraAdapter()
+        val coordinator = GyroCaptureCoordinator(
+            context = context,
+            host = GyroHostConfiguration(
+                appName = "ExampleApp",
+                logRoot = root,
+                preferencesName = preferences,
+                keys = GyroPreferenceKeys.namespaced("gyro.host.test."),
+            ),
+            native = FakeGyroNative(),
+            sensors = sensors,
+        )
+        val feeding = AtomicBoolean(true)
+        val feeder = Thread {
+            while (feeding.get()) {
+                sensors.emitSample(SystemClock.elapsedRealtimeNanos() / 1e9)
+                SystemClock.sleep(10)
+            }
+        }.apply { start() }
+        val fixture = FeatureHostFixture(coordinator, adapter, sensors)
+        try {
+            ActivityScenario.launch(GalleryOpeningTestActivity::class.java).use { scenario ->
+                scenario.onActivity { activity ->
+                    activity.setContent {
+                        GyroFeatureHost(coordinator, MediaShare("SIMULATED")) {
+                            Box(Modifier.fillMaxSize())
+                        }
+                    }
+                }
+                body(fixture)
+            }
+        } finally {
+            feeding.set(false)
+            feeder.join(1_000)
+            coordinator.close()
+            root.deleteRecursively()
+            context.deleteSharedPreferences(preferences)
         }
     }
 

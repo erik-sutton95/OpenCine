@@ -58,6 +58,8 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(testFixtures(project(":core")))
+    // GyroScreensTest: GyroFeatureHost over a coordinator built on the gyro fakes.
+    androidTestImplementation(testFixtures(project(":gyro")))
 }
 
 // The link chip vectors are shared with the Swift OpenCineCameraVocabularyTests (Fixtures/ at the
