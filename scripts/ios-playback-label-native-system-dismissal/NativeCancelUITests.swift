@@ -139,22 +139,31 @@ final class NativeCancelUITests: XCTestCase {
         // One thirty-second post-Delete readiness budget includes the actual popup, ownership,
         // native hit, external region, coordinate correspondence and a second stable observation.
         // There is no visible-Cancel branch and no alternative dismissal path.
+        // The coordinate is the one the accepting (second stable) observation produced. Computing
+        // it again costs a third complete external walk: about 9 s on a hosted runner, which ran
+        // past this same deadline after readiness had held (nightly 40166387934). The checks below
+        // still re-read the receipt and require the exact native point before the sole event.
         var previous: NativeCancelReceipt?
+        var readyCoordinate: XCUICoordinate?
         let ready = try await receipt(deadline: readinessDeadline) { value in
             guard self.popupReady(value, initial: initial, app: app),
-                self.dismissalCoordinate(value, app: app, deadline: readinessDeadline) != nil
+                let observed = self.dismissalCoordinate(
+                    value, app: app, deadline: readinessDeadline)
             else {
                 previous = nil
+                readyCoordinate = nil
                 return false
             }
             defer { previous = value }
-            return previous.map {
-                value.sequence > $0.sequence && self.samePresentation(value, $0)
-                    && value.systemDismissal == $0.systemDismissal
-            } ?? false
+            let stable =
+                previous.map {
+                    value.sequence > $0.sequence && self.samePresentation(value, $0)
+                        && value.systemDismissal == $0.systemDismissal
+                } ?? false
+            readyCoordinate = stable ? observed : nil
+            return stable
         }
-        let coordinate = try XCTUnwrap(
-            dismissalCoordinate(ready, app: app, deadline: readinessDeadline))
+        let coordinate = try XCTUnwrap(readyCoordinate)
         // XCUICoordinate is dynamic. Its final public screenPoint must equal the app-observed
         // native point exactly. The next local read must still attest to the same actual hit.
         try require(

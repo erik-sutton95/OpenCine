@@ -57,6 +57,14 @@ class PlaybackLabelCITests(unittest.TestCase):
         guard = calls[0].rsplit('{', 1)[0].rstrip()
         self.assertTrue(guard.endswith('if !qualified'), guard[-80:])
 
+    def test_driver_reuses_the_accepted_dismissal_coordinate(self):
+        # Each external walk takes about 9 s on a hosted runner. 40166387934 held readiness, then
+        # a third walk for the same coordinate ran past the thirty-second deadline.
+        source = (ROOT / 'scripts/ios-playback-label-native-system-dismissal/NativeCancelUITests.swift').read_text()
+        body = source.split('    func testCapturedDeletionConfirmation', 1)[1].split('    private func ', 1)[0]
+        self.assertEqual(body.count('dismissalCoordinate('), 1, 'one walk per readiness observation, no recompute')
+        self.assertIn('try XCTUnwrap(readyCoordinate)', body)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
