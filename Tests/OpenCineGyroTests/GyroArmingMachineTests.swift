@@ -158,7 +158,10 @@ import Testing
             machine.writeFinished(.restore, succeeded: true) == [
                 .persistPendingRestores([]),
                 .sessionStarted,
-                .presentSetup([.calibration(hasSavedCalibration: false)]),
+                .presentSetup([
+                    .stabilization(lensHasVRSwitch: false),
+                    .calibration(hasSavedCalibration: false),
+                ]),
             ])
     }
 

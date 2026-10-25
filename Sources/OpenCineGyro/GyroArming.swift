@@ -221,6 +221,9 @@ public struct GyroArmingMachine: Sendable {
             }
         case .restore:
             if succeeded {
+                // The camera now holds the restored values; the session that may start below
+                // offers the stabilization step from them, not from the pre-restore reading.
+                inputs.stabilization = Self.applying(context.applied, to: inputs.stabilization)
                 if let index = pendingRestores.firstIndex(where: {
                     $0.cameraID == context.cameraID
                 }) {
