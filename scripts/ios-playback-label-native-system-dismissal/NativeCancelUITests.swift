@@ -45,6 +45,10 @@ final class NativeCancelUITests: XCTestCase {
         var preInputAppSequence: UInt64 = 0
         var preInputAppSHA256 = ""
         var eventReadinessElapsedSeconds: Double?
+        var deleteDeliveryElapsedSeconds: Double?
+        // The last stage entered. A failed case names it in its outcome, so the log says which
+        // wait missed even when XCTest reports a later teardown issue instead of the thrown error.
+        var stage = "launch"
         var qualified = false
         defer {
             if let lastData {
@@ -67,16 +71,11 @@ final class NativeCancelUITests: XCTestCase {
                 add(attachment)
             }
             if app.state == .runningForeground {
-                // A screenshot is failure evidence only. On hosted runners the app screenshot request
-                // after a qualified dismissal never returned (nightlies 40143225461 and 40149233094:
-                // 168 s and 175 s, then "Timed out while requesting screenshot" failed the case). A
-                // qualified case is proven by the app receipt and the accessibility tree below.
-                if !qualified {
-                    let screenshot = XCTAttachment(screenshot: app.screenshot())
-                    screenshot.name = "SIMULATED final native stage before test teardown"
-                    screenshot.lifetime = .keepAlways
-                    add(screenshot)
-                }
+                // No screenshot. On hosted runners XCUIApplication.screenshot() hangs for minutes
+                // (40143225461, 40149233094 after a qualified case; 40195791463 after a failed one),
+                // and its "Timed out while requesting screenshot" issue is then the only failure
+                // XCTest reports: in 40195791463 it hid the readiness error that failed the case.
+                // The app receipts, the stage below and this accessibility tree are the evidence.
                 let tree = XCTAttachment(string: app.debugDescription)
                 tree.name = "SIMULATED external native accessibility tree"
                 tree.lifetime = .keepAlways
@@ -90,6 +89,8 @@ final class NativeCancelUITests: XCTestCase {
                 "preInputAppSequence": preInputAppSequence,
                 "preInputAppSHA256": preInputAppSHA256,
                 "eventReadinessElapsedSeconds": eventReadinessElapsedSeconds as Any? ?? NSNull(),
+                "deleteDeliveryElapsedSeconds": deleteDeliveryElapsedSeconds as Any? ?? NSNull(),
+                "stage": stage,
                 "outsideInputImplemented": true, "mode": "native-system-popover-dismissal",
                 "sequence": lastReceipt?.sequence ?? 0,
                 "appReceiptSHA256": lastData.map {
@@ -108,6 +109,7 @@ final class NativeCancelUITests: XCTestCase {
             "OPENCINE_NATIVE_UI_MODE": "native-system-popover-dismissal",
         ]
         app.launch()
+        stage = "initial"
         let initial = try await receipt { value in
             self.windowReady(value, app: app) && value.captureRequestIDs.isEmpty
                 && value.popup == nil
@@ -131,12 +133,37 @@ final class NativeCancelUITests: XCTestCase {
                 && initialCurrent.item == initial.item && fresh(initialCurrent),
             "The exact private native app/window must still be ready")
         deleteTapInvoked = true
+        stage = "deleteDelivery"
+        let deliveryClock = ContinuousClock()
+        let deliveryStart = deliveryClock.now
         delete.tap()
+
+        // XCUIElement.tap() returning is not delivery. In nightly 40195791463 the tap returned at
+        // 41 s, the app recorded no Delete callback in 66 s of receipts (written every
+        // 50 ms), and its capture first appeared at 159 s, so the readiness clock had already run
+        // out at 71 s. Readiness starts at the app-authored capture of this exact request, read
+        // from the receipt file only (no automation query competes with the delivery). The limit
+        // only ends a hang; it is not an expected duration and covers no second input.
+        let delivered = await HostedCondition.wait(limit: .seconds(150)) {
+            guard let value = self.readReceipt() else { return false }
+            return value.processID == initial.processID && value.requestID == initial.requestID
+                && value.item == initial.item && value.captureRequestIDs == [initial.requestID]
+                && value.capturedItems == [initial.item]
+                && value.activeRequestIDs == [initial.requestID]
+                && value.cancelled.isEmpty && value.confirmed.isEmpty && value.deletedCount == 0
+        }
+        let delivery = deliveryStart.duration(to: deliveryClock.now).components
+        deleteDeliveryElapsedSeconds =
+            Double(delivery.seconds) + Double(delivery.attoseconds) / 1e18
+        try require(
+            delivered, "The app never recorded the Delete callback for this request; no fallback input")
+
+        stage = "readiness"
         let readinessClock = ContinuousClock()
         let readinessStart = readinessClock.now
         let readinessDeadline = readinessStart.advanced(by: .seconds(30))
 
-        // One thirty-second post-Delete readiness budget includes the actual popup, ownership,
+        // One thirty-second readiness budget from the delivered Delete callback includes the actual popup, ownership,
         // native hit, external region, coordinate correspondence and a second stable observation.
         // There is no visible-Cancel branch and no alternative dismissal path.
         // The coordinate is the one the accepting (second stable) observation produced. Computing
@@ -164,6 +191,7 @@ final class NativeCancelUITests: XCTestCase {
             return stable
         }
         let coordinate = try XCTUnwrap(readyCoordinate)
+        stage = "finalRead"
         // XCUICoordinate is dynamic. Its final public screenPoint must equal the app-observed
         // native point exactly. The next local read must still attest to the same actual hit.
         try require(
@@ -196,6 +224,7 @@ final class NativeCancelUITests: XCTestCase {
             eventInstant < readinessDeadline && readinessClock.now < readinessDeadline,
             "The single original thirty-second monotonic post-Delete deadline expired; no event")
         systemDismissalTapInvoked = true
+        stage = "settlement"
         coordinate.tap()
 
         let settled = try await receipt { value in
@@ -219,6 +248,7 @@ final class NativeCancelUITests: XCTestCase {
         XCTAssertEqual(settled.activeRequestIDs, [])
         XCTAssertEqual(settled.retiredRequestIDs, [initial.requestID])
         XCTAssertTrue(settled.dialogWindowGone && settled.presentingControllerGone)
+        stage = "qualified"
         qualified = true
     }
 
