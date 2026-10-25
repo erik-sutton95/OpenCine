@@ -39,7 +39,7 @@ public enum MonitorMediaGalleryCopy {
     public static let disconnected = "Connect the camera to list clips on the body."
     public static let disconnectedEmptyCache = "No cached clips here. Connect the camera to list clips on the body."
     /// Offline, the gallery shows only clips cached on this phone; the last card listing stays
-    /// hidden (OpenZCine MEDIA-22 "Offline browse": downloaded clips only), and the gallery says so.
+    /// hidden (the documented offline browse: downloaded clips only), and the gallery says so.
     public static let disconnectedCachedOnly = "Camera disconnected. Showing clips cached on this phone."
     public static let browseHint = "Tap to open · Hold, then drag to select"
     public static let selectingHint = "Swipe to scroll · Hold or drag sideways to select"

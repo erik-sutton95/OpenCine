@@ -92,7 +92,7 @@ object MediaLibraryCopy {
         "No cached clips here. Connect the camera to list clips on the body."
     /**
      * Offline, the gallery shows only clips cached on this phone; the last card listing stays
-     * hidden (OpenZCine MEDIA-22 "Offline browse": downloaded clips only), and the gallery says so.
+     * hidden (the documented offline browse: downloaded clips only), and the gallery says so.
      */
     const val DISCONNECTED_CACHED_ONLY = "Camera disconnected. Showing clips cached on this phone."
     const val BROWSE_HINT = "Tap to open · Hold, then drag to select"
