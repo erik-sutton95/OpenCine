@@ -106,7 +106,11 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
     @ObservationIgnored private var transition = UUID()
     @ObservationIgnored private var sceneActive = true
     @ObservationIgnored private var cacheRequest: MonitorPlaybackItemToken?
-    @ObservationIgnored private var cacheTask: Task<Void, Never>?
+    /// Full-resolution downloads started by playback (Full Resolution Caching), keyed by clip.
+    /// They run for the library's lifetime, not one player page: closing the player or moving
+    /// to the next clip keeps the download running, so the clip reads as cached afterwards.
+    /// Closing the gallery this model opened, or the library retiring its source, stops them.
+    @ObservationIgnored private var originalTasks: [MediaAssetID: (id: UUID, task: Task<Void, Never>)] = [:]
     private struct CapturedDeletion {
         let request: MonitorOperatorPlaybackDeletionRequest
         let record: MonitorMediaRecord<Payload>
@@ -172,6 +176,9 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
     private func retireGallery() -> Bool {
         guard retirePlayback() else { return false }
         let captured = transition
+        let originals = originalTasks.values.map(\.task); originalTasks = [:]
+        originals.forEach { $0.cancel() }
+        guard transition == captured, playback == nil else { return false }
         guard galleryOpen else { return true }
         galleryOpen = false
         guard transition == captured, !galleryOpen else { return false }
@@ -291,22 +298,26 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
             guard page == capturedPage, playback === owner, isCurrent(token) else { return }
         }
         let mayCache = cacheTiming == .afterNativeItemInstallation ? owner.nativeItemInstalled : owner.ready
+        let asset = record.asset.id
         guard cacheOriginal, mayDownload, mayCache, cacheRequest != token,
-            library.entries[record.asset.id]?.originalURL == nil, let cache = operations.cacheOriginal else { return }
+            library.entries[asset]?.originalURL == nil, let cache = operations.cacheOriginal else { return }
         cacheRequest = token
-        let source = library.actionToken, generation = library.cache.directory.generation
-        let previous = cacheTask; cacheTask = nil; previous?.cancel()
-        guard page == capturedPage, playback === owner, cacheRequest == token, isCurrent(token) else { return }
-        cacheTask = Task { @MainActor [weak self, weak owner] in
-            guard let self, let owner, self.page == capturedPage, self.playback === owner,
-                self.library.isCurrent(source), self.library.cache.directory.generation == generation,
-                self.isCurrent(token), !Task.isCancelled else { return }
+        guard originalTasks[asset] == nil else { return }
+        let library = library, source = library.actionToken, generation = library.cache.directory.generation
+        let id = UUID()
+        // The library, not this page, keeps the download alive: an app may build this model per
+        // player page and release it when the page closes.
+        let task = Task { @MainActor [weak self, weak owner] in
+            defer { if self?.originalTasks[asset]?.id == id { self?.originalTasks[asset] = nil } }
+            guard library.isCurrent(source), library.cache.directory.generation == generation,
+                !Task.isCancelled else { return }
             await cache(record)
-            guard self.page == capturedPage, self.playback === owner, self.isCurrent(token),
-                self.library.isCurrent(source), self.library.cache.directory.generation == generation,
+            guard let self, let owner, self.page == capturedPage, self.playback === owner, self.isCurrent(token),
+                library.isCurrent(source), library.cache.directory.generation == generation,
                 !Task.isCancelled else { return }
             owner.refreshTransfer()
         }
+        originalTasks[asset] = (id, task)
     }
 
     private func ratingRequest() -> MonitorMediaPlaybackRatingRequest<Payload>? {
@@ -562,12 +573,12 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
     private func retireWork() {
         cancelPendingDeletion()
         enteredDeletion?.authority.retire(); enteredDeletion = nil
-        let previousCache = cacheTask, previousDelete = deleteTask
+        let previousDelete = deleteTask
         let previousRating = ratingTasks.values
         ratingTasks = [:]; ratingRevision = UUID(); ratingRead = nil; ratingNoticeID = nil
         confirmedRating = nil
-        cacheTask = nil; deleteTask = nil; cacheRequest = nil; adoptedLook = nil
-        previousCache?.cancel(); previousDelete?.cancel()
+        deleteTask = nil; cacheRequest = nil; adoptedLook = nil
+        previousDelete?.cancel()
         previousRating.forEach { $0.cancel() }
         state.ratingStars = nil; state.ratingPending = false; state.ratingNotice = nil
         let revision = ratingRevision
