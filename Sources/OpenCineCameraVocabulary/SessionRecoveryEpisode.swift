@@ -480,7 +480,6 @@ public final class SessionRecoveryEpisode {
                 try publish(next, attempt: attempt)
                 guard case .retrying = next.state else { return }
                 try await waitWhilePaused(attempt)
-                let epoch = pauseEpoch
                 if attempt.trigger != .operatorRetry,
                     let holder = await port.holder(attempt, failures + 1)
                 {
@@ -493,6 +492,9 @@ public final class SessionRecoveryEpisode {
                     return
                 }
                 try checkContinuation(attempt)
+                // The host may have paused while the holder was asked.
+                try await waitWhilePaused(attempt)
+                let epoch = pauseEpoch
                 let outcome = try await runOneAttempt(attempt)
                 try checkContinuation(attempt)
                 switch outcome {

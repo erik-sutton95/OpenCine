@@ -67,8 +67,11 @@ class SessionRecoveryEpisodeTest {
         var holder: String? = null
         val holderAsks = mutableListOf<Int>()
 
+        var onHolder: (suspend () -> Unit)? = null
+
         override suspend fun holder(attempt: SessionRecoveryEpisode.Attempt, number: Int): String? {
             holderAsks += number
+            onHolder?.invoke()
             return holder
         }
 
@@ -491,5 +494,23 @@ class SessionRecoveryEpisodeTest {
         runCurrent()
         assertEquals(8, host.connects)
         assertEquals(SessionRecoveryUi.WaitingForOperator(8), host.state)
+    }
+
+    @Test
+    fun `a pause while the holder is asked keeps the attempt from dialing`() = runTest {
+        val host = host()
+        val asked = CompletableDeferred<Unit>()
+        host.onHolder = { asked.await() }
+        assertTrue(host.begin(SessionRecoveryTrigger.DATALINK_LOST))
+        runCurrent()
+        assertEquals(listOf(1), host.holderAsks)
+        host.episode.pause()
+        asked.complete(Unit)
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(0, host.connects, "no attempt dials while paused")
+        host.episode.resume()
+        runCurrent()
+        assertEquals(1, host.connects)
     }
 }

@@ -353,6 +353,24 @@ struct SessionRecoveryEpisodeTests {
         #expect(host.episode.snapshot.state == .waitingForOperator(attemptsMade: 8))
     }
 
+    @Test func aPauseWhileTheHolderIsAskedKeepsTheAttemptFromDialing() async {
+        let host = Host()
+        let gate = Gate()
+        host.onHolder = { await gate.wait() }
+        #expect(host.begin(trigger: .datalinkLost))
+        await host.clock.settle()
+        #expect(gate.isWaiting && host.holderAsks == [1])
+        host.episode.pause()
+        host.onHolder = nil
+        gate.resume()
+        host.clock.advance(to: 60)
+        await host.clock.settle()
+        #expect(host.connects == 0, "no attempt dials while paused")
+        host.episode.resume()
+        #expect(await host.clock.drive { host.connects == 1 })
+        host.episode.cancel()
+    }
+
     // MARK: - SIMULATED host
 
     @MainActor final class Host {
@@ -371,6 +389,7 @@ struct SessionRecoveryEpisodeTests {
         var onChanged: ((SessionRecoveryEpisode.Snapshot) -> Void)?
         var holder: String?
         var holderAsks: [Int] = []
+        var onHolder: (@MainActor () async -> Void)?
         private let deadline: SessionRecoveryEpisode.AttemptDeadline
         lazy var episode = SessionRecoveryEpisode(
             port: .init(
@@ -393,6 +412,7 @@ struct SessionRecoveryEpisodeTests {
                 },
                 holder: { [unowned self] _, number in
                     holderAsks.append(number)
+                    await onHolder?()
                     return holder
                 }),
             attemptDeadline: deadline, timing: clock.timing,

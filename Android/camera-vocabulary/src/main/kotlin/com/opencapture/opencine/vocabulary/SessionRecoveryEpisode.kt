@@ -364,7 +364,6 @@ class SessionRecoveryEpisode(
             publish(mutableSnapshot.value.copy(state = state), attempt)
             if (state !is SessionRecoveryUi.Retrying) return
             awaitHostActive(attempt)
-            val epoch = pauseEpoch
             if (attempt.trigger != SessionRecoveryTrigger.OPERATOR_RETRY) {
                 val holder = port.holder(attempt, failures + 1)
                 checkContinuation(attempt)
@@ -380,6 +379,9 @@ class SessionRecoveryEpisode(
                     return
                 }
             }
+            // The host may have paused while the holder was asked.
+            awaitHostActive(attempt)
+            val epoch = pauseEpoch
             val outcome = runOneAttempt(attempt)
             checkContinuation(attempt)
             when (outcome) {
