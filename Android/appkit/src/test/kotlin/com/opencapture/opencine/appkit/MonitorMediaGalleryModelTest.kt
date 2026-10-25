@@ -142,6 +142,22 @@ class MonitorMediaGalleryModelTest {
             assertFalse(f.gallery.isCurrent(window))
         } finally { gate.complete(Unit); f.close() }
     }
+    @Test fun aRetiredTransferFailsItsClipAndTheBatchCachesTheNext() = runTest {
+        // Hardware pass 10.1: the first clip's transfer was cancelled by its source while the
+        // gallery stayed current; the batch stopped silently and the second clip was never asked.
+        val f = Fixture(backgroundScope)
+        try {
+            val requested = mutableListOf<String>()
+            f.library.select(setOf(MediaAssetID("A"), MediaAssetID("B")))
+            f.gallery.cacheSelection(f.gallery.snapshot(), MonitorMediaGalleryOperations(download = { record ->
+                requested += record.payload
+                if (requested.size == 1) throw CancellationException("transfer retired by its source")
+            }))
+            runCurrent()
+            assertEquals(setOf("A", "B"), requested.toSet()); assertEquals(2, requested.size)
+            assertEquals("Could not cache that clip.", f.gallery.state.value.failure)
+        } finally { f.close() }
+    }
     @Test fun selectionStartsOnceAndAnOldWindowCannotSelectAfterReentry() = runTest {
         val f = Fixture(backgroundScope)
         try {

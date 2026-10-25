@@ -54,6 +54,12 @@ private class LibraryTransfer : CameraMediaTransferService {
     }
     fun release(index: Int) { pending[index].complete(Unit) }
 }
+private class ScriptedTransfer(val run: suspend (MediaByteSink) -> MediaTransferReceipt) : CameraMediaTransferService {
+    var calls = 0
+    override suspend fun transfer(representation: MediaRepresentationID, sink: MediaByteSink): MediaTransferReceipt {
+        calls += 1; return run(sink)
+    }
+}
 private class LibraryBrowse(val cursors: MutableList<LibraryCursor>) : CameraMediaBrowse {
     override val binding = MediaBrowseBinding(CameraSessionID(), ControlEpoch(1))
     override val thumbnails: CameraMediaThumbnailService? = null
@@ -203,6 +209,43 @@ class MonitorMediaLibraryModelTest {
             source.release(1); runCurrent()
             assertContentEquals(byteArrayOf(3, 4), current.await().readBytes())
             assertTrue(model.state.value.progress.isEmpty() && model.state.value.transferring.isEmpty())
+        } finally { model.dispose(); fixture.root.deleteRecursively() }
+    }
+    @Test fun shortTransferIsACacheFailureAndLeavesNoOriginal() = runTest {
+        // Hardware pass 10.1: a camera that ends the response early (or answers with a shorter
+        // length than the catalog size) must not read as a finished cache that stays ON CAMERA.
+        val source = ScriptedTransfer { sink -> sink.write(byteArrayOf(1)); MediaTransferReceipt(1, 1) }
+        val browse = LibraryBrowse(mutableListOf(LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("take")), complete = true)))))
+        browse.transfers = source
+        val fixture = fixture(LibraryService(browse), backgroundScope); val model = fixture.model
+        try {
+            model.begin(); runCurrent()
+            val result = runCatching { model.cacheOriginal(MediaAssetID("take")) }
+            runCurrent()
+            val failure = result.exceptionOrNull()
+            assertNotNull(failure); assertFalse(failure is CancellationException)
+            assertEquals(MonitorMediaLibraryCopy().downloadFailed, model.state.value.note)
+            assertNull(model.state.value.entries[MediaAssetID("take")]?.original)
+            assertFalse(java.io.File(fixture.root, "files/take.mov").exists())
+            assertTrue(model.state.value.transferring.isEmpty() && model.state.value.progress.isEmpty())
+        } finally { model.dispose(); fixture.root.deleteRecursively() }
+    }
+    @Test fun sourceCancellationIsAFailureForAnActiveCaller() = runTest {
+        // A source that retires its own job (a replaced browse) cancels the transfer, not the
+        // caller: the caller must see a failure it can report, never a silent cancellation.
+        val source = ScriptedTransfer { sink -> sink.write(byteArrayOf(1)); throw CancellationException("browse retired") }
+        val browse = LibraryBrowse(mutableListOf(LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("take")), complete = true)))))
+        browse.transfers = source
+        val fixture = fixture(LibraryService(browse), backgroundScope); val model = fixture.model
+        try {
+            model.begin(); runCurrent()
+            val result = runCatching { model.cacheOriginal(MediaAssetID("take")) }
+            runCurrent()
+            assertTrue(currentCoroutineContext().isActive)
+            val failure = result.exceptionOrNull()
+            assertNotNull(failure); assertFalse(failure is CancellationException, "got $failure")
+            assertEquals(MonitorMediaLibraryCopy().downloadFailed, model.state.value.note)
+            assertTrue(model.state.value.transferring.isEmpty() && model.state.value.progress.isEmpty())
         } finally { model.dispose(); fixture.root.deleteRecursively() }
     }
     @Test fun replacementDropsOldPageBeforeCodecAndClosesOldBrowse() = runTest {

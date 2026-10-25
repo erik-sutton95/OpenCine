@@ -1011,6 +1011,11 @@ public class MonitorMediaLibraryModel<P>(
                 val receipt = source.transfer(representation, sink)
                 currentCoroutineContext().ensureActive()
                 if (!current(generation) || transfers[id]?.id != operation) throw MediaServiceException(MediaServiceFailure.RETIRED)
+                // A response that ended short of the catalog size (an early EOF, or a shorter
+                // response length) is not this original: the cache would never read it as one.
+                if (descriptor.role == MediaRepresentationRole.ORIGINAL &&
+                    !cache.eligibility.accepts(receipt.byteCount, descriptor.byteCount))
+                    throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
                 val file = writer.commit(receipt); reloadEntries()
                 if (!current(generation) || transfers[id]?.id != operation || !isActive) throw MediaServiceException(MediaServiceFailure.RETIRED)
                 if (id in state.value.progress) mutate { it.copy(progress = it.progress + (id to 1.0)) }
@@ -1027,8 +1032,16 @@ public class MonitorMediaLibraryModel<P>(
             task.cancel(); writer.abort(); throw MediaServiceException(MediaServiceFailure.RETIRED)
         }
         task.start()
-        try { return task.await() }
-        catch (error: CancellationException) { task.cancel(); throw error }
+        try {
+            return try { task.await() } catch (error: CancellationException) {
+                task.cancel()
+                // Only the caller's own cancellation stays a cancellation. A transfer the source
+                // or a retirement cancelled is a failure, so a batch reports it and goes on.
+                currentCoroutineContext().ensureActive()
+                throw MediaServiceException(MediaServiceFailure.RETIRED)
+            }
+        }
+        catch (error: CancellationException) { throw error }
         catch (error: Exception) {
             if (current(generation) && transfers[id]?.id == operation) mutate { it.copy(note = copy.downloadFailed) }
             throw error
