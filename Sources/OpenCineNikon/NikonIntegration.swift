@@ -77,16 +77,37 @@ extension NikonConnectPort {
 /// recovery episode port that asks it, so the app's lookup never crosses an isolation boundary.
 @MainActor
 public enum NikonTakeOverRecovery {
+    /// Presence asks before the first attempt may dial (Kotlin `FIRST_ATTEMPT_ASKS`).
+    public static let firstAttemptAsks = 3
+    /// The pause between those asks (Kotlin `FIRST_ATTEMPT_ASK_SPACING_MS`).
+    public static let firstAttemptAskSpacing: Duration = .seconds(1)
+
     /// The device that took the camera, asked before recovery attempt `attempt` (1-based) dials
     /// it. Reconnecting would take the camera straight back, and two phones re-taking one session
     /// churn the body's PTP stack into its wedge (physical-C C9/C10: a ZR refused every session for
-    /// about 14 min). The first attempt asks twice: the body drops this device the moment the new
-    /// one opens its session, before that phone's presence answer is up.
+    /// about 14 min; hardware pass 4.1: a ZR hung until its battery was pulled). The body drops
+    /// this device the moment the new one opens its session, before that phone's presence answer
+    /// is up, so the first attempt asks `firstAttemptAsks` times, `firstAttemptAskSpacing` apart,
+    /// before it may dial.
     public static func holder(
         beforeAttempt attempt: Int, lookup: () async -> String?
     ) async -> String? {
-        if let holder = await lookup() { return holder }
-        return attempt == 1 ? await lookup() : nil
+        await holder(beforeAttempt: attempt, pause: hostSleepUntilCancelled(for:), lookup: lookup)
+    }
+
+    /// `holder(beforeAttempt:lookup:)` with an injected pause, for tests and hosts with a clock.
+    public static func holder(
+        beforeAttempt attempt: Int, pause: (Duration) async -> Void, lookup: () async -> String?
+    ) async -> String? {
+        let asks = attempt == 1 ? firstAttemptAsks : 1
+        for ask in 1...asks {
+            if ask > 1 {
+                await pause(firstAttemptAskSpacing)
+                if Task.isCancelled { return nil }
+            }
+            if let holder = await lookup() { return holder }
+        }
+        return nil
     }
 }
 

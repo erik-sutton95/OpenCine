@@ -2601,8 +2601,11 @@ public final class com/opencapture/opencine/nikon/NikonTakeOverPrompt$Companion 
 }
 
 public final class com/opencapture/opencine/nikon/NikonTakeOverRecovery {
+	public static final field FIRST_ATTEMPT_ASKS I
+	public static final field FIRST_ATTEMPT_ASK_SPACING_MS J
 	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonTakeOverRecovery;
 	public final fun holder (ILkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun holder (ILkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class com/opencapture/opencine/nikon/OptimisticControlValueKt {

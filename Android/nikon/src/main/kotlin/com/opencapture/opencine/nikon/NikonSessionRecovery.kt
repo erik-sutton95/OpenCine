@@ -96,8 +96,11 @@ class MonitorSessionRecoveryCoordinator(
     private val schedule: SessionRetryScheduleBridge = ProductionSessionRetryScheduleBridge,
     private val jitterSample: () -> Double = { Random.nextDouble() },
     private val sleep: suspend (Long) -> Unit = { delay(it) },
-    /** The device holding this session's camera now ([NikonDiscovery.currentHolder]). */
-    private val currentHolder: suspend () -> String? = { null },
+    /**
+     * The device holding this session's camera now ([NikonDiscovery.currentHolder]); `null` when
+     * the host has no presence lookup, so recovery asks nobody and waits for no answer.
+     */
+    private val currentHolder: (suspend () -> String?)? = null,
 ) {
     init {
         // A fresh monitor entry starts a fresh storm ledger (parity with iOS, which resets on
@@ -164,7 +167,7 @@ class MonitorSessionRecoveryCoordinator(
                         consecutiveFailures += 1
                         currentCoroutineContext().ensureActive()
                         if (session.state.value !is CameraSessionState.Disconnected) continue
-                        val holder = NikonTakeOverRecovery.holder(consecutiveFailures, currentHolder)
+                        val holder = currentHolder?.let { NikonTakeOverRecovery.holder(consecutiveFailures, sleep, it) }
                         currentCoroutineContext().ensureActive()
                         if (holder != null) {
                             mutableRecoveryState.value = SessionRecoveryUi.TakenOver(holder.ifBlank { null })
@@ -183,13 +186,38 @@ class MonitorSessionRecoveryCoordinator(
  * The other side of a take-over: the device that lost the camera (Swift `NikonTakeOverRecovery`).
  */
 object NikonTakeOverRecovery {
+    /** Presence asks before the first attempt may dial (Swift `firstAttemptAsks`). */
+    const val FIRST_ATTEMPT_ASKS: Int = 3
+
+    /** The pause between those asks (Swift `firstAttemptAskSpacing`). */
+    const val FIRST_ATTEMPT_ASK_SPACING_MS: Long = 1_000
+
     /**
      * The device that took the camera, asked before recovery attempt [attempt] (1-based) dials
      * it. Reconnecting would take the camera straight back, and two phones re-taking one session
      * churn the body's PTP stack into its wedge (physical-C C9/C10: a ZR refused every session for
-     * about 14 min). The first attempt asks twice: the body drops this device the moment the new
-     * one opens its session, before that phone's presence answer is up.
+     * about 14 min; hardware pass 4.1: a ZR hung until its battery was pulled). The body drops
+     * this device the moment the new one opens its session, before that phone's presence answer
+     * is up, so the first attempt asks [FIRST_ATTEMPT_ASKS] times, [FIRST_ATTEMPT_ASK_SPACING_MS]
+     * apart, before it may dial.
      */
     suspend fun holder(attempt: Int, lookup: suspend () -> String?): String? =
-        lookup() ?: if (attempt == 1) lookup() else null
+        holder(attempt, pause = { delay(it) }, lookup = lookup)
+
+    /** [holder] with an injected pause, for a recovery loop that owns its own clock. */
+    suspend fun holder(
+        attempt: Int,
+        pause: suspend (Long) -> Unit,
+        lookup: suspend () -> String?,
+    ): String? {
+        val asks = if (attempt == 1) FIRST_ATTEMPT_ASKS else 1
+        for (ask in 1..asks) {
+            if (ask > 1) {
+                pause(FIRST_ATTEMPT_ASK_SPACING_MS)
+                currentCoroutineContext().ensureActive()
+            }
+            lookup()?.let { return it }
+        }
+        return null
+    }
 }

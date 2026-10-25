@@ -466,4 +466,26 @@ class NikonTakeOverRecoveryTest {
         assertEquals(null, NikonTakeOverRecovery.holder(2) { asks += 1; null })
         assertEquals(1, asks)
     }
+
+    /**
+     * Hardware pass 4.1: the device that took the camera answers presence only once its session
+     * is up, after the body already dropped this one. Two back-to-back sweeps can both land
+     * before that answer, so the first attempt keeps asking, spaced, before it may dial.
+     */
+    @Test
+    fun theFirstAttemptKeepsAskingOverASpacedWindow() = runTest {
+        val answers = ArrayDeque(listOf(null, null, "Phone B"))
+        val pauses = mutableListOf<Long>()
+        val holder = NikonTakeOverRecovery.holder(1, pause = { pauses += it }) { answers.removeFirst() }
+        assertEquals("Phone B", holder)
+        assertEquals(
+            List(NikonTakeOverRecovery.FIRST_ATTEMPT_ASKS - 1) { NikonTakeOverRecovery.FIRST_ATTEMPT_ASK_SPACING_MS },
+            pauses,
+        )
+        assertTrue(NikonTakeOverRecovery.FIRST_ATTEMPT_ASKS >= 3)
+
+        var asks = 0
+        assertEquals(null, NikonTakeOverRecovery.holder(1, pause = {}) { asks += 1; null })
+        assertEquals(NikonTakeOverRecovery.FIRST_ATTEMPT_ASKS, asks)
+    }
 }
