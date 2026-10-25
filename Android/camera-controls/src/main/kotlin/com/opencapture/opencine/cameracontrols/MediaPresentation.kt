@@ -89,7 +89,42 @@ object MediaLibraryCopy {
     const val EMPTY_PHOTOS = "No photos on this camera yet. Capture a still, then pull to refresh."
     const val DISCONNECTED = "Connect the camera to list clips on the body."
     const val DISCONNECTED_EMPTY_CACHE =
-        "Nothing cached on this phone. Connect the camera to list clips on the body."
+        "No cached clips here. Connect the camera to list clips on the body."
+    /**
+     * Offline, the gallery shows only clips cached on this phone; the last card listing stays
+     * hidden (OpenZCine MEDIA-22 "Offline browse": downloaded clips only), and the gallery says so.
+     */
+    const val DISCONNECTED_CACHED_ONLY = "Camera disconnected. Showing clips cached on this phone."
+    const val BROWSE_HINT = "Tap to open · Hold, then drag to select"
+    const val SELECTING_HINT = "Swipe to scroll · Hold or drag sideways to select"
+    const val READING_HINT = "Reading camera media…"
+    const val LISTING_TITLE = "Listing clips on camera…"
+    const val FILTER_EMPTY_TITLE = "No matching clips"
+    const val DISCONNECTED_TITLE = "Camera disconnected"
+    const val NO_CACHED_TITLE = "No cached clips"
+    const val EMPTY_TITLE = "No clips yet"
+
+    /** The gallery's hint line under its item count (Swift `MonitorMediaGalleryCopy.galleryHint`). */
+    fun galleryHint(fetching: Boolean, selecting: Boolean, isLive: Boolean): String =
+        when {
+            fetching -> READING_HINT
+            selecting -> SELECTING_HINT
+            isLive -> BROWSE_HINT
+            else -> DISCONNECTED_CACHED_ONLY
+        }
+
+    /**
+     * The empty gallery's heading, in the same order as [emptySubtitle]: "No clips yet" only when a
+     * connected camera listed nothing for this tab.
+     */
+    fun emptyTitle(listing: Boolean, isLive: Boolean, hasListedClips: Boolean, activeFilterCount: Int): String =
+        when {
+            listing -> LISTING_TITLE
+            !isLive && !hasListedClips -> DISCONNECTED_TITLE
+            activeFilterCount > 0 -> FILTER_EMPTY_TITLE
+            !isLive -> NO_CACHED_TITLE
+            else -> EMPTY_TITLE
+        }
     const val PROXY_TAG = "Proxy"
     const val PROXY_HELP = "720p preview. Connect the camera to share the original."
 

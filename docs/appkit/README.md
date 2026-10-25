@@ -431,6 +431,13 @@ cleanup awaits. Every page, operation and delayed completion checks its captured
 old result cannot publish or clear successor state. Kotlin publishes one immutable `StateFlow`
 value on the supplied owner dispatcher, with a child supervisor for handled optional refusals.
 
+Offline, the shared catalog lists only clips playable from this phone's cache (the last card
+listing stays hidden, as OpenZCine MEDIA-22 specifies) and its hint line says so: "Camera
+disconnected. Showing clips cached on this phone." An empty gallery's heading names its state
+(listing, filtered, disconnected, nothing cached) and reads "No clips yet" only when a connected
+camera listed nothing for the tab (`MonitorMediaGalleryCopy.emptyTitle`, Kotlin
+`MediaLibraryCopy.emptyTitle`).
+
 `MediaCatalog` applies content-qualified opaque identities from the source. A proxy can remove a
 master in a later delta, two volumes can carry the same filename, and an old removal at a recycled
 location cannot erase new content. Unknown volume updates preserve the previous fact; a known

@@ -37,7 +37,30 @@ public enum MonitorMediaGalleryCopy {
     public static let emptyVideos = "No videos on this camera yet. Record a clip, then pull to refresh."
     public static let emptyPhotos = "No photos on this camera yet. Capture a still, then pull to refresh."
     public static let disconnected = "Connect the camera to list clips on the body."
-    public static let disconnectedEmptyCache = "Nothing cached on this phone. Connect the camera to list clips on the body."
+    public static let disconnectedEmptyCache = "No cached clips here. Connect the camera to list clips on the body."
+    /// Offline, the gallery shows only clips cached on this phone; the last card listing stays
+    /// hidden (OpenZCine MEDIA-22 "Offline browse": downloaded clips only), and the gallery says so.
+    public static let disconnectedCachedOnly = "Camera disconnected. Showing clips cached on this phone."
+    public static let browseHint = "Tap to open · Hold, then drag to select"
+    public static let selectingHint = "Swipe to scroll · Hold or drag sideways to select"
+    /// The gallery's hint line under its item count.
+    public static func galleryHint(sourceAvailable: Bool, selecting: Bool) -> String {
+        selecting ? selectingHint : sourceAvailable ? browseHint : disconnectedCachedOnly
+    }
+    public static let listingTitle = "Listing clips on camera…"
+    public static let filterEmptyTitle = "No matching clips"
+    public static let disconnectedTitle = "Camera disconnected"
+    public static let noCachedTitle = "No cached clips"
+    public static let emptyTitle = "No clips yet"
+    /// The empty gallery's heading, in the same order as [emptySubtitle]: "No clips yet" only
+    /// when a connected camera listed nothing for this tab.
+    public static func emptyTitle(fetching: Bool, sourceAvailable: Bool, hasRecords: Bool,
+        activeFilterCount: Int) -> String {
+        if fetching { return listingTitle }
+        if !sourceAvailable && !hasRecords { return disconnectedTitle }
+        if activeFilterCount > 0 { return filterEmptyTitle }
+        return sourceAvailable ? emptyTitle : noCachedTitle
+    }
     /// The empty gallery's line: offline with nothing listed, filtered (before the cache is
     /// blamed, ZIB-413), offline with listed clips, or the tab's own [tab] line.
     public static func emptySubtitle(sourceAvailable: Bool, hasRecords: Bool, activeFilterCount: Int,
