@@ -2,6 +2,10 @@ package com.opencapture.opencine.cameracontrols
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.SolidColor
@@ -608,12 +612,16 @@ internal const val SETTINGS_PASSCODE_PLACEHOLDER = "Optional"
 
 /**
  * The watcher passcode entry: an outlined field with a placeholder, so an empty code is still a
- * visible target, named by its row title for TalkBack (hardware pass 3.5). The settings page pads
- * its scroll area by the keyboard, so the focused field scrolls clear of it.
+ * visible target, named by its row title for TalkBack (hardware pass 3.5). The placeholder is
+ * drawn, not composed: a child text node would make Compose move the field's name onto a separate
+ * node, leaving the editable node unnamed. The settings page pads its scroll area by the keyboard,
+ * so the focused field scrolls clear of it.
  */
 @Composable
 internal fun SettingsPasscodeField(value: String, title: String, onValueChange: (String) -> Unit) {
     val shape = RoundedCornerShape(8.dp)
+    val measurer = rememberTextMeasurer()
+    val placeholderStyle = LocalTextStyle.current.copy(color = MonitorPalette.faint, fontSize = 14.sp)
     BasicTextField(value, onValueChange = onValueChange,
         textStyle = LocalTextStyle.current.copy(color = MonitorPalette.text, fontSize = 14.sp, textAlign = TextAlign.End),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), singleLine = true,
@@ -624,9 +632,14 @@ internal fun SettingsPasscodeField(value: String, title: String, onValueChange: 
         decorationBox = { field ->
             Box(Modifier.fillMaxWidth().background(MonitorPalette.background.copy(alpha = 0.5f), shape)
                 .border(1.dp, MonitorPalette.border, shape)
-                .padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = Alignment.CenterEnd) {
-                if (value.isEmpty()) Text(SETTINGS_PASSCODE_PLACEHOLDER, color = MonitorPalette.faint, fontSize = 14.sp,
-                    textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .drawBehind {
+                    if (value.isEmpty()) {
+                        val layout = measurer.measure(SETTINGS_PASSCODE_PLACEHOLDER, placeholderStyle)
+                        drawText(layout, topLeft = Offset(size.width - layout.size.width,
+                            (size.height - layout.size.height) / 2f))
+                    }
+                }, contentAlignment = Alignment.CenterEnd) {
                 field()
             }
         })

@@ -33,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -184,10 +183,10 @@ fun MonitorSettingsSwitchInlineRow(
     testTag: String? = null,
     onToggle: () -> Unit,
 ) {
-    // The whole line is one switch for TalkBack and UI Automator: its title text, its On or Off
-    // state and a single activation. The drawn switch alone used to carry the state, so the title
-    // node a reader lands on first reported "not checkable" (hardware pass 7.3). The help badge
-    // keeps its own node.
+    // The whole line is one switch for TalkBack and UI Automator: its merged title text, its On
+    // or Off state and a single activation (hardware pass 7.3). No separate semantics block: an
+    // extra block here becomes its own node that names the switch without its state, which is
+    // what a reader found first before this fix. The help badge keeps its own node.
     val access =
         Modifier.toggleable(
             value = isOn,
@@ -195,10 +194,7 @@ fun MonitorSettingsSwitchInlineRow(
             indication = null,
             role = Role.Switch,
             onValueChange = { onToggle() },
-        ).semantics {
-            contentDescription = title
-            stateDescription = if (isOn) "On" else "Off"
-        }.then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
+        ).then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
     SettingsInlineRowLayout(title, help, showTopDivider, stacked, access) {
         MonitorSettingsSwitchGraphic(isOn = isOn)
     }

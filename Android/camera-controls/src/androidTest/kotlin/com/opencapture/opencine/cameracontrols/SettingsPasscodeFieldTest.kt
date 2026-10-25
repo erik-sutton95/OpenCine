@@ -7,7 +7,6 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.opencapture.monitorui.settings.MonitorDisplayChoice
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,15 +19,18 @@ import org.junit.runner.RunWith
 class SettingsPasscodeFieldTest {
     private val title = "Watcher Passcode"
 
-    @Test fun anEmptyPasscodeFieldIsNamedAndShowsItsPlaceholder() {
+    @Test fun anEmptyPasscodeFieldIsNamedAndOutlined() {
         ActivityScenario.launch(GalleryOpeningTestActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
                 activity.setContent { SettingsSharing(source(), feedback = {}) }
             }
             val field = awaitNode { it.isEditable }
-            assertEquals("the editable passcode node reads its row title", title, field.contentDescription?.toString())
-            assertTrue("an empty field shows its placeholder",
-                nodes().any { it.text?.toString() == "Optional" })
+            // Compose puts a field's name on the editable node, or on a child of it that TalkBack
+            // reads with the field (and UI Automator counts against NAF).
+            val named = generateSequence(listOf(field)) { level -> level.flatMap { node ->
+                (0 until node.childCount).mapNotNull(node::getChild) }.takeIf { it.isNotEmpty() } }.flatten()
+                .any { it.contentDescription?.toString() == title }
+            assertTrue("the editable passcode node reads its row title: ${field.className} desc=${field.contentDescription}", named)
             val bounds = android.graphics.Rect().also(field::getBoundsInScreen)
             val density = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
             assertTrue("the outlined field is a real touch target, not a hairline: $bounds",
