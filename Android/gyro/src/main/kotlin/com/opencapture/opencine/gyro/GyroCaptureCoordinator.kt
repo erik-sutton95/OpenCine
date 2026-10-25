@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.SystemClock
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -176,6 +177,16 @@ class GyroCaptureCoordinator internal constructor(
     private var sensorGeneration = 0L
     private var bindingGeneration = 0L
 
+    // Calibration, drift and the shared motion stream.
+    private val calibration = GyroCaptureCalibration(native)
+    private val drift = GyroCaptureDrift(native)
+    private var latestLevel: GyroCameraLevel? = null
+    private var motionStarted = false
+    private var driftFeeding = false
+    private val motionDelivery = AtomicBoolean(false)
+    private var driftPromptPresented = false
+    private var driftHapticToken = 0
+
     init {
         publish()
         scope.launch {
@@ -293,6 +304,82 @@ class GyroCaptureCoordinator internal constructor(
             dropSetupStep<GyroArmingStep.Calibration>()
             sessionUsesCalibration = false
             refreshCalibration()
+            drift.close(endSession = false)
+            updateDrift()
+            publish()
+        }
+    }
+
+    /** Setup sheet: keep the saved calibration for this session and close the step. */
+    fun setupUseLastCalibration() {
+        scope.launch {
+            dropSetupStep<GyroArmingStep.Calibration>()
+            sessionUsesCalibration = true
+            refreshCalibration()
+            updateDrift()
+            publish()
+        }
+    }
+
+    /** Shows the ring intro; does nothing when [GyroCaptureState.canCalibrate] is false. */
+    fun beginCalibration() {
+        scope.launch {
+            if (!canCalibrate()) return@launch
+            calibration.begin(fromSetup = setupSteps.any { it is GyroArmingStep.Calibration })
+            updateMotion()
+            publish()
+        }
+    }
+
+    /** "Get started": starts the ring and the motion readings it needs. */
+    fun startRing() {
+        scope.launch {
+            guarded { calibration.start(cameraId != null, adapter?.recording?.value) }
+            updateMotion()
+            publish()
+        }
+    }
+
+    /**
+     * Closes calibration and keeps any earlier calibration saved. From the setup sheet the step
+     * closes and this session logs uncalibrated takes; after a completed ring it acts as Done.
+     */
+    fun cancelCalibration() {
+        scope.launch {
+            if (calibration.state?.phase == GyroRingPhase.COMPLETE) return@launch finish()
+            val fromSetup = calibration.state != null && calibration.fromSetup
+            calibration.close()
+            if (fromSetup) {
+                dropSetupStep<GyroArmingStep.Calibration>()
+                sessionUsesCalibration = false
+                refreshCalibration()
+                drift.close(endSession = false)
+                updateDrift()
+            }
+            updateMotion()
+            publish()
+        }
+    }
+
+    /** "Done" on the complete screen: closes the ring and restarts drift on the new calibration. */
+    fun finishCalibration() {
+        scope.launch { finish() }
+    }
+
+    /** Drift prompt: close it and open the ring intro. */
+    fun recalibrateAfterDrift() {
+        scope.launch {
+            driftPromptPresented = false
+            if (canCalibrate()) calibration.begin(fromSetup = false)
+            publish()
+        }
+    }
+
+    /** Drift prompt "Not now": no further prompts this armed session. */
+    fun dismissDriftPrompt() {
+        scope.launch {
+            driftPromptPresented = false
+            drift.dismissed = true
             publish()
         }
     }
@@ -464,6 +551,7 @@ class GyroCaptureCoordinator internal constructor(
             onRecordingChanged(was, recording)
         }
         reconcileArming()
+        updateDrift()
         publish()
     }
 
@@ -475,24 +563,136 @@ class GyroCaptureCoordinator internal constructor(
         frozenCalibration = if (sessionUsesCalibration) savedCalibration.orEmpty() else ""
     }
 
-    // Hooks for calibration and drift (Task 4 fills them).
+    // Calibration and drift
 
     private fun onSessionStarted() {
         sessionUsesCalibration = true
         refreshCalibration()
+        drift.close(endSession = true)
+        driftPromptPresented = false
     }
 
-    private fun onSessionEnded() = Unit
+    private fun onSessionEnded() {
+        drift.close(endSession = true)
+        updateDrift()
+    }
 
-    private fun onCameraIdentityChanged(previous: String?, current: String?) = Unit
+    private fun onCameraIdentityChanged(previous: String?, current: String?) {
+        guarded {
+            when {
+                current == null -> calibration.invalidate(GyroCalibrationInvalidation.CONNECTION_ENDED)
+                previous != null -> calibration.invalidate(GyroCalibrationInvalidation.CAMERA_CHANGED)
+            }
+        }
+        updateMotion()
+    }
 
-    private fun onRecordingChanged(was: Boolean?, current: Boolean?) = Unit
+    private fun onRecordingChanged(was: Boolean?, current: Boolean?) {
+        guarded { calibration.updateCamera(cameraId != null, current) }
+        if (current == true) drift.reset()
+        if (was == true && current != true && drift.pendingPrompt) {
+            if (!drift.dismissed) driftPromptPresented = true
+            drift.pendingPrompt = false
+        }
+        updateMotion()
+    }
 
-    private fun onConnectionEnded() = Unit
+    private fun onConnectionEnded() {
+        guarded { calibration.invalidate(GyroCalibrationInvalidation.CONNECTION_ENDED) }
+        updateMotion()
+    }
 
-    private fun onLevel(level: GyroCameraLevel) = Unit
+    private fun onLevel(level: GyroCameraLevel) {
+        latestLevel = level
+        drift.observeCamera(level)
+    }
 
-    private fun closeExtras() = Unit
+    private fun closeExtras() {
+        calibration.close()
+        drift.close(endSession = true)
+        driftFeeding = false
+        updateMotion()
+    }
+
+    private fun finish() {
+        val fromSetup = calibration.state != null && calibration.fromSetup
+        calibration.close()
+        if (fromSetup) dropSetupStep<GyroArmingStep.Calibration>()
+        drift.close(endSession = false)
+        updateDrift()
+        publish()
+    }
+
+    private fun canCalibrate(): Boolean {
+        val adapter = adapter ?: return false
+        return adapter.providesLevel && sensors.hasGravity && adapter.identity.value != null
+    }
+
+    /** Drift runs only while armed, calibrated for this camera, with a level, in a recording take. */
+    private fun updateDrift() {
+        val calibrationJSON = frozenCalibration
+        val wanted = isArmed && calibrationJSON.isNotEmpty() && adapter?.providesLevel == true &&
+            adapter?.recording?.value == true && loggingOwner != null
+        driftFeeding = wanted && drift.ensure(calibrationJSON, latestLevel)
+        updateMotion()
+    }
+
+    /** Starts the shared motion stream once and stops it when neither ring nor drift needs it. */
+    private fun updateMotion() {
+        val needed = calibration.needsMotion || driftFeeding
+        if (needed && !motionStarted) {
+            motionStarted = sensors.startMotion(::onMotionReading)
+        } else if (!needed && motionStarted) {
+            sensors.stopMotion()
+            motionStarted = false
+        }
+    }
+
+    /** Sensor thread: never queue readings behind a slow write, keep at most one in flight. */
+    private fun onMotionReading(reading: GyroMotionReading) {
+        if (!motionDelivery.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                handleReading(reading)
+            } finally {
+                motionDelivery.set(false)
+            }
+        }
+    }
+
+    private fun handleReading(reading: GyroMotionReading) {
+        try {
+            calibration.observe(reading, latestLevel)?.let { verified ->
+                cameraId?.let { preferences.saveCalibration(it, verified) }
+                savedCalibration = verified
+                sessionUsesCalibration = true
+                refreshCalibration()
+                drift.close(endSession = false)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            notice = GyroNotice.SAVE_FAILED
+        }
+        if (driftFeeding && drift.observePhone(reading)) onDriftConfirmed(reading.timestamp)
+        updateMotion()
+        publish()
+    }
+
+    private fun onDriftConfirmed(timestamp: Double) {
+        try {
+            drain()
+            val owner = loggingOwner ?: return
+            applyLog(native.loggingMountMoved(owner, timestamp))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            return failCapture()
+        }
+        mountMovedInTake = true
+        driftHapticToken += 1
+        drift.pendingPrompt = true
+    }
 
     // Logging
 
@@ -764,7 +964,11 @@ class GyroCaptureCoordinator internal constructor(
                 notice = notice,
                 tipVisible = tipVisible,
                 setupSteps = setupSteps,
+                ring = calibration.state,
+                canCalibrate = canCalibrate(),
                 hasSavedCalibration = savedCalibration != null,
+                driftPromptPresented = driftPromptPresented,
+                driftHapticToken = driftHapticToken,
                 isArmed = isArmed,
             )
     }
