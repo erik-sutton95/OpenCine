@@ -39,7 +39,7 @@ public enum CameraConnectionTimeout {
                 "Couldn't find \(camera) on the network in time. Check Connect to PC is on, then try again."
         case .handshaking:
             return
-                "\(camera) stopped responding while connecting. Try again — if it keeps happening, power-cycle the camera."
+                "\(camera) stopped responding while connecting. Try again. If it keeps happening, power-cycle the camera."
         case .preparingLiveView:
             return "\(camera) connected but never started live view. Try again."
         case .idle, .readyToJoin, .pairing, .confirmOnCamera, .connected, .failed:

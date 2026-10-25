@@ -74,6 +74,63 @@ class ShellModelTest {
         assertEquals(ShellModel.Route.CAMERAS, shell.route)
     }
 
+    /**
+     * Hardware pass 8.0: the Local Network prompt and a Settings visit both take the scene
+     * inactive; coming back re-checks a Local Network failure by connecting again, once.
+     */
+    @Test
+    fun becomingActiveRechecksALocalNetworkFailure() = runTest {
+        val shell = shell()
+        shell.cameras.connect(Values.camera)
+        runCurrent()
+        fake.attempts[0].fail(Values.localNetworkDenied)
+        runCurrent()
+        assertNotNull(shell.cameras.state.value.failures[Values.camera.id])
+        shell.setSceneActive(true)
+        runCurrent()
+        assertEquals(1, fake.attempts.size, "no change of activity, no re-check")
+        shell.setSceneActive(false)
+        runCurrent()
+        assertEquals(1, fake.attempts.size)
+        shell.setSceneActive(true)
+        runCurrent()
+        assertTrue(fake.attempts.size == 2 && shell.cameras.state.value.failures.isEmpty())
+    }
+
+    /** One integration is one backend: a re-check dials one of its cameras, never two at once. */
+    @Test
+    fun aRecheckDialsOneCameraPerIntegration() = runTest {
+        val shell = shell()
+        shell.cameras.connect(Values.camera)
+        runCurrent()
+        fake.attempts[0].fail(Values.localNetworkDenied)
+        runCurrent()
+        shell.cameras.connect(other)
+        runCurrent()
+        fake.attempts[1].fail(Values.localNetworkDenied)
+        runCurrent()
+        assertEquals(2, shell.cameras.state.value.failures.size)
+        shell.setSceneActive(false)
+        shell.setSceneActive(true)
+        runCurrent()
+        assertTrue(fake.attempts.size == 3 && shell.cameras.state.value.attempts.size == 1)
+    }
+
+    /** A live camera is never replaced by a re-check of an older failure (CodeRabbit, #262). */
+    @Test
+    fun aRecheckLeavesALiveCameraAlone() = runTest {
+        val shell = shell()
+        shell.cameras.connect(Values.camera)
+        runCurrent()
+        fake.attempts[0].fail(Values.localNetworkDenied)
+        runCurrent()
+        connect(shell, other, Counted(FakeCameraSession.lunaLike()))
+        shell.setSceneActive(false)
+        shell.setSceneActive(true)
+        runCurrent()
+        assertEquals(2, fake.attempts.size, "the live camera keeps its session")
+    }
+
     @Test
     fun connectAThenReplaceWithBAndDeliverALate() = runTest {
         val shell = shell()

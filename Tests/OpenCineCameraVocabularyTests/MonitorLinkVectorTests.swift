@@ -53,4 +53,19 @@ import Testing
         #expect(meter.measuredFPS == 0)
         #expect(meter.label == "LINK")
     }
+
+    /// Hardware pass 7.2a: a held frame drew 3 of 4 bars beside NO LINK. Nothing is delivered.
+    @Test func aHeldFrameDrawsNoDeliveryBarsEvenWhenTheSourceScoresSome() {
+        var meter = MonitorLinkMeter()
+        for index in 0..<10 { meter.notePresented(at: Double(index) * 0.04) }
+        meter.update(connection: .live, feedRecovering: false, sessionRecovering: false,
+            linkHealthScore: 95, linkBars: 3)
+        #expect(meter.bars == 3)
+        meter.update(connection: .live, feedRecovering: false, sessionRecovering: true,
+            linkHealthScore: 95, linkBars: 3)
+        #expect(meter.label == SessionRecoveryCopy.heldFrameBadge)
+        #expect(meter.bars == 0)
+        meter.update(connection: .live, feedRecovering: false, sessionRecovering: true, linkHealthScore: 95)
+        #expect(meter.bars == 0)
+    }
 }

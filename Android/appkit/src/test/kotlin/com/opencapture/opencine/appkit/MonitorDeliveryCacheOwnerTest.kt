@@ -36,6 +36,21 @@ class MonitorDeliveryCacheOwnerTest {
         assertEquals(listOf(1, 2), facts.progress.map { it.clipIndex })
         assertTrue(facts.progress.all { it.isCaching && it.totalClips == 2 })
     }
+    @Test fun aRetiredAcquisitionCountsAsUncachedAndTheRunContinues() = runTest {
+        // Hardware pass 10.1: Share showed "Caching from camera" and then nothing, because a
+        // transfer cancelled by its source ended the whole run as if the operator cancelled it.
+        val facts = Facts()
+        val result = MonitorDeliveryModel.cacheOriginals(listOf(1, 2), MonitorDeliveryDestination.NATIVE_SHARE,
+            MonitorDeliveryAdmission { facts.current }, MonitorDeliveryOriginalService(
+                available = { it in facts.cached }, acquire = {
+                    facts.calls += it
+                    if (it == 1) throw CancellationException("transfer retired by its source") else facts.cached += it
+                }, progress = { null }), filename = { "$it.mov" }, sleep = { throw CancellationException() },
+            progress = { facts.progress += it })
+        assertEquals(listOf(1, 2), facts.calls)
+        assertEquals(listOf(2), result?.ready)
+        assertEquals(1, result?.uncached)
+    }
     @Test fun retiredSourceBeforeFirstIORejectsAllWork() = runTest {
         val facts = Facts()
         val result = MonitorDeliveryModel.cacheOriginals(listOf(1), MonitorDeliveryDestination.NATIVE_SHARE,

@@ -2566,8 +2566,11 @@ public final class com/opencapture/opencine/vocabulary/SessionRecoveryEpisode {
 	public static synthetic fun cancel$default (Lcom/opencapture/opencine/vocabulary/SessionRecoveryEpisode;ZILjava/lang/Object;)V
 	public final fun getCurrentEpisodeId ()Ljava/lang/String;
 	public final fun getSnapshot ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun isPaused ()Z
 	public final fun isRunning ()Z
+	public final fun pause ()V
 	public final fun resetStorm ()V
+	public final fun resume ()V
 	public final fun retry ()Z
 }
 
@@ -2724,6 +2727,8 @@ public final class com/opencapture/opencine/vocabulary/SessionRecoveryTrigger : 
 }
 
 public abstract class com/opencapture/opencine/vocabulary/SessionRecoveryUi {
+	public final fun getClaimsCamera ()Z
+	public final fun isReconnecting ()Z
 	public final fun isRecovering ()Z
 }
 

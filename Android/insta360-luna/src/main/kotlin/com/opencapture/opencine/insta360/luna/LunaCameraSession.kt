@@ -179,6 +179,18 @@ class LunaCameraSession internal constructor(
     private var shutterPresentation = HostShutterPresentation.CAMERA_VALUE
     private var reportedShutter: ObservedValue<ShutterValue> = ObservedValue.unknown
     private var reportedCadence: ObservedValue<Double> = ObservedValue.unknown
+    /** The last card list and when it arrived; option 99 rebuilds the volumes from it. */
+    private var reportedCards: Pair<List<LunaStorage>, MonotonicInstant>? = null
+    /** Photography option 99: remaining record seconds per card location, and when it arrived. */
+    private var reportedRemaining: Pair<Map<Long, Long>, MonotonicInstant>? = null
+
+    /** One volume per reported card, each with its own camera-reported remaining record time. */
+    private fun projectStorage() {
+        val (cards, at) = reportedCards ?: return
+        current = current.copy(storage = ObservedValue(cards.map { card ->
+            volume(card, at, reportedRemaining?.let { (seconds, reported) -> seconds[card.location]?.let { it to reported } })
+        }, ObservationOrigin.CAMERA_REPORTED, at))
+    }
     private var zoomDomain: ClosedFloatingPointRange<Double>? = null
     private val reportedAt = mutableMapOf<SettingKey, MonotonicInstant>()
     private val receipts = mutableMapOf<OperationID, CommandReceipt>()
@@ -255,6 +267,8 @@ class LunaCameraSession internal constructor(
             if (closed) return
             val at = now()
             device.shootingMode?.let {
+                // Remaining time is per function mode: another bank's report no longer applies.
+                if (it.functionMode != shootingMode?.functionMode) reportedRemaining = null
                 shootingMode = it
                 current = current.copy(mode = ObservedValue(captureMode(it), ObservationOrigin.CAMERA_REPORTED, at))
             }
@@ -272,7 +286,8 @@ class LunaCameraSession internal constructor(
             }
             val volumes = device.storageList.ifEmpty { listOfNotNull(device.storage) }
             if (volumes.isNotEmpty()) {
-                current = current.copy(storage = ObservedValue(volumes.map { volume(it, at) }, ObservationOrigin.CAMERA_REPORTED, at))
+                reportedCards = volumes to at
+                projectStorage()
             }
             projectShutter()
             refreshCapabilities()
@@ -287,6 +302,11 @@ class LunaCameraSession internal constructor(
             settings.functionMode?.let { if (it != functionMode()) return }
             val at = now()
             fun carries(type: Int) = settings.types.isEmpty() || type in settings.types
+            // Option 99 rides its own poll; a reply that does not carry it keeps the last report.
+            if (LunaControl.REMAINING_TIME in settings.types || settings.remainingRecordTime.isNotEmpty()) {
+                reportedRemaining = settings.remainingRecordTime.associate { (seconds, location) -> location to seconds } to at
+                projectStorage()
+            }
             if (carries(31) && (settings.recordResolution != null || 31 in settings.types)) {
                 val cadence = settings.videoResolution?.framesPerSecond
                 if (reportedCadence.value != cadence) {
@@ -867,7 +887,7 @@ class LunaCameraSession internal constructor(
             mapOf(1L to "standard", 2L to "i-log", 3L to "vivid", 4L to "hdr", 5L to "dolby-vision")[color]
                 ?.let { "${INTEGRATION.rawValue}.profile.$it" }
 
-        private fun volume(storage: LunaStorage, at: MonotonicInstant): StorageVolume {
+        private fun volume(storage: LunaStorage, at: MonotonicInstant, remaining: Pair<Long, MonotonicInstant>? = null): StorageVolume {
             val media = when (storage.cardState) {
                 0L -> MediaState.READY
                 1L -> MediaState.ABSENT
@@ -881,6 +901,10 @@ class LunaCameraSession internal constructor(
                 // Free space only means something on a usable card.
                 freeBytes = if (storage.isUsable) ObservedValue(storage.freeBytes, ObservationOrigin.CAMERA_REPORTED, at) else ObservedValue.unknown,
                 totalBytes = if (storage.isUsable && storage.totalBytes > 0) ObservedValue(storage.totalBytes, ObservationOrigin.CAMERA_REPORTED, at) else ObservedValue.unknown,
+                // Zero is a known full card; no entry for this location stays unknown.
+                remainingRecordingTime = remaining?.takeIf { storage.isUsable && it.first >= 0 }
+                    ?.let { (seconds, reported) -> ObservedValue(seconds.seconds, ObservationOrigin.CAMERA_REPORTED, reported) }
+                    ?: ObservedValue.unknown,
             )
         }
     }

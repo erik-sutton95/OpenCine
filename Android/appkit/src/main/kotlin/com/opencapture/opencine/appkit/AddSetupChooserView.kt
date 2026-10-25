@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -24,6 +25,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.MonitorPalette
 
+/** Chooser actions read the same in every app, never the host theme's accent. */
+@Composable
+private fun chooserButtonColors() = ButtonDefaults.textButtonColors(contentColor = MonitorPalette.text)
+
 /** Shared chooser rendering, usable inside either a setup flow or a host's network wizard. */
 @Composable
 public fun AddSetupChooserView(
@@ -37,7 +42,7 @@ public fun AddSetupChooserView(
         Column(modifier.background(MonitorPalette.tile, RoundedCornerShape(12.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(value.title, color = MonitorPalette.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Text(value.detail, color = MonitorPalette.muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-            TextButton(onClick = { chooser.select(value.id, onSelect) }, enabled = value.enabled,
+            TextButton(onClick = { chooser.select(value.id, onSelect) }, enabled = value.enabled, colors = chooserButtonColors(),
                 modifier = Modifier.testTag("${chooser.identifierPrefix}.${value.id}")) {
                 Text(value.actionTitle)
             }
@@ -48,7 +53,7 @@ public fun AddSetupChooserView(
         if (chooser.detail.isNotEmpty()) Text(chooser.detail, color = MonitorPalette.muted, fontSize = 13.sp, lineHeight = 18.sp)
         chooser.notice?.let { notice ->
             Text(notice.message, color = MonitorPalette.muted, fontSize = 12.5.sp)
-            TextButton(onClick = { onNoticeAction(notice.id) }) { Text(notice.actionTitle) }
+            TextButton(onClick = { onNoticeAction(notice.id) }, colors = chooserButtonColors()) { Text(notice.actionTitle) }
         }
         if (horizontal && chooser.options.size == 2) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -87,7 +92,7 @@ public fun AddSetupFlowView(flow: AddSetupFlow, modifier: Modifier = Modifier) {
             AddSetupChooserView(flow.chooser, onSelect = {
                 if (destination != null) selected = it.id else flow.onSelect(it)
             }, onNoticeAction = flow.onNoticeAction)
-            flow.cancelTitle?.let { TextButton(onClick = flow.onCancel) { Text(it) } }
+            flow.cancelTitle?.let { TextButton(onClick = flow.onCancel, colors = chooserButtonColors()) { Text(it) } }
         }
     }
 }

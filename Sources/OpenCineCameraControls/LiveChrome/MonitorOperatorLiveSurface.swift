@@ -497,9 +497,20 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         Binding(get: { session.locked }, set: { if exposed { session.locked = $0 } })
     }
     private var captureHidden: Bool {
+        if paletteCoversValues { return true }
         if let preview = captureState.preview { return !captureInputs.isTop(preview.key) }
         if let panel { return !panel.top }
         return false
+    }
+
+    /// The open assist palette sits over the camera values in landscape; the values hide while
+    /// it is open rather than peek around its edges (hardware pass 1.1).
+    private var paletteCoversValues: Bool {
+        guard expanded, mounts(.toolBar), !command else { return false }
+        return MonitorAssistPaletteReveal.coversValues(
+            palette: MonitorAssistPaletteLayout.fieldMonitorFootprint(
+                layout, toolCount: tools.count, safeTop: safeArea.top, expanded: true),
+            values: layout.values)
     }
 
     var body: some View {
@@ -854,7 +865,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             if let focus = cameraViews.focusControls { focus.allowsHitTesting(admitted).zIndex(4) }
             if !command { instruments }
             MonitorOperatorLiveBanners<Host.Palette>(layout: live, camera: identity.camera,
-                recovering: facts.picture.recovering, note: source.note, showsStatus: mounts(.statusBar))
+                recovering: facts.picture.reconnecting, note: source.note, showsStatus: mounts(.statusBar))
             if let motion = cameraViews.motion { motion.controls.allowsHitTesting(admitted && !transient) }
             if command, let dashboard = cameraViews.dashboard {
                 let frame = MonitorCommandDashboardLayout.frame(layout: layout)
@@ -938,9 +949,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var instrumentsHidden: Bool { (covered && editing == nil) || motionCovering }
     @ViewBuilder private var instruments: some View {
         if assist.isVisible(.evMeter), let exposure = source.exposure {
-            let palette = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count, safeTop: safeArea.top)
-            let footprint = palette.layout.resolving(expanded: expanded)
-                .anchored(leading: palette.frame.x, bottom: palette.frame.maxY)
+            let footprint = MonitorAssistPaletteLayout.fieldMonitorFootprint(
+                layout, toolCount: tools.count, safeTop: safeArea.top, expanded: expanded)
             let frame = MonitorOperatorExposureGeometry.frame(in: meterFeed,
                 avoiding: mounts(.toolBar) ? footprint.cgRect : nil)
             let reading = facts.picture.recovering ? ExposureMeterReading(cameraValue: nil) : exposure()

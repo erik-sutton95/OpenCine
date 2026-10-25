@@ -18,6 +18,26 @@ public enum SessionRecoveryState: Equatable, Sendable {
     case takenOver(holder: String?)
 
     public var isRecovering: Bool { self != .idle }
+
+    /// An automatic reconnect is actually running. The "Reconnecting" pill follows this, not
+    /// `isRecovering`: a taken-over, paused or spent recovery waits for the operator and must not
+    /// tell them it is reconnecting (hardware pass 4.1 showed both at once).
+    public var isReconnecting: Bool {
+        if case .retrying = self { return true }
+        return false
+    }
+
+    /// Whether this device may still tell other devices it holds the camera (the presence answer
+    /// and the in-use shield). A live session and a running reconnect keep the claim; a device
+    /// that stopped reconnecting has given the camera up. A stale claim made the device that
+    /// took the camera read its own later drop as "taken over" by the phone it had replaced, so
+    /// both phones ended on "Camera taken over" (hardware pass 4.1).
+    public var claimsCamera: Bool {
+        switch self {
+        case .idle, .retrying: true
+        case .waitingForOperator, .pausedAfterRepeatedDrops, .takenOver: false
+        }
+    }
 }
 
 /// Cross-run damping for sessions that reconnect cleanly but keep dying.
@@ -155,9 +175,12 @@ public enum SessionRecoveryCopy {
         switch state {
         case .idle:
             return ""
-        case .retrying(let attempt, let maxAttempts):
+        case .retrying(let attempt, _):
+            // The episode ends on its time budget, usually before `maxAttempts`: "attempt 1 of 8"
+            // followed by "after 3 tries" read as two machines (hardware pass 5.1).
+            let minutes = Int(SessionRecoveryPolicy.automaticRecoveryBudgetSeconds / 60)
             return
-                "\(camera) dropped off. Holding the last frame \u{2014} attempt \(attempt) of \(maxAttempts)."
+                "\(camera) dropped off. Holding the last frame, attempt \(attempt). Reconnecting for up to \(minutes) minutes."
         case .waitingForOperator(let attemptsMade):
             let tries = attemptsMade == 1 ? "1 try" : "\(attemptsMade) tries"
             return "\(camera) didn't come back after \(tries). Turn the camera off and on, then tap Retry. The frame below is held, not live."
@@ -166,7 +189,7 @@ public enum SessionRecoveryCopy {
                 switch dropSuspect {
                 case nil: "paused to protect the camera."
                 case .otherDeviceScanning:
-                    "paused to protect the camera \u{2014} another device may be scanning for cameras."
+                    "paused to protect the camera, since another device may be scanning for cameras."
                 }
             return
                 "\(camera) reconnected but dropped \(drops) times in quick succession. Automatic retries are \(paused) The frame below is held, not live."

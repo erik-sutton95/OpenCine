@@ -10,16 +10,21 @@ public struct MonitorOperatorLivePicture: Equatable {
     public let vertical: Bool
     public let flipped: Bool
     public let recovering: Bool
+    /// An automatic reconnect is running: the "Reconnecting" pill. `nil` at init follows
+    /// `recovering`. A source whose recovery can wait for the operator (taken over, paused, out
+    /// of attempts) passes it apart, so the pill never contradicts the recovery card.
+    public let reconnecting: Bool
     public let notice: MonitorOperatorPictureNotice?
     public init(
         aspect: Double, waiting: Bool, vertical: Bool, flipped: Bool, recovering: Bool,
-        notice: MonitorOperatorPictureNotice? = nil
+        reconnecting: Bool? = nil, notice: MonitorOperatorPictureNotice? = nil
     ) {
         self.aspect = aspect
         self.waiting = waiting
         self.vertical = vertical
         self.flipped = flipped
         self.recovering = recovering
+        self.reconnecting = reconnecting ?? recovering
         self.notice = notice
     }
     /// The plate covers the picture well: the source's notice, else the waiting plate.

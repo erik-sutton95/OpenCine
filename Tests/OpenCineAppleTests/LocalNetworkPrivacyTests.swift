@@ -54,6 +54,30 @@ import Testing
         privacy.start(.init(browseType: "_relay._tcp"))
         #expect(native.starts == 2, "known approval is not probed again")
     }
+
+    /// Hardware pass 5.1 (Pocket iOS) and 8.0 (Insta iOS): the Local Network prompt came only
+    /// after the camera Wi-Fi join, when the camera link was already timing out. The shared
+    /// pre-join request browses the app's own relay type through the legacy browser, which raises
+    /// the prompt on device (an NWBrowser alone did not), and never restarts a running probe.
+    @Test func beforeCameraJoinRaisesThePromptOnceAndKeepsAnApproval() async {
+        let native = ControlledPrivacyNative()
+        let privacy = LocalNetworkPrivacy(native: native.native, onChange: { _, _ in })
+        privacy.requestBeforeCameraJoin(serviceType: "_opc-mon._tcp")
+        #expect(native.probes.count == 1)
+        let probe = native.probes.first
+        #expect(probe?.promptTrigger == "_opc-mon._tcp.", "the legacy browse raises the prompt")
+        #expect(probe?.browseType == "_opc-mon._tcp" && probe?.includePeerToPeer == false)
+        #expect(probe?.resultsGrant == false, "results of a shared type are not approval")
+        #expect(probe?.lifetime == .seconds(30))
+        await native.waitForSleepers(1)
+        privacy.requestBeforeCameraJoin(serviceType: "_opc-mon._tcp")
+        #expect(native.starts == 1, "a running probe is not restarted")
+        privacy.note(.operationSucceeded, source: "handshake")
+        privacy.stop()
+        privacy.requestBeforeCameraJoin(serviceType: "_opc-mon._tcp")
+        #expect(native.starts == 1, "a known approval is not probed again")
+        native.wake(0)
+    }
 }
 
 @MainActor private final class PrivacyChanges { var values: [CameraNetworkPermissionState] = [] }
@@ -62,12 +86,14 @@ import Testing
 @MainActor private final class ControlledPrivacyNative {
     var starts = 0
     var stops = 0
+    var probes: [LocalNetworkPrivacy.Probe] = []
     private var handlers: [@MainActor (LocalNetworkPrivacy.Signal) -> Void] = []
     private var sleepers: [CheckedContinuation<Void, Error>] = []
     private var sleeperWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
     var native: LocalNetworkPrivacy.Native {
-        .init(start: { [unowned self] _, signal in
+        .init(start: { [unowned self] probe, signal in
             starts += 1
+            probes.append(probe)
             handlers.append(signal)
             return { [unowned self] in stops += 1 }
         }, sleep: { [unowned self] _ in

@@ -321,10 +321,14 @@ fun MonitorSelectionTray(count: Int, modifier: Modifier = Modifier,
         .border(1.dp, MonitorPalette.accent.copy(alpha = .3f), RoundedCornerShape(11.dp))
         .padding(horizontal = 9.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("$count selected", modifier = Modifier.weight(1f),
-            style = MonitorTypography.text(10.5f, FontWeight.SemiBold), maxLines = 1,
-            overflow = TextOverflow.Ellipsis)
-        actions()
+        // The count keeps its full width (iOS: the label, then scrolling chips); on a narrow
+        // phone the actions scroll instead of cutting it to "2 sel...".
+        Text("$count selected", style = MonitorTypography.text(10.5f, FontWeight.SemiBold), maxLines = 1,
+            softWrap = false)
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) { actions() }
+        }
     }
 }
 

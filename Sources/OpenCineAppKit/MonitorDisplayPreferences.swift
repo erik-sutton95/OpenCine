@@ -31,7 +31,7 @@ public enum MonitorDisplayMode: String, CaseIterable, Codable, Equatable, Identi
         case .live:
             "The full monitor. Set what it shows in Edit view."
         case .clean:
-            "A stripped-back image. Same elements as DISP 1 \u{2014} status, tool and capture bars start off. Pin which view assists stay on."
+            "A stripped-back image. Same elements as DISP 1. Status, tool and capture bars start off. Pin which view assists stay on."
         case .command:
             "The camera dashboard in place of the picture. Only the rail is yours to arrange."
         }

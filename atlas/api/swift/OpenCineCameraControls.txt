@@ -498,7 +498,7 @@ init MonitorOperatorLiveAssists(scopes: MonitorOperatorLiveAssistSource?, tools:
 init MonitorOperatorLiveAudio(levels: OpenCineMedia.MonitorAudioMeterLevels, caption: Swift.String?)
 init MonitorOperatorLiveCaptureSource(confirmRecording: Swift.Bool, busy: () -> Swift.Bool, takePhoto: () -> Swift.Void)
 init MonitorOperatorLiveIdentity(monitor: Foundation.UUID?, camera: OpenCineCore.CameraSessionID?, epoch: OpenCineCore.ControlEpoch?, picture: Swift.String, pictureOwner: Swift.ObjectIdentifier?)
-init MonitorOperatorLivePicture(aspect: Swift.Double, waiting: Swift.Bool, vertical: Swift.Bool, flipped: Swift.Bool, recovering: Swift.Bool, notice: MonitorOperatorPictureNotice?)
+init MonitorOperatorLivePicture(aspect: Swift.Double, waiting: Swift.Bool, vertical: Swift.Bool, flipped: Swift.Bool, recovering: Swift.Bool, reconnecting: Swift.Bool?, notice: MonitorOperatorPictureNotice?)
 init MonitorOperatorLivePresentation(pictureAspect: Swift.Double, pictureWaiting: Swift.Bool, verticalPicture: Swift.Bool, recovering: Swift.Bool, controls: OpenCineCameraVocabulary.ControlCapabilities, base: OpenCineCore.MonitorLayoutCapabilities, watching: Swift.Bool)
 init MonitorOperatorLivePresentation(pictureAspect: Swift.Double, pictureWaiting: Swift.Bool, verticalPicture: Swift.Bool, recovering: Swift.Bool, zoom: Swift.Bool?, gimbal: Swift.Bool?, headTracking: Swift.Bool?, watching: Swift.Bool)
 init MonitorOperatorLiveScreen()<Host where Host : MonitorLiveScreenHost>
@@ -878,6 +878,7 @@ let MonitorOperatorLiveIdentity.pictureOwner: Swift.ObjectIdentifier?
 let MonitorOperatorLivePicture.aspect: Swift.Double
 let MonitorOperatorLivePicture.flipped: Swift.Bool
 let MonitorOperatorLivePicture.notice: MonitorOperatorPictureNotice?
+let MonitorOperatorLivePicture.reconnecting: Swift.Bool
 let MonitorOperatorLivePicture.recovering: Swift.Bool
 let MonitorOperatorLivePicture.vertical: Swift.Bool
 let MonitorOperatorLivePicture.waiting: Swift.Bool

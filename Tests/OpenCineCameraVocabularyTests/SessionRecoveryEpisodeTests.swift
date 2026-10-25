@@ -144,6 +144,8 @@ struct SessionRecoveryEpisodeTests {
         await host.clock.settle()
         #expect(host.connects == 1)
         #expect(host.episode.snapshot.holdsPicture)
+        // The spinner agrees with the state: waiting for the operator is not reconnecting.
+        #expect(!host.episode.snapshot.reconnecting)
     }
 
     @Test func stageCeilingsRestartWhenTheStageChanges() async {
@@ -270,6 +272,127 @@ struct SessionRecoveryEpisodeTests {
         #expect(captured != host.run)
     }
 
+    /// Hardware pass 7.2a: in the background Android blocks the camera network, so each attempt
+    /// there failed in milliseconds and all 8 were spent before the app came back. A drop admitted
+    /// while the host is paused holds its picture and dials only after `resume()`.
+    @Test func aDropAdmittedWhileTheHostIsPausedWaitsToDialUntilResume() async {
+        let host = Host()
+        host.admits = false
+        host.episode.pause()
+        #expect(host.begin())
+        #expect(
+            await host.clock.until {
+                host.cleanups == [.initialDrop]
+                    && host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8)
+            })
+        host.clock.advance(to: 400)
+        await host.clock.settle()
+        #expect(host.connects == 0)
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        #expect(host.episode.snapshot.holdsPicture)
+        #expect(host.cleanups == [.initialDrop])
+        host.admits = true
+        host.episode.resume()
+        #expect(await host.clock.until { host.connects == 1 })
+        host.clock.advance(to: host.clock.time + 1)
+        host.picture = (host.clock.time, host.clock.time)
+        #expect(await host.clock.drive { host.episode.snapshot.state == .idle })
+    }
+
+    @Test func anAttemptTheOSRefusesWhilePausedIsNotCounted() async {
+        let host = Host()
+        let gate = Gate()
+        host.onConnect = { await gate.wait() }
+        host.admits = false
+        #expect(host.begin())
+        #expect(await host.clock.until { gate.isWaiting && host.connects == 1 })
+        host.episode.pause()
+        host.onConnect = nil
+        gate.resume()
+        #expect(
+            await host.clock.until {
+                host.cleanups == [.initialDrop, .failedAttempt]
+                    && !host.episode.snapshot.reconnecting
+            })
+        host.clock.advance(to: 60)
+        await host.clock.settle()
+        #expect(host.connects == 1, "no attempt dials while paused")
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        #expect(host.cleanups == [.initialDrop, .failedAttempt])
+        host.admits = true
+        host.episode.resume()
+        #expect(await host.clock.until { host.connects == 2 })
+        #expect(host.clock.backoffs.isEmpty, "resume dials at once, without a backoff")
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        host.episode.cancel()
+    }
+
+    /// Deterministic on the manual clock: one attempt stays in flight (no polling sleeps), and every
+    /// step waits for the sleeper it needs instead of a fixed number of yields.
+    @Test func theTotalBudgetCountsOnlyTimeTheHostIsActive() async {
+        let host = Host()
+        let gate = Gate()
+        host.onConnect = { await gate.wait() }
+        #expect(host.begin())
+        #expect(await host.clock.until { gate.isWaiting && host.clock.hasSleeper(endingAt: 180) })
+        host.clock.advance(to: 60)
+        host.episode.pause()
+        #expect(
+            await host.clock.until { !host.clock.hasSleeper(endingAt: 180) },
+            "pause stops the budget clock")
+        host.clock.advance(to: 660)
+        await host.clock.settle()
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        host.episode.resume()
+        #expect(
+            await host.clock.until { host.clock.hasSleeper(endingAt: 780) },
+            "only the 120 s still left run after resume")
+        host.clock.advance(to: 779.9)
+        await host.clock.settle()
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        host.clock.advance(to: 780)
+        #expect(
+            await host.clock.until {
+                host.episode.snapshot.state == .waitingForOperator(attemptsMade: 1)
+            })
+        #expect(host.cleanups.last == .budgetExhausted)
+        gate.resume()
+        host.episode.cancel()
+    }
+
+    @Test func resumingAnEpisodeThatWaitsForTheOperatorDialsNothing() async {
+        let host = Host()
+        host.admits = false
+        #expect(host.begin())
+        #expect(
+            await host.clock.drive {
+                host.episode.snapshot.state == .waitingForOperator(attemptsMade: 8)
+            })
+        host.episode.pause()
+        host.episode.resume()
+        host.clock.advance(to: host.clock.time + 400)
+        await host.clock.settle()
+        #expect(host.connects == 8)
+        #expect(host.episode.snapshot.state == .waitingForOperator(attemptsMade: 8))
+    }
+
+    @Test func aPauseWhileTheHolderIsAskedKeepsTheAttemptFromDialing() async {
+        let host = Host()
+        let gate = Gate()
+        host.onHolder = { await gate.wait() }
+        #expect(host.begin(trigger: .datalinkLost))
+        #expect(await host.clock.until { gate.isWaiting && host.holderAsks == [1] })
+        host.episode.pause()
+        host.onHolder = nil
+        gate.resume()
+        host.clock.advance(to: 60)
+        await host.clock.settle()
+        #expect(host.connects == 0, "no attempt dials while paused")
+        host.episode.resume()
+        #expect(await host.clock.until { host.connects == 1 })
+        host.episode.cancel()
+    }
+
     // MARK: - SIMULATED host
 
     @MainActor final class Host {
@@ -288,6 +411,7 @@ struct SessionRecoveryEpisodeTests {
         var onChanged: ((SessionRecoveryEpisode.Snapshot) -> Void)?
         var holder: String?
         var holderAsks: [Int] = []
+        var onHolder: (@MainActor () async -> Void)?
         private let deadline: SessionRecoveryEpisode.AttemptDeadline
         lazy var episode = SessionRecoveryEpisode(
             port: .init(
@@ -310,6 +434,7 @@ struct SessionRecoveryEpisodeTests {
                 },
                 holder: { [unowned self] _, number in
                     holderAsks.append(number)
+                    await onHolder?()
                     return holder
                 }),
             attemptDeadline: deadline, timing: clock.timing,
@@ -386,6 +511,20 @@ struct SessionRecoveryEpisodeTests {
         }
 
         func settle() async { for _ in 0..<64 { await Task.yield() } }
+
+        /// Yields until `done` holds: waits on the episode's own progress, never on time.
+        func until(_ done: () -> Bool) async -> Bool {
+            for _ in 0..<100_000 {
+                if done() { return true }
+                await Task.yield()
+            }
+            return done()
+        }
+
+        /// A sleep is registered that ends at `end` on the manual clock.
+        func hasSleeper(endingAt end: Double) -> Bool {
+            sleepers.contains { abs($0.at - end) < 1e-6 }
+        }
 
         func drive(until done: () -> Bool) async -> Bool {
             for _ in 0..<20_000 {

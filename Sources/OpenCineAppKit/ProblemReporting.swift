@@ -206,7 +206,7 @@ import UniformTypeIdentifiers
         }
         guard isForeground(), !gate.shouldBlockUpload else {
             cancelUpload()
-            status = "Waiting to send \u{2014} keep the app open after leaving camera Wi-Fi"
+            status = "Waiting to send. Keep the app open after leaving camera Wi-Fi"
             return
         }
         guard !record.failed else {
@@ -267,7 +267,7 @@ import UniformTypeIdentifiers
         status =
             record.failed
             ? "Report couldn't be sent. Remove it and try again, or contact \(host.supportEmail)."
-            : "Waiting for a connection \u{2014} your report is saved on this phone"
+            : "Waiting for a connection. Your report is saved on this phone"
     }
 
     public static func retryDelay(response: HTTPURLResponse?, attempts: Int) -> TimeInterval {

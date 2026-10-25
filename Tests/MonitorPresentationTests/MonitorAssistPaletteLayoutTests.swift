@@ -128,4 +128,50 @@ struct MonitorAssistPaletteLayoutTests {
             #expect(frame.x == geometry.assists.x)
         }
     }
+
+    /// Hardware pass 1.1: the open landscape palette draws over the camera values strip, so the
+    /// host hides the strip; the closed palette and the portrait column (which grows upward,
+    /// above the values) never cover it.
+    @Test func onlyTheOpenLandscapePaletteCoversTheCameraValues() {
+        let canvases: [(Double, Double, MonitorSafeArea)] = [
+            (956, 440, .init(top: 0, leading: 62, bottom: 21, trailing: 62)),
+            (874, 402, .init(top: 0, leading: 62, bottom: 21, trailing: 62)),
+            (667, 375, .init()),
+            (1366, 1024, .init(top: 24, leading: 0, bottom: 20, trailing: 0)),
+        ]
+        for (long, short, insets) in canvases {
+            for toolCount in [8, 16] {
+                let landscape = FieldMonitorLayout(width: long, height: short, safeArea: insets)
+                let portrait = FieldMonitorLayout(
+                    width: short, height: long,
+                    safeArea: .init(top: insets.leading, bottom: insets.bottom))
+                func covers(_ geometry: FieldMonitorLayout, expanded: Bool) -> Bool {
+                    MonitorAssistPaletteReveal.coversValues(
+                        palette: MonitorAssistPaletteLayout.fieldMonitorFootprint(
+                            geometry, toolCount: toolCount, safeTop: geometry.portrait ? 62 : 0,
+                            expanded: expanded),
+                        values: geometry.values)
+                }
+                #expect(covers(landscape, expanded: true), "\(long)x\(short) \(toolCount) tools")
+                #expect(covers(landscape, expanded: false) == false, "\(long)x\(short) \(toolCount) tools")
+                #expect(covers(portrait, expanded: true) == false, "\(short)x\(long) \(toolCount) tools")
+                #expect(covers(portrait, expanded: false) == false, "\(short)x\(long) \(toolCount) tools")
+            }
+        }
+    }
+
+    @Test func coverageNeedsAnOverlapWithArea() {
+        func covers(_ palette: MonitorRect?, _ values: MonitorRect) -> Bool {
+            MonitorAssistPaletteReveal.coversValues(palette: palette, values: values)
+        }
+        let values = MonitorRect(x: 100, y: 380, width: 500, height: 43)
+        let open = MonitorRect(x: 18, y: 302, width: 467, height: 108)
+        #expect(covers(nil, values) == false)
+        #expect(covers(open, values))
+        // Touching edges and an empty strip are not covered.
+        #expect(covers(MonitorRect(x: 18, y: 302, width: 82, height: 108), values) == false)
+        #expect(covers(MonitorRect(x: 18, y: 272, width: 467, height: 108), values) == false)
+        #expect(covers(open, MonitorRect(x: 100, y: 380, width: 500, height: 0)) == false)
+    }
 }
+

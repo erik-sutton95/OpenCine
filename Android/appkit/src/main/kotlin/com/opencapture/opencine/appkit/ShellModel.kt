@@ -192,6 +192,8 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
     public fun setSceneActive(active: Boolean) {
         if (active == state.value.sceneActive) return
         mutable.update { it.copy(sceneActive = active) }
+        // The Local Network prompt and a Settings visit both end here: re-check that permission.
+        if (active) cameras.retryLocalNetworkFailures()
         onSceneActivity(active)
     }
 

@@ -12,6 +12,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 
@@ -26,6 +27,11 @@ import kotlinx.coroutines.yield
  * [SessionRecoveryPolicy.monitor], the episode stops at
  * [SessionRecoveryPolicy.AUTOMATIC_RECOVERY_BUDGET_MS] and hands the decision to the operator, and
  * drops that cluster across episodes pause automatic recovery ([SessionDropStormGuard]).
+ *
+ * While the host app is in the background the OS may block its camera network, so an attempt
+ * there fails at once without reaching the camera. The host reports that with [pause] and
+ * [resume]: while paused no attempt dials, an attempt that failed during a pause does not count,
+ * and the total budget's clock stops. The held episode continues when the host resumes.
  *
  * Transport, decoders and presentation stay with the host behind [Port]. The episode and its port
  * are confined to [scope]'s dispatcher (the main thread in the apps); a port action that runs for
@@ -123,6 +129,8 @@ class SessionRecoveryEpisode(
         internal var job: Job? = null
         internal var graceJob: Job? = null
         internal var budgetJob: Job? = null
+        internal var budgetLeftMs: Long = SessionRecoveryPolicy.AUTOMATIC_RECOVERY_BUDGET_MS
+        internal var budgetSegmentStartMs: Long? = null
 
         val isCurrent: Boolean get() = current === this
 
@@ -141,6 +149,11 @@ class SessionRecoveryEpisode(
     val snapshot: StateFlow<Snapshot> = mutableSnapshot.asStateFlow()
     private var current: Attempt? = null
     private var generation = 0L
+    private val hostActive = MutableStateFlow(true)
+    private var pauseEpoch = 0L
+
+    /** The host reported that it cannot reach the camera now ([pause]). */
+    val isPaused: Boolean get() = !hostActive.value
 
     val currentEpisodeId: String? get() = current?.id
     val isRunning: Boolean get() = current?.job != null
@@ -186,8 +199,10 @@ class SessionRecoveryEpisode(
                     publish(mutableSnapshot.value.copy(cardGraceElapsed = true), attempt)
                 } catch (_: Retired) {}
             }
-            attempt.budgetJob = scope.launch(start = CoroutineStart.LAZY) {
-                waitForBudget(attempt)
+            if (hostActive.value) {
+                attempt.budgetJob = scope.launch(start = CoroutineStart.LAZY) {
+                    waitForBudget(attempt)
+                }
             }
             attempt.job = scope.launch(start = CoroutineStart.LAZY) {
                 try {
@@ -227,6 +242,35 @@ class SessionRecoveryEpisode(
                 holdsPicture = if (clearHold) false else previous.holdsPicture,
             )
         changed(mutableSnapshot.value)
+    }
+
+    /**
+     * The host went to the background or the OS blocks its camera network. Attempts wait, one
+     * that fails while paused is not counted, and the budget's clock stops until [resume].
+     * Lasts across episodes: an episode admitted while paused waits for [resume] to dial.
+     */
+    fun pause() {
+        if (!hostActive.value) return
+        hostActive.value = false
+        pauseEpoch += 1
+        val attempt = current ?: return
+        val budget = attempt.budgetJob ?: return
+        attempt.budgetJob = null
+        budget.cancel()
+        attempt.budgetSegmentStartMs?.let { started ->
+            attempt.budgetLeftMs = maxOf(0L, attempt.budgetLeftMs - (timing.nowMs() - started))
+        }
+        attempt.budgetSegmentStartMs = null
+    }
+
+    /** The host can reach the camera again: a paused episode dials and its budget clock runs. */
+    fun resume() {
+        if (hostActive.value) return
+        hostActive.value = true
+        val attempt = current ?: return
+        // A finished run (operator decision, storm pause) has no budget left to spend.
+        if (attempt.job == null || attempt.budgetJob != null) return
+        attempt.budgetJob = scope.launch { waitForBudget(attempt) }
     }
 
     /** Operator action: a fresh drop ledger. Never called on reconnect success. */
@@ -293,7 +337,8 @@ class SessionRecoveryEpisode(
     private suspend fun waitForBudget(attempt: Attempt) {
         // Publish on the deadline before joining a native connect that may ignore cancellation.
         try {
-            delay(SessionRecoveryPolicy.AUTOMATIC_RECOVERY_BUDGET_MS)
+            attempt.budgetSegmentStartMs = timing.nowMs()
+            delay(attempt.budgetLeftMs)
             checkContinuation(attempt)
             val attempts = (mutableSnapshot.value.state as? SessionRecoveryUi.Retrying)?.attempt ?: 0
             cleanup(Cleanup.BUDGET_EXHAUSTED, attempt)
@@ -318,6 +363,7 @@ class SessionRecoveryEpisode(
             val state = policy.state(failures)
             publish(mutableSnapshot.value.copy(state = state), attempt)
             if (state !is SessionRecoveryUi.Retrying) return
+            awaitHostActive(attempt)
             if (attempt.trigger != SessionRecoveryTrigger.OPERATOR_RETRY) {
                 val holder = port.holder(attempt, failures + 1)
                 checkContinuation(attempt)
@@ -333,6 +379,9 @@ class SessionRecoveryEpisode(
                     return
                 }
             }
+            // The host may have paused while the holder was asked.
+            awaitHostActive(attempt)
+            val epoch = pauseEpoch
             val outcome = runOneAttempt(attempt)
             checkContinuation(attempt)
             when (outcome) {
@@ -355,6 +404,7 @@ class SessionRecoveryEpisode(
                     publish(
                         mutableSnapshot.value.copy(
                             state = SessionRecoveryUi.WaitingForOperator(failures + 1),
+                            reconnecting = false,
                             cardGraceElapsed = true,
                         ),
                         attempt,
@@ -362,6 +412,12 @@ class SessionRecoveryEpisode(
                     return
                 }
                 Outcome.FAILED -> Unit
+            }
+            if (pauseEpoch != epoch || !hostActive.value) {
+                // The OS, not the camera, refused this attempt: retire it without counting.
+                cleanup(Cleanup.FAILED_ATTEMPT, attempt)
+                publish(mutableSnapshot.value.copy(reconnecting = false), attempt)
+                continue
             }
             failures += 1
             cleanup(Cleanup.FAILED_ATTEMPT, attempt)
@@ -375,6 +431,13 @@ class SessionRecoveryEpisode(
             delay(decision.afterMs)
             checkContinuation(attempt)
         }
+    }
+
+    private suspend fun awaitHostActive(attempt: Attempt) {
+        if (hostActive.value) return
+        publish(mutableSnapshot.value.copy(reconnecting = false), attempt)
+        hostActive.first { it }
+        checkContinuation(attempt)
     }
 
     private suspend fun runOneAttempt(attempt: Attempt): Outcome {

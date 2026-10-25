@@ -29,7 +29,7 @@
 
         /// Live Photo / Photo is Rec.709; do not label a stale D-Log conversion.
         public static let photoRec709Caption =
-            "Photo live view is Rec.709 \u{2014} log conversions are off"
+            "Photo live view is Rec.709. Log conversions are off"
     }
 
     /// The camera session the LUT picker binds Auto to, read by the app from its model.

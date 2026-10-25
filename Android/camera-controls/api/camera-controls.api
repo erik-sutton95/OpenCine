@@ -1411,17 +1411,28 @@ public final class com/opencapture/opencine/cameracontrols/MediaDeliveryUpcoming
 
 public final class com/opencapture/opencine/cameracontrols/MediaLibraryCopy {
 	public static final field $stable I
+	public static final field BROWSE_HINT Ljava/lang/String;
 	public static final field DISCONNECTED Ljava/lang/String;
+	public static final field DISCONNECTED_CACHED_ONLY Ljava/lang/String;
 	public static final field DISCONNECTED_EMPTY_CACHE Ljava/lang/String;
+	public static final field DISCONNECTED_TITLE Ljava/lang/String;
 	public static final field EMPTY_ALL Ljava/lang/String;
 	public static final field EMPTY_FAVORITES Ljava/lang/String;
 	public static final field EMPTY_PHOTOS Ljava/lang/String;
+	public static final field EMPTY_TITLE Ljava/lang/String;
 	public static final field EMPTY_VIDEOS Ljava/lang/String;
 	public static final field FILTER_EMPTY Ljava/lang/String;
+	public static final field FILTER_EMPTY_TITLE Ljava/lang/String;
 	public static final field INSTANCE Lcom/opencapture/opencine/cameracontrols/MediaLibraryCopy;
+	public static final field LISTING_TITLE Ljava/lang/String;
+	public static final field NO_CACHED_TITLE Ljava/lang/String;
 	public static final field PROXY_HELP Ljava/lang/String;
 	public static final field PROXY_TAG Ljava/lang/String;
+	public static final field READING_HINT Ljava/lang/String;
+	public static final field SELECTING_HINT Ljava/lang/String;
 	public final fun emptySubtitle (ZZILcom/opencapture/opencine/vocabulary/MediaLibraryTab;)Ljava/lang/String;
+	public final fun emptyTitle (ZZZI)Ljava/lang/String;
+	public final fun galleryHint (ZZZ)Ljava/lang/String;
 	public final fun headerTitle (Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;)Ljava/lang/String;
 }
 
@@ -2743,21 +2754,23 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLiveLa
 
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLivePicture {
 	public static final field $stable I
-	public fun <init> (FZZZZLcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;)V
-	public synthetic fun <init> (FZZZZLcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FZZZZLcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;Z)V
+	public synthetic fun <init> (FZZZZLcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()F
 	public final fun component2 ()Z
 	public final fun component3 ()Z
 	public final fun component4 ()Z
 	public final fun component5 ()Z
 	public final fun component6 ()Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;
-	public final fun copy (FZZZZLcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLivePicture;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLivePicture;FZZZZLcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;ILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLivePicture;
+	public final fun component7 ()Z
+	public final fun copy (FZZZZLcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;Z)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLivePicture;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLivePicture;FZZZZLcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;ZILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLivePicture;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAspect ()F
 	public final fun getFlipped ()Z
 	public final fun getNotice ()Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPictureNotice;
 	public final fun getPlate ()Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPicturePlate;
+	public final fun getReconnecting ()Z
 	public final fun getRecovering ()Z
 	public final fun getVertical ()Z
 	public final fun getWaiting ()Z

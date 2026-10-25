@@ -4404,6 +4404,14 @@ public final class com/opencapture/opencine/media/StorageReadout {
 public final class com/opencapture/opencine/media/StorageReadout$Companion {
 }
 
+public final class com/opencapture/opencine/media/StorageReadoutCycle {
+	public static final field INSTANCE Lcom/opencapture/opencine/media/StorageReadoutCycle;
+	public final fun alternatives (Ljava/lang/String;Ljava/lang/String;Z)Ljava/util/List;
+	public final fun forms (Lcom/opencapture/opencine/core/ObservedValue;Z)Ljava/util/List;
+	public final fun forms (Ljava/lang/Long;Ljava/lang/String;Ljava/lang/String;Z)Ljava/util/List;
+	public final fun freeSpace (Ljava/lang/Long;)Ljava/lang/String;
+}
+
 public final class com/opencapture/opencine/media/StorageReadoutKt {
 	public static final fun getPreferredStorageVolume (Lcom/opencapture/opencine/core/ObservedValue;)Lcom/opencapture/opencine/core/StorageVolume;
 	public static final fun getRecordingTimeLabel (Lcom/opencapture/opencine/core/ObservedValue;)Ljava/lang/String;

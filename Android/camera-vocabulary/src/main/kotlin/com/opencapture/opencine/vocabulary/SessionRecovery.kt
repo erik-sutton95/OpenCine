@@ -27,6 +27,19 @@ sealed class SessionRecoveryUi {
     data class TakenOver(val holder: String?) : SessionRecoveryUi()
 
     val isRecovering: Boolean get() = this !is Idle
+
+    /**
+     * An automatic reconnect is actually running (Swift `isReconnecting`). A taken-over, paused
+     * or spent recovery waits for the operator and must not say it is reconnecting.
+     */
+    val isReconnecting: Boolean get() = this is Retrying
+
+    /**
+     * Whether this device may still tell other devices it holds the camera (Swift
+     * `claimsCamera`): a live session and a running reconnect keep the claim, a device that
+     * stopped reconnecting has given the camera up (hardware pass 4.1).
+     */
+    val claimsCamera: Boolean get() = this is Idle || this is Retrying
 }
 
 /** Cross-run damping for sessions that reconnect cleanly but keep dying. */
@@ -165,8 +178,11 @@ object SessionRecoveryCopy {
         val camera = if (name.isEmpty()) "The camera" else name
         return when (state) {
             SessionRecoveryUi.Idle -> ""
+            // The episode ends on its time budget, usually before maxAttempts: "attempt 1 of 8"
+            // followed by "after 3 tries" read as two machines (hardware pass 5.1).
             is SessionRecoveryUi.Retrying ->
-                "$camera dropped off. Holding the last frame — attempt ${state.attempt} of ${state.maxAttempts}."
+                "$camera dropped off. Holding the last frame, attempt ${state.attempt}. " +
+                    "Reconnecting for up to ${SessionRecoveryPolicy.AUTOMATIC_RECOVERY_BUDGET_MS / 60_000} minutes."
             is SessionRecoveryUi.WaitingForOperator -> {
                 val tries = if (state.attemptsMade == 1) "1 try" else "${state.attemptsMade} tries"
                 "$camera didn't come back after $tries. Turn the camera off and on, then tap Retry. The frame below is held, not live."
@@ -176,7 +192,7 @@ object SessionRecoveryCopy {
                     null ->
                         "$camera reconnected but dropped ${state.drops} times in quick succession. Automatic retries are paused to protect the camera. The frame below is held, not live."
                     SessionDropSuspect.OTHER_DEVICE_SCANNING ->
-                        "$camera reconnected but dropped ${state.drops} times in quick succession. Automatic retries are paused to protect the camera \u2014 another device may be scanning for cameras. The frame below is held, not live."
+                        "$camera reconnected but dropped ${state.drops} times in quick succession. Automatic retries are paused to protect the camera, since another device may be scanning for cameras. The frame below is held, not live."
                 }
             is SessionRecoveryUi.TakenOver -> {
                 val other = state.holder?.trim()?.takeIf(String::isNotEmpty) ?: "Another device"

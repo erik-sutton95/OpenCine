@@ -230,6 +230,39 @@ public final class CamerasModel {
         failures[cameraID] = nil
     }
 
+    /// Re-checks every Local Network failure by connecting it again. iOS has no API to read this
+    /// permission, so a connect is the check: the shell calls this each time the app becomes
+    /// active, after the system prompt or a Settings visit, where the operator may have allowed
+    /// it. A denial that still holds fails again at once with the same reason. Other failures and
+    /// running attempts are left alone; one integration (one backend) retries one camera, and a
+    /// live camera is never replaced. A saved target dials the current record, never a route the
+    /// operator forgot since.
+    public func retryLocalNetworkFailures() {
+        guard connected == nil else { return }
+        var retried = Set(attempts.values.map(\.integration))
+        for (cameraID, failure) in failures.sorted(by: { $0.key < $1.key })
+        where failure.failure.reason == .permission(.localNetwork) {
+            guard attempts[cameraID] == nil, let target = current(failure.target),
+                let entry = entry(for: target), retried.insert(entry.integration.id).inserted
+            else { continue }
+            start(target, on: entry.integration.id)
+        }
+    }
+
+    /// A failure's target against the saved cameras now: `nil` when its camera or route is gone.
+    private func current(_ target: ConnectTarget) -> ConnectTarget? {
+        switch target {
+        case .nearby: return target
+        case .saved(let old, let route):
+            guard let camera = saved.first(where: { $0.id == old.id }),
+                camera.routes.contains(where: { $0.id == route })
+            else { return nil }
+            return .saved(camera, route: route)
+        case .addRoute(let old, let draft):
+            return saved.first { $0.id == old.id }.map { .addRoute($0, draft) }
+        }
+    }
+
     /// The last failure a pair page shows for `selection`: the keyed one, else one whose target
     /// carries that camera. A post-failure rescan clears the sightings, and the reason must stay
     /// until the operator acts on it (F-PIB-042).

@@ -42,4 +42,26 @@ class StorageObservationTest {
         assertEquals(1, StorageReadout(1, 200).percentFree)
         assertEquals(0, StorageReadout(0, Long.MAX_VALUE).percentFree)
     }
+
+    /**
+     * Hardware pass 3.4, 7.5 and 8.4: one storage cycle and one precision on every app and platform.
+     * Video steps free space, percentage, then the recording time; photo steps free space and
+     * percentage; free space is the nearest whole unit in both orientations. Swift twin vectors.
+     */
+    @Test fun oneCycleAndOnePrecisionForEveryApp() {
+        assertEquals(listOf("88GB", "70%", "~51 Min"), StorageReadoutCycle.forms(87_940_000_000, "70%", "~51 Min", photo = false))
+        assertEquals(listOf("88GB", "70%"), StorageReadoutCycle.forms(87_940_000_000, "70%", "~51 Min", photo = true))
+        assertEquals(listOf("88GB", "51 Min"), StorageReadoutCycle.forms(87_940_000_000, null, "51 Min", photo = false))
+        assertEquals(listOf("\u2014"), StorageReadoutCycle.forms(null, null, null, photo = false))
+        val storage = ObservedValue(listOf(StorageVolume("active",
+            freeBytes = ObservedValue(595_840_000_000L, ObservationOrigin.CAMERA_REPORTED, null),
+            remainingRecordingTime = ObservedValue((51 * 60).seconds, ObservationOrigin.ESTIMATED, null),
+            totalBytes = ObservedValue(1_024_000_000_000L, ObservationOrigin.CAMERA_REPORTED, null))),
+            ObservationOrigin.CAMERA_REPORTED, null)
+        assertEquals(listOf("596GB", "58%", "~51 Min"), StorageReadoutCycle.forms(storage, photo = false))
+        assertEquals(listOf("596GB", "58%"), StorageReadoutCycle.forms(storage, photo = true))
+        assertEquals(listOf("\u2014"), StorageReadoutCycle.forms(null, photo = false))
+        assertEquals("905GB", StorageReadoutCycle.freeSpace(904_750_000_000))
+        assertEquals("1GB", StorageReadoutCycle.freeSpace(999_600_000))
+    }
 }

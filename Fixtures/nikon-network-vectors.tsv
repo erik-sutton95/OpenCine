@@ -13,6 +13,7 @@
 # isApHostKey host                                   isAccessPointHostKey
 # subnetBase  address                                subnetBase
 # privateIPv4 address                                isPrivateIPv4 (the default scan filter)
+# scanIface   name  address                          isSupportedScanInterface / isScanInterface
 # tally       host=verdict,...                       open,occupied,timeout,refused,noRoute,denied,other,probed|occupied hosts|open hosts
 # classify    preflight  onCameraAP  tally-or-<nil>  holder  miss reason
 apSsid	NIKON_ZR_01234	true
@@ -87,3 +88,17 @@ classify	ready	false	0,0,1,0,0,0,0,1	<nil>	networkUnreachable
 classify	ready	false	0,5,249,5,0,0,0,254	<nil>	hostsVisibleNoPTP
 classify	ready	false	0,1,0,1,0,2,0,3	<nil>	hostsVisibleNoPTP
 classify	ready	false	1,1,253,0,0,0,0,254	<nil>	cameraNotFound
+scanIface	en0	192.168.1.21	true
+scanIface	wlan0	192.168.1.21	true
+scanIface	bridge100	172.20.10.1	true
+scanIface	swlan0	192.168.43.1	true
+scanIface	<empty>	10.0.0.42	true
+scanIface	en0	10.0.0.42	true
+scanIface	pdp_ip0	10.233.24.17	false
+scanIface	rmnet_data0	10.120.3.4	false
+scanIface	ccmni1	10.71.2.9	false
+scanIface	v4-rmnet_data2	192.0.0.4	false
+scanIface	utun3	10.8.0.2	false
+scanIface	tun0	10.8.0.2	false
+scanIface	ipsec0	10.9.0.2	false
+scanIface	en0	8.8.8.8	false

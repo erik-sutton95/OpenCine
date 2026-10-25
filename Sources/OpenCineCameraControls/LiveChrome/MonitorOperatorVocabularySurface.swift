@@ -186,11 +186,9 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             _ section: MonitorDisplayChrome.Section? = nil, _ identifier: String) -> MonitorOperatorLiveReadout<CaptureSheet, MonitorDisplayChrome.Section> {
             .init(id: key, title: title, value: text, section: section, accessibilityIdentifier: identifier)
         }
-        let readout = host.control.snapshot?.storage.storageReadout
-        // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
-        let storageText = readout.map {
-            portrait ? MonitorStorageReadoutFormat.wholeUnitCapacity(bytes: $0.freeBytes) : $0.free
-        } ?? StorageReadout.unavailable
+        // The one shared storage cycle (A5-11): free space, percentage, then estimated time.
+        let storageForms = StorageReadoutCycle.forms(host.control.snapshot?.storage, photo: photo)
+        let storageText = storageForms[0]
         let storage = host.chromeSectionMounts(.storage)
             ? row(.resolution, "Storage remaining", storageText, .storage, "monitor.storage") : nil
         let format = host.chromeSectionMounts(.format) ? [row(photo ? .mode : .resolution,
@@ -212,8 +210,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             signalBars: host.chromeSectionMounts(.batteries) ? host.liveSignalBars : nil, fpsSection: .batteries,
             portraitFormat: setup, portraitCaption: photo ? nil : recordingFormat?.profile,
             color: color, mode: mode,
-            storageAlternatives: MonitorStorageReadoutFormat.alternatives(percent: readout?.percent,
-                recordingTime: host.control.snapshot?.storage.recordingTimeLabel, photo: photo),
+            storageAlternatives: Array(storageForms.dropFirst()),
             headerAccent: host.controlCapabilities.headerAccent)
     }
 }

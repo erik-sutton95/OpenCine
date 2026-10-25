@@ -231,7 +231,7 @@ let package = Package(
         // Builds with the Swift Android SDK.
         .target(name: "OpenCineDJI", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion", "OpenCineCameraVocabulary"]),
         .testTarget(
-            name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion", "OpenCineCoreTestSupport"],
+            name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion", "OpenCineCoreTestSupport", "OpenCineMedia"],
             exclude: ["Fixtures"]),
         // iOS Bluetooth/network adapters over portable DJI policy; no UI or app dependency.
         .target(name: "OpenCineDJIApple", dependencies: ["OpenCineCore", "OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]),

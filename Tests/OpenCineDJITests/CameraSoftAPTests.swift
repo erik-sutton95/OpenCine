@@ -51,6 +51,41 @@ import Testing
         #expect(!CameraSoftAPSwitch.shouldRetryJoin(secondsLeft: -5))
     }
 
+    /// Hardware pass 5.1: the iOS "Wants to Join" prompt outlived the apply budget. Dropping the
+    /// configuration then removed the network the operator was about to approve, and iOS showed
+    /// "Unable to join the network" right after Join. Only an answered apply may be dropped.
+    @Test func aRetryKeepsTheConfigurationWhileTheSystemPromptIsUnanswered() {
+        #expect(!CameraSoftAPSwitch.retryDropsConfiguration(applyAnswered: false))
+        #expect(CameraSoftAPSwitch.retryDropsConfiguration(applyAnswered: true))
+    }
+
+    /// A reconnect that finds the phone still on the camera network with a camera address does
+    /// not apply again: a configuration with other settings over the joined one (join-once from
+    /// the first pairing, kept from then on) makes iOS ask "Wants to Join" again.
+    @Test func aPhoneStillOnTheCameraNetworkIsNotJoinedAgain() {
+        #expect(
+            CameraSoftAPSwitch.isAlreadyJoined(
+                currentSSID: "OsmoPocket4P-EA4A", target: "OsmoPocket4P-EA4A", pathReady: true))
+        #expect(
+            !CameraSoftAPSwitch.isAlreadyJoined(
+                currentSSID: "OsmoPocket4P-EA4A", target: "OsmoPocket4P-EA4A", pathReady: false))
+        // An unnamed network is not proof: the other Osmo body also serves 192.168.2.x.
+        #expect(
+            !CameraSoftAPSwitch.isAlreadyJoined(
+                currentSSID: nil, target: "OsmoPocket4P-EA4A", pathReady: true))
+        #expect(
+            !CameraSoftAPSwitch.isAlreadyJoined(
+                currentSSID: "OsmoNano-BBBB", target: "OsmoPocket4P-EA4A", pathReady: true))
+    }
+
+    /// iOS drops a join-once network 15 s after the app leaves the foreground and whenever the
+    /// phone sleeps, and the first pairing saves the camera right after its join anyway. Every
+    /// camera access point join keeps its configuration.
+    @Test func everyCameraAccessPointJoinKeepsItsConfiguration() {
+        #expect(CameraSoftAP.shouldPersistHotspot(isSavedCamera: true))
+        #expect(CameraSoftAP.shouldPersistHotspot(isSavedCamera: false))
+    }
+
     @Test func leftoverCameraPathDoesNotBlockTheOtherBody() {
         #expect(CameraSoftAPSwitch.isOnTarget(currentSSID: nil, target: "OsmoNano-BBBB"))
         #expect(

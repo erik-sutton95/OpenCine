@@ -112,7 +112,7 @@ struct SessionRecoveryCopyTests {
     @Test(arguments: [
         (
             SessionRecoveryState.retrying(attempt: 3, maxAttempts: 8), "Reconnecting…",
-            ["Pocket 4 Pro", "attempt 3 of 8"]
+            ["Pocket 4 Pro", "attempt 3", "Reconnecting for up to 3 minutes"]
         ),
         (.waitingForOperator(attemptsMade: 8), "Camera disconnected",
             ["8 tries", "Turn the camera off and on, then tap Retry", "held, not live"]),
@@ -135,6 +135,32 @@ struct SessionRecoveryCopyTests {
         }
         #expect(!detail.localizedCaseInsensitiveContains("Nikon"))
         #expect(!detail.localizedCaseInsensitiveContains("OpenZCine"))
+    }
+
+    /// Hardware pass 5.1: the card read "attempt 1 of 8", then the 3 minute budget ended the
+    /// episode during attempt 3 ("didn't come back after 3 tries"). One recovery machine, but the
+    /// copy promised attempts the time budget never allows. It names the budget, not a count.
+    @Test func retryingCopyNamesTheTimeBudgetNotAnAttemptCount() {
+        let detail = SessionRecoveryCopy.detail(
+            .retrying(attempt: 1, maxAttempts: 8), deviceName: "OsmoPocket4P-EA4A")
+        #expect(
+            detail
+                == "OsmoPocket4P-EA4A dropped off. Holding the last frame, attempt 1. Reconnecting for up to 3 minutes.")
+        #expect(!detail.contains("of 8"))
+    }
+
+    /// Operator copy carries no em dash (owner rule).
+    @Test func recoveryCopyHasNoEmDash() {
+        let states: [SessionRecoveryState] = [
+            .retrying(attempt: 2, maxAttempts: 8), .waitingForOperator(attemptsMade: 3),
+            .pausedAfterRepeatedDrops(drops: 3), .takenOver(holder: nil),
+        ]
+        for state in states {
+            for suspect in [nil, SessionDropSuspect.otherDeviceScanning] {
+                let detail = SessionRecoveryCopy.detail(state, deviceName: "Pocket", dropSuspect: suspect)
+                #expect(!detail.contains("\u{2014}"))
+            }
+        }
     }
 
     @Test func onlyIdleShowsALiveFeed() {
@@ -167,7 +193,7 @@ struct SessionRecoveryCopyTests {
         #expect(
             SessionRecoveryCopy.detail(
                 paused, deviceName: "Studio A", dropSuspect: .otherDeviceScanning)
-                == "Studio A reconnected but dropped 3 times in quick succession. Automatic retries are paused to protect the camera \u{2014} another device may be scanning for cameras. The frame below is held, not live."
+                == "Studio A reconnected but dropped 3 times in quick succession. Automatic retries are paused to protect the camera, since another device may be scanning for cameras. The frame below is held, not live."
         )
         let retrying = SessionRecoveryState.retrying(attempt: 2, maxAttempts: 8)
         #expect(

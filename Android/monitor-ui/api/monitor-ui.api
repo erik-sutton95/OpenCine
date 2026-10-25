@@ -312,6 +312,7 @@ public final class com/opencapture/monitorui/MonitorAssistPaletteReveal {
 	public static final field SLOP F
 	public static final field SNAP F
 	public final fun compactToolCount (Z)I
+	public final fun coversValues (Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;)Z
 	public final fun extraToolOpacity (F)F
 	public final fun landscapeCellIndex (II)I
 	public final fun lerp (FFF)F
@@ -4087,6 +4088,7 @@ public final class com/opencapture/monitorui/MonitorTelemetryValues {
 	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorTelemetryValues;
 	public final fun batterySpokenValue (Ljava/lang/Integer;Ljava/lang/Integer;ILjava/lang/Boolean;Ljava/lang/Boolean;Z)Ljava/lang/String;
 	public final fun batteryValue (Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Boolean;Ljava/lang/Boolean;)Ljava/lang/String;
+	public final fun linkSpokenLabel (Ljava/lang/String;Ljava/lang/Integer;)Ljava/lang/String;
 	public final fun linkValue (Ljava/lang/String;Ljava/lang/Integer;Z)Ljava/lang/String;
 }
 

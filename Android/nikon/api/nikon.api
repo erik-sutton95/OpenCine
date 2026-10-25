@@ -48,6 +48,7 @@ public final class com/opencapture/opencine/nikon/CameraCommandAdmission {
 
 public final class com/opencapture/opencine/nikon/CameraConnectionFailure : java/lang/Enum {
 	public static final field BUSY Lcom/opencapture/opencine/nikon/CameraConnectionFailure;
+	public static final field CAMERA_SILENT Lcom/opencapture/opencine/nikon/CameraConnectionFailure;
 	public static final field CONNECTION_CLOSED Lcom/opencapture/opencine/nikon/CameraConnectionFailure;
 	public static final field Companion Lcom/opencapture/opencine/nikon/CameraConnectionFailure$Companion;
 	public static final field NON_NUMERIC_HOST Lcom/opencapture/opencine/nikon/CameraConnectionFailure;
@@ -927,6 +928,7 @@ public final class com/opencapture/opencine/nikon/FocusPickerPolicy {
 }
 
 public final class com/opencapture/opencine/nikon/HostProbeVerdict : java/lang/Enum {
+	public static final field Companion Lcom/opencapture/opencine/nikon/HostProbeVerdict$Companion;
 	public static final field DENIED Lcom/opencapture/opencine/nikon/HostProbeVerdict;
 	public static final field NO_NETWORK Lcom/opencapture/opencine/nikon/HostProbeVerdict;
 	public static final field NO_ROUTE Lcom/opencapture/opencine/nikon/HostProbeVerdict;
@@ -939,6 +941,10 @@ public final class com/opencapture/opencine/nikon/HostProbeVerdict : java/lang/E
 	public final fun isSilence ()Z
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/HostProbeVerdict;
 	public static fun values ()[Lcom/opencapture/opencine/nikon/HostProbeVerdict;
+}
+
+public final class com/opencapture/opencine/nikon/HostProbeVerdict$Companion {
+	public final fun ofDialFailure (Ljava/io/IOException;)Lcom/opencapture/opencine/nikon/HostProbeVerdict;
 }
 
 public final class com/opencapture/opencine/nikon/InfrastructureDiscovery {
@@ -1433,10 +1439,13 @@ public final class com/opencapture/opencine/nikon/NikonBodyWake {
 	public static final field DIALS I
 	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonBodyWake;
 	public static final field INTERVAL_MILLIS J
-	public final fun awaitAnswer (Ljava/lang/String;IJLkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun awaitAnswer$default (Lcom/opencapture/opencine/nikon/NikonBodyWake;Ljava/lang/String;IJLkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public final fun dial (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun dial$default (Lcom/opencapture/opencine/nikon/NikonBodyWake;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final field SLOT_MILLIS J
+	public final fun awaitAnswer (Ljava/lang/String;IJJLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun awaitAnswer$default (Lcom/opencapture/opencine/nikon/NikonBodyWake;Ljava/lang/String;IJJLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun dial (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun dial$default (Lcom/opencapture/opencine/nikon/NikonBodyWake;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun pauseAfter (JJJ)J
+	public static synthetic fun pauseAfter$default (Lcom/opencapture/opencine/nikon/NikonBodyWake;JJJILjava/lang/Object;)J
 	public final fun silentMessage (Ljava/lang/String;)Ljava/lang/String;
 	public final fun wakingMessage (Ljava/lang/String;)Ljava/lang/String;
 }
@@ -1471,6 +1480,14 @@ public final class com/opencapture/opencine/nikon/NikonBodyWake$Outcome$Silent :
 	public fun getDials ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonBodyWake$Progress : java/lang/Enum {
+	public static final field ANSWERED Lcom/opencapture/opencine/nikon/NikonBodyWake$Progress;
+	public static final field WAITING Lcom/opencapture/opencine/nikon/NikonBodyWake$Progress;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonBodyWake$Progress;
+	public static fun values ()[Lcom/opencapture/opencine/nikon/NikonBodyWake$Progress;
 }
 
 public final class com/opencapture/opencine/nikon/NikonBodyWake$SilentException : java/lang/Exception {
@@ -1849,6 +1866,7 @@ public final class com/opencapture/opencine/nikon/NikonHosts {
 	public final fun isAccessPointHostKey (Ljava/lang/String;)Z
 	public final fun isDialableHost (Ljava/lang/String;)Z
 	public final fun isPrivateIPv4 (Ljava/lang/String;)Z
+	public final fun isScanInterface (Ljava/lang/String;Ljava/lang/String;)Z
 	public final fun isUsbHostKey (Ljava/lang/String;)Z
 	public final fun normalizedHost (Ljava/lang/String;)Ljava/lang/String;
 	public final fun pendingAccessPointHostKey (Ljava/lang/String;)Ljava/lang/String;
@@ -2605,8 +2623,11 @@ public final class com/opencapture/opencine/nikon/NikonTakeOverPrompt$Companion 
 }
 
 public final class com/opencapture/opencine/nikon/NikonTakeOverRecovery {
+	public static final field FIRST_ATTEMPT_ASKS I
+	public static final field FIRST_ATTEMPT_ASK_SPACING_MS J
 	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonTakeOverRecovery;
 	public final fun holder (ILkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun holder (ILkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class com/opencapture/opencine/nikon/OptimisticControlValueKt {

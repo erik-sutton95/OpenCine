@@ -564,3 +564,28 @@ func eventually(_ condition: () -> Bool) async -> Bool {
     }
     #expect(later == nil && asks == 1)
 }
+
+/// Hardware pass 4.1: the device that took the camera answers presence only once its session is
+/// up, after the body already dropped this one. Two back-to-back sweeps can both land before that
+/// answer, so the first attempt keeps asking, spaced, before it may dial.
+@MainActor @Test func takeOverRecoveryKeepsAskingOverASpacedWindowBeforeTheFirstAttempt() async {
+    var answers: [String?] = [nil, nil, "Phone B"]
+    var pauses: [Duration] = []
+    let holder = await NikonTakeOverRecovery.holder(
+        beforeAttempt: 1, pause: { pauses.append($0) }, lookup: { answers.removeFirst() })
+    #expect(holder == "Phone B")
+    #expect(
+        pauses == Array(
+            repeating: NikonTakeOverRecovery.firstAttemptAskSpacing,
+            count: NikonTakeOverRecovery.firstAttemptAsks - 1))
+    #expect(NikonTakeOverRecovery.firstAttemptAsks >= 3)
+
+    var asks = 0
+    let none = await NikonTakeOverRecovery.holder(
+        beforeAttempt: 1, pause: { _ in },
+        lookup: {
+            asks += 1
+            return nil
+        })
+    #expect(none == nil && asks == NikonTakeOverRecovery.firstAttemptAsks)
+}

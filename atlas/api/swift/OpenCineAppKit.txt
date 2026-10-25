@@ -333,6 +333,7 @@ func CamerasModel.perform(_: OpenCineCore.RecoveryAction, for: Swift.String) -> 
 func CamerasModel.reloadSaved() -> ()
 func CamerasModel.rename(_: Swift.String, to: Swift.String?) -> ()
 func CamerasModel.renameRoute(_: OpenCineCore.ConnectionRouteID, of: Swift.String, to: Swift.String?) -> ()
+func CamerasModel.retryLocalNetworkFailures() -> ()
 func CamerasModel.sessionEnded() -> ()
 func CamerasModel.upsert(_: OpenCineCore.SavedCamera) -> ()
 func Center.point(in: CoreFoundation.CGRect) -> CoreFoundation.CGPoint
@@ -1061,6 +1062,7 @@ init ShellBrand(name: Swift.String, nearbyNote: Swift.String)
 init ShellModel(cameras: CamerasModel, control: MonitorControlModel)
 init StationNetwork(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool)
 init StationNetworkBrand(appName: Swift.String, cameraFamily: Swift.String, cameraNetworkPrefix: Swift.String)
+init StationSetupRoute(_: OpenCineCore.RouteKind, actionTitle: Swift.String?, enabled: Swift.Bool)
 init StoredData(read: () -> Foundation.Data?, write: (Foundation.Data) -> Swift.Void)
 let AddSetupFlow.initialSelection: Swift.String?
 let CamerasModel.consent: OperatorConsent
@@ -1594,7 +1596,7 @@ static func ShellModel.applyThroughLaunch(_: () -> Swift.Void) -> ()
 static func StationNetworkSetupRules.isCameraNetwork(_: Swift.String, brand: StationNetworkBrand, camera: OpenCineCore.SavedCamera?, cameraSSIDs: Swift.Set<Swift.String>) -> Swift.Bool
 static func StationNetworkSetupRules.network(_: OpenCineCore.SavedCamera, _: OpenCineCore.RouteKind) -> Swift.String?
 static func StationNetworkSetupRules.phoneNetworks(_: [Swift.String]) -> [Swift.String]
-static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext) -> AddSetupChooser
+static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext, routes: [StationSetupRoute], notice: AddSetupNotice?) -> AddSetupChooser
 static func StoredData.userDefaults(_: Foundation.UserDefaults, key: Swift.String) -> StoredData
 static let DiagnosticsDevice.current: DiagnosticsDevice
 static let MonitorAssistDefaults.standard: MonitorAssistDefaults
@@ -1636,6 +1638,7 @@ static let ReliabilityReportingPrivacy.metricAllowlist: Swift.Set<Swift.String>
 static let ReliabilityReportingPrivacy.metricAttributeAllowlist: Swift.Set<Swift.String>
 static let ReliabilityReportingPrivacy.shapes: [Swift.String : Swift.String]
 static let ReliabilityReportingPrivacy.tagAllowlist: Swift.Set<Swift.String>
+static let StationSetupRoute.stationNetworks: [StationSetupRoute]
 static var MonitorAssistState.cleanViewDefaultPinnedTools: Swift.Set<MonitorPresentation.MonitorAssistSelection>
 static var ProblemReportImage.transferRepresentation: some CoreTransferable.TransferRepresentation
 static var ReliabilityReportingURLProtocol.forwarder: ReliabilityReportingForwarder
@@ -1816,6 +1819,7 @@ struct ShellBrand: Sendable
 struct ShellModel.Monitor: Identifiable
 struct StationNetwork: Equatable, Sendable
 struct StationNetworkBrand: Equatable, Sendable
+struct StationSetupRoute: Equatable, Sendable
 struct StoredData
 typealias MonitorDeliveryPreparationModel.Request = MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>
 typealias MonitorMediaPictureLoaders.Load = (MonitorMediaPictureRequest<Payload>) async -> Picture?
@@ -2617,5 +2621,8 @@ var StationNetworkSetupContext.camera: OpenCineCore.SavedCamera?
 var StationNetworkSetupContext.networkHint: Swift.String
 var StationNetworkSetupContext.prefix: Swift.String
 var StationNetworkSetupContext.title: Swift.String
+var StationSetupRoute.actionTitle: Swift.String?
+var StationSetupRoute.enabled: Swift.Bool
+var StationSetupRoute.kind: OpenCineCore.RouteKind
 var StoredData.read: () -> Foundation.Data?
 var StoredData.write: (Foundation.Data) -> Swift.Void

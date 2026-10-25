@@ -132,6 +132,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                     selectedIDs: Set(library.selectedIDs.map(\.rawValue)), selecting: library.selecting,
                     refreshing: library.fetching, canRefresh: sourceAvailable,
                     tablet: UIDevice.current.userInterfaceIdiom == .pad,
+                    hint: MonitorMediaGalleryCopy.galleryHint(sourceAvailable: sourceAvailable, selecting: library.selecting),
                     action: { action($0, snapshot: snapshot) }, thumbnail: { value in
                         if let record = snapshot.record(MediaAssetID(value.id)) {
                             thumbnail(.init(record: record, cached: library.entries[record.asset.id],
@@ -325,7 +326,9 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         VStack(spacing: 12) {
             if library.fetching { ProgressView().controlSize(.large).tint(MonitorTheme.muted) }
             else { MonitorIcon.film.frame(width: 40, height: 40).foregroundStyle(MonitorTheme.faint) }
-            Text(library.fetching ? "Listing clips on camera…" : "No clips yet")
+            Text(MonitorMediaGalleryCopy.emptyTitle(fetching: library.fetching, sourceAvailable: sourceAvailable,
+                hasRecords: !library.records.isEmpty,
+                activeFilterCount: presentation?.activeFilterCount ?? library.activeFilterCount))
                 .font(MonitorTheme.font(15, weight: .medium)).foregroundStyle(MonitorTheme.muted)
             Text(library.fetching ? (library.fetchedCount == 0 ? "Querying card storage…"
                 : "\(library.fetchedCount) clip\(library.fetchedCount == 1 ? "" : "s") found so far")

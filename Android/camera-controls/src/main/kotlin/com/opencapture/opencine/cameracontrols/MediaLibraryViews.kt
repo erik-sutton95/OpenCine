@@ -148,12 +148,7 @@ fun MediaCatalogHeaderRow(
 ) {
     com.opencapture.monitorui.MonitorCatalogHeader(
         title = "$headerTitle · $headerCount",
-        subtitle = when {
-            fetchInProgress -> "Reading camera media…"
-            isSelecting -> "Swipe to scroll · Hold or drag sideways to select"
-            isLive -> "Tap to open · Hold, then drag to select"
-            else -> "Available offline"
-        },
+        subtitle = MediaLibraryCopy.galleryHint(fetchInProgress, isSelecting, isLive),
         compact = compact, sort = sortOrder.menuLabel,
         filterActive = filterOpen || activeFilterCount > 0,
         filterCount = activeFilterCount,
@@ -255,7 +250,7 @@ fun MediaEmptyState(listing: Boolean, subtitle: String, title: String? = null, r
             )
         }
         Text(
-            title ?: if (listing) "Listing clips" else "No clips yet",
+            title ?: if (listing) MediaLibraryCopy.LISTING_TITLE else MediaLibraryCopy.EMPTY_TITLE,
             color = LiveDesign.muted,
             style = LiveType.ui(15f, FontWeight.Medium),
             modifier = Modifier.padding(top = 12.dp),

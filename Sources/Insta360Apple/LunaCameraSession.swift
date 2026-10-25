@@ -88,6 +88,10 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     private var shutterPresentation: HostShutterPresentation = .cameraValue
     private var reportedShutter: ObservedValue<ShutterValue> = .unknown
     private var reportedCadence: ObservedValue<Double> = .unknown
+    /// The last card list and when it arrived; option 99 rebuilds the volumes from it.
+    private var reportedCards: (cards: [LunaStorage], at: MonotonicInstant)?
+    /// Photography option 99: remaining record time per card location, and when it arrived.
+    private var reportedRemaining: (seconds: [UInt64: UInt64], at: MonotonicInstant)?
     private var zoomDomain: ClosedRange<Double>?
     /// When each key last had a known camera report.
     private var reportedAt: [SettingKey: MonotonicInstant] = [:]
@@ -193,6 +197,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         guard !closed else { return }
         let at = now()
         if let mode = device.shootingMode {
+            // Remaining time is per function mode: another bank's report no longer applies.
+            if mode.functionMode != shootingMode?.functionMode { reportedRemaining = nil }
             shootingMode = mode
             current.mode = ObservedValue(Self.captureMode(mode), origin: .cameraReported, at: at)
         }
@@ -207,8 +213,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         let volumes =
             device.storageList.isEmpty ? device.storage.map { [$0] } ?? [] : device.storageList
         if !volumes.isEmpty {
-            current.storage = ObservedValue(
-                volumes.map { Self.volume($0, at: at) }, origin: .cameraReported, at: at)
+            reportedCards = (volumes, at)
+            projectStorage()
         }
         projectShutter()
         refreshCapabilities()
@@ -224,6 +230,16 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             settings.types.isEmpty || settings.types.contains(type)
         }
         let photo = shootingMode?.isPhoto == true
+        // Option 99 rides its own poll; a reply that does not carry it keeps the last report.
+        if settings.types.contains(LunaPhotographyType.remainingTime.rawValue)
+            || !settings.remainingRecordTime.isEmpty
+        {
+            reportedRemaining = (
+                Dictionary(
+                    settings.remainingRecordTime.map { ($0.location, $0.seconds) },
+                    uniquingKeysWith: { _, last in last }), at)
+            projectStorage()
+        }
         if carries(31), settings.recordResolution != nil || settings.types.contains(31) {
             let cadence = settings.videoResolution?.framesPerSecond
             if reportedCadence.value != cadence {
@@ -895,7 +911,23 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         return "\(integration.rawValue).profile.\(name)"
     }
 
-    private static func volume(_ storage: LunaStorage, at: MonotonicInstant) -> StorageVolume {
+    /// One volume per reported card, each with its own camera-reported remaining record time.
+    private func projectStorage() {
+        guard let reportedCards else { return }
+        current.storage = ObservedValue(
+            reportedCards.cards.map { card in
+                Self.volume(
+                    card, at: reportedCards.at,
+                    remaining: reportedRemaining.flatMap { remaining in
+                        remaining.seconds[card.location].map { ($0, remaining.at) }
+                    })
+            }, origin: .cameraReported, at: reportedCards.at)
+    }
+
+    private static func volume(
+        _ storage: LunaStorage, at: MonotonicInstant,
+        remaining: (seconds: UInt64, at: MonotonicInstant)? = nil
+    ) -> StorageVolume {
         let media: MediaState? =
             switch storage.cardState {
             case 0: .ready
@@ -911,6 +943,13 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             freeBytes: storage.isUsable
                 ? ObservedValue(storage.freeBytes, origin: .cameraReported, at: at) : .unknown,
             totalBytes: storage.isUsable && storage.totalBytes > 0
-                ? ObservedValue(storage.totalBytes, origin: .cameraReported, at: at) : .unknown)
+                ? ObservedValue(storage.totalBytes, origin: .cameraReported, at: at) : .unknown,
+            // Zero is a known full card; no entry for this location stays unknown.
+            remainingRecordingTime: storage.isUsable
+                ? remaining.flatMap { entry in
+                    Int64(exactly: entry.seconds).map {
+                        ObservedValue(Duration.seconds($0), origin: .cameraReported, at: entry.at)
+                    }
+                } ?? .unknown : .unknown)
     }
 }

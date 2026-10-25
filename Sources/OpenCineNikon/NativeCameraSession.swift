@@ -157,12 +157,14 @@
             requestPairing: Bool = true,
             onPairingChallenge: NativePairingChallengeHandler? = nil,
             onEstablishmentDiagnostic: (@Sendable (String) -> Void)? = nil,
+            onWakeProgress: (@Sendable (NikonBodyWake.Progress) -> Void)? = nil,
             onLiveViewObject: @escaping @Sendable (Data) -> Void = { _ in }
         ) async throws -> NativeCameraSession {
             let transport = try await PTPIPTransport.connect(
                 host: rawHost,
                 guid: guid,
-                friendlyName: friendlyName
+                friendlyName: friendlyName,
+                onWakeProgress: onWakeProgress
             )
             return try await establish(
                 transport: transport,
