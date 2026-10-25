@@ -783,8 +783,10 @@ static func CameraSoftAP.shouldSendLiveViewEnable(pathReady: Swift.Bool, display
 static func CameraSoftAP.shouldSendLiveViewEnableAfterHandshake(alreadySent: Swift.Bool) -> Swift.Bool
 static func CameraSoftAP.shouldSendLiveViewPrepare(usesNanoLiveViewGate: Swift.Bool) -> Swift.Bool
 static func CameraSoftAP.shouldStampCommandSeq(hasConnection: Swift.Bool, connectionReady: Swift.Bool, trackCommand: Swift.Bool) -> Swift.Bool
+static func CameraSoftAPSwitch.isAlreadyJoined(currentSSID: Swift.String?, target: Swift.String, pathReady: Swift.Bool) -> Swift.Bool
 static func CameraSoftAPSwitch.isCameraNetwork(_: Swift.String, knownCameraSSIDs: [Swift.String]) -> Swift.Bool
 static func CameraSoftAPSwitch.isOnTarget(currentSSID: Swift.String?, target: Swift.String) -> Swift.Bool
+static func CameraSoftAPSwitch.retryDropsConfiguration(applyAnswered: Swift.Bool) -> Swift.Bool
 static func CameraSoftAPSwitch.shouldRetryJoin(secondsLeft: Foundation.TimeInterval) -> Swift.Bool
 static func CameraSoftAPSwitch.ssidToKick(currentSSID: Swift.String?, target: Swift.String, knownCameraSSIDs: [Swift.String]) -> Swift.String?
 static func CameraStatus.clockDisplay(_: Swift.String?) -> Swift.String
