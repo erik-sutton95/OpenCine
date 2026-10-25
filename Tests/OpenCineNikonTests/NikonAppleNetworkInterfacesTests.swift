@@ -48,6 +48,18 @@
                     name: "en0", flags: UInt32(IFF_UP | IFF_RUNNING)))
         }
 
+        @Test func scanLabelNamesTheWiFiSubnetNeverTheCellularOne() {
+            // Hardware pass 2026-10-25: iOS lists pdp_ip0 (cellular, a carrier 10/8 address)
+            // before en0, and the pairing sheet read "Searching 10.233.24.x".
+            let interfaces = [
+                NikonLocalInterface(name: "pdp_ip0", address: "10.233.24.17"),
+                NikonLocalInterface(name: "utun4", address: "10.8.0.2"),
+                NikonLocalInterface(name: "en0", address: "192.168.1.34"),
+            ]
+            #expect(NikonAppleNetworkInterfaces.currentScanSubnetLabel(in: interfaces) == "192.168.1.x")
+            #expect(NikonAppleNetworkInterfaces.currentScanSubnetLabel(in: [interfaces[0]]) == nil)
+        }
+
         @Test func interfaceOrderAndHotspotDeduplicationRetainCurrentScanGuidance() {
             let interfaces = [
                 NikonLocalInterface(name: "en0", address: "203.0.113.1"),

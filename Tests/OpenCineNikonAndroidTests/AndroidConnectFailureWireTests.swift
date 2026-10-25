@@ -13,7 +13,24 @@ struct AndroidConnectFailureWireTests {
             AndroidConnectFailure.allCases.map { "\($0)=\($0.rawValue)" } == [
                 "other=0", "rejectedInitiator=1", "busy=2", "connectionClosed=3", "timeout=4",
                 "pairingChallengeUnavailable=5", "savedProfileRequired=6", "nonNumericHost=7",
-                "unreachable=8",
+                "unreachable=8", "cameraSilent=9",
+            ])
+    }
+
+    @Test("a body the wake never heard is its own failure, so Android shows the shared silent copy")
+    func silentBody() {
+        #expect(AndroidConnectFailure(NikonBodyWake.SilentError()) == .cameraSilent)
+        #expect(AndroidConnectFailure(NikonBodyWake.SilentError(deviceName: "ZR_6002199")) == .cameraSilent)
+    }
+
+    @Test("the dial's wake reports the shared waiting step, then the handshake")
+    func wakeProgressPhases() {
+        var pushed: [String] = []
+        PTPIPClientSession.report(.waiting) { pushed.append("\($0)|\($1)") }
+        PTPIPClientSession.report(.answered) { pushed.append("\($0)|\($1)") }
+        #expect(
+            pushed == [
+                "discovering|Waiting for the camera to answer on the network…", "handshaking|",
             ])
     }
 
