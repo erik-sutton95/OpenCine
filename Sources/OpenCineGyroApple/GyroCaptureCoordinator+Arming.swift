@@ -73,7 +73,7 @@ extension GyroCaptureCoordinator {
             videoMode: videoMode, recording: cameraRecording, stabilization: stabilization,
             settings: adapter?.stabilizationSettings ?? [],
             providesLevel: adapter?.providesLevel ?? false,
-            hasSavedCalibration: camera.map { preferences.calibration(for: $0.id) != nil } ?? false)
+            hasSavedCalibration: hasSavedCalibration)
     }
 
     /// Applies machine effects in order, then mirrors the machine's armed and warning state.
@@ -124,6 +124,7 @@ extension GyroCaptureCoordinator {
 
     /// A new sheet for a new session.
     func presentSetup(_ steps: [GyroArmingStep]) {
+        if ring != nil, !ringIsOpen { closeRing() }
         setupSteps = steps
     }
 
@@ -131,13 +132,12 @@ extension GyroCaptureCoordinator {
     func sessionDidStart() {
         calibrationDeclined = false
         mountMovedInTake = false
+        driftPromptSilenced = false
+        refreshDrift(reset: true)
     }
 
-    func sessionDidEnd() {}
-
-    /// The session logs uncalibrated even when a calibration is saved.
-    func declineCalibrationForSession() {
-        calibrationDeclined = true
+    func sessionDidEnd() {
+        stopDrift()
     }
 }
 #endif

@@ -49,6 +49,20 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     var stabilizationWarning = false
     /// The open take saw a confirmed mount movement.
     var mountMovedInTake = false
+    /// The calibration screen's phase; nil when calibration is not presented.
+    public internal(set) var ring: GyroRingPhase?
+    /// Accepted ring poses, 0 to 3.
+    public internal(set) var ringCompletedSteps = 0
+    /// The latest ring transition, for the checkmark, haptic and announcement.
+    public internal(set) var lastRingEvent: GyroRingEvent?
+    /// Whether the post-take "mount moved" prompt is shown.
+    public internal(set) var driftPromptPresented = false
+    /// Bumped once per confirmed drift; the view plays one light haptic per change.
+    public internal(set) var driftHapticToken = 0
+    /// Whether the attached adapter's camera has a level sensor.
+    var providesLevel = false
+    /// The current camera's saved calibration.
+    var savedCalibration: GyroMountCalibration?
 
     @ObservationIgnored let host: GyroHostConfiguration
     @ObservationIgnored let preferences: GyroPreferences
@@ -65,6 +79,12 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     @ObservationIgnored var cameraWrite: Task<Void, Never>?
     @ObservationIgnored var disconnecting = false
     @ObservationIgnored var calibrationDeclined = false
+    @ObservationIgnored var ringCalibration = GyroRingCalibration()
+    @ObservationIgnored var ringMotionToken: UUID?
+    @ObservationIgnored var cameraLevel: (down: GyroVector3, at: Double)?
+    @ObservationIgnored var driftDetector: GyroDriftDetector?
+    @ObservationIgnored var driftMotionToken: UUID?
+    @ObservationIgnored var driftPromptSilenced = false
     /// The longest `prepareForDisconnect` waits for the restore.
     @ObservationIgnored var restoreTimeout: Duration = .seconds(3)
     @ObservationIgnored var session: GyroTakeSession
@@ -153,6 +173,7 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     public func attach(_ adapter: any GyroCameraAdapter) {
         if let current = self.adapter, current !== adapter { detachAdapter() }
         self.adapter = adapter
+        providesLevel = adapter.providesLevel
         adapter.attach(self)
     }
 
@@ -162,6 +183,7 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
         adapter.detach()
         receive(.disconnected)
         self.adapter = nil
+        providesLevel = false
     }
 
     /// Monitor showing, app in front, and no multicam or relay.
@@ -173,6 +195,7 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
 
     /// Ends capture as backgrounded; the save finishes inside a UIKit background task.
     public func appDidEnterBackground() {
+        invalidateRing(.connectionEnded)
         endingReason = .backgrounded
         hostEligible = false
         evaluateEligibility()
@@ -183,24 +206,38 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     public func receive(_ event: GyroCameraEvent) {
         switch event {
         case .connected(let identity):
+            let changed = camera?.id != identity.id
+            if changed, camera != nil { invalidateRing(.cameraChanged) }
             camera = identity
+            if changed {
+                cameraLevel = nil
+                refreshSavedCalibration()
+            }
             disconnecting = false
         case .disconnected:
+            invalidateRing(.connectionEnded)
             camera = nil
+            savedCalibration = nil
+            cameraLevel = nil
+            driftDetector?.observeCamera(down: nil, at: now())
             videoMode = nil
             stabilization = nil
             disconnecting = false
             observeCameraRecording(nil)
         case .recording(let recording, _):
+            let previous = cameraRecording
             observeCameraRecording(recording)
-        case .level:
-            break
+            observeDriftRecording(from: previous, to: recording)
+        case .level(let down, let time):
+            cameraLevel = down.map { ($0, time) }
+            driftDetector?.observeCamera(down: down, at: time)
         case .stabilization(let state):
             stabilization = state
         case .videoMode(let mode):
             videoMode = mode
         }
         evaluateEligibility()
+        updateRingCamera()
         if case .recording(let recording?, let time) = event { observeRecording(recording, at: time) }
     }
 
@@ -224,14 +261,6 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
 
     /// Clears the visible notice.
     public func clearNotice() { notice = nil }
-
-    // MARK: Calibration choice
-
-    /// The calibration a REC observed now would freeze for its take.
-    func recordingCalibration() -> GyroMountCalibration? {
-        guard let camera, !calibrationDeclined else { return nil }
-        return preferences.calibration(for: camera.id)
-    }
 
     private func observeCameraRecording(_ recording: Bool?) {
         if cameraRecording != recording {
