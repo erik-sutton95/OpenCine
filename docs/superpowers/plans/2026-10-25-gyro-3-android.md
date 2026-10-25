@@ -62,10 +62,12 @@ Modified: `Android/gyro/build.gradle.kts` (test fixtures), `Android/camera-contr
 ### Task 1: Motion sensors and moved batch helpers
 
 **Files:**
+
 - Create: `Android/gyro/src/main/kotlin/com/opencapture/opencine/gyro/{GyroMotionSensors,GyroSampleBatch}.kt`
 - Test: `Android/gyro/src/test/kotlin/com/opencapture/opencine/gyro/{GyroSampleBatchTest,GyroMotionSensorsTest}.kt` (the first moved from OpenZCine `GyroNativeTest.kt` and `GyroIngressTest.kt`)
 
 **Interfaces:**
+
 - Produces:
 
 ```kotlin
@@ -105,10 +107,12 @@ git commit -m "feat(gyro): Android motion sensors for logging, calibration and d
 ### Task 2: Log store and preferences
 
 **Files:**
+
 - Create: `Android/gyro/src/main/kotlin/com/opencapture/opencine/gyro/{GyroLogStore,GyroPreferences}.kt`
 - Test: `Android/gyro/src/test/kotlin/com/opencapture/opencine/gyro/{GyroLogStoreTest,GyroPreferencesTest}.kt` (the first moved from OpenZCine `GyroLogStoreTest.kt`; sharing staging tests from `GyroLogSharingTest.kt` are dropped because sharing now goes through `:appkit`'s `MediaShare` in Task 8)
 
 **Interfaces:**
+
 - Consumes: `GyroNativeApi` recovery calls, `resolveGyroTakeStatus` (Part 1 Task 11).
 - Produces:
   - `data class GyroLogEntry(val descriptor: JSONObject, val summary: JSONObject?, val file: File, val active: Boolean = false)` with `id`, `cameraLabel`, `startDateMillis`, `durationSeconds: Double?`, `measuredRate: Double?`, `approximateStartOffset: Double?`, `isCalibrated: Boolean`, `status: GyroTakeStatus`, `canShare: Boolean`. The OpenZCine `health`, `mountPreset` and `mountDetail` members are deleted.
@@ -131,11 +135,13 @@ git commit -m "feat(gyro): Android log store and per-camera preferences"
 ### Task 3: Capture coordinator: logging, arming and the pill
 
 **Files:**
+
 - Create: `Android/gyro/src/main/kotlin/com/opencapture/opencine/gyro/{GyroPill,GyroCaptureCoordinator}.kt`
 - Create: `Android/gyro/src/testFixtures/kotlin/com/opencapture/opencine/gyro/{FakeGyroNative,FakeGyroCameraAdapter,FakeMotionSensors}.kt` (`:gyro` is an Android library, so enable `android { testFixtures { enable = true } }` in `Android/gyro/build.gradle.kts`; `:core` uses the JVM `java-test-fixtures` plugin, which does not apply here. If AGP rejects Kotlin sources in Android test fixtures, add `android.experimental.enableTestFixturesKotlinSupport=true` to `Android/gradle.properties`)
 - Test: `Android/gyro/src/test/kotlin/com/opencapture/opencine/gyro/{GyroPillTest,GyroCaptureLoggingTest,GyroCaptureArmingTest}.kt` (logging cases moved from OpenZCine `GyroEligibilityTest.kt` and the coordinator behaviors covered by OpenZCine's `GyroMountMainActivityTest`, minus presets)
 
 **Interfaces:**
+
 - Consumes: `GyroNativeApi` (logging and arming wires, `decodeLogReply`, `decodeArmingReply`, `encodeArmingInputs`), `GyroCameraAdapter`, Tasks 1 and 2.
 - Produces:
 
@@ -192,10 +198,12 @@ git commit -m "feat(gyro): Android capture coordinator with session arming"
 ### Task 4: Coordinator calibration and drift
 
 **Files:**
+
 - Modify: `Android/gyro/src/main/kotlin/com/opencapture/opencine/gyro/GyroCaptureCoordinator.kt` (split calibration and drift into `GyroCaptureCalibration.kt` and `GyroCaptureDrift.kt` internal helpers if the file passes about 400 lines)
 - Test: `Android/gyro/src/test/kotlin/com/opencapture/opencine/gyro/{GyroCaptureCalibrationTest,GyroCaptureDriftTest}.kt` (calibration cases adapted from OpenZCine `GyroCalibrationSessionTest.kt`)
 
 **Interfaces:**
+
 - Consumes: ring wire (`ringCreate`, `ringStart`, `ringUpdateCamera`, `ringObserve`, `ringInvalidate`, `ringCancel`, `ringClose`), drift wire, `loggingMountMoved`, `GyroMotionSensors.startMotion`, `GyroCameraAdapter.level`.
 - Rules: as Part 2 Task 4. Ring owners are closed exactly once (the moved `GyroCalibrationSession` retire-once rule). A completed calibration is validated with `calibrationValidate` before `saveCalibration`. Drift runs only while armed, calibrated for this camera, `adapter.providesLevel`, and a take is recording; the confirmation calls `loggingMountMoved` and applies the returned updates through the store.
 
@@ -215,12 +223,14 @@ git commit -m "feat(gyro): ring calibration and mount drift in the Android coord
 ### Task 5: Copy twin, parity test, layout and pill chip
 
 **Files:**
+
 - Create: `Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/gyro/{GyroCopy,GyroAdaptiveLayout,GyroPillChip}.kt`
 - Create: `Tests/OpenCineCameraControlsTests/GyroCopyParityTests.swift`
 - Test: `Android/camera-controls/src/test/kotlin/com/opencapture/opencine/cameracontrols/gyro/GyroCopyTest.kt`
 - Modify: `Android/camera-controls/build.gradle.kts` (`api(project(":gyro"))`), `CameraControlsRulesTest.kt` (allow `com.opencapture.opencine.gyro.` imports)
 
 **Interfaces:**
+
 - Produces:
   - `object GyroCopy` with the same member names (Kotlin camelCase) and literal texts as Part 2 Task 5's table; functions take the Kotlin enums from `:gyro` (`GyroPillKind`, `GyroRingPhase` step index `Int`, `GyroCalibrationBlock`, `GyroCalibrationInvalidation`, `GyroTakeStatus`, `GyroNotice`). Each literal appears once as a plain string literal so the parity test can find it.
   - `@Composable fun GyroAdaptiveLayout(modifier: Modifier = Modifier, visual: @Composable () -> Unit, content: @Composable () -> Unit)` using `BoxWithConstraints`: portrait when `maxWidth < maxHeight`.
@@ -243,10 +253,12 @@ git commit -m "feat(gyro): Android gyro copy twin, layout and pill chip"
 ### Task 6: Arming sheet
 
 **Files:**
+
 - Create: `.../cameracontrols/gyro/GyroSetupSheet.kt`
 - Test: `Android/camera-controls/src/androidTest/kotlin/com/opencapture/opencine/cameracontrols/gyro/GyroScreensTest.kt` (start the file)
 
 **Interfaces:**
+
 - Produces: `@Composable fun GyroSetupSheet(step: GyroArmingStep, ring: GyroRingState?, actions: GyroSetupActions)` and `class GyroSetupActions(val turnOff: () -> Unit, val keepOn: () -> Unit, val getStarted: () -> Unit, val useLast: () -> Unit, val cancel: () -> Unit, val done: () -> Unit)`. Same content and rules as Part 2 Task 6. Test tags `gyro.setup.turnOff`, `gyro.setup.keepOn`, `gyro.primary`, `gyro.visual`. `BackHandler` calls `keepOn` on the IBIS step and `cancel` on the calibration step.
 
 - [ ] **Step 1: Write the failing instrumented tests** (`ActivityScenario.launch(GalleryOpeningTestActivity::class.java)` then `activity.setContent { ... }`, the pattern in `LadderSheetFieldHostTest.kt`; query the view tree's `AccessibilityNodeInfo` for test tags exposed with `Modifier.semantics { testTagsAsResourceId = true }`): `stabilizationStepShowsOnePrimaryButton`, `lensLineOnlyWithVRSwitch`, `useLastOnlyWithSavedCalibration`.
@@ -265,10 +277,12 @@ git commit -m "feat(gyro): Android arming sheet with the IBIS step"
 ### Task 7: Ring and calibration screens
 
 **Files:**
+
 - Create: `.../cameracontrols/gyro/{GyroRing,GyroRingCalibrationScreen}.kt`
 - Test: `Android/camera-controls/src/test/kotlin/com/opencapture/opencine/cameracontrols/gyro/GyroRingModelTest.kt`, `GyroScreensTest.kt` (add)
 
 **Interfaces:**
+
 - Produces: `data class GyroRingModel(val litFraction: Double, val dimmed: Boolean, val checkmark: Boolean)` with `fun gyroRingModel(state: GyroRingState): GyroRingModel` (same mapping as Part 2 Task 7), `@Composable fun GyroRing(model: GyroRingModel)` (60 ticks on a `Canvas`), `@Composable fun GyroRingCalibrationScreen(state: GyroRingState, canUseLast: Boolean, actions: GyroSetupActions, announcer: (String) -> Unit = LocalView.current::announceForAccessibility)`. Same screens, feedback thresholds and copy as Part 2 Task 7; haptic `HapticFeedbackType.LongPress` paired with the announcement.
 
 - [ ] **Step 1: Write the failing tests**: JVM `GyroRingModelTest` (same four cases as Part 2); instrumented `introHasNoCaptureButton`, `blockedStateShowsOneLine`, `ringAnnouncesProgressAndCaptures` (recording announcer lambda).
@@ -287,10 +301,12 @@ git commit -m "feat(gyro): Android fill-the-ring calibration screens"
 ### Task 8: Logs list, select-and-share and take page
 
 **Files:**
+
 - Create: `.../cameracontrols/gyro/{GyroLogSections,GyroLogsScreen,GyroTakeScreen}.kt`
 - Test: `Android/camera-controls/src/test/kotlin/com/opencapture/opencine/cameracontrols/gyro/GyroLogSectionsTest.kt`, `GyroScreensTest.kt` (add)
 
 **Interfaces:**
+
 - Consumes: `GyroLogEntry`, `GyroCopy`, `com.opencapture.opencine.appkit.MediaShare` (host value).
 - Produces: `data class GyroLogSection(val title: String, val entries: List<GyroLogEntry>)`, `fun groupGyroLogs(entries: List<GyroLogEntry>, nowMillis: Long, zone: ZoneId, locale: Locale): List<GyroLogSection>` (same titles and ordering as Part 2), `class GyroLogsActions(share: (List<String>) -> Unit, delete: (GyroLogEntry) -> Unit, dismissTip, turnOnGyro, close)`, `@Composable fun GyroLogsScreen(entries, tipVisible, gyroEnabled, nowMillis, actions)`, `@Composable fun GyroTakeScreen(entry, onShare)`. Swipe to delete uses Material3 `SwipeToDismissBox` with the `deleteTitle` confirmation dialog; disabled on active rows. Landscape split 40/60 as Part 2.
 
@@ -310,11 +326,13 @@ git commit -m "feat(gyro): Android logs list, select-and-share and take page"
 ### Task 9: Drift sheet, feature host and settings entry
 
 **Files:**
+
 - Create: `.../cameracontrols/gyro/{GyroDriftSheet,GyroFeatureHost}.kt`
 - Modify: `Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsConfiguration.kt` (`MonitorSettingsGyroSource` gains `calibrate: (() -> Unit)? = null`; `SettingsGyro` renders a `GyroCopy.settingsCalibrate` row when present), `Android/camera-controls/src/test/kotlin/com/opencapture/opencine/cameracontrols/MonitorSettingsCompositionTest.kt` (add a case)
 - Test: `GyroScreensTest.kt` (add)
 
 **Interfaces:**
+
 - Produces: `@Composable fun GyroDriftSheet(onRecalibrate: () -> Unit, onNotNow: () -> Unit)`, `@Composable fun GyroFeatureHost(coordinator: GyroCaptureCoordinator, share: MediaShare, content: @Composable () -> Unit)` that collects `coordinator.state` and presents, in Part 2 Task 9's priority order, the setup or calibration full-screen dialog, the logs screen, the drift sheet (`ModalBottomSheet`), notices (auto-cleared after 4 s), the drift haptic and announcement, and the share chooser (`share.chooserIntent(context, coordinator.shareFiles(ids), { "text/plain" })` off the main thread, started with `context.startActivity`). The existing `mountName` and `configureMount` parameters of `MonitorSettingsGyroSource` stay (deprecated with `@Deprecated("Mount presets are gone; pass calibrate")`) until a later minor release.
 
 - [ ] **Step 1: Write the failing tests**: instrumented `driftSheetHasOnePrimaryButton`, `featureHostPresentsSetupForNewSession` (coordinator over `FakeGyroNative` and `FakeGyroCameraAdapter` from `:gyro` test fixtures, added to `androidTestImplementation(testFixtures(project(":gyro")))`); JVM `gyroCalibrateRowOnlyWhenProvided`.
@@ -333,6 +351,7 @@ git commit -m "feat(gyro): Android drift sheet, feature host and calibrate setti
 ### Task 10: Orientation, recreation, back and TalkBack sweep
 
 **Files:**
+
 - Test: `GyroScreensTest.kt` (add)
 
 - [ ] **Step 1: Write the tests**

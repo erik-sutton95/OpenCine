@@ -54,11 +54,13 @@ Modified: `Package.swift` (`OpenCineNikon` and `OpenCineNikonTests` gain `"OpenC
 ### Task 1: Nikon gyro mapping
 
 **Files:**
+
 - Create: `Sources/OpenCineNikon/NikonGyroCamera.swift`
 - Test: `Tests/OpenCineNikonTests/NikonGyroCameraTests.swift`
 - Modify: `Package.swift`
 
 **Interfaces:**
+
 - Consumes: `PTPCameraPropertySnapshot.vibrationReduction` ("OFF"/"ON"/"SPORT"), `.electronicVR` ("OFF"/"ON" via `PTPCameraPropertyDecoders.onOffLabel`), `.captureSelector`, `PTPCameraPropertyWrite.vibrationReduction(label:)` (0xD1F9), `PTPCameraPropertyWrite.electronicVR(on:)` (0xD314), `PTPLevelAngles` (`roll`, `pitch`, `hasPitch`, `signedDegrees(_:)`), `NativeCameraSession.NativeCameraIdentity` (`serialNumber`, `model`, `displayName`), `GyroCameraGravity.down`.
 - Produces:
 
@@ -112,10 +114,12 @@ git commit -m "feat(nikon): map Nikon VR, level and identity to gyro adapter val
 ### Task 2: Swift Nikon gyro adapter
 
 **Files:**
+
 - Create: `Sources/OpenCineNikon/NikonGyroCameraAdapter.swift`
 - Test: `Tests/OpenCineNikonTests/NikonGyroCameraAdapterTests.swift`
 
 **Interfaces:**
+
 - Consumes: Task 1; `GyroCameraAdapter`, `GyroCameraSink`, `GyroCameraEvent` (Part 1); `PTPLiveViewFrame` (`isRecording`, `level`).
 - Produces:
 
@@ -152,11 +156,13 @@ git commit -m "feat(nikon): gyro camera adapter for Nikon bodies"
 ### Task 3: Kotlin Nikon gyro adapter
 
 **Files:**
+
 - Create: `Android/nikon/src/main/kotlin/com/opencapture/opencine/nikon/NikonGyroCameraAdapter.kt`
 - Test: `Android/nikon/src/test/kotlin/com/opencapture/opencine/nikon/NikonGyroCameraAdapterTest.kt`
 - Modify: `Android/nikon/build.gradle.kts` (`api(project(":gyro"))`; tests add `testImplementation(testFixtures(project(":gyro")))` for `FakeGyroNative`)
 
 **Interfaces:**
+
 - Consumes: `CameraSession` (`state`, `reportedRecording`, `cameraProperties`), `CameraSessionState.Connected(identity: CameraIdentity)`, `CameraPropertySnapshot.vibrationReduction`, `.electronicVr`, `.captureSelector`, `CameraSession.applyControl(CameraControl.VIBRATION_REDUCTION | CameraControl.ELECTRONIC_VR, label)` (throws `CameraControlException` on refusal), `SwiftCoreLiveFrameSource.currentStreamFrames.metadataOnly()` with `LiveCameraLevel` (`rollDegrees`, `pitchDegrees`, `hasPitch`, `isDebugFixture`), `GyroNativeApi.cameraDown(roll, pitch)` (Part 1).
 - Produces: `class NikonGyroCameraAdapter(session: CameraSession, frames: SwiftCoreLiveFrameSource?, native: GyroNativeApi, scope: CoroutineScope, now: () -> Double) : GyroCameraAdapter` with the same keys, titles and off values as Task 1 (`movieVR`, `electronicVR`, `IBIS`, `Electronic VR`, `OFF`); identity id `nikon-<serialNumber>` or `nikon-model-<model>`; `level` emits `GyroCameraLevel(null, t)` for debug fixtures, missing pitch or a null native reply; `writeStabilization` applies movie VR then e-VR (label `ON`/`OFF`), returns false at the first `CameraControlException`.
 
@@ -246,10 +252,12 @@ git commit -m "build: pin OpenCine with the shared gyro modules"
 ### Task 6: iOS adoption
 
 **Files:**
+
 - Modify: `ios/Runner/NativeAppRoot.swift`, `ios/Runner/MonitorUnified.swift`, `ios/Runner/MonitorPanels.swift`, level overlay call sites of `PhoneMotionDriver.shared.startLevel`
 - Create: `ios/RunnerTests/GyroAdoptionTests.swift`
 
 **Interfaces:**
+
 - Consumes: `GyroCaptureCoordinator(host:)`, `GyroHostConfiguration`, `GyroPreferenceKeys.namespaced(_:)`, `GyroLegacyPreferenceKeys`, `View.gyroFeature(_:)`, `GyroPillView(state:action:)`, `MonitorSettingsGyroSource(...calibrate:)` (Part 2), `NikonGyroCameraAdapter` (Task 2).
 - Wiring decisions:
   - `let gyroCapture = GyroCaptureCoordinator(host: GyroHostConfiguration(appName: "OpenZCine", logDirectory: URL.applicationSupportDirectory.appendingPathComponent("GyroLogs", isDirectory: true), preferenceKeys: .namespaced("gyro.v2."), legacyKeys: GyroLegacyPreferenceKeys(enabled: "gyroLoggingEnabled.v1", mountPreset: "gyroMountPreset.v1", calibration: "gyroMountCalibration.v1")))`. The directory is OpenZCine's existing one, so logs stay in place.
@@ -278,6 +286,7 @@ git commit -m "feat(gyro): adopt OpenCine's shared gyro feature on iOS"
 ### Task 7: iOS upgrade test and deletion of the OpenZCine copies
 
 **Files:**
+
 - Modify: `ios/RunnerTests/GyroAdoptionTests.swift`, `ios/Runner.xcodeproj/project.pbxproj`
 - Delete: `ios/Runner/{GyroCaptureCoordinator,GyroLogStore,GyroLogsView,PhoneMotionDriver}.swift`, `ios/RunnerTests/{GyroCaptureTests,GyroLogStoreTests}.swift`, `Sources/OpenZCineCore/Gyro*.swift`, `Tests/OpenZCineCoreTests/Gyro*.swift`
 
@@ -299,10 +308,12 @@ git commit -m "refactor(gyro): delete OpenZCine's iOS gyro copies after adopting
 ### Task 8: Android adoption
 
 **Files:**
+
 - Modify: `Apps/Android/app/src/main/kotlin/com/opencapture/openzcine/MainActivity.kt`, `Apps/Android/app/src/main/kotlin/com/opencapture/openzcine/bridge/SwiftCore.kt`, the settings composition that builds `MonitorSettingsGyroSource`
 - Create: `Apps/Android/app/src/test/kotlin/com/opencapture/openzcine/GyroAdoptionTest.kt`
 
 **Interfaces / decisions:**
+
 - `GyroNative.load("OpenZCineAndroid")` beside `NikonNative.load("OpenZCineAndroid")` in `SwiftCore`.
 - `private val gyroCapture by lazy { GyroCaptureCoordinator(applicationContext, GyroHostConfiguration(appName = "OpenZCine", logRoot = File(filesDir, "gyro-logs"), preferencesName = "gyro-logging", keys = GyroPreferenceKeys.namespaced("gyro.v2."), legacy = GyroLegacyPreferenceKeys(enabled = "enabled", mountPreset = "mountPreset", calibration = "mountCalibration"))) }` (the existing root and prefs file, so logs stay in place).
 - Where `gyroCapture.bind(eligible)` is called today, bind `NikonGyroCameraAdapter(session, session.liveFrames as? SwiftCoreLiveFrameSource, GyroNative, lifecycleScope, now)` for a connected `SwiftCoreCameraSession`, `null` otherwise; call `setHostEligible` with today's eligibility minus the selector (now the adapter's `videoMode`); `setForeground` stays.
@@ -326,6 +337,7 @@ git commit -m "feat(gyro): adopt OpenCine's shared gyro feature on Android"
 ### Task 9: Android deletion and JNI symbol check
 
 **Files:**
+
 - Modify: `Apps/Android/app/src/androidTest/kotlin/com/opencapture/openzcine/GyroLoggingJNITest.kt`, `Package.swift` (facade comment)
 - Delete: `Apps/Android/app/src/{main,test,androidTest}/kotlin/com/opencapture/openzcine/gyro/`, `Sources/OpenZCineAndroidFacade/Gyro*.swift`, `Tests/OpenZCineAndroidFacadeTests/Gyro*.swift`
 

@@ -85,6 +85,7 @@ Source of moved files: `git -C ../OpenZCine show origin/main:<path>` (read-only;
 ### Task 1: OpenCineGyro module with the moved engine
 
 **Files:**
+
 - Create: `Sources/OpenCineGyro/{GyroLog,GyroTakeSession,GyroGCSV,GyroMountCalibration,GyroMountCalibrationSession,GyroCameraGravity,GyroMountPreset}.swift` (moved from OpenZCine `Sources/OpenZCineCore/`)
 - Create: `Tests/OpenCineGyroTests/{GyroLogTests,GyroMountCalibrationTests,GyroCameraGravityTests,GyroCalibrationExportTests,GyroMountTests}.swift` (moved from OpenZCine `Tests/OpenZCineCoreTests/`)
 - Create: `Tests/OpenCineGyroTests/GyroSourceRulesTests.swift`
@@ -92,6 +93,7 @@ Source of moved files: `git -C ../OpenZCine show origin/main:<path>` (read-only;
 - Modify: `Package.swift` (product `OpenCineGyro`, target, test target), `atlas/repos/opencine/meta.json` (`products`, `layers.core` gains `OpenCineGyro`, `OpenCineGyroTests`)
 
 **Interfaces:**
+
 - Produces (all `public`):
   - `GyroLogDescriptor.init(id: UUID = UUID(), appName: String, cameraLabel: String, startDate: Date, approximateStartOffset: Double, isPartial: Bool, mountPreset: GyroMountPreset = .unconfigured, mountCalibration: GyroMountCalibration? = nil)`; new stored `writer: String?` (nil in legacy logs); `filename` becomes `"\(sanitizedAppName)-yyyyMMdd'T'HHmmss'Z'-\(UUID).gcsv"` where `sanitizedAppName` keeps `[A-Za-z0-9]` and falls back to `"Gyro"` when empty.
   - `GyroTakeSession.init(appName: String)`; `observeRecording(_ recording: Bool, at timestamp: Double, date: Date, cameraLabel: String, mountCalibration: GyroMountCalibration?) -> [GyroLogUpdate]` (the `mountPreset` parameter is removed; new takes are calibrated or `.unconfigured`).
@@ -184,10 +186,12 @@ git commit -m "feat(gyro): move the gyro engine from OpenZCine into OpenCineGyro
 ### Task 2: Mount-moved marks in takes and summaries
 
 **Files:**
+
 - Modify: `Sources/OpenCineGyro/GyroLog.swift`, `Sources/OpenCineGyro/GyroTakeSession.swift`, `Sources/OpenCineGyro/GyroGCSV.swift`
 - Test: `Tests/OpenCineGyroTests/GyroMountMovedTests.swift`
 
 **Interfaces:**
+
 - Consumes: `GyroTakeSession` from Task 1.
 - Produces:
   - `GyroLogUpdate.mountMoved(id: UUID, offsetSeconds: Double)` (new case; stores persist it immediately, see Task 8).
@@ -265,10 +269,12 @@ git commit -m "feat(gyro): record the first mount-moved moment of a take"
 ### Task 3: Drift detector
 
 **Files:**
+
 - Create: `Sources/OpenCineGyro/GyroDriftDetector.swift`
 - Test: `Tests/OpenCineGyroTests/GyroDriftDetectorTests.swift`
 
 **Interfaces:**
+
 - Consumes: `GyroMountCalibration.mapping(_:)`, `GyroVector3.angle(to:)`.
 - Produces:
 
@@ -342,10 +348,12 @@ git commit -m "feat(gyro): detect a mount that moved during steady moments"
 ### Task 4: Ring calibration controller
 
 **Files:**
+
 - Create: `Sources/OpenCineGyro/GyroRingCalibration.swift`
 - Test: `Tests/OpenCineGyroTests/GyroRingCalibrationTests.swift`
 
 **Interfaces:**
+
 - Consumes: `GyroMountCalibrationSession`, `GyroMountCalibration.validatePair` (internal, same module), `GyroMountCalibrationError`.
 - Produces:
 
@@ -377,6 +385,7 @@ public struct GyroRingCalibration: Sendable {
 ```
 
 Behavior (target zones and stillness are the builder's call; these keep the solver's acceptance with margin):
+
 - Camera basis is up/left/backward, so a level camera's down is `(-1, 0, 0)`.
 - `level` zone: camera down within 12 degrees of `(-1, 0, 0)`.
 - `tiltUp` zone: angle between camera down and the captured level pose's camera down in `25...150` degrees.
@@ -429,10 +438,12 @@ git commit -m "feat(gyro): automatic three-pose ring calibration"
 ### Task 5: Camera adapter contract and stabilization values
 
 **Files:**
+
 - Create: `Sources/OpenCineGyro/GyroCameraAdapter.swift`
 - Test: `Tests/OpenCineGyroTests/GyroCameraAdapterTests.swift`
 
 **Interfaces:**
+
 - Produces:
 
 ```swift
@@ -509,10 +520,12 @@ git commit -m "feat(gyro): camera adapter contract for gyro capture"
 ### Task 6: Session arming and stabilization save/restore machine
 
 **Files:**
+
 - Create: `Sources/OpenCineGyro/GyroArming.swift`
 - Test: `Tests/OpenCineGyroTests/GyroArmingMachineTests.swift`
 
 **Interfaces:**
+
 - Consumes: Task 5 types.
 - Produces:
 
@@ -561,6 +574,7 @@ public struct GyroArmingMachine: Sendable {
 ```
 
 Rules (owner decision 1 plus the coordinator's calls in spec sections 1 and 5):
+
 1. `eligible = toggleOn && camera != nil && hostEligible && videoMode == true`.
 2. **Owed restore first.** When a camera connects and a pending restore exists for its id, nothing else happens (no session start) until it resolves. Wait for a non-nil `stabilization` and `recording != true`, then emit `.writeStabilization(r, .restore)` with `r = saved[key]` for every key whose current value equals `applied[key]`. Keys whose current value differs, or is missing, are dropped (the user changed them; leave them alone). If `r` is empty, drop the pending restore and emit `.persistPendingRestores`. On `writeFinished(.restore, true)`: remove it, persist. On failure: keep it, emit `.notice(.restoreFailed)`, and do not retry until the next connection.
 3. **Session start** when eligible and no restore is in flight: `isArmed = true`, `.sessionStarted`, then `.presentSetup(steps)` where steps are `.stabilization(lensHasVRSwitch:)` if `settings` is non-empty and `stabilization?.isOff(settings) == false`, followed by `.calibration(hasSavedCalibration:)` if `providesLevel`. Omit `.presentSetup` when steps are empty. If `recording == true` at start, defer `.presentSetup` until the first update with `recording == false` in the same session.
@@ -605,10 +619,12 @@ git commit -m "feat(gyro): session arming with exact stabilization restore"
 ### Task 7: Take status mapping and shared vectors
 
 **Files:**
+
 - Create: `Sources/OpenCineGyro/GyroTakeStatus.swift`, `Fixtures/gyro-take-status-vectors.tsv`
 - Test: `Tests/OpenCineGyroTests/GyroTakeStatusTests.swift`
 
 **Interfaces:**
+
 - Produces:
 
 ```swift
@@ -648,10 +664,12 @@ git commit -m "feat(gyro): plain take status with shared vectors"
 ### Task 8: Log file store
 
 **Files:**
+
 - Create: `Sources/OpenCineGyro/GyroLogStore.swift` (moved from OpenZCine `ios/Runner/GyroLogStore.swift`)
 - Test: `Tests/OpenCineGyroTests/GyroLogStoreTests.swift` (the storage cases of OpenZCine `ios/RunnerTests/GyroLogStoreTests.swift`, rewritten against a temporary directory; the share-bridge UTType case moves to Plan 2)
 
 **Interfaces:**
+
 - Consumes: `GyroLogUpdate` (with `.mountMoved`), `GyroGCSVRecovery.finish(descriptor:mountMovedOffset:)`, `GyroTakeStatus`.
 - Produces (now `public`): `GyroLogEntry` (adds `public var status: GyroTakeStatus` and `public var canShare: Bool` = summary present and not active), `GyroLogRecoveryResult`, `protocol GyroLogStoring: Sendable` with `load()`, `apply(_:at:)`, `abort()`, `share(_ ids: [UUID]) async throws -> [URL]`, `delete(_ id: UUID)`, `GyroStoreError`, `actor GyroLogStore(directory: URL)` (directory is required; no default path).
 - On-disk layout is unchanged from OpenZCine iOS so existing logs load in place: `<directory>/<UUID>/descriptor.json`, `summary.json`, `capture.gcsv.part`, `<descriptor.filename>`. New: `mount-moved.json` (`{"offsetSeconds": Double}`) written atomically on `.mountMoved`; `complete(_:)` and recovery merge it into the summary when the summary lacks `mountMovedOffset`.
@@ -682,10 +700,12 @@ git commit -m "feat(gyro): durable log store with mount-moved marks and batch sh
 ### Task 9: Preferences, per-camera calibrations and legacy migration
 
 **Files:**
+
 - Create: `Sources/OpenCineGyro/GyroPreferences.swift`
 - Test: `Tests/OpenCineGyroTests/GyroPreferencesTests.swift`
 
 **Interfaces:**
+
 - Produces:
 
 ```swift
@@ -712,6 +732,7 @@ public final class GyroPreferences {
 ```
 
 All values are stored as JSON `Data` (Bool as `true`/`false` JSON) so the Android twin (Plan 3) can store the same payloads as strings. Migration (the spec leaves mechanics to the builder; this plan's calls, mirroring section 3's "migrated to not calibrated"):
+
 - Runs once in `init` when `legacy != nil` and `keys.migrated` is absent. Legacy `enabled` (stored by the host as a Bool) is read through `store.data`; the host's `GyroKeyValueStore` conformance must return legacy Bool keys as JSON `true`/`false` (Plan 2 and 3 adapters do this).
 - `legacy.mountPreset` is deleted (presets become "not calibrated").
 - A valid legacy calibration moves to `keys.legacyCalibration`; `calibration(for:)` adopts it for the first camera id that asks while it has none saved, then deletes the legacy slot (the old calibration was global; OpenZCine users have one body).
@@ -745,11 +766,13 @@ git commit -m "feat(gyro): per-camera calibration preferences with legacy migrat
 ### Task 10: OpenCineGyroAndroid wires and JNI exports
 
 **Files:**
+
 - Create: `Sources/OpenCineGyroAndroid/GyroLoggingWire.swift` (moved from OpenZCine `Sources/OpenZCineAndroidFacade/GyroLoggingWire.swift`), `GyroRingCalibrationWire.swift`, `GyroDriftWire.swift`, `GyroArmingWire.swift`, `GyroNativeJNI.swift`
 - Create: `Tests/OpenCineGyroAndroidTests/{GyroLoggingWireTests,GyroRingCalibrationWireTests,GyroDriftWireTests,GyroArmingWireTests}.swift` (the first moved from OpenZCine `Tests/OpenZCineAndroidFacadeTests/GyroLoggingWireTests.swift`)
 - Modify: `Package.swift` (product `OpenCineGyroAndroid`, target depending on `OpenCineGyro`, `OpenCineJNISupport`; test target), `atlas/repos/opencine/meta.json` (`OpenCineGyroAndroid`, `OpenCineGyroAndroidTests` in `layers.vendor`; product)
 
 **Interfaces:**
+
 - Consumes: everything in Tasks 1 to 7.
 - Produces (each wire is `public final class ... : @unchecked Sendable` with `static let shared`, an `NSLock` and an owner-keyed dictionary, like the moved logging wire; owners are UUID strings; a retired owner returns nil):
   - `GyroLoggingWire`: `create(appName:) -> String`, `ingest(owner:bytes:) -> String?` (32-byte little-endian `t,x,y,z` doubles, at most 512 samples), `observe(owner:recording:timestamp:dateSeconds:cameraLabel:calibrationJSON:) -> String?`, `mountMoved(owner:timestamp:) -> String?`, `poll`, `finish(owner:reason:)`, `close`, `recoveryCreate`, `recoveryAccept`, `recoveryFinish(owner:descriptorJSON:mountMovedOffset:)` (`Double.nan` = none). Reply JSON keeps OpenZCine's shape plus update kind `"mountMoved"` with `id` and `offsetSeconds`. `mountPresets` is deleted.
@@ -799,6 +822,7 @@ git commit -m "feat(gyro): Android JNI wires for logging, calibration, drift and
 ### Task 11: Android `:gyro` module (JNI facade, decoders, contract and status twins)
 
 **Files:**
+
 - Create: `Android/gyro/build.gradle.kts`, `Android/gyro/consumer-rules.pro`, `Android/gyro/src/main/AndroidManifest.xml`
 - Create: `Android/gyro/src/main/kotlin/com/opencapture/opencine/gyro/{GyroNative,GyroWire,GyroCameraAdapter,GyroTakeStatus}.kt`
 - Create: `Android/gyro/src/test/kotlin/com/opencapture/opencine/gyro/{GyroWireTest,GyroTakeStatusTest,GyroRulesTest}.kt`
@@ -806,6 +830,7 @@ git commit -m "feat(gyro): Android JNI wires for logging, calibration, drift and
 - Modify: `Android/settings.gradle.kts` (`":gyro"`), `atlas/repos/opencine/meta.json` (`":gyro"` in `layers.core`)
 
 **Interfaces:**
+
 - Consumes: the JNI names and JSON shapes from Task 10; the TSV from Task 7.
 - Produces:
   - `object GyroNative { var isAvailable: Boolean; fun load(library: String): Boolean; external fun <every Task 10 export> }` mirroring `com.opencapture.opencine.frameio.FrameioNative` (load guarded by `UnsatisfiedLinkError`, `Log` wrapped in `runCatching`). `recording` parameters are `Int` (-1, 0, 1).
@@ -834,7 +859,7 @@ interface GyroCameraAdapter {
 }
 ```
 
-  - `GyroTakeStatus.kt`: `sealed interface GyroTakeStatus { Recording, MountMoved(offsetSeconds: Double), CutShort, SmallGaps, NotCalibrated, Ready }` and `fun resolveGyroTakeStatus(descriptor: JSONObject, summary: JSONObject?, active: Boolean): GyroTakeStatus` with Task 7's precedence (gap limit: `round(largestGap * 1_000_000) > 50_000`).
+- `GyroTakeStatus.kt`: `sealed interface GyroTakeStatus { Recording, MountMoved(offsetSeconds: Double), CutShort, SmallGaps, NotCalibrated, Ready }` and `fun resolveGyroTakeStatus(descriptor: JSONObject, summary: JSONObject?, active: Boolean): GyroTakeStatus` with Task 7's precedence (gap limit: `round(largestGap * 1_000_000) > 50_000`).
 - `build.gradle.kts`: Android library, namespace `com.opencapture.opencine.gyro`, minSdk 29, JVM 17, `api(libs.kotlinx.coroutines.core)`, `testImplementation(libs.kotlin.test.junit)`, `testImplementation(libs.kotlinx.coroutines.test)`, `testImplementation(libs.json)`, and the `opencine.fixtures` system property block copied from `Android/camera-controls/build.gradle.kts`. No project dependencies (layer `core`).
 - `consumer-rules.pro`: `-keep class com.opencapture.opencine.gyro.GyroNative { *; }`.
 
@@ -881,6 +906,7 @@ git commit -m "feat(gyro): Android gyro module with JNI facade and contract twin
 ### Task 12: Boundaries, API snapshots and full verification
 
 **Files:**
+
 - Modify: `AGENTS.md` (Boundaries: one bullet for `OpenCineGyro` and `:gyro`, one for `OpenCineGyroAndroid` beside the Frame.io and Nikon Android bullets; Area rules: "Gyro Android: keep the JNI class `com.opencapture.opencine.gyro.GyroNative` and its member names ..."), `Package.swift` header comment (dependency rule line for `OpenCineGyro`)
 - Create: `docs/gyro/README.md` (module map, layer placement, the adapter contract, JNI export list, storage layout, migration rules), `atlas/api/swift/OpenCineGyro.txt`, `atlas/api/swift/OpenCineGyroAndroid.txt` (generated)
 
