@@ -292,7 +292,7 @@ let package = Package(
             name: "Insta360AppleTests",
             dependencies: [
                 "Insta360Apple", "Insta360AppleTestSupport", "Insta360Protocol", "OpenCineCore",
-                "OpenCineMotion", "OpenCineMedia", "OpenCineCameraVocabulary",
+                "OpenCineMotion", "OpenCineMedia", "OpenCineCameraVocabulary", "MonitorPresentation",
             ]
         ),
 

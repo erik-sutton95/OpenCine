@@ -27,6 +27,8 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(testFixtures(project(":core")))
+    // The shared storage cycle reads this integration's storage (MonitorStorageReadoutFormat).
+    testImplementation(project(":monitor-ui"))
 }
 
 // The control-capability vectors the Swift Luna integration writes.
