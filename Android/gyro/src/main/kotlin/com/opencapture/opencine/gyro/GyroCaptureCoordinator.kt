@@ -58,6 +58,7 @@ data class GyroHostConfiguration(
  * @property driftPromptPresented the post-take "mount moved" prompt is shown.
  * @property driftHapticToken increases once per confirmed mount move, for one light haptic.
  * @property isArmed an armed capture session is running for this connection.
+ * @property logsPresented the logs screen is shown (the pill and the settings Open row present it).
  */
 data class GyroCaptureState(
     val enabled: Boolean = false,
@@ -73,6 +74,7 @@ data class GyroCaptureState(
     val driftPromptPresented: Boolean = false,
     val driftHapticToken: Int = 0,
     val isArmed: Boolean = false,
+    val logsPresented: Boolean = false,
 )
 
 private val gyroCaptureDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -141,6 +143,7 @@ class GyroCaptureCoordinator internal constructor(
     internal var notice: GyroNotice? = null
     private var logs: List<GyroLogEntry> = emptyList()
     private var tipVisible = !preferences.tipDismissed
+    private var logsPresented = false
     internal var setupSteps: List<GyroArmingStep> = emptyList()
 
     // Arming.
@@ -416,6 +419,30 @@ class GyroCaptureCoordinator internal constructor(
             }
             emptyList()
         }
+
+    /** Shows the logs screen: the pill's tap and the settings Open row. */
+    fun presentLogs() {
+        scope.launch {
+            logsPresented = true
+            publish()
+        }
+    }
+
+    /** Closes the logs screen. */
+    fun dismissLogs() {
+        scope.launch {
+            logsPresented = false
+            publish()
+        }
+    }
+
+    /** The host could not hand the shared files to the system share sheet. */
+    fun reportShareFailed() {
+        scope.launch {
+            notice = GyroNotice.SHARE_FAILED
+            publish()
+        }
+    }
 
     /** Hides the logs tip for good. */
     fun dismissTip() {
@@ -1007,6 +1034,7 @@ class GyroCaptureCoordinator internal constructor(
                 driftPromptPresented = driftPromptPresented,
                 driftHapticToken = driftHapticToken,
                 isArmed = isArmed,
+                logsPresented = logsPresented,
             )
     }
 }
