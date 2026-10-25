@@ -599,7 +599,7 @@ public final class LunaCameraBackend: CameraBackend {
 
     /// Photography option 99 for the active mode: remaining record time per card, as the
     /// official app polls it. The reply carries only option 99, so other settings stay.
-    public func refreshRemainingTime() async {
+    func refreshRemainingTime() async {
         guard isTCP,
             let body = try? await send(LunaProtocol.remainingTimeRequest(functionMode: functionMode)),
             let settings = try? LunaPhotographySettings(response: body)
