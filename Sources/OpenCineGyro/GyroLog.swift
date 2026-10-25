@@ -124,6 +124,8 @@ public struct GyroLogSummary: Codable, Equatable, Sendable, Identifiable {
     /// Observed REC start relative to the first retained sample, matching Gyroflow's time origin.
     /// Negative values mean motion capture began after the observed recording start.
     public let approximateStartOffset: Double
+    /// First observed mount movement after REC start, in seconds; absent when it never moved.
+    public let mountMovedOffset: Double?
     /// Whether any encoded interval exceeded 50 milliseconds.
     public var hasGapWarning: Bool { GyroStatistics.exceedsGapLimit(largestGap) }
 }
@@ -134,6 +136,8 @@ public enum GyroLogUpdate: Equatable, Sendable {
     case opened(GyroLogDescriptor)
     /// Append bytes to the identified partial file in the order returned.
     case appended(id: UUID, data: Data)
+    /// Record the first mount movement for the take so stores can persist it immediately.
+    case mountMoved(id: UUID, offsetSeconds: Double)
     /// Flush, close and retain the summary, marking interrupted logs honestly.
     case finished(GyroLogSummary)
 }
@@ -158,7 +162,7 @@ struct GyroStatistics: Sendable {
 
     func summary(
         _ descriptor: GyroLogDescriptor, reason: GyroLogTermination,
-        incompleteCoverage: Bool = false, origin: Double = 0
+        incompleteCoverage: Bool = false, origin: Double = 0, mountMovedOffset: Double? = nil
     ) -> GyroLogSummary {
         let duration = max(0, (last ?? 0) - (first ?? 0))
         let firstOffset = (((first ?? origin) - origin) * 1_000_000).rounded() / 1_000_000
@@ -168,7 +172,8 @@ struct GyroStatistics: Sendable {
             largestGap: largestGap, rejectedSampleCount: rejected, termination: reason,
             isPartial: descriptor.isPartial || reason != .normal || rejected > 0
                 || incompleteCoverage || Self.exceedsGapLimit(largestGap),
-            approximateStartOffset: descriptor.approximateStartOffset - firstOffset
+            approximateStartOffset: descriptor.approximateStartOffset - firstOffset,
+            mountMovedOffset: mountMovedOffset
         )
     }
 }

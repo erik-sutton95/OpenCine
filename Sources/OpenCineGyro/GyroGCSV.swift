@@ -101,11 +101,15 @@ public struct GyroGCSVRecovery: Sendable {
     }
 
     /// Summarizes complete validated rows. An unterminated final line is deliberately excluded.
-    public func finish(descriptor: GyroLogDescriptor) throws -> GyroLogSummary {
+    /// A mount-moved mark recovered outside the file is carried into the summary when supplied.
+    public func finish(
+        descriptor: GyroLogDescriptor, mountMovedOffset: Double? = nil
+    ) throws -> GyroLogSummary {
         guard headerComplete, orientation == descriptor.orientation else {
             throw GyroGCSVError.invalidHeader
         }
-        return statistics.summary(descriptor, reason: .recovered)
+        return statistics.summary(
+            descriptor, reason: .recovered, mountMovedOffset: mountMovedOffset)
     }
 
     private mutating func acceptLine() throws {

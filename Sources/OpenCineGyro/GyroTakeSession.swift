@@ -93,6 +93,23 @@ public struct GyroTakeSession: Sendable {
         return updates
     }
 
+    /// Marks the first observed mount movement for every open take, in seconds after REC start.
+    /// A take already in postroll or already marked keeps its original timing.
+    public mutating func observeMountMoved(at timestamp: Double) -> [GyroLogUpdate] {
+        guard !isFinished, timestamp.isFinite else { return [] }
+        var updates: [GyroLogUpdate] = []
+        for index in takes.indices {
+            guard takes[index].endTimestamp == nil, takes[index].mountMovedOffset == nil else {
+                continue
+            }
+            let recStart = takes[index].origin + takes[index].descriptor.approximateStartOffset
+            let offset = (max(0, timestamp - recStart) * 1_000).rounded() / 1_000
+            takes[index].mountMovedOffset = offset
+            updates.append(.mountMoved(id: takes[index].descriptor.id, offsetSeconds: offset))
+        }
+        return updates
+    }
+
     /// Completes postrolls and detects stalls even before the first take or sensor sample.
     /// The first valid poll or recording observation anchors the initial no-sample deadline.
     public mutating func poll(at timestamp: Double) -> [GyroLogUpdate] {
@@ -155,6 +172,7 @@ public struct GyroTakeSession: Sendable {
         let origin: Double
         var statistics = GyroStatistics()
         var endTimestamp: Double?
+        var mountMovedOffset: Double?
         var lastMicroseconds: Double?
 
         func summary(reason: GyroLogTermination) -> GyroLogSummary {
@@ -167,7 +185,7 @@ public struct GyroTakeSession: Sendable {
                 } ?? false
             return statistics.summary(
                 descriptor, reason: reason, incompleteCoverage: missingStart || missingEnd,
-                origin: origin)
+                origin: origin, mountMovedOffset: mountMovedOffset)
         }
 
         mutating func append(_ samples: [GyroSample]) -> Data {
