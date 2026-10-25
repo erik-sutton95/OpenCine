@@ -230,6 +230,22 @@ public final class CamerasModel {
         failures[cameraID] = nil
     }
 
+    /// Re-checks every Local Network failure by connecting it again. iOS has no API to read this
+    /// permission, so a connect is the check: the shell calls this each time the app becomes
+    /// active, after the system prompt or a Settings visit, where the operator may have allowed
+    /// it. A denial that still holds fails again at once with the same reason. Other failures and
+    /// running attempts are left alone; one integration (one backend) retries one camera.
+    public func retryLocalNetworkFailures() {
+        var retried = Set(attempts.values.map(\.integration))
+        for (cameraID, failure) in failures.sorted(by: { $0.key < $1.key })
+        where failure.failure.reason == .permission(.localNetwork) {
+            guard attempts[cameraID] == nil, let entry = entry(for: failure.target),
+                retried.insert(entry.integration.id).inserted
+            else { continue }
+            start(failure.target, on: entry.integration.id)
+        }
+    }
+
     /// The last failure a pair page shows for `selection`: the keyed one, else one whose target
     /// carries that camera. A post-failure rescan clears the sightings, and the reason must stay
     /// until the operator acts on it (F-PIB-042).

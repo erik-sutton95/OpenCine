@@ -183,6 +183,42 @@ private struct TestConfirmationPrompt: ConfirmationPrompt {
         #expect(model.failures.isEmpty && model.attempts["camera-1"] != nil)
     }
 
+    static let localNetworkDenied = ConnectionFailure(
+        reason: .permission(.localNetwork), phase: .negotiating, title: "Couldn't connect",
+        message: "Local Network access is off. Enable it in Settings, then connect again.",
+        actions: [.openSettings, .retry], code: "test.local-network.denied")
+
+    /// Hardware pass 8.0 (Insta iOS 81, Luna Ultra): the link named a Local Network denial while
+    /// the system prompt was still up, and the pair page kept it after the operator tapped Allow
+    /// until the app was relaunched. A Local Network failure is re-checked by connecting again;
+    /// the shell asks for that each time the app becomes active (the prompt or Settings closed).
+    @available(macOS 14, *)
+    @Test func localNetworkFailuresConnectAgainWhenRechecked() async throws {
+        let model = model(saved: [])
+        fake.publish([Self.sighting])
+        model.beginPairing()
+        #expect(await eventually { !model.nearby.isEmpty })
+        model.selection = "n2"
+        model.connect(try #require(model.nearby.first))
+        fake.attempts[0].fail(Self.localNetworkDenied)
+        #expect(await eventually { model.failures["n2"] != nil })
+        model.retryLocalNetworkFailures()
+        #expect(fake.attempts.count == 2 && fake.attempts[1].target == .nearby(Self.sighting))
+        #expect(model.failures.isEmpty && model.attempts["n2"] != nil)
+        model.retryLocalNetworkFailures()
+        #expect(fake.attempts.count == 2, "a running attempt is never replaced")
+    }
+
+    @available(macOS 14, *)
+    @Test func otherFailuresWaitForTheOperatorWhenRechecked() async {
+        let model = model()
+        model.connect(Self.camera)
+        fake.attempts[0].fail(Self.failure)
+        #expect(await eventually { model.failures["camera-1"] != nil })
+        model.retryLocalNetworkFailures()
+        #expect(fake.attempts.count == 1 && model.failures["camera-1"]?.failure == Self.failure)
+    }
+
     @available(macOS 14, *)
     @Test func promptsReachTheCardAndThePairPage() async throws {
         let model = model(saved: [])

@@ -199,6 +199,7 @@ public final class com/opencapture/opencine/appkit/CamerasModel {
 	public final fun rename (Ljava/lang/String;Ljava/lang/String;)V
 	public final fun renameRoute-3nRMWww (Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;)V
 	public final fun retryCurrentFailures ()V
+	public final fun retryLocalNetworkFailures ()V
 	public final fun select (Ljava/lang/String;)V
 	public final fun sessionEnded ()V
 	public final fun setOnConnected (Lkotlin/jvm/functions/Function1;)V

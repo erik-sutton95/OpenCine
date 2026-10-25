@@ -170,6 +170,7 @@ func LiveFrameSampleBus.noteDecodedFrame(_: LiveFrameSampleBus.Source?) -> ()
 func LiveFrameSampleBus.openSource(_: LiveFrameSampleBus.Role) -> LiveFrameSampleBus.Source
 func LiveFrameSampleBus.publish(_: LiveFrameSampleBus.Source?, source: CoreVideo.CVPixelBuffer?, transfer: OpenCineMedia.MonitorTransfer, reportedTransfer: OpenCineMedia.MonitorTransfer?, bundle: OpenCineMedia.ScopeAssistBundle?) -> Swift.Bool
 func LocalNetworkPrivacy.note(_: OpenCineCore.CameraNetworkPermissionEvidence, source: Swift.String) -> ()
+func LocalNetworkPrivacy.requestBeforeCameraJoin(serviceType: Swift.String) -> ()
 func LocalNetworkPrivacy.start(_: LocalNetworkPrivacy.Probe) -> ()
 func LocalNetworkPrivacy.stop() -> ()
 func MediaCellImageLoader.downsampled(at: Foundation.URL, maxPixelSize: Swift.Int, fallbackOrientation: Swift.Int?) -> UIKit.UIImage?

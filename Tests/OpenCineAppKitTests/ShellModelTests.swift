@@ -52,6 +52,36 @@ import Testing
         #expect(shell.route == .cameras)
     }
 
+    /// Hardware pass 8.0: the Local Network prompt and a Settings visit both take the scene
+    /// inactive; coming back re-checks a Local Network failure by connecting again, once.
+    @available(macOS 14, *)
+    @Test func becomingActiveRechecksALocalNetworkFailure() async {
+        let shell = shell()
+        shell.cameras.connect(T.camera)
+        fake.attempts[0].fail(T.localNetworkDenied)
+        #expect(await eventually { shell.cameras.failures[T.camera.id] != nil })
+        shell.setSceneActive(true)
+        #expect(fake.attempts.count == 1, "no change of activity, no re-check")
+        shell.setSceneActive(false)
+        #expect(fake.attempts.count == 1)
+        shell.setSceneActive(true)
+        #expect(fake.attempts.count == 2 && shell.cameras.failures.isEmpty)
+    }
+
+    /// One integration is one backend: a re-check dials one of its cameras, never two at once.
+    @available(macOS 14, *)
+    @Test func aRecheckDialsOneCameraPerIntegration() async {
+        let shell = shell()
+        shell.cameras.connect(T.camera)
+        fake.attempts[0].fail(T.localNetworkDenied)
+        shell.cameras.connect(Self.other)
+        fake.attempts[1].fail(T.localNetworkDenied)
+        #expect(await eventually { shell.cameras.failures.count == 2 })
+        shell.setSceneActive(false)
+        shell.setSceneActive(true)
+        #expect(fake.attempts.count == 3 && shell.cameras.attempts.count == 1)
+    }
+
     @available(macOS 14, *)
     @Test func connectAThenReplaceWithBAndDeliverALate() async {
         let shell = shell()

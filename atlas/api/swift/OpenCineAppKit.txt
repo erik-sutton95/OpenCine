@@ -333,6 +333,7 @@ func CamerasModel.perform(_: OpenCineCore.RecoveryAction, for: Swift.String) -> 
 func CamerasModel.reloadSaved() -> ()
 func CamerasModel.rename(_: Swift.String, to: Swift.String?) -> ()
 func CamerasModel.renameRoute(_: OpenCineCore.ConnectionRouteID, of: Swift.String, to: Swift.String?) -> ()
+func CamerasModel.retryLocalNetworkFailures() -> ()
 func CamerasModel.sessionEnded() -> ()
 func CamerasModel.upsert(_: OpenCineCore.SavedCamera) -> ()
 func Center.point(in: CoreFoundation.CGRect) -> CoreFoundation.CGPoint
