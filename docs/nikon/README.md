@@ -262,7 +262,6 @@ those scenarios are SIMULATED. The extended operation layout and reserved-sentin
 behavior still require verification against a real ZR clip above 4 GiB. These changes
 do not establish hardware support or recover an already corrupted partial cache.
 
-
 ### Owner-bound focus-rack execution
 
 `NativeCameraSession.focusRackAccess(isAdmitted:)` and Android Swift
