@@ -92,8 +92,87 @@ import Testing
         #expect(native.mutations == ["apply A", "apply B"])
     }
 
-    private static func configuration(_ name: String) -> CameraHotspotConfiguration {
-        .init(selection: .ssid(name), security: .open, joinOnce: false)
+    /// Hardware pass 5.1 (iOS 245, Pocket 4 Pro): iOS held "Wants to Join" past the 20 s apply
+    /// budget. The join loop then asked to drop the network and apply it again. Both waited behind
+    /// the unanswered native apply, so the operator's Join was followed by a removal (iOS: "Unable
+    /// to join the network") and a second apply (the prompt came back). A retry of the same
+    /// network while its native apply is pending waits for that answer instead.
+    @Test func retryWhileTheNativeJoinIsUnansweredWaitsForThatAnswer() async throws {
+        let native = ControlledHotspotNative()
+        let owner = CameraHotspotSystem(native: native.native, cancellation: .retireCaller)
+        let host = owner.host
+        let missed = HotspotLatch()
+        let join = Task { try await host.withAttempt({ true }) { operations in
+            do {
+                try await operations.apply(Self.configuration("A", timeout: .milliseconds(20)))
+                Issue.record("An unanswered apply cannot succeed before its native callback")
+            } catch CameraHotspotError.timedOut {
+                missed.signal()
+            }
+            operations.remove("A")
+            try await operations.apply(Self.configuration("A"))
+        } }
+        await native.waitForApply(1)
+        await missed.wait()
+        await Task.yield()
+        native.complete(0, .success(()))
+        // Without the fix a second native apply would wait forever: answer it so the test fails
+        // on the recorded mutations instead of hanging.
+        await native.settle()
+        if native.applies > 1 { native.complete(1, .success(())) }
+        try await join.value
+        #expect(native.mutations == ["apply A"], "the operator's Join is kept, not removed and asked again")
+    }
+
+    /// A retry rides the pending answer only for the same network and settings; any other apply
+    /// still queues behind it, and a removal of another network still runs.
+    @Test func onlyTheSameNetworkRidesThePendingAnswer() async throws {
+        let native = ControlledHotspotNative()
+        let owner = CameraHotspotSystem(native: native.native, cancellation: .retireCaller)
+        let host = owner.host
+        let missed = HotspotLatch()
+        let join = Task { try await host.withAttempt({ true }) { operations in
+            do { try await operations.apply(Self.configuration("A", timeout: .milliseconds(20))) }
+            catch CameraHotspotError.timedOut { missed.signal() }
+            operations.remove("Other")
+            try await operations.apply(Self.configuration("A", joinOnce: true))
+        } }
+        await native.waitForApply(1)
+        await missed.wait()
+        await Task.yield()
+        native.complete(0, .success(()))
+        await native.waitForApply(2)
+        native.complete(1, .success(()))
+        try await join.value
+        #expect(native.mutations == ["apply A", "remove Other", "apply A"])
+    }
+
+    /// A retry that rode the pending answer gets that answer, a refusal included.
+    @Test func aRiderReceivesTheNativeRefusal() async {
+        let native = ControlledHotspotNative()
+        let owner = CameraHotspotSystem(native: native.native, cancellation: .retireCaller)
+        let host = owner.host
+        let missed = HotspotLatch()
+        let join = Task { try await host.withAttempt({ true }) { operations in
+            do { try await operations.apply(Self.configuration("A", timeout: .milliseconds(20))) }
+            catch CameraHotspotError.timedOut { missed.signal() }
+            try await operations.apply(Self.configuration("A"))
+        } }
+        await native.waitForApply(1)
+        await missed.wait()
+        await Task.yield()
+        native.complete(0, .failure(NativeRefusal()))
+        await native.settle()
+        if native.applies > 1 { native.complete(1, .success(())) }
+        do { try await join.value; Issue.record("The refusal reaches the rider") }
+        catch { #expect(error is NativeRefusal) }
+        #expect(native.mutations == ["apply A"])
+    }
+
+    private static func configuration(
+        _ name: String, joinOnce: Bool = false, timeout: Duration? = nil
+    ) -> CameraHotspotConfiguration {
+        .init(selection: .ssid(name), security: .open, joinOnce: joinOnce, timeout: timeout)
     }
     private static func requireCancellation(_ task: Task<Void, Error>) async {
         do { try await task.value; Issue.record("Retired caller cannot succeed") }
@@ -144,4 +223,7 @@ import Testing
         await withCheckedContinuation { waiting.append((count, $0)) }
     }
     func complete(_ index: Int, _ result: Result<Void, Error>) { completions[index](result) }
+    var applies: Int { completions.count }
+    /// Lets queued main-actor work run (a drain after a completion).
+    func settle() async { for _ in 0..<50 { await Task.yield() } }
 }
