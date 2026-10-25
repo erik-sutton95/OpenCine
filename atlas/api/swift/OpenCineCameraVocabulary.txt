@@ -1649,6 +1649,8 @@ var SessionRecoveryEpisode.isRunning: Swift.Bool
 var SessionRecoveryEpisode.snapshot: SessionRecoveryEpisode.Snapshot
 var SessionRecoveryPolicy.backoff: ReconnectBackoff
 var SessionRecoveryPolicy.maxAutomaticAttempts: Swift.Int
+var SessionRecoveryState.claimsCamera: Swift.Bool
+var SessionRecoveryState.isReconnecting: Swift.Bool
 var SessionRecoveryState.isRecovering: Swift.Bool
 var SettingOffer.availability: OpenCineCore.Availability
 var SettingOffer.domain: OpenCineCore.SettingDomain?

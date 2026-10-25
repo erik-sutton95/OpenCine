@@ -172,6 +172,7 @@ case NikonLadderControl.stillAutoISO
 case NikonLadderControl.tint
 case NikonLadderControl.value(Swift.Int)
 case NikonLiveViewPump.Outcome.cancelled
+case NikonLiveViewPump.Outcome.linkLost(Swift.String)
 case NikonLiveViewPump.Outcome.neverStarted(Swift.String)
 case NikonLiveViewPump.Outcome.stalled(Swift.String)
 case NikonMediaCategory.all
@@ -1767,6 +1768,7 @@ static func NikonExposureSettings.label(_: OpenCineCore.SettingValue) -> Swift.S
 static func NikonExposureSettings.reported(_: PTPCameraPropertySnapshot) -> [OpenCineCore.SettingKey : OpenCineCore.SettingValue?]
 static func NikonExposureSettings.shutter(_: Swift.String) -> OpenCineCore.SettingValue?
 static func NikonIntegration.failure(_: any Swift.Error, message: Swift.String?) -> OpenCineCore.ConnectionFailure
+static func NikonLiveViewPump.isLinkLoss(_: any Swift.Error) -> Swift.Bool
 static func NikonMediaDateWindow.captureDay(_: Swift.String, calendar: Foundation.Calendar) -> Foundation.Date?
 static func NikonMediaFilterDerivation.options(for: [NikonMediaFilterItem], now: Foundation.Date, calendar: Foundation.Calendar) -> NikonMediaFilterOptions
 static func NikonMediaFilterDerivation.partitioning(_: [Value], itemCount: Swift.Int, matchCount: (Value) -> Swift.Int)<Value> -> [Value]
@@ -1798,6 +1800,7 @@ static func NikonStillReviewImageReader.read(kind: NikonStillReviewObjectKind, o
 static func NikonStillReviewImageReader.read(kind: NikonStillReviewObjectKind, objectSize: Swift.UInt32, readBytes: (Swift.UInt32, Swift.UInt32) async throws -> Foundation.Data) -> Foundation.Data?
 static func NikonTakeOverPrompt.message(holder: Swift.String?) -> Swift.String
 static func NikonTakeOverRecovery.holder(beforeAttempt: Swift.Int, lookup: () async -> Swift.String?) -> Swift.String?
+static func NikonTakeOverRecovery.holder(beforeAttempt: Swift.Int, pause: (Swift.Duration) async -> Swift.Void, lookup: () async -> Swift.String?) -> Swift.String?
 static func NikonWatchRelayState.==(_: NikonWatchRelayState, _: NikonWatchRelayState) -> Swift.Bool
 static func NikonZRRawCropPresentation.bareLabel(_: Swift.String) -> Swift.String
 static func NikonZRRawCropPresentation.carriesCropTag(_: Swift.String) -> Swift.Bool
@@ -2079,6 +2082,8 @@ static let NikonStillReviewPolicy.maximumAnnouncedObjects: Swift.Int
 static let NikonStillReviewPolicy.maximumFullImageBytes: Swift.UInt32
 static let NikonStillReviewPolicy.objectPollIntervalMilliseconds: Swift.Int
 static let NikonStillReviewPolicy.objectWindowMilliseconds: Swift.Int
+static let NikonTakeOverRecovery.firstAttemptAskSpacing: Swift.Duration
+static let NikonTakeOverRecovery.firstAttemptAsks: Swift.Int
 static let NikonZRRawCropPresentation.rawCodecsWithImageArea: Swift.Set<Swift.String>
 static let PTPCameraPropertyDecoders.exposureProgramFallbackOptions: [Swift.String]
 static let PTPCameraPropertyDecoders.movieFocusModePickerOptions: [Swift.String]
