@@ -94,18 +94,25 @@
             let collapse = app.buttons["monitor.assists.collapse"]
             XCTAssertTrue(collapse.waitForExistence(timeout: 5), "The palette must open")
             capture("SIMULATED palette open landscape")
+            // Hidden values take no touches: neither the ones under the plate nor the ones
+            // beyond its edge. (Zero opacity keeps them in the snapshot tree, so the check is
+            // the hit test, which the plate or the picture answers instead.)
             for readout in readouts {
-                let gone = XCTNSPredicateExpectation(
-                    predicate: NSPredicate(format: "exists == false"),
-                    object: app.buttons[readout.identifier])
+                let button = app.buttons[readout.identifier]
+                let untouchable = XCTNSPredicateExpectation(
+                    predicate: NSPredicate { _, _ in !button.exists || !button.isHittable },
+                    object: nil)
                 XCTAssertEqual(
-                    XCTWaiter.wait(for: [gone], timeout: 5), .completed,
+                    XCTWaiter.wait(for: [untouchable], timeout: 5), .completed,
                     "The \(readout.popup) value must hide under the open palette")
             }
             tapWhenReady(collapse, in: app, "The palette collapse")
             for readout in readouts {
-                XCTAssertTrue(
-                    app.buttons[readout.identifier].waitForExistence(timeout: 5),
+                let button = app.buttons[readout.identifier]
+                let touchable = XCTNSPredicateExpectation(
+                    predicate: NSPredicate { _, _ in button.exists && button.isHittable }, object: nil)
+                XCTAssertEqual(
+                    XCTWaiter.wait(for: [touchable], timeout: 5), .completed,
                     "The \(readout.popup) value must return when the palette closes")
             }
             capture("SIMULATED palette closed landscape")
