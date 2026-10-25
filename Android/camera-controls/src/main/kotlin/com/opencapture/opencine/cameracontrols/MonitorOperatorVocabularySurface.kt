@@ -40,13 +40,11 @@ import com.opencapture.opencine.appkit.ShellModel
 import com.opencapture.opencine.appkit.monitorChromeEditStroke
 import com.opencapture.opencine.appkit.offered
 import com.opencapture.opencine.appkit.statusPresentation
+import com.opencapture.opencine.media.StorageReadoutCycle
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.ControlCapabilities
-import com.opencapture.opencine.media.storageReadout
-import com.opencapture.opencine.media.recordingTimeLabel
-import com.opencapture.opencine.media.StorageReadout
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.EvComp
 import com.opencapture.opencine.vocabulary.FocusOverlay
@@ -309,13 +307,8 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
     val storage = source.capture.control.state.value.snapshot?.storage
-    val readout = storage?.storageReadout
-    // Portrait keeps a complete, compact label: the nearest whole unit, never a fraction.
-    val free = readout?.let {
-        if (field.portrait) MonitorStorageReadoutFormat.wholeUnitCapacity(it.freeBytes) else it.free
-    } ?: StorageReadout.UNAVAILABLE
-    val storageForms = listOf(free) + MonitorStorageReadoutFormat.alternatives(readout?.percent,
-        storage?.recordingTimeLabel, CameraCommands.isPhotoMode(status.shootingMode))
+    // The one shared storage cycle (A5-11): free space, percentage, then estimated time.
+    val storageForms = StorageReadoutCycle.forms(storage, CameraCommands.isPhotoMode(status.shootingMode))
     val storageLabel = storageForms[storageForm.mod(storageForms.size)]
     fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
         MonitorOperatorLiveReadout(sheet.name, title, value, section)

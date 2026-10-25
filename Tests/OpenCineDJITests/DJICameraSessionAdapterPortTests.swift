@@ -1,5 +1,6 @@
 import OpenCineCore
 import OpenCineMotion
+import OpenCineMedia
 import Testing
 
 @testable import OpenCineDJI
@@ -9,6 +10,22 @@ import Testing
 /// adapter through the real app session and loopback datalink.
 @MainActor
 @Suite struct DJICameraSessionAdapterPortTests {
+    /// Hardware pass 7.5 and 8.4: the shared storage cycle reads the DJI wire storage as every
+    /// app does: whole-unit free space, percentage, then the camera's own remaining time.
+    @Test func storageReadsTheSharedStorageCycle() {
+        var status = CameraStatus()
+        status.storageTotalMb = 128_000
+        status.storageFreeMb = 109_568
+        status.recordRemainingSec = 3_000
+        let storage = DJICameraSessionAdapter.storage(status)
+        #expect(StorageReadoutCycle.forms(storage, photo: false) == ["115GB", "86%", "50 Min"])
+        #expect(StorageReadoutCycle.forms(storage, photo: true) == ["115GB", "86%"])
+        status.recordRemainingSec = 0
+        #expect(
+            StorageReadoutCycle.forms(DJICameraSessionAdapter.storage(status), photo: false)
+                == ["115GB", "86%"])
+    }
+
     @Test func recordingFactsUseReportedDimensionsAndNeverPreviewCodec() {
         let port = FakePort()
         port.status.videoResolution = .p4K_4x3

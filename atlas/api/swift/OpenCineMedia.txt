@@ -351,6 +351,7 @@ enum ScopeDisplayScale
 enum ScopeSampler
 enum ScopeTrafficLights
 enum ShutterAngle: Sendable
+enum StorageReadoutCycle
 enum ThermalTier: CaseIterable, Comparable, Equatable, Hashable, RawRepresentable, Sendable
 enum VectorscopeRaster
 enum WaveformIre
@@ -967,6 +968,10 @@ static func ShutterAngle.nearestDegrees(_: Swift.Double) -> Swift.Double
 static func ShutterAngle.nearestLabel(denom: Swift.Int, fps: Swift.Int) -> Swift.String?
 static func ShutterAngle.parse(_: Swift.String) -> Swift.Double?
 static func ShutterAngle.rematchesFormat(usesAngle: Swift.Bool, manual: Swift.Bool, isPhoto: Swift.Bool, previousFps: Swift.Int, nextFps: Swift.Int, alreadyPending: Swift.Bool) -> Swift.Bool
+static func StorageReadoutCycle.alternatives(percent: Swift.String?, recordingTime: Swift.String?, photo: Swift.Bool) -> [Swift.String]
+static func StorageReadoutCycle.forms(_: OpenCineCore.StorageStatus?, photo: Swift.Bool) -> [Swift.String]
+static func StorageReadoutCycle.forms(freeBytes: Swift.UInt64?, percent: Swift.String?, recordingTime: Swift.String?, photo: Swift.Bool) -> [Swift.String]
+static func StorageReadoutCycle.freeSpace(bytes: Swift.UInt64?) -> Swift.String
 static func ThermalTier.<(_: ThermalTier, _: ThermalTier) -> Swift.Bool
 static func VectorscopeRaster.binIndex(red: Swift.UInt8, green: Swift.UInt8, blue: Swift.UInt8, gain: Swift.Double) -> (column: Swift.Int, row: Swift.Int)?
 static func VectorscopeRaster.pixels(from: [ScopePoint], gain: Swift.Double, intensity: Swift.Double) -> [Swift.UInt8]?

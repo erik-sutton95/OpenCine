@@ -44,4 +44,28 @@ import Testing
         #expect(restored.totalBytes == .unknown)
         #expect(try JSONDecoder().decode(StorageVolume.self, from: data) == original)
     }
+
+    /// Hardware pass 3.4, 7.5 and 8.4: one storage cycle and one precision on every app and
+    /// platform. Video steps free space, percentage, then the recording time; photo steps free
+    /// space and percentage; free space is the nearest whole unit in both orientations.
+    @Test func oneCycleAndOnePrecisionForEveryApp() {
+        func forms(_ free: UInt64?, _ percent: String?, _ time: String?, photo: Bool) -> [String] {
+            StorageReadoutCycle.forms(freeBytes: free, percent: percent, recordingTime: time, photo: photo)
+        }
+        #expect(forms(87_940_000_000, "70%", "~51 Min", photo: false) == ["88GB", "70%", "~51 Min"])
+        #expect(forms(87_940_000_000, "70%", "~51 Min", photo: true) == ["88GB", "70%"])
+        #expect(forms(87_940_000_000, nil, "51 Min", photo: false) == ["88GB", "51 Min"])
+        #expect(forms(nil, nil, nil, photo: false) == ["\u{2014}"])
+        let volume = StorageVolume(
+            id: "active", freeBytes: .init(595_840_000_000, origin: .cameraReported, at: nil),
+            totalBytes: .init(1_024_000_000_000, origin: .cameraReported, at: nil),
+            remainingRecordingTime: .init(.seconds(51 * 60), origin: .estimated, at: nil))
+        let storage = StorageStatus([volume], origin: .cameraReported, at: nil)
+        #expect(StorageReadoutCycle.forms(storage, photo: false) == ["596GB", "58%", "~51 Min"])
+        #expect(StorageReadoutCycle.forms(storage, photo: true) == ["596GB", "58%"])
+        #expect(StorageReadoutCycle.forms(nil, photo: false) == ["\u{2014}"])
+        #expect(StorageReadoutCycle.freeSpace(bytes: 904_750_000_000) == "905GB")
+        #expect(StorageReadoutCycle.freeSpace(bytes: 999_600_000) == "1GB")
+    }
 }
+

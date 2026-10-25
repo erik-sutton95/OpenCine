@@ -13,6 +13,12 @@ class LunaControlTest {
         assertEquals("0a04b001b101", hex(LunaControl.storageListRequest.body))
     }
 
+    /** The official remaining-record-time poll (option 99), per function mode; Swift `remainingTimeRequest`. */
+    @Test fun remainingTimeRequestMatchesTheSwiftEncoder() {
+        assertEquals("0a01631007", hex(LunaControl.remainingTimeRequest().body))
+        assertEquals("0a01631043", hex(LunaControl.remainingTimeRequest(67).body))
+    }
+
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
     private fun f(bits: Int) = java.lang.Float.intBitsToFloat(bits).toDouble()
 

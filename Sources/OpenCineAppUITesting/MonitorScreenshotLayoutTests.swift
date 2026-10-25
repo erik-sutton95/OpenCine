@@ -19,12 +19,12 @@
         /// supplied) still has its header checked; only the picture checks need the fixture.
         open var reviewPaintsGeneratedPicture: Bool { false }
 
-        /// The DJI-wire fixture's 107 GiB free card, read in the shared decimal storage units
-        /// (138e1d6b unified every storage readout on bytes).
-        open var expectedStorageText: String { "114.89 GB" }
-        /// The same card in portrait, where the header rounds to the nearest whole decimal unit
-        /// with a compact unit (`MonitorStorageReadoutFormat.wholeUnitCapacity`, 8121a4ac).
-        open var expectedPortraitStorageText: String { "115GB" }
+        /// The DJI-wire fixture's 107 GiB free card as the live storage readout shows it in every
+        /// orientation: the nearest whole decimal unit (`MonitorStorageReadoutFormat.forms`, one
+        /// precision on every app and platform since hardware pass 7.5).
+        open var expectedStorageText: String { "115GB" }
+        /// Portrait reads the same text; kept so an app can still name it.
+        open var expectedPortraitStorageText: String { expectedStorageText }
         open var expectedCameraPowerValue: String { "68 percent" }
         open var expectedCameraPercentText: String? { "68%" }
 

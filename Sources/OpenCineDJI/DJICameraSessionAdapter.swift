@@ -892,7 +892,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         return power
     }
 
-    private static func storage(_ status: CameraStatus) -> StorageStatus {
+    static func storage(_ status: CameraStatus) -> StorageStatus {
         let readout = status.storageReadout
         let remaining = status.recordRemainingSec > 0 ? Duration.seconds(status.recordRemainingSec) : nil
         guard readout != nil || remaining != nil else { return .unknown }
