@@ -18,19 +18,14 @@ public final class GyroDriftWire: @unchecked Sendable {
         }
     }
 
-    /// Records the newest camera down reading, derived from measured level angles.
-    /// A missing level, or angles that cannot determine down, clears the camera reading.
+    /// Records the newest camera down reading; the level is physical down in camera axes.
+    /// A missing level, or a vector that is not finite or has zero length, clears the reading.
     public func observeCamera(
-        owner: String, hasLevel: Bool, rollDegrees: Double, pitchDegrees: Double,
-        timestamp: Double
+        owner: String, hasLevel: Bool, x: Double, y: Double, z: Double, timestamp: Double
     ) {
         lock.withLock {
             guard var detector = detectors[owner] else { return }
-            let down: GyroVector3? =
-                hasLevel
-                ? GyroCameraGravity.down(
-                    rollDegrees: rollDegrees, pitchDegrees: pitchDegrees)
-                : nil
+            let down = Self.down(hasLevel: hasLevel, x: x, y: y, z: z)
             detector.observeCamera(down: down, at: timestamp)
             detectors[owner] = detector
         }
@@ -63,4 +58,11 @@ public final class GyroDriftWire: @unchecked Sendable {
 
     /// Releases a monitor session.
     public func close(owner: String) { _ = lock.withLock { detectors.removeValue(forKey: owner) } }
+
+    private static func down(hasLevel: Bool, x: Double, y: Double, z: Double) -> GyroVector3? {
+        guard hasLevel, x.isFinite, y.isFinite, z.isFinite else { return nil }
+        let length = hypot(hypot(x, y), z)
+        guard length.isFinite, length > 0 else { return nil }
+        return GyroVector3(x: x, y: y, z: z)
+    }
 }

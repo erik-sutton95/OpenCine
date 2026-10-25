@@ -73,7 +73,8 @@ struct GyroDriftWireTests {
         for step in 0...100 {
             let timestamp = Double(step) * 0.02
             wire.observeCamera(
-                owner: owner, hasLevel: true, rollDegrees: 0, pitchDegrees: 0,
+                owner: owner, hasLevel: true, x: DriftWireRig.cameraDown.x,
+                y: DriftWireRig.cameraDown.y, z: DriftWireRig.cameraDown.z,
                 timestamp: timestamp)
             let confirmed = wire.observePhone(
                 owner: owner, x: tilted.x, y: tilted.y, z: tilted.z, timestamp: timestamp,
@@ -103,8 +104,7 @@ struct GyroDriftWireTests {
         for step in 0...100 {
             let timestamp = Double(step) * 0.02
             wire.observeCamera(
-                owner: owner, hasLevel: false, rollDegrees: 0, pitchDegrees: 0,
-                timestamp: timestamp)
+                owner: owner, hasLevel: false, x: 0, y: 0, z: 0, timestamp: timestamp)
             #expect(
                 !wire.observePhone(
                     owner: owner, x: tilted.x, y: tilted.y, z: tilted.z, timestamp: timestamp,
@@ -113,8 +113,7 @@ struct GyroDriftWireTests {
         for step in 101...200 {
             let timestamp = Double(step) * 0.02
             wire.observeCamera(
-                owner: owner, hasLevel: true, rollDegrees: 90, pitchDegrees: 90,
-                timestamp: timestamp)
+                owner: owner, hasLevel: true, x: 0, y: 0, z: 0, timestamp: timestamp)
             #expect(
                 !wire.observePhone(
                     owner: owner, x: tilted.x, y: tilted.y, z: tilted.z, timestamp: timestamp,
@@ -127,7 +126,7 @@ struct GyroDriftWireTests {
         let owner = try #require(
             wire.create(calibrationJSON: try DriftWireRig.calibrationJSON()))
         wire.close(owner: owner)
-        wire.observeCamera(owner: owner, hasLevel: true, rollDegrees: 0, pitchDegrees: 0, timestamp: 0)
+        wire.observeCamera(owner: owner, hasLevel: true, x: -1, y: 0, z: 0, timestamp: 0)
         wire.reset(owner: owner)
         #expect(
             !wire.observePhone(

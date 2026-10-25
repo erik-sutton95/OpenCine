@@ -32,6 +32,18 @@ private struct RingWireRig {
     static func phoneDown(for cameraDown: GyroVector3) -> GyroVector3 {
         rotate(cameraDown, axis: mountAxis, degrees: mountDegrees)
     }
+
+    static let levelDown = GyroVector3(x: -1, y: 0, z: 0)
+
+    /// A camera pose tilted up from level by the given degrees.
+    static func tiltedDown(degrees: Double) -> GyroVector3 {
+        rotate(levelDown, axis: GyroVector3(x: 0, y: 1, z: 0), degrees: degrees)
+    }
+
+    /// The third pose: tilted up, then leaned about the optical axis.
+    static func mixedDown() -> GyroVector3 {
+        rotate(tiltedDown(degrees: 30), axis: GyroVector3(x: 0, y: 0, z: 1), degrees: 25)
+    }
 }
 
 /// Feeds wire observations on the same 30 Hz clock the portable ring tests use.
@@ -42,28 +54,23 @@ private struct RingWireDriver {
 
     var timestamp: Double { Double(tick) / 30 }
 
-    mutating func observe(roll: Double, pitch: Double, hasCameraLevel: Bool = true) throws
-        -> [String: Any]
-    {
+    mutating func observe(cameraDown: GyroVector3?) throws -> [String: Any] {
         tick += 1
         let now = timestamp
-        let cameraDown =
-            hasCameraLevel
-            ? GyroCameraGravity.down(rollDegrees: roll, pitchDegrees: pitch) : nil
         let phone =
-            cameraDown.map { RingWireRig.phoneDown(for: $0) }
-            ?? GyroVector3(x: -1, y: 0, z: 0)
+            cameraDown.map { RingWireRig.phoneDown(for: $0) } ?? RingWireRig.levelDown
         return try ringObject(
             wire.observe(
                 owner: owner, phoneX: phone.x, phoneY: phone.y, phoneZ: phone.z,
-                phoneTimestamp: now, hasCameraLevel: hasCameraLevel, rollDegrees: roll,
-                pitchDegrees: pitch, cameraTimestamp: now))
+                phoneTimestamp: now, hasCameraLevel: cameraDown != nil,
+                cameraX: cameraDown?.x ?? 0, cameraY: cameraDown?.y ?? 0,
+                cameraZ: cameraDown?.z ?? 0, cameraTimestamp: now))
     }
 
-    mutating func hold(roll: Double, pitch: Double, seconds: Double) throws -> [[String: Any]] {
+    mutating func hold(_ cameraDown: GyroVector3, seconds: Double) throws -> [[String: Any]] {
         var replies: [[String: Any]] = []
         for _ in 0..<Int((seconds * 30).rounded()) {
-            replies.append(try observe(roll: roll, pitch: pitch))
+            replies.append(try observe(cameraDown: cameraDown))
         }
         return replies
     }
@@ -104,20 +111,20 @@ struct GyroRingCalibrationWireTests {
         #expect(isNull(start["event"]))
         #expect(isNull(start["calibration"]))
 
-        let levelReplies = try driver.hold(roll: 0, pitch: 0, seconds: 3)
+        let levelReplies = try driver.hold(RingWireRig.levelDown, seconds: 3)
         #expect(levelReplies.compactMap { $0["event"] as? String } == ["stepCaptured"])
         let lastLevel = try #require(levelReplies.last)
         #expect(lastLevel["phase"] as? String == "posing")
         #expect(lastLevel["step"] as? Int == 1)
         #expect(lastLevel["completedSteps"] as? Int == 1)
 
-        let tiltReplies = try driver.hold(roll: 0, pitch: 35, seconds: 3)
+        let tiltReplies = try driver.hold(RingWireRig.tiltedDown(degrees: 35), seconds: 3)
         #expect(tiltReplies.compactMap { $0["event"] as? String } == ["stepCaptured"])
         let lastTilt = try #require(tiltReplies.last)
         #expect(lastTilt["step"] as? Int == 2)
         #expect(lastTilt["completedSteps"] as? Int == 2)
 
-        let mixedReplies = try driver.hold(roll: 25, pitch: 30, seconds: 3)
+        let mixedReplies = try driver.hold(RingWireRig.mixedDown(), seconds: 3)
         #expect(mixedReplies.compactMap { $0["event"] as? String } == ["completed"])
         let completed = try #require(mixedReplies.last)
         #expect(completed["phase"] as? String == "complete")
@@ -132,13 +139,12 @@ struct GyroRingCalibrationWireTests {
             GyroMountCalibration.self, from: calibrationData)
         #expect(calibration.validationErrorDegrees < 1e-6)
         #expect(abs(calibration.separationDegrees - 35) < 1e-6)
-        let cameraDown = try #require(
-            GyroCameraGravity.down(rollDegrees: 25, pitchDegrees: 30))
-        let mapped = calibration.mapping(RingWireRig.phoneDown(for: cameraDown))
-        #expect(mapped.angle(to: cameraDown) < 1e-6)
+        let mixedDown = RingWireRig.mixedDown()
+        let mapped = calibration.mapping(RingWireRig.phoneDown(for: mixedDown))
+        #expect(mapped.angle(to: mixedDown) < 1e-6)
     }
 
-    @Test func missingCameraLevelRepliesWaitingForCamera() throws {
+    @Test func missingOrInvalidCameraLevelRepliesWaitingForCamera() throws {
         let wire = GyroRingCalibrationWire()
         let owner = wire.create()
         defer { wire.close(owner: owner) }
@@ -146,7 +152,8 @@ struct GyroRingCalibrationWireTests {
         let missing = try ringObject(
             wire.observe(
                 owner: owner, phoneX: -1, phoneY: 0, phoneZ: 0, phoneTimestamp: 1,
-                hasCameraLevel: false, rollDegrees: 0, pitchDegrees: 0, cameraTimestamp: 1))
+                hasCameraLevel: false, cameraX: 0, cameraY: 0, cameraZ: 0,
+                cameraTimestamp: 1))
         #expect(missing["phase"] as? String == "blocked")
         #expect(missing["step"] as? Int == 0)
         #expect(missing["block"] as? String == "waitingForCamera")
@@ -157,11 +164,18 @@ struct GyroRingCalibrationWireTests {
         #expect(isNull(missing["calibration"]))
         #expect(missing["completedSteps"] as? Int == 0)
 
-        let undeterminable = try ringObject(
+        let zeroLength = try ringObject(
             wire.observe(
                 owner: owner, phoneX: -1, phoneY: 0, phoneZ: 0, phoneTimestamp: 2,
-                hasCameraLevel: true, rollDegrees: 90, pitchDegrees: 90, cameraTimestamp: 2))
-        #expect(undeterminable["block"] as? String == "waitingForCamera")
+                hasCameraLevel: true, cameraX: 0, cameraY: 0, cameraZ: 0, cameraTimestamp: 2))
+        #expect(zeroLength["block"] as? String == "waitingForCamera")
+
+        let notFinite = try ringObject(
+            wire.observe(
+                owner: owner, phoneX: -1, phoneY: 0, phoneZ: 0, phoneTimestamp: 3,
+                hasCameraLevel: true, cameraX: -1, cameraY: .nan, cameraZ: 0,
+                cameraTimestamp: 3))
+        #expect(notFinite["block"] as? String == "waitingForCamera")
     }
 
     @Test func retiredOwnerReturnsNil() {
@@ -173,7 +187,8 @@ struct GyroRingCalibrationWireTests {
         #expect(
             wire.observe(
                 owner: owner, phoneX: -1, phoneY: 0, phoneZ: 0, phoneTimestamp: 1,
-                hasCameraLevel: true, rollDegrees: 0, pitchDegrees: 0, cameraTimestamp: 1) == nil)
+                hasCameraLevel: true, cameraX: -1, cameraY: 0, cameraZ: 0,
+                cameraTimestamp: 1) == nil)
         #expect(wire.invalidate(owner: owner, reason: "cameraChanged") == nil)
         #expect(wire.cancel(owner: owner) == nil)
         #expect(wire.validate(calibrationJSON: "{}") == false)
@@ -199,7 +214,7 @@ struct GyroRingCalibrationWireTests {
 
         _ = wire.start(owner: owner, cameraConnected: true, recording: 0)
         var driver = RingWireDriver(wire: wire, owner: owner)
-        let levelReplies = try driver.hold(roll: 0, pitch: 0, seconds: 3)
+        let levelReplies = try driver.hold(RingWireRig.levelDown, seconds: 3)
         #expect(levelReplies.last?["completedSteps"] as? Int == 1)
         let invalidated = try ringObject(
             wire.updateCamera(owner: owner, connected: true, recording: 1))

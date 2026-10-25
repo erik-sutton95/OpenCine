@@ -22,11 +22,12 @@ import android.util.Log
  *   (`Double.NaN` means no mount move).
  * - `ringStart(owner, cameraConnected, recording)`, `ringUpdateCamera(owner, connected,
  *   recording)`, `ringObserve(owner, phoneX, phoneY, phoneZ, phoneTimestamp, hasCameraLevel,
- *   rollDegrees, pitchDegrees, cameraTimestamp)`, `ringInvalidate(owner, reason)` and
+ *   cameraX, cameraY, cameraZ, cameraTimestamp)`, `ringInvalidate(owner, reason)` and
  *   `ringCancel(owner)` return ring replies; `ringClose(owner)` retires the owner.
- *   `recording` is -1 unknown, 0, or 1.
+ *   `recording` is -1 unknown, 0, or 1. Camera level crosses the wire as a down vector in
+ *   camera axes; a camera that reports roll and pitch converts with `cameraDown` first.
  * - `calibrationValidate(calibrationJSON) -> Boolean`, `driftCreate(calibrationJSON) -> owner`,
- *   `driftObserveCamera(owner, hasLevel, rollDegrees, pitchDegrees, timestamp)`,
+ *   `driftObserveCamera(owner, hasLevel, x, y, z, timestamp)`,
  *   `driftObservePhone(owner, x, y, z, timestamp, rotationRate, accelerationG) -> Boolean`,
  *   `driftReset(owner)` and `driftClose(owner)`.
  * - `armingUpdate(owner, inputsJSON)`, `armingChooseTurnOff(owner)`,
@@ -111,8 +112,9 @@ object GyroNative : GyroNativeApi {
         phoneZ: Double,
         phoneTimestamp: Double,
         hasCameraLevel: Boolean,
-        rollDegrees: Double,
-        pitchDegrees: Double,
+        cameraX: Double,
+        cameraY: Double,
+        cameraZ: Double,
         cameraTimestamp: Double,
     ): String?
 
@@ -129,8 +131,9 @@ object GyroNative : GyroNativeApi {
     external override fun driftObserveCamera(
         owner: String,
         hasLevel: Boolean,
-        rollDegrees: Double,
-        pitchDegrees: Double,
+        x: Double,
+        y: Double,
+        z: Double,
         timestamp: Double,
     )
 
@@ -216,8 +219,9 @@ interface GyroNativeApi {
         phoneZ: Double,
         phoneTimestamp: Double,
         hasCameraLevel: Boolean,
-        rollDegrees: Double,
-        pitchDegrees: Double,
+        cameraX: Double,
+        cameraY: Double,
+        cameraZ: Double,
         cameraTimestamp: Double,
     ): String?
 
@@ -234,8 +238,9 @@ interface GyroNativeApi {
     fun driftObserveCamera(
         owner: String,
         hasLevel: Boolean,
-        rollDegrees: Double,
-        pitchDegrees: Double,
+        x: Double,
+        y: Double,
+        z: Double,
         timestamp: Double,
     )
 

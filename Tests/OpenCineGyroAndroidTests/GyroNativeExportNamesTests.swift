@@ -31,12 +31,95 @@ struct GyroNativeExportNamesTests {
         #expect(text.contains("#if os(Android)"))
     }
 
+    @Test func everyKotlinMemberMatchesTheExportParameterCount() throws {
+        let exported = try Self.parameterCountsByExport(
+            in: String(contentsOf: Self.sourceFile(), encoding: .utf8))
+        let declared = try Self.parameterCountsByKotlinMember(
+            in: String(contentsOf: Self.kotlinFile(), encoding: .utf8))
+        #expect(exported.count == Self.names.count)
+        #expect(declared.count == Self.names.count)
+        #expect(Set(exported.keys) == Set(declared.keys))
+        for (name, count) in exported {
+            #expect(declared[name] == count - 2, "\(name): JNI env and receiver are implicit")
+        }
+    }
+
     private static func sourceFile() -> URL {
+        repositoryRoot.appending(path: "Sources/OpenCineGyroAndroid/GyroNativeJNI.swift")
+    }
+
+    private static func kotlinFile() -> URL {
+        repositoryRoot.appending(
+            path: "Android/gyro/src/main/kotlin/com/opencapture/opencine/gyro/GyroNative.kt")
+    }
+
+    private static var repositoryRoot: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appending(path: "Sources/OpenCineGyroAndroid/GyroNativeJNI.swift")
+    }
+
+    private static func parameterCountsByExport(in text: String) throws -> [String: Int] {
+        let regex = try NSRegularExpression(
+            pattern:
+                #"@_cdecl\("Java_com_opencapture_opencine_gyro_GyroNative_([A-Za-z0-9_]+)"\)\s*public\s+func\s+[A-Za-z0-9_]+\("#
+        )
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        var counts: [String: Int] = [:]
+        for match in regex.matches(in: text, range: range) {
+            guard let nameRange = Range(match.range(at: 1), in: text),
+                let openParen = Range(match.range, in: text)
+            else { continue }
+            counts[String(text[nameRange])] = parameterCount(
+                in: text, startingAfter: openParen.upperBound)
+        }
+        return counts
+    }
+
+    private static func parameterCountsByKotlinMember(in text: String) throws -> [String: Int] {
+        let regex = try NSRegularExpression(
+            pattern: #"external\s+override\s+fun\s+([A-Za-z0-9_]+)\s*\("#)
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        var counts: [String: Int] = [:]
+        for match in regex.matches(in: text, range: range) {
+            guard let nameRange = Range(match.range(at: 1), in: text),
+                let openParen = Range(match.range, in: text)
+            else { continue }
+            counts[String(text[nameRange])] = parameterCount(
+                in: text, startingAfter: openParen.upperBound)
+        }
+        return counts
+    }
+
+    /// Counts top-level parameters up to the matching closing parenthesis, so line breaks and
+    /// trailing commas do not change the result.
+    private static func parameterCount(in text: String, startingAfter start: String.Index) -> Int {
+        var parameters: [String] = []
+        var current = ""
+        var depth = 0
+        var index = start
+        while index < text.endIndex {
+            let character = text[index]
+            if character == "(" {
+                depth += 1
+                current.append(character)
+            } else if character == ")" {
+                if depth == 0 { break }
+                depth -= 1
+                current.append(character)
+            } else if character == ",", depth == 0 {
+                parameters.append(current)
+                current = ""
+            } else {
+                current.append(character)
+            }
+            index = text.index(after: index)
+        }
+        parameters.append(current)
+        return parameters.filter {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }.count
     }
 
     private static func exportedNames(in text: String) throws -> [String] {

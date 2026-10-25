@@ -72,7 +72,7 @@ enum class GyroRingPhase(private val wire: String) {
 
 /** One completed transition reported by the ring calibration. */
 enum class GyroRingEvent(private val wire: String) {
-    /** One of the first two poses was captured; the reply's step names the pose. */
+    /** A pose was captured; `completedSteps` counts it and `step` is the next pose. */
     STEP_CAPTURED("stepCaptured"),
 
     /** The third pose did not verify; the ring restarted at the level step. */

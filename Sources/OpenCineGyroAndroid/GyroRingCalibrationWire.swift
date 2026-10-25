@@ -34,19 +34,17 @@ public final class GyroRingCalibrationWire: @unchecked Sendable {
         }
     }
 
-    /// Feeds one simultaneous phone and camera reading, turning level angles into physical down.
-    /// A missing level (or angles that cannot determine down) blocks the step waiting for a camera.
+    /// Feeds one simultaneous phone and camera reading; the camera level is physical down in
+    /// camera axes. A missing level (or a vector that is not finite or has zero length) blocks
+    /// the step waiting for a camera.
     public func observe(
         owner: String, phoneX: Double, phoneY: Double, phoneZ: Double,
-        phoneTimestamp: Double, hasCameraLevel: Bool, rollDegrees: Double,
-        pitchDegrees: Double, cameraTimestamp: Double
+        phoneTimestamp: Double, hasCameraLevel: Bool, cameraX: Double, cameraY: Double,
+        cameraZ: Double, cameraTimestamp: Double
     ) -> String? {
         mutate(owner: owner) { session in
-            let cameraDown: GyroVector3? =
-                hasCameraLevel
-                ? GyroCameraGravity.down(
-                    rollDegrees: rollDegrees, pitchDegrees: pitchDegrees)
-                : nil
+            let cameraDown = Self.down(
+                hasCameraLevel: hasCameraLevel, x: cameraX, y: cameraY, z: cameraZ)
             return session.observe(
                 phoneDown: GyroVector3(x: phoneX, y: phoneY, z: phoneZ),
                 phoneTimestamp: phoneTimestamp, cameraDown: cameraDown,
@@ -98,6 +96,15 @@ public final class GyroRingCalibrationWire: @unchecked Sendable {
         case 1: return true
         default: return nil
         }
+    }
+
+    private static func down(
+        hasCameraLevel: Bool, x: Double, y: Double, z: Double
+    ) -> GyroVector3? {
+        guard hasCameraLevel, x.isFinite, y.isFinite, z.isFinite else { return nil }
+        let length = hypot(hypot(x, y), z)
+        guard length.isFinite, length > 0 else { return nil }
+        return GyroVector3(x: x, y: y, z: z)
     }
 
     private static func reply(_ session: GyroRingCalibration, event: GyroRingEvent?) -> String? {

@@ -164,18 +164,19 @@
     }
 
     /// `GyroNative.ringObserve(owner, phoneX, phoneY, phoneZ, phoneTimestamp, hasCameraLevel,
-    /// rollDegrees, pitchDegrees, cameraTimestamp): String?` feeds one simultaneous reading.
+    /// cameraX, cameraY, cameraZ, cameraTimestamp): String?` feeds one simultaneous reading;
+    /// the camera level is physical down in camera axes.
     @_cdecl("Java_com_opencapture_opencine_gyro_GyroNative_ringObserve")
     public func gyroNativeRingObserve(
         _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, owner: jstring?, phoneX: jdouble,
         phoneY: jdouble, phoneZ: jdouble, phoneTimestamp: jdouble, hasCameraLevel: jboolean,
-        rollDegrees: jdouble, pitchDegrees: jdouble, cameraTimestamp: jdouble
+        cameraX: jdouble, cameraY: jdouble, cameraZ: jdouble, cameraTimestamp: jdouble
     ) -> jstring? {
         guard let owner = swiftString(env, owner),
             let reply = GyroRingCalibrationWire.shared.observe(
                 owner: owner, phoneX: phoneX, phoneY: phoneY, phoneZ: phoneZ,
                 phoneTimestamp: phoneTimestamp, hasCameraLevel: hasCameraLevel != 0,
-                rollDegrees: rollDegrees, pitchDegrees: pitchDegrees,
+                cameraX: cameraX, cameraY: cameraY, cameraZ: cameraZ,
                 cameraTimestamp: cameraTimestamp)
         else { return nil }
         return javaString(env, reply)
@@ -233,17 +234,16 @@
         return javaString(env, owner)
     }
 
-    /// `GyroNative.driftObserveCamera(owner, hasLevel, rollDegrees, pitchDegrees, timestamp)`
-    /// records the newest camera down reading.
+    /// `GyroNative.driftObserveCamera(owner, hasLevel, x, y, z, timestamp)` records the newest
+    /// camera down reading in camera axes.
     @_cdecl("Java_com_opencapture_opencine_gyro_GyroNative_driftObserveCamera")
     public func gyroNativeDriftObserveCamera(
         _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, owner: jstring?, hasLevel: jboolean,
-        rollDegrees: jdouble, pitchDegrees: jdouble, timestamp: jdouble
+        x: jdouble, y: jdouble, z: jdouble, timestamp: jdouble
     ) {
         guard let owner = swiftString(env, owner) else { return }
         GyroDriftWire.shared.observeCamera(
-            owner: owner, hasLevel: hasLevel != 0, rollDegrees: rollDegrees,
-            pitchDegrees: pitchDegrees, timestamp: timestamp)
+            owner: owner, hasLevel: hasLevel != 0, x: x, y: y, z: z, timestamp: timestamp)
     }
 
     /// `GyroNative.driftObservePhone(owner, x, y, z, timestamp, rotationRate, accelerationG):

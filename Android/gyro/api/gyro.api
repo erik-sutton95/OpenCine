@@ -276,7 +276,7 @@ public final class com/opencapture/opencine/gyro/GyroNative : com/opencapture/op
 	public fun cameraDown (DD)Ljava/lang/String;
 	public fun driftClose (Ljava/lang/String;)V
 	public fun driftCreate (Ljava/lang/String;)Ljava/lang/String;
-	public fun driftObserveCamera (Ljava/lang/String;ZDDD)V
+	public fun driftObserveCamera (Ljava/lang/String;ZDDDD)V
 	public fun driftObservePhone (Ljava/lang/String;DDDDDD)Z
 	public fun driftReset (Ljava/lang/String;)V
 	public final fun isAvailable ()Z
@@ -295,7 +295,7 @@ public final class com/opencapture/opencine/gyro/GyroNative : com/opencapture/op
 	public fun ringClose (Ljava/lang/String;)V
 	public fun ringCreate ()Ljava/lang/String;
 	public fun ringInvalidate (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
-	public fun ringObserve (Ljava/lang/String;DDDDZDDD)Ljava/lang/String;
+	public fun ringObserve (Ljava/lang/String;DDDDZDDDD)Ljava/lang/String;
 	public fun ringStart (Ljava/lang/String;ZI)Ljava/lang/String;
 	public fun ringUpdateCamera (Ljava/lang/String;ZI)Ljava/lang/String;
 }
@@ -311,7 +311,7 @@ public abstract interface class com/opencapture/opencine/gyro/GyroNativeApi {
 	public abstract fun cameraDown (DD)Ljava/lang/String;
 	public abstract fun driftClose (Ljava/lang/String;)V
 	public abstract fun driftCreate (Ljava/lang/String;)Ljava/lang/String;
-	public abstract fun driftObserveCamera (Ljava/lang/String;ZDDD)V
+	public abstract fun driftObserveCamera (Ljava/lang/String;ZDDDD)V
 	public abstract fun driftObservePhone (Ljava/lang/String;DDDDDD)Z
 	public abstract fun driftReset (Ljava/lang/String;)V
 	public abstract fun loggingClose (Ljava/lang/String;)V
@@ -328,7 +328,7 @@ public abstract interface class com/opencapture/opencine/gyro/GyroNativeApi {
 	public abstract fun ringClose (Ljava/lang/String;)V
 	public abstract fun ringCreate ()Ljava/lang/String;
 	public abstract fun ringInvalidate (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
-	public abstract fun ringObserve (Ljava/lang/String;DDDDZDDD)Ljava/lang/String;
+	public abstract fun ringObserve (Ljava/lang/String;DDDDZDDDD)Ljava/lang/String;
 	public abstract fun ringStart (Ljava/lang/String;ZI)Ljava/lang/String;
 	public abstract fun ringUpdateCamera (Ljava/lang/String;ZI)Ljava/lang/String;
 }
