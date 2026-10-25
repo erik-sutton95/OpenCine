@@ -308,8 +308,10 @@ private fun <P> MonitorOperatorCatalogGallery(
                     }
                     records.isEmpty() && value.fetching -> MediaScrollablePlaceholder { MediaListingState(value.fetchedCount) }
                     records.isEmpty() -> MediaScrollablePlaceholder {
+                        val filtered = presentation?.activeFilterCount ?: value.activeFilterCount
                         MediaEmptyState(value.fetching, value.note ?: MediaLibraryCopy.emptySubtitle(connected,
-                            value.records.isNotEmpty(), presentation?.activeFilterCount ?: value.activeFilterCount, MediaLibraryTab.valueOf(value.category.name)))
+                            value.records.isNotEmpty(), filtered, MediaLibraryTab.valueOf(value.category.name)),
+                            title = MediaLibraryCopy.emptyTitle(value.fetching, connected, value.records.isNotEmpty(), filtered))
                     }
                     list -> LazyColumn(Modifier.fillMaxSize().testTag(GALLERY_TAG).monitorScrollFade(listState), state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 24.dp)) {

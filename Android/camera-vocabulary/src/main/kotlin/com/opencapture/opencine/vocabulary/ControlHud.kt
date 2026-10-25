@@ -11,7 +11,7 @@ object ControlHud {
 
     /** Chip / pinch / color drum while rolling in D-Log2. No opcode names. */
     const val RECORDING_COLOR_LOCK_NOTE =
-        "Can't change color while recording — D-Log2 can't zoom"
+        "Can't change color while recording. D-Log2 can't zoom"
 
     /** SET / GET timeout copy. iOS `requestCamera` and `fireCamera` pass announce=false. */
     fun timeoutNote(name: String, announce: Boolean): String? =

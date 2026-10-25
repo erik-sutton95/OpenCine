@@ -214,7 +214,7 @@ class GimbalProgramTest {
         val out = engine.tick(0.08, b)!!
         assertTrue(out.stop)
         assertEquals(null, out.target)
-        assertEquals("Move interrupted — waypoint dispatch was late", engine.failure)
+        assertEquals("Move interrupted: waypoint dispatch was late", engine.failure)
     }
 
     @Test
@@ -246,7 +246,7 @@ class GimbalProgramTest {
             assertTrue(engine.start(GimbalProgram(a = nativeA, b = nativeB), nativeA))
             val out = engine.tick(0.04, nativeA.copy(nativePitchDeg = invalid))!!
             assertTrue(out.stop && out.finished)
-            assertEquals("Move interrupted — timing or camera feedback lost", engine.failure)
+            assertEquals("Move interrupted: timing or camera feedback lost", engine.failure)
         }
     }
 

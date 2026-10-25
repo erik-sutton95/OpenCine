@@ -10,6 +10,11 @@ import Foundation
 /// `SessionRecoveryPolicy.automaticRecoveryBudgetSeconds` and hands the decision to the operator,
 /// and drops that cluster across episodes pause automatic recovery (`SessionDropStormGuard`).
 ///
+/// While the host app is in the background the OS may block its camera network, so an attempt
+/// there fails at once without reaching the camera. The host reports that with `pause()` and
+/// `resume()`: while paused no attempt dials, an attempt that failed during a pause does not
+/// count, and the total budget's clock stops. The held episode continues when the host resumes.
+///
 /// Transport, credentials, decoders and presentation stay with the host behind `Port`. Each
 /// attempt has an identity: a host action that runs on a retired or replaced attempt, or after it
 /// lost the connection, cannot publish, clean up or connect for its successor.
@@ -179,6 +184,9 @@ public final class SessionRecoveryEpisode {
         fileprivate var task: Task<Void, Never>?
         fileprivate var graceTask: Task<Void, Never>?
         fileprivate var budgetTask: Task<Void, Never>?
+        fileprivate var budgetLeft: Duration = .seconds(
+            SessionRecoveryPolicy.automaticRecoveryBudgetSeconds)
+        fileprivate var budgetSegmentStart: ContinuousClock.Instant?
 
         fileprivate init(
             owner: SessionRecoveryEpisode, runID: UUID?, targetID: String,
@@ -236,7 +244,12 @@ public final class SessionRecoveryEpisode {
     private var current: Attempt?
     private var generation: UInt64 = 0
     private var storm = SessionDropStormGuard()
+    private var hostActive = true
+    private var pauseEpoch: UInt64 = 0
+    private var resumeWaiters: [UUID: CheckedContinuation<Void, Error>] = [:]
     public private(set) var snapshot = Snapshot()
+    /// The host reported that it cannot reach the camera now (`pause()`).
+    public var isPaused: Bool { !hostActive }
     public var currentEpisodeID: UUID? { current?.id }
     public var isRunning: Bool { current?.task != nil }
 
@@ -293,9 +306,11 @@ public final class SessionRecoveryEpisode {
                     try self.publish(next, attempt: attempt)
                 } catch {}
             }
-            attempt.budgetTask = Task { [weak self, attempt] in
-                guard let self else { return }
-                await self.waitForBudget(attempt)
+            if hostActive {
+                attempt.budgetTask = Task { [weak self, attempt] in
+                    guard let self else { return }
+                    await self.waitForBudget(attempt)
+                }
             }
             attempt.task = Task { [weak self, attempt] in
                 guard let self else { return }
@@ -324,6 +339,38 @@ public final class SessionRecoveryEpisode {
             targetID: clearHold ? nil : snapshot.targetID,
             holdsPicture: clearHold ? false : snapshot.holdsPicture)
         changed(snapshot, nil)
+    }
+
+    /// The host went to the background or the OS blocks its camera network. Attempts wait, one
+    /// that fails while paused is not counted, and the budget's clock stops until `resume()`.
+    /// Lasts across episodes: an episode admitted while paused waits for `resume()` to dial.
+    public func pause() {
+        guard hostActive else { return }
+        hostActive = false
+        pauseEpoch &+= 1
+        guard let attempt = current, let budget = attempt.budgetTask else { return }
+        attempt.budgetTask = nil
+        budget.cancel()
+        if let started = attempt.budgetSegmentStart {
+            let left = attempt.budgetLeft - (timing.monotonicNow() - started)
+            attempt.budgetLeft = max(.zero, left)
+        }
+        attempt.budgetSegmentStart = nil
+    }
+
+    /// The host can reach the camera again: a paused episode dials and its budget clock runs.
+    public func resume() {
+        guard !hostActive else { return }
+        hostActive = true
+        let waiters = resumeWaiters.values
+        resumeWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+        // A finished run (operator decision, storm pause) has no budget left to spend.
+        guard let attempt = current, attempt.task != nil, attempt.budgetTask == nil else { return }
+        attempt.budgetTask = Task { [weak self, attempt] in
+            guard let self else { return }
+            await self.waitForBudget(attempt)
+        }
     }
 
     /// Operator action: a fresh drop ledger. Never called on reconnect success.
@@ -402,7 +449,8 @@ public final class SessionRecoveryEpisode {
         // joining that task first would let it extend the operator's total recovery budget.
         do {
             try checkContinuation(attempt)
-            try await timing.sleep(.seconds(SessionRecoveryPolicy.automaticRecoveryBudgetSeconds))
+            attempt.budgetSegmentStart = timing.monotonicNow()
+            try await timing.sleep(attempt.budgetLeft)
             try checkContinuation(attempt)
             let attempts: Int
             if case .retrying(let number, _) = snapshot.state {
@@ -431,6 +479,7 @@ public final class SessionRecoveryEpisode {
                 next.state = policy.state(afterFailedAttempts: failures)
                 try publish(next, attempt: attempt)
                 guard case .retrying = next.state else { return }
+                try await waitWhilePaused(attempt)
                 if attempt.trigger != .operatorRetry,
                     let holder = await port.holder(attempt, failures + 1)
                 {
@@ -443,6 +492,9 @@ public final class SessionRecoveryEpisode {
                     return
                 }
                 try checkContinuation(attempt)
+                // The host may have paused while the holder was asked.
+                try await waitWhilePaused(attempt)
+                let epoch = pauseEpoch
                 let outcome = try await runOneAttempt(attempt)
                 try checkContinuation(attempt)
                 switch outcome {
@@ -466,6 +518,14 @@ public final class SessionRecoveryEpisode {
                 case .failed:
                     break
                 }
+                if pauseEpoch != epoch || !hostActive {
+                    // The OS, not the camera, refused this attempt: retire it without counting.
+                    try cleanup(.failedAttempt, attempt: attempt)
+                    next = snapshot
+                    next.reconnecting = false
+                    try publish(next, attempt: attempt)
+                    continue
+                }
                 failures += 1
                 try cleanup(.failedAttempt, attempt: attempt)
                 let jitter = timing.jitter()
@@ -486,6 +546,40 @@ public final class SessionRecoveryEpisode {
     }
 
     private enum Outcome { case recovered, failed, superseded }
+
+    /// Holds a paused run until `resume()`, or ends it when its task is already cancelled.
+    private func park(_ id: UUID, _ continuation: CheckedContinuation<Void, Error>) {
+        if Task.isCancelled {
+            continuation.resume(throwing: CancellationError())
+        } else if hostActive {
+            continuation.resume()
+        } else {
+            resumeWaiters[id] = continuation
+        }
+    }
+
+    private func unpark(_ id: UUID) {
+        resumeWaiters.removeValue(forKey: id)?.resume(throwing: CancellationError())
+    }
+
+    private func waitWhilePaused(_ attempt: Attempt) async throws {
+        guard !hostActive else { return }
+        var next = snapshot
+        next.reconnecting = false
+        try publish(next, attempt: attempt)
+        while !hostActive {
+            let id = UUID()
+            try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation {
+                    (continuation: CheckedContinuation<Void, Error>) in
+                    self.park(id, continuation)
+                }
+            } onCancel: {
+                Task { @MainActor in self.unpark(id) }
+            }
+            try checkContinuation(attempt)
+        }
+    }
 
     private func runOneAttempt(_ attempt: Attempt) async throws -> Outcome {
         try checkContinuation(attempt)

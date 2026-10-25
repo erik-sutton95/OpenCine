@@ -278,6 +278,28 @@ class SwiftCoreCameraSessionTest {
     }
 
     @Test
+    fun `the dial's body wake reaches the progress as a waiting step, then the handshake`() = runTest {
+        val bridge = FakeBridge()
+        val session = SwiftCoreCameraSession("192.168.1.1", { _, _ -> }, bridge)
+
+        val connecting = async { session.connect() }
+        runCurrent()
+        val listener = bridge.listeners.single()
+
+        listener.onPhase("discovering", NikonBodyWake.wakingMessage(""))
+        assertEquals(
+            CameraConnectionProgress(CameraConnectionPhase.DISCOVERING, NikonBodyWake.wakingMessage("")),
+            session.connectionProgress.value,
+        )
+        listener.onPhase("handshaking", "")
+        assertEquals(CameraConnectionProgress(CameraConnectionPhase.HANDSHAKING), session.connectionProgress.value)
+
+        listener.onFailed(CameraConnectionFailure.CAMERA_SILENT.wireCode, NikonBodyWake.silentMessage(""))
+        connecting.await()
+        assertEquals(CameraConnectionFailure.CAMERA_SILENT, session.connectionProgress.value.failure)
+    }
+
+    @Test
     fun `a typed Swift failure reaches the connection progress beside its message`() = runTest {
         val bridge = FakeBridge()
         val session = SwiftCoreCameraSession("192.168.1.1", { _, _ -> }, bridge)

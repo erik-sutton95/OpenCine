@@ -27,7 +27,7 @@ object LutCatalog {
     const val AUTO = "auto"
     const val OFF = "off"
     const val OFFICIAL_AUTO = "djiAuto"
-    const val PHOTO_REC709_CAPTION = "Photo live view is Rec.709 \u2014 log conversions are off"
+    const val PHOTO_REC709_CAPTION = "Photo live view is Rec.709. Log conversions are off"
 
     private const val CUSTOM_PREFIX = "custom:"
     private const val ASSET_PREFIX = "asset:"

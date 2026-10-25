@@ -67,10 +67,16 @@ final class NativeCancelUITests: XCTestCase {
                 add(attachment)
             }
             if app.state == .runningForeground {
-                let screenshot = XCTAttachment(screenshot: app.screenshot())
-                screenshot.name = "SIMULATED final native stage before test teardown"
-                screenshot.lifetime = .keepAlways
-                add(screenshot)
+                // A screenshot is failure evidence only. On hosted runners the app screenshot request
+                // after a qualified dismissal never returned (nightlies 40143225461 and 40149233094:
+                // 168 s and 175 s, then "Timed out while requesting screenshot" failed the case). A
+                // qualified case is proven by the app receipt and the accessibility tree below.
+                if !qualified {
+                    let screenshot = XCTAttachment(screenshot: app.screenshot())
+                    screenshot.name = "SIMULATED final native stage before test teardown"
+                    screenshot.lifetime = .keepAlways
+                    add(screenshot)
+                }
                 let tree = XCTAttachment(string: app.debugDescription)
                 tree.name = "SIMULATED external native accessibility tree"
                 tree.lifetime = .keepAlways

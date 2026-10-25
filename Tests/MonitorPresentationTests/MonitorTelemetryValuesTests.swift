@@ -68,4 +68,18 @@ struct MonitorTelemetryValuesTests {
         #expect(MonitorTelemetryValues.linkValue(fps: "-1e100", signalBars: 3, showsRate: true) == "-1e100")
         #expect(MonitorTelemetryValues.linkValue(fps: "1e100", signalBars: 3, showsRate: false) == nil)
     }
+
+    /// Hardware pass 7.2a: a held frame was read as "3 of 4 delivery bars, feed NO LINK".
+    @Test func aHeldOrFailedFeedNamesNoDeliveryBars() {
+        #expect(MonitorTelemetryValues.linkSpokenLabel(fps: "NO LINK", signalBars: 3) == "Live link down, feed NO LINK")
+        #expect(MonitorTelemetryValues.linkSpokenLabel(fps: "FAIL", signalBars: 3) == "Live link down, feed FAIL")
+        #expect(MonitorTelemetryValues.linkSpokenLabel(fps: "RECOV", signalBars: 3)
+            == "Live link 3 of 4 delivery bars, feed RECOV")
+        #expect(MonitorTelemetryValues.linkSpokenLabel(fps: "25.00", signalBars: 3)
+            == "Live link 3 of 4 delivery bars, feed 25.00 frames per second")
+        #expect(MonitorTelemetryValues.linkSpokenLabel(fps: "\u{2014}", signalBars: 0)
+            == "Live link 0 of 4 delivery bars, feed unavailable")
+        #expect(MonitorTelemetryValues.linkSpokenLabel(fps: nil, signalBars: nil)
+            == "Live link unavailable, feed unavailable")
+    }
 }

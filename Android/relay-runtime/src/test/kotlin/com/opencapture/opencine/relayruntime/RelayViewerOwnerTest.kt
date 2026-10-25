@@ -205,7 +205,7 @@ class RelayViewerOwnerTest {
         assertEquals(RelayViewerPhase.WATCHING, rig.owner.status.value.phase)
         advanceTimeBy(1); runCurrent()
         assertEquals(RelayViewerPhase.FAILED, rig.owner.status.value.phase)
-        assertEquals("The stream stalled \u2014 reconnecting.", rig.owner.status.value.failureReason)
+        assertEquals("The stream stalled. Reconnecting.", rig.owner.status.value.failureReason)
         advanceTimeBy(2_999); runCurrent()
         assertEquals(1, rig.clients.size)
         advanceTimeBy(1); runCurrent()

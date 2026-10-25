@@ -108,7 +108,7 @@ fun nativeProgramZoomFailure(program: GimbalProgram, model: CameraModel, status:
 /** Angular reports cannot refresh the lens report's independent 2.5 Hz evidence. */
 internal fun nativeProgramZoomFeedbackFailure(receivedAt: Double?, now: Double): String? =
     if (receivedAt != null && now.isFinite() && now >= receivedAt && now - receivedAt <= 0.85) null
-    else "Move interrupted — camera zoom feedback lost"
+    else "Move interrupted: camera zoom feedback lost"
 
 /** Existing subscribe/status frames are consumed before the main-thread status callback. */
 internal fun nativeProgramZoomStatus(frame: DumlFrame, status: CameraStatus, model: CameraModel): CameraStatus {
@@ -180,7 +180,7 @@ class NativeGimbalProgramRunner internal constructor(
                     stop()
                     releaseRequest(token)
                     publish(Progress(token, program, sample?.pose, null,
-                        "Move interrupted — timing or camera feedback lost", true, epoch = epoch))
+                        "Move interrupted: timing or camera feedback lost", true, epoch = epoch))
                     return@schedule
                 }
                 val engine = GimbalMoveEngine()
@@ -242,7 +242,7 @@ class NativeGimbalProgramRunner internal constructor(
             if (run != null) active = null
             val live = feedback()?.pose
             interrupted.publish(Progress(interrupted.token, interrupted.program, live,
-                live?.let { run?.engine?.readout(it) }, "Move interrupted — camera connection changed", true, epoch = callbackEpoch.get()))
+                live?.let { run?.engine?.readout(it) }, "Move interrupted: camera connection changed", true, epoch = callbackEpoch.get()))
         }
     }
 
@@ -270,7 +270,7 @@ class NativeGimbalProgramRunner internal constructor(
                 stop()
                 run?.let(::stopOwnedZoom)
                 saved.publish(Progress(token, saved.program, sample?.pose, null,
-                    "Move interrupted — camera feedback lost", true, epoch = epoch))
+                    "Move interrupted: camera feedback lost", true, epoch = epoch))
                 releaseRequest(token)
                 active = null
                 return@schedule
@@ -343,7 +343,7 @@ class NativeGimbalProgramRunner internal constructor(
             val current = now()
             val sample = feedback()
             if (sample == null) {
-                fail(run, null, "Move interrupted — camera feedback lost")
+                fail(run, null, "Move interrupted: camera feedback lost")
                 return@schedule
             }
             zoomFailure(run.program)?.let { fail(run, sample.pose, it); return@schedule }
@@ -355,7 +355,7 @@ class NativeGimbalProgramRunner internal constructor(
             val out = run.engine.tick(current - run.lastTick, sample.pose, current - sample.receivedAt)
             run.lastTick = current
             if (out == null) {
-                fail(run, sample.pose, "Move interrupted — timing or camera feedback lost")
+                fail(run, sample.pose, "Move interrupted: timing or camera feedback lost")
                 return@schedule
             }
             if (generation.get() != run.token || callbackEpoch.get() != epoch) return@schedule
@@ -398,7 +398,7 @@ class NativeGimbalProgramRunner internal constructor(
         if (run.lastZoomLens == lens) return true
         if (generation.get() != run.token || callbackEpoch.get() != epoch) return false
         if (!sendZoom(lens, run.program)) {
-            fail(run, feedback()?.pose, zoomFailure(run.program) ?: "Move interrupted — zoom command failed")
+            fail(run, feedback()?.pose, zoomFailure(run.program) ?: "Move interrupted: zoom command failed")
             return false
         }
         run.lastZoomLens = lens
@@ -419,7 +419,7 @@ class NativeGimbalProgramRunner internal constructor(
                 val verified = sample != null && sample.zoomReceivedAt?.let { it > sentAt } == true &&
                     abs(sample.pose.zoom - expected) <= 2.0 / 217.0 + 1e-9
                 if (!verified) {
-                    fail(run, sample?.pose, "Move interrupted — camera did not reach the starting zoom")
+                    fail(run, sample?.pose, "Move interrupted: camera did not reach the starting zoom")
                     return false
                 }
             }
@@ -459,7 +459,7 @@ class NativeGimbalProgramRunner internal constructor(
         }
         if (generation.get() != run.token || callbackEpoch.get() != epoch) return false
         if (!sendNativeZoom(command, run.program)) {
-            fail(run, feedback()?.pose, zoomFailure(run.program) ?: "Move interrupted — zoom command failed")
+            fail(run, feedback()?.pose, zoomFailure(run.program) ?: "Move interrupted: zoom command failed")
             return false
         }
         run.lastNativeZoom = command

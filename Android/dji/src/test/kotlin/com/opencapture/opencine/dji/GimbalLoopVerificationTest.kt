@@ -181,7 +181,7 @@ class GimbalLoopVerificationTest {
         assertFalse(late.engine.running)
         assertTrue(late.stoppedAt <= boundary + 0.411)
         val stale = run(lastReceipt = boundary + 0.06)
-        assertEquals("Move interrupted — timing or camera feedback lost", stale.engine.failure)
+        assertEquals("Move interrupted: timing or camera feedback lost", stale.engine.failure)
         assertFalse(stale.engine.running)
         assertTrue(stale.stoppedAt <= boundary + 0.411)
         assertEquals(2, stale.commands.size)

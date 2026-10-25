@@ -260,14 +260,14 @@ public class ManualProblemReport(
             }
             if (!appInForeground) {
                 cancelUploadLocked()
-                meta.detail = "Waiting to send \u2014 keep the app open after leaving camera Wi-Fi"
+                meta.detail = "Waiting to send. Keep the app open after leaving camera Wi-Fi"
                 writeMeta(meta)
                 publishLocked()
                 return
             }
             if (gate.shouldBlockUpload) {
                 cancelUploadLocked()
-                meta.detail = "Waiting to send \u2014 keep the app open after leaving camera Wi-Fi"
+                meta.detail = "Waiting to send. Keep the app open after leaving camera Wi-Fi"
                 writeMeta(meta)
                 publishLocked()
                 return
@@ -429,7 +429,7 @@ public class ManualProblemReport(
                 code == 429 || code == 408 -> {
                     meta.status = "waiting"
                     meta.nextAttemptAtMs = nowMs() + retryDelayMs(retryAfter, meta.attempts)
-                    meta.detail = "Waiting for a connection \u2014 your report is saved on this phone"
+                    meta.detail = "Waiting for a connection. Your report is saved on this phone"
                 }
                 code in 400..499 -> {
                     meta.status = "failed"
@@ -439,7 +439,7 @@ public class ManualProblemReport(
                 else -> {
                     meta.status = "waiting"
                     meta.nextAttemptAtMs = nowMs() + retryDelayMs(retryAfter, meta.attempts)
-                    meta.detail = "Waiting for a connection \u2014 your report is saved on this phone"
+                    meta.detail = "Waiting for a connection. Your report is saved on this phone"
                 }
             }
             writeMeta(meta)

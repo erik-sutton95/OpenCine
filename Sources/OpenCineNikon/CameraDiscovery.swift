@@ -143,9 +143,24 @@ public enum CameraDiscovery {
         isPrivateIPv4(address)
     }
 
-    /// Returns whether the interface should be used for subnet scanning.
+    /// Interface name prefixes that never carry a camera: cellular data (iOS `pdp_ip`, Android
+    /// `rmnet`, `ccmni`, `wwan` and the `v4-`/`clat` 464XLAT shims), VPN and tunnel links, and
+    /// Apple's peer-to-peer and companion links. Carriers hand out private 10/8 addresses on
+    /// cellular, so a private address alone let the scan sweep, and the pairing sheet name, the
+    /// phone's cellular /24 (hardware pass 2026-10-25: "Searching 10.233.24.x" on a phone whose
+    /// Wi-Fi was 192.168.1.x). Kotlin twin: `NikonHosts.isScanInterface`.
+    public static let nonCameraInterfacePrefixes: [String] = [
+        "pdp_ip", "rmnet", "ccmni", "wwan", "v4-", "clat", "utun", "tun", "ipsec", "ppp", "llw",
+        "awdl", "anpi",
+    ]
+
+    /// Returns whether the interface should be used for subnet scanning: a private address on an
+    /// interface that can reach a camera. An empty name (an address without its interface, such
+    /// as a resolved Bonjour host) is judged by the address alone.
     public static func isSupportedScanInterface(name: String, address: String) -> Bool {
-        isDefaultScanIPv4(address)
+        guard isDefaultScanIPv4(address) else { return false }
+        let lowered = name.trimmingCharacters(in: .whitespaces).lowercased()
+        return !nonCameraInterfacePrefixes.contains { lowered.hasPrefix($0) }
     }
 
     /// Extracts the /24 subnet base from an IPv4 address.

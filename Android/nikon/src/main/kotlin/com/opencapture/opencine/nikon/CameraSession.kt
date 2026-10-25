@@ -113,6 +113,12 @@ public enum class CameraConnectionFailure(internal val wireCode: Int) {
 
     /** The network or the PTP-IP exchange failed below the camera's own answers. */
     UNREACHABLE(8),
+
+    /**
+     * The wake asked the network and the body never answered: asleep or not on this network. The
+     * copy is [NikonBodyWake.silentMessage] with the app's camera name, as on iOS.
+     */
+    CAMERA_SILENT(9),
     ;
 
     /**

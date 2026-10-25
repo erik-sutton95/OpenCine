@@ -14,7 +14,7 @@ class CameraConnectionFailureTest {
             listOf(
                 "OTHER=0", "REJECTED_INITIATOR=1", "BUSY=2", "CONNECTION_CLOSED=3", "TIMEOUT=4",
                 "PAIRING_CHALLENGE_UNAVAILABLE=5", "SAVED_PROFILE_REQUIRED=6", "NON_NUMERIC_HOST=7",
-                "UNREACHABLE=8",
+                "UNREACHABLE=8", "CAMERA_SILENT=9",
             ),
             CameraConnectionFailure.entries.map { "$it=${it.wireCode}" },
         )

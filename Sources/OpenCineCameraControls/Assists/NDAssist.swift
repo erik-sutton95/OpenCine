@@ -21,7 +21,7 @@
         public static let notationHelp =
             "Stops vs middle gray, filter factor (ND16 / ND32 / ND64), or optical density (ND 0.3 = 1 stop)."
         public static let helpCopy =
-            "Meters the live picture against middle gray and suggests a screw-on ND \u{2014} stops and ND number \u{2014} to balance it. The app cannot set a filter."
+            "Meters the live picture against middle gray and suggests a screw-on ND (stops and ND number) to balance it. The app cannot set a filter."
         public static var notationOptions: [String] {
             MonitorNDFilterNotation.allCases.map(\.editorLabel)
         }

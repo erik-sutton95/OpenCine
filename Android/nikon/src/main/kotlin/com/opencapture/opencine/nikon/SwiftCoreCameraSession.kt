@@ -1895,6 +1895,8 @@ class SwiftCoreCameraSession internal constructor(
     private fun publishNativeConnectionPhase(phase: String, detail: String) {
         val mapped =
             when (phase) {
+                // The dial's body wake (`NikonBodyWake`): waiting for a dozing body to answer.
+                "discovering" -> CameraConnectionPhase.DISCOVERING
                 "handshaking" -> CameraConnectionPhase.HANDSHAKING
                 "pairing" -> CameraConnectionPhase.PAIRING
                 "confirmOnCamera" -> CameraConnectionPhase.CONFIRM_ON_CAMERA

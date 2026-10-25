@@ -10,7 +10,7 @@ open class MotionUIFlowTests: SharedAppUITestCase {
     open var zoomProgramUnavailableReason: String { "Zoom moves are unavailable in D-Log2" }
     /// The note a zoom-chip tap raises while recording in D-Log2, or `nil` when the app's
     /// camera zooms while recording without a color change.
-    open var recordingZoomLockNote: String? { "Can't change color while recording \u{2014} D-Log2 can't zoom" }
+    open var recordingZoomLockNote: String? { "Can't change color while recording. D-Log2 can't zoom" }
 
     /// Motion programs drive a gimbal: an app whose camera has none records a capability skip.
     override open func setUpWithError() throws {

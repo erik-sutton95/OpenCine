@@ -118,6 +118,8 @@ case NikonBodyCaptureSync.reviewAndShots
 case NikonBodyCaptureSync.shotsOnly
 case NikonBodyWake.Outcome.answered(Swift.Int)
 case NikonBodyWake.Outcome.silent(Swift.Int)
+case NikonBodyWake.Progress.answered
+case NikonBodyWake.Progress.waiting
 case NikonBootstrapObservation.apertures([Swift.String])
 case NikonBootstrapObservation.descriptor(PTPPropertyCode, NikonDescriptorObservation)
 case NikonBootstrapObservation.descriptorsReady
@@ -630,6 +632,7 @@ enum NikonAppleNetworkInterfaces
 enum NikonBodyCaptureSync: Equatable, Hashable, Sendable
 enum NikonBodyWake
 enum NikonBodyWake.Outcome: Equatable, Sendable
+enum NikonBodyWake.Progress: Equatable, Hashable, Sendable
 enum NikonBootstrapObservation: Sendable
 enum NikonCameraBatteryGauge.Urgency: Equatable, Hashable, Sendable
 enum NikonCameraBatteryGauge: Equatable, Sendable
@@ -1679,7 +1682,7 @@ static func ConnectAttemptDiagnostic.line(event: Swift.String, cameraName: Swift
 static func ConnectAttemptDiagnostic.pairingDecision(policy: ZCameraOperationPolicy, isUSB: Swift.Bool, requestPairing: Swift.Bool) -> Swift.String
 static func ConnectAttemptDiagnostic.sanitizedSummary(_: Swift.String) -> Swift.String?
 static func ConnectionProgressCopy.resolveDisplayName(rawName: Swift.String, savedCamera: PTPIPSavedCameraRecord?) -> Swift.String
-static func ConnectionProgressCopy.resolvePhase(isProgressPresented: Swift.Bool, explicitPhase: CameraConnectionPhase, isEstablishingConnection: Swift.Bool, isPairing: Swift.Bool, isPreparingLiveView: Swift.Bool, isConnected: Swift.Bool, showsFailure: Swift.Bool) -> CameraConnectionPhase
+static func ConnectionProgressCopy.resolvePhase(isProgressPresented: Swift.Bool, explicitPhase: CameraConnectionPhase, isEstablishingConnection: Swift.Bool, isPairing: Swift.Bool, isPreparingLiveView: Swift.Bool, isConnected: Swift.Bool, showsFailure: Swift.Bool, isAwaitingBody: Swift.Bool) -> CameraConnectionPhase
 static func ConnectionProgressCopy.statusDetail(phase: CameraConnectionPhase, deviceName: Swift.String, friendlyError: Swift.String?, path: CameraPath.Kind?) -> Swift.String
 static func ConnectionProgressCopy.statusTitle(phase: CameraConnectionPhase, isUSB: Swift.Bool) -> Swift.String
 static func DeviceUSBConnector.connector(forModel: Swift.String) -> DeviceUSBConnector
@@ -1733,7 +1736,7 @@ static func MonitorTextFormat.resolutionLabel(fromProperty: Swift.String?, frame
 static func MonitorTextFormat.resolutionLabel(pixelWidth: Swift.Int, pixelHeight: Swift.Int, frameRate: Swift.Double) -> Swift.String
 static func MonitorTextFormat.shotsRemainingAccessibilityLabel(_: Swift.Int) -> Swift.String
 static func MonitorTextFormat.shotsRemainingCompactLabel(_: Swift.Int) -> Swift.String
-static func NativeCameraSession.establish(host: Swift.String, guid: Foundation.Data, friendlyName: Swift.String, requestPairing: Swift.Bool, onPairingChallenge: NativePairingChallengeHandler?, onEstablishmentDiagnostic: ((Swift.String) -> Swift.Void)?, onLiveViewObject: (Foundation.Data) -> Swift.Void) throws -> NativeCameraSession
+static func NativeCameraSession.establish(host: Swift.String, guid: Foundation.Data, friendlyName: Swift.String, requestPairing: Swift.Bool, onPairingChallenge: NativePairingChallengeHandler?, onEstablishmentDiagnostic: ((Swift.String) -> Swift.Void)?, onWakeProgress: ((NikonBodyWake.Progress) -> Swift.Void)?, onLiveViewObject: (Foundation.Data) -> Swift.Void) throws -> NativeCameraSession
 static func NativeCameraSession.establish(transport: any CameraTransport, host: Swift.String, cameraName: Swift.String?, requestPairing: Swift.Bool, onPairingChallenge: NativePairingChallengeHandler?, onEstablishmentDiagnostic: ((Swift.String) -> Swift.Void)?, onLiveViewObject: (Foundation.Data) -> Swift.Void) throws -> NativeCameraSession
 static func NativeCameraSession.isBusyEstablishFailure(_: any Swift.Error) -> Swift.Bool
 static func NativeCameraSession.isRetryableEstablishFailure(_: any Swift.Error, requestPairing: Swift.Bool) -> Swift.Bool
@@ -1744,9 +1747,12 @@ static func NikonAppleNetworkInterfaces.hotspotSubnetBases() -> [Swift.String]
 static func NikonAppleNetworkInterfaces.isPersonalHotspotActive() -> Swift.Bool
 static func NikonAppleNetworkInterfaces.isWiFiRadioOn() -> Swift.Bool
 static func NikonAppleNetworkInterfaces.snapshot() -> [NikonLocalInterface]
-static func NikonBodyWake.awaitAnswer(host: Swift.String, dials: Swift.Int, interval: Swift.Duration, isAlive: (Swift.String) async -> Swift.Bool, sleep: (Swift.Duration) async throws -> Swift.Void) -> NikonBodyWake.Outcome
-static func NikonBodyWake.dial(host: Swift.String, deviceName: Swift.String, isAlive: (Swift.String) async -> Swift.Bool, onWake: (() async -> Swift.Void)?, sleep: (Swift.Duration) async throws -> Swift.Void, dial: () async throws -> Value)<Value> throws -> Value
-static func NikonBodyWake.dialBlocking(host: Swift.String, deviceName: Swift.String, dials: Swift.Int, interval: Foundation.TimeInterval, isAlive: (Swift.String) -> Swift.Bool, onWake: () -> Swift.Void, dial: () throws -> Value)<Value> throws -> Value
+static func NikonBodyWake.awaitAnswer(host: Swift.String, dials: Swift.Int, interval: Swift.Duration, slot: Swift.Duration, isAlive: (Swift.String) async -> Swift.Bool, now: () -> Swift.Duration, sleep: (Swift.Duration) async throws -> Swift.Void) -> NikonBodyWake.Outcome
+static func NikonBodyWake.blockingNow() -> Foundation.TimeInterval
+static func NikonBodyWake.blockingSleep(_: Foundation.TimeInterval) -> ()
+static func NikonBodyWake.dial(host: Swift.String, deviceName: Swift.String, isAlive: (Swift.String) async -> Swift.Bool, onWake: (() async -> Swift.Void)?, now: () -> Swift.Duration, sleep: (Swift.Duration) async throws -> Swift.Void, dial: () async throws -> Value)<Value> throws -> Value
+static func NikonBodyWake.dialBlocking(host: Swift.String, deviceName: Swift.String, dials: Swift.Int, interval: Foundation.TimeInterval, slot: Foundation.TimeInterval, isAlive: (Swift.String) -> Swift.Bool, onWake: () -> Swift.Void, now: () -> Foundation.TimeInterval, sleep: (Foundation.TimeInterval) -> Swift.Void, dial: () throws -> Value)<Value> throws -> Value
+static func NikonBodyWake.monotonicNow() -> Swift.Duration
 static func NikonBodyWake.silentMessage(deviceName: Swift.String) -> Swift.String
 static func NikonBodyWake.wakingMessage(deviceName: Swift.String) -> Swift.String
 static func NikonCameraBatteryGauge.gauge(rawBatteryLevel: Swift.Int) -> NikonCameraBatteryGauge
@@ -1910,7 +1916,7 @@ static func PTPIPSavedCameraRecords.updatingStreamSettings(host: Swift.String, p
 static func PTPIPSavedCameraRecords.updatingWiFiSSID(host: Swift.String, wifiSSID: Swift.String?, in: [PTPIPSavedCameraRecord]) -> [PTPIPSavedCameraRecord]
 static func PTPIPSavedCameraRecords.upserting(host: Swift.String, displayName: Swift.String, transport: Swift.String, lastSeenAt: Foundation.Date?, pairedViaCameraAccessPoint: Swift.Bool?, serialNumber: Swift.String?, path: CameraPath?, into: [PTPIPSavedCameraRecord]) -> [PTPIPSavedCameraRecord]
 static func PTPIPSavedProfileProbePolicy.resolve(applicationModeResponse: PTPResponseCode) -> PTPIPSavedProfileProbeResult
-static func PTPIPTransport.connect(host: Swift.String, guid: Foundation.Data, friendlyName: Swift.String) throws -> PTPIPTransport
+static func PTPIPTransport.connect(host: Swift.String, guid: Foundation.Data, friendlyName: Swift.String, onWakeProgress: ((NikonBodyWake.Progress) -> Swift.Void)?) throws -> PTPIPTransport
 static func PTPIPTransport.probeCameraName(host: Swift.String, guid: Foundation.Data, friendlyName: Swift.String, timeoutMilliseconds: Swift.UInt64) throws -> Swift.String?
 static func PTPIPTransport.probePort(host: Swift.String, timeoutMilliseconds: Swift.UInt64) -> HostProbeVerdict
 static func PTPIPTransport.scanPorts(hosts: [Swift.String], width: Swift.Int, timeoutMilliseconds: Swift.UInt64) -> [Swift.String : HostProbeVerdict]
@@ -1991,6 +1997,7 @@ static let CameraAnnouncedPropertyQueue.announcedPollStride: Swift.Int
 static let CameraAnnouncedPropertyQueue.batchLimit: Swift.Int
 static let CameraAnnouncedPropertyQueue.idlePollStride: Swift.Int
 static let CameraClockSync.driftToleranceSeconds: Swift.Int
+static let CameraDiscovery.nonCameraInterfacePrefixes: [Swift.String]
 static let CameraDiscovery.pendingAccessPointHostPrefix: Swift.String
 static let CameraDisplayState.blank: CameraDisplayState
 static let CameraDisplayState.preview: CameraDisplayState
@@ -2043,6 +2050,7 @@ static let MediaObjectFormats.video: [Swift.UInt32]
 static let NikonBodyCaptureFilter.bodyRunDebounceMilliseconds: Swift.Int64
 static let NikonBodyWake.dials: Swift.Int
 static let NikonBodyWake.interval: Swift.Duration
+static let NikonBodyWake.slot: Swift.Duration
 static let NikonCameraBatteryGauge.barCount: Swift.Int
 static let NikonCameraSession.captureProfile: OpenCineCameraVocabulary.CameraCaptureProfile
 static let NikonCameraSession.integration: OpenCineCore.IntegrationID
@@ -2315,6 +2323,7 @@ var NativeCameraSession.serialNumber: Swift.String
 var NativeCameraSession.transportKind: CameraTransportKind
 var NativeCameraSessionError.errorDescription: Swift.String?
 var NikonBodyWake.Outcome.answered: Swift.Bool
+var NikonBodyWake.Progress.phase: CameraConnectionPhase
 var NikonBodyWake.SilentError.errorDescription: Swift.String?
 var NikonCameraBatteryGauge.batteryReading: OpenCineCore.BatteryReading?
 var NikonCameraBatteryGauge.exhaustion: Swift.Bool?

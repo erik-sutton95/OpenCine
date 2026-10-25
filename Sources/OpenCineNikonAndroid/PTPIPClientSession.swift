@@ -934,7 +934,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
             port: port,
             guid: guid,
             friendlyName: friendlyName,
-            timeoutMilliseconds: timeoutMilliseconds
+            timeoutMilliseconds: timeoutMilliseconds,
+            onPhase: onPhase
         )
         session.connectTraceSink = onConnectTrace
         do {
@@ -1027,7 +1028,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
             port: port,
             guid: guid,
             friendlyName: friendlyName,
-            timeoutMilliseconds: timeoutMilliseconds
+            timeoutMilliseconds: timeoutMilliseconds,
+            onPhase: onPhase
         )
         session.connectTraceSink = onConnectTrace
         do {
@@ -1169,13 +1171,22 @@ public final class PTPIPClientSession: @unchecked Sendable {
         port: UInt16,
         guid: Data,
         friendlyName: String,
-        timeoutMilliseconds: Int32
+        timeoutMilliseconds: Int32,
+        onPhase: (CameraConnectionPhase, String) -> Void = { _, _ in }
     ) throws -> PTPIPClientSession {
-        try NikonBodyWake.dialBlocking(
+        // The wait is pushed as `.discovering` with the shared waiting copy, and the retry as
+        // `.handshaking`, so Android shows the same waiting step as iOS during the wake.
+        var woke = false
+        return try NikonBodyWake.dialBlocking(
             host: host,
             isAlive: presenceAlive,
+            onWake: {
+                woke = true
+                report(.waiting, to: onPhase)
+            },
             dial: {
-                try establishLinkOnce(
+                if woke { report(.answered, to: onPhase) }
+                return try establishLinkOnce(
                     host: host,
                     port: port,
                     guid: guid,
@@ -1184,6 +1195,17 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 )
             }
         )
+    }
+
+    /// The phase and detail one wake step pushes to the Kotlin listener. The detail is the shared
+    /// waiting copy without a name; the app names the camera from its own saved record.
+    static func report(
+        _ progress: NikonBodyWake.Progress, to onPhase: (CameraConnectionPhase, String) -> Void
+    ) {
+        switch progress {
+        case .waiting: onPhase(progress.phase, NikonBodyWake.wakingMessage(deviceName: ""))
+        case .answered: onPhase(progress.phase, "")
+        }
     }
 
     /// One full PTP-IP dial. Only the command channel's TCP connect is wrapped as a
@@ -1261,8 +1283,9 @@ public final class PTPIPClientSession: @unchecked Sendable {
             return refused
         }
     }
-    /// No route to the body, or the connect deadline; a refusal means the host is up and serving
-    /// something else, so waking it cannot change the answer.
+    /// No route to the body, a host the kernel holds as down after a failed address resolution
+    /// (EHOSTDOWN), or the connect deadline; a refusal means the host is up and serving something
+    /// else, so waking it cannot change the answer.
     static func isWakeWorthyDial(error: Error, errno: Int32) -> Bool {
         if let sessionError = error as? PTPIPClientSessionError,
             case .timeout = sessionError
@@ -1270,7 +1293,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
             return true
         }
         switch errno {
-        case EHOSTUNREACH, ENETUNREACH, ETIMEDOUT, ETIME: return true
+        case EHOSTUNREACH, EHOSTDOWN, ENETUNREACH, ETIMEDOUT, ETIME: return true
         default: return false
         }
     }
@@ -4903,7 +4926,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
             // operationResponse must not grow `packets` forever.
             guard packets.count <= 512 else {
                 throw PTPIPClientSessionError.connectionFailed(
-                    "PTP-IP transaction exceeded 512 packets without a response — stream desynchronized."
+                    "PTP-IP transaction exceeded 512 packets without a response. Stream desynchronized."
                 )
             }
         }

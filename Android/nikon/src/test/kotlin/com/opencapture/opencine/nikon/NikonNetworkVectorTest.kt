@@ -68,6 +68,7 @@ class NikonNetworkVectorTest {
         "isApHostKey" -> NikonHosts.isAccessPointHostKey(value(row[1])!!).toString()
         "subnetBase" -> NikonHosts.subnetBase(value(row[1])!!)
         "privateIPv4" -> NikonHosts.isPrivateIPv4(value(row[1])!!).toString()
+        "scanIface" -> NikonHosts.isScanInterface(value(row[1])!!, row[2]).toString()
         "tally" -> described(
             InfrastructureSweepTally.from(
                 value(row[1])!!.split(",").filter(String::isNotEmpty).associate { pair ->
@@ -87,7 +88,7 @@ class NikonNetworkVectorTest {
     fun `fixture is present and covers every policy`() {
         assertTrue(vectors.size > 60, "fixture missing or truncated: ${vectors.size} rows")
         assertEquals(
-            setOf("apSsid", "dialable", "apHostKey", "isApHostKey", "subnetBase", "privateIPv4", "tally", "classify"),
+            setOf("apSsid", "dialable", "apHostKey", "isApHostKey", "subnetBase", "privateIPv4", "scanIface", "tally", "classify"),
             vectors.map { it[0] }.toSet(),
         )
     }

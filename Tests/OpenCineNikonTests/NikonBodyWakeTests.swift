@@ -23,6 +23,14 @@ struct NikonBodyWakeTests {
         }
     }
 
+    /// A monotonic clock a test moves by hand.
+    final class FakeClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var elapsed: Duration = .zero
+        var now: Duration { lock.withLock { elapsed } }
+        func advance(_ by: Duration) { lock.withLock { elapsed += by } }
+    }
+
     private func wait(_ probe: Probe) async -> NikonBodyWake.Outcome {
         await NikonBodyWake.awaitAnswer(
             host: "192.168.1.20", isAlive: { await probe.isAlive($0) },
@@ -43,7 +51,124 @@ struct NikonBodyWakeTests {
         let probe = Probe(answerOn: 4)
         let outcome = await wait(probe)
         #expect(outcome == .answered(dials: 4))
-        #expect(await probe.pauses == Array(repeating: NikonBodyWake.interval, count: 3))
+        // These dials end at once, so each pause is the rest of its slot.
+        #expect(await probe.pauses.count == 3)
+    }
+
+    @Test("Dials that fail at once still span the whole wait, one slot each")
+    func instantFailuresFillTheirSlots() async {
+        // Hardware pass 2026-10-25 (1.11): after a failed address resolution Darwin refuses every
+        // dial to the host for 20 s without sending a frame, so ten instant failures used to end
+        // the wait in about 5 s. The wait must stay one slot per dial.
+        let probe = Probe(answerOn: nil)
+        let outcome = await wait(probe)
+        #expect(outcome == .silent(dials: NikonBodyWake.dials))
+        let total = await probe.pauses.reduce(Duration.zero, +)
+        let floor = (NikonBodyWake.slot - .milliseconds(100)) * (NikonBodyWake.dials - 1)
+        #expect(total >= floor)
+        #expect(total <= NikonBodyWake.slot * (NikonBodyWake.dials - 1))
+    }
+
+    @Test("A dial that used its whole deadline is followed by the shortest pause only")
+    func slowDialsPauseOnlyTheInterval() async {
+        let clock = FakeClock()
+        let probe = Probe(answerOn: nil)
+        let outcome = await NikonBodyWake.awaitAnswer(
+            host: "192.168.1.20",
+            isAlive: { host in
+                clock.advance(.milliseconds(1_500))
+                return await probe.isAlive(host)
+            },
+            now: { clock.now },
+            sleep: { await probe.sleep($0) })
+        #expect(outcome == .silent(dials: NikonBodyWake.dials))
+        #expect(
+            await probe.pauses
+                == Array(repeating: NikonBodyWake.interval, count: NikonBodyWake.dials - 1))
+    }
+
+    @Test("A dial cut short pauses for the rest of its slot")
+    func pauseIsTheRestOfTheSlot() {
+        let slot = NikonBodyWake.slot
+        let interval = NikonBodyWake.interval
+        #expect(NikonBodyWake.pause(after: .zero, interval: interval, slot: slot) == slot)
+        #expect(
+            NikonBodyWake.pause(after: .milliseconds(300), interval: interval, slot: slot)
+                == .milliseconds(1_700))
+        #expect(
+            NikonBodyWake.pause(after: .milliseconds(1_900), interval: interval, slot: slot)
+                == interval)
+        #expect(NikonBodyWake.pause(after: .seconds(5), interval: interval, slot: slot) == interval)
+    }
+
+    @Test("A connect that timed out counts against the wake, so the operator sees one wait")
+    func connectTimeCountsAgainstTheWake() async {
+        let clock = FakeClock()
+        let probe = DialProbe(answerOn: nil)
+        do {
+            _ = try await NikonBodyWake.dial(
+                host: "192.168.1.20",
+                isAlive: { await probe.isAlive($0) },
+                now: { clock.now },
+                sleep: { clock.advance($0) },
+                dial: { () -> String in
+                    clock.advance(.seconds(10))
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                })
+            Issue.record("a silent body must not connect")
+        } catch {
+            #expect(error is NikonBodyWake.SilentError)
+        }
+        #expect(await probe.aliveDials == 5)
+        #expect(clock.now == .seconds(10) + NikonBodyWake.slot * 4)
+        #expect(NikonBodyWake.dialsLeft(after: .zero, dials: 10, slot: .seconds(2)) == 10)
+        #expect(NikonBodyWake.dialsLeft(after: .seconds(60), dials: 10, slot: .seconds(2)) == 1)
+    }
+
+    @Test("The blocking wake also counts the connect's time")
+    func blockingConnectTimeCountsAgainstTheWake() {
+        let probe = BlockingDialProbe(answerOn: nil)
+        let clock = PauseLog()
+        var elapsed: TimeInterval = 0
+        do {
+            _ = try NikonBodyWake.dialBlocking(
+                host: "192.168.1.20",
+                isAlive: { _ in probe.isAlive() },
+                now: { elapsed },
+                sleep: { elapsed += $0; clock.append($0) },
+                dial: { () -> String in
+                    elapsed += 6
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                })
+            Issue.record("a silent body must not connect")
+        } catch {
+            #expect(error is NikonBodyWake.SilentError)
+        }
+        #expect(clock.values.count == 6)
+    }
+
+    @Test("The blocking wait used by Android also spans one slot per instant dial")
+    func blockingInstantFailuresFillTheirSlots() {
+        let probe = BlockingDialProbe(answerOn: nil)
+        let pauses = PauseLog()
+        do {
+            _ = try NikonBodyWake.dialBlocking(
+                host: "192.168.1.20",
+                isAlive: { _ in probe.isAlive() },
+                now: { 100 },
+                sleep: { pauses.append($0) },
+                dial: { () -> String in
+                    _ = probe.attempt()
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                })
+            Issue.record("a silent body must not connect")
+        } catch {
+            #expect(error is NikonBodyWake.SilentError)
+        }
+        #expect(pauses.values == Array(repeating: 2.0, count: NikonBodyWake.dials - 1))
     }
 
     @Test("A silent body is bounded by the dial count, with no pause after the last dial")
@@ -64,6 +189,12 @@ struct NikonBodyWakeTests {
             sleep: { _ in throw CancellationError() })
         #expect(outcome == .silent(dials: 1))
         #expect(await probe.dialed.count == 1)
+    }
+
+    @Test("The wake's progress maps to the waiting step, then the handshake")
+    func progressPhases() {
+        #expect(NikonBodyWake.Progress.waiting.phase == .discovering)
+        #expect(NikonBodyWake.Progress.answered.phase == .handshaking)
     }
 
     @Test("The silent copy names the camera and both real causes, never a socket timeout")
@@ -290,4 +421,11 @@ private final class BlockingDialProbe: @unchecked Sendable {
         defer { lock.unlock() }
         return wakeCount
     }
+}
+
+private final class PauseLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var log: [TimeInterval] = []
+    var values: [TimeInterval] { lock.withLock { log } }
+    func append(_ value: TimeInterval) { lock.withLock { log.append(value) } }
 }

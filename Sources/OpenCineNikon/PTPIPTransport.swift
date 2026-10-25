@@ -60,19 +60,41 @@
         /// Both the pairing handshake and the saved-profile reconnect come through here, so both
         /// get the same bounded wake. A body that answers goes on to the normal handshake; one
         /// that stays silent ends with the wake's honest asleep-or-off-network copy.
+        ///
+        /// `onWakeProgress` hears `.waiting` when the wake starts and `.answered` before the retry
+        /// dial, so the progress surface can say the app is waiting for the body instead of
+        /// showing a handshake for the whole wait.
         public static func connect(
             host rawHost: String,
             guid: Data,
-            friendlyName: String = PTPIPInitiator.friendlyName
+            friendlyName: String = PTPIPInitiator.friendlyName,
+            onWakeProgress: (@Sendable (NikonBodyWake.Progress) -> Void)? = nil
         ) async throws -> PTPIPTransport {
             let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !host.isEmpty else { throw NativeCameraSessionError.noHost }
 
+            let woke = WakeLatch()
             return try await NikonBodyWake.dial(
                 host: host,
                 isAlive: { await presenceAlive($0) },
-                dial: { try await connectOnce(host: host, guid: guid, friendlyName: friendlyName) }
+                onWake: {
+                    woke.set()
+                    onWakeProgress?(.waiting)
+                },
+                dial: {
+                    if woke.isSet { onWakeProgress?(.answered) }
+                    return try await connectOnce(host: host, guid: guid, friendlyName: friendlyName)
+                }
             )
+        }
+
+        /// Set once the dial's wake began; the retry dial reads it to report the answer.
+        private final class WakeLatch: @unchecked Sendable {
+            // SAFETY: every access holds `lock`.
+            private let lock = NSLock()
+            private var value = false
+            var isSet: Bool { lock.withLock { value } }
+            func set() { lock.withLock { value = true } }
         }
 
         /// One full PTP-IP dial. Only the command channel's TCP connect is wrapped as a
@@ -153,8 +175,9 @@
             return await dialer.isAlive(host)
         }
 
-        /// No route to the body, or the connect deadline; a refusal means the host is up and
-        /// serving something else, so waking it cannot change the answer.
+        /// No route to the body, a host the kernel holds as down after a failed address resolution
+        /// (EHOSTDOWN, which Darwin returns at once for 20 s), or the connect deadline; a refusal
+        /// means the host is up and serving something else, so waking it cannot change the answer.
         static func isWakeWorthyDial(error: Error, errno: Int32) -> Bool {
             if let sessionError = error as? NativeCameraSessionError,
                 case .timeout = sessionError
@@ -162,7 +185,7 @@
                 return true
             }
             switch errno {
-            case EHOSTUNREACH, ENETUNREACH, ETIMEDOUT, ETIME: return true
+            case EHOSTUNREACH, EHOSTDOWN, ENETUNREACH, ETIMEDOUT, ETIME: return true
             default: return false
             }
         }
@@ -434,7 +457,7 @@
                 // by the framing layer; a real transaction is a handful of packets.
                 guard packets.count <= Self.maxTransactionPackets else {
                     throw NativeCameraSessionError.connectionFailed(
-                        "PTP-IP transaction exceeded \(Self.maxTransactionPackets) packets without a response — stream desynchronized."
+                        "PTP-IP transaction exceeded \(Self.maxTransactionPackets) packets without a response. Stream desynchronized."
                     )
                 }
             }
