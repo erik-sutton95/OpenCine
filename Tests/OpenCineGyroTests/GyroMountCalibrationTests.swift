@@ -209,6 +209,20 @@ struct GyroMountCalibrationTests {
         #expect(moving.poseCount == 0 && stale.poseCount == 0 && short.poseCount == 0)
     }
 
+    @Test func highRateStreamStillCaptures() throws {
+        var session = GyroMountCalibrationSession()
+        let down = GyroVector3(x: 0, y: 0, z: 1)
+        var timestamp = 0.0
+        for index in 0...640 {
+            timestamp = Double(index) / 400
+            session.add(
+                phoneDown: down, phoneTimestamp: timestamp,
+                cameraDown: down, cameraTimestamp: timestamp)
+        }
+        #expect(try session.capture(at: timestamp) == nil)
+        #expect(session.poseCount == 1)
+    }
+
     @Test func invalidOrReplayedReadingsClearOnlyTheCurrentWindow() throws {
         for failure in 0..<6 {
             var session = GyroMountCalibrationSession()

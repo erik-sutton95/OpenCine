@@ -32,9 +32,6 @@ public struct GyroMountCalibrationSession: Sendable {
                 throw GyroMountCalibrationError.invalidReadings
             }
             append(phoneDown, at: phoneTimestamp, cameraDown: cameraDown, at: cameraTimestamp)
-            guard phone.count <= 512, camera.count <= 512 else {
-                throw GyroMountCalibrationError.invalidReadings
-            }
             inputFailure = nil
         } catch {
             clearWindow()
@@ -93,6 +90,10 @@ public struct GyroMountCalibrationSession: Sendable {
         let oldest = max(phoneTimestamp, cameraTimestamp) - 1.5
         phone.removeAll { $0.timestamp < oldest }
         camera.removeAll { $0.timestamp < oldest }
+        // A high-rate phone stream can fill the whole window; keep the newest readings.
+        let limit = 512
+        if phone.count > limit { phone.removeFirst(phone.count - limit) }
+        if camera.count > limit { camera.removeFirst(camera.count - limit) }
     }
 
     private func currentPose(at timestamp: Double) throws -> GyroCalibrationPose {
