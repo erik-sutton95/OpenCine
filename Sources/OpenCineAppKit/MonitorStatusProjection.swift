@@ -14,12 +14,30 @@ extension MonitorControlModel {
             elapsedSeconds: isRecording == nil ? nil : (elapsedSeconds ?? recordingElapsed.value), timecode: label,
             timecodePlaceholder: MonitorTimecodeFormat.placeholder(precision))
     }
+
+    /// `statusPresentation` for a live surface whose clock advances every frame: the status
+    /// carries `timecodeTemplate` for layout and `clock` reads the label, so only the clock
+    /// readout that calls it observes the per-frame timecode (`MonitorOperatorLiveStatus.liveClock`).
+    public func liveStatusPresentation(elapsedSeconds: Int? = nil)
+        -> (status: MonitorStatusPresentation, clock: () -> String?) {
+        let precision = snapshot?.capabilities.timecodeCapability.precision
+        let status = MonitorStatusPresentation(recording: isRecording,
+            elapsedSeconds: isRecording == nil ? nil : (elapsedSeconds ?? recordingElapsed.value),
+            timecode: timecodeTemplate, timecodePlaceholder: MonitorTimecodeFormat.placeholder(precision))
+        return (status, { [weak self] in self?.statusPresentation().timecode })
+    }
 }
 
 extension MonitorTimecodeFormat {
     /// A snapshot's clock at the precision its source declares; `nil` until one is reported.
     public static func label(_ snapshot: CameraSnapshot?) -> String? {
         snapshot?.timecodeReading.value.flatMap { label($0, precision: snapshot?.capabilities.timecodeCapability.precision) }
+    }
+
+    /// A label's layout shape: every digit as 0, separators kept, so it is as wide as any value
+    /// of the same shape in the monospaced clock.
+    public static func widthTemplate(_ label: String) -> String {
+        String(label.map { $0.isASCII && $0.isNumber ? "0" : $0 })
     }
 
     /// The empty clock for a declared precision; seconds when the source has not said.

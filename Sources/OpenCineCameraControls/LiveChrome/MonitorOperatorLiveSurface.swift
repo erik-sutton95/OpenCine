@@ -113,6 +113,11 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
     /// Which readout carries the accent, declared by the body's capability profile. The header
     /// accents this slot only when it shows; it never moves to another readout.
     public let headerAccent: MonitorHeaderAccent
+    /// A clock that advances every live view frame, read only by the clock readout itself. When
+    /// set, `recording.timecode` is the layout template (same width, for example every digit as 0)
+    /// and changes only when the clock's shape does, so the status row fits once instead of
+    /// re-evaluating the whole surface per frame. Nil keeps `recording.timecode` as the clock.
+    public let liveClock: (() -> String?)?
     public init(recording: MonitorStatusPresentation, showsTimecode: Bool, showsRecording: Bool,
         storage: MonitorOperatorLiveReadout<Key, Section>? = nil,
         format: [MonitorOperatorLiveReadout<Key, Section>] = [], fps: String? = nil,
@@ -120,8 +125,9 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
         portraitFormat: MonitorOperatorLiveReadout<Key, Section>? = nil, portraitCaption: String? = nil,
         color: MonitorOperatorLiveReadout<Key, Section>? = nil, mode: MonitorOperatorLiveReadout<Key, Section>? = nil,
         storageAlternative: String? = nil, storageAlternatives: [String]? = nil,
-        headerAccent: MonitorHeaderAccent = .shootingMode) {
+        headerAccent: MonitorHeaderAccent = .shootingMode, liveClock: (() -> String?)? = nil) {
         self.recording = recording; self.showsTimecode = showsTimecode; self.showsRecording = showsRecording
+        self.liveClock = liveClock
         self.storage = storage; self.format = format; self.fps = fps; self.signalBars = signalBars; self.fpsSection = fpsSection
         self.portraitFormat = portraitFormat; self.portraitCaption = portraitCaption
         self.color = color; self.mode = mode
@@ -627,6 +633,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 showsRecording: status.showsRecording && !command,
                 showsCompactTelemetry: !usesCompactTelemetry,
                 minimumOccupiedTop: usesCompactTelemetry ? compactTelemetryMinimumStatusTop : 0,
+                clock: status.liveClock,
             storage: { if let storage = status.storage { storageReadout(storage) } },
             format: {
                     if inline {
