@@ -150,8 +150,9 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   Portable appkit, camera controls and monitor UI keep their existing import boundaries;
   native-runtime remains UI-free. Native cache proof helpers belong to androidTest only.
 - Camera controls (`OpenCineCameraControls`, `camera-controls`) hold the capture sheets, live chrome,
-  gimbal, LUT and assist views, the log-camera clip delivery and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
-  the camera vocabulary, UI, the app shell, Core, Media, Motion and `OpenCineApple` (the clip exporter), never on DJI or another
+  gimbal, LUT and assist views, the log-camera clip delivery, the shared gyro screens and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
+  the camera vocabulary, UI, the app shell, Core, Media, Motion, `OpenCineApple` (the clip exporter), and `OpenCineGyro`
+  plus `OpenCineGyroApple` (the gyro engine and its iOS coordinator), never on DJI or another
   integration, an app or a third-party package. App differences arrive as host values (label
   profile, state, theme), never as brand branches. Their edge to the camera vocabulary (one per
   platform) is listed in atlas `allowed_target_edges`; UI itself still never builds on an

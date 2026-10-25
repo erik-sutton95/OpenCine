@@ -204,7 +204,7 @@ let package = Package(
             name: "OpenCineCameraControls",
             dependencies: [
                 "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
-                "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
+                "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineGyro",
             ]),
         .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls", "OpenCineHostedAccessibility"]),
         // XCUITest cases that drive an app only by accessibility identifiers and the typed review
