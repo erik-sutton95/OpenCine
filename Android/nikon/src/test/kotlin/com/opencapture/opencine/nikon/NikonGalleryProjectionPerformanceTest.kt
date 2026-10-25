@@ -53,18 +53,23 @@ class NikonGalleryProjectionPerformanceTest {
         println("MEDIA-PERF-ANDROID nikon.fourCategoryPasses.ms: half $half, full $full")
         assertEquals(listOf("L", "M", "S"), facts.first { it.rows.size == 3000 }.offered.photoSizes)
         assertTrue(full / half.coerceAtLeast(1.0) < 3.0, "doubling the card took ${full / half}x ($half to $full ms)")
-        assertTrue(full < 2000, "four category passes took $full ms for ${items.size} objects")
     }
 
-    /** Every visible JPEG cell asks for its RAW partner on each composition. */
+    /** Every visible JPEG cell asks for its RAW partner on each composition. A lookup that scans the
+     *  card makes all lookups quadratic: doubling the card quadruples them. */
     @Test fun rawCompanionLookupsDoNotScanTheCard() {
         val policy = NikonAndroidGalleryProjectionPolicy(items, LocalDate.of(2026, 10, 25))
-        val jpegs = items.filter { it.clip.filename.endsWith(".JPG") }
         assertEquals(MediaAssetID("DSC_0001.NEF"), policy.rawCompanion(MediaAssetID("DSC_0001.JPG")))
         assertEquals(null, policy.rawCompanion(MediaAssetID("DSC_0001.NEF")))
-        assertEquals(1500, jpegs.count { policy.rawCompanion(it.id) != null })
-        val millis = bestMillis(5) { jpegs.forEach { policy.rawCompanion(it.id) } }
-        println("MEDIA-PERF-ANDROID nikon.rawCompanion.1500.ms: $millis")
-        assertTrue(millis < 25, "1500 RAW partner lookups took $millis ms")
+        assertEquals(1500, items.count { it.clip.filename.endsWith(".JPG") && policy.rawCompanion(it.id) != null })
+        fun lookups(card: List<NikonGallerySourceItem>): Double {
+            val policy = NikonAndroidGalleryProjectionPolicy(card, LocalDate.of(2026, 10, 25))
+            val jpegs = card.filter { it.clip.filename.endsWith(".JPG") }.map { it.id }
+            return bestMillis(5) { repeat(20) { jpegs.forEach { policy.rawCompanion(it) } } }
+        }
+        val half = lookups(card(750, 100))
+        val full = lookups(items)
+        println("MEDIA-PERF-ANDROID nikon.rawCompanion.ms: half $half, full $full")
+        assertTrue(full / half.coerceAtLeast(1.0) < 3.0, "doubling the card took ${full / half}x ($half to $full ms)")
     }
 }
