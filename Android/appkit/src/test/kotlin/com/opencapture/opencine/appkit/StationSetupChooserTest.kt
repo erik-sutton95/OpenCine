@@ -61,6 +61,10 @@ class StationSetupChooserTest {
         assertFalse(words.any { it.contains('\u2014') })
     }
 
+    @Test fun aCameraWithoutModelIsNamedAlone() {
+        assertEquals("Body A", stationSetupChooser(camera.copy(model = "")).detail)
+    }
+
     @Test fun stationHostsKeepWiFiAndHotspotOnly() {
         val chooser = stationSetupChooser(camera)
         assertEquals(listOf("Choose Wi-Fi", "Choose hotspot"), chooser.options.map { it.actionTitle })

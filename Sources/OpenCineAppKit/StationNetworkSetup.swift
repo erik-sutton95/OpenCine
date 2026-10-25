@@ -147,7 +147,9 @@ public enum StationNetworkSetupRules {
         return AddSetupChooser(
             title: context.camera == nil
                 ? "How will your cameras connect?" : "How should this camera connect?",
-            detail: context.camera.map { "\($0.displayName) · \($0.model)" } ?? "",
+            detail: context.camera.map {
+                [$0.displayName, $0.model].filter { !$0.isEmpty }.joined(separator: " · ")
+            } ?? "",
             options: options, footer: footer, identifierPrefix: context.prefix, notice: notice)
     }
 

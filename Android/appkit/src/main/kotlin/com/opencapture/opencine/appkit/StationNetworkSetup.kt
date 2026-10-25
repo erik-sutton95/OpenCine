@@ -172,7 +172,7 @@ public fun stationSetupChooser(
     }
     return AddSetupChooser(
         title = if (camera == null) "How will your cameras connect?" else "How should this camera connect?",
-        detail = camera?.let { "${it.displayName} · ${it.model}" }.orEmpty(),
+        detail = camera?.let { listOf(it.displayName, it.model).filter(String::isNotEmpty).joinToString(" · ") }.orEmpty(),
         options = options,
         footer = when {
             camera == null -> "Choose the shared network before adding cameras. Saved passwords stay on this phone."

@@ -61,6 +61,12 @@ import Testing
         #expect(!words.contains { $0.contains("\u{2014}") })
     }
 
+    @Test func aCameraWithoutModelIsNamedAlone() {
+        var camera = Self.camera
+        camera.model = ""
+        #expect(StationNetworkSetupRules.setupChooser(context: .camera(camera)).detail == "Body A")
+    }
+
     @Test func stationHostsKeepWiFiAndHotspotOnly() {
         let chooser = StationNetworkSetupRules.setupChooser(context: .camera(Self.camera))
         #expect(chooser.options.map(\.actionTitle) == ["Choose Wi-Fi", "Choose hotspot"])
