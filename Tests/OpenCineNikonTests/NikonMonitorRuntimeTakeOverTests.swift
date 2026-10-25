@@ -12,7 +12,7 @@ import Testing
 /// streamed and then fails hands the decision to recovery (`.recover`), the one dialer that asks
 /// who holds the camera first.
 @MainActor
-@Suite("Nikon preview ladder after a take-over")
+@Suite("Nikon preview ladder after a take-over", .timeLimit(.minutes(1)))
 struct NikonMonitorRuntimeTakeOverTests {
     @Test("A link the camera closed after streaming escalates to recovery and never redials")
     func closedLinkRecoversWithoutRedial() async {
@@ -48,10 +48,11 @@ struct NikonMonitorRuntimeTakeOverTests {
     }
 
     /// Runs the preview until it hands a decision to the app, with every ladder delay instant.
+    /// Waits on the events themselves, not a wall clock: a loaded CI host can park the main actor
+    /// for longer than any fixed deadline (the suite's time limit bounds a real hang).
     private func run(_ link: ScriptedLink) async -> [String] {
         let runtime = NikonMonitorRuntime(link: link, backgroundSleep: { _ in await Task.yield() })
-        var events: [String] = []
-        var finished = false
+        let (stream, continuation) = AsyncStream.makeStream(of: String.self)
         runtime.startPreview(
             bootstrap: {},
             demand: { .init(mode: .picture, size: 2, compression: 1) },
@@ -59,19 +60,19 @@ struct NikonMonitorRuntimeTakeOverTests {
             applied: { _ in }, resetCadence: {}, health: { _ in },
             event: { event in
                 switch event {
-                case .opening: events.append("opening")
-                case .restart: events.append("restart")
-                case .reconnect: events.append("reconnect")
+                case .opening: continuation.yield("opening")
+                case .restart: continuation.yield("restart")
+                case .reconnect: continuation.yield("reconnect")
                 case .reconnectReady:
-                    events.append("reconnect-ready")
-                    finished = true
+                    continuation.yield("reconnect-ready")
+                    continuation.finish()
                 case .recover:
-                    events.append("recover")
-                    finished = true
+                    continuation.yield("recover")
+                    continuation.finish()
                 }
             })
-        let deadline = Date().addingTimeInterval(20)
-        while !finished, Date() < deadline { try? await Task.sleep(for: .milliseconds(10)) }
+        var events: [String] = []
+        for await event in stream { events.append(event) }
         runtime.retirePumps()
         return events
     }
