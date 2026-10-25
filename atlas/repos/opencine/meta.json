@@ -275,6 +275,12 @@
       "coordinates": "com.opencapture.opencine:frameio"
     },
     {
+      "name": ":gyro",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:gyro"
+    },
+    {
       "name": ":relay",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -345,6 +351,7 @@
       ":decoder",
       ":vulkan",
       ":native-runtime",
+      ":gyro",
       ":relay",
       ":relay-runtime",
       ":watch-runtime"
