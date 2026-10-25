@@ -82,6 +82,19 @@ import Testing
         #expect(fake.attempts.count == 3 && shell.cameras.attempts.count == 1)
     }
 
+    /// A live camera is never replaced by a re-check of an older failure (CodeRabbit, #262).
+    @available(macOS 14, *)
+    @Test func aRecheckLeavesALiveCameraAlone() async {
+        let shell = shell()
+        shell.cameras.connect(T.camera)
+        fake.attempts[0].fail(T.localNetworkDenied)
+        #expect(await eventually { shell.cameras.failures[T.camera.id] != nil })
+        #expect(await connect(shell, Self.other, Counted(FakeCameraSession.lunaLike())))
+        shell.setSceneActive(false)
+        shell.setSceneActive(true)
+        #expect(fake.attempts.count == 2, "the live camera keeps its session")
+    }
+
     @available(macOS 14, *)
     @Test func connectAThenReplaceWithBAndDeliverALate() async {
         let shell = shell()

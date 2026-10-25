@@ -296,16 +296,30 @@ public class CamerasModel(
      * permission, so a connect is the check; the shell calls this each time the app becomes
      * active, after the system prompt or a Settings visit. A denial that still holds fails again
      * at once with the same reason. Other failures and running attempts are left alone; one
-     * integration (one backend) retries one camera. Swift twin: `CamerasModel.retryLocalNetworkFailures()`.
+     * integration (one backend) retries one camera, and a live camera is never replaced. A saved
+     * target dials the current record, never a route the operator forgot since.
+     * Swift twin: `CamerasModel.retryLocalNetworkFailures()`.
      */
     public fun retryLocalNetworkFailures() {
+        if (mutable.value.connected != null) return
         val localNetwork = ConnectionFailure.Reason.Permission(ConnectionFailure.Permission.LOCAL_NETWORK)
         val retried = mutable.value.attempts.values.map { it.integration }.toMutableSet()
         for ((cameraID, failure) in mutable.value.failures.toSortedMap()) {
             if (failure.failure.reason != localNetwork || mutable.value.attempts.containsKey(cameraID)) continue
-            val integration = integrationOf(failure.target) ?: continue
-            if (retried.add(integration)) start(failure.target, integration)
+            val target = current(failure.target) ?: continue
+            val integration = integrationOf(target) ?: continue
+            if (retried.add(integration)) start(target, integration)
         }
+    }
+
+    /** A failure's target against the saved cameras now: `null` when its camera or route is gone. */
+    private fun current(target: ConnectTarget): ConnectTarget? = when (target) {
+        is ConnectTarget.Nearby -> target
+        is ConnectTarget.Saved -> mutable.value.saved.firstOrNull { it.id == target.camera.id }
+            ?.takeIf { camera -> camera.routes.any { it.id == target.route } }
+            ?.let { ConnectTarget.Saved(it, target.route) }
+        is ConnectTarget.AddRoute -> mutable.value.saved.firstOrNull { it.id == target.camera.id }
+            ?.let { target.copy(camera = it) }
     }
 
     /**

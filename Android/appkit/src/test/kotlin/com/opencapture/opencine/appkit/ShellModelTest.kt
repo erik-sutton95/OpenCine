@@ -116,6 +116,21 @@ class ShellModelTest {
         assertTrue(fake.attempts.size == 3 && shell.cameras.state.value.attempts.size == 1)
     }
 
+    /** A live camera is never replaced by a re-check of an older failure (CodeRabbit, #262). */
+    @Test
+    fun aRecheckLeavesALiveCameraAlone() = runTest {
+        val shell = shell()
+        shell.cameras.connect(Values.camera)
+        runCurrent()
+        fake.attempts[0].fail(Values.localNetworkDenied)
+        runCurrent()
+        connect(shell, other, Counted(FakeCameraSession.lunaLike()))
+        shell.setSceneActive(false)
+        shell.setSceneActive(true)
+        runCurrent()
+        assertEquals(2, fake.attempts.size, "the live camera keeps its session")
+    }
+
     @Test
     fun connectAThenReplaceWithBAndDeliverALate() = runTest {
         val shell = shell()

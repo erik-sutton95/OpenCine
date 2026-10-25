@@ -337,6 +337,26 @@ class CamerasModelTest {
         assertEquals(2, fake.attempts.size, "a running attempt is never replaced")
     }
 
+    /** A re-check dials the current saved record, never a route forgotten since (CodeRabbit, #262). */
+    @Test
+    fun aRecheckSkipsAForgottenRoute() = runTest {
+        val model = model()
+        model.connect(Values.camera, Values.wifi.id)
+        fake.attempts[0].fail(Values.localNetworkDenied)
+        runCurrent()
+        model.rename("camera-1", "A camera")
+        model.retryLocalNetworkFailures()
+        runCurrent()
+        assertEquals(2, fake.attempts.size)
+        assertEquals(ConnectTarget.Saved(model.now.saved[0], Values.wifi.id), fake.attempts.last().target, "the current record")
+        fake.attempts[1].fail(Values.localNetworkDenied)
+        runCurrent()
+        model.forgetRoute(Values.wifi.id, "camera-1")
+        model.retryLocalNetworkFailures()
+        runCurrent()
+        assertEquals(2, fake.attempts.size, "the forgotten route is not dialled")
+    }
+
     @Test
     fun otherFailuresWaitForTheOperatorWhenRechecked() = runTest {
         val model = model()

@@ -209,6 +209,24 @@ private struct TestConfirmationPrompt: ConfirmationPrompt {
         #expect(fake.attempts.count == 2, "a running attempt is never replaced")
     }
 
+    /// A re-check dials the current saved record, never a route forgotten since (CodeRabbit, #262).
+    @available(macOS 14, *)
+    @Test func aRecheckSkipsAForgottenRoute() async {
+        let model = model()
+        model.connect(Self.camera, route: Self.wifi.id)
+        fake.attempts[0].fail(Self.localNetworkDenied)
+        #expect(await eventually { model.failures["camera-1"] != nil })
+        model.rename("camera-1", to: "A camera")
+        model.retryLocalNetworkFailures()
+        #expect(fake.attempts.count == 2)
+        #expect(fake.attempts.last?.target == .saved(model.saved[0], route: Self.wifi.id), "the current record")
+        fake.attempts[1].fail(Self.localNetworkDenied)
+        #expect(await eventually { model.failures["camera-1"] != nil })
+        model.forgetRoute(Self.wifi.id, of: "camera-1")
+        model.retryLocalNetworkFailures()
+        #expect(fake.attempts.count == 2, "the forgotten route is not dialled")
+    }
+
     @available(macOS 14, *)
     @Test func otherFailuresWaitForTheOperatorWhenRechecked() async {
         let model = model()
