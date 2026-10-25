@@ -140,10 +140,10 @@ public struct GyroArmingMachine: Sendable {
             connection += 1
             restoreBlocked = false
             writesInFlight.removeAll()
+            stabilizationWarning = false
             if isArmed {
                 isArmed = false
                 deferredSetup = false
-                stabilizationWarning = false
                 effects.append(.sessionEnded)
             }
         }
@@ -216,7 +216,7 @@ public struct GyroArmingMachine: Sendable {
                 stabilizationWarning = false
                 inputs.stabilization = Self.applying(context.applied, to: inputs.stabilization)
             } else {
-                stabilizationWarning = true
+                if isArmed { stabilizationWarning = true }
                 effects.append(.notice(.turnOffFailed))
             }
         case .restore:

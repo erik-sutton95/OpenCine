@@ -12,6 +12,7 @@ import Testing
     private func inputs(
         toggleOn: Bool = true,
         connected: Bool = true,
+        camera: GyroCameraIdentity? = nil,
         hostEligible: Bool = true,
         videoMode: Bool? = true,
         recording: Bool? = false,
@@ -22,7 +23,7 @@ import Testing
     ) -> GyroArmingInputs {
         GyroArmingInputs(
             toggleOn: toggleOn,
-            camera: connected ? camera : nil,
+            camera: connected ? (camera ?? self.camera) : nil,
             hostEligible: hostEligible,
             videoMode: videoMode,
             recording: recording,
@@ -290,6 +291,30 @@ import Testing
                 inputs(toggleOn: false, stabilization: stabilization(["ibis": "SPORT"])))
                 == [.sessionEnded])
         #expect(!machine.stabilizationWarning)
+    }
+
+    @Test func warningDoesNotFollowAnotherCamera() {
+        let other = GyroCameraIdentity(id: "body-2", name: "Camera B")
+        var machine = GyroArmingMachine(pendingRestores: [])
+        _ = machine.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))
+        _ = machine.chooseTurnOff()
+        #expect(
+            machine.update(
+                inputs(toggleOn: false, stabilization: stabilization(["ibis": "SPORT"])))
+                == [.sessionEnded])
+        let finished = machine.writeFinished(.turnOff, succeeded: false)
+        #expect(finished.contains(.notice(.turnOffFailed)))
+        #expect(!machine.stabilizationWarning)
+        _ = machine.update(inputs(camera: other, stabilization: nil, settings: []))
+        #expect(!machine.stabilizationWarning)
+
+        var kept = GyroArmingMachine(pendingRestores: [])
+        _ = kept.update(inputs(stabilization: stabilization(["ibis": "SPORT"])))
+        _ = kept.chooseKeepOn()
+        #expect(kept.stabilizationWarning)
+        _ = kept.update(inputs(connected: false, stabilization: nil))
+        _ = kept.update(inputs(camera: other, stabilization: nil, settings: []))
+        #expect(!kept.stabilizationWarning)
     }
 
     @Test func photoModeEndsTheSessionAndRestores() {
