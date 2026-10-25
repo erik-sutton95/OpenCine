@@ -32,7 +32,16 @@ public data class MonitorMediaLibraryCopy(
     /** Shown when the camera holds its own gallery, so it lists nothing here. */
     public val sourceHeld: String? = null,
 )
-public enum class MonitorMediaCatalogPersistence { EACH_DELTA, LISTING_COMPLETE_OR_NON_CANCEL_FAILURE }
+/**
+ * When a listing checkpoints the whole catalog. [STANDARD] (the default) persists after every
+ * [MonitorMediaCatalogPersistence.STANDARD_PAGES] accepted pages, at completion and after a
+ * non-cancel failure, so a large card is not re-encoded on the main thread once per page while a
+ * cancelled pass still keeps most of what it listed. [EACH_DELTA] keeps one checkpoint per page.
+ */
+public enum class MonitorMediaCatalogPersistence {
+    EACH_DELTA, LISTING_COMPLETE_OR_NON_CANCEL_FAILURE, STANDARD;
+    public companion object { public const val STANDARD_PAGES: Int = 8 }
+}
 /** A fresh refresh base is unpublished until an actual source page is admitted. */
 public enum class MonitorMediaCatalogBase { RETAIN_OBSERVED, FRESH_LISTING }
 public enum class MonitorMediaCacheScanning { IMMEDIATE, BACKGROUND }
@@ -42,6 +51,12 @@ public interface MonitorMediaFavoritesStore {
     public fun favorites(): Set<String>
     public fun saveFavorites(keys: Set<String>)
 }
+
+/** Per-transfer progress ticks, published apart from the catalog so a tick never re-emits it. */
+public data class MonitorMediaLibraryTransferProgress(
+    public val progress: Map<MediaAssetID, Double> = emptyMap(),
+    public val hostProgress: Map<MonitorMediaLibraryIOKey, Double> = emptyMap(),
+)
 
 public data class MonitorMediaLibraryState<P>(
     public val records: List<MonitorMediaRecord<P>> = emptyList(),
@@ -76,7 +91,7 @@ public class MonitorMediaLibraryModel<P>(
     public val cache: MonitorMediaCache<P>, private val favoritesStore: MonitorMediaFavoritesStore,
     private var service: CameraMediaService? = null, scope: CoroutineScope,
     private val cacheScanning: MonitorMediaCacheScanning,
-    private val catalogPersistence: MonitorMediaCatalogPersistence = MonitorMediaCatalogPersistence.EACH_DELTA,
+    private val catalogPersistence: MonitorMediaCatalogPersistence = MonitorMediaCatalogPersistence.STANDARD,
     private val initialCatalog: MediaCatalog? = null,
     initialRecords: List<MonitorMediaRecord<P>>? = null,
     private val copy: MonitorMediaLibraryCopy = MonitorMediaLibraryCopy(),
@@ -99,6 +114,15 @@ public class MonitorMediaLibraryModel<P>(
             category = view.category, sort = view.sort, layout = view.layout, thumbnailSize = view.thumbnailSize)
     })
     public val state: StateFlow<MonitorMediaLibraryState<P>> = mutable.asStateFlow()
+    /**
+     * The same state without transfer progress ticks ([MonitorMediaLibraryState.progress] and
+     * [MonitorMediaLibraryState.hostProgress] stay empty here). A catalog view collects this, and
+     * reads ticks per cell from [transferProgress], so a streaming transfer never recomposes it.
+     */
+    public val content: StateFlow<MonitorMediaLibraryState<P>> get() = contentMutable
+    private val contentMutable = MutableStateFlow(mutable.value.withoutTicks())
+    private val progressMutable = MutableStateFlow(MonitorMediaLibraryTransferProgress())
+    public val transferProgress: StateFlow<MonitorMediaLibraryTransferProgress> = progressMutable.asStateFlow()
     private val retirementTasks = mutableSetOf<Job>()
     private var disposed = false
     private var browse: CameraMediaBrowse? = null
@@ -145,30 +169,76 @@ public class MonitorMediaLibraryModel<P>(
     private val thumbnails = mutableMapOf<MediaAssetID, UUID>()
     private val thumbnailTasks = mutableMapOf<MediaAssetID, Job>()
     private val thumbnailWriters = mutableMapOf<MediaAssetID, MonitorMediaCacheWrite>()
+    /** Latest targeted request per record; an older scan never overwrites a newer one. */
+    private val targetedRequests = mutableMapOf<MediaAssetID, UUID>()
+    private val targetedTasks = mutableMapOf<UUID, Job>()
+    /** Records committed while a full scan is in flight; rescanned after it lands. */
+    private val dirtyDuringFull = mutableSetOf<MediaAssetID>()
+    private var libraryMemo: Derived<P>? = null
+    private val categoryMemo = mutableMapOf<MonitorMediaCategoryFilter, Derived<P>>()
+    private var displayedMemo: Derived<P>? = null
+    private var indexMemo: Pair<List<MonitorMediaRecord<P>>, Map<MediaAssetID, MonitorMediaRecord<P>>>? = null
     init { mutate { it.copy(catalog = initialCatalog ?: MediaCatalog(assets = it.records.map { record -> record.asset })) }; reloadEntries() }
-    private fun mutate(change: (MonitorMediaLibraryState<P>) -> MonitorMediaLibraryState<P>) { mutable.value = change(mutable.value) }
+    private fun mutate(change: (MonitorMediaLibraryState<P>) -> MonitorMediaLibraryState<P>) {
+        val next = change(mutable.value)
+        mutable.value = next
+        // StateFlow equality: unchanged fields keep their identity, so a tick compares in O(1).
+        contentMutable.value = next.withoutTicks()
+        progressMutable.value = MonitorMediaLibraryTransferProgress(next.progress, next.hostProgress)
+    }
+    private fun MonitorMediaLibraryState<P>.withoutTicks(): MonitorMediaLibraryState<P> =
+        if (progress.isEmpty() && hostProgress.isEmpty()) this else copy(progress = emptyMap(), hostProgress = emptyMap())
     public val canRefresh: Boolean get() = service != null
     public val binding: MediaBrowseBinding? get() = browse?.binding
     public val canTransfer: Boolean get() = browse?.transfers != null
     public val canDelete: Boolean get() = browse?.deletion != null
-    public val libraryRecords: List<MonitorMediaRecord<P>> get() = state.value.records.let { records ->
-        when (state.value.visibility) {
-            MonitorMediaLibraryVisibility.ALL_RECORDS -> records
-            MonitorMediaLibraryVisibility.CACHED_ONLY -> records.filter { state.value.entries[it.asset.id]?.isPlayableOffline == true }
-            MonitorMediaLibraryVisibility.SOURCE_AVAILABILITY -> if (service == null)
-                records.filter { state.value.entries[it.asset.id]?.isPlayableOffline == true } else records
-        }
+    /**
+     * Derivations are memoized against the identity of their inputs (one immutable state value
+     * holds them), so a view that reads them on every frame or progress tick filters and sorts
+     * once per actual change instead of once per read.
+     */
+    private class Derived<P>(val state: MonitorMediaLibraryState<P>, val offline: Boolean, val value: List<MonitorMediaRecord<P>>)
+    private fun usesEntries(state: MonitorMediaLibraryState<P>): Boolean = when (state.visibility) {
+        MonitorMediaLibraryVisibility.ALL_RECORDS -> false
+        MonitorMediaLibraryVisibility.CACHED_ONLY -> true
+        MonitorMediaLibraryVisibility.SOURCE_AVAILABILITY -> service == null
     }
-    public fun records(category: MonitorMediaCategoryFilter): List<MonitorMediaRecord<P>> = libraryRecords.filter {
-        when (category) {
-            MonitorMediaCategoryFilter.ALL -> true
-            MonitorMediaCategoryFilter.VIDEOS -> (it.facts.presentationKind ?: it.asset.kind) == MediaAssetKind.VIDEO
-            MonitorMediaCategoryFilter.PHOTOS -> (it.facts.presentationKind ?: it.asset.kind) == MediaAssetKind.PHOTO
-            MonitorMediaCategoryFilter.FAVORITES -> it.favorite
+    private fun Derived<P>.reusable(state: MonitorMediaLibraryState<P>, offline: Boolean, sameView: (MonitorMediaLibraryState<P>) -> Boolean): Boolean =
+        this.offline == offline && this.state.records === state.records &&
+            this.state.visibility == state.visibility && (!offline || this.state.entries === state.entries) && sameView(this.state)
+    public val libraryRecords: List<MonitorMediaRecord<P>> get() {
+        val state = state.value; val offline = usesEntries(state)
+        libraryMemo?.let { if (it.reusable(state, offline) { true }) return it.value }
+        val records = if (offline) state.records.filter { state.entries[it.asset.id]?.isPlayableOffline == true } else state.records
+        libraryMemo = Derived(state, offline, records)
+        return records
+    }
+    public fun records(category: MonitorMediaCategoryFilter): List<MonitorMediaRecord<P>> {
+        val state = state.value; val offline = usesEntries(state)
+        categoryMemo[category]?.let { if (it.reusable(state, offline) { true }) return it.value }
+        val records = libraryRecords.filter {
+            when (category) {
+                MonitorMediaCategoryFilter.ALL -> true
+                MonitorMediaCategoryFilter.VIDEOS -> (it.facts.presentationKind ?: it.asset.kind) == MediaAssetKind.VIDEO
+                MonitorMediaCategoryFilter.PHOTOS -> (it.facts.presentationKind ?: it.asset.kind) == MediaAssetKind.PHOTO
+                MonitorMediaCategoryFilter.FAVORITES -> it.favorite
+            }
         }
+        categoryMemo[category] = Derived(state, offline, records)
+        return records
     }
     public val displayedRecords: List<MonitorMediaRecord<P>> get() {
-        val state = state.value
+        val state = state.value; val offline = usesEntries(state)
+        displayedMemo?.let { memo ->
+            if (memo.reusable(state, offline) { old -> old.category == state.category && old.sort == state.sort &&
+                    old.formats == state.formats && old.resolutions == state.resolutions && old.colors == state.colors &&
+                    old.dateStart == state.dateStart && old.dateEnd == state.dateEnd }) return memo.value
+        }
+        val value = deriveDisplayed(state)
+        displayedMemo = Derived(state, offline, value)
+        return value
+    }
+    private fun deriveDisplayed(state: MonitorMediaLibraryState<P>): List<MonitorMediaRecord<P>> {
         val filtered = records(state.category).filter { record ->
             val facts = record.facts
             (state.formats.isEmpty() || facts.format in state.formats) &&
@@ -187,7 +257,16 @@ public class MonitorMediaLibraryModel<P>(
         }
     }
     public val selectedRecords: List<MonitorMediaRecord<P>> get() = displayedRecords.filter { it.asset.id in state.value.selectedIDs }
-    public fun record(id: MediaAssetID): MonitorMediaRecord<P>? = state.value.records.firstOrNull { it.asset.id == id }
+    /** O(1), from an index rebuilt only when the records list itself changes; the first row wins. */
+    public fun record(id: MediaAssetID): MonitorMediaRecord<P>? {
+        val records = state.value.records
+        val memo = indexMemo
+        if (memo != null && memo.first === records) return memo.second[id]
+        val index = HashMap<MediaAssetID, MonitorMediaRecord<P>>(records.size * 2)
+        records.forEach { index.putIfAbsent(it.asset.id, it) }
+        indexMemo = records to index
+        return index[id]
+    }
     public fun filter(category: MonitorMediaCategoryFilter = state.value.category, formats: Set<String> = state.value.formats,
         resolutions: Set<String> = state.value.resolutions, colors: Set<String> = state.value.colors,
         dateStart: String? = state.value.dateStart, dateEnd: String? = state.value.dateEnd) {
@@ -335,7 +414,7 @@ public class MonitorMediaLibraryModel<P>(
             transferring = it.transferring - retired.ids, progress = it.progress - retired.ids,
             hostProgress = it.hostProgress - retired.hostKeys,
             deletionProgress = if (retainingHost == null) null else it.deletionProgress) }
-        oldOpen?.cancel(); oldList?.cancel(); oldReconciliation?.cancel(); oldCursor?.close(); oldEntries?.cancel(); retired.dispose()
+        oldOpen?.cancel(); oldList?.cancel(); oldReconciliation?.cancel(); oldCursor?.close(); oldEntries?.cancel(); cancelTargetedScans(); retired.dispose()
         oldAcquisition?.cancel()
         cleanup?.start()
         return Retirement(token, closed)
@@ -402,12 +481,12 @@ public class MonitorMediaLibraryModel<P>(
         generation: UUID, request: UUID, freshBase: Boolean = false) {
         var listingCatalog = MediaCatalog()
         val authority = cache.catalogAuthority
-        var appliedPage = false; var checkpointAttempted = false
+        var appliedPage = false; var checkpointAttempted = false; var pendingPages = 0
         val context = currentCoroutineContext()
         fun checkpoint() {
             context.ensureActive()
             if (!(cache.isCurrent(authority) && admitted(generation, request, binding))) throw MediaServiceException(MediaServiceFailure.RETIRED)
-            checkpointAttempted = true
+            checkpointAttempted = true; pendingPages = 0
             cache.save(state.value.records) { context.isActive && (cache.isCurrent(authority) && admitted(generation, request, binding)) }
         }
         try {
@@ -424,14 +503,21 @@ public class MonitorMediaLibraryModel<P>(
                 val nextCatalog = (if (freshBase) listingCatalog else state.value.catalog).applying(delta)
                 if (!apply(nextCatalog, capture, generation, request, binding, authority)) throw MediaServiceException(MediaServiceFailure.RETIRED)
                 listingCatalog = nextCatalog
-                appliedPage = true
-                if (catalogPersistence == MonitorMediaCatalogPersistence.EACH_DELTA) checkpoint()
+                appliedPage = true; pendingPages += 1
+                when (catalogPersistence) {
+                    MonitorMediaCatalogPersistence.EACH_DELTA -> checkpoint()
+                    MonitorMediaCatalogPersistence.STANDARD ->
+                        if (pendingPages >= MonitorMediaCatalogPersistence.STANDARD_PAGES) checkpoint()
+                    MonitorMediaCatalogPersistence.LISTING_COMPLETE_OR_NON_CANCEL_FAILURE -> Unit
+                }
             }
             currentCoroutineContext().ensureActive()
-            if (catalogPersistence == MonitorMediaCatalogPersistence.LISTING_COMPLETE_OR_NON_CANCEL_FAILURE && appliedPage) checkpoint()
+            if (catalogPersistence != MonitorMediaCatalogPersistence.EACH_DELTA && pendingPages > 0) checkpoint()
         } catch (error: Exception) {
-            if (catalogPersistence == MonitorMediaCatalogPersistence.LISTING_COMPLETE_OR_NON_CANCEL_FAILURE &&
-                appliedPage && !checkpointAttempted && error !is CancellationException &&
+            val pending = if (catalogPersistence == MonitorMediaCatalogPersistence.STANDARD) pendingPages > 0
+                else catalogPersistence == MonitorMediaCatalogPersistence.LISTING_COMPLETE_OR_NON_CANCEL_FAILURE && !checkpointAttempted
+            if (catalogPersistence != MonitorMediaCatalogPersistence.EACH_DELTA &&
+                appliedPage && pending && error !is CancellationException &&
                 (error as? MediaServiceException)?.failure != MediaServiceFailure.RETIRED &&
                 currentCoroutineContext().isActive && (cache.isCurrent(authority) && admitted(generation, request, binding))) checkpoint()
             throw error
@@ -474,12 +560,20 @@ public class MonitorMediaLibraryModel<P>(
         if (!ifCurrent()) return false
         if (capture.sourceFavoriteKeys != null) favoritesStore.saveFavorites(favorites)
         if (!ifCurrent()) return false
-        reloadEntries()
+        // Only rows this capture added or amended can have new cache facts; others keep theirs.
+        reloadEntries((capture.upserts.asSequence() + capture.amendments.asSequence()).map { it.asset.id }.filter { it in retained }.toSet())
         return ifCurrent()
     }
+    private fun cancelTargetedScans() {
+        val tasks = targetedTasks.values.toList()
+        targetedTasks.clear(); targetedRequests.clear(); dirtyDuringFull.clear()
+        tasks.forEach { it.cancel() }
+    }
+    /** A full scan: init, begin, clear, removal and an app-owned commit through this root. */
     private fun reloadEntries() {
         val request = UUID.randomUUID(); val generation = lifetime; entryRequest = request
         val previous = entryTask; entryTask = null; previous?.cancel()
+        cancelTargetedScans()
         if (entryRequest != request || lifetime != generation) return
         when (cacheScanning) {
             MonitorMediaCacheScanning.IMMEDIATE -> {
@@ -494,10 +588,61 @@ public class MonitorMediaLibraryModel<P>(
                         if (!isActive || entryRequest != request || lifetime != generation ||
                             snapshot.planID != plan.id || snapshot.generation != cache.directory.generation) return@launch
                         entryTask = null
-                        mutate { it.copy(entries = snapshot.entries, cacheRevision = it.cacheRevision + 1) }
+                        // A page that removed records during the scan no longer restarts it: keep only
+                        // entries of records that still exist.
+                        mutate { state ->
+                            val current = state.records.mapTo(HashSet()) { it.asset.id }
+                            state.copy(entries = snapshot.entries.filterKeys { it in current }, cacheRevision = state.cacheRevision + 1)
+                        }
                     } catch (error: Exception) { if (entryRequest == request && lifetime == generation) entryTask = null }
+                    if (entryRequest == request && lifetime == generation && entryTask == null && dirtyDuringFull.isNotEmpty()) {
+                        val dirty = dirtyDuringFull.toSet(); dirtyDuringFull.clear(); reloadEntries(dirty)
+                    }
                 }
                 entryTask = task; task.start()
+            }
+        }
+    }
+    /** A targeted scan of the records one commit or capture touched; null rescans everything. */
+    private fun reloadEntries(ids: Set<MediaAssetID>?) {
+        if (ids == null) { reloadEntries(); return }
+        if (ids.isEmpty()) return
+        val generation = lifetime
+        when (cacheScanning) {
+            MonitorMediaCacheScanning.IMMEDIATE -> {
+                val scanned = ids.mapNotNull { id -> record(id)?.let { id to cache.entry(it) } }.toMap()
+                if (lifetime != generation) return
+                mutate { state -> state.copy(entries = state.entries + scanned - (ids - scanned.keys), cacheRevision = state.cacheRevision + 1) }
+            }
+            MonitorMediaCacheScanning.BACKGROUND -> {
+                if (entryTask != null) { dirtyDuringFull += ids; return }
+                val records = ids.mapNotNull(::record)
+                val request = UUID.randomUUID(); val epoch = entryRequest
+                ids.forEach { targetedRequests[it] = request }
+                val plan = cache.readPlan(records)
+                val task = owner.launch(start = CoroutineStart.LAZY) {
+                    try {
+                        val snapshot = readSnapshot(plan)
+                        if (!isActive || entryRequest != epoch || lifetime != generation ||
+                            snapshot.planID != plan.id || snapshot.generation != cache.directory.generation) return@launch
+                        val owned = ids.filter { targetedRequests[it] == request }
+                        if (owned.isEmpty()) return@launch
+                        owned.forEach { targetedRequests.remove(it) }
+                        val present = owned.filter { record(it) != null }
+                        mutate { state ->
+                            val entries = state.entries.toMutableMap()
+                            owned.forEach { id -> if (id !in present) entries.remove(id) }
+                            present.forEach { id -> snapshot.entries[id]?.let { entries[id] = it } ?: entries.remove(id) }
+                            state.copy(entries = entries, cacheRevision = state.cacheRevision + 1)
+                        }
+                    } catch (_: Exception) {
+                        // A failed targeted scan keeps the previous facts; the next commit rescans.
+                    } finally {
+                        targetedTasks.remove(request)
+                        ids.forEach { if (targetedRequests[it] == request) targetedRequests.remove(it) }
+                    }
+                }
+                targetedTasks[request] = task; task.start()
             }
         }
     }
@@ -787,7 +932,7 @@ public class MonitorMediaLibraryModel<P>(
                 if (bytes.isEmpty()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.EMPTY)
                 sink.write(bytes); MediaTransferReceipt(bytes.size.toLong())
             }
-            requireHost(operation); writer.commit(receipt); reloadEntries()
+            requireHost(operation); writer.commit(receipt); reloadEntries(authority.asset?.let(::setOf))
         } finally { writer.abort(); finishHost(operation, clearingProgress = false) }
     }
     /** One host stream and canonical write under the existing library/cache lifetime. */
@@ -816,7 +961,7 @@ public class MonitorMediaLibraryModel<P>(
                     requireHost(operation); lastError = error; continue
                 }
                 requireHost(operation); plan.accepted?.invoke(index, receipt); requireHost(operation)
-                val location = writer.commit(receipt); reloadEntries(); requireHost(operation)
+                val location = writer.commit(receipt); reloadEntries(authority.asset?.let(::setOf)); requireHost(operation)
                 committed = true
                 return location
             }
@@ -902,7 +1047,7 @@ public class MonitorMediaLibraryModel<P>(
         val progressOwner = hostProgressOwners[authority.key]
         if (authority.owner != hostOwner || !authority.isCurrent || (progressOwner != null && progressOwner.id != authority.id)) return
         hostProgressOwners[authority.key] = authority
-        reloadEntries()
+        reloadEntries(authority.asset?.let(::setOf))
         if (!authority.isCurrent || hostProgressOwners[authority.key]?.id != authority.id) return
         if (role != MediaRepresentationRole.ORIGINAL) { clearHostProgress(authority); return }
         hostProgressDelays.remove(authority.key)?.cancel()
@@ -973,7 +1118,7 @@ public class MonitorMediaLibraryModel<P>(
                 try {
                     writer.write(bytes)
                     if (!current(generation) || thumbnails[id] != operation || !isActive) return@launch
-                    writer.commit(MediaTransferReceipt(bytes.size.toLong())); reloadEntries()
+                    writer.commit(MediaTransferReceipt(bytes.size.toLong())); reloadEntries(setOf(id))
                 } finally { writer.abort() }
             } catch (_: Exception) { /* A thumbnail refusal leaves the row and original untouched. */ }
             finally {
@@ -1018,7 +1163,7 @@ public class MonitorMediaLibraryModel<P>(
                 if (descriptor.role == MediaRepresentationRole.ORIGINAL &&
                     !cache.eligibility.accepts(receipt.byteCount, descriptor.byteCount))
                     throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
-                val file = writer.commit(receipt); reloadEntries()
+                val file = writer.commit(receipt); reloadEntries(setOf(id))
                 if (!current(generation) || transfers[id]?.id != operation || !isActive) throw MediaServiceException(MediaServiceFailure.RETIRED)
                 if (id in state.value.progress) mutate { it.copy(progress = it.progress + (id to 1.0)) }
                 sleep(450)

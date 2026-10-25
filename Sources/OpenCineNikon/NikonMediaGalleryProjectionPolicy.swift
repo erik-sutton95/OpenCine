@@ -96,20 +96,13 @@ public struct NikonAppleGalleryProjectionPolicy: MonitorMediaProjectionPolicy {
         let widths = scoped.compactMap {
             MediaClipFilename.isPhoto($0.filename) ? $0.pixelWidth : nil
         }
+        // One ranking and one date classification per listing, not per photo.
+        let ranking = NikonMediaPhotoSizeClass.ranking(among: widths)
+        var classifier = NikonMediaDateWindowClassifier(now: now, calendar: calendar)
         let rows = scoped.map { item -> MonitorMediaProjectionFacts in
             let photo = MediaClipFilename.isPhoto(item.filename)
-            let photoSize =
-                photo
-                ? item.pixelWidth.flatMap {
-                    NikonMediaPhotoSizeClass.rank(pixelWidth: $0, among: widths)
-                } : nil
-            let windows: Set<String>? =
-                NikonMediaDateWindow.captureDay(item.captureDate, calendar: calendar) == nil
-                ? nil
-                : Set(
-                    NikonMediaDateWindow.allCases.filter {
-                        $0.contains(ptpCaptureDate: item.captureDate, now: now, calendar: calendar)
-                    }.map(\.rawValue))
+            let photoSize = photo ? item.pixelWidth.flatMap { $0 > 0 ? ranking[$0] : nil } : nil
+            let windows = classifier.windows(item.captureDate).map { Set($0.map(\.rawValue)) }
             return .init(
                 id: item.id, format: MediaClipFilename.formatChip(for: item.filename)?.rawValue,
                 resolution: NikonMediaResolutionBucket.classify(

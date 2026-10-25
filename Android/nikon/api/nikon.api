@@ -1406,6 +1406,7 @@ public final class com/opencapture/opencine/nikon/NikonAndroidGalleryProjectionP
 	public final fun formatKey (Lcom/opencapture/opencine/nikon/NikonMediaClipRecord;)Ljava/lang/String;
 	public final fun offered (Ljava/util/List;Ljava/time/LocalDate;)Lcom/opencapture/opencine/media/MonitorMediaProjectionOffered;
 	public final fun photoSizeKey (Lcom/opencapture/opencine/nikon/NikonMediaClipRecord;Ljava/util/List;)Ljava/lang/String;
+	public final fun photoSizeRanking (Ljava/util/List;)Ljava/util/List;
 	public final fun resolutionKey (Lcom/opencapture/opencine/nikon/NikonMediaClipRecord;)Ljava/lang/String;
 	public final fun stillWidths (Ljava/util/List;)Ljava/util/List;
 	public final fun windowContains (Ljava/lang/String;JLjava/time/LocalDate;)Z

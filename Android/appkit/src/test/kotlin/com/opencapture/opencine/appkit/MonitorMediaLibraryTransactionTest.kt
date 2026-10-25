@@ -216,6 +216,25 @@ class MonitorMediaLibraryTransactionTest {
             assertNull(model.state.value.entries[MediaAssetID("A")]?.thumbnail)
         } finally { model.dispose(); cache.directory.root.deleteRecursively() }
     }
+    /** A page removing a record during a full background scan no longer restarts the scan, so its
+     *  late snapshot must not bring the removed record's entry back (CodeRabbit on #271). */
+    @Test fun lateFullScanCannotResurrectAnEntryRemovedDuringTheScan() = runTest {
+        val codec = TransactionCodec().also { it.loaded = listOf(record("A"), record("B")) }; val gate = SnapshotGate()
+        val cache = cache(codec); cache.directory.write(byteArrayOf(1), "thumb.jpg")
+        val service = TransactionService(listOf(MediaCatalogDelta(removed = listOf(MediaAssetID("B")), complete = true)))
+        val model = MonitorMediaLibraryModel(cache, TransactionFavorites(), service, backgroundScope,
+            cacheScanning = MonitorMediaCacheScanning.BACKGROUND, readSnapshot = { gate.read(it) })
+        try {
+            model.begin(); eventually { codec.captures == 1 && !model.state.value.fetching }
+            assertEquals(listOf(MediaAssetID("A")), model.state.value.records.map { it.asset.id })
+            eventually { gate.waiters.isNotEmpty() }
+            assertNotNull(gate.waiters.last().snapshot.entries[MediaAssetID("B")], "the scan read B before it went")
+            gate.waiters.indices.forEach { gate.release(it) }; runCurrent()
+            assertTrue(model.state.value.cacheRevision > 0)
+            assertNotNull(model.state.value.entries[MediaAssetID("A")])
+            assertNull(model.state.value.entries[MediaAssetID("B")], "a removed record keeps no cache entry")
+        } finally { model.dispose(); cache.directory.root.deleteRecursively() }
+    }
     @Test fun localRemovalLeavesCameraObservationAndRejectsRetiredAction() = runTest {
         val codec = TransactionCodec()
         val service = TransactionService(listOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("A")), complete = true)))
