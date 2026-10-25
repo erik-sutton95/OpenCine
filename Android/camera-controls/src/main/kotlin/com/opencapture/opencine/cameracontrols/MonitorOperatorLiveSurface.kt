@@ -80,7 +80,12 @@ public class MonitorOperatorAssistSource(public val host: AssistHost,
  * waiting plate's words when the source has no picture to wait for (no camera, a reconnect, a network hop). */
 public data class MonitorOperatorLivePicture(public val aspect: Float, public val waiting: Boolean,
     public val vertical: Boolean, public val flipped: Boolean, public val recovering: Boolean,
-    public val notice: MonitorOperatorPictureNotice? = null) {
+    public val notice: MonitorOperatorPictureNotice? = null,
+    /**
+     * An automatic reconnect is running (Swift `reconnecting`); follows [recovering] unless the
+     * source's recovery can wait for the operator (taken over, paused, out of attempts).
+     */
+    public val reconnecting: Boolean = recovering) {
     /** The plate covers the picture well: the source's notice, else the waiting plate. */
     public val plate: MonitorOperatorPicturePlate? get() = when {
         notice != null -> MonitorOperatorPicturePlate.Notice(notice)

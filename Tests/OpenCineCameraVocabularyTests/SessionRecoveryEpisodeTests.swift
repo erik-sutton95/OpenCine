@@ -144,6 +144,8 @@ struct SessionRecoveryEpisodeTests {
         await host.clock.settle()
         #expect(host.connects == 1)
         #expect(host.episode.snapshot.holdsPicture)
+        // The spinner agrees with the state: waiting for the operator is not reconnecting.
+        #expect(!host.episode.snapshot.reconnecting)
     }
 
     @Test func stageCeilingsRestartWhenTheStageChanges() async {

@@ -834,7 +834,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             if let focus = cameraViews.focusControls { focus.allowsHitTesting(admitted).zIndex(4) }
             if !command { instruments }
             MonitorOperatorLiveBanners<Host.Palette>(layout: live, camera: identity.camera,
-                recovering: facts.picture.recovering, note: source.note, showsStatus: mounts(.statusBar))
+                recovering: facts.picture.reconnecting, note: source.note, showsStatus: mounts(.statusBar))
             if let motion = cameraViews.motion { motion.controls.allowsHitTesting(admitted && !transient) }
             if command, let dashboard = cameraViews.dashboard {
                 let frame = MonitorCommandDashboardLayout.frame(layout: layout)

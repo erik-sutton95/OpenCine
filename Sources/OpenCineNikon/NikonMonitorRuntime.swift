@@ -299,6 +299,11 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                 baseSeconds: 1, maxSeconds: 8, multiplier: 2, jitterFraction: 0.3)
             var stallAttempt = 0
             var lastGood: Date?
+            // Whether this link ever delivered a picture. The in-place reconnect below is for a
+            // fresh session whose live view would not start; a link that streamed and then lost
+            // its picture may have lost the camera to another phone (hardware pass 4.1), and
+            // only recovery asks who holds it before dialing.
+            var streamed = false
             while previewIsCurrent(current) {
                 let began = Date()
                 let attempt = Task {
@@ -310,6 +315,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                             if accepted, delivery.first {
                                 self.startFailures = 0
                                 lastGood = Date()
+                                streamed = true
                             }
                             return accepted
                         },
@@ -334,6 +340,19 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                 let healthy = (lastGood ?? .distantPast).timeIntervalSince(began) > 30
                 switch outcome {
                 case .cancelled: return
+                case .linkLost(let reason):
+                    // Nothing more to this body: no EndLiveView, no restart, no in-place dial.
+                    // Recovery owns the reconnect and stands down for a take-over.
+                    startFailures = 0
+                    event(.recover(reason: "camera link lost (\(reason))"))
+                    return
+                case .neverStarted(let reason) where streamed:
+                    // A streamed link that cannot restart live view is not a cold start. Leave
+                    // the body alone (EndLiveView could stop the picture of a phone that took
+                    // it) and hand the decision to recovery.
+                    startFailures = 0
+                    event(.recover(reason: "live view could not restart (\(reason))"))
+                    return
                 case .neverStarted(let reason):
                     startFailures += 1
                     let end = Task { await link.stopLiveView() }
@@ -346,7 +365,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                     let delay = backoff.delaySeconds(
                         forAttempt: startFailures - 1, jitter: .random(in: 0...1))
                     event(.reconnect(reason: reason, delay: delay))
-                    try? await Task.sleep(for: .seconds(delay))
+                    await backgroundSleep(.seconds(delay))
                     guard previewIsCurrent(current) else { return }
                     event(.reconnectReady)
                     return
@@ -359,7 +378,8 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                     let delay = backoff.delaySeconds(
                         forAttempt: stallAttempt, jitter: .random(in: 0...1))
                     event(.restart(reason: reason, delay: delay))
-                    try? await Task.sleep(for: .seconds(delay))
+                    await backgroundSleep(.seconds(delay))
+                    guard previewIsCurrent(current) else { return }
                     stallAttempt += 1
                 }
             }

@@ -271,6 +271,8 @@ class SessionRecoveryEpisodeTest {
         runCurrent()
         assertEquals(1, host.connects)
         assertTrue(host.episode.snapshot.value.holdsPicture)
+        // The spinner agrees with the state: waiting for the operator is not reconnecting.
+        assertEquals(false, host.episode.snapshot.value.reconnecting)
     }
 
     @Test

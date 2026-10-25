@@ -27,4 +27,16 @@ final class MonitorOperatorPicturePlateTests: XCTestCase {
         XCTAssertNil(notice.detail)
         XCTAssertFalse(notice.progress)
     }
+
+    /// Hardware pass 4.1: a taken-over monitor showed "Reconnecting" over "Camera taken over".
+    func testTheReconnectingPillFollowsRecoveryUnlessTheSourceSaysOtherwise() {
+        let follows = MonitorOperatorLivePicture(
+            aspect: 16 / 9, waiting: false, vertical: false, flipped: false, recovering: true)
+        XCTAssertTrue(follows.reconnecting)
+        let takenOver = MonitorOperatorLivePicture(
+            aspect: 16 / 9, waiting: false, vertical: false, flipped: false, recovering: true,
+            reconnecting: false)
+        XCTAssertTrue(takenOver.recovering)
+        XCTAssertFalse(takenOver.reconnecting)
+    }
 }

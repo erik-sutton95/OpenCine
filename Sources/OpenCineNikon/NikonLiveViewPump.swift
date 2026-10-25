@@ -30,6 +30,20 @@ public final class NikonLiveViewPump {
         case cancelled
         case neverStarted(String)
         case stalled(String)
+        /// The camera or the network ended the link (the camera closed the connection, the
+        /// socket failed). Nothing more can go over it, so the caller neither restarts live view
+        /// nor redials in place: a Nikon body closes a phone's link when another phone takes the
+        /// camera, and only recovery, which asks who holds the camera first, may dial.
+        case linkLost(String)
+    }
+
+    /// Whether `error` means the link itself is gone rather than one refused or slow operation.
+    public nonisolated static func isLinkLoss(_ error: Error) -> Bool {
+        if error is POSIXError { return true }
+        switch error as? NativeCameraSessionError {
+        case .connectionClosed?, .connectionFailed?: return true
+        default: return false
+        }
     }
 
     public struct Delivery: Sendable {
@@ -217,6 +231,7 @@ public final class NikonLiveViewPump {
             // The unstructured pending fetch is deliberately not cancelled. Its own deadline
             // bounds retirement, and native teardown can close its transport immediately.
             guard current(isCurrent) else { return .cancelled }
+            if Self.isLinkLoss(error) { return .linkLost(error.localizedDescription) }
             return started
                 ? .stalled(error.localizedDescription) : .neverStarted(error.localizedDescription)
         }
