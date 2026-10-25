@@ -18,7 +18,7 @@
 
 - Never use the em dash character anywhere.
 - OpenCine commits and OpenZCine commits as `Erik Sutton <9084979+erik-sutton95@users.noreply.github.com>`; Conventional Commits; no co-author trailers; explicit `git add <path>`.
-- OpenZCine work happens in a task-owned worktree of OpenZCine on its own branch (`atlas task start` or `git worktree add` from `/Users/eriksutton/Work/OpenZCine`); never modify the shared checkout `/Users/eriksutton/Work/OpenZCine` itself, never reset, clean or force-push.
+- OpenZCine work happens in a task-owned worktree of OpenZCine on its own branch (`atlas task start` or `git worktree add` from the shared sibling checkout `../OpenZCine`); never modify that checkout itself, never reset, clean or force-push.
 - Merge commits only (`gh pr merge --merge`); OpenZCine's pin points at OpenCine `main`'s merge commit. Every `gh` call uses `GH_TOKEN=$(gh auth token -u erik-sutton95)`.
 - Capability, not brand: `OpenCineNikon` may name Nikon; shared gyro code may not. Camera settings change only on **Turn off IBIS** and on the session-end restore; never during a demo session; never touch card contents.
 - Integrations never import UI. Nikon behavior changes need the consumer checks: OpenZCine `swift test`, iOS build-for-testing and Android with Swift core staging.

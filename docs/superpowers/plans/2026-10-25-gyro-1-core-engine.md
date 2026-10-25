@@ -78,7 +78,7 @@ Created in OpenCine (paths relative to the Core worktree root):
 
 Modified: `Package.swift`, `Android/settings.gradle.kts`, `atlas/repos/opencine/meta.json`, `AGENTS.md` (Boundaries and Area rules bullets), `atlas/api/swift/OpenCineGyro.txt`, `atlas/api/swift/OpenCineGyroAndroid.txt` (generated).
 
-Source of moved files: `git -C /Users/eriksutton/Work/OpenZCine show origin/main:<path>` (read-only; never modify that checkout). Moved code keeps its doc comments; edit only what the task names.
+Source of moved files: `git -C ../OpenZCine show origin/main:<path>` (read-only; never modify that checkout). Moved code keeps its doc comments; edit only what the task names.
 
 ---
 
