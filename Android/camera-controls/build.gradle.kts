@@ -1,7 +1,8 @@
 // Camera controls (Swift twin: OpenCineCameraControls): the capture sheets, live chrome and gimbal
 // views and their list logic over the camera vocabulary, shared by the apps. App composition, next
-// to appkit: builds on camera-vocabulary, monitor-ui, appkit, core, media and motion, never on dji
-// or another integration, an app or a third-party package. App differences arrive as host values.
+// to appkit: builds on camera-vocabulary, monitor-ui, appkit, core, media, motion and gyro, never
+// on dji or another integration, an app or a third-party package. App differences arrive as host
+// values.
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
@@ -45,6 +46,7 @@ dependencies {
     api(project(":camera-vocabulary"))
     api(project(":monitor-ui"))
     api(project(":appkit"))
+    api(project(":gyro"))
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
