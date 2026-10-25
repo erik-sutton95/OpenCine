@@ -28,4 +28,16 @@ class MonitorOperatorPicturePlateTest {
         assertNull(notice.detail)
         assertEquals(false, notice.progress)
     }
+
+    /** Hardware pass 4.1: a taken-over monitor showed "Reconnecting" over "Camera taken over". */
+    @Test
+    fun `the reconnecting pill follows recovery unless the source says otherwise`() {
+        val follows = MonitorOperatorLivePicture(16f / 9f, false, vertical = false, flipped = false, recovering = true)
+        assertEquals(true, follows.reconnecting)
+        val takenOver = MonitorOperatorLivePicture(
+            16f / 9f, false, vertical = false, flipped = false, recovering = true, reconnecting = false,
+        )
+        assertEquals(true, takenOver.recovering)
+        assertEquals(false, takenOver.reconnecting)
+    }
 }

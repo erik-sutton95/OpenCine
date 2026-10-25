@@ -27,6 +27,19 @@ sealed class SessionRecoveryUi {
     data class TakenOver(val holder: String?) : SessionRecoveryUi()
 
     val isRecovering: Boolean get() = this !is Idle
+
+    /**
+     * An automatic reconnect is actually running (Swift `isReconnecting`). A taken-over, paused
+     * or spent recovery waits for the operator and must not say it is reconnecting.
+     */
+    val isReconnecting: Boolean get() = this is Retrying
+
+    /**
+     * Whether this device may still tell other devices it holds the camera (Swift
+     * `claimsCamera`): a live session and a running reconnect keep the claim, a device that
+     * stopped reconnecting has given the camera up (hardware pass 4.1).
+     */
+    val claimsCamera: Boolean get() = this is Idle || this is Retrying
 }
 
 /** Cross-run damping for sessions that reconnect cleanly but keep dying. */

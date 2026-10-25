@@ -18,6 +18,26 @@ public enum SessionRecoveryState: Equatable, Sendable {
     case takenOver(holder: String?)
 
     public var isRecovering: Bool { self != .idle }
+
+    /// An automatic reconnect is actually running. The "Reconnecting" pill follows this, not
+    /// `isRecovering`: a taken-over, paused or spent recovery waits for the operator and must not
+    /// tell them it is reconnecting (hardware pass 4.1 showed both at once).
+    public var isReconnecting: Bool {
+        if case .retrying = self { return true }
+        return false
+    }
+
+    /// Whether this device may still tell other devices it holds the camera (the presence answer
+    /// and the in-use shield). A live session and a running reconnect keep the claim; a device
+    /// that stopped reconnecting has given the camera up. A stale claim made the device that
+    /// took the camera read its own later drop as "taken over" by the phone it had replaced, so
+    /// both phones ended on "Camera taken over" (hardware pass 4.1).
+    public var claimsCamera: Bool {
+        switch self {
+        case .idle, .retrying: true
+        case .waitingForOperator, .pausedAfterRepeatedDrops, .takenOver: false
+        }
+    }
 }
 
 /// Cross-run damping for sessions that reconnect cleanly but keep dying.

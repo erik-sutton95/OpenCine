@@ -2724,6 +2724,8 @@ public final class com/opencapture/opencine/vocabulary/SessionRecoveryTrigger : 
 }
 
 public abstract class com/opencapture/opencine/vocabulary/SessionRecoveryUi {
+	public final fun getClaimsCamera ()Z
+	public final fun isReconnecting ()Z
 	public final fun isRecovering ()Z
 }
 

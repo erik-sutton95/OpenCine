@@ -105,7 +105,15 @@ the app implements with its own pipeline: the discovery loop (passive for the ca
 active only while a pairing listener asks), the connect funnel, its phases and its forget. The app
 keeps its save rules: it writes its saved setups as before and the integration reads them back for
 the connected camera. Before connecting to a camera another device holds, the integration asks
-with a `NikonTakeOverPrompt` (the app's prompt slot renders it). Pairing and the access point's
+with a `NikonTakeOverPrompt` (the app's prompt slot renders it). The device that lost the camera
+never dials it again on its own: only the recovery episode reconnects, and before its first
+attempt it asks for the holder `NikonTakeOverRecovery.firstAttemptAsks` times, spaced, because the
+body drops it before the new holder's presence answer is up. `NikonMonitorRuntime`'s preview
+ladder hands any failure of a link that has streamed (and any lost link) to recovery instead of
+restarting live view or reconnecting in place, and sends nothing more to the body. A device that
+stopped reconnecting stops claiming the camera (`SessionRecoveryState.claimsCamera`), so the new
+holder never reads a later drop of its own as a take-over (hardware pass 4.1: both phones showed
+"Camera taken over" while the loser had taken the ZR back, and the body hung). Pairing and the access point's
 restart are approve-on-camera prompts; the access point join is the common network-join prompt.
 Tests: `NikonIntegrationTests` / `NikonIntegrationTest`, same method names
 (`theCamerasListNeverAsksForActiveDiscovery` pins the passive rule at the integration).
