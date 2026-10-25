@@ -38,6 +38,15 @@ public enum NikonBodyWake {
         return .nanoseconds(Int64(clamping: nanoseconds))
     }
 
+    /// The wake dials left after a failed connect that already took `spent`: the connect's own
+    /// wait counts against the same budget, so the operator sees one wait of about `dials`
+    /// slots, never a 10 s connect timeout plus a full wake. At least one dial always runs.
+    static func dialsLeft(after spent: Duration, dials: Int, slot: Duration) -> Int {
+        guard slot > .zero, spent > .zero else { return max(dials, 1) }
+        let used = Int(spent / slot)
+        return max(dials - used, 1)
+    }
+
     /// The pause after an unanswered dial that took `spent`: the rest of its slot, never less
     /// than `interval`.
     static func pause(after spent: Duration, interval: Duration, slot: Duration) -> Duration {
@@ -140,12 +149,15 @@ public enum NikonBodyWake {
         sleep: @Sendable (Duration) async throws -> Void = hostSleep(for:),
         dial: @Sendable () async throws -> Value
     ) async throws -> Value {
+        let started = now()
         do {
             return try await dial()
         } catch let failure as DialFailure {
             guard failure.wakeWorthy, !Task.isCancelled else { throw failure.underlying }
             await onWake?()
-            let outcome = await awaitAnswer(host: host, isAlive: isAlive, now: now, sleep: sleep)
+            let left = dialsLeft(after: now() - started, dials: dials, slot: slot)
+            let outcome = await awaitAnswer(
+                host: host, dials: left, isAlive: isAlive, now: now, sleep: sleep)
             guard outcome.answered else { throw SilentError(deviceName: deviceName) }
             do {
                 return try await dial()
@@ -174,23 +186,27 @@ public enum NikonBodyWake {
         sleep: (TimeInterval) -> Void = blockingSleep,
         dial: () throws -> Value
     ) throws -> Value {
+        let started = now()
         do {
             return try dial()
         } catch let failure as DialFailure {
             guard failure.wakeWorthy else { throw failure.underlying }
             onWake()
+            let left = dialsLeft(
+                after: .milliseconds(Int64((now() - started) * 1_000)), dials: dials,
+                slot: .milliseconds(Int64(slot * 1_000)))
             var made = 0
             var answered = false
-            while made < max(dials, 1) {
+            while made < left {
                 if Task.isCancelled { break }
                 made += 1
-                let started = now()
+                let dialStarted = now()
                 if isAlive(host) {
                     answered = true
                     break
                 }
-                if made < dials {
-                    let rest = Swift.max(interval, slot - (now() - started))
+                if made < left {
+                    let rest = Swift.max(interval, slot - (now() - dialStarted))
                     if rest > 0 { sleep(rest) }
                 }
             }

@@ -63,6 +63,26 @@ class NikonBodyWakeTest {
     }
 
     @Test
+    fun `a connect that timed out counts against the wake, so the operator sees one wait`() = runTest {
+        var alive = 0
+        assertFailsWith<NikonBodyWake.SilentException> {
+            NikonBodyWake.dial<String>(
+                host = "192.168.1.20",
+                isAlive = { alive++; false },
+                nowMillis = { currentTime },
+                dial = {
+                    delay(10_000)
+                    throw NikonBodyWake.DialFailure(DialTestFailure(), wakeWorthy = true)
+                },
+            )
+        }
+        assertEquals(5, alive)
+        assertEquals(10_000L + 4 * NikonBodyWake.SLOT_MILLIS, currentTime)
+        assertEquals(NikonBodyWake.DIALS, NikonBodyWake.dialsLeft(0))
+        assertEquals(1, NikonBodyWake.dialsLeft(60_000))
+    }
+
+    @Test
     fun `the wake reports waiting, then the answer, before the retry dial`() = runTest {
         val events = mutableListOf<String>()
         var dials = 0

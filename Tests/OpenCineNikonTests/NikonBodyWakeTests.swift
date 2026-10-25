@@ -101,6 +101,54 @@ struct NikonBodyWakeTests {
         #expect(NikonBodyWake.pause(after: .seconds(5), interval: interval, slot: slot) == interval)
     }
 
+    @Test("A connect that timed out counts against the wake, so the operator sees one wait")
+    func connectTimeCountsAgainstTheWake() async {
+        let clock = FakeClock()
+        let probe = DialProbe(answerOn: nil)
+        do {
+            _ = try await NikonBodyWake.dial(
+                host: "192.168.1.20",
+                isAlive: { await probe.isAlive($0) },
+                now: { clock.now },
+                sleep: { clock.advance($0) },
+                dial: { () -> String in
+                    clock.advance(.seconds(10))
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                })
+            Issue.record("a silent body must not connect")
+        } catch {
+            #expect(error is NikonBodyWake.SilentError)
+        }
+        #expect(await probe.aliveDials == 5)
+        #expect(clock.now == .seconds(10) + NikonBodyWake.slot * 4)
+        #expect(NikonBodyWake.dialsLeft(after: .zero, dials: 10, slot: .seconds(2)) == 10)
+        #expect(NikonBodyWake.dialsLeft(after: .seconds(60), dials: 10, slot: .seconds(2)) == 1)
+    }
+
+    @Test("The blocking wake also counts the connect's time")
+    func blockingConnectTimeCountsAgainstTheWake() {
+        let probe = BlockingDialProbe(answerOn: nil)
+        let clock = PauseLog()
+        var elapsed: TimeInterval = 0
+        do {
+            _ = try NikonBodyWake.dialBlocking(
+                host: "192.168.1.20",
+                isAlive: { _ in probe.isAlive() },
+                now: { elapsed },
+                sleep: { elapsed += $0; clock.append($0) },
+                dial: { () -> String in
+                    elapsed += 6
+                    throw NikonBodyWake.DialFailure(
+                        underlying: DialError.unreachable, wakeWorthy: true)
+                })
+            Issue.record("a silent body must not connect")
+        } catch {
+            #expect(error is NikonBodyWake.SilentError)
+        }
+        #expect(clock.values.count == 6)
+    }
+
     @Test("The blocking wait used by Android also spans one slot per instant dial")
     func blockingInstantFailuresFillTheirSlots() {
         let probe = BlockingDialProbe(answerOn: nil)

@@ -38,6 +38,16 @@ object NikonBodyWake {
     fun pauseAfter(spentMillis: Long, intervalMillis: Long = INTERVAL_MILLIS, slotMillis: Long = SLOT_MILLIS): Long =
         maxOf(intervalMillis, slotMillis - spentMillis)
 
+    /**
+     * The wake dials left after a failed connect that already took [spentMillis]: the connect's
+     * own wait counts against the same budget, so the operator sees one wait of about [DIALS]
+     * slots (Swift `dialsLeft`). At least one dial always runs.
+     */
+    internal fun dialsLeft(spentMillis: Long, dials: Int = DIALS, slotMillis: Long = SLOT_MILLIS): Int {
+        if (slotMillis <= 0 || spentMillis <= 0) return dials.coerceAtLeast(1)
+        return (dials - (spentMillis / slotMillis).toInt()).coerceAtLeast(1)
+    }
+
     private fun monotonicMillis(): Long = System.nanoTime() / 1_000_000
 
     sealed interface Outcome {
@@ -99,13 +109,15 @@ object NikonBodyWake {
         nowMillis: () -> Long = ::monotonicMillis,
         dial: suspend () -> T,
     ): T {
+        val started = nowMillis()
         try {
             return dial()
         } catch (failure: DialFailure) {
             if (!failure.wakeWorthy || !currentCoroutineContext().isActive) throw failure.underlying
             onWake()
             onWakeProgress(Progress.WAITING)
-            if (awaitAnswer(host, nowMillis = nowMillis, isAlive = isAlive) is Outcome.Silent) {
+            val left = dialsLeft(nowMillis() - started)
+            if (awaitAnswer(host, dials = left, nowMillis = nowMillis, isAlive = isAlive) is Outcome.Silent) {
                 throw SilentException(deviceName)
             }
             onWakeProgress(Progress.ANSWERED)
