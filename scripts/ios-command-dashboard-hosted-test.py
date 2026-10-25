@@ -39,6 +39,8 @@ waiting_names = [
     "testLiveAndCleanKeepWaitingPresentationVisible",
     "testTheLockSlotReturnControlUsesTheSharedMultiviewLabel",
     "testModeChangesRetainTheNativePictureOwnerAndReturnItsPaint",
+    "testPortraitCommandDropsTheHeaderTimecodeAndKeepsStorageAndLink",
+    "testLandscapeCommandDropsTheWholeHeader",
 ]
 assert re.findall(r"\bfunc (test\w+)\(", waiting_source.read_text()) == waiting_names
 inputs = [source, waiting_source, Path(__file__).resolve(), sdk / "Package.swift"]
