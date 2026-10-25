@@ -355,6 +355,7 @@ class SessionRecoveryEpisode(
                     publish(
                         mutableSnapshot.value.copy(
                             state = SessionRecoveryUi.WaitingForOperator(failures + 1),
+                            reconnecting = false,
                             cardGraceElapsed = true,
                         ),
                         attempt,

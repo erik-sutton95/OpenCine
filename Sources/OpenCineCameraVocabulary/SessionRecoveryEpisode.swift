@@ -460,6 +460,7 @@ public final class SessionRecoveryEpisode {
                 case .superseded:
                     next = snapshot
                     next.state = .waitingForOperator(attemptsMade: failures + 1)
+                    next.reconnecting = false
                     next.cardGraceElapsed = true
                     try publish(next, attempt: attempt)
                     return
