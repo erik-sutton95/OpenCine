@@ -52,10 +52,14 @@ object MonitorTextFormat {
         return upper.contains("RAW") || upper.contains("R3D")
     }
 
+    // Compiled once: the live readouts format the codec on every frame header (lane media-perf).
+    private val trailingQualifier = Regex("""\s+\d+-bit\s+.+$""")
+    private val trailingBitDepth = Regex("""\s+\d+-bit$""")
+
     /** The short family label: `"R3D NE 10-bit R3D"` becomes `"R3D NE"`. */
     fun codecShortLabel(codec: String): String {
         val stripped = codec.trim()
-        val qualifier = Regex("""\s+\d+-bit\s+.+$""").find(stripped) ?: return stripped
+        val qualifier = trailingQualifier.find(stripped) ?: return stripped
         return stripped.substring(0, qualifier.range.first).trim()
     }
 
@@ -63,7 +67,7 @@ object MonitorTextFormat {
     fun codecCompactLabel(codec: String): String {
         var label = codecShortLabel(codec).replace("ProRes", "PR")
         if (label.startsWith("H.26")) {
-            Regex("""\s+\d+-bit$""").find(label)?.let { label = label.substring(0, it.range.first) }
+            trailingBitDepth.find(label)?.let { label = label.substring(0, it.range.first) }
         }
         return label.trim()
     }

@@ -29,6 +29,10 @@ codec	ProRes 422 HQ 10-bit MOV	ProRes 422 HQ	PR 422 HQ	false
 codec	H.265 10-bit	H.265 10-bit	H.265	false
 codec	H.265 10-bit MP4	H.265	H.265	false
 codec	H.264 8-bit MP4	H.264	H.264	false
+codec	H.265 10-bit 4:2:2	H.265	H.265	false
+codec	10-bit R3D	10-bit R3D	10-bit R3D	true
+codec	X 10-bitR3D	X 10-bitR3D	X 10-bitR3D	true
+codec	A 1-bit B 2-bit C	A	A	false
 codec	N-RAW 12-bit NEV	N-RAW	N-RAW	true
 estimate	R3D NE	6048	3402	25	429	36
 estimate	R3D NE	6048	3402	25	470	40
