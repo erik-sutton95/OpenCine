@@ -40,6 +40,7 @@ let package = Package(
         .library(name: "OpenCineCore", targets: ["OpenCineCore"]),
         .library(name: "OpenCineMedia", targets: ["OpenCineMedia"]),
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
+        .library(name: "OpenCineGyro", targets: ["OpenCineGyro"]),
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
         .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
         .library(name: "OpenCineRelayApple", targets: ["OpenCineRelayApple"]),
@@ -101,6 +102,10 @@ let package = Package(
         // Optional Frame.io delivery. No Core values genuinely help it, so it depends on nothing.
         .target(name: "OpenCineFrameIO"),
         .testTarget(name: "OpenCineFrameIOTests", dependencies: ["OpenCineFrameIO"]),
+        // Phone gyro capture for Gyroflow: take segmentation, GCSV, mount calibration, drift,
+        // stabilization save/restore and log storage. Foundation only; names no app or manufacturer.
+        .target(name: "OpenCineGyro"),
+        .testTarget(name: "OpenCineGyroTests", dependencies: ["OpenCineGyro"]),
         // Optional typed motion seam and trajectory math shared by gimbal integrations.
         .target(name: "OpenCineMotion", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMotionTests", dependencies: ["OpenCineMotion"]),
