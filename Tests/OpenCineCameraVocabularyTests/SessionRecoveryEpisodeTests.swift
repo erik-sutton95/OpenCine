@@ -280,14 +280,20 @@ struct SessionRecoveryEpisodeTests {
         host.admits = false
         host.episode.pause()
         #expect(host.begin())
-        _ = await host.clock.drive { false }
+        #expect(
+            await host.clock.until {
+                host.cleanups == [.initialDrop]
+                    && host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8)
+            })
+        host.clock.advance(to: 400)
+        await host.clock.settle()
         #expect(host.connects == 0)
         #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
         #expect(host.episode.snapshot.holdsPicture)
         #expect(host.cleanups == [.initialDrop])
         host.admits = true
         host.episode.resume()
-        #expect(await host.clock.drive { host.connects == 1 })
+        #expect(await host.clock.until { host.connects == 1 })
         host.clock.advance(to: host.clock.time + 1)
         host.picture = (host.clock.time, host.clock.time)
         #expect(await host.clock.drive { host.episode.snapshot.state == .idle })
@@ -299,44 +305,59 @@ struct SessionRecoveryEpisodeTests {
         host.onConnect = { await gate.wait() }
         host.admits = false
         #expect(host.begin())
-        await host.clock.settle()
-        #expect(gate.isWaiting && host.connects == 1)
+        #expect(await host.clock.until { gate.isWaiting && host.connects == 1 })
         host.episode.pause()
         host.onConnect = nil
         gate.resume()
+        #expect(
+            await host.clock.until {
+                host.cleanups == [.initialDrop, .failedAttempt]
+                    && !host.episode.snapshot.reconnecting
+            })
         host.clock.advance(to: 60)
         await host.clock.settle()
         #expect(host.connects == 1, "no attempt dials while paused")
         #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
         #expect(host.cleanups == [.initialDrop, .failedAttempt])
-        #expect(!host.episode.snapshot.reconnecting)
         host.admits = true
         host.episode.resume()
-        #expect(await host.clock.drive { host.connects == 2 })
+        #expect(await host.clock.until { host.connects == 2 })
         #expect(host.clock.backoffs.isEmpty, "resume dials at once, without a backoff")
         #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
         host.episode.cancel()
     }
 
+    /// Deterministic on the manual clock: one attempt stays in flight (no polling sleeps), and every
+    /// step waits for the sleeper it needs instead of a fixed number of yields.
     @Test func theTotalBudgetCountsOnlyTimeTheHostIsActive() async {
-        let host = Host(deadline: .init(attempt: .seconds(1_000_000)))
+        let host = Host()
+        let gate = Gate()
+        host.onConnect = { await gate.wait() }
         #expect(host.begin())
-        #expect(await host.clock.drive { host.clock.time >= 60 })
+        #expect(await host.clock.until { gate.isWaiting && host.clock.hasSleeper(endingAt: 180) })
+        host.clock.advance(to: 60)
         host.episode.pause()
-        #expect(await host.clock.drive { host.clock.time >= 660 })
-        guard case .retrying = host.episode.snapshot.state else {
-            Issue.record("the budget ran out while paused: \(host.episode.snapshot.state)")
-            return
-        }
-        let resumedAt = host.clock.time
+        #expect(
+            await host.clock.until { !host.clock.hasSleeper(endingAt: 180) },
+            "pause stops the budget clock")
+        host.clock.advance(to: 660)
+        await host.clock.settle()
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
         host.episode.resume()
         #expect(
-            await host.clock.drive {
-                if case .waitingForOperator = host.episode.snapshot.state { return true }
-                return false
+            await host.clock.until { host.clock.hasSleeper(endingAt: 780) },
+            "only the 120 s still left run after resume")
+        host.clock.advance(to: 779.9)
+        await host.clock.settle()
+        #expect(host.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        host.clock.advance(to: 780)
+        #expect(
+            await host.clock.until {
+                host.episode.snapshot.state == .waitingForOperator(attemptsMade: 1)
             })
-        #expect(abs(host.clock.time - (resumedAt + 120)) < 0.2)
         #expect(host.cleanups.last == .budgetExhausted)
+        gate.resume()
+        host.episode.cancel()
     }
 
     @Test func resumingAnEpisodeThatWaitsForTheOperatorDialsNothing() async {
@@ -360,8 +381,7 @@ struct SessionRecoveryEpisodeTests {
         let gate = Gate()
         host.onHolder = { await gate.wait() }
         #expect(host.begin(trigger: .datalinkLost))
-        await host.clock.settle()
-        #expect(gate.isWaiting && host.holderAsks == [1])
+        #expect(await host.clock.until { gate.isWaiting && host.holderAsks == [1] })
         host.episode.pause()
         host.onHolder = nil
         gate.resume()
@@ -369,7 +389,7 @@ struct SessionRecoveryEpisodeTests {
         await host.clock.settle()
         #expect(host.connects == 0, "no attempt dials while paused")
         host.episode.resume()
-        #expect(await host.clock.drive { host.connects == 1 })
+        #expect(await host.clock.until { host.connects == 1 })
         host.episode.cancel()
     }
 
@@ -491,6 +511,20 @@ struct SessionRecoveryEpisodeTests {
         }
 
         func settle() async { for _ in 0..<64 { await Task.yield() } }
+
+        /// Yields until `done` holds: waits on the episode's own progress, never on time.
+        func until(_ done: () -> Bool) async -> Bool {
+            for _ in 0..<100_000 {
+                if done() { return true }
+                await Task.yield()
+            }
+            return done()
+        }
+
+        /// A sleep is registered that ends at `end` on the manual clock.
+        func hasSleeper(endingAt end: Double) -> Bool {
+            sleepers.contains { abs($0.at - end) < 1e-6 }
+        }
 
         func drive(until done: () -> Bool) async -> Bool {
             for _ in 0..<20_000 {
