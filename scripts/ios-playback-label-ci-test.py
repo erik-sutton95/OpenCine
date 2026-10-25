@@ -48,14 +48,32 @@ class PlaybackLabelCITests(unittest.TestCase):
         self.assertLess(maximum, 2400)
         self.assertEqual(command[command.index('-test-timeouts-enabled') + 1], 'YES')
 
-    def test_driver_takes_its_screenshot_only_for_a_failed_case(self):
-        # Hosted XCUIApplication.screenshot() after a qualified dismissal never returned
-        # (40143225461, 40149233094) and its timeout failed an otherwise qualified case.
+    def test_driver_requests_no_screenshot(self):
+        # Hosted XCUIApplication.screenshot() hangs for minutes (40143225461, 40149233094 after a
+        # qualified case). In 40195791463 its timeout was the only issue XCTest reported for a
+        # failed case and hid the readiness error.
         source = (ROOT / 'scripts/ios-playback-label-native-system-dismissal/NativeCancelUITests.swift').read_text()
-        calls = source.split('app.screenshot()')
-        self.assertEqual(len(calls), 2, 'exactly one screenshot request in the driver')
-        guard = calls[0].rsplit('{', 1)[0].rstrip()
-        self.assertTrue(guard.endswith('if !qualified'), guard[-80:])
+        self.assertNotIn('app.screenshot(', source)
+        self.assertNotIn('XCTAttachment(screenshot:', source)
+        self.assertIn('"stage": stage', source, 'a failed outcome names the wait that missed')
+
+    def test_readiness_clock_starts_at_the_delivered_delete_callback(self):
+        # 40195791463: the Delete tap returned at 41 s and the app recorded its capture at 159 s,
+        # after the thirty-second readiness clock (started when tap() returned) had expired.
+        source = (ROOT / 'scripts/ios-playback-label-native-system-dismissal/NativeCancelUITests.swift').read_text()
+        body = source.split('    func testCapturedDeletionConfirmation', 1)[1].split('    private func ', 1)[0]
+        tap = body.index('delete.tap()')
+        delivered = body.index('value.captureRequestIDs == [initial.requestID]', tap)
+        required = body.index('try require(\n            delivered,', delivered)
+        clock = body.index('let readinessClock = ContinuousClock()')
+        self.assertLess(tap, delivered)
+        self.assertLess(required, clock, 'readiness starts only after the app-authored capture')
+        # The delivery wait reads the receipt file only; no automation query competes with it.
+        wait = body[body.index('HostedCondition.wait(limit: .seconds(150))', tap):required]
+        self.assertNotIn('app.', wait)
+        self.assertNotIn('windowReady', wait)
+        # The thirty-second readiness deadline itself is unchanged.
+        self.assertIn('readinessStart.advanced(by: .seconds(30))', body)
 
     def test_driver_reuses_the_accepted_dismissal_coordinate(self):
         # Each external walk takes about 9 s on a hosted runner. 40166387934 held readiness, then
