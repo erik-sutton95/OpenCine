@@ -162,11 +162,40 @@ class GyroCaptureCalibrationTest {
         assertTrue(h.state.isArmed)
         assertFalse(h.sensors.motionRunning)
         assertEquals(1, h.native.calls("ringClose").size)
+        assertEquals(listOf("ringCancel", "ringClose"), h.native.members().filter { it == "ringCancel" || it == "ringClose" })
         // The earlier calibration is kept for the next session, not used by this one.
         assertTrue(h.state.hasSavedCalibration)
         h.adapter.recording.value = true
         h.advance(200)
         assertFalse(h.state.logs.single().isCalibrated)
+        h.cleanup()
+    }
+
+    @Test
+    fun failedSaveReturnsToIntroWithANotice() = runTest {
+        val prefs = MemorySharedPreferences()
+        val h = GyroCaptureHarness(this, prefs = prefs)
+        h.arm(stabilization = IBIS_OFF)
+        prefs.failingKeys = setOf(h.keys.calibrations)
+        h.coordinator.beginCalibration()
+        h.coordinator.startRing()
+        h.settle()
+        h.hold(6)
+        assertEquals(GyroRingPhase.INTRO, h.state.ring?.phase)
+        assertEquals(GyroNotice.SAVE_FAILED, h.state.notice)
+        assertFalse(h.state.hasSavedCalibration)
+        assertFalse(h.sensors.motionRunning)
+        assertTrue(h.native.openOwners("ring").isEmpty())
+
+        prefs.failingKeys = emptySet()
+        h.coordinator.startRing()
+        h.settle()
+        h.hold(6)
+        assertEquals(GyroRingPhase.COMPLETE, h.state.ring?.phase)
+        assertTrue(h.state.hasSavedCalibration)
+        // The machine saw the saved calibration: the next armed inputs report it.
+        val inputs = org.json.JSONObject(h.native.calls("armingUpdate").last().args[1] as String)
+        assertTrue(inputs.getBoolean("hasSavedCalibration"))
         h.cleanup()
     }
 

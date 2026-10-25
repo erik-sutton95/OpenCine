@@ -89,11 +89,21 @@ internal class GyroCaptureCalibration(private val native: GyroNativeApi) {
         accept(native.ringInvalidate(active, reason.wire))
     }
 
-    /** Closes the screen and its owner. */
-    fun close() {
+    /**
+     * Closes the screen and its owner. [cancel] (the operator backed out) first tells the wire
+     * with `ringCancel`, so the ring discards its poses before the owner is retired.
+     */
+    fun close(cancel: Boolean = false) {
+        if (cancel) owner?.let { native.ringCancel(it) }
         retire()
         state = null
         fromSetup = false
+    }
+
+    /** Back to the intro after a calibration that could not be saved; the owner is retired. */
+    fun returnToIntro() {
+        retire()
+        state = GYRO_RING_INTRO
     }
 
     private fun accept(json: String?): GyroRingState? {

@@ -92,6 +92,23 @@ internal class GyroCaptureHarness(
         advance(200)
     }
 
+    /** Steady phone readings with a fresh camera level, each processed before the next. */
+    fun steady(readings: Int, level: GyroVector3? = GyroVector3(-1.0, 0.0, 0.0)) {
+        repeat(readings) {
+            adapter.emitLevel(level, nowSeconds)
+            settle()
+            sensors.emitSteady(nowSeconds)
+            settle()
+            advance(50)
+        }
+    }
+
+    /** Saves the default calibration for the fake camera, as an earlier session would have. */
+    fun saveCalibration() {
+        GyroPreferences(prefs, keys, null, native)
+            .saveCalibration(adapter.camera.id, FakeGyroNative.DEFAULT_CALIBRATION)
+    }
+
     fun reasons(): List<Any?> = native.calls("loggingFinish").map { it.args[1] }
 
     fun cleanup() {

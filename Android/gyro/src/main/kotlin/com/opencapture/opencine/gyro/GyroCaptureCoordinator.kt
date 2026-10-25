@@ -222,7 +222,15 @@ class GyroCaptureCoordinator internal constructor(
     /** Binds the camera adapter (null when no camera integration is active). */
     fun bind(adapter: GyroCameraAdapter?) {
         scope.launch {
-            if (this@GyroCaptureCoordinator.adapter === adapter) return@launch
+            if (this@GyroCaptureCoordinator.adapter === adapter) {
+                // Rebinding the same adapter abandons an earlier prepareForDisconnect.
+                if (disconnecting) {
+                    disconnecting = false
+                    reconcileArming()
+                    publish()
+                }
+                return@launch
+            }
             adapterJobs.forEach { it.cancel() }
             this@GyroCaptureCoordinator.adapter = adapter
             disconnecting = false
@@ -348,7 +356,7 @@ class GyroCaptureCoordinator internal constructor(
         scope.launch {
             if (calibration.state?.phase == GyroRingPhase.COMPLETE) return@launch finish()
             val fromSetup = calibration.state != null && calibration.fromSetup
-            calibration.close()
+            calibration.close(cancel = true)
             if (fromSetup) {
                 dropSetupStep<GyroArmingStep.Calibration>()
                 sessionUsesCalibration = false
@@ -426,7 +434,11 @@ class GyroCaptureCoordinator internal constructor(
         }
     }
 
-    /** Ends capture as backgrounded, releases every owner and cancels the scope. */
+    /**
+     * Ends capture as backgrounded, releases every owner and cancels the scope. It writes no
+     * camera setting: a host tearing down while connected calls [prepareForDisconnect] first so
+     * the stabilization restore is written (or stays owed for the next connection).
+     */
     fun close() {
         scope.launch {
             try {
@@ -445,10 +457,15 @@ class GyroCaptureCoordinator internal constructor(
 
     private fun setupChoice(choose: (String) -> String?) {
         scope.launch {
-            dropSetupStep<GyroArmingStep.Stabilization>()
-            publish()
             val owner = armingOwner ?: return@launch
-            guarded { armingMutex.withLock { applyArming(owner, choose(owner)) } }
+            guarded {
+                armingMutex.withLock {
+                    // A refused choice keeps the step so the operator can answer again.
+                    val reply = choose(owner) ?: return@withLock
+                    dropSetupStep<GyroArmingStep.Stabilization>()
+                    applyArming(owner, reply)
+                }
+            }
             publish()
         }
     }
@@ -509,6 +526,7 @@ class GyroCaptureCoordinator internal constructor(
                 GyroArmingEffect.SessionStarted -> {
                     onSessionStarted()
                     startLogging()
+                    updateDrift()
                 }
                 GyroArmingEffect.SessionEnded -> {
                     setupSteps = emptyList()
@@ -540,6 +558,8 @@ class GyroCaptureCoordinator internal constructor(
         if (id != cameraId) {
             val previous = cameraId
             cameraId = id
+            // A new or ended connection ends any earlier prepareForDisconnect.
+            disconnecting = false
             savedCalibration = id?.let(::calibrationFor)
             refreshCalibration()
             onCameraIdentityChanged(previous, id)
@@ -660,23 +680,38 @@ class GyroCaptureCoordinator internal constructor(
         }
     }
 
-    private fun handleReading(reading: GyroMotionReading) {
-        try {
-            calibration.observe(reading, latestLevel)?.let { verified ->
-                cameraId?.let { preferences.saveCalibration(it, verified) }
-                savedCalibration = verified
-                sessionUsesCalibration = true
-                refreshCalibration()
-                drift.close(endSession = false)
+    private suspend fun handleReading(reading: GyroMotionReading) {
+        val verified =
+            try {
+                calibration.observe(reading, latestLevel)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                notice = GyroNotice.SAVE_FAILED
+                null
             }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Exception) {
-            notice = GyroNotice.SAVE_FAILED
-        }
+        if (verified != null) saveCalibration(verified)
         if (driftFeeding && drift.observePhone(reading)) onDriftConfirmed(reading.timestamp)
         updateMotion()
         publish()
+    }
+
+    /** Saves first; only a saved calibration becomes this camera's and this session's. */
+    private suspend fun saveCalibration(verified: String) {
+        try {
+            preferences.saveCalibration(requireNotNull(cameraId), verified)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            calibration.returnToIntro()
+            notice = GyroNotice.SAVE_FAILED
+            return
+        }
+        savedCalibration = verified
+        sessionUsesCalibration = true
+        refreshCalibration()
+        drift.close(endSession = false)
+        reconcileArming()
     }
 
     private fun onDriftConfirmed(timestamp: Double) {
@@ -882,6 +917,7 @@ class GyroCaptureCoordinator internal constructor(
         } else {
             synchronized(storeLock) { store?.close() }
         }
+        updateDrift()
     }
 
     /** A write or wire failure while logging: drop file ownership and recover what is on disk. */
@@ -892,6 +928,7 @@ class GyroCaptureCoordinator internal constructor(
         resetTakeFacts()
         abortStore()
         fail(GyroNotice.SAVE_FAILED)
+        updateDrift()
     }
 
     private fun abortStore() {

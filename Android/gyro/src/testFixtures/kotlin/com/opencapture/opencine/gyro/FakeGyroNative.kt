@@ -744,6 +744,8 @@ private class FakeArmingMachine(restores: List<FakeRestore>) {
             }
         } else {
             if (succeeded) {
+                // Mirrors the Swift machine: the camera now holds the restored values.
+                inputs = inputs.copy(values = (inputs.values ?: emptyMap()) + context.applied)
                 pendingRestores.removeAll { it.cameraID == context.cameraID }
                 effects += persist()
             } else {

@@ -120,9 +120,11 @@ class GyroCaptureArmingTest {
         assertEquals(false, armedAtRestore)
         assertEquals(false, gyroAtRestore)
         assertTrue(h.state.isArmed)
-        // The shared machine arms from the inputs it last evaluated (IBIS reported OFF before the
-        // restore), so this session's sheet offers calibration only.
-        assertEquals(listOf<GyroArmingStep>(GyroArmingStep.Calibration(false)), h.state.setupSteps)
+        // The restore turned IBIS back on, so the new session offers the stabilization step.
+        assertEquals(
+            listOf(GyroArmingStep.Stabilization(null), GyroArmingStep.Calibration(false)),
+            h.state.setupSteps,
+        )
         assertEquals("[]", h.prefs.getString(h.keys.pendingRestores, null))
         h.cleanup()
     }
@@ -180,14 +182,41 @@ class GyroCaptureArmingTest {
     }
 
     @Test
+    fun prepareForDisconnectThenReconnectArmsAgain() = runTest {
+        val h = GyroCaptureHarness(this)
+        h.arm(stabilization = IBIS_SPORT)
+        h.coordinator.setupTurnOffStabilization()
+        h.advance(100)
+        h.coordinator.prepareForDisconnect()
+        assertFalse(h.state.isArmed)
+        h.adapter.disconnect()
+        h.advance(100)
+        h.adapter.connect(stabilization = IBIS_SPORT)
+        h.advance(200)
+        assertTrue(h.state.isArmed)
+        assertTrue(h.sensors.gyroRunning)
+
+        // An abandoned disconnect (the link stayed up) does not block the same adapter either.
+        h.coordinator.prepareForDisconnect()
+        assertFalse(h.state.isArmed)
+        h.coordinator.bind(h.adapter)
+        h.advance(200)
+        assertTrue(h.state.isArmed)
+        h.cleanup()
+    }
+
+    @Test
     fun processDeathRecoversTakeAndOwesRestore() = runTest {
         val first = GyroCaptureHarness(this)
+        first.saveCalibration()
         first.arm(stabilization = IBIS_SPORT)
         first.coordinator.setupTurnOffStabilization()
         first.advance(100)
         first.adapter.recording.value = true
         first.advance(300)
         assertTrue(first.state.logs.single().active)
+        first.steady(3)
+        assertEquals(GyroPillKind.MOUNT_MOVED, first.state.pill.kind)
         // Process death: nothing finishes, the native registry and every owner are gone.
         first.scope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
         first.settle()
@@ -196,7 +225,9 @@ class GyroCaptureArmingTest {
         val recovered = second.state.logs.single()
         assertFalse(recovered.active)
         assertEquals("recovered", recovered.summary?.getString("termination"))
-        assertEquals(GyroTakeStatus.CutShort, recovered.status)
+        // The mount-moved sidecar written mid-take is merged into the recovered summary.
+        val offset = recovered.summary!!.getDouble("mountMovedOffset")
+        assertEquals(GyroTakeStatus.MountMoved(offset), recovered.status)
         assertTrue(second.native.calls("armingCreate").single().args[0].toString().contains("SPORT"))
 
         second.arm(stabilization = IBIS_OFF)

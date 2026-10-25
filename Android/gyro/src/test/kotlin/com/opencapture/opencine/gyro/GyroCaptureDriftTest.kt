@@ -107,6 +107,32 @@ class GyroCaptureDriftTest {
     }
 
     @Test
+    fun sessionArmedWhileRecordingDetects() = runTest {
+        val h = GyroCaptureHarness(this)
+        h.saveCalibration()
+        h.coordinator.setEnabled(true)
+        h.coordinator.bind(h.adapter)
+        h.adapter.connect(stabilization = IBIS_OFF, recording = true)
+        h.advance(100)
+        assertFalse(h.state.isArmed)
+        // The host becomes eligible while the camera already records: arm, log and watch drift.
+        h.coordinator.setHostEligible(true)
+        h.advance(200)
+        assertTrue(h.state.isArmed)
+        assertTrue(h.state.logs.single().active)
+        assertTrue(h.sensors.motionRunning)
+        h.steady(3)
+        assertEquals(GyroPillKind.MOUNT_MOVED, h.state.pill.kind)
+
+        // A logging failure stops the motion stream with the take.
+        h.failWrites = true
+        h.advance(100)
+        assertEquals(GyroNotice.SAVE_FAILED, h.state.notice)
+        assertFalse(h.sensors.motionRunning)
+        h.cleanup()
+    }
+
+    @Test
     fun uncalibratedNeverDetects() = runTest {
         val h = GyroCaptureHarness(this)
         h.arm(stabilization = IBIS_OFF)

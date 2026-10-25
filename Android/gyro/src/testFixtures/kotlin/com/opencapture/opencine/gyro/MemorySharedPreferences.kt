@@ -10,6 +10,9 @@ import android.content.SharedPreferences
 class MemorySharedPreferences : SharedPreferences {
     private val values = mutableMapOf<String, Any?>()
 
+    /** Keys whose edits throw, to model a preferences write that fails. */
+    var failingKeys: Set<String> = emptySet()
+
     override fun getAll(): MutableMap<String, *> = values.toMutableMap()
 
     override fun getString(key: String, defValue: String?): String? =
@@ -63,6 +66,8 @@ class MemorySharedPreferences : SharedPreferences {
         override fun clear() = apply { clearing = true }
 
         override fun commit(): Boolean {
+            val failing = (changes.keys + removals).intersect(failingKeys)
+            check(failing.isEmpty()) { "Preferences write failed: $failing" }
             if (clearing) values.clear()
             removals.forEach { values.remove(it) }
             changes.forEach { (key, value) ->
