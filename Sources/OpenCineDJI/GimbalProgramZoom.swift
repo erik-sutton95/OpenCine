@@ -132,7 +132,7 @@ public struct GimbalProgramZoom: Sendable {
         guard usesHighRateTargets else { return nil }
         // Lens reports arrive at 2.5 Hz. Angular reports cannot refresh them.
         guard let zoomReceivedAt, now.isFinite, now >= zoomReceivedAt,
-            now - zoomReceivedAt <= 0.85 else { return "Move interrupted \u{2014} camera zoom feedback lost" }
+            now - zoomReceivedAt <= 0.85 else { return "Move interrupted: camera zoom feedback lost" }
         return nil
     }
 
@@ -143,7 +143,7 @@ public struct GimbalProgramZoom: Sendable {
         if let expected = preparationZoom, let sentAt = preparationSentAt {
             guard let measured = liveZoom, let receivedAt = zoomReceivedAt, receivedAt > sentAt,
                 abs(measured - expected) <= 2.0 / 217.0 + 1e-9
-            else { return "Move interrupted \u{2014} camera did not reach the starting zoom" }
+            else { return "Move interrupted: camera did not reach the starting zoom" }
         }
         return nil
     }

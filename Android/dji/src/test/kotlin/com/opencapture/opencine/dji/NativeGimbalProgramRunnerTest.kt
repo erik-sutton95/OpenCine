@@ -217,7 +217,7 @@ class NativeGimbalProgramRunnerTest {
             assertEquals(0, targets)
             assertEquals(0, stops, "rebind cleanup must not STOP a replacement connection")
             assertTrue(updates.last().finished)
-            assertEquals("Move interrupted — camera connection changed", updates.last().failure)
+            assertEquals("Move interrupted: camera connection changed", updates.last().failure)
         }
     }
 
@@ -565,7 +565,7 @@ class NativeGimbalProgramRunnerTest {
         runner.start(GimbalProgram(a, a.copy(zoom = 3.0), durationAB = 1.0, loop = true)) { updates += it }
         tx.through(3.4)
         assertTrue(updates.last().finished)
-        assertEquals("Move interrupted — camera zoom feedback lost", updates.last().failure)
+        assertEquals("Move interrupted: camera zoom feedback lost", updates.last().failure)
         assertEquals(1, stops)
         val count = commands.size
         tx.through(8.0)
@@ -620,7 +620,7 @@ class NativeGimbalProgramRunnerTest {
         tx.through(5.0)
         assertEquals(2, commands.size)
         assertEquals(1, stops)
-        assertEquals("Move interrupted — zoom command failed", updates.last().failure)
+        assertEquals("Move interrupted: zoom command failed", updates.last().failure)
         assertTrue(updates.last().finished)
     }
 
@@ -639,7 +639,7 @@ class NativeGimbalProgramRunnerTest {
             tx.through(3.0)
             assertEquals(0, targets)
             assertEquals(listOf<NativeProgramZoomCommand>(NativeProgramZoomCommand.Position(3.0)), commands)
-            assertEquals("Move interrupted — camera did not reach the starting zoom", updates.last().failure)
+            assertEquals("Move interrupted: camera did not reach the starting zoom", updates.last().failure)
             assertTrue(updates.last().finished)
             assertEquals(1, stops)
         }

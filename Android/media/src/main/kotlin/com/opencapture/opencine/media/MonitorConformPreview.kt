@@ -49,7 +49,7 @@ public object MonitorConformPreview {
                 when (this) {
                     is Available -> null
                     UnknownRate -> "Frame rate unavailable for this clip"
-                    VariableRate -> "Variable frame rate \u2014 conform preview unavailable"
+                    VariableRate -> "Variable frame rate: conform preview unavailable"
                     AlreadyConformed -> "Already conformed in camera"
                     NotHighFrameRate -> "Not a high-frame-rate clip"
                 }

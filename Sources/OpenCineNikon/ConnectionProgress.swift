@@ -96,7 +96,7 @@ public enum ConnectionProgressCopy {
             return "Confirm the pairing request on \(deviceName)."
         case .confirmOnCamera:
             return
-                "Tap “Confirm” on \(deviceName). It will restart its Wi‑Fi — we'll reconnect automatically."
+                "Tap “Confirm” on \(deviceName). It will restart its Wi‑Fi, then this phone reconnects."
         case .preparingLiveView:
             return "Opening the live monitor for \(deviceName)."
         case .connected:

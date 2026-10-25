@@ -98,7 +98,7 @@ class DiagnosticCenterRuntimeTest {
     }
 
     @Test
-    fun supportSubjectKeepsTheProductAndDash() {
-        assertEquals("Example Monitor \u2014 report a problem", DiagnosticCenterRuntime.supportSubject("Example Monitor"))
+    fun supportSubjectKeepsTheProductWithoutAnEmDash() {
+        assertEquals("Example Monitor: report a problem", DiagnosticCenterRuntime.supportSubject("Example Monitor"))
     }
 }

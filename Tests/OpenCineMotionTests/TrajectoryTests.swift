@@ -211,7 +211,7 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         for _ in 0..<689 { _ = engine.tick(dt: 0.01, live: a) }
         let skipped = engine.tick(dt: 0.11, live: c)
         #expect(skipped?.stop == true)
-        #expect(engine.failure == "Move interrupted \u{2014} waypoint dispatch was late")
+        #expect(engine.failure == "Move interrupted: waypoint dispatch was late")
     }
 
     @Test func curveCannotContinueAfterAStalledScheduler() {

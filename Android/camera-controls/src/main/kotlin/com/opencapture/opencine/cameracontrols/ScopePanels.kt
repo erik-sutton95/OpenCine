@@ -111,7 +111,7 @@ fun TrafficLightsPanel(state: MonitorAssistState, modifier: Modifier = Modifier,
 
 object NDAssist {
     const val HELP =
-        "Meters the live picture against middle gray and suggests a screw-on ND - stops and ND number - to balance it. The app cannot set a filter."
+        "Meters the live picture against middle gray and suggests a screw-on ND (stops and ND number) to balance it. The app cannot set a filter."
     const val METER_TITLE = "ND"
     const val NOTATION_TITLE = "Units"
     const val NOTATION_HELP =

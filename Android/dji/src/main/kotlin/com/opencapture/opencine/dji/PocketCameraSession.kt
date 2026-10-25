@@ -1184,7 +1184,7 @@ class PocketCameraSession(
                     withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.remove(camera.id) }
                 }
                 error(
-                    "couldn't join camera Wi-Fi — tap the system Join prompt if Android asked. " +
+                    "couldn't join camera Wi-Fi. Tap the system Join prompt if Android asked. " +
                         "On 5.8 GHz the camera Wi-Fi can take about a minute to appear. Try again, or set the camera to 2.4 GHz (Settings, Wireless, Frequency) for a faster join.",
                 )
             }
@@ -3470,7 +3470,7 @@ class PocketCameraSession(
         Log.i(TAG, "zoom: setZoom $from → $to live=${datalink != null}")
         val write = CamFov.chipWrite(factor)
         if (write == null) {
-            _controlNote.value = "Zoom $to — no command"
+            _controlNote.value = "Zoom $to: no command"
             Log.i(TAG, "zoom: tap ignored — no write for $to")
             onStage?.invoke(ControlWireEvent.NOT_SENT)
             return
@@ -4773,7 +4773,7 @@ class PocketCameraSession(
         val from = _status.value.colorMode
         // Do not pin color; holdZoomWrite must see live D-Log2 until the body hops.
         colorPin = null
-        _controlNote.value = "D-Log — D-Log2 cannot zoom"
+        _controlNote.value = "D-Log (D-Log2 cannot zoom)"
         fireKind(
             DjiNative.CMD_SET_COLOR_MODE,
             colorModeExtra(next),
@@ -6116,9 +6116,9 @@ class PocketCameraSession(
                 val frame = waitFrame(set, cmd, 6_000)
                 val value = DjiNative.unpackStatusString(frame.payload).orEmpty()
                 if (value.isNotEmpty()) return value
-                last = "$name came back empty — camera AP not up yet"
+                last = "$name came back empty (camera AP not up yet)"
             } catch (_: Exception) {
-                last = "$name timed out — camera didn't reply (AP still coming up?)"
+                last = "$name timed out: camera didn't reply (AP still coming up?)"
             }
             delay(400)
         }
