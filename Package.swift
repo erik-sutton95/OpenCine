@@ -13,6 +13,9 @@ import PackageDescription
 //   code.
 // - Integrations (OpenCineDJI, OpenCineNikon, Insta360*) never import UI or an app.
 // - OpenCineMulticam imports OpenCineCore only: never an integration or UI.
+// - OpenCineGyro (phone gyro capture for Gyroflow) imports Foundation only and depends on
+//   nothing; it names no app or manufacturer. OpenCineGyroAndroid (its JNI facade) depends on
+//   OpenCineGyro and OpenCineJNISupport only.
 // - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app.
 //   Native views consume portable Media values; presentation policy stays Foundation-only.
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
