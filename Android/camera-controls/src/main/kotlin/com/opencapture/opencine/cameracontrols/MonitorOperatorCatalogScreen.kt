@@ -83,7 +83,10 @@ public fun <P> MonitorOperatorCatalogScreen(
 ) {
     val scope = rememberCoroutineScope()
     val gallery = remember(library, scope) { MonitorMediaGalleryModel(library, scope) }
-    val value by library.state.collectAsState()
+    // The catalog content without transfer ticks: a streaming download does not recompose the
+    // whole gallery. The header bar and each visible card read the ticks themselves.
+    val value by library.content.collectAsState()
+    val ticks by library.transferProgress.collectAsState()
     val state by gallery.state.collectAsState()
     val haptics = LocalOperatorHaptics.current
     DisposableEffect(gallery) { gallery.activate(); begin(); onDispose { gallery.retire() } }
@@ -128,8 +131,7 @@ public fun <P> MonitorOperatorCatalogScreen(
         filterOpen = state.filterPopupPresented, activeFilterCount = presentation?.activeFilterCount ?: value.activeFilterCount,
         selectedCount = selected.size, cacheEnabled = selected.any { gallery.canDownload(it, operations) },
         deleteEnabled = selected.any { gallery.canDelete(it, operations) },
-        caching = { records.firstNotNullOfOrNull { record -> facts(record).progress?.let { record.asset.filename to it } }
-            ?: value.progress.entries.firstOrNull()?.let { (id, progress) -> library.record(id)?.asset?.filename?.let { it to progress } } },
+        caching = { cachingProgress(library, ticks, records, facts) },
         shareEnabled = share != null && selected.isNotEmpty() && selected.all { gallery.canShare(it, operations) },
     )
     val filterID = state.filterRequestID
@@ -245,7 +247,8 @@ private fun <P> MonitorOperatorCatalogGallery(
     selectionChanged: (() -> Unit)?,
 ) {
     val library = owner.library
-    val value by library.state.collectAsState()
+    val value by library.content.collectAsState()
+    val ticks by library.transferProgress.collectAsState()
     val state by owner.state.collectAsState()
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
@@ -270,8 +273,9 @@ private fun <P> MonitorOperatorCatalogGallery(
             if (list) listState.scrollToItem(0) else gridState.scrollToItem(0)
         }
     }
+    val selectionIDs = remember(records) { records.map { it.asset.id.rawValue } }
     val draw: @Composable () -> Unit = {
-        MonitorMediaSelectionHost(records.map { it.asset.id.rawValue }, value.selecting,
+        MonitorMediaSelectionHost(selectionIDs, value.selecting,
             value.selectedIDs.map { it.rawValue }.toSet(), if (list) listState else gridState,
             onOpen = { id -> owner.open(MediaAssetID(id), snapshot, operations, sourceAvailable = connected)?.let(open) },
             onSelectionChange = { selecting, ids -> select(ids.map { MediaAssetID(it) }.toSet(), selecting) },
@@ -288,7 +292,7 @@ private fun <P> MonitorOperatorCatalogGallery(
                 MonitorMediaHitTarget(registry, id.rawValue) {
                     val cellValue = cell?.invoke(record, MonitorMediaGalleryCellContext(list, value.selecting,
                         id in value.selectedIDs, state.resolvedDurations[id]))
-                    MonitorClipCard(monitorCatalogClip(record, entry, metadata, state.resolvedDurations[id], value.progress[id], cellValue),
+                    MonitorClipCard(monitorCatalogClip(record, entry, metadata, state.resolvedDurations[id], ticks.progress[id], cellValue),
                         list, value.selecting, id in value.selectedIDs,
                         modifier = Modifier.testTag("monitor.media.clip.${id.rawValue}"),
                         onOpen = { owner.open(id, snapshot, operations, sourceAvailable = connected)?.let(open) },
@@ -327,6 +331,20 @@ private fun <P> MonitorOperatorCatalogGallery(
     if (connected) PullToRefreshBox(value.fetching,
         onRefresh = { if (!value.fetching && owner.isCurrent(snapshot)) refresh() }, modifier = Modifier.fillMaxSize()) { draw() }
     else draw()
+}
+
+/**
+ * The caching bar's one transfer, read where the bar composes. Idle (no ticks) costs nothing: the
+ * host facts are scanned only while a host-owned transfer reports progress, and a library
+ * transfer is found by its own id instead of by asking every record.
+ */
+internal fun <P> cachingProgress(library: MonitorMediaLibraryModel<P>, ticks: MonitorMediaLibraryTransferProgress,
+    records: List<MonitorMediaRecord<P>>, facts: (MonitorMediaRecord<P>) -> MonitorMediaGalleryFileFacts): Pair<String, Double>? {
+    if (ticks.progress.isEmpty() && ticks.hostProgress.isEmpty()) return null
+    ticks.progress.entries.firstNotNullOfOrNull { (id, progress) -> library.record(id)?.asset?.filename?.let { it to progress } }
+        ?.let { return it }
+    if (ticks.hostProgress.isEmpty()) return null
+    return records.firstNotNullOfOrNull { record -> facts(record).progress?.let { record.asset.filename to it } }
 }
 
 /** The newest clip stays first while the operator rests at the top of the catalog. */
