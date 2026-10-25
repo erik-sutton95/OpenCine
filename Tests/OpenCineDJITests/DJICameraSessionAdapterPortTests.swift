@@ -1,6 +1,5 @@
 import OpenCineCore
 import OpenCineMotion
-import enum MonitorPresentation.MonitorStorageReadoutFormat
 import OpenCineMedia
 import Testing
 
@@ -19,11 +18,11 @@ import Testing
         status.storageFreeMb = 109_568
         status.recordRemainingSec = 3_000
         let storage = DJICameraSessionAdapter.storage(status)
-        #expect(MonitorStorageReadoutFormat.forms(storage.storageReadout, recordingTime: storage.recordingTimeLabel, photo: false) == ["115GB", "86%", "50 Min"])
-        #expect(MonitorStorageReadoutFormat.forms(storage.storageReadout, recordingTime: storage.recordingTimeLabel, photo: true) == ["115GB", "86%"])
+        #expect(StorageReadoutCycle.forms(storage, photo: false) == ["115GB", "86%", "50 Min"])
+        #expect(StorageReadoutCycle.forms(storage, photo: true) == ["115GB", "86%"])
         status.recordRemainingSec = 0
         #expect(
-            MonitorStorageReadoutFormat.forms(DJICameraSessionAdapter.storage(status).storageReadout, recordingTime: DJICameraSessionAdapter.storage(status).recordingTimeLabel, photo: false)
+            StorageReadoutCycle.forms(DJICameraSessionAdapter.storage(status), photo: false)
                 == ["115GB", "86%"])
     }
 

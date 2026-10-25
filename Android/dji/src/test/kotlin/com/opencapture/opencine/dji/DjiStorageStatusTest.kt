@@ -1,9 +1,7 @@
 package com.opencapture.opencine.dji
 
-import com.opencapture.monitorui.MonitorStorageReadoutFormat
 import com.opencapture.opencine.core.StorageStatus
-import com.opencapture.opencine.media.recordingTimeLabel
-import com.opencapture.opencine.media.storageReadout
+import com.opencapture.opencine.media.StorageReadoutCycle
 import com.opencapture.opencine.vocabulary.CameraStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,5 +22,5 @@ class DjiStorageStatusTest {
     }
 
     private fun storageCycle(storage: StorageStatus, photo: Boolean) =
-        MonitorStorageReadoutFormat.forms(storage.storageReadout, storage.recordingTimeLabel, photo)
+        StorageReadoutCycle.forms(storage, photo)
 }

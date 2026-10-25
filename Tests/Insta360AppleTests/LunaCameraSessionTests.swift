@@ -1,7 +1,6 @@
 import Insta360Apple
 import Insta360AppleTestSupport
 import Insta360Protocol
-import enum MonitorPresentation.MonitorStorageReadoutFormat
 import OpenCineCore
 import OpenCineMedia
 import OpenCineMotion
@@ -440,12 +439,10 @@ final class LunaCameraSessionTests: XCTestCase {
         // Hardware pass 8.4: the shared storage cycle now reaches the time on Insta too.
         let storage = session.current.storage
         XCTAssertEqual(
-            MonitorStorageReadoutFormat.forms(
-                storage.storageReadout, recordingTime: storage.recordingTimeLabel, photo: false),
+            StorageReadoutCycle.forms(storage, photo: false),
             ["99GB", "79%", "50 Min"])
         XCTAssertEqual(
-            MonitorStorageReadoutFormat.forms(
-                storage.storageReadout, recordingTime: storage.recordingTimeLabel, photo: true),
+            StorageReadoutCycle.forms(storage, photo: true),
             ["99GB", "79%"])
 
         // The settings poll does not carry option 99: the last report stands.

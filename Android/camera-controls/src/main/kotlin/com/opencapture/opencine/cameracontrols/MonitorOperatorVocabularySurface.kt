@@ -28,8 +28,6 @@ import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorStorageReadoutFormat
-import com.opencapture.opencine.media.recordingTimeLabel
-import com.opencapture.opencine.media.storageReadout
 import com.opencapture.monitorui.PortraitZones
 import com.opencapture.monitorui.portraitAspectToggle
 import com.opencapture.opencine.appkit.MonitorAssistState
@@ -42,6 +40,7 @@ import com.opencapture.opencine.appkit.ShellModel
 import com.opencapture.opencine.appkit.monitorChromeEditStroke
 import com.opencapture.opencine.appkit.offered
 import com.opencapture.opencine.appkit.statusPresentation
+import com.opencapture.opencine.media.StorageReadoutCycle
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
@@ -309,8 +308,7 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
     val field = checkNotNull(layout.field)
     val storage = source.capture.control.state.value.snapshot?.storage
     // The one shared storage cycle (A5-11): free space, percentage, then estimated time.
-    val storageForms = MonitorStorageReadoutFormat.forms(storage?.storageReadout, storage?.recordingTimeLabel,
-        CameraCommands.isPhotoMode(status.shootingMode))
+    val storageForms = StorageReadoutCycle.forms(storage, CameraCommands.isPhotoMode(status.shootingMode))
     val storageLabel = storageForms[storageForm.mod(storageForms.size)]
     fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
         MonitorOperatorLiveReadout(sheet.name, title, value, section)

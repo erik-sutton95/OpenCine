@@ -38,8 +38,6 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
     testImplementation(testFixtures(project(":core")))
-    // The shared storage cycle reads this integration's storage (MonitorStorageReadoutFormat).
-    testImplementation(project(":monitor-ui"))
 }
 
 // Same unchanged model/zoom vectors as the Swift integration tests.

@@ -1,6 +1,5 @@
 import Foundation
 import OpenCineCore
-import enum MonitorPresentation.MonitorStorageReadoutFormat
 import OpenCineMedia
 import Testing
 
@@ -119,8 +118,8 @@ struct NikonCameraSessionTests {
         facts.storage = PTPStorageInfo(totalCapacityBytes: 1_000_000_000_000, freeSpaceBytes: 470_000_000_000)
         let session = NikonCameraSession(driver: Driver(facts), serialNumber: "3000123")
         let storage = session.refresh().storage
-        #expect(MonitorStorageReadoutFormat.forms(storage.storageReadout, recordingTime: storage.recordingTimeLabel, photo: false) == ["470GB", "47%", "~40 Min"])
-        #expect(MonitorStorageReadoutFormat.forms(storage.storageReadout, recordingTime: storage.recordingTimeLabel, photo: true) == ["470GB", "47%"])
+        #expect(StorageReadoutCycle.forms(storage, photo: false) == ["470GB", "47%", "~40 Min"])
+        #expect(StorageReadoutCycle.forms(storage, photo: true) == ["470GB", "47%"])
     }
 
     @Test func storageEstimateRequiresKnownFormatAndRetainsZeroAndOrigin() throws {

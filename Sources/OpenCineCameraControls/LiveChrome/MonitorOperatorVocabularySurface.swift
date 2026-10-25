@@ -187,9 +187,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             .init(id: key, title: title, value: text, section: section, accessibilityIdentifier: identifier)
         }
         // The one shared storage cycle (A5-11): free space, percentage, then estimated time.
-        let storageValue = host.control.snapshot?.storage
-        let storageForms = MonitorStorageReadoutFormat.forms(
-            storageValue?.storageReadout, recordingTime: storageValue?.recordingTimeLabel, photo: photo)
+        let storageForms = StorageReadoutCycle.forms(host.control.snapshot?.storage, photo: photo)
         let storageText = storageForms[0]
         let storage = host.chromeSectionMounts(.storage)
             ? row(.resolution, "Storage remaining", storageText, .storage, "monitor.storage") : nil

@@ -231,7 +231,7 @@ let package = Package(
         // Builds with the Swift Android SDK.
         .target(name: "OpenCineDJI", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion", "OpenCineCameraVocabulary"]),
         .testTarget(
-            name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion", "OpenCineCoreTestSupport", "MonitorPresentation", "OpenCineMedia"],
+            name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion", "OpenCineCoreTestSupport", "OpenCineMedia"],
             exclude: ["Fixtures"]),
         // iOS Bluetooth/network adapters over portable DJI policy; no UI or app dependency.
         .target(name: "OpenCineDJIApple", dependencies: ["OpenCineCore", "OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]),
@@ -251,7 +251,7 @@ let package = Package(
             name: "OpenCineNikonTests",
             dependencies: [
                 "OpenCineNikon", "OpenCineCore", "OpenCineMedia", "OpenCineMulticam", "OpenCineCoreTestSupport",
-                "OpenCineCameraVocabulary", "MonitorPresentation",
+                "OpenCineCameraVocabulary",
             ]),
         // Android session layer over OpenCineNikon (moved from OpenZCine's Android facade):
         // PTPIPClientSession, the USB PTP transaction transport, the owner-keyed session registry,
@@ -292,7 +292,7 @@ let package = Package(
             name: "Insta360AppleTests",
             dependencies: [
                 "Insta360Apple", "Insta360AppleTestSupport", "Insta360Protocol", "OpenCineCore",
-                "OpenCineMotion", "OpenCineMedia", "OpenCineCameraVocabulary", "MonitorPresentation",
+                "OpenCineMotion", "OpenCineMedia", "OpenCineCameraVocabulary",
             ]
         ),
 

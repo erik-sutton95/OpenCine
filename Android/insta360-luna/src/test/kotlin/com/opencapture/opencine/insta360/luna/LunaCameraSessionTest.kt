@@ -461,10 +461,8 @@ class LunaCameraSessionTest {
         assertEquals("79%", session.snapshots.value.storage.storageReadout?.percent)
         // Hardware pass 8.4: the shared storage cycle now reaches the time on Insta too.
         val storage = session.snapshots.value.storage
-        assertEquals(listOf("99GB", "79%", "50 Min"), com.opencapture.monitorui.MonitorStorageReadoutFormat.forms(
-            storage.storageReadout, storage.recordingTimeLabel, photo = false))
-        assertEquals(listOf("99GB", "79%"), com.opencapture.monitorui.MonitorStorageReadoutFormat.forms(
-            storage.storageReadout, storage.recordingTimeLabel, photo = true))
+        assertEquals(listOf("99GB", "79%", "50 Min"), com.opencapture.opencine.media.StorageReadoutCycle.forms(storage, photo = false))
+        assertEquals(listOf("99GB", "79%"), com.opencapture.opencine.media.StorageReadoutCycle.forms(storage, photo = true))
 
         camera.reportSettings()
         assertEquals("50 Min", session.snapshots.value.storage.recordingTimeLabel, "the settings poll keeps it")

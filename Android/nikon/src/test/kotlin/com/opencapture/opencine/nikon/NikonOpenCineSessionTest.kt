@@ -11,8 +11,6 @@ import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.ObservedValue
-import com.opencapture.opencine.media.recordingTimeLabel
-import com.opencapture.opencine.media.storageReadout
 import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.RecordingState
@@ -275,8 +273,7 @@ class NikonOpenCineSessionTest {
     }
 
     private fun storageCycle(storage: com.opencapture.opencine.core.StorageStatus, photo: Boolean) =
-        com.opencapture.monitorui.MonitorStorageReadoutFormat.forms(
-            storage.storageReadout, storage.recordingTimeLabel, photo)
+        com.opencapture.opencine.media.StorageReadoutCycle.forms(storage, photo)
 
     private fun movie(codec: String = "H.265 10-bit MOV") =
         CameraPropertySnapshot(

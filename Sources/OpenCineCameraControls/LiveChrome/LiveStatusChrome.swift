@@ -126,9 +126,7 @@
 
         private var storageForms: [String] {
             // The unified capability readout owns the values; the one shared cycle (A5-11).
-            let storage = host.control.snapshot?.storage
-            return MonitorStorageReadoutFormat.forms(
-                storage?.storageReadout, recordingTime: storage?.recordingTimeLabel, photo: host.cameraStatus.isPhoto)
+            StorageReadoutCycle.forms(host.control.snapshot?.storage, photo: host.cameraStatus.isPhoto)
         }
 
         private func topButton(_ item: LiveTopMenu, value: String) -> some View {
