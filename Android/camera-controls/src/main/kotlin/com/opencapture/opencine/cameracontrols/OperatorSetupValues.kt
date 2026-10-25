@@ -117,7 +117,7 @@ open class OperatorHelpCopy(appName: String) {
     val CAMERA_WIFI =
         "SSID joined for this session. The password stays in the Android Keystore on this phone."
     val SAVED_CAMERAS =
-        "Pair from the home list. Settings does not start a new pair \u2014 that stays on Your cameras."
+        "Pair from the home list. Settings does not start a new pair. That stays on Your cameras."
     val EDIT_VIEW = "Opens the monitor with an eye on each element you can show or hide."
     val FRAME_IO =
         "Sign in to upload clips from the share popup. Frame.io needs the internet, so the phone hops off the camera Wi‑Fi for the upload."
@@ -128,7 +128,7 @@ open class OperatorHelpCopy(appName: String) {
     val HAPTICS =
         "Short confirmation pulses for switches, settings, and gimbal limits. A connected controller also rumbles at a stop."
     val JOYSTICK_SENSITIVITY =
-        "How far a stick throw moves the gimbal \u2014 on-screen and a connected game controller. Small throws crawl; full throw is fastest. 4 is the captured feel. 5 reaches full speed sooner; 1 is the slowest."
+        "How far a stick throw moves the gimbal, on-screen or with a connected game controller. Small throws crawl; full throw is fastest. 4 is the captured feel. 5 reaches full speed sooner; 1 is the slowest."
     val VIRTUAL_JOYSTICK_SIZE =
         "How large the on-screen stick is. Medium is the default. Large is easier to grab; Small keeps more of the picture clear."
     val VIRTUAL_JOYSTICK_INVERT_PAN =
@@ -146,7 +146,7 @@ open class OperatorHelpCopy(appName: String) {
     val KEEP_SCREEN_AWAKE =
         MonitorSettingsCopy.keepScreenAwake
     val HDR_DISPLAY =
-        "Outdoor panel brightness, not a grade. WAVE, HISTO, PARADE, VECTOR, zebras and false color still read the decoded camera signal \u2014 judge exposure there, not from how bright the picture looks. Screen recording drops back to a normal SDR picture so the file is not HDR-boosted. This is not the camera's HDR/HLG color mode. Off by default."
+        "Outdoor panel brightness, not a grade. WAVE, HISTO, PARADE, VECTOR, zebras and false color still read the decoded camera signal, so judge exposure there, not from how bright the picture looks. Screen recording drops back to a normal SDR picture so the file is not HDR-boosted. This is not the camera's HDR/HLG color mode. Off by default."
     val THEME = "Charcoal field-monitor chrome with Sky Blue accents, tuned for low reflection on set."
     val SUPPORT = "Connection, live view, controls, and troubleshooting."
     val REPORT = "Opens a public issue form on GitHub for this project."
@@ -158,14 +158,14 @@ open class OperatorHelpCopy(appName: String) {
     val FEATURE = "Start an idea in this project's feature-request discussion."
     val SOURCE =
         "View the $appName project on GitHub. Opening this may leave the camera Wi-Fi if that is the only network."
-    val LINK_HEALTH = "How healthy the camera link is right now \u2014 delivery, not radio RSSI."
+    val LINK_HEALTH = "How healthy the camera link is right now: delivery, not radio RSSI."
     val CLEAR_CACHE =
         "Removes cached clips, thumbnails and camera indexes for every camera. Cameras reload their library when connected."
     val LUT_LOOK = "Looks apply on this phone. The file on the camera is unchanged."
     val APP_VERSION = "Current $appName build from the native project metadata."
     val LOCAL_CACHE = "Cached clips, thumbnails and camera indexes for every camera on this phone."
     val CACHE_FULL_RESOLUTION =
-        "Download the original camera file when you open a clip. Off keeps only the 720p proxy to save space. Share needs the original \u2014 connect the camera if it is not cached."
+        "Download the original camera file when you open a clip. Off keeps only the 720p proxy to save space. Share needs the original, so connect the camera if it is not cached."
     val FEED_UPSCALER = MonitorSettingsCopy.feedUpscaler
     val FALSE_COLOR_SCALE =
         "The camera color mode selects D-Log, D-Log2, Rec.709, or HLG automatically. " +

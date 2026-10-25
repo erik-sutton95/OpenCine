@@ -115,7 +115,7 @@ final class HeadphoneMotionBridgeTests: XCTestCase {
         bridge.sync()
         XCTAssertEqual(motion.starts.count, 1, "Ordinary sync must not retry an error indefinitely")
         XCTAssertEqual(
-            host.controlNote, "Headphone motion stopped — tap Calibrate to retry")
+            host.controlNote, "Headphone motion stopped. Tap Calibrate to retry")
         bridge.tapControl()
         XCTAssertEqual(motion.starts.count, 2)
         motion.starts.last?(HeadphoneMotionSample(timestamp: 99.95), nil)

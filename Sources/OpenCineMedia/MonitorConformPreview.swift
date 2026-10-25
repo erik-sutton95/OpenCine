@@ -41,7 +41,7 @@ public enum MonitorConformPreview {
             switch self {
             case .available: nil
             case .unknownRate: "Frame rate unavailable for this clip"
-            case .variableRate: "Variable frame rate \u{2014} conform preview unavailable"
+            case .variableRate: "Variable frame rate: conform preview unavailable"
             case .alreadyConformed: "Already conformed in camera"
             case .notHighFrameRate: "Not a high-frame-rate clip"
             }

@@ -350,8 +350,8 @@ public abstract class DiagnosticCenterRuntime<S>(
         public const val EXCEPTION_CAP: Int = 200
         private const val SHARE_MAX_BYTES = 2_097_152L
 
-        /** The support email subject: the product, an em dash (U+2014), "report a problem". */
-        internal fun supportSubject(product: String): String = "$product \u2014 report a problem"
+        /** The support email subject: the product, a colon, "report a problem". */
+        internal fun supportSubject(product: String): String = "$product: report a problem"
 
         internal fun compactSummary(host: DiagnosticsHost, env: Env, recent: List<String>): String {
             val lines =

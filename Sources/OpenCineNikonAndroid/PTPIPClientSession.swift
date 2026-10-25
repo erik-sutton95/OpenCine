@@ -4903,7 +4903,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
             // operationResponse must not grow `packets` forever.
             guard packets.count <= 512 else {
                 throw PTPIPClientSessionError.connectionFailed(
-                    "PTP-IP transaction exceeded 512 packets without a response — stream desynchronized."
+                    "PTP-IP transaction exceeded 512 packets without a response. Stream desynchronized."
                 )
             }
         }

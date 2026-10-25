@@ -282,7 +282,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
             live.yawDeg.isFinite, live.pitchDeg.isFinite,
             (legs[0].from.nativePitchDeg == nil || live.nativePitchDeg != nil),
             (live.nativePitchDeg.map { $0.isFinite && (-180...180).contains($0) } ?? true)
-        else { return stop(live: live, reason: "Move interrupted \u{2014} timing or camera feedback lost") }
+        else { return stop(live: live, reason: "Move interrupted: timing or camera feedback lost") }
         if resumeNeedsCommand {
             resumeNeedsCommand = false
             if phase == "RUN" {
@@ -345,10 +345,10 @@ public struct GimbalMoveEngine: Equatable, Sendable {
                 return streamed ? tickLinearLeg(live: live) : output(live: live)
             }
             if streamed, nextCurveCommand < leg.duration {
-                return stop(live: live, reason: "Move interrupted \u{2014} waypoint dispatch was late")
+                return stop(live: live, reason: "Move interrupted: waypoint dispatch was late")
             }
             guard elapsed - leg.duration <= 0.02 + 1e-9 else {
-                return stop(live: live, reason: "Move interrupted \u{2014} waypoint dispatch was late")
+                return stop(live: live, reason: "Move interrupted: waypoint dispatch was late")
             }
             if program.changesZoom { pendingZoomEndpoint = leg.to.zoom }
             if index + 1 == legs.count, program.loop {
@@ -432,7 +432,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
     private mutating func tickLinearLeg(live: GimbalWaypoint) -> Output {
         guard elapsed + 1e-9 >= nextCurveCommand else { return output(live: live) }
         guard elapsed - nextCurveCommand <= 0.02 + 1e-9 else {
-            return stop(live: live, reason: "Move interrupted \u{2014} waypoint dispatch was late")
+            return stop(live: live, reason: "Move interrupted: waypoint dispatch was late")
         }
         return sendRoutedLegPart(live: live)
     }
@@ -452,7 +452,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
             let target = part == parts - 1 ? leg.to : Self.lerp(leg.from, leg.to, u: end / leg.duration)
             return output(live: live, target: target, duration: Double(endTicks - Int((start * 10).rounded())) / 10)
         }
-        return stop(live: live, reason: "Move interrupted \u{2014} waypoint dispatch was late")
+        return stop(live: live, reason: "Move interrupted: waypoint dispatch was late")
     }
 
     /// Absolute firmware targets may choose the shortest circular arc. Never
@@ -473,10 +473,10 @@ public struct GimbalMoveEngine: Equatable, Sendable {
         index = elapsed + 1e-9 >= curve.durationAB ? 1 : 0
         if elapsed + 1e-9 >= curve.duration {
             guard nextCurveCommand >= curve.duration else {
-                return stop(live: live, reason: "Move interrupted \u{2014} waypoint dispatch was late")
+                return stop(live: live, reason: "Move interrupted: waypoint dispatch was late")
             }
             guard elapsed - curve.duration <= 0.02 + 1e-9 else {
-                return stop(live: live, reason: "Move interrupted \u{2014} waypoint dispatch was late")
+                return stop(live: live, reason: "Move interrupted: waypoint dispatch was late")
             }
             if program.changesZoom { pendingZoomEndpoint = curve.c.zoom }
             if program.loop {
@@ -490,7 +490,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
         }
         guard elapsed + 1e-9 >= nextCurveCommand else { return output(live: live) }
         guard elapsed - nextCurveCommand <= 0.02 + 1e-9 else {
-            return stop(live: live, reason: "Move interrupted \u{2014} waypoint dispatch was late")
+            return stop(live: live, reason: "Move interrupted: waypoint dispatch was late")
         }
         let lastCommandAt = curve.duration - 0.1
         let target = nextCurveCommand >= lastCommandAt - 1e-9

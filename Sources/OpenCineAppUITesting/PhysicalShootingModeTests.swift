@@ -66,7 +66,7 @@ open class PhysicalShootingModeTests: SharedAppUITestCase {
         XCTAssertTrue(inspector.waitForExistence(timeout: 5))
         XCTAssertTrue(inspector.buttons["Creative"].isHittable)
         XCTAssertTrue(inspector.buttons["Custom"].isHittable)
-        let caption = app.staticTexts["Photo live view is Rec.709 \u{2014} log conversions are off"]
+        let caption = app.staticTexts["Photo live view is Rec.709. Log conversions are off"]
         XCTAssertTrue(caption.waitForExistence(timeout: 5), "DJI catalog must explain Photo bypass")
         for title in ["D-Log → Rec.709", "D-Log2 → Rec.709", "D-Log M → Rec.709"] {
             XCTAssertFalse(inspector.staticTexts[title].exists)

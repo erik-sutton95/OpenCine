@@ -434,7 +434,7 @@
                 // by the framing layer; a real transaction is a handful of packets.
                 guard packets.count <= Self.maxTransactionPackets else {
                     throw NativeCameraSessionError.connectionFailed(
-                        "PTP-IP transaction exceeded \(Self.maxTransactionPackets) packets without a response — stream desynchronized."
+                        "PTP-IP transaction exceeded \(Self.maxTransactionPackets) packets without a response. Stream desynchronized."
                     )
                 }
             }
