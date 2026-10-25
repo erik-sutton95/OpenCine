@@ -186,6 +186,8 @@ public final class ShellModel {
     public func setSceneActive(_ active: Bool) {
         guard active != sceneActive else { return }
         sceneActive = active
+        // The Local Network prompt and a Settings visit both end here: re-check that permission.
+        if active { cameras.retryLocalNetworkFailures() }
         onSceneActivity(active)
     }
 

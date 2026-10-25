@@ -46,6 +46,11 @@ internal object Values {
         "Bluetooth is off", "Turn on Bluetooth for this app.",
         listOf(RecoveryAction.OpenSettings, RecoveryAction.EditRoute(wifi.id), RecoveryAction.Retry), "test.bluetooth.denied",
     )
+    val localNetworkDenied = ConnectionFailure(
+        ConnectionFailure.Reason.Permission(ConnectionFailure.Permission.LOCAL_NETWORK), ConnectionPhase.NEGOTIATING,
+        "Couldn't connect", "Local Network access is off. Enable it in Settings, then connect again.",
+        listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry), "test.local-network.denied",
+    )
 
     fun model(
         integrations: List<FakeIntegration>,
@@ -312,7 +317,58 @@ class CamerasModelTest {
         assertEquals(2, fake.attempts.size, "a live camera is never re-dialled")
     }
 
+@Test
+    fun localNetworkFailuresConnectAgainWhenRechecked() = runTest {
+        val model = model(saved = emptyList())
+        fake.publish(listOf(Values.sighting))
+        model.beginPairing()
+        runCurrent()
+        model.select("n2")
+        model.connect(model.now.nearby.first())
+        fake.attempts[0].fail(Values.localNetworkDenied)
+        runCurrent()
+        assertNotNull(model.now.failures["n2"])
+        model.retryLocalNetworkFailures()
+        runCurrent()
+        assertTrue(fake.attempts.size == 2 && fake.attempts[1].target == ConnectTarget.Nearby(Values.sighting))
+        assertTrue(model.now.failures.isEmpty() && model.now.attempts["n2"] != null)
+        model.retryLocalNetworkFailures()
+        runCurrent()
+        assertEquals(2, fake.attempts.size, "a running attempt is never replaced")
+    }
+
+    /** A re-check dials the current saved record, never a route forgotten since (CodeRabbit, #262). */
     @Test
+    fun aRecheckSkipsAForgottenRoute() = runTest {
+        val model = model()
+        model.connect(Values.camera, Values.wifi.id)
+        fake.attempts[0].fail(Values.localNetworkDenied)
+        runCurrent()
+        model.rename("camera-1", "A camera")
+        model.retryLocalNetworkFailures()
+        runCurrent()
+        assertEquals(2, fake.attempts.size)
+        assertEquals(ConnectTarget.Saved(model.now.saved[0], Values.wifi.id), fake.attempts.last().target, "the current record")
+        fake.attempts[1].fail(Values.localNetworkDenied)
+        runCurrent()
+        model.forgetRoute(Values.wifi.id, "camera-1")
+        model.retryLocalNetworkFailures()
+        runCurrent()
+        assertEquals(2, fake.attempts.size, "the forgotten route is not dialled")
+    }
+
+    @Test
+    fun otherFailuresWaitForTheOperatorWhenRechecked() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        model.retryLocalNetworkFailures()
+        runCurrent()
+        assertTrue(fake.attempts.size == 1 && model.now.failures["camera-1"]?.failure == Values.failure)
+    }
+
+        @Test
     fun promptsReachTheCardAndThePairPage() = runTest {
         val model = model(saved = emptyList())
         fake.publish(listOf(Values.sighting))

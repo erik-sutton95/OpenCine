@@ -84,6 +84,18 @@ import OpenCineCore
         }
     }
 
+    /// Raises the system prompt before the first camera join, so the operator answers it while
+    /// approving on the camera instead of while the camera link is already timing out (hardware
+    /// pass 5.1 and 8.0). `serviceType` is the app's own Bonjour type, listed in Info.plist
+    /// `NSBonjourServices`. The legacy browse raises the prompt on device; an `NWBrowser` alone
+    /// did not. The prompt outlives the 30 s probe, and the camera link re-detects the answer. A
+    /// running probe is not restarted and a known approval is not probed again.
+    public func requestBeforeCameraJoin(serviceType: String) {
+        guard !isProbing else { return }
+        start(.init(browseType: serviceType, includePeerToPeer: false,
+            promptTrigger: serviceType + ".", lifetime: .seconds(30)))
+    }
+
     /// Ends the current probe and its native browse/beacon. Keeps the last evidence.
     public func stop() {
         guard let run = running else { return }
