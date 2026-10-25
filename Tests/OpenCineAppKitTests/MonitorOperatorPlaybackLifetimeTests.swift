@@ -64,17 +64,20 @@ import Testing
         var made: ((MonitorMediaPlaybackModel<String, String>) -> Void)?
         var pendingPrepare: OperatorPlaybackPending?
         var sleep: @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
-        lazy var model = MonitorOperatorMediaModel<String, String>(library: library,
-            recordAdmission: { [unowned self] record in recordAdmission?(record) ?? .init { true } },
-            sleep: { [unowned self] duration in try await sleep(duration) }) { [unowned self] library in
-            let port = OperatorPlaybackPort(); ports.append(port)
-            port.pendingPrepare = pendingPrepare
-            let owner = MonitorMediaPlaybackModel<String, String>(library: library, native: port,
-                candidates: { [.cached(.init(url: URL(fileURLWithPath: "/" + $0.payload + ".mov"),
-                    mimeType: "video/mp4", sourceKey: $0.payload))] })
-            owner.setItemAdmission { [weak self] record in self?.admission?(record) ?? .init { true } }
-            made?(owner)
-            return owner
+        lazy var model = makeModel()
+        func makeModel() -> MonitorOperatorMediaModel<String, String> {
+            MonitorOperatorMediaModel<String, String>(library: library,
+                recordAdmission: { [unowned self] record in recordAdmission?(record) ?? .init { true } },
+                sleep: { [unowned self] duration in try await sleep(duration) }) { [unowned self] library in
+                let port = OperatorPlaybackPort(); ports.append(port)
+                port.pendingPrepare = pendingPrepare
+                let owner = MonitorMediaPlaybackModel<String, String>(library: library, native: port,
+                    candidates: { [.cached(.init(url: URL(fileURLWithPath: "/" + $0.payload + ".mov"),
+                        mimeType: "video/mp4", sourceKey: $0.payload))] })
+                owner.setItemAdmission { [weak self] record in self?.admission?(record) ?? .init { true } }
+                made?(owner)
+                return owner
+            }
         }
         init() throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -542,25 +545,119 @@ import Testing
         #expect(await settled { calls == 1 }); #expect(!owner.ready)
     }
 
-    @Test func cancellationCallbackSuccessorCannotBeLoadedOverOrClosed() async throws {
+    @Test func galleryCloseCancellationCallbackSuccessorKeepsItsPlayer() async throws {
         guard #available(macOS 14, *) else { return }
-        for closing in [false, true] {
-            let f = try Fixture(); defer { f.close() }
-            let pending = OperatorPlaybackPending(); defer { pending.finish(false) }
-            #expect(f.open(0)); let owner = try #require(f.model.playback)
-            #expect(await settled { owner.ready })
-            f.model.synchronizePlayback(cacheOriginal: true, operations: .init(cacheOriginal: { _ in
-                await withTaskCancellationHandler {
-                    _ = await pending.wait()
-                } onCancel: {
-                    MainActor.assumeIsolated { _ = f.open(2); f.model.setPlayerVisible(true) }
-                }
-            }))
-            #expect(await settled { pending.started })
-            if closing { f.model.closePlayback() } else { #expect(!f.open(1)) }
-            #expect(f.model.playback === owner && owner.active?.payload == "C" && !owner.closed)
-            #expect(f.model.playerVisible && !f.ports[0].closed && f.library.browsing)
-        }
+        let f = try Fixture(); defer { f.close() }
+        let pending = OperatorPlaybackPending(); defer { pending.finish(false) }
+        f.model.showGallery(); #expect(f.open(0)); let owner = try #require(f.model.playback)
+        #expect(await settled { owner.ready })
+        f.model.synchronizePlayback(cacheOriginal: true, operations: .init(cacheOriginal: { _ in
+            await withTaskCancellationHandler {
+                _ = await pending.wait()
+            } onCancel: {
+                MainActor.assumeIsolated { _ = f.open(2); f.model.setPlayerVisible(true) }
+            }
+        }))
+        #expect(await settled { pending.started })
+        f.model.closeGallery()
+        let successor = try #require(f.model.playback)
+        #expect(successor.active?.payload == "C" && !successor.closed)
+        #expect(f.model.galleryOpen && f.model.playerVisible && f.library.browsing)
+    }
+
+    /// Hardware 7.3: with Full Resolution Caching on, the download outlives the player page.
+    @Test func fullResolutionDownloadOutlivesClosingThePlayer() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        let pending = OperatorPlaybackPending(); defer { pending.finish(false) }
+        var finished = false, cancelled = false
+        f.model.showGallery(); #expect(f.open(0)); let owner = try #require(f.model.playback)
+        #expect(await settled { owner.ready })
+        f.model.synchronizePlayback(cacheOriginal: true, operations: .init(cacheOriginal: { _ in
+            _ = await pending.wait(); if Task.isCancelled { cancelled = true } else { finished = true }
+        }))
+        #expect(await settled { pending.started })
+        f.model.closePlayback(); pending.finish(true)
+        #expect(await settled { finished || cancelled }); #expect(finished && !cancelled)
+    }
+
+    /// Pocket and Insta build the media model per player page and release it on close.
+    @Test func fullResolutionDownloadOutlivesAReleasedPlayerPageModel() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        let pending = OperatorPlaybackPending(); defer { pending.finish(false) }
+        var finished = false, cancelled = false
+        var page: MonitorOperatorMediaModel<String, String>? = f.makeModel()
+        weak var released = page
+        #expect(page?.open(f.records[0], playlist: f.records, admitted: f.library.actionToken) == true)
+        let owner = try #require(page?.playback)
+        #expect(await settled { owner.ready })
+        page?.synchronizePlayback(cacheOriginal: true, operations: .init(cacheOriginal: { _ in
+            _ = await pending.wait(); if Task.isCancelled { cancelled = true } else { finished = true }
+        }))
+        #expect(await settled { pending.started })
+        page?.closePlayback(); page = nil
+        #expect(released == nil)
+        pending.finish(true)
+        #expect(await settled { finished || cancelled }); #expect(finished && !cancelled)
+    }
+
+    @Test func fullResolutionDownloadOutlivesMovingToTheNextClipAndStartsItsOwn() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        var waiting: [OperatorPlaybackPending] = []
+        var finished: [String] = [], cancelled = false
+        let operations = MonitorOperatorPlaybackOperations<String, String>(cacheOriginal: { record in
+            let pending = OperatorPlaybackPending(); waiting.append(pending)
+            _ = await pending.wait()
+            if Task.isCancelled { cancelled = true } else { finished.append(record.payload) }
+        })
+        f.model.showGallery(); #expect(f.open(0)); let owner = try #require(f.model.playback)
+        #expect(await settled { owner.ready })
+        f.model.synchronizePlayback(cacheOriginal: true, operations: operations)
+        #expect(await settled { waiting.count == 1 && waiting[0].started })
+        #expect(f.open(1)); #expect(await settled { owner.ready && owner.active?.payload == "B" })
+        f.model.synchronizePlayback(cacheOriginal: true, operations: operations)
+        #expect(await settled { waiting.count == 2 && waiting[1].started })
+        waiting.forEach { $0.finish(true) }
+        #expect(await settled { finished.count + (cancelled ? 1 : 0) >= 2 })
+        #expect(!cancelled && Set(finished) == ["A", "B"])
+    }
+
+    @Test func reopeningAClipWhileItsDownloadRunsDoesNotStartASecondOne() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        let pending = OperatorPlaybackPending(); defer { pending.finish(false) }
+        var calls = 0
+        let operations = MonitorOperatorPlaybackOperations<String, String>(cacheOriginal: { _ in
+            calls += 1; _ = await pending.wait()
+        })
+        f.model.showGallery(); #expect(f.open(0)); let first = try #require(f.model.playback)
+        #expect(await settled { first.ready })
+        f.model.synchronizePlayback(cacheOriginal: true, operations: operations)
+        #expect(await settled { pending.started }); f.model.closePlayback()
+        #expect(f.open(0)); let second = try #require(f.model.playback)
+        #expect(await settled { second.ready })
+        f.model.synchronizePlayback(cacheOriginal: true, operations: operations)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(calls == 1)
+    }
+
+    @Test func closingTheGalleryRetiresThePlaybackDownload() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        let pending = OperatorPlaybackPending(); defer { pending.finish(false) }
+        var cancelled = false
+        f.model.showGallery(); #expect(f.open(0)); let owner = try #require(f.model.playback)
+        #expect(await settled { owner.ready })
+        f.model.synchronizePlayback(cacheOriginal: true, operations: .init(cacheOriginal: { _ in
+            await withTaskCancellationHandler { _ = await pending.wait() } onCancel: {
+                MainActor.assumeIsolated { cancelled = true }
+            }
+        }))
+        #expect(await settled { pending.started })
+        f.model.closeGallery()
+        #expect(cancelled)
     }
 
     @Test func reportedRatingStaysUnknownAndUsesSourceConfirmedRounding() async throws {

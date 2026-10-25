@@ -35,6 +35,8 @@ case MonitorCapturePopupEdge.bottom
 case MonitorCapturePopupEdge.top
 case MonitorCapturePopupKind.compact
 case MonitorCapturePopupKind.details
+case MonitorCommandHeader.hidden
+case MonitorCommandHeader.telemetry
 case MonitorDeviceOrientation.landscapeLeft
 case MonitorDeviceOrientation.landscapeRight
 case MonitorDeviceOrientation.portrait
@@ -226,6 +228,7 @@ enum MonitorCapturePopupEdge: Equatable, Hashable, Sendable
 enum MonitorCapturePopupKind: Equatable, Hashable, Sendable
 enum MonitorCommandDashboardLayout
 enum MonitorCommandGridLayout
+enum MonitorCommandHeader: Equatable, Hashable, Sendable
 enum MonitorDeviceOrientation: Equatable, Hashable, Sendable
 enum MonitorDialHaptic: Sendable
 enum MonitorDrumSelection
@@ -239,6 +242,7 @@ enum MonitorGuideFamily: CaseIterable, Decodable, Encodable, Equatable, Hashable
 enum MonitorGuideMaskPolicy: Equatable, Hashable, Sendable
 enum MonitorHorizontalLayoutDirection: Equatable, Hashable, Sendable
 enum MonitorInspectorPreviewPolicy
+enum MonitorInstantReviewLayout
 enum MonitorJoystickSize: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorLaunchTiming
 enum MonitorLegalDocument: Equatable, Sendable
@@ -838,7 +842,8 @@ static func MonitorCapturePopupChrome.compactHeight(topPadding: Swift.Double) ->
 static func MonitorCapturePopupChrome.showsGrabber(kind: MonitorCapturePopupKind, edge: MonitorCapturePopupEdge) -> Swift.Bool
 static func MonitorCapturePopupChrome.showsRecordingCategoryTabs(portrait: Swift.Bool, kind: MonitorCapturePopupKind) -> Swift.Bool
 static func MonitorCapturePopupLayout.topMargin(safeTop: Swift.Double) -> Swift.Double
-static func MonitorCommandDashboardLayout.frame(layout: FieldMonitorLayout) -> MonitorRect
+static func MonitorCommandDashboardLayout.frame(layout: FieldMonitorLayout, minimumTop: Swift.Double) -> MonitorRect
+static func MonitorCommandDashboardLayout.header(layout: FieldMonitorLayout) -> MonitorCommandHeader
 static func MonitorCommandGridLayout.dragCenter(_: CoreFoundation.CGPoint, tileWidth: CoreGraphics.CGFloat, rowHeight: CoreGraphics.CGFloat, in: CoreFoundation.CGSize) -> CoreFoundation.CGPoint
 static func MonitorCommandGridLayout.heroHeight(portrait: Swift.Bool) -> CoreGraphics.CGFloat
 static func MonitorCommandGridLayout.heroTimecodeSize(portrait: Swift.Bool) -> CoreGraphics.CGFloat
@@ -867,6 +872,9 @@ static func MonitorHorizontalLayoutDirection.resolve(deviceOrientation: MonitorD
 static func MonitorHorizontalLayoutDirection.resolve(for: MonitorEdgeInsets) -> MonitorHorizontalLayoutDirection
 static func MonitorInspectorPreviewPolicy.height(width: Swift.Double, tool: MonitorAssistSelection) -> Swift.Double
 static func MonitorInspectorPreviewPolicy.isImage(_: MonitorAssistSelection) -> Swift.Bool
+static func MonitorInstantReviewLayout.closeFrame(containerWidth: Swift.Double) -> MonitorRect
+static func MonitorInstantReviewLayout.favoriteFrame(containerWidth: Swift.Double, containerHeight: Swift.Double, infoHeight: Swift.Double?) -> MonitorRect
+static func MonitorInstantReviewLayout.imageFrame(imageWidth: Swift.Double, imageHeight: Swift.Double, containerWidth: Swift.Double, containerHeight: Swift.Double) -> MonitorRect
 static func MonitorJoystickSize.fromLabel(_: Swift.String) -> MonitorJoystickSize
 static func MonitorJoystickSize.parse(_: Swift.String?) -> MonitorJoystickSize
 static func MonitorLayoutRegion.viewport(width: Swift.Double, height: Swift.Double) -> MonitorLayoutRegion
@@ -1006,6 +1014,18 @@ static let MonitorHistogramOptions.defaultBrightness: Swift.Int
 static let MonitorHistogramOptions.defaultScale: Swift.Double
 static let MonitorHistogramOptions.scaleRange: Swift.ClosedRange<Swift.Double>
 static let MonitorInspectorPreviewPolicy.maximumImageDimension: Swift.Double
+static let MonitorInstantReviewLayout.bottomInset: Swift.Double
+static let MonitorInstantReviewLayout.closeInset: Swift.Double
+static let MonitorInstantReviewLayout.closeSize: Swift.Double
+static let MonitorInstantReviewLayout.favoriteGlyphSize: Swift.Double
+static let MonitorInstantReviewLayout.favoriteSize: Swift.Double
+static let MonitorInstantReviewLayout.infoFontSize: Swift.Double
+static let MonitorInstantReviewLayout.infoHorizontalPadding: Swift.Double
+static let MonitorInstantReviewLayout.infoVerticalPadding: Swift.Double
+static let MonitorInstantReviewLayout.sharpenSeconds: Swift.Double
+static let MonitorInstantReviewLayout.spinnerSize: Swift.Double
+static let MonitorInstantReviewLayout.stackSpacing: Swift.Double
+static let MonitorInstantReviewLayout.standInBlur: Swift.Double
 static let MonitorLaunchTiming.fadeOutDuration: Foundation.TimeInterval
 static let MonitorLaunchTiming.visibleDuration: Swift.Duration
 static let MonitorLegalDocuments.unavailableText: Swift.String

@@ -2782,6 +2782,7 @@ public final class com/opencapture/opencine/appkit/MonitorMediaLibraryModel {
 	public final fun getDisplayedRecords ()Ljava/util/List;
 	public final fun getHostProgress ()Ljava/util/Map;
 	public final fun getLibraryRecords ()Ljava/util/List;
+	public final fun getLifetimeScope ()Lkotlinx/coroutines/CoroutineScope;
 	public final fun getSelectedRecords ()Ljava/util/List;
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun isCurrent (Lcom/opencapture/opencine/appkit/MonitorMediaLibraryActionToken;)Z

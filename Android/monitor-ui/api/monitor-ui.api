@@ -589,7 +589,17 @@ public final class com/opencapture/monitorui/MonitorCommandDashboardKt {
 public final class com/opencapture/monitorui/MonitorCommandDashboardLayout {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorCommandDashboardLayout;
-	public final fun frame (Lcom/opencapture/monitorui/MonitorFieldLayout;)Lcom/opencapture/monitorui/MonitorRect;
+	public final fun frame (Lcom/opencapture/monitorui/MonitorFieldLayout;F)Lcom/opencapture/monitorui/MonitorRect;
+	public static synthetic fun frame$default (Lcom/opencapture/monitorui/MonitorCommandDashboardLayout;Lcom/opencapture/monitorui/MonitorFieldLayout;FILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorRect;
+	public final fun header (Lcom/opencapture/monitorui/MonitorFieldLayout;)Lcom/opencapture/monitorui/MonitorCommandHeader;
+}
+
+public final class com/opencapture/monitorui/MonitorCommandHeader : java/lang/Enum {
+	public static final field HIDDEN Lcom/opencapture/monitorui/MonitorCommandHeader;
+	public static final field TELEMETRY Lcom/opencapture/monitorui/MonitorCommandHeader;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorCommandHeader;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorCommandHeader;
 }
 
 public final class com/opencapture/monitorui/MonitorCommandHealth {
@@ -1745,6 +1755,27 @@ public final class com/opencapture/monitorui/MonitorInspectorTool {
 	public final fun getValue ()Ljava/lang/Object;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorInstantReviewLayout {
+	public static final field $stable I
+	public static final field BOTTOM_INSET F
+	public static final field CLOSE_INSET F
+	public static final field CLOSE_SIZE F
+	public static final field FAVORITE_GLYPH_SIZE F
+	public static final field FAVORITE_SIZE F
+	public static final field INFO_FONT_SIZE F
+	public static final field INFO_HORIZONTAL_PADDING F
+	public static final field INFO_VERTICAL_PADDING F
+	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorInstantReviewLayout;
+	public static final field SHARPEN_MILLIS I
+	public static final field SPINNER_SIZE F
+	public static final field STACK_SPACING F
+	public static final field STAND_IN_BLUR F
+	public final fun assistPaletteMayFloat (Z)Z
+	public final fun closeFrame (F)Lcom/opencapture/monitorui/MonitorRect;
+	public final fun favoriteFrame (FFLjava/lang/Float;)Lcom/opencapture/monitorui/MonitorRect;
+	public final fun imageFrame (FFFF)Lcom/opencapture/monitorui/MonitorRect;
 }
 
 public final class com/opencapture/monitorui/MonitorInteractivePictureKt {

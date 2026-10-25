@@ -154,6 +154,7 @@ enum MonitorClipDelivery: Sendable
 enum MonitorClipDeliveryError: Error, LocalizedError, Sendable
 enum MonitorDefaultLivePalette: LiveChromePalette
 enum MonitorHeaderReadoutPolicy
+enum MonitorInstantReviewIDs
 enum MonitorLutPackNetwork: Equatable, Hashable, Sendable
 enum MonitorLutPackOutcome: Equatable, Sendable
 enum MonitorMediaGalleryFilterAction: Sendable
@@ -445,6 +446,8 @@ init MonitorIndependentSettingsPanel(rows: [IndependentSettingRow<RowID, Request
 init MonitorInspectorRenderedPicture(image: CoreGraphics.CGImage, aspectMultiplier: Swift.Double, mirrorHorizontal: Swift.Bool, mirrorVertical: Swift.Bool)
 init MonitorInspectorRenderedPictureSource(identity: MonitorInspectorRenderedPictureSource.Identity?, read: () -> MonitorInspectorRenderedPicture?, run: () async -> Swift.Void)
 init MonitorInspectorRenderedPictureSource.Identity(source: Swift.ObjectIdentifier, presentation: Foundation.UUID)
+init MonitorInstantReview(image: UIKit.UIImage, displaySize: CoreFoundation.CGSize?, isFullResolution: Swift.Bool, favorited: Swift.Bool?, onToggleFavorite: (Swift.Bool) -> Swift.Void, infoLine: Swift.String?, onDismiss: () -> Swift.Void)<Palette, Marks where Palette : LiveChromePalette, Marks == SwiftUI.EmptyView>
+init MonitorInstantReview(image: UIKit.UIImage, displaySize: CoreFoundation.CGSize?, isFullResolution: Swift.Bool, favorited: Swift.Bool?, onToggleFavorite: (Swift.Bool) -> Swift.Void, infoLine: Swift.String?, onDismiss: () -> Swift.Void, marks: (CoreFoundation.CGRect) -> Marks)<Palette, Marks where Palette : LiveChromePalette, Marks : SwiftUI.View>
 init MonitorLUTLooks(official: OfficialLUTs, preferences: OpenCineCameraVocabulary.LUTPreferences, customLUTs: OpenCineCameraVocabulary.CustomLUTStore, preparationReady: Swift.Bool, lookProfile: OpenCineCameraVocabulary.CameraLUTProfile?, colorSourceProfile: OpenCineMedia.MonitorColorSourceProfile)
 init MonitorLUTPickerView(assist: OpenCineAppKit.MonitorAssistState<Looks>, embedded: Swift.Bool, haptics: OperatorHaptics, palette: Palette.Type, preparation: Swift.AnyHashable, prepare: () -> Swift.Void, libraries: () -> [LUTPickerLibrary])<Looks, Palette, Footer where Looks : OpenCineAppKit.MonitorLookProvider, Palette : LiveChromePalette, Footer == MonitorOperatorLookComparison<Looks>>
 init MonitorLUTPickerView(assist: OpenCineAppKit.MonitorAssistState<Looks>, embedded: Swift.Bool, haptics: OperatorHaptics, palette: Palette.Type, preparation: Swift.AnyHashable, prepare: () -> Swift.Void, libraries: () -> [LUTPickerLibrary], footer: () -> Footer)<Looks, Palette, Footer where Looks : OpenCineAppKit.MonitorLookProvider, Palette : LiveChromePalette, Footer : SwiftUI.View>
@@ -1262,6 +1265,10 @@ static let LiveGimbalCopy.update: Swift.String
 static let MirrorAssist.explanation: Swift.String
 static let MirrorAssist.horizontalHelp: Swift.String
 static let MirrorAssist.verticalHelp: Swift.String
+static let MonitorInstantReviewIDs.close: Swift.String
+static let MonitorInstantReviewIDs.favorite: Swift.String
+static let MonitorInstantReviewIDs.info: Swift.String
+static let MonitorInstantReviewIDs.review: Swift.String
 static let MonitorReadoutHitTarget.minimumSize: CoreGraphics.CGFloat
 static let MonitorSettingsCopy.accountConsentAction: Swift.String
 static let MonitorSettingsCopy.accountConsentTitle: Swift.String
@@ -1510,6 +1517,7 @@ struct MonitorIndependentSettingsPanel<RowID, Request where RowID : Swift.Hashab
 struct MonitorInspectorRenderedPicture: Sendable
 struct MonitorInspectorRenderedPictureSource.Identity: Equatable, Hashable
 struct MonitorInspectorRenderedPictureSource: Sendable
+struct MonitorInstantReview<Palette, Marks where Palette : LiveChromePalette, Marks : SwiftUI.View>: Sendable, View
 struct MonitorLUTPickerView<Looks, Palette, Footer where Looks : OpenCineAppKit.MonitorLookProvider, Palette : LiveChromePalette, Footer : SwiftUI.View>: Sendable, View
 struct MonitorLookInspectorPreview<Looks where Looks : OpenCineAppKit.MonitorLookProvider>: Sendable, View
 struct MonitorLutPackCopy: Sendable
@@ -1980,6 +1988,7 @@ var MonitorHeaderCombinedCodec.title: Swift.String
 var MonitorHeaderCombinedCodec.value: Swift.String
 var MonitorHeaderReadoutPlan.foldsColor: Swift.Bool
 var MonitorIndependentSettingsPanel.body: some SwiftUI.View
+var MonitorInstantReview.body: some SwiftUI.View
 var MonitorLUTLooks.appliesLUTExposure: Swift.Bool
 var MonitorLUTLooks.cube: OpenCineMedia.CubeLUT?
 var MonitorLUTLooks.liveIsPhoto: Swift.Bool

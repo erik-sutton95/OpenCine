@@ -1663,6 +1663,20 @@ public final class com/opencapture/opencine/cameracontrols/MonitorInspectorPrevi
 	public static fun values ()[Lcom/opencapture/opencine/cameracontrols/MonitorInspectorPreviewLayout;
 }
 
+public final class com/opencapture/opencine/cameracontrols/MonitorInstantReviewIds {
+	public static final field $stable I
+	public static final field CLOSE Ljava/lang/String;
+	public static final field FAVORITE Ljava/lang/String;
+	public static final field INFO Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/opencine/cameracontrols/MonitorInstantReviewIds;
+	public static final field REVIEW Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/cameracontrols/MonitorInstantReviewKt {
+	public static final fun MonitorInstantReview (Landroidx/compose/ui/graphics/ImageBitmap;ZLkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;Ljava/lang/Float;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function1;Ljava/lang/String;Lkotlin/jvm/functions/Function4;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorInstantReviewHost (ZLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)V
+}
+
 public abstract interface class com/opencapture/opencine/cameracontrols/MonitorLegalDocument {
 	public static final field Companion Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocument$Companion;
 	public static final field UNAVAILABLE_TEXT Ljava/lang/String;

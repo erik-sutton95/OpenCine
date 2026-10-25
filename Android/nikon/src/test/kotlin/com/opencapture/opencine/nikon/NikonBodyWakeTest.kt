@@ -20,10 +20,12 @@ class NikonBodyWakeTest {
         assertEquals(0, currentTime)
     }
 
+    // The pause is measured on the test's virtual clock: on the default real clock a slow runner
+    // spends a real millisecond inside a dial and the virtual pause comes out that much short.
     @Test
     fun `a waking body is dialled again until it answers`() = runTest {
         var dials = 0
-        val outcome = NikonBodyWake.awaitAnswer("192.168.1.20") { ++dials >= 4 }
+        val outcome = NikonBodyWake.awaitAnswer("192.168.1.20", nowMillis = { currentTime }) { ++dials >= 4 }
         assertEquals(NikonBodyWake.Outcome.Answered(4), outcome)
         // These dials end at once, so each pause is the rest of its slot.
         assertEquals(3 * NikonBodyWake.SLOT_MILLIS, currentTime)
@@ -32,7 +34,7 @@ class NikonBodyWakeTest {
     @Test
     fun `a silent body is bounded by the dial count with no pause after the last dial`() = runTest {
         var dials = 0
-        val outcome = NikonBodyWake.awaitAnswer("192.168.1.20") { dials++; false }
+        val outcome = NikonBodyWake.awaitAnswer("192.168.1.20", nowMillis = { currentTime }) { dials++; false }
         assertEquals(NikonBodyWake.Outcome.Silent(NikonBodyWake.DIALS), outcome)
         assertEquals(NikonBodyWake.DIALS, dials)
         // Hardware pass 2026-10-25 (1.11, 3.7): dials a kernel refuses at once must still span the
