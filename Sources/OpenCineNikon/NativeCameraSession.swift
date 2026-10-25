@@ -741,19 +741,9 @@
             return try NikonFocusRackSafetySnapshot(reported: fresh)
         }
 
-        /// Executes one diagnostic rack chunk without retries or optimistic position accounting.
-        /// Stop is checked at transaction boundaries; a partial move never reports completion.
-        public func focusRackDrive(
-            towardNear: Bool, pulses: UInt32, cancellation: NikonFocusRackCancellation
-        ) async -> NikonFocusRackDriveOutcome {
-            await focusRackDrive(
-                towardNear: towardNear, pulses: pulses, cancellation: cancellation,
-                suppliedAdmission: nil)
-        }
-
         private func focusRackDrive(
             towardNear: Bool, pulses: UInt32, cancellation: NikonFocusRackCancellation,
-            suppliedAdmission: NikonCommandAdmission?, cadence: NikonFocusRackCadence = .standard
+            suppliedAdmission: NikonCommandAdmission, cadence: NikonFocusRackCadence
         ) async -> NikonFocusRackDriveOutcome {
             await withTaskCancellationHandler {
                 // Transport gates reject cancelled tasks. Keep the admitted chunk's cleanup
@@ -770,17 +760,17 @@
 
         private func executeFocusRackDrive(
             towardNear: Bool, pulses: UInt32, cancellation: NikonFocusRackCancellation,
-            suppliedAdmission: NikonCommandAdmission?, cadence: NikonFocusRackCadence
+            suppliedAdmission: NikonCommandAdmission, cadence: NikonFocusRackCadence
         ) async -> NikonFocusRackDriveOutcome {
             guard let owner = commandOwner, owner.isActive else { return .uncertain }
             let admission = NikonCommandAdmission(owner: owner) {
-                !cancellation.isStopRequested && suppliedAdmission?.admits(owner) != false
+                !cancellation.isStopRequested && suppliedAdmission.admits(owner)
             }
             var machine = NikonFocusRackDriveMachine(cadence: cadence)
             while true {
                 switch machine.next(
                     stopRequested: cancellation.isStopRequested || !owner.isActive
-                        || suppliedAdmission?.admits(owner) == false)
+                        || !suppliedAdmission.admits(owner))
                 {
                 case .finished(let outcome): return outcome
                 case .wait(let seconds):

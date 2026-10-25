@@ -169,7 +169,6 @@ case NikonDialPurpose.cameraControl
 case NikonDialPurpose.presence
 case NikonFocusRackAccessError.authorityExpired
 case NikonFocusRackAccessError.safetyUnavailable
-case NikonFocusRackAccessError.unavailable
 case NikonFocusRackCadence.fastExperimental
 case NikonFocusRackCadence.standard
 case NikonFocusRackDriveMachine.Action.activate
@@ -806,7 +805,6 @@ func NativeCameraSession.fetchMediaClip(handle: Swift.UInt32, storageID: Swift.U
 func NativeCameraSession.fileTypeModes() async throws -> [PTPCameraFileTypeMode]
 func NativeCameraSession.focusRackAccess(cadence: NikonFocusRackCadence, isAdmitted: () -> Swift.Bool) -> NikonFocusRackAccess?
 func NativeCameraSession.focusRackAccess(isAdmitted: () -> Swift.Bool) -> NikonFocusRackAccess?
-func NativeCameraSession.focusRackDrive(towardNear: Swift.Bool, pulses: Swift.UInt32, cancellation: NikonFocusRackCancellation) async -> NikonFocusRackDriveOutcome
 func NativeCameraSession.getObjectHandles(storageID: Swift.UInt32, format: Swift.UInt32, association: Swift.UInt32) async throws -> [Swift.UInt32]
 func NativeCameraSession.getObjectInfo(handle: Swift.UInt32) async throws -> PTPObjectInfo
 func NativeCameraSession.getPartialObject(_: PTPPartialObjectRequest) async throws -> Foundation.Data

@@ -81,8 +81,6 @@ apply; there is no immediate physical-stop guarantee.
 Every field must have valid fresh bytes and the burst must finish with actual `DeviceReady` OK within
 two seconds. Busy, refused, short or failed readings never establish freshness from retained values.
 The controller timestamps a successful burst from its start. Normal monitor polling is unchanged.
-The earlier optional Kotlin chunk driver and diagnostic property-refresh request have been retired;
-production and diagnostic traces use the same Swift access and controller.
 
 The sequencing tests are SIMULATED. They do not establish optical displacement, smoothness,
 repeatability or physical stop latency on a real lens.

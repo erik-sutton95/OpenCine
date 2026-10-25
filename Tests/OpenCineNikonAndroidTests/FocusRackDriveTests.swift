@@ -165,39 +165,40 @@ struct FocusRackDriveTests {
         #expect(server.receivedOperations().filter { $0 == .mfDrive }.count == 1)
     }
 
-    @Test func preparedChunkCompletesWithExactDirectionAndAmount() throws {
+    @Test func preparedChunkCompletesWithExactDirectionAndAmount() async throws {
         let server = try FakeZRServer()
         defer { server.stop() }
         let session = try connect(server)
         defer { session.disconnect() }
-        #expect(session.prepareFocusRackRun(runID: 1))
+        let access = session.focusRackAccess { true }
+        #expect(access.prepareRun(1))
         #expect(
-            session.focusRackDrive(
-                runID: 1, towardNear: true, pulses: 40)
+            await access.driveChunk(1, true, 40)
                 == .complete)
         let requests = server.receivedRequests()
         #expect(requests.last { $0.operation == .mfDrive }?.parameters == [1, 40])
         #expect(requests.suffix(2).map(\.operation) == [.mfDrive, .deviceReady])
     }
 
-    @Test func stoppedAndSupersededRunsNeverSendActivation() throws {
+    @Test func stoppedAndSupersededRunsNeverSendActivation() async throws {
         let server = try FakeZRServer()
         defer { server.stop() }
         let session = try connect(server)
         defer { session.disconnect() }
-        #expect(session.prepareFocusRackRun(runID: 1))
-        session.requestFocusRackStop(runID: 1)
+        let access = session.focusRackAccess { true }
+        #expect(access.prepareRun(1))
+        access.requestStop(1)
         #expect(
-            session.focusRackDrive(runID: 1, towardNear: false, pulses: 40)
+            await access.driveChunk(1, false, 40)
                 == .cancelledBeforeActivation)
-        #expect(session.prepareFocusRackRun(runID: 2))
+        #expect(access.prepareRun(2))
         #expect(
-            session.focusRackDrive(runID: 1, towardNear: false, pulses: 40)
+            await access.driveChunk(1, false, 40)
                 == .cancelledBeforeActivation)
         #expect(!server.receivedOperations().contains(.mfDrive))
     }
 
-    @Test func activationRefusalAndInsufficientStepRemainDistinct() throws {
+    @Test func activationRefusalAndInsufficientStepRemainDistinct() async throws {
         for refuses in [true, false] {
             var options = FakeZRServer.Options()
             if refuses {
@@ -210,15 +211,16 @@ struct FocusRackDriveTests {
             defer { server.stop() }
             let session = try connect(server)
             defer { session.disconnect() }
-            #expect(session.prepareFocusRackRun(runID: 1))
+            let access = session.focusRackAccess { true }
+            #expect(access.prepareRun(1))
             #expect(
-                session.focusRackDrive(runID: 1, towardNear: false, pulses: 1)
+                await access.driveChunk(1, false, 1)
                     == (refuses ? .activationRejected(0x2013) : .stepTooSmall))
             #expect(server.receivedOperations().filter { $0 == .mfDrive }.count == 1)
         }
     }
 
-    @Test func stopDuringActivationCancelsAtTheNextBoundaryThenConfirmsReady() throws {
+    @Test func stopDuringActivationCancelsAtTheNextBoundaryThenConfirmsReady() async throws {
         for confirms in [true, false] {
             let receipt = SessionReceipt()
             var options = FakeZRServer.Options()
@@ -230,10 +232,11 @@ struct FocusRackDriveTests {
             defer { server.stop() }
             let session = try connect(server)
             defer { session.disconnect() }
-            receipt.install(session)
-            #expect(session.prepareFocusRackRun(runID: 1))
+            let access = session.focusRackAccess { true }
+            receipt.install(access)
+            #expect(access.prepareRun(1))
             #expect(
-                session.focusRackDrive(runID: 1, towardNear: false, pulses: 80)
+                await access.driveChunk(1, false, 80)
                     == (confirms ? .cancelledReady : .cancelledUnconfirmed))
             let wire = server.receivedOperations().filter {
                 [.mfDrive, .afDriveCancel, .deviceReady].contains($0)
@@ -245,32 +248,33 @@ struct FocusRackDriveTests {
         }
     }
 
-    @Test func lostActivationResponseReportsUnknownDisplacement() throws {
+    @Test func lostActivationResponseReportsUnknownDisplacement() async throws {
         var options = FakeZRServer.Options()
         options.disconnectsOnMFDrive = true
         let server = try FakeZRServer(options: options)
         defer { server.stop() }
         let session = try connect(server)
         defer { session.disconnect() }
-        #expect(session.prepareFocusRackRun(runID: 1))
-        #expect(session.focusRackDrive(runID: 1, towardNear: false, pulses: 80) == .uncertain)
+        let access = session.focusRackAccess { true }
+        #expect(access.prepareRun(1))
+        #expect(await access.driveChunk(1, false, 80) == .uncertain)
         #expect(server.receivedOperations().filter { $0 == .mfDrive }.count == 1)
     }
 }
 
 private final class SessionReceipt: @unchecked Sendable {
     private let lock = NSLock()
-    private var session: PTPIPClientSession?
-    func install(_ session: PTPIPClientSession) {
+    private var access: NikonFocusRackAccess?
+    func install(_ access: NikonFocusRackAccess) {
         lock.lock()
-        self.session = session
+        self.access = access
         lock.unlock()
     }
     func stop() {
         lock.lock()
-        let current = session
+        let current = access
         lock.unlock()
-        current?.requestFocusRackStop(runID: 1)
+        current?.requestStop(1)
     }
 }
 

@@ -40,13 +40,11 @@ public struct NikonFocusRackSafetySnapshot: Equatable, Sendable {
 
 /// A native access failure; no failure establishes fresh safety observations.
 public enum NikonFocusRackAccessError: Error, LocalizedError, Sendable {
-    case unavailable
     case authorityExpired
     case safetyUnavailable
 
     public var errorDescription: String? {
         switch self {
-        case .unavailable: "The camera session is unavailable."
         case .authorityExpired: "Focus-rack camera authority expired."
         case .safetyUnavailable: "Fresh camera focus and lens safety readings are unavailable."
         }

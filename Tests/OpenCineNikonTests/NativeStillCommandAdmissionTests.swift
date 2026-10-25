@@ -66,17 +66,17 @@
         @Test func rackTaskCancellationStillExecutesSerializedCleanup() async throws {
             let transport = Transport()
             let session = try await makeSession(transport)
-            let cancellation = NikonFocusRackCancellation()
+            let access = try #require(session.focusRackAccess { true })
+            #expect(access.prepareRun(1))
             await transport.clear(hold: .afterSend)
             let driving = Task {
-                await session.focusRackDrive(
-                    towardNear: false, pulses: 40, cancellation: cancellation)
+                await access.driveChunk(1, false, 40)
             }
             await transport.waitUntilHeld()
             driving.cancel()
-            #expect(cancellation.isStopRequested)
             await transport.release()
             #expect(await driving.value == .cancelledReady)
+            #expect(await access.driveChunk(1, false, 40) == .cancelledBeforeActivation)
             #expect(
                 await transport.calls.map(\.operation) == [.mfDrive, .afDriveCancel, .deviceReady])
             session.close()
@@ -88,14 +88,14 @@
             for hold in [Transport.Hold.beforeSend, .afterSend] {
                 let transport = Transport()
                 let session = try await makeSession(transport)
-                let cancellation = NikonFocusRackCancellation()
+                let access = try #require(session.focusRackAccess { true })
+                #expect(access.prepareRun(1))
                 await transport.clear(hold: hold)
                 let driving = Task {
-                    await session.focusRackDrive(
-                        towardNear: true, pulses: 40, cancellation: cancellation)
+                    await access.driveChunk(1, true, 40)
                 }
                 await transport.waitUntilHeld()
-                cancellation.requestStop()
+                access.requestStop(1)
                 await transport.release()
                 #expect(
                     await driving.value

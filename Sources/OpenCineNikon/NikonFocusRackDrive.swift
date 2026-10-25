@@ -49,22 +49,22 @@ public enum NikonFocusRackDriveOutcome: Codable, Equatable, Sendable {
 
 /// One run's stop receipt. Requesting stop takes no camera or transaction lock.
 /// Create a fresh receipt for every run; a stopped receipt cannot be rearmed.
-public final class NikonFocusRackCancellation: @unchecked Sendable {
+package final class NikonFocusRackCancellation: @unchecked Sendable {
     private let lock = NSLock()
     private var stopped = false
 
     /// Creates an unstopped run receipt.
-    public init() {}
+    package init() {}
 
     /// Requests that the active drive stop at its next safe transaction boundary.
-    public func requestStop() {
+    package func requestStop() {
         lock.lock()
         stopped = true
         lock.unlock()
     }
 
     /// Whether this receipt has been stopped.
-    public var isStopRequested: Bool {
+    package var isStopRequested: Bool {
         lock.lock()
         defer { lock.unlock() }
         return stopped

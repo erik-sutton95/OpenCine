@@ -3591,12 +3591,12 @@ public final class PTPIPClientSession: @unchecked Sendable {
 
     /// Prepares a fresh, increasing positive run ID without taking the camera command lock.
     /// Replaced runs are stopped and reused IDs cannot rearm a cancelled receipt.
-    public func prepareFocusRackRun(runID: Int64) -> Bool {
+    private func prepareFocusRackRun(runID: Int64) -> Bool {
         focusRackRuns.prepare(runID: runID)
     }
 
     /// Publishes stop without waiting behind an active camera transaction.
-    public func requestFocusRackStop(runID: Int64) {
+    private func requestFocusRackStop(runID: Int64) {
         focusRackRuns.requestStop(runID: runID)
     }
 
@@ -3680,20 +3680,10 @@ public final class PTPIPClientSession: @unchecked Sendable {
         return safety
     }
 
-    /// Executes one rack chunk under the existing serial command ownership.
-    /// An accepted cancel is followed by readiness confirmation; no move is retried.
-    public func focusRackDrive(
-        runID: Int64, towardNear: Bool, pulses: UInt32
-    ) -> NikonFocusRackDriveOutcome {
-        focusRackDrive(
-            runID: runID, towardNear: towardNear, pulses: pulses,
-            isAdmitted: { true })
-    }
-
     private func focusRackDrive(
         runID: Int64, towardNear: Bool, pulses: UInt32,
         isAdmitted: @escaping @Sendable () -> Bool,
-        cadence: NikonFocusRackCadence = .standard
+        cadence: NikonFocusRackCadence
     ) -> NikonFocusRackDriveOutcome {
         guard let cancellation = focusRackRuns.receipt(runID: runID) else {
             return .cancelledBeforeActivation
