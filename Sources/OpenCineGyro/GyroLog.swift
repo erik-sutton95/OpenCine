@@ -128,6 +128,16 @@ public struct GyroLogSummary: Codable, Equatable, Sendable, Identifiable {
     public let mountMovedOffset: Double?
     /// Whether any encoded interval exceeded 50 milliseconds.
     public var hasGapWarning: Bool { GyroStatistics.exceedsGapLimit(largestGap) }
+
+    /// Returns a copy carrying a mount-moved mark, used when a store merges its sidecar.
+    func withMountMovedOffset(_ offset: Double?) -> GyroLogSummary {
+        GyroLogSummary(
+            descriptor: descriptor, sampleCount: sampleCount, duration: duration,
+            measuredRate: measuredRate, largestGap: largestGap,
+            rejectedSampleCount: rejectedSampleCount, termination: termination,
+            isPartial: isPartial, approximateStartOffset: approximateStartOffset,
+            mountMovedOffset: offset)
+    }
 }
 
 /// Ordered file operations; the shell owns the file handles and performs all storage work.
