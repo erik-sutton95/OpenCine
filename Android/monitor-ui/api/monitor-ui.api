@@ -4065,6 +4065,7 @@ public final class com/opencapture/monitorui/MonitorTelemetryValues {
 	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorTelemetryValues;
 	public final fun batterySpokenValue (Ljava/lang/Integer;Ljava/lang/Integer;ILjava/lang/Boolean;Ljava/lang/Boolean;Z)Ljava/lang/String;
 	public final fun batteryValue (Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Boolean;Ljava/lang/Boolean;)Ljava/lang/String;
+	public final fun linkSpokenLabel (Ljava/lang/String;Ljava/lang/Integer;)Ljava/lang/String;
 	public final fun linkValue (Ljava/lang/String;Ljava/lang/Integer;Z)Ljava/lang/String;
 }
 

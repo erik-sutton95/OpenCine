@@ -392,7 +392,7 @@ class GimbalMoveEngine {
             !live.yawDeg.isFinite() || !live.pitchDeg.isFinite() ||
             (legs[0].from.nativePitchDeg != null && live.nativePitchDeg == null) ||
             live.nativePitchDeg.let { native -> native != null && (!native.isFinite() || native !in -180.0..180.0) }) {
-            return stop(live, "Move interrupted — timing or camera feedback lost")
+            return stop(live, "Move interrupted: timing or camera feedback lost")
         }
         if (resumeNeedsCommand) {
             resumeNeedsCommand = false
@@ -445,8 +445,8 @@ class GimbalMoveEngine {
             val leg = legs[index]
             val streamed = abs(leg.to.yawDeg - leg.from.yawDeg) >= 180 || leg.duration > 25.5
             if (elapsed + 1e-9 < leg.duration) return if (streamed) tickLinearLeg(live) else output(live)
-            if (streamed && nextCurveCommand < leg.duration) return stop(live, "Move interrupted — waypoint dispatch was late")
-            if (elapsed - leg.duration > 0.02 + 1e-9) return stop(live, "Move interrupted — waypoint dispatch was late")
+            if (streamed && nextCurveCommand < leg.duration) return stop(live, "Move interrupted: waypoint dispatch was late")
+            if (elapsed - leg.duration > 0.02 + 1e-9) return stop(live, "Move interrupted: waypoint dispatch was late")
             if (program.changesZoom) pendingZoomEndpoint = leg.to.zoom
             if (index + 1 == legs.size && program.loop) {
                 return turnAround(live, clock - (elapsed - leg.duration))
@@ -520,7 +520,7 @@ class GimbalMoveEngine {
 
     private fun tickLinearLeg(live: GimbalWaypoint): Output {
         if (elapsed + 1e-9 < nextCurveCommand) return output(live)
-        if (elapsed - nextCurveCommand > 0.02 + 1e-9) return stop(live, "Move interrupted — waypoint dispatch was late")
+        if (elapsed - nextCurveCommand > 0.02 + 1e-9) return stop(live, "Move interrupted: waypoint dispatch was late")
         return sendRoutedLegPart(live)
     }
 
@@ -540,15 +540,15 @@ class GimbalMoveEngine {
             val target = if (part == parts - 1) leg.to else lerp(leg.from, leg.to, end / leg.duration)
             return output(live, target, partTicks / 10.0)
         }
-        return stop(live, "Move interrupted — waypoint dispatch was late")
+        return stop(live, "Move interrupted: waypoint dispatch was late")
     }
 
     private fun tickCurve(curve: GimbalProgramCurve, live: GimbalWaypoint): Output {
         if (program.changesZoom && index == 0 && elapsed + 1e-9 >= curve.durationAB) pendingZoomEndpoint = curve.b.zoom
         index = if (elapsed + 1e-9 >= curve.durationAB) 1 else 0
         if (elapsed + 1e-9 >= curve.duration) {
-            if (nextCurveCommand < curve.duration) return stop(live, "Move interrupted — waypoint dispatch was late")
-            if (elapsed - curve.duration > 0.02 + 1e-9) return stop(live, "Move interrupted — waypoint dispatch was late")
+            if (nextCurveCommand < curve.duration) return stop(live, "Move interrupted: waypoint dispatch was late")
+            if (elapsed - curve.duration > 0.02 + 1e-9) return stop(live, "Move interrupted: waypoint dispatch was late")
             if (program.changesZoom) pendingZoomEndpoint = curve.c.zoom
             if (program.loop) return turnAround(live, clock - (elapsed - curve.duration))
             checkpoints += Checkpoint(clock - (elapsed - curve.duration), legs[1], null, clock)
@@ -557,7 +557,7 @@ class GimbalMoveEngine {
             return output(live)
         }
         if (elapsed + 1e-9 < nextCurveCommand) return output(live)
-        if (elapsed - nextCurveCommand > 0.02 + 1e-9) return stop(live, "Move interrupted — waypoint dispatch was late")
+        if (elapsed - nextCurveCommand > 0.02 + 1e-9) return stop(live, "Move interrupted: waypoint dispatch was late")
         val lastCommandAt = curve.duration - 0.1
         val target = if (nextCurveCommand >= lastCommandAt - 1e-9) curve.c
             else curve.position(min(curve.duration, nextCurveCommand + 0.1))

@@ -1632,6 +1632,13 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             else {
                 throw MediaServiceError.retired
             }
+            // A response that ended short of the catalog size (an early EOF, or a shorter
+            // response length) is not this original: the cache would never read it as one.
+            if descriptor.role == .original,
+                !self.cache.eligibility.accepts(bytes: receipt.byteCount, expected: descriptor.byteCount)
+            {
+                throw MediaServiceError.unavailable
+            }
             let url = try writer.commit(receipt)
             self.reloadEntries()
             guard self.current(generation), self.transfers[id]?.id == operation, !Task.isCancelled
@@ -1674,9 +1681,13 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                 task.cancel()
             }
         } catch {
-            if current(generation), transfers[id]?.id == operation, !(error is CancellationError) {
+            // Only the caller's own cancellation stays a cancellation. A transfer the source
+            // cancelled is a failure the operator sees, like any other.
+            let callerCancelled = error is CancellationError && Task.isCancelled
+            if current(generation), transfers[id]?.id == operation, !callerCancelled {
                 note = copy.downloadFailed
             }
+            if error is CancellationError, !callerCancelled { throw MediaServiceError.retired }
             throw error
         }
     }

@@ -29,6 +29,7 @@
         private let sidebar: Sidebar
         private let accessory: Accessory
         private let tablet: Bool
+        private let hint: String?
         @State private var selectionInteraction = MonitorMediaSelectionInteraction()
         @Environment(\.scenePhase) private var scenePhase
 
@@ -37,11 +38,12 @@
             categories: [MonitorMediaCategory], category: String, layout: MonitorMediaLayout,
             thumbnailSize: MonitorThumbnailSize, sortTitle: String, status: String,
             selectedIDs: Set<String>, selecting: Bool, refreshing: Bool, canRefresh: Bool,
-            tablet: Bool, action: @escaping (MonitorMediaAction) -> Void,
+            tablet: Bool, hint: String? = nil, action: @escaping (MonitorMediaAction) -> Void,
             @ViewBuilder thumbnail: @escaping (MonitorMediaItem) -> Thumbnail,
             @ViewBuilder empty: () -> Empty, @ViewBuilder filters: () -> Filters,
             @ViewBuilder sidebar: () -> Sidebar, @ViewBuilder accessory: () -> Accessory
         ) {
+            self.hint = hint
             self.brand = brand
             self.safeArea = safeArea
             self.items = items
@@ -155,10 +157,11 @@
                         .font(MonitorTheme.font(10.5, weight: .semibold))
                         .foregroundStyle(MonitorTheme.text)
                 }
+                // The source's hint wins: offline it says only cached clips are shown.
                 Text(
-                    selecting
-                        ? "Swipe to scroll · Hold or drag sideways to select"
-                        : "Tap to open · Hold, then drag to select"
+                    hint
+                        ?? (selecting
+                            ? MonitorMediaGalleryCopy.selectingHint : MonitorMediaGalleryCopy.browseHint)
                 )
                 .font(MonitorTheme.font(9)).foregroundStyle(MonitorTheme.faint).lineLimit(2)
             }

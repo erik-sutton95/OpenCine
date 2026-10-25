@@ -72,13 +72,31 @@ def project_spec(root, out, nonce, seal):
         },
         'schemes': {legacy.SYSTEM_SCHEME: {
             'build': {'targets': {host: ['test'], legacy.SYSTEM_TARGET: ['test']}},
+            # No automatic screen recording or per-event screenshots: on the GPU-less hosted runner the
+            # recorder competes with the driver's one explicit evidence screenshot (40143225461: the
+            # recording never finalized and that screenshot timed out after 168 s).
             'test': {'config': 'Debug', 'macroExpansion': host,
+                     'captureScreenshotsAutomatically': False, 'preferredScreenCaptureFormat': 'screenshots',
                      'targets': [{'name': legacy.SYSTEM_TARGET, 'parallelizable': False, 'randomExecutionOrder': False}],
                      'environmentVariables': {'OPENCINE_NATIVE_UI_NONCE': nonce,
                                               'OPENCINE_NATIVE_UI_SOURCE_SEAL': seal,
                                               'OPENCINE_NATIVE_UI_BUNDLE_ID': bundle,
                                               'OPENCINE_NATIVE_UI_MODE': legacy.SYSTEM_MODE}}}},
     }
+
+def native_command(legacy, out, simulator_id):
+    """The sole xcodebuild invocation for the one native method on the caller-owned simulator."""
+    return ['xcodebuild', '-project', str(out / (legacy.SYSTEM_SCHEME + '.xcodeproj')),
+            '-scheme', legacy.SYSTEM_SCHEME, '-destination', 'platform=iOS Simulator,id=' + simulator_id,
+            '-derivedDataPath', str(out / 'DerivedData'), '-clonedSourcePackagesDirPath', str(out / 'SourcePackages'),
+            '-parallel-testing-enabled', 'NO', '-collect-test-diagnostics', 'never',
+            # The whole-case allowance covers launch, AX queries and teardown evidence outside the
+            # original thirty-second readiness and settlement deadlines, which stay in the driver.
+            # Hosted launches alone took 13 to 38 s; native2400 and progress180 still bound hangs.
+            '-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '360',
+            '-maximum-test-execution-time-allowance', '360', '-resultBundlePath', str(out / 'result.xcresult'),
+            'CODE_SIGNING_ALLOWED=NO', '-only-testing:' + legacy.SYSTEM_TARGET + '/NativeCancelUITests/'
+            + legacy.NATIVE_UI_METHOD, 'test']
 
 def native_result(legacy, child_exit, text, prepared, records, bridge_error, integrity, watchdog=None):
     """Evaluate actual raw app bytes and the exact sole native method, with no success defaults."""
@@ -377,14 +395,7 @@ def main():
     legacy = load_legacy(root)
     packet['simulatorID'] = args.simulator_id
     bridge = legacy.NativeUIReceiptBridge(args.simulator_id, packet, out)
-    command = ['xcodebuild', '-project', str(out / (legacy.SYSTEM_SCHEME + '.xcodeproj')),
-               '-scheme', legacy.SYSTEM_SCHEME, '-destination', 'platform=iOS Simulator,id=' + args.simulator_id,
-               '-derivedDataPath', str(out / 'DerivedData'), '-clonedSourcePackagesDirPath', str(out / 'SourcePackages'),
-               '-parallel-testing-enabled', 'NO', '-collect-test-diagnostics', 'never',
-               '-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '120',
-               '-maximum-test-execution-time-allowance', '170', '-resultBundlePath', str(out / 'result.xcresult'),
-               'CODE_SIGNING_ALLOWED=NO', '-only-testing:' + legacy.SYSTEM_TARGET + '/NativeCancelUITests/'
-               + legacy.NATIVE_UI_METHOD, 'test']
+    command = native_command(legacy, out, args.simulator_id)
     (out / 'command.json').write_text(json.dumps(command, indent=2) + '\n')
     code, watchdog, error = run_native(command, bridge, out, started + 3540)
     after = source_binding(root)

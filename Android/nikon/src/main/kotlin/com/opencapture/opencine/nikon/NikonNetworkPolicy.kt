@@ -89,6 +89,26 @@ object NikonHosts {
         return octets[0] == 10 || (octets[0] == 172 && octets[1] in 16..31) || (octets[0] == 192 && octets[1] == 168)
     }
 
+    /**
+     * Interface name prefixes that never carry a camera: cellular data, VPN and tunnel links, and
+     * Apple's peer-to-peer links (Swift `CameraDiscovery.nonCameraInterfacePrefixes`). Carriers
+     * hand out private 10/8 addresses on cellular, so a private address alone swept the cellular
+     * /24 (hardware pass 2026-10-25).
+     */
+    private val NON_CAMERA_INTERFACE_PREFIXES: List<String> =
+        listOf("pdp_ip", "rmnet", "ccmni", "wwan", "v4-", "clat", "utun", "tun", "ipsec", "ppp", "llw", "awdl", "anpi")
+
+    /**
+     * Whether discovery scans from this interface: a private address on an interface that can
+     * reach a camera; an empty name is judged by the address alone (Swift
+     * `CameraDiscovery.isSupportedScanInterface`).
+     */
+    fun isScanInterface(name: String, address: String): Boolean {
+        if (!isPrivateIPv4(address)) return false
+        val lowered = name.trim().lowercase(Locale.ROOT)
+        return NON_CAMERA_INTERFACE_PREFIXES.none { lowered.startsWith(it) }
+    }
+
     /** The `a.b.c` /24 base of an IPv4 address, else null. */
     fun subnetBase(address: String): String? = ipv4Octets(address)?.take(3)?.joinToString(".")
 

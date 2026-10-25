@@ -130,7 +130,7 @@ public enum ControlHud {
 
     /// Chip / pinch / color drum while rolling in D-Log2. No opcode names.
     public static let recordingColorLockNote =
-        "Can't change color while recording — D-Log2 can't zoom"
+        "Can't change color while recording. D-Log2 can't zoom"
 
     /// #174 lock-all — no captured opcode. Do not invent a SET.
 

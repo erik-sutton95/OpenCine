@@ -305,6 +305,6 @@ import Testing
         let out = camera.engine.tick(dt: 0.04, live: program.c!)
         #expect(out?.target == nil)
         #expect(out?.stop == true)
-        #expect(camera.engine.failure == "Move interrupted \u{2014} waypoint dispatch was late")
+        #expect(camera.engine.failure == "Move interrupted: waypoint dispatch was late")
     }
 }

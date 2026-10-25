@@ -79,6 +79,8 @@ import Testing
         case "isApHostKey": return String(CameraDiscovery.isAccessPointHostKey(input!))
         case "subnetBase": return CameraDiscovery.subnetBase(for: input!)
         case "privateIPv4": return String(CameraDiscovery.isPrivateIPv4(input!))
+        case "scanIface":
+            return String(CameraDiscovery.isSupportedScanInterface(name: input!, address: row[2]))
         case "tally":
             var verdicts: [String: HostProbeVerdict] = [:]
             for pair in input!.split(separator: ",") {
@@ -102,7 +104,7 @@ import Testing
         #expect(
             Set(Self.vectors.map { $0[0] }) == [
                 "apSsid", "dialable", "apHostKey", "isApHostKey", "subnetBase", "privateIPv4",
-                "tally", "classify",
+                "scanIface", "tally", "classify",
             ])
     }
 

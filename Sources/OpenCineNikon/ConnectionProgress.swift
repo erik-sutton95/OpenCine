@@ -96,7 +96,7 @@ public enum ConnectionProgressCopy {
             return "Confirm the pairing request on \(deviceName)."
         case .confirmOnCamera:
             return
-                "Tap “Confirm” on \(deviceName). It will restart its Wi‑Fi — we'll reconnect automatically."
+                "Tap “Confirm” on \(deviceName). It will restart its Wi‑Fi, then this phone reconnects."
         case .preparingLiveView:
             return "Opening the live monitor for \(deviceName)."
         case .connected:
@@ -112,6 +112,11 @@ public enum ConnectionProgressCopy {
     }
 
     /// Maps the app connection state plus progress flags to a sheet phase.
+    ///
+    /// `isAwaitingBody` is the body wake (`NikonBodyWake`): the attempt has begun, but no
+    /// handshake runs while the app waits for a dozing body to answer, so the sheet shows the
+    /// waiting step rather than "Establishing a secure link" for the whole wait (hardware pass
+    /// 2026-10-25, 1.11).
     public static func resolvePhase(
         isProgressPresented: Bool,
         explicitPhase: CameraConnectionPhase,
@@ -119,10 +124,12 @@ public enum ConnectionProgressCopy {
         isPairing: Bool,
         isPreparingLiveView: Bool,
         isConnected: Bool,
-        showsFailure: Bool
+        showsFailure: Bool,
+        isAwaitingBody: Bool = false
     ) -> CameraConnectionPhase {
         guard isProgressPresented else { return .idle }
         if showsFailure { return .failed }
+        if isAwaitingBody { return .discovering }
         if explicitPhase == .readyToJoin { return .readyToJoin }
         if explicitPhase == .joiningWiFi { return .joiningWiFi }
         if isPreparingLiveView { return .preparingLiveView }

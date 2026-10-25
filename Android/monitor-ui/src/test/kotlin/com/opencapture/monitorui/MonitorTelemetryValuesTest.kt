@@ -64,4 +64,15 @@ class MonitorTelemetryValuesTest {
         assertEquals("-1e100", MonitorTelemetryValues.linkValue("-1e100", 3, showsRate = true))
         assertNull(MonitorTelemetryValues.linkValue("1e100", 3, showsRate = false))
     }
+
+    /** Hardware pass 7.2a: a held frame was read as "3 of 4 delivery bars, feed NO LINK". */
+    @Test fun aHeldOrFailedFeedNamesNoDeliveryBars() {
+        assertEquals("Live link down, feed NO LINK", MonitorTelemetryValues.linkSpokenLabel("NO LINK", 3))
+        assertEquals("Live link down, feed FAIL", MonitorTelemetryValues.linkSpokenLabel("FAIL", 3))
+        assertEquals("Live link 3 of 4 delivery bars, feed RECOV", MonitorTelemetryValues.linkSpokenLabel("RECOV", 3))
+        assertEquals("Live link 3 of 4 delivery bars, feed 25.00 frames per second",
+            MonitorTelemetryValues.linkSpokenLabel("25.00", 3))
+        assertEquals("Live link 0 of 4 delivery bars, feed unavailable", MonitorTelemetryValues.linkSpokenLabel("\u2014", 0))
+        assertEquals("Live link unavailable, feed unavailable", MonitorTelemetryValues.linkSpokenLabel(null, null))
+    }
 }

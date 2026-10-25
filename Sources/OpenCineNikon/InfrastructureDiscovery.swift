@@ -310,7 +310,7 @@ public enum InfrastructureDiscovery: Sendable {
             // and no packet between them. Days went into that one, and the app said "Searching…"
             // throughout. Naming a band an operator can switch off is worth the extra clause.
             return
-                "Nothing on this network answered. Check both are on the same Wi‑Fi — a guest network or a 6 GHz band can keep them apart."
+                "Nothing on this network answered. Check both are on the same Wi‑Fi (a guest network or a 6 GHz band can keep them apart)."
         case .hostsVisibleNoPTP:
             return
                 "Other devices answer here, but \(body) doesn't. On the camera, start Connect to computer."

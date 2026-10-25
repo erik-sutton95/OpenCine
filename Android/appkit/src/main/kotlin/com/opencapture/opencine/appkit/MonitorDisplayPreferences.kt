@@ -15,7 +15,7 @@ public enum class MonitorDisplayMode(public val title: String, public val settin
     CLEAN(
         "Clean",
         "DISP 2 · Clean",
-        "A stripped-back image. Same elements as DISP 1; status, tool and capture bars start off. Pin which view assists stay on.",
+        "A stripped-back image. Same elements as DISP 1. Status, tool and capture bars start off. Pin which view assists stay on.",
     ),
     COMMAND(
         "Command",

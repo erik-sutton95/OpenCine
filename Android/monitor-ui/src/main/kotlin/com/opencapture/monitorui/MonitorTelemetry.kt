@@ -83,7 +83,7 @@ public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorT
             val value = MonitorTelemetryValues.linkValue(fps, signalBars, showsFps)
             TelemetryGauge(if (showsFps) MonitorIcon.GAUGE else MonitorIcon.SIGNAL, MonitorPalette.accent,
                 signalBars?.coerceIn(0, 4)?.div(4f) ?: 0f,
-                "Live link ${signalBars?.let { "$it of 4 delivery bars" } ?: "unavailable"}, feed ${fps ?: "unavailable"} frames per second",
+                MonitorTelemetryValues.linkSpokenLabel(fps, signalBars),
                 horizontal, value, onClick = { showsFps = !showsFps }, metrics = metrics)
         }
         if (showsPower) power.forEach { reading ->

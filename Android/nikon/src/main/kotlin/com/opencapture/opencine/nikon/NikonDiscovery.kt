@@ -6,6 +6,12 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
+import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.PortUnreachableException
+import java.net.SocketException
+import java.net.SocketTimeoutException
 
 /**
  * A device's answer on the presence port (Swift `NikonPresence`); the app decodes its own line and
@@ -59,6 +65,37 @@ enum class HostProbeVerdict {
             TIMEOUT, NO_ROUTE, NO_NETWORK -> true
             OPEN, REFUSED, DENIED, UNREACHABLE_OTHER -> false
         }
+
+    companion object {
+        /**
+         * The verdict for a failed `Socket.connect`, read from the errno the platform reports and
+         * never from the exception type alone. Android throws [ConnectException] for every errno
+         * a non-blocking connect reports late, so "No route to host" from a dozing body arrives
+         * as `ConnectException("... isConnected failed: EHOSTUNREACH (No route to host)")`.
+         * Reading every [ConnectException] as a refusal made a silent body look occupied: the
+         * pre-dial wake stopped after one dial and the doomed dial went ahead (hardware pass
+         * 2026-10-25, 3.7). Only ECONNREFUSED is a refusal.
+         */
+        fun ofDialFailure(error: IOException): HostProbeVerdict {
+            when (error) {
+                is SocketTimeoutException -> return TIMEOUT
+                is NoRouteToHostException -> return NO_ROUTE
+                is PortUnreachableException -> return REFUSED
+            }
+            val text = generateSequence(error as Throwable) { it.cause }.take(4).mapNotNull { it.message }.joinToString(" ")
+            return when {
+                "ECONNREFUSED" in text || "Connection refused" in text -> REFUSED
+                "EHOSTUNREACH" in text || "EHOSTDOWN" in text || "No route to host" in text || "Host is down" in text ->
+                    NO_ROUTE
+                "ENETUNREACH" in text || "Network is unreachable" in text -> NO_NETWORK
+                "ETIMEDOUT" in text || "timed out" in text -> TIMEOUT
+                "EACCES" in text || "EPERM" in text || "Permission denied" in text -> DENIED
+                error is ConnectException -> UNREACHABLE_OTHER
+                error is SocketException -> NO_NETWORK
+                else -> UNREACHABLE_OTHER
+            }
+        }
+    }
 }
 
 /**
@@ -189,7 +226,7 @@ class NikonDiscovery(
         excludedHosts: Set<String> = emptySet(),
     ): NikonSearchResult {
         if (mode == DiscoveryMode.PASSIVE) return NikonSearchResult(emptyList(), emptyList())
-        val local = interfaces()
+        val local = scanInterfaces()
         val subnets = local.mapNotNull { subnetBase(it.address) }.distinct().sorted()
         if (subnets.isEmpty()) return NikonSearchResult(emptyList(), emptyList())
         val locals = local.map { it.address }.toSet()
@@ -238,11 +275,14 @@ class NikonDiscovery(
     }
 
     private fun neighbours(): List<String> {
-        val locals = interfaces().map { it.address }
+        val locals = scanInterfaces().map { it.address }
         val self = locals.toSet()
         return locals.mapNotNull(::subnetBase).distinct().flatMap { base -> (1..254).map { "$base.$it" } }.filterNot(self::contains)
     }
 
     /** The `a.b.c` of a private (RFC 1918) IPv4 address, else `null`. */
+    /** This device's interfaces discovery may scan from: never cellular or a tunnel. */
+    private fun scanInterfaces(): List<NikonLocalInterface> = interfaces().filter { NikonHosts.isScanInterface(it.name, it.address) }
+
     private fun subnetBase(host: String): String? = host.trim().takeIf(NikonHosts::isPrivateIPv4)?.let(NikonHosts::subnetBase)
 }

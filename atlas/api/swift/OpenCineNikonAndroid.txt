@@ -18,6 +18,7 @@ case AndroidCameraPropertyRefreshResult.noSession
 case AndroidCameraPropertyRefreshResult.transportFailed
 case AndroidCameraPropertyRefreshResult.unsupported
 case AndroidConnectFailure.busy
+case AndroidConnectFailure.cameraSilent
 case AndroidConnectFailure.connectionClosed
 case AndroidConnectFailure.nonNumericHost
 case AndroidConnectFailure.other

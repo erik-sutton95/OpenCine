@@ -17,9 +17,9 @@ import Testing
 @Suite struct PTPIPClientSessionWakeWorthyTests {
     private struct SocketError: Error {}
 
-    @Test("Only no route and the connect deadline are worth a wake")
+    @Test("Only no route, a host held down and the connect deadline are worth a wake")
     func classification() {
-        for code in [EHOSTUNREACH, ENETUNREACH, ETIMEDOUT, ETIME] {
+        for code in [EHOSTUNREACH, EHOSTDOWN, ENETUNREACH, ETIMEDOUT, ETIME] {
             #expect(PTPIPClientSession.isWakeWorthyDial(error: SocketError(), errno: code))
         }
         #expect(

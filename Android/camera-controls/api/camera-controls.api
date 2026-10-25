@@ -1411,17 +1411,28 @@ public final class com/opencapture/opencine/cameracontrols/MediaDeliveryUpcoming
 
 public final class com/opencapture/opencine/cameracontrols/MediaLibraryCopy {
 	public static final field $stable I
+	public static final field BROWSE_HINT Ljava/lang/String;
 	public static final field DISCONNECTED Ljava/lang/String;
+	public static final field DISCONNECTED_CACHED_ONLY Ljava/lang/String;
 	public static final field DISCONNECTED_EMPTY_CACHE Ljava/lang/String;
+	public static final field DISCONNECTED_TITLE Ljava/lang/String;
 	public static final field EMPTY_ALL Ljava/lang/String;
 	public static final field EMPTY_FAVORITES Ljava/lang/String;
 	public static final field EMPTY_PHOTOS Ljava/lang/String;
+	public static final field EMPTY_TITLE Ljava/lang/String;
 	public static final field EMPTY_VIDEOS Ljava/lang/String;
 	public static final field FILTER_EMPTY Ljava/lang/String;
+	public static final field FILTER_EMPTY_TITLE Ljava/lang/String;
 	public static final field INSTANCE Lcom/opencapture/opencine/cameracontrols/MediaLibraryCopy;
+	public static final field LISTING_TITLE Ljava/lang/String;
+	public static final field NO_CACHED_TITLE Ljava/lang/String;
 	public static final field PROXY_HELP Ljava/lang/String;
 	public static final field PROXY_TAG Ljava/lang/String;
+	public static final field READING_HINT Ljava/lang/String;
+	public static final field SELECTING_HINT Ljava/lang/String;
 	public final fun emptySubtitle (ZZILcom/opencapture/opencine/vocabulary/MediaLibraryTab;)Ljava/lang/String;
+	public final fun emptyTitle (ZZZI)Ljava/lang/String;
+	public final fun galleryHint (ZZZ)Ljava/lang/String;
 	public final fun headerTitle (Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;)Ljava/lang/String;
 }
 

@@ -70,9 +70,7 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
     }
 
     private var linkLabel: String {
-        let signal = signalBars.map { "\($0) of 4 bars" } ?? "unavailable"
-        let rate = fps.map { "\($0) frames per second" } ?? "unavailable"
-        return "Live link \(signal), feed \(rate)"
+        MonitorTelemetryValues.linkSpokenLabel(fps: fps, signalBars: signalBars)
     }
     /// The phone's own battery. An unknown level or state stays unknown, never 0% or "not charging".
     private func updatePhone() {

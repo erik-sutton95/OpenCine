@@ -310,7 +310,7 @@
             pendingCalibrate = false
             calibratedByUser = true
             didToastLive = true
-            host.controlNote = "Head lock set — gimbal follows"
+            host.controlNote = "Head lock set. Gimbal follows"
             log("head-track: calibrated")
             if host.hapticsEnabled { centerHaptic.impactOccurred() }
             lastMotionAt = Date()
@@ -363,7 +363,7 @@
                 self.publishTitle()
                 if self.host?.headTrackingEnabled == true {
                     self.host?.controlNote =
-                        "Headphone motion disconnected — reconnect headphones"
+                        "Headphone motion disconnected. Reconnect headphones"
                 }
             }
         }
@@ -476,13 +476,13 @@
             } else if auth == .notDetermined, motion.isDeviceMotionAvailable {
                 note = "Allow Motion & Fitness to start head tracking"
             } else if motionFailed {
-                note = "Headphone motion stopped — tap Calibrate to retry"
+                note = "Headphone motion stopped. Tap Calibrate to retry"
             } else if !motion.isDeviceMotionAvailable {
                 note = "Connect headphones that support motion tracking"
             } else if let requestedAt,
                 uptime() - (receivedHeadSampleAt ?? requestedAt) >= Self.explicitRetrySilence
             {
-                note = "No headphone motion — tap Calibrate to retry"
+                note = "No headphone motion. Tap Calibrate to retry"
             } else {
                 note = "Waiting for headphone motion"
             }
@@ -530,7 +530,7 @@
                 stopDrive()
                 if calibratedByUser, !didToastStaleHead {
                     didToastStaleHead = true
-                    host?.controlNote = "Head motion lost — waiting for AirPods"
+                    host?.controlNote = "Head motion lost. Waiting for AirPods"
                 }
                 if requestedGeneration != nil, !didToastStartupWaiting,
                     authorizationStatus() == .authorized, let requestedAt,
@@ -544,7 +544,7 @@
             if !pendingCalibrate, !calibratedByUser,
                 let motionWaitingNote, host?.controlNote == motionWaitingNote
             {
-                host?.controlNote = "Headphone motion ready — tap Calibrate"
+                host?.controlNote = "Headphone motion ready. Tap Calibrate"
             }
             motionWaitingNote = nil
             didToastStaleHead = false

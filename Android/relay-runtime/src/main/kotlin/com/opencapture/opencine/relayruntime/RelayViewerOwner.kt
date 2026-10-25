@@ -64,7 +64,7 @@ public data class RelayViewerPolicy(
     public val legacyAllowsControlRequests: Boolean = true,
     public val droppedReason: String = "The broadcast dropped.",
     public val unreachableReason: String = "Couldn't reach the broadcast.",
-    public val stalledReason: String = "The stream stalled \u2014 reconnecting.",
+    public val stalledReason: String = "The stream stalled. Reconnecting.",
 ) {
     init { require(hevcDecodeDeadlineMillis > 0 && stallDeadlineMillis > 0 && stallPollMillis > 0 && rejoinIntervalMillis > 0) }
 }

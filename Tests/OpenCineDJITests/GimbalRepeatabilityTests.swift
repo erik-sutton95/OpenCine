@@ -169,7 +169,7 @@ import OpenCineMotion
         let out = engine.tick(dt: 0.08, live: b)
         #expect(out?.stop == true)
         #expect(out?.target == nil)
-        #expect(engine.failure == "Move interrupted \u{2014} waypoint dispatch was late")
+        #expect(engine.failure == "Move interrupted: waypoint dispatch was late")
     }
 
     @Test func minimumDurationDoesNotImposeAnArtificialSpeedCap() {
