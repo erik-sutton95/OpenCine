@@ -2,6 +2,11 @@ package com.opencapture.opencine.cameracontrols
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -449,12 +454,10 @@ internal fun SettingsSharing(source: MonitorSettingsSharingSource?, feedback: ()
             // The shared rule: only a code that takes effect reaches setPasscode (trimmed, empty
             // for an open feed); a shorter entry stays a draft and the code in force is kept.
             Column(horizontalAlignment = Alignment.End) {
-                BasicTextField(draft, onValueChange = { value ->
+                SettingsPasscodeField(draft, source.passcodeTitle) { value ->
                     draft = value
                     MonitorWatcherPasscodeRule.entry(value).passcode?.let(source.setPasscode)
-                }, textStyle = LocalTextStyle.current.copy(color = MonitorPalette.text, fontSize = 14.sp, textAlign = TextAlign.End),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(), modifier = Modifier.width(120.dp))
+                }
                 if (MonitorWatcherPasscodeRule.entry(draft) == MonitorWatcherPasscodeRule.Entry.TooShort) {
                     Text(MonitorWatcherPasscodeRule.TOO_SHORT_HINT, color = LiveDesign.muted, fontSize = 11.sp,
                         textAlign = TextAlign.End, modifier = Modifier.width(160.dp))
@@ -599,3 +602,34 @@ internal fun SettingsSystem(configuration: MonitorOperatorSettingsConfiguration,
             information.themeHelp, information.protocolHelp, information.versionHelp)
     }
 }
+
+/** The placeholder an empty passcode field shows, as on iOS (`SecureField("Optional")`). */
+internal const val SETTINGS_PASSCODE_PLACEHOLDER = "Optional"
+
+/**
+ * The watcher passcode entry: an outlined field with a placeholder, so an empty code is still a
+ * visible target, named by its row title for TalkBack (hardware pass 3.5). The settings page pads
+ * its scroll area by the keyboard, so the focused field scrolls clear of it.
+ */
+@Composable
+internal fun SettingsPasscodeField(value: String, title: String, onValueChange: (String) -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
+    BasicTextField(value, onValueChange = onValueChange,
+        textStyle = LocalTextStyle.current.copy(color = MonitorPalette.text, fontSize = 14.sp, textAlign = TextAlign.End),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), singleLine = true,
+        cursorBrush = SolidColor(MonitorPalette.accent),
+        visualTransformation = PasswordVisualTransformation(),
+        modifier = Modifier.width(120.dp).testTag(SETTINGS_PASSCODE_TAG)
+            .semantics { contentDescription = title },
+        decorationBox = { field ->
+            Box(Modifier.fillMaxWidth().background(MonitorPalette.background.copy(alpha = 0.5f), shape)
+                .border(1.dp, MonitorPalette.border, shape)
+                .padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = Alignment.CenterEnd) {
+                if (value.isEmpty()) Text(SETTINGS_PASSCODE_PLACEHOLDER, color = MonitorPalette.faint, fontSize = 14.sp,
+                    textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                field()
+            }
+        })
+}
+
+internal const val SETTINGS_PASSCODE_TAG = "monitor.settings.sharing.passcode"
