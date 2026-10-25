@@ -36,6 +36,9 @@ import OpenCineCore
         var continuation: CheckedContinuation<Void, Error>?
         var completed = false
         var timer: Task<Void, Never>?
+        /// Later applies of the same network that wait for this native answer instead of asking
+        /// the system again.
+        var riders: [Mutation] = []
         init(_ kind: Kind, scope: Scope) { self.kind = kind; self.scope = scope }
         func resolve(_ result: Result<Void, Error>) {
             guard !completed else { return }
@@ -120,6 +123,7 @@ import OpenCineCore
                         self?.expire(mutation)
                     }
                 }
+                if rideAdmittedApply(mutation, configuration) { return }
                 queue.append(mutation)
                 drain()
             }
@@ -129,12 +133,48 @@ import OpenCineCore
         }
     }
 
+    /// iOS answers one apply once, after the operator taps Join or Cancel on the system prompt,
+    /// however long that takes. A caller that gave up on the answer and applies the same network
+    /// again waits for that answer: a second native apply would raise the prompt again, and a
+    /// removal of the network queued meanwhile would undo the operator's Join ("Unable to join
+    /// the network"). Hardware pass 5.1, 2026-10-24.
+    private func rideAdmittedApply(_ mutation: Mutation, _ configuration: CameraHotspotConfiguration) -> Bool {
+        guard let admitted, case .apply(let pending) = admitted.kind,
+            Self.sameNetwork(pending, configuration)
+        else { return false }
+        if case .ssid(let ssid) = pending.selection {
+            queue.removeAll { queued in
+                guard case .remove(let removed) = queued.kind, removed == ssid else { return false }
+                queued.cancelled.set()
+                return true
+            }
+        }
+        admitted.riders.append(mutation)
+        return true
+    }
+
+    private static func sameNetwork(_ a: CameraHotspotConfiguration, _ b: CameraHotspotConfiguration) -> Bool {
+        guard a.joinOnce == b.joinOnce else { return false }
+        switch (a.selection, b.selection) {
+        case (.ssid(let x), .ssid(let y)), (.prefix(let x), .prefix(let y)): guard x == y else { return false }
+        default: return false
+        }
+        switch (a.security, b.security) {
+        case (.open, .open): return true
+        case (.personal(let x), .personal(let y)): return x == y
+        default: return false
+        }
+    }
+
     private func cancel(_ scope: Scope) {
         for mutation in queue where mutation.scope === scope {
             mutation.cancelled.set()
             mutation.resolve(.failure(CancellationError()))
         }
-        if let admitted, admitted.scope === scope { cancel(admitted) }
+        if let admitted {
+            for rider in admitted.riders where rider.scope === scope { cancel(rider) }
+            if admitted.scope === scope { cancel(admitted) }
+        }
         drain()
     }
     private func cancel(_ mutation: Mutation) {
@@ -171,11 +211,14 @@ import OpenCineCore
     private func complete(_ mutation: Mutation, result: Result<Void, Error>) {
         guard admitted === mutation else { return }
         admitted = nil
-        if mutation.cancelled.isSet || !mutation.scope.admits {
-            mutation.resolve(.failure(CancellationError()))
-        } else {
-            mutation.resolve(result)
+        for waiter in [mutation] + mutation.riders {
+            if waiter.cancelled.isSet || !waiter.scope.admits {
+                waiter.resolve(.failure(CancellationError()))
+            } else {
+                waiter.resolve(result)
+            }
         }
+        mutation.riders.removeAll()
         drain()
     }
 

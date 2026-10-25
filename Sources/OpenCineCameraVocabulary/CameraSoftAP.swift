@@ -57,6 +57,21 @@ public enum CameraSoftAPSwitch {
         secondsLeft > joinRetryPauseSeconds
     }
 
+    /// Whether a missed join drops the camera configuration before applying again. While iOS
+    /// still shows "Wants to Join", the apply is unanswered: dropping the configuration then
+    /// removes the network the operator is about to approve, and iOS answers Join with "Unable to
+    /// join the network" (hardware pass 5.1, 2026-10-24). Only an answered apply is dropped.
+    public static func retryDropsConfiguration(applyAnswered: Bool) -> Bool {
+        applyAnswered
+    }
+
+    /// The phone is on `target` with a camera address, so a reconnect needs no apply. Applying
+    /// over the joined network with other settings makes iOS ask "Wants to Join" again. An
+    /// unnamed network is not proof: every Osmo body serves `192.168.2.x`.
+    public static func isAlreadyJoined(currentSSID: String?, target: String, pathReady: Bool) -> Bool {
+        pathReady && currentSSID == target && !target.isEmpty
+    }
+
     /// Unknown SSID after `apply` is treated as success (iOS often hides it).
     public static func isOnTarget(currentSSID: String?, target: String) -> Bool {
         guard let current = currentSSID, !current.isEmpty else { return true }
@@ -527,9 +542,13 @@ extension CameraSoftAP {
     public static func shouldGiveUpOpenRetry(attempts: Int) -> Bool {
         attempts >= handshakeOpenRetryLimit
     }
-    /// Saved cameras keep NEHotspotConfiguration across background.
-    public static func shouldPersistHotspot(isSavedCamera: Bool) -> Bool {
-        isSavedCamera
+    /// Every camera access point join keeps its NEHotspotConfiguration. iOS drops a join-once
+    /// network 15 s after the app leaves the foreground and whenever the phone sleeps, so a first
+    /// session lost the camera on a lock or an app switch, and the next join (persistent, since
+    /// the first pairing saves the camera right after its join) asked "Wants to Join" again
+    /// (hardware pass 5.1, 2026-10-24). The app removes it when the operator forgets the camera.
+    public static func shouldPersistHotspot(isSavedCamera _: Bool) -> Bool {
+        true
     }
 
     public enum HandshakeTimeoutStep: String, Equatable, Sendable {

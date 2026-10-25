@@ -155,9 +155,12 @@ public enum SessionRecoveryCopy {
         switch state {
         case .idle:
             return ""
-        case .retrying(let attempt, let maxAttempts):
+        case .retrying(let attempt, _):
+            // The episode ends on its time budget, usually before `maxAttempts`: "attempt 1 of 8"
+            // followed by "after 3 tries" read as two machines (hardware pass 5.1).
+            let minutes = Int(SessionRecoveryPolicy.automaticRecoveryBudgetSeconds / 60)
             return
-                "\(camera) dropped off. Holding the last frame \u{2014} attempt \(attempt) of \(maxAttempts)."
+                "\(camera) dropped off. Holding the last frame, attempt \(attempt). Reconnecting for up to \(minutes) minutes."
         case .waitingForOperator(let attemptsMade):
             let tries = attemptsMade == 1 ? "1 try" : "\(attemptsMade) tries"
             return "\(camera) didn't come back after \(tries). Turn the camera off and on, then tap Retry. The frame below is held, not live."
@@ -166,7 +169,7 @@ public enum SessionRecoveryCopy {
                 switch dropSuspect {
                 case nil: "paused to protect the camera."
                 case .otherDeviceScanning:
-                    "paused to protect the camera \u{2014} another device may be scanning for cameras."
+                    "paused to protect the camera, since another device may be scanning for cameras."
                 }
             return
                 "\(camera) reconnected but dropped \(drops) times in quick succession. Automatic retries are \(paused) The frame below is held, not live."
