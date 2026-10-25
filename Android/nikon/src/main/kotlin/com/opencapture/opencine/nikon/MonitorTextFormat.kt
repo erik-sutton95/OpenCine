@@ -30,15 +30,17 @@ object MonitorTextFormat {
     }
 
     /**
-     * The remaining-shots readout: the count up to four digits, then tenths of a thousand
-     * (`20.2k`), rounded down so the header never promises a frame the card cannot hold.
-     * The header pairs it with a picture glyph instead of a "SHOTS" word.
+     * The remaining-shots readout: the count below a thousand, then thousands with one decimal
+     * (`6.7k`, `20.2k`) and no trailing zero (`12k`), whole thousands from 100k. Rounded down so
+     * the header never promises a frame the card cannot hold (hardware pass 1.2). The header
+     * pairs it with a picture glyph instead of a "SHOTS" word.
      */
     fun shotsRemainingCompactLabel(count: Int): String {
         val shots = maxOf(0, count)
+        val tenths = shots / 100 % 10
         return when {
-            shots <= 9999 -> "$shots"
-            shots < 100_000 -> "${shots / 1000}.${shots / 100 % 10}k"
+            shots < 1000 -> "$shots"
+            shots < 100_000 && tenths != 0 -> "${shots / 1000}.${tenths}k"
             else -> "${shots / 1000}k"
         }
     }
