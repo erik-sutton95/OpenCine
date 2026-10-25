@@ -63,7 +63,7 @@ public fun <P, L> MonitorOperatorMediaScreen(
     playbackPicture: @Composable (MonitorMediaPlaybackModel<P, L>) -> Unit,
 ) {
     val library = model.library
-    val value by library.state.collectAsState()
+    val ticks by library.transferProgress.collectAsState()
     val haptics = if (preferences != null) rememberOperatorHaptics { preferences.haptics } else LocalOperatorHaptics.current
     DisposableEffect(model) { onDispose { model.closeGallery() } }
     val operations = MonitorMediaGalleryOperations<P>(
@@ -79,7 +79,7 @@ public fun <P, L> MonitorOperatorMediaScreen(
             cacheOriginal = preferences?.cacheOriginals == true, deliveryPresented = false,
             operations = playbackOperations,
             source = { record -> MonitorPlaybackSourceValues(
-                progress = value.progress[record.asset.id], colorLabel = record.asset.colorLabel) },
+                progress = ticks.progress[record.asset.id], colorLabel = record.asset.colorLabel) },
             nativeAudio = { null }, close = presentation::close, share = null,
             signalOptions = signalOptions, availableAssistTools = availableAssistTools,
             picture = { player, _ -> playbackPicture(player) })
@@ -88,7 +88,7 @@ public fun <P, L> MonitorOperatorMediaScreen(
         MonitorOperatorMediaScreen(library, brand, library.canRefresh, operations,
             facts = { record -> MonitorMediaGalleryFileFacts(
                 listOfNotNull(record.facts.resolution, record.facts.format).joinToString(" · "),
-                record.asset.durationSeconds?.let(::operatorMediaClock), value.progress[record.asset.id]) },
+                record.asset.durationSeconds?.let(::operatorMediaClock), ticks.progress[record.asset.id]) },
             close = close, begin = model::showGallery, colorChoices = colors, player = play, photo = play,
             thumbnail = { context ->
                 LaunchedEffect(context.record.asset.id, context.admission) {
@@ -155,7 +155,7 @@ public fun <P> MonitorOperatorMediaScreen(
     overlays: @Composable BoxScope.() -> Unit = {},
 ) {
     require(host.library === library) { "The media host presents over its own library" }
-    val value by library.state.collectAsState()
+    val value by library.content.collectAsState()
     val shown by host.presented.collectAsState()
     val releases by host.retentionReleases.collectAsState()
     LaunchedEffect(host, value.lifetimeToken, releases) { host.sourceChanged() }
