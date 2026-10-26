@@ -24,6 +24,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+    // FakeGyroNative, FakeGyroCameraAdapter and FakeMotionSensors for this module's JVM tests and
+    // for UI tests in the modules that render the shared gyro screens.
+    testFixtures { enable = true }
 }
 
 dependencies {
@@ -31,6 +34,7 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
+    testFixturesApi(libs.kotlinx.coroutines.core)
 }
 
 // The take-status vectors are shared with the Swift OpenCineGyroTests (Fixtures/ at the
