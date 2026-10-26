@@ -93,7 +93,10 @@
                         set: { coordinator.logsPresented = $0 }),
                     onDismiss: { logsUp = false }
                 ) {
+                    // logsUp tracks the sheet actually on screen: set when it appears, cleared
+                    // by onDismiss, so a request withdrawn before presenting never strands it.
                     GyroLogsFlow(coordinator: coordinator, haptics: haptics)
+                        .onAppear { logsUp = true }
                 }
                 .sheet(isPresented: $driftShown, onDismiss: driftDidDismiss) {
                     GyroDriftSheet(
@@ -104,9 +107,6 @@
                         notNow: coordinator.dismissDriftPrompt
                     )
                     .environment(\.gyroHaptics, haptics)
-                }
-                .onChange(of: coordinator.logsPresented, initial: true) { _, presented in
-                    if presented { logsUp = true }
                 }
                 .onChange(of: plan.closeLogs, initial: true) { _, close in
                     // The cover follows from the logs sheet's onDismiss.
