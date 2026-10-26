@@ -85,12 +85,9 @@
             let view: UIView = host.controller.view
             let renderer = UIGraphicsImageRenderer(bounds: view.bounds)
             let image = renderer.image { context in
-                // Without a window scene drawHierarchy draws blank (and may still return true).
-                if host.window.windowScene != nil {
-                    view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
-                } else {
-                    view.layer.render(in: context.cgContext)
-                }
+                // drawHierarchy draws blank in a test window (it may still return true), so the
+                // layer tree is rendered directly.
+                view.layer.render(in: context.cgContext)
             }
             let url = URL(fileURLWithPath: dir, isDirectory: true)
             try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -418,6 +415,16 @@
             XCTAssertTrue((finished.accessibilityCustomActions ?? []).contains { $0.name == GyroCopy.delete })
         }
 
+        func testSelectModeSnapshotInPortrait() async throws {
+            let entries = try Self.sampleEntries()
+            let host = await host(logs(entries, tip: false))
+            defer { host.close() }
+            await waitFor(GyroCopy.logsTitle, in: host)
+            _ = try XCTUnwrap(host.identified("gyro.logs.select").first).accessibilityActivate()
+            await waitFor(GyroCopy.shareCount(0), in: host)
+            await snapshot(host, state: "logs-select", landscape: false)
+        }
+
         func testLandscapeShowsListAndTakeSideBySide() async throws {
             let entries = try Self.sampleEntries()
             let host = await host(logs(entries), size: Self.landscape)
@@ -429,17 +436,20 @@
             let shareFrame = share.accessibilityFrame
             XCTAssertLessThan(rowFrame.maxX, shareFrame.minX, "The list sits left of the take page")
             XCTAssertLessThanOrEqual(rowFrame.maxX, Self.landscape.width * 0.4 + 1)
+            await snapshot(host, state: "logs-landscape-split", landscape: true)
             // A recording take can be opened (not picked): its page shows in the right pane.
             let recording = try XCTUnwrap(rows.first {
                 ($0.accessibilityLabel ?? "").hasSuffix(GyroCopy.status(.recording))
             })
             _ = recording.accessibilityActivate()
             await waitFor(GyroCopy.verdict(.recording), in: host)
+            await snapshot(host, state: "logs-landscape-recording", landscape: true)
             // Select mode leaves exactly one accent primary, the share bar.
             _ = try XCTUnwrap(host.identified("gyro.logs.select").first).accessibilityActivate()
             await waitFor(GyroCopy.shareCount(0), in: host)
             XCTAssertEqual(host.identified("gyro.primary").count, 1)
             XCTAssertTrue(host.labelled(GyroCopy.shareLog).isEmpty)
+            await snapshot(host, state: "logs-select", landscape: true)
             let portraitHost = await self.host(logs(entries), size: Self.portrait)
             defer { portraitHost.close() }
             await waitFor(GyroCopy.tip, in: portraitHost)

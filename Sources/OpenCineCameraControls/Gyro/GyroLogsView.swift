@@ -82,9 +82,6 @@
                             list(split: false)
                         }
                     }
-                    .overlay(alignment: .bottom) {
-                        if selecting && !entries.isEmpty { selectionBar }
-                    }
                 }
                 .navigationTitle(GyroCopy.logsTitle)
                 .navigationBarTitleDisplayMode(.inline)
@@ -181,6 +178,9 @@
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(MonitorTheme.background)
+            .overlay(alignment: .bottom) {
+                if selecting { selectionBar }
+            }
         }
 
         private var tip: some View {

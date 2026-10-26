@@ -107,11 +107,12 @@
                     .frame(width: d * 0.9, height: d * 0.9)
                     GyroCameraGlyph(width: d * 0.44)
                     Image(systemName: "waveform")
-                        .font(.system(size: d * 0.16, weight: .semibold))
+                        .font(.system(size: d * 0.1, weight: .semibold))
                         .foregroundStyle(MonitorTheme.accent)
-                        .padding(d * 0.04)
+                        .frame(width: d * 0.17, height: d * 0.17)
                         .background(MonitorTheme.background, in: Circle())
-                        .offset(x: d * 0.26, y: d * 0.24)
+                        .overlay(Circle().stroke(GyroPalette.glyphBody, lineWidth: 1))
+                        .offset(x: d * 0.2, y: d * 0.15)
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height)
             }

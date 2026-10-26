@@ -232,6 +232,10 @@
             let shown = await waitForWindow(GyroCopy.notice(.turnOffFailed), in: host)
             XCTAssertTrue(shown)
             await snapshot(host, state: "notice-banner", landscape: false)
+            host.window.frame = CGRect(origin: .zero, size: Self.landscape)
+            host.controller.view.frame = host.window.bounds
+            host.controller.view.layoutIfNeeded()
+            await snapshot(host, state: "notice-banner", landscape: true)
             rig.coordinator.enabled = false
             await rig.coordinator.processPending()
         }
