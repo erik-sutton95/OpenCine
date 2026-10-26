@@ -174,6 +174,7 @@
                 .font(.system(size: 12, weight: .regular))
                 .tracking(0.8)
                 .foregroundStyle(GyroPalette.overline)
+                .accessibilityLabel(text)
         }
     }
 

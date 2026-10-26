@@ -106,7 +106,7 @@
                     )
                     .frame(width: d * 0.9, height: d * 0.9)
                     GyroCameraGlyph(width: d * 0.44)
-                    Image(systemName: "rotate.3d")
+                    Image(systemName: "waveform")
                         .font(.system(size: d * 0.16, weight: .semibold))
                         .foregroundStyle(MonitorTheme.accent)
                         .padding(d * 0.04)

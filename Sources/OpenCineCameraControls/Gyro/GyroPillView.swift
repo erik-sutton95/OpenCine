@@ -21,7 +21,7 @@
             if state.kind != .hidden {
                 Button(action: action) {
                     HStack(spacing: 5) {
-                        Image(systemName: alert ? "exclamationmark.triangle" : "rotate.3d")
+                        Image(systemName: alert ? "exclamationmark.triangle" : "waveform")
                         Text(GyroCopy.pill(state.kind))
                         if state.stabilizationWarning {
                             Circle().fill(Color.orange).frame(width: 6, height: 6)

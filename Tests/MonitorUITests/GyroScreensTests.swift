@@ -108,7 +108,7 @@
 
         // MARK: Calibration (ring)
 
-        private func ring(
+        func ring(
             _ phase: GyroRingPhase, completed: Int = 0, canUseLast: Bool = false
         ) -> GyroRingCalibrationView {
             GyroRingCalibrationView(
@@ -191,13 +191,13 @@
 
         // MARK: Arming sheet
 
-        private func sheet(_ step: GyroArmingStep, ring: GyroRingPhase? = nil) -> GyroSetupSheet {
+        func sheet(_ step: GyroArmingStep, ring: GyroRingPhase? = nil) -> GyroSetupSheet {
             GyroSetupSheet(step: step, ring: ring, completedSteps: 0, actions: GyroSetupActions())
         }
 
         /// The accent-filled buttons on a screen: `gyro.primary`, or the stabilization step's
         /// `gyro.setup.turnOff`, which is its primary and carries its own identifier.
-        private func primaries(_ host: Host) -> [NSObject] {
+        func primaries(_ host: Host) -> [NSObject] {
             host.all.filter {
                 ["gyro.primary", "gyro.setup.turnOff"].contains(HostedAccessibility.identifier($0) ?? "")
             }
@@ -258,7 +258,8 @@
         /// A finished or recording take fixture. Summaries have no public init, so they decode.
         static func entry(
             minutesAgo: Double, length: Double = 48, active: Bool = false, calibrated: Bool = true,
-            gaps: Bool = false, cutShort: Bool = false, summary hasSummary: Bool = true
+            gaps: Bool = false, cutShort: Bool = false, mountMoved: Bool = false,
+            summary hasSummary: Bool = true
         ) throws -> GyroLogEntry {
             let descriptor = GyroLogDescriptor(
                 appName: "Test", cameraLabel: "Camera",
@@ -276,6 +277,7 @@
                     "rejectedSampleCount": 0, "termination": cutShort ? "bufferOverflow" : "normal",
                     "isPartial": false, "approximateStartOffset": 0.12,
                 ]
+                .merging(mountMoved ? ["mountMovedOffset": 75.0] : [:]) { $1 }
                 summary = try JSONDecoder().decode(
                     GyroLogSummary.self, from: JSONSerialization.data(withJSONObject: json))
             }
@@ -288,12 +290,13 @@
                 try entry(minutesAgo: 20, length: 48),
                 try entry(minutesAgo: 45, length: 130, gaps: true),
                 try entry(minutesAgo: 60 * 30, length: 65),
+                try entry(minutesAgo: 60 * 30 + 10, length: 40, mountMoved: true),
                 try entry(minutesAgo: 60 * 30 + 20, length: 31, cutShort: true),
                 try entry(minutesAgo: 60 * 31, length: 20, calibrated: false),
             ]
         }
 
-        private func logs(
+        func logs(
             _ entries: [GyroLogEntry], tip: Bool = true, enabled: Bool = true,
             actions: GyroLogsActions = GyroLogsActions()
         ) -> GyroLogsView {

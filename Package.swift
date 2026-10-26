@@ -173,7 +173,7 @@ let package = Package(
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
         .testTarget(
             name: "MonitorUITests",
-            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineCoreTestSupport", "OpenCineGyro", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
+            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineCoreTestSupport", "OpenCineGyro", "OpenCineGyroApple", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.
@@ -211,7 +211,7 @@ let package = Package(
             name: "OpenCineCameraControls",
             dependencies: [
                 "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
-                "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineGyro",
+                "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineGyro", "OpenCineGyroApple",
             ]),
         .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls", "OpenCineHostedAccessibility"]),
         // XCUITest cases that drive an app only by accessibility identifiers and the typed review

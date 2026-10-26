@@ -175,6 +175,7 @@
                     }
                 }
                 Color.clear.frame(height: selecting ? 70 : 0)
+                    .accessibilityHidden(true)
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
             .listStyle(.plain)

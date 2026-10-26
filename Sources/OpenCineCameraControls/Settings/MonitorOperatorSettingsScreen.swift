@@ -232,6 +232,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
                     MonitorSettingsInlineRow(title: "Status", help: nil) {
                         MonitorSettingsValueText(value: gyro.status)
                     }
+                    if let calibrate = gyro.calibrate {
+                        MonitorSettingsInlineRow(title: GyroCopy.settingsCalibrate, help: nil) {
+                            MonitorSettingsActionPill(title: GyroCopy.getStarted, action: calibrate)
+                        }
+                    }
                     if let configureMount = gyro.configureMount {
                         MonitorSettingsInlineRow(title: "Phone mount",
                             help: "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {

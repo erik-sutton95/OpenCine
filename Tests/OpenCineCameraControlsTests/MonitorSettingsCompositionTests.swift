@@ -152,6 +152,26 @@ final class MonitorSettingsCompositionTests: XCTestCase {
         }
     }
 
+    func testGyroCalibrateRowAppearsOnlyWhenProvided() {
+        var started = 0
+        let without = MonitorSettingsGyroSource(enabled: binding, status: "SIMULATED", openLogs: {})
+        let with = MonitorSettingsGyroSource(
+            enabled: binding, status: "SIMULATED", openLogs: {}, calibrate: { started += 1 })
+        XCTAssertNil(without.calibrate)
+        XCTAssertNil(without.mountName, "Presets are gone from the main form")
+        XCTAssertNil(without.configureMount)
+        XCTAssertNotNil(with.calibrate)
+        with.calibrate?()
+        XCTAssertEqual(started, 1)
+        for source in [without, with] {
+            for configuration in [typed(support: nil, information: nil, gyro: source),
+                published(borrowed: true, gyro: source), published(borrowed: false, gyro: source)] {
+                XCTAssertEqual(configuration.rows(.controls, library: false).first, .gyro)
+                XCTAssertEqual(configuration.gyro?.calibrate != nil, source.calibrate != nil)
+            }
+        }
+    }
+
     func testAbsentDomainsLeaveTheirTabsOut() {
         XCTAssertEqual(published(borrowed: true).tabs(library: false), [.link, .assist, .controls, .display],
             "No sharing, cache, account, support or information: no Sharing, Storage or System tab")
