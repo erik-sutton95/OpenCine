@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -25,6 +26,7 @@ import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.opencine.gyro.GyroRingPhase
 import com.opencapture.opencine.gyro.GyroRingState
 import kotlin.math.PI
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -58,16 +60,18 @@ public data class GyroRingModel(
     val dimmed: Boolean,
     /** Replace the camera glyph with a checkmark. */
     val checkmark: Boolean,
+    /** Static tilt of the camera glyph in degrees, a cue for the pose being asked for. */
+    val tiltDegrees: Double = 0.0,
 ) {
     /** Number of lit ticks out of 60. */
     public val litTicks: Int
-        get() = (litFraction.coerceIn(0.0, 1.0) * 60).roundToInt()
+        get() = ceil(litFraction.coerceIn(0.0, 1.0) * 60).toInt()
 }
 
 /**
  * Maps a ring calibration state to what the ring draws: intro empty, looking at 0.15, a hold
- * filling from 0.15 to 1, a block or discarded calibration dimmed, a failed verification back at
- * 0.15, and completion full with the checkmark.
+ * filling from 0.15 to 1, a block or discarded calibration dimmed, a failed verification back to
+ * empty, and completion full with the checkmark.
  */
 public fun gyroRingModel(state: GyroRingState): GyroRingModel =
     when (state.phase) {
@@ -78,15 +82,35 @@ public fun gyroRingModel(state: GyroRingState): GyroRingModel =
                     litFraction = 0.15 + 0.85 * (state.hold ?: 0.0).coerceIn(0.0, 1.0),
                     dimmed = false,
                     checkmark = false,
+                    tiltDegrees = gyroRingTilt(state.step),
                 )
             } else {
-                GyroRingModel(litFraction = 0.15, dimmed = false, checkmark = false)
+                GyroRingModel(
+                    litFraction = 0.15,
+                    dimmed = false,
+                    checkmark = false,
+                    tiltDegrees = gyroRingTilt(state.step),
+                )
             }
-        GyroRingPhase.BLOCKED -> GyroRingModel(litFraction = 0.15, dimmed = true, checkmark = false)
-        GyroRingPhase.RETRYING -> GyroRingModel(litFraction = 0.15, dimmed = false, checkmark = false)
+        GyroRingPhase.BLOCKED ->
+            GyroRingModel(
+                litFraction = 0.15,
+                dimmed = true,
+                checkmark = false,
+                tiltDegrees = gyroRingTilt(state.step),
+            )
+        GyroRingPhase.RETRYING -> GyroRingModel(litFraction = 0.0, dimmed = false, checkmark = false)
         GyroRingPhase.INVALIDATED ->
             GyroRingModel(litFraction = 0.0, dimmed = true, checkmark = false)
         GyroRingPhase.COMPLETE -> GyroRingModel(litFraction = 1.0, dimmed = false, checkmark = true)
+    }
+
+/** The camera glyph's tilt cue for a calibration step: level, tilted up, tilted and leaned. */
+private fun gyroRingTilt(step: Int?): Double =
+    when (step) {
+        1 -> -14.0
+        2 -> -24.0
+        else -> 0.0
     }
 
 /**
@@ -129,14 +153,14 @@ public fun GyroRing(model: GyroRingModel, modifier: Modifier = Modifier) {
                 if (model.checkmark && litFraction >= 0.99f) {
                     GyroCheckGlyph(diameter)
                 } else {
-                    GyroTicks(litTicks = (litFraction * 60).roundToInt(), diameter = diameter)
+                    GyroTicks(litTicks = ceil(litFraction * 60).toInt(), diameter = diameter)
                     if (model.checkmark) {
                         GyroCheckMark(diameter * 0.5f)
                     } else {
                         MonitorIcon(
                             icon = MonitorIcon.CAMERA,
                             contentDescription = null,
-                            modifier = Modifier.size(diameter * 0.4f),
+                            modifier = Modifier.size(diameter * 0.4f).rotate(model.tiltDegrees.toFloat()),
                             tint = MonitorPalette.secondary,
                         )
                     }

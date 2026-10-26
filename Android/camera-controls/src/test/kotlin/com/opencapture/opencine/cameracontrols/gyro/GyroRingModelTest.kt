@@ -64,9 +64,26 @@ class GyroRingModelTest {
         assertEquals(60, full.litTicks)
         assertFalse(full.checkmark)
         assertEquals(
-            0.15,
+            0.0,
             gyroRingModel(state(GyroRingPhase.RETRYING, step = 0)).litFraction,
         )
+    }
+
+    @Test
+    fun tiltFollowsTheStep() {
+        assertEquals(0.0, gyroRingModel(state(GyroRingPhase.POSING, step = 0)).tiltDegrees)
+        assertEquals(-14.0, gyroRingModel(state(GyroRingPhase.POSING, step = 1)).tiltDegrees)
+        assertEquals(-24.0, gyroRingModel(state(GyroRingPhase.POSING, step = 2)).tiltDegrees)
+        assertEquals(-24.0, gyroRingModel(state(GyroRingPhase.BLOCKED, step = 2)).tiltDegrees)
+        assertEquals(0.0, gyroRingModel(state(GyroRingPhase.RETRYING, step = 2)).tiltDegrees)
+        assertEquals(0.0, gyroRingModel(state(GyroRingPhase.COMPLETE, step = null)).tiltDegrees)
+    }
+
+    @Test
+    fun litTicksRoundUp() {
+        assertEquals(9, GyroRingModel(litFraction = 0.15, dimmed = false, checkmark = false).litTicks)
+        assertEquals(1, GyroRingModel(litFraction = 0.001, dimmed = false, checkmark = false).litTicks)
+        assertEquals(35, GyroRingModel(litFraction = 0.575, dimmed = false, checkmark = false).litTicks)
     }
 
     @Test

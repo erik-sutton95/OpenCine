@@ -36,7 +36,7 @@ internal fun gyroOnAccent(): Color {
 }
 
 /**
- * The one primary action of every gyro screen: full width, at least 52 dp tall, accent fill with
+ * The one primary action of every gyro screen: full width, at least 50 dp tall, accent fill with
  * on-accent ink and a 12 dp radius. Carries the shared `gyro.primary` tag; [tag] puts a second
  * identifier on a wrapper so a screen-specific test id can sit beside it.
  */
@@ -52,7 +52,7 @@ internal fun GyroPrimaryButton(
         Box(
             modifier
                 .fillMaxWidth()
-                .heightIn(min = 52.dp)
+                .heightIn(min = 50.dp)
                 .clip(RoundedCornerShape(GYRO_BUTTON_RADIUS_DP.dp))
                 .background(
                     if (enabled) {
