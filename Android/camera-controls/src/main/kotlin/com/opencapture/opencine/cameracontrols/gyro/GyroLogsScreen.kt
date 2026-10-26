@@ -336,7 +336,7 @@ private fun LogsTip(onDismiss: () -> Unit) {
                 .size(32.dp)
                 .clickable(role = Role.Button, onClick = onDismiss)
                 .semantics(mergeDescendants = true) {
-                    contentDescription = GyroCopy.done
+                    contentDescription = GyroCopy.dismissTip
                     role = Role.Button
                 }
                 .testTag("gyro.tip.dismiss"),

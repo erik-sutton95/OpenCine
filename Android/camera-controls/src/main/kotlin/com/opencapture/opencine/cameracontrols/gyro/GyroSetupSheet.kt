@@ -185,7 +185,7 @@ private fun StabilizationVisual() {
             contentAlignment = Alignment.Center,
         ) {
             MonitorIcon(
-                icon = MonitorIcon.COMPASS,
+                icon = MonitorIcon.AUDIO_WAVEFORM,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
                 tint = MonitorPalette.accent,

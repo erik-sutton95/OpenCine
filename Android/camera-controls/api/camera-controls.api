@@ -3981,6 +3981,7 @@ public final class com/opencapture/opencine/cameracontrols/gyro/GyroCopy {
 	public static final field delete Ljava/lang/String;
 	public static final field deleteTitle Ljava/lang/String;
 	public static final field details Ljava/lang/String;
+	public static final field dismissTip Ljava/lang/String;
 	public static final field done Ljava/lang/String;
 	public static final field driftQuestion Ljava/lang/String;
 	public static final field driftTitle Ljava/lang/String;

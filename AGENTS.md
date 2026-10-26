@@ -112,6 +112,9 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   no project dependencies. `OpenCineGyroAndroid` (the JNI facade) depends on `OpenCineGyro` and
   `OpenCineJNISupport` only. A camera joins through the `GyroCameraAdapter` contract, implemented
   in its integration.
+- `OpenCineGyroApple` (gyro capture's iOS shell: CoreMotion driver, UserDefaults store and the
+  capture coordinator) depends on `OpenCineGyro` and Apple frameworks only, never on UI, an
+  integration or an app.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.

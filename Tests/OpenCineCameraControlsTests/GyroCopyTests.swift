@@ -25,7 +25,7 @@ import Testing
             GyroCopy.emptyTitle, GyroCopy.emptyBody, GyroCopy.turnOnGyro, GyroCopy.calibratedMount,
             GyroCopy.notCalibrated, GyroCopy.details, GyroCopy.startsLabel, GyroCopy.smoothnessLabel,
             GyroCopy.sampleRateLabel, GyroCopy.startOffset(0.12), GyroCopy.length(61),
-            GyroCopy.settingsCalibrate,
+            GyroCopy.settingsCalibrate, GyroCopy.phoneMount, GyroCopy.dismissTip,
         ]
         for kind in GyroPillKind.allCases {
             all.append(GyroCopy.pill(kind))
@@ -62,15 +62,37 @@ import Testing
         #expect(GyroCopy.length(130) == "2:10")
         #expect(GyroCopy.length(3725) == "62:05")
         #expect(GyroCopy.length(-3) == "0:00")
+        #expect(GyroCopy.length(1e300) == "35791394:07")
+        #expect(GyroCopy.length(-1e300) == "0:00")
         #expect(GyroCopy.startOffset(0.123) == "0.12 s before REC")
         #expect(GyroCopy.startOffset(-0.3) == "0.30 s after REC")
         #expect(GyroCopy.status(.mountMoved(offsetSeconds: 75)) == "Mount moved at 1:15")
         #expect(GyroCopy.sampleRate(199.6) == "200 Hz")
+        #expect(GyroCopy.sampleRate(.nan) == "0 Hz")
+        #expect(GyroCopy.sampleRate(.infinity) == "0 Hz")
+        #expect(GyroCopy.sampleRate(1e300) == "2147483647 Hz")
+        #expect(GyroCopy.sampleRate(-.infinity) == "0 Hz")
     }
 
     @Test func pillA11yAppendsTheIbisWarning() {
         #expect(GyroCopy.pillA11y(.armed, warning: true) == "Gyro armed. IBIS is still on")
         #expect(GyroCopy.pillA11y(.hidden, warning: true) == "")
+    }
+
+    @Test func sampleRateMatchesKotlinRoundingAndSaturation() {
+        let cases: [(Double, String)] = [
+            (.nan, "0 Hz"), (.infinity, "0 Hz"), (-.infinity, "0 Hz"),
+            (.greatestFiniteMagnitude, "2147483647 Hz"),
+            (-.greatestFiniteMagnitude, "-2147483648 Hz"),
+            (2147483646.5, "2147483647 Hz"), (-2147483648.5, "-2147483648 Hz"),
+            (199.5, "200 Hz"), (-199.5, "-199 Hz"),
+            (0.5, "1 Hz"), (-0.5, "0 Hz"), (-0.5000001, "-1 Hz"),
+            (Double(0.5).nextDown, "0 Hz"), (Double(-0.5).nextUp, "0 Hz"),
+            (0, "0 Hz"),
+        ]
+        for (rate, expected) in cases {
+            #expect(GyroCopy.sampleRate(rate) == expected, "rate: \(rate)")
+        }
     }
 
     @Test func verdictLeadsWithReadyForGyroflow() {

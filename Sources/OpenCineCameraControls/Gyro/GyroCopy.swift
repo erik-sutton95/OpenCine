@@ -56,6 +56,8 @@ public enum GyroCopy {
 
     // MARK: Calibration
 
+    /// The overline above the intro and complete screens.
+    public static let phoneMount = "Phone mount"
     public static let calibrateTitle = "Calibrate your phone mount"
     public static let calibrateBody = "About 20 seconds. Keep the phone clamped to the camera."
     public static let getStarted = "Get started"
@@ -112,6 +114,8 @@ public enum GyroCopy {
     public static let logsTitle = "Gyro logs"
     public static let tip =
         "Share a log to your computer, open it in Gyroflow with the clip, then pick your lens."
+    /// The VoiceOver label of the tip's close button.
+    public static let dismissTip = "Dismiss tip"
     public static let today = "Today"
     public static let yesterday = "Yesterday"
     public static let select = "Select"
@@ -176,12 +180,21 @@ public enum GyroCopy {
         }
     }
 
-    public static func sampleRate(_ hz: Double) -> String { "\(Int(hz.rounded())) Hz" }
+    /// Whole hertz; ties round toward positive infinity, non-finite reads 0 and huge values
+    /// clamp to the 32-bit range, as Kotlin's `roundToInt` does.
+    public static func sampleRate(_ hz: Double) -> String {
+        guard hz.isFinite else { return "0 Hz" }
+        let lower = hz.rounded(.down)
+        let rounded = hz - lower < 0.5 ? lower : lower + 1
+        let value = min(max(rounded, Double(Int32.min)), Double(Int32.max))
+        return "\(Int(value)) Hz"
+    }
 
     /// `m:ss`: whole seconds (truncated), minutes unbounded, seconds zero-padded; negative and
-    /// non-finite values read as zero.
+    /// non-finite values read as zero and huge values clamp to the 32-bit range, as Kotlin's
+    /// `toInt` does.
     public static func length(_ seconds: Double) -> String {
-        let total = seconds.isFinite ? max(0, Int(seconds)) : 0
+        let total = seconds.isFinite ? Int(min(max(seconds, 0), Double(Int32.max))) : 0
         let secs = total % 60
         return "\(total / 60):\(secs < 10 ? "0" : "")\(secs)"
     }

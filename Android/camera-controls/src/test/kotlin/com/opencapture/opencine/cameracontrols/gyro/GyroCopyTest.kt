@@ -80,12 +80,29 @@ class GyroCopyTest {
         assertEquals("2:10", GyroCopy.length(130.0))
         assertEquals("62:05", GyroCopy.length(3725.0))
         assertEquals("0:00", GyroCopy.length(-3.0))
+        assertEquals("35791394:07", GyroCopy.length(1e300))
+        assertEquals("0:00", GyroCopy.length(-1e300))
         assertEquals("0.12 s before REC", GyroCopy.startOffset(0.123))
         assertEquals("0.30 s after REC", GyroCopy.startOffset(-0.3))
         assertEquals("Mount moved at 1:15", GyroCopy.status(GyroTakeStatus.MountMoved(75.0)))
         assertEquals("200 Hz", GyroCopy.sampleRate(199.6))
         assertEquals("0 Hz", GyroCopy.sampleRate(Double.NaN))
         assertEquals("0 Hz", GyroCopy.sampleRate(Double.POSITIVE_INFINITY))
+    }
+
+    @Test
+    fun sampleRateMatchesSwiftRoundingAndSaturation() {
+        val cases = listOf(
+            Double.NaN to "0 Hz", Double.POSITIVE_INFINITY to "0 Hz", Double.NEGATIVE_INFINITY to "0 Hz",
+            Double.MAX_VALUE to "2147483647 Hz", -Double.MAX_VALUE to "-2147483648 Hz",
+            2147483646.5 to "2147483647 Hz", -2147483648.5 to "-2147483648 Hz",
+            199.5 to "200 Hz", -199.5 to "-199 Hz",
+            0.5 to "1 Hz", -0.5 to "0 Hz", -0.5000001 to "-1 Hz", 0.0 to "0 Hz",
+            Math.nextDown(0.5) to "0 Hz", Math.nextUp(-0.5) to "0 Hz",
+        )
+        for ((rate, expected) in cases) {
+            assertEquals(expected, GyroCopy.sampleRate(rate), "rate: $rate")
+        }
     }
 
     @Test

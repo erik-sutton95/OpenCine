@@ -14,8 +14,10 @@ import PackageDescription
 // - Integrations (OpenCineDJI, OpenCineNikon, Insta360*) never import UI or an app.
 // - OpenCineMulticam imports OpenCineCore only: never an integration or UI.
 // - OpenCineGyro (phone gyro capture for Gyroflow) imports Foundation only and depends on
-//   nothing; it names no app or manufacturer. OpenCineGyroAndroid (its JNI facade) depends on
-//   OpenCineGyro and OpenCineJNISupport only.
+//   nothing; it names no app or manufacturer. OpenCineGyroApple (its iOS shell: CoreMotion
+//   driver, UserDefaults store and capture coordinator) depends on OpenCineGyro and Apple
+//   frameworks only. OpenCineGyroAndroid (its JNI facade) depends on OpenCineGyro and
+//   OpenCineJNISupport only.
 // - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app.
 //   Native views consume portable Media values; presentation policy stays Foundation-only.
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
@@ -44,6 +46,7 @@ let package = Package(
         .library(name: "OpenCineMedia", targets: ["OpenCineMedia"]),
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
         .library(name: "OpenCineGyro", targets: ["OpenCineGyro"]),
+        .library(name: "OpenCineGyroApple", targets: ["OpenCineGyroApple"]),
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
         .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
         .library(name: "OpenCineRelayApple", targets: ["OpenCineRelayApple"]),
@@ -96,7 +99,7 @@ let package = Package(
         // MARK: Core
         // Portable common camera, monitoring and capability contracts. Foundation only.
         .target(name: "OpenCineCore"),
-        .target(name: "OpenCineCoreTestSupport", dependencies: ["OpenCineCore"]),
+        .target(name: "OpenCineCoreTestSupport", dependencies: ["OpenCineCore", "OpenCineGyro"]),
         .testTarget(
             name: "OpenCineCoreTests",
             dependencies: ["OpenCineCore", "OpenCineCoreTestSupport"]
@@ -112,6 +115,10 @@ let package = Package(
         // stabilization save/restore and log storage. Foundation only; names no app or manufacturer.
         .target(name: "OpenCineGyro"),
         .testTarget(name: "OpenCineGyroTests", dependencies: ["OpenCineGyro"]),
+        // Gyro capture's Apple shell: CoreMotion driver, UserDefaults store and the capture coordinator.
+        // OpenCineGyro plus Apple frameworks only; every file sits behind `#if os(iOS)`.
+        .target(name: "OpenCineGyroApple", dependencies: ["OpenCineGyro"]),
+        .testTarget(name: "OpenCineGyroAppleTests", dependencies: ["OpenCineGyroApple", "OpenCineGyro", "OpenCineCoreTestSupport"]),
         // Optional typed motion seam and trajectory math shared by gimbal integrations.
         .target(name: "OpenCineMotion", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMotionTests", dependencies: ["OpenCineMotion"]),
@@ -166,7 +173,7 @@ let package = Package(
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
         .testTarget(
             name: "MonitorUITests",
-            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineCoreTestSupport", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
+            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineCoreTestSupport", "OpenCineGyro", "OpenCineGyroApple", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.
@@ -204,7 +211,7 @@ let package = Package(
             name: "OpenCineCameraControls",
             dependencies: [
                 "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
-                "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineGyro",
+                "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineGyro", "OpenCineGyroApple",
             ]),
         .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls", "OpenCineHostedAccessibility"]),
         // XCUITest cases that drive an app only by accessibility identifiers and the typed review

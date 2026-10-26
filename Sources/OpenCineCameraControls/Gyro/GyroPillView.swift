@@ -21,14 +21,14 @@
             if state.kind != .hidden {
                 Button(action: action) {
                     HStack(spacing: 5) {
-                        Image(systemName: alert ? "exclamationmark.triangle" : "gyroscope")
+                        Image(systemName: alert ? "exclamationmark.triangle" : "waveform")
                         Text(GyroCopy.pill(state.kind))
                         if state.stabilizationWarning {
-                            Circle().fill(Color.orange).frame(width: 6, height: 6)
+                            Circle().fill(GyroPalette.orange).frame(width: 6, height: 6)
                         }
                     }
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(alert || state.kind == .gaps ? Color.orange : Color.white)
+                    .foregroundStyle(alert || state.kind == .gaps ? GyroPalette.orange : Color.white)
                     .padding(.horizontal, 10).padding(.vertical, 7)
                     .background(.black.opacity(0.65), in: Capsule())
                 }

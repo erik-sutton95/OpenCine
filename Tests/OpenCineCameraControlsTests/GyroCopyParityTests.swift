@@ -37,7 +37,7 @@ struct GyroCopyParityTests {
             GyroCopy.separator, GyroCopy.deleteTitle, GyroCopy.delete, GyroCopy.emptyTitle,
             GyroCopy.emptyBody, GyroCopy.turnOnGyro, GyroCopy.calibratedMount,
             GyroCopy.notCalibrated, GyroCopy.details, GyroCopy.startsLabel,
-            GyroCopy.smoothnessLabel, GyroCopy.sampleRateLabel, GyroCopy.settingsCalibrate,
+            GyroCopy.smoothnessLabel, GyroCopy.sampleRateLabel, GyroCopy.settingsCalibrate, GyroCopy.phoneMount, GyroCopy.dismissTip,
         ]
     }
 
