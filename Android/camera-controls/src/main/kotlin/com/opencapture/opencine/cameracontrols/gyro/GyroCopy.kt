@@ -264,7 +264,7 @@ public object GyroCopy {
     }
 
     /** The Details sample rate, rounded to whole hertz, for example "200 Hz". */
-    public fun sampleRate(hz: Double): String = hz.roundToInt().toString() + " Hz"
+    public fun sampleRate(hz: Double): String = (if (hz.isFinite()) hz.roundToInt() else 0).toString() + " Hz"
 
     /**
      * `m:ss`: whole seconds (truncated), minutes unbounded, seconds zero-padded; negative and

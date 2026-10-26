@@ -38,7 +38,7 @@ class FakeGyroCameraAdapter(
     override val level: Flow<GyroCameraLevel> = levels
 
     /** Every [writeStabilization] call, in order. */
-    val writes: MutableList<Map<String, String>> = mutableListOf()
+    val writes: MutableList<Map<String, String>> = java.util.concurrent.CopyOnWriteArrayList()
 
     /** False makes the camera refuse every write. */
     var acceptsWrites: Boolean = true

@@ -540,14 +540,31 @@ class GyroCaptureCoordinator internal constructor(
         val reply = decodeArmingReply(json ?: return)
         isArmed = reply.isArmed
         stabilizationWarning = reply.stabilizationWarning
-        for (effect in reply.effects) {
+        // Set when the restore could not be persisted: the write that follows must not happen.
+        var persistFailed = false
+        for ((index, effect) in reply.effects.withIndex()) {
             when (effect) {
                 is GyroArmingEffect.PersistPendingRestores ->
-                    preferences.pendingRestoresJSON = effect.json
+                    try {
+                        preferences.pendingRestoresJSON = effect.json
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Exception) {
+                        // Without the owed restore on disk the camera must not be changed, so the
+                        // write that follows is reported refused. Anything else keeps failing loudly.
+                        if (reply.effects.getOrNull(index + 1) !is GyroArmingEffect.WriteStabilization) {
+                            throw error
+                        }
+                        persistFailed = true
+                    }
                 is GyroArmingEffect.WriteStabilization -> {
                     publish()
+                    val skip = persistFailed
+                    persistFailed = false
                     val succeeded =
-                        try {
+                        if (skip) {
+                            false
+                        } else try {
                             // A write that never answers counts as refused, so arming moves on.
                             withTimeoutOrNull(GYRO_WRITE_TIMEOUT_MILLIS) {
                                 adapter?.writeStabilization(effect.values)

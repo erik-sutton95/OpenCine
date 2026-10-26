@@ -550,8 +550,7 @@ class GyroScreensTest {
             val turnOff = tagged("gyro.setup.turnOff").single()
             assertTrue(turnOff.clickTarget().performAction(AccessibilityNodeInfo.ACTION_CLICK))
             awaitCondition("Turn off must write OFF to the camera") {
-                // The coordinator thread appends; a read racing it simply retries.
-                runCatching { host.adapter.writes.toList() }.getOrNull() == listOf(mapOf("ibis" to "OFF"))
+                host.adapter.writes.toList() == listOf(mapOf("ibis" to "OFF"))
             }
             awaitNodes("The calibration step must follow") { nodes ->
                 labelsOf(nodes).contains(GyroCopy.getStarted)

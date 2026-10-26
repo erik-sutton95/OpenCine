@@ -100,6 +100,20 @@ class GyroCaptureArmingTest {
     }
 
     @Test
+    fun failedRestorePersistRefusesTheTurnOffWrite() = runTest {
+        val prefs = MemorySharedPreferences()
+        val h = GyroCaptureHarness(this, prefs = prefs)
+        h.arm(stabilization = IBIS_SPORT)
+        prefs.failingKeys = setOf(h.keys.pendingRestores)
+        h.coordinator.setupTurnOffStabilization()
+        h.advance(100)
+        assertTrue(h.adapter.writes.isEmpty())
+        assertEquals(GyroNotice.TURN_OFF_FAILED, h.state.notice)
+        assertTrue(h.state.pill.stabilizationWarning)
+        h.cleanup()
+    }
+
+    @Test
     fun toggleOffRestoresExactValue() = runTest {
         val h = GyroCaptureHarness(this)
         h.arm(stabilization = IBIS_SPORT)

@@ -84,6 +84,8 @@ class GyroCopyTest {
         assertEquals("0.30 s after REC", GyroCopy.startOffset(-0.3))
         assertEquals("Mount moved at 1:15", GyroCopy.status(GyroTakeStatus.MountMoved(75.0)))
         assertEquals("200 Hz", GyroCopy.sampleRate(199.6))
+        assertEquals("0 Hz", GyroCopy.sampleRate(Double.NaN))
+        assertEquals("0 Hz", GyroCopy.sampleRate(Double.POSITIVE_INFINITY))
     }
 
     @Test
