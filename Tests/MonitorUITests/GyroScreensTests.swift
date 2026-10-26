@@ -186,6 +186,66 @@
             }
         }
 
+        // MARK: Arming sheet
+
+        private func sheet(_ step: GyroArmingStep, ring: GyroRingPhase? = nil) -> GyroSetupSheet {
+            GyroSetupSheet(step: step, ring: ring, completedSteps: 0, actions: GyroSetupActions())
+        }
+
+        /// The accent-filled buttons on a screen: `gyro.primary`, or the stabilization step's
+        /// `gyro.setup.turnOff`, which is its primary and carries its own identifier.
+        private func primaries(_ host: Host) -> [NSObject] {
+            host.all.filter {
+                ["gyro.primary", "gyro.setup.turnOff"].contains(HostedAccessibility.identifier($0) ?? "")
+            }
+        }
+
+        func testStabilizationStepShowsOnePrimaryButton() async throws {
+            await inBothOrientations(
+                "setup-ibis", sheet(.stabilization(lensHasVRSwitch: false)),
+                settle: GyroCopy.ibisTurnOff
+            ) { host, _ in
+                XCTAssertEqual(primaries(host).count, 1)
+                XCTAssertEqual(host.identified("gyro.setup.turnOff").count, 1)
+                XCTAssertEqual(host.identified("gyro.setup.keepOn").count, 1)
+                XCTAssertEqual(host.identified("gyro.visual").count, 1)
+                XCTAssertFalse(host.labelled(GyroCopy.ibisKeep).isEmpty)
+            }
+        }
+
+        func testLensLineOnlyWhenTheLensHasAVRSwitch() async throws {
+            await inBothOrientations(
+                "setup-ibis-lens", sheet(.stabilization(lensHasVRSwitch: true)),
+                settle: GyroCopy.ibisTurnOff
+            ) { host, _ in
+                XCTAssertFalse(host.labelled(GyroCopy.ibisLens).isEmpty)
+            }
+            for known in [false as Bool?, nil] {
+                let host = await host(sheet(.stabilization(lensHasVRSwitch: known)))
+                await waitFor(GyroCopy.ibisTurnOff, in: host)
+                XCTAssertTrue(host.labelled(GyroCopy.ibisLens).isEmpty, "\(String(describing: known))")
+                host.close()
+            }
+        }
+
+        func testCalibrationStepOffersUseLastOnlyWithASavedCalibration() async throws {
+            let withSaved = await host(sheet(.calibration(hasSavedCalibration: true)))
+            await waitFor(GyroCopy.getStarted, in: withSaved)
+            XCTAssertFalse(withSaved.labelled(GyroCopy.useLastCalibration).isEmpty)
+            XCTAssertEqual(primaries(withSaved).count, 1)
+            withSaved.close()
+            let without = await host(sheet(.calibration(hasSavedCalibration: false)))
+            await waitFor(GyroCopy.getStarted, in: without)
+            XCTAssertTrue(without.labelled(GyroCopy.useLastCalibration).isEmpty)
+            without.close()
+            await inBothOrientations(
+                "setup-calibration-posing",
+                sheet(
+                    .calibration(hasSavedCalibration: false),
+                    ring: .posing(step: .level, inZone: true, hold: 0.4)),
+                settle: GyroCopy.holdHint)
+        }
+
         // MARK: Announcements
 
         @MainActor final class AnnouncementLog {
