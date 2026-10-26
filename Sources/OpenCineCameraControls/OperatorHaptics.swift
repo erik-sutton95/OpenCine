@@ -26,6 +26,14 @@
             OperatorSettingsHaptics.selection(enabled: isEnabled())
         }
 
+        /// One light tap, for a passive heads-up the operator did not ask for.
+        @MainActor public func light() {
+            guard isEnabled() else { return }
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.prepare()
+            generator.impactOccurred()
+        }
+
         /// The firm tap that confirms a panel placement.
         @MainActor public func confirm() {
             guard isEnabled() else { return }

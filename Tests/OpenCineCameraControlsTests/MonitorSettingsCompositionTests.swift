@@ -4,6 +4,7 @@ import MonitorPresentation
 import OpenCineAppKit
 import OpenCineApple
 import OpenCineCore
+import OpenCineHostedAccessibility
 import OpenCineMedia
 import SwiftUI
 import XCTest
@@ -170,6 +171,29 @@ final class MonitorSettingsCompositionTests: XCTestCase {
                 XCTAssertEqual(configuration.gyro?.calibrate != nil, source.calibrate != nil)
             }
         }
+    }
+
+    /// The card draws the Calibrate phone mount row only when the host provides the action.
+    func testGyroCardRendersTheCalibrateRowOnlyWhenProvided() async throws {
+        func labels(_ source: MonitorSettingsGyroSource) async -> [String] {
+            let controller = UIHostingController(
+                rootView: MonitorSettingsGyroCard(gyro: source, feedback: {}).frame(width: 393, height: 600))
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+            window.rootViewController = controller
+            window.makeKeyAndVisible()
+            controller.view.frame = window.bounds
+            defer { window.isHidden = true; window.rootViewController = nil }
+            _ = await HostedAccessibility.awaitRuntime()
+            try? await Task.sleep(for: .milliseconds(400))
+            controller.view.layoutIfNeeded()
+            return HostedAccessibility.leaves(in: controller.view).map { $0.accessibilityLabel ?? "" }
+        }
+        let without = await labels(MonitorSettingsGyroSource(enabled: binding, status: "SIMULATED", openLogs: {}))
+        let with = await labels(MonitorSettingsGyroSource(
+            enabled: binding, status: "SIMULATED", openLogs: {}, calibrate: {}))
+        XCTAssertFalse(without.isEmpty, "The card renders")
+        XCTAssertFalse(without.contains { $0.contains(GyroCopy.settingsCalibrate) })
+        XCTAssertTrue(with.contains { $0.contains(GyroCopy.settingsCalibrate) }, "\(with)")
     }
 
     func testAbsentDomainsLeaveTheirTabsOut() {

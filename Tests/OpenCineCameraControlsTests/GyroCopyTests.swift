@@ -66,6 +66,9 @@ import Testing
         #expect(GyroCopy.startOffset(-0.3) == "0.30 s after REC")
         #expect(GyroCopy.status(.mountMoved(offsetSeconds: 75)) == "Mount moved at 1:15")
         #expect(GyroCopy.sampleRate(199.6) == "200 Hz")
+        #expect(GyroCopy.sampleRate(.nan) == "0 Hz")
+        #expect(GyroCopy.sampleRate(.infinity) == "0 Hz")
+        #expect(GyroCopy.sampleRate(-.infinity) == "0 Hz")
     }
 
     @Test func pillA11yAppendsTheIbisWarning() {

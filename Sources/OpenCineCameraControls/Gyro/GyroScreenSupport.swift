@@ -156,6 +156,21 @@
         }
     }
 
+    /// Content that scrolls only when it is taller than the room it is given. When it fits it is
+    /// plain content (reachable without a scroll host); when it does not, it sits in a scroll view.
+    struct GyroFitScroll<Content: View>: View {
+        private let content: Content
+
+        init(@ViewBuilder content: () -> Content) { self.content = content() }
+
+        var body: some View {
+            ViewThatFits(in: .vertical) {
+                content
+                ScrollView { content }
+            }
+        }
+    }
+
     /// Reads the stack's orientation for the views placed inside it.
     struct GyroLandscapeReader<Content: View>: View {
         @Environment(\.gyroIsLandscape) private var landscape

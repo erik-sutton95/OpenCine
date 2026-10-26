@@ -180,7 +180,9 @@ public enum GyroCopy {
         }
     }
 
-    public static func sampleRate(_ hz: Double) -> String { "\(Int(hz.rounded())) Hz" }
+    public static func sampleRate(_ hz: Double) -> String {
+        "\(hz.isFinite ? Int(hz.rounded()) : 0) Hz"
+    }
 
     /// `m:ss`: whole seconds (truncated), minutes unbounded, seconds zero-padded; negative and
     /// non-finite values read as zero.

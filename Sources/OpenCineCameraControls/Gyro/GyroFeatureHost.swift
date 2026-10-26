@@ -31,15 +31,29 @@
 
         @Environment(\.gyroAnnouncer) private var announcer
         @State private var coverShown = false
+        @State private var driftShown = false
+        /// Recalibrate was tapped: the ring opens only after the drift sheet has dismissed, so
+        /// the cover is never asked to present over a sheet that is still going away.
+        @State private var recalibrateAfterDismiss = false
 
         private var coverPresented: Bool {
             !coordinator.setupSteps.isEmpty || coordinator.ring != nil
         }
 
+        /// The drift sheet shows only when nothing else is presented; the prompt stays queued in
+        /// the coordinator until the logs sheet and the cover are gone.
+        private var driftWanted: Bool {
+            coordinator.driftPromptPresented && !coordinator.logsPresented && !coverPresented
+        }
+
         func body(content: Content) -> some View {
             content
-                .overlay(alignment: .top) {
-                    GyroNoticeBanner(coordinator: coordinator)
+                .overlay(alignment: .top) { GyroNoticeBanner(notice: coordinator.notice) }
+                .task(id: coordinator.notice) {
+                    guard let notice = coordinator.notice else { return }
+                    announcer.announce(GyroCopy.notice(notice))
+                    try? await Task.sleep(for: .seconds(4))
+                    if !Task.isCancelled, coordinator.notice == notice { coordinator.clearNotice() }
                 }
                 .fullScreenCover(isPresented: $coverShown) {
                     GyroSetupFlow(coordinator: coordinator, haptics: haptics)
@@ -51,13 +65,12 @@
                 ) {
                     GyroLogsFlow(coordinator: coordinator, haptics: haptics)
                 }
-                .sheet(
-                    isPresented: Binding(
-                        get: { coordinator.driftPromptPresented },
-                        set: { if !$0 { coordinator.dismissDriftPrompt() } })
-                ) {
+                .sheet(isPresented: $driftShown, onDismiss: driftDidDismiss) {
                     GyroDriftSheet(
-                        recalibrate: coordinator.recalibrateAfterDrift,
+                        recalibrate: {
+                            recalibrateAfterDismiss = true
+                            driftShown = false
+                        },
                         notNow: coordinator.dismissDriftPrompt
                     )
                     .environment(\.gyroHaptics, haptics)
@@ -65,26 +78,36 @@
                 .onChange(of: coverPresented, initial: true) { _, presented in
                     coverShown = presented
                 }
+                .onChange(of: driftWanted, initial: true) { _, wanted in
+                    driftShown = wanted
+                }
                 .onChange(of: coordinator.driftHapticToken) { _, _ in
-                    haptics.confirm()
+                    haptics.light()
                     announcer.announce(GyroCopy.pillMountMoved)
                 }
+        }
+
+        private func driftDidDismiss() {
+            if recalibrateAfterDismiss {
+                recalibrateAfterDismiss = false
+                coordinator.recalibrateAfterDrift()
+            } else if driftWanted {
+                // The operator swiped the sheet away: that silences the prompt. A sheet that went
+                // away because it was queued or the prompt ended is not a decision.
+                coordinator.dismissDriftPrompt()
+            }
         }
     }
 
     /// The content of the one full-screen cover: the setup sheet while a setup step is open,
-    /// otherwise the calibration screens. One view, so a step change never re-presents.
+    /// otherwise the calibration screens. One view, so a step change never re-presents. It draws
+    /// the notice banner too, since the cover hides the monitor's own.
     @available(iOS 17, *)
-    public struct GyroSetupFlow: View {
+    struct GyroSetupFlow: View {
         let coordinator: GyroCaptureCoordinator
         let haptics: OperatorHaptics
 
-        public init(coordinator: GyroCaptureCoordinator, haptics: OperatorHaptics) {
-            self.coordinator = coordinator
-            self.haptics = haptics
-        }
-
-        public var body: some View {
+        var body: some View {
             Group {
                 if let step = coordinator.setupSteps.first {
                     GyroSetupSheet(
@@ -99,8 +122,12 @@
                         eventToken: coordinator.ringEventToken,
                         canUseLast: false, actions: actions(nil))
                 } else {
-                    Color(MonitorTheme.background.opacity(1)).ignoresSafeArea()
+                    MonitorTheme.background.ignoresSafeArea()
                 }
+            }
+            .overlay(alignment: .top) {
+                // Below the navigation bar, so Cancel stays reachable.
+                GyroNoticeBanner(notice: coordinator.notice, topInset: 44)
             }
             .environment(\.gyroHaptics, haptics)
         }
@@ -128,17 +155,12 @@
 
     /// The logs sheet's content with its share sheet.
     @available(iOS 17, *)
-    public struct GyroLogsFlow: View {
+    struct GyroLogsFlow: View {
         let coordinator: GyroCaptureCoordinator
         let haptics: OperatorHaptics
         @State private var shareItems: GyroShareItems?
 
-        public init(coordinator: GyroCaptureCoordinator, haptics: OperatorHaptics) {
-            self.coordinator = coordinator
-            self.haptics = haptics
-        }
-
-        public var body: some View {
+        var body: some View {
             GyroLogsView(
                 entries: coordinator.logs, tipVisible: coordinator.tipVisible,
                 gyroEnabled: coordinator.enabled, now: Date(),
@@ -159,31 +181,22 @@
         }
     }
 
-    /// A short banner at the top of the monitor for the coordinator's notice, announced when it
-    /// appears and cleared after 4 seconds.
-    @available(iOS 17, *)
+    /// A short banner at the top of the screen for the coordinator's notice, in the monitor chip
+    /// style. The modifier owns the announcement and the 4 second timer.
     struct GyroNoticeBanner: View {
-        let coordinator: GyroCaptureCoordinator
-        @Environment(\.gyroAnnouncer) private var announcer
+        let notice: GyroNotice?
+        var topInset: CGFloat = 0
 
         var body: some View {
-            Group {
-                if let notice = coordinator.notice {
-                    GyroNoticeBannerLabel(text: GyroCopy.notice(notice))
-                        .padding(.top, 8).padding(.horizontal, 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
-            .task(id: coordinator.notice) {
-                guard let notice = coordinator.notice else { return }
-                announcer.announce(GyroCopy.notice(notice))
-                try? await Task.sleep(for: .seconds(4))
-                if !Task.isCancelled, coordinator.notice == notice { coordinator.clearNotice() }
+            if let notice {
+                GyroNoticeBannerLabel(text: GyroCopy.notice(notice))
+                    .padding(.top, 8 + topInset).padding(.horizontal, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
     }
 
-    /// The banner's look, in the monitor chip style: dark capsule, amber warning mark.
+    /// The banner's look: dark rounded chip, amber warning mark.
     struct GyroNoticeBannerLabel: View {
         let text: String
 

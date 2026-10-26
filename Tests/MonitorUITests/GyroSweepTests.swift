@@ -1,10 +1,10 @@
 #if os(iOS)
     import Foundation
     import Observation
-    import OpenCineCameraControls
+    @testable import OpenCineCameraControls
     import OpenCineCoreTestSupport
     import OpenCineGyro
-    import OpenCineGyroApple
+    @testable import OpenCineGyroApple
     import OpenCineHostedAccessibility
     import OpenCineHostedTestSupport
     import SwiftUI
@@ -213,15 +213,22 @@
                 try await Task.sleep(for: .milliseconds(50))
             }
             XCTAssertEqual(ids, [[entries[1].id]])
+            let sharePresented = await HostedCondition.wait {
+                host.controller.presentedViewController != nil
+            }
+            XCTAssertTrue(sharePresented, "The share sheet for the copied files is presented")
         }
 
-        func testNoticeBannerShowsAndClears() async throws {
+        func testNoticeBannerShowsAnnouncesAndClears() async throws {
             let rig = await rig()
             defer { rig.cleanup() }
             rig.camera.acceptsWrites = false
+            let log = AnnouncementLog()
+            let announcer = GyroAnnouncer { [log] text in log.items.append(text) }
             let host = await host(
-                Color.black.ignoresSafeArea().gyroFeature(
-                    rig.coordinator, haptics: OperatorHaptics(isEnabled: { false })))
+                Color.black.ignoresSafeArea()
+                    .gyroFeature(rig.coordinator, haptics: OperatorHaptics(isEnabled: { false }))
+                    .environment(\.gyroAnnouncer, announcer))
             defer { host.close() }
             rig.coordinator.enabled = true
             connect(rig)
@@ -229,15 +236,85 @@
             rig.coordinator.setupTurnOffStabilization()
             await rig.coordinator.waitForCameraWrites()
             XCTAssertEqual(rig.coordinator.notice, .turnOffFailed)
-            let shown = await waitForWindow(GyroCopy.notice(.turnOffFailed), in: host)
+            let text = GyroCopy.notice(.turnOffFailed)
+            let announced = await HostedCondition.wait { log.items.contains(text) }
+            XCTAssertTrue(announced, "The notice is announced when it appears: \(log.items)")
+            XCTAssertEqual(log.items.filter { $0 == text }.count, 1)
+            // The cover is up (calibration step), so the banner is also drawn inside the flow.
+            let flow = await self.host(GyroSetupFlow(coordinator: rig.coordinator, haptics: OperatorHaptics(isEnabled: { false })))
+            defer { flow.close() }
+            await waitFor(text, in: flow)
+            XCTAssertEqual(flow.identified("gyro.notice").count, 1)
+            await snapshot(flow, state: "notice-banner-over-setup", landscape: false)
+            let shown = await waitForWindow(text, in: host)
             XCTAssertTrue(shown)
             await snapshot(host, state: "notice-banner", landscape: false)
             host.window.frame = CGRect(origin: .zero, size: Self.landscape)
             host.controller.view.frame = host.window.bounds
             host.controller.view.layoutIfNeeded()
             await snapshot(host, state: "notice-banner", landscape: true)
+            // One 4 second timer clears it.
+            let cleared = await HostedCondition.wait(limit: .seconds(10)) { rig.coordinator.notice == nil }
+            XCTAssertTrue(cleared, "The notice clears itself")
             rig.coordinator.enabled = false
             await rig.coordinator.processPending()
+        }
+
+        func testDriftHapticAndAnnouncementFollowTheTokenOnly() async throws {
+            let rig = await rig()
+            defer { rig.cleanup() }
+            let log = AnnouncementLog()
+            let announcer = GyroAnnouncer { [log] text in log.items.append(text) }
+            let haptics = OperatorHaptics(isEnabled: { [log] in
+                log.haptics += 1
+                return false
+            })
+            let host = await host(
+                Color.black.ignoresSafeArea().gyroFeature(rig.coordinator, haptics: haptics)
+                    .environment(\.gyroAnnouncer, announcer))
+            defer { host.close() }
+            try await Task.sleep(for: .milliseconds(300))
+            XCTAssertEqual(log.haptics, 0, "Nothing on first appearance")
+            XCTAssertTrue(log.items.isEmpty)
+            rig.coordinator.driftHapticToken += 1
+            let fired = await HostedCondition.wait { log.haptics == 1 }
+            XCTAssertTrue(fired, "One haptic per token change")
+            let said = await HostedCondition.wait { log.items == [GyroCopy.pillMountMoved] }
+            XCTAssertTrue(said)
+            try await Task.sleep(for: .milliseconds(300))
+            XCTAssertEqual(log.haptics, 1)
+        }
+
+        /// A sceneless test window draws SwiftUI without UIKit scroll views and vends nothing that
+        /// sits inside a ScrollView. So the proof that the scroll container took over is
+        /// observable from the tree: with a pane shorter than the Details their rows leave the
+        /// tree while the verdict and Share log (outside the scroll) stay; in a pane that fits,
+        /// every row is reachable.
+        func testTakeDetailsScrollWhenTallerThanThePane() async throws {
+            let entry = try Self.entry(minutesAgo: 20)
+            let sampleRate = GyroCopy.sampleRate(200)
+            func rowsReachable(_ host: Host) -> Bool {
+                host.elements.contains { ($0.accessibilityLabel ?? "").contains(sampleRate) }
+            }
+            let short = await host(
+                GyroTakeView(entry: entry, now: Self.now, share: {}),
+                size: CGSize(width: 520, height: 280))  // the landscape split's pane under its bar
+            defer { short.close() }
+            await waitFor(GyroCopy.shareLog, in: short)
+            try await Task.sleep(for: .milliseconds(600))
+            short.controller.view.layoutIfNeeded()
+            XCTAssertFalse(short.labelled(GyroCopy.shareLog).isEmpty, "Share log stays on screen")
+            XCTAssertFalse(short.labelled(GyroCopy.verdict(.ready)).isEmpty)
+            XCTAssertFalse(rowsReachable(short), "Details sit in the scroll container when they do not fit")
+            await snapshot(short, state: "take-ready-short-pane", landscape: true)
+            let tall = await host(GyroTakeView(entry: entry, now: Self.now, share: {}))
+            defer { tall.close() }
+            await waitFor(GyroCopy.shareLog, in: tall)
+            let reachable = await HostedCondition.wait {
+                tall.controller.view.layoutIfNeeded()
+                return rowsReachable(tall)
+            }
+            XCTAssertTrue(reachable, "When the page fits, every Details row is reachable")
         }
 
         // MARK: Rotation
@@ -246,7 +323,6 @@
             let rig = await rig()
             defer { rig.cleanup() }
             connect(rig, ibis: "OFF")
-            let probe = RingProbe()
             rig.coordinator.beginCalibration()
             rig.coordinator.startRing()
             hold(rig, Self.levelDown, seconds: 3)
@@ -254,7 +330,6 @@
             guard case .posing(.tiltUp, _, _) = rig.coordinator.ring else {
                 return XCTFail("Expected posing tiltUp, got \(String(describing: rig.coordinator.ring))")
             }
-            _ = probe
             let phase = try XCTUnwrap(rig.coordinator.ring)
             let host = await host(
                 GyroRingCalibrationView(
@@ -278,7 +353,6 @@
         struct SweepState {
             let name: String
             let view: AnyView
-            let labelPrimary: Bool
         }
 
         func sweepStates() throws -> [SweepState] {
@@ -288,16 +362,15 @@
                 SweepState(
                     name: name,
                     view: AnyView(
-                        self.ring(phase, completed: completed, canUseLast: canUseLast)),
-                    labelPrimary: false)
+                        self.ring(phase, completed: completed, canUseLast: canUseLast)))
             }
             var states: [SweepState] = [
                 SweepState(
                     name: "setup-ibis",
-                    view: AnyView(sheet(.stabilization(lensHasVRSwitch: false))), labelPrimary: false),
+                    view: AnyView(sheet(.stabilization(lensHasVRSwitch: false)))),
                 SweepState(
                     name: "setup-ibis-lens",
-                    view: AnyView(sheet(.stabilization(lensHasVRSwitch: true))), labelPrimary: false),
+                    view: AnyView(sheet(.stabilization(lensHasVRSwitch: true)))),
                 ring("calibration-intro", .intro),
                 ring("calibration-intro-uselast", .intro, canUseLast: true),
                 ring("posing-level-looking", .posing(step: .level, inZone: false, hold: 0)),
@@ -314,15 +387,15 @@
                 ring("complete", .complete(calibration), completed: 3),
                 SweepState(
                     name: "drift-sheet",
-                    view: AnyView(GyroDriftSheet(recalibrate: {}, notNow: {})), labelPrimary: false),
+                    view: AnyView(GyroDriftSheet(recalibrate: {}, notNow: {}))),
                 SweepState(
-                    name: "logs-list", view: AnyView(logs(entries)), labelPrimary: false),
+                    name: "logs-list", view: AnyView(logs(entries))),
                 SweepState(
                     name: "logs-empty",
-                    view: AnyView(logs([], tip: false, enabled: false)), labelPrimary: false),
+                    view: AnyView(logs([], tip: false, enabled: false))),
                 SweepState(
                     name: "logs-empty-gyro-on",
-                    view: AnyView(logs([], tip: false, enabled: true)), labelPrimary: false),
+                    view: AnyView(logs([], tip: false, enabled: true))),
             ]
             let takes: [(String, GyroLogEntry)] = [
                 ("take-ready", try Self.entry(minutesAgo: 20)),
@@ -335,10 +408,22 @@
             for (name, entry) in takes {
                 states.append(
                     SweepState(
-                        name: name, view: AnyView(GyroTakeView(entry: entry, now: Self.now, share: {})),
-                        labelPrimary: false))
+                        name: name, view: AnyView(GyroTakeView(entry: entry, now: Self.now, share: {}))))
             }
             return states
+        }
+
+        /// Exactly one accent primary where a screen has an action, none on the posing, blocked and
+        /// retry screens and the plain list. The landscape list also shows the selected take's
+        /// Share log.
+        func expectedPrimaries(_ name: String, landscape: Bool) -> Int {
+            if name.hasPrefix("posing") || name.hasPrefix("blocked") || name == "retry"
+                || name == "logs-empty-gyro-on"
+            {
+                return 0
+            }
+            if name == "logs-list" { return landscape ? 1 : 0 }
+            return 1
         }
 
         func testEveryScreenRendersInBothOrientations() async throws {
@@ -352,7 +437,9 @@
                     }
                     XCTAssertTrue(settled, "\(state.name) \(landscape)")
                     let primaries = primaries(host)
-                    XCTAssertLessThanOrEqual(primaries.count, 1, "\(state.name): one accent primary")
+                    XCTAssertEqual(
+                        primaries.count, expectedPrimaries(state.name, landscape: landscape),
+                        "\(state.name) \(landscape): accent primaries")
                     let safe = host.window.safeAreaLayoutGuide.layoutFrame
                     let visual = host.identified("gyro.visual").first?.accessibilityFrame
                     for primary in primaries {

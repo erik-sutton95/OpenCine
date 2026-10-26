@@ -51,11 +51,9 @@
             return parts.joined(separator: GyroCopy.separator)
         }
 
-        @Environment(\.dynamicTypeSize) private var typeSize
-
-        /// The verdict and Share log stay fixed and the Details rows follow them. The rows sit
-        /// in a scroll view only at accessibility text sizes, where they may not fit; elsewhere
-        /// they are plain content, so VoiceOver reaches them without a scroll host.
+        /// The verdict and Share log stay fixed and the Details rows follow them. The rows scroll
+        /// whenever they are taller than the room left (landscape, large text) and are plain
+        /// content when they fit.
         public var body: some View {
             GeometryReader { proxy in
                 let compact = proxy.size.height < 560
@@ -91,12 +89,7 @@
                         .padding(.bottom, 4)
                         .accessibilityAddTraits(.isHeader)
 
-                    if typeSize.isAccessibilitySize {
-                        ScrollView { rows(compact: compact) }
-                    } else {
-                        rows(compact: compact)
-                    }
-                    Spacer(minLength: 0)
+                    GyroFitScroll { rows(compact: compact) }
                 }
                 .frame(maxHeight: .infinity, alignment: .top)
             }
