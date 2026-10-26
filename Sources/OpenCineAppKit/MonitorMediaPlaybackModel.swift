@@ -45,6 +45,9 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   private struct Snapshot {
     var active: MonitorMediaRecord<Payload>? = nil
     var playlist: [MonitorMediaRecord<Payload>] = []
+    /// `active`'s place in `playlist`, found once per load: the page reads it every body pass
+    /// and a card playlist holds thousands of records.
+    var index: Int? = nil
     var item: MonitorPlaybackItem? = nil
     var token: MonitorPlaybackItemToken
     var ready: Bool = false
@@ -302,8 +305,14 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   public var canGoPrevious: Bool { index.map { $0 > 0 } ?? false }
   public var canGoNext: Bool { index.map { $0 + 1 < playlist.count } ?? false }
   public var isActive: Bool { current(token) }
+  /// This owner still holds its item on a browsing library, without asking the host's item
+  /// admission. Presentation that repeats per frame or per body pass (buffered extent, the
+  /// glass backdrop) reads this; actions and lifecycle keep the admitted ``isActive``.
+  public var holdsItem: Bool { ownsItem(token) }
   private var index: Int? {
-    active.flatMap { active in playlist.firstIndex { $0.asset.id == active.asset.id } }
+    access(keyPath: \.active)
+    access(keyPath: \.playlist)
+    return snapshot.index
   }
   public var rate: Double {
     guard let target = conformTarget, let capture = metadata.conform.captureRate else {
@@ -390,6 +399,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
           state.token = admitted
           state.active = record
           state.playlist = playlist
+          state.index = playlist.firstIndex { $0.asset.id == record.asset.id }
           state.item = nil
           state.ready = false
           state.nativeItemInstalled = false
