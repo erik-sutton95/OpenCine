@@ -56,6 +56,8 @@ public enum GyroCopy {
 
     // MARK: Calibration
 
+    /// The overline above the intro and complete screens.
+    public static let phoneMount = "Phone mount"
     public static let calibrateTitle = "Calibrate your phone mount"
     public static let calibrateBody = "About 20 seconds. Keep the phone clamped to the camera."
     public static let getStarted = "Get started"
@@ -112,6 +114,8 @@ public enum GyroCopy {
     public static let logsTitle = "Gyro logs"
     public static let tip =
         "Share a log to your computer, open it in Gyroflow with the clip, then pick your lens."
+    /// The VoiceOver label of the tip's close button.
+    public static let dismissTip = "Dismiss tip"
     public static let today = "Today"
     public static let yesterday = "Yesterday"
     public static let select = "Select"
