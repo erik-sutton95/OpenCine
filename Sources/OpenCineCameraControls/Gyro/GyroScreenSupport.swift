@@ -42,18 +42,26 @@
         }
     }
 
-    /// Speaks a short phrase to VoiceOver. Injectable so tests can record announcements.
+    /// Speaks a short phrase to VoiceOver and tells it when the screen changed. Injectable so
+    /// tests can record both.
     public struct GyroAnnouncer: Sendable {
         public let announce: @MainActor @Sendable (String) -> Void
+        /// Called when the content of one presentation is replaced by a new screen, so VoiceOver
+        /// moves its focus to it.
+        public let screenChanged: @MainActor @Sendable () -> Void
 
-        public init(announce: @escaping @MainActor @Sendable (String) -> Void) {
+        public init(
+            announce: @escaping @MainActor @Sendable (String) -> Void,
+            screenChanged: @escaping @MainActor @Sendable () -> Void = {}
+        ) {
             self.announce = announce
+            self.screenChanged = screenChanged
         }
 
-        /// Posts a VoiceOver announcement through the system.
-        public static let system = GyroAnnouncer { text in
-            AccessibilityNotification.Announcement(text).post()
-        }
+        /// Posts VoiceOver announcements and screen changes through the system.
+        public static let system = GyroAnnouncer(
+            announce: { text in AccessibilityNotification.Announcement(text).post() },
+            screenChanged: { UIAccessibility.post(notification: .screenChanged, argument: nil) })
     }
 
     private struct GyroAnnouncerKey: EnvironmentKey {

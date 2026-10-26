@@ -48,6 +48,11 @@
             return nil
         }
 
+        private var invalidation: GyroCalibrationInvalidation? {
+            if case .invalidated(let reason) = phase { return reason }
+            return nil
+        }
+
         private var isComplete: Bool {
             if case .complete = phase { return true }
             return false
@@ -96,8 +101,11 @@
             .preferredColorScheme(.dark)
             .onChange(of: lastEvent) { _, _ in handleLatest() }
             .onChange(of: eventToken) { _, _ in handleLatest() }
-            .onChange(of: blockReason) { _, reason in
+            .onChange(of: blockReason, initial: true) { _, reason in
                 if let reason { announcer.announce(GyroCopy.block(reason)) }
+            }
+            .onChange(of: invalidation, initial: true) { _, reason in
+                if let reason { announcer.announce(GyroCopy.invalidation(reason)) }
             }
             .onChange(of: holdFraction) { _, hold in trackHold(hold) }
             .onDisappear {

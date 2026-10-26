@@ -36,12 +36,17 @@
         func setData(_ data: Data?, forKey key: String) { values[key] = data }
     }
 
-    /// A log store that serves fixed takes and records what was shared.
+    /// A log store that serves fixed takes and records what was shared; `shareFails` refuses
+    /// every share.
     actor HostedLogStore: GyroLogStoring {
         private let entries: [GyroLogEntry]
+        private let shareFails: Bool
         private(set) var shared: [[UUID]] = []
 
-        init(entries: [GyroLogEntry]) { self.entries = entries }
+        init(entries: [GyroLogEntry], shareFails: Bool = false) {
+            self.entries = entries
+            self.shareFails = shareFails
+        }
 
         func sharedIDs() -> [[UUID]] { shared }
         func load() -> GyroLogRecoveryResult { .init(entries: entries, warning: nil) }
@@ -49,6 +54,7 @@
         func abort() -> GyroLogRecoveryResult { .init(entries: entries, warning: nil) }
         func share(_ ids: [UUID]) throws -> [URL] {
             shared.append(ids)
+            if shareFails { throw CocoaError(.fileReadNoPermission) }
             return ids.map { URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("\($0).gcsv") }
         }
         func delete(_ id: UUID) -> [GyroLogEntry] { entries.filter { $0.id != id } }
@@ -258,6 +264,143 @@
             XCTAssertTrue(cleared, "The notice clears itself")
             rig.coordinator.enabled = false
             await rig.coordinator.processPending()
+        }
+
+        /// Arming while the gyro logs are up closes them first and does not ask for the cover
+        /// over them. The cover presenting after the dismissal is the plan's next test: a
+        /// sceneless test window never completes UIKit dismissals, so onDismiss never runs here.
+        func testArmingWhileLogsAreOpenClosesThemFirst() async throws {
+            let rig = await rig()
+            defer { rig.cleanup() }
+            let host = await host(
+                Color.black.ignoresSafeArea()
+                    .gyroFeature(rig.coordinator, haptics: OperatorHaptics(isEnabled: { false })))
+            defer { host.close() }
+            rig.coordinator.logsPresented = true
+            let sheet = await HostedCondition.wait { host.controller.presentedViewController != nil }
+            XCTAssertTrue(sheet, "logsPresented presents the logs sheet")
+            let logs = host.controller.presentedViewController
+            // "Turn on Gyro" in the logs empty state, then a camera connects.
+            rig.coordinator.enabled = true
+            connect(rig)
+            await rig.coordinator.waitForCameraWrites()
+            XCTAssertEqual(rig.coordinator.setupSteps.first, .stabilization(lensHasVRSwitch: true))
+            let closed = await HostedCondition.wait { !rig.coordinator.logsPresented }
+            XCTAssertTrue(closed, "Arming closes the logs sheet")
+            try await Task.sleep(for: .milliseconds(500))
+            XCTAssertTrue(host.controller.presentedViewController === logs)
+            XCTAssertNil(logs?.presentedViewController, "The cover is not stacked on the closing logs")
+            rig.coordinator.enabled = false
+            await rig.coordinator.processPending()
+        }
+
+        func testPresentationPlanPresentsTheCoverOnceTheLogsAreGone() {
+            // Logs up, nothing else wanted.
+            var plan = GyroPresentationPlan(
+                coverWanted: false, logsPresented: true, logsUp: true, driftPrompt: true)
+            XCTAssertFalse(plan.closeLogs)
+            XCTAssertFalse(plan.cover)
+            XCTAssertFalse(plan.drift)
+            // A session arms: close the logs, no cover yet.
+            plan.coverWanted = true
+            XCTAssertTrue(plan.closeLogs)
+            XCTAssertFalse(plan.cover)
+            // Logs asked to close, the sheet is still animating away.
+            plan.logsPresented = false
+            XCTAssertFalse(plan.closeLogs)
+            XCTAssertFalse(plan.cover)
+            // onDismiss: the sheet is gone, the cover presents; drift still waits for it.
+            plan.logsUp = false
+            XCTAssertTrue(plan.cover)
+            XCTAssertFalse(plan.drift)
+            plan.coverWanted = false
+            XCTAssertTrue(plan.drift)
+        }
+
+        func testShareFailureShowsTheNoticeInsideTheLogs() async throws {
+            let entries = Array(try Self.sampleEntries().prefix(3))
+            let rig = await rig(store: HostedLogStore(entries: entries, shareFails: true))
+            defer { rig.cleanup() }
+            let host = await host(
+                GyroLogsFlow(coordinator: rig.coordinator, haptics: OperatorHaptics(isEnabled: { false })))
+            defer { host.close() }
+            await waitFor(GyroCopy.logsTitle, in: host)
+            _ = try XCTUnwrap(host.identified("gyro.logs.select").first).accessibilityActivate()
+            await waitFor(GyroCopy.shareCount(0), in: host)
+            let ready = host.identified("gyro.log.row").first {
+                ($0.accessibilityLabel ?? "").hasSuffix(GyroCopy.status(.ready))
+            }
+            _ = try XCTUnwrap(ready).accessibilityActivate()
+            await waitFor(GyroCopy.shareCount(1), in: host)
+            _ = try XCTUnwrap(host.identified("gyro.primary").first).accessibilityActivate()
+            let text = GyroCopy.notice(.shareFailed)
+            await waitFor(text, in: host)
+            XCTAssertEqual(host.identified("gyro.notice").count, 1)
+            XCTAssertNil(host.controller.presentedViewController, "No share sheet for a refused share")
+            await snapshot(host, state: "notice-banner-over-logs", landscape: false)
+        }
+
+        func testRepeatedNoticeIsAnnouncedAgain() async throws {
+            let rig = await rig(store: HostedLogStore(entries: [], shareFails: true))
+            defer { rig.cleanup() }
+            let log = AnnouncementLog()
+            let host = await host(
+                Color.black.ignoresSafeArea()
+                    .gyroFeature(rig.coordinator, haptics: OperatorHaptics(isEnabled: { false }))
+                    .environment(\.gyroAnnouncer, GyroAnnouncer { [log] text in log.items.append(text) }))
+            defer { host.close() }
+            let text = GyroCopy.notice(.shareFailed)
+            _ = await rig.coordinator.share([UUID()])
+            let first = await HostedCondition.wait { log.items.filter { $0 == text }.count == 1 }
+            XCTAssertTrue(first, "\(log.items)")
+            _ = await rig.coordinator.share([UUID()])
+            let second = await HostedCondition.wait { log.items.filter { $0 == text }.count == 2 }
+            XCTAssertTrue(second, "The same notice again restarts the banner: \(log.items)")
+            XCTAssertEqual(rig.coordinator.notice, .shareFailed)
+        }
+
+        @MainActor final class ScreenChangeLog { var count = 0 }
+
+        func testSetupFlowPostsAScreenChangeWhenItsStepChanges() async throws {
+            let rig = await rig()
+            defer { rig.cleanup() }
+            let changes = ScreenChangeLog()
+            rig.coordinator.enabled = true
+            connect(rig)
+            await rig.coordinator.waitForCameraWrites()
+            let flow = await host(
+                GyroSetupFlow(coordinator: rig.coordinator, haptics: OperatorHaptics(isEnabled: { false }))
+                    .environment(
+                        \.gyroAnnouncer,
+                        GyroAnnouncer(announce: { _ in }, screenChanged: { [changes] in changes.count += 1 })))
+            defer { flow.close() }
+            await waitFor(GyroCopy.ibisTurnOff, in: flow)
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertEqual(changes.count, 0, "Presenting the cover is the system's screen change")
+            rig.coordinator.setupKeepStabilization()
+            await waitFor(GyroCopy.getStarted, in: flow)
+            let posted = await HostedCondition.wait { changes.count == 1 }
+            XCTAssertTrue(posted, "Stabilization to calibration posts one screen change")
+            rig.coordinator.setupSkipCalibration()
+            rig.coordinator.enabled = false
+            await rig.coordinator.processPending()
+        }
+
+        func testRingAnnouncesAnInitialBlockAndAnInvalidation() async throws {
+            let probe = RingProbe()
+            probe.phase = .blocked(step: .level, reason: .cameraDisconnected)
+            let log = AnnouncementLog()
+            let host = await host(RingProbeView(probe: probe, log: log))
+            defer { host.close() }
+            let blocked = await HostedCondition.wait {
+                log.items == [GyroCopy.block(.cameraDisconnected)]
+            }
+            XCTAssertTrue(blocked, "An initially blocked screen announces its block: \(log.items)")
+            probe.phase = .invalidated(.cameraChanged)
+            let invalidated = await HostedCondition.wait {
+                log.items.last == GyroCopy.invalidation(.cameraChanged)
+            }
+            XCTAssertTrue(invalidated, "The invalidation is announced: \(log.items)")
         }
 
         func testDriftHapticAndAnnouncementFollowTheTokenOnly() async throws {
