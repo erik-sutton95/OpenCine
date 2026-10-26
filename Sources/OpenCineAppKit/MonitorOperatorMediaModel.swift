@@ -269,7 +269,7 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
     }
 
     /// `token` is still this page's item, without running the host's item admission. A host
-    /// admission can read the file system (Nikon's index stamps); the playback page reads
+    /// admission can read the file system (a camera index's file stamps); the playback page reads
     /// presentation facts many times per body pass and its glass backdrop up to 60 times a
     /// second, so presentation reads use this and actions keep ``isCurrent(_:)``. A retired or
     /// replaced item changes the token or closes the owner, so this still refuses it.

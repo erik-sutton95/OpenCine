@@ -202,7 +202,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         guard model.isCurrent(token), let player else { return }; action(player)
     }
     /// The host's access answer for a record, asked once per body pass. A host can read the file
-    /// system to answer (Nikon checks the cached original on disk), and one pass needs it for
+    /// system to answer (whether the cached original is on disk), and one pass needs it for
     /// share and twice for delete; the page re-renders on every position tick.
     private func accessOnce() -> (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryAccess? {
         guard let access = operations.access else { return { _ in nil } }
