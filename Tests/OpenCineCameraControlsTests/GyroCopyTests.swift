@@ -25,7 +25,7 @@ import Testing
             GyroCopy.emptyTitle, GyroCopy.emptyBody, GyroCopy.turnOnGyro, GyroCopy.calibratedMount,
             GyroCopy.notCalibrated, GyroCopy.details, GyroCopy.startsLabel, GyroCopy.smoothnessLabel,
             GyroCopy.sampleRateLabel, GyroCopy.startOffset(0.12), GyroCopy.length(61),
-            GyroCopy.settingsCalibrate,
+            GyroCopy.settingsCalibrate, GyroCopy.phoneMount, GyroCopy.dismissTip,
         ]
         for kind in GyroPillKind.allCases {
             all.append(GyroCopy.pill(kind))
