@@ -302,6 +302,10 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   public var canGoPrevious: Bool { index.map { $0 > 0 } ?? false }
   public var canGoNext: Bool { index.map { $0 + 1 < playlist.count } ?? false }
   public var isActive: Bool { current(token) }
+  /// This owner still holds its item on a browsing library, without asking the host's item
+  /// admission. Presentation that repeats per frame or per body pass (buffered extent, the
+  /// glass backdrop) reads this; actions and lifecycle keep the admitted ``isActive``.
+  public var holdsItem: Bool { ownsItem(token) }
   private var index: Int? {
     active.flatMap { active in playlist.firstIndex { $0.asset.id == active.asset.id } }
   }

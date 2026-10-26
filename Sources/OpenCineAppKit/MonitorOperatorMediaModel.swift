@@ -268,6 +268,16 @@ public final class MonitorOperatorMediaModel<Payload: Sendable, Look: Sendable> 
         owner?.setPresentationActive(playerVisible && !value)
     }
 
+    /// `token` is still this page's item, without running the host's item admission. A host
+    /// admission can read the file system (Nikon's index stamps); the playback page reads
+    /// presentation facts many times per body pass and its glass backdrop up to 60 times a
+    /// second, so presentation reads use this and actions keep ``isCurrent(_:)``. A retired or
+    /// replaced item changes the token or closes the owner, so this still refuses it.
+    public func presents(_ token: MonitorPlaybackItemToken) -> Bool {
+        guard let owner = playback, owner.token == token, !owner.closed else { return false }
+        return owner.holdsItem
+    }
+
     public func isCurrent(_ token: MonitorPlaybackItemToken) -> Bool {
         guard let owner = playback, owner.token == token, !owner.closed else { return false }
         let capturedPage = page
