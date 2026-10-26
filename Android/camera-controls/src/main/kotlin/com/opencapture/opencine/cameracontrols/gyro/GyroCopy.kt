@@ -178,6 +178,9 @@ public object GyroCopy {
     public const val tip: String =
         "Share a log to your computer, open it in Gyroflow with the clip, then pick your lens."
 
+    /** The VoiceOver and TalkBack label of the tip's close button. */
+    public const val dismissTip: String = "Dismiss tip"
+
     /** The Today section title. */
     public const val today: String = "Today"
 

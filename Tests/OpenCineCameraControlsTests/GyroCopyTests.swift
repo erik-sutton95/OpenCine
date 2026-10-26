@@ -68,6 +68,7 @@ import Testing
         #expect(GyroCopy.sampleRate(199.6) == "200 Hz")
         #expect(GyroCopy.sampleRate(.nan) == "0 Hz")
         #expect(GyroCopy.sampleRate(.infinity) == "0 Hz")
+        #expect(GyroCopy.sampleRate(1e300) == "2147483647 Hz")
         #expect(GyroCopy.sampleRate(-.infinity) == "0 Hz")
     }
 
