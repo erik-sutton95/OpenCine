@@ -185,6 +185,42 @@ struct GyroCaptureCalibrationTests {
         await coordinator.processPending()
     }
 
+    @Test func doneAfterAnInvalidationInSetupLogsUncalibratedAndKeepsTheSavedCalibration()
+        async throws
+    {
+        let fixture = GyroCoordinatorFixture()
+        defer { fixture.cleanup() }
+        await fixture.seedCalibration()
+        let saved = try #require(fixture.preferences.calibration(for: "fake-1"))
+        let coordinator = fixture.coordinator()
+        await coordinator.waitUntilLoaded()
+        coordinator.enabled = true
+        fixture.connect()
+        #expect(coordinator.setupSteps == [.calibration(hasSavedCalibration: true)])
+        coordinator.beginCalibration()
+        coordinator.startRing()
+        fixture.hold(RingPoses.level, seconds: 3)
+        fixture.record(true)
+        #expect(coordinator.ring == .invalidated(.recordingStarted))
+        coordinator.finishCalibration()
+        #expect(coordinator.ring == nil)
+        #expect(coordinator.setupSteps.isEmpty)
+        #expect(coordinator.isArmed)
+        #expect(coordinator.hasSavedCalibration)
+        #expect(fixture.preferences.calibration(for: "fake-1") == saved)
+        fixture.feed(from: fixture.clock.time, through: fixture.clock.time + 1)
+        fixture.record(false)
+        await coordinator.processPending()
+        fixture.feed(from: fixture.clock.time, through: fixture.clock.time + 1)
+        fixture.record(true)
+        await coordinator.processPending()
+        let take = try #require(coordinator.logs.first)
+        #expect(take.active)
+        #expect(take.descriptor.mountCalibration == nil, "Same as Cancel: the session logs uncalibrated")
+        coordinator.enabled = false
+        await coordinator.processPending()
+    }
+
     @Test func cameraWithoutLevelHidesCalibration() async {
         let fixture = GyroCoordinatorFixture(camera: FakeGyroCameraAdapter(providesLevel: false))
         defer { fixture.cleanup() }

@@ -80,6 +80,8 @@ class GyroCopyTest {
         assertEquals("2:10", GyroCopy.length(130.0))
         assertEquals("62:05", GyroCopy.length(3725.0))
         assertEquals("0:00", GyroCopy.length(-3.0))
+        assertEquals("35791394:07", GyroCopy.length(1e300))
+        assertEquals("0:00", GyroCopy.length(-1e300))
         assertEquals("0.12 s before REC", GyroCopy.startOffset(0.123))
         assertEquals("0.30 s after REC", GyroCopy.startOffset(-0.3))
         assertEquals("Mount moved at 1:15", GyroCopy.status(GyroTakeStatus.MountMoved(75.0)))

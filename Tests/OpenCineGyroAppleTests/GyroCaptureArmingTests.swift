@@ -3,6 +3,7 @@ import Foundation
 import OpenCineCoreTestSupport
 import OpenCineGyro
 import Testing
+import UIKit
 
 @testable import OpenCineGyroApple
 
@@ -177,9 +178,72 @@ struct GyroCaptureArmingTests {
         #expect(fixture.camera.heldWriteCount == 1)
         #expect(fixture.camera.writes.last == ["ibis": "SPORT"])
         #expect(fixture.preferences.pendingRestores.count == 1)
+        #expect(!coordinator.disconnecting, "A timed-out disconnect does not stick")
         fixture.camera.resolveHeldWrite(succeeded: true)
         await coordinator.waitForCameraWrites()
         #expect(fixture.preferences.pendingRestores.isEmpty)
+    }
+
+    /// Records the background task calls the coordinator makes.
+    @MainActor final class BackgroundTaskLog {
+        var begun = 0
+        var ended = 0
+    }
+
+    private func recordBackgroundTasks(_ coordinator: GyroCaptureCoordinator) -> BackgroundTaskLog {
+        let log = BackgroundTaskLog()
+        coordinator.beginBackgroundTask = { _ in
+            log.begun += 1
+            return UIBackgroundTaskIdentifier(rawValue: 42)
+        }
+        coordinator.endBackgroundTaskHandler = { _ in log.ended += 1 }
+        return log
+    }
+
+    @Test func backgroundingHoldsTheBackgroundTaskUntilTheRestoreLands() async {
+        let fixture = GyroCoordinatorFixture()
+        defer { fixture.cleanup() }
+        let coordinator = await armed(fixture)
+        let log = recordBackgroundTasks(coordinator)
+        coordinator.setupTurnOffStabilization()
+        await coordinator.waitForCameraWrites()
+        #expect(coordinator.motionRunning)
+        fixture.camera.holdsWrites = true
+        coordinator.appDidEnterBackground()
+        #expect(log.begun == 1)
+        await coordinator.processPending()
+        #expect(!coordinator.motionRunning)
+        #expect(log.ended == 0, "The save is done but the restore is still in flight")
+        for _ in 0..<1_000 where fixture.camera.heldWriteCount < 1 { await Task.yield() }
+        fixture.camera.resolveHeldWrite(succeeded: true)
+        await coordinator.waitForCameraWrites()
+        for _ in 0..<1_000 where log.ended == 0 { await Task.yield() }
+        #expect(log.ended == 1)
+        #expect(log.begun == 1)
+        #expect(coordinator.backgroundTask == .invalid)
+        #expect(fixture.preferences.pendingRestores.isEmpty)
+    }
+
+    @Test func backgroundingWithoutMotionStillCoversTheRestoreUpToTheTimeout() async throws {
+        let fixture = GyroCoordinatorFixture()
+        defer { fixture.cleanup() }
+        fixture.driver.unavailable = true
+        let coordinator = await armed(fixture)
+        let log = recordBackgroundTasks(coordinator)
+        coordinator.setupTurnOffStabilization()
+        await coordinator.waitForCameraWrites()
+        #expect(!coordinator.motionRunning)
+        fixture.camera.holdsWrites = true
+        coordinator.restoreTimeout = .milliseconds(50)
+        coordinator.appDidEnterBackground()
+        #expect(log.begun == 1, "The restore alone takes a background task")
+        #expect(log.ended == 0)
+        for _ in 0..<200 where log.ended == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(log.ended == 1, "The timeout bounds the hold")
+        #expect(fixture.camera.heldWriteCount == 1)
+        fixture.camera.resolveHeldWrite(succeeded: true)
+        await coordinator.waitForCameraWrites()
+        #expect(log.ended == 1)
     }
 
     @Test func staleWriteFromAnEarlierConnectionIsIgnored() async {

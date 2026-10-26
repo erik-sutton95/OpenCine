@@ -226,5 +226,22 @@ struct GyroCaptureLoggingTests {
         #expect(!coordinator.motionRunning)
         #expect(await failing.aborted)
     }
+
+    @Test("A repeated identical notice still bumps the notice token")
+    func repeatedNoticeBumpsTheToken() async {
+        let fixture = GyroCoordinatorFixture()
+        defer { fixture.cleanup() }
+        let coordinator = fixture.coordinator(store: FailingGyroStore())
+        await coordinator.waitUntilLoaded()
+        let start = coordinator.noticeToken
+        #expect(await coordinator.share([UUID()]).isEmpty)
+        #expect(coordinator.notice == .shareFailed)
+        #expect(coordinator.noticeToken == start + 1)
+        #expect(await coordinator.share([UUID()]).isEmpty)
+        #expect(coordinator.notice == .shareFailed)
+        #expect(coordinator.noticeToken == start + 2)
+        coordinator.clearNotice()
+        #expect(coordinator.noticeToken == start + 2, "Clearing is not a new notice")
+    }
 }
 #endif

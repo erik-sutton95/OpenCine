@@ -45,8 +45,13 @@ extension GyroCaptureCoordinator {
         if inSetup { setupSkipCalibration() }
     }
 
-    /// "Done" on the complete screen.
+    /// "Done" on the complete or the invalidated screen. Done after an invalidation in the
+    /// arming sheet is a cancel: the session logs uncalibrated (owner decision 2).
     public func finishCalibration() {
+        if case .invalidated = ring {
+            cancelCalibration()
+            return
+        }
         closeRing()
         dropSetupStep { if case .calibration = $0 { true } else { false } }
         refreshDrift(reset: true)

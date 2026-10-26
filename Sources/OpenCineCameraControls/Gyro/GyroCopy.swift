@@ -188,9 +188,10 @@ public enum GyroCopy {
     }
 
     /// `m:ss`: whole seconds (truncated), minutes unbounded, seconds zero-padded; negative and
-    /// non-finite values read as zero.
+    /// non-finite values read as zero and huge values clamp to the 32-bit range, as Kotlin's
+    /// `toInt` does.
     public static func length(_ seconds: Double) -> String {
-        let total = seconds.isFinite ? max(0, Int(seconds)) : 0
+        let total = seconds.isFinite ? Int(min(max(seconds, 0), Double(Int32.max))) : 0
         let secs = total % 60
         return "\(total / 60):\(secs < 10 ? "0" : "")\(secs)"
     }

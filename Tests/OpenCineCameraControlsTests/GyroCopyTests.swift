@@ -62,6 +62,8 @@ import Testing
         #expect(GyroCopy.length(130) == "2:10")
         #expect(GyroCopy.length(3725) == "62:05")
         #expect(GyroCopy.length(-3) == "0:00")
+        #expect(GyroCopy.length(1e300) == "35791394:07")
+        #expect(GyroCopy.length(-1e300) == "0:00")
         #expect(GyroCopy.startOffset(0.123) == "0.12 s before REC")
         #expect(GyroCopy.startOffset(-0.3) == "0.30 s after REC")
         #expect(GyroCopy.status(.mountMoved(offsetSeconds: 75)) == "Mount moved at 1:15")

@@ -24,7 +24,12 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     /// Takes newest first, as the store reports them.
     public private(set) var logs: [GyroLogEntry] = []
     /// The latest problem to show; the shared UI resolves its wording.
-    public internal(set) var notice: GyroNotice?
+    public internal(set) var notice: GyroNotice? {
+        didSet { if notice != nil { noticeToken += 1 } }
+    }
+    /// Bumped on every notice set, so a repeated identical notice still restarts the banner
+    /// timer and its announcement.
+    public private(set) var noticeToken = 0
     /// Whether raw gyro samples are being collected.
     public private(set) var motionRunning = false
     /// Whether the logs browser is shown.
@@ -105,6 +110,10 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
     @ObservationIgnored var processing = false
     @ObservationIgnored var endingReason: GyroLogTermination?
     @ObservationIgnored var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    /// A backgrounded stop still has its final save to write.
+    @ObservationIgnored var backgroundSavePending = false
+    /// Waits, at most `restoreTimeout`, for the stabilization restore a backgrounding started.
+    @ObservationIgnored var backgroundRestore: Task<Void, Never>?
     /// Starts a UIKit background task; replaced in tests that run without an application.
     @ObservationIgnored var beginBackgroundTask:
         @MainActor (_ expiration: @escaping @MainActor @Sendable () -> Void)
@@ -200,13 +209,15 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
         evaluateEligibility()
     }
 
-    /// Ends capture as backgrounded; the save finishes inside a UIKit background task.
+    /// Ends capture as backgrounded; the save and the stabilization restore (at most
+    /// `restoreTimeout`) finish inside a UIKit background task.
     public func appDidEnterBackground() {
         invalidateRing(.connectionEnded)
         endingReason = .backgrounded
         hostEligible = false
         evaluateEligibility()
         endingReason = nil
+        holdBackgroundTaskForRestore()
     }
 
     /// Handles one camera observation in adapter order.
@@ -298,8 +309,9 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
         guard motionRunning, stopping == nil else { return }
         driver.stopGyro()
         stopping = reason
-        if reason == .backgrounded, backgroundTask == .invalid {
-            backgroundTask = beginBackgroundTask { [weak self] in self?.endBackgroundTask() }
+        if reason == .backgrounded {
+            backgroundSavePending = true
+            beginBackgroundTaskIfNeeded()
         }
     }
 
@@ -344,7 +356,8 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
         defer {
             processing = false
             if !motionRunning {
-                endBackgroundTask()
+                backgroundSavePending = false
+                endBackgroundTaskIfIdle()
                 if !automaticProcessing { reconcile() }
             }
         }
@@ -396,6 +409,33 @@ public final class GyroCaptureCoordinator: GyroCameraSink {
             let recovered = await store.abort()
             logs = recovered.entries
         }
+    }
+
+    // MARK: Background task
+
+    /// Keeps the background task open while a stabilization restore is in flight, so leaving the
+    /// app does not suspend it before the camera is put back; bounded by `restoreTimeout`.
+    private func holdBackgroundTaskForRestore() {
+        guard !cameraWrites.isEmpty, backgroundRestore == nil else { return }
+        beginBackgroundTaskIfNeeded()
+        let limit = restoreTimeout
+        backgroundRestore = Task { [weak self] in
+            _ = await self?.waitForCameraWrites(upTo: limit)
+            guard let self else { return }
+            backgroundRestore = nil
+            endBackgroundTaskIfIdle()
+        }
+    }
+
+    private func beginBackgroundTaskIfNeeded() {
+        guard backgroundTask == .invalid else { return }
+        backgroundTask = beginBackgroundTask { [weak self] in self?.endBackgroundTask() }
+    }
+
+    /// Ends the background task once the save and the restore are both done.
+    private func endBackgroundTaskIfIdle() {
+        guard !backgroundSavePending, backgroundRestore == nil else { return }
+        endBackgroundTask()
     }
 
     private func endBackgroundTask() {

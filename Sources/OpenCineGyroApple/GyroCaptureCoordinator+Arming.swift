@@ -37,22 +37,34 @@ extension GyroCaptureCoordinator {
     }
 
     /// Ends the armed session before the host drops the link and waits for the stabilization
-    /// restore, at most `restoreTimeout` (3 s).
+    /// restore, at most `restoreTimeout` (3 s). When the wait times out the disconnecting mark is
+    /// cleared, so a link that never drops does not keep the session from arming again.
     public func prepareForDisconnect() async {
         disconnecting = true
         evaluateEligibility()
-        let limit = restoreTimeout
-        let (stream, continuation) = AsyncStream<Void>.makeStream()
-        Task {
-            await self.waitForCameraWrites()
+        if await !waitForCameraWrites(upTo: restoreTimeout) { disconnecting = false }
+    }
+
+    /// Waits for in-flight stabilization writes, at most `limit`; false when the limit won.
+    func waitForCameraWrites(upTo limit: Duration) async -> Bool {
+        let (stream, continuation) = AsyncStream<Bool>.makeStream()
+        Task { [weak self] in
+            await self?.waitForCameraWrites()
+            continuation.yield(true)
             continuation.finish()
         }
         let timer = Task {
             try? await Task.sleep(for: limit)
+            continuation.yield(false)
             continuation.finish()
         }
-        for await _ in stream {}
+        var finished = false
+        for await value in stream {
+            finished = value
+            break
+        }
         timer.cancel()
+        return finished
     }
 
     /// Waits until no stabilization write is in flight, including writes a finish started and
