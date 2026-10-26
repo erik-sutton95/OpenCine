@@ -109,6 +109,8 @@ struct AppKitRules {
             "OpenCineAppKitApple", "OpenCineCore", "OpenCineMedia", "OpenCineMotion",
             // The shared clip delivery exports through the Apple media exporter.
             "OpenCineApple",
+            // The shared gyro screens and their coordinator binding.
+            "OpenCineGyro", "OpenCineGyroApple",
         ]
         let system: Set<String> = [
             "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit",

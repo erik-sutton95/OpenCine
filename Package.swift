@@ -13,6 +13,9 @@ import PackageDescription
 //   code.
 // - Integrations (OpenCineDJI, OpenCineNikon, Insta360*) never import UI or an app.
 // - OpenCineMulticam imports OpenCineCore only: never an integration or UI.
+// - OpenCineGyro (phone gyro capture for Gyroflow) imports Foundation only and depends on
+//   nothing; it names no app or manufacturer. OpenCineGyroAndroid (its JNI facade) depends on
+//   OpenCineGyro and OpenCineJNISupport only.
 // - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app.
 //   Native views consume portable Media values; presentation policy stays Foundation-only.
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
@@ -40,6 +43,7 @@ let package = Package(
         .library(name: "OpenCineCore", targets: ["OpenCineCore"]),
         .library(name: "OpenCineMedia", targets: ["OpenCineMedia"]),
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
+        .library(name: "OpenCineGyro", targets: ["OpenCineGyro"]),
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
         .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
         .library(name: "OpenCineRelayApple", targets: ["OpenCineRelayApple"]),
@@ -80,6 +84,9 @@ let package = Package(
         // The Swift side of the Android `FrameioNative` JNI facade (`:frameio`): an app links it
         // into its Swift Android library. Its wire helpers also build and test on Darwin.
         .library(name: "OpenCineFrameIOAndroid", targets: ["OpenCineFrameIOAndroid"]),
+        // The Swift side of the Android `GyroNative` JNI facade (`:gyro`): an app links it into
+        // its Swift Android library. Its wire helpers also build and test on Darwin.
+        .library(name: "OpenCineGyroAndroid", targets: ["OpenCineGyroAndroid"]),
         .library(name: "Insta360Protocol", targets: ["Insta360Protocol"]),
         .library(name: "Insta360Apple", targets: ["Insta360Apple"]),
         // A scripted Luna for consumers' test targets only; never link it into an app.
@@ -101,6 +108,10 @@ let package = Package(
         // Optional Frame.io delivery. No Core values genuinely help it, so it depends on nothing.
         .target(name: "OpenCineFrameIO"),
         .testTarget(name: "OpenCineFrameIOTests", dependencies: ["OpenCineFrameIO"]),
+        // Phone gyro capture for Gyroflow: take segmentation, GCSV, mount calibration, drift,
+        // stabilization save/restore and log storage. Foundation only; names no app or manufacturer.
+        .target(name: "OpenCineGyro"),
+        .testTarget(name: "OpenCineGyroTests", dependencies: ["OpenCineGyro"]),
         // Optional typed motion seam and trajectory math shared by gimbal integrations.
         .target(name: "OpenCineMotion", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMotionTests", dependencies: ["OpenCineMotion"]),
@@ -193,7 +204,7 @@ let package = Package(
             name: "OpenCineCameraControls",
             dependencies: [
                 "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
-                "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
+                "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineGyro",
             ]),
         .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls", "OpenCineHostedAccessibility"]),
         // XCUITest cases that drive an app only by accessibility identifiers and the typed review
@@ -272,6 +283,11 @@ let package = Package(
         // digest, injected through the JNI object; no cryptography package dependency.
         .target(name: "OpenCineFrameIOAndroid", dependencies: ["OpenCineFrameIO", "OpenCineJNISupport"]),
         .testTarget(name: "OpenCineFrameIOAndroidTests", dependencies: ["OpenCineFrameIOAndroid", "OpenCineFrameIO"]),
+        // Gyro logging, ring calibration, drift and arming wire for every app's Android shell and
+        // the JNI exports of the Kotlin class com.opencapture.opencine.gyro.GyroNative. Everything
+        // but the JNI exports also builds and tests on Darwin.
+        .target(name: "OpenCineGyroAndroid", dependencies: ["OpenCineGyro", "OpenCineJNISupport"]),
+        .testTarget(name: "OpenCineGyroAndroidTests", dependencies: ["OpenCineGyroAndroid", "OpenCineGyro"]),
 
         // MARK: Insta360
         // Luna wire protocol (Foundation and portable Media) and the Apple I/O adapter with its KCP C code.
