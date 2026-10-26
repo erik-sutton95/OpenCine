@@ -121,7 +121,7 @@ import OpenCineMedia
     public func bufferedThroughSeconds(record: MonitorMediaRecord<Payload>,
         owner: MonitorOperatorMediaModel<Payload, Look>) -> Double? {
         owner.playback.flatMap { playback -> Double? in
-            guard playback.ready, owner.isCurrent(playback.token),
+            guard playback.ready, owner.presents(playback.token),
                 playback.active?.asset.id == record.asset.id, let native = installation?.native,
                 playback.native === native
             else { return nil }

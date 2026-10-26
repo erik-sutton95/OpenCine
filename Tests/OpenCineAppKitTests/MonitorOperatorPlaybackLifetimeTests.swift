@@ -467,6 +467,26 @@ import Testing
         #expect(owner.token == token && owner.active?.payload == "B" && f.ports[0].preparations == preparations)
     }
 
+    /// The playback page reads presentation facts per body pass and its glass backdrop up to
+    /// 60 times a second. A host item admission can read the file system (build 317: a third of
+    /// the main thread in Nikon index stamps), so presentation reads never run it, while a
+    /// replaced or closed item still refuses them.
+    @Test func presentationReadsNeverRunTheHostItemAdmission() throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        var admissions = 0
+        f.admission = { _ in .init { admissions += 1; return true } }
+        #expect(f.open(0)); let owner = try #require(f.model.playback), first = owner.token
+        admissions = 0
+        #expect((0..<200).allSatisfy { _ in f.model.presents(first) })
+        #expect(admissions == 0, "\(admissions) host admissions for 200 presentation reads")
+        #expect(f.model.isCurrent(first) && admissions > 0, "actions keep the admitted check")
+        #expect(f.open(1)); let second = owner.token
+        #expect(second != first && !f.model.presents(first) && f.model.presents(second))
+        f.model.closePlayback()
+        #expect(!f.model.presents(second))
+    }
+
     @Test func sourcePredicateReentryCannotAdmitTheOutgoingPageAction() throws {
         guard #available(macOS 14, *) else { return }
         let f = try Fixture(); defer { f.close() }
