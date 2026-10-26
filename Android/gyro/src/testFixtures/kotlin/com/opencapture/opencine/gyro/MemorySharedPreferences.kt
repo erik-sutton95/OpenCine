@@ -13,6 +13,21 @@ class MemorySharedPreferences : SharedPreferences {
     /** Keys whose edits throw, to model a preferences write that fails. */
     var failingKeys: Set<String> = emptySet()
 
+    /**
+     * True models a process kill before asynchronous writes land: `apply()` edits stay pending
+     * (invisible to reads) until [flushApplies]; only `commit()` persists immediately.
+     */
+    var deferApply: Boolean = false
+
+    private val deferred = mutableListOf<Editor>()
+
+    /** Lands every deferred `apply()` edit in order. */
+    fun flushApplies() {
+        val pending = deferred.toList()
+        deferred.clear()
+        pending.forEach { it.commit() }
+    }
+
     override fun getAll(): MutableMap<String, *> = values.toMutableMap()
 
     override fun getString(key: String, defValue: String?): String? =
@@ -77,7 +92,7 @@ class MemorySharedPreferences : SharedPreferences {
         }
 
         override fun apply() {
-            commit()
+            if (deferApply) deferred += this else commit()
         }
     }
 }

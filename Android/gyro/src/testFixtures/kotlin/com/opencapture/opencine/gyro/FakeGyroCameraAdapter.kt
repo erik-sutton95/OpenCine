@@ -1,5 +1,6 @@
 package com.opencapture.opencine.gyro
 
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -45,6 +46,9 @@ class FakeGyroCameraAdapter(
     /** Virtual milliseconds each write takes before it answers. */
     var writeDelayMillis: Long = 0
 
+    /** True makes every write hang until it is cancelled, like a camera that never answers. */
+    var writeNeverReturns: Boolean = false
+
     /** Called at the start of every write with its values, before the write answers. */
     var beforeWrite: ((Map<String, String>) -> Unit)? = null
 
@@ -78,6 +82,7 @@ class FakeGyroCameraAdapter(
     override suspend fun writeStabilization(values: Map<String, String>): Boolean {
         writes += values
         beforeWrite?.invoke(values)
+        if (writeNeverReturns) awaitCancellation()
         if (writeDelayMillis > 0) delay(writeDelayMillis)
         if (!acceptsWrites) return false
         val current = stabilization.value

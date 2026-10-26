@@ -68,6 +68,26 @@ class GyroCaptureLoggingTest {
     }
 
     @Test
+    fun unknownRecKeepsTheTakeOpenUntilTheSessionEnds() = runTest {
+        val h = GyroCaptureHarness(this)
+        h.arm(stabilization = IBIS_OFF)
+        h.adapter.recording.value = true
+        h.advance(200)
+        assertTrue(h.state.logs.single().active)
+        // REC going unknown is not a take boundary; Swift decides from Bool observations only.
+        h.adapter.recording.value = null
+        h.advance(300)
+        assertTrue(h.state.logs.single().active)
+        assertTrue(h.reasons().isEmpty())
+        assertEquals(1, h.native.calls("loggingCreate").size)
+        h.adapter.disconnect()
+        h.advance(100)
+        assertEquals(listOf<Any?>("disconnected"), h.reasons())
+        assertEquals("disconnected", h.state.logs.single().summary?.getString("termination"))
+        h.cleanup()
+    }
+
+    @Test
     fun photoModeAndUnknownSelectorWait() = runTest {
         val h = GyroCaptureHarness(this)
         h.arm(stabilization = IBIS_OFF, videoMode = false)

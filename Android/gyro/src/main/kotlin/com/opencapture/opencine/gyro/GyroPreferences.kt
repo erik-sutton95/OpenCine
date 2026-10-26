@@ -77,11 +77,18 @@ class GyroPreferences(
             prefs.edit().putBoolean(keys.tipDismissed, value).apply()
         }
 
-    /** Stabilization restores the app still owes, as the JSON string the arming wire gave it. */
+    /**
+     * Stabilization restores the app still owes, as the JSON string the arming wire gave it.
+     * Setting it commits synchronously (call off the main thread) and throws when the write fails.
+     */
     var pendingRestoresJSON: String
         get() = prefs.getString(keys.pendingRestores, "[]") ?: "[]"
         set(value) {
-            prefs.edit().putString(keys.pendingRestores, value).apply()
+            // Committed synchronously: the IBIS-off write follows immediately, and a restore
+            // lost to a process kill would leave the camera's stabilization off for good.
+            check(prefs.edit().putString(keys.pendingRestores, value).commit()) {
+                "Could not save the owed stabilization restore."
+            }
         }
 
     /** Returns the saved calibration for a camera, adopting a valid legacy one once. */
@@ -103,11 +110,16 @@ class GyroPreferences(
         return parsed.toString()
     }
 
-    /** Stores a calibration for one camera id, keeping the other cameras' calibrations. */
+    /**
+     * Stores a calibration for one camera id, keeping the other cameras' calibrations. Committed
+     * synchronously (call off the main thread); throws when the write fails.
+     */
     fun saveCalibration(cameraId: String, json: String) {
         val calibrations = calibrationObject()
         calibrations.put(cameraId, JSONObject(json))
-        writeCalibrations(calibrations)
+        check(prefs.edit().putString(keys.calibrations, calibrations.toString()).commit()) {
+            "Could not save the calibration."
+        }
     }
 
     private fun migrate(legacy: GyroLegacyPreferenceKeys) {

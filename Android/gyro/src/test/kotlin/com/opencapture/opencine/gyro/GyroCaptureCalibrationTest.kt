@@ -32,8 +32,10 @@ class GyroCaptureCalibrationTest {
     fun threeHeldPosesSaveForThisCamera() = runTest {
         val h = GyroCaptureHarness(this)
         h.arm(stabilization = IBIS_OFF)
+        h.prefs.deferApply = true
         assertEquals(listOf<GyroArmingStep>(GyroArmingStep.Calibration(false)), h.state.setupSteps)
         assertTrue(h.state.canCalibrate)
+        assertEquals(0, h.state.ringEventToken)
         assertFalse(h.state.hasSavedCalibration)
 
         h.coordinator.beginCalibration()
@@ -53,6 +55,7 @@ class GyroCaptureCalibrationTest {
         assertEquals(1, h.state.ring?.step)
         assertEquals(0.5, h.state.ring?.hold)
         assertEquals(1, h.state.ring?.completedSteps)
+        assertEquals(1, h.state.ringEventToken)
         val observe = h.native.calls("ringObserve").last().args
         assertEquals(true, observe[5])
         assertEquals(-1.0, observe[6])
@@ -61,6 +64,8 @@ class GyroCaptureCalibrationTest {
         val ring = assertNotNull(h.state.ring)
         assertEquals(GyroRingPhase.COMPLETE, ring.phase)
         assertEquals(GyroRingEvent.COMPLETED, ring.event)
+        // One token per event, so a conflated StateFlow cannot hide a capture from the screen.
+        assertEquals(3, h.state.ringEventToken)
         assertTrue(h.state.hasSavedCalibration)
         assertFalse(h.sensors.motionRunning)
         assertTrue(h.native.calls("calibrationValidate").any { it.args[0] == ring.calibrationJSON })
@@ -200,6 +205,25 @@ class GyroCaptureCalibrationTest {
     }
 
     @Test
+    fun motionThatCannotStartIsVisibleAndNotRetried() = runTest {
+        val h = GyroCaptureHarness(this)
+        h.sensors.motionStarts = false
+        h.arm(stabilization = IBIS_OFF)
+        h.coordinator.beginCalibration()
+        h.coordinator.startRing()
+        h.settle()
+        assertEquals(GyroNotice.SENSOR_UNAVAILABLE, h.state.notice)
+        assertEquals(GyroRingPhase.INTRO, h.state.ring?.phase)
+        assertTrue(h.native.openOwners("ring").isEmpty())
+        assertEquals(1, h.sensors.motionStartAttempts)
+        h.coordinator.startRing()
+        h.advance(200)
+        assertEquals(1, h.sensors.motionStartAttempts)
+        assertEquals(GyroRingPhase.INTRO, h.state.ring?.phase)
+        h.cleanup()
+    }
+
+    @Test
     fun noLevelHidesCalibration() = runTest {
         val h = GyroCaptureHarness(this, adapter = FakeGyroCameraAdapter(providesLevel = false))
         h.arm(stabilization = IBIS_OFF)
@@ -214,6 +238,7 @@ class GyroCaptureCalibrationTest {
         val noGravity = GyroCaptureHarness(this, sensors = FakeMotionSensors(hasGravity = false))
         noGravity.arm(stabilization = IBIS_OFF)
         assertFalse(noGravity.state.canCalibrate)
+        assertTrue(noGravity.state.setupSteps.none { it is GyroArmingStep.Calibration })
         noGravity.cleanup()
     }
 

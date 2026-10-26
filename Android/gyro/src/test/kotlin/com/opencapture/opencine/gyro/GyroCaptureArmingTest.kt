@@ -32,6 +32,8 @@ class GyroCaptureArmingTest {
     @Test
     fun turnOffWritesOffAfterPersisting() = runTest {
         val h = GyroCaptureHarness(this)
+        // Only a committed restore survives a process kill right after the IBIS-off write.
+        h.prefs.deferApply = true
         var persistedAtWrite: String? = null
         h.adapter.beforeWrite = { persistedAtWrite = h.prefs.getString(h.keys.pendingRestores, null) }
         h.arm(stabilization = IBIS_SPORT)
@@ -47,6 +49,28 @@ class GyroCaptureArmingTest {
             listOf<Any?>("turnOff", true),
             h.native.calls("armingWriteFinished").single().args.drop(1),
         )
+        h.cleanup()
+    }
+
+    @Test
+    fun writeThatNeverReturnsTimesOutAsFailed() = runTest {
+        val h = GyroCaptureHarness(this)
+        h.arm(stabilization = IBIS_SPORT)
+        h.adapter.writeNeverReturns = true
+        h.coordinator.setupTurnOffStabilization()
+        h.advance(GYRO_WRITE_TIMEOUT_MILLIS - 100)
+        assertTrue(h.native.calls("armingWriteFinished").isEmpty())
+        h.advance(200)
+        assertEquals(
+            listOf<Any?>("turnOff", false),
+            h.native.calls("armingWriteFinished").single().args.drop(1),
+        )
+        assertEquals(GyroNotice.TURN_OFF_FAILED, h.state.notice)
+        // Arming is not blocked: turning gyro off still ends the session.
+        h.adapter.writeNeverReturns = false
+        h.coordinator.setEnabled(false)
+        h.advance(100)
+        assertFalse(h.state.isArmed)
         h.cleanup()
     }
 
@@ -102,9 +126,7 @@ class GyroCaptureArmingTest {
         h.adapter.disconnect()
         h.advance(100)
         assertFalse(h.state.isArmed)
-        // The link drop reports REC unknown first, which the moved pipeline treats as an
-        // interruption before the session ends.
-        assertEquals("disconnected", h.reasons().last())
+        assertEquals(listOf<Any?>("disconnected"), h.reasons())
         assertEquals(1, h.adapter.writes.size)
         assertTrue(h.prefs.getString(h.keys.pendingRestores, null)!!.contains("SPORT"))
 

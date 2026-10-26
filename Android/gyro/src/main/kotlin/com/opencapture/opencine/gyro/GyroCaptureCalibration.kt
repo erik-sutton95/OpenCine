@@ -30,6 +30,10 @@ internal class GyroCaptureCalibration(private val native: GyroNativeApi) {
     var fromSetup: Boolean = false
         private set
 
+    /** Ring events seen so far (any non-null reply event); only ever increases. */
+    var eventCount: Int = 0
+        private set
+
     /** True while a ring owner exists and needs motion readings. */
     val needsMotion: Boolean get() = owner != null
 
@@ -109,6 +113,7 @@ internal class GyroCaptureCalibration(private val native: GyroNativeApi) {
     private fun accept(json: String?): GyroRingState? {
         val next = decodeRingReply(json ?: return null)
         state = next
+        if (next.event != null) eventCount += 1
         if (next.phase == GyroRingPhase.INVALIDATED) retire()
         return next
     }

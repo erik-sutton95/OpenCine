@@ -49,13 +49,17 @@ data class GyroLogEntry(
  * recovery validation stay in Swift; this store applies typed [GyroLogUpdate]s in order and keeps
  * the first mount move in a sidecar until the take completes or recovery finishes it.
  */
-class GyroLogStore(
+class GyroLogStore
+internal constructor(
     private val root: File,
     private val native: GyroNativeApi,
-    private val writeBytes: (RandomAccessFile, ByteArray) -> Unit = { file, bytes ->
-        file.write(bytes)
-    },
+    private val writeBytes: (RandomAccessFile, ByteArray) -> Unit,
 ) {
+    /** Opens (and creates) the store under [root]. */
+    constructor(root: File, native: GyroNativeApi) : this(root, native, { file, bytes ->
+        file.write(bytes)
+    })
+
     private val writers = mutableMapOf<String, RandomAccessFile>()
     private var lastFlush = 0L
 

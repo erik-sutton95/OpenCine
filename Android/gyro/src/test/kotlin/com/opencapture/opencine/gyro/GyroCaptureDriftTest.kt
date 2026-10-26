@@ -133,6 +133,21 @@ class GyroCaptureDriftTest {
     }
 
     @Test
+    fun sessionEndClosesTheDriftPrompt() = runTest {
+        val h = calibrated(this)
+        h.adapter.recording.value = true
+        h.advance(200)
+        h.steady(3)
+        h.adapter.recording.value = false
+        h.advance(100)
+        assertTrue(h.state.driftPromptPresented)
+        h.coordinator.setHostEligible(false)
+        h.advance(100)
+        assertFalse(h.state.driftPromptPresented)
+        h.cleanup()
+    }
+
+    @Test
     fun uncalibratedNeverDetects() = runTest {
         val h = GyroCaptureHarness(this)
         h.arm(stabilization = IBIS_OFF)

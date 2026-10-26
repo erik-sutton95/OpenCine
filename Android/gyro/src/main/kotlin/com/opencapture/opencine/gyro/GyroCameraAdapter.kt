@@ -45,7 +45,11 @@ interface GyroCameraAdapter {
     /** Stabilization controls the adapter exposes to the arming setup sheet. */
     val stabilizationSettings: List<GyroStabilizationSetting>
 
-    /** Writes these stabilization values; false when the camera refused the write. */
+    /**
+     * Writes these stabilization values; false when the camera refused the write. It must return
+     * (false) when the connection ends; the coordinator also gives up after
+     * [GYRO_WRITE_TIMEOUT_MILLIS] and treats the write as refused.
+     */
     suspend fun writeStabilization(values: Map<String, String>): Boolean
 }
 

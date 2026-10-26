@@ -14,6 +14,13 @@ class FakeMotionSensors(
     /** False makes [startGyro] fail even though [hasGyroscope] is true. */
     var gyroStarts: Boolean = true
 
+    /** False makes [startMotion] fail even though [hasGravity] is true. */
+    var motionStarts: Boolean = true
+
+    /** How many times [startMotion] was called, successful or not. */
+    var motionStartAttempts: Int = 0
+        private set
+
     /** How many times [startGyro] succeeded. */
     var gyroStartCount: Int = 0
         private set
@@ -40,7 +47,8 @@ class FakeMotionSensors(
     }
 
     override fun startMotion(onReading: (GyroMotionReading) -> Unit): Boolean {
-        if (!hasGravity) return false
+        motionStartAttempts += 1
+        if (!hasGravity || !motionStarts) return false
         this.onReading = onReading
         motionStartCount += 1
         return true

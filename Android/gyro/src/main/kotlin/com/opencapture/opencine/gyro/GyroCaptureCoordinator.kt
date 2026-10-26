@@ -58,6 +58,8 @@ data class GyroHostConfiguration(
  * @property driftPromptPresented the post-take "mount moved" prompt is shown.
  * @property driftHapticToken increases once per confirmed mount move, for one light haptic.
  * @property isArmed an armed capture session is running for this connection.
+ * @property ringEventToken increases once per ring event (pose captured, verification failed,
+ *   completed), so a screen keyed on it never misses or replays a capture.
  * @property logsPresented the logs screen is shown (the pill and the settings Open row present it).
  */
 data class GyroCaptureState(
@@ -75,7 +77,11 @@ data class GyroCaptureState(
     val driftHapticToken: Int = 0,
     val isArmed: Boolean = false,
     val logsPresented: Boolean = false,
+    val ringEventToken: Int = 0,
 )
+
+/** How long a camera stabilization write may take before it counts as refused. */
+const val GYRO_WRITE_TIMEOUT_MILLIS: Long = 5_000
 
 private val gyroCaptureDispatcher = Dispatchers.IO.limitedParallelism(1)
 
@@ -170,7 +176,6 @@ class GyroCaptureCoordinator internal constructor(
     private var gapWarning = false
     internal var mountMovedInTake = false
     private var stalled = false
-    private var lastReported: Boolean? = null
     private val queueLock = Any()
     private val pending = ArrayDeque<AndroidGyroSample>()
     private val pendingObservations = ArrayDeque<RecordingObservation>()
@@ -185,6 +190,7 @@ class GyroCaptureCoordinator internal constructor(
     private val drift = GyroCaptureDrift(native)
     private var latestLevel: GyroCameraLevel? = null
     private var motionStarted = false
+    private var motionUnavailable = false
     private var driftFeeding = false
     private val motionDelivery = AtomicBoolean(false)
     private var driftPromptPresented = false
@@ -408,7 +414,10 @@ class GyroCaptureCoordinator internal constructor(
         }
     }
 
-    /** The finished files for [ids] in order; empty with a notice when any cannot be shared. */
+    /**
+     * The finished files for [ids] in order; empty with a notice when any cannot be shared.
+     * Reads the log directory synchronously: call off the main thread.
+     */
     fun shareFiles(ids: List<String>): List<File> =
         try {
             synchronized(storeLock) { requireNotNull(store).shareFiles(ids) }
@@ -520,7 +529,8 @@ class GyroCaptureCoordinator internal constructor(
             recording = adapter?.recording?.value,
             stabilization = adapter?.stabilization?.value,
             settings = adapter?.stabilizationSettings.orEmpty(),
-            providesLevel = adapter?.providesLevel == true,
+            // No calibration step on a phone that cannot report gravity.
+            providesLevel = adapter?.providesLevel == true && sensors.hasGravity,
             hasSavedCalibration = savedCalibration != null,
         )
     }
@@ -538,7 +548,10 @@ class GyroCaptureCoordinator internal constructor(
                     publish()
                     val succeeded =
                         try {
-                            adapter?.writeStabilization(effect.values) == true
+                            // A write that never answers counts as refused, so arming moves on.
+                            withTimeoutOrNull(GYRO_WRITE_TIMEOUT_MILLIS) {
+                                adapter?.writeStabilization(effect.values)
+                            } == true
                         } catch (error: CancellationException) {
                             throw error
                         } catch (_: Exception) {
@@ -620,6 +633,7 @@ class GyroCaptureCoordinator internal constructor(
     }
 
     private fun onSessionEnded() {
+        driftPromptPresented = false
         drift.close(endSession = true)
         updateDrift()
     }
@@ -680,7 +694,7 @@ class GyroCaptureCoordinator internal constructor(
         val calibrationJSON = frozenCalibration
         val wanted = isArmed && calibrationJSON.isNotEmpty() && adapter?.providesLevel == true &&
             adapter?.recording?.value == true && loggingOwner != null
-        driftFeeding = wanted && drift.ensure(calibrationJSON, latestLevel)
+        driftFeeding = wanted && !motionUnavailable && drift.ensure(calibrationJSON, latestLevel)
         updateMotion()
     }
 
@@ -688,12 +702,20 @@ class GyroCaptureCoordinator internal constructor(
     private fun updateMotion() {
         val needed = calibration.needsMotion || driftFeeding
         if (needed && !motionStarted) {
-            motionStarted = sensors.startMotion(::onMotionReading)
+            // A motion stream that failed once is not retried on every state change.
+            motionStarted = !motionUnavailable && sensors.startMotion(::onMotionReading)
+            if (!motionStarted) {
+                motionUnavailable = true
+                notice = GyroNotice.SENSOR_UNAVAILABLE
+                if (calibration.needsMotion) calibration.returnToIntro()
+                driftFeeding = false
+            }
         } else if (!needed && motionStarted) {
             sensors.stopMotion()
             motionStarted = false
         }
     }
+
 
     /** Sensor thread: never queue readings behind a slow write, keep at most one in flight. */
     private fun onMotionReading(reading: GyroMotionReading) {
@@ -784,7 +806,6 @@ class GyroCaptureCoordinator internal constructor(
             gyroRunning = true
             applyLog(native.loggingPoll(owner, now()))
             adapter?.recording?.value?.let { recording ->
-                lastReported = recording
                 applyLog(
                     native.loggingObserve(
                         owner, recording, now(), wallClock(), cameraLabel(), frozenCalibration,
@@ -822,6 +843,7 @@ class GyroCaptureCoordinator internal constructor(
             if (binding != bindingGeneration) return
             val armed = armedTimestamp ?: return
             if (timestamp < armed) return
+            if (recording == null) return
             if (pendingObservations.size >= 64) {
                 observationsOverflowed = true
                 return
@@ -867,17 +889,10 @@ class GyroCaptureCoordinator internal constructor(
                 pendingObservations.clear()
             }
         }
+        // Only reported Bool REC states reach the wire; an unknown REC is not a take boundary
+        // (the Swift session decides boundaries, and the session end reason closes open takes).
         replayGyroIngress(samples, observations, ::ingest) { observation ->
-            val active = loggingOwner ?: return@replayGyroIngress
-            var owner = active
-            if (observation.interrupted || observation.recording == null && lastReported != null) {
-                applyLog(native.loggingFinish(active, "interrupted"))
-                native.loggingClose(active)
-                owner = native.loggingCreate(host.appName)
-                loggingOwner = owner
-                applyLog(native.loggingPoll(owner, observation.timestamp))
-            }
-            lastReported = observation.recording
+            val owner = loggingOwner ?: return@replayGyroIngress
             observation.recording?.let { recording ->
                 applyLog(
                     native.loggingObserve(
@@ -972,7 +987,6 @@ class GyroCaptureCoordinator internal constructor(
         gapWarning = false
         hasFirstSample = false
         mountMovedInTake = false
-        lastReported = null
     }
 
     private fun fail(notice: GyroNotice) {
@@ -1035,6 +1049,7 @@ class GyroCaptureCoordinator internal constructor(
                 driftHapticToken = driftHapticToken,
                 isArmed = isArmed,
                 logsPresented = logsPresented,
+                ringEventToken = calibration.eventCount,
             )
     }
 }
