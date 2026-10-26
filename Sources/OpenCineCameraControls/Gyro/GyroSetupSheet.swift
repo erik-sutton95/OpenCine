@@ -9,12 +9,16 @@
         private let step: GyroArmingStep
         private let ring: GyroRingPhase?
         private let completedSteps: Int
+        private let lastEvent: GyroRingEvent?
+        private let eventToken: Int
         private let actions: GyroSetupActions
 
         public init(
             step: GyroArmingStep, ring: GyroRingPhase?, completedSteps: Int,
-            actions: GyroSetupActions
+            lastEvent: GyroRingEvent? = nil, eventToken: Int = 0, actions: GyroSetupActions
         ) {
+            self.lastEvent = lastEvent
+            self.eventToken = eventToken
             self.step = step
             self.ring = ring
             self.completedSteps = completedSteps
@@ -27,8 +31,8 @@
                 stabilization(lensHasVRSwitch: lensHasVRSwitch)
             case .calibration(let hasSavedCalibration):
                 GyroRingCalibrationView(
-                    phase: ring ?? .intro, completedSteps: completedSteps, lastEvent: nil,
-                    canUseLast: hasSavedCalibration, actions: actions)
+                    phase: ring ?? .intro, completedSteps: completedSteps, lastEvent: lastEvent,
+                    eventToken: eventToken, canUseLast: hasSavedCalibration, actions: actions)
             }
         }
 
@@ -63,7 +67,13 @@
         }
 
         private func header(lensHasVRSwitch: Bool?) -> some View {
-            VStack(spacing: 8) {
+            GyroLandscapeReader { landscape in
+                headerContent(lensHasVRSwitch: lensHasVRSwitch, landscape: landscape)
+            }
+        }
+
+        private func headerContent(lensHasVRSwitch: Bool?, landscape: Bool) -> some View {
+            VStack(alignment: landscape ? .leading : .center, spacing: 8) {
                 Text(GyroCopy.ibisTitle)
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.white)
@@ -78,9 +88,9 @@
                         .accessibilityIdentifier("gyro.setup.lens")
                 }
             }
-            .multilineTextAlignment(.center)
+            .multilineTextAlignment(landscape ? .leading : .center)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: landscape ? .leading : .center)
         }
     }
 
@@ -96,7 +106,7 @@
                     )
                     .frame(width: d * 0.9, height: d * 0.9)
                     GyroCameraGlyph(width: d * 0.44)
-                    Image(systemName: "gyroscope")
+                    Image(systemName: "rotate.3d")
                         .font(.system(size: d * 0.16, weight: .semibold))
                         .foregroundStyle(MonitorTheme.accent)
                         .padding(d * 0.04)

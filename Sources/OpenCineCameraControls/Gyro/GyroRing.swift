@@ -104,6 +104,7 @@ public enum GyroHoldMilestones {
                         }
                     }
                 }
+                .opacity(model.dimmed ? 0.35 : 1)
                 .frame(width: proxy.size.width, height: proxy.size.height)
             }
         }
@@ -134,7 +135,6 @@ public enum GyroHoldMilestones {
                 }
             }
             .frame(width: d, height: d)
-            .opacity(model.dimmed ? 0.35 : 1)
         }
     }
 #endif

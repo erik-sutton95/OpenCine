@@ -59,7 +59,7 @@
         }
 
         private var effectiveSelection: GyroLogEntry? {
-            let id = selectedID.flatMap { id in entries.first { $0.id == id && !$0.active }?.id }
+            let id = selectedID.flatMap { id in entries.first { $0.id == id }?.id }
                 ?? firstSelectable
             return entries.first { $0.id == id }
         }
@@ -86,8 +86,12 @@
                         if selecting && !entries.isEmpty { selectionBar }
                     }
                 }
+                .navigationTitle(GyroCopy.logsTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
+                .onChange(of: entries.filter(\.canShare).map(\.id)) { _, ids in
+                    picked = picked.intersection(ids)
+                }
                 .navigationDestination(for: UUID.self) { id in
                     if let entry = entries.first(where: { $0.id == id }) {
                         GyroTakeView(entry: entry, now: now) { actions.share([entry.id]) }
@@ -251,10 +255,10 @@
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
                 [time, subtitle, GyroCopy.status(status)].joined(separator: ", "))
-            .accessibilityValue(
-                selecting && entry.canShare && picked.contains(entry.id) ? "Selected" : ""
-            )
-            .accessibilityAddTraits(.isButton)
+            .accessibilityAddTraits(
+                (selecting && picked.contains(entry.id)) || highlighted
+                    ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction(.default) { tap(entry, split: split) }
             .accessibilityIdentifier("gyro.log.row")
             .accessibilityActions {
                 if !entry.active {
@@ -264,9 +268,8 @@
         }
 
         private func tap(_ entry: GyroLogEntry, split: Bool) {
-            guard !entry.active else { return }
             if selecting {
-                guard entry.canShare else { return }
+                guard !entry.active, entry.canShare else { return }
                 if picked.contains(entry.id) { picked.remove(entry.id) } else { picked.insert(entry.id) }
             } else if split {
                 selectedID = entry.id
@@ -277,7 +280,11 @@
 
         private var selectionBar: some View {
             GyroPrimaryButton(GyroCopy.shareCount(picked.count)) {
-                actions.share(Array(picked))
+                let ids = sections.flatMap(\.entries).filter { $0.canShare && picked.contains($0.id) }
+                    .map(\.id)
+                actions.share(ids)
+                selecting = false
+                picked = []
             }
             .disabled(picked.isEmpty)
             .padding(.horizontal, 16).padding(.vertical, 10)
@@ -288,7 +295,7 @@
 
         @ViewBuilder private var detail: some View {
             if let entry = effectiveSelection {
-                GyroTakeView(entry: entry, now: now) { actions.share([entry.id]) }
+                GyroTakeView(entry: entry, now: now, showsShare: !selecting) { actions.share([entry.id]) }
                     .id(entry.id)
             } else {
                 MonitorTheme.background
@@ -322,7 +329,7 @@
         let status: GyroTakeStatus
 
         var body: some View {
-            let tone = GyroStatusTone.color(status)
+            let tone = GyroStatusTone.badge(status)
             let live = status == .recording
             Text(GyroCopy.status(status))
                 .font(.system(size: 12, weight: .semibold))

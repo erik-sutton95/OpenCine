@@ -10,6 +10,7 @@
         private let completedSteps: Int
         private let lastEvent: GyroRingEvent?
         private let canUseLast: Bool
+        private let eventToken: Int
         private let actions: GyroSetupActions
 
         @Environment(\.gyroAnnouncer) private var announcer
@@ -19,11 +20,13 @@
         @State private var holdBucket = 0
         @State private var flashTask: Task<Void, Never>?
         @State private var retryTask: Task<Void, Never>?
+        @State private var handledEvent: String?
 
         public init(
-            phase: GyroRingPhase, completedSteps: Int, lastEvent: GyroRingEvent?, canUseLast: Bool,
-            actions: GyroSetupActions
+            phase: GyroRingPhase, completedSteps: Int, lastEvent: GyroRingEvent?,
+            eventToken: Int = 0, canUseLast: Bool, actions: GyroSetupActions
         ) {
+            self.eventToken = eventToken
             self.phase = phase
             self.completedSteps = completedSteps
             self.lastEvent = lastEvent
@@ -38,6 +41,11 @@
             case .retrying: return .level
             case .intro, .invalidated, .complete: return nil
             }
+        }
+
+        private var blockReason: GyroCalibrationBlock? {
+            if case .blocked(_, let reason) = phase { return reason }
+            return nil
         }
 
         private var isComplete: Bool {
@@ -86,7 +94,11 @@
                 }
             }
             .preferredColorScheme(.dark)
-            .onChange(of: lastEvent) { _, event in handle(event) }
+            .onChange(of: lastEvent) { _, _ in handleLatest() }
+            .onChange(of: eventToken) { _, _ in handleLatest() }
+            .onChange(of: blockReason) { _, reason in
+                if let reason { announcer.announce(GyroCopy.block(reason)) }
+            }
             .onChange(of: holdFraction) { _, hold in trackHold(hold) }
             .onDisappear {
                 flashTask?.cancel()
@@ -104,34 +116,34 @@
                 .accessibilityIdentifier("gyro.visual")
         }
 
-        @ViewBuilder private var header: some View {
-            VStack(alignment: headerAlignment, spacing: 8) {
+        private var header: some View {
+            GyroLandscapeReader { landscape in headerContent(landscape: landscape) }
+        }
+
+        @ViewBuilder private func headerContent(landscape: Bool) -> some View {
+            let textAlignment: TextAlignment = landscape ? .leading : .center
+            VStack(alignment: landscape ? .leading : .center, spacing: 8) {
                 if let step = posingStep {
                     GyroOverline(text: GyroCopy.stepCounter(step.rawValue + 1))
-                    title(GyroCopy.step(step))
+                    title(GyroCopy.step(step), textAlignment)
                     dots
                 } else if case .invalidated(let reason) = phase {
                     GyroOverline(text: GyroCopy.phoneMount)
-                    title(GyroCopy.invalidation(reason))
+                    title(GyroCopy.invalidation(reason), textAlignment)
                 } else if isComplete {
                     GyroOverline(text: GyroCopy.phoneMount)
-                    title(GyroCopy.completeTitle)
-                    bodyText(GyroCopy.completeBody)
+                    title(GyroCopy.completeTitle, textAlignment)
+                    bodyText(GyroCopy.completeBody, textAlignment)
                 } else {
                     GyroOverline(text: GyroCopy.phoneMount)
-                    title(GyroCopy.calibrateTitle)
-                    bodyText(GyroCopy.calibrateBody)
+                    title(GyroCopy.calibrateTitle, textAlignment)
+                    bodyText(GyroCopy.calibrateBody, textAlignment)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: compactHeight ? .leading : .center)
+            .frame(maxWidth: .infinity, alignment: landscape ? .leading : .center)
         }
 
-        @Environment(\.verticalSizeClass) private var verticalSizeClass
-        private var compactHeight: Bool { verticalSizeClass == .compact }
-        private var headerAlignment: HorizontalAlignment { compactHeight ? .leading : .center }
-        private var textAlignment: TextAlignment { compactHeight ? .leading : .center }
-
-        private func title(_ text: String) -> some View {
+        private func title(_ text: String, _ textAlignment: TextAlignment) -> some View {
             Text(text)
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.white)
@@ -140,7 +152,7 @@
                 .accessibilityAddTraits(.isHeader)
         }
 
-        private func bodyText(_ text: String) -> some View {
+        private func bodyText(_ text: String, _ textAlignment: TextAlignment) -> some View {
             Text(text)
                 .font(.system(size: 15))
                 .foregroundStyle(GyroPalette.body)
@@ -159,7 +171,11 @@
             .accessibilityHidden(true)
         }
 
-        @ViewBuilder private var footer: some View {
+        private var footer: some View {
+            GyroLandscapeReader { landscape in footerContent(landscape: landscape) }
+        }
+
+        @ViewBuilder private func footerContent(landscape: Bool) -> some View {
             VStack(spacing: 6) {
                 switch phase {
                 case .intro:
@@ -174,23 +190,32 @@
                 case .invalidated:
                     GyroPrimaryButton(GyroCopy.done, action: actions.done)
                 case .blocked(_, let reason):
-                    hint(GyroCopy.block(reason))
+                    hint(GyroCopy.block(reason), landscape)
                 case .retrying:
-                    hint(GyroCopy.retry)
+                    hint(GyroCopy.retry, landscape)
                 case .posing:
-                    hint(retryVisible ? GyroCopy.retry : GyroCopy.holdHint)
+                    hint(retryVisible ? GyroCopy.retry : GyroCopy.holdHint, landscape)
                 }
             }
         }
 
-        private func hint(_ text: String) -> some View {
+        private func hint(_ text: String, _ landscape: Bool) -> some View {
             Text(text)
                 .font(.system(size: 14))
                 .foregroundStyle(GyroPalette.hint)
-                .multilineTextAlignment(textAlignment)
+                .multilineTextAlignment(landscape ? .leading : .center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: compactHeight ? .leading : .center)
+                .frame(maxWidth: .infinity, alignment: landscape ? .leading : .center)
                 .accessibilityIdentifier("gyro.hint")
+        }
+
+        /// Handles the newest event once, whether it arrived as a new value or as a bumped token
+        /// (the same event twice in a row only differs by its token).
+        private func handleLatest() {
+            let key = "\(eventToken)|\(String(describing: lastEvent))"
+            guard handledEvent != key else { return }
+            handledEvent = key
+            handle(lastEvent)
         }
 
         private func handle(_ event: GyroRingEvent?) {
@@ -207,6 +232,7 @@
                 }
             case .verificationFailed:
                 holdBucket = 0
+                announcer.announce(GyroCopy.retry)
                 retryVisible = true
                 retryTask?.cancel()
                 retryTask = Task { @MainActor in

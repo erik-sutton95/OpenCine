@@ -64,7 +64,17 @@
         static let defaultValue = OperatorHaptics(isEnabled: { true })
     }
 
+    private struct GyroIsLandscapeKey: EnvironmentKey {
+        static let defaultValue = false
+    }
+
     extension EnvironmentValues {
+        /// True inside a `GyroAdaptiveStack` laid out in landscape (visual left, text right).
+        var gyroIsLandscape: Bool {
+            get { self[GyroIsLandscapeKey.self] }
+            set { self[GyroIsLandscapeKey.self] = newValue }
+        }
+
         /// Where the gyro screens send VoiceOver announcements.
         public var gyroAnnouncer: GyroAnnouncer {
             get { self[GyroAnnouncerKey.self] }
@@ -144,6 +154,16 @@
             .buttonStyle(.plain)
             .accessibilityIdentifier(identifier)
         }
+    }
+
+    /// Reads the stack's orientation for the views placed inside it.
+    struct GyroLandscapeReader<Content: View>: View {
+        @Environment(\.gyroIsLandscape) private var landscape
+        let content: (Bool) -> Content
+
+        init(@ViewBuilder content: @escaping (Bool) -> Content) { self.content = content }
+
+        var body: some View { content(landscape) }
     }
 
     /// 12 pt uppercase letter-spaced gray line above a title.

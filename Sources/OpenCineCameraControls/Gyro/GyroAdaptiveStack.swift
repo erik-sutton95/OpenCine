@@ -22,7 +22,9 @@
 
         public var body: some View {
             GeometryReader { proxy in
-                if proxy.size.width < proxy.size.height {
+                let portrait = proxy.size.width < proxy.size.height
+                Group {
+                    if portrait {
                     VStack(spacing: 16) {
                         header.frame(maxWidth: .infinity)
                         visual.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,7 +45,9 @@
                     }
                     .padding(.vertical, 16)
                     .frame(width: proxy.size.width, height: proxy.size.height)
+                    }
                 }
+                .environment(\.gyroIsLandscape, !portrait)
             }
         }
     }

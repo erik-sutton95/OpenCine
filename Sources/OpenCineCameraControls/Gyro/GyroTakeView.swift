@@ -4,8 +4,18 @@
     import SwiftUI
 
     /// The verdict colors of a take: green for ready, red while recording, orange otherwise.
-    enum GyroStatusTone {
-        static func color(_ status: GyroTakeStatus) -> Color {
+    public enum GyroStatusTone {
+        /// The list badge: green ready, red for a recording or cut-short take, orange otherwise.
+        public static func badge(_ status: GyroTakeStatus) -> Color {
+            switch status {
+            case .ready: return GyroPalette.green
+            case .recording, .cutShort: return GyroPalette.red
+            case .mountMoved, .smallGaps, .notCalibrated: return GyroPalette.orange
+            }
+        }
+
+        /// The take page's verdict glyph: green ready, red recording, orange for every other.
+        public static func verdict(_ status: GyroTakeStatus) -> Color {
             switch status {
             case .ready: return GyroPalette.green
             case .recording: return GyroPalette.red
@@ -18,11 +28,16 @@
     public struct GyroTakeView: View {
         private let entry: GyroLogEntry
         private let now: Date
+        private let showsShare: Bool
         private let share: () -> Void
 
-        public init(entry: GyroLogEntry, now: Date = Date(), share: @escaping () -> Void) {
+        public init(
+            entry: GyroLogEntry, now: Date = Date(), showsShare: Bool = true,
+            share: @escaping () -> Void
+        ) {
             self.entry = entry
             self.now = now
+            self.showsShare = showsShare
             self.share = share
         }
 
@@ -36,69 +51,84 @@
             return parts.joined(separator: GyroCopy.separator)
         }
 
-        @Environment(\.verticalSizeClass) private var verticalSizeClass
-        private var compact: Bool { verticalSizeClass == .compact }
+        @Environment(\.dynamicTypeSize) private var typeSize
 
-        /// The verdict and Share log stay fixed; only Details scrolls, so the primary action
-        /// is always on screen, in landscape too.
+        /// The verdict and Share log stay fixed and the Details rows follow them. The rows sit
+        /// in a scroll view only at accessibility text sizes, where they may not fit; elsewhere
+        /// they are plain content, so VoiceOver reaches them without a scroll host.
         public var body: some View {
-            VStack(spacing: 0) {
-                VStack(spacing: 6) {
-                    VerdictGlyph(status: status, size: compact ? 46 : 70)
-                        .padding(.bottom, compact ? 2 : 6)
-                    Text(GyroCopy.verdict(status))
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .accessibilityAddTraits(.isHeader)
-                        .accessibilityIdentifier("gyro.take.verdict")
-                    Text(subtitle)
-                        .font(.system(size: 15))
-                        .foregroundStyle(GyroPalette.body)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 12).padding(.horizontal, 24)
-
-                GyroPrimaryButton(GyroCopy.shareLog, action: share)
-                    .disabled(!entry.canShare)
-                    .padding(.horizontal, 20).padding(.top, compact ? 12 : 24)
-
-                Text(GyroCopy.details.uppercased())
-                    .font(.system(size: 12))
-                    .tracking(0.8)
-                    .foregroundStyle(GyroPalette.overline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20).padding(.top, compact ? 14 : 28).padding(.bottom, 6)
-                    .accessibilityAddTraits(.isHeader)
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        row(
-                            GyroCopy.startsLabel,
-                            GyroCopy.startOffset(
-                                entry.summary?.approximateStartOffset
-                                    ?? entry.descriptor.approximateStartOffset))
-                        row(GyroCopy.smoothnessLabel, GyroCopy.smoothness(status))
-                        if let summary = entry.summary {
-                            row(GyroCopy.sampleRateLabel, GyroCopy.sampleRate(summary.measuredRate))
-                        }
+            GeometryReader { proxy in
+                let compact = proxy.size.height < 560
+                VStack(spacing: 0) {
+                    VStack(spacing: 6) {
+                        VerdictGlyph(status: status, size: compact ? 46 : 70)
+                            .padding(.bottom, compact ? 2 : 6)
+                        Text(GyroCopy.verdict(status))
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .accessibilityAddTraits(.isHeader)
+                            .accessibilityIdentifier("gyro.take.verdict")
+                        Text(subtitle)
+                            .font(.system(size: 15))
+                            .foregroundStyle(GyroPalette.body)
+                            .multilineTextAlignment(.center)
                     }
-                    .padding(.horizontal, 20).padding(.bottom, 24)
+                    .padding(.top, compact ? 4 : 12).padding(.horizontal, 24)
+
+                    if showsShare {
+                        GyroPrimaryButton(GyroCopy.shareLog, action: share)
+                            .disabled(!entry.canShare)
+                            .padding(.horizontal, 20).padding(.top, compact ? 10 : 24)
+                    }
+
+                    Text(GyroCopy.details.uppercased())
+                        .font(.system(size: 12))
+                        .tracking(0.8)
+                        .foregroundStyle(GyroPalette.overline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20).padding(.top, compact ? 10 : 28)
+                        .padding(.bottom, 4)
+                        .accessibilityAddTraits(.isHeader)
+
+                    if typeSize.isAccessibilitySize {
+                        ScrollView { rows(compact: compact) }
+                    } else {
+                        rows(compact: compact)
+                    }
+                    Spacer(minLength: 0)
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
             .background(MonitorTheme.background)
         }
 
-        private func row(_ key: String, _ value: String) -> some View {
+        private func rows(compact: Bool) -> some View {
+            VStack(spacing: 0) {
+                row(
+                    GyroCopy.startsLabel,
+                    GyroCopy.startOffset(
+                        entry.summary?.approximateStartOffset
+                            ?? entry.descriptor.approximateStartOffset), compact: compact)
+                row(GyroCopy.smoothnessLabel, GyroCopy.smoothness(status), compact: compact)
+                if let summary = entry.summary {
+                    row(
+                        GyroCopy.sampleRateLabel, GyroCopy.sampleRate(summary.measuredRate),
+                        compact: compact)
+                }
+            }
+            .padding(.horizontal, 20).padding(.bottom, 12)
+        }
+
+        private func row(_ key: String, _ value: String, compact: Bool) -> some View {
             VStack(spacing: 0) {
                 HStack {
                     Text(key).foregroundStyle(GyroPalette.overline)
                     Spacer(minLength: 12)
                     Text(value).foregroundStyle(.white)
                 }
-                .font(.system(size: 15))
-                .padding(.vertical, 12)
+                .font(.system(size: compact ? 14 : 15))
+                .padding(.vertical, compact ? 7 : 12)
                 Rectangle().fill(GyroPalette.hairline).frame(height: 1)
             }
             .accessibilityElement(children: .combine)
@@ -111,7 +141,7 @@
         var size: CGFloat = 70
 
         var body: some View {
-            let tone = GyroStatusTone.color(status)
+            let tone = GyroStatusTone.verdict(status)
             ZStack {
                 Circle().fill(tone.opacity(0.15))
                 switch status {

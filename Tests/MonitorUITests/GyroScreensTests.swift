@@ -85,7 +85,10 @@
             let view: UIView = host.controller.view
             let renderer = UIGraphicsImageRenderer(bounds: view.bounds)
             let image = renderer.image { context in
-                if !view.drawHierarchy(in: view.bounds, afterScreenUpdates: true) {
+                // Without a window scene drawHierarchy draws blank (and may still return true).
+                if host.window.windowScene != nil {
+                    view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+                } else {
                     view.layer.render(in: context.cgContext)
                 }
             }
@@ -248,6 +251,8 @@
 
         // MARK: Logs and take page
 
+        @MainActor final class ShareLog { var ids: [[UUID]] = [] }
+
         static let now = Date(timeIntervalSince1970: 1_792_000_000)
 
         /// A finished or recording take fixture. Summaries have no public init, so they decode.
@@ -319,12 +324,13 @@
             }
         }
 
-        func testTipCanBeHiddenAndSelectModeShowsShareCount() async throws {
+        func testTipFollowsTheFlag() async throws {
             let entries = try Self.sampleEntries()
             let host = await host(logs(entries, tip: false))
             defer { host.close() }
             await waitFor(GyroCopy.logsTitle, in: host)
             XCTAssertTrue(host.labelled(GyroCopy.dismissTip).isEmpty)
+            XCTAssertTrue(host.labelled(GyroCopy.tip).isEmpty)
             XCTAssertEqual(host.identified("gyro.logs.select").count, 1)
         }
 
@@ -377,23 +383,36 @@
 
         func testActiveTakeCannotBeSelectedOrDeleted() async throws {
             let entries = Array(try Self.sampleEntries().prefix(3))
-            let host = await host(logs(entries, tip: false), size: Self.landscape)
+            let ready = entries[1]
+            let shared = ShareLog()
+            let view = logs(
+                entries, tip: false, actions: GyroLogsActions(share: { shared.ids.append($0) }))
+            let host = await host(view)
             defer { host.close() }
             await waitFor(GyroCopy.logsTitle, in: host)
-            let shareable = entries.first { !$0.active }!
-            // The right pane shows the first finished take, never the recording one.
-            let shown = await HostedCondition.wait {
-                !host.labelled(GyroCopy.verdict(shareable.status)).isEmpty
+            let select = try XCTUnwrap(host.identified("gyro.logs.select").first)
+            XCTAssertTrue(select.accessibilityActivate())
+            await waitFor(GyroCopy.shareCount(0), in: host)
+            func row(_ status: GyroTakeStatus) throws -> NSObject {
+                try XCTUnwrap(host.identified("gyro.log.row").first {
+                    ($0.accessibilityLabel ?? "").hasSuffix(GyroCopy.status(status))
+                })
             }
-            XCTAssertTrue(shown)
-            XCTAssertTrue(host.labelled(GyroCopy.verdict(.recording)).isEmpty)
-            let rows = host.identified("gyro.log.row")
-            let activeRow = try XCTUnwrap(rows.first { ($0.accessibilityLabel ?? "").hasSuffix(GyroCopy.status(.recording)) })
-            let hasDelete = (activeRow.accessibilityCustomActions ?? []).contains { $0.name == GyroCopy.delete }
-            XCTAssertFalse(hasDelete, "A recording take has no delete action")
-            let finished = try XCTUnwrap(rows.first { ($0.accessibilityLabel ?? "").hasSuffix(GyroCopy.status(.ready)) })
-            let canDelete = (finished.accessibilityCustomActions ?? []).contains { $0.name == GyroCopy.delete }
-            XCTAssertTrue(canDelete)
+            let activeRow = try row(.recording)
+            XCTAssertFalse((activeRow.accessibilityCustomActions ?? []).contains { $0.name == GyroCopy.delete })
+            _ = activeRow.accessibilityActivate()
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertFalse(host.labelled(GyroCopy.shareCount(0)).isEmpty, "A recording take cannot be picked")
+            XCTAssertTrue(host.labelled(GyroCopy.shareCount(1)).isEmpty)
+            _ = try row(.ready).accessibilityActivate()
+            await waitFor(GyroCopy.shareCount(1), in: host)
+            XCTAssertEqual(host.identified("gyro.primary").count, 1)
+            _ = try XCTUnwrap(host.identified("gyro.primary").first).accessibilityActivate()
+            let sent = await HostedCondition.wait { !shared.ids.isEmpty }
+            XCTAssertTrue(sent)
+            XCTAssertEqual(shared.ids, [[ready.id]])
+            let finished = try row(.ready)
+            XCTAssertTrue((finished.accessibilityCustomActions ?? []).contains { $0.name == GyroCopy.delete })
         }
 
         func testLandscapeShowsListAndTakeSideBySide() async throws {
@@ -407,21 +426,61 @@
             let shareFrame = share.accessibilityFrame
             XCTAssertLessThan(rowFrame.maxX, shareFrame.minX, "The list sits left of the take page")
             XCTAssertLessThanOrEqual(rowFrame.maxX, Self.landscape.width * 0.4 + 1)
+            // A recording take can be opened (not picked): its page shows in the right pane.
+            let recording = try XCTUnwrap(rows.first {
+                ($0.accessibilityLabel ?? "").hasSuffix(GyroCopy.status(.recording))
+            })
+            _ = recording.accessibilityActivate()
+            await waitFor(GyroCopy.verdict(.recording), in: host)
+            // Select mode leaves exactly one accent primary, the share bar.
+            _ = try XCTUnwrap(host.identified("gyro.logs.select").first).accessibilityActivate()
+            await waitFor(GyroCopy.shareCount(0), in: host)
+            XCTAssertEqual(host.identified("gyro.primary").count, 1)
+            XCTAssertTrue(host.labelled(GyroCopy.shareLog).isEmpty)
             let portraitHost = await self.host(logs(entries), size: Self.portrait)
             defer { portraitHost.close() }
             await waitFor(GyroCopy.tip, in: portraitHost)
             XCTAssertTrue(portraitHost.identified("gyro.primary").isEmpty, "Portrait shows the list only")
         }
 
+        // MARK: Tones and alignment
+
+        func testBadgeAndVerdictTones() {
+            XCTAssertEqual(GyroStatusTone.badge(.ready), GyroStatusTone.badge(.ready))
+            let orange = GyroStatusTone.badge(.smallGaps)
+            XCTAssertEqual(GyroStatusTone.badge(.mountMoved(offsetSeconds: 3)), orange)
+            XCTAssertEqual(GyroStatusTone.badge(.notCalibrated), orange)
+            XCTAssertEqual(GyroStatusTone.badge(.cutShort), GyroStatusTone.badge(.recording))
+            XCTAssertNotEqual(GyroStatusTone.badge(.cutShort), orange)
+            XCTAssertNotEqual(GyroStatusTone.badge(.ready), orange)
+            XCTAssertEqual(GyroStatusTone.verdict(.cutShort), orange, "Verdict glyph stays orange")
+            XCTAssertNotEqual(GyroStatusTone.verdict(.recording), orange)
+        }
+
+        func testLandscapeTextColumnIsLeftAligned() async throws {
+            let host = await host(ring(.intro), size: Self.landscape)
+            defer { host.close() }
+            await waitFor(GyroCopy.getStarted, in: host)
+            let title = try XCTUnwrap(host.labelled(GyroCopy.calibrateTitle).first(where: {
+                HostedAccessibility.identifier($0) != "gyro.visual"
+            }))
+            let visual = try XCTUnwrap(host.identified("gyro.visual").first)
+            XCTAssertGreaterThanOrEqual(title.accessibilityFrame.minX, visual.accessibilityFrame.maxX - 1)
+            XCTAssertLessThan(title.accessibilityFrame.minX, Self.landscape.width * 0.6)
+        }
+
         // MARK: Announcements
 
         @MainActor final class AnnouncementLog {
             var items: [String] = []
+            var haptics = 0
         }
 
         @MainActor @Observable final class RingProbe {
             var phase: GyroRingPhase = .intro
             var event: GyroRingEvent?
+            var token = 0
+            var inSheet = false
         }
 
         struct RingProbeView: View {
@@ -429,18 +488,41 @@
             let log: AnnouncementLog
 
             var body: some View {
-                GyroRingCalibrationView(
-                    phase: probe.phase, completedSteps: 0, lastEvent: probe.event,
-                    canUseLast: false, actions: GyroSetupActions()
+                Group {
+                    if probe.inSheet {
+                        GyroSetupSheet(
+                            step: .calibration(hasSavedCalibration: false), ring: probe.phase,
+                            completedSteps: 0, lastEvent: probe.event, eventToken: probe.token,
+                            actions: GyroSetupActions())
+                    } else {
+                        GyroRingCalibrationView(
+                            phase: probe.phase, completedSteps: 0, lastEvent: probe.event,
+                            eventToken: probe.token, canUseLast: false, actions: GyroSetupActions())
+                    }
+                }
+                .environment(
+                    \.gyroAnnouncer, GyroAnnouncer { [log] text in log.items.append(text) }
                 )
                 .environment(
-                    \.gyroAnnouncer, GyroAnnouncer { [log] text in log.items.append(text) })
-                .environment(\.gyroHaptics, .init(isEnabled: { false }))
+                    \.gyroHaptics,
+                    .init(isEnabled: { [log] in
+                        log.haptics += 1
+                        return false
+                    }))
             }
         }
 
         func testRingAnnouncesProgressAndCaptures() async throws {
+            try await runAnnouncements(inSheet: false)
+        }
+
+        func testSetupSheetForwardsRingEvents() async throws {
+            try await runAnnouncements(inSheet: true)
+        }
+
+        private func runAnnouncements(inSheet: Bool) async throws {
             let probe = RingProbe()
+            probe.inSheet = inSheet
             let log = AnnouncementLog()
             let host = await host(RingProbeView(probe: probe, log: log))
             defer { host.close() }
@@ -459,17 +541,44 @@
             probe.phase = .posing(step: .level, inZone: true, hold: 0.35)
             try await Task.sleep(for: .milliseconds(150))
             XCTAssertEqual(log.items, [GyroCopy.holdProgressA11y(25)])
-            probe.phase = .posing(step: .level, inZone: true, hold: 0.8)
+            probe.phase = .posing(step: .level, inZone: true, hold: 0.55)
             await settle(2)
-            XCTAssertEqual(log.items.last, GyroCopy.holdProgressA11y(75))
+            probe.phase = .posing(step: .level, inZone: true, hold: 0.8)
+            await settle(3)
+            XCTAssertEqual(
+                log.items,
+                [25, 50, 75].map(GyroCopy.holdProgressA11y))
+            XCTAssertEqual(log.haptics, 0)
 
             probe.event = .stepCaptured(.level)
-            await settle(3)
+            probe.token += 1
+            await settle(4)
             XCTAssertEqual(log.items.last, GyroCopy.stepDoneA11y(1))
+            XCTAssertEqual(log.haptics, 1, "One haptic per capture, paired with its announcement")
+
+            // The same event again is only a new token.
+            probe.token += 1
+            await settle(5)
+            XCTAssertEqual(log.items.last, GyroCopy.stepDoneA11y(1))
+            XCTAssertEqual(log.haptics, 2)
+
+            probe.event = .verificationFailed
+            probe.token += 1
+            await settle(6)
+            XCTAssertEqual(log.items.last, GyroCopy.retry)
+
+            probe.phase = .blocked(step: .tiltUp, reason: .recording)
+            await settle(7)
+            XCTAssertEqual(log.items.last, GyroCopy.block(.recording))
+            probe.phase = .blocked(step: .tiltUp, reason: .moving)
+            await settle(8)
+            XCTAssertEqual(log.items.last, GyroCopy.block(.moving))
 
             probe.event = .completed(try Self.calibration())
-            await settle(4)
+            probe.token += 1
+            await settle(9)
             XCTAssertEqual(log.items.last, GyroCopy.completeTitle)
+            XCTAssertEqual(log.haptics, 3)
         }
     }
 #endif
