@@ -31,4 +31,16 @@ import Testing
             }
         }
     }
+
+    @Test func nativeIdentityIsAvailableToAndroidSwift() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/OpenCineNikon/NativeCameraIdentity.swift")
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            #expect(Bool(false), "NativeCameraIdentity must live outside the Apple-only session file")
+            return
+        }
+        let text = try String(contentsOf: source, encoding: .utf8)
+        #expect(!text.hasPrefix("#if "), "NativeCameraIdentity must compile on Android Swift")
+    }
 }

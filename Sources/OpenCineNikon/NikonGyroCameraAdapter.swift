@@ -4,7 +4,7 @@ import OpenCineGyro
 /// Feeds Nikon live-view and property observations to shared gyro capture.
 @MainActor public final class NikonGyroCameraAdapter: GyroCameraAdapter {
     private let write: @MainActor ([PTPCameraPropertyWrite]) async -> Bool
-    private var sink: (any GyroCameraSink)?
+    private weak var sink: (any GyroCameraSink)?
     private var lastRecording: Bool?
     private var hasSnapshot = false
     private var lastStabilization: GyroStabilizationState?

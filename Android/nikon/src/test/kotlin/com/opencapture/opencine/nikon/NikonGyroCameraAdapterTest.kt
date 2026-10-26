@@ -55,6 +55,17 @@ class NikonGyroCameraAdapterTest {
     }
 
     @Test
+    fun movieVRRefusalPreventsElectronicVRWrite() = runTest {
+        val session = ScriptedCameraSession(CameraIdentity("Nikon ZR", "ZR", "123"))
+        session.refuseControl = CameraControl.VIBRATION_REDUCTION
+        val adapter = NikonGyroCameraAdapter(session, null, FakeGyroNative(), backgroundScope) { 1.0 }
+        runCurrent()
+
+        assertFalse(adapter.writeStabilization(mapOf("movieVR" to "SPORT", "electronicVR" to "ON")))
+        assertEquals(listOf(CameraControl.VIBRATION_REDUCTION to "SPORT"), session.writes)
+    }
+
+    @Test
     fun debugFixtureLevelIsNoReading() {
         val level = LiveCameraLevel(
             rollDegrees = 0.0,

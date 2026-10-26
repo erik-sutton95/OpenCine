@@ -57,11 +57,13 @@ import Testing
         #expect(received == [[movieVR, PTPCameraPropertyWrite.electronicVR(on: true)]])
     }
 
-    @Test func partialRestoreFailureShowsNoticeOnce() async {
+    @Test func partialRestoreFailureShowsNoticeOnce() async throws {
         var writeCalls = 0
+        var appliedWrites: [PTPCameraPropertyWrite] = []
         let adapter = NikonGyroCameraAdapter(write: { writes in
             writeCalls += 1
             #expect(writes.count == 2)
+            if let first = writes.first { appliedWrites.append(first) }
             return false
         })
         let identity = nativeIdentity(serialNumber: "123", model: "ZR")
@@ -82,6 +84,8 @@ import Testing
             .writeStabilization(["movieVR": "SPORT", "electronicVR": "ON"], purpose: .restore)
         ])
         #expect(await adapter.writeStabilization(["movieVR": "SPORT", "electronicVR": "ON"]) == false)
+        let movieVR = try #require(PTPCameraPropertyWrite.vibrationReduction(label: "SPORT"))
+        #expect(appliedWrites == [movieVR])
         #expect(machine.writeFinished(.restore, succeeded: false) == [.notice(.restoreFailed)])
         #expect(machine.update(inputs).isEmpty)
         #expect(writeCalls == 1)
@@ -101,6 +105,18 @@ import Testing
         adapter.disconnected()
 
         #expect(sink.events.count == count)
+    }
+
+    @Test func attachedSinkCanDeallocate() {
+        let adapter = NikonGyroCameraAdapter(write: { _ in true })
+        weak var weakSink: RecordingSink?
+        var sink: RecordingSink? = RecordingSink()
+        weakSink = sink
+        if let sink { adapter.attach(sink) }
+
+        sink = nil
+
+        #expect(weakSink == nil)
     }
 
     private func frame(recording: Bool) -> PTPLiveViewFrame {
