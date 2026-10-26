@@ -113,10 +113,12 @@ public fun GyroFeatureHost(
                         step = presentation.step,
                         ring = presentation.ring,
                         actions = gyroSetupActions(coordinator),
+                        ringEventToken = state.ringEventToken,
                     )
                     is GyroFullScreen.Calibration -> GyroRingCalibrationScreen(
                         state = presentation.ring,
                         canUseLast = false,
+                        eventToken = state.ringEventToken,
                         actions = GyroSetupActions(
                             getStarted = coordinator::startRing,
                             cancel = coordinator::cancelCalibration,

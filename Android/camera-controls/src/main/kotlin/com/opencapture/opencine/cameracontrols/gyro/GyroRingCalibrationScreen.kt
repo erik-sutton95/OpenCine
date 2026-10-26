@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,14 +50,19 @@ import kotlin.math.roundToInt
  * The fill-the-ring calibration screens: intro, posing, retry, invalidated and complete. The host
  * owns the calibration and feeds [state]; [announcer] speaks a short phrase (the view's
  * accessibility announcer by default) and a capture also fires a long-press haptic.
+ *
+ * [eventToken] is `GyroCaptureState.ringEventToken`: when given, the haptic and announcement fire
+ * once per token change, so a conflated state that skipped the event reply still announces it
+ * and a recreated screen does not replay it. Without it (standalone use) they key on [state].
  */
 @Composable
 public fun GyroRingCalibrationScreen(
     state: GyroRingState,
     canUseLast: Boolean,
     actions: GyroSetupActions,
-    announcer: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    eventToken: Int? = null,
+    announcer: ((String) -> Unit)? = null,
 ) {
     val view = LocalView.current
     val announce: (String) -> Unit = announcer ?: { text -> gyroAnnounce(view, text) }
@@ -65,8 +71,17 @@ public fun GyroRingCalibrationScreen(
     var retryVisible by remember { mutableStateOf(false) }
     var holdThreshold by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(state.event) {
-        when (state.event) {
+    var handledToken by rememberSaveable { mutableIntStateOf(eventToken ?: 0) }
+    LaunchedEffect(eventToken ?: state) {
+        val event =
+            if (eventToken == null) {
+                state.event
+            } else {
+                if (eventToken == handledToken) return@LaunchedEffect
+                handledToken = eventToken
+                gyroRingEventFor(state)
+            }
+        when (event) {
             GyroRingEvent.STEP_CAPTURED -> {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 announce(GyroCopy.stepDoneA11y(state.completedSteps))
@@ -295,3 +310,15 @@ private fun RingHint(text: String, landscape: Boolean) {
         style = MonitorTypography.text(14f),
     )
 }
+
+/**
+ * The event a new ring token stands for: the reply's own event, or, when a conflated state has
+ * already moved past that reply, the one its phase implies (complete, a reset to zero poses after
+ * a failed verification, otherwise a captured pose).
+ */
+internal fun gyroRingEventFor(state: GyroRingState): GyroRingEvent =
+    state.event ?: when {
+        state.phase == GyroRingPhase.COMPLETE -> GyroRingEvent.COMPLETED
+        state.completedSteps == 0 -> GyroRingEvent.VERIFICATION_FAILED
+        else -> GyroRingEvent.STEP_CAPTURED
+    }

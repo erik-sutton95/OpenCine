@@ -36,6 +36,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +49,7 @@ import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -97,8 +99,8 @@ public fun GyroLogsScreen(
     actions: GyroLogsActions,
     modifier: Modifier = Modifier,
 ) {
-    var selectedId by remember { mutableStateOf<String?>(null) }
-    var selecting by remember { mutableStateOf(false) }
+    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selecting by rememberSaveable { mutableStateOf(false) }
     var selection by remember { mutableStateOf(emptySet<String>()) }
     var pendingDelete by remember { mutableStateOf<GyroLogEntry?>(null) }
 
@@ -119,6 +121,9 @@ public fun GyroLogsScreen(
         if (chosen.isNotEmpty()) actions.share(chosen.map { it.id })
         cancelSelection()
     }
+
+    // Back in Select mode leaves the mode, not the screen.
+    BackHandler(enabled = selecting) { cancelSelection() }
 
     BoxWithConstraints(
         modifier
@@ -520,7 +525,8 @@ private fun StatusBadge(status: GyroTakeStatus) {
             .clip(RoundedCornerShape(50))
             .background(ink.copy(alpha = 0.16f))
             .padding(horizontal = 8.dp, vertical = 3.dp)
-            .testTag("gyro.badge"),
+            // The merged row already reads the status: the badge is not a second TalkBack stop.
+            .clearAndSetSemantics { testTag = "gyro.badge" },
         color = ink,
         style = MonitorTypography.text(12f, FontWeight.SemiBold),
         maxLines = 1,

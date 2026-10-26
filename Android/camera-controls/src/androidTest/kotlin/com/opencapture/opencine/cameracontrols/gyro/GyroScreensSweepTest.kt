@@ -75,7 +75,7 @@ class GyroScreensSweepTest {
                             var reached: Set<String> = emptySet()
                             awaitCondition("$where must reach ${state.present}") {
                                 reached = reached + reachableLabels()
-                                reached.containsAll(state.present)
+                                state.present.all { wanted -> reached.any { it.contains(wanted) } }
                             }
                         }
                         val primaries = tagged("gyro.primary")
@@ -204,7 +204,7 @@ class GyroScreensSweepTest {
         val name: String,
         /** Texts that must be visible inside the safe area in both orientations. */
         val visible: List<String>,
-        /** Texts that must be in the tree (a long list may scroll them out of view). */
+        /** Texts that must be read somewhere in the tree, alone or inside a merged row label. */
         val present: List<String> = emptyList(),
         val primary: Boolean,
         val visual: Boolean,
@@ -349,7 +349,8 @@ class GyroScreensSweepTest {
             add(
                 SweepState(
                     "logs-badges",
-                    listOf(GyroCopy.logsTitle, GyroCopy.select, GyroCopy.done, GyroCopy.status(badges.first())),
+                    // Badges are not TalkBack stops; each status is read by its merged row.
+                    listOf(GyroCopy.logsTitle, GyroCopy.select, GyroCopy.done),
                     present = badges.map(GyroCopy::status),
                     primary = false,
                     visual = false,

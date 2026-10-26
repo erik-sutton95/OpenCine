@@ -264,6 +264,38 @@ class GyroScreensTest {
     }
 
     @Test
+    fun ringTokenAnnouncesAConflatedCaptureOnce() {
+        val state = mutableStateOf(ringState(GyroRingPhase.POSING, step = 0, inZone = false, hold = 0.0))
+        val token = mutableStateOf(4)
+        val announcements = CopyOnWriteArrayList<String>()
+        ActivityScenario.launch(GalleryOpeningTestActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                activity.setContent {
+                    GyroRingCalibrationScreen(
+                        state = state.value,
+                        canUseLast = false,
+                        actions = GyroSetupActions(),
+                        eventToken = token.value,
+                        announcer = { announcements += it },
+                    )
+                }
+            }
+            awaitNodes("The posing screen must be on screen") { nodes ->
+                nodes.any { tag(it) == "gyro.visual" }
+            }
+            assertTrue("An existing token is not replayed", announcements.isEmpty())
+            // The capture reply was conflated away: the state already shows the next pose.
+            scenario.onActivity {
+                state.value = ringState(GyroRingPhase.POSING, step = 1, inZone = false, hold = 0.0, completedSteps = 1)
+                token.value = 5
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            awaitCondition("The conflated capture must be announced") { announcements.size >= 1 }
+            assertEquals(listOf(GyroCopy.stepDoneA11y(1)), announcements.toList())
+        }
+    }
+
+    @Test
     fun rowsShowOneBadgeEach() {
         val ready = logEntry(startMillis = NOW - 60_000)
         val gaps = logEntry(startMillis = NOW - 120_000, status = GyroTakeStatus.SmallGaps)
@@ -283,10 +315,11 @@ class GyroScreensTest {
                         nodes.any { tag(it) == "gyro.row.${entry.id}" }
                     }
                 }
-                assertEquals(
-                    "One badge per row, in row order",
-                    listOf(GyroCopy.status(ready.status), GyroCopy.status(gaps.status)),
-                    tagged("gyro.badge").mapNotNull { label(it) },
+                val badges = tagged("gyro.badge")
+                assertEquals("One badge per row", 2, badges.size)
+                assertTrue(
+                    "A badge is not a second TalkBack stop after its merged row",
+                    badges.all { label(it) == null && !it.isFocusable },
                 )
                 for (entry in listOf(ready, gaps)) {
                     val row = tagged("gyro.row.${entry.id}").single()

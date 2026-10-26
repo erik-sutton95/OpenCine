@@ -54,7 +54,8 @@ public class GyroSetupActions(
 /**
  * The arming sheet: the stabilization step, then the calibration step. Values and actions only;
  * the host decides which step to show and feeds the ring state. Back acts as "Keep it on" on the
- * stabilization step and as cancel on the calibration step.
+ * stabilization step and as cancel on the calibration step. [ringEventToken] is forwarded to
+ * [GyroRingCalibrationScreen] (`GyroCaptureState.ringEventToken`).
  */
 @Composable
 public fun GyroSetupSheet(
@@ -62,6 +63,7 @@ public fun GyroSetupSheet(
     ring: GyroRingState?,
     actions: GyroSetupActions,
     modifier: Modifier = Modifier,
+    ringEventToken: Int? = null,
 ) {
     when (step) {
         is GyroArmingStep.Stabilization -> {
@@ -75,6 +77,7 @@ public fun GyroSetupSheet(
                 canUseLast = step.hasSavedCalibration,
                 actions = actions,
                 modifier = modifier,
+                eventToken = ringEventToken,
             )
         }
     }

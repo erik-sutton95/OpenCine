@@ -58,7 +58,7 @@ public fun GyroAdaptiveStack(
                 ) { visual() }
                 Column(
                     Modifier.weight(1f).fillMaxHeight().padding(end = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
                     horizontalAlignment = Alignment.Start,
                 ) {
                     header()
