@@ -133,13 +133,17 @@ import Testing
     let inputs = ["R3D NE 10-bit R3D", "ProRes RAW HQ", "H.265 10-bit", "N-RAW 12-bit N-RAW"]
     let clock = ContinuousClock()
     var characters = 0
-    let elapsed = clock.measure {
-        for index in 0..<20_000 {
-            let raw = inputs[index % inputs.count]
-            characters += MonitorTextFormat.codecShortLabel(raw).count
-            characters += MonitorTextFormat.codecCompactLabel(raw).count
+    // The cheapest of five passes: the hosted runner shares its cores with the parallel suite and
+    // one pass can be descheduled for longer than the whole budget (PR #276 measured 152 ms).
+    let elapsed = (0..<5).map { _ in
+        clock.measure {
+            for index in 0..<20_000 {
+                let raw = inputs[index % inputs.count]
+                characters += MonitorTextFormat.codecShortLabel(raw).count
+                characters += MonitorTextFormat.codecCompactLabel(raw).count
+            }
         }
-    }
+    }.min() ?? .zero
     #expect(characters > 0)
     // 40,000 labels; a per-call Regex took seconds here, plain scanning takes milliseconds.
     #expect(elapsed < .milliseconds(150), "40,000 codec labels took \(elapsed)")
