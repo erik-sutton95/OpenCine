@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -104,7 +105,8 @@ public fun GyroLogsScreen(
     var selection by remember { mutableStateOf(emptySet<String>()) }
     var pendingDelete by remember { mutableStateOf<GyroLogEntry?>(null) }
 
-    val sections = groupGyroLogs(entries, nowMillis, ZoneId.systemDefault(), Locale.getDefault())
+    val locale = LocalConfiguration.current.locales[0]
+    val sections = groupGyroLogs(entries, nowMillis, ZoneId.systemDefault(), locale)
     val selected = entries.firstOrNull { it.id == selectedId }
     val chosen = entries.filter { it.canShare && it.id in selection }
 
