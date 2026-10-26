@@ -136,6 +136,7 @@ enum FeedStressReconnect: Equatable, Hashable, RawRepresentable, Sendable
 enum GimbalStickLuma
 enum GridAssist
 enum GuidesAssist
+enum GyroCopy
 enum HistogramAssist
 enum LUTPickerLibrary.Layout: Equatable, Hashable, Sendable
 enum LadderSheetDrum: Sendable
@@ -405,6 +406,8 @@ init FeedAssistMarks(grid: Swift.Bool, crosshair: Swift.Bool, guides: Swift.Bool
 init FeedGestureWell(feed: CoreFoundation.CGRect, chip: CoreFoundation.CGRect, stick: CoreFoundation.CGRect, gimbalButton: CoreFoundation.CGRect, reset: CoreFoundation.CGRect, aeUnlock: CoreFoundation.CGRect, cancel: CoreFoundation.CGRect, calibrate: CoreFoundation.CGRect, enabled: Swift.Bool)<Host where Host : LiveChromeHost>
 init FocusResetButton()<Host where Host : LiveChromeHost>
 init GimbalGamepadBridge()<Host where Host : GimbalGamepadHost>
+init GyroAdaptiveStack(visual: () -> Visual, header: () -> Header, footer: () -> Footer)<Visual, Header, Footer where Visual : SwiftUI.View, Header : SwiftUI.View, Footer : SwiftUI.View>
+init GyroPillView(state: OpenCineGyro.GyroPillState, action: () -> Swift.Void)
 init HeadTrackCalibrateButton(title: Swift.String, onTap: () -> Swift.Void)<Palette where Palette : LiveChromePalette>
 init HistogramLongPressMenu(options: SwiftUI.Binding<MonitorPresentation.MonitorHistogramOptions>, haptics: OperatorHaptics, compact: Swift.Bool)
 init IndependentSettingRow(id: RowID, title: Swift.String, options: [Swift.String], current: Swift.String?, request: Request?, unavailableReason: Swift.String?)<RowID, Request where RowID : Swift.Hashable>
@@ -1078,6 +1081,22 @@ static func GuidesAssist.longPressMenu(assist: OpenCineAppKit.MonitorAssistState
 static func GuidesAssist.overlay(feed: CoreFoundation.CGRect, assist: OpenCineAppKit.MonitorAssistState<Looks>, fallback: MonitorPresentation.MonitorGuideAspect)<Looks where Looks : OpenCineAppKit.MonitorLookProvider> -> some SwiftUI.View
 static func GuidesAssist.rectForRatio(_: CoreFoundation.CGRect, _: CoreGraphics.CGFloat) -> CoreFoundation.CGRect
 static func GuidesAssist.summaryLabel(for: Swift.Set<MonitorPresentation.MonitorGuideAspect>) -> Swift.String
+static func GyroCopy.block(_: OpenCineGyro.GyroCalibrationBlock) -> Swift.String
+static func GyroCopy.holdProgressA11y(_: Swift.Int) -> Swift.String
+static func GyroCopy.invalidation(_: OpenCineGyro.GyroCalibrationInvalidation) -> Swift.String
+static func GyroCopy.length(_: Swift.Double) -> Swift.String
+static func GyroCopy.notice(_: OpenCineGyro.GyroNotice) -> Swift.String
+static func GyroCopy.pill(_: OpenCineGyro.GyroPillKind) -> Swift.String
+static func GyroCopy.pillA11y(_: OpenCineGyro.GyroPillKind, warning: Swift.Bool) -> Swift.String
+static func GyroCopy.sampleRate(_: Swift.Double) -> Swift.String
+static func GyroCopy.shareCount(_: Swift.Int) -> Swift.String
+static func GyroCopy.smoothness(_: OpenCineGyro.GyroTakeStatus) -> Swift.String
+static func GyroCopy.startOffset(_: Swift.Double) -> Swift.String
+static func GyroCopy.status(_: OpenCineGyro.GyroTakeStatus) -> Swift.String
+static func GyroCopy.step(_: OpenCineGyro.GyroRingStep) -> Swift.String
+static func GyroCopy.stepCounter(_: Swift.Int) -> Swift.String
+static func GyroCopy.stepDoneA11y(_: Swift.Int) -> Swift.String
+static func GyroCopy.verdict(_: OpenCineGyro.GyroTakeStatus) -> Swift.String
 static func HistogramAssist.ireX(_: Swift.Double, in: CoreFoundation.CGRect) -> CoreGraphics.CGFloat
 static func HistogramAssist.longPressMenu(assist: OpenCineAppKit.MonitorAssistState<Looks>, stores: AssistPanelStores, haptics: OperatorHaptics, compact: Swift.Bool)<Looks where Looks : OpenCineAppKit.MonitorLookProvider> -> HistogramLongPressMenu
 static func HistogramAssist.longPressMenu(options: SwiftUI.Binding<MonitorPresentation.MonitorHistogramOptions>, haptics: OperatorHaptics, compact: Swift.Bool) -> HistogramLongPressMenu
@@ -1219,6 +1238,51 @@ static let GridAssist.phiFractions: [CoreGraphics.CGFloat]
 static let GridAssist.strokeOpacity: Swift.Double
 static let GridAssist.strokeWidth: CoreGraphics.CGFloat
 static let GridAssist.thirdsFractions: [CoreGraphics.CGFloat]
+static let GyroCopy.calibrateBody: Swift.String
+static let GyroCopy.calibrateTitle: Swift.String
+static let GyroCopy.calibratedMount: Swift.String
+static let GyroCopy.cancel: Swift.String
+static let GyroCopy.completeBody: Swift.String
+static let GyroCopy.completeTitle: Swift.String
+static let GyroCopy.delete: Swift.String
+static let GyroCopy.deleteTitle: Swift.String
+static let GyroCopy.details: Swift.String
+static let GyroCopy.done: Swift.String
+static let GyroCopy.driftQuestion: Swift.String
+static let GyroCopy.driftTitle: Swift.String
+static let GyroCopy.emptyBody: Swift.String
+static let GyroCopy.emptyTitle: Swift.String
+static let GyroCopy.getStarted: Swift.String
+static let GyroCopy.holdHint: Swift.String
+static let GyroCopy.ibisKeep: Swift.String
+static let GyroCopy.ibisLens: Swift.String
+static let GyroCopy.ibisReason: Swift.String
+static let GyroCopy.ibisTitle: Swift.String
+static let GyroCopy.ibisTurnOff: Swift.String
+static let GyroCopy.logsTitle: Swift.String
+static let GyroCopy.notCalibrated: Swift.String
+static let GyroCopy.notNow: Swift.String
+static let GyroCopy.pillArmed: Swift.String
+static let GyroCopy.pillError: Swift.String
+static let GyroCopy.pillGaps: Swift.String
+static let GyroCopy.pillMountMoved: Swift.String
+static let GyroCopy.pillOffline: Swift.String
+static let GyroCopy.pillRecording: Swift.String
+static let GyroCopy.pillSaving: Swift.String
+static let GyroCopy.recalibrate: Swift.String
+static let GyroCopy.retry: Swift.String
+static let GyroCopy.sampleRateLabel: Swift.String
+static let GyroCopy.select: Swift.String
+static let GyroCopy.separator: Swift.String
+static let GyroCopy.settingsCalibrate: Swift.String
+static let GyroCopy.shareLog: Swift.String
+static let GyroCopy.smoothnessLabel: Swift.String
+static let GyroCopy.startsLabel: Swift.String
+static let GyroCopy.tip: Swift.String
+static let GyroCopy.today: Swift.String
+static let GyroCopy.turnOnGyro: Swift.String
+static let GyroCopy.useLastCalibration: Swift.String
+static let GyroCopy.yesterday: Swift.String
 static let HistogramAssist.baseSize: CoreFoundation.CGSize
 static let HistogramAssist.chip: Swift.String
 static let HistogramAssist.clipZoneIRE: Swift.Double
@@ -1470,6 +1534,8 @@ struct FalseColorReferenceOverlay: Sendable, View
 struct FeedAssistMarks<Host where Host : LiveChromeHost>: Sendable, View
 struct FeedGestureWell<Host where Host : LiveChromeHost>: Sendable, View
 struct FocusResetButton<Host where Host : LiveChromeHost>: Sendable, View
+struct GyroAdaptiveStack<Visual, Header, Footer where Visual : SwiftUI.View, Header : SwiftUI.View, Footer : SwiftUI.View>: Sendable, View
+struct GyroPillView: Sendable, View
 struct HeadTrackCalibrateButton<Palette where Palette : LiveChromePalette>: Sendable, View
 struct HistogramLongPressMenu: Sendable, View
 struct IndependentSettingRow<RowID, Request where RowID : Swift.Hashable>: Identifiable, Sendable
@@ -1891,6 +1957,8 @@ var GimbalStickHost.gimbalScreenHeld: Swift.Bool
 var GimbalStickHost.gimbalStickSourceBuffer: CoreVideo.CVPixelBuffer?
 var GimbalStickHost.hapticsEnabled: Swift.Bool
 var GimbalStickHost.virtualJoystickMapping: OpenCineCameraVocabulary.GimbalStick.Mapping
+var GyroAdaptiveStack.body: some SwiftUI.View
+var GyroPillView.body: some SwiftUI.View
 var HeadTrackCalibrateButton.body: some SwiftUI.View
 var HistogramLongPressMenu.assistMenu: MonitorUI.MonitorHistogramMenu
 var HistogramLongPressMenu.body: some SwiftUI.View

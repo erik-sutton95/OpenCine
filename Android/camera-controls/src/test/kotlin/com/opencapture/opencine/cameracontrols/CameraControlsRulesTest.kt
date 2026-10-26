@@ -7,8 +7,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Camera controls build on the camera vocabulary, shared UI, the app shell, Core, Media and Motion:
- * never an integration, an app or a third-party package (Swift twin: OpenCineCameraControls).
+ * Camera controls build on the camera vocabulary, shared UI, the app shell, Core, Media, Motion and
+ * the gyro engine: never an integration, an app or a third-party package (Swift twin:
+ * OpenCineCameraControls).
  */
 class CameraControlsRulesTest {
     private val files = File("src/main").walk().filter { it.extension == "kt" }.toList()
@@ -20,8 +21,8 @@ class CameraControlsRulesTest {
             "import kotlin.", "import kotlinx.", "import java.", "import android.", "import androidx.",
             "import com.opencapture.opencine.core.", "import com.opencapture.opencine.media.",
             "import com.opencapture.opencine.motion.", "import com.opencapture.opencine.vocabulary.",
-            "import com.opencapture.opencine.appkit.", "import com.opencapture.opencine.cameracontrols.",
-            "import com.opencapture.monitorui.",
+            "import com.opencapture.opencine.gyro.", "import com.opencapture.opencine.appkit.",
+            "import com.opencapture.opencine.cameracontrols.", "import com.opencapture.monitorui.",
         )
         for (file in files) {
             for (line in file.readLines().filter { it.startsWith("import ") }) {
@@ -29,7 +30,7 @@ class CameraControlsRulesTest {
             }
         }
         val projects = Regex("""project\("(:[\w-]+)"\)""").findAll(File("build.gradle.kts").readText()).map { it.groupValues[1] }.toSet()
-        assertEquals(emptySet(), projects - setOf(":camera-vocabulary", ":monitor-ui", ":appkit", ":core", ":media"))
+        assertEquals(emptySet(), projects - setOf(":camera-vocabulary", ":monitor-ui", ":appkit", ":core", ":media", ":gyro"))
     }
 
     /** Manufacturer and app names never appear: app differences arrive as host values (body family keys are vocabulary content). */
