@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import com.opencapture.monitorui.*
 import com.opencapture.opencine.appkit.*
 import com.opencapture.opencine.media.*
@@ -152,8 +154,11 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     // Existing hosts retain effect-first transfer precedence; an explicit source never falls back.
     val transfer = if (facts.allowsSignalFallback) effects?.scopeTap?.transfer ?: facts.transfer else facts.transfer
     val audio = nativeAudio(player)
-    val levels = audio?.levels?.collectAsState()?.value
-    val bundle = assists?.scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value
+    // Scope bundles (up to 25 Hz) and meter levels are collected by the overlay leaf, never
+    // here: reading them in this body recomposed the whole page, its chrome and its picture
+    // slot on every publication.
+    val scopes = assists?.scopes
+    val levels = audio?.levels
     val sampled = setOf(MonitorAssistTool.WAVE, MonitorAssistTool.PARADE, MonitorAssistTool.HISTO,
         MonitorAssistTool.VECTOR, MonitorAssistTool.LIGHTS, MonitorAssistTool.ND)
     val suppliedTools = when {
@@ -270,7 +275,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
             { model.setRating(it, rating) }, Modifier.fillMaxWidth()) }
     }, canvasDetails = { context ->
         if (assist != null && assists?.panelPlacement?.usesAnalysisViewport == true)
-            OperatorPlaybackAssistOverlays(assist, assists, context.geometry, bundle, levels,
+            OperatorPlaybackAssistOverlays(assist, assists, context.geometry, scopes, levels,
                 transfer, signalOptions, ::options, context.analysis, supportedTools)
     }, onChromeVisibilityChanged = {}, onAssistExpansionChanged = {}, headerActionAccessory = {
         if (operations.rating != null)
@@ -280,7 +285,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         coverPresented = deliveryPresented, backHandler = { BackHandler(onBack = it) },
         picture = { picture(player, it) }, feedAssists = {}, canvasAssists = {
             if (assist != null && assists?.panelPlacement?.usesAnalysisViewport != true)
-                OperatorPlaybackAssistOverlays(assist, assists, it, bundle, levels, transfer, signalOptions, ::options, visibleTools = supportedTools)
+                OperatorPlaybackAssistOverlays(assist, assists, it, scopes, levels, transfer, signalOptions, ::options, visibleTools = supportedTools)
         }, tools = { chrome ->
             if (assist != null) MonitorAssistCluster(usageStore, chrome.portrait, false, assist::isPlaybackVisible,
                 { assist.togglePlayback(it) }, { options(it) },
@@ -306,12 +311,14 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
 @Composable
 private fun OperatorPlaybackAssistOverlays(
     assist: MonitorAssistState, assists: MonitorOperatorAssistSource?,
-    geometry: MonitorPlaybackPictureGeometry, bundle: ScopeAssistBundle?,
-    levels: MonitorAudioMeterLevels?, transfer: MonitorTransfer?,
+    geometry: MonitorPlaybackPictureGeometry, scopes: Flow<ScopeAssistBundle>?,
+    levelsFlow: StateFlow<MonitorAudioMeterLevels?>?, transfer: MonitorTransfer?,
     signalOptions: MonitorOperatorSignalOptions,
     onOptions: (MonitorAssistTool, MonitorRect?) -> Unit, analysis: MonitorRect? = null,
     visibleTools: Set<MonitorAssistTool>? = null,
 ): Unit {
+    val bundle = scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value
+    val levels = levelsFlow?.collectAsState()?.value
     val density = LocalDensity.current.density
     val left = analysis?.x?.div(density) ?: 0f
     val top = analysis?.y?.div(density) ?: 0f
