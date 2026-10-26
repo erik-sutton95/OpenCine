@@ -61,6 +61,7 @@ public enum NikonGyroCamera {
         GyroCameraIdentity(
             id: identity.serialNumber.isEmpty
                 ? "nikon-model-\(identity.model)" : "nikon-\(identity.serialNumber)",
-            name: identity.displayName)
+            name: identity.displayName,
+            automaticRestoreEligible: !identity.serialNumber.isEmpty)
     }
 }

@@ -34,6 +34,7 @@ class NikonGyroCameraAdapter(
                         "nikon-${identity.serialNumber}"
                     },
                     name = identity.name,
+                    automaticRestoreEligible = identity.serialNumber.isNotEmpty(),
                 )
             }
         }.stateIn(scope, SharingStarted.Eagerly, null)
@@ -41,12 +42,12 @@ class NikonGyroCameraAdapter(
     override val recording: StateFlow<Boolean?> = session.reportedRecording
 
     override val videoMode: StateFlow<Boolean?> =
-        session.cameraProperties.map { properties ->
+        session.reportedCameraProperties.map { properties ->
             properties.captureSelector?.let { it == "video" }
         }.stateIn(scope, SharingStarted.Eagerly, null)
 
     override val stabilization: StateFlow<GyroStabilizationState?> =
-        session.cameraProperties.map { properties ->
+        session.reportedCameraProperties.map { properties ->
             if (properties.vibrationReduction == null && properties.electronicVr == null) {
                 null
             } else {
@@ -66,7 +67,7 @@ class NikonGyroCameraAdapter(
                 ?: GyroCameraLevel(down = null, timestampSeconds = now())
         } ?: emptyFlow()
 
-    override val providesLevel: Boolean = true
+    override val providesLevel: Boolean = frames != null
 
     override val stabilizationSettings: List<GyroStabilizationSetting> =
         listOf(
@@ -75,6 +76,10 @@ class NikonGyroCameraAdapter(
         )
 
     override suspend fun writeStabilization(values: Map<String, String>): Boolean {
+        if (values.keys.any { it != MOVIE_VR_KEY && it != ELECTRONIC_VR_KEY }) return false
+        values[ELECTRONIC_VR_KEY]?.let { value ->
+            if (value.uppercase() != "ON" && value.uppercase() != "OFF") return false
+        }
         values[MOVIE_VR_KEY]?.let { value ->
             try {
                 session.applyControl(CameraControl.VIBRATION_REDUCTION, value)
@@ -83,13 +88,8 @@ class NikonGyroCameraAdapter(
             }
         }
         values[ELECTRONIC_VR_KEY]?.let { value ->
-            val label = when (value.uppercase()) {
-                "ON" -> "ON"
-                "OFF" -> "OFF"
-                else -> return true
-            }
             try {
-                session.applyControl(CameraControl.ELECTRONIC_VR, label)
+                session.applyControl(CameraControl.ELECTRONIC_VR, value.uppercase())
             } catch (_: CameraControlException) {
                 return false
             }

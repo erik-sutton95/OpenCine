@@ -6,11 +6,23 @@ public struct GyroCameraIdentity: Hashable, Codable, Sendable {
     public let id: String
     /// Shown on log rows.
     public let name: String
+    /// Whether this identity is body-specific enough for automatic stabilization restores.
+    public let automaticRestoreEligible: Bool
 
     /// Creates the identity a host integration reports for one body.
-    public init(id: String, name: String) {
+    public init(id: String, name: String, automaticRestoreEligible: Bool = true) {
         self.id = id
         self.name = name
+        self.automaticRestoreEligible = automaticRestoreEligible
+    }
+
+    /// Restores pre-eligibility identities with the original automatic-restore behavior.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        automaticRestoreEligible = try container.decodeIfPresent(
+            Bool.self, forKey: .automaticRestoreEligible) ?? true
     }
 }
 

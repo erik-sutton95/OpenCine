@@ -91,6 +91,37 @@ import Testing
         #expect(writeCalls == 1)
     }
 
+    @Test func invalidRequestDoesNotWrite() async {
+        var writeCalls = 0
+        let adapter = NikonGyroCameraAdapter(write: { _ in
+            writeCalls += 1
+            return true
+        })
+
+        #expect(await adapter.writeStabilization(["movieVR": "invalid", "electronicVR": "ON"]) == false)
+        #expect(writeCalls == 0)
+    }
+
+    @Test func attachReplaysCurrentState() {
+        let adapter = NikonGyroCameraAdapter(write: { _ in true })
+        adapter.connected(nativeIdentity(serialNumber: "123", model: "ZR"))
+        adapter.receive(frame: frame(recording: true), at: 1)
+        adapter.receive(snapshot: PTPCameraPropertySnapshot(
+            vibrationReduction: "OFF", electronicVR: "OFF", captureSelector: .video))
+        adapter.detach()
+        let sink = RecordingSink()
+
+        adapter.attach(sink)
+
+        #expect(sink.events == [
+            .connected(NikonGyroCamera.identity(nativeIdentity(serialNumber: "123", model: "ZR"))),
+            .recording(true, at: 1),
+            .stabilization(GyroStabilizationState(
+                values: ["movieVR": "OFF", "electronicVR": "OFF"], lensHasVRSwitch: nil)),
+            .videoMode(true),
+        ])
+    }
+
     @Test func detachStopsEvents() {
         let adapter = NikonGyroCameraAdapter(write: { _ in true })
         let sink = RecordingSink()

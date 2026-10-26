@@ -22,17 +22,19 @@ class NikonGyroCameraAdapterTest {
         runCurrent()
 
         assertEquals(GyroCameraIdentity("nikon-123", "Nikon ZR"), adapter.identity.value)
+        assertFalse(adapter.providesLevel)
     }
 
     @Test
     fun stabilizationMapsBothValues() = runTest {
         val session = ScriptedCameraSession(CameraIdentity("Nikon ZR", "ZR", "123"))
-        session.properties.value = CameraPropertySnapshot(vibrationReduction = "SPORT", electronicVr = "ON")
+        session.properties.value = CameraPropertySnapshot(vibrationReduction = "ON", electronicVr = "ON")
+        session.reportedProperties.value = CameraPropertySnapshot(vibrationReduction = "SPORT", electronicVr = "OFF")
         val adapter = NikonGyroCameraAdapter(session, null, FakeGyroNative(), backgroundScope) { 1.0 }
         runCurrent()
 
         assertEquals(
-            GyroStabilizationState(mapOf("movieVR" to "SPORT", "electronicVR" to "ON"), null),
+            GyroStabilizationState(mapOf("movieVR" to "SPORT", "electronicVR" to "OFF"), null),
             adapter.stabilization.value,
         )
     }
@@ -66,6 +68,16 @@ class NikonGyroCameraAdapterTest {
     }
 
     @Test
+    fun invalidElectronicVRPreventsEveryWrite() = runTest {
+        val session = ScriptedCameraSession(CameraIdentity("Nikon ZR", "ZR", "123"))
+        val adapter = NikonGyroCameraAdapter(session, null, FakeGyroNative(), backgroundScope) { 1.0 }
+        runCurrent()
+
+        assertFalse(adapter.writeStabilization(mapOf("movieVR" to "SPORT", "electronicVR" to "INVALID")))
+        assertEquals(emptyList(), session.writes)
+    }
+
+    @Test
     fun debugFixtureLevelIsNoReading() {
         val level = LiveCameraLevel(
             rollDegrees = 0.0,
@@ -85,10 +97,10 @@ class NikonGyroCameraAdapterTest {
         runCurrent()
 
         assertNull(adapter.videoMode.value)
-        session.properties.value = CameraPropertySnapshot(captureSelector = "video")
+        session.reportedProperties.value = CameraPropertySnapshot(captureSelector = "video")
         runCurrent()
         assertEquals(true, adapter.videoMode.value)
-        session.properties.value = CameraPropertySnapshot(captureSelector = "photo")
+        session.reportedProperties.value = CameraPropertySnapshot(captureSelector = "photo")
         runCurrent()
         assertEquals(false, adapter.videoMode.value)
     }
@@ -100,6 +112,8 @@ private class ScriptedCameraSession(identity: CameraIdentity) : CameraSession {
     override val reportedRecording = MutableStateFlow<Boolean?>(null)
     val properties = MutableStateFlow(CameraPropertySnapshot())
     override val cameraProperties: StateFlow<CameraPropertySnapshot> = properties
+    val reportedProperties = MutableStateFlow(CameraPropertySnapshot())
+    override val reportedCameraProperties: StateFlow<CameraPropertySnapshot> = reportedProperties
     val writes = mutableListOf<Pair<CameraControl, String>>()
     var refuseControl: CameraControl? = null
 

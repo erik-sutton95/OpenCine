@@ -53,8 +53,11 @@ import Testing
         let identified = NikonGyroCamera.identity(native)
 
         #expect(identified.id == "nikon-123")
+        #expect(identified.automaticRestoreEligible)
         #expect(identified.name == native.displayName)
-        #expect(NikonGyroCamera.identity(nativeIdentity(serialNumber: "", model: "ZR")).id == "nikon-model-ZR")
+        let unidentified = NikonGyroCamera.identity(nativeIdentity(serialNumber: "", model: "ZR"))
+        #expect(unidentified.id == "nikon-model-ZR")
+        #expect(!unidentified.automaticRestoreEligible)
     }
 
     @Test func videoModeFollowsTheSelector() {

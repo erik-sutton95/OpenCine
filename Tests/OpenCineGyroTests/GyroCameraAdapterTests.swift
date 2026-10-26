@@ -43,4 +43,16 @@ import Testing
             try JSONDecoder().decode(GyroStabilizationState.self, from: encoder.encode(state))
                 == state)
     }
+
+    @Test func restoreEligibilityRoundTripsAndLegacyDefaultsToTrue() throws {
+        let encoder = JSONEncoder()
+        let unidentified = GyroCameraIdentity(
+            id: "model-only", name: "Camera", automaticRestoreEligible: false)
+        #expect(
+            try JSONDecoder().decode(GyroCameraIdentity.self, from: encoder.encode(unidentified))
+                == unidentified)
+        let legacy = try #require(#"{"id":"body-1","name":"Camera A"}"#.data(using: .utf8))
+        #expect(
+            try JSONDecoder().decode(GyroCameraIdentity.self, from: legacy).automaticRestoreEligible)
+    }
 }

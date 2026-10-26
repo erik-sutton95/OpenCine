@@ -9,6 +9,8 @@ import OpenCineGyro
     private var hasSnapshot = false
     private var lastStabilization: GyroStabilizationState?
     private var lastVideoMode: Bool?
+    private var lastIdentity: GyroCameraIdentity?
+    private var lastRecordingTimestamp: Double?
 
     /// Creates an adapter whose stabilization writes use the host's serialized camera queue.
     public init(write: @escaping @MainActor ([PTPCameraPropertyWrite]) async -> Bool) {
@@ -21,9 +23,17 @@ import OpenCineGyro
     /// Movie VR and electronic VR settings restored after an armed session.
     public var stabilizationSettings: [GyroStabilizationSetting] { NikonGyroCamera.settings }
 
-    /// Starts forwarding observations to one sink.
+    /// Starts forwarding observations to one sink and replays the current camera state.
     public func attach(_ sink: any GyroCameraSink) {
         self.sink = sink
+        if let lastIdentity { sink.receive(.connected(lastIdentity)) }
+        if let lastRecording, let lastRecordingTimestamp {
+            sink.receive(.recording(lastRecording, at: lastRecordingTimestamp))
+        }
+        if hasSnapshot {
+            sink.receive(.stabilization(lastStabilization))
+            sink.receive(.videoMode(lastVideoMode))
+        }
     }
 
     /// Stops forwarding observations.
@@ -34,26 +44,32 @@ import OpenCineGyro
     /// Writes known stabilization values in their camera-defined order.
     public func writeStabilization(_ values: [String: String]) async -> Bool {
         let writes = NikonGyroCamera.writes(for: values)
+        guard writes.count == values.count else { return false }
         guard !writes.isEmpty else { return true }
         return await write(writes)
     }
 
     /// Publishes the active body identity.
     public func connected(_ identity: NativeCameraIdentity) {
-        sink?.receive(.connected(NikonGyroCamera.identity(identity)))
+        let identity = NikonGyroCamera.identity(identity)
+        lastIdentity = identity
+        sink?.receive(.connected(identity))
     }
 
     /// Publishes disconnection and resets event deduplication for the next body session.
     public func disconnected() {
         sink?.receive(.disconnected)
         lastRecording = nil
+        lastRecordingTimestamp = nil
         hasSnapshot = false
         lastStabilization = nil
         lastVideoMode = nil
+        lastIdentity = nil
     }
 
     /// Publishes recording changes and every level reading at the host's monotonic timestamp.
     public func receive(frame: PTPLiveViewFrame, at timestamp: Double) {
+        lastRecordingTimestamp = timestamp
         if lastRecording != frame.isRecording {
             lastRecording = frame.isRecording
             sink?.receive(.recording(frame.isRecording, at: timestamp))

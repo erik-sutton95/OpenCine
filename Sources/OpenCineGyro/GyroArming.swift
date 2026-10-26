@@ -277,7 +277,8 @@ public struct GyroArmingMachine: Sendable {
             return
         }
         guard let cameraID = inputs.camera?.id else { return }
-        let index = pendingRestores.firstIndex(where: { $0.cameraID == cameraID })
+        let index = inputs.camera?.automaticRestoreEligible == true
+            ? pendingRestores.firstIndex(where: { $0.cameraID == cameraID }) : nil
         if !restoreBlocked, let index {
             guard let stabilization = inputs.stabilization, inputs.recording != true else {
                 return
