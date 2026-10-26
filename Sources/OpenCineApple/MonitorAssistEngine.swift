@@ -351,12 +351,14 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         now >= deadline - interval * 0.25
     }
 
-    /// The deadline advances one interval per tap, so the rate never exceeds the budget; a tap
-    /// later than one interval restarts from now instead of catching up.
+    /// The deadline advances one interval per tap, so the rate never exceeds the budget. A tap
+    /// so late that the next deadline's early window is already open restarts from now instead
+    /// of catching up, so two taps are never one source frame apart.
     static func nextScopeDeadline(
         now: CFAbsoluteTime, deadline: CFAbsoluteTime, interval: TimeInterval
     ) -> CFAbsoluteTime {
-        deadline < now - interval ? now + interval : deadline + interval
+        let next = deadline + interval
+        return scopeDue(now: now, deadline: next, interval: interval) ? now + interval : next
     }
 
     public static func minInterval(activeScopeCount: Int,

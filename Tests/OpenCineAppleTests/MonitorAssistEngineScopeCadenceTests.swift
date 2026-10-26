@@ -80,5 +80,18 @@
             let next = MonitorAssistEngine.nextScopeDeadline(now: 10, deadline: 9, interval: interval)
             XCTAssertEqual(next, 10.04, accuracy: 1e-9)
         }
+
+        func testATapLateEnoughToOpenTheNextWindowRestartsFromNow() throws {
+            // A 120 Hz source whose tap lands 0.8 intervals late is not due again on the next
+            // frame: the deadline restarts from that tap.
+            let interval = 0.04
+            let late = 100 + interval * 0.8
+            let next = MonitorAssistEngine.nextScopeDeadline(now: late, deadline: 100, interval: interval)
+            XCTAssertFalse(MonitorAssistEngine.scopeDue(now: late + 1.0 / 120, deadline: next, interval: interval))
+            XCTAssertEqual(next, late + interval, accuracy: 1e-9)
+            // An ordinary jittered tap keeps the grid.
+            let onTime = MonitorAssistEngine.nextScopeDeadline(now: 100.005, deadline: 100, interval: interval)
+            XCTAssertEqual(onTime, 100.04, accuracy: 1e-9)
+        }
     }
 #endif
