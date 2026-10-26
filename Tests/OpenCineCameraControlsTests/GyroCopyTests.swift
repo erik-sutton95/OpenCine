@@ -79,6 +79,22 @@ import Testing
         #expect(GyroCopy.pillA11y(.hidden, warning: true) == "")
     }
 
+    @Test func sampleRateMatchesKotlinRoundingAndSaturation() {
+        let cases: [(Double, String)] = [
+            (.nan, "0 Hz"), (.infinity, "0 Hz"), (-.infinity, "0 Hz"),
+            (.greatestFiniteMagnitude, "2147483647 Hz"),
+            (-.greatestFiniteMagnitude, "-2147483648 Hz"),
+            (2147483646.5, "2147483647 Hz"), (-2147483648.5, "-2147483648 Hz"),
+            (199.5, "200 Hz"), (-199.5, "-199 Hz"),
+            (0.5, "1 Hz"), (-0.5, "0 Hz"), (-0.5000001, "-1 Hz"),
+            (Double(0.5).nextDown, "0 Hz"), (Double(-0.5).nextUp, "0 Hz"),
+            (0, "0 Hz"),
+        ]
+        for (rate, expected) in cases {
+            #expect(GyroCopy.sampleRate(rate) == expected, "rate: \(rate)")
+        }
+    }
+
     @Test func verdictLeadsWithReadyForGyroflow() {
         #expect(GyroCopy.verdict(.ready) == "Ready for Gyroflow")
         #expect(GyroCopy.verdict(.recording) == "Still recording")

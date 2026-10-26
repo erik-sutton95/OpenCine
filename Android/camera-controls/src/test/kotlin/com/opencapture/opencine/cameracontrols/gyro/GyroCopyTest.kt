@@ -91,6 +91,21 @@ class GyroCopyTest {
     }
 
     @Test
+    fun sampleRateMatchesSwiftRoundingAndSaturation() {
+        val cases = listOf(
+            Double.NaN to "0 Hz", Double.POSITIVE_INFINITY to "0 Hz", Double.NEGATIVE_INFINITY to "0 Hz",
+            Double.MAX_VALUE to "2147483647 Hz", -Double.MAX_VALUE to "-2147483648 Hz",
+            2147483646.5 to "2147483647 Hz", -2147483648.5 to "-2147483648 Hz",
+            199.5 to "200 Hz", -199.5 to "-199 Hz",
+            0.5 to "1 Hz", -0.5 to "0 Hz", -0.5000001 to "-1 Hz", 0.0 to "0 Hz",
+            Math.nextDown(0.5) to "0 Hz", Math.nextUp(-0.5) to "0 Hz",
+        )
+        for ((rate, expected) in cases) {
+            assertEquals(expected, GyroCopy.sampleRate(rate), "rate: $rate")
+        }
+    }
+
+    @Test
     fun statusTexts() {
         assertEquals("REC", GyroCopy.status(GyroTakeStatus.Recording))
         assertEquals("Cut short", GyroCopy.status(GyroTakeStatus.CutShort))

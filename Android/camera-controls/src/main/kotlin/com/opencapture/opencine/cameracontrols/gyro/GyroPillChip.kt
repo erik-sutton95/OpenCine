@@ -59,7 +59,7 @@ public fun GyroPillChip(state: GyroPillState, onClick: () -> Unit, modifier: Mod
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         MonitorIcon(
-            icon = if (alert) MonitorIcon.TRIANGLE_ALERT else MonitorIcon.COMPASS,
+            icon = if (alert) MonitorIcon.TRIANGLE_ALERT else MonitorIcon.AUDIO_WAVEFORM,
             contentDescription = null,
             modifier = Modifier.size(12.dp),
             tint = ink,

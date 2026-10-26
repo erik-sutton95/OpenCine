@@ -146,7 +146,8 @@
         // MARK: List
 
         private func list(split: Bool) -> some View {
-            List {
+            let highlightedID = (!selecting && split) ? effectiveSelection?.id : nil
+            return List {
                 if tipVisible {
                     tip.listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 8, trailing: 12))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -159,7 +160,7 @@
                         .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 2, trailing: 16))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     ForEach(section.entries) { entry in
-                        row(entry, split: split)
+                        row(entry, split: split, highlightedID: highlightedID)
                             .listRowInsets(EdgeInsets(top: 3, leading: 12, bottom: 3, trailing: 12))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -209,11 +210,11 @@
                     .stroke(GyroPalette.tipBorder, lineWidth: 1))
         }
 
-        private func row(_ entry: GyroLogEntry, split: Bool) -> some View {
+        private func row(_ entry: GyroLogEntry, split: Bool, highlightedID: UUID?) -> some View {
             let status = entry.status
             let time = entry.descriptor.startDate.formatted(date: .omitted, time: .shortened)
             let subtitle = entry.rowSubtitle(now: now)
-            let highlighted = !selecting && split && entry.id == effectiveSelection?.id
+            let highlighted = entry.id == highlightedID
             return Button {
                 tap(entry, split: split)
             } label: {

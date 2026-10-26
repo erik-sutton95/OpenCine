@@ -435,6 +435,9 @@
             defer { host.close() }
             await waitFor(GyroCopy.shareLog, in: host)
             let rows = host.identified("gyro.log.row")
+            let selectedRows = rows.filter { $0.accessibilityTraits.contains(.selected) }
+            XCTAssertEqual(selectedRows.count, 1, "The default take alone is highlighted")
+            XCTAssertTrue(selectedRows.first?.accessibilityLabel?.hasSuffix(GyroCopy.status(.ready)) == true)
             let share = try XCTUnwrap(host.identified("gyro.primary").first)
             let rowFrame = try XCTUnwrap(rows.first).accessibilityFrame
             let shareFrame = share.accessibilityFrame
@@ -447,10 +450,18 @@
             })
             _ = recording.accessibilityActivate()
             await waitFor(GyroCopy.verdict(.recording), in: host)
+            let selectedRecording = host.identified("gyro.log.row").filter {
+                $0.accessibilityTraits.contains(.selected)
+            }
+            XCTAssertEqual(selectedRecording.count, 1)
+            XCTAssertTrue(selectedRecording.first?.accessibilityLabel?.hasSuffix(GyroCopy.status(.recording)) == true)
             await snapshot(host, state: "logs-landscape-recording", landscape: true)
             // Select mode leaves exactly one accent primary, the share bar.
             _ = try XCTUnwrap(host.identified("gyro.logs.select").first).accessibilityActivate()
             await waitFor(GyroCopy.shareCount(0), in: host)
+            XCTAssertTrue(host.identified("gyro.log.row").allSatisfy {
+                !$0.accessibilityTraits.contains(.selected)
+            }, "Entering Select removes the detail highlight")
             XCTAssertEqual(host.identified("gyro.primary").count, 1)
             XCTAssertTrue(host.labelled(GyroCopy.shareLog).isEmpty)
             await snapshot(host, state: "logs-select", landscape: true)

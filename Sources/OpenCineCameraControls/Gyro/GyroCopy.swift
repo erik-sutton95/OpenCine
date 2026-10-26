@@ -180,10 +180,13 @@ public enum GyroCopy {
         }
     }
 
-    /// Whole hertz; non-finite reads 0 and huge values clamp to the 32-bit range, as Kotlin's
-    /// `roundToInt` does.
+    /// Whole hertz; ties round toward positive infinity, non-finite reads 0 and huge values
+    /// clamp to the 32-bit range, as Kotlin's `roundToInt` does.
     public static func sampleRate(_ hz: Double) -> String {
-        let value = hz.isFinite ? min(max(hz.rounded(), Double(Int32.min)), Double(Int32.max)) : 0
+        guard hz.isFinite else { return "0 Hz" }
+        let lower = hz.rounded(.down)
+        let rounded = hz - lower < 0.5 ? lower : lower + 1
+        let value = min(max(rounded, Double(Int32.min)), Double(Int32.max))
         return "\(Int(value)) Hz"
     }
 
