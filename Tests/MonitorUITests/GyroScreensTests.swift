@@ -246,6 +246,173 @@
                 settle: GyroCopy.holdHint)
         }
 
+        // MARK: Logs and take page
+
+        static let now = Date(timeIntervalSince1970: 1_792_000_000)
+
+        /// A finished or recording take fixture. Summaries have no public init, so they decode.
+        static func entry(
+            minutesAgo: Double, length: Double = 48, active: Bool = false, calibrated: Bool = true,
+            gaps: Bool = false, cutShort: Bool = false, summary hasSummary: Bool = true
+        ) throws -> GyroLogEntry {
+            let descriptor = GyroLogDescriptor(
+                appName: "Test", cameraLabel: "Camera",
+                startDate: now.addingTimeInterval(-minutesAgo * 60), approximateStartOffset: 0.12,
+                isPartial: false, mountPreset: .unconfigured,
+                mountCalibration: calibrated ? try calibration() : nil)
+            var summary: GyroLogSummary?
+            if hasSummary && !active {
+                let object = try XCTUnwrap(
+                    JSONSerialization.jsonObject(with: JSONEncoder().encode(descriptor))
+                        as? [String: Any])
+                let json: [String: Any] = [
+                    "descriptor": object, "sampleCount": 1000, "duration": length,
+                    "measuredRate": 200, "largestGap": gaps ? 0.2 : 0.01,
+                    "rejectedSampleCount": 0, "termination": cutShort ? "bufferOverflow" : "normal",
+                    "isPartial": false, "approximateStartOffset": 0.12,
+                ]
+                summary = try JSONDecoder().decode(
+                    GyroLogSummary.self, from: JSONSerialization.data(withJSONObject: json))
+            }
+            return GyroLogEntry(descriptor: descriptor, summary: summary, active: active)
+        }
+
+        static func sampleEntries() throws -> [GyroLogEntry] {
+            [
+                try entry(minutesAgo: 1, length: 12, active: true),
+                try entry(minutesAgo: 20, length: 48),
+                try entry(minutesAgo: 45, length: 130, gaps: true),
+                try entry(minutesAgo: 60 * 30, length: 65),
+                try entry(minutesAgo: 60 * 30 + 20, length: 31, cutShort: true),
+                try entry(minutesAgo: 60 * 31, length: 20, calibrated: false),
+            ]
+        }
+
+        private func logs(
+            _ entries: [GyroLogEntry], tip: Bool = true, enabled: Bool = true,
+            actions: GyroLogsActions = GyroLogsActions()
+        ) -> GyroLogsView {
+            GyroLogsView(
+                entries: entries, tipVisible: tip, gyroEnabled: enabled, now: Self.now,
+                actions: actions)
+        }
+
+        func testRowsShowOneBadgeEach() async throws {
+            // SwiftUI vends a List's rows lazily and only a foreground scene scrolls it, so the
+            // package-only runner sees the first rows; three keep every one in view.
+            let entries = Array(try Self.sampleEntries().prefix(3))
+            await inBothOrientations(
+                "logs-list", logs(entries), settle: GyroCopy.tip
+            ) { host, landscape in
+                let rows = host.identified("gyro.log.row")
+                XCTAssertEqual(rows.count, entries.count)
+                let statuses = Set(entries.map { GyroCopy.status($0.status) })
+                for row in rows {
+                    let label = row.accessibilityLabel ?? ""
+                    XCTAssertEqual(statuses.filter { label.hasSuffix($0) }.count, 1, label)
+                }
+                XCTAssertFalse(host.labelled(GyroCopy.dismissTip).isEmpty)
+                XCTAssertEqual(host.identified("gyro.logs.done").count, 1)
+                if landscape {
+                    XCTAssertEqual(host.identified("gyro.primary").count, 1)
+                }
+            }
+        }
+
+        func testTipCanBeHiddenAndSelectModeShowsShareCount() async throws {
+            let entries = try Self.sampleEntries()
+            let host = await host(logs(entries, tip: false))
+            defer { host.close() }
+            await waitFor(GyroCopy.logsTitle, in: host)
+            XCTAssertTrue(host.labelled(GyroCopy.dismissTip).isEmpty)
+            XCTAssertEqual(host.identified("gyro.logs.select").count, 1)
+        }
+
+        func testEmptyStateShowsOneButton() async throws {
+            await inBothOrientations(
+                "logs-empty", logs([], tip: false, enabled: false), settle: GyroCopy.turnOnGyro
+            ) { host, _ in
+                XCTAssertEqual(host.identified("gyro.primary").count, 1)
+                XCTAssertFalse(host.labelled(GyroCopy.emptyBody).isEmpty)
+            }
+            await inBothOrientations(
+                "logs-empty-gyro-on", logs([], tip: false, enabled: true), settle: GyroCopy.emptyBody
+            ) { host, _ in
+                XCTAssertTrue(host.identified("gyro.primary").isEmpty)
+                XCTAssertTrue(host.labelled(GyroCopy.turnOnGyro).isEmpty)
+            }
+        }
+
+        func testTakePageLeadsWithTheVerdictAndSharePrimary() async throws {
+            let ready = try Self.entry(minutesAgo: 20)
+            let view = GyroTakeView(entry: ready, now: Self.now, share: {})
+            await inBothOrientations("take-ready", view, settle: GyroCopy.shareLog) { host, _ in
+                let primaries = host.identified("gyro.primary")
+                XCTAssertEqual(primaries.count, 1)
+                XCTAssertEqual(primaries.first?.accessibilityLabel, GyroCopy.shareLog)
+                let order = host.elements.compactMap { $0.accessibilityLabel }
+                let verdict = order.firstIndex(of: GyroCopy.verdict(.ready))
+                let share = order.firstIndex(of: GyroCopy.shareLog)
+                XCTAssertNotNil(verdict)
+                XCTAssertTrue((verdict ?? Int.max) < (share ?? 0), "Verdict leads the page")
+                XCTAssertTrue(host.labelled("Open in Gyroflow").isEmpty)
+                XCTAssertTrue(order.contains { $0.contains(GyroCopy.calibratedMount) })
+                XCTAssertTrue(order.contains { $0.contains(GyroCopy.sampleRate(200)) })
+            }
+            for (state, entry) in [
+                ("take-gaps", try Self.entry(minutesAgo: 45, gaps: true)),
+                ("take-cutshort", try Self.entry(minutesAgo: 45, cutShort: true)),
+                ("take-uncalibrated", try Self.entry(minutesAgo: 45, calibrated: false)),
+                ("take-recording", try Self.entry(minutesAgo: 1, length: 12, active: true)),
+            ] {
+                await inBothOrientations(
+                    state, GyroTakeView(entry: entry, now: Self.now, share: {}),
+                    settle: GyroCopy.shareLog
+                ) { host, _ in
+                    let share = host.identified("gyro.primary").first
+                    XCTAssertEqual(share?.accessibilityTraits.contains(.notEnabled), !entry.canShare)
+                }
+            }
+        }
+
+        func testActiveTakeCannotBeSelectedOrDeleted() async throws {
+            let entries = Array(try Self.sampleEntries().prefix(3))
+            let host = await host(logs(entries, tip: false), size: Self.landscape)
+            defer { host.close() }
+            await waitFor(GyroCopy.logsTitle, in: host)
+            let shareable = entries.first { !$0.active }!
+            // The right pane shows the first finished take, never the recording one.
+            let shown = await HostedCondition.wait {
+                !host.labelled(GyroCopy.verdict(shareable.status)).isEmpty
+            }
+            XCTAssertTrue(shown)
+            XCTAssertTrue(host.labelled(GyroCopy.verdict(.recording)).isEmpty)
+            let rows = host.identified("gyro.log.row")
+            let activeRow = try XCTUnwrap(rows.first { ($0.accessibilityLabel ?? "").hasSuffix(GyroCopy.status(.recording)) })
+            let hasDelete = (activeRow.accessibilityCustomActions ?? []).contains { $0.name == GyroCopy.delete }
+            XCTAssertFalse(hasDelete, "A recording take has no delete action")
+            let finished = try XCTUnwrap(rows.first { ($0.accessibilityLabel ?? "").hasSuffix(GyroCopy.status(.ready)) })
+            let canDelete = (finished.accessibilityCustomActions ?? []).contains { $0.name == GyroCopy.delete }
+            XCTAssertTrue(canDelete)
+        }
+
+        func testLandscapeShowsListAndTakeSideBySide() async throws {
+            let entries = try Self.sampleEntries()
+            let host = await host(logs(entries), size: Self.landscape)
+            defer { host.close() }
+            await waitFor(GyroCopy.shareLog, in: host)
+            let rows = host.identified("gyro.log.row")
+            let share = try XCTUnwrap(host.identified("gyro.primary").first)
+            let rowFrame = try XCTUnwrap(rows.first).accessibilityFrame
+            let shareFrame = share.accessibilityFrame
+            XCTAssertLessThan(rowFrame.maxX, shareFrame.minX, "The list sits left of the take page")
+            XCTAssertLessThanOrEqual(rowFrame.maxX, Self.landscape.width * 0.4 + 1)
+            let portraitHost = await self.host(logs(entries), size: Self.portrait)
+            defer { portraitHost.close() }
+            await waitFor(GyroCopy.tip, in: portraitHost)
+            XCTAssertTrue(portraitHost.identified("gyro.primary").isEmpty, "Portrait shows the list only")
+        }
+
         // MARK: Announcements
 
         @MainActor final class AnnouncementLog {
