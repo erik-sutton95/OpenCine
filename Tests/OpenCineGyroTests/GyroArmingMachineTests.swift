@@ -334,4 +334,17 @@ import Testing
                 ])
         #expect(!machine.isArmed)
     }
+
+    @Test func unidentifiedCameraNeverMatchesAPendingRestore() {
+        let pending = GyroPendingRestore(
+            cameraID: "nikon-model-ZR", saved: ["ibis": "SPORT"], applied: ["ibis": "OFF"])
+        var machine = GyroArmingMachine(pendingRestores: [pending])
+        let unidentified = GyroCameraIdentity(
+            id: "nikon-model-ZR", name: "Nikon ZR", automaticRestoreEligible: false)
+
+        #expect(machine.update(inputs(
+            toggleOn: false, camera: unidentified,
+            stabilization: stabilization(["ibis": "OFF"]))).isEmpty)
+        #expect(machine.pendingRestores == [pending])
+    }
 }

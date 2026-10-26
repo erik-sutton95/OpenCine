@@ -253,7 +253,10 @@ fun encodeArmingInputs(inputs: GyroArmingInputs): String {
             .put(
                 "camera",
                 inputs.camera?.let { camera ->
-                    JSONObject().put("id", camera.id).put("name", camera.name)
+                    JSONObject()
+                        .put("id", camera.id)
+                        .put("name", camera.name)
+                        .put("automaticRestoreEligible", camera.automaticRestoreEligible)
                 } ?: JSONObject.NULL,
             )
             .put("hostEligible", inputs.hostEligible)

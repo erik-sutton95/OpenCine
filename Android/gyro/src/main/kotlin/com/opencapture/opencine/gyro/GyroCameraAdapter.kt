@@ -7,7 +7,12 @@ import kotlinx.coroutines.flow.StateFlow
 data class GyroVector3(val x: Double, val y: Double, val z: Double)
 
 /** The active camera body; the id is stable across reconnects. */
-data class GyroCameraIdentity(val id: String, val name: String)
+data class GyroCameraIdentity(
+    val id: String,
+    val name: String,
+    /** False when a model-only fallback must not match another body's pending restore. */
+    val automaticRestoreEligible: Boolean = true,
+)
 
 /** One stabilization setting the camera exposes as an on/off choice. */
 data class GyroStabilizationSetting(val key: String, val title: String, val offValue: String)

@@ -170,7 +170,8 @@ func GyroVector3.normalized() throws -> GyroVector3
 init GyroArmingInputs(toggleOn: Swift.Bool, camera: GyroCameraIdentity?, hostEligible: Swift.Bool, videoMode: Swift.Bool?, recording: Swift.Bool?, stabilization: GyroStabilizationState?, settings: [GyroStabilizationSetting], providesLevel: Swift.Bool, hasSavedCalibration: Swift.Bool)
 init GyroArmingMachine(pendingRestores: [GyroPendingRestore])
 init GyroCalibrationPose(phoneDown: GyroVector3, cameraDown: GyroVector3)
-init GyroCameraIdentity(id: Swift.String, name: Swift.String)
+init GyroCameraIdentity(from: any Swift.Decoder) throws
+init GyroCameraIdentity(id: Swift.String, name: Swift.String, automaticRestoreEligible: Swift.Bool)
 init GyroDriftDetector(calibration: GyroMountCalibration, thresholdDegrees: Swift.Double)
 init GyroDriftReading(timestamp: Swift.Double, phoneDown: GyroVector3, rotationRate: Swift.Double, accelerationG: Swift.Double)
 init GyroGCSVRecovery()
@@ -192,6 +193,7 @@ init GyroTakeSession(appName: Swift.String)
 init GyroVector3(x: Swift.Double, y: Swift.Double, z: Swift.Double)
 let GyroCalibrationPose.cameraDown: GyroVector3
 let GyroCalibrationPose.phoneDown: GyroVector3
+let GyroCameraIdentity.automaticRestoreEligible: Swift.Bool
 let GyroCameraIdentity.id: Swift.String
 let GyroCameraIdentity.name: Swift.String
 let GyroDriftReading.accelerationG: Swift.Double
