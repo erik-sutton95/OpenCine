@@ -47,6 +47,11 @@ entered 6 s after admission, 2026-10-23). A test that blocks a native worker and
 runs that worker at the waiter's tier (`MonitorInspectorImageRenderer(workerQoS:)`); production
 keeps its own QoS.
 
+The Swift job's summary lists each run's counts and its slowest suites and tests
+(`scripts/ci-test-report.py`). Swift Testing runs tests concurrently, so its suite and test times
+are elapsed wall time that overlaps, not additive cost; XCTest suite times are serial sums. Read
+them before changing a test, a timeout or a job split.
+
 XCTest reports the last Swift error it observed in a failed test, and UIKit teardown in a
 `defer` throws and swallows private framework errors (`InvalidTransition { phase: idle,
 targetPhase: failed(removedFromContainer) }` from Gestures). An event wait therefore records its
