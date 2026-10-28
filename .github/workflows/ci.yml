@@ -184,26 +184,26 @@ jobs:
           logs=()
           for log in test-cache.log test.log test-still-*.log test-luna.log; do logs+=(--log "${log%.log}=$log"); done
           python3 scripts/ci-test-report.py --summary --title "Swift package tests" "${logs[@]}"
-      - name: Build MonitorUI and OpenCineApple (iOS Simulator)
+      # One iOS Simulator build of every library product. It compiles each target of the MonitorUI
+      # and OpenCineApple schemes with the same settings (both are subsets of OpenCine-Package), and
+      # the API snapshots below read it instead of building the package again.
+      - name: Build every library product (iOS Simulator)
         run: |
-          for scheme in MonitorUI OpenCineApple; do
-            # Hosted runners are arm64: an x86_64 simulator slice only doubles the compile.
-            xcodebuild -scheme "$scheme" -destination 'generic/platform=iOS Simulator' -derivedDataPath ~/ci-dd \
-              -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES \
-              ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
-          done
+          # Hosted runners are arm64: an x86_64 simulator slice only doubles the compile.
+          xcodebuild -scheme OpenCine-Package -destination 'generic/platform=iOS Simulator' -derivedDataPath ~/ci-dd \
+            -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
       # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
       - name: Build Insta360Apple (iOS devices)
         run: |
           xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' -derivedDataPath ~/ci-dd \
             -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES CODE_SIGNING_ALLOWED=NO build
-      # Every library product's public Swift API, from an iOS Simulator build of the whole package
-      # (reusing the builds above), is recorded in atlas/api/swift. A failure lists the changed lines
-      # and the update command.
+      # Every library product's public Swift API, from the iOS Simulator build of the whole package
+      # above, is recorded in atlas/api/swift. A failure lists the changed lines and the update command.
       - name: Public API snapshots (Swift)
         env:
           ATLAS_API_DERIVED: ~/ci-dd
-        run: python3 atlas/tools/atlas.py api --check --build
+        run: python3 atlas/tools/atlas.py api --check
       - name: Did this change reach the Sentry adapter?
         id: sentry
         run: |
