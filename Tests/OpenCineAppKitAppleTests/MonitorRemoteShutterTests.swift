@@ -35,6 +35,31 @@ import UIKit
         #expect(MonitorRemoteShutter.firstSlider(in: volumeView) === slider)
     }
 
+    @Test func routeSuppressionRejectsADelayedVolumeThatNoLongerMatches() async throws {
+        let owner = MonitorRemoteShutter(subsystem: "SIMULATED")
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+        let slider = RecordingSlider()
+        owner.volumeWriter.hostWindow = { window }
+        owner.volumeWriter.makeView = {
+            let view = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+            view.addSubview(slider)
+            return view
+        }
+        #expect(owner.update(enabled: true, monitorPresented: true, liveViewFront: true))
+        owner.volumeWriter.cancel()
+        owner.presses.reanchor(volume: 0.25)
+        owner.liveVolume = { 0.5 }
+        owner.suppressVolumeEventsUntil = CFAbsoluteTimeGetCurrent() + 10
+
+        owner.adjudicateVolumeChange(0.5625, source: "SIMULATED stale")
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(slider.writes.isEmpty, "a stale report never re-pins the anchor")
+
+        owner.adjudicateVolumeChange(0.5, source: "SIMULATED current")
+        try await Self.waitUntil { slider.writes == [0.25] }
+        owner.stop()
+    }
+
     @Test func aNewOwnerIsIdleUntilTheHostArmsIt() {
         let owner = MonitorRemoteShutter(subsystem: "SIMULATED")
         #expect(!owner.isActive)
