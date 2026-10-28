@@ -39,6 +39,8 @@ SWIFT_TESTING = """\
 ➔ Test realMimoExportsIfPresent() skipped.
 ➜ Test "11. Session owners receive only their own native events" skipped: "N/A for CORE-01"
 ✘ Test brokenThing() failed after 0.002 seconds with 1 issue.
+✔ Test "Upload is skipped when offline" passed after 0.250 seconds.
+✔ Test "Retry failed after a timeout" passed after 1.500 seconds with 1 known issue.
 ✔ Suite "Session recovery episode" passed after 22.876 seconds.
 ✔ Test run with 4 tests in 1 suite passed after 22.900 seconds.
 Test Case '-[OpenCineAppKitTests.ReliabilityReportingTests testUpload]' passed (0.500 seconds).
@@ -69,10 +71,21 @@ class ReportTests(unittest.TestCase):
 
     def test_swift_testing_and_xctest_lines_are_counted_separately(self):
         parsed = REPORT.parse(SWIFT_TESTING)
-        self.assertEqual(REPORT.counts(parsed["tests"]), {"passed": 1, "failed": 1, "skipped": 2})
+        self.assertEqual(REPORT.counts(parsed["tests"]), {"passed": 3, "failed": 1, "skipped": 2})
         self.assertEqual(REPORT.counts(parsed["cases"]), {"passed": 1, "failed": 0, "skipped": 0})
         self.assertEqual([s["name"] for s in parsed["suites"]], ['"Session recovery episode"'])
         self.assertEqual(parsed["runs"], ["Test run with 4 tests in 1 suite passed after 22.900 seconds"])
+
+    def test_a_result_word_inside_a_display_name_is_part_of_the_name(self):
+        tests = {t["name"]: t for t in REPORT.parse(SWIFT_TESTING)["tests"]}
+        self.assertEqual(tests['"Upload is skipped when offline"'], {
+            "framework": "Swift Testing", "name": '"Upload is skipped when offline"', "result": "passed",
+            "seconds": 0.25})
+        self.assertEqual(tests['"Retry failed after a timeout"']["result"], "passed")
+        self.assertEqual(tests['"Retry failed after a timeout"']["seconds"], 1.5)
+        self.assertEqual(tests['"11. Session owners receive only their own native events"']["result"], "skipped")
+        self.assertEqual(REPORT.guard({"host": REPORT.parse(SWIFT_TESTING)}, True,
+                                      [r"realMimo", r"Session owners"], []), [])
 
     def test_xctest_case_lines_are_not_read_as_swift_testing_lines(self):
         parsed = REPORT.parse(SKIPPED_NIGHTLY)
