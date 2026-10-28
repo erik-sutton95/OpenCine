@@ -309,7 +309,9 @@ private actor HostIOBorrowedSink: MediaByteSink {
         #expect(model.browsing && model.binding == nil && !model.canRefresh)
         #expect(model.note == "Source unavailable" && model.records.map(\.payload) == ["cached"] && model.catalog.assets.isEmpty)
     }
-    @Test func duplicateDownloadDoesNotRetireActiveWriter() async throws {
+    /// A second download of the same clip (Share while the player's cache runs) joins the active
+    /// writer: it neither retires it nor sends its own transfer, and it receives the cached file.
+    @Test func duplicateDownloadJoinsTheActiveWriter() async throws {
         let clock = HostIOSleep(), gate = HostIOGate(), (root, model) = library(clock)
         defer { model.close(); gate.release(); clock.gate.release(); try? FileManager.default.removeItem(at: root) }
         let first = authority(model), duplicate = authority(model)
@@ -320,15 +322,49 @@ private actor HostIOBorrowedSink: MediaByteSink {
             }
         }
         #expect(await eventually { gate.entered == 1 })
-        var duplicateSent = false
-        let refused = try await model.cacheHostFile(duplicate, purpose: .download, at: "files/a") { _ in
-            duplicateSent = true; return .init(byteCount: 1)
+        var duplicateSent = false, duplicateEntered = false
+        let joined = Task {
+            duplicateEntered = true
+            return try await model.cacheHostFile(duplicate, purpose: .download, at: "files/a") { _ in
+                duplicateSent = true; return .init(byteCount: 1)
+            }
         }
-        #expect(refused == nil && !duplicateSent && model.hostProgress[first.key] == 0.5)
+        #expect(await eventually { duplicateEntered })
+        #expect(model.hostProgress[first.key] == 0.5)
         gate.release()
         let location = try #require(try await download.value)
+        #expect(try await joined.value == location)
+        #expect(!duplicateSent)
         #expect(try Data(contentsOf: location) == Data([1, 2]))
         #expect(model.records.isEmpty && model.catalog.assets.isEmpty)
+    }
+    /// Owner hardware report 2026-10-28: the player's cache was cancelled while its transport was
+    /// still finishing a chunk; Share of that clip must cache it, not fail on the cancelled owner.
+    @Test func downloadAfterACancelledDownloadOfTheSameClipCachesIt() async throws {
+        let clock = HostIOSleep(), gate = HostIOGate(), (root, model) = library(clock)
+        defer { model.close(); gate.release(); clock.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let player = authority(model), share = authority(model)
+        let download = Task {
+            try await model.cacheHostFile(player, purpose: .download, at: "files/a", expectedByteCount: 2) { sink in
+                try await sink.write(Data([1])); await gate.wait(); try await sink.write(Data([2]))
+                return .init(byteCount: 2)
+            }
+        }
+        #expect(await eventually { gate.entered == 1 })
+        download.cancel()
+        var shareEntered = false
+        let shared = Task {
+            shareEntered = true
+            return try await model.cacheHostFile(share, purpose: .download, at: "files/a", expectedByteCount: 2) { sink in
+                try await sink.write(Data([3])); try await sink.write(Data([4]))
+                return .init(byteCount: 2)
+            }
+        }
+        #expect(await eventually { shareEntered })
+        gate.release()
+        await #expect(throws: (any Error).self) { try await download.value }
+        let location = try #require(try await shared.value)
+        #expect(try Data(contentsOf: location) == Data([3, 4]))
     }
     @Test func duplicateThumbnailDoesNotRetireActiveWriter() async throws {
         let clock = HostIOSleep(), gate = HostIOGate(), (root, model) = library(clock)

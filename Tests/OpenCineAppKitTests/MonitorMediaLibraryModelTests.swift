@@ -275,6 +275,72 @@ import Testing
         #expect(model.note == MonitorMediaLibraryCopy().downloadFailed)
         #expect(model.progress.isEmpty && model.transferring.isEmpty)
     }
+    /// Owner hardware report 2026-10-28: leaving the player keeps its original cache running, and
+    /// Share of that clip then failed with "couldn't cache". Share joins the running transfer.
+    @available(macOS 14, *)
+    @Test func shareJoinsTheOriginalCacheThePlayerLeftRunning() async throws {
+        let source = LibraryTransfer()
+        let browse = LibraryBrowse([LibraryCursor([.init(reset: true, upserts: [asset("take")], complete: true)])]); browse.transfers = source
+        let (root, model, _) = model(LibraryService(browse))
+        defer { model.close(); try? FileManager.default.removeItem(at: root) }
+        model.begin(); #expect(await eventually { model.records.count == 1 && !model.fetching })
+        let player = Task { try await model.cacheOriginal(.init("take")) }
+        #expect(await eventually { source.pending.count == 1 })
+        var shareEntered = false
+        let share = Task { shareEntered = true; return try await model.cacheOriginal(.init("take")) }
+        #expect(await eventually { shareEntered })
+        source.release(0)
+        let shared = try await share.value
+        #expect(try Data(contentsOf: shared) == Data([1, 2]))
+        #expect(try await player.value == shared)
+        #expect(source.calls == 1, "the clip is read from the camera once")
+        #expect(model.progress.isEmpty && model.transferring.isEmpty)
+    }
+    /// The same report when the player's cache was cancelled and its transport is still finishing
+    /// a chunk: Share must not fail on the cancelled owner, it caches the clip itself.
+    @available(macOS 14, *)
+    @Test func shareAfterThePlayerCancelledItsOriginalCacheCachesTheClip() async throws {
+        let source = LibraryTransfer()
+        let browse = LibraryBrowse([LibraryCursor([.init(reset: true, upserts: [asset("take")], complete: true)])]); browse.transfers = source
+        let (root, model, _) = model(LibraryService(browse))
+        defer { model.close(); try? FileManager.default.removeItem(at: root) }
+        model.begin(); #expect(await eventually { model.records.count == 1 && !model.fetching })
+        let player = Task { try await model.cacheOriginal(.init("take")) }
+        #expect(await eventually { source.pending.count == 1 })
+        player.cancel()
+        var shareEntered = false
+        let share = Task { shareEntered = true; return try await model.cacheOriginal(.init("take")) }
+        #expect(await eventually { shareEntered })
+        source.release(0)
+        await #expect(throws: (any Error).self) { try await player.value }
+        try #require(await eventually { source.pending.count == 2 })
+        source.release(1)
+        let shared = try await share.value
+        #expect(try Data(contentsOf: shared) == Data([3, 4]))
+        #expect(model.entries[.init("take")]?.originalURL != nil)
+        #expect(model.progress.isEmpty && model.transferring.isEmpty)
+    }
+    /// A Share that is cancelled while it waits on someone else's transfer stops waiting at once
+    /// and leaves that transfer running.
+    @available(macOS 14, *)
+    @Test func cancelledShareStopsWaitingWithoutCancellingThePlayerCache() async throws {
+        let source = LibraryTransfer()
+        let browse = LibraryBrowse([LibraryCursor([.init(reset: true, upserts: [asset("take")], complete: true)])]); browse.transfers = source
+        let (root, model, _) = model(LibraryService(browse))
+        defer { model.close(); try? FileManager.default.removeItem(at: root) }
+        model.begin(); #expect(await eventually { model.records.count == 1 && !model.fetching })
+        let player = Task { try await model.cacheOriginal(.init("take")) }
+        #expect(await eventually { source.pending.count == 1 })
+        var shareEntered = false
+        let share = Task { shareEntered = true; return try await model.cacheOriginal(.init("take")) }
+        #expect(await eventually { shareEntered })
+        share.cancel()
+        await #expect(throws: CancellationError.self) { try await share.value }
+        #expect(model.transferring == [.init("take")])
+        source.release(0)
+        #expect(try Data(contentsOf: try await player.value) == Data([1, 2]))
+        #expect(source.calls == 1)
+    }
     @available(macOS 14, *)
     @Test func replacementDropsOldPageBeforeCodecAndClosesOldBrowse() async {
         let old = LibraryCursor([], held: true)
