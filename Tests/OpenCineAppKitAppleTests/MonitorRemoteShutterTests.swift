@@ -37,7 +37,6 @@ import UIKit
 
     @Test func routeSuppressionRejectsADelayedVolumeThatNoLongerMatches() async throws {
         let owner = MonitorRemoteShutter(subsystem: "SIMULATED")
-        #expect(owner.update(enabled: true, monitorPresented: true, liveViewFront: true))
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
         let slider = RecordingSlider()
         owner.volumeWriter.hostWindow = { window }
@@ -46,6 +45,8 @@ import UIKit
             view.addSubview(slider)
             return view
         }
+        #expect(owner.update(enabled: true, monitorPresented: true, liveViewFront: true))
+        owner.volumeWriter.cancel()
         owner.presses.reanchor(volume: 0.25)
         owner.liveVolume = { 0.5 }
         owner.suppressVolumeEventsUntil = CFAbsoluteTimeGetCurrent() + 10
