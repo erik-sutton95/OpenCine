@@ -269,8 +269,8 @@ whatever code exists today and cost every later change (and every agent) time an
 In the worktree you changed:
 
 ```sh
-swift build --build-tests && swift test       # add --scratch-path <dir> when several agents build
-swift build --build-tests -Xswiftc -strict-concurrency=complete
+swift build --build-tests -Xswiftc -strict-concurrency=complete   # add --scratch-path <dir> when several agents build
+swift test --skip-build -Xswiftc -strict-concurrency=complete      # the same --scratch-path
 xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
 xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
 cd Android && ./gradlew test lint assembleRelease && cd .. && scripts/android-vulkan-sync-test.sh
