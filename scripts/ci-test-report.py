@@ -33,8 +33,10 @@ XCTEST_CASE = re.compile(
 SWIFT_TESTING_DONE = re.compile(
     PREFIX + r"[^\x00-\x7f]+ (?P<kind>Test|Suite) (?P<name>.+) (?P<result>passed|failed) after "
     r"(?P<seconds>[0-9.]+) seconds(?: with [^\n]*)?\.?$", re.M)
+# A skip ends in "skipped." or in its quoted comment (skipped: "reason"); a passed or failed line
+# ends in its time instead, even when its display name contains "skipped: ".
 SWIFT_TESTING_SKIPPED = re.compile(
-    PREFIX + r"[^\x00-\x7f]+ (?P<kind>Test|Suite) (?P<name>.+?) skipped(?:\.|: [^\n]*)$", re.M)
+    PREFIX + r"[^\x00-\x7f]+ (?P<kind>Test|Suite) (?P<name>.+?) skipped(?:\.|: \"[^\n]*\")$", re.M)
 SWIFT_TESTING_RUN = re.compile(PREFIX + r"[^\x00-\x7f]+ (?P<line>Test run with \d+ tests? in \d+ suites? .*)$", re.M)
 XCTEST_TOTAL = re.compile(PREFIX + r"Test Suite '(?P<bundle>[^']+)\.xctest' (?:passed|failed)", re.M)
 

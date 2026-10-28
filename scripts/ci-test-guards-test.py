@@ -89,6 +89,12 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(REPORT.guard({"host": REPORT.parse(SWIFT_TESTING)}, True,
                                       [r"realMimo", r"Session owners"], []), [])
 
+    def test_a_skip_reason_inside_a_display_name_is_not_a_skip(self):
+        parsed = REPORT.parse('✔ Test "Tests skipped: offline mode" passed after 0.100 seconds.\n'
+                              '➜ Test "Upload skipped: no network" skipped: "needs a server"\n')
+        self.assertEqual([(t["name"], t["result"]) for t in parsed["tests"]],
+                         [('"Tests skipped: offline mode"', "passed"), ('"Upload skipped: no network"', "skipped")])
+
     def test_xctest_case_lines_are_not_read_as_swift_testing_lines(self):
         parsed = REPORT.parse(SKIPPED_NIGHTLY)
         self.assertEqual(parsed["tests"], [])
