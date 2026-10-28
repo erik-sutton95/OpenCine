@@ -28,7 +28,7 @@ jobs do not queue behind each other), and on `workflow_dispatch`. It calls `ci.y
 
 - Conformance kit, iOS (hosted walk self-test, command dashboard, portrait header clearance on a
   private iPhone and a private native 2x iPad, playback labels)
-- Playback labels, native typed cancellation (SIMULATED)
+- Playback labels, native typed cancellation (SIMULATED), beside the kit on its own runner
 - New-app template, iOS and Android (SIMULATED)
 - The Sentry adapter's simulator test, also when nothing it links changed
 - In the apps: shared conformance scenarios on iOS and the iPad storage oracle

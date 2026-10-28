@@ -436,9 +436,9 @@ jobs:
 
   # The original three-case fixture remains in kit-ios. This separate standard UI target
   # exercises the typed system-dismissal counterpart with the same shared screen. QUARANTINE.
+  # It runs beside kit-ios: its own runner, simulator, DerivedData and artifact, no data from it.
   playback-native-ios:
     name: Playback labels, native typed cancellation (SIMULATED)
-    needs: kit-ios
     if: ${{ inputs.full }}
     runs-on: macos-latest
     timeout-minutes: 60
