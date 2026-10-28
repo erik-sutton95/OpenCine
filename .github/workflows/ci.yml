@@ -267,8 +267,12 @@ jobs:
             swift-crash-reports/**/*.txt
           if-no-files-found: warn
 
-  android:
-    name: Android (test, lint, assemble, Vulkan regression)
+  # Android verification runs as three parallel jobs (docs/testing/CI.md). Together they execute
+  # every task of the former `./gradlew test lint assembleRelease` chain and its follow-up checks;
+  # a task both jobs need (a debug compile, say) runs in each. Every Gradle run records each task's
+  # outcome and time (scripts/gradle-task-timing.init.gradle), summarized at the end of each job.
+  android-test:
+    name: Android unit tests and build logic
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -283,12 +287,64 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-      # Every Gradle run records each task's outcome and time (scripts/gradle-task-timing.init.gradle);
-      # the last step summarizes them. Observation only: no task, input or output changes.
-      - name: Test, lint and assemble (Kotlin warnings are errors in core, media, multicam)
+      - name: Unit tests (Kotlin warnings are errors in core, media, multicam)
         env:
-          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/build.tsv
-        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" test lint assembleRelease
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/test.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" test
+      - name: Apps' Gradle plugins (build-logic)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/build-logic.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" -p build-logic test
+      - name: Gradle task timing summary
+        if: always()
+        working-directory: .
+        run: scripts/gradle-task-timing-summary.sh "$RUNNER_TEMP/gradle-timing"
+
+  android-lint:
+    name: Android lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Lint (Kotlin warnings are errors in core, media, multicam)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/lint.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" lint
+      - name: Gradle task timing summary
+        if: always()
+        working-directory: .
+        run: scripts/gradle-task-timing-summary.sh "$RUNNER_TEMP/gradle-timing"
+
+  android-release:
+    name: Android release assembly, public API, Vulkan and registrars
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Release assembly (Kotlin warnings are errors in core, media, multicam)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/assemble-release.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" assembleRelease
       # Each module's Kotlin public API is recorded in <module>/api/<module>.api: Kotlin/JVM modules
       # by the Kotlin plugin's ABI validation, Android library modules by dumpAndroidApi.
       - name: Public API snapshots (Kotlin and Android)
@@ -299,10 +355,6 @@ jobs:
             echo "::error::Unrecorded public API change. If it is intended, run (cd Android && ./gradlew updateKotlinAbi updateAndroidApi) and commit the changed <module>/api/*.api files."
             exit 1
           }
-      - name: Apps' Gradle plugins (build-logic)
-        env:
-          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/build-logic.tsv
-        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" -p build-logic test
       - name: Vulkan present synchronization regression (host CPU)
         working-directory: .
         run: scripts/android-vulkan-sync-test.sh
@@ -542,7 +594,7 @@ jobs:
   gate:
     name: CI gate
     if: always()
-    needs: [meta, swift, android, atlas]
+    needs: [meta, swift, android-test, android-lint, android-release, atlas]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
