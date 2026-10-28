@@ -78,8 +78,12 @@ struct DJIAppleRecoveryEpisodeTests {
     }
 
     /// SIMULATED original8 attempts and seven literal waits, not a schedule recomputation.
-    @Test func eightNativeGattMissesHandBackToOperatorWithOriginalWaits() async {
+    /// The outcome must not depend on how many yields each manual-clock step gets: nightly run
+    /// 40565915791 saw 7 scans, 6 GATT and 6 waits when a loaded suite gave an attempt too few.
+    @Test(arguments: [1, 64])
+    func eightNativeGattMissesHandBackToOperatorWithOriginalWaits(yieldsPerStep: Int) async {
         let spine = Spine(); defer { spine.finish() }
+        spine.clock.yieldsPerStep = yieldsPerStep
         spine.gattMisses = 8
         #expect(spine.episode.begin(targetID: spine.peer.camera.id,
             trigger: .bleDropped, reason: "SIMULATED eight misses"))
@@ -563,10 +567,13 @@ struct DJIAppleRecoveryEpisodeTests {
             let due = wakes.filter { $0.0 <= end + 1e-12 }; wakes.removeAll { $0.0 <= end + 1e-12 }
             ready.forEach { $0.continuation.resume() }; due.forEach { $0.1() }
         }
+        /// Yields per `drive` step. A loaded suite can leave an attempt short of its next sleep
+        /// after any fixed number of them.
+        var yieldsPerStep = 64
         func settle() async { for _ in 0..<64 { await Task.yield() } }
         func drive(until done: () -> Bool) async -> Bool {
             for _ in 0..<5000 {
-                await settle()
+                for _ in 0..<yieldsPerStep { await Task.yield() }
                 if done() { return true }
                 if let next = (sleepers.map(\.at) + wakes.map(\.0)).min() { advance(to: next) }
             }
