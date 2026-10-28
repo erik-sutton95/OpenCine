@@ -100,9 +100,8 @@ branch on a manufacturer; apps compose the integration and supply values and act
 Run these from the repository root:
 
 ```sh
-swift build --build-tests
-swift test
 swift build --build-tests -Xswiftc -strict-concurrency=complete
+swift test --skip-build -Xswiftc -strict-concurrency=complete
 xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
 xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
 xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build

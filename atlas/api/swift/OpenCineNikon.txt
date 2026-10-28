@@ -585,6 +585,7 @@ class NikonCommandOwner: Sendable
 class NikonDiscovery: Sendable
 class NikonFocusRackCancellation: Sendable
 class NikonFocusRackRunRegistry: Sendable
+class NikonGyroCameraAdapter: GyroCameraAdapter, Sendable
 class NikonIntegration: CameraIntegration, Sendable
 class NikonLiveViewPump: Sendable
 class NikonMediaService: CameraMediaService, NikonMediaCatalogRecordSource, Sendable
@@ -667,6 +668,7 @@ enum NikonFocusRackAccessError: Equatable, Error, Hashable, LocalizedError, Send
 enum NikonFocusRackCadence: Equatable, Hashable, Sendable
 enum NikonFocusRackDriveMachine.Action: Equatable, Sendable
 enum NikonFocusRackDriveOutcome: Decodable, Encodable, Equatable, Sendable
+enum NikonGyroCamera
 enum NikonLadderControl: Equatable, Hashable, Sendable
 enum NikonLiveViewPump.Outcome: Equatable, Sendable
 enum NikonMediaCategory: Equatable, Hashable, Sendable
@@ -936,6 +938,13 @@ func NikonFocusRackRunRegistry.prepare(runID: Swift.Int64) -> Swift.Bool
 func NikonFocusRackRunRegistry.receipt(runID: Swift.Int64) -> NikonFocusRackCancellation?
 func NikonFocusRackRunRegistry.requestStop(runID: Swift.Int64) -> ()
 func NikonFocusRackRunRegistry.requestStopCurrent() -> ()
+func NikonGyroCameraAdapter.attach(_: any OpenCineGyro.GyroCameraSink) -> ()
+func NikonGyroCameraAdapter.connected(_: NativeCameraIdentity) -> ()
+func NikonGyroCameraAdapter.detach() -> ()
+func NikonGyroCameraAdapter.disconnected() -> ()
+func NikonGyroCameraAdapter.receive(frame: PTPLiveViewFrame, at: Swift.Double) -> ()
+func NikonGyroCameraAdapter.receive(snapshot: PTPCameraPropertySnapshot) -> ()
+func NikonGyroCameraAdapter.writeStabilization(_: [Swift.String : Swift.String]) async -> Swift.Bool
 func NikonIntegration.connect(_: OpenCineCore.ConnectTarget) -> _Concurrency.AsyncStream<OpenCineCore.ConnectionEvent>
 func NikonIntegration.discover(_: OpenCineCore.DiscoveryMode) -> _Concurrency.AsyncStream<[OpenCineCore.NearbyCamera]>
 func NikonIntegration.forget(_: OpenCineCore.SavedCamera) async -> ()
@@ -1129,6 +1138,7 @@ init NikonFocusRackDriveMachine(cadence: NikonFocusRackCadence)
 init NikonFocusRackRunRegistry()
 init NikonFocusRackSafetySnapshot(reported: PTPCameraPropertySnapshot) throws
 init NikonGallerySourceItem(id: OpenCineMedia.MediaAssetID, legacyID: Swift.String, namespace: Swift.String, filename: Swift.String, captureDate: Swift.String, pixelWidth: Swift.UInt32?, pixelHeight: Swift.UInt32?, sourcePixelWidth: Swift.UInt32?, storageID: Swift.UInt32?, storageMembership: Swift.Set<Swift.UInt32>?, handle: Swift.UInt32?, favorite: Swift.Bool, rating: Swift.Int?, localEligible: Swift.Bool?)
+init NikonGyroCameraAdapter(write: ([PTPCameraPropertyWrite]) async -> Swift.Bool)
 init NikonIntegration(port: any NikonConnectPort)
 init NikonLadderMode(index: Swift.Int, title: Swift.String, detail: Swift.String?, options: [Swift.String], base: Swift.String, current: Swift.String, disabled: Swift.Bool, advertised: [Swift.String]?)
 init NikonLiveViewPump(link: any NikonMonitorLink, now: () -> Foundation.Date, sleep: (Swift.Duration) async -> Swift.Void)
@@ -1344,6 +1354,7 @@ let NikonGallerySourceItem.rating: Swift.Int?
 let NikonGallerySourceItem.sourcePixelWidth: Swift.UInt32?
 let NikonGallerySourceItem.storageID: Swift.UInt32?
 let NikonGallerySourceItem.storageMembership: Swift.Set<Swift.UInt32>?
+let NikonGyroCameraAdapter.providesLevel: Swift.Bool
 let NikonIntegration.discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>
 let NikonIntegration.profiles: [OpenCineCore.CameraProfile]
 let NikonLadderMode.advertised: [Swift.String]?
@@ -1822,6 +1833,11 @@ static func NikonExposureSettings.descriptors(_: PTPCameraPropertySnapshot, shut
 static func NikonExposureSettings.label(_: OpenCineCore.SettingValue) -> Swift.String?
 static func NikonExposureSettings.reported(_: PTPCameraPropertySnapshot) -> [OpenCineCore.SettingKey : OpenCineCore.SettingValue?]
 static func NikonExposureSettings.shutter(_: Swift.String) -> OpenCineCore.SettingValue?
+static func NikonGyroCamera.cameraDown(from: PTPLevelAngles?) -> OpenCineGyro.GyroVector3?
+static func NikonGyroCamera.identity(_: NativeCameraIdentity) -> OpenCineGyro.GyroCameraIdentity
+static func NikonGyroCamera.stabilization(from: PTPCameraPropertySnapshot) -> OpenCineGyro.GyroStabilizationState?
+static func NikonGyroCamera.videoMode(from: PTPCameraPropertySnapshot) -> Swift.Bool?
+static func NikonGyroCamera.writes(for: [Swift.String : Swift.String]) -> [PTPCameraPropertyWrite]
 static func NikonIntegration.failure(_: any Swift.Error, message: Swift.String?) -> OpenCineCore.ConnectionFailure
 static func NikonLiveViewPump.isLinkLoss(_: any Swift.Error) -> Swift.Bool
 static func NikonMediaDateWindow.captureDay(_: Swift.String, calendar: Foundation.Calendar) -> Foundation.Date?
@@ -2113,6 +2129,9 @@ static let NikonCapturePopupState.kelvinStepsHint: Swift.String?
 static let NikonDiscovery.presenceSweepInterval: Foundation.TimeInterval
 static let NikonFocusRackDriveMachine.readinessPollLimit: Swift.Int
 static let NikonFocusRackSafetySnapshot.properties: [(PTPPropertyCode, Swift.Int)]
+static let NikonGyroCamera.electronicVRKey: Swift.String
+static let NikonGyroCamera.movieVRKey: Swift.String
+static let NikonGyroCamera.settings: [OpenCineGyro.GyroStabilizationSetting]
 static let NikonMediaFilterOptions.none: NikonMediaFilterOptions
 static let NikonMonitorColorProfile.log3G10Rec709: OpenCineMedia.MonitorLogDisplayTransform
 static let NikonMonitorColorProfile.nLogRec709: OpenCineMedia.MonitorLogDisplayTransform
@@ -2455,6 +2474,7 @@ var NikonDescriptorObservation.capability: OpenCineCameraVocabulary.ControlCapab
 var NikonFocusRackAccessError.errorDescription: Swift.String?
 var NikonFocusRackCancellation.isStopRequested: Swift.Bool
 var NikonFocusRackDriveOutcome.wireValue: Swift.Int32
+var NikonGyroCameraAdapter.stabilizationSettings: [OpenCineGyro.GyroStabilizationSetting]
 var NikonIntegration.id: OpenCineCore.IntegrationID
 var NikonLocalInterface.address: Swift.String
 var NikonLocalInterface.name: Swift.String

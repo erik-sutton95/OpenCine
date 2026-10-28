@@ -222,27 +222,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         let controls = source.controls
         switch row {
         case .gyro:
-            if let gyro = source.gyro {
-                MonitorSettingsRowCard(title: "Gyro logging") {
-                    MonitorSettingsSwitchInlineRow(title: "Log gyro with camera recordings",
-                        help: "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
-                        showTopDivider: false, isOn: gyro.enabled.wrappedValue,
-                        feedback: source.feedback) { gyro.enabled.wrappedValue.toggle() }
-                        .disabled(!gyro.available)
-                    MonitorSettingsInlineRow(title: "Status", help: nil) {
-                        MonitorSettingsValueText(value: gyro.status)
-                    }
-                    if let configureMount = gyro.configureMount {
-                        MonitorSettingsInlineRow(title: "Phone mount",
-                            help: "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
-                            HStack(spacing: 8) {
-                                if let name = gyro.mountName { MonitorSettingsValueText(value: name) }
-                                MonitorSettingsActionPill(title: "Configure", action: configureMount)
-                            }
-                        }
-                    }
-                }
-            }
+            if let gyro = source.gyro { MonitorSettingsGyroCard(gyro: gyro, feedback: source.feedback) }
         case .safety:
             MonitorOperatorSafetySettings(recordConfirmation: controls.recordConfirmation, haptics: controls.haptics.value,
                 keepScreenAwake: controls.keepAwake.value, hapticsHelp: controls.haptics.help,
@@ -624,6 +604,38 @@ extension MonitorSettingsCachePresentation {
             clearHelp: "Remove downloaded picture files while keeping the clip list.",
             scopeHelp: "Originals and playback proxies downloaded from the camera.",
             confirmationMessage: "Removes downloaded picture files while keeping the clip list.")
+    }
+}
+/// The Gyro logging card: the switch, the status, the calibrate row and the legacy mount row.
+struct MonitorSettingsGyroCard: View {
+    let gyro: MonitorSettingsGyroSource
+    let feedback: () -> Void
+
+    var body: some View {
+        MonitorSettingsRowCard(title: "Gyro logging") {
+            MonitorSettingsSwitchInlineRow(title: "Log gyro with camera recordings",
+                help: "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
+                showTopDivider: false, isOn: gyro.enabled.wrappedValue,
+                feedback: feedback) { gyro.enabled.wrappedValue.toggle() }
+                .disabled(!gyro.available)
+            MonitorSettingsInlineRow(title: "Status", help: nil) {
+                MonitorSettingsValueText(value: gyro.status)
+            }
+            if let calibrate = gyro.calibrate {
+                MonitorSettingsInlineRow(title: GyroCopy.settingsCalibrate, help: nil) {
+                    MonitorSettingsActionPill(title: GyroCopy.getStarted, action: calibrate)
+                }
+            }
+            if let configureMount = gyro.configureMount {
+                MonitorSettingsInlineRow(title: "Phone mount",
+                    help: "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
+                    HStack(spacing: 8) {
+                        if let name = gyro.mountName { MonitorSettingsValueText(value: name) }
+                        MonitorSettingsActionPill(title: "Configure", action: configureMount)
+                    }
+                }
+            }
+        }
     }
 }
 #endif

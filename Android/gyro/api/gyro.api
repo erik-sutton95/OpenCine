@@ -1,3 +1,30 @@
+public final class com/opencapture/opencine/gyro/AndroidGyroMotionSensors : com/opencapture/opencine/gyro/GyroMotionSensors {
+	public fun <init> (Landroid/content/Context;)V
+	public fun getHasGravity ()Z
+	public fun getHasGyroscope ()Z
+	public fun startGyro (Lkotlin/jvm/functions/Function1;)Z
+	public fun startMotion (Lkotlin/jvm/functions/Function1;)Z
+	public fun stopGyro ()V
+	public fun stopMotion ()V
+}
+
+public final class com/opencapture/opencine/gyro/AndroidGyroSample {
+	public fun <init> (DDDD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun component4 ()D
+	public final fun copy (DDDD)Lcom/opencapture/opencine/gyro/AndroidGyroSample;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/AndroidGyroSample;DDDDILjava/lang/Object;)Lcom/opencapture/opencine/gyro/AndroidGyroSample;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getTimestamp ()D
+	public final fun getX ()D
+	public final fun getY ()D
+	public final fun getZ ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class com/opencapture/opencine/gyro/GyroArmingEffect {
 }
 
@@ -167,12 +194,15 @@ public abstract interface class com/opencapture/opencine/gyro/GyroCameraAdapter 
 }
 
 public final class com/opencapture/opencine/gyro/GyroCameraIdentity {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/gyro/GyroCameraIdentity;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/GyroCameraIdentity;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/gyro/GyroCameraIdentity;
+	public final fun component3 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Z)Lcom/opencapture/opencine/gyro/GyroCameraIdentity;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/GyroCameraIdentity;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/gyro/GyroCameraIdentity;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAutomaticRestoreEligible ()Z
 	public final fun getId ()Ljava/lang/String;
 	public final fun getName ()Ljava/lang/String;
 	public fun hashCode ()I
@@ -189,6 +219,143 @@ public final class com/opencapture/opencine/gyro/GyroCameraLevel {
 	public final fun getDown ()Lcom/opencapture/opencine/gyro/GyroVector3;
 	public final fun getTimestampSeconds ()D
 	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroCaptureCoordinator {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/gyro/GyroHostConfiguration;Lcom/opencapture/opencine/gyro/GyroNativeApi;Lcom/opencapture/opencine/gyro/GyroMotionSensors;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/gyro/GyroHostConfiguration;Lcom/opencapture/opencine/gyro/GyroNativeApi;Lcom/opencapture/opencine/gyro/GyroMotionSensors;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun beginCalibration ()V
+	public final fun bind (Lcom/opencapture/opencine/gyro/GyroCameraAdapter;)V
+	public final fun cancelCalibration ()V
+	public final fun clearNotice ()V
+	public final fun close ()V
+	public final fun delete (Lcom/opencapture/opencine/gyro/GyroLogEntry;)V
+	public final fun dismissDriftPrompt ()V
+	public final fun dismissLogs ()V
+	public final fun dismissTip ()V
+	public final fun finishCalibration ()V
+	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun prepareForDisconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun presentLogs ()V
+	public final fun recalibrateAfterDrift ()V
+	public final fun reportShareFailed ()V
+	public final fun setEnabled (Z)V
+	public final fun setForeground (Z)V
+	public final fun setHostEligible (Z)V
+	public final fun setupKeepStabilization ()V
+	public final fun setupSkipCalibration ()V
+	public final fun setupTurnOffStabilization ()V
+	public final fun setupUseLastCalibration ()V
+	public final fun shareFiles (Ljava/util/List;)Ljava/util/List;
+	public final fun startRing ()V
+}
+
+public final class com/opencapture/opencine/gyro/GyroCaptureCoordinatorKt {
+	public static final field GYRO_WRITE_TIMEOUT_MILLIS J
+	public static final fun gyroCaptureScope ()Lkotlinx/coroutines/CoroutineScope;
+}
+
+public final class com/opencapture/opencine/gyro/GyroCaptureState {
+	public fun <init> ()V
+	public fun <init> (ZZLcom/opencapture/opencine/gyro/GyroPillState;Ljava/util/List;Lcom/opencapture/opencine/gyro/GyroNotice;ZLjava/util/List;Lcom/opencapture/opencine/gyro/GyroRingState;ZZZIZZI)V
+	public synthetic fun <init> (ZZLcom/opencapture/opencine/gyro/GyroPillState;Ljava/util/List;Lcom/opencapture/opencine/gyro/GyroNotice;ZLjava/util/List;Lcom/opencapture/opencine/gyro/GyroRingState;ZZZIZZIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component10 ()Z
+	public final fun component11 ()Z
+	public final fun component12 ()I
+	public final fun component13 ()Z
+	public final fun component14 ()Z
+	public final fun component15 ()I
+	public final fun component2 ()Z
+	public final fun component3 ()Lcom/opencapture/opencine/gyro/GyroPillState;
+	public final fun component4 ()Ljava/util/List;
+	public final fun component5 ()Lcom/opencapture/opencine/gyro/GyroNotice;
+	public final fun component6 ()Z
+	public final fun component7 ()Ljava/util/List;
+	public final fun component8 ()Lcom/opencapture/opencine/gyro/GyroRingState;
+	public final fun component9 ()Z
+	public final fun copy (ZZLcom/opencapture/opencine/gyro/GyroPillState;Ljava/util/List;Lcom/opencapture/opencine/gyro/GyroNotice;ZLjava/util/List;Lcom/opencapture/opencine/gyro/GyroRingState;ZZZIZZI)Lcom/opencapture/opencine/gyro/GyroCaptureState;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/GyroCaptureState;ZZLcom/opencapture/opencine/gyro/GyroPillState;Ljava/util/List;Lcom/opencapture/opencine/gyro/GyroNotice;ZLjava/util/List;Lcom/opencapture/opencine/gyro/GyroRingState;ZZZIZZIILjava/lang/Object;)Lcom/opencapture/opencine/gyro/GyroCaptureState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAvailable ()Z
+	public final fun getCanCalibrate ()Z
+	public final fun getDriftHapticToken ()I
+	public final fun getDriftPromptPresented ()Z
+	public final fun getEnabled ()Z
+	public final fun getHasSavedCalibration ()Z
+	public final fun getLogs ()Ljava/util/List;
+	public final fun getLogsPresented ()Z
+	public final fun getNotice ()Lcom/opencapture/opencine/gyro/GyroNotice;
+	public final fun getPill ()Lcom/opencapture/opencine/gyro/GyroPillState;
+	public final fun getRing ()Lcom/opencapture/opencine/gyro/GyroRingState;
+	public final fun getRingEventToken ()I
+	public final fun getSetupSteps ()Ljava/util/List;
+	public final fun getTipVisible ()Z
+	public fun hashCode ()I
+	public final fun isArmed ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroHostConfiguration {
+	public fun <init> (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/io/File;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;
+	public final fun component5 ()Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;
+	public final fun copy (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;)Lcom/opencapture/opencine/gyro/GyroHostConfiguration;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/GyroHostConfiguration;Ljava/lang/String;Ljava/io/File;Ljava/lang/String;Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;ILjava/lang/Object;)Lcom/opencapture/opencine/gyro/GyroHostConfiguration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAppName ()Ljava/lang/String;
+	public final fun getKeys ()Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;
+	public final fun getLegacy ()Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;
+	public final fun getLogRoot ()Ljava/io/File;
+	public final fun getPreferencesName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroLegacyPreferenceKeys {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCalibration ()Ljava/lang/String;
+	public final fun getEnabled ()Ljava/lang/String;
+	public final fun getMountPreset ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroLogEntry {
+	public fun <init> (Lorg/json/JSONObject;Lorg/json/JSONObject;Ljava/io/File;Z)V
+	public synthetic fun <init> (Lorg/json/JSONObject;Lorg/json/JSONObject;Ljava/io/File;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lorg/json/JSONObject;
+	public final fun component2 ()Lorg/json/JSONObject;
+	public final fun component3 ()Ljava/io/File;
+	public final fun component4 ()Z
+	public final fun copy (Lorg/json/JSONObject;Lorg/json/JSONObject;Ljava/io/File;Z)Lcom/opencapture/opencine/gyro/GyroLogEntry;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/GyroLogEntry;Lorg/json/JSONObject;Lorg/json/JSONObject;Ljava/io/File;ZILjava/lang/Object;)Lcom/opencapture/opencine/gyro/GyroLogEntry;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActive ()Z
+	public final fun getApproximateStartOffset ()Ljava/lang/Double;
+	public final fun getCameraLabel ()Ljava/lang/String;
+	public final fun getCanShare ()Z
+	public final fun getDescriptor ()Lorg/json/JSONObject;
+	public final fun getDurationSeconds ()Ljava/lang/Double;
+	public final fun getFile ()Ljava/io/File;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getMeasuredRate ()Ljava/lang/Double;
+	public final fun getStartDateMillis ()J
+	public final fun getStatus ()Lcom/opencapture/opencine/gyro/GyroTakeStatus;
+	public final fun getSummary ()Lorg/json/JSONObject;
+	public fun hashCode ()I
+	public final fun isCalibrated ()Z
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -211,6 +378,18 @@ public final class com/opencapture/opencine/gyro/GyroLogReply {
 	public final fun getUpdates ()Ljava/util/List;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroLogStore {
+	public fun <init> (Ljava/io/File;Lcom/opencapture/opencine/gyro/GyroNativeApi;)V
+	public final fun abort ()V
+	public final fun apply (Ljava/util/List;)V
+	public final fun close ()V
+	public final fun delete (Lcom/opencapture/opencine/gyro/GyroLogEntry;)V
+	public final fun entries ()Ljava/util/List;
+	public final fun flush (J)V
+	public final fun recover ()V
+	public final fun shareFiles (Ljava/util/List;)Ljava/util/List;
 }
 
 public abstract interface class com/opencapture/opencine/gyro/GyroLogUpdate {
@@ -262,6 +441,32 @@ public final class com/opencapture/opencine/gyro/GyroLogUpdate$Opened : com/open
 	public final fun getDescriptor ()Lorg/json/JSONObject;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroMotionReading {
+	public fun <init> (DLcom/opencapture/opencine/gyro/GyroVector3;DD)V
+	public final fun component1 ()D
+	public final fun component2 ()Lcom/opencapture/opencine/gyro/GyroVector3;
+	public final fun component3 ()D
+	public final fun component4 ()D
+	public final fun copy (DLcom/opencapture/opencine/gyro/GyroVector3;DD)Lcom/opencapture/opencine/gyro/GyroMotionReading;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/GyroMotionReading;DLcom/opencapture/opencine/gyro/GyroVector3;DDILjava/lang/Object;)Lcom/opencapture/opencine/gyro/GyroMotionReading;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccelerationG ()D
+	public final fun getPhoneDown ()Lcom/opencapture/opencine/gyro/GyroVector3;
+	public final fun getRotationRate ()D
+	public final fun getTimestamp ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/gyro/GyroMotionSensors {
+	public abstract fun getHasGravity ()Z
+	public abstract fun getHasGyroscope ()Z
+	public abstract fun startGyro (Lkotlin/jvm/functions/Function1;)Z
+	public abstract fun startMotion (Lkotlin/jvm/functions/Function1;)Z
+	public abstract fun stopGyro ()V
+	public abstract fun stopMotion ()V
 }
 
 public final class com/opencapture/opencine/gyro/GyroNative : com/opencapture/opencine/gyro/GyroNativeApi {
@@ -333,6 +538,94 @@ public abstract interface class com/opencapture/opencine/gyro/GyroNativeApi {
 	public abstract fun ringUpdateCamera (Ljava/lang/String;ZI)Ljava/lang/String;
 }
 
+public final class com/opencapture/opencine/gyro/GyroNotice : java/lang/Enum {
+	public static final field DELETE_FAILED Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field OPEN_FAILED Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field RECORDING_EVENTS_LOST Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field RECOVERY_INCOMPLETE Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field RESTORE_FAILED Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field SAMPLES_LOST Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field SAVE_FAILED Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field SENSOR_STALLED Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field SENSOR_UNAVAILABLE Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field SHARE_FAILED Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static final field TURN_OFF_FAILED Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/gyro/GyroNotice;
+	public static fun values ()[Lcom/opencapture/opencine/gyro/GyroNotice;
+}
+
+public final class com/opencapture/opencine/gyro/GyroPillKind : java/lang/Enum {
+	public static final field ARMED Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static final field ERROR Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static final field GAPS Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static final field HIDDEN Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static final field MOUNT_MOVED Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static final field OFFLINE Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static final field RECORDING Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static final field SAVING Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public static fun values ()[Lcom/opencapture/opencine/gyro/GyroPillKind;
+}
+
+public final class com/opencapture/opencine/gyro/GyroPillKt {
+	public static final fun resolveGyroPill (ZZZZZZLjava/lang/Boolean;ZZZ)Lcom/opencapture/opencine/gyro/GyroPillState;
+}
+
+public final class com/opencapture/opencine/gyro/GyroPillState {
+	public static final field Companion Lcom/opencapture/opencine/gyro/GyroPillState$Companion;
+	public fun <init> (Lcom/opencapture/opencine/gyro/GyroPillKind;Z)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lcom/opencapture/opencine/gyro/GyroPillKind;
+	public final fun getStabilizationWarning ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroPillState$Companion {
+	public final fun getHIDDEN_STATE ()Lcom/opencapture/opencine/gyro/GyroPillState;
+}
+
+public final class com/opencapture/opencine/gyro/GyroPreferenceKeys {
+	public static final field Companion Lcom/opencapture/opencine/gyro/GyroPreferenceKeys$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCalibrations ()Ljava/lang/String;
+	public final fun getEnabled ()Ljava/lang/String;
+	public final fun getLegacyCalibration ()Ljava/lang/String;
+	public final fun getMigrated ()Ljava/lang/String;
+	public final fun getPendingRestores ()Ljava/lang/String;
+	public final fun getTipDismissed ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroPreferenceKeys$Companion {
+	public final fun namespaced (Ljava/lang/String;)Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;
+}
+
+public final class com/opencapture/opencine/gyro/GyroPreferences {
+	public fun <init> (Landroid/content/SharedPreferences;Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;Lcom/opencapture/opencine/gyro/GyroNativeApi;)V
+	public synthetic fun <init> (Landroid/content/SharedPreferences;Lcom/opencapture/opencine/gyro/GyroPreferenceKeys;Lcom/opencapture/opencine/gyro/GyroLegacyPreferenceKeys;Lcom/opencapture/opencine/gyro/GyroNativeApi;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun calibrationJSON (Ljava/lang/String;)Ljava/lang/String;
+	public final fun getEnabled ()Z
+	public final fun getPendingRestoresJSON ()Ljava/lang/String;
+	public final fun getTipDismissed ()Z
+	public final fun saveCalibration (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun setEnabled (Z)V
+	public final fun setPendingRestoresJSON (Ljava/lang/String;)V
+	public final fun setTipDismissed (Z)V
+}
+
 public final class com/opencapture/opencine/gyro/GyroRingEvent : java/lang/Enum {
 	public static final field COMPLETED Lcom/opencapture/opencine/gyro/GyroRingEvent;
 	public static final field STEP_CAPTURED Lcom/opencapture/opencine/gyro/GyroRingEvent;
@@ -379,6 +672,11 @@ public final class com/opencapture/opencine/gyro/GyroRingState {
 	public final fun getStep ()Ljava/lang/Integer;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/gyro/GyroSampleBatchKt {
+	public static final fun encodeGyroBatch (Ljava/util/List;)[B
+	public static final fun replayGyroIngress (Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
 }
 
 public final class com/opencapture/opencine/gyro/GyroStabilizationSetting {
@@ -490,5 +788,25 @@ public final class com/opencapture/opencine/gyro/GyroWritePurpose : java/lang/En
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/gyro/GyroWritePurpose;
 	public static fun values ()[Lcom/opencapture/opencine/gyro/GyroWritePurpose;
+}
+
+public final class com/opencapture/opencine/gyro/RecordingObservation {
+	public fun <init> (Ljava/lang/Boolean;DDZLjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/Boolean;DDZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Boolean;
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun component4 ()Z
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/Boolean;DDZLjava/lang/String;)Lcom/opencapture/opencine/gyro/RecordingObservation;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/gyro/RecordingObservation;Ljava/lang/Boolean;DDZLjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/gyro/RecordingObservation;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCalibrationJSON ()Ljava/lang/String;
+	public final fun getDate ()D
+	public final fun getInterrupted ()Z
+	public final fun getRecording ()Ljava/lang/Boolean;
+	public final fun getTimestamp ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 

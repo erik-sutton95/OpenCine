@@ -65,10 +65,11 @@ jobs:
           fail: true
       - name: EditorConfig check
         uses: editorconfig-checker/action-editorconfig-checker@51f63319f592f97930c73d9c46184d20bd206393 # v3.0.0
-      - name: Release notes, nightly report and native playback CI tooling
+      - name: Release notes, nightly report, test report and native playback CI tooling
         run: |
           scripts/tester-notes-release-check-test.sh
           scripts/ci-nightly-report-test.sh
+          python3 scripts/ci-test-guards-test.py
           python3 scripts/ios-playback-label-ci-test.py
       - name: Actionlint
         uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
@@ -174,6 +175,14 @@ jobs:
         if: always()
         shell: bash
         run: '! grep -q "implemented in both" test-cache.log test.log test-still-*.log test-luna.log'
+      # Per-suite and per-test durations of the runs above, in the job summary (docs/testing/CI.md).
+      - name: Test timing summary
+        if: always()
+        shell: bash
+        run: |
+          logs=()
+          for log in test-cache.log test.log test-still-*.log test-luna.log; do logs+=(--log "${log%.log}=$log"); done
+          python3 scripts/ci-test-report.py --summary --title "Swift package tests" "${logs[@]}"
       - name: Build MonitorUI and OpenCineApple (iOS Simulator)
         run: |
           for scheme in MonitorUI OpenCineApple; do

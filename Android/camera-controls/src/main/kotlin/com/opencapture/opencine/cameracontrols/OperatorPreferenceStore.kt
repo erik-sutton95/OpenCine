@@ -29,7 +29,11 @@ enum class PortraitFeedAspect(val raw: String) {
  * The operator's stored choices in one preferences file. The app names the file and the key prefix its
  * saved data already uses, so every stored value carries over unchanged.
  */
-open class OperatorPreferenceStore(file: String, private val keyPrefix: String) {
+open class OperatorPreferenceStore @JvmOverloads constructor(
+    file: String,
+    private val keyPrefix: String,
+    private val remoteShutterDefault: Boolean = true,
+) {
     private val PREFS = file
     private val AWAKE = key("KeepScreenAwake")
     private val HDR_DISPLAY = key("HDRDisplay")
@@ -71,6 +75,7 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
         storage = prefs(context),
         keys = MonitorOperatorPreferences.Keys(AWAKE, HDR_DISPLAY, RECORD_CONFIRM, HAPTICS,
             CACHE_FULL_RESOLUTION, AWAKE_LEGACY, REMOTE_SHUTTER),
+        defaults = MonitorOperatorPreferences.Defaults(remoteShutter = remoteShutterDefault),
     )
 
     fun keepScreenAwake(context: Context): Boolean = common(context).keepScreenAwake
@@ -81,7 +86,7 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
     fun setRecordConfirmationEnabled(context: Context, value: Boolean) { common(context).recordConfirmation = value }
     fun hapticsEnabled(context: Context): Boolean = common(context).haptics
     fun setHapticsEnabled(context: Context, value: Boolean) { common(context).haptics = value }
-    /** Volume and media presses toggle recording while the live view is in front (A2-32); on by default. */
+    /** Volume and media presses toggle recording while the live view is in front (A2-32). */
     fun remoteShutterEnabled(context: Context): Boolean = common(context).remoteShutter
     fun setRemoteShutterEnabled(context: Context, value: Boolean) { common(context).remoteShutter = value }
 

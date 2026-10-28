@@ -173,14 +173,25 @@ public struct MonitorSettingsGyroSource {
     let openLogs: () -> Void
     let mountName: String?
     let configureMount: (() -> Void)?
+    /// Starts the phone mount calibration; the settings card shows its row only when set.
+    let calibrate: (() -> Void)?
 
-    /// Creates host-owned controls and optional callbacks for logs and phone mount configuration.
+    /// Creates host-owned controls with callbacks for the logs and for the mount calibration.
     public init(enabled: Binding<Bool>, status: String, available: Bool = true,
-        openLogs: @escaping () -> Void, mountName: String? = nil,
-        configureMount: (() -> Void)? = nil) {
+        openLogs: @escaping () -> Void, calibrate: (() -> Void)? = nil) {
         self.enabled = enabled; self.status = status
         self.available = available; self.openLogs = openLogs
-        self.mountName = mountName; self.configureMount = configureMount
+        self.mountName = nil; self.configureMount = nil; self.calibrate = calibrate
+    }
+
+    /// The old form with phone mount presets, kept so existing callers compile.
+    @available(*, deprecated, message: "Mount presets are gone; pass calibrate")
+    public init(enabled: Binding<Bool>, status: String, available: Bool = true,
+        openLogs: @escaping () -> Void, mountName: String?,
+        configureMount: (() -> Void)? = nil, calibrate: (() -> Void)? = nil) {
+        self.enabled = enabled; self.status = status
+        self.available = available; self.openLogs = openLogs
+        self.mountName = mountName; self.configureMount = configureMount; self.calibrate = calibrate
     }
 }
 

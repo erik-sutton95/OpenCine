@@ -7,7 +7,12 @@ import kotlinx.coroutines.flow.StateFlow
 data class GyroVector3(val x: Double, val y: Double, val z: Double)
 
 /** The active camera body; the id is stable across reconnects. */
-data class GyroCameraIdentity(val id: String, val name: String)
+data class GyroCameraIdentity(
+    val id: String,
+    val name: String,
+    /** False when a model-only fallback must not match another body's pending restore. */
+    val automaticRestoreEligible: Boolean = true,
+)
 
 /** One stabilization setting the camera exposes as an on/off choice. */
 data class GyroStabilizationSetting(val key: String, val title: String, val offValue: String)
@@ -45,7 +50,11 @@ interface GyroCameraAdapter {
     /** Stabilization controls the adapter exposes to the arming setup sheet. */
     val stabilizationSettings: List<GyroStabilizationSetting>
 
-    /** Writes these stabilization values; false when the camera refused the write. */
+    /**
+     * Writes these stabilization values; false when the camera refused the write. It must return
+     * (false) when the connection ends; the coordinator also gives up after
+     * [GYRO_WRITE_TIMEOUT_MILLIS] and treats the write as refused.
+     */
     suspend fun writeStabilization(values: Map<String, String>): Boolean
 }
 

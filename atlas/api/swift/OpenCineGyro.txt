@@ -57,6 +57,25 @@ case GyroMountPreset.rearLeft
 case GyroMountPreset.rearRight
 case GyroMountPreset.rearUp
 case GyroMountPreset.unconfigured
+case GyroNotice.deleteFailed
+case GyroNotice.openFailed
+case GyroNotice.recordingEventsLost
+case GyroNotice.recoveryIncomplete
+case GyroNotice.restoreFailed
+case GyroNotice.samplesLost
+case GyroNotice.saveFailed
+case GyroNotice.sensorStalled
+case GyroNotice.sensorUnavailable
+case GyroNotice.shareFailed
+case GyroNotice.turnOffFailed
+case GyroPillKind.armed
+case GyroPillKind.error
+case GyroPillKind.gaps
+case GyroPillKind.hidden
+case GyroPillKind.mountMoved
+case GyroPillKind.offline
+case GyroPillKind.recording
+case GyroPillKind.saving
 case GyroRingEvent.completed(GyroMountCalibration)
 case GyroRingEvent.stepCaptured(GyroRingStep)
 case GyroRingEvent.verificationFailed
@@ -94,6 +113,8 @@ enum GyroLogTermination: Decodable, Encodable, Equatable, Hashable, RawRepresent
 enum GyroLogUpdate: Equatable, Sendable
 enum GyroMountCalibrationError: Equatable, Error, Hashable, LocalizedError, Sendable
 enum GyroMountPreset: CaseIterable, Decodable, Encodable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
+enum GyroNotice: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
+enum GyroPillKind: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum GyroRingEvent: Equatable, Sendable
 enum GyroRingPhase: Equatable, Sendable
 enum GyroRingStep: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
@@ -149,7 +170,8 @@ func GyroVector3.normalized() throws -> GyroVector3
 init GyroArmingInputs(toggleOn: Swift.Bool, camera: GyroCameraIdentity?, hostEligible: Swift.Bool, videoMode: Swift.Bool?, recording: Swift.Bool?, stabilization: GyroStabilizationState?, settings: [GyroStabilizationSetting], providesLevel: Swift.Bool, hasSavedCalibration: Swift.Bool)
 init GyroArmingMachine(pendingRestores: [GyroPendingRestore])
 init GyroCalibrationPose(phoneDown: GyroVector3, cameraDown: GyroVector3)
-init GyroCameraIdentity(id: Swift.String, name: Swift.String)
+init GyroCameraIdentity(from: any Swift.Decoder) throws
+init GyroCameraIdentity(id: Swift.String, name: Swift.String, automaticRestoreEligible: Swift.Bool)
 init GyroDriftDetector(calibration: GyroMountCalibration, thresholdDegrees: Swift.Double)
 init GyroDriftReading(timestamp: Swift.Double, phoneDown: GyroVector3, rotationRate: Swift.Double, accelerationG: Swift.Double)
 init GyroGCSVRecovery()
@@ -161,6 +183,7 @@ init GyroLogStore(directory: Foundation.URL)
 init GyroMountCalibration(from: any Swift.Decoder) throws
 init GyroMountCalibrationSession()
 init GyroPendingRestore(cameraID: Swift.String, saved: [Swift.String : Swift.String], applied: [Swift.String : Swift.String])
+init GyroPillState(kind: GyroPillKind, stabilizationWarning: Swift.Bool)
 init GyroPreferences(store: any GyroKeyValueStore, keys: GyroPreferenceKeys, legacy: GyroLegacyPreferenceKeys?)
 init GyroRingCalibration()
 init GyroSample(timestamp: Swift.Double, x: Swift.Double, y: Swift.Double, z: Swift.Double)
@@ -170,6 +193,7 @@ init GyroTakeSession(appName: Swift.String)
 init GyroVector3(x: Swift.Double, y: Swift.Double, z: Swift.Double)
 let GyroCalibrationPose.cameraDown: GyroVector3
 let GyroCalibrationPose.phoneDown: GyroVector3
+let GyroCameraIdentity.automaticRestoreEligible: Swift.Bool
 let GyroCameraIdentity.id: Swift.String
 let GyroCameraIdentity.name: Swift.String
 let GyroDriftReading.accelerationG: Swift.Double
@@ -208,6 +232,8 @@ let GyroMountCalibration.validationErrorDegrees: Swift.Double
 let GyroPendingRestore.applied: [Swift.String : Swift.String]
 let GyroPendingRestore.cameraID: Swift.String
 let GyroPendingRestore.saved: [Swift.String : Swift.String]
+let GyroPillState.kind: GyroPillKind
+let GyroPillState.stabilizationWarning: Swift.Bool
 let GyroPreferenceKeys.calibrations: Swift.String
 let GyroPreferenceKeys.enabled: Swift.String
 let GyroPreferenceKeys.legacyCalibration: Swift.String
@@ -234,6 +260,7 @@ static func GyroCameraGravity.down(rollDegrees: Swift.Double, pitchDegrees: Swif
 static func GyroGCSVEncoder.header(descriptor: GyroLogDescriptor) -> Foundation.Data
 static func GyroGCSVEncoder.row(_: GyroSample, origin: Swift.Double, mountCalibration: GyroMountCalibration?) throws -> Foundation.Data
 static func GyroMountCalibration.solve(first: GyroCalibrationPose, second: GyroCalibrationPose, validation: GyroCalibrationPose) throws -> GyroMountCalibration
+static func GyroPillState.resolve(enabled: Swift.Bool, failed: Swift.Bool, armed: Swift.Bool, motionRunning: Swift.Bool, hasFirstSample: Swift.Bool, activeTake: Swift.Bool, cameraRecording: Swift.Bool?, gapWarning: Swift.Bool, mountMoved: Swift.Bool, stabilizationWarning: Swift.Bool) -> GyroPillState
 static func GyroPreferenceKeys.namespaced(_: Swift.String) -> GyroPreferenceKeys
 static func GyroTakeStatus.resolve(descriptor: GyroLogDescriptor, summary: GyroLogSummary?, active: Swift.Bool) -> GyroTakeStatus
 static let GyroDriftDetector.cameraFreshness: Swift.Double
@@ -242,6 +269,7 @@ static let GyroDriftDetector.maximumSteadyGap: Swift.Double
 static let GyroDriftDetector.steadyAccelerationToleranceG: Swift.Double
 static let GyroDriftDetector.steadyRotationRate: Swift.Double
 static let GyroDriftDetector.thresholdDegrees: Swift.Double
+static let GyroPillState.hidden: GyroPillState
 static let GyroRingCalibration.holdSeconds: Swift.Double
 static let GyroTakeSession.coverageSeconds: Swift.Double
 static let GyroTakeSession.maximumBufferedSamples: Swift.Int
@@ -262,6 +290,7 @@ struct GyroLogSummary: Decodable, Encodable, Equatable, Identifiable, Sendable
 struct GyroMountCalibration: Decodable, Encodable, Equatable, Sendable
 struct GyroMountCalibrationSession: Sendable
 struct GyroPendingRestore: Decodable, Encodable, Equatable, Sendable
+struct GyroPillState: Equatable, Sendable
 struct GyroPreferenceKeys: Equatable, Sendable
 struct GyroRingCalibration: Sendable
 struct GyroSample: Decodable, Encodable, Equatable, Sendable

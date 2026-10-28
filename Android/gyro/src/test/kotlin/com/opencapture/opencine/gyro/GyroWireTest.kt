@@ -133,7 +133,7 @@ class GyroWireTest {
     fun armingInputsEncodeTheSwiftFieldNames() {
         val inputs = GyroArmingInputs(
             toggleOn = true,
-            camera = GyroCameraIdentity(id = "cam-1", name = "Camera One"),
+            camera = GyroCameraIdentity(id = "cam-1", name = "Camera One", automaticRestoreEligible = false),
             hostEligible = true,
             videoMode = true,
             recording = false,
@@ -164,6 +164,7 @@ class GyroWireTest {
         )
         assertEquals("cam-1", json.getJSONObject("camera").getString("id"))
         assertEquals("Camera One", json.getJSONObject("camera").getString("name"))
+        assertEquals(false, json.getJSONObject("camera").getBoolean("automaticRestoreEligible"))
         assertEquals(true, json.getBoolean("videoMode"))
         assertEquals(false, json.getBoolean("recording"))
         val stabilization = json.getJSONObject("stabilization")

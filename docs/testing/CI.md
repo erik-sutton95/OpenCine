@@ -47,6 +47,11 @@ entered 6 s after admission, 2026-10-23). A test that blocks a native worker and
 runs that worker at the waiter's tier (`MonitorInspectorImageRenderer(workerQoS:)`); production
 keeps its own QoS.
 
+The Swift job's summary lists each run's counts and its slowest suites and tests
+(`scripts/ci-test-report.py`). Swift Testing runs tests concurrently, so its suite and test times
+are elapsed wall time that overlaps, not additive cost; XCTest suite times are serial sums. Read
+them before changing a test, a timeout or a job split.
+
 XCTest reports the last Swift error it observed in a failed test, and UIKit teardown in a
 `defer` throws and swallows private framework errors (`InvalidTransition { phase: idle,
 targetPhase: failed(removedFromContainer) }` from Gestures). An event wait therefore records its
@@ -54,6 +59,7 @@ own failure (`XCTFail`) before it throws, so the report names the missed event.
 
 ## QUARANTINE
 
+A test that flakes twice, locally or in hosted CI, is quarantined the same day.
 Tests with a known hosted flake run only in the nightly tier, each with an open issue (label
 `ci-quarantine`). There are no accepted reds in pull requests: a PR-tier failure is fixed or the
 test is quarantined here, in the same pull request, with its issue.

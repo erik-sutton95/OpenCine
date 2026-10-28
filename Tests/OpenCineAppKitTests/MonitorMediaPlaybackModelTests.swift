@@ -147,6 +147,35 @@ import Testing
         return probe
     }
 
+    /// The playback page reads previous/next availability on every body pass, and a camera
+    /// card playlist holds thousands of records (build 317: a full playlist scan per read).
+    /// The answer stays right at both ends and its cost does not grow with the playlist.
+    @Test func adjacentAvailabilityDoesNotScanThePlaylist() {
+        guard #available(macOS 14, *) else { return }
+        func cost(playlistSize: Int, reads: Int) -> (Duration, [Bool]) {
+            let (root, library, _, model) = fixture()
+            defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+            let rows = (0..<playlistSize).map { record("clip\($0)") }
+            var edges: [Bool] = []
+            for row in [rows[0], rows[playlistSize / 2], rows[playlistSize - 1]] {
+                model.load(row, playlist: rows, play: false)
+                edges += [model.canGoPrevious, model.canGoNext]
+            }
+            let clock = ContinuousClock()
+            let elapsed = clock.measure {
+                for _ in 0..<reads { _ = model.canGoPrevious && model.canGoNext }
+            }
+            return (elapsed, edges)
+        }
+        let (small, smallEdges) = cost(playlistSize: 8, reads: 2_000)
+        let (large, largeEdges) = cost(playlistSize: 8_000, reads: 2_000)
+        #expect(smallEdges == [false, true, true, true, true, false])
+        #expect(largeEdges == smallEdges)
+        // A scan makes the large playlist about a thousand times dearer; a stored place keeps
+        // both within noise of each other.
+        #expect(large < small * 20 + .milliseconds(20), "8 records: \(small), 8000 records: \(large)")
+    }
+
     @Test func pendingLoopSeekCompletionCannotOverrideOperatorPause() async {
         guard #available(macOS 14, *) else { return }
         let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)

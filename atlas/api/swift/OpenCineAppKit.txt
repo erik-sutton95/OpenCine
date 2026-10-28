@@ -689,6 +689,7 @@ func MonitorOperatorMediaModel.isCurrent(_: OpenCineMedia.MonitorPlaybackItemTok
 func MonitorOperatorMediaModel.isDeletionCurrent(admitted: Foundation.UUID)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> Swift.Bool
 func MonitorOperatorMediaModel.open(_: MonitorMediaRecord<Payload>, playlist: [MonitorMediaRecord<Payload>], admitted: MonitorMediaLibraryActionToken)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> Swift.Bool
 func MonitorOperatorMediaModel.open(_: OpenCineMedia.MediaAssetID, admitted: MonitorMediaLibraryActionToken)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> Swift.Bool
+func MonitorOperatorMediaModel.presents(_: OpenCineMedia.MonitorPlaybackItemToken)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> Swift.Bool
 func MonitorOperatorMediaModel.readRating(_: MonitorMediaPlaybackRatingService<Payload>?)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> ()
 func MonitorOperatorMediaModel.setDeliveryPresented(_: Swift.Bool)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> ()
 func MonitorOperatorMediaModel.setPlayerVisible(_: Swift.Bool)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> ()
@@ -713,6 +714,7 @@ func MonitorPlaybackScopeSession.close()<Configuration where Configuration : Swi
 func MonitorPlaybackScopeSession.retire(item: OpenCineMedia.MonitorPlaybackItemToken)<Configuration where Configuration : Swift.Equatable, Configuration : Swift.Sendable> -> ()
 func MonitorPlaybackScopeSession.synchronize(item: OpenCineMedia.MonitorPlaybackItemToken, enabled: Swift.Bool, configuration: Configuration, read: () async -> MonitorPlaybackScopeFrame?, ifCurrent: () -> Swift.Bool)<Configuration where Configuration : Swift.Equatable, Configuration : Swift.Sendable> -> ()
 func MonitorRemoteShutterPresses.observe(volume: Swift.Float, at: Foundation.TimeInterval) -> MonitorRemoteShutterPolicy.Decision
+func MonitorRemoteShutterPresses.observe(volume: Swift.Float, currentVolume: Swift.Float, at: Foundation.TimeInterval) -> MonitorRemoteShutterPolicy.Decision?
 func MonitorRemoteShutterPresses.pinned(at: Foundation.TimeInterval) -> ()
 func MonitorRemoteShutterPresses.reanchor(volume: Swift.Float) -> ()
 func MonitorRemoteShutterPresses.repins(volume: Swift.Float, at: Foundation.TimeInterval) -> Swift.Bool
@@ -2298,6 +2300,7 @@ var MonitorMediaPlaybackModel.closed: Swift.Bool
 var MonitorMediaPlaybackModel.conformTarget: Swift.Double?
 var MonitorMediaPlaybackModel.duration: Swift.Double?
 var MonitorMediaPlaybackModel.error: Swift.String?
+var MonitorMediaPlaybackModel.holdsItem: Swift.Bool
 var MonitorMediaPlaybackModel.isActive: Swift.Bool
 var MonitorMediaPlaybackModel.item: OpenCineMedia.MonitorPlaybackItem?
 var MonitorMediaPlaybackModel.loading: Swift.Bool

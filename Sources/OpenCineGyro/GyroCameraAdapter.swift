@@ -6,11 +6,23 @@ public struct GyroCameraIdentity: Hashable, Codable, Sendable {
     public let id: String
     /// Shown on log rows.
     public let name: String
+    /// Whether this identity is body-specific enough for automatic stabilization restores.
+    public let automaticRestoreEligible: Bool
 
     /// Creates the identity a host integration reports for one body.
-    public init(id: String, name: String) {
+    public init(id: String, name: String, automaticRestoreEligible: Bool = true) {
         self.id = id
         self.name = name
+        self.automaticRestoreEligible = automaticRestoreEligible
+    }
+
+    /// Restores pre-eligibility identities with the original automatic-restore behavior.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        automaticRestoreEligible = try container.decodeIfPresent(
+            Bool.self, forKey: .automaticRestoreEligible) ?? true
     }
 }
 
@@ -55,6 +67,8 @@ public struct GyroStabilizationState: Equatable, Codable, Sendable {
 }
 
 /// One camera observation forwarded from a host integration to the gyro logging session.
+/// "Phone monotonic" timestamps are `ProcessInfo.processInfo.systemUptime` seconds, the time
+/// base of `CMLogItem.timestamp`, so camera events and motion samples share one clock.
 public enum GyroCameraEvent: Equatable, Sendable {
     /// A camera body became the active source.
     case connected(GyroCameraIdentity)
@@ -82,7 +96,8 @@ public enum GyroCameraEvent: Equatable, Sendable {
     var providesLevel: Bool { get }
     /// Empty when the camera exposes no stabilization control.
     var stabilizationSettings: [GyroStabilizationSetting] { get }
-    /// Starts forwarding observations to the sink; replaces any previous sink.
+    /// Starts forwarding observations to the sink; replaces any previous sink. The adapter must
+    /// hold the sink weakly: the coordinator (the sink) holds its adapter strongly.
     func attach(_ sink: any GyroCameraSink)
     /// Stops forwarding observations to the current sink.
     func detach()

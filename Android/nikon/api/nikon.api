@@ -1860,6 +1860,18 @@ public final class com/opencapture/opencine/nikon/NikonGallerySourceItem {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/opencine/nikon/NikonGyroCameraAdapter : com/opencapture/opencine/gyro/GyroCameraAdapter {
+	public fun <init> (Lcom/opencapture/opencine/nikon/CameraSession;Lcom/opencapture/opencine/nikon/SwiftCoreLiveFrameSource;Lcom/opencapture/opencine/gyro/GyroNativeApi;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function0;)V
+	public fun getIdentity ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getLevel ()Lkotlinx/coroutines/flow/Flow;
+	public fun getProvidesLevel ()Z
+	public fun getRecording ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getStabilization ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getStabilizationSettings ()Ljava/util/List;
+	public fun getVideoMode ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun writeStabilization (Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public final class com/opencapture/opencine/nikon/NikonHosts {
 	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonHosts;
 	public static final field PENDING_ACCESS_POINT_HOST_PREFIX Ljava/lang/String;

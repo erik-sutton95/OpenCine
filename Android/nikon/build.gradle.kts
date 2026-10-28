@@ -30,6 +30,7 @@ dependencies {
     api(project(":core"))
     api(project(":nikon-wire"))
     api(project(":media"))
+    api(project(":gyro"))
     // Session recovery state and copy have one owner (D-NI1).
     api(project(":camera-vocabulary"))
     // The shared camera access-point join (NikonCameraAp).
@@ -39,6 +40,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
     testImplementation(testFixtures(project(":core")))
+    testImplementation(testFixtures(project(":gyro")))
 }
 
 // The saved-setup fixtures are shared with the Swift OpenCineNikonTests (Fixtures/ at the

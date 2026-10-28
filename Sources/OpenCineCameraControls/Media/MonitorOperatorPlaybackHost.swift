@@ -197,7 +197,9 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
                 guard let playback = owner.playback, let native = presentation.native else { return [] }
                 let token = playback.token, samples = host.frameSamples
                 let epoch = samples.inspectorSourceEpoch
-                guard owner.isCurrent(token), let buffer = native.feed.backdropSource() else { return [] }
+                // Presentation only: the backdrop asks up to 60 times a second, so it never runs
+                // the source's item admission (which may read the file system).
+                guard owner.presents(token), let buffer = native.feed.backdropSource() else { return [] }
                 let dimensions = displaySize(playback)
                 var effects = presentation.projectEffects(host.assist.playbackEffects)
                 let rect = DesqueezeAssist.presentationRect(sourceSize: dimensions,
@@ -210,7 +212,7 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
                         offset: pictureGeometry?.zoom.offset ?? .zero), clip: rect, identity: .playback(item: token, epoch: epoch),
                     admission: { [weak owner, weak playback, weak native, weak presentation, weak samples] in
                         guard let owner, let playback, let native, let presentation, let samples else { return false }
-                        return owner.isCurrent(token) && playback.token == token && presentation.native === native
+                        return owner.presents(token) && playback.token == token && presentation.native === native
                             && samples.inspectorSourceEpoch == epoch
                     })]
             }

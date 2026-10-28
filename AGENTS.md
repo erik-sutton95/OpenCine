@@ -112,13 +112,16 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   no project dependencies. `OpenCineGyroAndroid` (the JNI facade) depends on `OpenCineGyro` and
   `OpenCineJNISupport` only. A camera joins through the `GyroCameraAdapter` contract, implemented
   in its integration.
+- `OpenCineGyroApple` (gyro capture's iOS shell: CoreMotion driver, UserDefaults store and the
+  capture coordinator) depends on `OpenCineGyro` and Apple frameworks only, never on UI, an
+  integration or an app.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.
   Before changing effects, sampling or native frame ownership, read
   [the runtime guide](docs/native-runtime/README.md).
 - Integrations (`OpenCineDJI`, `OpenCineNikon`, `Insta360*`) never import UI or an app. Their
-  neutral dependencies are Core, Media, Motion and the camera vocabulary, as declared in the
+  neutral dependencies are Core, Media, Motion, Gyro and the camera vocabulary, as declared in the
   manifests.
   `OpenCineDJIApple` adds iOS Bluetooth and network adapters above DJI, Media and Motion;
   it never imports UI, an app or the neutral Apple monitor runtime. App policy and secure
@@ -150,8 +153,9 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   Portable appkit, camera controls and monitor UI keep their existing import boundaries;
   native-runtime remains UI-free. Native cache proof helpers belong to androidTest only.
 - Camera controls (`OpenCineCameraControls`, `camera-controls`) hold the capture sheets, live chrome,
-  gimbal, LUT and assist views, the log-camera clip delivery and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
-  the camera vocabulary, UI, the app shell, Core, Media, Motion and `OpenCineApple` (the clip exporter), never on DJI or another
+  gimbal, LUT and assist views, the log-camera clip delivery, the shared gyro screens and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
+  the camera vocabulary, UI, the app shell, Core, Media, Motion, `OpenCineApple` (the clip exporter), and `OpenCineGyro`
+  plus `OpenCineGyroApple` (the gyro engine and its iOS coordinator), never on DJI or another
   integration, an app or a third-party package. App differences arrive as host values (label
   profile, state, theme), never as brand branches. Their edge to the camera vocabulary (one per
   platform) is listed in atlas `allowed_target_edges`; UI itself still never builds on an
@@ -231,13 +235,42 @@ Never grow the common command interface into an enum of vendor features.
 - Harness: label every scenario SIMULATED; a seam defect goes into the harness README "Seam
   findings" with a test (`withKnownIssue` for owner changes).
 
+## Writing tests
+
+Test behavior at contract boundaries, not implementation. A test earns its place when a real
+regression fails it and a correct refactor does not. Tests that pin implementation lock in
+whatever code exists today and cost every later change (and every agent) time and tokens.
+
+- One test per behavior that the operator, a camera or another app depends on: camera commands
+  and the bytes they put on the wire, recording start and stop, preservation of footage and user
+  data, session recovery, migrations, and shared UI contracts (what is shown, announced and
+  tappable). Not one test per function or type.
+- Do not test private helpers, call order, file or type names, source text or exact internal
+  counts, and do not reach into private state through reflection. Do not copy an old
+  implementation into a test as its oracle; use golden data or recorded camera output.
+- Before adding a test, check whether an existing test already fails for the same bug. Extend it
+  instead of adding a near-duplicate.
+- Deterministic only: manual clocks and event signals, no sleeps, wall-clock budgets or fixed
+  yield loops. A performance requirement is an operation count in normal tests; real timing
+  budgets belong in a performance tier.
+- A test that flakes twice, locally or in CI, is quarantined that day: it moves to the nightly
+  tier with a `ci-quarantine` issue in the same change (see the CI quarantine rule), instead of
+  being diagnosed again run after run.
+- A test that fails a correct refactor is pinning implementation. Replace it with a behavior test
+  that catches the same bug, then delete it in the same change. That deletion is not lost
+  coverage.
+- Keep: wire and migration goldens, recovery and decoder ownership tests, real-camera corpora,
+  Swift and Kotlin twins (they test two shipping implementations), and architecture rules on
+  imports, dependency edges and brand-free shared code (they guard a boundary, not an
+  implementation detail).
+
 ## Verification
 
 In the worktree you changed:
 
 ```sh
-swift build --build-tests && swift test       # add --scratch-path <dir> when several agents build
-swift build --build-tests -Xswiftc -strict-concurrency=complete
+swift build --build-tests -Xswiftc -strict-concurrency=complete   # add --scratch-path <dir> when several agents build
+swift test --skip-build -Xswiftc -strict-concurrency=complete      # the same --scratch-path
 xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
 xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
 cd Android && ./gradlew test lint assembleRelease && cd .. && scripts/android-vulkan-sync-test.sh

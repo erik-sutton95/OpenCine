@@ -10,6 +10,7 @@ case FakeIntegration.DialPurpose.cameraControl
 case FakeIntegration.DialPurpose.presence
 class FakeAttempt: Sendable
 class FakeCameraSession: Actor, CameraSession, Sendable
+class FakeGyroCameraAdapter: GyroCameraAdapter, Sendable
 class FakeIntegration: CameraIntegration, Sendable
 class ManualHostClock: Sendable
 enum FakeAttempt.End: Equatable, Hashable, Sendable
@@ -40,6 +41,12 @@ func FakeCameraSession.silenceReports(_: Swift.Bool) -> ()
 func FakeCameraSession.snapshots() -> _Concurrency.AsyncStream<OpenCineCore.CameraSnapshot>
 func FakeCameraSession.stages(of: OpenCineCore.OperationID) -> [OpenCineCore.CommandStage]
 func FakeCameraSession.submit(_: OpenCineCore.CameraCommand) -> OpenCineCore.CommandReceipt
+func FakeGyroCameraAdapter.attach(_: any OpenCineGyro.GyroCameraSink) -> ()
+func FakeGyroCameraAdapter.connect(stabilization: OpenCineGyro.GyroStabilizationState?, recording: Swift.Bool?, videoMode: Swift.Bool?, at: Swift.Double) -> ()
+func FakeGyroCameraAdapter.detach() -> ()
+func FakeGyroCameraAdapter.resolveHeldWrite(at: Swift.Int, succeeded: Swift.Bool) -> ()
+func FakeGyroCameraAdapter.send(_: OpenCineGyro.GyroCameraEvent) -> ()
+func FakeGyroCameraAdapter.writeStabilization(_: [Swift.String : Swift.String]) async -> Swift.Bool
 func FakeIntegration.connect(_: OpenCineCore.ConnectTarget) -> _Concurrency.AsyncStream<OpenCineCore.ConnectionEvent>
 func FakeIntegration.discover(_: OpenCineCore.DiscoveryMode) -> _Concurrency.AsyncStream<[OpenCineCore.NearbyCamera]>
 func FakeIntegration.forget(_: OpenCineCore.SavedCamera) async -> ()
@@ -52,6 +59,7 @@ init FakeCameraBehavior(integration: OpenCineCore.IntegrationID, reportDelay: Sw
 init FakeCameraSession(behavior: FakeCameraBehavior, device: FakeDevice, authority: OpenCineCore.ControlAuthority)
 init FakeDevice(rawMode: Swift.UInt8, settings: [OpenCineCore.SettingValue], recording: Swift.Bool?, batteryPercent: Swift.Int?, freeBytes: Swift.UInt64?, timecode: OpenCineCore.CameraTimecode?, audioLevels: OpenCineCore.AudioLevels?)
 init FakeDevice(rawMode: Swift.UInt8, settings: [OpenCineCore.SettingValue], recording: Swift.Bool?, batteryPercent: Swift.Int?, freeBytes: Swift.UInt64?, timecodeReading: OpenCineCore.CameraTimecodeReading?, audioLevels: OpenCineCore.AudioLevels?)
+init FakeGyroCameraAdapter(identity: OpenCineGyro.GyroCameraIdentity, providesLevel: Swift.Bool, settings: [OpenCineGyro.GyroStabilizationSetting])
 init FakeIntegration(id: OpenCineCore.IntegrationID, profiles: [OpenCineCore.CameraProfile], discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>, steps: [OpenCineCore.ConnectionStep], endpoints: [Swift.String], discoveryRunning: Swift.Bool)
 init FakeMode(_: OpenCineCore.CaptureMode, _: [OpenCineCore.SettingDescriptor], unsupported: Swift.Set<OpenCineCore.SettingKey>, timecode: OpenCineCore.SupportStatus, audioLevels: OpenCineCore.SupportStatus)
 init FakeMode(_: OpenCineCore.CaptureMode, _: [OpenCineCore.SettingDescriptor], unsupported: Swift.Set<OpenCineCore.SettingKey>, timecodeCapability: OpenCineCore.TimecodeCapability, audioLevels: OpenCineCore.SupportStatus)
@@ -62,6 +70,8 @@ let FakeAttempt.steps: [OpenCineCore.ConnectionStep]
 let FakeAttempt.target: OpenCineCore.ConnectTarget
 let FakeCameraSession.behavior: FakeCameraBehavior
 let FakeCameraSession.id: OpenCineCore.CameraSessionID
+let FakeGyroCameraAdapter.providesLevel: Swift.Bool
+let FakeGyroCameraAdapter.stabilizationSettings: [OpenCineGyro.GyroStabilizationSetting]
 let FakeIntegration.discoveryIsRunning: Swift.Bool
 let FakeIntegration.discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>
 let FakeIntegration.id: OpenCineCore.IntegrationID
@@ -99,6 +109,13 @@ var FakeDevice.recording: Swift.Bool?
 var FakeDevice.settings: [OpenCineCore.SettingKey : OpenCineCore.SettingValue]
 var FakeDevice.timecode: OpenCineCore.CameraTimecode?
 var FakeDevice.timecodeReading: OpenCineCore.CameraTimecodeReading?
+var FakeGyroCameraAdapter.acceptsWrites: Swift.Bool
+var FakeGyroCameraAdapter.heldWriteCount: Swift.Int
+var FakeGyroCameraAdapter.holdsWrites: Swift.Bool
+var FakeGyroCameraAdapter.identity: OpenCineGyro.GyroCameraIdentity
+var FakeGyroCameraAdapter.isAttached: Swift.Bool
+var FakeGyroCameraAdapter.stabilization: OpenCineGyro.GyroStabilizationState?
+var FakeGyroCameraAdapter.writes: [[Swift.String : Swift.String]]
 var FakeIntegration.Dial.endpoint: Swift.String
 var FakeIntegration.Dial.purpose: FakeIntegration.DialPurpose
 var FakeIntegration.attempts: [FakeAttempt]
