@@ -3,7 +3,7 @@
 
 A suite whose every case skips is reported as passed by XCTest. Nightly 40383997585 (2026-10-26)
 ran all 33 portrait header clearance cases that way: each waited 30 s for an application scene,
-then skipped. These checks pin that the report's skip guard rejects such a run.
+then skipped. These checks pin that both guards reject such a run.
 """
 import importlib.util
 import io
@@ -25,6 +25,8 @@ def load(name, file):
 
 
 REPORT = load("ci_test_report", "ci-test-report.py")
+HEADER = load("header_clearance_hosted", "ios-header-clearance-hosted-test.py")
+SOURCE = ROOT / "Tests/MonitorUITests/MonitorPortraitHeaderClearanceTests.swift"
 
 SKIPPED_NIGHTLY = """\
 2026-10-26T19:22:55.4502440Z Test Case '-[MonitorUITests.MonitorPortraitHeaderClearanceTests testCodecSpaceControlsDecideTheRecordedR3DNEArtifact]' started.
@@ -89,6 +91,35 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("::error::kit: 1 unexpected skipped tests", output.getvalue())
         self.assertIn("MonitorUITests.MonitorPortraitHeaderClearanceTests", output.getvalue())
+
+
+class HeaderClearanceRunnerTests(unittest.TestCase):
+    def test_every_source_case_is_classified_once(self):
+        groups = HEADER.classify(HEADER.source_cases(SOURCE))
+        self.assertEqual(len(groups["phone"]) + len(groups["tablet"]), HEADER.EXPECTED_CASES)
+        self.assertFalse(set(groups["phone"]) & set(groups["tablet"]))
+
+    def test_an_added_or_removed_case_must_be_classified(self):
+        names = HEADER.source_cases(SOURCE)
+        with self.assertRaises(SystemExit):
+            HEADER.classify(names + ["testNewCase"])
+        with self.assertRaises(SystemExit):
+            HEADER.classify([name for name in names if name != HEADER.TABLET_CASES[0]])
+
+    def test_the_old_skip_fails_the_runner_verdict(self):
+        names = ["testCodecSpaceControlsDecideTheRecordedR3DNEArtifact"]
+        log = SKIPPED_NIGHTLY.replace("MonitorUITests.MonitorPortraitHeaderClearanceTests",
+                                      "HeaderClearanceHostedTests.MonitorPortraitHeaderClearanceTests")
+        verdict = HEADER.verdict(HEADER.outcomes(log, names))
+        self.assertEqual((verdict["executed"], verdict["skipped"]), (0, 1))
+        self.assertEqual(verdict["unexpected"], {names[0]: ["skipped"]})
+
+    def test_a_missing_or_repeated_case_fails_the_runner_verdict(self):
+        name = "testCodecSpaceControlsDecideTheRecordedR3DNEArtifact"
+        line = f"Test Case '-[HeaderClearanceHostedTests.MonitorPortraitHeaderClearanceTests {name}]' passed (1.0 seconds).\n"
+        self.assertEqual(HEADER.verdict(HEADER.outcomes("", [name]))["unexpected"], {name: []})
+        self.assertEqual(HEADER.verdict(HEADER.outcomes(line * 2, [name]))["unexpected"], {name: ["passed", "passed"]})
+        self.assertEqual(HEADER.verdict(HEADER.outcomes(line, [name]))["unexpected"], {})
 
 
 if __name__ == "__main__":

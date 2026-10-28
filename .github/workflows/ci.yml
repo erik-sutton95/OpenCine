@@ -373,12 +373,16 @@ jobs:
           udid=$(scripts/ios-private-simulator.py create "opc-kit-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --report "$RUNNER_TEMP/kit-ios/simulator-setup.json")
           echo "KIT_IOS_DEVICE_ID=$udid" >> "$GITHUB_ENV"
+      # The dashboard and portrait header suites need an application scene; they run in the
+      # SIMULATED application hosts below, never as skips here.
       - name: Hosted walk self-test and native view tests
+        shell: bash
         run: |
           xcodebuild -scheme OpenCine-Package -destination "platform=iOS Simulator,id=$KIT_IOS_DEVICE_ID" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/kit-ios/kit.xcresult" \
             -only-testing:OpenCineHostedAccessibilityTests -only-testing:MonitorUITests \
-            -skip-testing:MonitorUITests/MonitorCommandDashboardTests test
+            -skip-testing:MonitorUITests/MonitorCommandDashboardTests \
+            -skip-testing:MonitorUITests/MonitorPortraitHeaderClearanceTests test 2>&1 | tee "$RUNNER_TEMP/kit-ios/kit.log"
       # Scroll accessibility needs an application scene. This runner executes every dashboard
       # contract, including the original activation/read-only assertions, without skipping one.
       - name: Command dashboard contracts in a SIMULATED application host
@@ -386,6 +390,19 @@ jobs:
         run: |
           python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
+      - name: Create a private native 2x iPad with accessibility enabled
+        run: |
+          udid=$(scripts/ios-private-simulator.py create "opc-kit-ipad-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --device "iPad Pro 11-inch (M4)" --report "$RUNNER_TEMP/kit-ios/ipad-simulator-setup.json")
+          echo "KIT_IPAD_DEVICE_ID=$udid" >> "$GITHUB_ENV"
+      # Every portrait header clearance case in a real application scene: the phone cases on the
+      # kit's iPhone, the tablet witnesses on the iPad. A skipped, missing or failed case fails.
+      - name: Portrait header clearance in a SIMULATED application host
+        timeout-minutes: 40
+        run: |
+          python3 scripts/ios-header-clearance-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
+            --ipad-simulator-id "$KIT_IPAD_DEVICE_ID" --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" \
+            --output "$RUNNER_TEMP/kit-ios/header-clearance"
       # QUARANTINE (docs/testing/CI.md, #109): digitizer cancel on hosted Xcode 26.6. Its failure is
       # reported on the step but does not fail the kit's other checks.
       - name: Native playback labels and confirmation input
@@ -393,9 +410,23 @@ jobs:
         run: |
           python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-labels-dd" --output "$RUNNER_TEMP/kit-ios/playback-labels"
-      - name: Delete the private simulator
+      - name: Delete the private simulators
         if: always()
-        run: if [ -n "${KIT_IOS_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IOS_DEVICE_ID"; fi
+        run: |
+          if [ -n "${KIT_IOS_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IOS_DEVICE_ID"; fi
+          if [ -n "${KIT_IPAD_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IPAD_DEVICE_ID"; fi
+      # XCTest reports a suite whose every case skipped as passed (33 header cases did, each night
+      # until 2026-10-28). Every selected kit test must execute; per-suite timing goes to the summary.
+      - name: No skipped kit test, and per-suite timing
+        if: always()
+        shell: bash
+        run: |
+          out="$RUNNER_TEMP/kit-ios"
+          python3 scripts/ci-test-report.py --summary --title "Conformance kit, iOS" --no-skips \
+            --require-module MonitorUITests --require-module OpenCineHostedAccessibilityTests \
+            --require-module CommandDashboardHostedTests --require-module HeaderClearanceHostedTests \
+            --log "package=$out/kit.log" --log "dashboard=$out/dashboard/xcodebuild.log" \
+            --log "header-phone=$out/header-clearance/phone.log" --log "header-tablet=$out/header-clearance/tablet.log"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
