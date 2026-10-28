@@ -297,7 +297,9 @@ class MonitorMediaLibraryIOTest {
             assertEquals(listOf("cached"), model.state.value.records.map { it.payload }); assertTrue(model.state.value.catalog.assets.isEmpty())
         } finally { model.close(); clock.gate.release(); root.deleteRecursively() }
     }
-    @Test fun duplicateDownloadDoesNotRetireActiveWriter() = runTest {
+    @Test fun duplicateDownloadJoinsTheActiveWriter() = runTest {
+        // A second download of the same clip (Share while the player's cache runs) joins the
+        // active writer: it neither retires it nor sends its own transfer, and gets the file.
         val clock = HostIOSleep(); val gate = HostIOGate(); val (root, model) = library(clock)
         try {
             val first = authority(model); val duplicate = authority(model)
@@ -308,13 +310,41 @@ class MonitorMediaLibraryIOTest {
             }
             runCurrent(); assertEquals(1, gate.entered)
             var sent = false
-            val refused = model.cacheHostFile(duplicate, MonitorMediaLibraryIOPurpose.DOWNLOAD, "files/a") {
-                sent = true; MediaTransferReceipt(1)
+            val joined = async {
+                model.cacheHostFile(duplicate, MonitorMediaLibraryIOPurpose.DOWNLOAD, "files/a") {
+                    sent = true; MediaTransferReceipt(1)
+                }
             }
-            assertNull(refused); assertFalse(sent); assertEquals(0.5, model.hostProgress[first.key])
+            runCurrent(); assertEquals(0.5, model.hostProgress[first.key])
             gate.release(); runCurrent()
-            assertContentEquals(byteArrayOf(1, 2), assertNotNull(download.await()).readBytes())
+            val location = assertNotNull(download.await())
+            assertEquals(location, joined.await()); assertFalse(sent)
+            assertContentEquals(byteArrayOf(1, 2), location.readBytes())
             assertTrue(model.state.value.records.isEmpty() && model.state.value.catalog.assets.isEmpty())
+        } finally { model.close(); gate.release(); clock.gate.release(); root.deleteRecursively() }
+    }
+    @Test fun downloadAfterACancelledDownloadOfTheSameClipCachesIt() = runTest {
+        // Owner hardware report 2026-10-28: the player's cache was cancelled while its transport
+        // was still finishing a chunk; Share of that clip must cache it, not fail on that owner.
+        val clock = HostIOSleep(); val gate = HostIOGate(); val (root, model) = library(clock)
+        try {
+            val player = authority(model); val share = authority(model)
+            val download = async {
+                model.cacheHostFile(player, MonitorMediaLibraryIOPurpose.DOWNLOAD, "files/a", 2) { sink ->
+                    sink.write(byteArrayOf(1)); withContext(NonCancellable) { gate.wait() }
+                    sink.write(byteArrayOf(2)); MediaTransferReceipt(2)
+                }
+            }
+            runCurrent(); assertEquals(1, gate.entered)
+            download.cancel()
+            val shared = async {
+                model.cacheHostFile(share, MonitorMediaLibraryIOPurpose.DOWNLOAD, "files/a", 2) { sink ->
+                    sink.write(byteArrayOf(3)); sink.write(byteArrayOf(4)); MediaTransferReceipt(2)
+                }
+            }
+            runCurrent(); gate.release(); runCurrent()
+            assertTrue(download.isCancelled)
+            assertContentEquals(byteArrayOf(3, 4), assertNotNull(shared.await()).readBytes())
         } finally { model.close(); gate.release(); clock.gate.release(); root.deleteRecursively() }
     }
     @Test fun duplicateThumbnailDoesNotRetireActiveWriter() = runTest {

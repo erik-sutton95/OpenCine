@@ -136,7 +136,10 @@ public class MonitorMediaLibraryModel<P>(
     private var reconciliationTask: Deferred<Unit>? = null
     private var entryTask: Job? = null
     private var entryRequest = UUID.randomUUID()
-    private data class Transfer(val id: UUID, val writer: MonitorMediaCacheWrite, val task: Deferred<File>)
+    private data class Transfer(val id: UUID, val representation: MediaRepresentationID,
+        val writer: MonitorMediaCacheWrite, val task: Deferred<File>,
+        /** The cached file, or null when the operation ended without one; a second request joins it. */
+        val completion: CompletableDeferred<File?>)
     private val transfers = mutableMapOf<MediaAssetID, Transfer>()
     private val hostOwner = UUID.randomUUID()
     private data class HostClaim(val key: MonitorMediaLibraryIOKey, val purpose: MonitorMediaLibraryIOPurpose)
@@ -145,6 +148,8 @@ public class MonitorMediaLibraryModel<P>(
         var task: Deferred<MediaTransferReceipt>? = null
         var attempt: UUID = UUID.randomUUID()
         var deletion: MonitorMediaLibraryDeletionAuthority? = null
+        /** A download's file, or null when it ended without one; a second download joins it. */
+        val completion = CompletableDeferred<File?>()
     }
     private val hostOperations = mutableMapOf<UUID, HostOperation>()
     private val hostClaims = mutableMapOf<HostClaim, UUID>()
@@ -945,10 +950,20 @@ public class MonitorMediaLibraryModel<P>(
         purpose: MonitorMediaLibraryIOPurpose, address: String, plan: MediaTransferPlan): File? {
         if (purpose == MonitorMediaLibraryIOPurpose.DELETION) throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
         currentCoroutineContext().ensureActive(); requireAuthority(authority)
+        // A download of a clip that is already downloading (Share while the player's cache runs,
+        // or while a cancelled one finishes its chunk) joins it and downloads only if it failed.
+        while (purpose == MonitorMediaLibraryIOPurpose.DOWNLOAD) {
+            val claimant = hostClaims[HostClaim(authority.key, purpose)] ?: break
+            val running = hostOperations[claimant]?.takeIf { it.purpose == MonitorMediaLibraryIOPurpose.DOWNLOAD } ?: break
+            val joined = running.completion.await()
+            requireAuthority(authority)
+            if (joined != null) return joined
+            if (hostOperations[claimant] === running) break
+        }
         if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && HostClaim(authority.key, purpose) in hostClaims) return null
         if (authority.id in hostOperations) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val operation = startHost(authority, purpose, null) ?: return null
-        var committed = false
+        var committed: File? = null
         try {
             var lastError: Throwable = MediaServiceException(MediaServiceFailure.UNAVAILABLE)
             for ((index, transfer) in plan.attempts.withIndex()) {
@@ -962,11 +977,14 @@ public class MonitorMediaLibraryModel<P>(
                 }
                 requireHost(operation); plan.accepted?.invoke(index, receipt); requireHost(operation)
                 val location = writer.commit(receipt); reloadEntries(authority.asset?.let(::setOf)); requireHost(operation)
-                committed = true
+                committed = location
                 return location
             }
             throw lastError
-        } finally { operation.writer?.abort(); finishHost(operation, clearingProgress = !committed) }
+        } finally {
+            operation.writer?.abort(); finishHost(operation, clearingProgress = committed == null)
+            operation.completion.complete(committed)
+        }
     }
     /** SDK staging compatibility; the shared owner alone copies and commits the canonical name. */
     public suspend fun cacheHostStagedFile(authority: MonitorMediaLibraryIOAuthority,
@@ -974,7 +992,9 @@ public class MonitorMediaLibraryModel<P>(
         stagingAt: File? = null, staging: suspend (File) -> Unit): File? {
         if (purpose == MonitorMediaLibraryIOPurpose.DELETION) throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
         currentCoroutineContext().ensureActive(); requireAuthority(authority)
-        if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && HostClaim(authority.key, purpose) in hostClaims) return null
+        // A running download is joined by cacheHostFile below, not refused here.
+        if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && purpose != MonitorMediaLibraryIOPurpose.DOWNLOAD &&
+            HostClaim(authority.key, purpose) in hostClaims) return null
         if (authority.id in hostOperations) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val destination = cache.directory.file(address)
         val incoming = stagingAt ?: File(destination.parentFile, ".incoming-${authority.id}")
@@ -1132,6 +1152,16 @@ public class MonitorMediaLibraryModel<P>(
         thumbnailTasks[id]?.join()
     }
     public suspend fun cacheRepresentation(representation: MediaRepresentationID, id: MediaAssetID): File {
+        // A clip already being cached (the player left its cache running, or a cancelled cache
+        // is still finishing a chunk) is joined, never refused: Share of that clip waits for it
+        // and caches the clip itself only when it ended without this representation.
+        while (true) {
+            val running = transfers[id] ?: break
+            val joined = running.completion.await()
+            if (running.representation == representation && joined != null) return joined
+            // An operation refused before it started can leave its finished slot behind.
+            if (transfers[id]?.id == running.id) transfers.remove(id)
+        }
         val record = record(id) ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val source = browse?.transfers ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val descriptor = record.asset.representations.firstOrNull { it.id == representation }
@@ -1172,21 +1202,26 @@ public class MonitorMediaLibraryModel<P>(
                 file
             } finally { writer.abort() }
         }
-        transfers[id] = Transfer(operation, writer, task)
+        val completion = CompletableDeferred<File?>()
+        var location: File? = null
+        transfers[id] = Transfer(operation, representation, writer, task, completion)
         mutate { it.copy(transferring = it.transferring + id,
             progress = if (descriptor.byteCount != null) it.progress + (id to 0.0) else it.progress) }
         if (!current(generation) || transfers[id]?.id != operation) {
-            task.cancel(); writer.abort(); throw MediaServiceException(MediaServiceFailure.RETIRED)
+            task.cancel(); writer.abort(); completion.complete(null)
+            throw MediaServiceException(MediaServiceFailure.RETIRED)
         }
         task.start()
         try {
-            return try { task.await() } catch (error: CancellationException) {
+            val file = try { task.await() } catch (error: CancellationException) {
                 task.cancel()
                 // Only the caller's own cancellation stays a cancellation. A transfer the source
                 // or a retirement cancelled is a failure, so a batch reports it and goes on.
                 currentCoroutineContext().ensureActive()
                 throw MediaServiceException(MediaServiceFailure.RETIRED)
             }
+            location = file
+            return file
         }
         catch (error: CancellationException) { throw error }
         catch (error: Exception) {
@@ -1197,6 +1232,8 @@ public class MonitorMediaLibraryModel<P>(
             if (transfers[id]?.id == operation) {
                 transfers.remove(id); mutate { it.copy(transferring = it.transferring - id, progress = it.progress - id) }
             }
+            // After the slot is released, so a joiner never rejoins this operation.
+            completion.complete(location)
         }
     }
     public suspend fun cacheOriginal(id: MediaAssetID): File = cacheRepresentation(
