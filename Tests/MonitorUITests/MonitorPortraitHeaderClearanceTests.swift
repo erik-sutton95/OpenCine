@@ -17,6 +17,10 @@
     @MainActor
     final class MonitorPortraitHeaderClearanceTests: XCTestCase {
         private static let safeTops: [CGFloat] = [0, 24, 30.333333, 44, 59, 62]
+        /// The production header's spoken link label for the fixture's 4 bars at a measured 25 fps.
+        /// Apps report the live rate as a number ("25", "25.00"); since #252 a non-numeric reading
+        /// such as "25 fps" is a feed state word and reads "feed 25 fps".
+        private static let liveLink = "Live link 4 of 4 delivery bars, feed 25 frames per second"
         override func setUp() async throws {
             let active = await HostedCondition.wait {
                 UIApplication.shared.applicationState == .active
@@ -240,7 +244,7 @@
                 ("99999 SHOTS", nil, nil),  // the same count as the word readout used to show it
                 ("123456789 GB", nil, nil),
             ]
-            let link = "Live link 4 of 4 bars, feed 25 fps frames per second"
+            let link = Self.liveLink
             for phone in phones {
                 for readout in readouts {
                     let fixture = try ProductionHeaderFixture(
@@ -270,7 +274,7 @@
             let phones: [(width: CGFloat, height: CGFloat, safeTop: CGFloat)] = [
                 (393, 852, 59), (402, 874, 62), (430, 932, 59), (440, 956, 62),
             ]
-            let link = "Live link 4 of 4 bars, feed 25 fps frames per second"
+            let link = Self.liveLink
             for phone in phones {
                 for value in ["115GB", "521GB", "99.9k"] {
                     let fixture = try ProductionHeaderFixture(
@@ -938,7 +942,7 @@
                         .init(recording: probe.status, showsTimecode: true, showsRecording: true,
                             storage: .init(id: "storage", title: "Storage remaining", value: probe.storageValue,
                                 valueIcon: probe.storageIcon, accessibilityLabel: probe.storageSpoken),
-                            format: readouts, fps: "25 fps", signalBars: 4,
+                            format: readouts, fps: "25", signalBars: 4,
                             portraitFormat: probe.typedPortraitHeader ? .init(id: "format", title: "Recording format",
                                 value: "6K · 25p", section: .format, action: { probe.formatCalls += 1 }, quickEnabled: false) : nil,
                             color: probe.codecOnly || probe.photo ? nil : .init(id: "color", title: "Color mode", value: "D-Log2",
