@@ -28,9 +28,13 @@ PREFIX = r"^(?:\d{4}-\d\d-\d\dT[\d:.]+Z )?"
 XCTEST_CASE = re.compile(
     PREFIX + r"Test Case '-\[(?P<module>[\w.]+)\.(?P<suite>\w+) (?P<name>\w+)\]' "
     r"(?P<result>passed|failed|skipped) \((?P<seconds>[0-9.]+) seconds\)", re.M)
-SWIFT_TESTING = re.compile(
-    PREFIX + r"[^\x00-\x7f]+ (?P<kind>Test|Suite) (?P<name>.+?) (?:(?P<result>passed|failed) after (?P<seconds>[0-9.]+) "
-    r"seconds|(?P<skipped>skipped)\b)", re.M)
+# The result is read at the end of the line, after the complete name: a display name may itself
+# contain "passed", "failed" or "skipped" ("Upload is skipped when offline" passed after ...).
+SWIFT_TESTING_DONE = re.compile(
+    PREFIX + r"[^\x00-\x7f]+ (?P<kind>Test|Suite) (?P<name>.+) (?P<result>passed|failed) after "
+    r"(?P<seconds>[0-9.]+) seconds(?: with [^\n]*)?\.?$", re.M)
+SWIFT_TESTING_SKIPPED = re.compile(
+    PREFIX + r"[^\x00-\x7f]+ (?P<kind>Test|Suite) (?P<name>.+?) skipped(?:\.|: [^\n]*)$", re.M)
 SWIFT_TESTING_RUN = re.compile(PREFIX + r"[^\x00-\x7f]+ (?P<line>Test run with \d+ tests? in \d+ suites? .*)$", re.M)
 XCTEST_TOTAL = re.compile(PREFIX + r"Test Suite '(?P<bundle>[^']+)\.xctest' (?:passed|failed)", re.M)
 
@@ -40,13 +44,14 @@ def parse(text):
     cases = [dict(m.groupdict(), framework="XCTest", seconds=float(m["seconds"]))
              for m in XCTEST_CASE.finditer(text)]
     tests, suites = [], []
-    for m in SWIFT_TESTING.finditer(text):
-        if m["name"].startswith("run with "):
+    found = [(m.start(), m["kind"], m["name"], m["result"], float(m["seconds"]))
+             for m in SWIFT_TESTING_DONE.finditer(text)]
+    found += [(m.start(), m["kind"], m["name"], "skipped", 0.0) for m in SWIFT_TESTING_SKIPPED.finditer(text)]
+    for _, kind, name, result, seconds in sorted(found):
+        if name.startswith("run with "):
             continue
-        entry = {"framework": "Swift Testing", "name": m["name"].strip(),
-                 "result": "skipped" if m["skipped"] else m["result"],
-                 "seconds": float(m["seconds"]) if m["seconds"] else 0.0}
-        (tests if m["kind"] == "Test" else suites).append(entry)
+        entry = {"framework": "Swift Testing", "name": name.strip(), "result": result, "seconds": seconds}
+        (tests if kind == "Test" else suites).append(entry)
     runs = [m["line"].rstrip(".") for m in SWIFT_TESTING_RUN.finditer(text)]
     return {"cases": cases, "tests": tests, "suites": suites, "runs": runs,
             "bundles": sorted({m["bundle"] for m in XCTEST_TOTAL.finditer(text)})}
