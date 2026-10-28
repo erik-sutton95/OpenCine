@@ -54,6 +54,7 @@ own failure (`XCTFail`) before it throws, so the report names the missed event.
 
 ## QUARANTINE
 
+A test that flakes twice, locally or in hosted CI, is quarantined the same day.
 Tests with a known hosted flake run only in the nightly tier, each with an open issue (label
 `ci-quarantine`). There are no accepted reds in pull requests: a PR-tier failure is fixed or the
 test is quarantined here, in the same pull request, with its issue.
