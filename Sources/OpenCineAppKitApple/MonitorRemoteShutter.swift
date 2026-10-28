@@ -46,17 +46,18 @@ public final class MonitorRemoteShutter {
     /// `outputVolume` observer. Its name and userInfo contract can vary between iOS releases.
     private nonisolated static let volumeNotification = Notification.Name("SystemVolumeDidChange")
 
-    private var presses = MonitorRemoteShutterPresses(volume: 0.5)
+    var presses = MonitorRemoteShutterPresses(volume: 0.5)
     private var volumeObservation: NSKeyValueObservation?
     private var volumeObserver: NSObjectProtocol?
     private var routeObserver: NSObjectProtocol?
     let volumeWriter: MonitorRemoteShutterVolumeWriter
+    var liveVolume: @MainActor () -> Float = { AVAudioSession.sharedInstance().outputVolume }
     /// A restore that stop() left to the writer (no slider was in hand); a re-arm before it lands
     /// keeps that route's original level instead of the anchor it would otherwise read back.
     private var pendingRestore: (route: String, volume: Float)?
     private var routeRecoveryTask: Task<Void, Never>?
     private var restoreVolumesByRoute: [String: Float] = [:]
-    private var suppressVolumeEventsUntil: TimeInterval = 0
+    var suppressVolumeEventsUntil: TimeInterval = 0
     private var outputRouteSignature = ""
     private var eventGeneration = 0
 
@@ -237,7 +238,7 @@ public final class MonitorRemoteShutter {
         }
     }
 
-    private func adjudicateVolumeChange(_ newValue: Float, source: String) {
+    func adjudicateVolumeChange(_ newValue: Float, source: String) {
         // KVO reports every system-volume change, including Control Center adjustments while this
         // app is covered/inactive. Only a frontmost live monitor may turn one into a record command.
         guard isActive, UIApplication.shared.applicationState == .active else {
@@ -251,7 +252,7 @@ public final class MonitorRemoteShutter {
             return
         }
         let now = CFAbsoluteTimeGetCurrent()
-        let currentVolume = AVAudioSession.sharedInstance().outputVolume
+        let currentVolume = liveVolume()
         if now < suppressVolumeEventsUntil {
             log.info(
                 "BT-SHUTTER ignored \(source, privacy: .public) event during audio-route change")
