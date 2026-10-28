@@ -390,7 +390,10 @@ jobs:
         run: |
           python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
+      # The header steps run even when an earlier kit step failed, so one failure never hides the
+      # header suite's own result.
       - name: Create a private native 2x iPad with accessibility enabled
+        if: ${{ !cancelled() && env.KIT_IOS_DEVICE_ID != '' }}
         run: |
           udid=$(scripts/ios-private-simulator.py create "opc-kit-ipad-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --device "iPad Pro 11-inch (M4)" --report "$RUNNER_TEMP/kit-ios/ipad-simulator-setup.json")
@@ -398,6 +401,7 @@ jobs:
       # Every portrait header clearance case in a real application scene: the phone cases on the
       # kit's iPhone, the tablet witnesses on the iPad. A skipped, missing or failed case fails.
       - name: Portrait header clearance in a SIMULATED application host
+        if: ${{ !cancelled() && env.KIT_IPAD_DEVICE_ID != '' }}
         timeout-minutes: 40
         run: |
           python3 scripts/ios-header-clearance-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
