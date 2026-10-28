@@ -65,11 +65,12 @@ jobs:
           fail: true
       - name: EditorConfig check
         uses: editorconfig-checker/action-editorconfig-checker@51f63319f592f97930c73d9c46184d20bd206393 # v3.0.0
-      - name: Release notes, nightly report, test report and native playback CI tooling
+      - name: Release notes, nightly report, test and Gradle timing reports and native playback CI tooling
         run: |
           scripts/tester-notes-release-check-test.sh
           scripts/ci-nightly-report-test.sh
           python3 scripts/ci-test-guards-test.py
+          python3 scripts/gradle-task-timing-report-test.py
           python3 scripts/ios-playback-label-ci-test.py
       - name: Actionlint
         uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
@@ -282,24 +283,36 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      # Every Gradle run records each task's outcome and time (scripts/gradle-task-timing.init.gradle);
+      # the last step summarizes them. Observation only: no task, input or output changes.
       - name: Test, lint and assemble (Kotlin warnings are errors in core, media, multicam)
-        run: ./gradlew test lint assembleRelease
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/build.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" test lint assembleRelease
       # Each module's Kotlin public API is recorded in <module>/api/<module>.api: Kotlin/JVM modules
       # by the Kotlin plugin's ABI validation, Android library modules by dumpAndroidApi.
       - name: Public API snapshots (Kotlin and Android)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/api.tsv
         run: |
-          ./gradlew checkKotlinAbi checkAndroidApi || {
+          ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" checkKotlinAbi checkAndroidApi || {
             echo "::error::Unrecorded public API change. If it is intended, run (cd Android && ./gradlew updateKotlinAbi updateAndroidApi) and commit the changed <module>/api/*.api files."
             exit 1
           }
       - name: Apps' Gradle plugins (build-logic)
-        run: ./gradlew -p build-logic test
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/build-logic.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" -p build-logic test
       - name: Vulkan present synchronization regression (host CPU)
         working-directory: .
         run: scripts/android-vulkan-sync-test.sh
       - name: Release dex check for reflectively created ML Kit components
         working-directory: .
         run: scripts/android-verify-component-registrars-test.sh
+      - name: Gradle task timing summary
+        if: always()
+        working-directory: .
+        run: scripts/gradle-task-timing-summary.sh "$RUNNER_TEMP/gradle-timing"
 
   atlas:
     # Nothing here builds an app, writes to another repository, publishes, schedules or merges.
