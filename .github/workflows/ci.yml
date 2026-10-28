@@ -139,16 +139,17 @@ jobs:
           cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --filter "$cache_test" 2>&1 | tee test-cache.log
-      - name: Test package (isolated readiness suites excluded)
+      - name: Test package (isolated native suites excluded)
         if: always()
         shell: bash
         run: |
-          # The real-clock join prompt and native still-readiness suites run below.
+          # The real-clock join prompt, native playback and still-readiness suites run below.
           # Every other test stays in this concurrent invocation.
           cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --skip "$cache_test" --skip LunaJoinPromptTests \
-            --skip MonitorAssistEngineStillTests 2>&1 | tee test.log
+            --skip MonitorAssistEngineStillTests \
+            --skip MonitorAppleProgressivePlaybackTests 2>&1 | tee test.log
       - name: Test still scope cadence (isolated native readiness)
         if: always()
         shell: bash
@@ -171,17 +172,26 @@ jobs:
           # assertion stay unchanged, without the full package workload beside it.
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --filter LunaJoinPromptTests 2>&1 | tee test-luna.log
+      - name: Test progressive playback (isolated native buffering)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep every native decode/buffering assertion without unrelated MainActor suites.
+          swift test --skip-build -Xswiftc -strict-concurrency=complete \
+            --filter MonitorAppleProgressivePlaybackTests 2>&1 | tee test-playback.log
+          grep -Eq 'Test run with 8 tests in 1 suite passed' test-playback.log
       - name: No duplicate test class warning
         if: always()
         shell: bash
-        run: '! grep -q "implemented in both" test-cache.log test.log test-still-*.log test-luna.log'
+        run: '! grep -q "implemented in both" test-cache.log test.log test-still-*.log test-luna.log test-playback.log'
       # Per-suite and per-test durations of the runs above, in the job summary (docs/testing/CI.md).
       - name: Test timing summary
         if: always()
         shell: bash
         run: |
           logs=()
-          for log in test-cache.log test.log test-still-*.log test-luna.log; do logs+=(--log "${log%.log}=$log"); done
+          for log in test-cache.log test.log test-still-*.log test-luna.log test-playback.log; do logs+=(--log "${log%.log}=$log"); done
           python3 scripts/ci-test-report.py --summary --title "Swift package tests" "${logs[@]}"
       - name: Build MonitorUI and OpenCineApple (iOS Simulator)
         run: |
@@ -261,6 +271,7 @@ jobs:
             test.log
             test-still-*.log
             test-luna.log
+            test-playback.log
             swift-crash-reports/**/*.ips
             swift-crash-reports/**/*.crash
             swift-crash-reports/**/*.txt

@@ -52,6 +52,11 @@ The Swift job's summary lists each run's counts and its slowest suites and tests
 are elapsed wall time that overlaps, not additive cost; XCTest suite times are serial sums. Read
 them before changing a test, a timeout or a job split.
 
+The Swift host job runs native progressive playback separately from the concurrent package
+group to reduce interference with its AVFoundation buffering observations. All eight
+tests keep their original assertions and deadlines. This required invocation, its timing summary
+and diagnostic log remain in the PR tier.
+
 XCTest reports the last Swift error it observed in a failed test, and UIKit teardown in a
 `defer` throws and swallows private framework errors (`InvalidTransition { phase: idle,
 targetPhase: failed(removedFromContainer) }` from Gestures). An event wait therefore records its
