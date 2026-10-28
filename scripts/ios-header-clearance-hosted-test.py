@@ -106,6 +106,10 @@ def project_spec(sdk: Path, source: Path, host_source: Path) -> dict:
                     "PRODUCT_BUNDLE_IDENTIFIER": "com.opencapture.opencine.headerclearance.simulated",
                     # A native iPad host: an iPhone-only app would run in compatibility mode.
                     "TARGETED_DEVICE_FAMILY": "1,2",
+                    # Dark, like every app host that runs this suite: an unstyled readout paints
+                    # the primary label color, white only in dark mode, and the paint oracles
+                    # count white ink (testCodecSpaceControlsDecideTheRecordedR3DNEArtifact).
+                    "INFOPLIST_KEY_UIUserInterfaceStyle": "Dark",
                     "INFOPLIST_KEY_UIApplicationSceneManifest_Generation": "YES",
                     "INFOPLIST_KEY_UILaunchScreen_Generation": "YES",
                 }},
