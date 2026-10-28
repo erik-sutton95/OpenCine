@@ -320,6 +320,33 @@ import Testing
         #expect(model.entries[.init("take")]?.originalURL != nil)
         #expect(model.progress.isEmpty && model.transferring.isEmpty)
     }
+    /// A joined file is returned only while it is still the current record's original: a catalog
+    /// amendment that moved the original's address while the transfer ran makes Share cache it.
+    @available(macOS 14, *)
+    @Test func shareDoesNotTakeAJoinedFileTheCatalogMovedMeanwhile() async throws {
+        let source = LibraryTransfer()
+        let browse = LibraryBrowse([LibraryCursor([.init(reset: true, upserts: [asset("take")], complete: true)])]); browse.transfers = source
+        let (root, model, _) = model(LibraryService(browse))
+        defer { model.close(); try? FileManager.default.removeItem(at: root) }
+        model.begin(); #expect(await eventually { model.records.count == 1 && !model.fetching })
+        let player = Task { try await model.cacheOriginal(.init("take")) }
+        #expect(await eventually { source.pending.count == 1 })
+        var shareEntered = false
+        let share = Task { shareEntered = true; return try await model.cacheOriginal(.init("take")) }
+        #expect(await eventually { shareEntered })
+        let moved = MonitorMediaRecord<String>(asset: asset("take"), payload: "take.mov",
+            address: .init(thumbnail: "thumbs/take.mov", representations: [.init("take-original"): "files/moved.mov"],
+                favoriteKey: "take.mov"),
+            facts: .init(format: "mov", dateKey: "20261003", orderKey: "take.mov"))
+        try model.applyLocalRecords(.init(resetLibrary: false, upserts: [], amendments: [moved]), token: model.actionToken)
+        source.release(0)
+        _ = try? await player.value
+        try #require(await eventually { source.pending.count == 2 })
+        source.release(1)
+        let shared = try await share.value
+        #expect(shared.lastPathComponent == "moved.mov")
+        #expect(try Data(contentsOf: shared) == Data([3, 4]))
+    }
     /// A Share that is cancelled while it waits on someone else's transfer stops waiting at once
     /// and leaves that transfer running.
     @available(macOS 14, *)

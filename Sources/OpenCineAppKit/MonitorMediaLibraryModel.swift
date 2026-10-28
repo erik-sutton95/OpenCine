@@ -1878,7 +1878,9 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         // and caches the clip itself only when it ended without this representation.
         while let running = transfers[id] {
             try await running.completion.wait()
-            if running.representation == representation, let location = running.completion.location {
+            if running.representation == representation, let location = running.completion.location,
+                isCurrentFile(location, of: representation, asset: id)
+            {
                 return location
             }
             // An operation refused before it started can leave its finished slot behind.
@@ -1977,6 +1979,17 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             if error is CancellationError, !callerCancelled { throw MediaServiceError.retired }
             throw error
         }
+    }
+    /// A joined file stands only while it is still the current record's file: a retained
+    /// amendment can move an original's address while its transfer runs.
+    private func isCurrentFile(_ location: URL, of representation: MediaRepresentationID, asset id: MediaAssetID)
+        -> Bool
+    {
+        guard let current = record(id),
+            let descriptor = current.asset.representations.first(where: { $0.id == representation })
+        else { return false }
+        guard descriptor.role == .original else { return true }
+        return cache.entry(current).originalURL?.standardizedFileURL.path == location.standardizedFileURL.path
     }
     public func cacheOriginal(_ id: MediaAssetID) async throws -> URL {
         guard

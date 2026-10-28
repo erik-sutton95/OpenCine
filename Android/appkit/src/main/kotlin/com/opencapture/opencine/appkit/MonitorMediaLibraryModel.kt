@@ -1158,7 +1158,7 @@ public class MonitorMediaLibraryModel<P>(
         while (true) {
             val running = transfers[id] ?: break
             val joined = running.completion.await()
-            if (running.representation == representation && joined != null) return joined
+            if (running.representation == representation && joined != null && isCurrentFile(joined, representation, id)) return joined
             // An operation refused before it started can leave its finished slot behind.
             if (transfers[id]?.id == running.id) transfers.remove(id)
         }
@@ -1235,6 +1235,13 @@ public class MonitorMediaLibraryModel<P>(
             // After the slot is released, so a joiner never rejoins this operation.
             completion.complete(location)
         }
+    }
+    /** A joined file stands only while it is still the current record's file: a retained amendment can move an original's address while its transfer runs. */
+    private fun isCurrentFile(location: File, representation: MediaRepresentationID, id: MediaAssetID): Boolean {
+        val current = record(id) ?: return false
+        val descriptor = current.asset.representations.firstOrNull { it.id == representation } ?: return false
+        if (descriptor.role != MediaRepresentationRole.ORIGINAL) return true
+        return cache.entry(current).original?.absoluteFile?.normalize() == location.absoluteFile.normalize()
     }
     public suspend fun cacheOriginal(id: MediaAssetID): File = cacheRepresentation(
         record(id)?.asset?.representations?.firstOrNull { it.role == MediaRepresentationRole.ORIGINAL }?.id
