@@ -65,9 +65,15 @@ public class MonitorOperatorSessionModel(
     public var locked: Boolean
         get() = displaySession.locked
         set(value) {
-            if (displaySession.locked != value) commandRevision.set(Any())
+            if (displaySession.locked != value) {
+                commandRevision.set(Any())
+                onLockWillChange(value)
+            }
             displaySession.locked = value
         }
+
+    /** Called synchronously before the interface lock changes, including direct assignment. */
+    public var onLockWillChange: (Boolean) -> Unit = {}
 
     /** Captures this owner's local command lifetime without making an eligibility decision. */
     public fun captureCommandRevision(): () -> Boolean {

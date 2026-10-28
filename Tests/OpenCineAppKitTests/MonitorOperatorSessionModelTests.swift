@@ -25,6 +25,26 @@ import Testing
         try await body(model, shell, assist, display)
     }
 
+    @Test func lockingHookPrecedesAcceptedLockChanges() async throws {
+        guard #available(macOS 14, *) else { return }
+        try await withModel { model, _, _, _ in
+            var nextValues: [Bool] = []
+            var previousValues: [Bool] = []
+            model.onLockWillChange = { next in
+                nextValues.append(next)
+                previousValues.append(model.locked)
+            }
+            model.locked = false
+            #expect(nextValues.isEmpty)
+            model.locked = true
+            #expect(nextValues == [true] && previousValues == [false])
+            model.locked = true
+            #expect(nextValues == [true])
+            model.locked = false
+            #expect(nextValues == [true, false] && previousValues == [false, true])
+        }
+    }
+
     @Test func interactionHooksPrecedeAcceptedModeAndEditorChanges() async throws {
         guard #available(macOS 14, *) else { return }
         try await withModel { model, shell, _, _ in

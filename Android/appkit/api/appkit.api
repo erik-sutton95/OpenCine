@@ -3800,6 +3800,7 @@ public final class com/opencapture/opencine/appkit/MonitorOperatorSessionModel {
 	public final fun getMode ()Lcom/opencapture/opencine/appkit/MonitorDisplayMode;
 	public final fun getModes ()Ljava/util/List;
 	public final fun getOnEditingWillBegin ()Lkotlin/jvm/functions/Function0;
+	public final fun getOnLockWillChange ()Lkotlin/jvm/functions/Function1;
 	public final fun getOnModeWillChange ()Lkotlin/jvm/functions/Function1;
 	public final fun getReturnedMode ()Lcom/opencapture/opencine/appkit/MonitorDisplayMode;
 	public final fun getSettingsScrollOffsets ()Ljava/util/Map;
@@ -3815,6 +3816,7 @@ public final class com/opencapture/opencine/appkit/MonitorOperatorSessionModel {
 	public final fun setLive (Lcom/opencapture/opencine/appkit/MonitorDisplayChrome;)V
 	public final fun setLocked (Z)V
 	public final fun setOnEditingWillBegin (Lkotlin/jvm/functions/Function0;)V
+	public final fun setOnLockWillChange (Lkotlin/jvm/functions/Function1;)V
 	public final fun setOnModeWillChange (Lkotlin/jvm/functions/Function1;)V
 	public final fun setReturnedMode (Lcom/opencapture/opencine/appkit/MonitorDisplayMode;)V
 	public final fun setSettingsTab (Lcom/opencapture/monitorui/settings/MonitorSettingsTab;)V

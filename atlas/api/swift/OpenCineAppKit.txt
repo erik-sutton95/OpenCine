@@ -2387,6 +2387,7 @@ var MonitorOperatorSessionModel.locked: Swift.Bool
 var MonitorOperatorSessionModel.mode: MonitorDisplayMode
 var MonitorOperatorSessionModel.modes: [MonitorDisplayMode]
 var MonitorOperatorSessionModel.onEditingWillBegin: () -> Swift.Void
+var MonitorOperatorSessionModel.onLockWillChange: (Swift.Bool) -> Swift.Void
 var MonitorOperatorSessionModel.onModeWillChange: (MonitorDisplayMode) -> Swift.Void
 var MonitorOperatorSessionModel.returnedMode: MonitorDisplayMode?
 var MonitorOperatorSessionModel.settingsScrollOffsets: [MonitorPresentation.MonitorSettingsTab : Swift.Double]

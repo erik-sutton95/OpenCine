@@ -37,8 +37,12 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
     public private(set) var modes: [MonitorDisplayMode] = [.live, .clean]
     /// The interface lock. It refuses the DISP cycle here; the surface refuses every other
     /// operator input while it holds. It lasts one monitor lifetime.
-    public var locked = false
+    public var locked = false {
+        willSet { if newValue != locked { onLockWillChange(newValue) } }
+    }
     public private(set) var interactive = true
+    /// Called synchronously before the interface lock changes, including direct assignment.
+    @ObservationIgnored public var onLockWillChange: (Bool) -> Void = { _ in }
     /// Called synchronously before an accepted display-mode change mutates presentation.
     @ObservationIgnored public var onModeWillChange: (MonitorDisplayMode) -> Void = { _ in }
     /// Called before a new chrome editor opens, including direct editing-mode assignment.

@@ -30,6 +30,26 @@ class MonitorOperatorSessionModelTest {
         return Fixture(MonitorOperatorSessionModel(shell, assist, display, backgroundScope), shell, assist, display)
     }
 
+    @Test fun lockingHookPrecedesAcceptedLockChanges() = runTest {
+        val (model) = fixture()
+        val nextValues = mutableListOf<Boolean>()
+        val previousValues = mutableListOf<Boolean>()
+        model.onLockWillChange = { next ->
+            nextValues += next
+            previousValues += model.locked
+        }
+        model.locked = false
+        assertTrue(nextValues.isEmpty())
+        model.locked = true
+        assertEquals(listOf(true), nextValues)
+        assertEquals(listOf(false), previousValues)
+        model.locked = true
+        assertEquals(listOf(true), nextValues)
+        model.locked = false
+        assertEquals(listOf(true, false), nextValues)
+        assertEquals(listOf(false, true), previousValues)
+    }
+
     @Test fun interactionHooksPrecedeAcceptedModeAndEditorChanges() = runTest {
         val (model, shell) = fixture()
         val modeChanges = mutableListOf<MonitorDisplayMode>()
