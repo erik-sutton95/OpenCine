@@ -104,7 +104,7 @@ struct DJIAppleRecoveryEpisodeTests {
         spine.advertises = false
         #expect(spine.episode.begin(targetID: spine.peer.camera.id,
             trigger: .bleDropped, reason: "SIMULATED absent camera"))
-        #expect(await spine.clock.drive {
+        #expect(await spine.clock.drive(timeouts: true) {
             if case .waitingForOperator = spine.episode.snapshot.state { return true }; return false
         })
         #expect(spine.clock.time == 180)
@@ -519,6 +519,7 @@ struct DJIAppleRecoveryEpisodeTests {
         private struct Sleeper {
             let id: UUID
             let at: Double
+            let timeout: Bool
             let continuation: CheckedContinuation<Void, Error>
         }
         private let origin = ContinuousClock().now
@@ -546,7 +547,9 @@ struct DJIAppleRecoveryEpisodeTests {
             try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
                     pauses.append((seconds(duration), connection))
-                    sleepers.append(.init(id: id, at: time + seconds(duration), continuation: continuation))
+                    sleepers.append(.init(id: id, at: time + seconds(duration),
+                        timeout: !connection && seconds(duration) >= Self.timeoutSeconds,
+                        continuation: continuation))
                 }
             } onCancel: {
                 if ignore { return }
@@ -570,12 +573,18 @@ struct DJIAppleRecoveryEpisodeTests {
         /// Yields per `drive` step. A loaded suite can leave an attempt short of its next sleep
         /// after any fixed number of them.
         var yieldsPerStep = 64
+        /// The episode's watchdogs: the 30 s discovery window and the 180 s total budget.
+        static let timeoutSeconds = 30.0
         func settle() async { for _ in 0..<64 { await Task.yield() } }
-        func drive(until done: () -> Bool) async -> Bool {
+        /// Advances to the earliest sleeper the scenario may elapse. A quiet step is not idle time:
+        /// an attempt that has not yet reached its next sleep would otherwise lose the race to a
+        /// watchdog. Only a scenario that expects one to fire passes `timeouts: true`.
+        func drive(timeouts: Bool = false, until done: () -> Bool) async -> Bool {
             for _ in 0..<5000 {
                 for _ in 0..<yieldsPerStep { await Task.yield() }
                 if done() { return true }
-                if let next = (sleepers.map(\.at) + wakes.map(\.0)).min() { advance(to: next) }
+                let due = sleepers.filter { timeouts || !$0.timeout }.map(\.at) + wakes.map(\.0)
+                if let next = due.min() { advance(to: next) }
             }
             return done()
         }
