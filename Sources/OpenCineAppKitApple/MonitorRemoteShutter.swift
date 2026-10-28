@@ -251,16 +251,20 @@ public final class MonitorRemoteShutter {
             return
         }
         let now = CFAbsoluteTimeGetCurrent()
+        let currentVolume = AVAudioSession.sharedInstance().outputVolume
         if now < suppressVolumeEventsUntil {
             log.info(
                 "BT-SHUTTER ignored \(source, privacy: .public) event during audio-route change")
-            if abs(newValue - presses.anchor) > 0.001 { setSystemVolume(presses.anchor) }
+            if Self.volumeEventIsCurrent(newValue, currentVolume), abs(newValue - presses.anchor) > 0.001 {
+                setSystemVolume(presses.anchor)
+            }
             return
         }
-        let decision = presses.observe(volume: newValue, at: now)
+        let decision = presses.observe(volume: newValue, currentVolume: currentVolume, at: now)
         log.info(
-            "BT-SHUTTER event source=\(source, privacy: .public) volume=\(newValue, privacy: .public) decision=\(decision.rawValue, privacy: .public)"
+            "BT-SHUTTER event source=\(source, privacy: .public) volume=\(newValue, privacy: .public) current=\(currentVolume, privacy: .public) decision=\(decision?.rawValue ?? "stale", privacy: .public)"
         )
+        guard let decision else { return }
         guard decision == .trigger else {
             // Debounced repeat or an echo drift: re-pin so the volume never walks to a rail.
             if presses.repins(volume: newValue, at: now) { setSystemVolume(presses.anchor) }
@@ -334,6 +338,10 @@ public final class MonitorRemoteShutter {
             }
             self.routeRecoveryTask = nil
         }
+    }
+
+    static func volumeEventIsCurrent(_ captured: Float, _ current: Float) -> Bool {
+        abs(captured - current) <= 0.001
     }
 
     private static func outputRouteSignature(for session: AVAudioSession) -> String {

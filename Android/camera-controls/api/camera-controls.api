@@ -3629,6 +3629,8 @@ public class com/opencapture/opencine/cameracontrols/OperatorMediaCacheDirs {
 public class com/opencapture/opencine/cameracontrols/OperatorPreferenceStore {
 	public static final field $stable I
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun assistEncoded (Landroid/content/Context;)Ljava/lang/String;
 	public final fun assistToolUsage (Landroid/content/Context;)Lcom/opencapture/monitorui/MonitorToolUsageState;
 	public final fun assistToolUsagePreferences (Landroid/content/Context;)Lcom/opencapture/opencine/appkit/MonitorToolUsagePreferences;

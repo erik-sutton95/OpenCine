@@ -714,6 +714,7 @@ func MonitorPlaybackScopeSession.close()<Configuration where Configuration : Swi
 func MonitorPlaybackScopeSession.retire(item: OpenCineMedia.MonitorPlaybackItemToken)<Configuration where Configuration : Swift.Equatable, Configuration : Swift.Sendable> -> ()
 func MonitorPlaybackScopeSession.synchronize(item: OpenCineMedia.MonitorPlaybackItemToken, enabled: Swift.Bool, configuration: Configuration, read: () async -> MonitorPlaybackScopeFrame?, ifCurrent: () -> Swift.Bool)<Configuration where Configuration : Swift.Equatable, Configuration : Swift.Sendable> -> ()
 func MonitorRemoteShutterPresses.observe(volume: Swift.Float, at: Foundation.TimeInterval) -> MonitorRemoteShutterPolicy.Decision
+func MonitorRemoteShutterPresses.observe(volume: Swift.Float, currentVolume: Swift.Float, at: Foundation.TimeInterval) -> MonitorRemoteShutterPolicy.Decision?
 func MonitorRemoteShutterPresses.pinned(at: Foundation.TimeInterval) -> ()
 func MonitorRemoteShutterPresses.reanchor(volume: Swift.Float) -> ()
 func MonitorRemoteShutterPresses.repins(volume: Swift.Float, at: Foundation.TimeInterval) -> Swift.Bool

@@ -88,6 +88,15 @@ public struct MonitorRemoteShutterPresses: Equatable, Sendable {
         return decision
     }
 
+    /// A delayed observation is adjudicated only if its captured value is still the live volume.
+    /// Stale input returns nil and leaves the press bookkeeping unchanged.
+    public mutating func observe(
+        volume: Float, currentVolume: Float, at now: TimeInterval
+    ) -> MonitorRemoteShutterPolicy.Decision? {
+        guard abs(volume - currentVolume) <= 0.001 else { return nil }
+        return observe(volume: volume, at: now)
+    }
+
     /// Whether a move that was not a press should be pinned back to the anchor now, so the volume
     /// never walks to a rail (never inside the re-anchor's own echo window).
     public func repins(volume: Float, at now: TimeInterval) -> Bool {

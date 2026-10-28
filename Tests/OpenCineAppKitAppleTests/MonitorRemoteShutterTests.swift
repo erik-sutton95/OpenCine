@@ -35,6 +35,11 @@ import UIKit
         #expect(MonitorRemoteShutter.firstSlider(in: volumeView) === slider)
     }
 
+    @Test func routeSuppressionRejectsADelayedVolumeThatNoLongerMatches() {
+        #expect(!MonitorRemoteShutter.volumeEventIsCurrent(0.5625, 0.5))
+        #expect(MonitorRemoteShutter.volumeEventIsCurrent(0.5625, 0.5625))
+    }
+
     @Test func aNewOwnerIsIdleUntilTheHostArmsIt() {
         let owner = MonitorRemoteShutter(subsystem: "SIMULATED")
         #expect(!owner.isActive)

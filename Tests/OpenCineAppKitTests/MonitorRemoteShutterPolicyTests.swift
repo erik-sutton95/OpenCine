@@ -67,6 +67,26 @@ import Testing
         #expect(toggles == 2)
     }
 
+    /// A delayed report is a press only while its value still matches the live system volume.
+    /// Otherwise one physical press can toggle again after its re-anchor and debounce have finished.
+    @Test func delayedVolumeReportsMustMatchTheLiveVolume() {
+        var presses = MonitorRemoteShutterPresses(volume: 0.5)
+        var toggles = 0
+        func deliver(_ capturedVolume: Float, currentVolume: Float, at now: TimeInterval) {
+            if presses.observe(volume: capturedVolume, currentVolume: currentVolume, at: now) == .trigger {
+                toggles += 1
+                presses.pinned(at: now)
+            }
+        }
+        deliver(0.5625, currentVolume: 0.5625, at: 10)
+        #expect(toggles == 1)
+        deliver(0.5625, currentVolume: 0.5, at: 11)
+        #expect(toggles == 1, "the system already returned to the anchor, so this report is stale")
+        #expect(presses.lastTriggerAt == 10, "a stale report does not update trigger bookkeeping")
+        deliver(0.4375, currentVolume: 0.4375, at: 11.1)
+        #expect(toggles == 2, "a fresh press still toggles")
+    }
+
     /// A route change re-derives the anchor from that route's level but keeps the debounce, so a
     /// reconnecting remote cannot double-toggle.
     @Test func reanchoringKeepsTheDebounce() {
