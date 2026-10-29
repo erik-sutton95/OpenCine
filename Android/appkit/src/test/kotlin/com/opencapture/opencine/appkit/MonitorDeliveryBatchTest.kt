@@ -110,6 +110,29 @@ class MonitorDeliveryBatchTest {
         assertEquals("1 uploaded", (upload(true) as MonitorDeliveryBatchOutcome.Uploaded<String>).summary)
         assertEquals(listOf("prepare 1", "upload 1", "prepare 1", "upload 1"), facts.calls)
     }
+    /**
+     * Owner report 2026-10-29: a camera that stops answering mid-cache is named as such; a clip
+     * that simply could not be cached keeps the connection advice.
+     */
+    @Test fun cacheFailureSaysWhenTheCameraStoppedResponding() = runTest {
+        for (stopped in listOf(true, false)) {
+            val facts = Facts()
+            val outcome = MonitorDeliveryModel.runBatch<Int, String, Int>(listOf(1),
+                MonitorDeliveryDestination.NATIVE_SHARE, MonitorDeliveryPostExportAction.SYSTEM_SHARE,
+                MonitorDeliveryAdmission { true },
+                MonitorDeliveryOriginalService({ false }, { facts.calls += "cache $it" }, { null }, { stopped }),
+                exporter(facts), share = { MonitorDeliveryShareFiles(it) }, photos = null,
+                filename = { "$it" }, progress = {})
+            assertEquals(
+                if (stopped) "The camera stopped responding while caching 1 clip(s). Reconnect and try again."
+                else "Couldn't cache 1 clip(s) from the camera. Check the connection and try again.",
+                (outcome as MonitorDeliveryBatchOutcome.Failed).message)
+            assertEquals(listOf("cache 1"), facts.calls)
+        }
+        // The camera-network hop refuses with the same words.
+        assertEquals("The camera stopped responding while caching 2 clip(s). Reconnect and try again.",
+            MonitorDeliveryCacheException(2, cameraStopped = true).message)
+    }
     @Test fun manualCacheProgressIgnoresUnknownAndLateTicks() = runTest {
         val facts = Facts(); val clock = Gate<Unit>(); val acquire = Gate<Unit>()
         val model = MonitorDeliveryModel<MonitorDeliveryBatchProgress, MonitorDeliveryBatchOutcome<String>, String>(backgroundScope)

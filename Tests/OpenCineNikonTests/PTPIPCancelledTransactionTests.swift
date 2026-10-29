@@ -44,6 +44,22 @@
             #expect(!camera.commandChannelClosed, "The camera session is still open")
         }
 
+        /// A transfer that loses the camera reads as the camera stopping; a refusal does not.
+        @Test func aDeadLinkIsALinkFailureAndARefusalIsNot() {
+            for error in [
+                NativeCameraSessionError.connectionClosed, .timeout("command receive"),
+                .connectionFailed("command receive failed"), .invalidPacketLength(3),
+            ] {
+                #expect(NativeCameraSessionError.isLinkFailure(error))
+            }
+            #expect(
+                !NativeCameraSessionError.isLinkFailure(
+                    NativeCameraSessionError.operationRejected(.getPartialObject, .deviceBusy)))
+            #expect(!NativeCameraSessionError.isLinkFailure(CancellationError()))
+            #expect(
+                !NativeCameraSessionError.isLinkFailure(
+                    PTPObjectTransferError.unresolvedObjectSize(reportedBytes: 0)))
+        }
     }
 
     /// Counts events from the camera's threads and lets a test await a count without sleeping.

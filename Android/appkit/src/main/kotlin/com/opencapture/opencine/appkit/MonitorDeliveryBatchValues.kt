@@ -52,6 +52,8 @@ public class MonitorDeliveryAdmission(private val current: () -> Boolean) {
 }
 public class MonitorDeliveryOriginalService<R>(
     public val available: (R) -> Boolean, public val acquire: suspend (R) -> Unit, public val progress: (R) -> Double?,
+    /** Whether the last acquisition of an uncached record ended because the camera stopped answering. */
+    public val cameraStoppedResponding: (R) -> Boolean = { false },
 )
 public class MonitorDeliveryExportService<R, A>(
     public val release: suspend (A) -> Unit, public val prepare: suspend (R, (Double) -> Unit) -> A?,
@@ -92,6 +94,9 @@ public data class MonitorDeliveryBatchCounts(
  */
 public object MonitorDeliveryBatchPolicy {
     public fun cacheFailure(count: Int): String = "Couldn't cache $count clip(s) from the camera. Check the connection and try again."
+    /** The link died mid-transfer: the camera stopped answering while caching. */
+    public fun cameraStoppedResponding(count: Int): String =
+        "The camera stopped responding while caching $count clip(s). Reconnect and try again."
     public const val EMPTY_SELECTION: String = "Select at least one clip."
     public const val INTERNET_FAILURE: String =
         "Couldn't reach the internet after leaving the camera's Wi-Fi. Check cellular or home Wi-Fi and try again."

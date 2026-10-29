@@ -259,6 +259,29 @@ import Testing
         delivery.close()
     }
 
+    /// Owner report 2026-10-29: when the camera stops answering mid-cache, the hop says so.
+    @Test func originalTheCameraStoppedSendingSaysTheCameraStoppedResponding() async {
+        let facts = PreHopFacts()
+        let delivery = MonitorDeliveryModel<MonitorDeliveryBatchProgress, String, Int>()
+        let originals = MonitorDeliveryOriginalService<String>(
+            available: { _ in false }, acquire: { facts.calls.append("acquire \($0)") },
+            progress: { _ in nil }, cameraStoppedResponding: { _ in true })
+        let model = make(facts) {
+            try await delivery.cacheBeforeInternetHop(
+                records: ["A"], originals: originals, source: .init { facts.current },
+                filename: { $0 }, completion: "cached", progress: { $0 })
+        }
+        await settle { facts.polls == 1 }
+        model.hopToInternet()
+        await settle { model.projectsError != nil }
+        #expect(
+            model.projectsError
+                == "The camera stopped responding while caching 1 clip(s). Reconnect and try again.")
+        #expect(facts.calls == ["acquire A"] && facts.owned == nil && !model.hopping)
+        model.close()
+        delivery.close()
+    }
+
     private func make(_ facts: PreHopFacts, preflight: @escaping () async throws -> Void) -> Model {
         let model = Model(
             selection: selection, configuration: nil, exportOptions: nil,

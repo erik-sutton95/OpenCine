@@ -110,14 +110,19 @@ public enum MonitorDeliveryBatchOutcome<Artifact: Sendable>: Sendable {
     public let available: @MainActor (Record) -> Bool
     public let acquire: @MainActor (Record) async -> Void
     public let progress: @MainActor (Record) -> Double?
+    /// Whether the last acquisition of an uncached record ended because the camera stopped
+    /// answering (the link died mid-transfer), rather than refusing or being unreachable.
+    public let cameraStoppedResponding: @MainActor (Record) -> Bool
     public init(
         available: @escaping @MainActor (Record) -> Bool,
         acquire: @escaping @MainActor (Record) async -> Void,
-        progress: @escaping @MainActor (Record) -> Double?
+        progress: @escaping @MainActor (Record) -> Double?,
+        cameraStoppedResponding: @escaping @MainActor (Record) -> Bool = { _ in false }
     ) {
         self.available = available
         self.acquire = acquire
         self.progress = progress
+        self.cameraStoppedResponding = cameraStoppedResponding
     }
 }
 @MainActor public struct MonitorDeliveryExportService<Record: Sendable, Artifact: Sendable> {
@@ -154,9 +159,13 @@ public enum MonitorDeliveryBatchOutcome<Artifact: Sendable>: Sendable {
 /// Remote delivery could not cache every original before leaving the camera network.
 public enum MonitorDeliveryCacheError: LocalizedError, Equatable, Sendable {
     case uncached(Int)
+    /// The camera stopped answering while these originals were caching.
+    case cameraStoppedResponding(Int)
     public var errorDescription: String? {
         switch self {
         case .uncached(let count): MonitorDeliveryBatchPolicy.cacheFailure(count)
+        case .cameraStoppedResponding(let count):
+            MonitorDeliveryBatchPolicy.cameraStoppedResponding(count)
         }
     }
 }
@@ -273,6 +282,10 @@ public struct MonitorDeliveryBatchCounts: Sendable {
 public enum MonitorDeliveryBatchPolicy {
     public static func cacheFailure(_ count: Int) -> String {
         "Couldn't cache \(count) clip(s) from the camera. Check the connection and try again."
+    }
+    /// The link died mid-transfer: the camera stopped answering while caching.
+    public static func cameraStoppedResponding(_ count: Int) -> String {
+        "The camera stopped responding while caching \(count) clip(s). Reconnect and try again."
     }
     public static let emptySelection = "Select at least one clip."
     public static let internetFailure =
