@@ -65,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorMaterial
+import com.opencapture.monitorui.MonitorMediaSelectionCopy
+import com.opencapture.monitorui.MonitorSelectionTrayCloseTarget
 import com.opencapture.monitorui.MonitorTab
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.monitorMaterial
@@ -163,24 +165,30 @@ internal fun selectionDeleteDescription(count: Int, enabled: Boolean): String =
 internal fun selectionShareDescription(count: Int): String =
     "Share $count selected ${if (count == 1) "item" else "items"}"
 
+/**
+ * The selection bar: Close (leaves selection mode, [onExit]) and the count at the leading edge, then
+ * All, Share and Delete at the trailing edge (iOS: the same order). Close is a 48 dp target around
+ * the bar's 34 dp glass circle.
+ */
 @Composable
-fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean,
-    onAll: () -> Unit, onClear: () -> Unit, onCache: () -> Unit, onStar: () -> Unit,
-    onDelete: () -> Unit, onShare: () -> Unit, shareEnabled: Boolean = true) {
-    com.opencapture.monitorui.MonitorSelectionTray(count) {
+fun MediaSelectionTray(count: Int, deleteEnabled: Boolean,
+    onAll: () -> Unit, onExit: () -> Unit, onDelete: () -> Unit, onShare: () -> Unit,
+    shareEnabled: Boolean = true) {
+    com.opencapture.monitorui.MonitorSelectionTray(count, close = {
+        MediaCircleIconButton(MonitorIcon.X, MonitorMediaSelectionCopy.EXIT, onExit,
+            Modifier.testTag(MonitorMediaSelectionCopy.EXIT_TAG), size = 34.dp,
+            touchTarget = MonitorSelectionTrayCloseTarget)
+    }) {
         TrayTextChip(MonitorIcon.CIRCLE_CHECK, "All", "Select all", LiveDesign.accent, onAll)
-        TrayTextChip(MonitorIcon.X, "Clear", "Clear selection", LiveDesign.muted, onClear)
-        MediaCircleIconButton(MonitorIcon.DOWNLOAD, "Cache selected clips", onCache, enabled = cacheEnabled, size = 34.dp)
-        MediaCircleIconButton(MonitorIcon.STAR, "Favorite selected clips", onStar, enabled = count > 0, size = 34.dp)
-        MediaCircleIconButton(MonitorIcon.TRASH, selectionDeleteDescription(count, deleteEnabled), onDelete,
-            enabled = deleteEnabled, size = 34.dp)
         if (shareEnabled) MediaCircleIconButton(MonitorIcon.SHARE, selectionShareDescription(count), onShare,
             enabled = count > 0, size = 34.dp)
+        MediaCircleIconButton(MonitorIcon.TRASH, selectionDeleteDescription(count, deleteEnabled), onDelete,
+            enabled = deleteEnabled, size = 34.dp)
     }
 }
 
 /**
- * One button to TalkBack, announced by [contentDescription] alone (iOS: one "Clear selection" button):
+ * One button to TalkBack, announced by [contentDescription] alone (iOS: one "Select all" button):
  * the visible [label] and glyph are its drawing, not separate nodes read after it. The click stays the
  * clickable's own, so TalkBack's ACTION_CLICK runs the same handler as a tap.
  */
@@ -477,24 +485,32 @@ fun MediaCircleIconButton(
     enabled: Boolean = true,
     highlighted: Boolean = false,
     filled: Boolean = false,
+    /** The touch and accessibility bounds; the glass circle stays [size], centred in them. */
+    touchTarget: Dp = size,
 ) {
     Box(
         modifier
-            .size(size)
-            .clip(CircleShape)
-            .then(if (highlighted) Modifier.background(LiveDesign.accentDim, CircleShape) else Modifier)
-            .mediaGlass(CircleShape)
+            .size(maxOf(size, touchTarget))
             .chromeClickable(enabled = enabled, onClick = onClick)
             .semantics { this.contentDescription = contentDescription; role = Role.Button },
         contentAlignment = Alignment.Center,
     ) {
-        MonitorIcon(
-            icon = icon,
-            contentDescription = null,
-            tint = if (!enabled) LiveDesign.faint else if (highlighted) LiveDesign.accent else tint,
-            modifier = Modifier.size(iconSize),
-            filled = filled,
-        )
+        Box(
+            Modifier
+                .size(size)
+                .clip(CircleShape)
+                .then(if (highlighted) Modifier.background(LiveDesign.accentDim, CircleShape) else Modifier)
+                .mediaGlass(CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            MonitorIcon(
+                icon = icon,
+                contentDescription = null,
+                tint = if (!enabled) LiveDesign.faint else if (highlighted) LiveDesign.accent else tint,
+                modifier = Modifier.size(iconSize),
+                filled = filled,
+            )
+        }
     }
 }
 
@@ -513,7 +529,6 @@ class MediaLibraryPageState(
     val filterOpen: Boolean,
     val activeFilterCount: Int,
     val selectedCount: Int,
-    val cacheEnabled: Boolean,
     val deleteEnabled: Boolean,
     /** The clip being cached (file name, progress), read where the cache bar draws. */
     val caching: () -> Pair<String, Double>?,
@@ -546,9 +561,8 @@ interface MediaLibraryPageActions {
     fun cycleSort()
     fun toggleFilter()
     fun selectAll()
+    /** Leaves selection mode with nothing selected (the selection bar's Close). */
     fun clearSelection()
-    fun cacheSelected()
-    fun favoriteSelected()
     fun deleteSelected()
     fun shareSelected()
     fun toggleFormat(format: String)
@@ -638,11 +652,8 @@ fun MediaLibraryPage(
                     state.caching()?.let { (name, progress) -> MediaCacheBar(name, progress) }
                     Box(Modifier.weight(1f).fillMaxWidth()) { gallery() }
                     if (state.isSelecting) MediaSelectionTray(state.selectedCount,
-                        cacheEnabled = state.cacheEnabled,
                         deleteEnabled = state.deleteEnabled,
-                        onAll = actions::selectAll, onClear = actions::clearSelection,
-                        onCache = actions::cacheSelected,
-                        onStar = actions::favoriteSelected,
+                        onAll = actions::selectAll, onExit = actions::clearSelection,
                         onDelete = actions::deleteSelected,
                         onShare = actions::shareSelected,
                         shareEnabled = state.shareEnabled,

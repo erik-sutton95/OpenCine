@@ -201,12 +201,6 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
         guard isCurrent(snapshot), snapshot.record(id) != nil else { return }
         resolvedDurations[id] = label
     }
-    public func canDownload(_ record: MonitorMediaRecord<Payload>, operations: MonitorMediaGalleryOperations<Payload>) -> Bool {
-        guard operations.download != nil else { return false }
-        if let known = operations.access?(record).download { return known }
-        return library.entries[record.asset.id]?.originalURL == nil
-            && record.asset.representations.contains { $0.role == .original }
-    }
     public func canShare(_ record: MonitorMediaRecord<Payload>, operations: MonitorMediaGalleryOperations<Payload>) -> Bool {
         if let known = operations.access?(record).share { return known }
         return library.entries[record.asset.id]?.originalURL != nil || (operations.download != nil
@@ -279,20 +273,6 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
         guard isCurrent(snapshot), let record = snapshot.record(id) else { return }
         if let favorite = operations.favorite { favorite(record) } else { library.toggleFavorite(id) }
     }
-    public func favoriteSelection(admitted snapshot: MonitorMediaGallerySnapshot<Payload>,
-        operations: MonitorMediaGalleryOperations<Payload>, toggleUniform: Bool = false) {
-        let records = selected(snapshot, expanded: false)
-        let target = !toggleUniform || records.contains { library.record($0.asset.id)?.favorite == false }
-        for record in records where library.record(record.asset.id)?.favorite != target {
-            favorite(record.asset.id, admitted: snapshot, operations: operations)
-        }
-    }
-    public func cacheSelection(admitted snapshot: MonitorMediaGallerySnapshot<Payload>,
-        operations: MonitorMediaGalleryOperations<Payload>) {
-        guard let download = operations.download, isCurrent(snapshot) else { return }
-        let records = selected(snapshot).filter { canDownload($0, operations: operations) }
-        library.cacheBatch(records, admitted: snapshot.token, download: download)
-    }
     public func requestDelete(admitted snapshot: MonitorMediaGallerySnapshot<Payload>,
         operations: MonitorMediaGalleryOperations<Payload>, supportedSubset: Bool = false) {
         let selected = selected(snapshot)
@@ -329,7 +309,7 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
             return
         }
         guard let delete = operations.delete else { return }
-        perform(records, snapshot: snapshot, clearSelection: true, operation: delete)
+        performDeletion(records, snapshot: snapshot, operation: delete)
     }
     public func pickDate(_ bound: MonitorMediaDateBound, admitted snapshot: MonitorMediaGallerySnapshot<Payload>) {
         guard isCurrent(snapshot) else { return }
@@ -360,8 +340,9 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
         guard isCurrent(snapshot) else { return [] }
         return snapshot.selected(library.selectedIDs, expanded: expanded)
     }
-    private func perform(_ records: [MonitorMediaRecord<Payload>], snapshot: MonitorMediaGallerySnapshot<Payload>,
-        clearSelection: Bool = false, operation: @escaping @MainActor (MonitorMediaRecord<Payload>) async -> Void) {
+    /// Deletes in order, then ends the selection, while this snapshot stays current.
+    private func performDeletion(_ records: [MonitorMediaRecord<Payload>], snapshot: MonitorMediaGallerySnapshot<Payload>,
+        operation: @escaping @MainActor (MonitorMediaRecord<Payload>) async -> Void) {
         guard !records.isEmpty, isCurrent(snapshot) else { return }
         let id = UUID(), origin = lifetime
         tasks[id] = Task { @MainActor [weak self] in
@@ -372,7 +353,7 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
                 await operation(record)
             }
             guard !Task.isCancelled, let self, self.lifetime == origin, self.isCurrent(snapshot) else { return }
-            if clearSelection { self.library.clearSelection() }
+            self.library.clearSelection()
         }
     }
 }

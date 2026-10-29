@@ -1457,13 +1457,11 @@ public final class com/opencapture/opencine/cameracontrols/MediaLibraryFilterSta
 }
 
 public abstract interface class com/opencapture/opencine/cameracontrols/MediaLibraryPageActions {
-	public abstract fun cacheSelected ()V
 	public abstract fun clearSelection ()V
 	public abstract fun closeFilter ()V
 	public abstract fun cycleSort ()V
 	public fun dateEdit (ZLjava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/cameracontrols/MediaDatePickerAction;
 	public abstract fun deleteSelected ()V
-	public abstract fun favoriteSelected ()V
 	public abstract fun filterDates (Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun resetFilters ()V
 	public abstract fun selectAll ()V
@@ -1483,10 +1481,9 @@ public final class com/opencapture/opencine/cameracontrols/MediaLibraryPageActio
 
 public final class com/opencapture/opencine/cameracontrols/MediaLibraryPageState {
 	public static final field $stable I
-	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lcom/opencapture/opencine/cameracontrols/MediaBrowserLayout;Lcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lcom/opencapture/opencine/vocabulary/MediaLibrarySort;Ljava/lang/String;ZZZZIIZZLkotlin/jvm/functions/Function0;Z)V
-	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lcom/opencapture/opencine/cameracontrols/MediaBrowserLayout;Lcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lcom/opencapture/opencine/vocabulary/MediaLibrarySort;Ljava/lang/String;ZZZZIIZZLkotlin/jvm/functions/Function0;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lcom/opencapture/opencine/cameracontrols/MediaBrowserLayout;Lcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lcom/opencapture/opencine/vocabulary/MediaLibrarySort;Ljava/lang/String;ZZZZIIZLkotlin/jvm/functions/Function0;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lcom/opencapture/opencine/cameracontrols/MediaBrowserLayout;Lcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lcom/opencapture/opencine/vocabulary/MediaLibrarySort;Ljava/lang/String;ZZZZIIZLkotlin/jvm/functions/Function0;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getActiveFilterCount ()I
-	public final fun getCacheEnabled ()Z
 	public final fun getCaching ()Lkotlin/jvm/functions/Function0;
 	public final fun getCameraName ()Ljava/lang/String;
 	public final fun getCategory ()Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;
@@ -1509,14 +1506,14 @@ public final class com/opencapture/opencine/cameracontrols/MediaLibraryViewsKt {
 	public static final fun MediaCatalogHeaderRow (Ljava/lang/String;Ljava/lang/String;ZZZLcom/opencapture/opencine/vocabulary/MediaLibrarySort;ZILkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZLandroidx/compose/runtime/Composer;II)V
 	public static final fun MediaCategoryStrip (Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MediaCategoryTab (Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;ZZLkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
-	public static final fun MediaCircleIconButton-awseSDI (Lcom/opencapture/monitorui/MonitorIcon;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;FFJZZZLandroidx/compose/runtime/Composer;II)V
+	public static final fun MediaCircleIconButton-_-AFDvU (Lcom/opencapture/monitorui/MonitorIcon;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;FFJZZZFLandroidx/compose/runtime/Composer;III)V
 	public static final fun MediaCloseButton-942rkJo (Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;FZLandroidx/compose/runtime/Composer;II)V
 	public static final fun MediaEmptyState (ZLjava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MediaFilterPopup (Ljava/util/List;Ljava/util/List;Ljava/util/List;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorMediaPhotoSizeChoices;Lcom/opencapture/monitorui/MonitorMediaDateWindowChoices;Lcom/opencapture/monitorui/MonitorMediaStorageChoices;ZZLandroidx/compose/runtime/Composer;IIII)V
 	public static final fun MediaLibraryPage (Lcom/opencapture/opencine/cameracontrols/MediaLibraryPageState;Lcom/opencapture/opencine/cameracontrols/MediaLibraryFilterState;Lcom/opencapture/opencine/cameracontrols/MediaLibraryPageActions;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MediaListingState (ILandroidx/compose/runtime/Composer;I)V
 	public static final fun MediaScrollablePlaceholder (Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)V
-	public static final fun MediaSelectionTray (IZZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZLandroidx/compose/runtime/Composer;II)V
+	public static final fun MediaSelectionTray (IZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZLandroidx/compose/runtime/Composer;II)V
 	public static final fun getLocalMediaBackdropGlass ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun getMediaCapsuleShape ()Landroidx/compose/foundation/shape/RoundedCornerShape;
 	public static final fun getMediaCornerShape ()Landroidx/compose/foundation/shape/RoundedCornerShape;

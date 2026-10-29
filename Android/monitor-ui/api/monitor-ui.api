@@ -696,8 +696,9 @@ public final class com/opencapture/monitorui/MonitorComponentsKt {
 	public static final fun MonitorPageHeading (Ljava/lang/String;Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorPageScaffold (Landroidx/compose/ui/Modifier;FLkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorPanelGrabber (Landroidx/compose/runtime/Composer;I)V
-	public static final fun MonitorSelectionTray (ILandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorSelectionTray (ILandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorSettingsCard (Ljava/lang/String;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun getMonitorSelectionTrayCloseTarget ()F
 	public static final fun monitorCatalogColumns (Lcom/opencapture/monitorui/MonitorThumbnailSize;Z)I
 }
 
@@ -2722,6 +2723,13 @@ public final class com/opencapture/monitorui/MonitorMediaSelectionController$New
 	public final fun getSelecting ()Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorMediaSelectionCopy {
+	public static final field $stable I
+	public static final field EXIT Ljava/lang/String;
+	public static final field EXIT_TAG Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorMediaSelectionCopy;
 }
 
 public final class com/opencapture/monitorui/MonitorMediaSelectionFeedback : java/lang/Enum {

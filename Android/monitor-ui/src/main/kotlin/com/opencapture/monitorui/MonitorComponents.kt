@@ -312,16 +312,33 @@ fun MonitorSettingsCard(title: String? = null, modifier: Modifier = Modifier, co
     }
 }
 
-/** Bulk catalog actions are supplied by the adapter and remain capability gated. */
+/** The selection bar's Close, which leaves selection mode. Swift twin: `MonitorMediaSelectionCopy`. */
+object MonitorMediaSelectionCopy {
+    const val EXIT = "Exit selection"
+    const val EXIT_TAG = "monitor.media.selection.close"
+}
+
+/** The touch target of the selection bar's [MonitorSelectionTray] close, around its 34 dp circle. */
+val MonitorSelectionTrayCloseTarget: Dp = 48.dp
+
+/**
+ * The selection bar: [close] (a [MonitorSelectionTrayCloseTarget] target) and the count at the
+ * leading edge, the adapter's capability-gated bulk [actions] at the trailing edge.
+ */
 @Composable
 fun MonitorSelectionTray(count: Int, modifier: Modifier = Modifier,
+    close: @Composable () -> Unit,
     actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    // The bar stays 50 dp tall with its 34 dp circles 8 dp from the top and 9 dp from each end:
+    // the close's larger target takes the space of the start and vertical insets around its circle.
     Row(modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp))
         .background(MonitorPalette.accent.copy(alpha = .14f))
         .border(1.dp, MonitorPalette.accent.copy(alpha = .3f), RoundedCornerShape(11.dp))
-        .padding(horizontal = 9.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+        .heightIn(min = 50.dp).padding(start = 2.dp, end = 9.dp, top = 1.dp, bottom = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        // The count keeps its full width (iOS: the label, then scrolling chips); on a narrow
+        close()
+        // The count keeps its full width (iOS: the label, then the actions); on a narrow
         // phone the actions scroll instead of cutting it to "2 sel...".
         Text("$count selected", style = MonitorTypography.text(10.5f, FontWeight.SemiBold), maxLines = 1,
             softWrap = false)
