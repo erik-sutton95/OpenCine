@@ -26,6 +26,7 @@ case MonitorDeliveryBatchProgress.Stage.preparing
 case MonitorDeliveryBatchProgress.Stage.saving
 case MonitorDeliveryBatchProgress.Stage.switchingNetworks
 case MonitorDeliveryBatchProgress.Stage.uploading
+case MonitorDeliveryCacheError.cameraStoppedResponding(Swift.Int)
 case MonitorDeliveryCacheError.uncached(Swift.Int)
 case MonitorDeliveryChromeScope.root
 case MonitorDeliveryChromeScope.surface
@@ -892,7 +893,7 @@ init MonitorCoverPage(content: (SwiftUI.EdgeInsets) -> Content)<Content where Co
 init MonitorDeliveryAdmission(_: () -> Swift.Bool)
 init MonitorDeliveryBatchCounts(prepared: Swift.Int, uploaded: Swift.Int, skipped: Swift.Int, failed: Swift.Int, uncached: Swift.Int)
 init MonitorDeliveryBatchProgress(destination: MonitorDeliveryDestination, totalClips: Swift.Int, clipIndex: Swift.Int, clipFraction: Swift.Double, isCaching: Swift.Bool, isSwitchingNetworks: Swift.Bool, filename: Swift.String?, uploadCaption: Swift.String?)
-init MonitorDeliveryCachedOriginals(ready: [Record], uncached: Swift.Int)<Record where Record : Swift.Sendable>
+init MonitorDeliveryCachedOriginals(ready: [Record], uncached: Swift.Int, cameraStopped: Swift.Int)<Record where Record : Swift.Sendable>
 init MonitorDeliveryChoice(id: Swift.String, label: Swift.String, value: Value)<Value where Value : Swift.Equatable, Value : Swift.Sendable>
 init MonitorDeliveryCompletion(_: Outcome, share: Share?, toast: Swift.String?)<Outcome, Share where Outcome : Swift.Sendable, Share : Swift.Sendable>
 init MonitorDeliveryExportConfiguration(logTransform: Curve, exportFormat: Format)<Curve, Format where Curve : Swift.Sendable, Format : Swift.Sendable>
@@ -907,7 +908,7 @@ init MonitorDeliveryInternetService(needsHop: () -> Swift.Bool, begin: () -> Lea
 init MonitorDeliveryMetadataFacts(filename: Swift.String, captureDate: Swift.String?, sizeBytes: Swift.UInt64?)
 init MonitorDeliveryMetadataSelection(_: MonitorDeliveryExportConfiguration<Curve, Format>)<Curve, Format where Curve : Swift.Sendable, Format : Swift.Sendable>
 init MonitorDeliveryModel(sleep: (Swift.Duration) async throws -> Swift.Void, releaseShare: (Share) -> Swift.Void)<Progress, Outcome, Share where Progress : Swift.Sendable, Outcome : Swift.Sendable, Share : Swift.Sendable>
-init MonitorDeliveryOriginalService(available: (Record) -> Swift.Bool, acquire: (Record) async -> Swift.Void, progress: (Record) -> Swift.Double?)<Record where Record : Swift.Sendable>
+init MonitorDeliveryOriginalService(available: (Record) -> Swift.Bool, acquire: (Record) async -> Swift.Void, progress: (Record) -> Swift.Double?, cameraStoppedResponding: (Record) -> Swift.Bool)<Record where Record : Swift.Sendable>
 init MonitorDeliveryPhotosAuthorizationService(isPending: () -> Swift.Bool, authorize: () async throws -> Swift.Void)
 init MonitorDeliveryPhotosService(save: (Artifact) async throws -> Swift.Bool)<Artifact where Artifact : Swift.Sendable>
 init MonitorDeliveryPreparationModel(selection: () -> MonitorDeliverySelectionFacts, configuration: MonitorDeliveryExportConfiguration<Curve, Format>?, exportOptions: MonitorDeliveryExportOptions<Curve, Format>?, remote: MonitorDeliveryRemoteService<Project, Context, Lease>?, preferredDestination: MonitorDeliveryDestination?, sourceCurrent: () -> Swift.Bool, beforeInternetHop: (() async throws -> Swift.Void)?, sleep: (Swift.Duration) async throws -> Swift.Void)<Curve, Format, Project, Context, Lease where Curve : Swift.Equatable, Curve : Swift.Sendable, Format : Swift.Equatable, Format : Swift.Sendable, Project : Swift.Sendable, Context : Swift.Sendable, Lease : Swift.Sendable>
@@ -1110,6 +1111,7 @@ let MonitorDeliveryBatchCounts.uncached: Swift.Int
 let MonitorDeliveryBatchCounts.uploaded: Swift.Int
 let MonitorDeliveryBatchProgress.destination: MonitorDeliveryDestination
 let MonitorDeliveryBatchProgress.totalClips: Swift.Int
+let MonitorDeliveryCachedOriginals.cameraStopped: Swift.Int
 let MonitorDeliveryCachedOriginals.ready: [Record]
 let MonitorDeliveryCachedOriginals.uncached: Swift.Int
 let MonitorDeliveryChoice.id: Swift.String
@@ -1151,6 +1153,7 @@ let MonitorDeliveryMetadataSelection.convertedCurve: Swift.Bool
 let MonitorDeliveryMetadataSelection.included: Swift.Bool
 let MonitorDeliveryOriginalService.acquire: (Record) async -> Swift.Void
 let MonitorDeliveryOriginalService.available: (Record) -> Swift.Bool
+let MonitorDeliveryOriginalService.cameraStoppedResponding: (Record) -> Swift.Bool
 let MonitorDeliveryOriginalService.progress: (Record) -> Swift.Double?
 let MonitorDeliveryPhotosAuthorizationService.authorize: () async throws -> Swift.Void
 let MonitorDeliveryPhotosAuthorizationService.isPending: () -> Swift.Bool
@@ -1524,6 +1527,7 @@ static func MonitorChromeEditBadgeLayout.badgeFrames(keyed: [(key: Key, frame: C
 static func MonitorChromeEditBadgeLayout.playableRect(in: CoreFoundation.CGSize, badgeSize: CoreGraphics.CGFloat) -> CoreFoundation.CGRect
 static func MonitorControlModel.note(for: OpenCineCore.CommandStage, _: Swift.String) -> Swift.String?
 static func MonitorDeliveryBatchPolicy.cacheFailure(_: Swift.Int) -> Swift.String
+static func MonitorDeliveryBatchPolicy.cameraStoppedResponding(_: Swift.Int) -> Swift.String
 static func MonitorDeliveryBatchPolicy.nativeSummary(_: MonitorDeliveryBatchCounts) -> Swift.String?
 static func MonitorDeliveryBatchPolicy.photosFailure(saved: Swift.Int, failed: Swift.Int) -> Swift.String?
 static func MonitorDeliveryFileNaming.filename(original: Swift.String, configuration: MonitorDeliveryExportConfiguration<Curve, Format>, formatExtension: Swift.String, transformToken: Swift.String?)<Curve, Format where Curve : Swift.Sendable, Format : Swift.Sendable> -> Swift.String

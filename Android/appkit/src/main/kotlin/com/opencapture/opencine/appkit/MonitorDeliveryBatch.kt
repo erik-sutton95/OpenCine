@@ -10,7 +10,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
-public data class MonitorDeliveryCachedOriginals<R>(public val ready: List<R>, public val uncached: Int)
+/** [cameraStopped] counts the uncached records whose acquisition ended because the camera stopped answering. */
+public data class MonitorDeliveryCachedOriginals<R>(
+    public val ready: List<R>, public val uncached: Int, public val cameraStopped: Int = 0,
+)
 
 /** Cache-only part of the same admitted run; missing receipts remain explicit and ordered. */
 public suspend fun <R> MonitorDeliveryModel.Companion.cacheOriginals(
@@ -29,6 +32,7 @@ public suspend fun <R> MonitorDeliveryModel.Companion.cacheOriginals(
         if (!available) toCache += record
     }
     var uncached = 0
+    var cameraStopped = 0
     for ((index, record) in toCache.withIndex()) {
         if (!accepts()) return null
         var value = MonitorDeliveryBatchProgress(destination, toCache.size, index + 1, 0.0,
@@ -56,7 +60,10 @@ public suspend fun <R> MonitorDeliveryModel.Companion.cacheOriginals(
         if (!accepts()) return null
         val available = originals.available(record)
         if (!accepts()) return null
-        if (!available) uncached += 1
+        if (!available) {
+            uncached += 1
+            if (originals.cameraStoppedResponding(record)) cameraStopped += 1
+        }
     }
     val ready = mutableListOf<R>()
     for (record in records) {
@@ -65,7 +72,7 @@ public suspend fun <R> MonitorDeliveryModel.Companion.cacheOriginals(
         if (!accepts()) return null
         if (available) ready += record
     }
-    return MonitorDeliveryCachedOriginals(ready, uncached)
+    return MonitorDeliveryCachedOriginals(ready, uncached, cameraStopped)
 }
 
 /**
@@ -122,7 +129,11 @@ public suspend fun <R, A, H> MonitorDeliveryModel.Companion.runBatch(
         val ready = cached.ready
         val uncached = cached.uncached
         if (ready.isEmpty()) return MonitorDeliveryBatchOutcome.Failed(
-            if (uncached > 0) MonitorDeliveryBatchPolicy.cacheFailure(uncached) else MonitorDeliveryBatchPolicy.EMPTY_SELECTION)
+            when {
+                cached.cameraStopped > 0 -> MonitorDeliveryBatchPolicy.cameraStoppedResponding(uncached)
+                uncached > 0 -> MonitorDeliveryBatchPolicy.cacheFailure(uncached)
+                else -> MonitorDeliveryBatchPolicy.EMPTY_SELECTION
+            })
         if (destination == MonitorDeliveryDestination.REMOTE_UPLOAD) {
             if (upload == null) return MonitorDeliveryBatchOutcome.Failed("Upload is unavailable.")
             if (internet != null) {
