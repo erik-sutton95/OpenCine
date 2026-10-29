@@ -337,13 +337,13 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
     private let enabled: Bool
     private let commandEnabled: Bool
     private let currentSource: () -> Bool
+    /// Unused since the target stopped measuring itself; kept so existing callers compile.
     private let coordinateSpace: String
     private let expandsHeight: Bool
     private let displayValue: String?
     private let accessibilityLabel: String?
     private let accessibilityValue: String?
     private let content: () -> Content
-    @State private var measuredSize: CGSize = .zero
 
     public init(inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>, control: MonitorControlModel,
         state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity,
@@ -360,32 +360,33 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
     }
 
     public var body: some View {
-        let horizontal = measuredSize == .zero ? 0 : max(0, (44 - measuredSize.width) / 2)
-        // A line of a stacked column already owns its slot's height: growing it would reach
-        // into the neighbouring line's target (`expandsHeight: false`).
-        let vertical = measuredSize == .zero || !expandsHeight ? 0 : max(0, (44 - measuredSize.height) / 2)
-        content().background {
-            GeometryReader { geometry in
-                Color.clear.preference(key: CaptureHeaderReadoutSizeKey.self,
-                    value: geometry.frame(in: .named(coordinateSpace)).size)
-            }
-        }.onPreferenceChange(CaptureHeaderReadoutSizeKey.self) { measuredSize = $0 }
-            .padding(.horizontal, horizontal).padding(.vertical, vertical)
-            .contentShape(Rectangle())
-            .modifier(CaptureReadoutGesture(inputs: inputs, readout: readout, control: control,
-                state: state, source: source, enabled: enabled, commandEnabled: commandEnabled,
-                currentSource: currentSource, spokenTitle: accessibilityLabel))
-            .accessibilityValue(MonitorCapturePresentation.spokenValue(
-                accessibilityValue ?? displayValue ?? readout.value))
-            .padding(.horizontal, -horizontal).padding(.vertical, -vertical)
+        // The touch and accessibility target is an overlay of at least 44 pt centred on the
+        // content, so the content lays out exactly as it is and nothing measured feeds back into
+        // layout. A line of a stacked column already owns its slot's height: growing it would
+        // reach into the neighbouring line's target (`expandsHeight: false`).
+        content().accessibilityHidden(true).overlay {
+            CaptureHeaderTargetArea(expandsHeight: expandsHeight)
+                .modifier(CaptureReadoutGesture(inputs: inputs, readout: readout, control: control,
+                    state: state, source: source, enabled: enabled, commandEnabled: commandEnabled,
+                    currentSource: currentSource, spokenTitle: accessibilityLabel))
+                .accessibilityValue(MonitorCapturePresentation.spokenValue(
+                    accessibilityValue ?? displayValue ?? readout.value))
+        }
     }
 }
 
-private struct CaptureHeaderReadoutSizeKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        let next = nextValue()
-        if next != .zero { value = next }
+/// The header readout's touch and accessibility target: a clear area at least 44 pt wide (and
+/// tall, unless `expandsHeight` is false) centred on the content it overlays, laid out from the
+/// content's own size. It replaced a measure-and-pad target that wrote the content's size,
+/// measured in the monitor's named coordinate space, into state and turned it into padding: at
+/// some fractional positions that size never settled, and the header re-laid itself out until
+/// iOS killed the app on a camera connect (hardware pass 2026-10-28).
+private struct CaptureHeaderTargetArea: View {
+    let expandsHeight: Bool
+    var body: some View {
+        Color.clear
+            .frame(minWidth: 44, minHeight: expandsHeight ? 44 : nil)
+            .contentShape(Rectangle())
     }
 }
 
