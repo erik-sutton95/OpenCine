@@ -99,12 +99,14 @@
 
         /// One full PTP-IP dial. Only the command channel's TCP connect is wrapped as a
         /// `DialFailure`: a handshake refusal means the body is up and must never be woken.
-        private static func connectOnce(
+        /// `port` is the PTP-IP port; tests dial a loopback fake camera on an ephemeral one.
+        static func connectOnce(
             host: String,
+            port: UInt16 = UInt16(ptpIPPort),
             guid: Data,
             friendlyName: String
         ) async throws -> PTPIPTransport {
-            let command = PTPIPSocket(host: host, port: UInt16(ptpIPPort), label: "command")
+            let command = PTPIPSocket(host: host, port: port, label: "command")
             var event: PTPIPSocket?
             do {
                 do {
@@ -134,7 +136,7 @@
                 }
                 let ack = try PTPIPInitCommandAck(payloadBytes: Array(initReply.payload))
 
-                let eventSocket = PTPIPSocket(host: host, port: UInt16(ptpIPPort), label: "event")
+                let eventSocket = PTPIPSocket(host: host, port: port, label: "event")
                 event = eventSocket
                 try await eventSocket.start()
                 try await eventSocket.send(
@@ -421,9 +423,17 @@
                 transactionID: transactionID,
                 parameters: parameters
             )
+            // From here the transaction owns the command channel until its response, whatever
+            // happens to the caller's task. Cancelling a caller used to shut the shared command
+            // socket down mid-transaction, which ended the whole camera session: leaving the
+            // player while its clip stream read a chunk cost the connection, and the Share that
+            // followed failed (owner report 2026-10-29). Stopping early instead would leave this
+            // response on the wire for the next transaction to read. The deadline above and the
+            // socket's own poll timeout still bound a camera that stops answering; the caller
+            // sees its cancellation after the transaction completes.
             try await command.send(
                 PTPIPPacket(type: .operationRequest, payload: Data(request.payloadBytes)),
-                admission: admission
+                admission: admission, interruptible: false
             )
             if let dataOut {
                 try await command.send(
@@ -434,20 +444,22 @@
                                 transactionID: transactionID,
                                 totalLength: UInt64(dataOut.count)
                             ))
-                    )
+                    ),
+                    interruptible: false
                 )
                 try await command.send(
                     PTPIPPacket(
                         type: .endData,
                         payload: Data(
                             PTPDataPayloads.endData(transactionID: transactionID, data: dataOut))
-                    )
+                    ),
+                    interruptible: false
                 )
             }
 
             var packets: [PTPIPPacket] = []
             while true {
-                let packet = try await command.readPacket()
+                let packet = try await command.readPacket(interruptible: false)
                 packets.append(packet)
                 if packet.type == .operationResponse {
                     return try PTPIPTransactionCollector().collect(from: packets)
@@ -646,12 +658,18 @@
             }
         }
 
-        func send(_ packet: PTPIPPacket, admission: NikonCommandAdmission? = nil) async throws {
-            try await send(Data(packet.serializedBytes), admission: admission)
+        /// `interruptible: false` is for a started command transaction: its caller's
+        /// cancellation must neither cut the shared socket nor leave a reply unread.
+        func send(
+            _ packet: PTPIPPacket, admission: NikonCommandAdmission? = nil,
+            interruptible: Bool = true
+        ) async throws {
+            try await send(
+                Data(packet.serializedBytes), admission: admission, interruptible: interruptible)
         }
 
-        func readPacket() async throws -> PTPIPPacket {
-            let header = try await readExact(byteCount: 8)
+        func readPacket(interruptible: Bool = true) async throws -> PTPIPPacket {
+            let header = try await readExact(byteCount: 8, interruptible: interruptible)
             let headerBytes = Array(header)
             let length = ByteCoding.readUInt32LE(headerBytes, at: 0)
             guard length >= 8 && length <= 128 * 1024 * 1024 else {
@@ -666,7 +684,10 @@
                 throw NativeCameraSessionError.invalidPacketLength(length)
             }
             let payloadLength = Int(length) - 8
-            let payload = payloadLength > 0 ? try await readExact(byteCount: payloadLength) : Data()
+            let payload =
+                payloadLength > 0
+                ? try await readExact(byteCount: payloadLength, interruptible: interruptible)
+                : Data()
             // Build the packet directly from the parsed header + payload Data. The old
             // serialize-then-reparse roundtrip (`headerBytes + Array(payload)` →
             // `init(serializedBytes:)` → `Data(bytes[8..<length])`) copied the whole JPEG-sized
@@ -676,8 +697,10 @@
             return PTPIPPacket(type: type, payload: payload)
         }
 
-        private func send(_ data: Data, admission: NikonCommandAdmission? = nil) async throws {
-            try await performOnQueue {
+        private func send(
+            _ data: Data, admission: NikonCommandAdmission?, interruptible: Bool
+        ) async throws {
+            try await performOnQueue(interruptible: interruptible) {
                 if let admission {
                     try admission.perform { try self.sendOnQueue(data) }
                 } else {
@@ -686,8 +709,8 @@
             }
         }
 
-        private func readExact(byteCount: Int) async throws -> Data {
-            try await performOnQueue {
+        private func readExact(byteCount: Int, interruptible: Bool) async throws -> Data {
+            try await performOnQueue(interruptible: interruptible) {
                 while self.readBuffer.availableCount < byteCount {
                     // Cap each recv so an oversized/malformed packet length can't drive one huge
                     // transient allocation; the loop still reads the full `byteCount` across chunks.
@@ -701,15 +724,11 @@
             }
         }
 
-        private func performOnQueue<T>(_ work: @Sendable @escaping () throws -> T) async throws -> T
-        {
-            // Task cancellation interrupts the blocked syscall instead of letting it run out its
-            // own deadline; see `interrupt()`. Without this, cancellation was invisible here and
-            // an abandoned attempt kept its socket (and its half-open init at the body) alive for
-            // the full poll timeout.
-            try await withTaskCancellationHandler {
-                try Task.checkCancellation()
-                return try await withCheckedThrowingContinuation { continuation in
+        private func performOnQueue<T>(
+            interruptible: Bool = true, _ work: @Sendable @escaping () throws -> T
+        ) async throws -> T {
+            func run() async throws -> T {
+                try await withCheckedThrowingContinuation { continuation in
                     queue.async {
                         do {
                             continuation.resume(returning: try work())
@@ -718,6 +737,16 @@
                         }
                     }
                 }
+            }
+            // A started command transaction runs to its response; see `executeTransaction`.
+            guard interruptible else { return try await run() }
+            // Task cancellation interrupts the blocked syscall instead of letting it run out its
+            // own deadline; see `interrupt()`. Without this, cancellation was invisible here and
+            // an abandoned attempt kept its socket (and its half-open init at the body) alive for
+            // the full poll timeout.
+            return try await withTaskCancellationHandler {
+                try Task.checkCancellation()
+                return try await run()
             } onCancel: {
                 interrupt()
             }
