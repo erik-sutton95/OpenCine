@@ -6,6 +6,8 @@ import android.graphics.Rect
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,7 +34,8 @@ import org.junit.runner.RunWith
 
 /**
  * SIMULATED clips in the actual shared Media page over a real library model. The selection bar offers
- * one Close that leaves selection mode, and the bar fits, untruncated, in both orientations. With the
+ * one Close that leaves selection mode, the page itself offers Back (not a second close), and the bar
+ * fits, untruncated, in both orientations. With the
  * instrumentation argument `mediaSelectionSnapshots=true`, each orientation is captured to
  * `/data/local/tmp/media-selection/<orientation>.png` on the device, for review.
  */
@@ -44,34 +47,68 @@ class MediaSelectionExitTest {
     @Test fun closeLeavesSelectionModeWithNothingSelected() {
         withCatalog(landscape = true) { fixture, scenario ->
             scenario.onActivity { fixture.library.select(setOf(MediaAssetID("SIMULATED-02"))) }
-            // TalkBack reads the clickable control with its description (Compose keeps the
-            // description on a child node of the clickable one, as for the bar's other buttons).
-            val label = awaitNode("Close") { it.contentDescription?.toString() == MonitorMediaSelectionCopy.EXIT }
-            val exit = checkNotNull(label.parent) { "The close is one clickable control" }
-            assertTrue("Close is a button", exit.isClickable)
-            assertEquals(MonitorMediaSelectionCopy.EXIT_TAG, tag(exit))
+            val exit = awaitExit()
             val bounds = Rect().also(exit::getBoundsInScreen)
-            val minimum = 48 * InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
-            assertTrue("Close is at least 48 dp: $bounds", bounds.width() >= minimum - 1 && bounds.height() >= minimum - 1)
+            assertTrue("Close is a 48 dp target: $bounds", bounds.width() >= dp(48f) - 1 && bounds.height() >= dp(48f) - 1)
+            // TalkBack's activation.
             assertTrue(exit.performAction(AccessibilityNodeInfo.ACTION_CLICK))
-            var left = false
-            val end = SystemClock.uptimeMillis() + 5_000
-            while (!left && SystemClock.uptimeMillis() < end) {
-                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-                scenario.onActivity {
-                    val state = fixture.library.state.value
-                    left = !state.selecting && state.selectedIDs.isEmpty()
-                }
-                if (!left) SystemClock.sleep(32)
+            assertLeftSelection(fixture, scenario)
+        }
+    }
+
+    @Test fun aTouchJustOutsideTheDrawnCloseStillLeavesSelection() {
+        withCatalog(landscape = false) { fixture, scenario ->
+            scenario.onActivity { fixture.library.select(setOf(MediaAssetID("SIMULATED-02"))) }
+            val bounds = Rect().also(awaitExit()::getBoundsInScreen)
+            // The outer 1 dp of the 48 dp target lies beyond the drawn 44 dp chip, in the bar's padding.
+            tap(bounds.left + dp(1f), bounds.exactCenterY())
+            assertLeftSelection(fixture, scenario)
+        }
+    }
+
+    private fun awaitExit(): AccessibilityNodeInfo {
+        val label = awaitNode("Close") { it.contentDescription?.toString() == MonitorMediaSelectionCopy.EXIT }
+        // One control: the described node is the clickable one, or its direct parent.
+        val exit = if (label.isClickable) label else checkNotNull(label.parent) { "The close is one clickable control" }
+        assertTrue("Close is a button", exit.isClickable)
+        assertEquals(MonitorMediaSelectionCopy.EXIT_TAG, tag(exit))
+        return exit
+    }
+
+    private fun assertLeftSelection(fixture: Fixture, scenario: ActivityScenario<MediaSelectionTestActivity>) {
+        var left = false
+        val end = SystemClock.uptimeMillis() + 5_000
+        while (!left && SystemClock.uptimeMillis() < end) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            scenario.onActivity {
+                val state = fixture.library.state.value
+                left = !state.selecting && state.selectedIDs.isEmpty()
             }
-            assertTrue("Close must clear the selection and leave selection mode", left)
-            assertTrue("The selection bar must close", awaitGone { tag(it) == MonitorMediaSelectionCopy.EXIT_TAG })
+            if (!left) SystemClock.sleep(32)
+        }
+        assertTrue("Close must clear the selection and leave selection mode", left)
+        assertTrue("The selection bar must close", awaitGone { tag(it) == MonitorMediaSelectionCopy.EXIT_TAG })
+    }
+
+    private fun dp(value: Float): Float =
+        value * InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
+
+    private fun tap(x: Float, y: Float) {
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val down = SystemClock.uptimeMillis()
+        for ((action, time) in listOf(MotionEvent.ACTION_DOWN to down, MotionEvent.ACTION_UP to down + 50)) {
+            val event = MotionEvent.obtain(down, time, action, x, y, 0).apply { source = InputDevice.SOURCE_TOUCHSCREEN }
+            assertTrue(automation.injectInputEvent(event, true))
+            event.recycle()
         }
     }
 
     @Test fun theBarFitsUntruncatedInPortraitAndLandscape() {
         for (landscape in listOf(false, true)) withCatalog(landscape) { fixture, scenario ->
             scenario.onActivity { fixture.library.select(setOf(MediaAssetID("SIMULATED-02"))) }
+            val back = awaitNode("Back") { tag(it) == "monitor.page.back" }
+            assertEquals("The page's own control is Back, not a second close", "Back",
+                (back.contentDescription ?: (0 until back.childCount).firstNotNullOfOrNull { back.getChild(it)?.contentDescription })?.toString())
             val exit = awaitNode("Close") { tag(it) == MonitorMediaSelectionCopy.EXIT_TAG }
             val count = awaitNode("count") { it.text?.toString() == "1 selected" }
             val actions = listOf("Select all", selectionShareDescription(1), selectionDeleteDescription(1, true))
