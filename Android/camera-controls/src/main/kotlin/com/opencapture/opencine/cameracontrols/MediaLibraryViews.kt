@@ -65,8 +65,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorMaterial
-import com.opencapture.monitorui.MonitorMediaSelectionCopy
-import com.opencapture.monitorui.MonitorSelectionTrayCloseTarget
 import com.opencapture.monitorui.MonitorTab
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.monitorMaterial
@@ -165,44 +163,16 @@ internal fun selectionDeleteDescription(count: Int, enabled: Boolean): String =
 internal fun selectionShareDescription(count: Int): String =
     "Share $count selected ${if (count == 1) "item" else "items"}"
 
-/**
- * The selection bar: Close (leaves selection mode, [onExit]) and the count at the leading edge, then
- * All, Share and Delete at the trailing edge (iOS: the same order). Close is a 48 dp target around
- * the bar's 34 dp glass circle.
- */
+/** The shared selection bar with this library's labels and haptics (iOS: the same bar in `MonitorMediaCatalog`). */
 @Composable
 fun MediaSelectionTray(count: Int, deleteEnabled: Boolean,
     onAll: () -> Unit, onExit: () -> Unit, onDelete: () -> Unit, onShare: () -> Unit,
     shareEnabled: Boolean = true) {
-    com.opencapture.monitorui.MonitorSelectionTray(count, close = {
-        MediaCircleIconButton(MonitorIcon.X, MonitorMediaSelectionCopy.EXIT, onExit,
-            Modifier.testTag(MonitorMediaSelectionCopy.EXIT_TAG), size = 34.dp,
-            touchTarget = MonitorSelectionTrayCloseTarget)
-    }) {
-        TrayTextChip(MonitorIcon.CIRCLE_CHECK, "All", "Select all", LiveDesign.accent, onAll)
-        if (shareEnabled) MediaCircleIconButton(MonitorIcon.SHARE, selectionShareDescription(count), onShare,
-            enabled = count > 0, size = 34.dp)
-        MediaCircleIconButton(MonitorIcon.TRASH, selectionDeleteDescription(count, deleteEnabled), onDelete,
-            enabled = deleteEnabled, size = 34.dp)
-    }
-}
-
-/**
- * One button to TalkBack, announced by [contentDescription] alone (iOS: one "Select all" button):
- * the visible [label] and glyph are its drawing, not separate nodes read after it. The click stays the
- * clickable's own, so TalkBack's ACTION_CLICK runs the same handler as a tap.
- */
-@Composable
-private fun TrayTextChip(icon: MonitorIcon, label: String, contentDescription: String, tint: Color, onClick: () -> Unit) {
-    Row(Modifier.height(34.dp).chromeClickable(onClick = onClick)
-        .semantics(mergeDescendants = true) {
-            this.contentDescription = contentDescription
-            role = Role.Button
-        }.padding(horizontal = 7.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        MonitorIcon(icon, null, Modifier.size(13.dp), tint)
-        Text(label, Modifier.clearAndSetSemantics {}, color = tint, style = LiveType.ui(11f, FontWeight.SemiBold))
-    }
+    val haptics = LocalOperatorHaptics.current
+    com.opencapture.monitorui.MonitorSelectionTray(count, onExit = onExit, onAll = onAll, onShare = onShare,
+        onDelete = onDelete, shareEnabled = shareEnabled && count > 0, deleteEnabled = deleteEnabled,
+        shareLabel = selectionShareDescription(count), deleteLabel = selectionDeleteDescription(count, deleteEnabled),
+        onClickFeedback = { haptics.selection() })
 }
 
 @Composable
@@ -485,32 +455,24 @@ fun MediaCircleIconButton(
     enabled: Boolean = true,
     highlighted: Boolean = false,
     filled: Boolean = false,
-    /** The touch and accessibility bounds; the glass circle stays [size], centred in them. */
-    touchTarget: Dp = size,
 ) {
     Box(
         modifier
-            .size(maxOf(size, touchTarget))
+            .size(size)
+            .clip(CircleShape)
+            .then(if (highlighted) Modifier.background(LiveDesign.accentDim, CircleShape) else Modifier)
+            .mediaGlass(CircleShape)
             .chromeClickable(enabled = enabled, onClick = onClick)
             .semantics { this.contentDescription = contentDescription; role = Role.Button },
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier
-                .size(size)
-                .clip(CircleShape)
-                .then(if (highlighted) Modifier.background(LiveDesign.accentDim, CircleShape) else Modifier)
-                .mediaGlass(CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            MonitorIcon(
-                icon = icon,
-                contentDescription = null,
-                tint = if (!enabled) LiveDesign.faint else if (highlighted) LiveDesign.accent else tint,
-                modifier = Modifier.size(iconSize),
-                filled = filled,
-            )
-        }
+        MonitorIcon(
+            icon = icon,
+            contentDescription = null,
+            tint = if (!enabled) LiveDesign.faint else if (highlighted) LiveDesign.accent else tint,
+            modifier = Modifier.size(iconSize),
+            filled = filled,
+        )
     }
 }
 
@@ -582,9 +544,9 @@ interface MediaLibraryPageActions {
 /**
  * The media library page: heading, category rail or strip, display controls, header, cache bar, the app's
  * [gallery], the selection tray and the filter popup; [overlays] (player, photo viewer, delivery, confirms)
- * draw above it. [close] is the page's own Close (`monitor.page.back`), placed like everything else on the
- * page inside the system bars and beside the display cutout (Swift twin: `MonitorPage`'s back button over
- * the resolved safe area); in landscape the content keeps a column free for it.
+ * draw above it. [close] is the page's own Back (`monitor.page.back`, a chevron as in Swift `MonitorPage`):
+ * beside the heading in portrait, in its own column before the navigation in landscape, inside the system
+ * bars and beside the display cutout.
  */
 @Composable
 fun MediaLibraryPage(
@@ -614,9 +576,12 @@ fun MediaLibraryPage(
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val portrait = maxHeight > maxWidth
             com.opencapture.monitorui.MonitorPageScaffold(
-                modifier = Modifier.windowInsetsPadding(safe).padding(horizontal = 12.dp, vertical = 10.dp)
-                    .padding(end = if (close != null && !portrait) MEDIA_PAGE_CLOSE_SLOT else 0.dp),
+                modifier = Modifier.windowInsetsPadding(safe).padding(horizontal = 12.dp, vertical = 10.dp),
                 navigationWidth = 206f,
+                back = close?.let { onClose ->
+                    { MonitorChromeButton(MonitorIcon.CHEVRON_LEFT, "Back", Modifier.testTag("monitor.page.back"),
+                        onClick = onClose) }
+                },
                 heading = {
                     com.opencapture.monitorui.MonitorPageHeading("Media", state.cameraName)
                 },
@@ -700,13 +665,6 @@ fun MediaLibraryPage(
             )
         }
 
-        close?.let { onClose ->
-            MediaCloseButton(onClose, Modifier.align(Alignment.TopEnd).windowInsetsPadding(safe).padding(8.dp)
-                .testTag("monitor.page.back"))
-        }
         overlays()
     }
 }
-
-/** The landscape column the page keeps free for its Close: the button and its 8 dp margin, past the 12 dp page margin. */
-private val MEDIA_PAGE_CLOSE_SLOT = 37.dp + 8.dp

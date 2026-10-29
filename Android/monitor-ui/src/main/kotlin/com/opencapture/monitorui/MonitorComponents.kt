@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -219,11 +220,16 @@ fun MonitorPageHeading(title: String, kicker: String) {
     }
 }
 
+/**
+ * A page frame (Swift twin: `MonitorPage`). The optional [back] control sits beside the heading in
+ * portrait and in its own column before the navigation card in landscape, as on iOS.
+ */
 @Composable
 fun MonitorPageScaffold(
     modifier: Modifier = Modifier,
     navigationWidth: Float = MonitorPageLayoutPolicy.LANDSCAPE_NAV_WIDTH,
     heading: (@Composable () -> Unit)? = null,
+    back: (@Composable () -> Unit)? = null,
     navigation: @Composable (portrait: Boolean) -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -231,8 +237,10 @@ fun MonitorPageScaffold(
         val portrait = MonitorPageLayoutPolicy.portrait(maxWidth.value, maxHeight.value)
         val density = LocalDensity.current
         val landscapeNav = with(density) { navigationWidth.dp.toPx().roundToInt() }
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (!portrait && back != null) back()
         Layout(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
             content = {
                 Box(
                     Modifier.layoutId(MonitorPageLayoutPolicy.NAV)
@@ -244,7 +252,13 @@ fun MonitorPageScaffold(
                         if (portrait) Modifier.fillMaxWidth() else Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(9.dp),
                     ) {
-                        if (heading != null) {
+                        if (portrait && back != null) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                                back()
+                                if (heading != null) Box(Modifier.weight(1f)) { heading() }
+                            }
+                        } else if (heading != null) {
                             Box(Modifier.fillMaxWidth()) { heading() }
                         }
                         Box(
@@ -278,6 +292,7 @@ fun MonitorPageScaffold(
                 bodyPlaceable.place(pixels(slots.bodyX), pixels(slots.bodyY))
             }
         }
+        }
     }
 }
 
@@ -309,43 +324,6 @@ fun MonitorSettingsCard(title: String? = null, modifier: Modifier = Modifier, co
         if (!title.isNullOrBlank()) Text(title.uppercase(), color = MonitorPalette.muted,
             style = MonitorTypography.text(9f, FontWeight.SemiBold).copy(letterSpacing = 1.2.sp))
         content()
-    }
-}
-
-/** The selection bar's Close, which leaves selection mode. Swift twin: `MonitorMediaSelectionCopy`. */
-object MonitorMediaSelectionCopy {
-    const val EXIT = "Exit selection"
-    const val EXIT_TAG = "monitor.media.selection.close"
-}
-
-/** The touch target of the selection bar's [MonitorSelectionTray] close, around its 34 dp circle. */
-val MonitorSelectionTrayCloseTarget: Dp = 48.dp
-
-/**
- * The selection bar: [close] (a [MonitorSelectionTrayCloseTarget] target) and the count at the
- * leading edge, the adapter's capability-gated bulk [actions] at the trailing edge.
- */
-@Composable
-fun MonitorSelectionTray(count: Int, modifier: Modifier = Modifier,
-    close: @Composable () -> Unit,
-    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
-    // The bar stays 50 dp tall with its 34 dp circles 8 dp from the top and 9 dp from each end:
-    // the close's larger target takes the space of the start and vertical insets around its circle.
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp))
-        .background(MonitorPalette.accent.copy(alpha = .14f))
-        .border(1.dp, MonitorPalette.accent.copy(alpha = .3f), RoundedCornerShape(11.dp))
-        .heightIn(min = 50.dp).padding(start = 2.dp, end = 9.dp, top = 1.dp, bottom = 1.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        close()
-        // The count keeps its full width (iOS: the label, then the actions); on a narrow
-        // phone the actions scroll instead of cutting it to "2 sel...".
-        Text("$count selected", style = MonitorTypography.text(10.5f, FontWeight.SemiBold), maxLines = 1,
-            softWrap = false)
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-            Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)) { actions() }
-        }
     }
 }
 
