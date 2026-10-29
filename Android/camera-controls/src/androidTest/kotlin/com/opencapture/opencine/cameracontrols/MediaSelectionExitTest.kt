@@ -48,8 +48,7 @@ class MediaSelectionExitTest {
         withCatalog(landscape = true) { fixture, scenario ->
             scenario.onActivity { fixture.library.select(setOf(MediaAssetID("SIMULATED-02"))) }
             val exit = awaitExit()
-            val bounds = Rect().also(exit::getBoundsInScreen)
-            assertTrue("Close is a 48 dp target: $bounds", bounds.width() >= dp(48f) - 1 && bounds.height() >= dp(48f) - 1)
+            assertFullTarget(Rect().also(exit::getBoundsInScreen))
             // TalkBack's activation.
             assertTrue(exit.performAction(AccessibilityNodeInfo.ACTION_CLICK))
             assertLeftSelection(fixture, scenario)
@@ -60,11 +59,16 @@ class MediaSelectionExitTest {
         withCatalog(landscape = false) { fixture, scenario ->
             scenario.onActivity { fixture.library.select(setOf(MediaAssetID("SIMULATED-02"))) }
             val bounds = Rect().also(awaitExit()::getBoundsInScreen)
+            // Without the full target, left + 1 dp would land inside the drawn chip and prove nothing.
+            assertFullTarget(bounds)
             // The outer 1 dp of the 48 dp target lies beyond the drawn 44 dp chip, in the bar's padding.
             tap(bounds.left + dp(1f), bounds.exactCenterY())
             assertLeftSelection(fixture, scenario)
         }
     }
+
+    private fun assertFullTarget(bounds: Rect) =
+        assertTrue("Close is a 48 dp target: $bounds", bounds.width() >= dp(48f) - 1 && bounds.height() >= dp(48f) - 1)
 
     private fun awaitExit(): AccessibilityNodeInfo {
         val label = awaitNode("Close") { it.contentDescription?.toString() == MonitorMediaSelectionCopy.EXIT }
