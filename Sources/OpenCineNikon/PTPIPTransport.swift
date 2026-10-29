@@ -503,6 +503,14 @@
             command.close()
             event.close()
         }
+
+        /// Fails any blocked command or event I/O now without freeing the descriptors (see
+        /// `PTPIPSocket.interrupt()`), for an establishment its owner abandoned. Closing instead
+        /// does not wake a read already blocked in `poll`; the owner still closes afterwards.
+        func interrupt() {
+            command.interrupt()
+            event.interrupt()
+        }
     }
 
     /// Serializes async transactions: one waiter proceeds at a time, FIFO.

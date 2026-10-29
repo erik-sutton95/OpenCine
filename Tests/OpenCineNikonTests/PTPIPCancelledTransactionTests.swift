@@ -22,7 +22,7 @@
         }
 
         @Test func cancellingAReadOnTheWireKeepsTheCameraSession() async throws {
-            let camera = try PTPIPLoopbackCamera(clip: Self.clip, holdFirstRead: true)
+            let camera = try PTPIPLoopbackCamera(clip: Self.clip, hold: .getPartialObject)
             defer { camera.stop() }
             let transport = try await PTPIPTransport.connectOnce(
                 host: "127.0.0.1", port: camera.port, guid: Data(repeating: 0x11, count: 16),
@@ -44,6 +44,37 @@
             #expect(!camera.commandChannelClosed, "The camera session is still open")
         }
 
+        /// An abandoned Wi-Fi connect still lets go of the body at once: a retry must never open
+        /// a second command channel while the first waits on its OpenSession reply.
+        @Test func cancellingAnEstablishmentClosesItsCommandChannel() async throws {
+            let camera = try PTPIPLoopbackCamera(clip: Self.clip, hold: .openSession)
+            defer { camera.stop() }
+            let transport = try await PTPIPTransport.connectOnce(
+                host: "127.0.0.1", port: camera.port, guid: Data(repeating: 0x11, count: 16),
+                friendlyName: "SIMULATED")
+            defer { transport.close() }
+
+            let connecting = Task {
+                try await NativeCameraSession.establish(
+                    transport: transport, host: "127.0.0.1", cameraName: "SIMULATED",
+                    requestPairing: false)
+            }
+            await camera.requests.wait(1)
+            connecting.cancel()
+            // The camera, still holding its OpenSession reply, sees the channel close, and the
+            // connect ends because it let go, not because its reply deadline ran out.
+            await camera.closures.wait(1)
+            #expect(camera.commandChannelClosed, "The abandoned connect let go of the camera")
+            switch await connecting.result {
+            case .success: Issue.record("A cancelled establishment returned a session")
+            case .failure(let error):
+                if case NativeCameraSessionError.timeout = error {
+                    Issue.record("The abandoned connect held the channel until it timed out")
+                }
+            }
+            camera.releaseHeldRead()
+        }
+
         /// A transfer that loses the camera reads as the camera stopping; a refusal does not.
         @Test func aDeadLinkIsALinkFailureAndARefusalIsNot() {
             for error in [
@@ -63,56 +94,71 @@
     }
 
     /// Counts events from the camera's threads and lets a test await a count without sleeping.
+    /// A wait ends early when its task is cancelled (the suite's time limit), so a red run fails
+    /// instead of hanging.
     final class PTPIPLoopbackSignal: @unchecked Sendable {
         // SAFETY: every access holds `lock`.
         private let lock = NSLock()
         private var count = 0
-        private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+        private var waiters: [UUID: (count: Int, continuation: CheckedContinuation<Void, Never>)] =
+            [:]
 
         func bump() {
             lock.lock()
             count += 1
-            let ready = waiters.filter { $0.count <= count }
-            waiters.removeAll { $0.count <= count }
+            let ready = waiters.filter { $0.value.count <= count }
+            for id in ready.keys { waiters[id] = nil }
             lock.unlock()
-            for waiter in ready { waiter.continuation.resume() }
+            for waiter in ready.values { waiter.continuation.resume() }
         }
 
         func wait(_ target: Int) async {
-            await withCheckedContinuation { continuation in
-                lock.lock()
-                if count >= target {
+            let id = UUID()
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    lock.lock()
+                    if count >= target || Task.isCancelled {
+                        lock.unlock()
+                        continuation.resume()
+                        return
+                    }
+                    waiters[id] = (target, continuation)
                     lock.unlock()
-                    continuation.resume()
-                    return
                 }
-                waiters.append((target, continuation))
-                lock.unlock()
+            } onCancel: {
+                let waiter = lock.withLock { waiters.removeValue(forKey: id) }
+                waiter?.continuation.resume()
             }
         }
     }
 
-    /// A SIMULATED PTP-IP camera on an ephemeral loopback port: the Init handshake and
-    /// `GetPartialObject` over one clip. The first read can be held until the test releases it.
+    /// A SIMULATED PTP-IP camera on an ephemeral loopback port: the Init handshake, OpenSession and
+    /// `GetPartialObject` over one clip. The first request of one operation can be held until the
+    /// test releases it.
     final class PTPIPLoopbackCamera: @unchecked Sendable {
         static let clipHandle: UInt32 = 7
         let port: UInt16
         let requests = PTPIPLoopbackSignal()
+        /// Bumped when the command channel closes.
+        let closures = PTPIPLoopbackSignal()
         private let clip: Data
         private let listener: Int32
-        private let heldRead = DispatchSemaphore(value: 0)
+        /// Written once to release the held answer; a pipe so the holding thread can also watch
+        /// its connection for the initiator hanging up.
+        private let release: (read: Int32, write: Int32)
         // SAFETY: the fields below are guarded by `lock`.
         private let lock = NSLock()
-        private var holdNextRead: Bool
+        private var hold: PTPOperationCode?
         private var connections: [Int32] = []
         private var commandConnection: Int32 = -1
         private var commandClosed = false
 
         var commandChannelClosed: Bool { lock.withLock { commandClosed } }
 
-        init(clip: Data, holdFirstRead: Bool) throws {
+        /// The first request for `hold` waits for `releaseHeldRead()` before it is answered.
+        init(clip: Data, hold: PTPOperationCode?) throws {
             self.clip = clip
-            holdNextRead = holdFirstRead
+            self.hold = hold
             let descriptor = socket(AF_INET, SOCK_STREAM, Int32(IPPROTO_TCP))
             guard descriptor >= 0 else { throw LoopbackError.socket }
             var address = sockaddr_in()
@@ -138,16 +184,27 @@
             }
             port = UInt16(bigEndian: actual.sin_port)
             listener = descriptor
+            var ends: [Int32] = [0, 0]
+            guard pipe(&ends) == 0 else { throw LoopbackError.socket }
+            release = (ends[0], ends[1])
             Thread.detachNewThread { [self] in acceptLoop() }
         }
 
-        func releaseHeldRead() { heldRead.signal() }
+        func releaseHeldRead() {
+            var byte: UInt8 = 1
+            _ = Darwin.write(release.write, &byte, 1)
+        }
 
         func stop() {
-            heldRead.signal()
+            releaseHeldRead()
             Darwin.shutdown(listener, SHUT_RDWR)
             let open = lock.withLock { connections }
             for connection in open { Darwin.shutdown(connection, SHUT_RDWR) }
+        }
+
+        deinit {
+            close(release.read)
+            close(release.write)
         }
 
         private func acceptLoop() {
@@ -166,10 +223,12 @@
 
         private func serve(_ connection: Int32) {
             defer {
-                lock.withLock {
+                let command = lock.withLock {
                     if connection == commandConnection { commandClosed = true }
+                    return connection == commandConnection
                 }
                 close(connection)
+                if command { closures.bump() }
             }
             while let packet = try? readPacket(connection) {
                 switch packet.type {
@@ -196,17 +255,23 @@
                 ByteCoding.readUInt32LE(request, at: $0)
             }
             requests.bump()
+            let held = lock.withLock {
+                guard hold?.rawValue == operation else { return false }
+                hold = nil
+                return true
+            }
+            // Hung up while held: the initiator abandoned the request.
+            if held, !waitForRelease(connection) { return }
+            if operation == PTPOperationCode.openSession.rawValue {
+                respond(connection, code: PTPResponseCode.ok.rawValue, transactionID)
+                return
+            }
             guard operation == PTPOperationCode.getPartialObject.rawValue,
                 parameters.count >= 3, parameters[0] == Self.clipHandle
             else {
                 respond(connection, code: 0x2005, transactionID)
                 return
             }
-            let hold = lock.withLock {
-                defer { holdNextRead = false }
-                return holdNextRead
-            }
-            if hold { heldRead.wait() }
             let start = min(Int(parameters[1]), clip.count)
             let end = min(start + Int(parameters[2]), clip.count)
             let data = clip.subdata(in: start..<end)
@@ -224,6 +289,24 @@
                     payload: Data(
                         PTPDataPayloads.endData(transactionID: transactionID, data: data))))
             respond(connection, code: PTPResponseCode.ok.rawValue, transactionID)
+        }
+
+        /// Blocks until the test releases the held answer (true) or the initiator hangs up (false).
+        private func waitForRelease(_ connection: Int32) -> Bool {
+            var fds = [
+                pollfd(fd: connection, events: Int16(POLLIN), revents: 0),
+                pollfd(fd: release.read, events: Int16(POLLIN), revents: 0),
+            ]
+            while true {
+                guard poll(&fds, 2, -1) > 0 else { continue }
+                if fds[1].revents != 0 {
+                    var byte: UInt8 = 0
+                    _ = Darwin.read(release.read, &byte, 1)
+                    return true
+                }
+                var peek: UInt8 = 0
+                if fds[0].revents != 0, recv(connection, &peek, 1, MSG_PEEK) <= 0 { return false }
+            }
         }
 
         private func respond(_ connection: Int32, code: UInt16, _ transactionID: UInt32) {
