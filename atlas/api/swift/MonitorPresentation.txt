@@ -330,6 +330,8 @@ func MonitorFloatingDrag.begin(at: Position)<Position where Position : Swift.Equ
 func MonitorFloatingDrag.cancel()<Position where Position : Swift.Equatable> -> ()
 func MonitorFloatingDrag.end(store: (Position) -> Swift.Void)<Position where Position : Swift.Equatable> -> ()
 func MonitorFloatingDrag.move(to: Position)<Position where Position : Swift.Equatable> -> ()
+func MonitorFocusAccessoryLayout.movedBy(x: Swift.Double, y: Swift.Double) -> MonitorScopePoint
+func MonitorFocusAccessoryLayout.reserveSpace(in: MonitorRect) -> MonitorRect
 func MonitorFrameEffects.withInspectorDemand(_: MonitorAssistSelection?) -> OpenCineMedia.MonitorFrameEffects
 func MonitorLayoutRegion.inset(_: MonitorEdgeInsets) -> MonitorLayoutRegion
 func MonitorLayoutRegion.insetBy(dx: Swift.Double, dy: Swift.Double) -> MonitorLayoutRegion
@@ -441,6 +443,7 @@ init MonitorFalseColorReferencePositions.Center(x: Swift.Double, y: Swift.Double
 init MonitorFalseColorReferenceSegment(id: Swift.Int, lowerFraction: Swift.Double, upperFraction: Swift.Double, red: Swift.Double, green: Swift.Double, blue: Swift.Double)
 init MonitorFalseColorReferenceValues(subtitle: Swift.String, segments: [MonitorFalseColorReferenceSegment], markers: [MonitorFalseColorReferenceMarker], axisLabels: [Swift.String])
 init MonitorFloatingDrag()<Position where Position : Swift.Equatable>
+init MonitorFocusAccessoryLayout(layout: FieldMonitorLayout, safeArea: MonitorSafeArea, expanded: Swift.Bool, position: MonitorScopePoint?)
 init MonitorHistogramOptions(from: any Swift.Decoder) throws
 init MonitorHistogramOptions(trafficLights: Swift.Bool, crushClipCompensation: OpenCineMedia.MonitorCrushClipCompensation, scale: Swift.Double, hasCustomScale: Swift.Bool, storedCenter: MonitorScopeStoredCenter?, storedCenterPortrait: MonitorScopeStoredCenter?)
 init MonitorLaunchLayout(width: Swift.Double, height: Swift.Double, compact: Swift.Bool)
@@ -604,6 +607,8 @@ let MonitorFalseColorReferenceValues.axisLabels: [Swift.String]
 let MonitorFalseColorReferenceValues.markers: [MonitorFalseColorReferenceMarker]
 let MonitorFalseColorReferenceValues.segments: [MonitorFalseColorReferenceSegment]
 let MonitorFalseColorReferenceValues.subtitle: Swift.String
+let MonitorFocusAccessoryLayout.compact: Swift.Bool
+let MonitorFocusAccessoryLayout.frame: MonitorRect
 let MonitorLaunchLayout.horizontalInset: Swift.Double
 let MonitorLaunchLayout.landscape: Swift.Bool
 let MonitorLaunchLayout.logoSize: Swift.Double
@@ -1191,6 +1196,7 @@ struct MonitorFalseColorReferencePositions: Decodable, Encodable, Equatable, Sen
 struct MonitorFalseColorReferenceSegment: Equatable, Identifiable, Sendable
 struct MonitorFalseColorReferenceValues: Equatable, Sendable
 struct MonitorFloatingDrag<Position where Position : Swift.Equatable>
+struct MonitorFocusAccessoryLayout: Equatable, Sendable
 struct MonitorHistogramOptions: Decodable, Encodable, Equatable, MonitorScopePanelOptions, Sendable
 struct MonitorLaunchLayout: Equatable, Sendable
 struct MonitorLayoutRegion: Equatable, Sendable

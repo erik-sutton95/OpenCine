@@ -665,6 +665,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// still use `transactionLock`, so live-view frame reads stay safe between
     /// a multi-write control sequence's individual PTP transactions.
     private let commandLifecycleLock = NSLock()
+    private let focusRackRuns = NikonFocusRackRunRegistry()
     /// Accumulated Android monitor state. Access only while
     /// `commandLifecycleLock` is held so a refresh cannot race control writes,
     /// media ownership, or teardown.
@@ -2798,6 +2799,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
 
     /// Stops movie recording with Nikon's `EndMovieRec` operation.
     public func stopRecording() throws {
+        focusRackRuns.requestStopCurrent()
         try performRecordingCommand(.endMovieRec)
     }
 
@@ -3585,6 +3587,145 @@ public final class PTPIPClientSession: @unchecked Sendable {
         _ = try? executeTransaction(.afDriveCancel)
         settleDeviceReady()
         return .refused(.deviceBusy)
+    }
+
+    /// Prepares a fresh, increasing positive run ID without taking the camera command lock.
+    /// Replaced runs are stopped and reused IDs cannot rearm a cancelled receipt.
+    private func prepareFocusRackRun(runID: Int64) -> Bool {
+        focusRackRuns.prepare(runID: runID)
+    }
+
+    /// Publishes stop without waiting behind an active camera transaction.
+    private func requestFocusRackStop(runID: Int64) {
+        focusRackRuns.requestStop(runID: runID)
+    }
+
+    /// Cancels the current prepared run before any command lock is acquired.
+    public func requestActiveFocusRackStop() {
+        focusRackRuns.requestStopCurrent()
+    }
+
+    /// Binds a portable controller to this session without exposing its blocking transport.
+    /// The supplied authority must also verify the native registry's captured owner.
+    public func focusRackAccess(
+        isAdmitted: @escaping @Sendable () -> Bool
+    ) -> NikonFocusRackAccess {
+        focusRackAccess(cadence: .standard, isAdmitted: isAdmitted)
+    }
+
+    /// Captures an immutable, opt-in rack cadence on the existing serial camera path.
+    public func focusRackAccess(
+        cadence: NikonFocusRackCadence, isAdmitted: @escaping @Sendable () -> Bool
+    ) -> NikonFocusRackAccess {
+        let queue = DispatchQueue(label: "opencine.focus-rack")
+        return NikonFocusRackAccess(
+            isCurrent: isAdmitted,
+            prepareRun: { isAdmitted() && self.prepareFocusRackRun(runID: $0) },
+            requestStop: { self.requestFocusRackStop(runID: $0) },
+            driveChunk: { runID, towardNear, pulses in
+                await withTaskCancellationHandler {
+                    await withCheckedContinuation { continuation in
+                        queue.async {
+                            continuation.resume(
+                                returning: self.focusRackDrive(
+                                    runID: runID, towardNear: towardNear, pulses: pulses,
+                                    isAdmitted: isAdmitted, cadence: cadence))
+                        }
+                    }
+                } onCancel: {
+                    self.requestFocusRackStop(runID: runID)
+                }
+            },
+            refreshSafety: {
+                try await withCheckedThrowingContinuation { continuation in
+                    queue.async {
+                        do {
+                            continuation.resume(
+                                returning: try self.readFocusRackSafety(
+                                    isAdmitted: isAdmitted))
+                        } catch { continuation.resume(throwing: error) }
+                    }
+                }
+            })
+    }
+
+    private func readFocusRackSafety(
+        isAdmitted: @escaping @Sendable () -> Bool
+    ) throws -> NikonFocusRackSafetySnapshot {
+        commandLifecycleLock.lock()
+        defer { commandLifecycleLock.unlock() }
+        guard !isMediaModeActive, isAdmitted() else {
+            throw NikonFocusRackAccessError.authorityExpired
+        }
+        let startedAt = Self.monotonicNanoseconds()
+        var fresh = PTPCameraPropertySnapshot()
+        for (property, minimumBytes) in NikonFocusRackSafetySnapshot.properties {
+            let operation: PTPOperationCode =
+                property.rawValue <= UInt32(UInt16.max)
+                ? .getDevicePropValue : .getDevicePropValueEx
+            let result = try executeTransaction(
+                operation, parameters: [property.rawValue], dataPhase: .dataIn,
+                focusRackAuthority: isAdmitted)
+            guard result.operationResponse.responseCode == .ok,
+                result.data.count >= minimumBytes,
+                Self.monotonicNanoseconds() - startedAt <= 2_000_000_000
+            else { throw NikonFocusRackAccessError.safetyUnavailable }
+            fresh = fresh.applying(property: property, data: result.data)
+        }
+        let ready = try executeTransaction(.deviceReady, focusRackAuthority: isAdmitted)
+        guard ready.operationResponse.responseCode == .ok, isAdmitted(),
+            Self.monotonicNanoseconds() - startedAt <= 2_000_000_000
+        else { throw NikonFocusRackAccessError.safetyUnavailable }
+        let safety = try NikonFocusRackSafetySnapshot(reported: fresh)
+        return safety
+    }
+
+    private func focusRackDrive(
+        runID: Int64, towardNear: Bool, pulses: UInt32,
+        isAdmitted: @escaping @Sendable () -> Bool,
+        cadence: NikonFocusRackCadence
+    ) -> NikonFocusRackDriveOutcome {
+        guard let cancellation = focusRackRuns.receipt(runID: runID) else {
+            return .cancelledBeforeActivation
+        }
+        commandLifecycleLock.lock()
+        defer { commandLifecycleLock.unlock() }
+        guard !isMediaModeActive else {
+            return .activationRejected(PTPResponseCode.deviceBusy.rawValue)
+        }
+        var machine = NikonFocusRackDriveMachine(cadence: cadence)
+        while true {
+            switch machine.next(stopRequested: cancellation.isStopRequested || !isAdmitted()) {
+            case .finished(let outcome): return outcome
+            case .wait(let seconds):
+                Thread.sleep(forTimeInterval: seconds)
+            case .activate:
+                do {
+                    let response = try executeTransaction(
+                        .mfDrive, parameters: [towardNear ? 1 : 2, min(max(pulses, 1), 32767)],
+                        focusRackCancellation: cancellation, focusRackAuthority: isAdmitted)
+                    machine.received(
+                        response.operationResponse.responseCode,
+                        rawResponseCode: response.operationResponse.rawResponseCode)
+                } catch NativeCameraSessionError.commandAuthorityExpired {
+                    return .cancelledBeforeActivation
+                } catch { machine.transportFailed() }
+            case .poll:
+                do {
+                    let response = try executeTransaction(.deviceReady)
+                    machine.received(
+                        response.operationResponse.responseCode,
+                        rawResponseCode: response.operationResponse.rawResponseCode)
+                } catch { machine.transportFailed() }
+            case .cancel:
+                do {
+                    let response = try executeTransaction(.afDriveCancel)
+                    machine.received(
+                        response.operationResponse.responseCode,
+                        rawResponseCode: response.operationResponse.rawResponseCode)
+                } catch { machine.transportFailed() }
+            }
+        }
     }
 
     /// Polls `DeviceReady` while the body answers busy, within `MFDriveChannelBudget`, so
@@ -4780,6 +4921,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// A running live-view pump is stopped (and joined) first, so the wire
     /// order on teardown is always `EndLiveView` → `CloseSession`.
     public func disconnect() {
+        focusRackRuns.requestStopCurrent()
         commandLifecycleLock.lock()
         defer { commandLifecycleLock.unlock() }
         // Bound every remaining join before waiting: EndLiveView, media stop,
@@ -4851,7 +4993,9 @@ public final class PTPIPClientSession: @unchecked Sendable {
         transactionID explicitTransactionID: UInt32? = nil,
         parameters: [UInt32] = [],
         dataPhase: PTPDataPhase = .noDataOrDataIn,
-        dataOut: Data? = nil
+        dataOut: Data? = nil,
+        focusRackCancellation: NikonFocusRackCancellation? = nil,
+        focusRackAuthority: (@Sendable () -> Bool)? = nil
     ) throws -> PTPIPTransactionResult {
         #if os(Android)
             if let usbTransport {
@@ -4860,7 +5004,9 @@ public final class PTPIPClientSession: @unchecked Sendable {
                     transactionID: explicitTransactionID,
                     parameters: parameters,
                     dataPhase: dataPhase,
-                    dataOut: dataOut
+                    dataOut: dataOut,
+                    focusRackCancellation: focusRackCancellation,
+                    focusRackAuthority: focusRackAuthority
                 )
                 if let milliseconds = usbTransport.latestCommandRoundTripMilliseconds() {
                     roundTripLock.lock()
@@ -4872,6 +5018,10 @@ public final class PTPIPClientSession: @unchecked Sendable {
         #endif
         transactionLock.lock()
         defer { transactionLock.unlock() }
+
+        if focusRackCancellation?.isStopRequested == true || focusRackAuthority?() == false {
+            throw NativeCameraSessionError.commandAuthorityExpired
+        }
 
         guard let command else {
             throw PTPIPClientSessionError.connectionClosed

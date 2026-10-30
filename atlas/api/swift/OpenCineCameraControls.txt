@@ -494,7 +494,7 @@ init MonitorOperatorAssistInspector(tool: MonitorPresentation.MonitorAssistSelec
 init MonitorOperatorAssistMenu(tool: MonitorPresentation.MonitorAssistSelection, assist: OpenCineAppKit.MonitorAssistState<Looks>, stores: AssistPanelStores?, looks: FalseColorLooks, palette: Palette.Type, haptics: OperatorHaptics, sourceTransfer: OpenCineMedia.MonitorTransfer?, clipByte: Swift.Int, signalOptions: MonitorOperatorSignalOptions, lookMenu: () -> LookMenu)<Looks, Palette, LookMenu where Looks : OpenCineAppKit.MonitorLookProvider, Palette : LiveChromePalette, LookMenu : SwiftUI.View>
 init MonitorOperatorAssistMenu(tool: MonitorPresentation.MonitorAssistSelection, assist: OpenCineAppKit.MonitorAssistState<Looks>, stores: AssistPanelStores?, looks: FalseColorLooks, palette: Palette.Type, haptics: OperatorHaptics, transfer: OpenCineMedia.MonitorTransfer, clipByte: Swift.Int, signalOptions: MonitorOperatorSignalOptions, lookMenu: () -> LookMenu)<Looks, Palette, LookMenu where Looks : OpenCineAppKit.MonitorLookProvider, Palette : LiveChromePalette, LookMenu : SwiftUI.View>
 init MonitorOperatorAssistSettings(assist: OpenCineAppKit.MonitorAssistState<Looks>, stores: AssistPanelStores, looks: FalseColorLooks, palette: Palette.Type, haptics: OperatorHaptics, transfer: OpenCineMedia.MonitorTransfer, clipByte: Swift.Int, available: Swift.Set<MonitorPresentation.MonitorAssistSelection>, signalOptions: MonitorOperatorSignalOptions)<Looks, Palette where Looks : OpenCineAppKit.MonitorLookProvider, Palette : LiveChromePalette>
-init MonitorOperatorBodyViews(focusDrive: SwiftUI.AnyView?, dashboard: SwiftUI.AnyView?, connection: SwiftUI.AnyView?, comparison: SwiftUI.AnyView?, resetFocus: (() -> Swift.Void)?, feedMarks: SwiftUI.AnyView?, feedGestures: SwiftUI.AnyView?, focusControls: SwiftUI.AnyView?, motion: MonitorOperatorMotionViews?, waiting: SwiftUI.AnyView?)
+init MonitorOperatorBodyViews(focusDrive: SwiftUI.AnyView?, dashboard: SwiftUI.AnyView?, connection: SwiftUI.AnyView?, comparison: SwiftUI.AnyView?, resetFocus: (() -> Swift.Void)?, feedMarks: SwiftUI.AnyView?, feedGestures: SwiftUI.AnyView?, focusControls: SwiftUI.AnyView?, motion: MonitorOperatorMotionViews?, waiting: SwiftUI.AnyView?, focusAccessory: MonitorOperatorFocusAccessoryViews?)
 init MonitorOperatorCacheSettings(library: OpenCineAppKit.MonitorMediaLibraryModel<Payload>, cacheOriginals: SwiftUI.Binding<Swift.Bool>)<Payload where Payload : Swift.Sendable>
 init MonitorOperatorCaptureOverlays(layout: MonitorUI.LiveMonitorLayout, interaction: MonitorOperatorInteraction, topFrames: [LiveTopMenu : CoreFoundation.CGRect], captureFrames: [CaptureSheet : CoreFoundation.CGRect])<Host where Host : LiveChromeHost>
 init MonitorOperatorCatalogScreen(library: OpenCineAppKit.MonitorMediaLibraryModel<Payload>, brand: Swift.String, safeArea: SwiftUI.EdgeInsets, sourceAvailable: Swift.Bool, operations: OpenCineAppKit.MonitorMediaGalleryOperations<Payload>, presentation: MonitorMediaGalleryPresentation?, navigation: ((MonitorMediaGalleryNavigation) -> Swift.Void)?, sourceFilter: ((MonitorMediaGalleryFilterAction) -> Swift.Void)?, managesVisibility: Swift.Bool, deletionDetail: ((OpenCineAppKit.MonitorMediaDeletionProgress) -> Swift.String?)?, colorChoices: [MonitorUI.MonitorMediaFilterChoice], resolutionLevels: [MonitorPresentation.MonitorMediaResolutionLevel], facts: (OpenCineAppKit.MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts, cell: ((OpenCineAppKit.MonitorMediaRecord<Payload>, MonitorMediaGalleryCellContext) -> MonitorPresentation.MonitorMediaItem)?, begin: (() -> Swift.Void)?, refresh: (() -> Swift.Void)?, close: () -> Swift.Void, open: (OpenCineAppKit.MonitorMediaGalleryOpen<Payload>) -> Swift.Void, share: (([OpenCineAppKit.MonitorMediaRecord<Payload>], OpenCineAppKit.MonitorMediaLibraryActionToken) -> Swift.Void)?, cachingActive: (() -> Swift.Bool)?, thumbnail: (MonitorMediaGalleryThumbnail<Payload>) -> Thumbnail)<Payload, Thumbnail where Payload : Swift.Sendable, Thumbnail : SwiftUI.View>
@@ -507,6 +507,7 @@ init MonitorOperatorDeliveryProgress(state: OpenCineAppKit.MonitorDeliveryBatchP
 init MonitorOperatorDeliveryScreen(model: OpenCineAppKit.MonitorDeliveryPreparationModel<Curve, Format, Project, Context, Lease>, maxCardHeight: CoreGraphics.CGFloat, onClose: () -> Swift.Void, onBegin: (OpenCineAppKit.MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>) -> Swift.Void, remoteArtwork: () -> Artwork)<Curve, Format, Project, Context, Lease, Artwork where Curve : Swift.Equatable, Curve : Swift.Sendable, Format : Swift.Equatable, Format : Swift.Sendable, Project : Swift.Sendable, Context : Swift.Sendable, Lease : Swift.Sendable, Artwork : SwiftUI.View>
 init MonitorOperatorDisplaySections(modes: [OpenCineAppKit.MonitorDisplayMode], chrome: (OpenCineAppKit.MonitorDisplayMode) -> SwiftUI.Binding<OpenCineAppKit.MonitorDisplayChrome>, assist: OpenCineAppKit.MonitorAssistState<Looks>, available: Swift.Set<OpenCineAppKit.MonitorDisplayChrome.Section>, edit: ((OpenCineAppKit.MonitorDisplayMode) -> Swift.Void)?, feedback: () -> Swift.Void)<Looks where Looks : OpenCineAppKit.MonitorLookProvider>
 init MonitorOperatorExternalRecordSource(recording: Swift.Bool?, confirmation: Swift.Bool?, request: () -> Swift.Void, cancel: () -> Swift.Void, confirm: () -> Swift.Void)
+init MonitorOperatorFocusAccessoryViews(isExpanded: Swift.Bool, active: Swift.Bool, expanded: (CoreGraphics.CGFloat) -> SwiftUI.AnyView, compact: SwiftUI.AnyView, position: MonitorPresentation.MonitorScopePoint?)
 init MonitorOperatorFocusLayer(palette: Palette.Type, overlay: OpenCineCameraVocabulary.FocusOverlay, dimmedFaces: [OpenCineCameraVocabulary.TrackingBox], focus: CoreFoundation.CGPoint?, mirrored: Swift.Bool, showTapFocusBox: Swift.Bool, aeLocked: Swift.Bool, flippedVertically: Swift.Bool, focusLocked: Swift.Bool, focusArea: OpenCineCameraVocabulary.TrackingBox?, otherFocusAreas: [OpenCineCameraVocabulary.TrackingBox], focusConfirmed: Swift.Bool?, focusLockProgress: Swift.Double, feed: CoreFoundation.CGRect)<Palette where Palette : LiveChromePalette>
 init MonitorOperatorFocusObservation(point: CoreFoundation.CGPoint, overlay: OpenCineCameraVocabulary.FocusOverlay, faces: [OpenCineCameraVocabulary.TrackingBox], resetAvailable: Swift.Bool, supportsTapFocus: Swift.Bool?, tracking: Swift.Bool, search: OpenCineCameraVocabulary.TrackingBox?, subject: OpenCineCameraVocabulary.TrackingBox?)
 init MonitorOperatorFocusSource(read: () -> MonitorOperatorFocusObservation, cancelTracking: () -> Swift.Void)
@@ -838,6 +839,7 @@ let MonitorOperatorBodyViews.connection: SwiftUI.AnyView?
 let MonitorOperatorBodyViews.dashboard: SwiftUI.AnyView?
 let MonitorOperatorBodyViews.feedGestures: SwiftUI.AnyView?
 let MonitorOperatorBodyViews.feedMarks: SwiftUI.AnyView?
+let MonitorOperatorBodyViews.focusAccessory: MonitorOperatorFocusAccessoryViews?
 let MonitorOperatorBodyViews.focusControls: SwiftUI.AnyView?
 let MonitorOperatorBodyViews.focusDrive: SwiftUI.AnyView?
 let MonitorOperatorBodyViews.motion: MonitorOperatorMotionViews?
@@ -851,6 +853,11 @@ let MonitorOperatorExternalRecordSource.confirm: () -> Swift.Void
 let MonitorOperatorExternalRecordSource.confirmation: Swift.Bool?
 let MonitorOperatorExternalRecordSource.recording: Swift.Bool?
 let MonitorOperatorExternalRecordSource.request: () -> Swift.Void
+let MonitorOperatorFocusAccessoryViews.active: Swift.Bool
+let MonitorOperatorFocusAccessoryViews.compact: SwiftUI.AnyView
+let MonitorOperatorFocusAccessoryViews.expanded: (CoreGraphics.CGFloat) -> SwiftUI.AnyView
+let MonitorOperatorFocusAccessoryViews.isExpanded: Swift.Bool
+let MonitorOperatorFocusAccessoryViews.position: MonitorPresentation.MonitorScopePoint?
 let MonitorOperatorFocusObservation.faces: [OpenCineCameraVocabulary.TrackingBox]
 let MonitorOperatorFocusObservation.overlay: OpenCineCameraVocabulary.FocusOverlay
 let MonitorOperatorFocusObservation.point: CoreFoundation.CGPoint
@@ -1663,6 +1670,7 @@ struct MonitorOperatorDeliveryProgress: Sendable, View
 struct MonitorOperatorDeliveryScreen<Curve, Format, Project, Context, Lease, Artwork where Curve : Swift.Equatable, Curve : Swift.Sendable, Format : Swift.Equatable, Format : Swift.Sendable, Project : Swift.Sendable, Context : Swift.Sendable, Lease : Swift.Sendable, Artwork : SwiftUI.View>: Sendable, View
 struct MonitorOperatorDisplaySections<Looks where Looks : OpenCineAppKit.MonitorLookProvider>: Sendable, View
 struct MonitorOperatorExternalRecordSource: Sendable
+struct MonitorOperatorFocusAccessoryViews: Sendable
 struct MonitorOperatorFocusLayer<Palette where Palette : LiveChromePalette>: Sendable, View
 struct MonitorOperatorFocusObservation
 struct MonitorOperatorFocusSource: Sendable

@@ -230,6 +230,24 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func settingHookRunsBeforePendingAndCoalescing() async throws {
+        let (model, _) = model()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        try #require(await eventually { model.snapshot != nil })
+        var beforePending: [SettingValue?] = []
+        model.onSettingQueued = { key in beforePending.append(model.pending[key]) }
+        model.set(.iso(.manual(400)), label: "First")
+        model.set(.iso(.manual(800)), label: "Replacement")
+        #expect(beforePending == [nil, .iso(.manual(400))])
+        #expect(await camera.wire.isEmpty)
+        await clock.tick(.milliseconds(120))
+        #expect(await eventuallyAsync { await camera.wire.count == 1 })
+        model.unbind()
+    }
+
+    @available(macOS 14, *)
     @Test func coalescedReplacementCarriesItsOwnAdmission() async throws {
         let (model, _) = model()
         let camera = FakeCameraSession.lunaLike()
@@ -516,8 +534,11 @@ import Testing
         model.bind(camera)
         #expect(await eventually { model.isRecording == false })
         var finished: [CommandReceipt] = []
+        var stopPendingAtReceipt: [Bool] = []
         model.onRecordFinished = { finished.append($0) }
+        model.onRecordingStopRequested = { stopPendingAtReceipt.append(model.recordPending) }
         model.record(start: nil)
+        #expect(stopPendingAtReceipt.isEmpty)
         #expect(await eventuallyAsync { await camera.wire == ["record-start"] })
         await camera.advance(by: .seconds(3))
         #expect(await eventually { !model.recordPending && model.isRecording == true })
@@ -526,6 +547,47 @@ import Testing
         model.record(start: true)
         #expect(await eventually { finished.count == 2 })
         #expect(await camera.wire == ["record-start"])
+        #expect(stopPendingAtReceipt.isEmpty)
+        model.record(start: nil)
+        #expect(stopPendingAtReceipt == [false])
+        model.record(start: false)
+        #expect(stopPendingAtReceipt == [false], "an already-pending record request is ignored")
+        #expect(await eventuallyAsync { await camera.wire == ["record-start", "record-stop"] })
+        await camera.advance(by: .seconds(3))
+        #expect(await eventually { !model.recordPending && model.isRecording == false })
+        model.record(start: false)
+        #expect(stopPendingAtReceipt == [false, false], "explicit Stop is published synchronously")
+        #expect(await eventually { !model.recordPending })
+    }
+
+    @available(macOS 14, *)
+    @Test(arguments: [false, true])
+    func freshRecordingStopCancelsBeforeSubmissionWhenDisplayIsStale(unknown: Bool) async throws {
+        let fixture = FakeCameraSession.lunaLike()
+        var device = await fixture.device
+        device.recording = true
+        let camera = FakeCameraSession(behavior: fixture.behavior, device: device)
+        await camera.cameraReportsStatus()
+        let fresh = await camera.current
+        var cached = fresh
+        cached.recording =
+            unknown
+            ? .unknown : .init(.idle, origin: .cameraReported, at: fresh.recording.observedAt)
+        let order = Notes()
+        let session = StaleRecordingSession(
+            camera: camera, cached: cached, fresh: fresh, order: order)
+        let (model, _) = model()
+        model.bind(session)
+        defer { model.unbind() }
+        try #require(await eventually { model.snapshot != nil })
+        #expect(model.isRecording == (unknown ? nil : false))
+        model.onRecordingStopRequested = { order.list.append("stop") }
+        model.record(start: nil)
+        #expect(order.list.isEmpty)
+        try #require(await eventuallyAsync { await camera.wire == ["record-stop"] })
+        #expect(order.list == ["stop", "submit"])
+        await camera.advance(by: .seconds(3))
+        #expect(await eventually { !model.recordPending })
     }
 
     @available(macOS 14, *)
@@ -669,4 +731,41 @@ func eventuallyAsync(_ condition: () async -> Bool) async -> Bool {
         await Task.yield()
     }
     return await condition()
+}
+
+/// Keeps the displayed subscription stale while a fresh record-toggle read reports recording.
+private actor StaleRecordingSession: CameraSession {
+    nonisolated let id: CameraSessionID
+    let camera: FakeCameraSession
+    let cached: CameraSnapshot
+    let fresh: CameraSnapshot
+    let order: Notes
+    private var reads = 0
+
+    init(camera: FakeCameraSession, cached: CameraSnapshot, fresh: CameraSnapshot, order: Notes) {
+        id = camera.id
+        self.camera = camera
+        self.cached = cached
+        self.fresh = fresh
+        self.order = order
+    }
+
+    func snapshots() -> AsyncStream<CameraSnapshot> {
+        reads += 1
+        let value = reads == 1 ? cached : fresh
+        return AsyncStream { $0.yield(value) }
+    }
+
+    func submit(_ command: CameraCommand) async -> CommandReceipt {
+        await MainActor.run { order.list.append("submit") }
+        return await camera.submit(command)
+    }
+
+    func outcome(of operation: OperationID) async -> CommandReceipt? {
+        await camera.outcome(of: operation)
+    }
+    func receipt(of operation: OperationID) async -> CommandReceipt? {
+        await camera.receipt(of: operation)
+    }
+    func close(_ reason: SessionCloseReason) async { await camera.close(reason) }
 }

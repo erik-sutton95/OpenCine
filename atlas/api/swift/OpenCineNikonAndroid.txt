@@ -74,6 +74,7 @@ enum FacadeMediaBrowseCursorError: Equatable, Error, LocalizedError, Sendable
 enum MediaBrowsePageWire
 enum MediaBrowseStartWire
 enum MediaListWire
+enum NikonAndroidFocusRackAccess
 enum PTPIPClientSession.ConnectionStrategy: Equatable, Hashable, Sendable
 enum PTPIPClientSession.MFDriveOutcome: Equatable, Sendable
 enum PTPIPClientSessionError: Equatable, Error, LocalizedError, Sendable
@@ -89,6 +90,8 @@ func PTPIPClientSession.deleteObject(handle: Swift.UInt32) throws -> ()
 func PTPIPClientSession.disconnect() -> ()
 func PTPIPClientSession.enterMediaMode() -> ()
 func PTPIPClientSession.exitMediaMode() -> ()
+func PTPIPClientSession.focusRackAccess(cadence: OpenCineNikon.NikonFocusRackCadence, isAdmitted: () -> Swift.Bool) -> OpenCineNikon.NikonFocusRackAccess
+func PTPIPClientSession.focusRackAccess(isAdmitted: () -> Swift.Bool) -> OpenCineNikon.NikonFocusRackAccess
 func PTPIPClientSession.initiateStillCapture(preserveFocus: Swift.Bool) throws -> ()
 func PTPIPClientSession.latestCommandRoundTripMilliseconds() -> Swift.Double?
 func PTPIPClientSession.latestLinkThroughputMegabitsPerSecond() -> Swift.Double?
@@ -102,6 +105,7 @@ func PTPIPClientSession.readProperty(_: OpenCineNikon.PTPPropertyCode) throws ->
 func PTPIPClientSession.readPropertyDisplayValue(code: Swift.UInt32) throws -> Swift.String
 func PTPIPClientSession.readStorageInfo() throws -> OpenCineNikon.PTPStorageInfo?
 func PTPIPClientSession.refreshAndroidPropertySnapshot(_: AndroidCameraPropertyRefreshRequest) -> AndroidCameraPropertyReadback
+func PTPIPClientSession.requestActiveFocusRackStop() -> ()
 func PTPIPClientSession.resetFocusPoint() throws -> ()
 func PTPIPClientSession.resolveNewestStillHandle() throws -> Swift.UInt32?
 func PTPIPClientSession.resolvedObjectSize(handle: Swift.UInt32, reportedSize: Swift.UInt64) throws -> Swift.UInt64
@@ -220,6 +224,8 @@ static func AndroidSessionRecoveryWire.retryDelayMilliseconds(failures: Swift.In
 static func MediaBrowsePageWire.encode(_: FacadeMediaBrowsePage) -> Swift.String
 static func MediaBrowseStartWire.encode(cursor: Swift.Int64, readback: AndroidCameraPropertyReadback) -> Swift.String
 static func MediaListWire.encode(_: [FacadeMediaClip]) -> Swift.String
+static func NikonAndroidFocusRackAccess.capture(connectionOwner: Swift.Int64, cadence: OpenCineNikon.NikonFocusRackCadence, isAdmitted: () -> Swift.Bool) -> OpenCineNikon.NikonFocusRackAccess?
+static func NikonAndroidFocusRackAccess.capture(connectionOwner: Swift.Int64, isAdmitted: () -> Swift.Bool) -> OpenCineNikon.NikonFocusRackAccess?
 static func PTPIPClientSession.connect(host: Swift.String, port: Swift.UInt16, guid: Foundation.Data, friendlyName: Swift.String, timeoutMilliseconds: Swift.Int32, strategy: PTPIPClientSession.ConnectionStrategy, onPhase: (OpenCineNikon.CameraConnectionPhase, Swift.String) -> Swift.Void, onConnectTrace: (Swift.String) -> Swift.Void) throws -> PTPIPClientSession
 static let AndroidCameraControlCapabilities.empty: AndroidCameraControlCapabilities
 static let AndroidCameraWiFiScreenParserWire.fieldSeparator: Swift.String
