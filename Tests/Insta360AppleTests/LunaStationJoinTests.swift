@@ -49,22 +49,15 @@ import Testing
             checkCurrent: {}, timing: .init(settle: .zero))
     }
 
-    /// Runs `join` to the end, moving `clock` past each wait it parks on.
+    /// Runs `join` to the end, moving `clock` by each of `waits` once the join parks on it.
     private func finish(
         _ join: LunaStationJoin, _ network: LunaStationNetwork = Self.network, clock: ManualHostClock,
-        step: Duration
-    ) async -> Result<LunaStationJoinResult, Error> {
+        waits: [Duration]
+    ) async throws -> Result<LunaStationJoinResult, Error> {
         let run = Task { @MainActor in try await join.run(network) }
-        var advances = 0
-        while advances < 10 {
-            var turns = 0
-            while clock.pendingSleeps == 0, turns < 100_000 {
-                turns += 1
-                await Task.yield()
-            }
-            if clock.pendingSleeps == 0 { break }
-            clock.advance(by: step)
-            advances += 1
+        for wait in waits {
+            try await clock.waitForSleeps(1)
+            clock.advance(by: wait)
         }
         return await run.result
     }
@@ -84,10 +77,11 @@ import Testing
         #expect(camera.joins == 2)
     }
 
-    @Test func aBusyCameraThatNeverSaysItsWiFiStartedIsAskedAgainAfterTheWait() async throws {
+    @Test(.timeLimit(.minutes(1)))
+    func aBusyCameraThatNeverSaysItsWiFiStartedIsAskedAgainAfterTheWait() async throws {
         let clock = ManualHostClock()
         let camera = Camera([.busy(started: false), .accepted([Self.result(.joined)])])
-        let outcome = await finish(join(camera, clock: clock), clock: clock, step: .seconds(38))
+        let outcome = try await finish(join(camera, clock: clock), clock: clock, waits: [.seconds(38)])
         #expect(try outcome.get().outcome == .joined)
         #expect(camera.joins == 2)
     }
@@ -130,10 +124,12 @@ import Testing
         #expect(camera.joins == 1)
     }
 
-    @Test func noAnswerGetsOneMoreTryThenTimesOut() async throws {
+    @Test(.timeLimit(.minutes(1)))
+    func noAnswerGetsOneMoreTryThenTimesOut() async throws {
         let clock = ManualHostClock()
         let camera = Camera([.accepted([]), .accepted([])])
-        let outcome = await finish(join(camera, clock: clock), clock: clock, step: .seconds(45))
+        let outcome = try await finish(
+            join(camera, clock: clock), clock: clock, waits: [.seconds(45), .seconds(45)])
         #expect((outcome.failure as? ConnectionFailure)?.code == "com.opencapture.insta360.luna.station.join-timeout")
         #expect(camera.joins == 2)
     }
