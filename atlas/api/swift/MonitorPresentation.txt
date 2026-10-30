@@ -833,7 +833,6 @@ static func GimbalCluster.inTrailingBottom(well: MonitorLayoutRegion, floorY: Sw
 static func MonitorAssistPaletteLayout.fieldMonitor(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double) -> (layout: MonitorAssistPaletteLayout, frame: MonitorRect)
 static func MonitorAssistPaletteLayout.fieldMonitorFootprint(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double, expanded: Swift.Bool) -> MonitorRect
 static func MonitorAssistPaletteReveal.compactToolCount(portrait: Swift.Bool) -> Swift.Int
-static func MonitorAssistPaletteReveal.coversValues(palette: MonitorRect?, values: MonitorRect) -> Swift.Bool
 static func MonitorAssistPaletteReveal.extraToolOpacity(progress: Swift.Double) -> Swift.Double
 static func MonitorAssistPaletteReveal.landscapeCellIndex(column: Swift.Int, row: Swift.Int) -> Swift.Int
 static func MonitorAssistPaletteReveal.lerp(_: Swift.Double, _: Swift.Double, _: Swift.Double) -> Swift.Double

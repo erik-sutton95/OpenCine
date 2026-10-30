@@ -301,7 +301,7 @@ public final class com/opencapture/monitorui/MonitorAssistIconKt {
 }
 
 public final class com/opencapture/monitorui/MonitorAssistPaletteKt {
-	public static final fun MonitorAssistPalette (Ljava/util/List;ZZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function4;Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Ljava/util/Map;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorToolUsageState;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Float;Ljava/lang/Float;Lkotlin/jvm/functions/Function1;JLandroidx/compose/runtime/Composer;IIII)V
+	public static final fun MonitorAssistPalette (Ljava/util/List;ZZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function4;Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Ljava/util/Map;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorToolUsageState;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Float;Ljava/lang/Float;ZLkotlin/jvm/functions/Function1;JLandroidx/compose/runtime/Composer;IIII)V
 	public static final fun getLocalMonitorAssistExpansion ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun getLocalMonitorAssistVisible ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 }
@@ -314,7 +314,6 @@ public final class com/opencapture/monitorui/MonitorAssistPaletteReveal {
 	public static final field SLOP F
 	public static final field SNAP F
 	public final fun compactToolCount (Z)I
-	public final fun coversValues (Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;)Z
 	public final fun extraToolOpacity (F)F
 	public final fun landscapeCellIndex (II)I
 	public final fun lerp (FFF)F
