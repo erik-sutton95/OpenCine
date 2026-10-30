@@ -95,6 +95,19 @@ class ReportTests(unittest.TestCase):
         self.assertEqual([(t["name"], t["result"]) for t in parsed["tests"]],
                          [('"Tests skipped: offline mode"', "passed"), ('"Upload skipped: no network"', "skipped")])
 
+    def test_a_skip_comment_over_several_lines_fails_the_skip_guard(self):
+        # Swift Testing prints a comment's line breaks as they are (swift test, 2026-10-30).
+        log = ('◇ Test "Upload skipped: "x"" started.\n'
+               '➜ Test multi() skipped: "first line\n'
+               'second line"\n'
+               '✔ Test "Upload skipped: "x"" passed after 0.001 seconds.\n'
+               '✔ Test run with 2 tests in 0 suites passed after 0.001 seconds.\n')
+        parsed = REPORT.parse(log)
+        self.assertEqual([(t["name"], t["result"]) for t in parsed["tests"]],
+                         [("multi()", "skipped"), ('"Upload skipped: "x""', "passed")])
+        self.assertEqual(REPORT.guard({"host": parsed}, True, [], []),
+                         ["host: 1 unexpected skipped tests: multi()"])
+
     def test_xctest_case_lines_are_not_read_as_swift_testing_lines(self):
         parsed = REPORT.parse(SKIPPED_NIGHTLY)
         self.assertEqual(parsed["tests"], [])
