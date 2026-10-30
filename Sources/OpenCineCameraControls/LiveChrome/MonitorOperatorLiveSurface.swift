@@ -517,7 +517,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         MonitorValuesReflow.fieldMonitor(
             layout, toolCount: mounts(.toolBar) && !command ? tools.count : 0,
             valueCount: mounts(.cameraValues) && !command
-                ? captureInputs.stripTileCount(excluding: cornerKeys) : 0,
+                ? captureInputs.valueCount(excluding: cornerKeys) : 0,
             cornerControls: MonitorValuesReflow.cornerControls(layout, motionCluster: cameraViews.motion != nil))
     }
     /// The palette's width cap, in both states so the plate never changes width while it opens.

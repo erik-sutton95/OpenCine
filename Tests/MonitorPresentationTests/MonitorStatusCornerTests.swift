@@ -1,9 +1,10 @@
 import MonitorPresentation
 import Testing
 
-/// The landscape photo monitor: setup values ride the status row's trailing corner, exposure
-/// values keep the strip, and neither clips at the smallest supported widths (hardware pass
-/// 2026-10-30). Same tables as Kotlin `MonitorStatusCornerTest`.
+/// The landscape photo monitor: setup values (mode, drive, metering, profile) take the status
+/// row's trailing corner, ridden values keep the strip, and neither clips at the smallest supported
+/// widths (hardware pass 2026-10-30, regrouped at the owner's review). Same tables as Kotlin
+/// `MonitorStatusCornerTest`.
 struct MonitorStatusCornerTests {
     /// A capture value as the monitor lays it out: its natural tile width (value or caption,
     /// whichever is wider, plus padding) and its floor (the whole caption plus padding).
@@ -17,21 +18,25 @@ struct MonitorStatusCornerTests {
     /// Widths measured on the iPhone 16 Pro simulator, 2026-10-30 (point sizes; Android's dp
     /// sizes match within a point): the nine photo values in the Nikon order.
     static let photo: [Tile] = [
-        .init(title: "MODE", natural: 48, floor: 44, group: .exposure),
-        .init(title: "ISO", natural: 50, floor: 30, group: .exposure),
-        .init(title: "SHUTTER", natural: 58, floor: 58, group: .exposure),
-        .init(title: "IRIS", natural: 52, floor: 34, group: .exposure),
+        .init(title: "MODE", natural: 48, floor: 44, group: .setup),
+        .init(title: "ISO", natural: 50, floor: 30, group: .ridden),
+        .init(title: "SHUTTER", natural: 58, floor: 58, group: .ridden),
+        .init(title: "IRIS", natural: 52, floor: 34, group: .ridden),
         .init(title: "DRIVE", natural: 54, floor: 45, group: .setup),
-        .init(title: "FOCUS", natural: 47, floor: 47, group: .setup),
-        .init(title: "WB", natural: 48, floor: 25, group: .setup),
-        .init(title: "METER", natural: 55, floor: 45, group: .exposure),
+        .init(title: "FOCUS", natural: 47, floor: 47, group: .ridden),
+        .init(title: "WB", natural: 48, floor: 25, group: .ridden),
+        .init(title: "METER", natural: 55, floor: 45, group: .setup),
         .init(title: "PROFILE", natural: 54, floor: 54, group: .setup),
     ]
     /// The leading photo readouts (shots remaining, image area and size, quality) with their
     /// 24 pt spacing, measured on the same run.
     static let leadingWidth = 186.0
-    /// The widest values a body reports: "Natural auto" white balance and a long creative profile.
-    static let longest: [Double] = [54, 47, 103, 70]
+    /// Generous widths for the widest values a body reports, in each row's order. Corner: a long
+    /// mode, drive, "Highlight" metering and a long creative profile. Strip: "25600", "1/16000",
+    /// a two-digit f-number, "AF-C" and "Natural auto" white balance.
+    static let longestCorner: [Double] = [54, 60, 80, 70]
+    static let cornerFloors: [Double] = [44, 45, 45, 54]
+    static let longestStrip: [Double] = [58, 70, 56, 47, 103]
 
     /// Phones and tablets in landscape: iPhone SE, 13 mini, 16 Pro, 16 Pro Max, a compact
     /// Android phone (640 x 360 dp) and an 11 inch iPad.
@@ -44,8 +49,8 @@ struct MonitorStatusCornerTests {
 
     @Test func aLandscapePhotoRowMovesOnlyTheSetupValuesInOrder() {
         let split = MonitorStatusCorner.split(Self.photo, holdsSetup: true, group: \.group)
-        #expect(split.strip.map(\.title) == ["MODE", "ISO", "SHUTTER", "IRIS", "METER"])
-        #expect(split.corner.map(\.title) == ["DRIVE", "FOCUS", "WB", "PROFILE"])
+        #expect(split.strip.map(\.title) == ["ISO", "SHUTTER", "IRIS", "FOCUS", "WB"])
+        #expect(split.corner.map(\.title) == ["MODE", "DRIVE", "METER", "PROFILE"])
         let kept = MonitorStatusCorner.split(Self.photo, holdsSetup: false, group: \.group)
         #expect(kept.strip.map(\.title) == Self.photo.map(\.title) && kept.corner.isEmpty)
     }
@@ -68,7 +73,7 @@ struct MonitorStatusCornerTests {
 
     /// At every landscape size the four setup tiles fit beside the leading readouts at their
     /// natural widths, inside the status row and clear of the system buttons, and the five
-    /// exposure tiles fit the strip without narrowing. Nine tiles did not fit the SE's strip.
+    /// ridden tiles fit the strip without narrowing. Nine tiles did not fit the SE's strip.
     @Test func bothRowsFitWithoutNarrowingAtEverySize() {
         let split = MonitorStatusCorner.split(Self.photo, holdsSetup: true, group: \.group)
         for (width, height, safe) in Self.landscapes {
@@ -91,18 +96,21 @@ struct MonitorStatusCornerTests {
         #expect(all > se.values.width)
     }
 
-    /// The widest values still fit on a 640 point row without cutting a caption: tiles narrow
-    /// toward their captions, never past them, and stay inside the corner's room.
+    /// The widest values still fit without cutting a caption: corner tiles narrow toward their
+    /// captions, never past them, and stay inside the corner's room; the strip's widest five fit
+    /// its row whole.
     @Test func theWidestValuesNarrowTowardTheirCaptionsAndNeverPast() {
-        let floors = [45.0, 47, 25, 54]
+        let floors = Self.cornerFloors
         for (width, height, safe) in Self.landscapes {
             let layout = FieldMonitorLayout(width: width, height: height, safeArea: safe)
             let available = cornerRoom(layout)
             let tiles = MonitorStatusCorner.widths(
-                natural: Self.longest, floors: floors, available: available)
+                natural: Self.longestCorner, floors: floors, available: available)
             #expect(zip(tiles, floors).allSatisfy { $0 >= $1 - 1e-9 }, "\(width)x\(height)")
-            #expect(zip(tiles, Self.longest).allSatisfy { $0 <= $1 + 1e-9 })
+            #expect(zip(tiles, Self.longestCorner).allSatisfy { $0 <= $1 + 1e-9 })
             #expect(MonitorStatusCorner.width(of: tiles) <= available + 1e-9, "\(width)x\(height)")
+            let strip = Self.longestStrip.reduce(0, +) + 16 * Double(Self.longestStrip.count - 1)
+            #expect(strip <= layout.values.width, "\(width)x\(height)")
         }
     }
 

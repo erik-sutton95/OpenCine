@@ -68,10 +68,10 @@ public class MonitorOperatorLiveReadout<K, S>(
     /** A hold on the cell while it has no quick adjust (for example a camera-side lock toggle). */
     public val holdAction: (() -> Unit)? = null,
     /**
-     * What the value is for. A landscape photo monitor moves setup values from the strip into the
-     * status row's trailing corner ([MonitorStatusCorner]). Swift `MonitorOperatorLiveReadout.group`.
+     * How often the value changes. A landscape photo monitor moves setup values from the strip into
+     * the status row's trailing corner ([MonitorStatusCorner]). Swift `MonitorOperatorLiveReadout.group`.
      */
-    public val group: MonitorCaptureReadoutGroup = MonitorCaptureReadoutGroup.EXPOSURE,
+    public val group: MonitorCaptureReadoutGroup = MonitorCaptureReadoutGroup.RIDDEN,
 )
 
 public enum class MonitorOperatorCameraPanelChrome { DESCRIPTOR, CONTENT, SHARED_SHEET }

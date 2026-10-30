@@ -7,9 +7,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The landscape photo monitor: setup values ride the status row's trailing corner, exposure
- * values keep the strip, and neither clips at the smallest supported widths (hardware pass
- * 2026-10-30). Same tables as Swift `MonitorStatusCornerTests`.
+ * The landscape photo monitor: setup values (mode, drive, metering, profile) take the status row's
+ * trailing corner, ridden values keep the strip, and neither clips at the smallest supported
+ * widths (hardware pass 2026-10-30, regrouped at the owner's review). Same tables as Swift
+ * `MonitorStatusCornerTests`.
  */
 class MonitorStatusCornerTest {
     private data class Tile(val title: String, val natural: Float, val floor: Float, val group: MonitorCaptureReadoutGroup)
@@ -24,23 +25,29 @@ class MonitorStatusCornerTest {
                 valueCount = valueCount)
     }
 
-    private val exposure = MonitorCaptureReadoutGroup.EXPOSURE
+    private val ridden = MonitorCaptureReadoutGroup.RIDDEN
     private val setup = MonitorCaptureReadoutGroup.SETUP
 
     /** The nine photo values in the Nikon order, measured widths (dp match the iOS points). */
     private val photo = listOf(
-        Tile("MODE", 48f, 44f, exposure), Tile("ISO", 50f, 30f, exposure),
-        Tile("SHUTTER", 58f, 58f, exposure), Tile("IRIS", 52f, 34f, exposure),
-        Tile("DRIVE", 54f, 45f, setup), Tile("FOCUS", 47f, 47f, setup),
-        Tile("WB", 48f, 25f, setup), Tile("METER", 55f, 45f, exposure),
+        Tile("MODE", 48f, 44f, setup), Tile("ISO", 50f, 30f, ridden),
+        Tile("SHUTTER", 58f, 58f, ridden), Tile("IRIS", 52f, 34f, ridden),
+        Tile("DRIVE", 54f, 45f, setup), Tile("FOCUS", 47f, 47f, ridden),
+        Tile("WB", 48f, 25f, ridden), Tile("METER", 55f, 45f, setup),
         Tile("PROFILE", 54f, 54f, setup),
     )
 
     /** Shots remaining, image area and size, and quality with their 24 dp spacing. */
     private val leadingWidth = 186f
 
-    /** The widest values a body reports: "Natural auto" white balance and a long creative profile. */
-    private val longest = listOf(54f, 47f, 103f, 70f)
+    /**
+     * Generous widths for the widest values a body reports, in each row's order. Corner: a long
+     * mode, drive, "Highlight" metering and a long creative profile. Strip: "25600", "1/16000", a
+     * two-digit f-number, "AF-C" and "Natural auto" white balance.
+     */
+    private val longestCorner = listOf(54f, 60f, 80f, 70f)
+    private val cornerFloors = listOf(44f, 45f, 45f, 54f)
+    private val longestStrip = listOf(58f, 70f, 56f, 47f, 103f)
 
     /** iPhone SE, 13 mini, 16 Pro, 16 Pro Max, a compact Android phone and an 11 inch tablet. */
     private val landscapes = listOf(
@@ -59,8 +66,8 @@ class MonitorStatusCornerTest {
     @Test
     fun aLandscapePhotoRowMovesOnlyTheSetupValuesInOrder() {
         val (strip, corner) = MonitorStatusCorner.split(photo, true) { it.group }
-        assertEquals(listOf("MODE", "ISO", "SHUTTER", "IRIS", "METER"), strip.map { it.title })
-        assertEquals(listOf("DRIVE", "FOCUS", "WB", "PROFILE"), corner.map { it.title })
+        assertEquals(listOf("ISO", "SHUTTER", "IRIS", "FOCUS", "WB"), strip.map { it.title })
+        assertEquals(listOf("MODE", "DRIVE", "METER", "PROFILE"), corner.map { it.title })
         val (kept, none) = MonitorStatusCorner.split(photo, false) { it.group }
         assertEquals(photo, kept)
         assertTrue(none.isEmpty())
@@ -82,7 +89,7 @@ class MonitorStatusCornerTest {
     /**
      * At every landscape size the four setup tiles fit beside the leading readouts at their
      * natural widths, inside the status row and clear of the system buttons, and the five
-     * exposure tiles fit the strip without scrolling. Nine tiles did not fit a 640 dp strip.
+     * ridden tiles fit the strip without scrolling. Nine tiles did not fit a 640 dp strip.
      */
     @Test
     fun bothRowsFitWithoutNarrowingAtEverySize() {
@@ -105,16 +112,21 @@ class MonitorStatusCornerTest {
         assertTrue(all > compact.values.width)
     }
 
-    /** The widest values still fit without cutting a caption: tiles narrow toward their captions. */
+    /**
+     * The widest values still fit without cutting a caption: corner tiles narrow toward their
+     * captions, never past them; the strip's widest five fit its row whole.
+     */
     @Test
     fun theWidestValuesNarrowTowardTheirCaptionsAndNeverPast() {
-        val floors = listOf(45f, 47f, 25f, 54f)
         for (size in landscapes) {
-            val available = cornerRoom(size.layout())
-            val tiles = MonitorStatusCorner.widths(longest, floors, available)
-            assertTrue(tiles.zip(floors).all { (t, f) -> t >= f - 1e-3f }, "$size")
-            assertTrue(tiles.zip(longest).all { (t, n) -> t <= n + 1e-3f }, "$size")
+            val layout = size.layout()
+            val available = cornerRoom(layout)
+            val tiles = MonitorStatusCorner.widths(longestCorner, cornerFloors, available)
+            assertTrue(tiles.zip(cornerFloors).all { (t, f) -> t >= f - 1e-3f }, "$size")
+            assertTrue(tiles.zip(longestCorner).all { (t, n) -> t <= n + 1e-3f }, "$size")
             assertTrue(MonitorStatusCorner.width(tiles) <= available + 1e-3f, "$size")
+            val strip = longestStrip.sum() + 16f * (longestStrip.size - 1)
+            assertTrue(strip <= layout.values.width, "$size")
         }
     }
 

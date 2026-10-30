@@ -115,18 +115,19 @@ data class MonitorFieldLayout(
 }
 
 /**
- * What a camera value is for. Exposure values (program, ISO, shutter, aperture, metering) are
- * ridden shot to shot; setup values (drive, focus mode, white balance, picture profile) say how
- * the camera captures and renders the picture. A value nobody grouped is exposure.
+ * How often a camera value changes. Ridden values (ISO, shutter, aperture, white balance, focus)
+ * are adjusted shot to shot and stay in the strip along the bottom; setup values (shooting mode,
+ * drive, metering, picture profile) are set once for a scene. A value nobody grouped is ridden.
  * Swift `MonitorCaptureReadoutGroup`.
  */
-enum class MonitorCaptureReadoutGroup { EXPOSURE, SETUP }
+enum class MonitorCaptureReadoutGroup { RIDDEN, SETUP }
 
 /**
  * The trailing corner of the landscape status row. While video runs it holds the recording
  * readout and the clock. A photo row has neither, so the camera's setup values move up into it
- * and the strip along the bottom keeps exposure: nine photo values in one landscape row ran off
- * a compact phone (hardware pass 2026-10-30). Portrait keeps every value in the strip's grid.
+ * and the strip along the bottom keeps the ridden values: nine photo values in one landscape row
+ * ran off a compact phone (hardware pass 2026-10-30; the owner chose mode, drive, metering and
+ * profile for the corner). Portrait keeps every value in the strip's grid.
  * Swift `MonitorStatusCorner`.
  */
 object MonitorStatusCorner {

@@ -136,12 +136,13 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
     }
 }
 extension CaptureSheet {
-    /// White balance and focus mode set the camera up; the rest is exposure (and audio, which a
-    /// photo strip never shows). `MonitorStatusCorner` moves setup values in a landscape photo row.
+    /// The exposure program (the strip's EXPOSURE, a camera's shooting MODE) sets the scene up, and
+    /// the metering toggle anchored to it moves with it; ISO, shutter, aperture, white balance and
+    /// focus are ridden. `MonitorStatusCorner` moves setup values in a landscape photo row.
     var captureGroup: MonitorCaptureReadoutGroup {
         switch self {
-        case .wb, .focus: .setup
-        default: .exposure
+        case .exposure: .setup
+        default: .ridden
         }
     }
 }

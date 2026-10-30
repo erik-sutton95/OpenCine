@@ -35,7 +35,7 @@ case MonitorCapturePopupEdge.bottom
 case MonitorCapturePopupEdge.top
 case MonitorCapturePopupKind.compact
 case MonitorCapturePopupKind.details
-case MonitorCaptureReadoutGroup.exposure
+case MonitorCaptureReadoutGroup.ridden
 case MonitorCaptureReadoutGroup.setup
 case MonitorCommandHeader.hidden
 case MonitorCommandHeader.telemetry

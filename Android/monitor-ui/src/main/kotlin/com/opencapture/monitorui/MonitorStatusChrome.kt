@@ -105,14 +105,21 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
                 format = { Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(
                     (LocalMonitorPortraitPrimaryFit.current?.spacing ?: 8f).dp)) { format(); color() } })
         } else {
-            Row(Modifier.fillMaxSize().monitorReadoutShadow(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(24.dp),
+            // Each readout group takes the readout shadow once. The corner's tiles are camera value
+            // readouts that already carry it ([MonitorCameraValues]), as the strip's do, so the row's
+            // shadow stops short of them instead of stacking a second halo (Swift `MonitorStatusChrome`).
+            // A corner keeps [MonitorStatusCorner.LEADING_GAP] from the leading readouts.
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (corner != null) MonitorStatusCorner.LEADING_GAP.dp else 24.dp)) {
+                FlowRow(Modifier.weight(1f).monitorReadoutShadow(), horizontalArrangement = Arrangement.spacedBy(24.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)) { storage(); format(); color(); mode() }
                 Row(Modifier.padding(end = MonitorLayoutPolicy.recordingReadoutTrailingInset(layout.status.maxX, layout.picture.maxX).dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (showsRecording) MonitorRecordingReadout(status, recordingModifier)
-                    if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier, placeholder = status.timecodePlaceholder)
+                    if (showsRecording || showsTimecode) Row(Modifier.monitorReadoutShadow(),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (showsRecording) MonitorRecordingReadout(status, recordingModifier)
+                        if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier, placeholder = status.timecodePlaceholder)
+                    }
                     // Measured before the leading readouts, so its tiles keep their natural widths.
                     corner?.invoke()
                 }
