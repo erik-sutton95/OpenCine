@@ -385,6 +385,7 @@ func MonitorThumbnailSize.columns(tablet: Swift.Bool) -> Swift.Int
 func MonitorToolUsage.decay(to: Swift.Double) -> ()
 func MonitorToolUsage.rankedIDs(in: [Swift.String], seed: [Swift.String : Swift.Int], now: Swift.Double) -> [Swift.String]
 func MonitorToolUsage.recordUse(of: Swift.String, seed: [Swift.String : Swift.Int], at: Swift.Double) -> ()
+func MonitorValuesReflow.values(open: Swift.Bool, closed: MonitorRect) -> MonitorRect
 func MonitorWatcherInteraction.applyFocus(_: MonitorWatcherFocus, current: MonitorWatcherTapSource) -> Swift.Bool
 func MonitorWatcherInteraction.cancel() -> ()
 func MonitorWatcherInteraction.confirmRecording(context: MonitorWatcherContext) -> MonitorWatcherAction?
@@ -490,13 +491,14 @@ init MonitorSafeArea(top: Swift.Double, leading: Swift.Double, bottom: Swift.Dou
 init MonitorScopeGuides(clip: Swift.Bool, crush: Swift.Bool, middle: Swift.Bool)
 init MonitorScopePoint(x: Swift.Double, y: Swift.Double)
 init MonitorScopeStoredCenter(xFraction: Swift.Double, yFraction: Swift.Double)
-init MonitorScreenPresentation(visible: Swift.Bool, interactive: Swift.Bool, dimmed: Swift.Bool, transientControlsHidden: Swift.Bool, pictureWaiting: Swift.Bool, statusMounted: Swift.Bool, powerMounted: Swift.Bool, captureMounted: Swift.Bool, captureHidden: Swift.Bool, captureInteractive: Swift.Bool, locked: Swift.Bool, popupInteractive: Swift.Bool, capturePresented: Swift.Bool, panelsRaised: Swift.Bool, recovering: Swift.Bool, statusInteractive: Swift.Bool)
+init MonitorScreenPresentation(visible: Swift.Bool, interactive: Swift.Bool, dimmed: Swift.Bool, transientControlsHidden: Swift.Bool, pictureWaiting: Swift.Bool, statusMounted: Swift.Bool, powerMounted: Swift.Bool, captureMounted: Swift.Bool, captureHidden: Swift.Bool, captureInteractive: Swift.Bool, locked: Swift.Bool, popupInteractive: Swift.Bool, capturePresented: Swift.Bool, panelsRaised: Swift.Bool, recovering: Swift.Bool, statusInteractive: Swift.Bool, captureFrame: MonitorRect?)
 init MonitorSideRailPlan(lockVisible: Swift.Bool, batteriesVisible: Swift.Bool, recordVisible: Swift.Bool, mediaVisible: Swift.Bool, settingsVisible: Swift.Bool, settingsReachable: Swift.Bool, interfaceLocked: Swift.Bool, recordingOrPending: Swift.Bool)
 init MonitorStatusPresentation(recording: Swift.Bool?, elapsedSeconds: Swift.Int?, timecode: Swift.String?, timecodePlaceholder: Swift.String)
 init MonitorSystemControlsVisibility(lock: Swift.Bool, settings: Swift.Bool, media: Swift.Bool, record: Swift.Bool, display: Swift.Bool)
 init MonitorTelemetryPadding(contentWidth: Swift.Double, availableWidth: Swift.Double, preferredWidth: Swift.Double, minimumTarget: Swift.Double, scale: Swift.Double)
 init MonitorToolUsage(scores: [Swift.String : Swift.Double], counts: [Swift.String : Swift.Int], lastUsed: [Swift.String : Swift.Double], clock: Swift.Double)
 init MonitorTrafficLightsOptions(compensation: OpenCineMedia.MonitorCrushClipCompensation, scale: Swift.Double, position: MonitorScopeStoredCenter?, positionPortrait: MonitorScopeStoredCenter?)
+init MonitorValuesReflow(paletteWidth: Swift.Double, values: MonitorRect, rows: [Swift.Int], tileWidth: Swift.Double, scrolls: Swift.Bool, applies: Swift.Bool)
 init MonitorVectorscopeOptions(from: any Swift.Decoder) throws
 init MonitorVectorscopeOptions(zoom: MonitorVectorscopeZoom, brightness: Swift.Int, scale: Swift.Double, hasCustomScale: Swift.Bool, storedCenter: MonitorScopeStoredCenter?, storedCenterPortrait: MonitorScopeStoredCenter?)
 init MonitorWatcherChoice(id: Swift.Int, title: Swift.String)
@@ -733,6 +735,12 @@ let MonitorSideRailPlan.settings: Swift.Bool
 let MonitorTelemetryPadding.fits: Swift.Bool
 let MonitorTelemetryPadding.padding: Swift.Double
 let MonitorTelemetryPadding.width: Swift.Double
+let MonitorValuesReflow.applies: Swift.Bool
+let MonitorValuesReflow.paletteWidth: Swift.Double
+let MonitorValuesReflow.rows: [Swift.Int]
+let MonitorValuesReflow.scrolls: Swift.Bool
+let MonitorValuesReflow.tileWidth: Swift.Double
+let MonitorValuesReflow.values: MonitorRect
 let MonitorWatcherChoice.id: Swift.Int
 let MonitorWatcherChoice.title: Swift.String
 let MonitorWatcherConnectionOverlayValue.canControl: Swift.Bool
@@ -819,8 +827,8 @@ static func FieldMonitorLayout.telemetryGaugeHeight(tablet: Swift.Bool) -> Swift
 static func FieldMonitorLayout.valueColumns(count: Swift.Int, portrait: Swift.Bool, tablet: Swift.Bool) -> Swift.Int
 static func GimbalCluster.belowWell(well: MonitorLayoutRegion, floorY: Swift.Double, stickSize: Swift.Double, zoomSize: Swift.Double, gap: Swift.Double, inset: Swift.Double, showGimbalButton: Swift.Bool) -> GimbalCluster
 static func GimbalCluster.inTrailingBottom(well: MonitorLayoutRegion, floorY: Swift.Double, canvasMaxY: Swift.Double, avoid: MonitorLayoutRegion?, stickSize: Swift.Double, zoomSize: Swift.Double, gap: Swift.Double, inset: Swift.Double, showGimbalButton: Swift.Bool) -> GimbalCluster
-static func MonitorAssistPaletteLayout.fieldMonitor(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double) -> (layout: MonitorAssistPaletteLayout, frame: MonitorRect)
-static func MonitorAssistPaletteLayout.fieldMonitorFootprint(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double, expanded: Swift.Bool) -> MonitorRect
+static func MonitorAssistPaletteLayout.fieldMonitor(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double, maximumWidth: Swift.Double?) -> (layout: MonitorAssistPaletteLayout, frame: MonitorRect)
+static func MonitorAssistPaletteLayout.fieldMonitorFootprint(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double, expanded: Swift.Bool, maximumWidth: Swift.Double?) -> MonitorRect
 static func MonitorAssistPaletteReveal.compactToolCount(portrait: Swift.Bool) -> Swift.Int
 static func MonitorAssistPaletteReveal.coversValues(palette: MonitorRect?, values: MonitorRect) -> Swift.Bool
 static func MonitorAssistPaletteReveal.extraToolOpacity(progress: Swift.Double) -> Swift.Double
@@ -928,6 +936,11 @@ static func MonitorTelemetryValues.batteryValue(percent: Swift.Int?, bars: Swift
 static func MonitorTelemetryValues.linkSpokenLabel(fps: Swift.String?, signalBars: Swift.Int?) -> Swift.String
 static func MonitorTelemetryValues.linkValue(fps: Swift.String?, signalBars: Swift.Int?, showsRate: Swift.Bool) -> Swift.String?
 static func MonitorTopCutout.estimated(width: Swift.Double, height: Swift.Double, safeTop: Swift.Double) -> MonitorRect?
+static func MonitorValuesReflow.cornerControls(_: FieldMonitorLayout, motionCluster: Swift.Bool) -> [MonitorRect]
+static func MonitorValuesReflow.fieldMonitor(_: FieldMonitorLayout, toolCount: Swift.Int, valueCount: Swift.Int, cornerControls: [MonitorRect]) -> MonitorValuesReflow
+static func MonitorValuesReflow.maximumTileWidth(tablet: Swift.Bool) -> Swift.Double
+static func MonitorValuesReflow.minimumTileWidth(tablet: Swift.Bool) -> Swift.Double
+static func MonitorValuesReflow.reflowed(paletteOpen: Swift.Bool, capturePresented: Swift.Bool, reflowed: Swift.Bool) -> Swift.Bool
 static func MonitorVectorscopeOptions.clampedBrightness(_: Swift.Int) -> Swift.Int
 static func MonitorVectorscopeOptions.clampedScale(_: Swift.Double) -> Swift.Double
 static func MonitorWatcherControlPlacement.bottomInset(portrait: Swift.Bool) -> Swift.Double
@@ -1125,6 +1138,10 @@ static let MonitorStatusCorner.leadingGap: Swift.Double
 static let MonitorStatusCorner.tileSpacing: Swift.Double
 static let MonitorToolUsage.fieldMonitorSeed: [Swift.String : Swift.Int]
 static let MonitorToolUsage.halfLife: Swift.Double
+static let MonitorValuesReflow.clearance: Swift.Double
+static let MonitorValuesReflow.minimumPlateColumns: Swift.Int
+static let MonitorValuesReflow.tileHeight: Swift.Double
+static let MonitorValuesReflow.tileSpacing: Swift.Double
 static let MonitorVectorscopeOptions.brightnessRange: Swift.ClosedRange<Swift.Int>
 static let MonitorVectorscopeOptions.default: MonitorVectorscopeOptions
 static let MonitorVectorscopeOptions.defaultBrightness: Swift.Int
@@ -1249,6 +1266,7 @@ struct MonitorSystemControlsVisibility: Equatable, Sendable
 struct MonitorTelemetryPadding: Equatable, Sendable
 struct MonitorToolUsage: Decodable, Encodable, Equatable, Sendable
 struct MonitorTrafficLightsOptions: Decodable, Encodable, Equatable, Sendable
+struct MonitorValuesReflow: Equatable, Sendable
 struct MonitorVectorscopeOptions: Decodable, Encodable, Equatable, MonitorScopePanelOptions, Sendable
 struct MonitorWatcherChoice: Equatable, Identifiable, Sendable
 struct MonitorWatcherConnectionOverlayValue: Equatable, Sendable
@@ -1485,6 +1503,7 @@ var MonitorScopePoint.x: Swift.Double
 var MonitorScopePoint.y: Swift.Double
 var MonitorScopeStoredCenter.xFraction: Swift.Double
 var MonitorScopeStoredCenter.yFraction: Swift.Double
+var MonitorScreenPresentation.captureFrame: MonitorRect?
 var MonitorScreenPresentation.captureHidden: Swift.Bool
 var MonitorScreenPresentation.captureInteractive: Swift.Bool
 var MonitorScreenPresentation.captureMounted: Swift.Bool
@@ -1536,6 +1555,7 @@ var MonitorTrafficLightsOptions.compensation: OpenCineMedia.MonitorCrushClipComp
 var MonitorTrafficLightsOptions.position: MonitorScopeStoredCenter?
 var MonitorTrafficLightsOptions.positionPortrait: MonitorScopeStoredCenter?
 var MonitorTrafficLightsOptions.scale: Swift.Double
+var MonitorValuesReflow.tiles: [MonitorRect]
 var MonitorVectorscopeOptions.brightness: Swift.Int
 var MonitorVectorscopeOptions.hasCustomScale: Swift.Bool
 var MonitorVectorscopeOptions.scale: Swift.Double

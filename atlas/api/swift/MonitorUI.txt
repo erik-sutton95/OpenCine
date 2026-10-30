@@ -220,6 +220,8 @@ func MonitorTabButtonStyle.makeBody(configuration: MonitorTabButtonStyle.Configu
 func MonitorTapTargetButtonStyle.makeBody(configuration: MonitorTapTargetButtonStyle.Configuration) -> some SwiftUI.View
 func MonitorTelemetryPowerLayout.placeSubviews(in: CoreFoundation.CGRect, proposal: SwiftUI.ProposedViewSize, subviews: MonitorTelemetryPowerLayout.Subviews, cache: ()) -> ()
 func MonitorTelemetryPowerLayout.sizeThatFits(proposal: SwiftUI.ProposedViewSize, subviews: MonitorTelemetryPowerLayout.Subviews, cache: ()) -> CoreFoundation.CGSize
+func MonitorValueRowsLayout.placeSubviews(in: CoreFoundation.CGRect, proposal: SwiftUI.ProposedViewSize, subviews: MonitorValueRowsLayout.Subviews, cache: ()) -> ()
+func MonitorValueRowsLayout.sizeThatFits(proposal: SwiftUI.ProposedViewSize, subviews: MonitorValueRowsLayout.Subviews, cache: ()) -> CoreFoundation.CGSize
 func MonitorVectorscopeMetalRenderer.draw(in: MetalKit.MTKView) -> ()
 func MonitorVectorscopeMetalRenderer.mtkView(_: MetalKit.MTKView, drawableSizeWillChange: CoreFoundation.CGSize) -> ()
 func MonitorVectorscopeMetalView.makeCoordinator() -> MonitorVectorscopeMetalRenderer
@@ -460,6 +462,7 @@ init MonitorTrackingLayer(brackets: [MonitorTrackingBracketValue], focus: Monito
 init MonitorTrafficLightsMeter(reading: OpenCineMedia.ScopeTrafficLightsReading, fillsWidth: Swift.Bool)
 init MonitorTransientNotice(text: Swift.String, revision: Swift.Int)
 init MonitorValueDrum(options: [Swift.String], selection: SwiftUI.Binding<Swift.String>, markedValues: Swift.Set<Swift.String>, isInteractive: Swift.Bool, haptics: Swift.Bool, previewPosition: Swift.Double?, interactionIdentity: () -> Swift.AnyHashable)
+init MonitorValueRowsLayout(rows: [Swift.Int], tileWidth: CoreGraphics.CGFloat, spacing: CoreGraphics.CGFloat)
 init MonitorVectorscopeMenu(zoom: SwiftUI.Binding<MonitorVectorscopeZoom>, brightness: SwiftUI.Binding<Swift.Int>, zoomHelp: Swift.String, brightnessHelp: Swift.String, brightnessRange: Swift.ClosedRange<Swift.Int>, compact: Swift.Bool, zoomFeedback: () -> Swift.Void)
 init MonitorVectorscopeMetalView(points: [OpenCineMedia.ScopePoint], trailPoints: [OpenCineMedia.ScopePoint], zoom: MonitorVectorscopeZoom, brightness: Swift.Int, revision: Swift.UInt64, configureDisplay: (MetalKit.MTKView) -> MonitorScopeDisplayOptions)
 init MonitorVectorscopeScopePlot(points: [OpenCineMedia.ScopePoint], trail: [OpenCineMedia.ScopePoint], zoom: MonitorVectorscopeZoom, brightness: Swift.Int, revision: Swift.UInt64, configureDisplay: (MetalKit.MTKView) -> MonitorScopeDisplayOptions)
@@ -1110,6 +1113,7 @@ struct MonitorTrafficLightsGeometry.ChannelDisplay: Equatable, Sendable
 struct MonitorTrafficLightsMeter: Sendable, View
 struct MonitorTransientNotice: Sendable, View
 struct MonitorValueDrum: Sendable, View
+struct MonitorValueRowsLayout: Animatable, Layout, Sendable
 struct MonitorVectorscopeMenu: Sendable, View
 struct MonitorVectorscopeMetalView: Sendable, UIViewRepresentable, View
 struct MonitorVectorscopeScopePlot: Sendable, View
@@ -1489,6 +1493,9 @@ var MonitorTrackingLayer.body: some SwiftUI.View
 var MonitorTrafficLightsMeter.body: some SwiftUI.View
 var MonitorTransientNotice.body: some SwiftUI.View
 var MonitorValueDrum.body: some SwiftUI.View
+var MonitorValueRowsLayout.rows: [Swift.Int]
+var MonitorValueRowsLayout.spacing: CoreGraphics.CGFloat
+var MonitorValueRowsLayout.tileWidth: CoreGraphics.CGFloat
 var MonitorVectorscopeMenu.body: some SwiftUI.View
 var MonitorVectorscopeScopePlot.body: some SwiftUI.View
 var MonitorViewAssistSettings.body: some SwiftUI.View
