@@ -267,6 +267,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     LaunchedEffect(assist.configureTool, reviewing) { if (inspecting) dismiss() }
     BackHandler(enabled = interactive && panel != null && !inspecting, onBack = dismiss)
     BackHandler(enabled = interactive && inspecting, onBack = closeInspector)
+    BackHandler(enabled = paletteExpansion.value && !inspecting && panel == null) { paletteExpansion.value = false }
     fun currentSource(): Boolean = current(identity) && control.state.value.snapshot?.let { it.session to it.epoch } ==
         identity.camera?.let { it to identity.epoch }
     fun admits(): Boolean = admitted && currentSource()
@@ -544,6 +545,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     usageSeed = usageSeed, idOf = { it.id }, usage = usage, onUsageChange = setUsage,
                     collapseRevision = paletteRevision, accessibilityIdentifier = { it.accessibilityIdentifier },
                     maxExpandedWidth = valuesReflow.paletteWidth.takeIf { valuesReflow.applies },
+                    // The values beside the open plate take a touch, as on iOS; Back closes the plate.
+                    passesOutsideTouches = true,
                     onBoundsInRootChanged = { bounds ->
                         paletteFrameChanged(bounds?.let { with(density) { MonitorRect(
                             (it.left - origin.x).toDp().value, (it.top - origin.y).toDp().value,
