@@ -2419,8 +2419,8 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorAssist
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorBodyViews {
 	public static final field $stable I
 	public fun <init> ()V
-	public fun <init> (Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorMotionViews;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorFocusReset;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLookComparison;)V
-	public synthetic fun <init> (Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorMotionViews;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorFocusReset;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLookComparison;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorMotionViews;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorFocusReset;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLookComparison;Z)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorMotionViews;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorFocusReset;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLookComparison;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getComparison ()Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLookComparison;
 	public final fun getDashboard ()Lkotlin/jvm/functions/Function3;
 	public final fun getFeedGestures ()Lkotlin/jvm/functions/Function4;
@@ -2429,6 +2429,7 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorBodyVi
 	public final fun getFocusDrive ()Lkotlin/jvm/functions/Function3;
 	public final fun getFocusMarks ()Lkotlin/jvm/functions/Function2;
 	public final fun getMotion ()Lcom/opencapture/opencine/cameracontrols/MonitorOperatorMotionViews;
+	public final fun getMotionCluster ()Z
 	public final fun getResetFocus ()Lcom/opencapture/opencine/cameracontrols/MonitorOperatorFocusReset;
 	public final fun getWaitingPicture ()Lkotlin/jvm/functions/Function2;
 }

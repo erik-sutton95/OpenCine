@@ -39,11 +39,18 @@
     public struct MonitorReadout<Value: View>: View {
         private let label: String
         private let active: Bool
+        private let wholeCaption: Bool
         private let value: Value
         @Environment(\.monitorHDRChromeGain) private var hdrGain
-        public init(_ label: String, active: Bool = false, @ViewBuilder value: () -> Value) {
+        /// `wholeCaption` keeps the caption at its full width when the tile is offered less, so
+        /// only the value scales (the status corner's tiles, `MonitorStatusCornerLayout`).
+        public init(
+            _ label: String, active: Bool = false, wholeCaption: Bool = false,
+            @ViewBuilder value: () -> Value
+        ) {
             self.label = label
             self.active = active
+            self.wholeCaption = wholeCaption
             self.value = value()
         }
         public var body: some View {
@@ -61,6 +68,7 @@
                 ).tracking(CGFloat(MonitorReadoutTypography.labelTracking))
                     .foregroundStyle(caption)
                     .lineLimit(1)
+                    .fixedSize(horizontal: wholeCaption, vertical: false)
             }
             .monitorReadoutShadow()
             .padding(.horizontal, 4)
@@ -116,6 +124,50 @@
                         x: bounds.minX + CGFloat(index % count) * (cell + spacing),
                         y: bounds.minY + CGFloat(index / count) * (34 + spacing)),
                     anchor: .topLeading, proposal: ProposedViewSize(width: cell, height: 34))
+            }
+        }
+    }
+
+    /// The status corner's tiles (`MonitorStatusCorner`): natural widths, trailing, 34 pt tall.
+    /// Offered less, each tile narrows toward its whole caption and never past it, so a value
+    /// scales but a caption is never cut. Its tiles keep their captions whole
+    /// (`MonitorReadout(wholeCaption:)`).
+    public struct MonitorStatusCornerLayout: Layout {
+        public var spacing: CGFloat
+        public init(spacing: CGFloat = CGFloat(MonitorStatusCorner.tileSpacing)) {
+            self.spacing = spacing
+        }
+        private func widths(_ subviews: Subviews, available: CGFloat?) -> [CGFloat] {
+            let natural = subviews.map {
+                Double(max(CGFloat(FieldMonitorLayout.minimumTapTarget), $0.sizeThatFits(.unspecified).width))
+            }
+            let floors = subviews.map {
+                Double($0.sizeThatFits(ProposedViewSize(width: 0, height: 34)).width)
+            }
+            let room = available.map { $0.isFinite ? Double($0) : .infinity } ?? .infinity
+            return MonitorStatusCorner.widths(
+                natural: natural, floors: floors, available: room, spacing: Double(spacing)
+            ).map { CGFloat($0) }
+        }
+        public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ())
+            -> CGSize
+        {
+            let tiles = widths(subviews, available: proposal.width)
+            return CGSize(
+                width: CGFloat(MonitorStatusCorner.width(of: tiles.map(Double.init), spacing: Double(spacing))),
+                height: subviews.isEmpty ? 0 : 34)
+        }
+        public func placeSubviews(
+            in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+        ) {
+            let tiles = widths(subviews, available: bounds.width)
+            let total = CGFloat(MonitorStatusCorner.width(of: tiles.map(Double.init), spacing: Double(spacing)))
+            var x = bounds.maxX - total
+            for (index, view) in subviews.enumerated() {
+                view.place(
+                    at: CGPoint(x: x, y: bounds.midY), anchor: .leading,
+                    proposal: ProposedViewSize(width: tiles[index], height: 34))
+                x += tiles[index] + spacing
             }
         }
     }

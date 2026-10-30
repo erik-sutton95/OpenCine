@@ -35,6 +35,8 @@ case MonitorCapturePopupEdge.bottom
 case MonitorCapturePopupEdge.top
 case MonitorCapturePopupKind.compact
 case MonitorCapturePopupKind.details
+case MonitorCaptureReadoutGroup.ridden
+case MonitorCaptureReadoutGroup.setup
 case MonitorCommandHeader.hidden
 case MonitorCommandHeader.telemetry
 case MonitorDeviceOrientation.landscapeLeft
@@ -224,6 +226,7 @@ enum MonitorBatteryUrgency: Equatable, Hashable, Sendable
 enum MonitorCapturePopupChrome: Sendable
 enum MonitorCapturePopupEdge: Equatable, Hashable, Sendable
 enum MonitorCapturePopupKind: Equatable, Hashable, Sendable
+enum MonitorCaptureReadoutGroup: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorCommandDashboardLayout
 enum MonitorCommandGridLayout
 enum MonitorCommandHeader: Equatable, Hashable, Sendable
@@ -278,6 +281,7 @@ enum MonitorScopeSizing
 enum MonitorSettingsCardMetrics: Sendable
 enum MonitorSettingsTab: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorSideRailControlLayout
+enum MonitorStatusCorner
 enum MonitorStorageReadoutFormat
 enum MonitorSystemButtonMetrics: Sendable
 enum MonitorTelemetryMetrics: Equatable, Hashable, Sendable
@@ -305,6 +309,8 @@ enum StartupLayoutMargins
 enum StartupLayoutProfile: Equatable, Hashable, Sendable
 enum StartupReadyLiveViewPolicy
 extension OpenCineMedia.MonitorFrameEffects
+func FieldMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> MonitorRect
+func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
 func GimbalCluster.offsetBy(dx: Swift.Double, dy: Swift.Double) -> GimbalCluster
 func MonitorAssistCapabilities.isPhotographyOnly(_: MonitorAssistSelection) -> Swift.Bool
 func MonitorAssistCapabilities.offers(_: MonitorAssistSelection, photography: Swift.Bool) -> Swift.Bool
@@ -905,6 +911,10 @@ static func MonitorScopeSizing.scale(portrait: Swift.Bool, tablet: Swift.Bool, p
 static func MonitorSettingsCardMetrics.contentOriginY(titleLineHeight: Swift.Double) -> Swift.Double
 static func MonitorSideRailPlan.showsLock(visible: Swift.Bool, interfaceLocked: Swift.Bool) -> Swift.Bool
 static func MonitorSideRailPlan.showsSettings(visible: Swift.Bool, reachable: Swift.Bool) -> Swift.Bool
+static func MonitorStatusCorner.holdsSetup(photo: Swift.Bool, portrait: Swift.Bool, statusShown: Swift.Bool, valuesShown: Swift.Bool) -> Swift.Bool
+static func MonitorStatusCorner.split(_: [Value], holdsSetup: Swift.Bool, group: (Value) -> MonitorCaptureReadoutGroup)<Value> -> (strip: [Value], corner: [Value])
+static func MonitorStatusCorner.width(of: [Swift.Double], spacing: Swift.Double) -> Swift.Double
+static func MonitorStatusCorner.widths(natural: [Swift.Double], floors: [Swift.Double], available: Swift.Double, spacing: Swift.Double) -> [Swift.Double]
 static func MonitorStorageReadoutFormat.alternatives(percent: Swift.String?, recordingTime: Swift.String?, photo: Swift.Bool) -> [Swift.String]
 static func MonitorStorageReadoutFormat.capacity(gigabytes: Swift.Int64?) -> Swift.String
 static func MonitorStorageReadoutFormat.nextForm(after: Swift.Int, count: Swift.Int) -> Swift.Int
@@ -1111,6 +1121,8 @@ static let MonitorSettingsCardMetrics.titleMinHeight: Swift.Double
 static let MonitorSettingsCardMetrics.titlePointSize: Swift.Double
 static let MonitorSettingsCardMetrics.titleTopPadding: Swift.Double
 static let MonitorSideRailControlLayout.recordButtonSize: Swift.Double
+static let MonitorStatusCorner.leadingGap: Swift.Double
+static let MonitorStatusCorner.tileSpacing: Swift.Double
 static let MonitorToolUsage.fieldMonitorSeed: [Swift.String : Swift.Int]
 static let MonitorToolUsage.halfLife: Swift.Double
 static let MonitorVectorscopeOptions.brightnessRange: Swift.ClosedRange<Swift.Int>
