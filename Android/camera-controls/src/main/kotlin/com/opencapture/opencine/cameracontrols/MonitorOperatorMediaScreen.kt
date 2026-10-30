@@ -152,8 +152,8 @@ public fun <P> MonitorOperatorMediaScreen(
     colorChoices: List<Pair<String, String>> = emptyList(),
     presentationChanged: ((Boolean) -> Unit)? = null,
     host: MonitorOperatorMediaHost<P> = remember(library) { MonitorOperatorMediaHost(library) },
-    overlays: @Composable BoxScope.() -> Unit = {},
     aspectRatio: (MonitorMediaRecord<P>) -> Double? = ::monitorStoredAspectRatio,
+    overlays: @Composable BoxScope.() -> Unit = {},
 ) {
     require(host.library === library) { "The media host presents over its own library" }
     val value by library.content.collectAsState()
