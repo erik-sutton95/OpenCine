@@ -549,9 +549,7 @@ func MonitorMediaFavoritesStore.favorites() -> Swift.Set<Swift.String>
 func MonitorMediaFavoritesStore.saveFavorites(_: Swift.Set<Swift.String>) -> ()
 func MonitorMediaGalleryModel.activate()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.admitsFilter(_: MonitorMediaGallerySnapshot<Payload>, admitted: Foundation.UUID?)<Payload where Payload : Swift.Sendable> -> Swift.Bool
-func MonitorMediaGalleryModel.cacheSelection(admitted: MonitorMediaGallerySnapshot<Payload>, operations: MonitorMediaGalleryOperations<Payload>)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.canDelete(_: MonitorMediaRecord<Payload>, operations: MonitorMediaGalleryOperations<Payload>)<Payload where Payload : Swift.Sendable> -> Swift.Bool
-func MonitorMediaGalleryModel.canDownload(_: MonitorMediaRecord<Payload>, operations: MonitorMediaGalleryOperations<Payload>)<Payload where Payload : Swift.Sendable> -> Swift.Bool
 func MonitorMediaGalleryModel.canShare(_: MonitorMediaRecord<Payload>, operations: MonitorMediaGalleryOperations<Payload>)<Payload where Payload : Swift.Sendable> -> Swift.Bool
 func MonitorMediaGalleryModel.cancelDate()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.cancelDate(admitted: Foundation.UUID?)<Payload where Payload : Swift.Sendable> -> ()
@@ -563,7 +561,6 @@ func MonitorMediaGalleryModel.dismissFilter(admitted: Foundation.UUID?)<Payload 
 func MonitorMediaGalleryModel.dismissNotice()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.duration(_: Swift.String, for: OpenCineMedia.MediaAssetID, admitted: MonitorMediaGallerySnapshot<Payload>)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.favorite(_: OpenCineMedia.MediaAssetID, admitted: MonitorMediaGallerySnapshot<Payload>, operations: MonitorMediaGalleryOperations<Payload>)<Payload where Payload : Swift.Sendable> -> ()
-func MonitorMediaGalleryModel.favoriteSelection(admitted: MonitorMediaGallerySnapshot<Payload>, operations: MonitorMediaGalleryOperations<Payload>, toggleUniform: Swift.Bool)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.isCurrent(_: MonitorMediaGallerySnapshot<Payload>)<Payload where Payload : Swift.Sendable> -> Swift.Bool
 func MonitorMediaGalleryModel.leave()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaGalleryModel.open(_: OpenCineMedia.MediaAssetID, admitted: MonitorMediaGallerySnapshot<Payload>, operations: MonitorMediaGalleryOperations<Payload>, sourceAvailable: Swift.Bool)<Payload where Payload : Swift.Sendable> -> MonitorMediaGalleryOpen<Payload>?
@@ -589,7 +586,6 @@ func MonitorMediaLibraryModel.applyLocalRemoval(_: Swift.Set<OpenCineMedia.Media
 func MonitorMediaLibraryModel.begin()<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaLibraryModel.begin(acquiring: () async -> (any OpenCineMedia.CameraMediaService)?, unavailableNote: Swift.String?)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaLibraryModel.bind(_: (any OpenCineMedia.CameraMediaService)?)<Payload where Payload : Swift.Sendable> -> ()
-func MonitorMediaLibraryModel.cacheBatch(_: [MonitorMediaRecord<Payload>], admitted: MonitorMediaLibraryActionToken, download: (MonitorMediaRecord<Payload>) async -> Swift.Void)<Payload where Payload : Swift.Sendable> -> ()
 func MonitorMediaLibraryModel.cacheHostFile(_: MonitorMediaLibraryIOAuthority, purpose: MonitorMediaLibraryIOPurpose, at: Swift.String, expectedByteCount: Swift.UInt64?, transfer: (any OpenCineMedia.MediaByteSink) async throws -> OpenCineMedia.MediaTransferReceipt)<Payload where Payload : Swift.Sendable> async throws -> Foundation.URL?
 func MonitorMediaLibraryModel.cacheHostFile(_: MonitorMediaLibraryIOAuthority, purpose: MonitorMediaLibraryIOPurpose, at: Swift.String, plan: OpenCineMedia.MediaTransferPlan)<Payload where Payload : Swift.Sendable> async throws -> Foundation.URL?
 func MonitorMediaLibraryModel.cacheHostStagedFile(_: MonitorMediaLibraryIOAuthority, purpose: MonitorMediaLibraryIOPurpose, at: Swift.String, expectedByteCount: Swift.UInt64?, staging: (Foundation.URL) async throws -> Swift.Void)<Payload where Payload : Swift.Sendable> async throws -> Foundation.URL?

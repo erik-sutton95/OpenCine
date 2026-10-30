@@ -2544,9 +2544,7 @@ public final class com/opencapture/opencine/appkit/MonitorMediaGalleryModel {
 	public synthetic fun <init> (Lcom/opencapture/opencine/appkit/MonitorMediaLibraryModel;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun activate ()V
 	public final fun admitsFilter (Lcom/opencapture/opencine/appkit/MonitorMediaGallerySnapshot;Ljava/util/UUID;)Z
-	public final fun cacheSelection (Lcom/opencapture/opencine/appkit/MonitorMediaGallerySnapshot;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;)V
 	public final fun canDelete (Lcom/opencapture/opencine/appkit/MonitorMediaRecord;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;)Z
-	public final fun canDownload (Lcom/opencapture/opencine/appkit/MonitorMediaRecord;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;)Z
 	public final fun canShare (Lcom/opencapture/opencine/appkit/MonitorMediaRecord;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;)Z
 	public final fun cancelDate ()V
 	public final fun cancelDate (Ljava/util/UUID;)V
@@ -2559,8 +2557,6 @@ public final class com/opencapture/opencine/appkit/MonitorMediaGalleryModel {
 	public final fun dismissNotice ()V
 	public final fun duration-PgNIsn0 (Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/appkit/MonitorMediaGallerySnapshot;)V
 	public final fun favorite-cCl6_Rs (Ljava/lang/String;Lcom/opencapture/opencine/appkit/MonitorMediaGallerySnapshot;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;)V
-	public final fun favoriteSelection (Lcom/opencapture/opencine/appkit/MonitorMediaGallerySnapshot;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;Z)V
-	public static synthetic fun favoriteSelection$default (Lcom/opencapture/opencine/appkit/MonitorMediaGalleryModel;Lcom/opencapture/opencine/appkit/MonitorMediaGallerySnapshot;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;ZILjava/lang/Object;)V
 	public final fun filterPopup (Z)V
 	public final fun getLibrary ()Lcom/opencapture/opencine/appkit/MonitorMediaLibraryModel;
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;

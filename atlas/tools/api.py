@@ -175,9 +175,13 @@ def products_dir(top):
 def digest(top, module, products, scratch):
     """Rendered snapshot text for one module, or raise RuntimeError with the tool's message."""
     sdk = subprocess.run(["xcrun", "--show-sdk-path", "--sdk", "iphonesimulator"], capture_output=True, text=True, check=True).stdout.strip()
+    platform = subprocess.run(["xcrun", "--show-sdk-platform-path", "--sdk", "iphonesimulator"], capture_output=True, text=True, check=True).stdout.strip()
     arch = subprocess.run(["uname", "-m"], capture_output=True, text=True, check=True).stdout.strip()
     out = Path(scratch) / f"{module}.json"
+    # The platform's own frameworks (XCTest for OpenCineAppUITesting): a module built with Xcode's
+    # compilation cache does not record its search paths, so the digester is told where they are.
     cmd = ["xcrun", "swift-api-digester", "-dump-sdk", "-module", module, "-I", str(products),
+           "-F", f"{platform}/Developer/Library/Frameworks", "-I", f"{platform}/Developer/usr/lib",
            "-sdk", sdk, "-target", f"{arch}-apple-ios17.0-simulator", "-abort-on-module-fail", "-o", str(out)]
     # C targets' generated module maps only: a Swift module's map names a Clang module of the same
     # name that would shadow it, and the per-target copies of a map redefine the module.

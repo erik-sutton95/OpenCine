@@ -11,6 +11,26 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
 }
 
+// QUARANTINE (docs/testing/CI.md): test classes with a known hosted flake, each with its issue.
+// `-Popencine.quarantine=exclude` leaves them out (the PR tier), `-Popencine.quarantine=only`
+// runs only them (the nightly tier). Without the property every test runs.
+val quarantinedTests = listOf(
+    "com.opencapture.opencine.nikon.NikonGalleryProjectionPerformanceTest", // #300: hosted wall-clock ratio
+)
+val quarantine: String? = providers.gradleProperty("opencine.quarantine").orNull
+require(quarantine in setOf(null, "exclude", "only")) { "opencine.quarantine is exclude or only, not $quarantine" }
+subprojects {
+    tasks.withType<Test>().configureEach {
+        when (quarantine) {
+            "exclude" -> filter { quarantinedTests.forEach { excludeTestsMatching(it) } }
+            "only" -> filter {
+                quarantinedTests.forEach { includeTestsMatching(it) }
+                isFailOnNoMatchingTests = false
+            }
+        }
+    }
+}
+
 // Public API snapshots: every module keeps its public API in <module>/api/<module>.api, which the
 // atlas consumer index reads (atlas/README.md). A change that is meant runs
 // `./gradlew updateKotlinAbi updateAndroidApi` and commits the files with it; CI runs

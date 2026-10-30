@@ -70,6 +70,17 @@ public struct MonitorPlaybackZoom: Equatable, Sendable {
         let y = max(0, (source.height * safeScale - frame.height) / 2)
         return CGSize(width: min(x, max(-x, offset.width)), height: min(y, max(-y, offset.height)))
     }
+    /// The part of the playback canvas the picture covers. The picture is the letterboxed `feed`
+    /// scaled about its centre and moved by the offset; it is shown up to the canvas edge, never
+    /// beyond it. At scale 1 this is `feed` itself, so the letterbox is unchanged.
+    public func visiblePictureRect(feed: CGRect, canvas: CGSize) -> CGRect {
+        guard scale > 1 else { return feed }
+        let width = feed.width * scale, height = feed.height * scale
+        let drawn = CGRect(x: feed.midX - width / 2 + offset.width,
+            y: feed.midY - height / 2 + offset.height, width: width, height: height)
+        let visible = drawn.intersection(CGRect(origin: .zero, size: canvas))
+        return visible.isNull ? .zero : visible
+    }
     public func settled() -> Self {
         guard scale < 1.05 else { return self }
         var value = self; value.reset(); return value
@@ -99,33 +110,43 @@ public struct MonitorPlaybackZoom: Equatable, Sendable {
         lastPanTranslation = translation
     }
     /// Continuous bounds preserve gesture origins while consuming each cumulative pan sample once.
+    /// `size` is the area the zoomed picture may cover; `picture` is its unzoomed size, centred in
+    /// that area (by default the same size). The picture's edge stops at the edge of `size`.
     public mutating func panChangedBounded(
         translation: CGSize, size: CGSize,
-        horizontalPresentationScale: CGFloat = 1, verticalPresentationScale: CGFloat = 1
+        horizontalPresentationScale: CGFloat = 1, verticalPresentationScale: CGFloat = 1,
+        picture: CGSize? = nil
     ) {
         panChanged(translation: translation)
         constrain(
-            size: size, horizontalPresentationScale: horizontalPresentationScale,
+            size: size, picture: picture, horizontalPresentationScale: horizontalPresentationScale,
             verticalPresentationScale: verticalPresentationScale)
     }
     /// Target scale remains relative to the original gesture, never a mid-gesture commit.
     public mutating func pinchChangedBounded(
         magnification: CGFloat, startAnchorX: CGFloat,
         startAnchorY: CGFloat, size: CGSize, boundsSize: CGSize,
-        horizontalPresentationScale: CGFloat = 1, verticalPresentationScale: CGFloat = 1
+        horizontalPresentationScale: CGFloat = 1, verticalPresentationScale: CGFloat = 1,
+        picture: CGSize? = nil
     ) {
         pinchChanged(magnification: magnification, startAnchorX: startAnchorX,
             startAnchorY: startAnchorY, size: size)
         constrain(
-            size: boundsSize, horizontalPresentationScale: horizontalPresentationScale,
+            size: boundsSize, picture: picture,
+            horizontalPresentationScale: horizontalPresentationScale,
             verticalPresentationScale: verticalPresentationScale)
     }
+    /// The drawn picture is `picture * scale * presentation scale`, centred in `size`; its edge may
+    /// travel to the edge of `size` and no further. Smaller than `size` on an axis, it stays centred.
     private mutating func constrain(
-        size: CGSize, horizontalPresentationScale: CGFloat,
+        size: CGSize, picture: CGSize?, horizontalPresentationScale: CGFloat,
         verticalPresentationScale: CGFloat
     ) {
-        let maxX = max(0, size.width) * max(0, scale * max(0, horizontalPresentationScale) - 1) / 2
-        let maxY = max(0, size.height) * max(0, scale * max(0, verticalPresentationScale) - 1) / 2
+        let source = picture ?? size
+        let maxX = max(0, max(0, source.width) * scale * max(0, horizontalPresentationScale)
+            - max(0, size.width)) / 2
+        let maxY = max(0, max(0, source.height) * scale * max(0, verticalPresentationScale)
+            - max(0, size.height)) / 2
         offset = CGSize(
             width: min(maxX, max(-maxX, offset.width)),
             height: min(maxY, max(-maxY, offset.height)))
@@ -133,40 +154,40 @@ public struct MonitorPlaybackZoom: Equatable, Sendable {
     /// Ending a pinch must not retire the cumulative translation of a still-active pan.
     public mutating func endPinch(
         size: CGSize, horizontalPresentationScale: CGFloat = 1,
-        verticalPresentationScale: CGFloat = 1
+        verticalPresentationScale: CGFloat = 1, picture: CGSize? = nil
     ) {
-        finish(size: size, horizontalPresentationScale: horizontalPresentationScale,
+        finish(size: size, picture: picture, horizontalPresentationScale: horizontalPresentationScale,
             verticalPresentationScale: verticalPresentationScale)
         pinchStartScale = nil
     }
     /// Ending a pan must not change the starting scale of a still-active pinch.
     public mutating func endPan(
         size: CGSize, horizontalPresentationScale: CGFloat = 1,
-        verticalPresentationScale: CGFloat = 1
+        verticalPresentationScale: CGFloat = 1, picture: CGSize? = nil
     ) {
-        finish(size: size, horizontalPresentationScale: horizontalPresentationScale,
+        finish(size: size, picture: picture, horizontalPresentationScale: horizontalPresentationScale,
             verticalPresentationScale: verticalPresentationScale)
         lastPanTranslation = .zero
     }
     /// Context replacement cancels both gesture transactions and bounds the retained picture.
     public mutating func endGesture(
         size: CGSize, horizontalPresentationScale: CGFloat = 1,
-        verticalPresentationScale: CGFloat = 1
+        verticalPresentationScale: CGFloat = 1, picture: CGSize? = nil
     ) {
-        finish(size: size, horizontalPresentationScale: horizontalPresentationScale,
+        finish(size: size, picture: picture, horizontalPresentationScale: horizontalPresentationScale,
             verticalPresentationScale: verticalPresentationScale)
         pinchStartScale = nil
         lastPanTranslation = .zero
     }
     private mutating func finish(
-        size: CGSize, horizontalPresentationScale: CGFloat = 1,
-        verticalPresentationScale: CGFloat = 1
+        size: CGSize, picture: CGSize?, horizontalPresentationScale: CGFloat,
+        verticalPresentationScale: CGFloat
     ) {
         if scale < 1.05 {
             reset()
             return
         }
-        constrain(size: size, horizontalPresentationScale: horizontalPresentationScale,
+        constrain(size: size, picture: picture, horizontalPresentationScale: horizontalPresentationScale,
             verticalPresentationScale: verticalPresentationScale)
     }
     public mutating func reset() { self = MonitorPlaybackZoom(maximumScale: maximumScale) }

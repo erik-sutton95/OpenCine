@@ -122,6 +122,26 @@ class Digest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Core: error: could not build module"):
                 api.digest(tmp, "Core", tmp, tmp)
 
+    def test_the_digester_finds_the_platform_frameworks_without_serialized_search_paths(self):
+        # A compilation-cached build drops the search paths a module records (OpenCineAppUITesting
+        # imports XCTest), so the digester gets the iOS Simulator platform's frameworks itself.
+        seen = []
+        def fake(cmd, **_):
+            if "swift-api-digester" in cmd:
+                seen.append(cmd)
+                Path(cmd[cmd.index("-o") + 1]).write_text('{"ABIRoot": {"children": []}}')
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+            if "--show-sdk-platform-path" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, "/platform\n", "")
+            return subprocess.CompletedProcess(cmd, 0, "/sdk\n", "")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(api.subprocess, "run", side_effect=fake):
+            Path(tmp, "Package.swift").write_text(PACKAGE)
+            api.digest(tmp, "Core", tmp, tmp)
+        cmd = seen[0]
+        self.assertEqual(cmd[cmd.index("-F") + 1], "/platform/Developer/Library/Frameworks")
+        self.assertIn("/platform/Developer/usr/lib", cmd)
+        self.assertEqual(cmd[cmd.index("-sdk") + 1], "/sdk")
+
 
 PACKAGE = '''let package = Package(name: "OpenCine", products: [
     .library(name: "Core", targets: ["Core"]),
