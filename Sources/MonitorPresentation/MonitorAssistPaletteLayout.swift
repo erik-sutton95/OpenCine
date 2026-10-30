@@ -72,15 +72,18 @@ public struct MonitorAssistPaletteLayout: Equatable, Sendable {
     }
 
     /// Live and playback share this Field Monitor slot. Collapsed chrome equals
-    /// `geometry.assists`; expansion grows up and trailing from that anchor.
+    /// `geometry.assists`; expansion grows up and trailing from that anchor. `maximumWidth`
+    /// narrows the open plate further (its catalog scrolls), as the live monitor does to keep
+    /// the camera values beside it (`MonitorValuesReflow.paletteWidth`).
     public static func fieldMonitor(
-        _ geometry: FieldMonitorLayout, toolCount: Int, safeTop: Double
+        _ geometry: FieldMonitorLayout, toolCount: Int, safeTop: Double, maximumWidth cap: Double? = nil
     ) -> (layout: Self, frame: MonitorRect) {
         let ceiling = max(8, safeTop.isFinite ? safeTop : 0)
-        let maximumWidth =
+        let natural =
             geometry.portrait
             ? geometry.viewport.width - (geometry.tablet ? 140 : 126)
             : geometry.values.maxX - geometry.assists.x
+        let maximumWidth = cap.map { min(natural, $0) } ?? natural
         let maximumHeight =
             geometry.portrait
             ? min(geometry.viewport.height * 0.62, geometry.assists.maxY - ceiling)
@@ -96,9 +99,11 @@ public struct MonitorAssistPaletteLayout: Equatable, Sendable {
     /// The palette's rectangle in either state, seated where `fieldMonitor` anchors it: the
     /// rendered and hit rectangle that obstruction checks (EV meter, camera values) avoid.
     public static func fieldMonitorFootprint(
-        _ geometry: FieldMonitorLayout, toolCount: Int, safeTop: Double, expanded: Bool
+        _ geometry: FieldMonitorLayout, toolCount: Int, safeTop: Double, expanded: Bool,
+        maximumWidth: Double? = nil
     ) -> MonitorRect {
-        let palette = fieldMonitor(geometry, toolCount: toolCount, safeTop: safeTop)
+        let palette = fieldMonitor(
+            geometry, toolCount: toolCount, safeTop: safeTop, maximumWidth: maximumWidth)
         return palette.layout.resolving(expanded: expanded)
             .anchored(leading: palette.frame.x, bottom: palette.frame.maxY)
     }

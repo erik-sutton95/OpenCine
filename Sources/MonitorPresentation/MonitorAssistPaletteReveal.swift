@@ -92,10 +92,9 @@ public enum MonitorAssistPaletteReveal: Sendable {
         return kept + extras
     }
 
-    /// The open plate draws above the camera values, so wherever its rectangle meets the values
-    /// strip the host hides the strip instead of letting tiles peek past the plate's edges
-    /// (hardware pass 1.1: landscape, palette open, ISO/SHUTTER/IRIS showed around the plate).
-    /// No palette, or an empty one, never hides the values. Kotlin twin:
+    /// Whether the plate's rectangle meets the values strip. The open landscape plate draws above
+    /// the camera values (hardware pass 1.1), so `MonitorValuesReflow` moves them beside it
+    /// wherever it does. No palette, or an empty one, never covers the values. Kotlin twin:
     /// `MonitorAssistPaletteReveal.coversValues`.
     public static func coversValues(palette: MonitorRect?, values: MonitorRect) -> Bool {
         guard let palette, palette.width > 0, palette.height > 0, values.width > 0, values.height > 0
