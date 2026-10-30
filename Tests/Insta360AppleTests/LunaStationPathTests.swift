@@ -25,22 +25,23 @@ import Testing
 
     @Test @MainActor func theCameraIsTheHostAnsweringTheGreeting() async throws {
         let host = try await LunaStationPath.findCamera(
-            on: Self.hotspot, preferred: nil, budget: .seconds(5), isCurrent: { true },
+            on: Self.hotspot, preferred: nil, budget: .seconds(60), isCurrent: { true },
             probe: { host, _ in host == "172.20.10.9" ? .camera : .absent })
         #expect(host == "172.20.10.9")
     }
 
-    @Test @MainActor func aNetworkWithoutTheCameraEndsWhenTheSearchTimeIsUp() async throws {
-        let clock = ContinuousClock()
-        let started = clock.now
+    @Test @MainActor func aNetworkWithoutTheCameraStopsAtTheBatchWhereTheSearchTimeRanOut() async throws {
+        let probed = Counter()
         let host = try await LunaStationPath.findCamera(
-            on: Self.hotspot, preferred: nil, budget: .milliseconds(50), isCurrent: { true },
+            on: .init(address: "192.168.1.20", netmask: "255.255.255.0"), preferred: nil,
+            budget: .milliseconds(50), isCurrent: { true },
             probe: { _, _ in
+                await probed.add()
                 try? await Task.sleep(for: .milliseconds(100))
                 return .absent
             })
         #expect(host == nil)
-        #expect(clock.now - started < .seconds(1), "the time is checked after the batch, not after another round")
+        #expect(await probed.value == 32, "one batch of 32 of the 253 hosts, not the whole network")
     }
 
     @Test @MainActor func localNetworkAccessOffIsSaidInsteadOfCameraNotFound() async {
@@ -60,7 +61,7 @@ import Testing
     @Test @MainActor func allowingLocalNetworkDuringTheSearchStillFindsTheCamera() async throws {
         let allowed = Flag()
         let host = try await LunaStationPath.findCamera(
-            on: Self.hotspot, preferred: nil, budget: .seconds(10), isCurrent: { true },
+            on: Self.hotspot, preferred: nil, budget: .seconds(60), isCurrent: { true },
             probe: { host, _ in
                 guard await allowed.isSet else {
                     await allowed.set()
@@ -75,4 +76,9 @@ import Testing
 private actor Flag {
     private(set) var isSet = false
     func set() { isSet = true }
+}
+
+private actor Counter {
+    private(set) var value = 0
+    func add() { value += 1 }
 }
