@@ -153,6 +153,7 @@ public fun <P> MonitorOperatorMediaScreen(
     presentationChanged: ((Boolean) -> Unit)? = null,
     host: MonitorOperatorMediaHost<P> = remember(library) { MonitorOperatorMediaHost(library) },
     overlays: @Composable BoxScope.() -> Unit = {},
+    aspectRatio: (MonitorMediaRecord<P>) -> Double? = ::monitorStoredAspectRatio,
 ) {
     require(host.library === library) { "The media host presents over its own library" }
     val value by library.content.collectAsState()
@@ -168,7 +169,7 @@ public fun <P> MonitorOperatorMediaScreen(
         MonitorOperatorCatalogScreen(library, title, sourceAvailable, operations, presentation, navigation, sourceFilter,
             cell, deletionDetail, colorChoices = colorChoices, facts = facts, begin = begin, refresh = refresh,
             close = close, open = { host.open(it) }, share = delivery?.share,
-            handlesBack = !presenting && !deliveryPresented, thumbnail = thumbnail)
+            handlesBack = !presenting && !deliveryPresented, aspectRatio = aspectRatio, thumbnail = thumbnail)
         shown?.let { current ->
             key(current.request.id) {
                 val page = MonitorOperatorMediaPresentation(host, current, deliveryPresented, delivery?.share)

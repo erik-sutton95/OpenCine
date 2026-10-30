@@ -532,7 +532,7 @@ public final class com/opencapture/monitorui/MonitorChromeInputKt {
 public final class com/opencapture/monitorui/MonitorClipCatalogKt {
 	public static final fun MonitorCatalogDisplayControls (ZLcom/opencapture/monitorui/MonitorThumbnailSize;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorCatalogHeader (Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;ILandroidx/compose/runtime/Composer;II)V
-	public static final fun MonitorClipCard (Lcom/opencapture/monitorui/MonitorClipValue;ZZZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorClipCard (Lcom/opencapture/monitorui/MonitorClipValue;ZZZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;ZDLkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 	public static final fun MonitorClipFavorite (ZLkotlin/jvm/functions/Function0;Ljava/lang/String;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorClipSelection (ZLkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
 }
@@ -691,7 +691,7 @@ public final class com/opencapture/monitorui/MonitorComponentsKt {
 	public static final fun MonitorActionButton-iHT-50w (Ljava/lang/String;Landroidx/compose/ui/Modifier;ZZFLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorAuxCircleButton (Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorCameraValues (Ljava/util/List;ZZLandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function1;FLjava/lang/Integer;Lcom/opencapture/monitorui/MonitorQuickGestureOwner;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
-	public static final fun MonitorCatalogGrid (Ljava/util/List;ILkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/lazy/grid/LazyGridState;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorCatalogGrid (Ljava/util/List;ILkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/lazy/staggeredgrid/LazyStaggeredGridState;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorOptionGroup (Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorPageHeading (Ljava/lang/String;Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorPageScaffold (Landroidx/compose/ui/Modifier;FLkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
@@ -2575,6 +2575,17 @@ public final class com/opencapture/monitorui/MonitorMediaLayout : java/lang/Enum
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorMediaLayout;
 	public static fun values ()[Lcom/opencapture/monitorui/MonitorMediaLayout;
+}
+
+public final class com/opencapture/monitorui/MonitorMediaMasonry {
+	public static final field $stable I
+	public static final field DEFAULT_ASPECT D
+	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorMediaMasonry;
+	public static final field MAX_ASPECT D
+	public static final field MIN_ASPECT D
+	public final fun aspect (Ljava/lang/Double;)D
+	public final fun uprightAspect (Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Integer;)Ljava/lang/Double;
+	public static synthetic fun uprightAspect$default (Lcom/opencapture/monitorui/MonitorMediaMasonry;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Integer;ILjava/lang/Object;)Ljava/lang/Double;
 }
 
 public final class com/opencapture/monitorui/MonitorMediaNavigationCategory {

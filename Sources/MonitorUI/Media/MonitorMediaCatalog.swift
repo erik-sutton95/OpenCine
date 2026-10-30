@@ -16,6 +16,9 @@
         private let ids: [String]
         private let item: (String) -> MonitorMediaItem?
         private let permissions: (String) -> MonitorMediaPermissions?
+        /// Width over height of each item's picture in `ids` order, known from metadata (nil or
+        /// missing when unknown).
+        private let aspectRatios: [Double?]
         private let categories: [MonitorMediaCategory]
         private let category: String
         private let layout: MonitorMediaLayout
@@ -65,6 +68,7 @@
             brand: String, safeArea: EdgeInsets, ids: [String],
             item: @escaping (String) -> MonitorMediaItem?,
             permissions: ((String) -> MonitorMediaPermissions?)? = nil,
+            aspectRatios: [Double?] = [],
             categories: [MonitorMediaCategory], category: String, layout: MonitorMediaLayout,
             thumbnailSize: MonitorThumbnailSize, sortTitle: String, status: String,
             selectedIDs: Set<String>, selecting: Bool, refreshing: Bool, canRefresh: Bool,
@@ -79,6 +83,7 @@
             self.ids = ids
             self.item = item
             self.permissions = permissions ?? { item($0)?.permissions }
+            self.aspectRatios = aspectRatios
             self.categories = categories
             self.category = category
             self.layout = layout
@@ -219,15 +224,7 @@
                         if ids.isEmpty {
                             empty.frame(maxWidth: .infinity, minHeight: proxy.size.height)
                         } else if layout == .grid {
-                            LazyVGrid(
-                                columns: Array(
-                                    repeating: GridItem(.flexible(), spacing: 10),
-                                    count: thumbnailSize.columns(tablet: tablet)), spacing: 10
-                            ) {
-                                ForEach(ids, id: \.self) { id in
-                                    MonitorMediaLazyCell(id: id) { gridCard($0) }
-                                }
-                            }
+                            masonry(width: proxy.size.width)
                         } else {
                             LazyVStack(spacing: 1) {
                                 ForEach(ids, id: \.self) { id in
@@ -253,26 +250,62 @@
             }
         }
 
+        /// Staggered columns: each item goes into the shortest column in display order, sized by
+        /// the picture shape its metadata gives, so no row leaves a gap under a shorter card.
+        /// Each column is its own lazy stack, so only realized cards are built.
+        private func masonry(width: CGFloat) -> some View {
+            let count = thumbnailSize.columns(tablet: tablet)
+            let aspects = ids.indices.map { index -> Double? in
+                aspectRatios.indices.contains(index) ? aspectRatios[index] : nil
+            }
+            let placement = MonitorMediaMasonry(
+                aspects: aspects, columnCount: count, width: Double(width),
+                spacing: Self.gridSpacing, captionHeight: Self.gridCaptionHeight)
+            return HStack(alignment: .top, spacing: Self.gridSpacing) {
+                ForEach(0..<count, id: \.self) { column in
+                    LazyVStack(spacing: Self.gridSpacing) {
+                        ForEach(
+                            placement.columns[column].map {
+                                MonitorMediaMasonryCell(
+                                    id: ids[$0], aspect: placement.frames[$0].aspect)
+                            }
+                        ) { cell in
+                            MonitorMediaLazyCell(id: cell.id) { gridCard($0, aspect: cell.aspect) }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .top)
+                }
+            }
+        }
+
+        private static var gridSpacing: Double { 10 }
+        /// The grid card's title and detail under the picture (placement only; cards size
+        /// themselves).
+        private static var gridCaptionHeight: Double { 44 }
+
         private func refresh() {
             if canRefresh && !refreshing { action(.refresh) }
         }
 
-        @ViewBuilder private func gridCard(_ id: String) -> some View {
-            if let value = item(id) { cell(value, layout: .grid) }
+        @ViewBuilder private func gridCard(_ id: String, aspect: Double) -> some View {
+            if let value = item(id) { cell(value, layout: .grid, aspect: aspect) }
         }
 
         @ViewBuilder private func listRow(_ id: String) -> some View {
             if let value = item(id) { cell(value, layout: .list) }
         }
 
-        private func cell(_ item: MonitorMediaItem, layout: MonitorMediaLayout) -> some View {
+        private func cell(
+            _ item: MonitorMediaItem, layout: MonitorMediaLayout,
+            aspect: Double = MonitorMediaMasonry.defaultAspect
+        ) -> some View {
             MonitorMediaCell(
                 clip: MonitorClipValue(item: item), layout: layout, tablet: tablet,
                 selecting: selecting, selected: selectedIDs.contains(item.id),
                 favoriteEnabled: item.permissions.contains(.favorite),
                 sourceTint: item.availability == .original ? MonitorTheme.color(0x3FD3A3) : MonitorTheme.muted,
                 onOpen: { action(.open(item.id)) }, onSelect: { action(.select(item.id)) },
-                onFavorite: { action(.favorite(item.id)) }
+                onFavorite: { action(.favorite(item.id)) }, artworkAspect: aspect
             ) { thumbnail(item) }
             // On the cell's own element, before the selection anchor joins it: after it, both
             // carried the identifier and a clip no longer resolved to one element.
@@ -322,6 +355,11 @@
             }
             .buttonStyle(MonitorButtonStyle()).accessibilityLabel(label)
         }
+    }
+
+    private struct MonitorMediaMasonryCell: Identifiable {
+        let id: String
+        let aspect: Double
     }
 
     /// One realized cell. Its body builds the item, so what the item reads is tracked here.
