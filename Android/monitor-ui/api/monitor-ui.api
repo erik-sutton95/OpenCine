@@ -526,7 +526,7 @@ public final class com/opencapture/monitorui/MonitorCardColumnsKt {
 
 public final class com/opencapture/monitorui/MonitorChromeInputKt {
 	public static final field MONITOR_MIN_TAP_TARGET_DP F
-	public static final fun monitorChromeClickable (Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)Landroidx/compose/ui/Modifier;
+	public static final fun monitorChromeClickable (Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;FLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)Landroidx/compose/ui/Modifier;
 }
 
 public final class com/opencapture/monitorui/MonitorClipCatalogKt {
@@ -694,9 +694,8 @@ public final class com/opencapture/monitorui/MonitorComponentsKt {
 	public static final fun MonitorCatalogGrid (Ljava/util/List;ILkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/lazy/grid/LazyGridState;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorOptionGroup (Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorPageHeading (Ljava/lang/String;Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V
-	public static final fun MonitorPageScaffold (Landroidx/compose/ui/Modifier;FLkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorPageScaffold (Landroidx/compose/ui/Modifier;FLkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorPanelGrabber (Landroidx/compose/runtime/Composer;I)V
-	public static final fun MonitorSelectionTray (ILandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorSettingsCard (Ljava/lang/String;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 	public static final fun monitorCatalogColumns (Lcom/opencapture/monitorui/MonitorThumbnailSize;Z)I
 }
@@ -2724,6 +2723,13 @@ public final class com/opencapture/monitorui/MonitorMediaSelectionController$New
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/monitorui/MonitorMediaSelectionCopy {
+	public static final field $stable I
+	public static final field EXIT Ljava/lang/String;
+	public static final field EXIT_TAG Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorMediaSelectionCopy;
+}
+
 public final class com/opencapture/monitorui/MonitorMediaSelectionFeedback : java/lang/Enum {
 	public static final field BEGAN Lcom/opencapture/monitorui/MonitorMediaSelectionFeedback;
 	public static final field CHANGED Lcom/opencapture/monitorui/MonitorMediaSelectionFeedback;
@@ -3901,6 +3907,10 @@ public final class com/opencapture/monitorui/MonitorScopeTraceRaster$TraceLayers
 public final class com/opencapture/monitorui/MonitorScrollFadeKt {
 	public static final fun monitorScrollFade-eqLRuRQ (Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/gestures/ScrollableState;ZF)Landroidx/compose/ui/Modifier;
 	public static synthetic fun monitorScrollFade-eqLRuRQ$default (Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/gestures/ScrollableState;ZFILjava/lang/Object;)Landroidx/compose/ui/Modifier;
+}
+
+public final class com/opencapture/monitorui/MonitorSelectionTrayKt {
+	public static final fun MonitorSelectionTray (ILkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;ZZLjava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/opencapture/monitorui/MonitorSetupChip {

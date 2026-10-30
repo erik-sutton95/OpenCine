@@ -129,7 +129,7 @@ public fun <P> MonitorOperatorCatalogScreen(
             else -> (presentation?.projection?.displayIDs?.size ?: records.size).let { "$it item${if (it == 1) "" else "s"}" }
         }, fetchInProgress = value.fetching, isLive = sourceAvailable, isSelecting = value.selecting,
         filterOpen = state.filterPopupPresented, activeFilterCount = presentation?.activeFilterCount ?: value.activeFilterCount,
-        selectedCount = selected.size, cacheEnabled = selected.any { gallery.canDownload(it, operations) },
+        selectedCount = selected.size,
         deleteEnabled = selected.any { gallery.canDelete(it, operations) },
         caching = { cachingProgress(library, ticks, records, facts) },
         shareEnabled = share != null && selected.isNotEmpty() && selected.all { gallery.canShare(it, operations) },
@@ -178,8 +178,6 @@ public fun <P> MonitorOperatorCatalogScreen(
         override fun toggleFilter() = admitted { gallery.filterPopup(!state.filterPopupPresented) }
         override fun selectAll() = admitted { gallery.selectAll(presented) }
         override fun clearSelection() = admitted { library.clearSelection(); gallery.cancelDelete() }
-        override fun cacheSelected() = gallery.cacheSelection(presented, operations)
-        override fun favoriteSelected() = gallery.favoriteSelection(presented, operations, toggleUniform = true)
         override fun deleteSelected() = gallery.requestDelete(presented, operations, supportedSubset = true)
         override fun shareSelected() { gallery.shareSelection(presented, operations)?.let { share?.invoke(it, presented.token) } }
         override fun toggleFormat(format: String) {

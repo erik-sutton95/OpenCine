@@ -93,13 +93,11 @@ case MonitorLinkHealthBand.watch
 case MonitorLiveViewGeometrySpace.fullScreen
 case MonitorLiveViewGeometrySpace.safeArea
 case MonitorMediaAction.back
-case MonitorMediaAction.cacheSelection
 case MonitorMediaAction.category(Swift.String)
 case MonitorMediaAction.clearSelection
 case MonitorMediaAction.cycleSort
 case MonitorMediaAction.deleteSelection
 case MonitorMediaAction.favorite(Swift.String)
-case MonitorMediaAction.favoriteSelection
 case MonitorMediaAction.layout(MonitorMediaLayout)
 case MonitorMediaAction.open(Swift.String)
 case MonitorMediaAction.refresh
@@ -264,6 +262,7 @@ enum MonitorMediaItem.Availability: Equatable, Hashable, RawRepresentable, Senda
 enum MonitorMediaLayout: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorMediaSelectionConfiguration.EdgeCurve: Equatable, Hashable, Sendable
 enum MonitorMediaSelectionController.News: Equatable, Sendable
+enum MonitorMediaSelectionCopy
 enum MonitorMediaSelectionFeedback: Equatable, Hashable, Sendable
 enum MonitorMediaSelectionScroll
 enum MonitorMotionPlacement
@@ -1045,12 +1044,13 @@ static let MonitorMediaGalleryCopy.noCachedTitle: Swift.String
 static let MonitorMediaGalleryCopy.proxyHelp: Swift.String
 static let MonitorMediaGalleryCopy.proxyTag: Swift.String
 static let MonitorMediaGalleryCopy.selectingHint: Swift.String
-static let MonitorMediaPermissions.cache: MonitorMediaPermissions
 static let MonitorMediaPermissions.delete: MonitorMediaPermissions
 static let MonitorMediaPermissions.favorite: MonitorMediaPermissions
 static let MonitorMediaPermissions.share: MonitorMediaPermissions
 static let MonitorMediaResolutionLevel.standard: [MonitorMediaResolutionLevel]
 static let MonitorMediaSelectionConfiguration.standard: MonitorMediaSelectionConfiguration
+static let MonitorMediaSelectionCopy.exit: Swift.String
+static let MonitorMediaSelectionCopy.exitIdentifier: Swift.String
 static let MonitorParadeOptions.brightnessRange: Swift.ClosedRange<Swift.Int>
 static let MonitorParadeOptions.default: MonitorParadeOptions
 static let MonitorParadeOptions.defaultBrightness: Swift.Int
