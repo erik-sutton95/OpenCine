@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -83,6 +84,10 @@ import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+/**
+ * Retained for source compatibility. A zoomed picture now always covers and pans against the whole
+ * playback canvas, past its letterboxed frame, whichever boundary a host names.
+ */
 enum class MonitorPlaybackZoomBoundary { PICTURE, CANVAS }
 
 /** Accepted owner facts and source labels; the UI holds no player/library/load state. */
@@ -301,10 +306,8 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
             LaunchedEffect(fitted.width, fitted.height, value.horizontalPresentationScale, value.verticalPresentationScale) {
                 cancelEdit(MonitorEditingCancellation.INTERRUPTED)
-                zoom = zoom.endGesture(
-                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
-                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
-                    value.horizontalPresentationScale, value.verticalPresentationScale)
+                zoom = zoom.endGesture(geometry.canvasWidth, geometry.canvasHeight,
+                    value.horizontalPresentationScale, value.verticalPresentationScale, fitted.width, fitted.height)
             }
             val overlayWidthPx = constraints.maxWidth
             val overlayHeightPx = constraints.maxHeight
@@ -351,16 +354,30 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 viewportWidth - navLeading - navTrailing, viewportHeight, safeTop, safeBottom,
             )
             val assistRect = MonitorRect(assistFrame.x + navLeading, assistFrame.y, assistFrame.width, assistFrame.height)
+            // At 1x the picture fills its letterboxed frame, as before. Zoomed, it is shown past
+            // that frame up to the canvas edge. The picture keeps its frame-sized node: zoom is a
+            // transform of the one existing view, so no frame is copied or redrawn at another size.
+            val visible = zoom.visiblePictureRect(fitted, geometry.canvasWidth, geometry.canvasHeight)
             Box(
                 Modifier
-                    .offset { IntOffset(fitted.x.roundToInt(), fitted.y.roundToInt()) }
+                    .offset { IntOffset(visible.x.roundToInt(), visible.y.roundToInt()) }
                     .size(
-                        with(density) { fitted.width.toDp() },
-                        with(density) { fitted.height.toDp() },
+                        with(density) { visible.width.toDp() },
+                        with(density) { visible.height.toDp() },
                     )
                     .clipToBounds(),
             ) {
-                picture(geometry)
+                Box(
+                    Modifier
+                        .wrapContentSize(Alignment.TopStart, unbounded = true)
+                        .offset { IntOffset((fitted.x - visible.x).roundToInt(), (fitted.y - visible.y).roundToInt()) }
+                        .size(
+                            with(density) { fitted.width.toDp() },
+                            with(density) { fitted.height.toDp() },
+                        ),
+                ) {
+                    picture(geometry)
+                }
             }
             Popup(
                 alignment = Alignment.TopStart,
@@ -379,6 +396,100 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     with(density) { overlayHeightPx.toDp() },
                 ),
             ) {
+            val latestReady by rememberUpdatedState(ready)
+            val latestZoomed by rememberUpdatedState(zoom.isZoomed)
+            val latestOnTap by rememberUpdatedState({ handleFrameTap() })
+            val latestOnSwipe by rememberUpdatedState<(MonitorPlaybackChromeSwipe) -> Unit>({ swipe ->
+                chromeVisible = swipe == MonitorPlaybackChromeSwipe.SHOW
+            })
+            val latestOnScrubStart by rememberUpdatedState({
+                beginEdit(); frameScrubbing = editing.token != null
+                if (frameScrubbing) currentActions.longPressFeedback()
+            })
+            // The anchor is a unit point of the canvas-wide gesture well.
+            val latestOnPinch by rememberUpdatedState<(Float, Offset) -> Unit>({ magnification, centroid ->
+                val anchor = monitorPlaybackUnitPoint(centroid, geometry.canvasWidth, geometry.canvasHeight)
+                zoom = if (value.continuousPanBounds) {
+                    zoom.pinchChangedBounded(magnification, anchor.first, anchor.second,
+                        geometry.canvasWidth, geometry.canvasHeight, geometry.canvasWidth, geometry.canvasHeight,
+                        value.horizontalPresentationScale, value.verticalPresentationScale,
+                        fitted.width, fitted.height)
+                } else {
+                    zoom.pinchChanged(magnification, anchor.first, anchor.second,
+                        geometry.canvasWidth, geometry.canvasHeight)
+                }
+            })
+            val latestOnPinchEnd by rememberUpdatedState({
+                zoom = zoom.endPinch(geometry.canvasWidth, geometry.canvasHeight,
+                    value.horizontalPresentationScale, value.verticalPresentationScale, fitted.width, fitted.height)
+            })
+            val latestOnPan by rememberUpdatedState<(Offset) -> Unit>({ translation ->
+                zoom = if (value.continuousPanBounds) zoom.panChangedBounded(translation.x, translation.y,
+                    geometry.canvasWidth, geometry.canvasHeight,
+                    value.horizontalPresentationScale, value.verticalPresentationScale, fitted.width, fitted.height)
+                else zoom.panChanged(translation.x, translation.y)
+            })
+            val latestOnPanEnd by rememberUpdatedState({
+                zoom = zoom.endPan(geometry.canvasWidth, geometry.canvasHeight,
+                    value.horizontalPresentationScale, value.verticalPresentationScale, fitted.width, fitted.height)
+            })
+            // The gesture well spans the canvas, like iOS. At 1x it answers only inside the
+            // letterboxed frame, as before; zoomed, the picture may cover the whole canvas, so
+            // a pinch or pan anywhere on it moves the picture.
+            val latestFitted by rememberUpdatedState(fitted)
+            fun answers(position: Offset): Boolean = latestZoomed || latestFitted.let {
+                position.x >= it.x && position.x <= it.x + it.width &&
+                    position.y >= it.y && position.y <= it.y + it.height
+            }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .testTag(MonitorPlaybackTags.PICTURE)
+                    .pointerInput(value.item, fitted.width, fitted.height, geometry.canvasWidth, geometry.canvasHeight) {
+                        val source = value.item
+                        var gestureEdit: MonitorPlaybackScrubToken? = null
+                        detectMonitorPlaybackVideoGestures(
+                            isReady = { latestReady && currentValue.item == source },
+                            isZoomed = { latestZoomed },
+                            answers = ::answers,
+                            config = MonitorPlaybackGestureConfig(enableTap = !currentValue.doubleTapResetsZoom),
+                            onTap = { if (currentValue.item == source) latestOnTap() },
+                            onChromeSwipe = { if (currentValue.item == source) latestOnSwipe(it) },
+                            onScrubStart = {
+                                if (currentValue.item == source) {
+                                    latestOnScrubStart()
+                                    gestureEdit = editing.token?.takeIf { it.item == source }
+                                }
+                            },
+                            onScrubDelta = { delta ->
+                                val edit = gestureEdit
+                                if (edit != null && editing.token == edit) currentActions.updateFrameScrub(edit, delta.toDouble(), fitted.width.toDouble())
+                            },
+                            onScrubEnd = {
+                                val admitted = gestureEdit; gestureEdit = null
+                                val edit = admitted?.let(editing::take)
+                                if (edit != null) { frameScrubbing = false; currentActions.commitScrub(edit) }
+                            },
+                            onScrubCancel = {
+                                val admitted = gestureEdit; gestureEdit = null
+                                cancelEdit(if (currentValue.item == source) MonitorEditingCancellation.INTERRUPTED
+                                    else MonitorEditingCancellation.CONTEXT_CHANGED, admitted)
+                            },
+                            onPinch = { mag, centroid -> if (currentValue.item == source) latestOnPinch(mag, centroid) },
+                            onPinchEnd = { if (currentValue.item == source) latestOnPinchEnd() },
+                            onPan = { if (currentValue.item == source) latestOnPan(it) },
+                            onPanEnd = { if (currentValue.item == source) latestOnPanEnd() },
+                        )
+                    }
+                    .pointerInput(value.item, value.doubleTapResetsZoom) {
+                        if (!value.doubleTapResetsZoom) return@pointerInput
+                        val source = value.item
+                        detectTapGestures(
+                            onTap = { if (currentValue.item == source && !frameScrubbing && answers(it)) latestOnTap() },
+                            onDoubleTap = { if (currentValue.item == source && answers(it)) zoom = zoom.reset() },
+                        )
+                    },
+            )
             Box(
                 Modifier
                     .offset { IntOffset(fitted.x.roundToInt(), fitted.y.roundToInt()) }
@@ -387,102 +498,6 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                         with(density) { fitted.height.toDp() },
                     ),
             ) {
-                val latestReady by rememberUpdatedState(ready)
-                val latestZoomed by rememberUpdatedState(zoom.isZoomed)
-                val latestOnTap by rememberUpdatedState({ handleFrameTap() })
-                val latestOnSwipe by rememberUpdatedState<(MonitorPlaybackChromeSwipe) -> Unit>({ swipe ->
-                    chromeVisible = swipe == MonitorPlaybackChromeSwipe.SHOW
-                })
-                val latestOnScrubStart by rememberUpdatedState({
-                    beginEdit(); frameScrubbing = editing.token != null
-                    if (frameScrubbing) currentActions.longPressFeedback()
-                })
-                val latestOnPinch by rememberUpdatedState<(Float, Offset) -> Unit>({ magnification, centroid ->
-                    val anchor = monitorPlaybackUnitPoint(centroid, fitted.width, fitted.height)
-                    zoom = if (value.continuousPanBounds) {
-                        zoom.pinchChangedBounded(magnification, anchor.first, anchor.second,
-                            fitted.width, fitted.height,
-                            if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
-                            if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
-                            value.horizontalPresentationScale, value.verticalPresentationScale)
-                    } else {
-                        zoom.pinchChanged(
-                            magnification,
-                            anchor.first,
-                            anchor.second,
-                            fitted.width,
-                            fitted.height,
-                        )
-                    }
-                })
-                val latestOnPinchEnd by rememberUpdatedState({
-                    zoom = zoom.endPinch(
-                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
-                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
-                    value.horizontalPresentationScale, value.verticalPresentationScale)
-                })
-                val latestOnPan by rememberUpdatedState<(Offset) -> Unit>({ translation ->
-                    zoom = if (value.continuousPanBounds) zoom.panChangedBounded(translation.x, translation.y,
-                        if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
-                        if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
-                        value.horizontalPresentationScale, value.verticalPresentationScale)
-                    else zoom.panChanged(translation.x, translation.y)
-                })
-                val latestOnPanEnd by rememberUpdatedState({
-                    zoom = zoom.endPan(
-                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
-                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
-                    value.horizontalPresentationScale, value.verticalPresentationScale)
-                })
-                // Gesture well matches iOS: hits the unzoomed letterbox, not the scaled raster.
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .testTag(MonitorPlaybackTags.PICTURE)
-                        .pointerInput(value.item, fitted.width, fitted.height) {
-                            val source = value.item
-                            var gestureEdit: MonitorPlaybackScrubToken? = null
-                            detectMonitorPlaybackVideoGestures(
-                                isReady = { latestReady && currentValue.item == source },
-                                isZoomed = { latestZoomed },
-                                config = MonitorPlaybackGestureConfig(enableTap = !currentValue.doubleTapResetsZoom),
-                                onTap = { if (currentValue.item == source) latestOnTap() },
-                                onChromeSwipe = { if (currentValue.item == source) latestOnSwipe(it) },
-                                onScrubStart = {
-                                    if (currentValue.item == source) {
-                                        latestOnScrubStart()
-                                        gestureEdit = editing.token?.takeIf { it.item == source }
-                                    }
-                                },
-                                onScrubDelta = { delta ->
-                                    val edit = gestureEdit
-                                    if (edit != null && editing.token == edit) currentActions.updateFrameScrub(edit, delta.toDouble(), fitted.width.toDouble())
-                                },
-                                onScrubEnd = {
-                                    val admitted = gestureEdit; gestureEdit = null
-                                    val edit = admitted?.let(editing::take)
-                                    if (edit != null) { frameScrubbing = false; currentActions.commitScrub(edit) }
-                                },
-                                onScrubCancel = {
-                                    val admitted = gestureEdit; gestureEdit = null
-                                    cancelEdit(if (currentValue.item == source) MonitorEditingCancellation.INTERRUPTED
-                                        else MonitorEditingCancellation.CONTEXT_CHANGED, admitted)
-                                },
-                                onPinch = { mag, centroid -> if (currentValue.item == source) latestOnPinch(mag, centroid) },
-                                onPinchEnd = { if (currentValue.item == source) latestOnPinchEnd() },
-                                onPan = { if (currentValue.item == source) latestOnPan(it) },
-                                onPanEnd = { if (currentValue.item == source) latestOnPanEnd() },
-                            )
-                        }
-                        .pointerInput(value.item, value.doubleTapResetsZoom) {
-                            if (!value.doubleTapResetsZoom) return@pointerInput
-                            val source = value.item
-                            detectTapGestures(
-                                onTap = { if (currentValue.item == source && !frameScrubbing) latestOnTap() },
-                                onDoubleTap = { if (currentValue.item == source) zoom = zoom.reset() },
-                            )
-                        },
-                )
                 feedAssists(geometry)
                 if (canPrev || canNext) {
                     if (canPrev) {

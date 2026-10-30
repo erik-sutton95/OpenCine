@@ -212,7 +212,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
     val boxes = remember { mutableStateMapOf<MonitorDisplaySection, MonitorRect>() }
     val chromeEdit = MonitorOperatorChromeEdit(host, session.editingMode, boxes)
     val bodyViews = MonitorOperatorBodyViews(focusDrive = views.focusDrive, dashboard = views.dashboard,
-        resetFocus = views.resetFocus, comparison = views.comparison,
+        resetFocus = views.resetFocus, comparison = views.comparison, motionCluster = views.motionCluster,
         focusMarks = views.focusMarks, feedGestures = views.feedGestures, motion = views.motion, focusControls = { enabled ->
             source.exposure?.let { read ->
                 if (assist.evMeter && mode == MonitorDisplayMode.LIVE) {
@@ -252,7 +252,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         assist = assist, assists = assists.scopes,
         palette = assists.palette, usage = assists.usage, setUsage = assists.setUsage, usageSeed = assists.usageSeed,
         renderedTools = assists.rendered, fittedScopes = if (scopeZone != null) assists.fitted else emptyList(), scopeZone = scopeZone,
-        signalOptions = assists.signalOptions, audioChannels = source.audio, aspect = aspect, focusResetFrame = layout.focusReset,
+        signalOptions = assists.signalOptions, audioChannels = source.audio, aspect = aspect, focusResetFrame = layout.focusReset(views.motionCluster),
         cameraViews = bodyViews, chromeBoxes = boxes, audio = source.audioLevels,
         modifier = modifier, displayTitle = index?.let { "DISP ${it + 1} ${mode.title.lowercase()}" },
         openMode = source.record.openMode,

@@ -261,7 +261,6 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
     }
     private func permissions(_ record: MonitorMediaRecord<Payload>) -> MonitorMediaPermissions {
         var permissions: MonitorMediaPermissions = [.favorite]
-        if gallery.canDownload(record, operations: operations) { permissions.insert(.cache) }
         if share != nil, gallery.canShare(record, operations: operations) { permissions.insert(.share) }
         if gallery.canDelete(record, operations: operations) { permissions.insert(.delete) }
         return permissions
@@ -395,8 +394,6 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         case .favorite(let id): gallery.favorite(MediaAssetID(id), admitted: snapshot, operations: operations)
         case .selectAll: gallery.selectAll(admitted: snapshot)
         case .clearSelection: library.clearSelection()
-        case .favoriteSelection: gallery.favoriteSelection(admitted: snapshot, operations: operations)
-        case .cacheSelection: gallery.cacheSelection(admitted: snapshot, operations: operations)
         case .deleteSelection: gallery.requestDelete(admitted: snapshot, operations: operations)
         case .shareSelection:
             if let records = gallery.shareSelection(admitted: snapshot, operations: operations) { share?(records, snapshot.token) }

@@ -92,4 +92,54 @@ struct MonitorPlaybackPageGeometryTests {
         #expect(zoom == MonitorPlaybackZoom())
     }
 
+    // Owner request 2026-10-28: a zoomed clip fills the playback area instead of staying cropped
+    // to its letterboxed 16:9 or 9:16 frame. Kotlin twin: MonitorPlaybackPageGeometryTest.
+    @Test func zoomedPictureCoversTheCanvasPastItsLetterboxAndOneTimesKeepsTheFrame() {
+        let portrait = CGSize(width: 400, height: 800)
+        let wide = CGRect(x: 0, y: 287.5, width: 400, height: 225)
+        #expect(MonitorPlaybackZoom().visiblePictureRect(feed: wide, canvas: portrait) == wide)
+        var zoom = MonitorPlaybackZoom()
+        zoom.pinchChanged(magnification: 2, startAnchorX: 0.5, startAnchorY: 0.5, size: portrait)
+        #expect(zoom.visiblePictureRect(feed: wide, canvas: portrait)
+            == CGRect(x: 0, y: 175, width: 400, height: 450))
+        zoom.pinchChanged(magnification: 4, startAnchorX: 0.5, startAnchorY: 0.5, size: portrait)
+        #expect(zoom.visiblePictureRect(feed: wide, canvas: portrait)
+            == CGRect(origin: .zero, size: portrait))
+
+        let landscape = CGSize(width: 800, height: 400)
+        let tall = CGRect(x: 287.5, y: 0, width: 225, height: 400)
+        #expect(MonitorPlaybackZoom().visiblePictureRect(feed: tall, canvas: landscape) == tall)
+        var upright = MonitorPlaybackZoom()
+        upright.pinchChanged(magnification: 2, startAnchorX: 0.5, startAnchorY: 0.5, size: landscape)
+        #expect(upright.visiblePictureRect(feed: tall, canvas: landscape)
+            == CGRect(x: 175, y: 0, width: 450, height: 400))
+    }
+
+    @Test func zoomedPanStopsWhereThePictureMeetsTheCanvasEdgeNotTheLetterbox() {
+        // 16:9 in portrait: at 2x the picture is narrower than the canvas is tall, so it stays
+        // centred vertically; at 4x it overhangs the canvas by 50 points top and bottom.
+        let portrait = CGSize(width: 400, height: 800), wide = CGSize(width: 400, height: 225)
+        var zoom = MonitorPlaybackZoom()
+        zoom.pinchChanged(magnification: 2, startAnchorX: 0.5, startAnchorY: 0.5, size: portrait)
+        zoom.panChanged(translation: CGSize(width: 1000, height: -1000))
+        zoom.endGesture(size: portrait, picture: wide)
+        #expect(zoom.offset == CGSize(width: 200, height: 0))
+        zoom.pinchChanged(magnification: 2, startAnchorX: 0.5, startAnchorY: 0.5, size: portrait)
+        zoom.panChanged(translation: CGSize(width: -3000, height: 3000))
+        zoom.endGesture(size: portrait, picture: wide)
+        #expect(zoom.scale == 4 && zoom.offset == CGSize(width: -600, height: 50))
+
+        // 16:9 pillarboxed in landscape: the edge stops at the canvas (300), not at the
+        // letterboxed frame (400), and the continuous path holds the same limit.
+        let landscape = CGSize(width: 1000, height: 450), frame = CGSize(width: 800, height: 450)
+        var held = MonitorPlaybackZoom()
+        held.pinchChangedBounded(magnification: 2, startAnchorX: 0.5, startAnchorY: 0.5,
+            size: landscape, boundsSize: landscape, picture: frame)
+        held.panChangedBounded(translation: CGSize(width: -2000, height: 2000), size: landscape,
+            picture: frame)
+        #expect(held.offset == CGSize(width: -300, height: 225))
+        held.endPan(size: landscape, picture: frame)
+        held.endPinch(size: landscape, picture: frame)
+        #expect(held.scale == 2 && held.offset == CGSize(width: -300, height: 225))
+    }
 }

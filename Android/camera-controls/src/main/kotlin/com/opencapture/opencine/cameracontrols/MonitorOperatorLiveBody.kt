@@ -159,6 +159,12 @@ public class MonitorOperatorBodyViews(
     public val feedback: (@Composable BoxScope.() -> Unit)? = null,
     public val resetFocus: MonitorOperatorFocusReset? = null,
     public val comparison: MonitorOperatorLookComparison? = null,
+    /**
+     * Whether the camera has a motion cluster (gimbal stick) to keep the recenter key beside.
+     * Without one the key takes the feed's trailing bottom corner. A source that passes no
+     * [motion] has none; a source whose motion controls hold only a zoom says so here.
+     */
+    public val motionCluster: Boolean = motion != null,
 )
 public class MonitorOperatorMotionViews(
     public val controls: @Composable BoxScope.(Boolean) -> Unit,
@@ -177,7 +183,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     locked: Boolean, setLocked: (Boolean) -> Unit, covered: Boolean, clean: Boolean, command: Boolean,
     readOnly: Boolean, recovering: Boolean,
     status: MonitorOperatorLiveStatus<K, S>, power: List<MonitorOperatorPowerReading>,
-    captureInputs: MonitorOperatorCaptureInputs<K, S, N>, retireReadout: () -> Unit,
+    reportedCaptureInputs: MonitorOperatorCaptureInputs<K, S, N>, retireReadout: () -> Unit,
     settings: () -> Unit, media: () -> Unit, cycleDisplay: () -> Unit, displayIndex: Int?, displayCount: Int,
     photo: Boolean, confirmRecord: Boolean, recordEnabled: Boolean,
     onRecordConfirming: (Boolean) -> Unit = {},
@@ -225,6 +231,13 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         }
     }
     val state = captureState ?: remember(identity) { MonitorOperatorCaptureState<K, N>() }
+    // A landscape photo row takes the setup values into the status row's trailing corner; the
+    // strip keeps exposure (hardware pass 2026-10-30; Swift `cornerHoldsSetup`).
+    val cornerHoldsSetup = com.opencapture.monitorui.MonitorStatusCorner.holdsSetup(photo, layout.portrait,
+        sections.status in mounted && !command, sections.capture in mounted)
+    val cornerReadouts = reportedCaptureInputs.cornerReadouts(cornerHoldsSetup)
+    val cornerKeys = cornerReadouts.map { it.id }.toSet()
+    val captureInputs = reportedCaptureInputs.raising(cornerKeys)
     val panel = captureInputs.panel
     val dismiss = captureInputs.dismiss
     var paletteRevision by remember { mutableLongStateOf(0) }
@@ -418,14 +431,21 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 }, color = { if (!inline) shownColor?.let { Readout(it) } },
                 mode = { modeShown?.let { Readout(it, accent = it.id == plan.accented) } },
                 link = { MonitorTelemetry(status.signalBars, status.fps, emptyList(), horizontal = true,
-                    showsLink = linkMounted, showsPower = false, metrics = telemetryMetrics) })
+                    showsLink = linkMounted, showsPower = false, metrics = telemetryMetrics) },
+                corner = if (cornerReadouts.isEmpty()) null else { {
+                    com.opencapture.opencine.appkit.MonitorOperatorCaptureCorner(captureInputs, cornerReadouts,
+                        control, state, source, enabled = interactive && !assistInspectorPresented,
+                        commandEnabled = !readOnly, currentSource = ::currentSource, layout = layout,
+                        modifier = edit(sections.capture))
+                } })
             }
         }, power = {
             TelemetryPower()
         }, capture = { accepts ->
             com.opencapture.opencine.appkit.MonitorOperatorCaptureStrip(captureInputs, control, state, source,
                 enabled = accepts && interactive, commandEnabled = !readOnly,
-                currentSource = ::currentSource, layout = layout, modifier = edit(sections.capture), onCaptureFrame = onCaptureFrame)
+                currentSource = ::currentSource, layout = layout, modifier = edit(sections.capture),
+                onCaptureFrame = onCaptureFrame, excluded = cornerKeys)
         }, system = { accepts ->
             MonitorSystemControls(layout, MonitorSystemControlsVisibility(sections.lock in mounted || locked || returnToStage != null,
                 sections.settings in mounted, sections.media in mounted, sections.record in mounted, sections.display == null || sections.display in mounted)

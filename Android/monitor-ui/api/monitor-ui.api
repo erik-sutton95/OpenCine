@@ -110,6 +110,7 @@ public final class com/opencapture/monitorui/LiveMonitorLayout {
 	public static final field Companion Lcom/opencapture/monitorui/LiveMonitorLayout$Companion;
 	public fun <init> (FFLcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;ZZFFFFZFLcom/opencapture/monitorui/MonitorFieldLayout;)V
 	public synthetic fun <init> (FFLcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;ZZFFFFZFLcom/opencapture/monitorui/MonitorFieldLayout;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun aeUnlock (Z)Lcom/opencapture/monitorui/MonitorRect;
 	public final fun component1 ()F
 	public final fun component10 ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun component11 ()Lcom/opencapture/monitorui/MonitorRect;
@@ -136,6 +137,7 @@ public final class com/opencapture/monitorui/LiveMonitorLayout {
 	public final fun copy (FFLcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;ZZFFFFZFLcom/opencapture/monitorui/MonitorFieldLayout;)Lcom/opencapture/monitorui/LiveMonitorLayout;
 	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveMonitorLayout;FFLcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;ZZFFFFZFLcom/opencapture/monitorui/MonitorFieldLayout;ILjava/lang/Object;)Lcom/opencapture/monitorui/LiveMonitorLayout;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun focusReset (Z)Lcom/opencapture/monitorui/MonitorRect;
 	public final fun getAeUnlock ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun getAssist ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun getBattery ()Lcom/opencapture/monitorui/MonitorRect;
@@ -427,7 +429,7 @@ public final class com/opencapture/monitorui/MonitorAudioReadout {
 public final class com/opencapture/monitorui/MonitorBackdropKt {
 	public static final fun getLocalMonitorBackdropSurround ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun getLocalMonitorBackdrops ()Landroidx/compose/runtime/ProvidableCompositionLocal;
-	public static final fun monitorBackdropSource (Landroidx/compose/ui/Modifier;Lcom/opencapture/monitorui/MonitorBackdropSource;Landroidx/compose/ui/geometry/Rect;ZZLandroidx/compose/runtime/Composer;II)Landroidx/compose/ui/Modifier;
+	public static final fun monitorBackdropSource (Landroidx/compose/ui/Modifier;Lcom/opencapture/monitorui/MonitorBackdropSource;Landroidx/compose/ui/geometry/Rect;ZZLandroidx/compose/ui/geometry/Rect;Landroidx/compose/runtime/Composer;II)Landroidx/compose/ui/Modifier;
 	public static final fun monitorMaterial (Landroidx/compose/ui/Modifier;Lcom/opencapture/monitorui/MonitorMaterial;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/runtime/Composer;II)Landroidx/compose/ui/Modifier;
 }
 
@@ -519,6 +521,14 @@ public final class com/opencapture/monitorui/MonitorCaptureDrawerKt {
 	public static final fun MonitorDrawerTabs (Ljava/util/List;ILkotlin/jvm/functions/Function1;ZZLandroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
 }
 
+public final class com/opencapture/monitorui/MonitorCaptureReadoutGroup : java/lang/Enum {
+	public static final field RIDDEN Lcom/opencapture/monitorui/MonitorCaptureReadoutGroup;
+	public static final field SETUP Lcom/opencapture/monitorui/MonitorCaptureReadoutGroup;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorCaptureReadoutGroup;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorCaptureReadoutGroup;
+}
+
 public final class com/opencapture/monitorui/MonitorCardColumnsKt {
 	public static final fun MonitorCardColumns-djqs-MU (Landroidx/compose/ui/Modifier;FFLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 	public static final fun monitorFullWidthCard (Landroidx/compose/ui/Modifier;)Landroidx/compose/ui/Modifier;
@@ -526,7 +536,7 @@ public final class com/opencapture/monitorui/MonitorCardColumnsKt {
 
 public final class com/opencapture/monitorui/MonitorChromeInputKt {
 	public static final field MONITOR_MIN_TAP_TARGET_DP F
-	public static final fun monitorChromeClickable (Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)Landroidx/compose/ui/Modifier;
+	public static final fun monitorChromeClickable (Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;FLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)Landroidx/compose/ui/Modifier;
 }
 
 public final class com/opencapture/monitorui/MonitorClipCatalogKt {
@@ -694,13 +704,12 @@ public final class com/opencapture/monitorui/MonitorComponentsKt {
 	public static final field MONITOR_DIMMED_VALUE_ALPHA F
 	public static final fun MonitorActionButton-iHT-50w (Ljava/lang/String;Landroidx/compose/ui/Modifier;ZZFLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorAuxCircleButton (Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
-	public static final fun MonitorCameraValues (Ljava/util/List;ZZLandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function1;FLjava/lang/Integer;Lcom/opencapture/monitorui/MonitorQuickGestureOwner;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorCameraValues (Ljava/util/List;ZZLandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function1;FLjava/lang/Integer;Lcom/opencapture/monitorui/MonitorQuickGestureOwner;Lkotlin/jvm/functions/Function1;ZLkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
 	public static final fun MonitorCatalogGrid (Ljava/util/List;ILkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/lazy/grid/LazyGridState;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorOptionGroup (Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorPageHeading (Ljava/lang/String;Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V
-	public static final fun MonitorPageScaffold (Landroidx/compose/ui/Modifier;FLkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorPageScaffold (Landroidx/compose/ui/Modifier;FLkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorPanelGrabber (Landroidx/compose/runtime/Composer;I)V
-	public static final fun MonitorSelectionTray (ILandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorSettingsCard (Ljava/lang/String;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 	public static final fun monitorCatalogColumns (Lcom/opencapture/monitorui/MonitorThumbnailSize;Z)I
 }
@@ -1012,6 +1021,7 @@ public final class com/opencapture/monitorui/MonitorFieldLayout {
 	public static final field $stable I
 	public fun <init> (Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;ZZZFLcom/opencapture/monitorui/MonitorRect;)V
 	public synthetic fun <init> (Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;ZZZFLcom/opencapture/monitorui/MonitorRect;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun aeUnlock (Z)Lcom/opencapture/monitorui/MonitorRect;
 	public final fun component1 ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun component10 ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun component11 ()Lcom/opencapture/monitorui/MonitorRect;
@@ -1038,6 +1048,7 @@ public final class com/opencapture/monitorui/MonitorFieldLayout {
 	public final fun copy (Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;ZZZFLcom/opencapture/monitorui/MonitorRect;)Lcom/opencapture/monitorui/MonitorFieldLayout;
 	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorFieldLayout;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorRect;ZZZFLcom/opencapture/monitorui/MonitorRect;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorFieldLayout;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun focusReset (Z)Lcom/opencapture/monitorui/MonitorRect;
 	public final fun getAppBadge ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun getAspectToggle ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun getAssists ()Lcom/opencapture/monitorui/MonitorRect;
@@ -2728,6 +2739,13 @@ public final class com/opencapture/monitorui/MonitorMediaSelectionController$New
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/monitorui/MonitorMediaSelectionCopy {
+	public static final field $stable I
+	public static final field EXIT Ljava/lang/String;
+	public static final field EXIT_TAG Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorMediaSelectionCopy;
+}
+
 public final class com/opencapture/monitorui/MonitorMediaSelectionFeedback : java/lang/Enum {
 	public static final field BEGAN Lcom/opencapture/monitorui/MonitorMediaSelectionFeedback;
 	public static final field CHANGED Lcom/opencapture/monitorui/MonitorMediaSelectionFeedback;
@@ -3231,8 +3249,8 @@ public final class com/opencapture/monitorui/MonitorPlaybackGestureConfig {
 }
 
 public final class com/opencapture/monitorui/MonitorPlaybackGesturesKt {
-	public static final fun detectMonitorPlaybackVideoGestures (Landroidx/compose/ui/input/pointer/PointerInputScope;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorPlaybackGestureConfig;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun detectMonitorPlaybackVideoGestures$default (Landroidx/compose/ui/input/pointer/PointerInputScope;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorPlaybackGestureConfig;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun detectMonitorPlaybackVideoGestures (Landroidx/compose/ui/input/pointer/PointerInputScope;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorPlaybackGestureConfig;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun detectMonitorPlaybackVideoGestures$default (Landroidx/compose/ui/input/pointer/PointerInputScope;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorPlaybackGestureConfig;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun monitorPlaybackUnitPoint-9KIMszo (JFF)Lkotlin/Pair;
 }
 
@@ -3462,12 +3480,12 @@ public final class com/opencapture/monitorui/MonitorPlaybackZoom {
 	public final fun component4 ()F
 	public final fun copy (FFFFLjava/lang/Float;FF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
 	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFLjava/lang/Float;FFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public final fun endGesture (FFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public static synthetic fun endGesture$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public final fun endPan (FFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public static synthetic fun endPan$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public final fun endPinch (FFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public static synthetic fun endPinch$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public final fun endGesture (FFFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public static synthetic fun endGesture$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public final fun endPan (FFFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public static synthetic fun endPan$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public final fun endPinch (FFFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public static synthetic fun endPinch$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getMaximumScale ()F
 	public final fun getOffsetX ()F
@@ -3476,11 +3494,11 @@ public final class com/opencapture/monitorui/MonitorPlaybackZoom {
 	public fun hashCode ()I
 	public final fun isZoomed ()Z
 	public final fun panChanged (FF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public final fun panChangedBounded (FFFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public static synthetic fun panChangedBounded$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public final fun panChangedBounded (FFFFFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public static synthetic fun panChangedBounded$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
 	public final fun pinchChanged (FFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public final fun pinchChangedBounded (FFFFFFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
-	public static synthetic fun pinchChangedBounded$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public final fun pinchChangedBounded (FFFFFFFFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public static synthetic fun pinchChangedBounded$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFFFFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
 	public final fun preview (FLjava/lang/Float;Ljava/lang/Float;FFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
 	public final fun reset ()Lcom/opencapture/monitorui/MonitorPlaybackZoom;
 	public final fun settled ()Lcom/opencapture/monitorui/MonitorPlaybackZoom;
@@ -3488,6 +3506,7 @@ public final class com/opencapture/monitorui/MonitorPlaybackZoom {
 	public fun toString ()Ljava/lang/String;
 	public final fun transformed (FFFFFFFFF)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
 	public static synthetic fun transformed$default (Lcom/opencapture/monitorui/MonitorPlaybackZoom;FFFFFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackZoom;
+	public final fun visiblePictureRect (Lcom/opencapture/monitorui/MonitorRect;FF)Lcom/opencapture/monitorui/MonitorRect;
 }
 
 public final class com/opencapture/monitorui/MonitorPlaybackZoom$Companion {
@@ -3909,6 +3928,10 @@ public final class com/opencapture/monitorui/MonitorScrollFadeKt {
 	public static synthetic fun monitorScrollFade-eqLRuRQ$default (Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/gestures/ScrollableState;ZFILjava/lang/Object;)Landroidx/compose/ui/Modifier;
 }
 
+public final class com/opencapture/monitorui/MonitorSelectionTrayKt {
+	public static final fun MonitorSelectionTray (ILkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;ZZLjava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;III)V
+}
+
 public final class com/opencapture/monitorui/MonitorSetupChip {
 	public static final field $stable I
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;)V
@@ -3969,8 +3992,21 @@ public final class com/opencapture/monitorui/MonitorStatusChromeKt {
 	public static final fun MonitorRecordingBorder (Ljava/lang/Boolean;Landroidx/compose/ui/Modifier;FLandroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorRecordingReadout (Lcom/opencapture/monitorui/MonitorStatusPresentation;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorStatusChrome (Lcom/opencapture/monitorui/MonitorFieldLayout;Lcom/opencapture/monitorui/MonitorStatusPresentation;ZZLandroidx/compose/ui/Modifier;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
-	public static final fun MonitorStatusChrome (Lcom/opencapture/monitorui/MonitorFieldLayout;Lcom/opencapture/monitorui/MonitorStatusPresentation;ZZZFLandroidx/compose/ui/Modifier;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorStatusChrome (Lcom/opencapture/monitorui/MonitorFieldLayout;Lcom/opencapture/monitorui/MonitorStatusPresentation;ZZZFLandroidx/compose/ui/Modifier;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
 	public static final fun MonitorStatusChrome (Lcom/opencapture/monitorui/MonitorFieldLayout;Lcom/opencapture/monitorui/MonitorStatusPresentation;ZZZLandroidx/compose/ui/Modifier;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
+}
+
+public final class com/opencapture/monitorui/MonitorStatusCorner {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorStatusCorner;
+	public static final field LEADING_GAP F
+	public static final field TILE_SPACING F
+	public final fun holdsSetup (ZZZZ)Z
+	public final fun split (Ljava/util/List;ZLkotlin/jvm/functions/Function1;)Lkotlin/Pair;
+	public final fun width (Ljava/util/List;F)F
+	public static synthetic fun width$default (Lcom/opencapture/monitorui/MonitorStatusCorner;Ljava/util/List;FILjava/lang/Object;)F
+	public final fun widths (Ljava/util/List;Ljava/util/List;FF)Ljava/util/List;
+	public static synthetic fun widths$default (Lcom/opencapture/monitorui/MonitorStatusCorner;Ljava/util/List;Ljava/util/List;FFILjava/lang/Object;)Ljava/util/List;
 }
 
 public final class com/opencapture/monitorui/MonitorStatusPresentation {

@@ -65,11 +65,12 @@ jobs:
           fail: true
       - name: EditorConfig check
         uses: editorconfig-checker/action-editorconfig-checker@51f63319f592f97930c73d9c46184d20bd206393 # v3.0.0
-      - name: Release notes, nightly report, test report and native playback CI tooling
+      - name: Release notes, nightly report, test and Gradle timing reports and native playback CI tooling
         run: |
           scripts/tester-notes-release-check-test.sh
           scripts/ci-nightly-report-test.sh
           python3 scripts/ci-test-guards-test.py
+          python3 scripts/gradle-task-timing-report-test.py
           python3 scripts/ios-playback-label-ci-test.py
       - name: Actionlint
         uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
@@ -183,26 +184,26 @@ jobs:
           logs=()
           for log in test-cache.log test.log test-still-*.log test-luna.log; do logs+=(--log "${log%.log}=$log"); done
           python3 scripts/ci-test-report.py --summary --title "Swift package tests" "${logs[@]}"
-      - name: Build MonitorUI and OpenCineApple (iOS Simulator)
+      # One iOS Simulator build of every library product. It compiles each target of the MonitorUI
+      # and OpenCineApple schemes with the same settings (both are subsets of OpenCine-Package), and
+      # the API snapshots below read it instead of building the package again.
+      - name: Build every library product (iOS Simulator)
         run: |
-          for scheme in MonitorUI OpenCineApple; do
-            # Hosted runners are arm64: an x86_64 simulator slice only doubles the compile.
-            xcodebuild -scheme "$scheme" -destination 'generic/platform=iOS Simulator' -derivedDataPath ~/ci-dd \
-              -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES \
-              ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
-          done
+          # Hosted runners are arm64: an x86_64 simulator slice only doubles the compile.
+          xcodebuild -scheme OpenCine-Package -destination 'generic/platform=iOS Simulator' -derivedDataPath ~/ci-dd \
+            -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
       # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
       - name: Build Insta360Apple (iOS devices)
         run: |
           xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' -derivedDataPath ~/ci-dd \
             -skipMacroValidation -skipPackagePluginValidation COMPILATION_CACHE_ENABLE_CACHING=YES CODE_SIGNING_ALLOWED=NO build
-      # Every library product's public Swift API, from an iOS Simulator build of the whole package
-      # (reusing the builds above), is recorded in atlas/api/swift. A failure lists the changed lines
-      # and the update command.
+      # Every library product's public Swift API, from the iOS Simulator build of the whole package
+      # above, is recorded in atlas/api/swift. A failure lists the changed lines and the update command.
       - name: Public API snapshots (Swift)
         env:
           ATLAS_API_DERIVED: ~/ci-dd
-        run: python3 atlas/tools/atlas.py api --check --build
+        run: python3 atlas/tools/atlas.py api --check
       - name: Did this change reach the Sentry adapter?
         id: sentry
         run: |
@@ -266,8 +267,12 @@ jobs:
             swift-crash-reports/**/*.txt
           if-no-files-found: warn
 
-  android:
-    name: Android (test, lint, assemble, Vulkan regression)
+  # Android verification runs as three parallel jobs (docs/testing/CI.md). Together they execute
+  # every task of the former `./gradlew test lint assembleRelease` chain and its follow-up checks;
+  # a task both jobs need (a debug compile, say) runs in each. Every Gradle run records each task's
+  # outcome and time (scripts/gradle-task-timing.init.gradle), summarized at the end of each job.
+  android-test:
+    name: Android unit tests and build logic
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -282,24 +287,94 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-      - name: Test, lint and assemble (Kotlin warnings are errors in core, media, multicam)
-        run: ./gradlew test lint assembleRelease
+      # The quarantined test classes (QUARANTINE in docs/testing/CI.md, `quarantinedTests` in
+      # Android/build.gradle.kts) are left out here and run only in the nightly step below.
+      - name: Unit tests (Kotlin warnings are errors in core, media, multicam)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/test.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" test -Popencine.quarantine=exclude
+      # QUARANTINE (docs/testing/CI.md, #300): hosted wall-clock flakes. Nightly only; a failure is
+      # reported on the step but does not fail the job.
+      - name: Quarantined unit tests
+        if: ${{ inputs.full }}
+        continue-on-error: true
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/quarantined.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" test -Popencine.quarantine=only
+      - name: Apps' Gradle plugins (build-logic)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/build-logic.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" -p build-logic test
+      - name: Gradle task timing summary
+        if: always()
+        working-directory: .
+        run: scripts/gradle-task-timing-summary.sh "$RUNNER_TEMP/gradle-timing"
+
+  android-lint:
+    name: Android lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Lint (Kotlin warnings are errors in core, media, multicam)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/lint.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" lint
+      - name: Gradle task timing summary
+        if: always()
+        working-directory: .
+        run: scripts/gradle-task-timing-summary.sh "$RUNNER_TEMP/gradle-timing"
+
+  android-release:
+    name: Android release assembly, public API, Vulkan and registrars
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Release assembly (Kotlin warnings are errors in core, media, multicam)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/assemble-release.tsv
+        run: ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" assembleRelease
       # Each module's Kotlin public API is recorded in <module>/api/<module>.api: Kotlin/JVM modules
       # by the Kotlin plugin's ABI validation, Android library modules by dumpAndroidApi.
       - name: Public API snapshots (Kotlin and Android)
+        env:
+          GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/api.tsv
         run: |
-          ./gradlew checkKotlinAbi checkAndroidApi || {
+          ./gradlew --init-script "$GITHUB_WORKSPACE/scripts/gradle-task-timing.init.gradle" checkKotlinAbi checkAndroidApi || {
             echo "::error::Unrecorded public API change. If it is intended, run (cd Android && ./gradlew updateKotlinAbi updateAndroidApi) and commit the changed <module>/api/*.api files."
             exit 1
           }
-      - name: Apps' Gradle plugins (build-logic)
-        run: ./gradlew -p build-logic test
       - name: Vulkan present synchronization regression (host CPU)
         working-directory: .
         run: scripts/android-vulkan-sync-test.sh
       - name: Release dex check for reflectively created ML Kit components
         working-directory: .
         run: scripts/android-verify-component-registrars-test.sh
+      - name: Gradle task timing summary
+        if: always()
+        working-directory: .
+        run: scripts/gradle-task-timing-summary.sh "$RUNNER_TEMP/gradle-timing"
 
   atlas:
     # Nothing here builds an app, writes to another repository, publishes, schedules or merges.
@@ -373,12 +448,16 @@ jobs:
           udid=$(scripts/ios-private-simulator.py create "opc-kit-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --report "$RUNNER_TEMP/kit-ios/simulator-setup.json")
           echo "KIT_IOS_DEVICE_ID=$udid" >> "$GITHUB_ENV"
+      # The dashboard and portrait header suites need an application scene; they run in the
+      # SIMULATED application hosts below, never as skips here.
       - name: Hosted walk self-test and native view tests
+        shell: bash
         run: |
           xcodebuild -scheme OpenCine-Package -destination "platform=iOS Simulator,id=$KIT_IOS_DEVICE_ID" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/kit-ios/kit.xcresult" \
             -only-testing:OpenCineHostedAccessibilityTests -only-testing:MonitorUITests \
-            -skip-testing:MonitorUITests/MonitorCommandDashboardTests test
+            -skip-testing:MonitorUITests/MonitorCommandDashboardTests \
+            -skip-testing:MonitorUITests/MonitorPortraitHeaderClearanceTests test 2>&1 | tee "$RUNNER_TEMP/kit-ios/kit.log"
       # Scroll accessibility needs an application scene. This runner executes every dashboard
       # contract, including the original activation/read-only assertions, without skipping one.
       - name: Command dashboard contracts in a SIMULATED application host
@@ -386,6 +465,23 @@ jobs:
         run: |
           python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
+      # The header steps run even when an earlier kit step failed, so one failure never hides the
+      # header suite's own result.
+      - name: Create a private native 2x iPad with accessibility enabled
+        if: ${{ !cancelled() && env.KIT_IOS_DEVICE_ID != '' }}
+        run: |
+          udid=$(scripts/ios-private-simulator.py create "opc-kit-ipad-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --device "iPad Pro 11-inch (M4)" --report "$RUNNER_TEMP/kit-ios/ipad-simulator-setup.json")
+          echo "KIT_IPAD_DEVICE_ID=$udid" >> "$GITHUB_ENV"
+      # Every portrait header clearance case in a real application scene: the phone cases on the
+      # kit's iPhone, the tablet witnesses on the iPad. A skipped, missing or failed case fails.
+      - name: Portrait header clearance in a SIMULATED application host
+        if: ${{ !cancelled() && env.KIT_IPAD_DEVICE_ID != '' }}
+        timeout-minutes: 40
+        run: |
+          python3 scripts/ios-header-clearance-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
+            --ipad-simulator-id "$KIT_IPAD_DEVICE_ID" --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" \
+            --output "$RUNNER_TEMP/kit-ios/header-clearance"
       # QUARANTINE (docs/testing/CI.md, #109): digitizer cancel on hosted Xcode 26.6. Its failure is
       # reported on the step but does not fail the kit's other checks.
       - name: Native playback labels and confirmation input
@@ -393,9 +489,23 @@ jobs:
         run: |
           python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
             --derived-data "$RUNNER_TEMP/kit-ios-labels-dd" --output "$RUNNER_TEMP/kit-ios/playback-labels"
-      - name: Delete the private simulator
+      - name: Delete the private simulators
         if: always()
-        run: if [ -n "${KIT_IOS_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IOS_DEVICE_ID"; fi
+        run: |
+          if [ -n "${KIT_IOS_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IOS_DEVICE_ID"; fi
+          if [ -n "${KIT_IPAD_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IPAD_DEVICE_ID"; fi
+      # XCTest reports a suite whose every case skipped as passed (33 header cases did, each night
+      # until 2026-10-28). Every selected kit test must execute; per-suite timing goes to the summary.
+      - name: No skipped kit test, and per-suite timing
+        if: always()
+        shell: bash
+        run: |
+          out="$RUNNER_TEMP/kit-ios"
+          python3 scripts/ci-test-report.py --summary --title "Conformance kit, iOS" --no-skips \
+            --require-module MonitorUITests --require-module OpenCineHostedAccessibilityTests \
+            --require-module CommandDashboardHostedTests --require-module HeaderClearanceHostedTests \
+            --log "package=$out/kit.log" --log "dashboard=$out/dashboard/xcodebuild.log" \
+            --log "header-phone=$out/header-clearance/phone.log" --log "header-tablet=$out/header-clearance/tablet.log"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -405,9 +515,9 @@ jobs:
 
   # The original three-case fixture remains in kit-ios. This separate standard UI target
   # exercises the typed system-dismissal counterpart with the same shared screen. QUARANTINE.
+  # It runs beside kit-ios: its own runner, simulator, DerivedData and artifact, no data from it.
   playback-native-ios:
     name: Playback labels, native typed cancellation (SIMULATED)
-    needs: kit-ios
     if: ${{ inputs.full }}
     runs-on: macos-latest
     timeout-minutes: 60
@@ -529,7 +639,7 @@ jobs:
   gate:
     name: CI gate
     if: always()
-    needs: [meta, swift, android, atlas]
+    needs: [meta, swift, android-test, android-lint, android-release, atlas]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

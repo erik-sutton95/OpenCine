@@ -246,6 +246,9 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
     /// format and color sheets the same way).
     var capturePresented: Bool { host.captureSheet != nil || host.captureDrum != nil || interaction.topMenu != nil }
     var showsGimbal: Bool { source.gimbal == true && host.chromeSectionMounts(.gimbalStick) }
+    /// A camera known to have no gimbal has no motion cluster: its recenter key takes the
+    /// feed's trailing bottom corner. Unknown keeps the cluster's place.
+    var motionCluster: Bool { host.controlCapabilities.gimbal.support != .unsupported }
     var cluster: GimbalCluster { layout.gimbalCluster(showGimbalButton: showsGimbal) }
     func rect(_ region: MonitorLayoutRegion) -> CGRect {
         CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
@@ -256,7 +259,8 @@ private struct MonitorOperatorFocusContent<Host: LiveChromeHost & GimbalPanelHos
     let accessories: MonitorOperatorLegacyAccessories<Host>
     var body: some View {
         let a = accessories
-        MonitorOperatorFocusControls(host: a.host, focus: a.focus, layout: a.layout, interactive: a.interactive && !a.locked)
+        MonitorOperatorFocusControls(host: a.host, focus: a.focus, layout: a.layout,
+            motionCluster: a.motionCluster, interactive: a.interactive && !a.locked)
         if let headTracking = a.headTracking, headTracking.enabled, let pose = headTracking.readPose() {
             VStack(alignment: .leading, spacing: 6) {
                 LiveHeadTrackAxisDials<Host.Palette>(pose: pose)
@@ -387,8 +391,9 @@ private struct MonitorOperatorFeedGestures<Host: LiveChromeHost & GimbalPanelHos
             ? DesqueezeAssist.presentationRect(sourceSize: CGSize(width: source.pictureAspect, height: 1),
                 in: layout.onFeed, effects: host.assist.effects) : layout.onFeed
         FeedGestureWell<Host>(feed: feed, chip: rect(cluster.zoom), stick: rect(cluster.stick),
-            gimbalButton: rect(cluster.controls), reset: value.resetAvailable ? layout.focusReset : .zero,
-            aeUnlock: host.autoExposureLocked ? layout.aeUnlock : .zero, cancel: cancelRect(value.trackedSubject),
+            gimbalButton: rect(cluster.controls),
+            reset: value.resetAvailable ? layout.focusReset(motionCluster: accessories.motionCluster) : .zero,
+            aeUnlock: host.autoExposureLocked ? layout.aeUnlock(motionCluster: accessories.motionCluster) : .zero, cancel: cancelRect(value.trackedSubject),
             calibrate: headTracking && source.headTracking == true ? layout.gimbalCalibrate : .zero,
             enabled: enabled)
             .animation(.easeOut(duration: 0.20), value: value.resetAvailable)
@@ -407,16 +412,17 @@ private struct MonitorOperatorFocusControls<Host: LiveChromeHost>: View {
     let host: Host
     let focus: MonitorOperatorFocusSource
     let layout: LiveMonitorLayout
+    let motionCluster: Bool
     let interactive: Bool
     var body: some View {
         let value = focus.read()
         Group {
             if interactive, value.resetAvailable {
-                FocusResetButton<Host>().liveModuleFrame(layout.focusReset)
+                FocusResetButton<Host>().liveModuleFrame(layout.focusReset(motionCluster: motionCluster))
                     .transition(.scale(scale: 0.6).combined(with: .opacity)).zIndex(3)
             }
             if interactive, host.autoExposureLocked {
-                AutoExposureUnlockButton<Host>().liveModuleFrame(layout.aeUnlock)
+                AutoExposureUnlockButton<Host>().liveModuleFrame(layout.aeUnlock(motionCluster: motionCluster))
                     .transition(.scale(scale: 0.6).combined(with: .opacity)).zIndex(3)
             }
             if interactive, let subject = value.trackedSubject {

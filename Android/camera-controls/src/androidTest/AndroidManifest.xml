@@ -5,5 +5,8 @@
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
         <activity android:name="com.opencapture.opencine.cameracontrols.GalleryOpeningTestActivity"
             android:exported="false" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
+        <activity android:name="com.opencapture.opencine.cameracontrols.MediaSelectionTestActivity"
+            android:exported="false" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
     </application>
 </manifest>

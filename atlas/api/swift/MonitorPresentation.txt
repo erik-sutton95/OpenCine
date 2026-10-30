@@ -35,6 +35,8 @@ case MonitorCapturePopupEdge.bottom
 case MonitorCapturePopupEdge.top
 case MonitorCapturePopupKind.compact
 case MonitorCapturePopupKind.details
+case MonitorCaptureReadoutGroup.ridden
+case MonitorCaptureReadoutGroup.setup
 case MonitorCommandHeader.hidden
 case MonitorCommandHeader.telemetry
 case MonitorDeviceOrientation.landscapeLeft
@@ -93,13 +95,11 @@ case MonitorLinkHealthBand.watch
 case MonitorLiveViewGeometrySpace.fullScreen
 case MonitorLiveViewGeometrySpace.safeArea
 case MonitorMediaAction.back
-case MonitorMediaAction.cacheSelection
 case MonitorMediaAction.category(Swift.String)
 case MonitorMediaAction.clearSelection
 case MonitorMediaAction.cycleSort
 case MonitorMediaAction.deleteSelection
 case MonitorMediaAction.favorite(Swift.String)
-case MonitorMediaAction.favoriteSelection
 case MonitorMediaAction.layout(MonitorMediaLayout)
 case MonitorMediaAction.open(Swift.String)
 case MonitorMediaAction.refresh
@@ -226,6 +226,7 @@ enum MonitorBatteryUrgency: Equatable, Hashable, Sendable
 enum MonitorCapturePopupChrome: Sendable
 enum MonitorCapturePopupEdge: Equatable, Hashable, Sendable
 enum MonitorCapturePopupKind: Equatable, Hashable, Sendable
+enum MonitorCaptureReadoutGroup: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorCommandDashboardLayout
 enum MonitorCommandGridLayout
 enum MonitorCommandHeader: Equatable, Hashable, Sendable
@@ -264,6 +265,7 @@ enum MonitorMediaItem.Availability: Equatable, Hashable, RawRepresentable, Senda
 enum MonitorMediaLayout: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorMediaSelectionConfiguration.EdgeCurve: Equatable, Hashable, Sendable
 enum MonitorMediaSelectionController.News: Equatable, Sendable
+enum MonitorMediaSelectionCopy
 enum MonitorMediaSelectionFeedback: Equatable, Hashable, Sendable
 enum MonitorMediaSelectionScroll
 enum MonitorMotionPlacement
@@ -279,6 +281,7 @@ enum MonitorScopeSizing
 enum MonitorSettingsCardMetrics: Sendable
 enum MonitorSettingsTab: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorSideRailControlLayout
+enum MonitorStatusCorner
 enum MonitorStorageReadoutFormat
 enum MonitorSystemButtonMetrics: Sendable
 enum MonitorTelemetryMetrics: Equatable, Hashable, Sendable
@@ -306,6 +309,8 @@ enum StartupLayoutMargins
 enum StartupLayoutProfile: Equatable, Hashable, Sendable
 enum StartupReadyLiveViewPolicy
 extension OpenCineMedia.MonitorFrameEffects
+func FieldMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> MonitorRect
+func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
 func GimbalCluster.offsetBy(dx: Swift.Double, dy: Swift.Double) -> GimbalCluster
 func MonitorAssistCapabilities.isPhotographyOnly(_: MonitorAssistSelection) -> Swift.Bool
 func MonitorAssistCapabilities.offers(_: MonitorAssistSelection, photography: Swift.Bool) -> Swift.Bool
@@ -350,18 +355,19 @@ func MonitorMediaSelectionController.up(childConsumed: Swift.Bool) -> MonitorMed
 func MonitorMediaSelectionController.viewportResized(pointerY: Swift.Double) -> ()
 func MonitorPlaybackEditing.admit(_: OpenCineMedia.MonitorPlaybackScrubToken?, item: OpenCineMedia.MonitorPlaybackItemToken?) -> Swift.Bool
 func MonitorPlaybackEditing.take(_: OpenCineMedia.MonitorPlaybackScrubToken?) -> OpenCineMedia.MonitorPlaybackScrubToken?
-func MonitorPlaybackZoom.endGesture(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
-func MonitorPlaybackZoom.endPan(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
-func MonitorPlaybackZoom.endPinch(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.endGesture(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
+func MonitorPlaybackZoom.endPan(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
+func MonitorPlaybackZoom.endPinch(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.panChanged(translation: CoreFoundation.CGSize) -> ()
-func MonitorPlaybackZoom.panChangedBounded(translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.panChangedBounded(translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.pinchChanged(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize) -> ()
-func MonitorPlaybackZoom.pinchChangedBounded(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize, boundsSize: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.pinchChangedBounded(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize, boundsSize: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.preview(magnification: CoreGraphics.CGFloat, anchor: CoreFoundation.CGPoint?, translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize) -> MonitorPlaybackZoom
 func MonitorPlaybackZoom.reset() -> ()
 func MonitorPlaybackZoom.settled() -> MonitorPlaybackZoom
 func MonitorPlaybackZoom.sourcePoint(_: CoreFoundation.CGPoint, size: CoreFoundation.CGSize) -> CoreFoundation.CGPoint
 func MonitorPlaybackZoom.transformed(zoomChange: CoreGraphics.CGFloat, centroid: CoreFoundation.CGPoint, panChange: CoreFoundation.CGSize, frame: CoreFoundation.CGSize, picture: CoreFoundation.CGSize?) -> MonitorPlaybackZoom
+func MonitorPlaybackZoom.visiblePictureRect(feed: CoreFoundation.CGRect, canvas: CoreFoundation.CGSize) -> CoreFoundation.CGRect
 func MonitorReadoutInteraction.begin() -> ()
 func MonitorReadoutInteraction.cancel() -> ()
 func MonitorReadoutInteraction.end() -> MonitorReadoutInteraction.Outcome
@@ -908,6 +914,10 @@ static func MonitorScopeSizing.scale(portrait: Swift.Bool, tablet: Swift.Bool, p
 static func MonitorSettingsCardMetrics.contentOriginY(titleLineHeight: Swift.Double) -> Swift.Double
 static func MonitorSideRailPlan.showsLock(visible: Swift.Bool, interfaceLocked: Swift.Bool) -> Swift.Bool
 static func MonitorSideRailPlan.showsSettings(visible: Swift.Bool, reachable: Swift.Bool) -> Swift.Bool
+static func MonitorStatusCorner.holdsSetup(photo: Swift.Bool, portrait: Swift.Bool, statusShown: Swift.Bool, valuesShown: Swift.Bool) -> Swift.Bool
+static func MonitorStatusCorner.split(_: [Value], holdsSetup: Swift.Bool, group: (Value) -> MonitorCaptureReadoutGroup)<Value> -> (strip: [Value], corner: [Value])
+static func MonitorStatusCorner.width(of: [Swift.Double], spacing: Swift.Double) -> Swift.Double
+static func MonitorStatusCorner.widths(natural: [Swift.Double], floors: [Swift.Double], available: Swift.Double, spacing: Swift.Double) -> [Swift.Double]
 static func MonitorStorageReadoutFormat.alternatives(percent: Swift.String?, recordingTime: Swift.String?, photo: Swift.Bool) -> [Swift.String]
 static func MonitorStorageReadoutFormat.capacity(gigabytes: Swift.Int64?) -> Swift.String
 static func MonitorStorageReadoutFormat.nextForm(after: Swift.Int, count: Swift.Int) -> Swift.Int
@@ -1047,12 +1057,13 @@ static let MonitorMediaGalleryCopy.noCachedTitle: Swift.String
 static let MonitorMediaGalleryCopy.proxyHelp: Swift.String
 static let MonitorMediaGalleryCopy.proxyTag: Swift.String
 static let MonitorMediaGalleryCopy.selectingHint: Swift.String
-static let MonitorMediaPermissions.cache: MonitorMediaPermissions
 static let MonitorMediaPermissions.delete: MonitorMediaPermissions
 static let MonitorMediaPermissions.favorite: MonitorMediaPermissions
 static let MonitorMediaPermissions.share: MonitorMediaPermissions
 static let MonitorMediaResolutionLevel.standard: [MonitorMediaResolutionLevel]
 static let MonitorMediaSelectionConfiguration.standard: MonitorMediaSelectionConfiguration
+static let MonitorMediaSelectionCopy.exit: Swift.String
+static let MonitorMediaSelectionCopy.exitIdentifier: Swift.String
 static let MonitorParadeOptions.brightnessRange: Swift.ClosedRange<Swift.Int>
 static let MonitorParadeOptions.default: MonitorParadeOptions
 static let MonitorParadeOptions.defaultBrightness: Swift.Int
@@ -1113,6 +1124,8 @@ static let MonitorSettingsCardMetrics.titleMinHeight: Swift.Double
 static let MonitorSettingsCardMetrics.titlePointSize: Swift.Double
 static let MonitorSettingsCardMetrics.titleTopPadding: Swift.Double
 static let MonitorSideRailControlLayout.recordButtonSize: Swift.Double
+static let MonitorStatusCorner.leadingGap: Swift.Double
+static let MonitorStatusCorner.tileSpacing: Swift.Double
 static let MonitorToolUsage.fieldMonitorSeed: [Swift.String : Swift.Int]
 static let MonitorToolUsage.halfLife: Swift.Double
 static let MonitorVectorscopeOptions.brightnessRange: Swift.ClosedRange<Swift.Int>

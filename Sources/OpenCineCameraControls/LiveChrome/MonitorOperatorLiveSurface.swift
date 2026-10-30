@@ -459,7 +459,21 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var covered: Bool { facts.covered }
     private var readOnly: Bool { facts.readOnly }
     private var status: MonitorOperatorLiveStatus<Key, Section> { facts.status }
-    private var captureInputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity> { facts.capture }
+    /// A landscape photo row's trailing corner takes the setup values (`MonitorStatusCorner`);
+    /// their drawers open from the top, beside them.
+    private var cornerHoldsSetup: Bool {
+        MonitorStatusCorner.holdsSetup(photo: photo, portrait: layout.portrait,
+            statusShown: mounts(.statusBar) && !command, valuesShown: mounts(.cameraValues))
+    }
+    private var cornerReadouts: [MonitorOperatorLiveReadout<Key, Section>] {
+        facts.capture.cornerReadouts(holdsSetup: cornerHoldsSetup)
+    }
+    private var cornerKeys: Set<Key> { Set(cornerReadouts.map(\.id)) }
+    private var captureInputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity> {
+        facts.capture.raising(cornerKeys)
+    }
+    /// Without a motion cluster the recenter key takes the feed's trailing bottom corner.
+    private var focusResetFrame: MonitorRect { layout.focusReset(motionCluster: cameraViews.motion != nil) }
     private var panel: MonitorOperatorCameraPanel<Key>? { captureInputs.panel }
     private var open: (Key) -> Void { captureInputs.open }
     private var dismiss: () -> Void { captureInputs.dismiss }
@@ -682,7 +696,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                         headerReadout(mode, alwaysAccent: mode.id == plan.accented)
                     }
                 },
-                link: { telemetry(horizontal: true, showsLink: true, showsPower: false) }
+                link: { telemetry(horizontal: true, showsLink: true, showsPower: false) },
+                cornerShown: !cornerReadouts.isEmpty,
+                corner: { captureCorner }
             )
             .environment(\.monitorPortraitPrimaryFit, fit)
             .modifier(ChromeEditableModifier<Host>(section: .statusBar, mode: editing))
@@ -791,7 +807,13 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         MonitorOperatorCaptureStrip(inputs: captureInputs, control: control, state: captureState,
             source: captureSource, enabled: presentationAdmitted, commandEnabled: !readOnly,
             currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
-            portrait: layout.portrait, tablet: layout.tablet)
+            portrait: layout.portrait, tablet: layout.tablet, excluded: cornerKeys)
+            .modifier(ChromeEditableModifier<Host>(section: .cameraValues, mode: editing))
+    }
+    private var captureCorner: some View {
+        MonitorOperatorCaptureCorner(inputs: captureInputs, readouts: cornerReadouts, control: control,
+            state: captureState, source: captureSource, enabled: presentationAdmitted, commandEnabled: !readOnly,
+            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name)
             .modifier(ChromeEditableModifier<Host>(section: .cameraValues, mode: editing))
     }
     private func frameReader(_ key: Key) -> some View {
@@ -884,10 +906,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 MonitorFocusResetButton(foreground: Host.Palette.text, outline: Host.Palette.hairline) {
                     if admitted { focusReset() }
                 }
-                .position(x: layout.focusReset.midX, y: layout.focusReset.midY)
+                .position(x: focusResetFrame.midX, y: focusResetFrame.midY)
             }
             if !command, !locked, editing == nil, let comparison = cameraViews.comparison {
-                comparison.position(x: layout.focusReset.midX, y: layout.focusReset.midY - 50)
+                comparison.position(x: focusResetFrame.midX, y: focusResetFrame.midY - 50)
             }
         }
         if mounts(.toolBar), !command {

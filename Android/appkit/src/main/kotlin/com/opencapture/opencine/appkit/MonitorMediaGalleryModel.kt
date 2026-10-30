@@ -162,12 +162,6 @@ public class MonitorMediaGalleryModel<P>(public val library: MonitorMediaLibrary
         if (!isCurrent(admitted) || admitted.record(id) == null) return
         mutable.value = mutable.value.copy(resolvedDurations = mutable.value.resolvedDurations + (id to label))
     }
-    public fun canDownload(record: MonitorMediaRecord<P>, operations: MonitorMediaGalleryOperations<P>): Boolean {
-        if (operations.download == null) return false
-        operations.access?.invoke(record)?.download?.let { return it }
-        return library.state.value.entries[record.asset.id]?.original == null &&
-            record.asset.representations.any { it.role == MediaRepresentationRole.ORIGINAL }
-    }
     public fun canShare(record: MonitorMediaRecord<P>, operations: MonitorMediaGalleryOperations<P>): Boolean {
         operations.access?.invoke(record)?.share?.let { return it }
         return library.state.value.entries[record.asset.id]?.original != null || (operations.download != null &&
@@ -233,16 +227,6 @@ public class MonitorMediaGalleryModel<P>(public val library: MonitorMediaLibrary
         val favorite = operations.favorite
         if (favorite != null) favorite(record) else library.toggleFavorite(id)
     }
-    public fun favoriteSelection(admitted: MonitorMediaGallerySnapshot<P>, operations: MonitorMediaGalleryOperations<P>,
-        toggleUniform: Boolean = false): Unit {
-        val records = selected(admitted, expanded = false)
-        val target = !toggleUniform || records.any { library.record(it.asset.id)?.favorite == false }
-        records.filter { library.record(it.asset.id)?.favorite != target }.forEach { favorite(it.asset.id, admitted, operations) }
-    }
-    public fun cacheSelection(admitted: MonitorMediaGallerySnapshot<P>, operations: MonitorMediaGalleryOperations<P>): Unit {
-        val download = operations.download ?: return
-        perform(selected(admitted).filter { canDownload(it, operations) }, admitted, false, download)
-    }
     public fun requestDelete(admitted: MonitorMediaGallerySnapshot<P>, operations: MonitorMediaGalleryOperations<P>,
         supportedSubset: Boolean = false): Unit {
         val selected = selected(admitted)
@@ -283,7 +267,7 @@ public class MonitorMediaGalleryModel<P>(public val library: MonitorMediaLibrary
             return
         }
         val delete = captured.operations.delete ?: return
-        perform(captured.records, captured.snapshot, true, delete)
+        performDeletion(captured.records, captured.snapshot, delete)
     }
     public fun pickDate(bound: MonitorMediaDateBound, admitted: MonitorMediaGallerySnapshot<P>): Unit {
         if (!isCurrent(admitted)) return
@@ -308,8 +292,9 @@ public class MonitorMediaGalleryModel<P>(public val library: MonitorMediaLibrary
         if (!isCurrent(snapshot)) return emptyList()
         return snapshot.selected(library.state.value.selectedIDs, expanded)
     }
-    private fun perform(records: List<MonitorMediaRecord<P>>, snapshot: MonitorMediaGallerySnapshot<P>,
-        clearSelection: Boolean, operation: suspend (MonitorMediaRecord<P>) -> Unit): Unit {
+    /** Deletes in order, then ends the selection, while this snapshot stays current. */
+    private fun performDeletion(records: List<MonitorMediaRecord<P>>, snapshot: MonitorMediaGallerySnapshot<P>,
+        operation: suspend (MonitorMediaRecord<P>) -> Unit): Unit {
         if (records.isEmpty() || !isCurrent(snapshot)) return
         val id = UUID.randomUUID(); val origin = lifetime
         val task = scope.launch(start = CoroutineStart.LAZY) {
@@ -322,11 +307,10 @@ public class MonitorMediaGalleryModel<P>(public val library: MonitorMediaLibrary
                         // only this batch's own cancellation ends the batch.
                         if (failure is CancellationException) currentCoroutineContext().ensureActive()
                         if (isActive && lifetime == origin && isCurrent(snapshot))
-                            mutable.value = mutable.value.copy(failure = if (clearSelection)
-                                "Could not delete that clip." else "Could not cache that clip.")
+                            mutable.value = mutable.value.copy(failure = "Could not delete that clip.")
                     }
                 }
-                if (isActive && lifetime == origin && isCurrent(snapshot) && clearSelection) library.clearSelection()
+                if (isActive && lifetime == origin && isCurrent(snapshot)) library.clearSelection()
             } finally { tasks.remove(id) }
         }
         tasks[id] = task; task.start()
