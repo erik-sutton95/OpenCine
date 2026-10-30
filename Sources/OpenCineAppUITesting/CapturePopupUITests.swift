@@ -65,12 +65,13 @@
             }
         }
 
-        /// Owner decision 2026-10-28 (hardware pass A2, after 1.1): the open assist palette grows
-        /// over the camera values in landscape, and the values used to hide under it. They now
-        /// stay readable and tappable beside the plate: while it is open every value is shown,
-        /// takes a touch and sits past the plate's trailing edge, and a tap opens its drawer.
-        /// Closing the palette puts them back. One shared surface, so every app.
-        func testSIMULATEDOpenLandscapePaletteKeepsEveryValueBesideIt() throws {
+        /// Owner decision 2026-10-30 (hardware pass A2): the camera values stay exactly where
+        /// they are. The open assist palette is temporary, so in landscape it draws over the
+        /// values it reaches instead of hiding them (hardware pass 1.1) or moving them. While it is
+        /// open every value keeps its frame and stays shown; a value under the plate takes no
+        /// touch (the plate is above it) and every other value does. Closing the palette leaves
+        /// them all as they were. One shared surface, so every app.
+        func testSIMULATEDOpenLandscapePaletteLeavesTheValuesInPlace() throws {
             #if !targetEnvironment(simulator)
                 throw XCTSkip("SIMULATED palette staging requires a private simulator")
             #endif
@@ -86,38 +87,57 @@
             let first = app.buttons[readouts[0].identifier]
             XCTAssertTrue(first.waitForExistence(timeout: 10), "The camera values must be shown")
             rotate(.landscapeLeft, settling: first)
+            var closed: [String: CGRect] = [:]
             for readout in readouts {
+                let button = app.buttons[readout.identifier]
                 XCTAssertTrue(
-                    app.buttons[readout.identifier].waitForExistence(timeout: 5),
+                    button.waitForExistence(timeout: 5),
                     "The \(readout.popup) value must be shown while the palette is closed")
+                closed[readout.identifier] = button.frame
             }
             tapWhenReady(app.buttons["monitor.assists.expand"], in: app, "The palette expansion")
             let collapse = app.buttons["monitor.assists.collapse"]
             XCTAssertTrue(collapse.waitForExistence(timeout: 5), "The palette must open")
-            // The plate's trailing edge is its collapse arrow's; every value settles past it.
+            // The open plate: its tools and its collapse arrow, which ends it (a scrolled catalog
+            // reports tools past that edge).
+            let tools = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'monitor.assist.'"))
+                .allElementsBoundByIndex.map(\.frame)
+            let reach = tools.reduce(collapse.frame) { $0.union($1) }
+            let plate = CGRect(x: reach.minX, y: reach.minY,
+                width: max(0, collapse.frame.maxX - reach.minX), height: reach.height)
+            capture("SIMULATED palette open landscape")
             for readout in readouts {
                 let button = app.buttons[readout.identifier]
-                let beside = XCTNSPredicateExpectation(
+                let frame = try XCTUnwrap(closed[readout.identifier])
+                let covered = plate.contains(CGPoint(x: frame.midX, y: frame.midY))
+                let settled = XCTNSPredicateExpectation(
                     predicate: NSPredicate { _, _ in
-                        button.exists && button.isHittable && button.frame.minX >= collapse.frame.maxX
+                        button.exists && Self.same(button.frame, frame) && button.isHittable != covered
                     }, object: nil)
                 XCTAssertEqual(
-                    XCTWaiter.wait(for: [beside], timeout: 5), .completed,
-                    "The \(readout.popup) value must stay shown and tappable beside the open palette")
+                    XCTWaiter.wait(for: [settled], timeout: 5), .completed,
+                    covered
+                        ? "The \(readout.popup) value must stay in place under the open palette, which takes its touches"
+                        : "The \(readout.popup) value must stay in place and take a touch beside the open palette")
             }
-            capture("SIMULATED palette open landscape")
-            try open(app.buttons[readouts[0].identifier], popup: readouts[0].popup, orientation: "landscape")
-            let reopen = app.buttons["monitor.assists.expand"]
-            if !reopen.exists { tapWhenReady(collapse, in: app, "The palette collapse") }
+            tapWhenReady(collapse, in: app, "The palette collapse")
             for readout in readouts {
                 let button = app.buttons[readout.identifier]
+                let frame = try XCTUnwrap(closed[readout.identifier])
                 let touchable = XCTNSPredicateExpectation(
-                    predicate: NSPredicate { _, _ in button.exists && button.isHittable }, object: nil)
+                    predicate: NSPredicate { _, _ in
+                        button.exists && button.isHittable && Self.same(button.frame, frame)
+                    }, object: nil)
                 XCTAssertEqual(
                     XCTWaiter.wait(for: [touchable], timeout: 5), .completed,
-                    "The \(readout.popup) value must be in the strip once the palette closes")
+                    "The \(readout.popup) value must be unchanged once the palette closes")
             }
             capture("SIMULATED palette closed landscape")
+        }
+
+        private static func same(_ a: CGRect, _ b: CGRect) -> Bool {
+            abs(a.minX - b.minX) <= 1 && abs(a.minY - b.minY) <= 1
+                && abs(a.width - b.width) <= 1 && abs(a.height - b.height) <= 1
         }
 
         private func open(_ readout: XCUIElement, popup: String, orientation: String) throws {
