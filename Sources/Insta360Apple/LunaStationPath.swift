@@ -146,77 +146,147 @@ enum LunaStationPath {
         #endif
     }
 
+    /// What one host on the setup's network answered.
+    enum ProbeResult: Equatable, Sendable {
+        /// The Luna control port answered with a UCD2 frame.
+        case camera
+        /// Nothing answered, or something that is not a Luna.
+        case absent
+        /// iOS held the connection back: Local Network access is off for this app.
+        case localNetworkDenied
+    }
+
     /// The first host answering the Luna control port with a UCD2 frame, searched in rounds until
-    /// `budget` runs out; `preferred` (an address the camera reported) is tried first.
+    /// `budget` runs out (checked after every batch); `preferred` (an address the camera reported)
+    /// is tried first. Nil when no host answered. When the last round was held back by iOS's
+    /// Local Network permission, that is the failure instead: the search keeps going while the
+    /// first-run prompt is on screen, so allowing it there still finds the camera.
     static func findCamera(
         on local: Address, preferred: String?, budget: Duration, isCurrent: @escaping @MainActor () -> Bool
     ) async throws -> String? {
+        try await findCamera(
+            on: local, preferred: preferred, budget: budget, isCurrent: isCurrent,
+            probe: { host, local in await probe(host, local: local) })
+    }
+
+    /// ``findCamera(on:preferred:budget:isCurrent:)`` with `probe` answering for each host.
+    static func findCamera(
+        on local: Address, preferred: String?, budget: Duration, isCurrent: @escaping @MainActor () -> Bool,
+        probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult
+    ) async throws -> String? {
         let hosts = (preferred.map { [$0] } ?? []) + candidates(around: local).filter { $0 != preferred }
+        let batches = stride(from: 0, to: hosts.count, by: 32).map { Array(hosts[$0..<min($0 + 32, hosts.count)]) }
         let deadline = ContinuousClock.now + budget
-        while ContinuousClock.now < deadline {
-            try Task.checkCancellation()
-            guard isCurrent() else { throw CancellationError() }
-            for batch in stride(from: 0, to: hosts.count, by: 32).map({ Array(hosts[$0..<min($0 + 32, hosts.count)]) }) {
-                let found = await withTaskGroup(of: String?.self) { group in
+        var denied = false
+        search: while ContinuousClock.now < deadline {
+            denied = false
+            for batch in batches {
+                try Task.checkCancellation()
+                guard isCurrent() else { throw CancellationError() }
+                let (found, deniedHere) = await withTaskGroup(
+                    of: (String, ProbeResult).self, returning: (String?, Bool).self
+                ) { group in
                     for host in batch {
-                        group.addTask { await probe(host, local: local.address) ? host : nil }
+                        group.addTask { (host, await probe(host, local.address)) }
                     }
-                    for await host in group where host != nil {
-                        group.cancelAll()
-                        return host
+                    var deniedHere = false
+                    for await (host, result) in group {
+                        switch result {
+                        case .camera:
+                            group.cancelAll()
+                            return (host, deniedHere)
+                        case .localNetworkDenied: deniedHere = true
+                        case .absent: break
+                        }
                     }
-                    return nil
+                    return (nil, deniedHere)
                 }
                 if let found { return found }
-                try Task.checkCancellation()
+                denied = denied || deniedHere
+                if ContinuousClock.now >= deadline { break search }
             }
+            try Task.checkCancellation()
             try await Task.sleep(for: .seconds(1))
+        }
+        if denied {
+            throw ConnectionFailure.luna(
+                .permission(.localNetwork), "local-network.denied",
+                "Local Network access is off. Enable it in Settings, then connect again.",
+                phase: .joiningNetwork, actions: [.openSettings, .retry])
         }
         return nil
     }
 
-    /// Connects to `host`:6666 from `local`, sends the preface and waits up to 2.5 s for a frame
-    /// that starts with the UCD2 magic (the camera answers slowly in Wi-Fi power save).
-    nonisolated static func probe(_ host: String, local: String) async -> Bool {
+    /// Connects to `host`:6666 from `local`, sends the preface and waits up to 3.2 s for a frame
+    /// that starts with the UCD2 magic (the camera answers slowly in Wi-Fi power save). A
+    /// cancelled probe ends at once.
+    nonisolated static func probe(_ host: String, local: String) async -> ProbeResult {
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: .init(local), port: .any)
         parameters.includePeerToPeer = false
         let connection = NWConnection(
             host: .init(host), port: .init(rawValue: LunaProtocol.defaultPort)!, using: parameters)
         let queue = DispatchQueue(label: "luna.station.probe")
-        let answered: Bool = await withCheckedContinuation { continuation in
-            let once = ProbeOnce(continuation)
-            queue.asyncAfter(deadline: .now() + 3.2) { once.finish(false) }
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    connection.send(content: LunaProtocol.tcpPreface, completion: .contentProcessed { _ in })
-                    connection.receive(minimumIncompleteLength: 4, maximumLength: 64) { data, _, _, _ in
-                        once.finish(data.map { $0.prefix(4) == Data("UCD2".utf8) } ?? false)
+        let once = ProbeOnce()
+        let result = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                once.start(continuation)
+                queue.asyncAfter(deadline: .now() + 3.2) { once.finish(.absent) }
+                connection.stateUpdateHandler = { state in
+                    switch state {
+                    case .ready:
+                        connection.send(content: LunaProtocol.tcpPreface, completion: .contentProcessed { _ in })
+                        connection.receive(minimumIncompleteLength: 4, maximumLength: 64) { data, _, _, _ in
+                            once.finish(data.map { $0.prefix(4) == Data("UCD2".utf8) } ?? false ? .camera : .absent)
+                        }
+                    case .waiting(let error):
+                        var dnsCode: Int32?
+                        if case .dns(let code) = error { dnsCode = code }
+                        once.finish(
+                            CameraNetworkPermissionPolicy.isLocalNetworkDenied(
+                                dnsErrorCode: dnsCode,
+                                pathDenied: connection.currentPath?.unsatisfiedReason == .localNetworkDenied)
+                                ? .localNetworkDenied : .absent)
+                    case .failed, .cancelled: once.finish(.absent)
+                    default: break
                     }
-                case .failed, .cancelled: once.finish(false)
-                case .waiting: once.finish(false)
-                default: break
                 }
+                connection.start(queue: queue)
             }
-            connection.start(queue: queue)
+        } onCancel: {
+            once.finish(.absent)
         }
         connection.cancel()
-        return answered
+        return result
     }
 }
 
-/// Resumes a probe's continuation exactly once.
+/// Resumes a probe's continuation exactly once; a finish before the continuation exists (a probe
+/// cancelled before it started) is kept for it.
 private final class ProbeOnce: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<Bool, Never>?
+    private var continuation: CheckedContinuation<LunaStationPath.ProbeResult, Never>?
+    private var early: LunaStationPath.ProbeResult?
+    private var done = false
 
-    init(_ continuation: CheckedContinuation<Bool, Never>) { self.continuation = continuation }
-
-    func finish(_ value: Bool) {
+    func start(_ continuation: CheckedContinuation<LunaStationPath.ProbeResult, Never>) {
         lock.lock()
+        if let early {
+            lock.unlock()
+            continuation.resume(returning: early)
+            return
+        }
+        self.continuation = continuation
+        lock.unlock()
+    }
+
+    func finish(_ value: LunaStationPath.ProbeResult) {
+        lock.lock()
+        guard !done else { lock.unlock(); return }
+        done = true
         let pending = continuation
         continuation = nil
+        if pending == nil { early = value }
         lock.unlock()
         pending?.resume(returning: value)
     }
