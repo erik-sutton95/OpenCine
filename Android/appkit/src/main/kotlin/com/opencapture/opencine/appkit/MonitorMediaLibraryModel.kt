@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.monitorui.MonitorMediaLayout
 import com.opencapture.monitorui.MonitorThumbnailSize
+import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.media.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,12 +101,17 @@ public class MonitorMediaLibraryModel<P>(
     private val catalogBase: MonitorMediaCatalogBase = MonitorMediaCatalogBase.RETAIN_OBSERVED,
     /** Restores and keeps the operator's gallery view options; preferences with a view prefix supply it. */
     private val viewOptions: MonitorMediaViewOptionsStore? = favoritesStore as? MonitorMediaViewOptionsStore,
+    /** The download speed readings' clock; tests pass the scheduler's time. */
+    rateClock: () -> MonotonicInstant = { MonotonicInstant.now() },
 ) {
     /** Original constructor, including positional and trailing sleep lambda compatibility. */
     public constructor(cache: MonitorMediaCache<P>, favoritesStore: MonitorMediaFavoritesStore,
         service: CameraMediaService? = null, scope: CoroutineScope, sleep: suspend (Long) -> Unit = { delay(it) }) :
         this(cache, favoritesStore, service, scope, cacheScanning = MonitorMediaCacheScanning.IMMEDIATE, sleep = sleep)
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
+    /** Download speed per clip for every transfer this library runs (its own caching and the host
+     * transfers captured with an asset), read by the grid, player and delivery progress. */
+    public val transferRates: MonitorTransferRates<MediaAssetID> = MonitorTransferRates(owner, rateClock)
     /** Work that belongs to this library's lifetime rather than to one page (a playback download). */
     public val lifetimeScope: CoroutineScope get() = owner
     private var favorites = favoritesStore.favorites()
@@ -185,11 +191,24 @@ public class MonitorMediaLibraryModel<P>(
     private var indexMemo: Pair<List<MonitorMediaRecord<P>>, Map<MediaAssetID, MonitorMediaRecord<P>>>? = null
     init { mutate { it.copy(catalog = initialCatalog ?: MediaCatalog(assets = it.records.map { record -> record.asset })) }; reloadEntries() }
     private fun mutate(change: (MonitorMediaLibraryState<P>) -> MonitorMediaLibraryState<P>) {
-        val next = change(mutable.value)
+        val previous = mutable.value
+        val next = change(previous)
         mutable.value = next
         // StateFlow equality: unchanged fields keep their identity, so a tick compares in O(1).
         contentMutable.value = next.withoutTicks()
         progressMutable.value = MonitorMediaLibraryTransferProgress(next.progress, next.hostProgress)
+        if (next.progress !== previous.progress || next.hostProgress !== previous.hostProgress) retainRunningRates()
+    }
+    /** A speed reading lives exactly as long as its download's progress: every path that ends,
+     * retires or replaces a transfer clears its progress, and with it the reading. */
+    private fun retainRunningRates() {
+        if (transferRates.rates.value.isEmpty()) return
+        val progress = mutable.value
+        val running = progress.progress.keys.toMutableSet()
+        hostProgressOwners.forEach { (key, authority) ->
+            if (key in progress.hostProgress) authority.asset?.let(running::add)
+        }
+        transferRates.retain(running)
     }
     private fun MonitorMediaLibraryState<P>.withoutTicks(): MonitorMediaLibraryState<P> =
         if (progress.isEmpty() && hostProgress.isEmpty()) this else copy(progress = emptyMap(), hostProgress = emptyMap())
@@ -832,6 +851,7 @@ public class MonitorMediaLibraryModel<P>(
             hostProgressOwners[authority.key] = authority
             previous?.cancel()
             mutate { it.copy(hostProgress = it.hostProgress + (authority.key to 0.0)) }
+            authority.asset?.let { transferRates.begin(it) }
         }
         if (!hostCurrent(operation)) {
             finishHost(operation, clearingProgress = true); writer?.abort()
@@ -845,6 +865,8 @@ public class MonitorMediaLibraryModel<P>(
         hostOperations.remove(authority.id)
         val claim = HostClaim(authority.key, operation.purpose)
         if (hostClaims[claim] == authority.id) hostClaims.remove(claim)
+        // No more bytes come from this operation: its speed reading ends with it.
+        if (operation.purpose.tracksProgress) authority.asset?.let { transferRates.end(it) }
         if (clearingProgress) clearHostProgress(authority)
     }
     private fun hostSink(operation: HostOperation, attempt: UUID, hint: Long?, sink: MediaByteSink): MediaByteSink =
@@ -870,6 +892,8 @@ public class MonitorMediaLibraryModel<P>(
                         operation.purpose.tracksProgress) {
                         val value = expected?.let { (bytes.toDouble() / it).coerceAtMost(1.0) } ?: 0.0
                         mutate { it.copy(hostProgress = it.hostProgress + (operation.authority.key to value)) }
+                        // A retried attempt counts from zero again; the reading restarts with it.
+                        operation.authority.asset?.let { transferRates.record(it, bytes) }
                     }
                 }
             }
@@ -1078,6 +1102,7 @@ public class MonitorMediaLibraryModel<P>(
         }
         hostProgressDelays[authority.key] = task
         mutate { it.copy(hostProgress = it.hostProgress + (authority.key to 1.0)) }
+        authority.asset?.let { transferRates.end(it) }
         if (!authority.isCurrent || hostProgressOwners[authority.key]?.id != authority.id) task.cancel() else task.start()
     }
     private data class RetiredOperations(val ids: Set<MediaAssetID>,
@@ -1178,6 +1203,7 @@ public class MonitorMediaLibraryModel<P>(
                 withContext(owner.coroutineContext.minusKey(Job)) {
                     if (current(generation) && transfers[id]?.id == operation && (descriptor.byteCount ?: 0) > 0) {
                         mutate { it.copy(progress = it.progress + (id to (bytes.toDouble() / checkNotNull(descriptor.byteCount)).coerceAtMost(1.0))) }
+                        transferRates.record(id, bytes)
                     }
                 }
             }
@@ -1196,6 +1222,7 @@ public class MonitorMediaLibraryModel<P>(
                 val file = writer.commit(receipt); reloadEntries(setOf(id))
                 if (!current(generation) || transfers[id]?.id != operation || !isActive) throw MediaServiceException(MediaServiceFailure.RETIRED)
                 if (id in state.value.progress) mutate { it.copy(progress = it.progress + (id to 1.0)) }
+                transferRates.end(id)
                 sleep(450)
                 currentCoroutineContext().ensureActive()
                 if (!current(generation) || transfers[id]?.id != operation) throw MediaServiceException(MediaServiceFailure.RETIRED)
@@ -1207,6 +1234,7 @@ public class MonitorMediaLibraryModel<P>(
         transfers[id] = Transfer(operation, representation, writer, task, completion)
         mutate { it.copy(transferring = it.transferring + id,
             progress = if (descriptor.byteCount != null) it.progress + (id to 0.0) else it.progress) }
+        if (descriptor.byteCount != null) transferRates.begin(id)
         if (!current(generation) || transfers[id]?.id != operation) {
             task.cancel(); writer.abort(); completion.complete(null)
             throw MediaServiceException(MediaServiceFailure.RETIRED)

@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import OpenCineAppKit
 import OpenCineCore
+import OpenCineCoreTestSupport
 import OpenCineMedia
 import Testing
 
@@ -421,6 +422,34 @@ private actor HostIOBorrowedSink: MediaByteSink {
         gate.release(); #expect(await outgoing.value == false)
         #expect(model.records.isEmpty && model.catalog.assets.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("play/a").path))
+    }
+    @Test func aDownloadReadsItsSpeedWhileItsBytesArrive() async throws {
+        let sleep = HostIOSleep(), time = ManualHostClock()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = MonitorMediaCache(directory: .init(root: root), codec: HostIOCodec(),
+            eligibility: .exactSize, catalogAddress: "index", preservedMetadata: [])
+        let model = MonitorMediaLibraryModel(cache: cache, favorites: HostIOFavorites(),
+            sleep: { await sleep.wait($0) }, rateClock: time.clock)
+        defer { model.close(); sleep.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let record = HostIOCodec().capture(.init(id: .init("clip"), filename: "clip.mov", kind: .video,
+            representations: []), binding: HostIOBrowse().binding)
+        try model.applyLocalRecords(.init(resetLibrary: false, upserts: [record]), token: model.actionToken)
+        let capture = model.captureIO(key: .init("clip"), asset: record.asset.id, ifCurrent: { true })
+        var reading: String?
+        _ = try await model.cacheHostFile(capture, purpose: .playback, at: "play/a",
+            expectedByteCount: 1_000_000) { sink in
+            // 1 MB over one second, 100 KB every 100 ms.
+            for _ in 0..<10 {
+                try await sink.write(Data(count: 100_000))
+                time.advance(by: .milliseconds(100))
+            }
+            #expect(await eventually { model.transferRates.rate(record.asset.id)?.label == "1.0 MB/s" })
+            reading = model.transferRates.rate(record.asset.id)?.label
+            return .init(byteCount: 1_000_000, expectedByteCount: 1_000_000)
+        }
+        #expect(reading == "1.0 MB/s")
+        // The bytes are all here: no reading lingers beside the finished progress.
+        #expect(model.transferRates.rate(record.asset.id) == nil)
     }
     @Test func headerLengthOverridesSourceHintForProgress() async throws {
         let clock = HostIOSleep(), (root, model) = library(clock)

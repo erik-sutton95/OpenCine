@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.ControlEpoch
+import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.media.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
@@ -12,6 +13,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.test.*
+import kotlin.time.Duration.Companion.milliseconds
 
 private class HostIOGate {
     private val pending = mutableListOf<Continuation<Unit>>()
@@ -295,6 +297,32 @@ class MonitorMediaLibraryIOTest {
             assertTrue(model.state.value.browsing); assertNull(model.binding); assertFalse(model.canRefresh)
             assertEquals("Source unavailable", model.state.value.note)
             assertEquals(listOf("cached"), model.state.value.records.map { it.payload }); assertTrue(model.state.value.catalog.assets.isEmpty())
+        } finally { model.close(); clock.gate.release(); root.deleteRecursively() }
+    }
+    @Test fun aDownloadReadsItsSpeedWhileItsBytesArrive() = runTest {
+        val clock = HostIOSleep()
+        val root = Files.createTempDirectory("host-io").toFile()
+        val cache = MonitorMediaCache(MonitorMediaCacheDirectory(root), HostIOCodec(),
+            MonitorMediaOriginalEligibility.ExactSize, "index", emptyList())
+        val model = MonitorMediaLibraryModel(cache, HostIOFavorites(), scope = backgroundScope,
+            cacheScanning = MonitorMediaCacheScanning.IMMEDIATE, sleep = clock::wait,
+            rateClock = { MonotonicInstant(testScheduler.currentTime.milliseconds) })
+        try {
+            val record = HostIOCodec().capture(MediaAsset(MediaAssetID("clip"), filename = "clip.mov",
+                kind = MediaAssetKind.VIDEO, representations = emptyList()), HostIOBrowse().binding)
+            model.applyLocalRecords(MonitorMediaCatalogCapture(resetLibrary = false, upserts = listOf(record)), model.actionToken)
+            val capture = model.captureIO(MonitorMediaLibraryIOKey("clip"), record.asset.id) { true }
+            var reading: String? = null
+            model.cacheHostFile(capture, MonitorMediaLibraryIOPurpose.PLAYBACK, "play/a", 1_000_000) { sink ->
+                // 1 MB over one second, 100 KB every 100 ms.
+                repeat(10) { sink.write(ByteArray(100_000)); delay(100) }
+                yield()
+                reading = model.transferRates.rate(record.asset.id)?.label
+                MediaTransferReceipt(1_000_000)
+            }
+            assertEquals("1.0 MB/s", reading)
+            // The bytes are all here: no reading lingers beside the finished progress.
+            assertNull(model.transferRates.rate(record.asset.id))
         } finally { model.close(); clock.gate.release(); root.deleteRecursively() }
     }
     @Test fun duplicateDownloadJoinsTheActiveWriter() = runTest {

@@ -47,7 +47,10 @@ public suspend fun <R> MonitorDeliveryModel.Companion.cacheOriginals(
                     if (!active || !accepts()) return@launch
                     val fraction = originals.progress(record)
                     if (!active || !accepts()) return@launch
-                    if (fraction != null) { value = value.copy(clipFraction = fraction); progress(value) }
+                    if (fraction == null) continue
+                    val rate = originals.rate(record)?.label
+                    if (!active || !accepts()) return@launch
+                    value = value.copy(clipFraction = fraction, transferRate = rate); progress(value)
                 }
             }
             try { originals.acquire(record) }
