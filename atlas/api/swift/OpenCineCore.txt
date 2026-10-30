@@ -285,6 +285,7 @@ enum SettingSemantics.Implementation: Decodable, Encodable, Equatable, Hashable,
 enum SettingSemantics.Qualification: Decodable, Encodable, Equatable, Hashable, Sendable
 enum SettingValue: Decodable, Encodable, Equatable, Hashable, Sendable
 enum ShutterValue: Decodable, Encodable, Equatable, Hashable, Sendable
+enum StationRoutes
 enum SupportStatus: Decodable, Encodable, Equatable, Hashable, Sendable
 enum TelemetrySource: Decodable, Encodable, Equatable, Hashable, Sendable
 enum TimecodePrecision: Decodable, Encodable, Equatable, Hashable, Sendable
@@ -439,6 +440,13 @@ static func MonotonicInstant.-(_: MonotonicInstant, _: MonotonicInstant) -> Swif
 static func MonotonicInstant.<(_: MonotonicInstant, _: MonotonicInstant) -> Swift.Bool
 static func MonotonicInstant.now() -> MonotonicInstant
 static func Rational.frameRate(_: Swift.Double) -> Rational?
+static func StationRoutes.adding(_: SavedRoute, to: SavedCamera) -> SavedCamera
+static func StationRoutes.mayBeInStationRole(_: SavedCamera) -> Swift.Bool
+static func StationRoutes.moves(_: RouteKind) -> Swift.Bool
+static func StationRoutes.route(adding: RouteDraft) -> SavedRoute?
+static func StationRoutes.stamping(_: SavedCamera, movingTo: RouteKind) -> SavedCamera
+static func StationRoutes.steps(_: SavedRoute?) -> [ConnectionStep]
+static func StationRoutes.withRouteActions(_: ConnectionFailure, route: SavedRoute?, camera: SavedCamera?) -> ConnectionFailure
 static func TimecodeCapability.supported(_: TimecodePrecision?) -> TimecodeCapability
 static let CameraHotspotJoinRefusal.platformErrorDomain: Swift.String
 static let CameraRecordingObservations.unknown: CameraRecordingObservations
@@ -452,6 +460,7 @@ static let MonitorConnectionPolicy.owning: MonitorConnectionPolicy
 static let MonotonicInstant.zero: MonotonicInstant
 static let PowerStatus.unknown: PowerStatus
 static let SavedCamerasDocument.currentVersion: Swift.Int
+static let StationRoutes.moving: Swift.Set<RouteKind>
 static let TimecodeCapability.unknown: TimecodeCapability
 static let TimecodeCapability.unsupported: TimecodeCapability
 static var CameraHotspotJoinRefusal.errorDomain: Swift.String
