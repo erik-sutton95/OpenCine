@@ -156,7 +156,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                 tools: {
                     MonitorAssistSelection.toolbarCases
                         + (host.cameraStatus.isPhoto || !host.controlCapabilities.liveAudioLevels.isShown ? [] : [.audioMeters])
-                }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
+                }, rendered: { nil }, signalOptions: .init(),
                 usage: Binding(get: { host.assistToolUsage }, set: { host.assistToolUsage = $0 }),
                 usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: host.assist.toggle),
             views: accessories.views, portraitAspect: portraitAspect, picture: picture,

@@ -518,7 +518,7 @@ init MonitorOperatorInteraction(sleep: (Swift.Duration) async throws -> Swift.Vo
 init MonitorOperatorLegacyCaptureIdentity(camera: Foundation.UUID?, phase: Swift.String, sheet: CaptureSheet, snapshot: CaptureQuickSnapshot)
 init MonitorOperatorLinkGauge(fps: Swift.String?, signalBars: Swift.Int?)<Palette where Palette : LiveChromePalette>
 init MonitorOperatorLiveAssistSource(stores: AssistPanelStores, looks: FalseColorLooks, haptics: OperatorHaptics, readBundle: () -> OpenCineMedia.ScopeAssistBundle, readTransfer: () -> OpenCineMedia.MonitorTransfer, readClipByte: (OpenCineMedia.MonitorTransfer) -> Swift.Int, configureDisplay: (MetalKit.MTKView) -> MonitorUI.MonitorScopeDisplayOptions, audioAvailable: Swift.Bool?, configurableTools: Swift.Set<MonitorPresentation.MonitorAssistSelection>?, optionsUnavailableNotice: Swift.String?, paradeIntensityScale: Swift.Double)
-init MonitorOperatorLiveAssists(scopes: MonitorOperatorLiveAssistSource?, tools: () -> [MonitorPresentation.MonitorAssistSelection], rendered: () -> Swift.Set<MonitorPresentation.MonitorAssistSelection>?, fitted: () -> [MonitorPresentation.MonitorAssistSelection], signalOptions: MonitorOperatorSignalOptions, usage: SwiftUI.Binding<MonitorPresentation.MonitorToolUsage>, usageSeed: [Swift.String : Swift.Int], toggle: (MonitorPresentation.MonitorAssistSelection) -> Swift.Void)
+init MonitorOperatorLiveAssists(scopes: MonitorOperatorLiveAssistSource?, tools: () -> [MonitorPresentation.MonitorAssistSelection], rendered: () -> Swift.Set<MonitorPresentation.MonitorAssistSelection>?, signalOptions: MonitorOperatorSignalOptions, usage: SwiftUI.Binding<MonitorPresentation.MonitorToolUsage>, usageSeed: [Swift.String : Swift.Int], toggle: (MonitorPresentation.MonitorAssistSelection) -> Swift.Void)
 init MonitorOperatorLiveAudio(levels: OpenCineMedia.MonitorAudioMeterLevels, caption: Swift.String?)
 init MonitorOperatorLiveCaptureSource(confirmRecording: Swift.Bool, busy: () -> Swift.Bool, takePhoto: () -> Swift.Void)
 init MonitorOperatorLiveIdentity(monitor: Foundation.UUID?, camera: OpenCineCore.CameraSessionID?, epoch: OpenCineCore.ControlEpoch?, picture: Swift.String, pictureOwner: Swift.ObjectIdentifier?)
@@ -556,8 +556,7 @@ init MonitorOperatorWatcherScreen(host: Host, value: MonitorPresentation.Monitor
 init MonitorOperatorZoomDial(layout: MonitorUI.LiveMonitorLayout, interaction: MonitorOperatorInteraction, source: MonitorOperatorZoomPresentation, onClose: () -> Swift.Void)<Host where Host : LiveChromeHost>
 init MonitorOperatorZoomPresentation(maximum: Swift.Double, opticalStops: [Swift.Double], caption: Swift.String, readValue: () -> Swift.Double, readOrigin: () -> Swift.Double, label: (Swift.Double) -> Swift.String)
 init MonitorPlaybackPageOptions(signalOptions: MonitorOperatorSignalOptions, availableAssistTools: Swift.Set<MonitorPresentation.MonitorAssistSelection>?, initialRatingShadeOpen: Swift.Bool, initialChromeVisible: Swift.Bool)
-init MonitorScopeFitStack(tools: [MonitorPresentation.MonitorAssistSelection], assist: OpenCineAppKit.MonitorAssistState<Looks>, stores: AssistPanelStores, haptics: OperatorHaptics, readBundle: () -> OpenCineMedia.ScopeAssistBundle, configureDisplay: (MetalKit.MTKView) -> MonitorUI.MonitorScopeDisplayOptions, paradeIntensityScale: Swift.Double)<Looks where Looks : OpenCineAppKit.MonitorLookProvider>
-init MonitorScopeOverlay(tool: MonitorPresentation.MonitorAssistSelection, assist: OpenCineAppKit.MonitorAssistState<Looks>, stores: AssistPanelStores, haptics: OperatorHaptics, canvas: CoreFoundation.CGRect, feed: CoreFoundation.CGRect, chromeClearance: SwiftUI.EdgeInsets, readBundle: () -> OpenCineMedia.ScopeAssistBundle, configureDisplay: (MetalKit.MTKView) -> MonitorUI.MonitorScopeDisplayOptions, fittedSize: CoreFoundation.CGSize?, paradeIntensityScale: Swift.Double)<Looks where Looks : OpenCineAppKit.MonitorLookProvider>
+init MonitorScopeOverlay(tool: MonitorPresentation.MonitorAssistSelection, assist: OpenCineAppKit.MonitorAssistState<Looks>, stores: AssistPanelStores, haptics: OperatorHaptics, canvas: CoreFoundation.CGRect, feed: CoreFoundation.CGRect, chromeClearance: SwiftUI.EdgeInsets, readBundle: () -> OpenCineMedia.ScopeAssistBundle, configureDisplay: (MetalKit.MTKView) -> MonitorUI.MonitorScopeDisplayOptions, paradeIntensityScale: Swift.Double)<Looks where Looks : OpenCineAppKit.MonitorLookProvider>
 init MonitorScopeOverlays(assist: OpenCineAppKit.MonitorAssistState<Looks>, stores: AssistPanelStores, haptics: OperatorHaptics, canvas: CoreFoundation.CGRect, feed: CoreFoundation.CGRect, chromeClearance: SwiftUI.EdgeInsets, readBundle: () -> OpenCineMedia.ScopeAssistBundle, configureDisplay: (MetalKit.MTKView) -> MonitorUI.MonitorScopeDisplayOptions, playback: Swift.Bool, available: Swift.Set<MonitorPresentation.MonitorAssistSelection>, paradeIntensityScale: Swift.Double)<Looks where Looks : OpenCineAppKit.MonitorLookProvider>
 init MonitorSettingsAccountSource(title: Swift.String, help: Swift.String, model: OpenCineAppKit.MonitorSettingsAccountModel, actions: OpenCineAppKit.MonitorSettingsAccountActions, readState: () -> MonitorUI.MonitorAccountState, consentTitle: Swift.String, consentMessage: Swift.String, consentAction: Swift.String, status: Swift.String?, signInTitle: Swift.String, signOutTitle: Swift.String, busyTitle: Swift.String?)
 init MonitorSettingsAccountSource(title: Swift.String, help: Swift.String, state: MonitorUI.MonitorAccountState, signIn: () -> Swift.Void, signOut: () -> Swift.Void)
@@ -884,7 +883,6 @@ let MonitorOperatorLiveAssistSource.readBundle: () -> OpenCineMedia.ScopeAssistB
 let MonitorOperatorLiveAssistSource.readClipByte: (OpenCineMedia.MonitorTransfer) -> Swift.Int
 let MonitorOperatorLiveAssistSource.readTransfer: () -> OpenCineMedia.MonitorTransfer
 let MonitorOperatorLiveAssistSource.stores: AssistPanelStores
-let MonitorOperatorLiveAssists.fitted: () -> [MonitorPresentation.MonitorAssistSelection]
 let MonitorOperatorLiveAssists.rendered: () -> Swift.Set<MonitorPresentation.MonitorAssistSelection>?
 let MonitorOperatorLiveAssists.scopes: MonitorOperatorLiveAssistSource?
 let MonitorOperatorLiveAssists.signalOptions: MonitorOperatorSignalOptions
@@ -1704,7 +1702,6 @@ struct MonitorOperatorWatcherScreen<Host, Picture, Preview, LookMenu where Host 
 struct MonitorOperatorZoomDial<Host where Host : LiveChromeHost>: Sendable, View
 struct MonitorOperatorZoomPresentation: Sendable
 struct MonitorPlaybackPageOptions
-struct MonitorScopeFitStack<Looks where Looks : OpenCineAppKit.MonitorLookProvider>: Sendable, View
 struct MonitorScopeOverlay<Looks where Looks : OpenCineAppKit.MonitorLookProvider>: Sendable, View
 struct MonitorScopeOverlays<Looks where Looks : OpenCineAppKit.MonitorLookProvider>: Sendable, View
 struct MonitorSettingsAccountSource
@@ -2254,7 +2251,6 @@ var MonitorPlaybackPageOptions.initialChromeVisible: Swift.Bool
 var MonitorPlaybackPageOptions.initialRatingShadeOpen: Swift.Bool
 var MonitorPlaybackPageOptions.signalOptions: MonitorOperatorSignalOptions
 var MonitorPlaybackPresentationSource.presentation: OpenCineAppKitApple.MonitorApplePlaybackPresentation<Self.Payload, Self.Look>
-var MonitorScopeFitStack.body: some SwiftUI.View
 var MonitorScopeOverlay.body: some SwiftUI.View
 var MonitorScopeOverlays.body: some SwiftUI.View
 var MonitorSettingsDocument.id: Swift.String
