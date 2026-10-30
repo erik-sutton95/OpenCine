@@ -55,8 +55,9 @@
         }
 
         /// The pixel format to ask the capture output for: the device's own YCbCr layout when the
-        /// output can deliver it untouched, otherwise biplanar 4:2:0 in the device's range. Never
-        /// RGB, which would let AVFoundation choose the matrix.
+        /// output can deliver it untouched, otherwise biplanar 4:2:0 in the device's range, then
+        /// any other offered YCbCr layout. RGB, which lets AVFoundation choose the matrix, only
+        /// when the output offers nothing else: asking for a format it doesn't offer throws.
         static func outputPixelFormat(deviceFormat: OSType, available: [OSType]) -> OSType {
             if isYCbCr(deviceFormat), available.contains(deviceFormat) { return deviceFormat }
             let full = kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
@@ -66,7 +67,9 @@
                 deviceFormat == full || deviceFormat == kCMVideoCodecType_JPEG
                 || deviceFormat == kCMVideoCodecType_JPEG_OpenDML
             let preferred = fullRange ? full : video
-            return available.contains(preferred) || available.isEmpty ? preferred : video
+            if available.isEmpty || available.contains(preferred) { return preferred }
+            return [video, full].first(where: available.contains)
+                ?? available.first(where: isYCbCr) ?? available[0]
         }
 
         /// The four characters of a pixel format, for an operator readout (`420v`, not 875704438).

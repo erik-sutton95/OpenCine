@@ -93,6 +93,22 @@
             #expect(request(kCVPixelFormatType_32BGRA) != kCVPixelFormatType_32BGRA)
         }
 
+        /// The request is always one the output offers, since asking for another throws. Without
+        /// 4:2:0 it takes another offered YCbCr layout, and RGB only when nothing else is offered.
+        @Test func captureRequestsOnlyAnOfferedFormat() {
+            let yuvs = kCVPixelFormatType_422YpCbCr8_yuvs
+            let bgra = kCVPixelFormatType_32BGRA
+            let videoRange = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            let fullRange = kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+            func request(_ device: OSType, _ offered: [OSType]) -> OSType {
+                CaptureFrameColorimetry.outputPixelFormat(deviceFormat: device, available: offered)
+            }
+            #expect(request(videoRange, [bgra, yuvs]) == yuvs)
+            #expect(request(kCMVideoCodecType_JPEG_OpenDML, [bgra, yuvs]) == yuvs)
+            #expect(request(kCMVideoCodecType_JPEG_OpenDML, [videoRange, bgra]) == videoRange)
+            #expect(request(fullRange, [bgra]) == bgra)
+        }
+
         // MARK: - Fixtures
 
         static func name(_ format: OSType) -> String {
