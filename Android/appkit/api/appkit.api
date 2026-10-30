@@ -783,9 +783,14 @@ public final class com/opencapture/opencine/appkit/MonitorBitmapDecoder {
 	public static final field LIST_THUMBNAIL_EDGE I
 	public static final field PAGE_EDGE I
 	public static final field THUMBNAIL_EDGE I
-	public final fun decode (Ljava/io/File;I)Landroid/graphics/Bitmap;
-	public final fun decode ([BI)Landroid/graphics/Bitmap;
+	public final fun decode (Ljava/io/File;ILjava/lang/Integer;)Landroid/graphics/Bitmap;
+	public final fun decode ([BILjava/lang/Integer;)Landroid/graphics/Bitmap;
+	public static synthetic fun decode$default (Lcom/opencapture/opencine/appkit/MonitorBitmapDecoder;Ljava/io/File;ILjava/lang/Integer;ILjava/lang/Object;)Landroid/graphics/Bitmap;
+	public static synthetic fun decode$default (Lcom/opencapture/opencine/appkit/MonitorBitmapDecoder;[BILjava/lang/Integer;ILjava/lang/Object;)Landroid/graphics/Bitmap;
+	public final fun exifOrientation (Ljava/io/File;)Ljava/lang/Integer;
+	public final fun exifOrientation ([B)Ljava/lang/Integer;
 	public final fun sampleSize (III)I
+	public final fun upright (Landroid/graphics/Bitmap;Ljava/lang/Integer;)Landroid/graphics/Bitmap;
 }
 
 public final class com/opencapture/opencine/appkit/MonitorCaptureButtonKt {
