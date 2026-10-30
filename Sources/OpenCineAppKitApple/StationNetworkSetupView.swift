@@ -1,6 +1,5 @@
 #if os(iOS)
     import MonitorUI
-    import NetworkExtension
     import OpenCineAppKit
     import OpenCineApple
     import SwiftUI
@@ -33,22 +32,6 @@
             self.hotspotActive = hotspotActive
             self.acceptsJoin = acceptsJoin
             self.networkSecured = networkSecured
-        }
-    }
-
-    /// What iOS says about a Wi-Fi network's security. Only this phone's current network is known.
-    public enum StationNetworkSecurity {
-        /// Whether `ssid` is secured, when it is this phone's current Wi-Fi; nil otherwise or when
-        /// iOS withholds the network (no location permission, the simulator).
-        @MainActor
-        public static func currentNetwork(named ssid: String) async -> Bool? {
-            #if targetEnvironment(simulator) || targetEnvironment(macCatalyst)
-                return nil
-            #else
-                guard let network = await NEHotspotNetwork.fetchCurrent(), network.ssid == ssid
-                else { return nil }
-                return network.isSecure
-            #endif
         }
     }
 
