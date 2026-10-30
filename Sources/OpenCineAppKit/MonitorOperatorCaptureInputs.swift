@@ -26,8 +26,8 @@ public struct MonitorOperatorLiveReadout<Key: Hashable, Section: Hashable>: Iden
     public let dimmed: Bool
     /// A hold on the cell while it has no quick adjust (for example a camera-side lock toggle).
     public let holdAction: (() -> Void)?
-    /// What the value is for. A landscape photo monitor moves setup values from the strip into
-    /// the status row's trailing corner (`MonitorStatusCorner`).
+    /// How often the value changes. A landscape photo monitor moves setup values from the strip
+    /// into the status row's trailing corner (`MonitorStatusCorner`).
     public let group: MonitorCaptureReadoutGroup
 
     public init(id: Key, title: String, value: String, section: Section? = nil,
@@ -35,7 +35,7 @@ public struct MonitorOperatorLiveReadout<Key: Hashable, Section: Hashable>: Iden
         valueIcon: MonitorIcon? = nil, badgeIcon: MonitorIcon? = nil,
         quickEnabled: Bool = true, accessibilityIdentifier: String = "", accessibilityLabel: String? = nil,
         marked: Set<String> = [], dimmed: Bool = false, holdAction: (() -> Void)? = nil,
-        group: MonitorCaptureReadoutGroup = .exposure) {
+        group: MonitorCaptureReadoutGroup = .ridden) {
         self.id = id; self.title = title; self.value = value; self.section = section
         self.field = field; self.action = action; self.valueIcon = valueIcon; self.badgeIcon = badgeIcon
         self.quickEnabled = quickEnabled; self.accessibilityIdentifier = accessibilityIdentifier
@@ -177,9 +177,17 @@ public struct MonitorOperatorCapturePreview<Key: Hashable, NativeIdentity: Hasha
     /// Values the strip shows; a layout given it as `valueCount` sizes the portrait band to fit.
     public var valueCount: Int { readouts.count + supplementaryReadouts.count }
 
-    /// The setup readouts the status corner takes when `holdsSetup` (`MonitorStatusCorner`).
+    /// The setup readouts the status corner takes when `holdsSetup` (`MonitorStatusCorner`). A
+    /// supplementary readout shows beside its anchor, so it moves with it.
     public func cornerReadouts(holdsSetup: Bool) -> [MonitorOperatorLiveReadout<Key, Section>] {
         MonitorStatusCorner.split(readouts, holdsSetup: holdsSetup, group: \.group).corner
+    }
+
+    /// How many values the strip shows when `keys` show in the corner: the other readouts and
+    /// the supplementary readouts anchored to them.
+    public func valueCount(excluding keys: Set<Key>) -> Int {
+        readouts.count(where: { !keys.contains($0.id) })
+            + supplementaryReadouts.count(where: { !keys.contains($0.after) })
     }
 
     /// The same inputs with `keys` shown at the top: their drawers and previews open from the
@@ -287,7 +295,7 @@ public struct MonitorOperatorCaptureStrip<Key: Hashable, Section: Hashable,
         let columns = excluded.isEmpty
             ? inputs.columns(portrait: portrait, tablet: tablet)
             : max(1, inputs.columns ?? FieldMonitorLayout.valueColumns(
-                count: inputs.valueCount - excluded.count, portrait: portrait, tablet: tablet))
+                count: inputs.valueCount(excluding: excluded), portrait: portrait, tablet: tablet))
         // A phone in portrait lays values out as an even grid; one row spreads by label width.
         let grid = portrait && !tablet || columns == 3
         MonitorControlGrid(columns: columns, spacing: grid ? 8 : 12, equalColumns: grid) {
@@ -351,6 +359,11 @@ public struct MonitorOperatorCaptureCorner<Key: Hashable, Section: Hashable,
                             }.onDisappear { if currentSource() { state.frames[readout.id] = nil } }
                         }
                     }
+                ForEach(inputs.supplementaryReadouts.filter { $0.after == readout.id }) { native in
+                    CaptureSupplementaryReadout(readout: native, inputs: inputs, state: state,
+                        enabled: enabled, commandEnabled: commandEnabled, currentSource: currentSource,
+                        wholeCaption: true)
+                }
             }
         }
         .opacity(enabled ? 1 : 0.4)
@@ -367,6 +380,7 @@ private struct CaptureSupplementaryReadout<Key: Hashable, Section: Hashable,
     let enabled: Bool
     let commandEnabled: Bool
     let currentSource: () -> Bool
+    var wholeCaption = false
     @Environment(\.scenePhase) private var scenePhase
     private var admitted: Bool {
         enabled && commandEnabled && currentSource() && scenePhase == .active
@@ -375,7 +389,7 @@ private struct CaptureSupplementaryReadout<Key: Hashable, Section: Hashable,
     }
     var body: some View {
         Button { readout.perform(admitted: admitted) } label: {
-            MonitorReadout(readout.title) { Text(readout.value) }
+            MonitorReadout(readout.title, wholeCaption: wholeCaption) { Text(readout.value) }
         }
         .buttonStyle(.plain).disabled(!admitted || !readout.enabled)
         .accessibilityIdentifier(readout.accessibilityIdentifier)

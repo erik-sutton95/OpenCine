@@ -522,7 +522,7 @@ public final class com/opencapture/monitorui/MonitorCaptureDrawerKt {
 }
 
 public final class com/opencapture/monitorui/MonitorCaptureReadoutGroup : java/lang/Enum {
-	public static final field EXPOSURE Lcom/opencapture/monitorui/MonitorCaptureReadoutGroup;
+	public static final field RIDDEN Lcom/opencapture/monitorui/MonitorCaptureReadoutGroup;
 	public static final field SETUP Lcom/opencapture/monitorui/MonitorCaptureReadoutGroup;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorCaptureReadoutGroup;

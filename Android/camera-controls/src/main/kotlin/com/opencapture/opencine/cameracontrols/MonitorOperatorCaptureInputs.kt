@@ -42,12 +42,12 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
     val readouts = buildList<MonitorOperatorLiveReadout<String, S>> {
         fun append(sheet: LiveSheet, title: String, value: String, annotation: String? = null,
             icon: MonitorIcon? = null, badge: MonitorIcon? = null) {
-            // White balance and focus mode set the camera up; a landscape photo row moves them into
-            // the status corner (Swift `CaptureSheet.captureGroup`).
+            // The exposure program sets the scene up (with metering, below); a landscape photo row
+            // moves setup values into the status corner (Swift `CaptureSheet.captureGroup`).
             add(MonitorOperatorLiveReadout(sheet.name, title, value, section, icon = icon,
                 badgeIcon = badge, annotation = annotation, quickEnabled = quickEnabled,
-                group = if (sheet == LiveSheet.WB || sheet == LiveSheet.FOCUS) MonitorCaptureReadoutGroup.SETUP
-                    else MonitorCaptureReadoutGroup.EXPOSURE))
+                group = if (sheet == LiveSheet.EXPO) MonitorCaptureReadoutGroup.SETUP
+                    else MonitorCaptureReadoutGroup.RIDDEN))
         }
         append(LiveSheet.ISO, "ISO", source.readout(LiveSheet.ISO, status, CaptureLists.isoChipValue(status)))
         append(LiveSheet.SHUTTER, if (auto) MonitorExposureReadout.autoEvCaption(status.shutterDenom) else "SHUTTER",
@@ -58,7 +58,7 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
             else controlState.snapshot?.exposureProgram?.value?.let(com.opencapture.opencine.appkit.MonitorCapturePresentation::exposureProgram) ?: "--")
         metering?.let { tile -> add(MonitorOperatorLiveReadout("METER", "METER", tile.label,
             section, action = { if (quickEnabled && lifetime.active) tile.perform() }, quickEnabled = false,
-            actionIsCommand = true)) }
+            actionIsCommand = true, group = MonitorCaptureReadoutGroup.SETUP)) }
         append(LiveSheet.WB, "WB", source.readout(LiveSheet.WB, status, CaptureLists.wbChipValue(status, native.awbLockKelvin != null)),
             icon = if (CaptureLists.wbIsAuto(status) && native.awbLockKelvin == null) MonitorIcon.APERTURE else null)
         if (controls.focus.isOffered) append(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel))
