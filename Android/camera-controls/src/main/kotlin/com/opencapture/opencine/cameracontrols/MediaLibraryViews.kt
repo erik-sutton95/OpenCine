@@ -58,6 +58,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -67,6 +68,7 @@ import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorMaterial
 import com.opencapture.monitorui.MonitorTab
 import com.opencapture.monitorui.MonitorTypography
+import com.opencapture.opencine.media.MediaTransferRate
 import com.opencapture.monitorui.monitorMaterial
 import com.opencapture.monitorui.monitorScrollFade
 import com.opencapture.monitorui.monitorTabStrip
@@ -198,7 +200,8 @@ private fun TrayTextChip(icon: MonitorIcon, label: String, contentDescription: S
 }
 
 @Composable
-fun MediaCacheBar(filename: String, progress: Double) {
+fun MediaCacheBar(filename: String, progress: Double, rate: String? = null) {
+    val caption = MediaTransferRate.caption(progress, rate).orEmpty()
     Row(
         Modifier
             .padding(top = 8.dp)
@@ -209,9 +212,10 @@ fun MediaCacheBar(filename: String, progress: Double) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        com.opencapture.monitorui.MonitorMediaProgressTrack(progress.toFloat(), trackWidth = 120.dp)
+        com.opencapture.monitorui.MonitorMediaProgressTrack(progress.toFloat(), trackWidth = 120.dp,
+            modifier = Modifier.semantics { stateDescription = caption })
         Text(
-            "CACHING $filename ${(progress * 100).toInt()}%",
+            "CACHING $filename $caption",
             color = LiveDesign.muted,
             fontSize = 10.sp,
             fontFamily = MonitorTypography.fontFamily,
@@ -518,6 +522,8 @@ class MediaLibraryPageState(
     /** The clip being cached (file name, progress), read where the cache bar draws. */
     val caching: () -> Pair<String, Double>?,
     val shareEnabled: Boolean = true,
+    /** The cached clip's download speed ("42 MB/s", "Stalled"), read with [caching]. */
+    val cachingRate: () -> String? = { null },
 )
 
 /** The filter popup's choices and selection. */
@@ -635,7 +641,7 @@ fun MediaLibraryPage(
                         compact = portrait,
                         onFilter = actions::toggleFilter, onSort = actions::cycleSort,
                     )
-                    state.caching()?.let { (name, progress) -> MediaCacheBar(name, progress) }
+                    state.caching()?.let { (name, progress) -> MediaCacheBar(name, progress, state.cachingRate()) }
                     Box(Modifier.weight(1f).fillMaxWidth()) { gallery() }
                     if (state.isSelecting) MediaSelectionTray(state.selectedCount,
                         cacheEnabled = state.cacheEnabled,

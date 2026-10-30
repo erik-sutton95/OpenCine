@@ -17,8 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +49,8 @@ fun MonitorMediaDeliveryProgressPanel(
             val barShape = RoundedCornerShape(50)
             Box(Modifier.fillMaxWidth().height(4.dp).clip(barShape)
                 .background(MonitorPalette.border.copy(alpha = .55f))
+                // Announces the status line, speed included ("Caching from camera 18% · 42 MB/s").
+                .semantics { contentDescription = "Progress"; stateDescription = value.status }
                 .testTag("monitor.share.progress.bar")) {
                 Box(Modifier.fillMaxWidth(value.fraction.toFloat().coerceIn(0f, 1f))
                     .height(4.dp).background(MonitorPalette.accent))

@@ -82,7 +82,13 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
     private var player: MonitorMediaPlaybackModel<Payload, Look>? { model.playback }
     private var effects: MonitorFrameEffects { assist?.playbackEffects ?? .init() }
     private var sourceValues: MonitorPlaybackSourceValues {
-        player?.active.map(source) ?? source(initial.record)
+        let record = player?.active ?? initial.record
+        var values = source(record)
+        // The library's own cache download, unless the source reports a transfer it runs itself.
+        if values.transferRate == nil {
+            values.transferRate = model.library.transferRates.rate(record.asset.id)?.label
+        }
+        return values
     }
     public var body: some View {
         playbackLifecycle
@@ -319,7 +325,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             doubleTapResetsZoom: interaction.doubleTapResetsZoom, continuousPanBounds: interaction.continuousPanBounds,
             zoomBoundary: interaction.zoomAgainstCanvas ? .canvas : .picture,
             horizontalPresentationScale: interaction.horizontalPresentationScale,
-            verticalPresentationScale: interaction.verticalPresentationScale)
+            verticalPresentationScale: interaction.verticalPresentationScale, transferRate: values.transferRate)
     }
     private func time(_ seconds: Double, player: MonitorMediaPlaybackModel<Payload, Look>,
         values: MonitorPlaybackSourceValues) -> String {

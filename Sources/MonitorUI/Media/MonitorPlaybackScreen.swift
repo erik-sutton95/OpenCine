@@ -537,8 +537,11 @@
         }
 
         private var loadingCopy: String {
-            if value.progress != nil {
-                return "Buffering from camera…"
+            if let progress = value.progress {
+                guard let rate = value.transferRate,
+                    let caption = MediaTransferRate.caption(fraction: progress, rate: rate)
+                else { return "Buffering from camera…" }
+                return "Buffering from camera…\n\(caption)"
             }
             return "Preparing playback…"
         }

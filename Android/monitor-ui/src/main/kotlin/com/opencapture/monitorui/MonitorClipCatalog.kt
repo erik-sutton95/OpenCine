@@ -34,11 +34,13 @@ import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.opencapture.opencine.media.MediaTransferRate
 
 @Immutable
 data class MonitorClipValue(val id: String, val title: String, val detail: String,
@@ -49,7 +51,20 @@ data class MonitorClipValue(val id: String, val title: String, val detail: Strin
     val burstCount: Int? = null, val mediaBadge: String? = null,
     val completionBadge: String? = null, val transferCaption: String? = null,
     val accessibilityDescription: String? = null, val favoriteLabel: String? = null,
-    val selectionEntryLabel: String? = null)
+    val selectionEntryLabel: String? = null,
+    /** The running download's speed ("42 MB/s", "Stalled"); null hides it. */
+    val transferRate: String? = null) {
+    /** The download readout without the speed: the host's caption, else the percent. */
+    val progressPercentCaption: String? get() =
+        transferCaption ?: MediaTransferRate.caption(progress?.toDouble(), null)
+
+    /** The download readout every cell shows and announces: "18% · 42 MB/s". The speed shows
+     * only beside progress. */
+    val progressCaption: String? get() {
+        val base = progressPercentCaption ?: return null
+        return if (progress != null && transferRate != null) "$base · $transferRate" else base
+    }
+}
 
 /** Grid and list share one presentation value and one thumbnail-loader slot. */
 @Composable
@@ -67,10 +82,14 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
                 onClick = { if (selecting) onSelect() else onOpen() },
                 onLongClick = onSelect,
                 onLongClickLabel = clip.selectionEntryLabel,
-            ).semantics { contentDescription = clip.accessibilityDescription ?: clip.title }
+            ).semantics {
+                contentDescription = clip.accessibilityDescription ?: clip.title
+                clip.progressCaption?.let { stateDescription = it }
+            }
             else Modifier.semantics {
                 role = Role.Button
                 contentDescription = clip.accessibilityDescription ?: clip.title
+                clip.progressCaption?.let { stateDescription = it }
                 onClick(label = if (selecting) "Toggle selection" else "Open") {
                     if (selecting) onSelect() else onOpen()
                     true
@@ -82,11 +101,14 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
             },
         )
     val favoriteAction = onFavorite
+    // A list row's thumbnail is too small for the speed: its detail line reads it instead.
+    val caption = if (list) clip.progressPercentCaption else clip.progressCaption
     val image: @Composable BoxScope.() -> Unit = {
         thumbnail()
-        clip.progress?.let { progress ->
+        if (clip.progress != null || clip.transferCaption != null) caption?.let { text ->
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)), contentAlignment = Alignment.Center) {
-                Text(clip.transferCaption ?: "${(progress * 100).toInt()}%", style = MonitorTypography.readout(11f, FontWeight.SemiBold))
+                Text(text, Modifier.padding(horizontal = 4.dp).semantics { testTag = "monitor.media.cell.transfer" },
+                    style = MonitorTypography.readout(11f, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -96,7 +118,11 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
         Box(Modifier.width(64.dp).height(40.dp).clip(RoundedCornerShape(6.dp)).background(MonitorPalette.backgroundDeep), content = image)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(clip.title, style = MonitorTypography.text(10.5f, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(clip.detail, color = MonitorPalette.muted, style = MonitorTypography.text(9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val transfer = clip.progressCaption.takeIf { clip.transferRate != null && clip.progress != null }
+            if (transfer != null) Text(transfer, Modifier.semantics { testTag = "monitor.media.cell.transfer.detail" },
+                color = MonitorPalette.accent, style = MonitorTypography.readout(9f, FontWeight.SemiBold),
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            else Text(clip.detail, color = MonitorPalette.muted, style = MonitorTypography.text(9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(clip.duration.orEmpty(), style = MonitorTypography.readout(9.5f))

@@ -24,6 +24,8 @@ public struct MonitorMediaItem: Identifiable, Equatable, Sendable {
     public let mediaBadge: String?
     public let completionBadge: String?
     public let transferCaption: String?
+    /// The running download's speed ("42 MB/s", "Stalled"); nil hides it.
+    public let transferRate: String?
 
     public init(
         id: String, filename: String, metadata: String, format: String = "",
@@ -31,7 +33,7 @@ public struct MonitorMediaItem: Identifiable, Equatable, Sendable {
         availability: Availability, progress: Double? = nil,
         favorite: Bool, photo: Bool, permissions: MonitorMediaPermissions = [],
         burstCount: Int? = nil, mediaBadge: String? = nil, completionBadge: String? = nil,
-        transferCaption: String? = nil
+        transferCaption: String? = nil, transferRate: String? = nil
     ) {
         self.id = id
         self.filename = filename
@@ -49,6 +51,7 @@ public struct MonitorMediaItem: Identifiable, Equatable, Sendable {
         self.mediaBadge = mediaBadge
         self.completionBadge = completionBadge
         self.transferCaption = transferCaption
+        self.transferRate = transferRate
     }
 
     public var stateLabel: String {

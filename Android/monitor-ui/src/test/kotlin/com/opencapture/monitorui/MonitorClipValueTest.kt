@@ -44,4 +44,17 @@ class MonitorClipValueTest {
         assertEquals("CACHING 0%", clip.transferCaption)
         assertNull(clip.source)
     }
+
+    @Test fun downloadingCellShowsAndAnnouncesPercentAndSpeed() {
+        val clip = MonitorClipValue("SIMULATED/01", "01.MOV", "4K · 1.2 GB", null, "ON CAMERA", false,
+            progress = 0.186f, transferRate = "42 MB/s")
+        assertEquals("18% · 42 MB/s", clip.progressCaption)
+        assertEquals("18%", clip.progressPercentCaption)
+        // A host caption keeps its words and gains the speed.
+        assertEquals("CACHING 50% · Stalled", MonitorClipValue("SIMULATED/02", "02", "", null, null, false,
+            progress = 0.5f, transferCaption = "CACHING 50%", transferRate = "Stalled").progressCaption)
+        // No download, no readout: a stale speed never shows without progress.
+        assertNull(MonitorClipValue("SIMULATED/03", "03", "", null, null, false, transferRate = "42 MB/s").progressCaption)
+        assertEquals("0%", MonitorClipValue("SIMULATED/04", "04", "", null, null, false, progress = 0f).progressCaption)
+    }
 }

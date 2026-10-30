@@ -57,4 +57,27 @@ struct MonitorClipValueTests {
         #expect(cell.completionBadge == "EXPORTED" && cell.transferCaption == "CACHING 50%")
         #expect(cell.progress == 0.5 && cell.source == "CACHING")
     }
+
+    @Test func downloadingCellShowsAndAnnouncesPercentAndSpeed() {
+        let item = MonitorMediaItem(
+            id: "SIMULATED/01", filename: "01.MOV", metadata: "4K · 1.2 GB", availability: .camera,
+            progress: 0.186, favorite: false, photo: false, transferRate: "42 MB/s")
+        let cell = MonitorClipValue(item: item)
+        #expect(cell.progressCaption == "18% · 42 MB/s")
+        #expect(cell.progressPercentCaption == "18%")
+        // A host caption keeps its words and gains the speed.
+        let captioned = MonitorClipValue(
+            id: "SIMULATED/02", title: "02", detail: "", duration: nil, source: nil, favorite: false,
+            progress: 0.5, transferCaption: "CACHING 50%", transferRate: "Stalled")
+        #expect(captioned.progressCaption == "CACHING 50% · Stalled")
+        // No download, no readout: a stale speed never shows without progress.
+        let idle = MonitorClipValue(
+            id: "SIMULATED/03", title: "03", detail: "", duration: nil, source: nil, favorite: false,
+            transferRate: "42 MB/s")
+        #expect(idle.progressCaption == nil)
+        let measuring = MonitorClipValue(item: MonitorMediaItem(
+            id: "SIMULATED/04", filename: "04.MOV", metadata: "", availability: .camera,
+            progress: 0, favorite: false, photo: false))
+        #expect(measuring.progressCaption == "0%")
+    }
 }

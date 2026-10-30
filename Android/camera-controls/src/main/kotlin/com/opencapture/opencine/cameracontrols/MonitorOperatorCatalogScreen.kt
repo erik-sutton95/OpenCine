@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.*
 import com.opencapture.opencine.appkit.*
 import com.opencapture.opencine.media.MediaAssetID
+import com.opencapture.opencine.media.MediaTransferRate
 import com.opencapture.opencine.vocabulary.MediaLibrarySort
 import com.opencapture.opencine.vocabulary.MediaLibraryTab
 
@@ -42,6 +43,8 @@ public data class MonitorMediaGalleryFileFacts(
     public val detail: String,
     public val duration: String? = null,
     public val progress: Double? = null,
+    /** A download this source runs itself; null reads the library's own transfer. */
+    public val transferRate: MediaTransferRate? = null,
 )
 
 /** A bounded native thumbnail leaf, with the source/window authority captured by the catalog. */
@@ -87,6 +90,7 @@ public fun <P> MonitorOperatorCatalogScreen(
     // whole gallery. The header bar and each visible card read the ticks themselves.
     val value by library.content.collectAsState()
     val ticks by library.transferProgress.collectAsState()
+    val rates by library.transferRates.rates.collectAsState()
     val state by gallery.state.collectAsState()
     val haptics = LocalOperatorHaptics.current
     DisposableEffect(gallery) { gallery.activate(); begin(); onDispose { gallery.retire() } }
@@ -132,6 +136,7 @@ public fun <P> MonitorOperatorCatalogScreen(
         selectedCount = selected.size, cacheEnabled = selected.any { gallery.canDownload(it, operations) },
         deleteEnabled = selected.any { gallery.canDelete(it, operations) },
         caching = { cachingProgress(library, ticks, records, facts) },
+        cachingRate = { cachingRate(library, rates, ticks, records, facts) },
         shareEnabled = share != null && selected.isNotEmpty() && selected.all { gallery.canShare(it, operations) },
     )
     val filterID = state.filterRequestID
@@ -249,10 +254,13 @@ private fun <P> MonitorOperatorCatalogGallery(
     val library = owner.library
     val value by library.content.collectAsState()
     val ticks by library.transferProgress.collectAsState()
+    val rates by library.transferRates.rates.collectAsState()
     val state by owner.state.collectAsState()
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
     val list = (presentation?.layout ?: value.layout) == MonitorMediaLayout.LIST
+    // The smallest grid keeps its cells uncluttered: percent only.
+    val showsRate = list || (presentation?.thumbnailSize ?: value.thumbnailSize) != MonitorThumbnailSize.SMALL
     val records = snapshot.records
     val empty = presentation?.empty
     val configuration = LocalConfiguration.current
@@ -292,7 +300,8 @@ private fun <P> MonitorOperatorCatalogGallery(
                 MonitorMediaHitTarget(registry, id.rawValue) {
                     val cellValue = cell?.invoke(record, MonitorMediaGalleryCellContext(list, value.selecting,
                         id in value.selectedIDs, state.resolvedDurations[id]))
-                    MonitorClipCard(monitorCatalogClip(record, entry, metadata, state.resolvedDurations[id], ticks.progress[id], cellValue),
+                    MonitorClipCard(monitorCatalogClip(record, entry, metadata, state.resolvedDurations[id], ticks.progress[id], cellValue,
+                        libraryRate = rates[id], showsRate = showsRate),
                         list, value.selecting, id in value.selectedIDs,
                         modifier = Modifier.testTag("monitor.media.clip.${id.rawValue}"),
                         onOpen = { owner.open(id, snapshot, operations, sourceAvailable = connected)?.let(open) },
@@ -347,6 +356,17 @@ internal fun <P> cachingProgress(library: MonitorMediaLibraryModel<P>, ticks: Mo
     return records.firstNotNullOfOrNull { record -> facts(record).progress?.let { record.asset.filename to it } }
 }
 
+/** The caching bar's download speed, for the same transfer [cachingProgress] reads. */
+internal fun <P> cachingRate(library: MonitorMediaLibraryModel<P>, rates: Map<MediaAssetID, MediaTransferRate>,
+    ticks: MonitorMediaLibraryTransferProgress, records: List<MonitorMediaRecord<P>>,
+    facts: (MonitorMediaRecord<P>) -> MonitorMediaGalleryFileFacts): String? {
+    if (ticks.progress.isEmpty() && ticks.hostProgress.isEmpty()) return null
+    ticks.progress.keys.firstOrNull { library.record(it) != null }?.let { return rates[it]?.label }
+    if (ticks.hostProgress.isEmpty()) return null
+    val record = records.firstOrNull { facts(it).progress != null } ?: return null
+    return (facts(record).transferRate ?: rates[record.asset.id])?.label
+}
+
 /** The newest clip stays first while the operator rests at the top of the catalog. */
 internal class MonitorCatalogHeadAnchor {
     private var pinned = true
@@ -371,12 +391,15 @@ internal class MonitorCatalogHeadAnchor {
 internal fun <P> monitorCatalogClip(
     record: MonitorMediaRecord<P>, entry: MonitorMediaCacheEntry?, facts: MonitorMediaGalleryFileFacts,
     resolvedDuration: String?, libraryProgress: Double?, cell: MonitorClipValue?,
+    libraryRate: MediaTransferRate? = null, showsRate: Boolean = true,
 ): MonitorClipValue {
     val source = if (entry?.original != null) "CACHED" else if (entry?.proxy != null) "PROXY" else "ON CAMERA"
     val progress = (facts.progress ?: libraryProgress)?.toFloat()
-    return cell?.copy(id = record.asset.id.rawValue, favorite = record.favorite, source = source, progress = progress)
+    val rate = if (showsRate) (facts.transferRate ?: libraryRate)?.label else null
+    return cell?.copy(id = record.asset.id.rawValue, favorite = record.favorite, source = source, progress = progress,
+        transferRate = rate)
         ?: MonitorClipValue(record.asset.id.rawValue, record.asset.filename, facts.detail,
-            resolvedDuration ?: facts.duration, source, record.favorite, progress)
+            resolvedDuration ?: facts.duration, source, record.favorite, progress, transferRate = rate)
 }
 
 private fun <T> Set<T>.toggled(value: T): Set<T> = if (value in this) this - value else this + value

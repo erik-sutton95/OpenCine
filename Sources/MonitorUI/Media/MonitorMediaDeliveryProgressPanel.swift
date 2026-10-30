@@ -43,6 +43,10 @@
                         }
                     }
                     .frame(height: 4)
+                    // Announces the status line, speed included ("Caching from camera 18% · 42 MB/s").
+                    .accessibilityElement()
+                    .accessibilityLabel("Progress")
+                    .accessibilityValue(value.status)
                     .accessibilityIdentifier("monitor.share.progress.bar")
                 }
                 if let filename = details.filename {
