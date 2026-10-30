@@ -78,6 +78,12 @@ public enum StationRoutes {
         return failure
     }
 
+    /// A Wi-Fi setup saved without a password that the network refused: it may need one. Shown
+    /// when the network's security was not known, so the setup could be saved without it.
+    public static func checkPasswordMessage(network: String) -> String {
+        "The camera could not join “\(network)” without a password. Check the Wi-Fi password: edit the setup and enter it."
+    }
+
     private static func name(_ route: SavedRoute?) -> String {
         route?.network ?? (route?.kind == .phoneHotspot ? "Hotspot" : "Wi-Fi")
     }

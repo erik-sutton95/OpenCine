@@ -84,7 +84,10 @@ public final class LunaCameraBackend: CameraBackend {
     private var tcpGreetingTimeout: Task<Void, Never>?
     private var approval: UCD2Message?
     /// The camera's answer to a station join (notification 8232), from the Bluetooth link.
-    private var stationResult: UCD2Message?
+    /// Station notifications (8215, 8232) from the Bluetooth link, for a Wi-Fi or hotspot setup.
+    private let stationEvents = LunaStationEvents()
+    /// The clock a setup's waits run on.
+    var clock: HostClock = .live
     private var receivedNonces = Set<Data>()
     private var lastVideoAt: Date?
     private struct Pending {
@@ -373,39 +376,24 @@ public final class LunaCameraBackend: CameraBackend {
         _ = try? await send(
             LunaProtocol.phoneInfoRequest(
                 .ios, manufacturer: "Apple", model: Self.deviceModel, osVersion: Self.osVersion))
-        stationResult = nil
-        _ = try await send(LunaProtocol.stationJoinRequest(ssid: network.ssid, password: network.password))
-        let deadline = Date().addingTimeInterval(45)
-        while stationResult == nil, Date() < deadline {
-            try validate(token)
-            try await Task.sleep(for: .milliseconds(100))
+        let join = LunaStationJoin(
+            send: { [weak self] request in
+                guard let self else { throw CancellationError() }
+                _ = try await self.send(request)
+            },
+            events: stationEvents, clock: clock,
+            checkCurrent: { [weak self] in
+                guard let self else { throw CancellationError() }
+                try self.validate(token)
+            })
+        let result: LunaStationJoinResult
+        do {
+            result = try await join.run(network)
+        } catch let failure as ConnectionFailure {
+            onLog?("luna: station join failed \(failure.code)")
+            throw failure
         }
-        guard let message = stationResult else {
-            throw ConnectionFailure.luna(
-                .timedOut, "station.join-timeout",
-                "The camera did not join “\(network.ssid)” in time. Check that the network is in range, then connect again.",
-                phase: .joiningNetwork)
-        }
-        let result = try LunaProtocol.stationJoinResult(message.body)
         onLog?("luna: station join \(result)")
-        switch result.outcome {
-        case .joined: break
-        case .wrongPassword:
-            throw ConnectionFailure.luna(
-                .joinFailed, "station.wrong-password",
-                "The camera could not join “\(network.ssid)”: the password is wrong. Edit the setup and enter it again.",
-                phase: .joiningNetwork)
-        case .networkNotFound:
-            throw ConnectionFailure.luna(
-                .joinFailed, "station.network-not-found",
-                "The camera cannot see “\(network.ssid)”. Check the network name and bring the camera closer.",
-                phase: .joiningNetwork)
-        case .failed(let code):
-            throw ConnectionFailure.luna(
-                .joinFailed, "station.join-failed.\(code)",
-                "The camera could not join “\(network.ssid)”. Check the network, then connect again.",
-                phase: .joiningNetwork)
-        }
         _ = try? await send(
             LunaProtocol.stationRememberRequest(ssid: network.ssid, password: network.password))
         bluetooth.disconnect()
@@ -618,7 +606,7 @@ public final class LunaCameraBackend: CameraBackend {
         failPending(CancellationError())
         counter = LunaRequestCounter()
         approval = nil
-        stationResult = nil
+        stationEvents.clear()
         lastVideoAt = nil
         emit(.idle)
     }
@@ -1075,14 +1063,21 @@ public final class LunaCameraBackend: CameraBackend {
                     continue
                 }
                 if message.code == LunaProtocol.stationJoinResultCode {
-                    if !fromTCP { stationResult = message }
+                    if !fromTCP, let result = try? LunaProtocol.stationJoinResult(message.body) {
+                        stationEvents.post(.result(result))
+                    }
                     continue
+                }
+                if message.code == LunaProtocol.cameraWiFiStartedCode, !fromTCP {
+                    stationEvents.post(.wiFiStarted)
                 }
                 if message.code >= 8192 {
                     handleNotification(message)
                     continue
                 }
-                guard message.code == 200 || message.code == 500,
+                guard
+                    message.code == 200 || message.code == 500
+                        || message.code == LunaProtocol.wifiBusySwitchingCode,
                     var waiting = pending[message.identifier], waiting.generation == generation,
                     waiting.dispatched,
                     waiting.responseBody == nil

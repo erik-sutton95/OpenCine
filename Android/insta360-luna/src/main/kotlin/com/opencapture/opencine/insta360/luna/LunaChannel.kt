@@ -1,6 +1,7 @@
 package com.opencapture.opencine.insta360.luna
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -24,8 +25,8 @@ internal class LunaChannel(
     val greeting = CompletableDeferred<Unit>()
     val failure = CompletableDeferred<Throwable>()
     val approvals = Channel<LunaWire.Message>(16)
-    /** Station join results (notification 8232) on the Bluetooth link. */
-    val stationResults = Channel<LunaWire.Message>(4)
+    /** Station notifications on the Bluetooth link: Wi-Fi started (8215) and join results (8232). */
+    val stationEvents = Channel<LunaStationEvent>(16, BufferOverflow.DROP_OLDEST)
     @Volatile var key: ByteArray? = null
     fun receive(data: ByteArray) {
         try {
@@ -48,14 +49,17 @@ internal class LunaChannel(
                     4 -> {
                         val message = checkNotNull(frame.message(key))
                         val waiter = pending[message.id]
-                        if (waiter != null && message.code in listOf(200, 500)) {
+                        if (waiter != null && message.code in listOf(200, 500, LunaStationWire.BUSY_SWITCHING)) {
                             require(message.encrypted == waiter.second) { "Response encryption mismatch" }
                             waiter.first.complete(message)
                         } else if (message.code in listOf(8209, 8228)) {
                             check(approvals.trySend(message).isSuccess) { "Approval queue overflow" }
                         } else if (message.code == LunaStationWire.JOIN_RESULT) {
-                            stationResults.trySend(message)
+                            // A result the backend cannot decode answers no join.
+                            runCatching { LunaStationWire.joinResult(message.body) }.getOrNull()
+                                ?.let { stationEvents.trySend(LunaStationEvent.Result(it)) }
                         } else if (message.code >= 8192) {
+                            if (message.code == LunaStationWire.WIFI_STARTED) stationEvents.trySend(LunaStationEvent.WiFiStarted)
                             // A notification the backend cannot decode is dropped, not a link failure.
                             runCatching { notify(message) }
                         }
@@ -81,9 +85,10 @@ internal class LunaChannel(
             val encryptionKey = if (encrypted) checkNotNull(key) else null
             raw(LunaWire.encode(sequence.incrementAndGet() and 255, payload, encryptionKey))
             val reply = withTimeout(10_000) { future.await() }
+            if (reply.code == LunaStationWire.BUSY_SWITCHING) throw LunaWiFiBusy(code)
             if (reply.code != 200) throw LunaRefused(code)
             return reply.body
         } finally { pending.remove(id); future.cancel() }
     }
-    fun close() { key?.fill(0); key = null; approvals.close(); stationResults.close(); pending.values.forEach { it.first.cancel() }; pending.clear() }
+    fun close() { key?.fill(0); key = null; approvals.close(); stationEvents.close(); pending.values.forEach { it.first.cancel() }; pending.clear() }
 }

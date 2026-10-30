@@ -83,6 +83,13 @@ public object StationRoutes {
         return failure.copy(title = "Couldn’t connect over ${route.title ?: name(route)}", actions = actions)
     }
 
+    /**
+     * A Wi-Fi setup saved without a password that the network refused: it may need one. Shown
+     * when the network's security was not known, so the setup could be saved without it.
+     */
+    public fun checkPasswordMessage(network: String): String =
+        "The camera could not join “$network” without a password. Check the Wi-Fi password: edit the setup and enter it."
+
     private fun name(route: SavedRoute?): String =
         route?.network ?: if (route?.kind == RouteKind.PHONE_HOTSPOT) "Hotspot" else "Wi-Fi"
 }

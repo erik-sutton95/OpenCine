@@ -36,6 +36,13 @@ public struct LunaStationJoinResult: Equatable, Sendable, CustomStringConvertibl
         case networkNotFound
         /// Any other `WifiConnectionResult` value.
         case failed(UInt64)
+
+        /// `TIMEOUT` 1, `ERROR_CONNECT_FAILED` 2 and `UNABLE_ASSIGN_IP` 4: the network may take
+        /// the camera on a second try (the official app restarts the join for these).
+        public var isTransient: Bool {
+            if case .failed(let code) = self { return [1, 2, 4].contains(code) }
+            return false
+        }
     }
 
     public let outcome: Outcome
@@ -43,6 +50,29 @@ public struct LunaStationJoinResult: Equatable, Sendable, CustomStringConvertibl
     public let ssid: String?
     /// The camera's address on that network, when it reports one (firmware 1.1.15 did not).
     public let address: String?
+    /// The password the camera echoes with the network; only compared, never shown.
+    let echoedPassword: String?
+
+    init(outcome: Outcome, ssid: String?, address: String?, echoedPassword: String? = nil) {
+        self.outcome = outcome
+        self.ssid = ssid
+        self.address = address
+        self.echoedPassword = echoedPassword
+    }
+
+    /// Whether this result answers a join to `ssid` with `password`. The camera echoes the
+    /// network it tried (firmware 1.1.15: name and password), so a late result for an earlier
+    /// join, such as one sent without a password, is told apart. A result without the network
+    /// answers any join.
+    public func answers(ssid: String, password: String) -> Bool {
+        guard let reported = self.ssid else { return true }
+        return reported == ssid && (echoedPassword ?? "") == password
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.outcome == rhs.outcome && lhs.ssid == rhs.ssid && lhs.address == rhs.address
+            && lhs.echoedPassword == rhs.echoedPassword
+    }
 
     public var description: String {
         "LunaStationJoinResult(\(outcome), address: \(address ?? "nil"))"
@@ -53,6 +83,10 @@ public struct LunaStationJoinResult: Equatable, Sendable, CustomStringConvertibl
 extension LunaProtocol {
     /// The join result notification (`CAMERA_NOTIFICATION_WIFI_STATUS`).
     public static let stationJoinResultCode: UInt16 = 8232
+    /// `CAMERA_NOTIFICATION_CAM_WIFI_START`: the camera's Wi-Fi (re)started, as after a role switch.
+    public static let cameraWiFiStartedCode: UInt16 = 8215
+    /// Reply `INS_ERRORCODE_WIFI_BUSY_SWITCHING`: wait for 8215, then ask again.
+    public static let wifiBusySwitchingCode: UInt16 = 505
 
     /// `SetWifiMode { place_holder = 1, wifi_mode, country_code }`. The region is the camera's own
     /// (`wifiCountryCode`); anything but a two-letter code is left out, as the official app does
@@ -110,7 +144,7 @@ extension LunaProtocol {
     }
 
     /// Notification 8232's body: the result (field 1, proto3 default success) and the network
-    /// (field 2: ssid 1, ip_addr 4).
+    /// (field 2: ssid 1, password 3, ip_addr 4).
     public static func stationJoinResult(_ body: Data) throws -> LunaStationJoinResult {
         let message = try ProtoMessage(body, maximumBytes: 4_096)
         let code = try message.unsigned(1, default: 0)
@@ -124,14 +158,17 @@ extension LunaProtocol {
             }
         var ssid: String?
         var address: String?
+        var password: String?
         if let info = try message.optionalBytes(2) {
             let network = try ProtoMessage(info, maximumBytes: 4_096)
             ssid = try network.optionalBytes(1).flatMap { String(data: $0, encoding: .utf8) }
                 .flatMap { $0.isEmpty ? nil : $0 }
             address = try network.optionalBytes(4).flatMap { String(data: $0, encoding: .utf8) }
                 .flatMap { $0.isEmpty ? nil : $0 }
+            password = try network.optionalBytes(3).flatMap { String(data: $0, encoding: .utf8) }
         }
-        return LunaStationJoinResult(outcome: outcome, ssid: ssid, address: address)
+        return LunaStationJoinResult(
+            outcome: outcome, ssid: ssid, address: address, echoedPassword: password)
     }
 
     /// The camera's Wi-Fi region from the credential read's reply (option 37 `WifiChannelList`,

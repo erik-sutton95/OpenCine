@@ -63,7 +63,13 @@ join the camera Wi-Fi.
   through `LunaConnectPort.connect(to:route:)`. The backend authorizes over Bluetooth, reads the
   camera's own Wi-Fi (kept for the camera Wi-Fi route), then sends SET_WIFI_MODE 147 (station,
   with the camera's region from option 37), PHONE_INFO 220 and SET_WIFI_CONNECTION_INFO 112,
-  waits for notification 8232 and sends SET_AVAILABLE_WIFI 215 (`LunaStation.swift`). The phone
+  waits for notification 8232 and sends SET_AVAILABLE_WIFI 215 (`LunaStation.swift`). The join
+  (`LunaStationJoin`, Kotlin twin alike) follows the official app: a 112 answered 505
+  (`WIFI_BUSY_SWITCHING`, the camera still switching roles) is sent again after notification
+  8215 (`CAM_WIFI_START`, up to 38 s) and a 2 s settle; only an 8232 that echoes this join's
+  network and password counts; a missing or transient result (TIMEOUT 1, CONNECT_FAILED 2,
+  UNABLE_ASSIGN_IP 4) gets one more try. A setup saved without a password that is refused says
+  to check the Wi-Fi password. The phone
   joins the network (or hosts the hotspot) and searches its subnet for TCP 6666 answering the
   UCD2 magic (`LunaStationPath`); control and HTTP media then use that address
   (`cameraHost`), with the Bluetooth serial checked as for camera Wi-Fi. On that address the

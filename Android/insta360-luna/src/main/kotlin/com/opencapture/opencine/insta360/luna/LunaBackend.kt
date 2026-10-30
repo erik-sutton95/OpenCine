@@ -326,31 +326,13 @@ class LunaBackend(
                 encrypted = true,
             )
         }.onFailure { if (it is CancellationException && !currentCoroutineContext().isActive) throw it }
-        while (link.stationResults.tryReceive().isSuccess) { // A stale result from an earlier attempt.
-        }
-        link.request(LunaStationWire.SET_WIFI_CONNECTION_INFO, LunaStationWire.join(ssid, network.password), encrypted = true)
-        val message = withTimeoutOrNull(45_000) { link.stationResults.receive() }
-            ?: throw LunaStationFailure(stationFailure(
-                ConnectionFailure.Reason.TimedOut, "station.join-timeout",
-                "The camera did not join “$ssid” in time. Check that the network is in range, then connect again.",
-            ))
-        val result = LunaStationWire.joinResult(message.body)
+        val result = LunaStationJoin(
+            send = { ssid, password ->
+                link.request(LunaStationWire.SET_WIFI_CONNECTION_INFO, LunaStationWire.join(ssid, password), encrypted = true)
+            },
+            events = link.stationEvents,
+        ).run(network)
         android.util.Log.i("LunaBackend", "luna: station join $result")
-        when (val outcome = result.outcome) {
-            LunaStationWire.JoinResult.Outcome.Joined -> Unit
-            LunaStationWire.JoinResult.Outcome.WrongPassword -> throw LunaStationFailure(stationFailure(
-                ConnectionFailure.Reason.JoinFailed, "station.wrong-password",
-                "The camera could not join “$ssid”: the password is wrong. Edit the setup and enter it again.",
-            ))
-            LunaStationWire.JoinResult.Outcome.NetworkNotFound -> throw LunaStationFailure(stationFailure(
-                ConnectionFailure.Reason.JoinFailed, "station.network-not-found",
-                "The camera cannot see “$ssid”. Check the network name and bring the camera closer.",
-            ))
-            is LunaStationWire.JoinResult.Outcome.Failed -> throw LunaStationFailure(stationFailure(
-                ConnectionFailure.Reason.JoinFailed, "station.join-failed.${outcome.code}",
-                "The camera could not join “$ssid”. Check the network, then connect again.",
-            ))
-        }
         runCatching { link.request(LunaStationWire.SET_AVAILABLE_WIFI, LunaStationWire.remember(ssid, network.password), encrypted = true) }
             .onFailure { if (it is CancellationException && !currentCoroutineContext().isActive) throw it }
         gatt?.close(); gatt = null

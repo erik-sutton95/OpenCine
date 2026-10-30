@@ -15,6 +15,10 @@ object LunaStationWire {
     const val PHONE_INFO = 220
     /** The join result notification (`CAMERA_NOTIFICATION_WIFI_STATUS`). */
     const val JOIN_RESULT = 8232
+    /** `CAMERA_NOTIFICATION_CAM_WIFI_START`: the camera's Wi-Fi (re)started, as after a role switch. */
+    const val WIFI_STARTED = 8215
+    /** Reply `INS_ERRORCODE_WIFI_BUSY_SWITCHING`: wait for [WIFI_STARTED], then ask again. */
+    const val BUSY_SWITCHING = 505
 
     /** The camera's Wi-Fi role (`WifiMode`). */
     enum class Mode(val raw: Long) { ACCESS_POINT(0), STATION(1) }
@@ -70,7 +74,13 @@ object LunaStationWire {
     }
 
     /** The camera's answer to a station join (notification 8232). Never shows the password it echoes. */
-    data class JoinResult(val outcome: Outcome, val ssid: String?, val address: String?) {
+    data class JoinResult(
+        val outcome: Outcome,
+        val ssid: String?,
+        val address: String?,
+        /** The password the camera echoes with the network; only compared. */
+        internal val echoedPassword: String? = null,
+    ) {
         sealed interface Outcome {
             data object Joined : Outcome
             /** `PASSWORD_ERROR`. */
@@ -78,13 +88,30 @@ object LunaStationWire {
             /** `NO_SCAN_RESULT`: the camera cannot see the network. */
             data object NetworkNotFound : Outcome
             /** Any other `WifiConnectionResult` value. */
-            data class Failed(val code: Long) : Outcome
+            data class Failed(val code: Long) : Outcome {
+                /**
+                 * `TIMEOUT` 1, `ERROR_CONNECT_FAILED` 2 and `UNABLE_ASSIGN_IP` 4: the network may
+                 * take the camera on a second try (the official app restarts the join for these).
+                 */
+                val transient: Boolean get() = code in setOf(1L, 2L, 4L)
+            }
+        }
+
+        /**
+         * Whether this result answers a join to [ssid] with [password]. The camera echoes the
+         * network it tried (firmware 1.1.15: name and password), so a late result for an earlier
+         * join, such as one sent without a password, is told apart. A result without the network
+         * answers any join.
+         */
+        fun answers(ssid: String, password: String): Boolean {
+            val reported = this.ssid ?: return true
+            return reported == ssid && (echoedPassword ?: "") == password
         }
 
         override fun toString(): String = "JoinResult($outcome, address: $address)"
     }
 
-    /** Notification 8232's body: the result (field 1, proto3 default success) and the network (ssid 1, ip_addr 4). */
+    /** Notification 8232's body: the result (field 1, proto3 default success) and the network (ssid 1, password 3, ip_addr 4). */
     fun joinResult(body: ByteArray): JoinResult {
         val code = LunaWire.number(body, 1)
         val outcome = when (code) {
@@ -99,6 +126,7 @@ object LunaStationWire {
             outcome,
             network?.let { LunaWire.text(it, 1) }?.takeIf { it.isNotEmpty() },
             network?.let { LunaWire.text(it, 4) }?.takeIf { it.isNotEmpty() },
+            network?.let { LunaWire.text(it, 3) },
         )
     }
 
