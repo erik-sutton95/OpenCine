@@ -45,7 +45,7 @@ enum LunaStationPath {
                 address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0,
                 NI_NUMERICHOST) == 0
         else { return nil }
-        return String(cString: host)
+        return String(decoding: host.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 
     /// The hosts to search on this phone's network, nearest first: the whole subnet when it is a

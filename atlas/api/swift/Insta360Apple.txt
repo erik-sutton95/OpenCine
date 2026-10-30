@@ -75,6 +75,7 @@ func LunaCameraBackend.mediaCatalogRecord(_: OpenCineMedia.MediaAssetID, binding
 func LunaCameraBackend.mediaService(for: OpenCineCore.CameraSessionID) -> (any OpenCineMedia.CameraMediaService)?
 func LunaCameraBackend.openSession() -> LunaCameraSession
 func LunaCameraBackend.pauseLive() async -> ()
+func LunaCameraBackend.reconnectRoute(for: Foundation.UUID) -> LunaRoute
 func LunaCameraBackend.refreshCapture() async -> ()
 func LunaCameraBackend.refreshSettings() async -> ()
 func LunaCameraBackend.refreshShootingMode() async -> ()
