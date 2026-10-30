@@ -40,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.opencapture.opencine.media.MediaTransferRate
 
 @Immutable
 data class MonitorClipValue(val id: String, val title: String, val detail: String,
@@ -56,7 +55,8 @@ data class MonitorClipValue(val id: String, val title: String, val detail: Strin
     val transferRate: String? = null) {
     /** The download readout without the speed: the host's caption, else the percent. */
     val progressPercentCaption: String? get() =
-        transferCaption ?: MediaTransferRate.caption(progress?.toDouble(), null)
+        // Float percent, as the cell always read it: 0.64f widened to a Double would read 63%.
+        transferCaption ?: progress?.takeIf { it.isFinite() }?.let { "${(it.coerceIn(0f, 1f) * 100).toInt()}%" }
 
     /** The download readout every cell shows and announces: "18% · 42 MB/s". The speed shows
      * only beside progress. */

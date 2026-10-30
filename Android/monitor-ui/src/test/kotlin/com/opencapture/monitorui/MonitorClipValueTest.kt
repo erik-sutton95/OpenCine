@@ -56,5 +56,7 @@ class MonitorClipValueTest {
         // No download, no readout: a stale speed never shows without progress.
         assertNull(MonitorClipValue("SIMULATED/03", "03", "", null, null, false, transferRate = "42 MB/s").progressCaption)
         assertEquals("0%", MonitorClipValue("SIMULATED/04", "04", "", null, null, false, progress = 0f).progressCaption)
+        assertEquals("64% · 8.4 MB/s", MonitorClipValue("SIMULATED/05", "05", "", null, null, false,
+            progress = 0.64f, transferRate = "8.4 MB/s").progressCaption)
     }
 }
