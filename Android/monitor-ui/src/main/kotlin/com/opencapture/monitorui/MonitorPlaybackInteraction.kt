@@ -48,6 +48,21 @@ data class MonitorPlaybackZoom(val scale: Float = 1f, val offsetX: Float = 0f, v
             y - (y - offsetY) * ratio + panChangeY, width, height, target, pictureWidth, pictureHeight)
         return copy(scale = target, offsetX = boundedX, offsetY = boundedY)
     }
+    /**
+     * The part of the playback canvas the picture covers. The picture is the letterboxed [feed]
+     * scaled about its centre and moved by the offset; it is shown up to the canvas edge, never
+     * beyond it. At scale 1 this is [feed] itself, so the letterbox is unchanged.
+     */
+    fun visiblePictureRect(feed: MonitorRect, canvasWidth: Float, canvasHeight: Float): MonitorRect {
+        if (scale <= 1f) return feed
+        val width = feed.width * scale; val height = feed.height * scale
+        val left = max(0f, feed.x + feed.width / 2f - width / 2f + offsetX)
+        val top = max(0f, feed.y + feed.height / 2f - height / 2f + offsetY)
+        val right = min(canvasWidth, feed.x + feed.width / 2f + width / 2f + offsetX)
+        val bottom = min(canvasHeight, feed.y + feed.height / 2f + height / 2f + offsetY)
+        return if (right <= left || bottom <= top) MonitorRect(0f, 0f, 0f, 0f)
+            else MonitorRect(left, top, right - left, bottom - top)
+    }
     fun settled(): MonitorPlaybackZoom = if (scale < 1.05f) reset() else this
     fun pinchChanged(magnification: Float, startAnchorX: Float, startAnchorY: Float,
         width: Float, height: Float): MonitorPlaybackZoom {
@@ -63,41 +78,58 @@ data class MonitorPlaybackZoom(val scale: Float = 1f, val offsetX: Float = 0f, v
     fun panChanged(x: Float, y: Float): MonitorPlaybackZoom = if (!isZoomed) this else
         copy(offsetX = offsetX + x - lastPanTranslationX, offsetY = offsetY + y - lastPanTranslationY,
             lastPanTranslationX = x, lastPanTranslationY = y)
-    /** Consume cumulative pan once while preserving the uncommitted gesture baseline. */
+    /**
+     * Consume cumulative pan once while preserving the uncommitted gesture baseline. [width] and
+     * [height] are the area the zoomed picture may cover; the picture is its unzoomed size, centred
+     * in that area (by default the same size). The picture's edge stops at the area's edge.
+     */
     fun panChangedBounded(x: Float, y: Float, width: Float, height: Float,
-        horizontalPresentationScale: Float = 1f, verticalPresentationScale: Float = 1f): MonitorPlaybackZoom {
-        return panChanged(x, y)
-            .constrain(width, height, horizontalPresentationScale, verticalPresentationScale)
+        horizontalPresentationScale: Float = 1f, verticalPresentationScale: Float = 1f,
+        pictureWidth: Float = width, pictureHeight: Float = height): MonitorPlaybackZoom {
+        return panChanged(x, y).constrain(width, height, horizontalPresentationScale,
+            verticalPresentationScale, pictureWidth, pictureHeight)
     }
     /** Magnification stays relative to the original gesture, not a newly committed scale. */
     fun pinchChangedBounded(magnification: Float, startAnchorX: Float, startAnchorY: Float,
         width: Float, height: Float, boundsWidth: Float, boundsHeight: Float,
-        horizontalPresentationScale: Float = 1f, verticalPresentationScale: Float = 1f): MonitorPlaybackZoom {
+        horizontalPresentationScale: Float = 1f, verticalPresentationScale: Float = 1f,
+        pictureWidth: Float = boundsWidth, pictureHeight: Float = boundsHeight): MonitorPlaybackZoom {
         return pinchChanged(magnification, startAnchorX, startAnchorY, width, height)
-            .constrain(boundsWidth, boundsHeight, horizontalPresentationScale, verticalPresentationScale)
+            .constrain(boundsWidth, boundsHeight, horizontalPresentationScale, verticalPresentationScale,
+                pictureWidth, pictureHeight)
     }
+    /**
+     * The drawn picture is `picture * scale * presentation scale`, centred in the bounds; its edge
+     * may travel to the bounds' edge and no further. Smaller than the bounds on an axis, it stays
+     * centred.
+     */
     private fun constrain(width: Float, height: Float, horizontalPresentationScale: Float,
-        verticalPresentationScale: Float): MonitorPlaybackZoom {
-        val maxX = max(0f, width) * max(0f, scale * max(0f, horizontalPresentationScale) - 1) / 2
-        val maxY = max(0f, height) * max(0f, scale * max(0f, verticalPresentationScale) - 1) / 2
+        verticalPresentationScale: Float, pictureWidth: Float, pictureHeight: Float): MonitorPlaybackZoom {
+        val maxX = max(0f, max(0f, pictureWidth) * scale * max(0f, horizontalPresentationScale) - max(0f, width)) / 2
+        val maxY = max(0f, max(0f, pictureHeight) * scale * max(0f, verticalPresentationScale) - max(0f, height)) / 2
         return copy(offsetX = min(maxX, max(-maxX, offsetX)), offsetY = min(maxY, max(-maxY, offsetY)))
     }
     /** Retire only this pinch while a pan can continue delivering cumulative translations. */
     fun endPinch(width: Float, height: Float, horizontalPresentationScale: Float = 1f,
-        verticalPresentationScale: Float = 1f): MonitorPlaybackZoom =
-        finish(width, height, horizontalPresentationScale, verticalPresentationScale).copy(pinchStartScale = null)
+        verticalPresentationScale: Float = 1f, pictureWidth: Float = width,
+        pictureHeight: Float = height): MonitorPlaybackZoom =
+        finish(width, height, horizontalPresentationScale, verticalPresentationScale, pictureWidth, pictureHeight)
+            .copy(pinchStartScale = null)
     /** Retire only this pan while a pinch retains its original scale. */
     fun endPan(width: Float, height: Float, horizontalPresentationScale: Float = 1f,
-        verticalPresentationScale: Float = 1f): MonitorPlaybackZoom =
-        finish(width, height, horizontalPresentationScale, verticalPresentationScale)
+        verticalPresentationScale: Float = 1f, pictureWidth: Float = width,
+        pictureHeight: Float = height): MonitorPlaybackZoom =
+        finish(width, height, horizontalPresentationScale, verticalPresentationScale, pictureWidth, pictureHeight)
             .copy(lastPanTranslationX = 0f, lastPanTranslationY = 0f)
     fun endGesture(width: Float, height: Float, horizontalPresentationScale: Float = 1f,
-        verticalPresentationScale: Float = 1f): MonitorPlaybackZoom =
-        finish(width, height, horizontalPresentationScale, verticalPresentationScale)
+        verticalPresentationScale: Float = 1f, pictureWidth: Float = width,
+        pictureHeight: Float = height): MonitorPlaybackZoom =
+        finish(width, height, horizontalPresentationScale, verticalPresentationScale, pictureWidth, pictureHeight)
             .copy(pinchStartScale = null, lastPanTranslationX = 0f, lastPanTranslationY = 0f)
     private fun finish(width: Float, height: Float, horizontalPresentationScale: Float,
-        verticalPresentationScale: Float): MonitorPlaybackZoom =
-        if (scale < 1.05f) reset() else constrain(width, height, horizontalPresentationScale, verticalPresentationScale)
+        verticalPresentationScale: Float, pictureWidth: Float, pictureHeight: Float): MonitorPlaybackZoom =
+        if (scale < 1.05f) reset() else constrain(width, height, horizontalPresentationScale,
+            verticalPresentationScale, pictureWidth, pictureHeight)
     fun reset() = MonitorPlaybackZoom(maximumScale = maximumScale)
     companion object {
         const val MAX_SCALE = 4f
