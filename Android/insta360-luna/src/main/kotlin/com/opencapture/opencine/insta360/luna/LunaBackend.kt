@@ -325,7 +325,7 @@ class LunaBackend(
                 LunaStationWire.phoneInfo(LunaStationWire.Platform.ANDROID, android.os.Build.MANUFACTURER.orEmpty(), android.os.Build.MODEL.orEmpty(), android.os.Build.VERSION.RELEASE.orEmpty()),
                 encrypted = true,
             )
-        }.onFailure { if (it is CancellationException) throw it }
+        }.onFailure { if (it is CancellationException && !currentCoroutineContext().isActive) throw it }
         while (link.stationResults.tryReceive().isSuccess) { // A stale result from an earlier attempt.
         }
         link.request(LunaStationWire.SET_WIFI_CONNECTION_INFO, LunaStationWire.join(ssid, network.password), encrypted = true)
@@ -352,7 +352,7 @@ class LunaBackend(
             ))
         }
         runCatching { link.request(LunaStationWire.SET_AVAILABLE_WIFI, LunaStationWire.remember(ssid, network.password), encrypted = true) }
-            .onFailure { if (it is CancellationException) throw it }
+            .onFailure { if (it is CancellationException && !currentCoroutineContext().isActive) throw it }
         gatt?.close(); gatt = null
         val (local, prefix) = joinPhone(network)
         _joinedSSID.value = ssid
