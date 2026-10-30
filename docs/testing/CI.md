@@ -32,11 +32,20 @@ Every night at 02:30 UTC on `main` (the apps follow at 03:15, 04:00 and 04:45 so
 jobs do not queue behind each other), and on `workflow_dispatch`. It calls `ci.yml` with
 `full: true`: the whole PR tier for every platform regardless of paths, plus:
 
-- Conformance kit, iOS (hosted walk self-test, command dashboard, playback labels)
-- Playback labels, native typed cancellation (SIMULATED)
+- Conformance kit, iOS (hosted walk self-test, command dashboard, portrait header clearance on a
+  private iPhone and a private native 2x iPad, playback labels)
+- Playback labels, native typed cancellation (SIMULATED), beside the kit on its own runner
 - New-app template, iOS and Android (SIMULATED)
 - The Sentry adapter's simulator test, also when nothing it links changed
 - In the apps: shared conformance scenarios on iOS and the iPad storage oracle
+
+In the conformance kit a skipped test is a failure, not a pass. Suites that need an application
+scene run in a SIMULATED application host (`scripts/ios-command-dashboard-hosted-test.py`,
+`scripts/ios-header-clearance-hosted-test.py`), which requires every case it names to pass. The
+kit then fails on any skipped test (`scripts/ci-test-report.py --no-skips`) and lists per-suite
+timing in its summary. The Swift package job's timing summary (below) counts skipped tests but
+does not fail on them: its expected skips are opt-in fixtures (`.enabled(if:)`) and `.disabled`
+items declared in source.
 
 On `main`, `scripts/ci-nightly-report.sh` keeps one issue per repository, **Nightly CI failing
 on main** (label `ci-nightly`): a failed night opens it or adds the run and its failing jobs, the
