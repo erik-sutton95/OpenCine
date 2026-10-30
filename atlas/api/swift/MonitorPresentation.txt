@@ -422,7 +422,7 @@ init MonitorAssistSelection(rawValue: Swift.String)
 init MonitorAudioOptions(orientation: MonitorAudioOrientation, showsDB: Swift.Bool, landscapeCenter: MonitorAudioStoredCenter?, portraitCenter: MonitorAudioStoredCenter?)
 init MonitorAudioStoredCenter(x: Swift.Double, y: Swift.Double)
 init MonitorCapturePopupLayout(viewportWidth: Swift.Double, viewportHeight: Swift.Double, tablet: Swift.Bool, safeArea: MonitorSafeArea, bottomBoundary: Swift.Double?, ceiling: Swift.Double, edge: MonitorCapturePopupEdge, topBoundary: Swift.Double?)
-init MonitorClipValue(id: Swift.String, title: Swift.String, detail: Swift.String, duration: Swift.String?, source: Swift.String?, favorite: Swift.Bool, progress: Swift.Double?, burstCount: Swift.Int?, mediaBadge: Swift.String?, completionBadge: Swift.String?, transferCaption: Swift.String?, format: Swift.String?, color: Swift.String?, accessibilityDescription: Swift.String?, favoriteLabel: Swift.String?, selectionEntryLabel: Swift.String?)
+init MonitorClipValue(id: Swift.String, title: Swift.String, detail: Swift.String, duration: Swift.String?, source: Swift.String?, favorite: Swift.Bool, progress: Swift.Double?, burstCount: Swift.Int?, mediaBadge: Swift.String?, completionBadge: Swift.String?, transferCaption: Swift.String?, format: Swift.String?, color: Swift.String?, accessibilityDescription: Swift.String?, favoriteLabel: Swift.String?, selectionEntryLabel: Swift.String?, transferRate: Swift.String?)
 init MonitorClipValue(item: MonitorMediaItem)
 init MonitorCommandGridCell(tileWidth: CoreGraphics.CGFloat, rowHeight: CoreGraphics.CGFloat, spacing: CoreGraphics.CGFloat, columns: Swift.Int)
 init MonitorCommandGridDrag()<Kind where Kind : Swift.Hashable>
@@ -460,7 +460,7 @@ init MonitorMediaDeliveryValue.Footer(summary: Swift.String?, postExport: Monito
 init MonitorMediaDeliveryValue.Notice(_: Swift.String, accented: Swift.Bool)
 init MonitorMediaDeliveryValue.Toggle(_: Swift.String, help: Swift.String, isOn: Swift.Bool, enabled: Swift.Bool)
 init MonitorMediaDragSelection(orderedIDs: [Swift.String], originID: Swift.String, selectedIDs: Swift.Set<Swift.String>)
-init MonitorMediaItem(id: Swift.String, filename: Swift.String, metadata: Swift.String, format: Swift.String, color: Swift.String, duration: Swift.String, date: Swift.String, availability: MonitorMediaItem.Availability, progress: Swift.Double?, favorite: Swift.Bool, photo: Swift.Bool, permissions: MonitorMediaPermissions, burstCount: Swift.Int?, mediaBadge: Swift.String?, completionBadge: Swift.String?, transferCaption: Swift.String?)
+init MonitorMediaItem(id: Swift.String, filename: Swift.String, metadata: Swift.String, format: Swift.String, color: Swift.String, duration: Swift.String, date: Swift.String, availability: MonitorMediaItem.Availability, progress: Swift.Double?, favorite: Swift.Bool, photo: Swift.Bool, permissions: MonitorMediaPermissions, burstCount: Swift.Int?, mediaBadge: Swift.String?, completionBadge: Swift.String?, transferCaption: Swift.String?, transferRate: Swift.String?)
 init MonitorMediaPermissions(rawValue: Swift.UInt8)
 init MonitorMediaResolutionLevel(minimumWidth: Swift.Int, label: Swift.String)
 init MonitorMediaSelectionConfiguration(holdMilliseconds: Swift.Int, movementTolerance: Swift.Double, allowsSelectionEntry: Swift.Bool, sweepsSideways: Swift.Bool, edgeBand: Swift.Double, maximumEdgeSpeed: Swift.Double, edgeCurve: MonitorMediaSelectionConfiguration.EdgeCurve, viewportEdgeLimitRatio: Swift.Double?, roundsScrollSteps: Swift.Bool)
@@ -574,6 +574,7 @@ let MonitorClipValue.selectionEntryLabel: Swift.String?
 let MonitorClipValue.source: Swift.String?
 let MonitorClipValue.title: Swift.String
 let MonitorClipValue.transferCaption: Swift.String?
+let MonitorClipValue.transferRate: Swift.String?
 let MonitorCompactTelemetryBudget.leading: Swift.Double
 let MonitorCompactTelemetryBudget.performanceWidth: Swift.Double
 let MonitorCompactTelemetryBudget.performanceX: Swift.Double
@@ -682,6 +683,7 @@ let MonitorMediaItem.permissions: MonitorMediaPermissions
 let MonitorMediaItem.photo: Swift.Bool
 let MonitorMediaItem.progress: Swift.Double?
 let MonitorMediaItem.transferCaption: Swift.String?
+let MonitorMediaItem.transferRate: Swift.String?
 let MonitorMediaPermissions.rawValue: Swift.UInt8
 let MonitorMediaResolutionLevel.label: Swift.String
 let MonitorMediaResolutionLevel.minimumWidth: Swift.Int
@@ -1355,6 +1357,8 @@ var MonitorAudioStoredCenter.x: Swift.Double
 var MonitorAudioStoredCenter.y: Swift.Double
 var MonitorCapturePopupKind.showsClose: Swift.Bool
 var MonitorCapturePopupKind.subtitle: Swift.String?
+var MonitorClipValue.progressCaption: Swift.String?
+var MonitorClipValue.progressPercentCaption: Swift.String?
 var MonitorCommandGridCell.columns: Swift.Int
 var MonitorCommandGridCell.rowHeight: CoreGraphics.CGFloat
 var MonitorCommandGridCell.spacing: CoreGraphics.CGFloat

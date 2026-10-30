@@ -218,6 +218,7 @@ class MonitorSettingsSupportModel: Observable, Sendable
 class MonitorSharingPreferences: Sendable
 class MonitorToolUsagePreferences: Sendable
 class MonitorTrafficLightsPreferenceStore: Observable, Sendable
+class MonitorTransferRates<Key where Key : Swift.Hashable, Key : Swift.Sendable>: Observable, Sendable
 class MultiviewStagePreferencesStore
 class MultiviewStageState: Observable, Sendable
 class OperatorConsent: Observable, Sendable
@@ -762,6 +763,11 @@ func MonitorSettingsSupportModel.prepareReport() -> ()
 func MonitorSettingsSupportModel.request(_: MonitorSettingsBrowserDestination) -> ()
 func MonitorSettingsSupportModel.retire() -> ()
 func MonitorTrafficLightsPreferenceStore.persist() -> ()
+func MonitorTransferRates.begin(_: Key, bytes: Swift.UInt64)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
+func MonitorTransferRates.end(_: Key)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
+func MonitorTransferRates.rate(_: Key)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> OpenCineMedia.MediaTransferRate?
+func MonitorTransferRates.record(_: Key, totalBytes: Swift.UInt64)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
+func MonitorTransferRates.retain(_: Swift.Set<Key>)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
 func MultiviewRecordContext.question(single: Swift.Bool) -> Swift.String
 func MultiviewStagePreferencesStore.load() -> MultiviewStagePreferences?
 func MultiviewStagePreferencesStore.save(_: MultiviewStagePreferences) -> Swift.Bool
@@ -908,7 +914,7 @@ init MonitorDeliveryInternetService(needsHop: () -> Swift.Bool, begin: () -> Lea
 init MonitorDeliveryMetadataFacts(filename: Swift.String, captureDate: Swift.String?, sizeBytes: Swift.UInt64?)
 init MonitorDeliveryMetadataSelection(_: MonitorDeliveryExportConfiguration<Curve, Format>)<Curve, Format where Curve : Swift.Sendable, Format : Swift.Sendable>
 init MonitorDeliveryModel(sleep: (Swift.Duration) async throws -> Swift.Void, releaseShare: (Share) -> Swift.Void)<Progress, Outcome, Share where Progress : Swift.Sendable, Outcome : Swift.Sendable, Share : Swift.Sendable>
-init MonitorDeliveryOriginalService(available: (Record) -> Swift.Bool, acquire: (Record) async -> Swift.Void, progress: (Record) -> Swift.Double?, cameraStoppedResponding: (Record) -> Swift.Bool)<Record where Record : Swift.Sendable>
+init MonitorDeliveryOriginalService(available: (Record) -> Swift.Bool, acquire: (Record) async -> Swift.Void, progress: (Record) -> Swift.Double?, cameraStoppedResponding: (Record) -> Swift.Bool, rate: (Record) -> OpenCineMedia.MediaTransferRate?)<Record where Record : Swift.Sendable>
 init MonitorDeliveryPhotosAuthorizationService(isPending: () -> Swift.Bool, authorize: () async throws -> Swift.Void)
 init MonitorDeliveryPhotosService(save: (Artifact) async throws -> Swift.Bool)<Artifact where Artifact : Swift.Sendable>
 init MonitorDeliveryPreparationModel(selection: () -> MonitorDeliverySelectionFacts, configuration: MonitorDeliveryExportConfiguration<Curve, Format>?, exportOptions: MonitorDeliveryExportOptions<Curve, Format>?, remote: MonitorDeliveryRemoteService<Project, Context, Lease>?, preferredDestination: MonitorDeliveryDestination?, sourceCurrent: () -> Swift.Bool, beforeInternetHop: (() async throws -> Swift.Void)?, sleep: (Swift.Duration) async throws -> Swift.Void)<Curve, Format, Project, Context, Lease where Curve : Swift.Equatable, Curve : Swift.Sendable, Format : Swift.Equatable, Format : Swift.Sendable, Project : Swift.Sendable, Context : Swift.Sendable, Lease : Swift.Sendable>
@@ -953,7 +959,7 @@ init MonitorMediaGalleryOperations(download: ((MonitorMediaRecord<Payload>) asyn
 init MonitorMediaLibraryCopy(openFailed: Swift.String, listFailed: Swift.String, favoriteSaveFailed: Swift.String, downloadFailed: Swift.String, listing: Swift.String?, empty: Swift.String?, sourceHeld: Swift.String?)
 init MonitorMediaLibraryIOKey(_: Swift.String)
 init MonitorMediaLibraryIOKey(rawValue: Swift.String)
-init MonitorMediaLibraryModel(cache: MonitorMediaCache<Payload>, favorites: any MonitorMediaFavoritesStore, service: (any OpenCineMedia.CameraMediaService)?, cacheScanning: MonitorMediaCacheScanning, catalogPersistence: MonitorMediaCatalogPersistence, catalogBase: MonitorMediaCatalogBase, initialCatalog: OpenCineMedia.MediaCatalog?, initialRecords: [MonitorMediaRecord<Payload>]?, copy: MonitorMediaLibraryCopy, readSnapshot: ((MonitorMediaCacheReadPlan) async throws -> MonitorMediaCacheSnapshot)?, sleep: (Swift.Duration) async throws -> Swift.Void)<Payload where Payload : Swift.Sendable>
+init MonitorMediaLibraryModel(cache: MonitorMediaCache<Payload>, favorites: any MonitorMediaFavoritesStore, service: (any OpenCineMedia.CameraMediaService)?, cacheScanning: MonitorMediaCacheScanning, catalogPersistence: MonitorMediaCatalogPersistence, catalogBase: MonitorMediaCatalogBase, initialCatalog: OpenCineMedia.MediaCatalog?, initialRecords: [MonitorMediaRecord<Payload>]?, copy: MonitorMediaLibraryCopy, readSnapshot: ((MonitorMediaCacheReadPlan) async throws -> MonitorMediaCacheSnapshot)?, sleep: (Swift.Duration) async throws -> Swift.Void, rateClock: OpenCineCore.HostClock)<Payload where Payload : Swift.Sendable>
 init MonitorMediaLibraryState()<Payload where Payload : Swift.Sendable>
 init MonitorMediaPictureLoaders(preview: MonitorMediaPictureLoaders<Payload, Picture>.Load?, cached: MonitorMediaPictureLoaders<Payload, Picture>.Load?, source: MonitorMediaPictureLoaders<Payload, Picture>.Load?, progressive: ((MonitorMediaPicturePublication<Payload, Picture>) async -> Picture?)?)<Payload, Picture where Payload : Swift.Sendable>
 init MonitorMediaPictureModel(library: MonitorMediaLibraryModel<Payload>, record: MonitorMediaRecord<Payload>, admission: MonitorMediaLibraryActionToken?, variants: [MonitorMediaPictureVariant<Payload>], sleep: (Swift.Duration) async throws -> Swift.Void, sourceCurrent: () -> Swift.Bool)<Payload, Picture where Payload : Swift.Sendable>
@@ -1021,6 +1027,7 @@ init MonitorStartupReports(isAvailable: () -> Swift.Bool, hasDecision: () -> Swi
 init MonitorStartupReports(reporting: ReliabilityReporting, tick: () -> Swift.Void)
 init MonitorToolUsagePreferences(storage: Foundation.UserDefaults, key: Swift.String)
 init MonitorTrafficLightsPreferenceStore(storage: Foundation.UserDefaults, key: Swift.String, histogram: MonitorScopePanelStore<MonitorPresentation.MonitorHistogramOptions>)
+init MonitorTransferRates(clock: OpenCineCore.HostClock)<Key where Key : Swift.Hashable, Key : Swift.Sendable>
 init MultiviewCameraAction(_: Swift.String, _: Swift.String, kind: MultiviewCameraAction.Kind, enabled: Swift.Bool, closes: Swift.Bool)
 init MultiviewCameraPicker(rows: [MultiviewPickerRow], searching: Swift.String, empty: Swift.String?, footer: Swift.String?, cancel: () -> Swift.Void, pick: (Swift.String) -> Swift.Void)
 init MultiviewPickerRow(id: Swift.String, title: Swift.String, detail: Swift.String?, enabled: Swift.Bool, limited: Swift.Bool)
@@ -1155,6 +1162,7 @@ let MonitorDeliveryOriginalService.acquire: (Record) async -> Swift.Void
 let MonitorDeliveryOriginalService.available: (Record) -> Swift.Bool
 let MonitorDeliveryOriginalService.cameraStoppedResponding: (Record) -> Swift.Bool
 let MonitorDeliveryOriginalService.progress: (Record) -> Swift.Double?
+let MonitorDeliveryOriginalService.rate: (Record) -> OpenCineMedia.MediaTransferRate?
 let MonitorDeliveryPhotosAuthorizationService.authorize: () async throws -> Swift.Void
 let MonitorDeliveryPhotosAuthorizationService.isPending: () -> Swift.Bool
 let MonitorDeliveryPhotosService.save: (Artifact) async throws -> Swift.Bool
@@ -1302,6 +1310,7 @@ let MonitorMediaLibraryIOAuthority.id: Foundation.UUID
 let MonitorMediaLibraryIOAuthority.key: MonitorMediaLibraryIOKey
 let MonitorMediaLibraryIOKey.rawValue: Swift.String
 let MonitorMediaLibraryModel.cache: MonitorMediaCache<Payload>
+let MonitorMediaLibraryModel.transferRates: MonitorTransferRates<OpenCineMedia.MediaAssetID>
 let MonitorMediaPictureLoaders.cached: MonitorMediaPictureLoaders<Payload, Picture>.Load?
 let MonitorMediaPictureLoaders.preview: MonitorMediaPictureLoaders<Payload, Picture>.Load?
 let MonitorMediaPictureLoaders.progressive: ((MonitorMediaPicturePublication<Payload, Picture>) async -> Picture?)?
@@ -1651,6 +1660,7 @@ static let ReliabilityReportingPrivacy.shapes: [Swift.String : Swift.String]
 static let ReliabilityReportingPrivacy.tagAllowlist: Swift.Set<Swift.String>
 static let StationSetupRoute.stationNetworks: [StationSetupRoute]
 static var MonitorAssistState.cleanViewDefaultPinnedTools: Swift.Set<MonitorPresentation.MonitorAssistSelection>
+static var MonitorTransferRates.tick: Swift.Duration
 static var ProblemReportImage.transferRepresentation: some CoreTransferable.TransferRepresentation
 static var ReliabilityReportingURLProtocol.forwarder: ReliabilityReportingForwarder
 static var ReliabilityReportingVerification.mode: Swift.String?
@@ -2079,6 +2089,7 @@ var MonitorDeliveryBatchProgress.overallFraction: Swift.Double
 var MonitorDeliveryBatchProgress.percentText: Swift.String
 var MonitorDeliveryBatchProgress.showsBusySpinner: Swift.Bool
 var MonitorDeliveryBatchProgress.stage: MonitorDeliveryBatchProgress.Stage
+var MonitorDeliveryBatchProgress.transferRate: Swift.String?
 var MonitorDeliveryBatchProgress.uploadCaption: Swift.String?
 var MonitorDeliveryCacheError.errorDescription: Swift.String?
 var MonitorDeliveryDestination.actionTitle: Swift.String
@@ -2444,6 +2455,7 @@ var MonitorTrafficLightsPreferenceStore.compensation: OpenCineMedia.MonitorCrush
 var MonitorTrafficLightsPreferenceStore.position: MonitorPresentation.MonitorScopeStoredCenter?
 var MonitorTrafficLightsPreferenceStore.positionPortrait: MonitorPresentation.MonitorScopeStoredCenter?
 var MonitorTrafficLightsPreferenceStore.scale: Swift.Double
+var MonitorTransferRates.rates: [Key : OpenCineMedia.MediaTransferRate]
 var MultiviewCameraAction.closes: Swift.Bool
 var MultiviewCameraAction.enabled: Swift.Bool
 var MultiviewCameraAction.id: Swift.String
