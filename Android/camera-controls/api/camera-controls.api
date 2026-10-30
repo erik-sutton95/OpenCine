@@ -2661,9 +2661,7 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLevelO
 
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLiveAssists {
 	public static final field $stable I
-	public fun <init> (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSource;Ljava/util/List;Ljava/util/Set;Lcom/opencapture/opencine/media/MonitorTransfer;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorSignalOptions;Lcom/opencapture/monitorui/MonitorToolUsageState;Lkotlin/jvm/functions/Function1;Ljava/util/Map;Ljava/util/List;)V
-	public synthetic fun <init> (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSource;Ljava/util/List;Ljava/util/Set;Lcom/opencapture/opencine/media/MonitorTransfer;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorSignalOptions;Lcom/opencapture/monitorui/MonitorToolUsageState;Lkotlin/jvm/functions/Function1;Ljava/util/Map;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun getFitted ()Ljava/util/List;
+	public fun <init> (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSource;Ljava/util/List;Ljava/util/Set;Lcom/opencapture/opencine/media/MonitorTransfer;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorSignalOptions;Lcom/opencapture/monitorui/MonitorToolUsageState;Lkotlin/jvm/functions/Function1;Ljava/util/Map;)V
 	public final fun getPalette ()Ljava/util/List;
 	public final fun getRendered ()Ljava/util/Set;
 	public final fun getScopes ()Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSource;
@@ -2751,7 +2749,6 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLiveLa
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLiveLayoutKt {
 	public static final fun monitorOperatorFieldLayout (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorViewport;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/cameracontrols/PortraitFeedAspect;FZLjava/lang/Integer;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLiveLayout;
 	public static synthetic fun monitorOperatorFieldLayout$default (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorViewport;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/cameracontrols/PortraitFeedAspect;FZLjava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLiveLayout;
-	public static final fun monitorOperatorFittedScopeZone (Lcom/opencapture/monitorui/MonitorFieldLayout;)Lcom/opencapture/monitorui/MonitorRect;
 	public static final fun monitorOperatorLiveLayout (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorViewport;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/cameracontrols/PortraitFeedAspect;FZLcom/opencapture/monitorui/MonitorJoystickSize;ZLjava/lang/Integer;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLiveLayout;
 	public static synthetic fun monitorOperatorLiveLayout$default (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorViewport;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/cameracontrols/PortraitFeedAspect;FZLcom/opencapture/monitorui/MonitorJoystickSize;ZLjava/lang/Integer;ILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorLiveLayout;
 }
