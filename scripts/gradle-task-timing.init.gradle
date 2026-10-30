@@ -1,0 +1,74 @@
+// Gradle init script: record every task's outcome and execution time (docs/testing/CI.md).
+//
+//   ./gradlew --init-script ../scripts/gradle-task-timing.init.gradle <tasks>
+//
+// Appends one tab-separated line per finished task (path, milliseconds, outcome, start and end
+// epoch milliseconds) to $GRADLE_TASK_TIMING, default build/task-timing.tsv under the root project.
+// scripts/gradle-task-timing-report.py summarizes the file. It observes tasks through the build
+// events API, so it works with the configuration cache and changes no task, input or output.
+import javax.inject.Inject
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
+import org.gradle.build.event.BuildEventsListenerRegistry
+import org.gradle.tooling.events.FinishEvent
+import org.gradle.tooling.events.OperationCompletionListener
+import org.gradle.tooling.events.task.TaskFailureResult
+import org.gradle.tooling.events.task.TaskFinishEvent
+import org.gradle.tooling.events.task.TaskSkippedResult
+import org.gradle.tooling.events.task.TaskSuccessResult
+
+abstract class OpenCineTaskTiming implements BuildService<Params>, OperationCompletionListener, AutoCloseable {
+    interface Params extends BuildServiceParameters {
+        Property<String> getOutput()
+    }
+
+    final List<String> rows = Collections.synchronizedList([])
+
+    @Override
+    void onFinish(FinishEvent event) {
+        if (!(event instanceof TaskFinishEvent)) {
+            return
+        }
+        def result = event.result
+        String outcome
+        if (result instanceof TaskSkippedResult) {
+            outcome = 'skipped'
+        } else if (result instanceof TaskFailureResult) {
+            outcome = 'failed'
+        } else if (result instanceof TaskSuccessResult && result.upToDate) {
+            outcome = 'up-to-date'
+        } else if (result instanceof TaskSuccessResult && result.fromCache) {
+            outcome = 'from-cache'
+        } else {
+            outcome = 'executed'
+        }
+        rows << [event.descriptor.taskPath, result.endTime - result.startTime, outcome, result.startTime,
+                 result.endTime].join('\t')
+    }
+
+    @Override
+    void close() {
+        def file = new File(parameters.output.get())
+        file.parentFile.mkdirs()
+        synchronized (rows) {
+            file.withWriterAppend { writer -> rows.each { writer.println(it) } }
+        }
+    }
+}
+
+abstract class OpenCineTaskTimingPlugin implements Plugin<Gradle> {
+    @Inject
+    abstract BuildEventsListenerRegistry getRegistry()
+
+    @Override
+    void apply(Gradle gradle) {
+        String output = System.getenv('GRADLE_TASK_TIMING') ?:
+            new File(gradle.startParameter.currentDir, 'build/task-timing.tsv').absolutePath
+        def timing = gradle.sharedServices.registerIfAbsent('openCineTaskTiming', OpenCineTaskTiming) { spec ->
+            spec.parameters.output.set(output)
+        }
+        registry.onTaskCompletion(timing)
+    }
+}
+
+apply plugin: OpenCineTaskTimingPlugin

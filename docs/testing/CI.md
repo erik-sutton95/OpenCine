@@ -12,9 +12,15 @@ deterministic: under about 20 minutes, every job bounded by `timeout-minutes`.
 | --- | --- | --- |
 | Meta checks | gitleaks, hygiene, Sentry tooling, typos, Markdown, offline links, EditorConfig, release-notes and nightly-report tooling tests, actionlint | 30 min |
 | Swift package | strict-concurrency build (its diagnostics are the warnings-as-errors check for the portable targets), host tests, iOS Simulator and Insta360 device builds with Xcode's compilation cache, Sentry adapter simulator test when the adapter or what it links changed | 45 min |
-| Android | `test lint assembleRelease`, build-logic tests, Vulkan sync, release dex registrars | 30 min |
+| Android unit tests and build logic | `test`, build-logic tests | 30 min |
+| Android lint | `lint` | 30 min |
+| Android release assembly, public API, Vulkan and registrars | `assembleRelease`, Kotlin and Android API snapshots, Vulkan sync, release dex registrars | 30 min |
 | Atlas check | registry, direction, cycles, duplication must not grow | 10 min |
 | CI gate | every job above reported `success` | 10 min |
+
+The three Android jobs run in parallel and together execute every task of the former single
+`test lint assembleRelease` chain (a task two of them need, such as a debug compile, runs in each).
+Each Android job's summary lists Gradle task timing (`scripts/gradle-task-timing.init.gradle`).
 
 Apps keep their path filters, so a pull request builds only the platforms it touches; a skipped
 job counts as passed in an app's gate. No simulator UI suite, SIMULATED acceptance flow, iPad
