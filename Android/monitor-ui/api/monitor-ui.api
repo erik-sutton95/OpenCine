@@ -301,7 +301,7 @@ public final class com/opencapture/monitorui/MonitorAssistIconKt {
 }
 
 public final class com/opencapture/monitorui/MonitorAssistPaletteKt {
-	public static final fun MonitorAssistPalette (Ljava/util/List;ZZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function4;Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Ljava/util/Map;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorToolUsageState;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Float;Ljava/lang/Float;Lkotlin/jvm/functions/Function1;JLandroidx/compose/runtime/Composer;IIII)V
+	public static final fun MonitorAssistPalette (Ljava/util/List;ZZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function4;Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Ljava/util/Map;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorToolUsageState;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Float;Ljava/lang/Float;Ljava/lang/Float;Lkotlin/jvm/functions/Function1;JLandroidx/compose/runtime/Composer;IIII)V
 	public static final fun getLocalMonitorAssistExpansion ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun getLocalMonitorAssistVisible ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 }
@@ -700,7 +700,7 @@ public final class com/opencapture/monitorui/MonitorComponentsKt {
 	public static final field MONITOR_DIMMED_VALUE_ALPHA F
 	public static final fun MonitorActionButton-iHT-50w (Ljava/lang/String;Landroidx/compose/ui/Modifier;ZZFLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorAuxCircleButton (Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
-	public static final fun MonitorCameraValues (Ljava/util/List;ZZLandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function1;FLjava/lang/Integer;Lcom/opencapture/monitorui/MonitorQuickGestureOwner;Lkotlin/jvm/functions/Function1;ZLkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorCameraValues (Ljava/util/List;ZZLandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function5;Lkotlin/jvm/functions/Function1;FLjava/lang/Integer;Lcom/opencapture/monitorui/MonitorQuickGestureOwner;Lkotlin/jvm/functions/Function1;ZLcom/opencapture/monitorui/MonitorValuesReflow;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
 	public static final fun MonitorCatalogGrid (Ljava/util/List;ILkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/lazy/grid/LazyGridState;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorOptionGroup (Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorPageHeading (Ljava/lang/String;Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V
@@ -4369,6 +4369,43 @@ public final class com/opencapture/monitorui/MonitorValue {
 
 public final class com/opencapture/monitorui/MonitorValueDrumKt {
 	public static final fun MonitorValueDrum (Ljava/util/List;Ljava/lang/String;Landroidx/compose/ui/Modifier;Ljava/util/Set;ZLjava/lang/Float;ZLkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;II)V
+}
+
+public final class com/opencapture/monitorui/MonitorValuesReflow {
+	public static final field $stable I
+	public static final field CLEARANCE F
+	public static final field Companion Lcom/opencapture/monitorui/MonitorValuesReflow$Companion;
+	public static final field MINIMUM_PLATE_COLUMNS I
+	public static final field TILE_HEIGHT F
+	public static final field TILE_SPACING F
+	public fun <init> (FLcom/opencapture/monitorui/MonitorRect;Ljava/util/List;FZZ)V
+	public final fun component1 ()F
+	public final fun component2 ()Lcom/opencapture/monitorui/MonitorRect;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()F
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun copy (FLcom/opencapture/monitorui/MonitorRect;Ljava/util/List;FZZ)Lcom/opencapture/monitorui/MonitorValuesReflow;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorValuesReflow;FLcom/opencapture/monitorui/MonitorRect;Ljava/util/List;FZZILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorValuesReflow;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getApplies ()Z
+	public final fun getPaletteWidth ()F
+	public final fun getRows ()Ljava/util/List;
+	public final fun getScrolls ()Z
+	public final fun getTileWidth ()F
+	public final fun getTiles ()Ljava/util/List;
+	public final fun getValues ()Lcom/opencapture/monitorui/MonitorRect;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+	public final fun values (ZLcom/opencapture/monitorui/MonitorRect;)Lcom/opencapture/monitorui/MonitorRect;
+}
+
+public final class com/opencapture/monitorui/MonitorValuesReflow$Companion {
+	public final fun cornerControls (Lcom/opencapture/monitorui/MonitorFieldLayout;Z)Ljava/util/List;
+	public final fun fieldMonitor (Lcom/opencapture/monitorui/MonitorFieldLayout;IILjava/util/List;)Lcom/opencapture/monitorui/MonitorValuesReflow;
+	public final fun maximumTileWidth (Z)F
+	public final fun minimumTileWidth (Z)F
+	public final fun reflowed (ZZZ)Z
 }
 
 public final class com/opencapture/monitorui/MonitorVectorscopeGraticule {

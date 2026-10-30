@@ -3536,7 +3536,7 @@ public final class com/opencapture/opencine/appkit/MonitorOperatorCaptureInputsK
 	public static final fun MonitorOperatorCaptureHeader (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZLandroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorOperatorCaptureHeaderReadout (Lcom/opencapture/opencine/appkit/MonitorOperatorCaptureInputs;Lcom/opencapture/opencine/appkit/MonitorControlModel;Lcom/opencapture/opencine/appkit/MonitorOperatorCaptureState;Lcom/opencapture/opencine/appkit/MonitorCaptureSourceIdentity;Lcom/opencapture/opencine/appkit/MonitorOperatorLiveReadout;ZZLkotlin/jvm/functions/Function0;ZLandroidx/compose/ui/Modifier;ZLjava/lang/Float;FLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
 	public static final fun MonitorOperatorCapturePopup (Lcom/opencapture/opencine/appkit/MonitorOperatorCaptureInputs;Lcom/opencapture/opencine/appkit/MonitorControlModel;Lcom/opencapture/opencine/appkit/MonitorOperatorCaptureState;Lcom/opencapture/monitorui/MonitorFieldLayout;ZZLkotlin/jvm/functions/Function0;FFFFLandroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function5;Landroidx/compose/runtime/Composer;III)V
-	public static final fun MonitorOperatorCaptureStrip (Lcom/opencapture/opencine/appkit/MonitorOperatorCaptureInputs;Lcom/opencapture/opencine/appkit/MonitorControlModel;Lcom/opencapture/opencine/appkit/MonitorOperatorCaptureState;Lcom/opencapture/opencine/appkit/MonitorCaptureSourceIdentity;ZZLkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorFieldLayout;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Ljava/util/Set;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorOperatorCaptureStrip (Lcom/opencapture/opencine/appkit/MonitorOperatorCaptureInputs;Lcom/opencapture/opencine/appkit/MonitorControlModel;Lcom/opencapture/opencine/appkit/MonitorOperatorCaptureState;Lcom/opencapture/opencine/appkit/MonitorCaptureSourceIdentity;ZZLkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorFieldLayout;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Ljava/util/Set;Lcom/opencapture/monitorui/MonitorValuesReflow;Landroidx/compose/runtime/Composer;III)V
 	public static final fun getLocalMonitorCaptureCommandEnabled ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun monitorOperatorCapturePlacement (Lcom/opencapture/monitorui/MonitorFieldLayout;ZFFFFF)Lcom/opencapture/monitorui/MonitorLayoutPolicy$Panel;
 	public static synthetic fun monitorOperatorCapturePlacement$default (Lcom/opencapture/monitorui/MonitorFieldLayout;ZFFFFFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorLayoutPolicy$Panel;
@@ -4062,8 +4062,8 @@ public final class com/opencapture/opencine/appkit/MonitorScreenKt {
 public final class com/opencapture/opencine/appkit/MonitorScreenPresentation {
 	public static final field $stable I
 	public fun <init> ()V
-	public fun <init> (ZZZZZZZZZZZZZZZZ)V
-	public synthetic fun <init> (ZZZZZZZZZZZZZZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (ZZZZZZZZZZZZZZZZLcom/opencapture/monitorui/MonitorRect;)V
+	public synthetic fun <init> (ZZZZZZZZZZZZZZZZLcom/opencapture/monitorui/MonitorRect;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Z
 	public final fun component10 ()Z
 	public final fun component11 ()Z
@@ -4072,6 +4072,7 @@ public final class com/opencapture/opencine/appkit/MonitorScreenPresentation {
 	public final fun component14 ()Z
 	public final fun component15 ()Z
 	public final fun component16 ()Z
+	public final fun component17 ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun component2 ()Z
 	public final fun component3 ()Z
 	public final fun component4 ()Z
@@ -4080,9 +4081,10 @@ public final class com/opencapture/opencine/appkit/MonitorScreenPresentation {
 	public final fun component7 ()Z
 	public final fun component8 ()Z
 	public final fun component9 ()Z
-	public final fun copy (ZZZZZZZZZZZZZZZZ)Lcom/opencapture/opencine/appkit/MonitorScreenPresentation;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkit/MonitorScreenPresentation;ZZZZZZZZZZZZZZZZILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MonitorScreenPresentation;
+	public final fun copy (ZZZZZZZZZZZZZZZZLcom/opencapture/monitorui/MonitorRect;)Lcom/opencapture/opencine/appkit/MonitorScreenPresentation;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkit/MonitorScreenPresentation;ZZZZZZZZZZZZZZZZLcom/opencapture/monitorui/MonitorRect;ILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MonitorScreenPresentation;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCaptureFrame ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun getCaptureHidden ()Z
 	public final fun getCaptureInteractive ()Z
 	public final fun getCaptureMounted ()Z
