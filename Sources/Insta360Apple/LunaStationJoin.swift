@@ -159,6 +159,17 @@ struct LunaStationJoin {
         return event
     }
 
+    /// Throws for a network the camera cannot be asked to join. Checked before the camera leaves
+    /// its own Wi-Fi, so a setup it cannot use never strands it in station mode.
+    static func check(_ network: LunaStationNetwork) throws {
+        guard LunaProtocol.acceptsStationNetwork(ssid: network.ssid, password: network.password) else {
+            throw ConnectionFailure.luna(
+                .joinFailed, "station.invalid-network",
+                "The camera cannot use this network name or password. Edit the setup and enter them again.",
+                phase: .joiningNetwork)
+        }
+    }
+
     static func busyFailure(_ network: LunaStationNetwork) -> ConnectionFailure {
         .luna(
             .joinFailed, "station.camera-busy",

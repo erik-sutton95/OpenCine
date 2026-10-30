@@ -313,6 +313,7 @@ class LunaBackend(
      * The camera AP is never joined.
      */
     private suspend fun moveToStation(id: String, authBody: ByteArray, network: LunaStationNetwork, current: () -> Boolean): StationCamera {
+        LunaStationJoin.check(network)
         val (link, reply) = authorizeOverBluetooth(id, authBody)
         saveCameraWiFi(id, reply, current)
         setPhase(ConnectionPhase.JOINING_WIFI)

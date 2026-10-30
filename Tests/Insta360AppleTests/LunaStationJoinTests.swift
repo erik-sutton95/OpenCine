@@ -134,6 +134,30 @@ import Testing
         #expect(camera.joins == 2)
     }
 
+    @Test func aNetworkTheCameraCannotUseIsRefusedBeforeTheCameraIsMoved() {
+        // Checked before the camera leaves its own Wi-Fi: the camera takes a 1 to 32 byte name
+        // and an empty or 8 to 63 byte password.
+        let unusable = [
+            LunaStationNetwork(ssid: "Studio", password: String(repeating: "p", count: 64), hotspot: false),
+            LunaStationNetwork(ssid: String(repeating: "s", count: 33), password: "synthetic1", hotspot: false),
+            LunaStationNetwork(ssid: "Studio", password: "short", hotspot: false),
+        ]
+        for network in unusable {
+            #expect {
+                try LunaStationJoin.check(network)
+            } throws: { error in
+                (error as? ConnectionFailure)?.code == "com.opencapture.insta360.luna.station.invalid-network"
+            }
+        }
+        for network in [
+            Self.network,
+            LunaStationNetwork(ssid: "Studio", password: String(repeating: "p", count: 63), hotspot: false),
+            LunaStationNetwork(ssid: "Studio", password: "", hotspot: false),
+        ] {
+            #expect(throws: Never.self) { try LunaStationJoin.check(network) }
+        }
+    }
+
     @Test func aSetupWithoutAPasswordThatFailsSaysToCheckThePassword() async {
         let open = LunaStationNetwork(ssid: "Studio", password: "", hotspot: false)
         let camera = Camera([.accepted([Self.result(.failed(2), password: "")]), .accepted([Self.result(.failed(2), password: "")])])

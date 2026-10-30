@@ -366,6 +366,7 @@ public final class LunaCameraBackend: CameraBackend {
     private func moveOverBluetooth(
         camera: MonitorCamera, identity: UUID, network: LunaStationNetwork, token: Int
     ) async throws -> (serial: String, address: String?) {
+        try LunaStationJoin.check(network)
         let (serial, reply) = try await authorizeOverBluetooth(
             camera: camera, identity: identity, token: token)
         _ = try saveCameraWiFi(reply, cameraID: camera.id)

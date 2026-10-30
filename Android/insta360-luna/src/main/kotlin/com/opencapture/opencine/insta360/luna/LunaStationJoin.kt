@@ -100,6 +100,19 @@ internal class LunaStationJoin(
         /** Busy replies accepted before the join gives up. */
         const val BUSY_LIMIT = 2
 
+        /**
+         * Throws [LunaStationFailure] for a network the camera cannot be asked to join. Checked before
+         * the camera leaves its own Wi-Fi, so a setup it cannot use never strands it in station mode.
+         */
+        fun check(network: LunaStationNetwork) {
+            if (LunaStationWire.accepts(network.ssid, network.password)) return
+            throw LunaStationFailure(LunaFailures.failure(
+                ConnectionFailure.Reason.JoinFailed, "station.invalid-network",
+                "The camera cannot use this network name or password. Edit the setup and enter them again.",
+                CorePhase.JOINING_NETWORK,
+            ))
+        }
+
         fun busyFailure(): ConnectionFailure = LunaFailures.failure(
             ConnectionFailure.Reason.JoinFailed, "station.camera-busy",
             "The camera is still switching its Wi-Fi. Wait a moment, then connect again.",

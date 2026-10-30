@@ -103,6 +103,23 @@ class LunaStationJoinTest {
         assertEquals(90_000, currentTime)
     }
 
+    @Test fun aNetworkTheCameraCannotUseIsRefusedBeforeTheCameraIsMoved() {
+        // Checked before the camera leaves its own Wi-Fi: the camera takes a 1 to 32 byte name
+        // and an empty or 8 to 63 byte password.
+        val unusable = listOf(
+            LunaStationNetwork("Studio", "p".repeat(64), false),
+            LunaStationNetwork("s".repeat(33), "synthetic1", false),
+            LunaStationNetwork("Studio", "short", false),
+        )
+        for (candidate in unusable) {
+            val failure = assertFailsWith<LunaStationFailure> { LunaStationJoin.check(candidate) }
+            assertEquals("com.opencapture.insta360.luna.station.invalid-network", failure.failure.code)
+        }
+        for (candidate in listOf(network, LunaStationNetwork("Studio", "p".repeat(63), false), LunaStationNetwork("Studio", "", false))) {
+            LunaStationJoin.check(candidate)
+        }
+    }
+
     @Test fun aSetupWithoutAPasswordThatFailsSaysToCheckThePassword() = runTest {
         val open = LunaStationNetwork("Studio", "", false)
         val refused = result(LunaStationWire.JoinResult.Outcome.Failed(2), "")
