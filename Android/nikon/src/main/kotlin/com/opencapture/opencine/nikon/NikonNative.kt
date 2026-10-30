@@ -691,6 +691,16 @@ object NikonNative {
     external fun sessionThumbnail(connectionOwner: Long, handle: Int): ByteArray?
 
     /**
+     * The camera's thumbnail JPEG for one object, tagged with the still's own
+     * EXIF orientation so a portrait shot draws upright through
+     * `MonitorBitmapDecoder`; [filename] is the on-card name (the shared Swift
+     * layer decides which objects carry an orientation to read). Null when
+     * disconnected or the object has no thumbnail. Blocking; call from a
+     * background dispatcher.
+     */
+    external fun sessionUprightThumbnail(connectionOwner: Long, handle: Int, filename: String): ByteArray?
+
+    /**
      * Deletes one object from the camera card; false when disconnected or the
      * body refuses (protected objects). Blocking; call from IO.
      */

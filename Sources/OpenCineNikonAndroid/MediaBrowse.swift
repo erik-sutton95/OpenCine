@@ -404,6 +404,21 @@ extension PTPIPClientSession {
         return result.data.isEmpty ? nil : result.data
     }
 
+    /// The camera's thumbnail tagged with the still's own orientation, so a
+    /// portrait shot draws upright; the blocking twin of the iOS session's
+    /// `getUprightThumb(handle:filename:)` (rule in
+    /// `OpenCineNikon/NikonThumbnailOrientation.swift`). Nil when the camera
+    /// reports no thumbnail.
+    public func uprightThumbnail(handle: UInt32, filename: String) throws -> Data? {
+        try NikonThumbnailOrientation.uprightThumbnail(
+            filename: filename, readThumbnail: { try thumbnail(handle: handle) },
+            readHead: { length in
+                try transactExpectingOK(
+                    .getPartialObject, parameters: [handle, 0, length], dataPhase: .dataIn
+                ).data
+            })
+    }
+
     // MARK: - Instant review (photography live view)
 
     // The rules (handle choice, RAW preview location, read plan) are shared

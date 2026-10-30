@@ -1227,6 +1227,19 @@
             return result.data.isEmpty ? nil : result.data
         }
 
+        /// The camera's thumbnail for one object, tagged with the still's own EXIF orientation
+        /// so a portrait shot draws upright (`GetThumb`, then for a JPEG or RAW whose thumbnail
+        /// states none, one ``NikonThumbnailOrientation/headLength`` `GetPartialObject` of the
+        /// still's head). Nil when the camera reports no thumbnail. [ZR · verify-on-HW]
+        public func getUprightThumb(handle: UInt32, filename: String) async throws -> Data? {
+            try await NikonThumbnailOrientation.uprightThumbnail(
+                filename: filename,
+                readThumbnail: { try await self.getThumb(handle: handle) },
+                readHead: { length in
+                    try await self.getPartialObject(handle: handle, offset: 0, length: length)
+                })
+        }
+
         /// Reads a byte range of one object - `GetPartialObject` (0x101B): p1=handle, p2=offset,
         /// p3=maxBytes. Offset/length are 32-bit here; clips ≥ 4 GiB need NIKON `GetPartialObjectEx`
         /// 0x9431 (64-bit). Returns the chunk (may be shorter than `length` at end-of-object).
