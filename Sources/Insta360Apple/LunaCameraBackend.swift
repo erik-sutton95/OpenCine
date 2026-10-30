@@ -43,6 +43,12 @@ public final class LunaCameraBackend: CameraBackend {
     /// The OpenCineCore session for the camera being connected; `openSession()` replaces it.
     public private(set) var session: LunaCameraSession?
     public private(set) var credentials: LunaStoredWiFi?
+    /// The route of the latest connect, so the app's own reconnects (recovery, rejoin) keep a
+    /// camera a setup moved on that setup.
+    private var lastRoute: (camera: UUID, route: LunaRoute)?
+    /// Where this connection reaches the camera: its own access point, or the address a Wi-Fi or
+    /// hotspot setup found it at. Control and files use it.
+    public private(set) var cameraHost = LunaProtocol.defaultHost
     public private(set) var deviceInformation: LunaDeviceInformation?
 
     /// App-supplied names (keychain service, operator-facing app name, log prefix).
@@ -77,6 +83,8 @@ public final class LunaCameraBackend: CameraBackend {
     private var tcpGreetingWaiter: CheckedContinuation<Void, Error>?
     private var tcpGreetingTimeout: Task<Void, Never>?
     private var approval: UCD2Message?
+    /// The camera's answer to a station join (notification 8232), from the Bluetooth link.
+    private var stationResult: UCD2Message?
     private var receivedNonces = Set<Data>()
     private var lastVideoAt: Date?
     private struct Pending {
@@ -156,11 +164,19 @@ public final class LunaCameraBackend: CameraBackend {
     public func stopScan() { bluetooth.stopScan() }
 
     public func connect(to camera: MonitorCamera) async throws {
+        try await connect(to: camera, route: .cameraWiFi(restoreAccessPoint: false))
+    }
+
+    /// Camera Wi-Fi (Bluetooth first, saved Wi-Fi as the fallback), or a Wi-Fi or hotspot setup:
+    /// the camera joins that network over Bluetooth and this phone finds it there.
+    public func connect(to camera: MonitorCamera, route: LunaRoute) async throws {
         try Task.checkCancellation()
         disconnect()
         generation += 1
         let token = generation
         reachableAt = nil
+        cameraHost = LunaProtocol.defaultHost
+        lastRoute = (camera.id, route)
         selected = camera
         identity = try store.identity()
         guard let identity else {
@@ -169,23 +185,59 @@ public final class LunaCameraBackend: CameraBackend {
                 "A camera authorization identity could not be created.")
         }
         var expectedSerial: String?
+        var localAddress: String? { LunaWiFi.localAddress }
+        var stationLocal: String?
         do {
             let stored = store.credentials(cameraID: camera.id)
-            if !existingNetwork {
-                // Bluetooth first whenever the camera advertises: it is quick once
-                // approved, and it wakes the camera Wi-Fi, which Luna turns off when idle.
-                // Saved Wi-Fi is the fallback for a camera that is not advertising.
-                if !bluetooth.hasSeen(camera.id), let stored, await quickJoin(stored, token: token)
-                {
-                    credentials = stored
-                } else {
-                    expectedSerial = try await bootstrapOverBluetooth(
-                        camera: camera, identity: identity, token: token)
+            switch route {
+            case .cameraWiFi(let restoreAccessPoint):
+                if !existingNetwork {
+                    // Bluetooth first whenever the camera advertises: it is quick once
+                    // approved, and it wakes the camera Wi-Fi, which Luna turns off when idle.
+                    // Saved Wi-Fi is the fallback for a camera that is not advertising. A camera
+                    // a setup may have moved is asked back over Bluetooth.
+                    if !restoreAccessPoint, !bluetooth.hasSeen(camera.id), let stored,
+                        await quickJoin(stored, token: token)
+                    {
+                        credentials = stored
+                    } else {
+                        expectedSerial = try await bootstrapOverBluetooth(
+                            camera: camera, identity: identity, token: token,
+                            restoreAccessPoint: restoreAccessPoint)
+                    }
                 }
+            case .station(let network):
+                guard !existingNetwork else {
+                    throw ConnectionFailure.luna(
+                        .unsupported, "station.existing-network",
+                        "Wi-Fi and hotspot setups need Bluetooth on a phone.", phase: .link)
+                }
+                let moved = try await moveOverBluetooth(
+                    camera: camera, identity: identity, network: network, token: token)
+                expectedSerial = moved.serial
+                emit(.openingVideo)
+                let local = try await joinStation(network, token: token)
+                eventHandler?(.note("Finding the camera on “\(network.ssid)”…"))
+                guard
+                    let host = try await LunaStationPath.findCamera(
+                        on: local, preferred: moved.address, budget: .seconds(60),
+                        isCurrent: { [weak self] in self?.generation == token })
+                else {
+                    throw ConnectionFailure.luna(
+                        .notFound, "station.camera-not-found",
+                        "The camera joined “\(network.ssid)”, but this phone could not find it there. Check that the network lets its devices reach each other, then connect again.",
+                        phase: .joiningNetwork)
+                }
+                try validate(token)
+                cameraHost = host
+                stationLocal = local.address
+                noteReachable(token)
             }
             try validate(token)
             emit(.openingVideo)
-            try await openControl(token: token, identity: identity, expectedSerial: expectedSerial)
+            try await openControl(
+                token: token, identity: identity, expectedSerial: expectedSerial,
+                localAddress: stationLocal ?? localAddress)
             liveStartAttempted = true
             _ = try? await send(
                 LunaProtocol.setAccessCameraFileState(LunaProtocol.shootingViewAccessState))
@@ -273,8 +325,130 @@ public final class LunaCameraBackend: CameraBackend {
             })
     }
 
-    private func bootstrapOverBluetooth(camera: MonitorCamera, identity: UUID, token: Int)
-        async throws -> String
+    private func bootstrapOverBluetooth(
+        camera: MonitorCamera, identity: UUID, token: Int, restoreAccessPoint: Bool = false
+    ) async throws -> String {
+        let (serial, reply) = try await authorizeOverBluetooth(
+            camera: camera, identity: identity, token: token)
+        let saved = try saveCameraWiFi(reply, cameraID: camera.id)
+        if restoreAccessPoint {
+            // A setup may have left the camera on another network: its own access point first.
+            onLog?("luna: asking the camera back onto its own Wi-Fi")
+            _ = try await send(
+                LunaProtocol.wifiModeRequest(
+                    .accessPoint, countryCode: try? LunaProtocol.wifiCountryCode(response: reply)))
+        }
+        bluetooth.disconnect()
+        sessionKey = nil
+        receivedNonces.removeAll()
+        try validate(token)
+        emit(.joiningWiFi)
+        try await joinRetrying(saved, token: token, budget: .seconds(120))
+        eventHandler?(.joinedWiFi(ssid: saved.ssid))
+        return serial
+    }
+
+    /// Reads and keeps the camera's own Wi-Fi from the credential read's reply.
+    private func saveCameraWiFi(_ reply: Data, cameraID: UUID) throws -> LunaStoredWiFi {
+        let wifi = try LunaProtocol.wifiCredentials(response: reply)
+        let saved = LunaStoredWiFi(ssid: wifi.ssid, password: wifi.password)
+        try store.save(saved, cameraID: cameraID)
+        credentials = saved
+        return saved
+    }
+
+    /// Station mode over the encrypted Bluetooth session (`LunaStation.swift`): the camera leaves
+    /// its access point, joins `network` and reports the result; the network then goes into its
+    /// list. Returns the serial Bluetooth read and any address the camera reported.
+    private func moveOverBluetooth(
+        camera: MonitorCamera, identity: UUID, network: LunaStationNetwork, token: Int
+    ) async throws -> (serial: String, address: String?) {
+        let (serial, reply) = try await authorizeOverBluetooth(
+            camera: camera, identity: identity, token: token)
+        _ = try saveCameraWiFi(reply, cameraID: camera.id)
+        emit(.joiningWiFi)
+        eventHandler?(.note("Moving the camera to “\(network.ssid)”…"))
+        let country = try? LunaProtocol.wifiCountryCode(response: reply)
+        _ = try await send(LunaProtocol.wifiModeRequest(.station, countryCode: country))
+        _ = try? await send(
+            LunaProtocol.phoneInfoRequest(
+                .ios, manufacturer: "Apple", model: Self.deviceModel, osVersion: Self.osVersion))
+        stationResult = nil
+        _ = try await send(LunaProtocol.stationJoinRequest(ssid: network.ssid, password: network.password))
+        let deadline = Date().addingTimeInterval(45)
+        while stationResult == nil, Date() < deadline {
+            try validate(token)
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        guard let message = stationResult else {
+            throw ConnectionFailure.luna(
+                .timedOut, "station.join-timeout",
+                "The camera did not join “\(network.ssid)” in time. Check that the network is in range, then connect again.",
+                phase: .joiningNetwork)
+        }
+        let result = try LunaProtocol.stationJoinResult(message.body)
+        onLog?("luna: station join \(result)")
+        switch result.outcome {
+        case .joined: break
+        case .wrongPassword:
+            throw ConnectionFailure.luna(
+                .joinFailed, "station.wrong-password",
+                "The camera could not join “\(network.ssid)”: the password is wrong. Edit the setup and enter it again.",
+                phase: .joiningNetwork)
+        case .networkNotFound:
+            throw ConnectionFailure.luna(
+                .joinFailed, "station.network-not-found",
+                "The camera cannot see “\(network.ssid)”. Check the network name and bring the camera closer.",
+                phase: .joiningNetwork)
+        case .failed(let code):
+            throw ConnectionFailure.luna(
+                .joinFailed, "station.join-failed.\(code)",
+                "The camera could not join “\(network.ssid)”. Check the network, then connect again.",
+                phase: .joiningNetwork)
+        }
+        _ = try? await send(
+            LunaProtocol.stationRememberRequest(ssid: network.ssid, password: network.password))
+        bluetooth.disconnect()
+        sessionKey = nil
+        receivedNonces.removeAll()
+        try validate(token)
+        return (serial, result.address)
+    }
+
+    /// This phone on the setup's network, through the app's hotspot owner when it has one.
+    private func joinStation(_ network: LunaStationNetwork, token: Int) async throws
+        -> LunaStationPath.Address
+    {
+        let prefix = configuration.logPrefix
+        guard let hotspot, !network.hotspot else {
+            return try await LunaStationPath.joinPhone(to: network, logPrefix: prefix, apply: nil)
+        }
+        var joined: LunaStationPath.Address?
+        try await hotspot.withAttempt({ [weak self] in self?.generation == token }) { operations in
+            joined = try await LunaStationPath.joinPhone(
+                to: network, logPrefix: prefix, apply: operations.apply)
+        }
+        guard let joined else { throw CancellationError() }
+        return joined
+    }
+
+    static let osVersion: String = {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(version.majorVersion).\(version.minorVersion)"
+    }()
+
+    static let deviceModel: String = {
+        var system = utsname()
+        uname(&system)
+        return withUnsafeBytes(of: &system.machine) { bytes in
+            String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+        }
+    }()
+
+    /// Bluetooth through the camera's approval and the encrypted credential read: the verified
+    /// serial and the read's reply (the camera's own Wi-Fi and its region).
+    private func authorizeOverBluetooth(camera: MonitorCamera, identity: UUID, token: Int)
+        async throws -> (serial: String, credentials: Data)
     {
         emit(.connecting)
         onLog?("luna: BLE connect \(camera.name)")
@@ -341,19 +515,9 @@ public final class LunaCameraBackend: CameraBackend {
             throw ConnectionFailure.lunaHeldElsewhere
         }
         emit(.readingWiFi)
-        let wifi = try LunaProtocol.wifiCredentials(
-            response: await send(LunaProtocol.wifiCredentialsRequest))
-        let saved = LunaStoredWiFi(ssid: wifi.ssid, password: wifi.password)
-        try store.save(saved, cameraID: camera.id)
-        credentials = saved
-        bluetooth.disconnect()
-        sessionKey = nil
-        receivedNonces.removeAll()
+        let reply = try await send(LunaProtocol.wifiCredentialsRequest)
         try validate(token)
-        emit(.joiningWiFi)
-        try await joinRetrying(saved, token: token, budget: .seconds(120))
-        eventHandler?(.joinedWiFi(ssid: saved.ssid))
-        return serial
+        return (serial, reply)
     }
 
     /// Records when this connect first held its camera network address: the Local Network
@@ -364,7 +528,9 @@ public final class LunaCameraBackend: CameraBackend {
         onLog?("luna: camera network reachable")
     }
 
-    private func openControl(token: Int, identity: UUID, expectedSerial: String?) async throws {
+    private func openControl(
+        token: Int, identity: UUID, expectedSerial: String?, localAddress: String?
+    ) async throws {
         isTCP = true
         counter = LunaRequestCounter()
         let reachableFor = reachableAt.map { ContinuousClock.now - $0 } ?? .zero
@@ -372,8 +538,8 @@ public final class LunaCameraBackend: CameraBackend {
             + Double(reachableFor.components.attoseconds) / 1e18
         onLog?("luna: control link starts \(String(format: "%.1f", seconds)) s after the network was reachable")
         try await tcp.connect(
-            host: LunaProtocol.defaultHost, port: LunaProtocol.defaultPort,
-            localAddress: LunaWiFi.localAddress, reachableFor: reachableFor)
+            host: cameraHost, port: LunaProtocol.defaultPort,
+            localAddress: localAddress, reachableFor: reachableFor)
         try await tcp.send(LunaProtocol.tcpPreface)
         try await waitForTCPGreeting()
         try validate(token)
@@ -452,8 +618,26 @@ public final class LunaCameraBackend: CameraBackend {
         failPending(CancellationError())
         counter = LunaRequestCounter()
         approval = nil
+        stationResult = nil
         lastVideoAt = nil
         emit(.idle)
+    }
+
+    /// This phone's Personal Hotspot is up (the setup wizard's Hotspot page).
+    public static var phoneHotspotActive: Bool { LunaStationPath.address(hotspot: true) != nil }
+
+    /// This phone's Wi-Fi name; nil when iOS withholds it (no location permission) or off Wi-Fi.
+    public static func phoneWiFiName() async -> String? { await LunaStationPath.currentSSID() }
+
+    /// Wi-Fi and hotspot setups this phone keeps (the setup wizard's saved networks), oldest first.
+    public func savedStations() -> [LunaStationNetwork] { store.stations() }
+
+    public func stationPassword(for network: String, hotspot: Bool) -> String? {
+        store.stationPassword(ssid: network, hotspot: hotspot)
+    }
+
+    public func saveStation(_ network: LunaStationNetwork) {
+        do { try store.save(network) } catch { onLog?("luna: station setup not saved: \(error)") }
     }
 
     public func forget(cameraID: UUID) {
@@ -481,7 +665,16 @@ public final class LunaCameraBackend: CameraBackend {
 
     public func rejoinCameraNetwork() async throws {
         guard let selected else { return }
-        try await connect(to: selected)
+        try await connect(to: selected, route: reconnectRoute(for: selected.id))
+    }
+
+    /// The route a reconnect of this camera takes: the Wi-Fi or hotspot setup its latest connect
+    /// used, otherwise camera Wi-Fi.
+    public func reconnectRoute(for cameraID: UUID) -> LunaRoute {
+        if let lastRoute, lastRoute.camera == cameraID, case .station = lastRoute.route {
+            return lastRoute.route
+        }
+        return .cameraWiFi(restoreAccessPoint: false)
     }
 
     /// Restart the HEVC stream on the open control socket (media return, stall repair).
@@ -881,6 +1074,10 @@ public final class LunaCameraBackend: CameraBackend {
                     if !fromTCP { approval = message }
                     continue
                 }
+                if message.code == LunaProtocol.stationJoinResultCode {
+                    if !fromTCP { stationResult = message }
+                    continue
+                }
                 if message.code >= 8192 {
                     handleNotification(message)
                     continue
@@ -1070,7 +1267,8 @@ extension LunaCameraBackend: LunaMediaSourcePort, LunaMediaCatalogRecordSource {
         guard isControlReady, let session, session.current.connection == .ready,
             session.current.authority == .owner
         else { return nil }
-        return .init(session: session.id, epoch: session.current.epoch, connection: generation)
+        return .init(
+            session: session.id, epoch: session.current.epoch, connection: generation, host: cameraHost)
     }
 
     public func mediaService(for id: CameraSessionID) -> (any CameraMediaService)? {

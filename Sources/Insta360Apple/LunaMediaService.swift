@@ -30,6 +30,9 @@ struct LunaMediaSourceState: Equatable, Sendable {
     let session: CameraSessionID
     let epoch: ControlEpoch
     let connection: Int
+    /// The camera's address on this connection: its own access point, or where a Wi-Fi or
+    /// hotspot setup found it. Files are fetched from here.
+    var host: String = LunaProtocol.defaultHost
 }
 
 /// Source-owned preservation capability. The app codec captures its immutable value under the
@@ -240,10 +243,10 @@ extension LunaMediaSourcePort {
         let assets = listed.filter { !$0.isProxy }.map { file in
             let asset = Self.asset(file)
             nextFiles[asset.id] = file
-            if let url = file.httpURL(), let original = asset.representations.first {
+            if let url = file.httpURL(host: source.host), let original = asset.representations.first {
                 nextRepresentations[original.id] = url
             }
-            if let proxy = file.proxyURI, let url = LunaMediaFile(uri: proxy).httpURL(),
+            if let proxy = file.proxyURI, let url = LunaMediaFile(uri: proxy).httpURL(host: source.host),
                 let representation = asset.representations.first(where: { $0.role == .proxy })
             { nextRepresentations[representation.id] = url }
             return asset

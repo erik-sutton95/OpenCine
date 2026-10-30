@@ -30,6 +30,8 @@ case LunaFeedStall.Action.escalate
 case LunaFeedStall.Action.none
 case LunaFeedStall.Action.requestKeyframe
 case LunaFeedStall.Action.restartLive
+case LunaRoute.cameraWiFi(Swift.Bool)
+case LunaRoute.station(LunaStationNetwork)
 class LunaCameraBackend: CameraBackend, LunaConnectPort, LunaMediaCatalogRecordSource, Sendable
 class LunaCameraSession: CameraSession, Sendable
 class LunaCommandOwner: Sendable
@@ -45,6 +47,7 @@ enum CameraMediaRepresentation: Equatable, Hashable, Sendable
 enum CameraPreviewTransfer: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum LunaCommandAdmissionError: Equatable, Error, Hashable, Sendable
 enum LunaFeedStall.Action: Equatable, Hashable, Sendable
+enum LunaRoute: Equatable, Sendable
 enum LunaSessionRecovery
 extension Insta360Protocol.LunaColorMode
 func CameraBackend.connect(to: MonitorCamera) async throws -> ()
@@ -59,6 +62,7 @@ func CameraBackend.rejoinCameraNetwork() async throws -> ()
 func CameraBackend.startScan() async throws -> ()
 func LunaCameraBackend.connect(review: LunaReviewCamera) -> ()
 func LunaCameraBackend.connect(to: MonitorCamera) async throws -> ()
+func LunaCameraBackend.connect(to: MonitorCamera, route: LunaRoute) async throws -> ()
 func LunaCameraBackend.deleteFile(uri: Swift.String) async throws -> ()
 func LunaCameraBackend.disconnect() -> ()
 func LunaCameraBackend.forget(cameraID: Foundation.UUID) -> ()
@@ -77,8 +81,11 @@ func LunaCameraBackend.refreshShootingMode() async -> ()
 func LunaCameraBackend.refreshStatus() async -> ()
 func LunaCameraBackend.rejoinCameraNetwork() async throws -> ()
 func LunaCameraBackend.restartLive() async throws -> ()
+func LunaCameraBackend.saveStation(_: LunaStationNetwork) -> ()
+func LunaCameraBackend.savedStations() -> [LunaStationNetwork]
 func LunaCameraBackend.send(_: Insta360Protocol.LunaRequest, timeout: Swift.Duration) async throws -> Foundation.Data
 func LunaCameraBackend.startScan() async throws -> ()
+func LunaCameraBackend.stationPassword(for: Swift.String, hotspot: Swift.Bool) -> Swift.String?
 func LunaCameraBackend.stopScan() -> ()
 func LunaCameraBackend.storedWiFi(cameraID: Foundation.UUID) -> LunaStoredWiFi?
 func LunaCameraBackend.thumbnail(uri: Swift.String) async throws -> Insta360Protocol.LunaThumbnail
@@ -107,13 +114,16 @@ func LunaCommandAdmission.requireCurrent() throws -> ()
 func LunaCommandOwner.replaceSource() -> ()
 func LunaCommandOwner.retire() -> ()
 func LunaConnectPort.connect(to: MonitorCamera) async throws -> ()
+func LunaConnectPort.connect(to: MonitorCamera, route: LunaRoute) async throws -> ()
 func LunaConnectPort.disconnect() -> ()
 func LunaConnectPort.forget(cameraID: Foundation.UUID) -> ()
 func LunaConnectPort.hasSavedWiFi(cameraID: Foundation.UUID) -> Swift.Bool
 func LunaConnectPort.hasSeen(_: Foundation.UUID) -> Swift.Bool
 func LunaConnectPort.mediaService(for: OpenCineCore.CameraSessionID) -> (any OpenCineMedia.CameraMediaService)?
 func LunaConnectPort.openSession() -> LunaCameraSession
+func LunaConnectPort.saveStation(_: LunaStationNetwork) -> ()
 func LunaConnectPort.startScan() async throws -> ()
+func LunaConnectPort.stationPassword(for: Swift.String, hotspot: Swift.Bool) -> Swift.String?
 func LunaConnectPort.stopScan() -> ()
 func LunaFeedStall.restartFinished() -> ()
 func LunaFeedStall.tick(silence: Foundation.TimeInterval, now: Foundation.TimeInterval) -> LunaFeedStall.Action
@@ -177,6 +187,7 @@ init LunaMediaCatalogRecord(asset: OpenCineMedia.MediaAssetID, file: Insta360Pro
 init LunaMotionService(session: () -> LunaCameraSession?, sleep: (Swift.Duration) async throws -> Swift.Void, now: () -> OpenCineCore.MonotonicInstant)
 init LunaReviewCamera(clips: [LunaReviewCamera.Clip])
 init LunaReviewCamera.Clip(uri: Swift.String, byteCount: Swift.UInt64, milliseconds: Swift.UInt64, width: Swift.Int, height: Swift.Int, fps: Swift.UInt64, stamp: Swift.UInt64?)
+init LunaStationNetwork(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool)
 init LunaSubjectTracking(session: () -> LunaCameraSession?, changed: (LunaSubjectTracking.Snapshot) -> Swift.Void)
 init LunaSubjectTracking.Box(x: Swift.Double, y: Swift.Double, width: Swift.Double, height: Swift.Double)
 init LunaSubjectTracking.Snapshot(searchBox: LunaSubjectTracking.Box?, subjectBox: LunaSubjectTracking.Box?, tracking: Swift.Bool)
@@ -214,9 +225,11 @@ protocol CameraBackend<Self : AnyObject>
 protocol LunaConnectPort<Self : AnyObject>
 protocol LunaMediaCatalogRecordSource<Self : AnyObject, Self : Swift.Sendable>: Sendable
 protocol LunaMediaIO<Self : AnyObject, Self : Swift.Sendable>: Sendable
+static func LunaCameraBackend.phoneWiFiName() -> Swift.String?
 static func LunaCameraSession.controlCapabilities(snapshot: OpenCineCore.CapabilitySnapshot, backendCapabilities: CameraCapabilities?, codecColor: OpenCineCameraVocabulary.CaptureCodecColorChoices?) -> OpenCineCameraVocabulary.ControlCapabilities
 static func LunaFrameTimecode.timecode(unixSeconds: Swift.Double, timeZoneSeconds: Swift.Int) -> OpenCineCore.CameraTimecodeReading
 static func LunaFrameTimecode.timecode(unixSeconds: Swift.Double, timeZoneSeconds: Swift.Int, fps: Swift.Int) -> OpenCineCore.CameraTimecode
+static func LunaIntegration.steps(_: OpenCineCore.SavedRoute?) -> [OpenCineCore.ConnectionStep]
 static func LunaIntegration.title(advertised: Swift.String) -> Swift.String
 static func LunaMotionService.hasReached(_: Insta360Protocol.LunaGimbalAngle, _: OpenCineMotion.GimbalWaypoint) -> Swift.Bool
 static func LunaMotionService.wireSpeed(_: Swift.Double) -> Swift.Int32
@@ -253,6 +266,7 @@ static let LunaMotionService.programTiming: OpenCineMotion.MotionProgramTiming
 static let LunaMotionService.stickFullScale: Swift.Double
 static let LunaMotionService.stickInterval: Swift.Duration
 static let LunaSessionRecovery.attemptDeadline: OpenCineCameraVocabulary.SessionRecoveryEpisode.AttemptDeadline
+static var LunaCameraBackend.phoneHotspotActive: Swift.Bool
 struct CameraCapabilities: Equatable, ExpressibleByArrayLiteral, OptionSet, RawRepresentable, Sendable, SetAlgebra
 struct CameraInformation: Equatable, Sendable
 struct CameraMediaAsset: Decodable, Encodable, Equatable, Identifiable, Sendable
@@ -266,6 +280,7 @@ struct LunaHeadTrackSteering: Sendable
 struct LunaIntegrationConfiguration: Equatable, Sendable
 struct LunaMediaCatalogRecord: Sendable
 struct LunaReviewCamera.Clip: Equatable, Sendable
+struct LunaStationNetwork: CustomDebugStringConvertible, CustomStringConvertible, Equatable, Sendable
 struct LunaStoredWiFi: Decodable, Encodable, Sendable
 struct LunaSubjectTracking.Box: Equatable, Sendable
 struct LunaSubjectTracking.Snapshot: Equatable, Sendable
@@ -282,6 +297,7 @@ var CameraInformation.firmware: Swift.String?
 var CameraInformation.model: Swift.String
 var CameraInformation.previewTransfer: CameraPreviewTransfer?
 var CameraInformation.sourceLabel: Swift.String?
+var LunaCameraBackend.cameraHost: Swift.String
 var LunaCameraBackend.connectedSerial: Swift.String?
 var LunaCameraBackend.credentials: LunaStoredWiFi?
 var LunaCameraBackend.deviceInformation: Insta360Protocol.LunaDeviceInformation?
@@ -330,6 +346,7 @@ var LunaIntegration.discoveryRunning: _Concurrency.AsyncStream<Swift.Bool>
 var LunaIntegration.id: OpenCineCore.IntegrationID
 var LunaIntegration.onDiscoveryFailure: ((OpenCineCore.ConnectionFailure?) -> Swift.Void)?
 var LunaIntegration.onEvent: ((CameraBackendEvent) -> Swift.Void)?
+var LunaIntegration.saveRecord: (OpenCineCore.SavedCamera) -> Swift.Void
 var LunaIntegrationConfiguration.appName: Swift.String
 var LunaIntegrationConfiguration.keychainService: Swift.String
 var LunaIntegrationConfiguration.logPrefix: Swift.String
@@ -345,6 +362,11 @@ var LunaReviewCamera.Clip.uri: Swift.String
 var LunaReviewCamera.Clip.width: Swift.Int
 var LunaReviewCamera.clips: [LunaReviewCamera.Clip]
 var LunaReviewCamera.received: [Insta360Protocol.LunaRequest]
+var LunaStationNetwork.debugDescription: Swift.String
+var LunaStationNetwork.description: Swift.String
+var LunaStationNetwork.hotspot: Swift.Bool
+var LunaStationNetwork.password: Swift.String
+var LunaStationNetwork.ssid: Swift.String
 var LunaSubjectTracking.Box.height: Swift.Double
 var LunaSubjectTracking.Box.width: Swift.Double
 var LunaSubjectTracking.Box.x: Swift.Double

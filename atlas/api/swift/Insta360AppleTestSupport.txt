@@ -8,6 +8,7 @@ func FakeLuna.reportCapture() -> ()
 func FakeLuna.reportDevice() -> ()
 func FakeLuna.reportSettings() -> ()
 func FakeLunaPort.connect(to: Insta360Apple.MonitorCamera) async throws -> ()
+func FakeLunaPort.connect(to: Insta360Apple.MonitorCamera, route: Insta360Apple.LunaRoute) async throws -> ()
 func FakeLunaPort.disconnect() -> ()
 func FakeLunaPort.emit(_: Insta360Apple.CameraBackendEvent) -> ()
 func FakeLunaPort.finishConnect(throwing: (any Swift.Error)?) -> ()
@@ -16,7 +17,9 @@ func FakeLunaPort.hasSavedWiFi(cameraID: Foundation.UUID) -> Swift.Bool
 func FakeLunaPort.hasSeen(_: Foundation.UUID) -> Swift.Bool
 func FakeLunaPort.mediaService(for: OpenCineCore.CameraSessionID) -> (any OpenCineMedia.CameraMediaService)?
 func FakeLunaPort.openSession() -> Insta360Apple.LunaCameraSession
+func FakeLunaPort.saveStation(_: Insta360Apple.LunaStationNetwork) -> ()
 func FakeLunaPort.startScan() async throws -> ()
+func FakeLunaPort.stationPassword(for: Swift.String, hotspot: Swift.Bool) -> Swift.String?
 func FakeLunaPort.stopScan() -> ()
 init FakeLuna()
 init FakeLunaPort()
@@ -46,8 +49,10 @@ var FakeLunaPort.eventHandler: ((Insta360Apple.CameraBackendEvent) -> Swift.Void
 var FakeLunaPort.forgotten: [Foundation.UUID]
 var FakeLunaPort.joinedNetwork: Swift.String?
 var FakeLunaPort.makeMediaService: ((OpenCineCore.CameraSessionID) -> (any OpenCineMedia.CameraMediaService)?)?
+var FakeLunaPort.routes: [Insta360Apple.LunaRoute]
 var FakeLunaPort.savedWiFi: Swift.Set<Foundation.UUID>
 var FakeLunaPort.scanFailure: (any Swift.Error)?
 var FakeLunaPort.scanStops: Swift.Int
 var FakeLunaPort.scans: Swift.Int
 var FakeLunaPort.seen: Swift.Set<Foundation.UUID>
+var FakeLunaPort.stations: [Insta360Apple.LunaStationNetwork]
