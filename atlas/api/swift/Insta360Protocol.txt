@@ -134,6 +134,7 @@ case LunaPhotographyType.whiteBalance
 case LunaPhotographyType.whiteBalanceKelvin
 case LunaPhotographyType.zoomScale
 case LunaProtocolError.authorizationRejected(Swift.UInt64)
+case LunaProtocolError.cameraBusySwitchingWiFi
 case LunaProtocolError.cameraRejectedRequest
 case LunaProtocolError.frameTooLarge
 case LunaProtocolError.invalidChecksum
@@ -232,6 +233,7 @@ func LunaRequest.plainFrame(identifier: Swift.UInt32, sequence: Swift.UInt8) thr
 func LunaRequestCounter.nextIdentifier() -> Swift.UInt32
 func LunaRequestCounter.nextSequence() -> Swift.UInt8
 func LunaShootingMode.request() throws -> LunaRequest
+func LunaStationJoinResult.answers(ssid: Swift.String, password: Swift.String) -> Swift.Bool
 func ProtoMessage.bytes(_: Swift.Int) throws -> Foundation.Data
 func ProtoMessage.double(_: Swift.Int) throws -> Swift.Double
 func ProtoMessage.float(_: Swift.Int) throws -> Swift.Float
@@ -396,6 +398,7 @@ static func LunaProtocol.validateAuthorizationNotification(_: UCD2Message) throw
 static func LunaProtocol.wifiCountryCode(response: Foundation.Data) throws -> Swift.String?
 static func LunaProtocol.wifiCredentials(response: Foundation.Data) throws -> LunaWiFiCredentials
 static func LunaProtocol.wifiModeRequest(_: LunaWiFiMode, countryCode: Swift.String?) throws -> LunaRequest
+static func LunaStationJoinResult.==(_: LunaStationJoinResult, _: LunaStationJoinResult) -> Swift.Bool
 static func LunaVideoResolution.rawValue(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double) -> Swift.UInt64?
 static func ProtoMessage.blob(field: Swift.Int, value: Foundation.Data) throws -> Foundation.Data
 static func ProtoMessage.double(field: Swift.Int, value: Swift.Double) throws -> Foundation.Data
@@ -426,6 +429,7 @@ static let LunaProtocol.bluetoothNotifyUUID: Swift.String
 static let LunaProtocol.bluetoothServiceUUID: Swift.String
 static let LunaProtocol.bluetoothWriteChunkSize: Swift.Int
 static let LunaProtocol.bluetoothWriteUUID: Swift.String
+static let LunaProtocol.cameraWiFiStartedCode: Swift.UInt16
 static let LunaProtocol.cancelTrackingRequest: LunaRequest
 static let LunaProtocol.captureStatusRequest: LunaRequest
 static let LunaProtocol.darkEISStatusRequest: LunaRequest
@@ -452,6 +456,7 @@ static let LunaProtocol.syncTimeAccurateCode: Swift.UInt16
 static let LunaProtocol.takePictureRequest: LunaRequest
 static let LunaProtocol.tcpPreface: Foundation.Data
 static let LunaProtocol.timelapseOptionsRequest: LunaRequest
+static let LunaProtocol.wifiBusySwitchingCode: Swift.UInt16
 static let LunaProtocol.wifiCredentialsRequest: LunaRequest
 static let LunaScopeClip.iLogClipByteAtNative: Swift.UInt8
 static let LunaScopeClip.iLogClipByteAtNativeHigh: Swift.UInt8
@@ -626,6 +631,7 @@ var LunaRemainingTime.location: Swift.UInt64
 var LunaRemainingTime.seconds: Swift.UInt64
 var LunaShootingMode.functionMode: LunaFunctionMode
 var LunaShootingMode.isPhoto: Swift.Bool
+var LunaStationJoinResult.Outcome.isTransient: Swift.Bool
 var LunaStationJoinResult.debugDescription: Swift.String
 var LunaStationJoinResult.description: Swift.String
 var LunaStorage.cardState: Swift.UInt64

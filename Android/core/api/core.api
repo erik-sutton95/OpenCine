@@ -2346,6 +2346,7 @@ public final class com/opencapture/opencine/core/SnapshotRevision : java/lang/Co
 public final class com/opencapture/opencine/core/StationRoutes {
 	public static final field INSTANCE Lcom/opencapture/opencine/core/StationRoutes;
 	public final fun adding (Lcom/opencapture/opencine/core/SavedRoute;Lcom/opencapture/opencine/core/SavedCamera;)Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun checkPasswordMessage (Ljava/lang/String;)Ljava/lang/String;
 	public final fun getMOVING ()Ljava/util/Set;
 	public final fun mayBeInStationRole (Lcom/opencapture/opencine/core/SavedCamera;)Z
 	public final fun moves (Lcom/opencapture/opencine/core/RouteKind;)Z

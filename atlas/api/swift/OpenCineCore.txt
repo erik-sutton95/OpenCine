@@ -441,6 +441,7 @@ static func MonotonicInstant.<(_: MonotonicInstant, _: MonotonicInstant) -> Swif
 static func MonotonicInstant.now() -> MonotonicInstant
 static func Rational.frameRate(_: Swift.Double) -> Rational?
 static func StationRoutes.adding(_: SavedRoute, to: SavedCamera) -> SavedCamera
+static func StationRoutes.checkPasswordMessage(network: Swift.String) -> Swift.String
 static func StationRoutes.mayBeInStationRole(_: SavedCamera) -> Swift.Bool
 static func StationRoutes.moves(_: RouteKind) -> Swift.Bool
 static func StationRoutes.route(adding: RouteDraft) -> SavedRoute?

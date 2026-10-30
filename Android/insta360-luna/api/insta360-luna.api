@@ -316,12 +316,14 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationNetwork {
 }
 
 public final class com/opencapture/opencine/insta360/luna/LunaStationWire {
+	public static final field BUSY_SWITCHING I
 	public static final field INSTANCE Lcom/opencapture/opencine/insta360/luna/LunaStationWire;
 	public static final field JOIN_RESULT I
 	public static final field PHONE_INFO I
 	public static final field SET_AVAILABLE_WIFI I
 	public static final field SET_WIFI_CONNECTION_INFO I
 	public static final field SET_WIFI_MODE I
+	public static final field WIFI_STARTED I
 	public final fun accepts (Ljava/lang/String;Ljava/lang/String;)Z
 	public final fun candidates (Ljava/lang/String;I)Ljava/util/List;
 	public final fun countryCode ([B)Ljava/lang/String;
@@ -333,12 +335,14 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationWire {
 }
 
 public final class com/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult {
-	public fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun answers (Ljava/lang/String;Ljava/lang/String;)Z
 	public final fun component1 ()Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
-	public final fun copy (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult;Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult;
+	public final fun copy (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult;Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAddress ()Ljava/lang/String;
 	public final fun getOutcome ()Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome;
@@ -357,6 +361,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationWire$JoinRe
 	public static synthetic fun copy$default (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome$Failed;JILjava/lang/Object;)Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult$Outcome$Failed;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCode ()J
+	public final fun getTransient ()Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
