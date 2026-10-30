@@ -10,6 +10,8 @@ import android.content.Context
 import android.net.Network
 import android.os.ParcelUuid
 import com.opencapture.opencine.core.ConnectionFailure
+import com.opencapture.opencine.core.ConnectionPhase as CorePhase
+import com.opencapture.opencine.core.RecoveryAction
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ControlAuthority
@@ -19,6 +21,7 @@ import com.opencapture.opencine.media.MediaServiceException
 import com.opencapture.opencine.media.MediaServiceFailure
 import com.opencapture.opencine.platform.CameraApJoinPolicy
 import com.opencapture.opencine.platform.CameraApJoiner
+import com.opencapture.opencine.platform.SharedWiFiPath
 import com.opencapture.opencine.platform.WifiLowLatencyLock
 import com.opencapture.opencine.platform.withCredentialIO
 import com.opencapture.opencine.insta360.shell.*
@@ -30,6 +33,7 @@ import kotlinx.coroutines.sync.withLock
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
+import javax.net.SocketFactory
 
 /**
  * Luna transport, status and controls. No Compose or packet logs. Camera Wi-Fi credentials are kept
@@ -37,6 +41,8 @@ import java.util.UUID
  * through the shared credential IO helper, one transaction at a time.
  * [clientIdentityPreferences] names the SharedPreferences file holding the camera authorization
  * identity; the default keeps OpenInstaCine's saved approvals, another app passes its own.
+ * Wi-Fi and hotspot setups ([LunaRoute.Station]) keep their passwords through the host's
+ * [savedStations] / [keepStation], called the same way.
  */
 @SuppressLint("MissingPermission")
 class LunaBackend(
@@ -47,10 +53,16 @@ class LunaBackend(
     /** Drops the camera's saved Wi-Fi from the host's store (forget); the approval identity stays. */
     private val forgetWifi: (cameraId: String) -> Unit = {},
     private val mediaTransfer: LunaMediaTransferPort? = null,
+    /** Wi-Fi and hotspot setups this phone keeps, oldest first (the setup wizard's saved networks). */
+    private val savedStations: () -> List<LunaStationNetwork> = { emptyList() },
+    private val keepStation: (LunaStationNetwork) -> Unit = {},
 ) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource, LunaConnectPort, LunaMediaCatalogRecordSource {
     companion object {
         /** OpenInstaCine's persisted name. Changing it orphans every saved camera approval. */
         const val DEFAULT_CLIENT_IDENTITY_PREFERENCES = "openinstacine.client-identity"
+        /** The camera's address on its own access point. */
+        const val CAMERA_HOST = "192.168.42.1"
+        private const val CONTROL_PORT = 6666
     }
     private val context = context.applicationContext
     private val bluetooth = context.getSystemService(BluetoothManager::class.java)
@@ -63,6 +75,8 @@ class LunaBackend(
             log = { _, _, message -> android.util.Log.i("LunaBackend", message) },
         ),
     ).also { it.onPathLost = { tcp?.fail(IllegalStateException("Camera Wi-Fi disconnected")) } }
+    /** This phone on a Wi-Fi or hotspot setup's network (iOS `LunaStationPath`). */
+    private val station = SharedWiFiPath(context, log = { _, _, message -> android.util.Log.i("LunaBackend", "luna: $message") })
     private val wifiLock = WifiLowLatencyLock(context)
     /** Serializes the host's blocking credential reads and writes (Keystore). */
     private val credentialTransaction = Mutex()
@@ -96,6 +110,14 @@ class LunaBackend(
     override val scanBlocked = _scanBlocked.asStateFlow()
     private val _joinedSSID = MutableStateFlow<String?>(null)
     override val joinedSSID = _joinedSSID.asStateFlow()
+    private val _stationNote = MutableStateFlow<String?>(null)
+    override val stationNote = _stationNote.asStateFlow()
+    /**
+     * Where this connection reaches the camera: its own access point, or the address a Wi-Fi or
+     * hotspot setup found it at. Control and files use it.
+     */
+    @Volatile var cameraHost = CAMERA_HOST
+        private set
     private val video = MutableSharedFlow<EncodedVideoFrame>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val frames: Flow<EncodedVideoFrame> = video.asSharedFlow()
     private val trackFlow = MutableSharedFlow<CameraTrackFrame>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -132,7 +154,7 @@ class LunaBackend(
             val snapshot = currentSession.snapshots.value
             if (tcp == null || _phase.value != ConnectionPhase.LIVE ||
                 snapshot.connection != ConnectionState.Ready || snapshot.authority != ControlAuthority.Owner) return null
-            return LunaMediaSourceState(currentSession.id, snapshot.epoch, mediaConnectionGeneration)
+            return LunaMediaSourceState(currentSession.id, snapshot.epoch, mediaConnectionGeneration, cameraHost)
         }
     private val mediaPort = object : LunaMediaSourcePort {
         override val mediaSourceState: LunaMediaSourceState? get() = this@LunaBackend.mediaSourceState
@@ -188,7 +210,13 @@ class LunaBackend(
     override fun hasSeen(id: String): Boolean = _found.value.any { it.id == id }
     override suspend fun hasSavedWiFi(id: String): Boolean =
         withCredentialIO({ true }, transaction = credentialTransaction) { savedWifi(id) != null }
-    override fun connect(id: String) {
+    override fun connect(id: String) = connect(id, LunaRoute.CameraWiFi())
+
+    /**
+     * Camera Wi-Fi (Bluetooth first, saved Wi-Fi as the fallback), or a Wi-Fi or hotspot setup: the
+     * camera joins that network over Bluetooth and this phone finds it there.
+     */
+    override fun connect(id: String, route: LunaRoute) {
         connectedMedia?.retire()
         mediaConnectionGeneration += 1
         val frameGeneration = mediaConnectionGeneration
@@ -198,26 +226,39 @@ class LunaBackend(
         stopScan()
         connectJob = scope.launch {
             previous?.join()
-            _failure.value = null; _failureDetail.value = null
+            _failure.value = null; _failureDetail.value = null; _stationNote.value = null
+            cameraHost = CAMERA_HOST
             _connected.value = _found.value.firstOrNull { it.id == id } ?: CameraIdentity(id, "Luna Ultra", "Insta360 Luna Ultra")
-            try { runCamera(id, frameGeneration) }
+            try { runCamera(id, frameGeneration, route) }
             catch (error: Exception) {
                 // A withTimeout inside (GATT, greeting) is a CancellationException too; only a real cancel propagates.
                 if (error is CancellationException && !isActive) throw error
-                fail(LunaFailures.connect(_phase.value, advertising = _found.value.any { it.id == id }))
+                fail((error as? LunaStationFailure)?.failure ?: LunaFailures.connect(_phase.value, advertising = _found.value.any { it.id == id }))
                 setPhase(ConnectionPhase.FAILED)
             } finally { cleanup() }
         }
     }
-    private suspend fun runCamera(id: String, frameGeneration: Long): Unit = coroutineScope {
+    private suspend fun runCamera(id: String, frameGeneration: Long, route: LunaRoute): Unit = coroutineScope {
         val identity = clientIdentity.toByteArray()
         // Initiator 1 follows the hardware-verified bootstrap; IDs are this installation's own.
         val authBody = LunaWire.blob(1, identity) + LunaWire.integer(2, 1) + LunaWire.blob(3, identity)
         // iOS `connect`: Bluetooth first whenever the camera advertises (it wakes the camera AP, which the
         // Luna turns off when idle); saved Wi-Fi is the fallback for a camera this run has not seen.
         val current = { frameGeneration == mediaConnectionGeneration }
+        if (route is LunaRoute.Station) {
+            val found = moveToStation(id, authBody, route.network, current)
+            wifiLock.acquire()
+            setPhase(ConnectionPhase.OPENING_DATALINK)
+            val cameraSocket = withContext(Dispatchers.IO) {
+                found.open().also { socket = it; it.tcpNoDelay = true; it.soTimeout = 10_000; it.connect(InetSocketAddress(found.host, CONTROL_PORT), 8_000) }
+            }
+            runLive(cameraSocket, authBody, frameGeneration)
+            return@coroutineScope
+        }
+        // A setup may have left the camera on another network: it is asked back over Bluetooth.
+        val restoreAccessPoint = (route as LunaRoute.CameraWiFi).restoreAccessPoint
         val saved = withCredentialIO(current, transaction = credentialTransaction) { savedWifi(id) }
-        val network = saved?.takeIf { _found.value.none { it.id == id } }?.let { (ssid, password) ->
+        val network = saved?.takeIf { !restoreAccessPoint && _found.value.none { it.id == id } }?.let { (ssid, password) ->
             setPhase(ConnectionPhase.JOINING_WIFI)
             try { joinRetrying(ssid, password, budgetMs = 20_000).also { _joinedSSID.value = ssid } }
             catch (error: Exception) {
@@ -225,19 +266,161 @@ class LunaBackend(
                 android.util.Log.i("LunaBackend", "luna: saved Wi-Fi join failed, falling back to Bluetooth")
                 null
             }
-        } ?: bootstrapOverBluetooth(id, authBody, current)
+        } ?: bootstrapOverBluetooth(id, authBody, current, restoreAccessPoint)
         // The join bound the process: media HTTP (192.168.42.1:80) goes through the shared OkHttp
         // client, as for DJI. Live view pulls frame by frame, so the radio must not doze.
         wifiLock.acquire()
         setPhase(ConnectionPhase.OPENING_DATALINK)
         val cameraSocket = withContext(Dispatchers.IO) {
-            network.socketFactory.createSocket().also { socket = it; it.tcpNoDelay = true; it.soTimeout = 10_000; it.connect(InetSocketAddress("192.168.42.1", 6666), 8_000) }
+            network.socketFactory.createSocket().also { socket = it; it.tcpNoDelay = true; it.soTimeout = 10_000; it.connect(InetSocketAddress(CAMERA_HOST, CONTROL_PORT), 8_000) }
         }
         runLive(cameraSocket, authBody, frameGeneration)
     }
 
-    /** BLE approval and the encrypted Wi-Fi credential read, then the camera AP join (credentials saved). */
-    private suspend fun bootstrapOverBluetooth(id: String, authBody: ByteArray, current: () -> Boolean): Network {
+    /**
+     * BLE approval and the encrypted Wi-Fi credential read, then the camera AP join (credentials saved).
+     * [restoreAccessPoint] first asks a camera a setup may have moved back onto its own access point.
+     */
+    private suspend fun bootstrapOverBluetooth(id: String, authBody: ByteArray, current: () -> Boolean, restoreAccessPoint: Boolean): Network {
+        val (link, reply) = authorizeOverBluetooth(id, authBody)
+        val (ssid, password) = saveCameraWiFi(id, reply, current)
+        if (restoreAccessPoint) {
+            android.util.Log.i("LunaBackend", "luna: asking the camera back onto its own Wi-Fi")
+            link.request(LunaStationWire.SET_WIFI_MODE, LunaStationWire.wifiMode(LunaStationWire.Mode.ACCESS_POINT, LunaStationWire.countryCode(reply)), encrypted = true)
+        }
+        gatt?.close(); gatt = null
+        setPhase(ConnectionPhase.JOINING_WIFI)
+        // iOS joins for up to 120 s after the BLE handoff: the AP can take most of a minute to come up.
+        return joinRetrying(ssid, password, budgetMs = 120_000).also { _joinedSSID.value = ssid }
+    }
+
+    /** Reads and keeps the camera's own Wi-Fi from the credential read's reply. */
+    private suspend fun saveCameraWiFi(id: String, reply: ByteArray, current: () -> Boolean): Pair<String, String> {
+        val wifi = LunaWire.bytes(LunaWire.bytes(reply, 2), 36)
+        val ssid = LunaWire.text(wifi, 1); val password = LunaWire.text(wifi, 2)
+        check(ssid.isNotBlank() && password.length in 8..63)
+        withCredentialIO(current, transaction = credentialTransaction) { saveWifi(id, ssid, password) }
+        return ssid to password
+    }
+
+    /** Where a setup found the camera, and how to open sockets to it. */
+    private class StationCamera(val host: String, val open: () -> Socket)
+
+    /**
+     * Station mode over the encrypted Bluetooth session ([LunaStationWire]): the camera leaves its
+     * access point, joins [network] and reports the result; the network then goes into its list.
+     * This phone is then put on that network (or its hotspot is used) and the camera searched for.
+     * The camera AP is never joined.
+     */
+    private suspend fun moveToStation(id: String, authBody: ByteArray, network: LunaStationNetwork, current: () -> Boolean): StationCamera {
+        val (link, reply) = authorizeOverBluetooth(id, authBody)
+        saveCameraWiFi(id, reply, current)
+        setPhase(ConnectionPhase.JOINING_WIFI)
+        _stationNote.value = "Moving the camera to “${network.ssid}”…"
+        val ssid = network.ssid
+        link.request(LunaStationWire.SET_WIFI_MODE, LunaStationWire.wifiMode(LunaStationWire.Mode.STATION, LunaStationWire.countryCode(reply)), encrypted = true)
+        runCatching {
+            link.request(
+                LunaStationWire.PHONE_INFO,
+                LunaStationWire.phoneInfo(LunaStationWire.Platform.ANDROID, android.os.Build.MANUFACTURER.orEmpty(), android.os.Build.MODEL.orEmpty(), android.os.Build.VERSION.RELEASE.orEmpty()),
+                encrypted = true,
+            )
+        }.onFailure { if (it is CancellationException) throw it }
+        while (link.stationResults.tryReceive().isSuccess) { // A stale result from an earlier attempt.
+        }
+        link.request(LunaStationWire.SET_WIFI_CONNECTION_INFO, LunaStationWire.join(ssid, network.password), encrypted = true)
+        val message = withTimeoutOrNull(45_000) { link.stationResults.receive() }
+            ?: throw LunaStationFailure(stationFailure(
+                ConnectionFailure.Reason.TimedOut, "station.join-timeout",
+                "The camera did not join “$ssid” in time. Check that the network is in range, then connect again.",
+            ))
+        val result = LunaStationWire.joinResult(message.body)
+        android.util.Log.i("LunaBackend", "luna: station join $result")
+        when (val outcome = result.outcome) {
+            LunaStationWire.JoinResult.Outcome.Joined -> Unit
+            LunaStationWire.JoinResult.Outcome.WrongPassword -> throw LunaStationFailure(stationFailure(
+                ConnectionFailure.Reason.JoinFailed, "station.wrong-password",
+                "The camera could not join “$ssid”: the password is wrong. Edit the setup and enter it again.",
+            ))
+            LunaStationWire.JoinResult.Outcome.NetworkNotFound -> throw LunaStationFailure(stationFailure(
+                ConnectionFailure.Reason.JoinFailed, "station.network-not-found",
+                "The camera cannot see “$ssid”. Check the network name and bring the camera closer.",
+            ))
+            is LunaStationWire.JoinResult.Outcome.Failed -> throw LunaStationFailure(stationFailure(
+                ConnectionFailure.Reason.JoinFailed, "station.join-failed.${outcome.code}",
+                "The camera could not join “$ssid”. Check the network, then connect again.",
+            ))
+        }
+        runCatching { link.request(LunaStationWire.SET_AVAILABLE_WIFI, LunaStationWire.remember(ssid, network.password), encrypted = true) }
+            .onFailure { if (it is CancellationException) throw it }
+        gatt?.close(); gatt = null
+        val (local, prefix) = joinPhone(network)
+        _joinedSSID.value = ssid
+        _stationNote.value = "Finding the camera on “$ssid”…"
+        val factory = if (network.hotspot) null else station.network()?.socketFactory
+        // Media HTTP goes through the shared client, which follows the process's network.
+        if (!network.hotspot && !station.bindProcess()) android.util.Log.i("LunaBackend", "luna: setup network not bound for media")
+        val open: () -> Socket = {
+            (factory ?: SocketFactory.getDefault()).createSocket().also { socket ->
+                // The hotspot's tethering interface: never the default (cellular) route.
+                if (factory == null) socket.bind(InetSocketAddress(local, 0))
+            }
+        }
+        val hosts = listOfNotNull(result.address) + LunaStationWire.candidates(local, prefix).filter { it != result.address }
+        val host = LunaStationSearch.find(hosts, CONTROL_PORT, LunaWire.prefix, budgetMs = 60_000, open = open, isCurrent = current)
+            ?: throw LunaStationFailure(stationFailure(
+                ConnectionFailure.Reason.NotFound, "station.camera-not-found",
+                "The camera joined “$ssid”, but this phone could not find it there. Check that the network lets its devices reach each other, then connect again.",
+            ))
+        cameraHost = host
+        android.util.Log.i("LunaBackend", "luna: camera found on the setup's network")
+        return StationCamera(host, open)
+    }
+
+    /**
+     * This phone on [network] (a router's Wi-Fi; a hotspot is this phone's own) and its address and
+     * prefix there. Never the camera's own network.
+     */
+    private suspend fun joinPhone(network: LunaStationNetwork): Pair<String, Int> {
+        fun usable(address: Pair<String, Int>?) = address?.takeIf { !it.first.startsWith("169.254.") && !it.first.startsWith("192.168.42.") }
+        station.hotspot = network.hotspot
+        if (network.hotspot) {
+            val deadline = android.os.SystemClock.elapsedRealtime() + 5_000
+            while (true) {
+                usable(station.addressWithPrefix(true))?.let { return it }
+                if (android.os.SystemClock.elapsedRealtime() >= deadline) throw LunaStationFailure(stationFailure(
+                    ConnectionFailure.Reason.JoinFailed, "station.hotspot-off",
+                    "Turn on this phone's hotspot in Settings, then connect again.",
+                    listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry),
+                ))
+                delay(200)
+            }
+        }
+        if (station.currentSsid() != network.ssid && !station.join(network.ssid, network.password)) {
+            throw LunaStationFailure(stationFailure(
+                ConnectionFailure.Reason.JoinFailed, "station.phone-join",
+                "This phone could not join “${network.ssid}”. Join it in Settings › Wi-Fi, then connect again.",
+                listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry),
+            ))
+        }
+        val deadline = android.os.SystemClock.elapsedRealtime() + 15_000
+        while (android.os.SystemClock.elapsedRealtime() < deadline) {
+            val name = station.currentSsid()
+            usable(station.addressWithPrefix(false))?.let { if (name == null || name == network.ssid) return it }
+            delay(250)
+        }
+        throw LunaStationFailure(stationFailure(
+            ConnectionFailure.Reason.JoinFailed, "station.phone-not-joined",
+            "This phone is not on “${network.ssid}”. Join it in Settings › Wi-Fi, then connect again.",
+            listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry),
+        ))
+    }
+
+    private fun stationFailure(reason: ConnectionFailure.Reason, code: String, message: String, actions: List<RecoveryAction> = listOf(RecoveryAction.Retry)) =
+        LunaFailures.failure(reason, code, message, CorePhase.JOINING_NETWORK, actions)
+
+    /** Bluetooth through the camera's approval and the encrypted credential read: the link and the read's reply. */
+    private suspend fun authorizeOverBluetooth(id: String, authBody: ByteArray): Pair<LunaChannel, ByteArray> {
         setPhase(ConnectionPhase.CONNECTING_GATT)
         val ble = LunaGatt(context); gatt = ble
         ble.connect(checkNotNull(bluetooth?.adapter).getRemoteDevice(id))
@@ -268,14 +451,7 @@ class LunaBackend(
             else -> error("Unknown camera authorization result")
         }
         setPhase(ConnectionPhase.READING_WIFI_CREDS)
-        val wifi = LunaWire.bytes(LunaWire.bytes(link.request(8, LunaWire.options(36, 37, 43), encrypted = true), 2), 36)
-        val ssid = LunaWire.text(wifi, 1); val password = LunaWire.text(wifi, 2)
-        check(ssid.isNotBlank() && password.length in 8..63)
-        ble.close(); gatt = null
-        withCredentialIO(current, transaction = credentialTransaction) { saveWifi(id, ssid, password) }
-        setPhase(ConnectionPhase.JOINING_WIFI)
-        // iOS joins for up to 120 s after the BLE handoff: the AP can take most of a minute to come up.
-        return joinRetrying(ssid, password, budgetMs = 120_000).also { _joinedSSID.value = ssid }
+        return link to link.request(8, LunaWire.options(36, 37, 43), encrypted = true)
     }
 
     private suspend fun runLive(cameraSocket: Socket, authBody: ByteArray, frameGeneration: Long): Unit = coroutineScope {
@@ -399,14 +575,29 @@ class LunaBackend(
         gatt?.close(); gatt = null
         runCatching { socket?.close() }; socket = null
         joiner.release()
+        station.release(); station.hotspot = false
         wifiLock.release()
         _joinedSSID.value = null
+        _stationNote.value = null
     }
     override fun disconnect() {
         connectedMedia?.retire(); mediaConnectionGeneration += 1
         stopScan(); connectJob?.cancel(); runCatching { socket?.close() }
         setPhase(ConnectionPhase.IDLE); _failure.value = null; _failureDetail.value = null
     }
+    /** Wi-Fi and hotspot setups this phone keeps (the setup wizard's saved networks), oldest first. */
+    suspend fun stations(): List<LunaStationNetwork> =
+        withCredentialIO({ true }, transaction = credentialTransaction) { savedStations() }
+
+    override suspend fun stationPassword(network: String, hotspot: Boolean): String? =
+        withCredentialIO({ true }, transaction = credentialTransaction) {
+            savedStations().firstOrNull { it.ssid == network && it.hotspot == hotspot }?.password
+        }
+
+    override suspend fun saveStation(network: LunaStationNetwork) {
+        withCredentialIO({ true }, transaction = credentialTransaction) { keepStation(network) }
+    }
+
     override suspend fun forget(id: String) {
         withCredentialIO({ true }, transaction = credentialTransaction) { forgetWifi(id) }
     }
@@ -649,3 +840,6 @@ class LunaBackend(
         runCatching { media(LunaControl.startLive) }
     }
 }
+
+/** A Wi-Fi or hotspot setup failure with its own copy (Swift `ConnectionFailure.luna` `station.*`). */
+internal class LunaStationFailure(val failure: ConnectionFailure) : Exception(failure.message)

@@ -24,6 +24,8 @@ internal class LunaChannel(
     val greeting = CompletableDeferred<Unit>()
     val failure = CompletableDeferred<Throwable>()
     val approvals = Channel<LunaWire.Message>(16)
+    /** Station join results (notification 8232) on the Bluetooth link. */
+    val stationResults = Channel<LunaWire.Message>(4)
     @Volatile var key: ByteArray? = null
     fun receive(data: ByteArray) {
         try {
@@ -51,6 +53,8 @@ internal class LunaChannel(
                             waiter.first.complete(message)
                         } else if (message.code in listOf(8209, 8228)) {
                             check(approvals.trySend(message).isSuccess) { "Approval queue overflow" }
+                        } else if (message.code == LunaStationWire.JOIN_RESULT) {
+                            stationResults.trySend(message)
                         } else if (message.code >= 8192) {
                             // A notification the backend cannot decode is dropped, not a link failure.
                             runCatching { notify(message) }
@@ -81,5 +85,5 @@ internal class LunaChannel(
             return reply.body
         } finally { pending.remove(id); future.cancel() }
     }
-    fun close() { key?.fill(0); key = null; approvals.close(); pending.values.forEach { it.first.cancel() }; pending.clear() }
+    fun close() { key?.fill(0); key = null; approvals.close(); stationResults.close(); pending.values.forEach { it.first.cancel() }; pending.clear() }
 }
