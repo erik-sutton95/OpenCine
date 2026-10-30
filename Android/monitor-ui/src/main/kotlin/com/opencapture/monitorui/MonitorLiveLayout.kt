@@ -377,6 +377,27 @@ data class LiveMonitorLayout(
             return MonitorRect(towardFeed - size / 2f, baseY - size / 2f, size, size)
         }
 
+    /**
+     * The recenter key with or without a motion cluster: without one it takes the feed's
+     * trailing bottom corner ([MonitorFieldLayout.focusReset]). iOS `focusReset(motionCluster:)`.
+     */
+    fun focusReset(motionCluster: Boolean): MonitorRect {
+        if (motionCluster) return focusReset
+        field?.let { return it.focusReset(motionCluster = false) }
+        val size = LiveChromeMetrics.FOCUS_RESET
+        val well = onFeed
+        val floor = if (showsBottomBars && capture.height > 1f) min(well.maxY, capture.minY - 8f) else well.maxY
+        return MonitorRect(well.maxX - 8f - size, floor - 8f - size, size, size)
+    }
+
+    /** The AE unlock capsule beside [focusReset] for the same capability. */
+    fun aeUnlock(motionCluster: Boolean): MonitorRect {
+        if (motionCluster) return aeUnlock
+        field?.let { return it.aeUnlock(motionCluster = false) }
+        val reset = focusReset(motionCluster = false)
+        return MonitorLayoutPolicy.aeUnlock(reset, onFeed.minX + 2f, feed.midX, false)
+    }
+
     /** iOS `aeUnlock`. Portrait without an assist column mirrors Recenter to the well's left edge. */
     val aeUnlock: MonitorRect
         get() {

@@ -3,6 +3,7 @@ package com.opencapture.opencine.cameracontrols
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.opencapture.monitorui.MonitorCaptureReadoutGroup
 import com.opencapture.monitorui.MonitorExposureReadout
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorQuickControl
@@ -41,8 +42,12 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
     val readouts = buildList<MonitorOperatorLiveReadout<String, S>> {
         fun append(sheet: LiveSheet, title: String, value: String, annotation: String? = null,
             icon: MonitorIcon? = null, badge: MonitorIcon? = null) {
+            // White balance and focus mode set the camera up; a landscape photo row moves them into
+            // the status corner (Swift `CaptureSheet.captureGroup`).
             add(MonitorOperatorLiveReadout(sheet.name, title, value, section, icon = icon,
-                badgeIcon = badge, annotation = annotation, quickEnabled = quickEnabled))
+                badgeIcon = badge, annotation = annotation, quickEnabled = quickEnabled,
+                group = if (sheet == LiveSheet.WB || sheet == LiveSheet.FOCUS) MonitorCaptureReadoutGroup.SETUP
+                    else MonitorCaptureReadoutGroup.EXPOSURE))
         }
         append(LiveSheet.ISO, "ISO", source.readout(LiveSheet.ISO, status, CaptureLists.isoChipValue(status)))
         append(LiveSheet.SHUTTER, if (auto) MonitorExposureReadout.autoEvCaption(status.shutterDenom) else "SHUTTER",

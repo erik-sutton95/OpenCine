@@ -4,7 +4,7 @@
 
   /// Common status composition. Integrations fill only their format, color, mode and telemetry readouts.
   public struct MonitorStatusChrome<
-    Storage: View, Format: View, ColorProfile: View, Mode: View, Link: View
+    Storage: View, Format: View, ColorProfile: View, Mode: View, Link: View, Corner: View
   >: View {
     @Environment(\.monitorPortraitPrimaryFit) private var primaryFit
     private let layout: FieldMonitorLayout
@@ -19,7 +19,14 @@
     private let color: () -> ColorProfile
     private let mode: () -> Mode
     private let link: () -> Link
+    private let corner: () -> Corner
+    private let cornerShown: Bool
 
+    /// `corner` fills the landscape row's trailing corner beside the recording readout and the
+    /// clock (a photo row shows camera setup values there, `MonitorStatusCorner`). Portrait
+    /// rows have no such corner and never show it. While `cornerShown`, the corner keeps its
+    /// tiles whole and the leading readouts scale to make room; otherwise the row lays out
+    /// exactly as it does without a corner.
     public init(
       layout: FieldMonitorLayout, status: MonitorStatusPresentation,
       showsTimecode: Bool = true, showsRecording: Bool = true, showsCompactTelemetry: Bool = true,
@@ -28,7 +35,9 @@
       @ViewBuilder format: @escaping () -> Format,
       @ViewBuilder color: @escaping () -> ColorProfile,
       @ViewBuilder mode: @escaping () -> Mode,
-      @ViewBuilder link: @escaping () -> Link
+      @ViewBuilder link: @escaping () -> Link,
+      cornerShown: Bool = true,
+      @ViewBuilder corner: @escaping () -> Corner
     ) {
       self.layout = layout
       self.status = status
@@ -42,8 +51,31 @@
       self.color = color
       self.mode = mode
       self.link = link
+      self.corner = corner
+      self.cornerShown = cornerShown
     }
+  }
 
+  extension MonitorStatusChrome where Corner == EmptyView {
+    public init(
+      layout: FieldMonitorLayout, status: MonitorStatusPresentation,
+      showsTimecode: Bool = true, showsRecording: Bool = true, showsCompactTelemetry: Bool = true,
+      minimumOccupiedTop: Double = 0, clock: (() -> String?)? = nil,
+      @ViewBuilder storage: @escaping () -> Storage,
+      @ViewBuilder format: @escaping () -> Format,
+      @ViewBuilder color: @escaping () -> ColorProfile,
+      @ViewBuilder mode: @escaping () -> Mode,
+      @ViewBuilder link: @escaping () -> Link
+    ) {
+      self.init(
+        layout: layout, status: status, showsTimecode: showsTimecode,
+        showsRecording: showsRecording, showsCompactTelemetry: showsCompactTelemetry,
+        minimumOccupiedTop: minimumOccupiedTop, clock: clock, storage: storage, format: format,
+        color: color, mode: mode, link: link, cornerShown: false, corner: { EmptyView() })
+    }
+  }
+
+  extension MonitorStatusChrome {
     public var body: some View {
       Group {
         if layout.portrait {
@@ -79,7 +111,7 @@
             format()
             color()
             mode()
-            Spacer(minLength: 4)
+            Spacer(minLength: cornerShown ? MonitorStatusCorner.leadingGap : 4)
             HStack(spacing: 10) {
               if showsRecording { MonitorRecordingReadout(status: status) }
               if showsTimecode {
@@ -87,7 +119,10 @@
                   MonitorClock(shown, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23)
                 }
               }
+              // At its natural width: the leading readouts scale to make room, never the tiles.
+              if cornerShown { corner().fixedSize(horizontal: true, vertical: false) }
             }
+            .layoutPriority(cornerShown ? 1 : 0)
             .padding(.trailing, layout.recordingReadoutTrailingInset)
           }
         }
