@@ -2135,22 +2135,9 @@ public final class com/opencapture/opencine/dji/ReportedWhiteBalance {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class com/opencapture/opencine/dji/SharedWiFi : com/opencapture/opencine/dji/CameraNetworkPath {
+public final class com/opencapture/opencine/dji/SharedWiFi : com/opencapture/opencine/platform/SharedWiFiPath, com/opencapture/opencine/dji/CameraNetworkPath {
 	public static final field Companion Lcom/opencapture/opencine/dji/SharedWiFi$Companion;
 	public fun <init> (Landroid/content/Context;)V
-	public final fun address (Z)Ljava/lang/String;
-	public static synthetic fun address$default (Lcom/opencapture/opencine/dji/SharedWiFi;ZILjava/lang/Object;)Ljava/lang/String;
-	public fun bindSocket (Ljava/net/DatagramSocket;)V
-	public fun bindSocket (Ljava/net/Socket;)V
-	public fun cameraLocalIPv4 ()Ljava/lang/String;
-	public final fun currentSsid ()Ljava/lang/String;
-	public final fun getHotspot ()Z
-	public fun isProcessBound ()Z
-	public final fun join (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun netmask (Z)Ljava/lang/String;
-	public static synthetic fun netmask$default (Lcom/opencapture/opencine/dji/SharedWiFi;ZILjava/lang/Object;)Ljava/lang/String;
-	public final fun release ()V
-	public final fun setHotspot (Z)V
 }
 
 public final class com/opencapture/opencine/dji/SharedWiFi$Companion {
