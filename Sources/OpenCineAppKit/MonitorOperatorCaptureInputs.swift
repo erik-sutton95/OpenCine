@@ -176,6 +176,12 @@ public struct MonitorOperatorCapturePreview<Key: Hashable, NativeIdentity: Hasha
 
     /// Values the strip shows; a layout given it as `valueCount` sizes the portrait band to fit.
     public var valueCount: Int { readouts.count + supplementaryReadouts.count }
+    /// The tiles the strip draws without `excluded` (the status corner's): its readouts and the
+    /// supplementary values that follow them.
+    public func stripTileCount(excluding excluded: Set<Key>) -> Int {
+        let shown = Set(readouts.map(\.id).filter { !excluded.contains($0) })
+        return shown.count + supplementaryReadouts.filter { shown.contains($0.after) }.count
+    }
 
     /// The setup readouts the status corner takes when `holdsSetup` (`MonitorStatusCorner`).
     public func cornerReadouts(holdsSetup: Bool) -> [MonitorOperatorLiveReadout<Key, Section>] {
@@ -269,47 +275,68 @@ public struct MonitorOperatorCaptureStrip<Key: Hashable, Section: Hashable,
     private let portrait: Bool
     private let tablet: Bool
     private let excluded: Set<Key>
+    private let arrangement: MonitorValuesReflow?
     /// `excluded` readouts show elsewhere (the status corner's setup values); the strip lays out
-    /// the rest as if they were all it had.
+    /// the rest as if they were all it had. `arrangement` lays the tiles out beside the open View
+    /// Assist palette instead of in the strip's own row (`MonitorValuesReflow`).
     public init(inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>, control: MonitorControlModel,
         state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity,
         enabled: Bool, commandEnabled: Bool = true, currentSource: @escaping () -> Bool,
         coordinateSpace: String = "monitor.canvas", portrait: Bool = false, tablet: Bool = false,
-        excluded: Set<Key> = []) {
+        excluded: Set<Key> = [], arrangement: MonitorValuesReflow? = nil) {
         self.inputs = inputs; self.control = control; self.state = state; self.source = source
         self.enabled = enabled; self.commandEnabled = commandEnabled; self.currentSource = currentSource
         self.coordinateSpace = coordinateSpace; self.portrait = portrait; self.tablet = tablet
-        self.excluded = excluded
+        self.excluded = excluded; self.arrangement = arrangement
     }
 
     public var body: some View {
-        let shown = inputs.readouts.filter { !excluded.contains($0.id) }
+        if let arrangement, arrangement.applies, arrangement.scrolls {
+            // The last resort (`MonitorValuesReflow.scrolls`): one row that scrolls beside the plate.
+            ScrollView(.horizontal, showsIndicators: false) {
+                MonitorValueRowsLayout(rows: arrangement.rows, tileWidth: arrangement.tileWidth) { tiles }
+            }.opacity(enabled ? 1 : 0.4)
+        } else {
+            // One container either way, so the tiles keep their identity (and a held gesture) and
+            // move between the strip and the lane beside the palette.
+            layout { tiles }
+                .frame(maxWidth: .infinity)
+                .opacity(enabled ? 1 : 0.4)
+        }
+    }
+
+    private var layout: AnyLayout {
+        if let arrangement, arrangement.applies {
+            return AnyLayout(MonitorValueRowsLayout(rows: arrangement.rows, tileWidth: arrangement.tileWidth))
+        }
         let columns = excluded.isEmpty
             ? inputs.columns(portrait: portrait, tablet: tablet)
             : max(1, inputs.columns ?? FieldMonitorLayout.valueColumns(
                 count: inputs.valueCount - excluded.count, portrait: portrait, tablet: tablet))
         // A phone in portrait lays values out as an even grid; one row spreads by label width.
         let grid = portrait && !tablet || columns == 3
-        MonitorControlGrid(columns: columns, spacing: grid ? 8 : 12, equalColumns: grid) {
-            ForEach(shown) { readout in
-                CaptureStripReadout(inputs: inputs, readout: readout, control: control, state: state,
-                    source: source, enabled: enabled, commandEnabled: commandEnabled,
-                    currentSource: currentSource)
-                    .id(readout.id)
-                    .background {
-                        GeometryReader { geometry in
-                            Color.clear.onChange(of: geometry.frame(in: .named(coordinateSpace)), initial: true) { _, frame in
-                                if currentSource() { state.frames[readout.id] = frame }
-                            }.onDisappear { if currentSource() { state.frames[readout.id] = nil } }
-                        }
+        return AnyLayout(MonitorControlGrid(columns: columns, spacing: grid ? 8 : 12, equalColumns: grid))
+    }
+
+    @ViewBuilder private var tiles: some View {
+        let shown = inputs.readouts.filter { !excluded.contains($0.id) }
+        ForEach(shown) { readout in
+            CaptureStripReadout(inputs: inputs, readout: readout, control: control, state: state,
+                source: source, enabled: enabled, commandEnabled: commandEnabled,
+                currentSource: currentSource)
+                .id(readout.id)
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear.onChange(of: geometry.frame(in: .named(coordinateSpace)), initial: true) { _, frame in
+                            if currentSource() { state.frames[readout.id] = frame }
+                        }.onDisappear { if currentSource() { state.frames[readout.id] = nil } }
                     }
-                ForEach(inputs.supplementaryReadouts.filter { $0.after == readout.id }) { native in
-                    CaptureSupplementaryReadout(readout: native, inputs: inputs, state: state,
-                        enabled: enabled, commandEnabled: commandEnabled, currentSource: currentSource)
                 }
+            ForEach(inputs.supplementaryReadouts.filter { $0.after == readout.id }) { native in
+                CaptureSupplementaryReadout(readout: native, inputs: inputs, state: state,
+                    enabled: enabled, commandEnabled: commandEnabled, currentSource: currentSource)
             }
-        }.frame(maxWidth: .infinity)
-            .opacity(enabled ? 1 : 0.4)
+        }
     }
 }
 

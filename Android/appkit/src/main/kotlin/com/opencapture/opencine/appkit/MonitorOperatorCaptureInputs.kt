@@ -303,9 +303,11 @@ private class CaptureReadoutActions(
     layout: MonitorFieldLayout, modifier: Modifier = Modifier,
     onCaptureFrame: (MonitorRect) -> Unit = {},
     excluded: Set<K> = emptySet(),
+    /** Beside the open View Assist palette instead of the strip's own row ([com.opencapture.monitorui.MonitorValuesReflow]). */
+    arrangement: com.opencapture.monitorui.MonitorValuesReflow? = null,
 ): Unit {
     CaptureValues(inputs, inputs.readouts.filter { it.id !in excluded }, control, state, source, enabled,
-        commandEnabled, currentSource, layout, modifier, onCaptureFrame, corner = false)
+        commandEnabled, currentSource, layout, modifier, onCaptureFrame, corner = false, arrangement = arrangement)
     DisposableEffect(state, source) { onDispose { state.retire() } }
 }
 
@@ -329,6 +331,7 @@ private class CaptureReadoutActions(
     control: MonitorControlModel, state: MonitorOperatorCaptureState<K, N>, source: MonitorCaptureSourceIdentity,
     enabled: Boolean, commandEnabled: Boolean, currentSource: () -> Boolean,
     layout: MonitorFieldLayout, modifier: Modifier, onCaptureFrame: (MonitorRect) -> Unit, corner: Boolean,
+    arrangement: com.opencapture.monitorui.MonitorValuesReflow? = null,
 ): Unit {
     val owner = state.gestureOwner
     key(owner) {
@@ -377,7 +380,7 @@ private class CaptureReadoutActions(
                 }
             }, quickBottomClearanceDp = if (layout.portrait) layout.viewport.height - layout.system.y + 12f else 0f,
             gestureOwner = owner,
-            columns = inputs.columns, corner = corner, onHold = { id -> actions[id]?.hold }, onOpen = { id ->
+            columns = inputs.columns, corner = corner, arrangement = arrangement, onHold = { id -> actions[id]?.hold }, onOpen = { id ->
                 actions[id]?.open?.invoke()
             })
     }

@@ -99,6 +99,8 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     expansionAccessibilityIdentifier: String = "monitor.assists.expand",
     cellSize: Float? = null,
     maxExpandedHeight: Float? = null,
+    /** Narrows the open landscape plate (its catalog scrolls): the live monitor keeps the camera values beside it ([MonitorValuesReflow.paletteWidth]). */
+    maxExpandedWidth: Float? = null,
     onBoundsInRootChanged: (Rect?) -> Unit = {}, collapseRevision: Long = 0L) {
     val localExpanded = remember { mutableStateOf(false) }
     var expanded by (LocalMonitorAssistExpansion.current ?: localExpanded)
@@ -147,7 +149,8 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
         config.screenWidthDp.toFloat(), portrait, tablet).dp
     val compactW = buttonSize + if (portrait) 8.dp else horizontalInsets
     val compactH = if (portrait) buttonSize + 35.dp else buttonSize * 2 + (MonitorLayoutPolicy.ASSIST_SPACING + 8).dp
-    val fullW = if (portrait) buttonSize + 8.dp else minOf(available, maxOf(buttonSize + horizontalInsets, catalogWidth))
+    val fullW = if (portrait) buttonSize + 8.dp else minOf(available, maxOf(buttonSize + horizontalInsets, catalogWidth),
+        maxExpandedWidth?.dp?.coerceAtLeast(compactW) ?: Float.MAX_VALUE.dp)
     val fullH = if (portrait) minOf((config.screenHeightDp * .62f).dp,
         buttonSize * tools.size + (maxOf(0, tools.size - 1) * MonitorLayoutPolicy.ASSIST_SPACING + 35).dp,
         maxExpandedHeight?.dp?.coerceAtLeast(compactH) ?: Float.MAX_VALUE.dp) else buttonSize * 2 + 11.dp

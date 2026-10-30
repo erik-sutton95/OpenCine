@@ -413,6 +413,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @State private var primarySizer = MonitorPortraitPrimarySizer()
     @State private var storageForm = 0
     @State private var expanded = false
+    /// The previous `valuesReflowed` answer (`MonitorValuesReflow.reflowed`).
+    @State private var valuesHeldBeside = false
     @State private var lifecycle = MonitorInteractionLifecycle()
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
     @State private var compactTelemetryMinimumStatusTop: CGFloat = 0
@@ -503,20 +505,29 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         Binding(get: { session.locked }, set: { if exposed { session.locked = $0 } })
     }
     private var captureHidden: Bool {
-        if paletteCoversValues { return true }
         if let preview = captureState.preview { return !captureInputs.isTop(preview.key) }
         if let panel { return !panel.top }
         return false
     }
 
-    /// The open assist palette sits over the camera values in landscape; the values hide while
-    /// it is open rather than peek around its edges (hardware pass 1.1).
-    private var paletteCoversValues: Bool {
-        guard expanded, mounts(.toolBar), !command else { return false }
-        return MonitorAssistPaletteReveal.coversValues(
-            palette: MonitorAssistPaletteLayout.fieldMonitorFootprint(
-                layout, toolCount: tools.count, safeTop: safeArea.top, expanded: true),
-            values: layout.values)
+    /// The camera values beside the open assist palette (owner decision 2026-10-28): in landscape
+    /// the open plate grows over the strip, so the values take the lane beside it instead of
+    /// hiding. Fixed targets from the geometry and the counts; nothing is measured.
+    private var valuesReflow: MonitorValuesReflow {
+        MonitorValuesReflow.fieldMonitor(
+            layout, toolCount: mounts(.toolBar) && !command ? tools.count : 0,
+            valueCount: mounts(.cameraValues) && !command
+                ? captureInputs.stripTileCount(excluding: cornerKeys) : 0,
+            cornerControls: MonitorValuesReflow.cornerControls(layout, motionCluster: cameraViews.motion != nil))
+    }
+    /// The palette's width cap, in both states so the plate never changes width while it opens.
+    private var paletteWidthCap: Double? {
+        let reflow = valuesReflow
+        return reflow.applies ? reflow.paletteWidth : nil
+    }
+    private var valuesReflowed: Bool {
+        MonitorValuesReflow.reflowed(paletteOpen: expanded && mounts(.toolBar) && !command,
+            capturePresented: panel != nil || captureState.preview != nil, reflowed: valuesHeldBeside)
     }
 
     var body: some View {
@@ -527,7 +538,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 statusMounted: mounts(.statusBar) && commandHeader != .hidden, powerMounted: mounts(.batteries) && !usesCompactTelemetry,
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
-                panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
+                panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented,
+                captureFrame: valuesReflowed && valuesReflow.applies ? valuesReflow.values : nil),
             picture: { picture().opacity(facts.picture.waiting || command ? 0 : 1).transaction { $0.animation = nil } },
             assists: { feedMarks.opacity(facts.picture.waiting ? 0 : 1) },
             signal: {
@@ -573,6 +585,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 captureState.retire(); captureState.frames = [:]; dismiss(); session.finishEditing()
             }
             .onChange(of: motionCovering) { _, covering in if covering { expanded = false } }
+            .onChange(of: valuesReflowed, initial: true) { _, reflowed in valuesHeldBeside = reflowed }
             // The dashboard replaces the picture: no popup or inspector survives entering it.
             .onChange(of: command) { _, command in if command { dismiss(); assist.configureTool = nil } }
             .onChange(of: photo) { _, photo in if photo, assist.configureTool == .audioMeters { assist.configureTool = nil } }
@@ -807,7 +820,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         MonitorOperatorCaptureStrip(inputs: captureInputs, control: control, state: captureState,
             source: captureSource, enabled: presentationAdmitted, commandEnabled: !readOnly,
             currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
-            portrait: layout.portrait, tablet: layout.tablet, excluded: cornerKeys)
+            portrait: layout.portrait, tablet: layout.tablet, excluded: cornerKeys,
+            arrangement: valuesReflowed ? valuesReflow : nil)
             .modifier(ChromeEditableModifier<Host>(section: .cameraValues, mode: editing))
     }
     private var captureCorner: some View {
@@ -913,7 +927,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             }
         }
         if mounts(.toolBar), !command {
-            let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count, safeTop: safeArea.top)
+            let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count,
+                safeTop: safeArea.top, maximumWidth: paletteWidthCap)
             MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
                 enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || assists.signalOptions.offers($0),
                 accessibilityLabel: $0.title) }, layout: metrics,
@@ -950,7 +965,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @ViewBuilder private var instruments: some View {
         if assist.isVisible(.evMeter), let exposure = source.exposure {
             let footprint = MonitorAssistPaletteLayout.fieldMonitorFootprint(
-                layout, toolCount: tools.count, safeTop: safeArea.top, expanded: expanded)
+                layout, toolCount: tools.count, safeTop: safeArea.top, expanded: expanded,
+                maximumWidth: paletteWidthCap)
             let frame = MonitorOperatorExposureGeometry.frame(in: meterFeed,
                 avoiding: mounts(.toolBar) ? footprint.cgRect : nil)
             let reading = facts.picture.recovering ? ExposureMeterReading(cameraValue: nil) : exposure()

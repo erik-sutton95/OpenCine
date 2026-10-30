@@ -28,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -241,8 +242,10 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val panel = captureInputs.panel
     val dismiss = captureInputs.dismiss
     var paletteRevision by remember { mutableLongStateOf(0) }
-    // The palette's rendered plate (full while open or animating), in this surface's points.
-    var paletteFrame by remember { mutableStateOf<MonitorRect?>(null) }
+    // The palette's open state, owned here so the values know where to sit (Swift `expanded`).
+    val paletteExpansion = remember { mutableStateOf(false) }
+    // The previous `valuesReflowed` answer (MonitorValuesReflow.reflowed).
+    var valuesHeldBeside by remember { mutableStateOf(false) }
     val displayHaptics = LocalOperatorHaptics.current
     val exposed = !covered && current(identity)
     val interactive = exposed && !locked && editing == null && interactionEnabled
@@ -335,9 +338,21 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         transitionChanged(value)
     }
     // A quick preview hides its readouts in place inside the strip, preserving the held pointer.
-    // A full bottom sheet still removes the capture slot from input and accessibility. The open
-    // assist palette sits over the values in landscape; they hide rather than peek around it.
-    val captureHidden = panel?.top == false || MonitorAssistPaletteReveal.coversValues(paletteFrame, layout.values)
+    // A full bottom sheet still removes the capture slot from input and accessibility.
+    val captureHidden = panel?.top == false
+    // The camera values beside the open assist palette (owner decision 2026-10-28): in landscape
+    // the open plate grows over the strip, so the values take the lane beside it instead of
+    // hiding. Fixed targets from the geometry and the counts; nothing is measured (Swift `valuesReflow`).
+    val paletteMounted = sections.assists in mounted && !command && !inspecting
+    val valuesReflow = com.opencapture.monitorui.MonitorValuesReflow.fieldMonitor(layout,
+        toolCount = if (paletteMounted) palette.size else 0,
+        valueCount = if (sections.capture in mounted && !command) captureInputs.readouts.count { it.id !in cornerKeys } else 0,
+        cornerControls = com.opencapture.monitorui.MonitorValuesReflow.cornerControls(layout, cameraViews.motionCluster))
+    val valuesReflowed = com.opencapture.monitorui.MonitorValuesReflow.reflowed(
+        paletteOpen = paletteExpansion.value && paletteMounted,
+        capturePresented = panel != null || state.preview != null, reflowed = valuesHeldBeside)
+    SideEffect { valuesHeldBeside = valuesReflowed }
+    val valuesBeside = valuesReflowed && valuesReflow.applies
     @Composable fun TelemetryPower() {
         MonitorTelemetry(status.signalBars, status.fps, power.map {
             MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted,
@@ -352,7 +367,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         captureHidden = captureHidden, captureInteractive = panel == null || panel.top, locked = locked,
         popupInteractive = editing == null && interactionEnabled,
         capturePresented = panel != null || state.preview != null || inspecting, recovering = recovering,
-        statusInteractive = !assistInspectorPresented),
+        statusInteractive = !assistInspectorPresented, captureFrame = if (valuesBeside) valuesReflow.values else null),
         modifier, picture = picture,
         status = {
             val recording = status.recording()
@@ -445,7 +460,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             com.opencapture.opencine.appkit.MonitorOperatorCaptureStrip(captureInputs, control, state, source,
                 enabled = accepts && interactive, commandEnabled = !readOnly,
                 currentSource = ::currentSource, layout = layout, modifier = edit(sections.capture),
-                onCaptureFrame = onCaptureFrame, excluded = cornerKeys)
+                onCaptureFrame = onCaptureFrame, excluded = cornerKeys,
+                arrangement = if (valuesBeside) valuesReflow else null)
         }, system = { accepts ->
             MonitorSystemControls(layout, MonitorSystemControlsVisibility(sections.lock in mounted || locked || returnToStage != null,
                 sections.settings in mounted, sections.media in mounted, sections.record in mounted, sections.display == null || sections.display in mounted)
@@ -510,7 +526,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             caption = audio.caption, unavailableLabel = audio.unavailable, provenance = audio.provenance, spokenValue = audio.spokenValue)
                     }
                 }
-                if (sections.assists in mounted && !inspecting) MonitorAssistPalette(palette,
+                if (sections.assists in mounted && !inspecting) androidx.compose.runtime.CompositionLocalProvider(
+                    com.opencapture.monitorui.LocalMonitorAssistExpansion provides paletteExpansion) { MonitorAssistPalette(palette,
                     layout.portrait, !interactive, { it.isOn }, { it.tool?.title ?: it.title },
                     { it.tool?.chipLabel ?: it.label }, hasOptions,
                     onToggle = { if (interactive && currentSource()) it.toggle() },
@@ -526,13 +543,12 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     modifier = Modifier.descriptorFrame(layout.assists).then(edit(sections.assists)),
                     usageSeed = usageSeed, idOf = { it.id }, usage = usage, onUsageChange = setUsage,
                     collapseRevision = paletteRevision, accessibilityIdentifier = { it.accessibilityIdentifier },
+                    maxExpandedWidth = valuesReflow.paletteWidth.takeIf { valuesReflow.applies },
                     onBoundsInRootChanged = { bounds ->
-                        val frame = bounds?.let { with(density) { MonitorRect(
+                        paletteFrameChanged(bounds?.let { with(density) { MonitorRect(
                             (it.left - origin.x).toDp().value, (it.top - origin.y).toDp().value,
-                            it.width.toDp().value, it.height.toDp().value) } }
-                        if (frame != paletteFrame) paletteFrame = frame
-                        paletteFrameChanged(frame)
-                    })
+                            it.width.toDp().value, it.height.toDp().value) } })
+                    }) }
                 // Hidden under the lock like focus reset (pre-shared Z Android hid the MF strip there).
                 if (!locked) cameraViews.focusDrive?.let { drive ->
                     val height = minOf(280f, layout.viewport.height * .55f)
