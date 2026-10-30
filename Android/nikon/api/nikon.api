@@ -2324,6 +2324,7 @@ public final class com/opencapture/opencine/nikon/NikonNative {
 	public final fun sessionStopMediaTransfer (J)V
 	public final fun sessionTerminateStillCapture (J)I
 	public final fun sessionThumbnail (JI)[B
+	public final fun sessionUprightThumbnail (JILjava/lang/String;)[B
 }
 
 public abstract interface class com/opencapture/opencine/nikon/NikonNative$LiveFrameListener {

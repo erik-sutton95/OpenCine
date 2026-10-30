@@ -79,14 +79,7 @@ public enum NikonRawPreviewLocator {
         let bytes = [UInt8](jpeg)
         guard bytes.count >= 4, bytes[0] == 0xFF, bytes[1] == 0xD8, !hasExifSegment(bytes)
         else { return jpeg }
-        // APP1 "Exif\0\0" + a big-endian TIFF with one IFD holding Orientation (SHORT).
-        var segment: [UInt8] = [0xFF, 0xE1, 0x00, 0x22]
-        segment += [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]
-        segment += [0x4D, 0x4D, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08]
-        segment += [0x00, 0x01]
-        segment += [0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01]
-        segment += [UInt8(orientation >> 8), UInt8(orientation & 0xFF), 0x00, 0x00]
-        segment += [0x00, 0x00, 0x00, 0x00]
+        let segment = NikonThumbnailOrientation.exifSegment(orientation: orientation)
         var tagged: [UInt8] = []
         tagged.reserveCapacity(bytes.count + segment.count)
         tagged += bytes[0..<2]
@@ -130,8 +123,9 @@ public enum NikonRawPreviewLocator {
     }
 }
 
-/// The fields of one TIFF image file directory that matter for locating a JPEG.
-private struct TIFFDirectory {
+/// The fields of one TIFF image file directory that matter for locating a JPEG and its
+/// orientation.
+struct TIFFDirectory {
     var jpegOffset: UInt32?
     var jpegLength: UInt32?
     var compression: UInt32?
@@ -158,7 +152,7 @@ private struct TIFFDirectory {
 }
 
 /// A bounds-checked TIFF walker over a byte prefix.
-private struct TIFFReader {
+struct TIFFReader {
     private let bytes: [UInt8]
     private let littleEndian: Bool
     /// Set once the header is read; the header readers need `self` first.
