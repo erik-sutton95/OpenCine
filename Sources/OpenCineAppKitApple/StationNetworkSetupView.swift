@@ -47,6 +47,9 @@
         var cameraSSIDs: Set<String> = []
         /// Nil when the camera is not nearby over Bluetooth. Reports each network as it arrives.
         var scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?
+        /// False for a camera that cannot list networks at all: Nearby says so instead of asking
+        /// for the camera to be turned on.
+        var cameraScansNetworks = true
         /// Saves the confirmed network as this route kind; true closes the wizard.
         var save: @MainActor (StationNetwork) async -> Bool
         var errorMessage: String? = nil
@@ -57,6 +60,7 @@
             context: Context, brand: StationNetworkBrand, services: StationNetworkServices,
             cameraSSIDs: Set<String> = [],
             scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?,
+            cameraScansNetworks: Bool = true,
             save: @escaping @MainActor (StationNetwork) async -> Bool, errorMessage: String? = nil,
             close: @escaping () -> Void, path: [Page] = []
         ) {
@@ -65,6 +69,7 @@
             self.services = services
             self.cameraSSIDs = cameraSSIDs
             self.scan = scan
+            self.cameraScansNetworks = cameraScansNetworks
             self.save = save
             self.errorMessage = errorMessage
             self.close = close
@@ -463,11 +468,15 @@
                             icon: scanning ? nil : .scan,
                             title: scanning
                                 ? "The camera is looking for networks…"
-                                : scan == nil
-                                    ? "Turn the camera on to find networks" : "No networks found yet",
+                                : !cameraScansNetworks
+                                    ? "This camera can’t list networks"
+                                    : scan == nil
+                                        ? "Turn the camera on to find networks" : "No networks found yet",
                             detail: scanning
                                 ? "Networks appear here as it finds them"
-                                : scanFailed ? "The scan did not finish. Try Scan again." : nil,
+                                : !cameraScansNetworks
+                                    ? "Choose a known network, or Other network."
+                                    : scanFailed ? "The scan did not finish. Try Scan again." : nil,
                             showsProgress: scanning, chevron: false
                         )
                         .accessibilityIdentifier("\(context.prefix).scanStatus")
