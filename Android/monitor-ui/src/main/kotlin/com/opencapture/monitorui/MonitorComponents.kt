@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,6 +47,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.LocalDensity
@@ -78,6 +80,11 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
     columns: Int? = null,
     gestureOwner: MonitorQuickGestureOwner? = null,
     onHold: (String) -> (() -> Unit)? = { null },
+    /**
+     * The status row's trailing corner ([MonitorStatusCorner]): one trailing row at natural
+     * widths, narrowed toward each whole caption only when short, with previews from the top.
+     */
+    corner: Boolean = false,
     onOpen: (String) -> Unit) {
     val owner = gestureOwner ?: remember { MonitorQuickGestureOwner() }
     val notifyQuickActive by rememberUpdatedState(onQuickActiveChange)
@@ -92,13 +99,31 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
         .copy(lineHeight = valueSize.sp)
     val labelStyle = MonitorTypography.text(MonitorLayoutPolicy.READOUT_LABEL_SIZE, FontWeight.SemiBold)
         .copy(lineHeight = 10.sp, letterSpacing = MonitorLayoutPolicy.READOUT_LABEL_TRACKING.sp)
-    val intrinsic = values.map { item ->
-        val valueWidth = measurer.measure(item.value, valueStyle, maxLines = 1).size.width
-        val labelWidth = measurer.measure(item.label, labelStyle, maxLines = 1).size.width
+    val measured = values.map { item ->
+        val valueWidth = with(density) { measurer.measure(item.value, valueStyle, maxLines = 1).size.width.toDp().value }
+        val labelWidth = with(density) { measurer.measure(item.label, labelStyle, maxLines = 1).size.width.toDp().value }
         val icons = (if (item.valueIcon != null) 20f else 0f) + (if (item.badgeIcon != null) 14f else 0f)
-        with(density) { maxOf(valueWidth.toDp().value + icons, labelWidth.toDp().value) } + 8f
+        Triple(valueWidth + icons, labelWidth, icons)
     }
-    BoxWithConstraints(modifier.fillMaxWidth()) {
+    val intrinsic = measured.map { (value, label, _) -> maxOf(value, label) + 8f }
+    BoxWithConstraints(if (corner) modifier else modifier.fillMaxWidth()) {
+        if (corner) {
+            val widths = MonitorStatusCorner.widths(intrinsic.map { maxOf(44f, it) },
+                measured.map { (_, label, _) -> label + 8f }, maxWidth.value)
+            Row(horizontalArrangement = Arrangement.spacedBy(MonitorStatusCorner.TILE_SPACING.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                values.forEachIndexed { index, item ->
+                    // A narrowed tile scales its value (iOS minimumScaleFactor 0.65), never its caption.
+                    val room = widths[index] - 8f - measured[index].third
+                    val scale = (room / measured[index].first.coerceAtLeast(1f)).coerceIn(0.65f, 1f)
+                    MonitorCameraValueTile(item, Modifier.width(widths[index].dp).heightIn(min = 34.dp),
+                        valueStyle.copy(fontSize = valueStyle.fontSize * scale), labelStyle, enabled, owner,
+                        itemModifier, quickControl, onQuickCommit, quickPreview, notifyQuickActive,
+                        quickBottomClearanceDp, onHold, onOpen, fromTop = true)
+                }
+            }
+            return@BoxWithConstraints
+        }
         val rowWidth = maxWidth
         val columnCount = columns?.coerceIn(1, values.size.coerceAtLeast(1))
             ?: MonitorLayoutPolicy.valueColumns(values.size, portrait, tablet)
@@ -109,39 +134,52 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
                 Row(Modifier.then(if (grid) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()).widthIn(min = rowWidth)),
                     horizontalArrangement = Arrangement.spacedBy(gap.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.Bottom) {
                     row.forEachIndexed { column, item ->
-                        val renderPreview: (@Composable (MonitorQuickPreview, Float) -> Unit)? =
-                            if (quickPreview == null) null else { preview, maxHeight -> quickPreview(item.id, preview, maxHeight) }
-                        Column(Modifier.then(if (grid) Modifier.weight(1f) else Modifier.width(intrinsic[rowIndex * columnCount + column].dp))
-                            .heightIn(min = if (grid) 32.dp else 34.dp)
-                            .then(itemModifier(item.id))
-                            .background(if (item.selected) MonitorPalette.accent.copy(alpha = .14f) else Color.Transparent, RoundedCornerShape(8.dp))
-                            .monitorReadoutGesture(quickControl(item.id), enabled && item.enabled && (owner.owner == null || owner.owner == item.id),
-                                { onOpen(item.id) }, { source, value -> onQuickCommit(item.id, source, value) },
-                                quickBottomClearanceDp, owner, item.id,
-                                renderPreview, onPreviewBegin = { notifyQuickActive(true) }, onHold = onHold(item.id))
-                            .semantics {
-                                contentDescription = "${item.label} ${item.value}${item.annotation?.let { ", $it" }.orEmpty()}"
-                                if (!item.enabled) disabled()
-                            }
-                            .monitorReadoutShadow()
-                            .padding(horizontal = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
-                            val valueTint = if (item.selected) MonitorPalette.accent else MonitorPalette.text
-                            Row(Modifier.alpha(if (item.dimmed) MONITOR_DIMMED_VALUE_ALPHA else 1f),
-                                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                item.valueIcon?.let { MonitorIcon(it, null, Modifier.size(17.dp), valueTint) }
-                                Text(item.value, color = valueTint, style = valueStyle, maxLines = 1, softWrap = false)
-                                item.badgeIcon?.let { MonitorIcon(it, null, Modifier.size(11.dp), valueTint) }
-                            }
-                            Text(item.label, color = if (item.selected) MonitorPalette.accent else MonitorPalette.muted,
-                                style = labelStyle, maxLines = 1)
-                        }
+                        MonitorCameraValueTile(item,
+                            Modifier.then(if (grid) Modifier.weight(1f) else Modifier.width(intrinsic[rowIndex * columnCount + column].dp))
+                                .heightIn(min = if (grid) 32.dp else 34.dp),
+                            valueStyle, labelStyle, enabled, owner, itemModifier, quickControl, onQuickCommit,
+                            quickPreview, notifyQuickActive, quickBottomClearanceDp, onHold, onOpen, fromTop = false)
                     }
                     if (grid) repeat(columnCount - row.size) { Box(Modifier.weight(1f)) }
                 }
             }
         }
+    }
+}
+
+/** One camera value tile: the strip's and the status corner's, with the shared readout gesture. */
+@Composable
+private fun MonitorCameraValueTile(item: MonitorValue, sizing: Modifier, valueStyle: TextStyle, labelStyle: TextStyle,
+    enabled: Boolean, owner: MonitorQuickGestureOwner, itemModifier: (String) -> Modifier,
+    quickControl: (String) -> MonitorQuickControl?, onQuickCommit: (String, MonitorQuickControl, String) -> Unit,
+    quickPreview: (@Composable (String, MonitorQuickPreview, Float) -> Unit)?, notifyQuickActive: (Boolean) -> Unit,
+    quickBottomClearanceDp: Float, onHold: (String) -> (() -> Unit)?, onOpen: (String) -> Unit, fromTop: Boolean) {
+    val renderPreview: (@Composable (MonitorQuickPreview, Float) -> Unit)? =
+        if (quickPreview == null) null else { preview, maxHeight -> quickPreview(item.id, preview, maxHeight) }
+    Column(sizing
+        .then(itemModifier(item.id))
+        .background(if (item.selected) MonitorPalette.accent.copy(alpha = .14f) else Color.Transparent, RoundedCornerShape(8.dp))
+        .monitorReadoutGesture(quickControl(item.id), enabled && item.enabled && (owner.owner == null || owner.owner == item.id),
+            { onOpen(item.id) }, { source, value -> onQuickCommit(item.id, source, value) },
+            quickBottomClearanceDp, owner, item.id,
+            renderPreview, fromTop = fromTop, onPreviewBegin = { notifyQuickActive(true) }, onHold = onHold(item.id))
+        .semantics {
+            contentDescription = "${item.label} ${item.value}${item.annotation?.let { ", $it" }.orEmpty()}"
+            if (!item.enabled) disabled()
+        }
+        .monitorReadoutShadow()
+        .padding(horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
+        val valueTint = if (item.selected) MonitorPalette.accent else MonitorPalette.text
+        Row(Modifier.alpha(if (item.dimmed) MONITOR_DIMMED_VALUE_ALPHA else 1f),
+            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+            item.valueIcon?.let { MonitorIcon(it, null, Modifier.size(17.dp), valueTint) }
+            Text(item.value, color = valueTint, style = valueStyle, maxLines = 1, softWrap = false)
+            item.badgeIcon?.let { MonitorIcon(it, null, Modifier.size(11.dp), valueTint) }
+        }
+        Text(item.label, color = if (item.selected) MonitorPalette.accent else MonitorPalette.muted,
+            style = labelStyle, maxLines = 1)
     }
 }
 
@@ -219,11 +257,16 @@ fun MonitorPageHeading(title: String, kicker: String) {
     }
 }
 
+/**
+ * A page frame (Swift twin: `MonitorPage`). The optional [back] control sits beside the heading in
+ * portrait and in its own column before the navigation card in landscape, as on iOS.
+ */
 @Composable
 fun MonitorPageScaffold(
     modifier: Modifier = Modifier,
     navigationWidth: Float = MonitorPageLayoutPolicy.LANDSCAPE_NAV_WIDTH,
     heading: (@Composable () -> Unit)? = null,
+    back: (@Composable () -> Unit)? = null,
     navigation: @Composable (portrait: Boolean) -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -231,8 +274,10 @@ fun MonitorPageScaffold(
         val portrait = MonitorPageLayoutPolicy.portrait(maxWidth.value, maxHeight.value)
         val density = LocalDensity.current
         val landscapeNav = with(density) { navigationWidth.dp.toPx().roundToInt() }
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (!portrait && back != null) back()
         Layout(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
             content = {
                 Box(
                     Modifier.layoutId(MonitorPageLayoutPolicy.NAV)
@@ -244,7 +289,13 @@ fun MonitorPageScaffold(
                         if (portrait) Modifier.fillMaxWidth() else Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(9.dp),
                     ) {
-                        if (heading != null) {
+                        if (portrait && back != null) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                                back()
+                                if (heading != null) Box(Modifier.weight(1f)) { heading() }
+                            }
+                        } else if (heading != null) {
                             Box(Modifier.fillMaxWidth()) { heading() }
                         }
                         Box(
@@ -278,6 +329,7 @@ fun MonitorPageScaffold(
                 bodyPlaceable.place(pixels(slots.bodyX), pixels(slots.bodyY))
             }
         }
+        }
     }
 }
 
@@ -309,26 +361,6 @@ fun MonitorSettingsCard(title: String? = null, modifier: Modifier = Modifier, co
         if (!title.isNullOrBlank()) Text(title.uppercase(), color = MonitorPalette.muted,
             style = MonitorTypography.text(9f, FontWeight.SemiBold).copy(letterSpacing = 1.2.sp))
         content()
-    }
-}
-
-/** Bulk catalog actions are supplied by the adapter and remain capability gated. */
-@Composable
-fun MonitorSelectionTray(count: Int, modifier: Modifier = Modifier,
-    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp))
-        .background(MonitorPalette.accent.copy(alpha = .14f))
-        .border(1.dp, MonitorPalette.accent.copy(alpha = .3f), RoundedCornerShape(11.dp))
-        .padding(horizontal = 9.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        // The count keeps its full width (iOS: the label, then scrolling chips); on a narrow
-        // phone the actions scroll instead of cutting it to "2 sel...".
-        Text("$count selected", style = MonitorTypography.text(10.5f, FontWeight.SemiBold), maxLines = 1,
-            softWrap = false)
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-            Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)) { actions() }
-        }
     }
 }
 

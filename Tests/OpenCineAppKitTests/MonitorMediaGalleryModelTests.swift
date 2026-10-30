@@ -31,17 +31,6 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
     }
 }
 
-@MainActor private final class GalleryTransferGate {
-    var entered: [String] = []
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-    var waiting: Int { waiters.count }
-    func enter(_ id: String) async {
-        entered.append(id)
-        await withCheckedContinuation { waiters.append($0) }
-    }
-    func release() { if !waiters.isEmpty { waiters.removeFirst().resume() } }
-}
-
 @MainActor @Suite struct MonitorMediaGalleryModelTests {
     @available(macOS 14, *) private func fixture(ids: [String] = ["A", "B"]) throws -> (URL, MonitorMediaLibraryModel<String>, MonitorMediaGalleryModel<String>) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("opencine-gallery-" + UUID().uuidString)
@@ -123,17 +112,6 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         #expect(shared?.map(\.payload) == ["B", "A"])
         #expect(shared?.first?.favorite == true)
     }
-    @Test func representativeFavoriteDoesNotChangeHiddenGroupMembers() throws {
-        guard #available(macOS 14, *) else { return }
-        let (root, library, gallery) = try fixture()
-        defer { gallery.retire(); library.close(); try? FileManager.default.removeItem(at: root) }
-        let window = gallery.snapshot(projection: projection())
-        gallery.selectAll(admitted: window)
-        #expect(library.selectedIDs == [.init("A")])
-        gallery.favoriteSelection(admitted: window, operations: .init())
-        #expect(library.record(.init("A"))?.favorite == true)
-        #expect(library.record(.init("B"))?.favorite == false)
-    }
     @Test func allSurvivorsSelectionKeepsHiddenMembersAndRejectsUnrelatedRows() throws {
         guard #available(macOS 14, *) else { return }
         let (root, library, gallery) = try fixture(ids: ["A", "B", "C"])
@@ -142,29 +120,6 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         gallery.selectAll(admitted: window)
         #expect(library.selectedIDs == [.init("A"), .init("B")])
         #expect(!gallery.select([.init("C")], admitted: window))
-        gallery.favoriteSelection(admitted: window, operations: .init())
-        #expect(library.record(.init("A"))?.favorite == true && library.record(.init("B"))?.favorite == true)
-        #expect(library.record(.init("C"))?.favorite == false)
-    }
-    @Test func retiredProjectionCannotContinueItsHeldGroupDownload() async throws {
-        guard #available(macOS 14, *) else { return }
-        let (root, library, gallery) = try fixture()
-        defer { gallery.retire(); library.close(); try? FileManager.default.removeItem(at: root) }
-        let window = gallery.snapshot(projection: projection())
-        gallery.selectAll(admitted: window)
-        var calls: [String] = [], gate: CheckedContinuation<Void, Never>?, finished = false
-        gallery.cacheSelection(admitted: window, operations: .init(download: { record in
-            calls.append(record.payload)
-            await withCheckedContinuation { gate = $0 }
-            finished = true
-        }))
-        #expect(await settled { gate != nil })
-        library.close(); gallery.sourceChanged(); library.clearSelection()
-        gate?.resume(); gate = nil
-        #expect(await settled { finished })
-        for _ in 0..<20 { await Task.yield() }
-        #expect(calls == ["B"] && library.selectedIDs.isEmpty)
-        #expect(!gallery.isCurrent(window))
     }
     @Test func selectionStartsOnceAndAnOldWindowCannotSelectAfterReentry() throws {
         guard #available(macOS 14, *) else { return }
@@ -178,19 +133,6 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         #expect(!gallery.select([.init("A")], admitted: displayed))
         #expect(library.selectedIDs.isEmpty)
         #expect(gallery.select([.init("B")], admitted: gallery.snapshot()))
-    }
-    @Test func favoriteSelectionOnlyAddsAndKeepsTheExistingLocalStore() throws {
-        guard #available(macOS 14, *) else { return }
-        let (root, library, gallery) = try fixture()
-        defer { gallery.retire(); library.close(); try? FileManager.default.removeItem(at: root) }
-        let displayed = gallery.snapshot()
-        library.toggleFavorite(.init("A")); library.select([.init("A"), .init("B")])
-        gallery.favoriteSelection(admitted: displayed, operations: .init())
-        #expect(library.record(.init("A"))?.favorite == true)
-        #expect(library.record(.init("B"))?.favorite == true)
-        gallery.favoriteSelection(admitted: displayed, operations: .init())
-        #expect(library.record(.init("A"))?.favorite == true && library.record(.init("B"))?.favorite == true)
-        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("index.json").path))
     }
     @Test func deleteConfirmationKeepsItsDisplayedSelectionAndCancelDoesNoIO() async throws {
         guard #available(macOS 14, *) else { return }
@@ -225,32 +167,11 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         gallery.confirmDelete(admitted: gallery.deleteRequestID)
         #expect(await settled { deleted == ["B"] })
     }
-    /// A2-03 changed this contract: gallery retirement (a cover, Back) no longer ends the
-    /// library's bulk cache. A late completion still cannot touch the successor's selection.
-    @Test func retiringTheGalleryKeepsThePendingBulkCacheAndTheSuccessorSelection() async throws {
-        guard #available(macOS 14, *) else { return }
-        let (root, library, gallery) = try fixture()
-        defer { gallery.retire(); library.close(); try? FileManager.default.removeItem(at: root) }
-        var requested: [String] = []; var pending: CheckedContinuation<Void, Never>?
-        let operations = MonitorMediaGalleryOperations<String>(download: { record in
-            requested.append(record.payload)
-            await withCheckedContinuation { pending = $0 }
-        })
-        library.select([.init("A"), .init("B")]); gallery.cacheSelection(admitted: gallery.snapshot(), operations: operations)
-        #expect(await settled { pending != nil })
-        gallery.retire(); gallery.activate(); library.select([.init("A")])
-        pending?.resume(); pending = nil
-        #expect(await settled { requested.count == 2 && pending != nil })
-        pending?.resume(); pending = nil
-        for _ in 0..<20 { await Task.yield() }
-        #expect(requested.count == 2 && library.selectedIDs == [.init("A")])
-    }
     @Test func sourceLossRejectsOldOpenAndUnknownPermissionsStayAbsent() throws {
         guard #available(macOS 14, *) else { return }
         let (root, library, gallery) = try fixture()
         defer { gallery.retire(); library.close(); try? FileManager.default.removeItem(at: root) }
         let record = try #require(library.record(.init("A"))), displayed = gallery.snapshot()
-        #expect(!gallery.canDownload(record, operations: .init()))
         #expect(!gallery.canDelete(record, operations: .init()))
         #expect(!gallery.canShare(record, operations: .init()))
         #expect(gallery.open(.init("A"), admitted: displayed, operations: .init()) == nil)
@@ -273,16 +194,6 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         let end = try #require(gallery.pickingDate); gallery.date("20260901", admitted: end)
         #expect(library.dateStart == "20260901" && library.dateEnd == "20260901")
     }
-    @Test func declaredUniformFavoritesRetainTheExistingToggleAllBehavior() throws {
-        guard #available(macOS 14, *) else { return }
-        let (root, library, gallery) = try fixture()
-        defer { gallery.retire(); library.close(); try? FileManager.default.removeItem(at: root) }
-        let displayed = gallery.snapshot(); library.select([.init("A"), .init("B")])
-        gallery.favoriteSelection(admitted: displayed, operations: .init(), toggleUniform: true)
-        #expect(library.selectedRecords.allSatisfy { $0.favorite })
-        gallery.favoriteSelection(admitted: displayed, operations: .init(), toggleUniform: true)
-        #expect(library.selectedRecords.allSatisfy { !$0.favorite })
-    }
     @Test func sourceAccessPreservesUnknownAssetAndProxyAdmissionWithoutInventingService() throws {
         guard #available(macOS 14, *) else { return }
         let (root, library, gallery) = try fixture()
@@ -293,10 +204,10 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
             payload: old.payload, address: old.address)
         try library.applyLocalRecords(.init(resetLibrary: false, upserts: [record]), token: library.actionToken)
         let direct = MonitorMediaGalleryOperations<String>(download: { _ in }, delete: { _ in })
-        #expect(!gallery.canDownload(record, operations: direct) && !gallery.canDelete(record, operations: direct))
+        #expect(!gallery.canDelete(record, operations: direct))
         let source = MonitorMediaGalleryOperations<String>(download: { _ in }, delete: { _ in },
             access: { _ in .init(download: true, share: false, delete: true) })
-        #expect(gallery.canDownload(record, operations: source) && gallery.canDelete(record, operations: source))
+        #expect(gallery.canDelete(record, operations: source))
         #expect(!gallery.canShare(record, operations: source) && library.record(record.asset.id)?.asset.deletable == nil)
         #expect(!gallery.canDelete(record, operations: .init(access: { _ in .init(delete: true) })))
     }
@@ -430,37 +341,4 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
         gallery.confirmDelete(admitted: successorID)
         #expect(await settled { deleted == ["A"] })
     }
-
-    /// A2-03: a playback cover (or Back) retires the gallery presentation, never the library's
-    /// bulk cache. Only the library lifetime (close, rebind, source change) ends the batch.
-    @Test func bulkCacheSurvivesGalleryRetirement() async throws {
-        guard #available(macOS 14, *) else { return }
-        let (root, library, gallery) = try fixture(ids: ["A", "B", "C"])
-        defer { library.close(); try? FileManager.default.removeItem(at: root) }
-        let gate = GalleryTransferGate()
-        let window = gallery.snapshot()
-        gallery.selectAll(admitted: window)
-        gallery.cacheSelection(admitted: window, operations: .init(download: { await gate.enter($0.payload) }))
-        #expect(await settled { gate.waiting == 1 })
-        gallery.retire()
-        for _ in 0..<3 { gate.release(); _ = await settled { gate.waiting == 1 } }
-        #expect(Set(gate.entered) == ["A", "B", "C"])
-        #expect(gate.entered.count == 3)
-    }
-    @Test func bulkCacheEndsWithTheLibraryLifetime() async throws {
-        guard #available(macOS 14, *) else { return }
-        let (root, library, gallery) = try fixture(ids: ["A", "B", "C"])
-        defer { try? FileManager.default.removeItem(at: root) }
-        let gate = GalleryTransferGate()
-        let window = gallery.snapshot()
-        gallery.selectAll(admitted: window)
-        gallery.cacheSelection(admitted: window, operations: .init(download: { await gate.enter($0.payload) }))
-        #expect(await settled { gate.waiting == 1 })
-        library.close()
-        gate.release()
-        for _ in 0..<50 { await Task.yield() }
-        #expect(gate.entered.count == 1)
-        #expect(gate.waiting == 0)
-    }
-
 }

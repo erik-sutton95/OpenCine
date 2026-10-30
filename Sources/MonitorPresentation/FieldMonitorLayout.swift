@@ -320,10 +320,30 @@ public struct FieldMonitorLayout: Equatable, Sendable {
         return MonitorRect(x: x, y: reset.y, width: width, height: reset.height)
     }
 
-    public var aeUnlock: MonitorRect {
+    public var aeUnlock: MonitorRect { aeUnlock(motionCluster: true) }
+
+    /// The recenter key for a camera with or without a motion cluster (gimbal stick and zoom
+    /// chip). With one, `focusReset` keeps the key beside the cluster. Without one nothing takes
+    /// the feed's trailing bottom corner, so the key moves into it: just inside the picture,
+    /// above the camera values and clear of the rail (owner request, hardware pass 2026-10-30).
+    /// Mirrors Kotlin `MonitorFieldLayout.focusReset(motionCluster)`.
+    public func focusReset(motionCluster: Bool) -> MonitorRect {
+        guard !motionCluster else { return focusReset }
+        let inset = 8.0
+        let right = min(picture.maxX - inset, stick.maxX)
+        let bottom = min(picture.maxY - inset, stick.maxY)
+        return MonitorRect(
+            x: right - focusReset.width, y: bottom - focusReset.height,
+            width: focusReset.width, height: focusReset.height)
+    }
+
+    /// The AE unlock capsule beside the recenter key `focusReset(motionCluster:)` places. In the
+    /// corner it sits on the key's centre side in either orientation: with no joystick to clear,
+    /// portrait needs no mirrored placement.
+    public func aeUnlock(motionCluster: Bool) -> MonitorRect {
         Self.aeUnlock(
-            focusReset: focusReset, leadingColumnMaxX: assists.maxX, pictureMidX: picture.midX,
-            portrait: portrait)
+            focusReset: focusReset(motionCluster: motionCluster), leadingColumnMaxX: assists.maxX,
+            pictureMidX: picture.midX, portrait: portrait && motionCluster)
     }
 
     /// The widest an app's own status badge may draw.

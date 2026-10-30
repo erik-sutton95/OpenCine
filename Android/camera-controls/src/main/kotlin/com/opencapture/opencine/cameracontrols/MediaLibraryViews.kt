@@ -163,38 +163,16 @@ internal fun selectionDeleteDescription(count: Int, enabled: Boolean): String =
 internal fun selectionShareDescription(count: Int): String =
     "Share $count selected ${if (count == 1) "item" else "items"}"
 
+/** The shared selection bar with this library's labels and haptics (iOS: the same bar in `MonitorMediaCatalog`). */
 @Composable
-fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean,
-    onAll: () -> Unit, onClear: () -> Unit, onCache: () -> Unit, onStar: () -> Unit,
-    onDelete: () -> Unit, onShare: () -> Unit, shareEnabled: Boolean = true) {
-    com.opencapture.monitorui.MonitorSelectionTray(count) {
-        TrayTextChip(MonitorIcon.CIRCLE_CHECK, "All", "Select all", LiveDesign.accent, onAll)
-        TrayTextChip(MonitorIcon.X, "Clear", "Clear selection", LiveDesign.muted, onClear)
-        MediaCircleIconButton(MonitorIcon.DOWNLOAD, "Cache selected clips", onCache, enabled = cacheEnabled, size = 34.dp)
-        MediaCircleIconButton(MonitorIcon.STAR, "Favorite selected clips", onStar, enabled = count > 0, size = 34.dp)
-        MediaCircleIconButton(MonitorIcon.TRASH, selectionDeleteDescription(count, deleteEnabled), onDelete,
-            enabled = deleteEnabled, size = 34.dp)
-        if (shareEnabled) MediaCircleIconButton(MonitorIcon.SHARE, selectionShareDescription(count), onShare,
-            enabled = count > 0, size = 34.dp)
-    }
-}
-
-/**
- * One button to TalkBack, announced by [contentDescription] alone (iOS: one "Clear selection" button):
- * the visible [label] and glyph are its drawing, not separate nodes read after it. The click stays the
- * clickable's own, so TalkBack's ACTION_CLICK runs the same handler as a tap.
- */
-@Composable
-private fun TrayTextChip(icon: MonitorIcon, label: String, contentDescription: String, tint: Color, onClick: () -> Unit) {
-    Row(Modifier.height(34.dp).chromeClickable(onClick = onClick)
-        .semantics(mergeDescendants = true) {
-            this.contentDescription = contentDescription
-            role = Role.Button
-        }.padding(horizontal = 7.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        MonitorIcon(icon, null, Modifier.size(13.dp), tint)
-        Text(label, Modifier.clearAndSetSemantics {}, color = tint, style = LiveType.ui(11f, FontWeight.SemiBold))
-    }
+fun MediaSelectionTray(count: Int, deleteEnabled: Boolean,
+    onAll: () -> Unit, onExit: () -> Unit, onDelete: () -> Unit, onShare: () -> Unit,
+    shareEnabled: Boolean = true) {
+    val haptics = LocalOperatorHaptics.current
+    com.opencapture.monitorui.MonitorSelectionTray(count, onExit = onExit, onAll = onAll, onShare = onShare,
+        onDelete = onDelete, shareEnabled = shareEnabled && count > 0, deleteEnabled = deleteEnabled,
+        shareLabel = selectionShareDescription(count), deleteLabel = selectionDeleteDescription(count, deleteEnabled),
+        onClickFeedback = { haptics.selection() })
 }
 
 @Composable
@@ -513,7 +491,6 @@ class MediaLibraryPageState(
     val filterOpen: Boolean,
     val activeFilterCount: Int,
     val selectedCount: Int,
-    val cacheEnabled: Boolean,
     val deleteEnabled: Boolean,
     /** The clip being cached (file name, progress), read where the cache bar draws. */
     val caching: () -> Pair<String, Double>?,
@@ -546,9 +523,8 @@ interface MediaLibraryPageActions {
     fun cycleSort()
     fun toggleFilter()
     fun selectAll()
+    /** Leaves selection mode with nothing selected (the selection bar's Close). */
     fun clearSelection()
-    fun cacheSelected()
-    fun favoriteSelected()
     fun deleteSelected()
     fun shareSelected()
     fun toggleFormat(format: String)
@@ -568,9 +544,9 @@ interface MediaLibraryPageActions {
 /**
  * The media library page: heading, category rail or strip, display controls, header, cache bar, the app's
  * [gallery], the selection tray and the filter popup; [overlays] (player, photo viewer, delivery, confirms)
- * draw above it. [close] is the page's own Close (`monitor.page.back`), placed like everything else on the
- * page inside the system bars and beside the display cutout (Swift twin: `MonitorPage`'s back button over
- * the resolved safe area); in landscape the content keeps a column free for it.
+ * draw above it. [close] is the page's own Back (`monitor.page.back`, a chevron as in Swift `MonitorPage`):
+ * beside the heading in portrait, in its own column before the navigation in landscape, inside the system
+ * bars and beside the display cutout.
  */
 @Composable
 fun MediaLibraryPage(
@@ -600,9 +576,12 @@ fun MediaLibraryPage(
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val portrait = maxHeight > maxWidth
             com.opencapture.monitorui.MonitorPageScaffold(
-                modifier = Modifier.windowInsetsPadding(safe).padding(horizontal = 12.dp, vertical = 10.dp)
-                    .padding(end = if (close != null && !portrait) MEDIA_PAGE_CLOSE_SLOT else 0.dp),
+                modifier = Modifier.windowInsetsPadding(safe).padding(horizontal = 12.dp, vertical = 10.dp),
                 navigationWidth = 206f,
+                back = close?.let { onClose ->
+                    { MonitorChromeButton(MonitorIcon.CHEVRON_LEFT, "Back", Modifier.testTag("monitor.page.back"),
+                        onClick = onClose) }
+                },
                 heading = {
                     com.opencapture.monitorui.MonitorPageHeading("Media", state.cameraName)
                 },
@@ -638,11 +617,8 @@ fun MediaLibraryPage(
                     state.caching()?.let { (name, progress) -> MediaCacheBar(name, progress) }
                     Box(Modifier.weight(1f).fillMaxWidth()) { gallery() }
                     if (state.isSelecting) MediaSelectionTray(state.selectedCount,
-                        cacheEnabled = state.cacheEnabled,
                         deleteEnabled = state.deleteEnabled,
-                        onAll = actions::selectAll, onClear = actions::clearSelection,
-                        onCache = actions::cacheSelected,
-                        onStar = actions::favoriteSelected,
+                        onAll = actions::selectAll, onExit = actions::clearSelection,
                         onDelete = actions::deleteSelected,
                         onShare = actions::shareSelected,
                         shareEnabled = state.shareEnabled,
@@ -689,13 +665,6 @@ fun MediaLibraryPage(
             )
         }
 
-        close?.let { onClose ->
-            MediaCloseButton(onClose, Modifier.align(Alignment.TopEnd).windowInsetsPadding(safe).padding(8.dp)
-                .testTag("monitor.page.back"))
-        }
         overlays()
     }
 }
-
-/** The landscape column the page keeps free for its Close: the button and its 8 dp margin, past the 12 dp page margin. */
-private val MEDIA_PAGE_CLOSE_SLOT = 37.dp + 8.dp

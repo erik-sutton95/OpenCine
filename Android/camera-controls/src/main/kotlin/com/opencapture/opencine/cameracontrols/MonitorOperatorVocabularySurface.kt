@@ -163,6 +163,9 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val status = chrome.status
     val capabilities = chrome.capabilities
     val controls = chrome.capture.host.captureSessionState(status).controlCapabilities
+    // A camera known to have no gimbal has no motion cluster: its recenter key takes the feed's
+    // trailing bottom corner (Swift `motionCluster`). Unknown keeps the cluster's place.
+    val motionCluster = controls.gimbal.support != com.opencapture.opencine.core.SupportStatus.UNSUPPORTED
     val session = chrome.session
     val assist = session.assist
     val locked = session.locked
@@ -214,7 +217,7 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
                 MonitorOperatorTrackingCancelButton(subject.box, layout.onFeed.width, layout.onFeed.height,
                     mirrored, assist.flipsVertically, focusActions.cancelTracking)
             }
-            if (enabled && !locked && interactive && focus.aeLocked) Box(Modifier.operatorFrame(layout.aeUnlock).zIndex(3f)) {
+            if (enabled && !locked && interactive && focus.aeLocked) Box(Modifier.operatorFrame(layout.aeUnlock(motionCluster)).zIndex(3f)) {
                 LiveAutoExposureUnlockButton(onClick = focusActions.unlockAE)
             }
         }, motion = MonitorOperatorMotionViews(controls = { enabled ->
@@ -225,7 +228,8 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
                 chrome.host.liveGimbalPanel == LiveGimbalPanel.SHEET && !locked)
                 LiveGimbalSheetHost(chrome.host, layout, layout.gimbalCluster(true), layout.safeLeading, layout.safeTrailing,
                     layout.safeTop, layout.safeBottom)
-        }), resetFocus = if (focus.resetAvailable) MonitorOperatorFocusReset("Recenter focus", true, false, focusActions.reset) else null)
+        }), resetFocus = if (focus.resetAvailable) MonitorOperatorFocusReset("Recenter focus", true, false, focusActions.reset) else null,
+        motionCluster = motionCluster)
     MonitorOperatorLiveSurface(chrome.capture.control, session, geometry, source,
         MonitorOperatorLiveAssists(assists, palette, tools.toSet(), status.monitorTransfer, MonitorOperatorSignalOptions(),
             usage, { usage = it; usageStore.value = it }, MONITOR_OPERATOR_USAGE_SEED),
