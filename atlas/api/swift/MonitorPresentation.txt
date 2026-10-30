@@ -311,6 +311,7 @@ enum StartupReadyLiveViewPolicy
 extension OpenCineMedia.MonitorFrameEffects
 func FieldMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> MonitorRect
 func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
+func FieldMonitorLayout.scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea
 func GimbalCluster.offsetBy(dx: Swift.Double, dy: Swift.Double) -> GimbalCluster
 func MonitorAssistCapabilities.isPhotographyOnly(_: MonitorAssistSelection) -> Swift.Bool
 func MonitorAssistCapabilities.offers(_: MonitorAssistSelection, photography: Swift.Bool) -> Swift.Bool

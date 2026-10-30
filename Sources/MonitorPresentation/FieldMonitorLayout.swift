@@ -299,6 +299,19 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             y: portrait ? assists.y - 48 : stick.maxY - 40, width: 40, height: 40)
     }
 
+    /// How far the floating scope panels keep from each viewport edge: the safe area on every
+    /// side and, in portrait, the system band below the camera values. Fit and fill share it, so
+    /// scopes float in both. A panel reaches the trailing edge as it reaches the leading one; the
+    /// side rail draws above it and keeps its touches (owner hardware pass 2026-10-30: clearing
+    /// the paired tablet Settings and Media keys stopped panels about 140 pt short of the edge).
+    /// Mirrors Kotlin `monitorOperatorLiveLayout` and `monitorOperatorFieldLayout` placement.
+    public func scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea {
+        MonitorSafeArea(
+            top: max(0, safeArea.top), leading: max(0, safeArea.leading),
+            bottom: portrait ? max(0, viewport.height - system.y) : 0,
+            trailing: max(0, safeArea.trailing))
+    }
+
     /// Landscape camera values sit above the home indicator instead of overlapping it.
     public static func landscapeBottomClearance(safeBottom: Double) -> Double {
         safeBottom > 0 ? max(safeBottom, 14) + 10 : 8

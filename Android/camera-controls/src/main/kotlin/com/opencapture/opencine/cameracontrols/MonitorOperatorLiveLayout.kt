@@ -17,7 +17,11 @@ public data class MonitorOperatorViewport(public val width: Float, public val he
     public val leading: Float, public val trailing: Float, public val top: Float, public val bottom: Float,
     public val chromeScale: Float, public val hasDisplayCutout: Boolean)
 
-/** Picture framing and scope clearance are common policy; app adapters supply window and decoder facts. */
+/**
+ * Picture framing and scope clearance are common policy; app adapters supply window and decoder facts. Scopes
+ * reach the trailing edge as they reach the leading one; the side rail draws above them and keeps its touches
+ * (owner hardware pass 2026-10-30). Swift twin: `FieldMonitorLayout.scopeClearance(safeArea:)`.
+ */
 public fun monitorOperatorLiveLayout(viewport: MonitorOperatorViewport, assist: MonitorAssistState,
     mounts: (MonitorDisplaySection) -> Boolean, portraitAspect: PortraitFeedAspect,
     pictureAspect: Float, verticalPicture: Boolean, joystick: MonitorJoystickSize,
@@ -48,9 +52,8 @@ public fun monitorOperatorLiveLayout(viewport: MonitorOperatorViewport, assist: 
         scopeBottom = if (layout.capture.height > 1f) layout.capture.y else zones.systemBar.minY
         if (fill && showsToolbar) scopeLeft = maxOf(scopeLeft,
             layout.feed.minX + LivePortraitMetrics.ASSIST_RAIL_EDGE + LivePortraitMetrics.ASSIST_RAIL_EXPANDED)
-    } else {
-        scopeRight = minOf(scopeRight, layout.settings.minX - 6f)
-        if (focusResetAvailable) scopeTop = maxOf(scopeTop, layout.focusReset.maxY)
+    } else if (focusResetAvailable) {
+        scopeTop = maxOf(scopeTop, layout.focusReset.maxY)
     }
     val placement = MonitorRect(scopeLeft, scopeTop, maxOf(0f, scopeRight - scopeLeft),
         maxOf(0f, minOf(scopeBottom, layout.viewportHeight) - scopeTop))
@@ -61,7 +64,7 @@ public fun monitorOperatorLiveLayout(viewport: MonitorOperatorViewport, assist: 
  * The field-monitor entry for a source laid out by [LiveMonitorLayout.fieldMonitor] in both orientations, as the
  * Swift field-monitor shell lays out. Portrait fill yields to de-squeeze; a vertical picture always fills. [portraitAspect] is
  * null when the source offers no fit/fill choice now (fit). Scopes float clear of the system band in portrait and
- * of the side rail in landscape, as the Swift surface clears them.
+ * reach both side edges in either orientation, as the Swift surface places them.
  */
 public fun monitorOperatorFieldLayout(viewport: MonitorOperatorViewport, assist: MonitorAssistState,
     mounts: (MonitorDisplaySection) -> Boolean, portraitAspect: PortraitFeedAspect?, pictureAspect: Float,
@@ -77,7 +80,7 @@ public fun monitorOperatorFieldLayout(viewport: MonitorOperatorViewport, assist:
         valueCount = valueCount)
     val field = checkNotNull(layout.field)
     val picture = if (desqueezed) layout.onFeed.fittedContent(assist.presentedAspect(pictureAspect)) else layout.onFeed
-    val right = if (field.portrait) viewport.width - viewport.trailing else field.settings.x - 6f
+    val right = viewport.width - viewport.trailing
     val floor = if (field.portrait) field.system.y else viewport.height
     val placement = MonitorRect(viewport.leading, viewport.top, maxOf(0f, right - viewport.leading),
         maxOf(0f, floor - viewport.top))

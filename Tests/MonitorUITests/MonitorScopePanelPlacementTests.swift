@@ -5,6 +5,42 @@
     import XCTest
 
     final class MonitorScopePanelPlacementTests: XCTestCase {
+        /// A waveform dragged past either side ends flush with that edge: the same padding from
+        /// the trailing edge as from the leading one, on an 11-inch iPad and a phone, in both
+        /// orientations, fit and fill (owner hardware pass 2026-10-30).
+        func testScopeDraggedToEitherSideEndsFlushWithThatEdge() {
+            let devices: [(CGFloat, CGFloat, MonitorSafeArea)] = [
+                (1210, 834, MonitorSafeArea(top: 24, bottom: 20)),
+                (834, 1210, MonitorSafeArea(top: 24, bottom: 20)),
+                (874, 402, MonitorSafeArea(leading: 62, bottom: 21, trailing: 62)),
+                (402, 874, MonitorSafeArea(top: 62, bottom: 34)),
+            ]
+            for (width, height, safe) in devices {
+                for fill in [false, true] {
+                    let layout = FieldMonitorLayout(
+                        width: Double(width), height: Double(height), safeArea: safe, fill: fill)
+                    let inset = layout.scopeClearance(safeArea: safe)
+                    let canvas = CGRect(x: 0, y: 0, width: width, height: height)
+                    let bounds = MonitorScopePanelPlacement.bounds(
+                        in: canvas,
+                        clearance: EdgeInsets(
+                            top: inset.top, leading: inset.leading, bottom: inset.bottom,
+                            trailing: inset.trailing))
+                    let size = MonitorScopePanelPlacement.fittedSize(MonitorScopePanelSize.waveform, in: bounds)
+                    let right = MonitorScopePanelPlacement.clamp(
+                        CGPoint(x: width * 10, y: canvas.midY), size: size, in: bounds)
+                    let left = MonitorScopePanelPlacement.clamp(
+                        CGPoint(x: -width * 10, y: canvas.midY), size: size, in: bounds)
+                    let label = "\(width)x\(height) fill \(fill)"
+                    XCTAssertEqual(
+                        canvas.maxX - CGFloat(safe.trailing) - (right.x + size.width / 2),
+                        MonitorScopePanelPlacement.padding, label)
+                    XCTAssertEqual(
+                        left.x - size.width / 2 - CGFloat(safe.leading),
+                        MonitorScopePanelPlacement.padding, label)
+                }
+            }
+        }
         func testFixedPanelUsesItsWholeBodyWithoutAnInvisibleResizeWell() {
             let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
             let panel = MonitorScopePanelLayout(baseSize: bounds.size, preferredSize: bounds.size,

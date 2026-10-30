@@ -967,10 +967,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         if let assistSource, let stores {
         let canvas = CGRect(x: 0, y: 0, width: layout.viewport.width, height: layout.viewport.height)
         let feed = CGRect(x: layout.picture.x, y: layout.picture.y, width: layout.picture.width, height: layout.picture.height)
-        let floor = layout.portrait ? layout.system.y : layout.viewport.height
-        let right = layout.portrait ? layout.viewport.width - safeArea.trailing : layout.settings.x - 6
-        let clearance = EdgeInsets(top: safeArea.top, leading: safeArea.leading,
-            bottom: max(0, layout.viewport.height - floor), trailing: max(0, layout.viewport.width - right))
+        let inset = layout.scopeClearance(safeArea: safeArea)
+        let clearance = EdgeInsets(top: inset.top, leading: inset.leading, bottom: inset.bottom, trailing: inset.trailing)
         if layout.portrait && !layout.fillsPicture && !facts.fitted.isEmpty {
                 let room = max(0, layout.values.y - layout.picture.maxY - 32)
                 MonitorScopeFitStack(tools: facts.fitted, assist: assist, stores: stores, haptics: assistSource.haptics,

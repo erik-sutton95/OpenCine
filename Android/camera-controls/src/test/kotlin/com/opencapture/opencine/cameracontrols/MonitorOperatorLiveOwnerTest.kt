@@ -4,6 +4,10 @@ import androidx.compose.runtime.Composable
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorJoystickSize
 import com.opencapture.monitorui.MonitorRect
+import com.opencapture.monitorui.MonitorScopePanelMath
+import com.opencapture.monitorui.MonitorScopePanelSize
+import com.opencapture.monitorui.MonitorScopePoint
+import com.opencapture.monitorui.MonitorScopeRect
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorCaptureField
 import com.opencapture.opencine.appkit.MonitorCapturePreferences
@@ -293,20 +297,57 @@ class MonitorOperatorLiveOwnerTest {
         assertTrue(desqueezed.pictureContent.height < fit.pictureContent.height)
     }
 
-    @Test fun landscapeScopesClearRealResetAndSystemControlsWhileVerticalPicturesRemainPillarboxed() {
+    @Test fun landscapeScopesClearRealResetAndReachTheTrailingEdgeWhileVerticalPicturesRemainPillarboxed() {
         val assist = MonitorAssistState()
         val viewport = MonitorOperatorViewport(844f, 390f, 47f, 0f, 0f, 0f, 1f, true)
         val ordinary = monitorOperatorLiveLayout(viewport, assist, { true }, PortraitFeedAspect.FIT_16X9,
             16f / 9f, false, MonitorJoystickSize.MEDIUM, false)
         val reset = monitorOperatorLiveLayout(viewport, assist, { true }, PortraitFeedAspect.FIT_16X9,
             16f / 9f, false, MonitorJoystickSize.MEDIUM, true)
-        assertEquals(ordinary.layout.settings.minX - 6f, ordinary.scopePlacement.maxX)
+        assertEquals(viewport.width - viewport.trailing, ordinary.scopePlacement.maxX)
         assertTrue(reset.scopePlacement.minY >= reset.layout.focusReset.maxY)
         assertTrue(reset.scopePlacement.minY > ordinary.scopePlacement.minY)
         val vertical = monitorOperatorLiveLayout(viewport.copy(width = 390f, height = 844f), assist,
             { true }, PortraitFeedAspect.FILL, 9f / 16f, true, MonitorJoystickSize.MEDIUM, false)
         assertEquals(9f / 16f, vertical.pictureContent.width / vertical.pictureContent.height, 0.0001f)
         assertEquals(195f, vertical.pictureContent.midX)
+    }
+
+    /**
+     * A waveform dragged past either side ends flush with that edge, the same padding from the trailing edge as
+     * from the leading one, on an 11-inch tablet and a phone, in both orientations, fit and fill, through both
+     * field-monitor entries (owner hardware pass 2026-10-30). Same table as Swift `FieldMonitorLayoutTests`.
+     */
+    @Test fun scopeDraggedToEitherSideEndsFlushWithThatEdge() {
+        val devices = listOf(
+            MonitorOperatorViewport(1210f, 834f, 0f, 0f, 24f, 20f, 1f, false),
+            MonitorOperatorViewport(834f, 1210f, 0f, 0f, 24f, 20f, 1f, false),
+            MonitorOperatorViewport(874f, 402f, 62f, 62f, 0f, 21f, 1f, true),
+            MonitorOperatorViewport(402f, 874f, 0f, 0f, 62f, 34f, 1f, true),
+        )
+        val assist = MonitorAssistState()
+        val padding = 8f
+        for (viewport in devices) for (aspect in PortraitFeedAspect.entries) {
+            val placements = listOf(
+                monitorOperatorLiveLayout(viewport, assist, { true }, aspect, 16f / 9f, false,
+                    MonitorJoystickSize.MEDIUM, false).scopePlacement,
+                monitorOperatorFieldLayout(viewport, assist, { true }, aspect, 16f / 9f, false).scopePlacement)
+            for (placement in placements) {
+                val movement = MonitorScopeRect(placement.x + padding, placement.y + padding,
+                    placement.width - 2 * padding, placement.height - 2 * padding)
+                val size = MonitorScopePanelMath.panelSize(MonitorScopePanelSize.waveform, 1.0)
+                val grip = MonitorScopePanelMath.GRIP_EXTERIOR_DP
+                val right = MonitorScopePanelMath.clampWithGrip(
+                    MonitorScopePoint(viewport.width * 10f, movement.midY), size, movement, grip)
+                val left = MonitorScopePanelMath.clampWithGrip(
+                    MonitorScopePoint(-viewport.width * 10f, movement.midY), size, movement, grip)
+                val label = "${viewport.width}x${viewport.height} $aspect"
+                assertEquals(padding, viewport.width - viewport.trailing - (right.x + size.width / 2f), 0.01f, label)
+                if (viewport.width > viewport.height) {
+                    assertEquals(padding, left.x - size.width / 2f - viewport.leading, 0.01f, label)
+                }
+            }
+        }
     }
 
     private class Reports : CaptureSheetHost {
