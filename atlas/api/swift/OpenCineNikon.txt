@@ -1753,6 +1753,7 @@ static func NativeCameraSession.establish(transport: any CameraTransport, host: 
 static func NativeCameraSession.isBusyEstablishFailure(_: any Swift.Error) -> Swift.Bool
 static func NativeCameraSession.isRetryableEstablishFailure(_: any Swift.Error, requestPairing: Swift.Bool) -> Swift.Bool
 static func NativeCameraSessionError.isCameraRefusal(_: any Swift.Error) -> Swift.Bool
+static func NativeCameraSessionError.isLinkFailure(_: any Swift.Error) -> Swift.Bool
 static func NikonAppleGalleryProjectionPolicy.compare(_: NikonGallerySourceItem, _: NikonGallerySourceItem, sort: OpenCineMedia.MonitorMediaProjectionSort) -> Foundation.ComparisonResult
 static func NikonAppleNetworkInterfaces.currentScanSubnetLabel() -> Swift.String?
 static func NikonAppleNetworkInterfaces.hotspotSubnetBases() -> [Swift.String]

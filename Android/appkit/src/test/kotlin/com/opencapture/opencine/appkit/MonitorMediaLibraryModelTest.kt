@@ -248,6 +248,92 @@ class MonitorMediaLibraryModelTest {
             assertTrue(model.state.value.transferring.isEmpty() && model.state.value.progress.isEmpty())
         } finally { model.dispose(); fixture.root.deleteRecursively() }
     }
+    @Test fun shareJoinsTheOriginalCacheThePlayerLeftRunning() = runTest {
+        // Owner hardware report 2026-10-28: leaving the player keeps its original cache running,
+        // and Share of that clip then failed with "couldn't cache". Share joins the transfer.
+        val source = LibraryTransfer()
+        val browse = LibraryBrowse(mutableListOf(LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("take")), complete = true)))))
+        browse.transfers = source
+        val fixture = fixture(LibraryService(browse), backgroundScope); val model = fixture.model
+        try {
+            model.begin(); runCurrent()
+            val player = backgroundScope.async { model.cacheOriginal(MediaAssetID("take")) }
+            runCurrent(); assertEquals(1, source.pending.size)
+            val share = backgroundScope.async { runCatching { model.cacheOriginal(MediaAssetID("take")) } }
+            runCurrent(); source.release(0); runCurrent()
+            val shared = share.await().getOrThrow()
+            assertContentEquals(byteArrayOf(1, 2), shared.readBytes())
+            assertEquals(player.await(), shared)
+            assertEquals(1, source.calls, "the clip is read from the camera once")
+            assertTrue(model.state.value.transferring.isEmpty() && model.state.value.progress.isEmpty())
+        } finally { model.dispose(); fixture.root.deleteRecursively() }
+    }
+    @Test fun shareAfterThePlayerCancelledItsOriginalCacheCachesTheClip() = runTest {
+        // The same report when the player's cache was cancelled and its transport is still
+        // finishing a chunk: Share must not fail on the cancelled owner, it caches the clip.
+        val source = LibraryTransfer()
+        val browse = LibraryBrowse(mutableListOf(LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("take")), complete = true)))))
+        browse.transfers = source
+        val fixture = fixture(LibraryService(browse), backgroundScope); val model = fixture.model
+        try {
+            model.begin(); runCurrent()
+            val player = backgroundScope.async { model.cacheOriginal(MediaAssetID("take")) }
+            runCurrent(); assertEquals(1, source.pending.size)
+            player.cancel()
+            val share = backgroundScope.async { runCatching { model.cacheOriginal(MediaAssetID("take")) } }
+            runCurrent(); source.release(0); runCurrent()
+            assertTrue(player.isCancelled)
+            assertEquals(2, source.pending.size)
+            source.release(1); runCurrent()
+            assertContentEquals(byteArrayOf(3, 4), share.await().getOrThrow().readBytes())
+            assertNotNull(model.state.value.entries[MediaAssetID("take")]?.original)
+            assertTrue(model.state.value.transferring.isEmpty() && model.state.value.progress.isEmpty())
+        } finally { model.dispose(); fixture.root.deleteRecursively() }
+    }
+    @Test fun shareDoesNotTakeAJoinedFileTheCatalogMovedMeanwhile() = runTest {
+        // A joined file is returned only while it is still the current record's original: a
+        // catalog amendment that moved the original's address while the transfer ran makes Share cache it.
+        val source = LibraryTransfer()
+        val browse = LibraryBrowse(mutableListOf(LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("take")), complete = true)))))
+        browse.transfers = source
+        val fixture = fixture(LibraryService(browse), backgroundScope); val model = fixture.model
+        try {
+            model.begin(); runCurrent()
+            val player = backgroundScope.async { runCatching { model.cacheOriginal(MediaAssetID("take")) } }
+            runCurrent(); assertEquals(1, source.pending.size)
+            val share = backgroundScope.async { runCatching { model.cacheOriginal(MediaAssetID("take")) } }
+            runCurrent()
+            val moved = MonitorMediaRecord(asset("take"), "take.mov", MonitorMediaCacheAddress("thumbs/take.mov",
+                mapOf(MediaRepresentationID("take-original") to "files/moved.mov"), "take.mov"),
+                facts = MonitorMediaFilterFacts(format = "mov", dateKey = "20261003", orderKey = "take.mov"))
+            model.applyLocalRecords(MonitorMediaCatalogCapture(resetLibrary = false, upserts = emptyList(), amendments = listOf(moved)), model.actionToken)
+            source.release(0); runCurrent(); player.await()
+            assertEquals(2, source.pending.size)
+            source.release(1); runCurrent()
+            val shared = share.await().getOrThrow()
+            assertEquals("moved.mov", shared.name)
+            assertContentEquals(byteArrayOf(3, 4), shared.readBytes())
+        } finally { model.dispose(); fixture.root.deleteRecursively() }
+    }
+    @Test fun cancelledShareStopsWaitingWithoutCancellingThePlayerCache() = runTest {
+        val source = LibraryTransfer()
+        val browse = LibraryBrowse(mutableListOf(LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("take")), complete = true)))))
+        browse.transfers = source
+        val fixture = fixture(LibraryService(browse), backgroundScope); val model = fixture.model
+        try {
+            model.begin(); runCurrent()
+            val player = backgroundScope.async { model.cacheOriginal(MediaAssetID("take")) }
+            runCurrent(); assertEquals(1, source.pending.size)
+            val share = backgroundScope.async { model.cacheOriginal(MediaAssetID("take")) }
+            runCurrent(); assertTrue(share.isActive)
+            share.cancel(); runCurrent()
+            assertTrue(share.isCancelled)
+            assertEquals(setOf(MediaAssetID("take")), model.state.value.transferring)
+            source.release(0); runCurrent()
+            assertContentEquals(byteArrayOf(1, 2), player.await().readBytes())
+            assertEquals(1, source.calls)
+        } finally { model.dispose(); fixture.root.deleteRecursively() }
+    }
     @Test fun replacementDropsOldPageBeforeCodecAndClosesOldBrowse() = runTest {
         val old = LibraryCursor(held = true); val oldBrowse = LibraryBrowse(mutableListOf(old))
         val fixture = fixture(LibraryService(oldBrowse), backgroundScope); val model = fixture.model

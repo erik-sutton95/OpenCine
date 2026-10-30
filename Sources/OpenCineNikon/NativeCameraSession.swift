@@ -177,12 +177,20 @@
                 onLiveViewObject: onLiveViewObject
             )
             do {
-                return try await session.openAndIdentify(
-                    requestPairing: requestPairing,
-                    onPairingChallenge: onPairingChallenge,
-                    onStage: { onEstablishmentDiagnostic?("stage:\($0)") },
-                    onConnectTrace: { onEstablishmentDiagnostic?("connect.gate \($0)") }
-                )
+                return try await withTaskCancellationHandler {
+                    try await session.openAndIdentify(
+                        requestPairing: requestPairing,
+                        onPairingChallenge: onPairingChallenge,
+                        onStage: { onEstablishmentDiagnostic?("stage:\($0)") },
+                        onConnectTrace: { onEstablishmentDiagnostic?("connect.gate \($0)") }
+                    )
+                } onCancel: {
+                    // A started PTP-IP transaction outlives its caller's cancellation, so an
+                    // abandoned Wi-Fi establishment lets go of the body here, at once: a retry must
+                    // never open a second command channel to a one-initiator body while this one
+                    // still waits on its OpenSession reply (audit H4). USB keeps ICC's own lifetime.
+                    (transport as? PTPIPTransport)?.interrupt()
+                }
             } catch {
                 if !session.establishmentSummary.isEmpty {
                     onEstablishmentDiagnostic?(session.establishmentSummary)

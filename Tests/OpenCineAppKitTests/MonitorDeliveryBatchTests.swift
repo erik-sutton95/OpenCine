@@ -91,6 +91,24 @@ import Testing
         guard case .failed(let message) = outcome else { Issue.record("Missing native failure"); return }
         #expect(message == "native failed" && facts.calls == ["prepare 1", "prepare 2"])
     }
+    /// Owner report 2026-10-29: a camera that stops answering mid-cache is named as such; a
+    /// clip that simply could not be cached keeps the connection advice.
+    @Test func cacheFailureSaysWhenTheCameraStoppedResponding() async {
+        for stopped in [true, false] {
+            let facts = DeliveryBatchFacts()
+            let outcome = await Model.runBatch(records: [1], destination: .nativeShare, action: .systemShare,
+                admission: .init { true }, originals: .init(available: { _ in false },
+                    acquire: { facts.calls.append("cache \($0)") }, progress: { _ in nil },
+                    cameraStoppedResponding: { _ in stopped }), exporter: exporter(facts),
+                share: { .init(urls: $0) }, photos: nil, internet: Optional<MonitorDeliveryInternetService<Int>>.none,
+                filename: { "\($0)" }, progress: { _ in })
+            guard case .failed(let message) = outcome else { Issue.record("Missing cache failure"); return }
+            #expect(message == (stopped
+                ? "The camera stopped responding while caching 1 clip(s). Reconnect and try again."
+                : "Couldn't cache 1 clip(s) from the camera. Check the connection and try again."))
+            #expect(facts.calls == ["cache 1"])
+        }
+    }
     @Test func manualCacheProgressIgnoresUnknownAndLateTicks() async {
         let facts = DeliveryBatchFacts()
         let clock = DeliveryBatchGate<Void>(), acquire = DeliveryBatchGate<Void>()

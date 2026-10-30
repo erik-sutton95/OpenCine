@@ -9,9 +9,12 @@ import OpenCineCore
 public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
     public let ready: [Record]
     public let uncached: Int
-    public init(ready: [Record], uncached: Int) {
+    /// Uncached records whose acquisition ended because the camera stopped answering.
+    public let cameraStopped: Int
+    public init(ready: [Record], uncached: Int, cameraStopped: Int = 0) {
         self.ready = ready
         self.uncached = uncached
+        self.cameraStopped = cameraStopped
     }
 }
 
@@ -33,6 +36,7 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
             if !available { toCache.append(record) }
         }
         var uncached = 0
+        var cameraStopped = 0
         for (index, record) in toCache.enumerated() {
             guard accepts() else { return nil }
             let gate = MonitorDeliveryStep()
@@ -59,7 +63,10 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
             guard accepts() else { return nil }
             let available = originals.available(record)
             guard accepts() else { return nil }
-            if !available { uncached += 1 }
+            if !available {
+                uncached += 1
+                if originals.cameraStoppedResponding(record) { cameraStopped += 1 }
+            }
         }
         var ready: [Record] = []
         for record in records {
@@ -68,7 +75,7 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
             guard accepts() else { return nil }
             if available { ready.append(record) }
         }
-        return .init(ready: ready, uncached: uncached)
+        return .init(ready: ready, uncached: uncached, cameraStopped: cameraStopped)
     }
 
     /// Remote delivery from the camera network needs every original first. This caches them as a
@@ -97,8 +104,11 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
         await run.awaitEnteredCleanup()
         guard source.isCurrent() else { throw CancellationError() }
         // The cache itself is the truth: a cancelled or superseded run leaves clips uncached.
-        let missing = records.filter { !originals.available($0) }.count
-        if missing > 0 { throw MonitorDeliveryCacheError.uncached(missing) }
+        let missing = records.filter { !originals.available($0) }
+        if missing.contains(where: originals.cameraStoppedResponding) {
+            throw MonitorDeliveryCacheError.cameraStoppedResponding(missing.count)
+        }
+        if !missing.isEmpty { throw MonitorDeliveryCacheError.uncached(missing.count) }
     }
 
     /// Ordering and progress use this existing delivery run. Original bytes, native preparation,
@@ -180,8 +190,11 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
             let ready = cached.ready
             let uncached = cached.uncached
             guard !ready.isEmpty else {
-                return .failed(
-                    message: uncached > 0 ? Policy.cacheFailure(uncached) : Policy.emptySelection)
+                let message =
+                    cached.cameraStopped > 0
+                    ? Policy.cameraStoppedResponding(uncached)
+                    : uncached > 0 ? Policy.cacheFailure(uncached) : Policy.emptySelection
+                return .failed(message: message)
             }
             if destination == .remoteUpload {
                 guard upload != nil else { return .failed(message: "Upload is unavailable.") }

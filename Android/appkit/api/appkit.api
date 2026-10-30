@@ -1175,6 +1175,7 @@ public final class com/opencapture/opencine/appkit/MonitorDeliveryBatchPolicy {
 	public static final field INSTANCE Lcom/opencapture/opencine/appkit/MonitorDeliveryBatchPolicy;
 	public static final field INTERNET_FAILURE Ljava/lang/String;
 	public final fun cacheFailure (I)Ljava/lang/String;
+	public final fun cameraStoppedResponding (I)Ljava/lang/String;
 	public final fun nativeSummary (Lcom/opencapture/opencine/appkit/MonitorDeliveryBatchCounts;)Ljava/lang/String;
 	public final fun photosFailure (II)Ljava/lang/String;
 }
@@ -1233,18 +1234,23 @@ public final class com/opencapture/opencine/appkit/MonitorDeliveryBatchValuesKt 
 
 public final class com/opencapture/opencine/appkit/MonitorDeliveryCacheException : java/lang/Exception {
 	public static final field $stable I
-	public fun <init> (I)V
+	public fun <init> (IZ)V
+	public synthetic fun <init> (IZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCameraStopped ()Z
 	public final fun getCount ()I
 }
 
 public final class com/opencapture/opencine/appkit/MonitorDeliveryCachedOriginals {
 	public static final field $stable I
-	public fun <init> (Ljava/util/List;I)V
+	public fun <init> (Ljava/util/List;II)V
+	public synthetic fun <init> (Ljava/util/List;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/util/List;
 	public final fun component2 ()I
-	public final fun copy (Ljava/util/List;I)Lcom/opencapture/opencine/appkit/MonitorDeliveryCachedOriginals;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkit/MonitorDeliveryCachedOriginals;Ljava/util/List;IILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MonitorDeliveryCachedOriginals;
+	public final fun component3 ()I
+	public final fun copy (Ljava/util/List;II)Lcom/opencapture/opencine/appkit/MonitorDeliveryCachedOriginals;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkit/MonitorDeliveryCachedOriginals;Ljava/util/List;IIILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MonitorDeliveryCachedOriginals;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraStopped ()I
 	public final fun getReady ()Ljava/util/List;
 	public final fun getUncached ()I
 	public fun hashCode ()I
@@ -1480,9 +1486,11 @@ public final class com/opencapture/opencine/appkit/MonitorDeliveryModel$Companio
 
 public final class com/opencapture/opencine/appkit/MonitorDeliveryOriginalService {
 	public static final field $stable I
-	public fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;)V
+	public fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAcquire ()Lkotlin/jvm/functions/Function2;
 	public final fun getAvailable ()Lkotlin/jvm/functions/Function1;
+	public final fun getCameraStoppedResponding ()Lkotlin/jvm/functions/Function1;
 	public final fun getProgress ()Lkotlin/jvm/functions/Function1;
 }
 
