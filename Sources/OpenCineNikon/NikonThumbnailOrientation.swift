@@ -36,9 +36,16 @@ public enum NikonThumbnailOrientation {
         readHead: (UInt32) async throws -> Data
     ) async throws -> Data? {
         guard let thumbnail = try await readThumbnail() else { return nil }
-        guard needsOrientation(thumbnail, filename: filename),
-            let head = try? await readHead(headLength)
-        else { return thumbnail }
+        guard needsOrientation(thumbnail, filename: filename) else { return thumbnail }
+        let head: Data
+        do {
+            head = try await readHead(headLength)
+        } catch let cancellation as CancellationError {
+            // Not an answer: a caller that caches the result would keep it untagged.
+            throw cancellation
+        } catch {
+            return thumbnail
+        }
         return tagging(thumbnail, head: head)
     }
 
@@ -126,8 +133,9 @@ private struct JPEGSegments {
             let length = Int(ByteCoding.readUInt16BE(bytes, at: offset + 2))
             guard length >= 2 else { break }
             let end = min(offset + 2 + length, bytes.count)
+            // A segment too short for its own `Exif\0\0` identifier is not one.
             let isExif =
-                marker == 0xE1 && offset + 10 <= bytes.count
+                marker == 0xE1 && length >= 8 && offset + 10 <= bytes.count
                 && bytes[(offset + 4)..<(offset + 10)].elementsEqual([
                     0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
                 ])

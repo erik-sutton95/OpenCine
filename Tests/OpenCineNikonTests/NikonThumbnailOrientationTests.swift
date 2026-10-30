@@ -308,5 +308,39 @@
 
             #expect(thumbnail == camera.thumbnail)
         }
+
+        /// A cancelled read is not an answer: the caller caches what it gets, and an untagged
+        /// thumbnail cached here would stay sideways.
+        @Test func aCancelledHeadReadIsNotReturnedAsTheThumbnail() async throws {
+            let scene = Self.scene(6)
+            let camera = CameraObject(
+                original: try Self.stillJPEG(scene, orientation: 6),
+                thumbnail: try Self.cameraThumbnail(scene, orientation: 6))
+
+            await #expect(throws: CancellationError.self) {
+                _ = try await NikonThumbnailOrientation.uprightThumbnail(
+                    filename: "_NZR2887.JPG",
+                    readThumbnail: { () async throws -> Data? in camera.readThumbnail() },
+                    readHead: { _ async throws -> Data in throw CancellationError() })
+            }
+        }
+
+        /// An APP1 segment too short to hold its own `Exif` identifier, followed by bytes that
+        /// read `Exif\0\0`, in the still's head or in the camera's thumbnail.
+        @Test func aTruncatedExifSegmentIsNotRead() throws {
+            let scene = Self.scene(6)
+            let truncated: [UInt8] =
+                [0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x04] + Array("Exif\0\0".utf8)
+                + [0x4D, 0x4D, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08]
+            let camera = CameraObject(
+                original: truncated, thumbnail: try Self.cameraThumbnail(scene, orientation: 6))
+
+            #expect(try Self.blockingThumbnail("_NZR2887.JPG", camera) == camera.thumbnail)
+
+            let odd = CameraObject(
+                original: try Self.stillJPEG(scene, orientation: 6), thumbnail: Data(truncated))
+            // Its bytes still get the still's orientation; the short segment is not taken as one.
+            #expect(try Self.blockingThumbnail("_NZR2887.JPG", odd) != nil)
+        }
     }
 #endif
