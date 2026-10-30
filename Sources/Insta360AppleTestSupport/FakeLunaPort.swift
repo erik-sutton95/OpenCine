@@ -21,6 +21,10 @@ public final class FakeLunaPort: LunaConnectPort {
     public private(set) var scans = 0
     public private(set) var scanStops = 0
     public private(set) var connects: [MonitorCamera] = []
+    /// The route of every connect, in order.
+    public private(set) var routes: [LunaRoute] = []
+    /// Wi-Fi and hotspot passwords the backend keeps, by network and kind.
+    public private(set) var stations: [LunaStationNetwork] = []
     /// Whether the most recent connect started after the camera had advertised.
     public private(set) var connectSawSighting: Bool?
     public private(set) var disconnects = 0
@@ -52,8 +56,13 @@ public final class FakeLunaPort: LunaConnectPort {
     public func hasSavedWiFi(cameraID: UUID) -> Bool { savedWiFi.contains(cameraID) }
 
     public func connect(to camera: MonitorCamera) async throws {
+        try await connect(to: camera, route: .cameraWiFi(restoreAccessPoint: false))
+    }
+
+    public func connect(to camera: MonitorCamera, route: LunaRoute) async throws {
         cancelPending()
         connects.append(camera)
+        routes.append(route)
         connectSawSighting = seen.contains(camera.id)
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { pending = $0 }
@@ -73,6 +82,15 @@ public final class FakeLunaPort: LunaConnectPort {
     }
 
     public func forget(cameraID: UUID) { forgotten.append(cameraID) }
+
+    public func stationPassword(for network: String, hotspot: Bool) -> String? {
+        stations.last { $0.ssid == network && $0.hotspot == hotspot }?.password
+    }
+
+    public func saveStation(_ network: LunaStationNetwork) {
+        stations.removeAll { $0.ssid == network.ssid && $0.hotspot == network.hotspot }
+        stations.append(network)
+    }
 
     private func cancelPending() {
         let waiter = pending

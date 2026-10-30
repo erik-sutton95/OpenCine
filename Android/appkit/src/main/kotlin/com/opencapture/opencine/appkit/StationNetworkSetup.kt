@@ -201,6 +201,10 @@ private enum class SetupSide { LEADING, TRAILING }
  * failed setup on its password or hotspot page. [cameraSsids] are camera access points, never
  * offered as a shared network. [lockedNetwork] shows Multiview's Shared Wi-Fi page while cameras
  * use it. [wifiNameAccess] is the app's location gate for this phone's Wi-Fi name.
+ * [cameraScansNetworks] is false for a camera that cannot list networks at all: Nearby says so
+ * instead of asking for the camera to be turned on. [networkSecured] says whether a network needs
+ * a password (null when unknown); without it the phone's current network decides
+ * ([currentNetworkSecured]), as every app does.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -219,6 +223,8 @@ public fun StationNetworkSetup(
     camera: SavedCamera? = null,
     cameraSsids: Set<String> = emptySet(),
     startPage: StationSetupPage? = null,
+    cameraScansNetworks: Boolean = true,
+    networkSecured: ((String) -> Boolean?)? = null,
 ) {
     val context = LocalContext.current
     // The keyboard must not replace the focused field by changing the form layout.
@@ -231,6 +237,9 @@ public fun StationNetworkSetup(
     var locationHint by remember { mutableStateOf<Pair<String, String>?>(null) }
     var hotspotDetected by remember { mutableStateOf(false) }
     var password by remember { mutableStateOf("") }
+    /** The password page's network and its security (null: unknown). */
+    var security by remember { mutableStateOf<Pair<String, Boolean?>?>(null) }
+    fun securedFor(ssid: String): Boolean? = security?.takeIf { it.first == ssid }?.second
     var hotspotName by remember { mutableStateOf("") }
     var hotspotPassword by remember { mutableStateOf("") }
     var hotspotTouched by remember { mutableStateOf(false) }
@@ -471,18 +480,9 @@ public fun StationNetworkSetup(
                 }
                 if (scan == null || scanning || nearby.isEmpty()) {
                     if (nearby.isNotEmpty()) SetupDivider()
+                    val (title, detail) = nearbyScanStatus(scanning, scan != null, cameraScansNetworks, scanFailed)
                     SetupRow(
-                        if (scanning) null else MonitorIcon.SCAN,
-                        when {
-                            scanning -> "The camera is looking for networks…"
-                            scan == null -> "Turn the camera on to find networks"
-                            else -> "No networks found yet"
-                        },
-                        when {
-                            scanning -> "Networks appear here as it finds them"
-                            scanFailed -> "The scan did not finish. Try Scan again."
-                            else -> null
-                        },
+                        if (scanning) null else MonitorIcon.SCAN, title, detail,
                         progress = scanning, chevron = false, modifier = Modifier.testTag("stationSetup.scanStatus"),
                     )
                 }
@@ -524,9 +524,16 @@ public fun StationNetworkSetup(
                 SetupCheck("Camera within range", if (landscape) null else "The camera leaves its own Wi-Fi and joins this one.")
             }
         }
+        LaunchedEffect(ssid) {
+            val current = (networkSecured ?: { name -> currentNetworkSecured(context, name) })(ssid)
+            security = ssid to stationNetworkSecurity(ssid, savedNetworks, current)
+        }
         val field: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 SetupSecureField("PASSWORD", password, reveal, !working, "stationSetup.password", { reveal = !reveal }) { password = it }
+                stationPasswordNote(password, securedFor(ssid))?.let {
+                    Box(Modifier.testTag("stationSetup.passwordNote")) { SetupHint(it) }
+                }
                 SetupHint("Saved on this phone. Multiview can reuse it.")
             }
         }
@@ -680,7 +687,7 @@ public fun StationNetworkSetup(
                 )
                 is StationSetupPage.Password -> MonitorCameraAction(
                     "Connect over Wi-Fi", primary = true,
-                    enabled = !working && validStationCredentials(page.ssid, password, hotspot = false),
+                    enabled = !working && validStationCredentials(page.ssid, password, hotspot = false, secured = securedFor(page.ssid)),
                     contentDescription = "Connect over Wi-Fi",
                     onClick = { submit(StationNetwork(page.ssid, password, false)) },
                     modifier = Modifier.fillMaxWidth().testTag("stationSetup.connect"),
@@ -805,10 +812,59 @@ public fun StationNetworkSetup(
     }
 }
 
-/** A station join the camera can carry: 1 to 32 byte name, WPA2 password or an open Wi-Fi. */
-public fun validStationCredentials(ssid: String, password: String, hotspot: Boolean): Boolean =
+/**
+ * The Nearby section's status row (title, detail): scanning, a camera that cannot list networks,
+ * one that is not nearby, or an empty or failed scan.
+ */
+internal fun nearbyScanStatus(scanning: Boolean, scanAvailable: Boolean, cameraScansNetworks: Boolean, scanFailed: Boolean): Pair<String, String?> = when {
+    scanning -> "The camera is looking for networks…" to "Networks appear here as it finds them"
+    !cameraScansNetworks -> "This camera can’t list networks" to "Choose a known network, or Other network."
+    !scanAvailable -> "Turn the camera on to find networks" to (if (scanFailed) "The scan did not finish. Try Scan again." else null)
+    else -> "No networks found yet" to (if (scanFailed) "The scan did not finish. Try Scan again." else null)
+}
+
+/**
+ * A station join the camera can carry: 1 to 32 byte name, WPA2 password or an open Wi-Fi. [secured]
+ * is the network's security when this phone knows it (its current network, or a setup saved with a
+ * password): a secured network needs its password. Unknown or open, an empty password is allowed,
+ * and a refused join then asks to check it (`StationRoutes.checkPasswordMessage`). Swift twin:
+ * `StationNetworkSetupRules.acceptsPassword`.
+ */
+public fun validStationCredentials(ssid: String, password: String, hotspot: Boolean, secured: Boolean? = null): Boolean =
     ssid.toByteArray(Charsets.UTF_8).size in 1..32 && password.toByteArray(Charsets.UTF_8).size <= 63 &&
-        (password.length >= 8 || (!hotspot && password.isEmpty()))
+        (password.length >= 8 || (!hotspot && password.isEmpty() && secured != true))
+
+/** The line under the password field: why Connect waits, or what an empty password means. */
+public fun stationPasswordNote(password: String, secured: Boolean?): String? = when {
+    password.isNotEmpty() -> null
+    secured == true -> "This network is secured. Enter its password."
+    secured == false -> null
+    else -> "Leave it empty only for an open network."
+}
+
+/**
+ * What this phone knows about [ssid]'s security: a saved setup with a password says it is secured;
+ * otherwise [current] (the phone's own network, null when unknown) decides.
+ */
+public fun stationNetworkSecurity(ssid: String, saved: List<StationNetwork>, current: Boolean?): Boolean? =
+    if (saved.any { !it.hotspot && it.ssid == ssid && it.password.isNotEmpty() }) true else current
+
+/**
+ * Whether [ssid] is secured, when it is this phone's current Wi-Fi (Android 12 and newer report
+ * the security type); null otherwise or when Android withholds the network name.
+ */
+@Suppress("DEPRECATION")
+public fun currentNetworkSecured(context: android.content.Context, ssid: String): Boolean? {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return null
+    val info = runCatching { context.applicationContext.getSystemService(android.net.wifi.WifiManager::class.java)?.connectionInfo }
+        .getOrNull() ?: return null
+    if (info.ssid?.removeSurrounding("\"") != ssid) return null
+    return when (info.currentSecurityType) {
+        android.net.wifi.WifiInfo.SECURITY_TYPE_OPEN -> false
+        android.net.wifi.WifiInfo.SECURITY_TYPE_UNKNOWN -> null
+        else -> true
+    }
+}
 
 /** iOS pins the dark elevated system background so portrait and landscape keep one page. */
 private val SETUP_PAGE_BACKGROUND = Color(0xFF1C1C1E)

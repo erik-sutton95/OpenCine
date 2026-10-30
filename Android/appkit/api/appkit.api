@@ -5111,10 +5111,14 @@ public final class com/opencapture/opencine/appkit/StationNetworkBrand {
 }
 
 public final class com/opencapture/opencine/appkit/StationNetworkSetupKt {
-	public static final fun StationNetworkSetup (Lcom/opencapture/opencine/appkit/StationNetworkBrand;Lcom/opencapture/opencine/appkit/PermissionGate;Ljava/util/List;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/appkit/StationNetwork;Ljava/lang/String;Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/Set;Lcom/opencapture/opencine/appkit/StationSetupPage;Landroidx/compose/runtime/Composer;III)V
+	public static final fun StationNetworkSetup (Lcom/opencapture/opencine/appkit/StationNetworkBrand;Lcom/opencapture/opencine/appkit/PermissionGate;Ljava/util/List;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/appkit/StationNetwork;Ljava/lang/String;Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/Set;Lcom/opencapture/opencine/appkit/StationSetupPage;ZLkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
+	public static final fun currentNetworkSecured (Landroid/content/Context;Ljava/lang/String;)Ljava/lang/Boolean;
+	public static final fun stationNetworkSecurity (Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;)Ljava/lang/Boolean;
+	public static final fun stationPasswordNote (Ljava/lang/String;Ljava/lang/Boolean;)Ljava/lang/String;
 	public static final fun stationSetupChooser (Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/List;Lcom/opencapture/opencine/appkit/AddSetupNotice;)Lcom/opencapture/opencine/appkit/AddSetupChooser;
 	public static synthetic fun stationSetupChooser$default (Lcom/opencapture/opencine/core/SavedCamera;Ljava/util/List;Lcom/opencapture/opencine/appkit/AddSetupNotice;ILjava/lang/Object;)Lcom/opencapture/opencine/appkit/AddSetupChooser;
-	public static final fun validStationCredentials (Ljava/lang/String;Ljava/lang/String;Z)Z
+	public static final fun validStationCredentials (Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Boolean;)Z
+	public static synthetic fun validStationCredentials$default (Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Boolean;ILjava/lang/Object;)Z
 }
 
 public abstract interface class com/opencapture/opencine/appkit/StationSetupPage {
