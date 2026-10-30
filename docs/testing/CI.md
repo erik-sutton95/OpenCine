@@ -75,10 +75,16 @@ test is quarantined here, in the same pull request, with its issue.
 | Native playback labels and confirmation input (digitizer cancel, hosted Xcode 26.6) | `kit-ios` step | [#109](https://github.com/erik-sutton95/OpenCine/issues/109) |
 | Playback labels, native typed cancellation (SIMULATED) | `playback-native-ios` | [#110](https://github.com/erik-sutton95/OpenCine/issues/110) |
 | Private simulator setup: `simctl list` timeouts | every simulator suite | [#111](https://github.com/erik-sutton95/OpenCine/issues/111) |
+| Nikon gallery projection scaling, Android (`NikonGalleryProjectionPerformanceTest`, wall-clock ratio) | `android-test` step | [#300](https://github.com/erik-sutton95/OpenCine/issues/300) |
 
 Quarantined tests still run every night and their failures are listed in the run summary, but
 they neither open nor keep open the nightly tracking issue: a quarantined step has
 `continue-on-error`, a quarantined job is named in `QUARANTINED_JOBS` in `nightly.yml`.
+
+An Android unit test class is quarantined by listing it in `quarantinedTests` in
+`Android/build.gradle.kts`: the PR tier runs `test` with `-Popencine.quarantine=exclude`, and
+the nightly runs the listed classes again with `-Popencine.quarantine=only` in a
+`continue-on-error` step. A local `./gradlew test` without the property runs every test.
 
 A test leaves quarantine when its issue is fixed and several consecutive nightlies pass; move
 it back to the PR tier and close the issue in the same pull request.
