@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -82,6 +82,7 @@ public fun <P> MonitorOperatorCatalogScreen(
     open: (MonitorMediaGalleryOpen<P>) -> Unit,
     share: ((List<MonitorMediaRecord<P>>, MonitorMediaLibraryActionToken) -> Unit)? = null,
     handlesBack: Boolean = true,
+    aspectRatio: (MonitorMediaRecord<P>) -> Double? = ::monitorStoredAspectRatio,
     thumbnail: @Composable BoxScope.(MonitorMediaGalleryThumbnail<P>) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -212,7 +213,8 @@ public fun <P> MonitorOperatorCatalogScreen(
         MediaLibraryPage(page, filters, actions, gallery = {
             MonitorOperatorCatalogGallery(gallery, snapshot, state.presentationRevision, facts, operations, sourceAvailable, refresh,
                 open = open, select = ::select, thumbnail = thumbnail, presentation = presentation,
-                cell = cell, selectionConfiguration = selectionConfiguration, selectionChanged = selectionChanged)
+                cell = cell, selectionConfiguration = selectionConfiguration, selectionChanged = selectionChanged,
+                aspectRatio = aspectRatio)
         }, overlays = {
             library.deletionProgress?.let { progress -> MonitorMediaDeletionOverlay(progress, deletionDetail?.invoke(progress)) }
             state.notice?.let { Text(it, Modifier.align(Alignment.BottomCenter).padding(24.dp), color = LiveDesign.text) }
@@ -248,6 +250,7 @@ private fun <P> MonitorOperatorCatalogGallery(
     cell: ((MonitorMediaRecord<P>, MonitorMediaGalleryCellContext) -> MonitorClipValue)?,
     selectionConfiguration: MonitorMediaSelectionConfiguration,
     selectionChanged: (() -> Unit)?,
+    aspectRatio: (MonitorMediaRecord<P>) -> Double?,
 ) {
     val library = owner.library
     val value by library.content.collectAsState()
@@ -255,7 +258,7 @@ private fun <P> MonitorOperatorCatalogGallery(
     val rates by library.transferRates.rates.collectAsState()
     val state by owner.state.collectAsState()
     val listState = rememberLazyListState()
-    val gridState = rememberLazyGridState()
+    val gridState = rememberLazyStaggeredGridState()
     val list = (presentation?.layout ?: value.layout) == MonitorMediaLayout.LIST
     // The smallest grid keeps its cells uncluttered: percent only.
     val showsRate = list || (presentation?.thumbnailSize ?: value.thumbnailSize) != MonitorThumbnailSize.SMALL
@@ -304,7 +307,8 @@ private fun <P> MonitorOperatorCatalogGallery(
                         modifier = Modifier.testTag("monitor.media.clip.${id.rawValue}"),
                         onOpen = { owner.open(id, snapshot, operations, sourceAvailable = connected)?.let(open) },
                         onSelect = { select(if (value.selecting) value.selectedIDs.toggled(id) else setOf(id), true) },
-                        onFavorite = { owner.favorite(id, snapshot, operations) }, clicks = false) {
+                        onFavorite = { owner.favorite(id, snapshot, operations) }, clicks = false,
+                        artworkAspect = MonitorMediaMasonry.aspect(if (list) null else aspectRatio(record))) {
                         // A cover can retire this presentation while the library admission stays
                         // unchanged. Its new thumbnails must retry reads refused by the old context.
                         key(presentationRevision) { thumbnail(context) }
@@ -384,6 +388,11 @@ internal class MonitorCatalogHeadAnchor {
         return changed && pinned && !scrolling
     }
 }
+
+/** The picture shape the catalog listing reports; sources that know a still's orientation supply
+ * their own (`aspectRatio`). */
+public fun <P> monitorStoredAspectRatio(record: MonitorMediaRecord<P>): Double? =
+    MonitorMediaMasonry.uprightAspect(record.asset.pixelSize?.width, record.asset.pixelSize?.height)
 
 /** The catalog owns cache state and progress for every cell; a source cell supplies its own facts only. */
 internal fun <P> monitorCatalogClip(

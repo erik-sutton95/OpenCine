@@ -50,6 +50,7 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
         resolutionLevels: [MonitorMediaResolutionLevel] = MonitorMediaResolutionLevel.standard,
         facts: @escaping @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts,
         cell: (@MainActor (MonitorMediaRecord<Payload>, MonitorMediaGalleryCellContext) -> MonitorMediaItem)? = nil,
+        aspectRatio: (@MainActor (MonitorMediaRecord<Payload>) -> Double?)? = nil,
         begin: (@MainActor () -> Void)? = nil, refresh: (@MainActor () -> Void)? = nil,
         close: @escaping @MainActor () -> Void,
         open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
@@ -60,7 +61,7 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
             operations: operations, presentation: presentation, navigation: navigation,
             sourceFilter: sourceFilter, managesVisibility: managesVisibility, deletionDetail: deletionDetail,
             colorChoices: colorChoices, resolutionLevels: resolutionLevels, facts: facts, cell: cell,
-            begin: begin, refresh: refresh, close: close, open: open, share: share,
+            aspectRatio: aspectRatio, begin: begin, refresh: refresh, close: close, open: open, share: share,
             cachingActive: cachingActive, thumbnail: thumbnail)
     }
 
@@ -82,6 +83,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
     private let resolutionLevels: [MonitorMediaResolutionLevel]
     private let cell: (@MainActor (MonitorMediaRecord<Payload>, MonitorMediaGalleryCellContext) -> MonitorMediaItem)?
     private let facts: @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts
+    private let aspectRatio: @MainActor (MonitorMediaRecord<Payload>) -> Double?
     private let begin: @MainActor () -> Void
     private let refresh: @MainActor () -> Void
     private let close: @MainActor () -> Void
@@ -94,6 +96,13 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
 
     var source: ObjectIdentifier { ObjectIdentifier(library) }
 
+    /// The picture shape the catalog listing reports; sources that know a still's orientation
+    /// supply their own (`aspectRatio`).
+    private static func storedAspectRatio(_ record: MonitorMediaRecord<Payload>) -> Double? {
+        MonitorMediaMasonry.uprightAspect(
+            width: record.asset.pixelSize?.width, height: record.asset.pixelSize?.height)
+    }
+
     init(library: MonitorMediaLibraryModel<Payload>, brand: String, safeArea: EdgeInsets = .init(),
         sourceAvailable: Bool, operations: MonitorMediaGalleryOperations<Payload>,
         presentation: MonitorMediaGalleryPresentation? = nil,
@@ -105,6 +114,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         resolutionLevels: [MonitorMediaResolutionLevel] = MonitorMediaResolutionLevel.standard,
         facts: @escaping @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts,
         cell: (@MainActor (MonitorMediaRecord<Payload>, MonitorMediaGalleryCellContext) -> MonitorMediaItem)? = nil,
+        aspectRatio: (@MainActor (MonitorMediaRecord<Payload>) -> Double?)? = nil,
         begin: (@MainActor () -> Void)? = nil, refresh: (@MainActor () -> Void)? = nil,
         close: @escaping @MainActor () -> Void,
         open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
@@ -116,6 +126,8 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         self.managesVisibility = managesVisibility; self.deletionDetail = deletionDetail
         self.sourceAvailable = sourceAvailable; self.operations = operations; self.colorChoices = colorChoices
         self.resolutionLevels = resolutionLevels; self.facts = facts; self.cell = cell
+        // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+        self.aspectRatio = aspectRatio ?? Self.storedAspectRatio
         self.begin = begin ?? { library.begin() }; self.refresh = refresh ?? { library.refresh() }
         self.close = close; self.open = open; self.share = share; self.thumbnail = thumbnail
         self.cachingActive = cachingActive
@@ -135,6 +147,8 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                     ids: snapshot.records.map(\.asset.id.rawValue),
                     item: { id in snapshot.displayed(MediaAssetID(id)).map(item) },
                     permissions: { id in snapshot.displayed(MediaAssetID(id)).map(permissions) },
+                    aspectRatios: (presentation?.layout ?? library.layout) == .grid
+                        ? snapshot.records.map(aspectRatio) : [],
                     categories: presentation?.categories ?? MonitorMediaCategoryFilter.allCases.map {
                         .init(id: $0.rawValue, title: $0.rawValue.capitalized, count: library.records(in: $0).count)
                     }, category: presentation?.category ?? library.category.rawValue,

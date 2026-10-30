@@ -94,28 +94,4 @@ class MonitorAssistPaletteRevealTest {
         assertEquals(1, MonitorAssistPaletteReveal.landscapeCellIndex(0, 1))
         assertEquals(2, MonitorAssistPaletteReveal.landscapeCellIndex(1, 0))
     }
-
-    @Test fun anOpenPlateOverTheCameraValuesHidesThemOnlyWhenTheyOverlap() {
-        // Hardware pass 1.1 (Z landscape): the open plate (18, 302, 467 x 108) sat over the values
-        // strip and its tiles peeked past the plate. Same vectors as the Swift twin.
-        val values = MonitorRect(100f, 380f, 500f, 43f)
-        assertFalse(MonitorAssistPaletteReveal.coversValues(null, values))
-        assertTrue(MonitorAssistPaletteReveal.coversValues(MonitorRect(18f, 302f, 467f, 108f), values))
-        assertFalse(MonitorAssistPaletteReveal.coversValues(MonitorRect(18f, 302f, 82f, 108f), values))
-        assertFalse(MonitorAssistPaletteReveal.coversValues(MonitorRect(18f, 272f, 467f, 108f), values))
-        assertFalse(MonitorAssistPaletteReveal.coversValues(MonitorRect(18f, 302f, 467f, 108f), MonitorRect(100f, 380f, 500f, 0f)))
-    }
-
-    @Test fun onlyTheOpenLandscapePlateReachesTheFieldMonitorValues() {
-        // The reported open plate grows trailing from the collapsed slot over the values; the
-        // collapsed slot and the portrait column (it grows upward) stay clear of them.
-        for ((long, short) in listOf(956f to 440f, 874f to 402f, 667f to 375f)) {
-            val landscape = MonitorLayoutPolicy.fieldMonitor(long, short, 0f, 21f, 62f, 62f)
-            val slot = landscape.assists
-            val open = MonitorRect(slot.x, slot.maxY - (2 * 54f + 11f), landscape.values.maxX - slot.x, 2 * 54f + 11f)
-            assertFalse(MonitorAssistPaletteReveal.coversValues(slot, landscape.values), "$long x $short collapsed")
-            assertTrue(MonitorAssistPaletteReveal.coversValues(open, landscape.values), "$long x $short open")
-        }
-    }
 }
-

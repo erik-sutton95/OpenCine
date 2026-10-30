@@ -19,11 +19,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -333,13 +333,19 @@ fun MonitorPageScaffold(
     }
 }
 
-/** Catalog mechanics are common; item identity, cache state and actions stay in the adapter. */
+/**
+ * Catalog mechanics are common; item identity, cache state and actions stay in the adapter.
+ * Staggered (masonry): each card goes, in the displayed order, into the shortest column, so a
+ * column stacks its cards with no row gaps. Cards size themselves from metadata
+ * ([MonitorClipCard]'s `artworkAspect`), so a loading thumbnail never moves one.
+ */
 @Composable
 fun <T> MonitorCatalogGrid(items: List<T>, columns: Int, key: (T) -> Any,
-    modifier: Modifier = Modifier, state: LazyGridState = rememberLazyGridState(),
+    modifier: Modifier = Modifier, state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
     cell: @Composable (T) -> Unit) {
-    LazyVerticalGrid(columns = GridCells.Fixed(columns.coerceAtLeast(1)), modifier = modifier.monitorScrollFade(state), state = state,
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+    LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Fixed(columns.coerceAtLeast(1)),
+        modifier = modifier.monitorScrollFade(state), state = state,
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalItemSpacing = 8.dp,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
         items(items, key = key) { cell(it) }
     }

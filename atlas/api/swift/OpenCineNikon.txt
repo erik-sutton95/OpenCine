@@ -674,6 +674,7 @@ enum NikonStillReviewImageReader
 enum NikonStillReviewObjectKind: Equatable, Hashable, Sendable
 enum NikonStillReviewPolicy
 enum NikonTakeOverRecovery: Sendable
+enum NikonThumbnailOrientation
 enum NikonWatchConnectionState: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum NikonWatchRelayCommand: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum NikonWatchRelayProtocol
@@ -787,6 +788,7 @@ func NativeCameraSession.getObjectInfo(handle: Swift.UInt32) async throws -> PTP
 func NativeCameraSession.getPartialObject(_: PTPPartialObjectRequest) async throws -> Foundation.Data
 func NativeCameraSession.getPartialObject(handle: Swift.UInt32, offset: Swift.UInt32, length: Swift.UInt32) async throws -> Foundation.Data
 func NativeCameraSession.getThumb(handle: Swift.UInt32) async throws -> Foundation.Data?
+func NativeCameraSession.getUprightThumb(handle: Swift.UInt32, filename: Swift.String) async throws -> Foundation.Data?
 func NativeCameraSession.initiateStillCapture(preserveFocus: Swift.Bool) async throws -> ()
 func NativeCameraSession.initiateStillCapture(preserveFocus: Swift.Bool, admission: NikonCommandAdmission) async throws -> ()
 func NativeCameraSession.listClips() async throws -> [NativeCameraSession.CameraClip]
@@ -1825,6 +1827,8 @@ static func NikonStillReviewImageReader.read(kind: NikonStillReviewObjectKind, o
 static func NikonTakeOverPrompt.message(holder: Swift.String?) -> Swift.String
 static func NikonTakeOverRecovery.holder(beforeAttempt: Swift.Int, lookup: () async -> Swift.String?) -> Swift.String?
 static func NikonTakeOverRecovery.holder(beforeAttempt: Swift.Int, pause: (Swift.Duration) async -> Swift.Void, lookup: () async -> Swift.String?) -> Swift.String?
+static func NikonThumbnailOrientation.uprightThumbnail(filename: Swift.String, readThumbnail: () async throws -> Foundation.Data?, readHead: (Swift.UInt32) async throws -> Foundation.Data) throws -> Foundation.Data?
+static func NikonThumbnailOrientation.uprightThumbnail(filename: Swift.String, readThumbnail: () throws -> Foundation.Data?, readHead: (Swift.UInt32) throws -> Foundation.Data) throws -> Foundation.Data?
 static func NikonWatchRelayState.==(_: NikonWatchRelayState, _: NikonWatchRelayState) -> Swift.Bool
 static func NikonZRRawCropPresentation.bareLabel(_: Swift.String) -> Swift.String
 static func NikonZRRawCropPresentation.carriesCropTag(_: Swift.String) -> Swift.Bool
@@ -2113,6 +2117,7 @@ static let NikonStillReviewPolicy.objectPollIntervalMilliseconds: Swift.Int
 static let NikonStillReviewPolicy.objectWindowMilliseconds: Swift.Int
 static let NikonTakeOverRecovery.firstAttemptAskSpacing: Swift.Duration
 static let NikonTakeOverRecovery.firstAttemptAsks: Swift.Int
+static let NikonThumbnailOrientation.headLength: Swift.UInt32
 static let NikonZRRawCropPresentation.rawCodecsWithImageArea: Swift.Set<Swift.String>
 static let PTPCameraPropertyDecoders.exposureProgramFallbackOptions: [Swift.String]
 static let PTPCameraPropertyDecoders.movieFocusModePickerOptions: [Swift.String]

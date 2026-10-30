@@ -74,7 +74,8 @@ data class MonitorClipValue(val id: String, val title: String, val detail: Strin
 @Composable
 fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, selected: Boolean,
     onOpen: () -> Unit, onSelect: () -> Unit, onFavorite: (() -> Unit)? = null,
-    modifier: Modifier = Modifier, clicks: Boolean = true, thumbnail: @Composable BoxScope.() -> Unit) {
+    modifier: Modifier = Modifier, clicks: Boolean = true,
+    artworkAspect: Double = MonitorMediaMasonry.DEFAULT_ASPECT, thumbnail: @Composable BoxScope.() -> Unit) {
     val shape = RoundedCornerShape(11.dp)
     val surface = modifier.fillMaxWidth().clip(shape)
         .background(if (selected) MonitorPalette.accent.copy(alpha = .12f) else MonitorPalette.surface)
@@ -136,7 +137,10 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
             MonitorClipFavorite(clip.favorite, favoriteAction, clip.favoriteLabel ?: if (clip.favorite) "Remove from favorites" else "Add to favorites")
         }
     } else Column(surface, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape).background(MonitorPalette.backgroundDeep)) {
+        // The grid card's picture keeps the shape the masonry placed it with; the thumbnail fills
+        // it, so a loading thumbnail never changes the card height.
+        Box(Modifier.fillMaxWidth().aspectRatio(MonitorMediaMasonry.aspect(artworkAspect).toFloat()).clip(shape)
+            .background(MonitorPalette.backgroundDeep)) {
             image()
             if (selecting) {
                 Box(Modifier.align(Alignment.TopStart)) {
