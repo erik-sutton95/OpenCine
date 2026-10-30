@@ -147,6 +147,10 @@ class MonitorDeliveryBatchTest {
                 photos = null, filename = { "$it" }, sleep = { clock.value() }, progress = { progress(it) }))
         }
         runCurrent()
+        // No byte has arrived yet: the stall still shows.
+        facts.fraction = 0.0; rate = MediaTransferRate.Stalled; clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera · Stalled", model.state.value.progress!!.statusLine())
+        rate = null
         facts.fraction = 0.25; clock.release(Unit); runCurrent()
         assertEquals("Caching from camera 25%", model.state.value.progress!!.statusLine())
         rate = MediaTransferRate.BytesPerSecond(42_000_000); clock.release(Unit); runCurrent()

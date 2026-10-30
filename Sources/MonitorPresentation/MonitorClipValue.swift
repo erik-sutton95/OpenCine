@@ -73,4 +73,11 @@ public struct MonitorClipValue: Identifiable, Equatable, Sendable {
         guard progress != nil, let transferRate else { return base }
         return "\(base) · \(transferRate)"
     }
+
+    /// A list row's detail line while the clip downloads at a known speed ("18% · 42 MB/s");
+    /// none otherwise, and the row keeps its own detail.
+    public var transferDetail: String? {
+        guard progress != nil, transferRate != nil else { return nil }
+        return progressCaption
+    }
 }

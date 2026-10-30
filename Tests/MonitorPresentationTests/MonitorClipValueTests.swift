@@ -80,4 +80,20 @@ struct MonitorClipValueTests {
             progress: 0, favorite: false, photo: false))
         #expect(measuring.progressCaption == "0%")
     }
+
+    @Test func aListRowReadsTheDownloadOnlyWhileItsProgressRuns() {
+        let downloading = MonitorClipValue(
+            id: "SIMULATED/01", title: "01", detail: "4K · 1.2 GB", duration: nil, source: nil, favorite: false,
+            progress: 0.18, transferRate: "42 MB/s")
+        #expect(downloading.transferDetail == "18% · 42 MB/s")
+        // A host caption and a speed without progress leave the row its own detail.
+        let captioned = MonitorClipValue(
+            id: "SIMULATED/02", title: "02", detail: "4K · 1.2 GB", duration: nil, source: nil, favorite: false,
+            transferCaption: "CACHING", transferRate: "42 MB/s")
+        #expect(captioned.transferDetail == nil)
+        let measuring = MonitorClipValue(
+            id: "SIMULATED/03", title: "03", detail: "4K · 1.2 GB", duration: nil, source: nil, favorite: false,
+            progress: 0.18)
+        #expect(measuring.transferDetail == nil)
+    }
 }

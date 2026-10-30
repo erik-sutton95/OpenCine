@@ -64,6 +64,10 @@ data class MonitorClipValue(val id: String, val title: String, val detail: Strin
         val base = progressPercentCaption ?: return null
         return if (progress != null && transferRate != null) "$base · $transferRate" else base
     }
+
+    /** A list row's detail line while the clip downloads at a known speed ("18% · 42 MB/s"); none
+     * otherwise, and the row keeps its own detail. */
+    val transferDetail: String? get() = if (progress != null && transferRate != null) progressCaption else null
 }
 
 /** Grid and list share one presentation value and one thumbnail-loader slot. */
@@ -118,7 +122,7 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
         Box(Modifier.width(64.dp).height(40.dp).clip(RoundedCornerShape(6.dp)).background(MonitorPalette.backgroundDeep), content = image)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(clip.title, style = MonitorTypography.text(10.5f, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val transfer = clip.progressCaption.takeIf { clip.transferRate != null && clip.progress != null }
+            val transfer = clip.transferDetail
             if (transfer != null) Text(transfer, Modifier.semantics { testTag = "monitor.media.cell.transfer.detail" },
                 color = MonitorPalette.accent, style = MonitorTypography.readout(9f, FontWeight.SemiBold),
                 maxLines = 1, overflow = TextOverflow.Ellipsis)

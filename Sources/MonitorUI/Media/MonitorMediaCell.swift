@@ -151,7 +151,7 @@
             VStack(alignment: .leading, spacing: 3) {
                 Text(clip.title).font(MonitorTheme.font(titleSize, weight: .semibold))
                     .foregroundStyle(MonitorTheme.text)
-                if showsTransfer, clip.transferRate != nil, let caption = clip.progressCaption {
+                if showsTransfer, let caption = clip.transferDetail {
                     Text(caption).font(MonitorTheme.font(detailSize, weight: .semibold)).monospacedDigit()
                         .foregroundStyle(MonitorTheme.accent)
                         .accessibilityIdentifier("monitor.media.cell.transfer.detail")

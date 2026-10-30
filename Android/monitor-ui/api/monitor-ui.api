@@ -587,6 +587,7 @@ public final class com/opencapture/monitorui/MonitorClipValue {
 	public final fun getSourceTint-0d7_KjU ()J
 	public final fun getTitle ()Ljava/lang/String;
 	public final fun getTransferCaption ()Ljava/lang/String;
+	public final fun getTransferDetail ()Ljava/lang/String;
 	public final fun getTransferRate ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

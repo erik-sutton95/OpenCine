@@ -41,6 +41,8 @@ public data class MonitorDeliveryBatchProgress(
         } else {
             if (clipFraction > 0 && clipFraction < 0.45) "Exporting" else if (isPreparingClip) "Preparing…" else uploadCaption ?: this.uploadCaption ?: "Uploading"
         }
+        // Before the first byte the only reading is Stalled: it still shows.
+        if (isCaching && isPreparingClip && transferRate != null) return "Caching from camera · $transferRate"
         if (isPreparingClip) return verb
         if (isCaching && transferRate != null) return "$verb $percentText · $transferRate"
         return "$verb $percentText"

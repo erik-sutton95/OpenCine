@@ -394,8 +394,9 @@ internal fun <P> monitorCatalogClip(
     val source = if (entry?.original != null) "CACHED" else if (entry?.proxy != null) "PROXY" else "ON CAMERA"
     val progress = (facts.progress ?: libraryProgress)?.toFloat()
     val rate = if (showsRate) (facts.transferRate ?: libraryRate)?.label else null
+    // A source cell's own speed wins, as on iOS.
     return cell?.copy(id = record.asset.id.rawValue, favorite = record.favorite, source = source, progress = progress,
-        transferRate = rate)
+        transferRate = if (showsRate) cell.transferRate ?: rate else null)
         ?: MonitorClipValue(record.asset.id.rawValue, record.asset.filename, facts.detail,
             resolvedDuration ?: facts.duration, source, record.favorite, progress, transferRate = rate)
 }

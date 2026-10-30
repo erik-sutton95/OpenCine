@@ -851,7 +851,8 @@ public class MonitorMediaLibraryModel<P>(
             hostProgressOwners[authority.key] = authority
             previous?.cancel()
             mutate { it.copy(hostProgress = it.hostProgress + (authority.key to 0.0)) }
-            authority.asset?.let { transferRates.begin(it) }
+            // A synchronous state collector can retire this operation inside the mutation.
+            if (ownsProgress(operation)) authority.asset?.let { transferRates.begin(it) }
         }
         if (!hostCurrent(operation)) {
             finishHost(operation, clearingProgress = true); writer?.abort()
@@ -865,10 +866,14 @@ public class MonitorMediaLibraryModel<P>(
         hostOperations.remove(authority.id)
         val claim = HostClaim(authority.key, operation.purpose)
         if (hostClaims[claim] == authority.id) hostClaims.remove(claim)
-        // No more bytes come from this operation: its speed reading ends with it.
-        if (operation.purpose.tracksProgress) authority.asset?.let { transferRates.end(it) }
+        // No more bytes come from this operation: its speed reading ends with it, unless a newer
+        // playback of the same clip has taken the progress (and the reading) over.
+        if (operation.purpose.tracksProgress && hostProgressOwners[authority.key]?.id == authority.id)
+            authority.asset?.let { transferRates.end(it) }
         if (clearingProgress) clearHostProgress(authority)
     }
+    private fun ownsProgress(operation: HostOperation): Boolean =
+        hostCurrent(operation) && hostProgressOwners[operation.authority.key]?.id == operation.authority.id
     private fun hostSink(operation: HostOperation, attempt: UUID, hint: Long?, sink: MediaByteSink): MediaByteSink =
         object : MediaTransferProgressSink {
             var expected = hint?.takeIf { it > 0 }
@@ -892,8 +897,10 @@ public class MonitorMediaLibraryModel<P>(
                         operation.purpose.tracksProgress) {
                         val value = expected?.let { (bytes.toDouble() / it).coerceAtMost(1.0) } ?: 0.0
                         mutate { it.copy(hostProgress = it.hostProgress + (operation.authority.key to value)) }
-                        // A retried attempt counts from zero again; the reading restarts with it.
-                        operation.authority.asset?.let { transferRates.record(it, bytes) }
+                        // A retried attempt counts from zero again; the reading restarts with it. The
+                        // mutation can retire the operation through a synchronous collector.
+                        if (ownsProgress(operation) && operation.attempt == attempt)
+                            operation.authority.asset?.let { transferRates.record(it, bytes) }
                     }
                 }
             }

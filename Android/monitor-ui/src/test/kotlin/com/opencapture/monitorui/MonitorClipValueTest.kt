@@ -59,4 +59,14 @@ class MonitorClipValueTest {
         assertEquals("64% · 8.4 MB/s", MonitorClipValue("SIMULATED/05", "05", "", null, null, false,
             progress = 0.64f, transferRate = "8.4 MB/s").progressCaption)
     }
+
+    @Test fun aListRowReadsTheDownloadOnlyWhileItsProgressRuns() {
+        assertEquals("18% · 42 MB/s", MonitorClipValue("SIMULATED/01", "01", "4K · 1.2 GB", null, null, false,
+            progress = 0.18f, transferRate = "42 MB/s").transferDetail)
+        // A host caption and a speed without progress leave the row its own detail.
+        assertNull(MonitorClipValue("SIMULATED/02", "02", "4K · 1.2 GB", null, null, false,
+            transferCaption = "CACHING", transferRate = "42 MB/s").transferDetail)
+        assertNull(MonitorClipValue("SIMULATED/03", "03", "4K · 1.2 GB", null, null, false,
+            progress = 0.18f).transferDetail)
+    }
 }

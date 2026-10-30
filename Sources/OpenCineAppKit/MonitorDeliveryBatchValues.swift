@@ -90,6 +90,8 @@ public struct MonitorDeliveryBatchProgress: Equatable, Sendable {
                 : isPreparingClip
                     ? "Preparing…" : uploadCaption ?? self.uploadCaption ?? "Uploading"
         }
+        // Before the first byte the only reading is Stalled: it still shows.
+        if isCaching, isPreparingClip, let transferRate { return "Caching from camera · \(transferRate)" }
         guard !isPreparingClip else { return verb }
         if isCaching, let transferRate { return "\(verb) \(percentText) · \(transferRate)" }
         return "\(verb) \(percentText)"

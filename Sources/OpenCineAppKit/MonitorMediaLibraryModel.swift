@@ -1495,7 +1495,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             hostProgressOwners[authority.key] = authority
             oldDelay?.cancel()
             commit { $0.hostProgress[authority.key] = 0 }
-            if let asset = authority.asset { transferRates.begin(asset) }
+            // A synchronous progress observer can retire this operation inside the commit.
+            if ownsProgress(operation), let asset = authority.asset { transferRates.begin(asset) }
         }
         guard hostCurrent(operation) else {
             finishHost(operation, clearingProgress: true)
@@ -1510,9 +1511,14 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         hostOperations[authority.id] = nil
         let claim = HostClaim(key: authority.key, purpose: operation.purpose)
         if hostClaims[claim] == authority.id { hostClaims[claim] = nil }
-        // No more bytes come from this operation: its speed reading ends with it.
-        if operation.purpose.tracksProgress, let asset = authority.asset { transferRates.end(asset) }
+        // No more bytes come from this operation: its speed reading ends with it, unless a newer
+        // playback of the same clip has taken the progress (and the reading) over.
+        if operation.purpose.tracksProgress, hostProgressOwners[authority.key]?.id == authority.id,
+            let asset = authority.asset { transferRates.end(asset) }
         if clearingProgress { clearHostProgress(authority) }
+    }
+    private func ownsProgress(_ operation: HostOperation) -> Bool {
+        hostCurrent(operation) && hostProgressOwners[operation.authority.key]?.id == operation.authority.id
     }
     private func hostSink(_ operation: HostOperation, attempt: UUID, expected: UInt64?, into sink: any MediaByteSink)
         -> any MediaByteSink {
@@ -1523,8 +1529,11 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                     self.hostProgressOwners[operation.authority.key]?.id == operation.authority.id,
                     operation.purpose.tracksProgress else { return }
                 self.commit { $0.hostProgress[operation.authority.key] = value }
-                // A retried attempt counts from zero again; the reading restarts with it.
-                if let asset = operation.authority.asset { self.transferRates.record(asset, totalBytes: bytes) }
+                // A retried attempt counts from zero again; the reading restarts with it. The commit
+                // can retire the operation through a synchronous observer: no reading outlives it.
+                guard self.ownsProgress(operation), operation.attempt == attempt,
+                    let asset = operation.authority.asset else { return }
+                self.transferRates.record(asset, totalBytes: bytes)
             })
     }
     private func performHost(_ operation: HostOperation, expected: UInt64?, into sink: any MediaByteSink,

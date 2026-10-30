@@ -155,6 +155,11 @@ import Testing
             return completion(outcome)
         }
         await settle { acquire.count == 1 && clock.count == 1 }
+        // No byte has arrived yet: the stall still shows.
+        facts.fraction = 0; rate = .stalled; clock.release(())
+        await settle { model.state.progress?.transferRate == "Stalled" && clock.count == 1 }
+        #expect(model.state.progress?.statusLine() == "Caching from camera · Stalled")
+        rate = nil
         facts.fraction = 0.25; clock.release(())
         await settle { model.state.progress?.clipFraction == 0.25 && clock.count == 1 }
         #expect(model.state.progress?.statusLine() == "Caching from camera 25%")

@@ -1372,6 +1372,7 @@ var MonitorCapturePopupKind.showsClose: Swift.Bool
 var MonitorCapturePopupKind.subtitle: Swift.String?
 var MonitorClipValue.progressCaption: Swift.String?
 var MonitorClipValue.progressPercentCaption: Swift.String?
+var MonitorClipValue.transferDetail: Swift.String?
 var MonitorCommandGridCell.columns: Swift.Int
 var MonitorCommandGridCell.rowHeight: CoreGraphics.CGFloat
 var MonitorCommandGridCell.spacing: CoreGraphics.CGFloat
