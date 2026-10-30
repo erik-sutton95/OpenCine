@@ -105,19 +105,33 @@
               color()
             }
           }
+          .monitorReadoutShadow()
         } else {
-          HStack(spacing: 24) {
-            storage()
-            format()
-            color()
-            mode()
-            Spacer(minLength: cornerShown ? MonitorStatusCorner.leadingGap : 4)
+          // Each readout group takes the readout shadow once. The corner's tiles are camera
+          // value readouts that already carry it (`MonitorReadout`), as the strip's do, so the
+          // row's shadow stops short of them instead of stacking a second halo.
+          // A corner keeps `MonitorStatusCorner.leadingGap` from the leading readouts; without one
+          // the trailing readouts keep the row's earlier 52 pt (24 + 4 + 24).
+          HStack(spacing: 0) {
+            HStack(spacing: 24) {
+              storage()
+              format()
+              color()
+              mode()
+            }
+            .monitorReadoutShadow()
+            Spacer(minLength: cornerShown ? MonitorStatusCorner.leadingGap : 52)
             HStack(spacing: 10) {
-              if showsRecording { MonitorRecordingReadout(status: status) }
-              if showsTimecode {
-                MonitorStatusClockSlot(read: clock, fallback: status.timecode) { shown in
-                  MonitorClock(shown, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23)
+              if showsRecording || showsTimecode {
+                HStack(spacing: 10) {
+                  if showsRecording { MonitorRecordingReadout(status: status) }
+                  if showsTimecode {
+                    MonitorStatusClockSlot(read: clock, fallback: status.timecode) { shown in
+                      MonitorClock(shown, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23)
+                    }
+                  }
                 }
+                .monitorReadoutShadow()
               }
               // At its natural width: the leading readouts scale to make room, never the tiles.
               if cornerShown { corner().fixedSize(horizontal: true, vertical: false) }
@@ -125,10 +139,9 @@
             .layoutPriority(cornerShown ? 1 : 0)
             .padding(.trailing, layout.recordingReadoutTrailingInset)
           }
+          .frame(height: layout.status.height)
         }
       }
-      .frame(height: layout.portrait ? nil : layout.status.height)
-      .monitorReadoutShadow()
       .overlay(alignment: .topLeading) {
         if layout.portrait, showsCompactTelemetry {
           if layout.tablet {
