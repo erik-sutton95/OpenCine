@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineMedia
 
 public enum MonitorDeliveryDestination: String, CaseIterable, Identifiable, Sendable {
     case nativeShare, remoteUpload
@@ -44,6 +45,8 @@ public struct MonitorDeliveryBatchProgress: Equatable, Sendable {
     public var filename: String?
     public var uploadCaption: String?
     public var stage: Stage = .preparing
+    /// The camera download's speed while caching ("42 MB/s", "Stalled"); nil hides it.
+    public var transferRate: String?
     public init(
         destination: MonitorDeliveryDestination, totalClips: Int, clipIndex: Int,
         clipFraction: Double, isCaching: Bool = false, isSwitchingNetworks: Bool = false,
@@ -87,7 +90,11 @@ public struct MonitorDeliveryBatchProgress: Equatable, Sendable {
                 : isPreparingClip
                     ? "Preparing…" : uploadCaption ?? self.uploadCaption ?? "Uploading"
         }
-        return isPreparingClip ? verb : "\(verb) \(percentText)"
+        // Before the first byte the only reading is Stalled: it still shows.
+        if isCaching, isPreparingClip, let transferRate { return "Caching from camera · \(transferRate)" }
+        guard !isPreparingClip else { return verb }
+        if isCaching, let transferRate { return "\(verb) \(percentText) · \(transferRate)" }
+        return "\(verb) \(percentText)"
     }
 }
 
@@ -113,16 +120,20 @@ public enum MonitorDeliveryBatchOutcome<Artifact: Sendable>: Sendable {
     /// Whether the last acquisition of an uncached record ended because the camera stopped
     /// answering (the link died mid-transfer), rather than refusing or being unreachable.
     public let cameraStoppedResponding: @MainActor (Record) -> Bool
+    /// The running acquisition's download speed, read with its progress; nil shows none.
+    public let rate: @MainActor (Record) -> MediaTransferRate?
     public init(
         available: @escaping @MainActor (Record) -> Bool,
         acquire: @escaping @MainActor (Record) async -> Void,
         progress: @escaping @MainActor (Record) -> Double?,
-        cameraStoppedResponding: @escaping @MainActor (Record) -> Bool = { _ in false }
+        cameraStoppedResponding: @escaping @MainActor (Record) -> Bool = { _ in false },
+        rate: @escaping @MainActor (Record) -> MediaTransferRate? = { _ in nil }
     ) {
         self.available = available
         self.acquire = acquire
         self.progress = progress
         self.cameraStoppedResponding = cameraStoppedResponding
+        self.rate = rate
     }
 }
 @MainActor public struct MonitorDeliveryExportService<Record: Sendable, Artifact: Sendable> {

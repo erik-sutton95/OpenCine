@@ -34,6 +34,13 @@ class MonitorCatalogClipTest {
         assertNull(monitorCatalogClip(record, null, facts, null, null, sourceCell).progress)
     }
 
+    @Test fun sourceCellKeepsItsOwnDownloadSpeed() {
+        val measured = sourceCell.copy(transferRate = "42 MB/s")
+        assertEquals("42 MB/s", monitorCatalogClip(record, null, facts, null, 0.5, measured).transferRate)
+        // The smallest grid size shows no speed, the cell's own included.
+        assertNull(monitorCatalogClip(record, null, facts, null, 0.5, measured, showsRate = false).transferRate)
+    }
+
     @Test fun defaultCellKeepsItsFactsAndResolvedDuration() {
         val clip = monitorCatalogClip(record, MonitorMediaCacheEntry(file, null, null),
             facts.copy(duration = "00:04"), "00:05", null, null)

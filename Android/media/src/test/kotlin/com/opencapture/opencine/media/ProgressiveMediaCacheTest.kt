@@ -6,7 +6,9 @@ import java.nio.file.Path
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import com.opencapture.opencine.core.MonotonicInstant
 import kotlin.test.*
+import kotlin.time.Duration.Companion.milliseconds
 
 class ProgressiveMediaCacheTest {
     private val identity = ProgressiveMediaCacheIdentity("C0001.MOV", "volume\u0000object\u0000capture\u0000C0001.MOV")
@@ -66,6 +68,27 @@ class ProgressiveMediaCacheTest {
             executor.shutdownNow()
             assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS))
         }
+    }
+
+    @Test fun aFillingEntryReadsItsDownloadSpeedAndOnlyWhileItFills() {
+        val root = Files.createTempDirectory("opencine-progressive-")
+        var now = 0
+        try {
+            val cache = ProgressiveMediaCache(root) { MonotonicInstant(now.milliseconds) }
+            val entry = cache.openEntry("camera", identity, 2_000_000)
+            assertEquals(MediaTransferRate.Measuring, entry.transferRate())
+            // 1 MB over one second, 100 KB every 100 ms.
+            repeat(10) { entry.append(it * 100_000L, ByteArray(100_000)); now += 100 }
+            assertEquals("1.0 MB/s", entry.transferRate()?.label)
+            now += 3000
+            assertEquals("Stalled", entry.transferRate()?.label)
+            entry.cancel()
+            assertNull(entry.transferRate())
+            // A resumed transfer counts only the bytes it brings, not the offset it resumed at.
+            entry.resume()
+            repeat(10) { entry.append(1_000_000L + it * 50_000L, ByteArray(50_000)); now += 100 }
+            assertEquals("500 KB/s", entry.transferRate()?.label)
+        } finally { Files.walk(root).use { it.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) } }
     }
 
     private fun withCache(block: (Path, ProgressiveMediaCache) -> Unit) {

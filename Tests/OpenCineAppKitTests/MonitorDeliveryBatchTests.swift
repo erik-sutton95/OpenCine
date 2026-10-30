@@ -1,5 +1,6 @@
 import Foundation
 import OpenCineAppKit
+import OpenCineMedia
 import Testing
 
 @MainActor private final class DeliveryBatchGate<T: Sendable> {
@@ -137,6 +138,39 @@ import Testing
         clock.release(())
         for _ in 0..<20 { await Task.yield() }
         #expect(facts.progress.count == finished && model.state.progress == nil)
+        model.close()
+    }
+    @Test func cachingProgressReadsTheCameraDownloadSpeed() async {
+        let facts = DeliveryBatchFacts()
+        let clock = DeliveryBatchGate<Void>(), acquire = DeliveryBatchGate<Void>()
+        var rate: MediaTransferRate?
+        let model = Model()
+        model.beginAdmitted { progress, admission in
+            let outcome = await Model.runBatch(records: [1], destination: .nativeShare, action: .systemShare,
+                admission: admission, originals: .init(available: { facts.cached.contains($0) }, acquire: { record in
+                    await acquire.value(); facts.cached.insert(record)
+                }, progress: { _ in facts.fraction }, rate: { _ in rate }), exporter: exporter(facts),
+                share: { .init(urls: $0) }, photos: nil, internet: Optional<MonitorDeliveryInternetService<Int>>.none,
+                filename: { "\($0)" }, sleep: { _ in await clock.value() }, progress: { progress($0) })
+            return completion(outcome)
+        }
+        await settle { acquire.count == 1 && clock.count == 1 }
+        // No byte has arrived yet: the stall still shows.
+        facts.fraction = 0; rate = .stalled; clock.release(())
+        await settle { model.state.progress?.transferRate == "Stalled" && clock.count == 1 }
+        #expect(model.state.progress?.statusLine() == "Caching from camera · Stalled")
+        rate = nil
+        facts.fraction = 0.25; clock.release(())
+        await settle { model.state.progress?.clipFraction == 0.25 && clock.count == 1 }
+        #expect(model.state.progress?.statusLine() == "Caching from camera 25%")
+        rate = .bytesPerSecond(42_000_000); clock.release(())
+        await settle { model.state.progress?.transferRate != nil && clock.count == 1 }
+        #expect(model.state.progress?.statusLine() == "Caching from camera 25% · 42 MB/s")
+        rate = .stalled; clock.release(())
+        await settle { model.state.progress?.transferRate == "Stalled" && clock.count == 1 }
+        #expect(model.state.progress?.statusLine() == "Caching from camera 25% · Stalled")
+        acquire.release(())
+        await settle { !model.state.running }
         model.close()
     }
     @Test func retiredAcquisitionCannotPrepareOrCancelSuccessor() async {

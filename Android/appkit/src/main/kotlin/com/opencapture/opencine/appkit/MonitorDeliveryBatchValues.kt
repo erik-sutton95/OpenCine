@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appkit
 
+import com.opencapture.opencine.media.MediaTransferRate
 import kotlin.math.roundToInt
 
 public enum class MonitorDeliveryDestination {
@@ -20,6 +21,8 @@ public data class MonitorDeliveryBatchProgress(
     public val clipIndex: Int, public val clipFraction: Double,
     public val isCaching: Boolean = false, public val isSwitchingNetworks: Boolean = false,
     public val filename: String? = null, public val uploadCaption: String? = null, public val stage: Stage = Stage.PREPARING,
+    /** The camera download's speed while caching ("42 MB/s", "Stalled"); null hides it. */
+    public val transferRate: String? = null,
 ) {
     public enum class Stage { PREPARING, CACHING, EXPORTING, UPLOADING, SAVING, SWITCHING_NETWORKS, AWAITING_PHOTOS_ACCESS }
     public val overallFraction: Double get() = if (totalClips > 0)
@@ -38,7 +41,11 @@ public data class MonitorDeliveryBatchProgress(
         } else {
             if (clipFraction > 0 && clipFraction < 0.45) "Exporting" else if (isPreparingClip) "Preparing…" else uploadCaption ?: this.uploadCaption ?: "Uploading"
         }
-        return if (isPreparingClip) verb else "$verb $percentText"
+        // Before the first byte the only reading is Stalled: it still shows.
+        if (isCaching && isPreparingClip && transferRate != null) return "Caching from camera · $transferRate"
+        if (isPreparingClip) return verb
+        if (isCaching && transferRate != null) return "$verb $percentText · $transferRate"
+        return "$verb $percentText"
     }
 }
 public sealed interface MonitorDeliveryBatchOutcome<A> {
@@ -54,6 +61,8 @@ public class MonitorDeliveryOriginalService<R>(
     public val available: (R) -> Boolean, public val acquire: suspend (R) -> Unit, public val progress: (R) -> Double?,
     /** Whether the last acquisition of an uncached record ended because the camera stopped answering. */
     public val cameraStoppedResponding: (R) -> Boolean = { false },
+    /** The running acquisition's download speed, read with its progress; null shows none. */
+    public val rate: (R) -> MediaTransferRate? = { null },
 )
 public class MonitorDeliveryExportService<R, A>(
     public val release: suspend (A) -> Unit, public val prepare: suspend (R, (Double) -> Unit) -> A?,

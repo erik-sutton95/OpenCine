@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineMedia
 
 /// Immutable cell facts. Source adapters retain URLs, cache policy and camera operations.
 public struct MonitorClipValue: Identifiable, Equatable, Sendable {
@@ -13,6 +14,8 @@ public struct MonitorClipValue: Identifiable, Equatable, Sendable {
     public let mediaBadge: String?
     public let completionBadge: String?
     public let transferCaption: String?
+    /// The running download's speed ("42 MB/s", "Stalled"); nil hides it.
+    public let transferRate: String?
     public let format: String?
     public let color: String?
     public let accessibilityDescription: String?
@@ -25,7 +28,7 @@ public struct MonitorClipValue: Identifiable, Equatable, Sendable {
         mediaBadge: String? = nil, completionBadge: String? = nil,
         transferCaption: String? = nil, format: String? = nil, color: String? = nil,
         accessibilityDescription: String? = nil, favoriteLabel: String? = nil,
-        selectionEntryLabel: String? = nil
+        selectionEntryLabel: String? = nil, transferRate: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -38,6 +41,7 @@ public struct MonitorClipValue: Identifiable, Equatable, Sendable {
         self.mediaBadge = mediaBadge
         self.completionBadge = completionBadge
         self.transferCaption = transferCaption
+        self.transferRate = transferRate
         self.format = format
         self.color = color
         self.accessibilityDescription = accessibilityDescription
@@ -54,6 +58,26 @@ public struct MonitorClipValue: Identifiable, Equatable, Sendable {
             burstCount: item.burstCount, mediaBadge: item.mediaBadge,
             completionBadge: item.completionBadge, transferCaption: item.transferCaption,
             format: item.format.isEmpty ? nil : item.format,
-            color: item.color.isEmpty ? nil : item.color)
+            color: item.color.isEmpty ? nil : item.color, transferRate: item.transferRate)
+    }
+
+    /// The download readout without the speed: the host's caption, else the percent.
+    public var progressPercentCaption: String? {
+        transferCaption ?? MediaTransferRate.caption(fraction: progress, rate: nil)
+    }
+
+    /// The download readout every cell shows and announces: "18% · 42 MB/s". The speed shows
+    /// only beside progress.
+    public var progressCaption: String? {
+        guard let base = progressPercentCaption else { return nil }
+        guard progress != nil, let transferRate else { return base }
+        return "\(base) · \(transferRate)"
+    }
+
+    /// A list row's detail line while the clip downloads at a known speed ("18% · 42 MB/s");
+    /// none otherwise, and the row keeps its own detail.
+    public var transferDetail: String? {
+        guard progress != nil, transferRate != nil else { return nil }
+        return progressCaption
     }
 }
