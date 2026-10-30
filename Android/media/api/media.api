@@ -2288,6 +2288,64 @@ public abstract interface class com/opencapture/opencine/media/MediaTransferProg
 	public abstract fun expectedByteCount (Ljava/lang/Long;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public abstract interface class com/opencapture/opencine/media/MediaTransferRate {
+	public static final field Companion Lcom/opencapture/opencine/media/MediaTransferRate$Companion;
+	public fun getLabel ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/media/MediaTransferRate$BytesPerSecond : com/opencapture/opencine/media/MediaTransferRate {
+	public fun <init> (J)V
+	public final fun component1 ()J
+	public final fun copy (J)Lcom/opencapture/opencine/media/MediaTransferRate$BytesPerSecond;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/MediaTransferRate$BytesPerSecond;JILjava/lang/Object;)Lcom/opencapture/opencine/media/MediaTransferRate$BytesPerSecond;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getLabel ()Ljava/lang/String;
+	public final fun getRate ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/media/MediaTransferRate$Companion {
+	public final fun caption (Ljava/lang/Double;Ljava/lang/String;)Ljava/lang/String;
+	public final fun label (J)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/media/MediaTransferRate$DefaultImpls {
+	public static fun getLabel (Lcom/opencapture/opencine/media/MediaTransferRate;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/media/MediaTransferRate$Measuring : com/opencapture/opencine/media/MediaTransferRate {
+	public static final field INSTANCE Lcom/opencapture/opencine/media/MediaTransferRate$Measuring;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getLabel ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/media/MediaTransferRate$Stalled : com/opencapture/opencine/media/MediaTransferRate {
+	public static final field INSTANCE Lcom/opencapture/opencine/media/MediaTransferRate$Stalled;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getLabel ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/media/MediaTransferRateEstimator {
+	public static final field Companion Lcom/opencapture/opencine/media/MediaTransferRateEstimator$Companion;
+	public static final field SETTLE_BYTES J
+	public synthetic fun <init> (JJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun rate-_5MYWhY (J)Lcom/opencapture/opencine/media/MediaTransferRate;
+	public final fun record-DxfyQ1I (JJ)V
+}
+
+public final class com/opencapture/opencine/media/MediaTransferRateEstimator$Companion {
+	public final fun getEARLY_TIME-UwyO8pc ()J
+	public final fun getSETTLE_TIME-UwyO8pc ()J
+	public final fun getSTALL_AFTER-UwyO8pc ()J
+	public final fun getWINDOW-UwyO8pc ()J
+}
+
 public final class com/opencapture/opencine/media/MediaTransferReceipt {
 	public fun <init> (JLjava/lang/Long;)V
 	public synthetic fun <init> (JLjava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -3499,12 +3557,13 @@ public final class com/opencapture/opencine/media/MonitorPlaybackScrubToken {
 
 public final class com/opencapture/opencine/media/MonitorPlaybackSourceValues {
 	public fun <init> ()V
-	public fun <init> (Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;Ljava/lang/Double;ZLjava/lang/String;)V
-	public synthetic fun <init> (Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;Ljava/lang/Double;ZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;Ljava/lang/Double;ZLjava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;Ljava/lang/Double;ZLjava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun bufferedTemporalFraction (Ljava/lang/Double;)Ljava/lang/Double;
 	public final fun component1 ()Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;
 	public final fun component10 ()Z
 	public final fun component11 ()Ljava/lang/String;
+	public final fun component12 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/Double;
 	public final fun component3 ()Ljava/lang/Double;
 	public final fun component4 ()Ljava/lang/String;
@@ -3513,8 +3572,8 @@ public final class com/opencapture/opencine/media/MonitorPlaybackSourceValues {
 	public final fun component7 ()Ljava/util/List;
 	public final fun component8 ()Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;
 	public final fun component9 ()Ljava/lang/Double;
-	public final fun copy (Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;Ljava/lang/Double;ZLjava/lang/String;)Lcom/opencapture/opencine/media/MonitorPlaybackSourceValues;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/MonitorPlaybackSourceValues;Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;Ljava/lang/Double;ZLjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/media/MonitorPlaybackSourceValues;
+	public final fun copy (Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;Ljava/lang/Double;ZLjava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/media/MonitorPlaybackSourceValues;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/media/MonitorPlaybackSourceValues;Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/String;Lcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/media/MonitorPlaybackClockStyle;Ljava/lang/Double;ZLjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/media/MonitorPlaybackSourceValues;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAllowsSignalFallback ()Z
 	public final fun getAvailability ()Lcom/opencapture/opencine/media/MonitorPlaybackAvailability;
@@ -3528,6 +3587,7 @@ public final class com/opencapture/opencine/media/MonitorPlaybackSourceValues {
 	public final fun getProgress ()Ljava/lang/Double;
 	public final fun getSourceLabel ()Ljava/lang/String;
 	public final fun getTransfer ()Lcom/opencapture/opencine/media/MonitorTransfer;
+	public final fun getTransferRate ()Ljava/lang/String;
 	public fun hashCode ()I
 	public final fun headerSubtitle (Ljava/lang/String;)Ljava/lang/String;
 	public final fun resolvedTransfer (Lkotlin/jvm/functions/Function0;)Lcom/opencapture/opencine/media/MonitorTransfer;
@@ -3767,6 +3827,8 @@ public final class com/opencapture/opencine/media/PrivacyRedactor {
 
 public final class com/opencapture/opencine/media/ProgressiveMediaCache {
 	public fun <init> (Ljava/nio/file/Path;)V
+	public fun <init> (Ljava/nio/file/Path;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/nio/file/Path;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun cacheUsage ()Lcom/opencapture/opencine/media/ProgressiveMediaCacheUsage;
 	public final fun clearCompletedEntries ()Lcom/opencapture/opencine/media/ProgressiveMediaCacheClearResult;
 	public final fun completedEntryOrNull (Ljava/lang/String;Lcom/opencapture/opencine/media/ProgressiveMediaCacheIdentity;J)Lcom/opencapture/opencine/media/ProgressiveMediaCacheEntry;
@@ -3806,6 +3868,7 @@ public final class com/opencapture/opencine/media/ProgressiveMediaCacheEntry {
 	public final fun getState ()Lcom/opencapture/opencine/media/ProgressiveMediaCacheState;
 	public final fun reader ()Lcom/opencapture/opencine/media/ProgressiveMediaCacheReader;
 	public final fun resume ()V
+	public final fun transferRate ()Lcom/opencapture/opencine/media/MediaTransferRate;
 }
 
 public abstract class com/opencapture/opencine/media/ProgressiveMediaCacheException : java/io/IOException {
