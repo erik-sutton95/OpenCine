@@ -95,8 +95,14 @@ public enum MonitorMediaAction: Equatable, Sendable {
     case favorite(String)
     case layout(MonitorMediaLayout)
     case thumbnailSize(MonitorThumbnailSize)
-    case selectAll, clearSelection, shareSelection, cacheSelection, favoriteSelection,
-        deleteSelection
+    case selectAll, clearSelection, shareSelection, deleteSelection
+}
+
+/// The selection bar's leading Close, which leaves selection mode. Kotlin twin: the
+/// `MonitorMediaSelectionCopy` object in monitor-ui; app UI tests query these values.
+public enum MonitorMediaSelectionCopy {
+    public static let exit = "Exit selection"
+    public static let exitIdentifier = "monitor.media.selection.close"
 }
 
 /// Per-clip operations currently offered by the adapter. Unsupported controls
@@ -105,7 +111,6 @@ public struct MonitorMediaPermissions: OptionSet, Equatable, Sendable {
     public let rawValue: UInt8
     public init(rawValue: UInt8) { self.rawValue = rawValue }
     public static let share = Self(rawValue: 1 << 0)
-    public static let cache = Self(rawValue: 1 << 1)
     public static let favorite = Self(rawValue: 1 << 2)
     public static let delete = Self(rawValue: 1 << 3)
 }

@@ -187,6 +187,8 @@ extension SwiftUICore.View
 func CameraPageButtonStyle.makeBody(configuration: CameraPageButtonStyle.Configuration) -> some SwiftUI.View
 func InterfaceOrientationObserver.start() -> ()
 func InterfaceOrientationObserver.stop() -> ()
+func LiveMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> CoreFoundation.CGRect
+func LiveMonitorLayout.focusReset(motionCluster: Swift.Bool) -> CoreFoundation.CGRect
 func LiveMonitorLayout.gimbalButton(showGimbalButton: Swift.Bool) -> CoreFoundation.CGRect
 func LiveMonitorLayout.gimbalCluster(showGimbalButton: Swift.Bool) -> MonitorPresentation.GimbalCluster
 func MonitorBackdropSnapshot.image(for: MonitorGlassDensity) -> CoreGraphics.CGImage?
@@ -212,6 +214,8 @@ func MonitorScopeTraceMetalView.updateUIView(_: MetalKit.MTKView, context: Monit
 func MonitorScopeTraceRenderer.draw(in: MetalKit.MTKView) -> ()
 func MonitorScopeTraceRenderer.mtkView(_: MetalKit.MTKView, drawableSizeWillChange: CoreFoundation.CGSize) -> ()
 func MonitorSettingsButtonStyle.makeBody(configuration: MonitorSettingsButtonStyle.Configuration) -> some SwiftUI.View
+func MonitorStatusCornerLayout.placeSubviews(in: CoreFoundation.CGRect, proposal: SwiftUI.ProposedViewSize, subviews: MonitorStatusCornerLayout.Subviews, cache: ()) -> ()
+func MonitorStatusCornerLayout.sizeThatFits(proposal: SwiftUI.ProposedViewSize, subviews: MonitorStatusCornerLayout.Subviews, cache: ()) -> CoreFoundation.CGSize
 func MonitorTabButtonStyle.makeBody(configuration: MonitorTabButtonStyle.Configuration) -> some SwiftUI.View
 func MonitorTapTargetButtonStyle.makeBody(configuration: MonitorTapTargetButtonStyle.Configuration) -> some SwiftUI.View
 func MonitorTelemetryPowerLayout.placeSubviews(in: CoreFoundation.CGRect, proposal: SwiftUI.ProposedViewSize, subviews: MonitorTelemetryPowerLayout.Subviews, cache: ()) -> ()
@@ -389,7 +393,7 @@ init MonitorPortraitPrimaryFit(clockSize: CoreGraphics.CGFloat, primarySize: Cor
 init MonitorPortraitPrimarySizer()
 init MonitorPortraitReadoutText(_: Swift.String, detail: Swift.Bool)
 init MonitorProjectLegalSettings(sourceHelp: Swift.String, termsHelp: Swift.String, source: () -> Swift.Void, privacy: () -> Swift.Void, terms: () -> Swift.Void, licenses: (() -> Swift.Void)?, notice: (() -> Swift.Void)?)
-init MonitorReadout(_: Swift.String, active: Swift.Bool, value: () -> Value)<Value where Value : SwiftUI.View>
+init MonitorReadout(_: Swift.String, active: Swift.Bool, wholeCaption: Swift.Bool, value: () -> Value)<Value where Value : SwiftUI.View>
 init MonitorReadoutGesture(snapshot: MonitorPresentation.MonitorReadoutSnapshot?, sourceIdentity: SourceIdentity, isEnabled: Swift.Bool, ownership: SwiftUI.Binding<MonitorPresentation.MonitorReadoutOwnership>, presentationOwner: () -> Foundation.UUID?, holdAction: (() -> Swift.Void)?, onEvent: (MonitorPresentation.MonitorReadoutEvent<SourceIdentity>) -> Swift.Void)<SourceIdentity where SourceIdentity : Swift.Hashable, SourceIdentity : Swift.Sendable>
 init MonitorRecordLamp(diameter: CoreGraphics.CGFloat, recording: Swift.Bool, photo: Swift.Bool)
 init MonitorRecordingBorder(cornerRadius: CoreGraphics.CGFloat)
@@ -437,7 +441,9 @@ init MonitorSettingsWatchersSource.Request(name: Swift.String, help: Swift.Strin
 init MonitorSnapshotRows(_: Data, content: (Data.Element) -> Content)<ID, Content, Data where ID == Data.Element.ID, Content : SwiftUI.View, Data : Swift.RandomAccessCollection, Data.Element : Swift.Identifiable>
 init MonitorSnapshotRows(_: Data, id: Swift.KeyPath<Data.Element, ID>, content: (Data.Element) -> Content)<ID, Content, Data where ID : Swift.Hashable, Content : SwiftUI.View, Data : Swift.RandomAccessCollection>
 init MonitorStarRating(stars: Swift.Int, levels: [Swift.Int], enabled: Swift.Bool, identifierPrefix: Swift.String, select: (Swift.Int) -> Swift.Void)
-init MonitorStatusChrome(layout: MonitorPresentation.FieldMonitorLayout, status: MonitorPresentation.MonitorStatusPresentation, showsTimecode: Swift.Bool, showsRecording: Swift.Bool, showsCompactTelemetry: Swift.Bool, minimumOccupiedTop: Swift.Double, clock: (() -> Swift.String?)?, storage: () -> Storage, format: () -> Format, color: () -> ColorProfile, mode: () -> Mode, link: () -> Link)<Storage, Format, ColorProfile, Mode, Link where Storage : SwiftUI.View, Format : SwiftUI.View, ColorProfile : SwiftUI.View, Mode : SwiftUI.View, Link : SwiftUI.View>
+init MonitorStatusChrome(layout: MonitorPresentation.FieldMonitorLayout, status: MonitorPresentation.MonitorStatusPresentation, showsTimecode: Swift.Bool, showsRecording: Swift.Bool, showsCompactTelemetry: Swift.Bool, minimumOccupiedTop: Swift.Double, clock: (() -> Swift.String?)?, storage: () -> Storage, format: () -> Format, color: () -> ColorProfile, mode: () -> Mode, link: () -> Link)<Storage, Format, ColorProfile, Mode, Link, Corner where Storage : SwiftUI.View, Format : SwiftUI.View, ColorProfile : SwiftUI.View, Mode : SwiftUI.View, Link : SwiftUI.View, Corner == SwiftUI.EmptyView>
+init MonitorStatusChrome(layout: MonitorPresentation.FieldMonitorLayout, status: MonitorPresentation.MonitorStatusPresentation, showsTimecode: Swift.Bool, showsRecording: Swift.Bool, showsCompactTelemetry: Swift.Bool, minimumOccupiedTop: Swift.Double, clock: (() -> Swift.String?)?, storage: () -> Storage, format: () -> Format, color: () -> ColorProfile, mode: () -> Mode, link: () -> Link, cornerShown: Swift.Bool, corner: () -> Corner)<Storage, Format, ColorProfile, Mode, Link, Corner where Storage : SwiftUI.View, Format : SwiftUI.View, ColorProfile : SwiftUI.View, Mode : SwiftUI.View, Link : SwiftUI.View, Corner : SwiftUI.View>
+init MonitorStatusCornerLayout(spacing: CoreGraphics.CGFloat)
 init MonitorSupportAction(id: Swift.String, title: Swift.String, help: Swift.String?, actionTitle: Swift.String, accessibilityLabel: Swift.String, enabled: Swift.Bool, action: () -> Swift.Void)
 init MonitorSupportSettings(automaticReports: SwiftUI.Binding<Swift.Bool>?, available: Swift.Bool, automaticHelp: Swift.String, unavailableHelp: Swift.String, status: MonitorReportStatus?, discard: (() -> Swift.Void)?, feedback: () -> Swift.Void, reportTitle: Swift.String, reportHelp: Swift.String, reportActionTitle: Swift.String, actions: [MonitorSupportAction], report: () -> Swift.Void, privacy: (() -> Swift.Void)?)
 init MonitorSystemControls(layout: MonitorPresentation.FieldMonitorLayout, visibility: MonitorPresentation.MonitorSystemControlsVisibility, capturePresented: Swift.Bool, visible: Swift.Bool, interactive: Swift.Bool, navigationHidden: Swift.Bool?, lock: () -> Lock, settings: () -> Settings, media: () -> Media, record: () -> Record, display: () -> Display)<Lock, Settings, Media, Record, Display where Lock : SwiftUI.View, Settings : SwiftUI.View, Media : SwiftUI.View, Record : SwiftUI.View, Display : SwiftUI.View>
@@ -1085,7 +1091,8 @@ struct MonitorSettingsWatchersSource.Holder
 struct MonitorSettingsWatchersSource.Request
 struct MonitorSnapshotRows<ID, Content where ID : Swift.Hashable, Content : SwiftUI.View>: Sendable, View
 struct MonitorStarRating: Sendable, View
-struct MonitorStatusChrome<Storage, Format, ColorProfile, Mode, Link where Storage : SwiftUI.View, Format : SwiftUI.View, ColorProfile : SwiftUI.View, Mode : SwiftUI.View, Link : SwiftUI.View>: Sendable, View
+struct MonitorStatusChrome<Storage, Format, ColorProfile, Mode, Link, Corner where Storage : SwiftUI.View, Format : SwiftUI.View, ColorProfile : SwiftUI.View, Mode : SwiftUI.View, Link : SwiftUI.View, Corner : SwiftUI.View>: Sendable, View
+struct MonitorStatusCornerLayout: Animatable, Layout, Sendable
 struct MonitorSupportAction: Identifiable
 struct MonitorSupportSettings: Sendable, View
 struct MonitorSystemControls<Lock, Settings, Media, Record, Display where Lock : SwiftUI.View, Settings : SwiftUI.View, Media : SwiftUI.View, Record : SwiftUI.View, Display : SwiftUI.View>: Sendable, View
@@ -1462,6 +1469,7 @@ var MonitorSettingsValueText.body: some SwiftUI.View
 var MonitorSnapshotRows.body: some SwiftUI.View
 var MonitorStarRating.body: some SwiftUI.View
 var MonitorStatusChrome.body: some SwiftUI.View
+var MonitorStatusCornerLayout.spacing: CoreGraphics.CGFloat
 var MonitorSupportSettings.body: some SwiftUI.View
 var MonitorSystemControls.body: some SwiftUI.View
 var MonitorTabStrip.body: some SwiftUI.View

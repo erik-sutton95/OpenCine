@@ -37,8 +37,8 @@ class MonitorSelectionTrayLabelTest {
                         // A 360 dp phone less the page gutters leaves about 328 dp for the bar
                         // (the Samsung of the hardware pass, at its default display size, about 348 dp).
                         Box(Modifier.width(328.dp)) {
-                            MediaSelectionTray(2, cacheEnabled = true, deleteEnabled = true,
-                                onAll = {}, onClear = {}, onCache = {}, onStar = {}, onDelete = {}, onShare = {})
+                            MediaSelectionTray(2, deleteEnabled = true,
+                                onAll = {}, onExit = {}, onDelete = {}, onShare = {})
                         }
                         // The same words in the same type, unconstrained: the width the label needs.
                         Text("2 selected", Modifier.wrapContentWidth().onGloballyPositioned { reference = it.size.width },

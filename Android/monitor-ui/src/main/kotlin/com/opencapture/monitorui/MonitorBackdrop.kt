@@ -86,17 +86,21 @@ val LocalMonitorBackdropSurround = compositionLocalOf { MonitorPalette.backgroun
 
 val LocalMonitorBackdrops = compositionLocalOf<List<MonitorBackdropSource>> { emptyList() }
 
-/** Geometry only: never records content, reads a Surface, or creates a decoder. */
+/**
+ * Geometry only: never records content, reads a Surface, or creates a decoder. [visibleRect] is
+ * where the image is seen, in local coordinates; by default the node's own bounds. A zoomed
+ * playback picture is seen past its node, up to the canvas edge.
+ */
 @Composable
 fun Modifier.monitorBackdropSource(source: MonitorBackdropSource, imageRect: Rect? = null,
-    mirrored: Boolean = false, flippedVertically: Boolean = false): Modifier {
+    mirrored: Boolean = false, flippedVertically: Boolean = false, visibleRect: Rect? = null): Modifier {
     val position = remember(source) { arrayOfNulls<LayoutCoordinates>(1) }
     fun update(coordinates: LayoutCoordinates) {
         if (!coordinates.isAttached) return
         val origin = coordinates.positionOnScreen()
         val viewport = Rect(origin, androidx.compose.ui.geometry.Size(
             coordinates.size.width.toFloat(), coordinates.size.height.toFloat()))
-        source.viewport = viewport
+        source.viewport = visibleRect?.translate(origin) ?: viewport
         source.bounds = imageRect?.translate(origin) ?: viewport
         source.mirrored = mirrored
         source.flippedVertically = flippedVertically

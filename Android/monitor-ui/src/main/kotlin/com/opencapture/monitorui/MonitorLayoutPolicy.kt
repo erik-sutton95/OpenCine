@@ -91,6 +91,83 @@ data class MonitorFieldLayout(
      * orientation. The badge's touch target stays inside this rect. Swift `FieldMonitorLayout.appBadge`.
      */
     val appBadge: MonitorRect get() = MonitorLayoutPolicy.appBadge(status, listOf(lock, gauges, telemetry))
+
+    /**
+     * The recenter key for a camera with or without a motion cluster (gimbal stick and zoom
+     * chip). With one, [focusReset] keeps the key beside the cluster. Without one nothing takes
+     * the feed's trailing bottom corner, so the key moves into it: just inside the picture, above
+     * the camera values and clear of the rail. Swift `FieldMonitorLayout.focusReset(motionCluster:)`.
+     */
+    fun focusReset(motionCluster: Boolean): MonitorRect {
+        if (motionCluster) return focusReset
+        val inset = 8f
+        val right = minOf(picture.maxX - inset, stick.maxX)
+        val bottom = minOf(picture.maxY - inset, stick.maxY)
+        return MonitorRect(right - focusReset.width, bottom - focusReset.height, focusReset.width, focusReset.height)
+    }
+
+    /**
+     * The AE unlock capsule beside [focusReset] for the same capability. In the corner it sits on
+     * the key's centre side in either orientation. Swift `FieldMonitorLayout.aeUnlock(motionCluster:)`.
+     */
+    fun aeUnlock(motionCluster: Boolean): MonitorRect =
+        MonitorLayoutPolicy.aeUnlock(focusReset(motionCluster), assists.maxX, picture.midX, portrait && motionCluster)
+}
+
+/**
+ * How often a camera value changes. Ridden values (ISO, shutter, aperture, white balance, focus)
+ * are adjusted shot to shot and stay in the strip along the bottom; setup values (shooting mode,
+ * drive, metering, picture profile) are set once for a scene. A value nobody grouped is ridden.
+ * Swift `MonitorCaptureReadoutGroup`.
+ */
+enum class MonitorCaptureReadoutGroup { RIDDEN, SETUP }
+
+/**
+ * The trailing corner of the landscape status row. While video runs it holds the recording
+ * readout and the clock. A photo row has neither, so the camera's setup values move up into it
+ * and the strip along the bottom keeps the ridden values: nine photo values in one landscape row
+ * ran off a compact phone (hardware pass 2026-10-30; the owner chose mode, drive, metering and
+ * profile for the corner). Portrait keeps every value in the strip's grid.
+ * Swift `MonitorStatusCorner`.
+ */
+object MonitorStatusCorner {
+    /** Space between two corner tiles. */
+    const val TILE_SPACING = 12f
+
+    /** The least space kept between the leading status readouts and the corner. */
+    const val LEADING_GAP = 16f
+
+    /** A landscape photo row that shows both the status row and the camera values. */
+    fun holdsSetup(photo: Boolean, portrait: Boolean, statusShown: Boolean, valuesShown: Boolean): Boolean =
+        photo && !portrait && statusShown && valuesShown
+
+    /** The values the strip and the corner show, each in the source's order. */
+    fun <T> split(values: List<T>, holdsSetup: Boolean, group: (T) -> MonitorCaptureReadoutGroup): Pair<List<T>, List<T>> =
+        if (!holdsSetup) values to emptyList()
+        else values.filter { group(it) != MonitorCaptureReadoutGroup.SETUP } to
+            values.filter { group(it) == MonitorCaptureReadoutGroup.SETUP }
+
+    /**
+     * Tile widths for a corner [available] wide: natural widths when they fit; otherwise every
+     * tile gives up the same share of its width above its floor (its whole caption) and none goes
+     * below it. When even the floors do not fit, the corner keeps its floors.
+     */
+    fun widths(natural: List<Float>, floors: List<Float>, available: Float, spacing: Float = TILE_SPACING): List<Float> {
+        if (natural.size != floors.size || natural.isEmpty()) return natural
+        val bounded = natural.zip(floors) { n, f -> minOf(n, maxOf(0f, f)) }
+        val room = maxOf(0f, available - spacing * (natural.size - 1))
+        val total = natural.sum()
+        if (total <= room) return natural
+        val floorTotal = bounded.sum()
+        val slack = total - floorTotal
+        if (slack <= 0f || room <= floorTotal) return bounded
+        val keep = (room - floorTotal) / slack
+        return natural.zip(bounded) { n, f -> f + (n - f) * keep }
+    }
+
+    /** The corner's width for the tile widths [widths] returns. */
+    fun width(tiles: List<Float>, spacing: Float = TILE_SPACING): Float =
+        tiles.sum() + spacing * maxOf(0, tiles.size - 1)
 }
 
 /** Operator choice for the on-feed gimbal joystick diameter. */

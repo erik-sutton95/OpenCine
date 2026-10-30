@@ -205,11 +205,15 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
                 let rect = DesqueezeAssist.presentationRect(sourceSize: dimensions,
                     in: CGRect(origin: .zero, size: size), effects: effects)
                 effects.clipByte = host.frameSamples.exposureCeiling.clipByte(transfer: effects.transfer)
+                let frame = MonitorVideoBackdropSource.displayedFrame(
+                    sourceAspect: dimensions.width / max(1, dimensions.height), effects: effects,
+                    in: rect, zoom: pictureGeometry?.zoom.scale ?? 1,
+                    offset: pictureGeometry?.zoom.offset ?? .zero)
+                // A zoomed picture is drawn past its letterboxed frame up to the canvas edge, so
+                // glass over that area samples the picture too.
+                let clip = rect.union(frame).intersection(CGRect(origin: .zero, size: size))
                 return [MonitorVideoBackdropSource(buffer: buffer, effects: effects,
-                    frame: MonitorVideoBackdropSource.displayedFrame(
-                        sourceAspect: dimensions.width / max(1, dimensions.height), effects: effects,
-                        in: rect, zoom: pictureGeometry?.zoom.scale ?? 1,
-                        offset: pictureGeometry?.zoom.offset ?? .zero), clip: rect, identity: .playback(item: token, epoch: epoch),
+                    frame: frame, clip: clip.isNull ? rect : clip, identity: .playback(item: token, epoch: epoch),
                     admission: { [weak owner, weak playback, weak native, weak presentation, weak samples] in
                         guard let owner, let playback, let native, let presentation, let samples else { return false }
                         return owner.presents(token) && playback.token == token && presentation.native === native

@@ -370,6 +370,8 @@
     }
 
     /// The selection actions. Permissions are read from the selected items only, in this view.
+    /// Close (leave selection mode) and the count hold the leading edge; the actions hold the
+    /// trailing edge, and scroll only when the bar is too narrow for them.
     private struct MonitorMediaSelectionTray: View {
         let selectedIDs: Set<String>
         let permissions: (String) -> MonitorMediaPermissions?
@@ -378,55 +380,50 @@
         var body: some View {
             let selected = selectedIDs.compactMap(permissions)
             HStack(spacing: 4) {
+                MonitorMediaCatalogChip(label: MonitorMediaSelectionCopy.exit, icon: .x) {
+                    action(.clearSelection)
+                }
+                .accessibilityIdentifier(MonitorMediaSelectionCopy.exitIdentifier)
                 Text("\(selectedIDs.count) selected").font(
                     MonitorTheme.font(10.5, weight: .semibold)
                 )
-                .foregroundStyle(MonitorTheme.text).lineLimit(1)
-                Spacer(minLength: 0)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 3) {
-                        MonitorMediaCatalogChip(label: "Select all", icon: .circleCheck, text: "All") {
-                            action(.selectAll)
-                        }
-                        MonitorMediaCatalogChip(label: "Clear selection", icon: .x, text: "Clear") {
-                            action(.clearSelection)
-                        }
-                        MonitorMediaCatalogChip(
-                            label: "Share selected", icon: .share, text: "Share", active: true
-                        ) {
-                            action(.shareSelection)
-                        }
-                        .disabled(!Self.allows(.share, in: selected, every: true))
-                        MonitorMediaCatalogChip(label: "Cache selected", icon: .download) {
-                            action(.cacheSelection)
-                        }
-                        .disabled(!Self.allows(.cache, in: selected))
-                        MonitorMediaCatalogChip(label: "Favorite selected", icon: .star) {
-                            action(.favoriteSelection)
-                        }
-                        .disabled(!Self.allows(.favorite, in: selected))
-                        MonitorMediaCatalogChip(
-                            label: "Delete selected", icon: .trash, danger: true
-                        ) {
-                            action(.deleteSelection)
-                        }
-                        .disabled(!Self.allows(.delete, in: selected, every: true))
-                    }
+                .foregroundStyle(MonitorTheme.text).lineLimit(1).fixedSize()
+                Spacer(minLength: 8)
+                ViewThatFits(in: .horizontal) {
+                    actions(selected)
+                    ScrollView(.horizontal, showsIndicators: false) { actions(selected) }
+                        .monitorScrollFade(.horizontal)
                 }
-                .monitorScrollFade(.horizontal)
                 .fixedSize(horizontal: false, vertical: true)
             }
             .padding(6).monitorCardSurface()
         }
 
+        private func actions(_ selected: [MonitorMediaPermissions]) -> some View {
+            HStack(spacing: 3) {
+                MonitorMediaCatalogChip(label: "Select all", icon: .circleCheck, text: "All") {
+                    action(.selectAll)
+                }
+                MonitorMediaCatalogChip(
+                    label: "Share selected", icon: .share, text: "Share", active: true
+                ) {
+                    action(.shareSelection)
+                }
+                .disabled(!Self.allows(.share, in: selected))
+                MonitorMediaCatalogChip(
+                    label: "Delete selected", icon: .trash, danger: true
+                ) {
+                    action(.deleteSelection)
+                }
+                .disabled(!Self.allows(.delete, in: selected))
+            }
+        }
+
+        /// Every selected item must allow the action.
         private static func allows(
-            _ permission: MonitorMediaPermissions, in selected: [MonitorMediaPermissions],
-            every: Bool = false
+            _ permission: MonitorMediaPermissions, in selected: [MonitorMediaPermissions]
         ) -> Bool {
-            !selected.isEmpty
-                && (every
-                    ? selected.allSatisfy { $0.contains(permission) }
-                    : selected.contains { $0.contains(permission) })
+            !selected.isEmpty && selected.allSatisfy { $0.contains(permission) }
         }
     }
 

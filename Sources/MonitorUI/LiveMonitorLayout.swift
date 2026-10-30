@@ -283,6 +283,29 @@
             )
         }
 
+        /// The recenter key with or without a motion cluster: without one it takes the feed's
+        /// trailing bottom corner (`FieldMonitorLayout.focusReset(motionCluster:)`).
+        public func focusReset(motionCluster: Bool) -> CGRect {
+            guard !motionCluster else { return focusReset }
+            if let presentation { return presentation.focusReset(motionCluster: false).cgRect }
+            let size = LiveChromeMetrics.focusResetSize
+            let well = onFeed
+            let floor = showsBottomBars && capture.height > 1 ? min(well.maxY, capture.minY - 8) : well.maxY
+            return CGRect(x: well.maxX - 8 - size, y: floor - 8 - size, width: size, height: size)
+        }
+
+        /// The AE unlock capsule beside `focusReset(motionCluster:)`.
+        public func aeUnlock(motionCluster: Bool) -> CGRect {
+            guard !motionCluster else { return aeUnlock }
+            if let presentation { return presentation.aeUnlock(motionCluster: false).cgRect }
+            let reset = focusReset(motionCluster: false)
+            return FieldMonitorLayout.aeUnlock(
+                focusReset: MonitorRect(
+                    x: reset.minX, y: reset.minY, width: reset.width, height: reset.height),
+                leadingColumnMaxX: onFeed.minX + 2, pictureMidX: feed.midX, portrait: false
+            ).cgRect
+        }
+
         /// WAVE/HISTO/VECTOR well: feed top down to just above the assist strip.
         /// This rectangle covers `zoomButton`. It must not steal hits.
         public var assistOverlay: CGRect {
