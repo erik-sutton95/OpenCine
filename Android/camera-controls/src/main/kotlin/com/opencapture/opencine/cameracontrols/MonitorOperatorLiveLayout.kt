@@ -49,8 +49,6 @@ public fun monitorOperatorLiveLayout(viewport: MonitorOperatorViewport, assist: 
     var scopeRight = layout.viewportWidth - layout.safeTrailing
     if (zones != null) {
         scopeBottom = if (layout.capture.height > 1f) layout.capture.y else zones.systemBar.minY
-        if (fill && showsToolbar) scopeLeft = maxOf(scopeLeft,
-            layout.feed.minX + LivePortraitMetrics.ASSIST_RAIL_EDGE + LivePortraitMetrics.ASSIST_RAIL_EXPANDED)
     } else if (focusResetAvailable) {
         scopeTop = maxOf(scopeTop, layout.focusReset.maxY)
     }

@@ -277,7 +277,7 @@ class MonitorOperatorLiveOwnerTest {
         assertFalse(requireNotNull(native.quick(LiveSheet.SHUTTER, host.status)).enabled)
     }
 
-    @Test fun portraitFramingKeepsScopesAboveCaptureAndClearOfTheExpandedAssistRail() {
+    @Test fun portraitFramingKeepsScopesAboveCaptureAndFloatsThemUnderTheAssistRail() {
         val assist = MonitorAssistState()
         val viewport = MonitorOperatorViewport(390f, 844f, 0f, 0f, 47f, 34f, 1f, true)
         val fit = monitorOperatorLiveLayout(viewport, assist, { true }, PortraitFeedAspect.FIT_16X9,
@@ -289,7 +289,8 @@ class MonitorOperatorLiveOwnerTest {
             16f / 9f, false, MonitorJoystickSize.MEDIUM, false)
         assertTrue(fill.pictureContent.width > viewport.width)
         assertEquals(viewport.width / 2f, fill.pictureContent.midX)
-        assertTrue(fill.scopePlacement.minX > fit.scopePlacement.minX)
+        // Fill floats scopes as freely as fit: the assist rail draws above them and keeps its touches.
+        assertEquals(fit.scopePlacement.minX, fill.scopePlacement.minX)
         assist.toggle(MonitorAssistTool.DESQ)
         val desqueezed = monitorOperatorLiveLayout(viewport, assist, { true }, PortraitFeedAspect.FILL,
             16f / 9f, false, MonitorJoystickSize.MEDIUM, false)
@@ -343,9 +344,7 @@ class MonitorOperatorLiveOwnerTest {
                     MonitorScopePoint(-viewport.width * 10f, movement.midY), size, movement, grip)
                 val label = "${viewport.width}x${viewport.height} $aspect"
                 assertEquals(padding, viewport.width - viewport.trailing - (right.x + size.width / 2f), 0.01f, label)
-                if (viewport.width > viewport.height) {
-                    assertEquals(padding, left.x - size.width / 2f - viewport.leading, 0.01f, label)
-                }
+                assertEquals(padding, left.x - size.width / 2f - viewport.leading, 0.01f, label)
             }
         }
     }
