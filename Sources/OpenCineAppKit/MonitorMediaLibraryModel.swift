@@ -1913,6 +1913,9 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                 let expected = descriptor.byteCount, expected > 0
             else { return }
             self.progress[id] = min(1, Double(bytes) / Double(expected))
+            // A synchronous progress observer can retire this transfer inside the write.
+            guard self.current(generation), self.transfers[id]?.id == operation, self.progress[id] != nil
+            else { return }
             self.transferRates.record(id, totalBytes: bytes)
         }
         let task = Task { [weak self] () throws -> URL in
@@ -1962,12 +1965,13 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             $0.transferring.insert(id)
             if descriptor.byteCount != nil { $0.progress[id] = 0 }
         }
-        if descriptor.byteCount != nil { transferRates.begin(id) }
         guard current(generation), transfers[id]?.id == operation else {
             task.cancel()
             writer.abort()
             throw MediaServiceError.retired
         }
+        // Only a transfer that survived its own first publication gets a reading.
+        if descriptor.byteCount != nil { transferRates.begin(id) }
         defer {
             if transfers[id]?.id == operation {
                 transfers[id] = nil

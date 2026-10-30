@@ -1210,7 +1210,9 @@ public class MonitorMediaLibraryModel<P>(
                 withContext(owner.coroutineContext.minusKey(Job)) {
                     if (current(generation) && transfers[id]?.id == operation && (descriptor.byteCount ?: 0) > 0) {
                         mutate { it.copy(progress = it.progress + (id to (bytes.toDouble() / checkNotNull(descriptor.byteCount)).coerceAtMost(1.0))) }
-                        transferRates.record(id, bytes)
+                        // A synchronous state collector can retire this transfer inside the mutation.
+                        if (current(generation) && transfers[id]?.id == operation && id in state.value.progress)
+                            transferRates.record(id, bytes)
                     }
                 }
             }
@@ -1241,11 +1243,12 @@ public class MonitorMediaLibraryModel<P>(
         transfers[id] = Transfer(operation, representation, writer, task, completion)
         mutate { it.copy(transferring = it.transferring + id,
             progress = if (descriptor.byteCount != null) it.progress + (id to 0.0) else it.progress) }
-        if (descriptor.byteCount != null) transferRates.begin(id)
         if (!current(generation) || transfers[id]?.id != operation) {
             task.cancel(); writer.abort(); completion.complete(null)
             throw MediaServiceException(MediaServiceFailure.RETIRED)
         }
+        // Only a transfer that survived its own first publication gets a reading.
+        if (descriptor.byteCount != null) transferRates.begin(id)
         task.start()
         try {
             val file = try { task.await() } catch (error: CancellationException) {
