@@ -17,6 +17,7 @@
         private let onFavorite: (() -> Void)?
         private let onBeginSelection: (() -> Void)?
         private let entryHoldDuration: Double
+        private let artworkAspect: Double
         private let thumbnail: Thumbnail
 
         public init(
@@ -26,8 +27,10 @@
             onOpen: @escaping () -> Void, onSelect: @escaping () -> Void,
             onFavorite: (() -> Void)? = nil, onBeginSelection: (() -> Void)? = nil,
             entryHoldDuration: Double = 0.4,
+            artworkAspect: Double = MonitorMediaMasonry.defaultAspect,
             @ViewBuilder thumbnail: () -> Thumbnail
         ) {
+            self.artworkAspect = MonitorMediaMasonry.aspect(artworkAspect)
             self.clip = clip
             self.layout = layout
             self.tablet = tablet
@@ -67,8 +70,10 @@
         private var gridCard: some View {
             VStack(alignment: .leading, spacing: 0) {
                 browsingEntry(
-                    artwork
-                        .aspectRatio(16.0 / 9.0, contentMode: .fit).clipped()
+                    // The grid card's picture keeps the shape the masonry placed it with; the
+                    // thumbnail fills it, so a loading thumbnail never changes the card height.
+                    Color.clear.aspectRatio(artworkAspect, contentMode: .fit)
+                        .overlay { artwork }.clipped()
                         .overlay(alignment: .topLeading) {
                             if selecting {
                                 selectButton.padding(2)

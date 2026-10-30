@@ -82,17 +82,4 @@ object MonitorAssistPaletteReveal {
         val extras = ranked.filter { seen.add(it) }
         return kept + extras
     }
-
-    /**
-     * The open plate draws above the camera values, so wherever its rectangle meets the values
-     * strip the host hides the strip instead of letting tiles peek past the plate's edges
-     * (hardware pass 1.1: landscape, palette open, ISO/SHUTTER/IRIS showed around the plate).
-     * No palette, or an empty one, never hides the values. Swift twin:
-     * `MonitorAssistPaletteReveal.coversValues`.
-     */
-    fun coversValues(palette: MonitorRect?, values: MonitorRect): Boolean {
-        if (palette == null || palette.width <= 0f || palette.height <= 0f || values.width <= 0f || values.height <= 0f) return false
-        return palette.x < values.maxX && values.x < palette.maxX && palette.y < values.maxY && values.y < palette.maxY
-    }
 }
-

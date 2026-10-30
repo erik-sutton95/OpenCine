@@ -1401,6 +1401,30 @@
         guard let session = facadeSessions.session(for: Int64(owner)),
             let jpeg = try? session.thumbnail(handle: UInt32(bitPattern: handle))
         else { return nil }
+        return thumbnailByteArray(env, jpeg)
+    }
+
+    /// `NikonNative.sessionUprightThumbnail(handle, filename): ByteArray?`; the
+    /// camera's thumbnail JPEG tagged with the still's own EXIF orientation, so
+    /// a portrait shot draws upright (`GetThumb`, then one small head read of a
+    /// JPEG or RAW still). Null when disconnected, rejected, or the object has
+    /// no thumbnail. Blocking; Kotlin calls it from `Dispatchers.IO`.
+    @_cdecl("Java_com_opencapture_opencine_nikon_NikonNative_sessionUprightThumbnail")
+    public func swiftCoreSessionUprightThumbnail(
+        env: UnsafeMutablePointer<JNIEnv?>, this _: jobject?, owner: jlong, handle: jint,
+        filename: jstring?
+    ) -> jbyteArray? {
+        guard let session = facadeSessions.session(for: Int64(owner)),
+            let filename = swiftString(env, filename),
+            let jpeg = try? session.uprightThumbnail(
+                handle: UInt32(bitPattern: handle), filename: filename)
+        else { return nil }
+        return thumbnailByteArray(env, jpeg)
+    }
+
+    private func thumbnailByteArray(_ env: UnsafeMutablePointer<JNIEnv?>, _ jpeg: Data)
+        -> jbyteArray?
+    {
         let fns = table(env)
         guard let array = fns.NewByteArray!(env, jsize(jpeg.count)) else { return nil }
         jpeg.withUnsafeBytes { raw in

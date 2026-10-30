@@ -241,8 +241,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val panel = captureInputs.panel
     val dismiss = captureInputs.dismiss
     var paletteRevision by remember { mutableLongStateOf(0) }
-    // The palette's rendered plate (full while open or animating), in this surface's points.
-    var paletteFrame by remember { mutableStateOf<MonitorRect?>(null) }
+    // The palette's open state, owned here so Back closes the open plate (Swift `expanded`).
+    val paletteExpansion = remember { mutableStateOf(false) }
     val displayHaptics = LocalOperatorHaptics.current
     val exposed = !covered && current(identity)
     val interactive = exposed && !locked && editing == null && interactionEnabled
@@ -264,6 +264,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     LaunchedEffect(assist.configureTool, reviewing) { if (inspecting) dismiss() }
     BackHandler(enabled = interactive && panel != null && !inspecting, onBack = dismiss)
     BackHandler(enabled = interactive && inspecting, onBack = closeInspector)
+    BackHandler(enabled = paletteExpansion.value && !inspecting && panel == null) { paletteExpansion.value = false }
     fun currentSource(): Boolean = current(identity) && control.state.value.snapshot?.let { it.session to it.epoch } ==
         identity.camera?.let { it to identity.epoch }
     fun admits(): Boolean = admitted && currentSource()
@@ -336,8 +337,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     }
     // A quick preview hides its readouts in place inside the strip, preserving the held pointer.
     // A full bottom sheet still removes the capture slot from input and accessibility. The open
-    // assist palette sits over the values in landscape; they hide rather than peek around it.
-    val captureHidden = panel?.top == false || MonitorAssistPaletteReveal.coversValues(paletteFrame, layout.values)
+    // assist palette draws over the values it reaches and leaves them in place (owner 2026-10-30).
+    val captureHidden = panel?.top == false
     @Composable fun TelemetryPower() {
         MonitorTelemetry(status.signalBars, status.fps, power.map {
             MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted,
@@ -510,7 +511,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             caption = audio.caption, unavailableLabel = audio.unavailable, provenance = audio.provenance, spokenValue = audio.spokenValue)
                     }
                 }
-                if (sections.assists in mounted && !inspecting) MonitorAssistPalette(palette,
+                if (sections.assists in mounted && !inspecting) CompositionLocalProvider(
+                    LocalMonitorAssistExpansion provides paletteExpansion) { MonitorAssistPalette(palette,
                     layout.portrait, !interactive, { it.isOn }, { it.tool?.title ?: it.title },
                     { it.tool?.chipLabel ?: it.label }, hasOptions,
                     onToggle = { if (interactive && currentSource()) it.toggle() },
@@ -526,13 +528,13 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     modifier = Modifier.descriptorFrame(layout.assists).then(edit(sections.assists)),
                     usageSeed = usageSeed, idOf = { it.id }, usage = usage, onUsageChange = setUsage,
                     collapseRevision = paletteRevision, accessibilityIdentifier = { it.accessibilityIdentifier },
+                    // A value the open plate does not cover takes a touch, as on iOS; Back closes the plate.
+                    passesOutsideTouches = true,
                     onBoundsInRootChanged = { bounds ->
-                        val frame = bounds?.let { with(density) { MonitorRect(
+                        paletteFrameChanged(bounds?.let { with(density) { MonitorRect(
                             (it.left - origin.x).toDp().value, (it.top - origin.y).toDp().value,
-                            it.width.toDp().value, it.height.toDp().value) } }
-                        if (frame != paletteFrame) paletteFrame = frame
-                        paletteFrameChanged(frame)
-                    })
+                            it.width.toDp().value, it.height.toDp().value) } })
+                    }) }
                 // Hidden under the lock like focus reset (pre-shared Z Android hid the MF strip there).
                 if (!locked) cameraViews.focusDrive?.let { drive ->
                     val height = minOf(280f, layout.viewport.height * .55f)

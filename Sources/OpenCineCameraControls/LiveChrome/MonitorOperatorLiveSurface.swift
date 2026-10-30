@@ -503,20 +503,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         Binding(get: { session.locked }, set: { if exposed { session.locked = $0 } })
     }
     private var captureHidden: Bool {
-        if paletteCoversValues { return true }
         if let preview = captureState.preview { return !captureInputs.isTop(preview.key) }
         if let panel { return !panel.top }
         return false
-    }
-
-    /// The open assist palette sits over the camera values in landscape; the values hide while
-    /// it is open rather than peek around its edges (hardware pass 1.1).
-    private var paletteCoversValues: Bool {
-        guard expanded, mounts(.toolBar), !command else { return false }
-        return MonitorAssistPaletteReveal.coversValues(
-            palette: MonitorAssistPaletteLayout.fieldMonitorFootprint(
-                layout, toolCount: tools.count, safeTop: safeArea.top, expanded: true),
-            values: layout.values)
     }
 
     var body: some View {

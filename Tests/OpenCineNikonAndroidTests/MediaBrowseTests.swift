@@ -5,9 +5,9 @@
 // only a socket pair can; the operation sequence and its policies.
 
 import Foundation
-import OpenCineNikon
 import Testing
 
+@testable import OpenCineNikon
 @testable import OpenCineNikonAndroid
 
 struct MediaBrowseTests {
@@ -154,6 +154,49 @@ struct MediaBrowseTests {
 
         // The folder has no thumbnail; nil, not an error.
         #expect(try session.thumbnail(handle: 0x100A) == nil)
+    }
+
+    @Test func aPortraitStillsThumbnailCarriesTheStillsOrientation() throws {
+        let server = try FakeZRServer()
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        // A portrait JPEG as the body writes it: APP1 Exif first, IFD0 Orientation 6.
+        let tiff: [UInt8] = [
+            0x4D, 0x4D, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01,
+            0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x06, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        ]
+        let head: [UInt8] =
+            [0xFF, 0xD8, 0xFF, 0xE1, 0x00, UInt8(8 + tiff.count)]
+            + Array("Exif\0\0".utf8) + tiff
+        let still = Data(head + [UInt8](repeating: 0x55, count: 40_000) + [0xFF, 0xD9])
+        server.addMediaObject(Self.still(0x2002, "DSC_0200.JPG", payload: still))
+        #expect(NikonThumbnailOrientation.orientation(inHead: FakeZRMediaCard.thumb7) == nil)
+
+        let thumbnail = try #require(
+            try session.uprightThumbnail(handle: 0x2002, filename: "DSC_0200.JPG"))
+
+        // The camera's own thumbnail, now stating the still's orientation (the Core suite
+        // checks that EXIF-honoring decoders then draw it upright).
+        #expect(NikonThumbnailOrientation.orientation(inHead: [UInt8](thumbnail)) == 6)
+        // One small head read, never the whole still.
+        #expect(
+            partialReads(server, handle: 0x2002) == [
+                [0x2002, 0, NikonThumbnailOrientation.headLength]
+            ])
+    }
+
+    @Test func aClipsThumbnailIsTheCamerasAndTheClipIsNeverRead() throws {
+        let server = try FakeZRServer()
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+
+        let thumbnail = try session.uprightThumbnail(handle: 0x1001, filename: "C0001.MOV")
+
+        #expect(thumbnail == Data(FakeZRMediaCard.objects[0].thumbnail))
+        #expect(partialReads(server, handle: 0x1001).isEmpty)
     }
 
     @Test func serializesCoreMediaPolicyIntoWireRecords() throws {
