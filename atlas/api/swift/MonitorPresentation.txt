@@ -355,18 +355,19 @@ func MonitorMediaSelectionController.up(childConsumed: Swift.Bool) -> MonitorMed
 func MonitorMediaSelectionController.viewportResized(pointerY: Swift.Double) -> ()
 func MonitorPlaybackEditing.admit(_: OpenCineMedia.MonitorPlaybackScrubToken?, item: OpenCineMedia.MonitorPlaybackItemToken?) -> Swift.Bool
 func MonitorPlaybackEditing.take(_: OpenCineMedia.MonitorPlaybackScrubToken?) -> OpenCineMedia.MonitorPlaybackScrubToken?
-func MonitorPlaybackZoom.endGesture(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
-func MonitorPlaybackZoom.endPan(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
-func MonitorPlaybackZoom.endPinch(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.endGesture(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
+func MonitorPlaybackZoom.endPan(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
+func MonitorPlaybackZoom.endPinch(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.panChanged(translation: CoreFoundation.CGSize) -> ()
-func MonitorPlaybackZoom.panChangedBounded(translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.panChangedBounded(translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.pinchChanged(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize) -> ()
-func MonitorPlaybackZoom.pinchChangedBounded(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize, boundsSize: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.pinchChangedBounded(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize, boundsSize: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.preview(magnification: CoreGraphics.CGFloat, anchor: CoreFoundation.CGPoint?, translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize) -> MonitorPlaybackZoom
 func MonitorPlaybackZoom.reset() -> ()
 func MonitorPlaybackZoom.settled() -> MonitorPlaybackZoom
 func MonitorPlaybackZoom.sourcePoint(_: CoreFoundation.CGPoint, size: CoreFoundation.CGSize) -> CoreFoundation.CGPoint
 func MonitorPlaybackZoom.transformed(zoomChange: CoreGraphics.CGFloat, centroid: CoreFoundation.CGPoint, panChange: CoreFoundation.CGSize, frame: CoreFoundation.CGSize, picture: CoreFoundation.CGSize?) -> MonitorPlaybackZoom
+func MonitorPlaybackZoom.visiblePictureRect(feed: CoreFoundation.CGRect, canvas: CoreFoundation.CGSize) -> CoreFoundation.CGRect
 func MonitorReadoutInteraction.begin() -> ()
 func MonitorReadoutInteraction.cancel() -> ()
 func MonitorReadoutInteraction.end() -> MonitorReadoutInteraction.Outcome

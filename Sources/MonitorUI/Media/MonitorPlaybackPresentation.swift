@@ -14,6 +14,8 @@
         }
     }
 
+    /// Retained for source compatibility. A zoomed picture now always covers and pans against the
+    /// whole playback canvas, past its letterboxed frame, whichever boundary a host names.
     public enum MonitorPlaybackZoomBoundary: Equatable, Sendable { case picture, canvas }
 
     /// Immutable facts accepted by the playback owner plus app-supplied source labels.
