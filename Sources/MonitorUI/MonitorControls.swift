@@ -128,55 +128,6 @@
         }
     }
 
-    /// The camera values beside the open View Assist palette (`MonitorValuesReflow`): rows of
-    /// equal tiles from the leading edge, the top row first, each `tileWidth` wide and 34 pt tall.
-    /// Every size is a fixed target from the policy; nothing here measures a tile.
-    public struct MonitorValueRowsLayout: Layout {
-        public var rows: [Int]
-        public var tileWidth: CGFloat
-        public var spacing: CGFloat
-        public init(rows: [Int], tileWidth: CGFloat, spacing: CGFloat = CGFloat(MonitorValuesReflow.tileSpacing)) {
-            self.rows = rows.isEmpty ? [0] : rows
-            self.tileWidth = max(0, tileWidth)
-            self.spacing = spacing
-        }
-        private var tileHeight: CGFloat { CGFloat(MonitorValuesReflow.tileHeight) }
-        /// Tiles per row for `count` subviews: a tile the policy did not count joins the last row.
-        private func counts(_ count: Int) -> [Int] {
-            var counts = rows
-            counts[counts.count - 1] += max(0, count - rows.reduce(0, +))
-            return counts
-        }
-        public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ())
-            -> CGSize
-        {
-            let widest = counts(subviews.count).map {
-                CGFloat($0) * tileWidth + CGFloat(max(0, $0 - 1)) * spacing
-            }.max() ?? 0
-            // The lane's width when offered one (rows start at its leading edge); a scrolling
-            // row takes its tiles' width.
-            let offered = proposal.width.flatMap { $0.isFinite ? $0 : nil }
-            return CGSize(
-                width: max(widest, offered ?? 0),
-                height: CGFloat(rows.count) * tileHeight + CGFloat(rows.count - 1) * spacing)
-        }
-        public func placeSubviews(
-            in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
-        ) {
-            var index = 0
-            for (row, count) in counts(subviews.count).enumerated() {
-                for column in 0..<count where index < subviews.count {
-                    subviews[index].place(
-                        at: CGPoint(
-                            x: bounds.minX + CGFloat(column) * (tileWidth + spacing),
-                            y: bounds.minY + CGFloat(row) * (tileHeight + spacing)),
-                        anchor: .topLeading, proposal: ProposedViewSize(width: tileWidth, height: tileHeight))
-                    index += 1
-                }
-            }
-        }
-    }
-
     /// The status corner's tiles (`MonitorStatusCorner`): natural widths, trailing, 34 pt tall.
     /// Offered less, each tile narrows toward its whole caption and never past it, so a value
     /// scales but a caption is never cut. Its tiles keep their captions whole

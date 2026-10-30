@@ -84,12 +84,6 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
      * widths, narrowed toward each whole caption only when short, with previews from the top.
      */
     corner: Boolean = false,
-    /**
-     * Beside the open View Assist palette ([MonitorValuesReflow]): rows of equal tiles from the
-     * leading edge, the top row first, each [MonitorValuesReflow.tileWidth] wide. Fixed targets;
-     * a value scales (iOS minimumScaleFactor 0.65), never its caption.
-     */
-    arrangement: MonitorValuesReflow? = null,
     onOpen: (String) -> Unit) {
     val owner = gestureOwner ?: remember { MonitorQuickGestureOwner() }
     val notifyQuickActive by rememberUpdatedState(onQuickActiveChange)
@@ -125,32 +119,6 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
                         valueStyle.copy(fontSize = valueStyle.fontSize * scale), labelStyle, enabled, owner,
                         itemModifier, quickControl, onQuickCommit, quickPreview, notifyQuickActive,
                         quickBottomClearanceDp, onHold, onOpen, fromTop = true)
-                }
-            }
-            return@BoxWithConstraints
-        }
-        if (arrangement != null && arrangement.applies) {
-            val counts = arrangement.rows.ifEmpty { listOf(0) }.toMutableList()
-            counts[counts.lastIndex] += maxOf(0, values.size - counts.sum())
-            var next = 0
-            val rows = counts.map { count -> values.indices.drop(next).take(count).also { next += count } }
-            Column(Modifier.align(Alignment.BottomStart).then(
-                if (arrangement.scrolls) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
-                verticalArrangement = Arrangement.spacedBy(MonitorValuesReflow.TILE_SPACING.dp)) {
-                rows.forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(MonitorValuesReflow.TILE_SPACING.dp),
-                        verticalAlignment = Alignment.Bottom) {
-                        row.forEach { index ->
-                            val item = values[index]
-                            val room = arrangement.tileWidth - 8f - measured[index].third
-                            val scale = (room / measured[index].first.coerceAtLeast(1f)).coerceIn(0.65f, 1f)
-                            MonitorCameraValueTile(item, Modifier.width(arrangement.tileWidth.dp)
-                                .height(MonitorValuesReflow.TILE_HEIGHT.dp),
-                                valueStyle.copy(fontSize = valueStyle.fontSize * scale), labelStyle, enabled, owner,
-                                itemModifier, quickControl, onQuickCommit, quickPreview, notifyQuickActive,
-                                quickBottomClearanceDp, onHold, onOpen, fromTop = false)
-                        }
-                    }
                 }
             }
             return@BoxWithConstraints

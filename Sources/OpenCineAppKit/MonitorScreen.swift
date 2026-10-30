@@ -110,13 +110,9 @@
                             hidden: !presentation.visible || presentation.transientControlsHidden))
                 }
                 if presentation.captureMounted {
-                    let values = presentation.captureFrame ?? layout.values
                     MonitorScreenSlot(content: capture)
-                        .frame(width: values.width, height: values.height, alignment: .bottom)
-                        .position(x: values.midX, y: values.midY)
-                        // Beside the open palette and back, on the palette's own spring; a
-                        // rotation still moves the values at once.
-                        .animation(MonitorMotion.drawerSpring(reduceMotion), value: presentation.captureFrame != nil)
+                        .frame(width: layout.values.width, height: layout.values.height, alignment: .bottom)
+                        .position(x: layout.values.midX, y: layout.values.midY)
                         .opacity(presentation.captureHidden ? 0 : (presentation.locked ? 0.4 : 1))
                         .allowsHitTesting(!presentation.captureHidden && !presentation.locked && presentation.captureInteractive)
                         .accessibilityHidden(presentation.captureHidden || !presentation.visible || presentation.transientControlsHidden)

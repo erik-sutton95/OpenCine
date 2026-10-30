@@ -20,16 +20,12 @@ public struct MonitorScreenPresentation: Equatable, Sendable {
     public var recovering: Bool
     /// Keeps status telemetry mounted while excluding an occluded status slot from input and accessibility.
     public var statusInteractive: Bool
-    /// Where the camera values sit instead of the layout's strip: beside the open View Assist
-    /// palette (`MonitorValuesReflow`). The screen animates between the two.
-    public var captureFrame: MonitorRect?
 
     public init(visible: Bool = true, interactive: Bool = true, dimmed: Bool = false,
         transientControlsHidden: Bool = false, pictureWaiting: Bool = false,
         statusMounted: Bool = true, powerMounted: Bool = true, captureMounted: Bool = true,
         captureHidden: Bool = false, captureInteractive: Bool = true, locked: Bool = false,
-        popupInteractive: Bool = false, capturePresented: Bool = false, panelsRaised: Bool = false, recovering: Bool = false, statusInteractive: Bool = true,
-        captureFrame: MonitorRect? = nil) {
+        popupInteractive: Bool = false, capturePresented: Bool = false, panelsRaised: Bool = false, recovering: Bool = false, statusInteractive: Bool = true) {
         self.visible = visible; self.interactive = interactive; self.dimmed = dimmed
         self.transientControlsHidden = transientControlsHidden; self.pictureWaiting = pictureWaiting
         self.statusMounted = statusMounted; self.powerMounted = powerMounted; self.captureMounted = captureMounted
@@ -37,6 +33,5 @@ public struct MonitorScreenPresentation: Equatable, Sendable {
         self.popupInteractive = popupInteractive; self.capturePresented = capturePresented
         self.panelsRaised = panelsRaised; self.recovering = recovering
         self.statusInteractive = statusInteractive
-        self.captureFrame = captureFrame
     }
 }

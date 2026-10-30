@@ -94,16 +94,4 @@ class MonitorAssistPaletteRevealTest {
         assertEquals(1, MonitorAssistPaletteReveal.landscapeCellIndex(0, 1))
         assertEquals(2, MonitorAssistPaletteReveal.landscapeCellIndex(1, 0))
     }
-
-    @Test fun anOpenPlateCoversTheCameraValuesOnlyWhenTheyOverlap() {
-        // Hardware pass 1.1 (Z landscape): the open plate (18, 302, 467 x 108) sat over the values
-        // strip (MonitorValuesReflow now moves them beside it). Same vectors as the Swift twin.
-        val values = MonitorRect(100f, 380f, 500f, 43f)
-        assertFalse(MonitorAssistPaletteReveal.coversValues(null, values))
-        assertTrue(MonitorAssistPaletteReveal.coversValues(MonitorRect(18f, 302f, 467f, 108f), values))
-        assertFalse(MonitorAssistPaletteReveal.coversValues(MonitorRect(18f, 302f, 82f, 108f), values))
-        assertFalse(MonitorAssistPaletteReveal.coversValues(MonitorRect(18f, 272f, 467f, 108f), values))
-        assertFalse(MonitorAssistPaletteReveal.coversValues(MonitorRect(18f, 302f, 467f, 108f), MonitorRect(100f, 380f, 500f, 0f)))
-    }
 }
-

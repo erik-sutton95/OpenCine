@@ -1,8 +1,5 @@
 package com.opencapture.opencine.appkit
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -14,7 +11,6 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -38,11 +34,6 @@ public data class MonitorScreenPresentation(
     public val panelsRaised: Boolean = false, public val recovering: Boolean = false,
     /** Keeps status telemetry mounted while excluding an occluded status slot from input and accessibility. */
     public val statusInteractive: Boolean = true,
-    /**
-     * Where the camera values sit instead of the layout's strip: beside the open View Assist
-     * palette ([com.opencapture.monitorui.MonitorValuesReflow]). The screen animates between the two.
-     */
-    public val captureFrame: MonitorRect? = null,
 )
 
 /** Fixed picture/assist hosts and common chrome placement survive rotation and coverage. */
@@ -81,7 +72,7 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
         }
         if (presentation.powerMounted) Box(Modifier.frame(layout.telemetry).visible(commonVisible, dim).then(commonAccessibility),
             contentAlignment = if (layout.portrait && !layout.tablet) Alignment.TopEnd else Alignment.TopStart) { power(commonInteractive) }
-        if (presentation.captureMounted) Box(Modifier.frame(captureFrame(layout.values, presentation.captureFrame))
+        if (presentation.captureMounted) Box(Modifier.frame(layout.values)
             .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
             .visible(commonVisible && !presentation.captureHidden, dim * if (presentation.locked) .4f else 1f).then(commonAccessibility),
             contentAlignment = Alignment.BottomCenter) { capture(commonInteractive && !presentation.locked && presentation.captureInteractive && !presentation.captureHidden) }
@@ -92,22 +83,6 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
         Box(Modifier.fillMaxSize().zIndex(20f), content = cover)
         Box(Modifier.fillMaxSize().zIndex(30f), content = recovery)
     }
-}
-
-/**
- * The values move beside the open palette and back on the palette's spring; a rotation or any
- * other layout change moves them at once, as before. Fixed endpoints, nothing measured.
- */
-@Composable
-private fun captureFrame(strip: MonitorRect, beside: MonitorRect?): MonitorRect {
-    val last = remember { arrayOfNulls<MonitorRect>(1) }
-    if (beside != null) last[0] = beside
-    val progress by animateFloatAsState(if (beside != null) 1f else 0f,
-        spring(dampingRatio = 0.84f, stiffness = Spring.StiffnessMedium), label = "values.beside")
-    val target = beside ?: last[0] ?: return strip
-    fun mix(a: Float, b: Float) = a + (b - a) * progress
-    return MonitorRect(mix(strip.x, target.x), mix(strip.y, target.y), mix(strip.width, target.width),
-        mix(strip.height, target.height))
 }
 
 /** Record telemetry is observed outside native picture geometry and host ownership. */

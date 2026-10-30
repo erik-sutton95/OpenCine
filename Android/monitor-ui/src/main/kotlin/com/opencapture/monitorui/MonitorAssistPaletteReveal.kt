@@ -82,16 +82,4 @@ object MonitorAssistPaletteReveal {
         val extras = ranked.filter { seen.add(it) }
         return kept + extras
     }
-
-    /**
-     * Whether the plate's rectangle meets the values strip. The open landscape plate draws above
-     * the camera values (hardware pass 1.1), so [MonitorValuesReflow] moves them beside it
-     * wherever it does. No palette, or an empty one, never covers the values. Swift twin:
-     * `MonitorAssistPaletteReveal.coversValues`.
-     */
-    fun coversValues(palette: MonitorRect?, values: MonitorRect): Boolean {
-        if (palette == null || palette.width <= 0f || palette.height <= 0f || values.width <= 0f || values.height <= 0f) return false
-        return palette.x < values.maxX && values.x < palette.maxX && palette.y < values.maxY && values.y < palette.maxY
-    }
 }
-

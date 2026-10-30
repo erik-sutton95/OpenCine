@@ -91,15 +91,4 @@ public enum MonitorAssistPaletteReveal: Sendable {
         let extras = ranked.filter { seen.insert($0).inserted }
         return kept + extras
     }
-
-    /// Whether the plate's rectangle meets the values strip. The open landscape plate draws above
-    /// the camera values (hardware pass 1.1), so `MonitorValuesReflow` moves them beside it
-    /// wherever it does. No palette, or an empty one, never covers the values. Kotlin twin:
-    /// `MonitorAssistPaletteReveal.coversValues`.
-    public static func coversValues(palette: MonitorRect?, values: MonitorRect) -> Bool {
-        guard let palette, palette.width > 0, palette.height > 0, values.width > 0, values.height > 0
-        else { return false }
-        return palette.x < values.maxX && values.x < palette.maxX
-            && palette.y < values.maxY && values.y < palette.maxY
-    }
 }

@@ -128,19 +128,4 @@ struct MonitorAssistPaletteLayoutTests {
             #expect(frame.x == geometry.assists.x)
         }
     }
-
-    @Test func coverageNeedsAnOverlapWithArea() {
-        func covers(_ palette: MonitorRect?, _ values: MonitorRect) -> Bool {
-            MonitorAssistPaletteReveal.coversValues(palette: palette, values: values)
-        }
-        let values = MonitorRect(x: 100, y: 380, width: 500, height: 43)
-        let open = MonitorRect(x: 18, y: 302, width: 467, height: 108)
-        #expect(covers(nil, values) == false)
-        #expect(covers(open, values))
-        // Touching edges and an empty strip are not covered.
-        #expect(covers(MonitorRect(x: 18, y: 302, width: 82, height: 108), values) == false)
-        #expect(covers(MonitorRect(x: 18, y: 272, width: 467, height: 108), values) == false)
-        #expect(covers(open, MonitorRect(x: 100, y: 380, width: 500, height: 0)) == false)
-    }
 }
-
