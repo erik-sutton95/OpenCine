@@ -165,20 +165,21 @@ enum LunaStationPath {
         on local: Address, preferred: String?, budget: Duration, isCurrent: @escaping @MainActor () -> Bool
     ) async throws -> String? {
         try await findCamera(
-            on: local, preferred: preferred, budget: budget, isCurrent: isCurrent,
+            on: local, preferred: preferred, budget: budget, isCurrent: isCurrent, clock: .live,
             probe: { host, local in await probe(host, local: local) })
     }
 
-    /// ``findCamera(on:preferred:budget:isCurrent:)`` with `probe` answering for each host.
+    /// ``findCamera(on:preferred:budget:isCurrent:)`` with `probe` answering for each host and
+    /// the search time and the pause between rounds on `clock`.
     static func findCamera(
         on local: Address, preferred: String?, budget: Duration, isCurrent: @escaping @MainActor () -> Bool,
-        probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult
+        clock: HostClock, probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult
     ) async throws -> String? {
         let hosts = (preferred.map { [$0] } ?? []) + candidates(around: local).filter { $0 != preferred }
         let batches = stride(from: 0, to: hosts.count, by: 32).map { Array(hosts[$0..<min($0 + 32, hosts.count)]) }
-        let deadline = ContinuousClock.now + budget
+        let deadline = clock.now() + budget
         var denied = false
-        search: while ContinuousClock.now < deadline {
+        search: while clock.now() < deadline {
             denied = false
             for batch in batches {
                 try Task.checkCancellation()
@@ -203,10 +204,10 @@ enum LunaStationPath {
                 }
                 if let found { return found }
                 denied = denied || deniedHere
-                if ContinuousClock.now >= deadline { break search }
+                if clock.now() >= deadline { break search }
             }
             try Task.checkCancellation()
-            try await Task.sleep(for: .seconds(1))
+            try await clock.sleep(.seconds(1))
         }
         if denied {
             throw ConnectionFailure.luna(
