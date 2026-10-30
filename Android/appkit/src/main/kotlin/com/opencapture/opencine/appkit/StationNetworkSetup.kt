@@ -201,6 +201,8 @@ private enum class SetupSide { LEADING, TRAILING }
  * failed setup on its password or hotspot page. [cameraSsids] are camera access points, never
  * offered as a shared network. [lockedNetwork] shows Multiview's Shared Wi-Fi page while cameras
  * use it. [wifiNameAccess] is the app's location gate for this phone's Wi-Fi name.
+ * [cameraScansNetworks] is false for a camera that cannot list networks at all: Nearby says so
+ * instead of asking for the camera to be turned on.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -219,6 +221,7 @@ public fun StationNetworkSetup(
     camera: SavedCamera? = null,
     cameraSsids: Set<String> = emptySet(),
     startPage: StationSetupPage? = null,
+    cameraScansNetworks: Boolean = true,
 ) {
     val context = LocalContext.current
     // The keyboard must not replace the focused field by changing the form layout.
@@ -471,18 +474,9 @@ public fun StationNetworkSetup(
                 }
                 if (scan == null || scanning || nearby.isEmpty()) {
                     if (nearby.isNotEmpty()) SetupDivider()
+                    val (title, detail) = nearbyScanStatus(scanning, scan != null, cameraScansNetworks, scanFailed)
                     SetupRow(
-                        if (scanning) null else MonitorIcon.SCAN,
-                        when {
-                            scanning -> "The camera is looking for networks…"
-                            scan == null -> "Turn the camera on to find networks"
-                            else -> "No networks found yet"
-                        },
-                        when {
-                            scanning -> "Networks appear here as it finds them"
-                            scanFailed -> "The scan did not finish. Try Scan again."
-                            else -> null
-                        },
+                        if (scanning) null else MonitorIcon.SCAN, title, detail,
                         progress = scanning, chevron = false, modifier = Modifier.testTag("stationSetup.scanStatus"),
                     )
                 }
@@ -803,6 +797,17 @@ public fun StationNetworkSetup(
             }
         }
     }
+}
+
+/**
+ * The Nearby section's status row (title, detail): scanning, a camera that cannot list networks,
+ * one that is not nearby, or an empty or failed scan.
+ */
+internal fun nearbyScanStatus(scanning: Boolean, scanAvailable: Boolean, cameraScansNetworks: Boolean, scanFailed: Boolean): Pair<String, String?> = when {
+    scanning -> "The camera is looking for networks…" to "Networks appear here as it finds them"
+    !cameraScansNetworks -> "This camera can’t list networks" to "Choose a known network, or Other network."
+    !scanAvailable -> "Turn the camera on to find networks" to (if (scanFailed) "The scan did not finish. Try Scan again." else null)
+    else -> "No networks found yet" to (if (scanFailed) "The scan did not finish. Try Scan again." else null)
 }
 
 /** A station join the camera can carry: 1 to 32 byte name, WPA2 password or an open Wi-Fi. */
