@@ -39,9 +39,13 @@
     ///
     /// ## Frames
     ///
-    /// Each captured `CVPixelBuffer` (BGRA) is lent to the consumer as a `DecodedFrameLease`
-    /// stamped with this source's stream and generation. The generation advances whenever the
-    /// capture device goes away or changes, so a frame buffered from the previous device is stale.
+    /// Each captured `CVPixelBuffer` is lent to the consumer as a `DecodedFrameLease` stamped with
+    /// this source's stream and generation. Frames stay YCbCr, in the device's own layout where the
+    /// output can deliver it, carrying the YCbCr matrix `CaptureFrameColorimetry` decided: asking
+    /// AVFoundation for BGRA let it pick the matrix, and it decoded an untagged or class-default
+    /// tagged HD signal as BT.601 (saturated colours thrown toward green). The generation advances
+    /// whenever the capture device goes away or changes, so a frame buffered from the previous
+    /// device is stale.
     /// The source used to render every frame to a `UIImage` on the capture queue; that render (an
     /// app whose consumers need a CGImage-backed bitmap) is now the app's, done only for the frames
     /// the newest-wins stream actually hands over.
@@ -243,10 +247,6 @@
             session.addInput(input)
 
             let output = AVCaptureVideoDataOutput()
-            // BGRA so a CIImage to CGImage render is a straight copy rather than a colour conversion.
-            output.videoSettings = [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-            ]
             // A monitor shows the newest frame or it is not a monitor: never queue behind a slow bake.
             output.alwaysDiscardsLateVideoFrames = true
             output.setSampleBufferDelegate(self, queue: captureQueue)
@@ -268,7 +268,18 @@
                 connection.videoScaleAndCropFactor = 1
             }
 
-            return selectBestFormat(on: device)
+            let selected = selectBestFormat(on: device)
+            // YCbCr, never RGB: the matrix is ours to decide (see `CaptureFrameColorimetry`). Set
+            // after the format choice, so the request follows the active format's own layout.
+            let deviceFormat = CMFormatDescriptionGetMediaSubType(
+                device.activeFormat.formatDescription)
+            output.videoSettings = [
+                kCVPixelBufferPixelFormatTypeKey as String:
+                    CaptureFrameColorimetry.outputPixelFormat(
+                        deviceFormat: deviceFormat,
+                        available: output.availableVideoPixelFormatTypes)
+            ]
+            return selected
         }
 
         /// Below this a format is a slideshow, not a monitor feed.
@@ -416,9 +427,19 @@
                 }
                 return Self.shortColorimetryName(value)
             }
-            let summary =
+            let format = CVPixelBufferGetPixelFormatType(pixelBuffer)
+            var summary =
                 "\(tag(kCVImageBufferColorPrimariesKey))/\(tag(kCVImageBufferTransferFunctionKey))"
-                + "/\(tag(kCVImageBufferYCbCrMatrixKey))"
+                + "/\(tag(kCVImageBufferYCbCrMatrixKey)) \(CaptureFrameColorimetry.fourCC(format))"
+            // The matrix the picture is actually decoded with, when it is not the one claimed.
+            if CaptureFrameColorimetry.isYCbCr(format) {
+                let claimed = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, nil)
+                let decoded = CaptureFrameColorimetry.decodingMatrix(
+                    tagged: claimed as? String, height: CVPixelBufferGetHeight(pixelBuffer))
+                if claimed as? String != decoded {
+                    summary += " → \(Self.shortColorimetryName(decoded))"
+                }
+            }
             log.info("UVC signal colorimetry: \(summary, privacy: .public)")
             Task { @MainActor [onSignalColorimetry] in onSignalColorimetry?(summary) }
         }
@@ -445,7 +466,9 @@
             from connection: AVCaptureConnection
         ) {
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+            // Read the claim before the decision overwrites it, then decide for every consumer.
             reportSignalColorimetryOnce(of: pixelBuffer)
+            CaptureFrameColorimetry.prepareForDisplay(pixelBuffer)
             // The capture clock is the host clock; nanoseconds of the frame's presentation time.
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             let timeNs = pts.isNumeric ? Int64(CMTimeGetSeconds(pts) * 1_000_000_000) : 0
