@@ -1,5 +1,6 @@
 #if os(iOS)
     import MonitorUI
+    import NetworkExtension
     import OpenCineAppKit
     import OpenCineApple
     import SwiftUI
@@ -16,17 +17,38 @@
         public var hotspotActive: @MainActor () -> Bool
         /// The camera's join command accepts this network name and password.
         public var acceptsJoin: @MainActor (String, String) -> Bool
+        /// Whether a network needs a password, nil when unknown. Nil uses this phone's current
+        /// network (`StationNetworkSecurity.currentNetwork(named:)`), as every app does.
+        public var networkSecured: (@MainActor (String) async -> Bool?)?
 
         public init(
             savedNetworks: @escaping @MainActor () -> [StationNetwork],
             currentSSID: @escaping @MainActor () async -> String?,
             hotspotActive: @escaping @MainActor () -> Bool,
-            acceptsJoin: @escaping @MainActor (String, String) -> Bool
+            acceptsJoin: @escaping @MainActor (String, String) -> Bool,
+            networkSecured: (@MainActor (String) async -> Bool?)? = nil
         ) {
             self.savedNetworks = savedNetworks
             self.currentSSID = currentSSID
             self.hotspotActive = hotspotActive
             self.acceptsJoin = acceptsJoin
+            self.networkSecured = networkSecured
+        }
+    }
+
+    /// What iOS says about a Wi-Fi network's security. Only this phone's current network is known.
+    public enum StationNetworkSecurity {
+        /// Whether `ssid` is secured, when it is this phone's current Wi-Fi; nil otherwise or when
+        /// iOS withholds the network (no location permission, the simulator).
+        @MainActor
+        public static func currentNetwork(named ssid: String) async -> Bool? {
+            #if targetEnvironment(simulator) || targetEnvironment(macCatalyst)
+                return nil
+            #else
+                guard let network = await NEHotspotNetwork.fetchCurrent(), network.ssid == ssid
+                else { return nil }
+                return network.isSecure
+            #endif
         }
     }
 
@@ -77,6 +99,8 @@
         }
 
         @State private var working = false
+        /// The password page's network and its security (nil: unknown).
+        @State private var security: (ssid: String, secured: Bool?)?
         @State private var currentSSID: String?
         @State private var configured: [String] = []
         @State private var found: [String] = []
@@ -537,9 +561,22 @@
                     landscape ? nil : "The camera leaves its own Wi-Fi and joins this one.")
             }
             .padding(16).frame(maxWidth: .infinity, alignment: .leading).background(card)
+            let secured = security?.ssid == ssid ? security?.secured : nil
             let field = VStack(alignment: .leading, spacing: 6) {
                 secureField("PASSWORD", text: $password, id: "\(context.prefix).password")
+                if let note = StationNetworkSetupRules.passwordNote(password, secured: secured) {
+                    hint(note).accessibilityIdentifier("\(context.prefix).passwordNote")
+                }
                 hint("Saved in this iPhone’s Keychain. Multiview can reuse it.")
+            }
+            .task(id: ssid) {
+                let lookup = services.networkSecured ?? StationNetworkSecurity.currentNetwork(named:)
+                let current = await lookup(ssid)
+                security = (
+                    ssid,
+                    StationNetworkSetupRules.security(
+                        of: ssid, saved: services.savedNetworks(), current: current)
+                )
             }
             // Portrait keeps the password under the network, above the checklist.
             return Group {
@@ -708,8 +745,9 @@
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("\(context.prefix).otherNetwork")
             case .password(let ssid):
+                let secured = security?.ssid == ssid ? security?.secured : nil
                 let valid =
-                    (password.isEmpty || password.count >= 8)
+                    StationNetworkSetupRules.acceptsPassword(password, secured: secured)
                     && services.acceptsJoin(ssid, password)
                 connectButton("Connect over Wi-Fi", enabled: valid) {
                     await save(StationNetwork(ssid: ssid, password: password, hotspot: false))
