@@ -30,10 +30,14 @@ case LunaCommand.getTimelapseOptions
 case LunaCommand.gimbalControl
 case LunaCommand.keyExchange
 case LunaCommand.openTracking
+case LunaCommand.phoneInfo
 case LunaCommand.requestAuthorization
 case LunaCommand.setAccessCameraFileState
+case LunaCommand.setAvailableWifi
 case LunaCommand.setOptions
 case LunaCommand.setPhotographyOptions
+case LunaCommand.setWifiConnectionInfo
+case LunaCommand.setWifiMode
 case LunaCommand.startCapture
 case LunaCommand.startLive
 case LunaCommand.startTimelapse
@@ -89,6 +93,8 @@ case LunaNotification.subMode(Swift.UInt64, Swift.UInt64, Swift.UInt64)
 case LunaNotification.trackExport(Swift.String, Swift.Bool)
 case LunaNotification.tracking(Swift.UInt64, Swift.UInt64, Swift.UInt64)
 case LunaNotification.unknown(Swift.UInt16, Foundation.Data)
+case LunaPhonePlatform.android
+case LunaPhonePlatform.ios
 case LunaPhotoSubMode.aebNight
 case LunaPhotoSubMode.burst
 case LunaPhotoSubMode.gimbalPano
@@ -154,6 +160,10 @@ case LunaShootingMode.slowMotion
 case LunaShootingMode.timeShift
 case LunaShootingMode.timelapse
 case LunaShootingMode.video
+case LunaStationJoinResult.Outcome.failed(Swift.UInt64)
+case LunaStationJoinResult.Outcome.joined
+case LunaStationJoinResult.Outcome.networkNotFound
+case LunaStationJoinResult.Outcome.wrongPassword
 case LunaTakePictureMode.aeb
 case LunaTakePictureMode.aebNight
 case LunaTakePictureMode.burst
@@ -180,6 +190,8 @@ case LunaVideoSubMode.slowMotion
 case LunaVideoSubMode.superVideo
 case LunaVideoSubMode.timeShift
 case LunaVideoSubMode.timelapse
+case LunaWiFiMode.accessPoint
+case LunaWiFiMode.station
 case ProtoMessage.Value.bytes(Foundation.Data)
 case ProtoMessage.Value.fixed32(Foundation.Data)
 case ProtoMessage.Value.fixed64(Foundation.Data)
@@ -197,15 +209,18 @@ enum LunaGimbalFollowSpeed: CaseIterable, Equatable, Hashable, RawRepresentable,
 enum LunaGimbalMode: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum LunaMediaType: Equatable, Hashable, RawRepresentable, Sendable
 enum LunaNotification: Equatable, Sendable
+enum LunaPhonePlatform: Equatable, Hashable, RawRepresentable, Sendable
 enum LunaPhotoSubMode: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum LunaPhotographyType: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum LunaProtocol
 enum LunaProtocolError: Equatable, Error, Sendable
 enum LunaScopeClip
 enum LunaShootingMode: CaseIterable, Equatable, Hashable, Sendable
+enum LunaStationJoinResult.Outcome: Equatable, Sendable
 enum LunaTakePictureMode: Equatable, Hashable, RawRepresentable, Sendable
 enum LunaTrackFrame.State: Equatable, Hashable, RawRepresentable, Sendable
 enum LunaVideoSubMode: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
+enum LunaWiFiMode: Equatable, Hashable, RawRepresentable, Sendable
 enum ProtoMessage.Value: Equatable, Sendable
 enum ScreenWire
 enum UCD2Checksum
@@ -273,6 +288,9 @@ let LunaRequest.body: Foundation.Data
 let LunaRequest.command: LunaCommand
 let LunaRequest.requiresEncryption: Swift.Bool
 let LunaRequest.wireCode: Swift.UInt16
+let LunaStationJoinResult.address: Swift.String?
+let LunaStationJoinResult.outcome: LunaStationJoinResult.Outcome
+let LunaStationJoinResult.ssid: Swift.String?
 let LunaThumbnail.height: Swift.Int
 let LunaThumbnail.nv12: Foundation.Data
 let LunaThumbnail.width: Swift.Int
@@ -304,6 +322,7 @@ let UCD2Message.reserved: Swift.UInt16
 let UCD2Reassembler.maximumFrameSize: Swift.Int
 static func LunaColorMode.recordingDrum(current: LunaColorMode?) -> [LunaColorMode]
 static func LunaGimbalPoseEstimator.gravityPitchDeg(_: Swift.SIMD3<Swift.Double>) -> Swift.Double
+static func LunaProtocol.acceptsStationNetwork(ssid: Swift.String, password: Swift.String) -> Swift.Bool
 static func LunaProtocol.authorizationCheck(identity: Foundation.UUID) throws -> LunaRequest
 static func LunaProtocol.authorizationStatus(response: Foundation.Data) throws -> LunaAuthorizationStatus
 static func LunaProtocol.cameraPublicKey(response: Foundation.Data) throws -> Foundation.Data
@@ -333,6 +352,7 @@ static func LunaProtocol.heartbeat(sequence: Swift.UInt8) throws -> UCD2Frame
 static func LunaProtocol.keyExchangeRequest(publicKey: Foundation.Data) throws -> LunaRequest
 static func LunaProtocol.officialPhotographySet(types: [LunaPhotographyType], fields: [Swift.Int : Foundation.Data], functionMode: Swift.UInt32) throws -> LunaRequest
 static func LunaProtocol.openTracking(x: Swift.Double, y: Swift.Double, width: Swift.Double, height: Swift.Double, timestampMilliseconds: Swift.UInt64) throws -> LunaRequest
+static func LunaProtocol.phoneInfoRequest(_: LunaPhonePlatform, manufacturer: Swift.String, model: Swift.String, osVersion: Swift.String) throws -> LunaRequest
 static func LunaProtocol.photographyReading(_: Foundation.Data) throws -> LunaProtocol.PhotographyReading
 static func LunaProtocol.photographyValues(_: Foundation.Data) throws -> [Swift.Int : Swift.UInt64]
 static func LunaProtocol.remainingTimeRequest(functionMode: Swift.UInt32) throws -> LunaRequest
@@ -362,6 +382,9 @@ static func LunaProtocol.setWhiteBalanceKelvin(_: Swift.UInt64, functionMode: Sw
 static func LunaProtocol.setZoomScale(_: Swift.Double, functionMode: Swift.UInt32) throws -> LunaRequest
 static func LunaProtocol.shootingModeRequest() throws -> LunaRequest
 static func LunaProtocol.startCaptureRequest(for: LunaShootingMode) throws -> LunaRequest
+static func LunaProtocol.stationJoinRequest(ssid: Swift.String, password: Swift.String) throws -> LunaRequest
+static func LunaProtocol.stationJoinResult(_: Foundation.Data) throws -> LunaStationJoinResult
+static func LunaProtocol.stationRememberRequest(ssid: Swift.String, password: Swift.String) throws -> LunaRequest
 static func LunaProtocol.statusRequest() throws -> LunaRequest
 static func LunaProtocol.stopCaptureRequest(for: LunaShootingMode) throws -> LunaRequest
 static func LunaProtocol.stoppedVideo(response: Foundation.Data) throws -> LunaMediaFile?
@@ -370,7 +393,9 @@ static func LunaProtocol.syncTimeAccurateRequest(unixMilliseconds: Swift.UInt64,
 static func LunaProtocol.takePicture(mode: LunaTakePictureMode) throws -> LunaRequest
 static func LunaProtocol.timelapseOptions(response: Foundation.Data) throws -> (durationSeconds: Swift.UInt64, intervalMilliseconds: Swift.UInt64)
 static func LunaProtocol.validateAuthorizationNotification(_: UCD2Message) throws -> ()
+static func LunaProtocol.wifiCountryCode(response: Foundation.Data) throws -> Swift.String?
 static func LunaProtocol.wifiCredentials(response: Foundation.Data) throws -> LunaWiFiCredentials
+static func LunaProtocol.wifiModeRequest(_: LunaWiFiMode, countryCode: Swift.String?) throws -> LunaRequest
 static func LunaVideoResolution.rawValue(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double) -> Swift.UInt64?
 static func ProtoMessage.blob(field: Swift.Int, value: Foundation.Data) throws -> Foundation.Data
 static func ProtoMessage.double(field: Swift.Int, value: Swift.Double) throws -> Foundation.Data
@@ -420,6 +445,7 @@ static let LunaProtocol.sessionKeyByteCount: Swift.Int
 static let LunaProtocol.shootingViewAccessState: Swift.UInt64
 static let LunaProtocol.startCaptureRequest: LunaRequest
 static let LunaProtocol.startLiveRequest: LunaRequest
+static let LunaProtocol.stationJoinResultCode: Swift.UInt16
 static let LunaProtocol.stopCaptureRequest: LunaRequest
 static let LunaProtocol.stopLiveRequest: LunaRequest
 static let LunaProtocol.syncTimeAccurateCode: Swift.UInt16
@@ -464,6 +490,7 @@ struct LunaProtocol.PhotographyReading: Equatable, Sendable
 struct LunaRemainingTime: Equatable, Sendable
 struct LunaRequest: Equatable, Sendable
 struct LunaRequestCounter: Sendable
+struct LunaStationJoinResult: CustomDebugStringConvertible, CustomStringConvertible, Equatable, Sendable
 struct LunaStorage: Equatable, Sendable
 struct LunaThumbnail: Equatable, Sendable
 struct LunaTrackFrame: Equatable, Sendable
@@ -599,6 +626,8 @@ var LunaRemainingTime.location: Swift.UInt64
 var LunaRemainingTime.seconds: Swift.UInt64
 var LunaShootingMode.functionMode: LunaFunctionMode
 var LunaShootingMode.isPhoto: Swift.Bool
+var LunaStationJoinResult.debugDescription: Swift.String
+var LunaStationJoinResult.description: Swift.String
 var LunaStorage.cardState: Swift.UInt64
 var LunaStorage.freeBytes: Swift.UInt64
 var LunaStorage.isUsable: Swift.Bool
