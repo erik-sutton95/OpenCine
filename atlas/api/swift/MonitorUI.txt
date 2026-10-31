@@ -403,7 +403,7 @@ init MonitorSavedCameraSettings(cameras: [MonitorSavedCameraSummary], emptyHelp:
 init MonitorSavedCameraSummary(id: Swift.String, name: Swift.String, detail: Swift.String, network: Swift.String?)
 init MonitorScopeDisplayOptions(hdr: Swift.Bool, gain: Swift.Float)
 init MonitorScopePalette.TraceColor(red: Swift.Double, green: Swift.Double, blue: Swift.Double, alpha: Swift.Double)
-init MonitorScopePanelLayout(baseSize: CoreFoundation.CGSize, preferredSize: CoreFoundation.CGSize, center: CoreFoundation.CGPoint, scale: Swift.Double, canvas: CoreFoundation.CGRect, movementBounds: CoreFoundation.CGRect, resizable: Swift.Bool)
+init MonitorScopePanelLayout(baseSize: CoreFoundation.CGSize, preferredSize: CoreFoundation.CGSize, center: CoreFoundation.CGPoint, scale: Swift.Double, canvas: CoreFoundation.CGRect, movementBounds: CoreFoundation.CGRect, resizable: Swift.Bool, obstacles: [CoreFoundation.CGRect])
 init MonitorScopePanelPlate(title: Swift.String, chip: Swift.String, size: CoreFoundation.CGSize, content: () -> Content)<Content where Content : SwiftUI.View>
 init MonitorScopeStoredCenter(center: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)
 init MonitorScopeTraceMenu(modes: [Mode], mode: SwiftUI.Binding<Mode>, brightness: SwiftUI.Binding<Swift.Int>, guides: SwiftUI.Binding<MonitorScopeGuides>, title: (Mode) -> Swift.String, brightnessHelp: Swift.String, brightnessRange: Swift.ClosedRange<Swift.Int>, compact: Swift.Bool, modeFeedback: () -> Swift.Void, guideFeedback: () -> Swift.Void, supportsCalibratedReferences: Swift.Bool)<Mode where Mode : Swift.Hashable>
@@ -560,6 +560,7 @@ let MonitorScopePanelLayout.baseSize: CoreFoundation.CGSize
 let MonitorScopePanelLayout.canvas: CoreFoundation.CGRect
 let MonitorScopePanelLayout.center: CoreFoundation.CGPoint
 let MonitorScopePanelLayout.movementBounds: CoreFoundation.CGRect
+let MonitorScopePanelLayout.obstacles: [CoreFoundation.CGRect]
 let MonitorScopePanelLayout.resizable: Swift.Bool
 let MonitorScopePanelLayout.scale: Swift.Double
 let MonitorScopePanelLayout.size: CoreFoundation.CGSize
@@ -668,6 +669,7 @@ static func MonitorScopePanelCentering.panelSize(_: CoreFoundation.CGSize, scale
 static func MonitorScopePanelCentering.resolvedCenter(session: CoreFoundation.CGPoint?, stored: MonitorScopeStoredCenter?, defaultCenter: CoreFoundation.CGPoint, size: CoreFoundation.CGSize, bounds: CoreFoundation.CGRect) -> CoreFoundation.CGPoint
 static func MonitorScopePanelPlacement.bounds(in: CoreFoundation.CGRect, clearance: SwiftUI.EdgeInsets) -> CoreFoundation.CGRect
 static func MonitorScopePanelPlacement.clamp(_: CoreFoundation.CGPoint, size: CoreFoundation.CGSize, in: CoreFoundation.CGRect, resizable: Swift.Bool) -> CoreFoundation.CGPoint
+static func MonitorScopePanelPlacement.clamp(_: CoreFoundation.CGPoint, size: CoreFoundation.CGSize, in: CoreFoundation.CGRect, resizable: Swift.Bool, avoiding: [CoreFoundation.CGRect]) -> CoreFoundation.CGPoint
 static func MonitorScopePanelPlacement.fittedSize(_: CoreFoundation.CGSize, in: CoreFoundation.CGRect, resizable: Swift.Bool) -> CoreFoundation.CGSize
 static func MonitorScopePanelPlacement.isUsable(_: CoreFoundation.CGRect) -> Swift.Bool
 static func MonitorScopePanelPlacement.size(_: CoreFoundation.CGSize, canvas: CoreFoundation.CGRect, clearance: SwiftUI.EdgeInsets) -> CoreFoundation.CGSize
@@ -1170,6 +1172,7 @@ var EnvironmentValues.monitorHDRChromeGain: CoreGraphics.CGFloat
 var EnvironmentValues.monitorInspectorHelp: Swift.Bool?
 var EnvironmentValues.monitorPortraitPrimaryFit: MonitorPortraitPrimaryFit?
 var EnvironmentValues.monitorPresentationIsVisible: Swift.Bool
+var EnvironmentValues.monitorScopeObstacles: [CoreFoundation.CGRect]
 var EnvironmentValues.monitorSegmentedAppearance: MonitorSegmentedAppearance
 var EnvironmentValues.monitorWindowGeometry: MonitorWindowGeometry
 var InterfaceOrientationObserver.orientation: MonitorPresentation.MonitorDeviceOrientation

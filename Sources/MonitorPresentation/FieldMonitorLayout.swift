@@ -312,6 +312,26 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             trailing: max(0, safeArea.trailing))
     }
 
+    /// The chrome rects a floating scope never covers, for the parts the surface shows now;
+    /// `MonitorScopeChromeAvoidance` moves a panel off each one, so scopes reach the edges only
+    /// where no control stands. The status row (format, recording and timecode), the gauges, the
+    /// rail keys, the camera values, the assist palette as it rests collapsed (an expanded palette
+    /// draws over panels as it draws over the values), the motion cluster, the recenter key and
+    /// the portrait fit/fill toggle. Fit and fill share it (owner hardware pass 2026-10-30, iPad
+    /// Pro 11-inch). Mirrors Kotlin `MonitorFieldLayout.scopeObstacles`.
+    public func scopeObstacles(_ shown: MonitorScopeChrome, motionCluster: Bool = false) -> [MonitorRect] {
+        let parts: [(MonitorScopeChrome, [MonitorRect])] = [
+            (.status, [status]), (.telemetry, [telemetry]), (.lock, [lock]),
+            (.settings, [settings]), (.media, [media]), (.record, [record]),
+            (.display, [display]), (.values, [values]), (.tools, [assists]),
+            (.motion, motionCluster ? [stick, zoom, gimbal, headTrack] : []),
+            (.focusReset, [focusReset(motionCluster: motionCluster)]),
+            (.aspectToggle, portrait ? [aspectToggle] : []),
+        ]
+        return parts.filter { shown.contains($0.0) }.flatMap(\.1)
+            .filter { $0.width > 0 && $0.height > 0 }
+    }
+
     /// Landscape camera values sit above the home indicator instead of overlapping it.
     public static func landscapeBottomClearance(safeBottom: Double) -> Double {
         safeBottom > 0 ? max(safeBottom, 14) + 10 : 8
@@ -392,4 +412,34 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public static func headTrack(stick: MonitorRect, zoom: MonitorRect) -> MonitorRect {
         MonitorRect(x: stick.maxX - 44, y: zoom.y - 8 - 44, width: 44, height: 44)
     }
+}
+
+/// A part of the live chrome a floating scope keeps clear of (`FieldMonitorLayout.scopeObstacles`).
+/// The surface names the parts it shows. Mirrors Kotlin `MonitorScopeChrome`.
+public struct MonitorScopeChrome: OptionSet, Hashable, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    /// The status row: format, recording, timecode and storage.
+    public static let status = Self(rawValue: 1 << 0)
+    /// The link and battery gauges.
+    public static let telemetry = Self(rawValue: 1 << 1)
+    public static let lock = Self(rawValue: 1 << 2)
+    public static let settings = Self(rawValue: 1 << 3)
+    public static let media = Self(rawValue: 1 << 4)
+    public static let record = Self(rawValue: 1 << 5)
+    /// DISP.
+    public static let display = Self(rawValue: 1 << 6)
+    /// The camera values.
+    public static let values = Self(rawValue: 1 << 7)
+    /// The assist palette, collapsed.
+    public static let tools = Self(rawValue: 1 << 8)
+    /// The gimbal stick, zoom chip, gimbal key and head lock.
+    public static let motion = Self(rawValue: 1 << 9)
+    public static let focusReset = Self(rawValue: 1 << 10)
+    /// The portrait fit/fill toggle.
+    public static let aspectToggle = Self(rawValue: 1 << 11)
+    public static let all: Self = [
+        .status, .telemetry, .lock, .settings, .media, .record, .display, .values, .tools,
+        .motion, .focusReset, .aspectToggle,
+    ]
 }

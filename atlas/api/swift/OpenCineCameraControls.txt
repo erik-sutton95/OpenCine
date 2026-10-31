@@ -201,7 +201,7 @@ extension OpenCineMedia.MonitorPeakingColor
 extension OpenCineMedia.MonitorZebraPaint
 extension SwiftUICore.EnvironmentValues
 extension SwiftUICore.View
-func AudioMeterDragLifecycle.applyChanged(translation: CoreFoundation.CGSize, visualCenter: CoreFoundation.CGPoint, currentBounds: CoreFoundation.CGRect, size: CoreFoundation.CGSize, canvas: CoreFoundation.CGRect, movement: CoreFoundation.CGRect, locked: Swift.Bool, sceneActive: Swift.Bool, usable: Swift.Bool) -> ()
+func AudioMeterDragLifecycle.applyChanged(translation: CoreFoundation.CGSize, visualCenter: CoreFoundation.CGPoint, currentBounds: CoreFoundation.CGRect, size: CoreFoundation.CGSize, canvas: CoreFoundation.CGRect, movement: CoreFoundation.CGRect, obstacles: [CoreFoundation.CGRect], locked: Swift.Bool, sceneActive: Swift.Bool, usable: Swift.Bool) -> ()
 func AudioMeterDragLifecycle.cancel(pointerActive: Swift.Bool) -> ()
 func AudioMeterDragLifecycle.persistableCenter(locked: Swift.Bool, sceneActive: Swift.Bool, usable: Swift.Bool, currentBounds: CoreFoundation.CGRect) -> CoreFoundation.CGPoint?
 func AudioMeterDragLifecycle.reset(pointerActive: Swift.Bool) -> ()
@@ -1017,7 +1017,7 @@ protocol MonitorPlaybackPresentationSource<Self : AnyObject, Self.Look : Swift.S
 protocol MonitorWatcherLiveHost<Self : OpenCineAppKitApple.WatcherRelayViewer, Self : MonitorLiveOperatorHost, Self.WatcherDecoder == Self.Picture.Decoder>: CaptureSheetHost, ChromeEditHost, LegacyLiveClockAvailability, LiveChromeHost, MonitorLiveOperatorHost, Observable, SessionRecoveryHost, WatcherRelayViewer
 protocol SessionRecoveryHost<Self : AnyObject, Self : Observation.Observable, Self.Palette : LiveChromePalette>: Observable
 protocol WatcherBrowseHost<Self : AnyObject, Self : Observation.Observable, Self.Palette : LiveChromePalette>: Observable
-static func AudioAssist.center(stored: AudioAssist.StoredCenter?, size: CoreFoundation.CGSize, canvas: CoreFoundation.CGRect, movement: CoreFoundation.CGRect) -> CoreFoundation.CGPoint
+static func AudioAssist.center(stored: AudioAssist.StoredCenter?, size: CoreFoundation.CGSize, canvas: CoreFoundation.CGRect, movement: CoreFoundation.CGRect, avoiding: [CoreFoundation.CGRect]) -> CoreFoundation.CGPoint
 static func AudioAssist.dbText(_: Swift.Double) -> Swift.String
 static func AudioAssist.displayedSensitivity(_: Swift.String?) -> Swift.String
 static func AudioAssist.levelFraction(_: Swift.Double) -> Swift.Double

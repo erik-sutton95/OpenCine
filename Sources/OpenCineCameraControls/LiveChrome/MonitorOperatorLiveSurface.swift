@@ -961,8 +961,31 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         }
     }
 
+    /// The chrome shown now that floating scopes and meters keep clear of.
+    private var scopeChrome: MonitorScopeChrome {
+        var shown: MonitorScopeChrome = [.display]
+        if mounts(.statusBar) { shown.insert(.status) }
+        if mounts(.batteries) || (usesCompactTelemetry && mounts(.statusBar)) { shown.insert(.telemetry) }
+        if source.returnToStage != nil || mounts(.lockButton) { shown.insert(.lock) }
+        if mounts(.railSettings) { shown.insert(.settings) }
+        if mounts(.railMedia) { shown.insert(.media) }
+        if mounts(.railRecord) { shown.insert(.record) }
+        if mounts(.cameraValues) { shown.insert(.values) }
+        if mounts(.toolBar) { shown.insert(.tools) }
+        if cameraViews.motion != nil { shown.insert(.motion) }
+        if !locked, editing == nil, cameraViews.resetFocus != nil { shown.insert(.focusReset) }
+        if portraitAspect != nil, layout.portrait, !facts.picture.vertical, editing == nil,
+            !assist.isVisible(.desqueeze) { shown.insert(.aspectToggle) }
+        return shown
+    }
+
     @ViewBuilder private var scopes: some View {
         if let assistSource, let stores {
+        let obstacles = layout.scopeObstacles(scopeChrome, motionCluster: cameraViews.motion != nil).map(\.cgRect)
+        Group { scopePanels(assistSource, stores) }.environment(\.monitorScopeObstacles, obstacles)
+        }
+    }
+    @ViewBuilder private func scopePanels(_ assistSource: MonitorOperatorLiveAssistSource, _ stores: AssistPanelStores) -> some View {
         let canvas = CGRect(x: 0, y: 0, width: layout.viewport.width, height: layout.viewport.height)
         let feed = CGRect(x: layout.picture.x, y: layout.picture.y, width: layout.picture.width, height: layout.picture.height)
         let inset = layout.scopeClearance(safeArea: safeArea)
@@ -983,7 +1006,6 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 transfer: transfer, rec709: assist.falseColorRec709, clipByte: assistSource.readClipByte(transfer),
                 bounds: canvas, chromeClearance: clearance, hapticsEnabled: host.hapticsEnabled,
                 onConfigure: { if admitted { assist.configureTool = .falseColor } }, referenceValues: assists.signalOptions.reference)
-        }
         }
     }
     @ViewBuilder private var panelsChrome: some View {

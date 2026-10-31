@@ -277,6 +277,7 @@ enum MonitorReadoutInteraction.Outcome: Equatable, Sendable
 enum MonitorReadoutInteraction.Phase: Equatable, Hashable, Sendable
 enum MonitorReadoutTypography: Sendable
 enum MonitorScopeCanvasSlot: Equatable, Hashable, RawRepresentable, Sendable
+enum MonitorScopeChromeAvoidance
 enum MonitorScopeSizing
 enum MonitorSettingsCardMetrics: Sendable
 enum MonitorSettingsTab: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
@@ -312,6 +313,7 @@ extension OpenCineMedia.MonitorFrameEffects
 func FieldMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> MonitorRect
 func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
 func FieldMonitorLayout.scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea
+func FieldMonitorLayout.scopeObstacles(_: MonitorScopeChrome, motionCluster: Swift.Bool) -> [MonitorRect]
 func GimbalCluster.offsetBy(dx: Swift.Double, dy: Swift.Double) -> GimbalCluster
 func MonitorAssistCapabilities.isPhotographyOnly(_: MonitorAssistSelection) -> Swift.Bool
 func MonitorAssistCapabilities.offers(_: MonitorAssistSelection, photography: Swift.Bool) -> Swift.Bool
@@ -491,6 +493,7 @@ init MonitorReadoutSnapshot(title: Swift.String, options: [Swift.String], select
 init MonitorReadoutValue(id: Foundation.UUID, sourceIdentity: SourceIdentity, snapshot: MonitorReadoutSnapshot, position: Swift.Double)<SourceIdentity where SourceIdentity : Swift.Hashable, SourceIdentity : Swift.Sendable>
 init MonitorRect(x: Swift.Double, y: Swift.Double, width: Swift.Double, height: Swift.Double)
 init MonitorSafeArea(top: Swift.Double, leading: Swift.Double, bottom: Swift.Double, trailing: Swift.Double)
+init MonitorScopeChrome(rawValue: Swift.Int)
 init MonitorScopeGuides(clip: Swift.Bool, crush: Swift.Bool, middle: Swift.Bool)
 init MonitorScopePoint(x: Swift.Double, y: Swift.Double)
 init MonitorScopeStoredCenter(xFraction: Swift.Double, yFraction: Swift.Double)
@@ -738,6 +741,7 @@ let MonitorReadoutValue.id: Foundation.UUID
 let MonitorReadoutValue.position: Swift.Double
 let MonitorReadoutValue.snapshot: MonitorReadoutSnapshot
 let MonitorReadoutValue.sourceIdentity: SourceIdentity
+let MonitorScopeChrome.rawValue: Swift.Int
 let MonitorSideRailPlan.batteries: Swift.Bool
 let MonitorSideRailPlan.disp: Swift.Bool
 let MonitorSideRailPlan.lock: Swift.Bool
@@ -922,6 +926,7 @@ static func MonitorPlaybackCopy.transport(reachedEnd: Swift.Bool, playing: Swift
 static func MonitorPlaybackZoom.boundPan(_: CoreFoundation.CGSize, frame: CoreFoundation.CGSize, scale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> CoreFoundation.CGSize
 static func MonitorReadoutTypography.valueSize(tablet: Swift.Bool) -> Swift.Double
 static func MonitorScopeCanvasSlot.forSize(width: Swift.Double, height: Swift.Double) -> MonitorScopeCanvasSlot
+static func MonitorScopeChromeAvoidance.resolve(_: MonitorScopePoint, width: Swift.Double, height: Swift.Double, bottomExtent: Swift.Double, avoiding: [MonitorRect], gap: Swift.Double, clamp: (MonitorScopePoint) -> MonitorScopePoint) -> MonitorScopePoint
 static func MonitorScopePanelOptions.clampedScale(_: Swift.Double) -> Swift.Double
 static func MonitorScopeSizing.scale(portrait: Swift.Bool, tablet: Swift.Bool, preferred: Swift.Double?) -> Swift.Double
 static func MonitorSettingsCardMetrics.contentOriginY(titleLineHeight: Swift.Double) -> Swift.Double
@@ -1132,6 +1137,19 @@ static let MonitorReadoutTypography.labelSize: Swift.Double
 static let MonitorReadoutTypography.labelTracking: Swift.Double
 static let MonitorReadoutTypography.phoneValueSize: Swift.Double
 static let MonitorReadoutTypography.tabletValueSize: Swift.Double
+static let MonitorScopeChrome.all: MonitorScopeChrome
+static let MonitorScopeChrome.aspectToggle: MonitorScopeChrome
+static let MonitorScopeChrome.display: MonitorScopeChrome
+static let MonitorScopeChrome.focusReset: MonitorScopeChrome
+static let MonitorScopeChrome.lock: MonitorScopeChrome
+static let MonitorScopeChrome.media: MonitorScopeChrome
+static let MonitorScopeChrome.motion: MonitorScopeChrome
+static let MonitorScopeChrome.record: MonitorScopeChrome
+static let MonitorScopeChrome.settings: MonitorScopeChrome
+static let MonitorScopeChrome.status: MonitorScopeChrome
+static let MonitorScopeChrome.telemetry: MonitorScopeChrome
+static let MonitorScopeChrome.tools: MonitorScopeChrome
+static let MonitorScopeChrome.values: MonitorScopeChrome
 static let MonitorScopeGuides.default: MonitorScopeGuides
 static let MonitorSettingsCardMetrics.rowTitlePointSize: Swift.Double
 static let MonitorSettingsCardMetrics.titleContentGap: Swift.Double
@@ -1259,6 +1277,7 @@ struct MonitorReadoutSnapshot: Equatable, Hashable, Sendable
 struct MonitorReadoutValue<SourceIdentity where SourceIdentity : Swift.Hashable, SourceIdentity : Swift.Sendable>: Equatable, Sendable
 struct MonitorRect: Equatable, Sendable
 struct MonitorSafeArea: Equatable, Sendable
+struct MonitorScopeChrome: Equatable, ExpressibleByArrayLiteral, Hashable, OptionSet, RawRepresentable, Sendable, SetAlgebra
 struct MonitorScopeGuides: Decodable, Encodable, Equatable, Sendable
 struct MonitorScopePoint: Equatable, Sendable
 struct MonitorScopeStoredCenter: Decodable, Encodable, Equatable, Sendable
