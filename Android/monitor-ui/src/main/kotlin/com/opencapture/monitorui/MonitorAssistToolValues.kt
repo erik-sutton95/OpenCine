@@ -83,6 +83,18 @@ enum class MonitorAssistTool {
         /** Camera EV and LEVEL have no clip telemetry; AUDIO rides last like live. */
         val playbackToolbarCases: List<MonitorAssistTool> get() = toolbarCases.filter { it != EV && it != LEVEL } + AUDIO
 
+        /**
+         * What a still photo offers, in playback order (Swift `MonitorAssistSelection.photoToolbarCases`).
+         * No LUT: the assist cubes convert the camera's log curve and a still is display-referred
+         * Rec.709. No ND, AUDIO, LEVEL or EV: a still has no exposure to change, no sound and no attitude.
+         */
+        val photoToolbarCases: List<MonitorAssistTool> get() = playbackToolbarCases.filter {
+            it in setOf(PEAK, FALSE, ZEBRA, WAVE, PARADE, HISTO, VECTOR, LIGHTS, GUIDES, GRID, CROSS, DESQ, MIRROR)
+        }
+
+        /** Photo tools that remake the still's pixels; a page offers them only with a still look renderer. */
+        val photoPictureTools: Set<MonitorAssistTool> get() = setOf(PEAK, FALSE, ZEBRA)
+
         val settingsCases: List<MonitorAssistTool> get() = toolbarCases + AUDIO
 
         val cleanPinCases: List<MonitorAssistTool> get() = settingsCases.filter { it != EV }

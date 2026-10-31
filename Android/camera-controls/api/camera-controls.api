@@ -2936,7 +2936,7 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorPalett
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorPhotoScreenKt {
-	public static final fun MonitorOperatorPhotoScreen (Lcom/opencapture/opencine/appkit/MonitorMediaLibraryModel;Lcom/opencapture/opencine/appkit/MonitorMediaRecord;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lcom/opencapture/opencine/appkit/MonitorMediaPictureLoaders;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/appkit/MonitorMediaLibraryActionToken;Lcom/opencapture/opencine/appkit/MonitorMediaPictureLoadPolicy;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ZLjava/util/List;Lcom/opencapture/opencine/appkit/MonitorMediaPictureRatingService;Lcom/opencapture/opencine/appkit/MonitorMediaPictureSharing;Ljava/util/List;FLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorOperatorPhotoScreen (Lcom/opencapture/opencine/appkit/MonitorMediaLibraryModel;Lcom/opencapture/opencine/appkit/MonitorMediaRecord;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lcom/opencapture/opencine/appkit/MonitorMediaPictureLoaders;Lcom/opencapture/opencine/appkit/MonitorMediaGalleryOperations;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/appkit/MonitorMediaLibraryActionToken;Lcom/opencapture/opencine/appkit/MonitorMediaPictureLoadPolicy;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ZLjava/util/List;Lcom/opencapture/opencine/appkit/MonitorMediaPictureRatingService;Lcom/opencapture/opencine/appkit/MonitorMediaPictureSharing;Ljava/util/List;FLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/appkit/MonitorToolUsagePreferences;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSource;Lcom/opencapture/opencine/cameracontrols/MonitorStillLook;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorSignalOptions;Ljava/util/Set;Landroidx/compose/runtime/Composer;IIII)V
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorPickerFramesKt {
@@ -3468,6 +3468,10 @@ public final class com/opencapture/opencine/cameracontrols/MonitorSettingsSuppor
 	public final fun getTerms ()Lkotlin/jvm/functions/Function0;
 	public final fun getTermsHelp ()Ljava/lang/String;
 	public final fun getUnavailableHelp ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/cameracontrols/MonitorStillLook {
+	public abstract fun render (Landroid/graphics/Bitmap;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)Landroid/graphics/Bitmap;
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorWatcherConnectionLabels {
