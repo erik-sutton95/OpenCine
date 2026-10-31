@@ -41,10 +41,29 @@
             return description[kCVPixelFormatContainsYCbCr as String] as? Bool ?? false
         }
 
+        /// Colour claims a monitor frame must not carry: each makes a colour-managed decode
+        /// convert the signal's code values into another encoding before any look sees them.
+        static var codeValueClaims: [CFString] {
+            [
+                kCVImageBufferTransferFunctionKey, kCVImageBufferColorPrimariesKey,
+                kCVImageBufferGammaLevelKey, kCVImageBufferICCProfileKey,
+            ]
+        }
+
         /// Writes the decoding matrix onto a YCbCr frame, so CoreImage and Metal consumers decode
-        /// it alike. An RGB frame is already decoded and passes untouched.
+        /// it alike, and drops its transfer and primaries claims, so the decode yields the
+        /// signal's own code values. An RGB frame is already decoded and passes untouched.
+        ///
+        /// Every look, scope and exposure tool of the monitor reads code values: a camera LUT
+        /// expects the log codes the camera encoded, as the camera's own JPEG live view delivers
+        /// them. A UVC device without a colour matching descriptor claims the class default
+        /// BT.709 transfer and primaries whatever the signal is, and Core Image honours a transfer
+        /// claim by re-encoding BT.709 to sRGB: a log mid grey rose 11 codes, about two thirds of
+        /// a stop under a Log3G10 look, and 8-bit codes went missing (contour banding once the
+        /// look's gain stretched them). The claims are read for the operator readout first.
         static func prepareForDisplay(_ pixelBuffer: CVPixelBuffer) {
             guard isYCbCr(CVPixelBufferGetPixelFormatType(pixelBuffer)) else { return }
+            for key in codeValueClaims { CVBufferRemoveAttachment(pixelBuffer, key) }
             let tagged = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, nil)
             let matrix = decodingMatrix(
                 tagged: tagged as? String, height: CVPixelBufferGetHeight(pixelBuffer))

@@ -1481,10 +1481,11 @@ public final class com/opencapture/opencine/cameracontrols/MediaLibraryPageActio
 
 public final class com/opencapture/opencine/cameracontrols/MediaLibraryPageState {
 	public static final field $stable I
-	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lcom/opencapture/opencine/cameracontrols/MediaBrowserLayout;Lcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lcom/opencapture/opencine/vocabulary/MediaLibrarySort;Ljava/lang/String;ZZZZIIZLkotlin/jvm/functions/Function0;Z)V
-	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lcom/opencapture/opencine/cameracontrols/MediaBrowserLayout;Lcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lcom/opencapture/opencine/vocabulary/MediaLibrarySort;Ljava/lang/String;ZZZZIIZLkotlin/jvm/functions/Function0;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lcom/opencapture/opencine/cameracontrols/MediaBrowserLayout;Lcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lcom/opencapture/opencine/vocabulary/MediaLibrarySort;Ljava/lang/String;ZZZZIIZLkotlin/jvm/functions/Function0;ZLkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lcom/opencapture/opencine/cameracontrols/MediaBrowserLayout;Lcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lcom/opencapture/opencine/vocabulary/MediaLibrarySort;Ljava/lang/String;ZZZZIIZLkotlin/jvm/functions/Function0;ZLkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getActiveFilterCount ()I
 	public final fun getCaching ()Lkotlin/jvm/functions/Function0;
+	public final fun getCachingRate ()Lkotlin/jvm/functions/Function0;
 	public final fun getCameraName ()Ljava/lang/String;
 	public final fun getCategory ()Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;
 	public final fun getDeleteEnabled ()Z
@@ -1501,7 +1502,7 @@ public final class com/opencapture/opencine/cameracontrols/MediaLibraryPageState
 }
 
 public final class com/opencapture/opencine/cameracontrols/MediaLibraryViewsKt {
-	public static final fun MediaCacheBar (Ljava/lang/String;DLandroidx/compose/runtime/Composer;I)V
+	public static final fun MediaCacheBar (Ljava/lang/String;DLjava/lang/String;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MediaCatalogDisplayControls (ZLcom/opencapture/opencine/cameracontrols/MediaThumbnailSize;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MediaCatalogHeaderRow (Ljava/lang/String;Ljava/lang/String;ZZZLcom/opencapture/opencine/vocabulary/MediaLibrarySort;ZILkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZLandroidx/compose/runtime/Composer;II)V
 	public static final fun MediaCategoryStrip (Lcom/opencapture/opencine/vocabulary/MediaLibraryTab;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;I)V
@@ -2111,17 +2112,19 @@ public final class com/opencapture/opencine/cameracontrols/MonitorMediaGalleryEm
 
 public final class com/opencapture/opencine/cameracontrols/MonitorMediaGalleryFileFacts {
 	public static final field $stable I
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;Lcom/opencapture/opencine/media/MediaTransferRate;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;Lcom/opencapture/opencine/media/MediaTransferRate;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/Double;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;)Lcom/opencapture/opencine/cameracontrols/MonitorMediaGalleryFileFacts;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/cameracontrols/MonitorMediaGalleryFileFacts;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;ILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorMediaGalleryFileFacts;
+	public final fun component4 ()Lcom/opencapture/opencine/media/MediaTransferRate;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;Lcom/opencapture/opencine/media/MediaTransferRate;)Lcom/opencapture/opencine/cameracontrols/MonitorMediaGalleryFileFacts;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/cameracontrols/MonitorMediaGalleryFileFacts;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;Lcom/opencapture/opencine/media/MediaTransferRate;ILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorMediaGalleryFileFacts;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDetail ()Ljava/lang/String;
 	public final fun getDuration ()Ljava/lang/String;
 	public final fun getProgress ()Ljava/lang/Double;
+	public final fun getTransferRate ()Lcom/opencapture/opencine/media/MediaTransferRate;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

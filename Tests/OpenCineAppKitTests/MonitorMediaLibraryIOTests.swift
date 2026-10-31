@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import OpenCineAppKit
 import OpenCineCore
+import OpenCineCoreTestSupport
 import OpenCineMedia
 import Testing
 
@@ -421,6 +422,96 @@ private actor HostIOBorrowedSink: MediaByteSink {
         gate.release(); #expect(await outgoing.value == false)
         #expect(model.records.isEmpty && model.catalog.assets.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("play/a").path))
+    }
+    @Test func aDownloadReadsItsSpeedWhileItsBytesArrive() async throws {
+        let sleep = HostIOSleep(), time = ManualHostClock()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = MonitorMediaCache(directory: .init(root: root), codec: HostIOCodec(),
+            eligibility: .exactSize, catalogAddress: "index", preservedMetadata: [])
+        let model = MonitorMediaLibraryModel(cache: cache, favorites: HostIOFavorites(),
+            sleep: { await sleep.wait($0) }, rateClock: time.clock)
+        defer { model.close(); sleep.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let record = HostIOCodec().capture(.init(id: .init("clip"), filename: "clip.mov", kind: .video,
+            representations: []), binding: HostIOBrowse().binding)
+        try model.applyLocalRecords(.init(resetLibrary: false, upserts: [record]), token: model.actionToken)
+        let capture = model.captureIO(key: .init("clip"), asset: record.asset.id, ifCurrent: { true })
+        var reading: String?
+        _ = try await model.cacheHostFile(capture, purpose: .playback, at: "play/a",
+            expectedByteCount: 1_000_000) { sink in
+            // 1 MB over one second, 100 KB every 100 ms.
+            for _ in 0..<10 {
+                try await sink.write(Data(count: 100_000))
+                time.advance(by: .milliseconds(100))
+            }
+            #expect(await eventually { model.transferRates.rate(record.asset.id)?.label == "1.0 MB/s" })
+            reading = model.transferRates.rate(record.asset.id)?.label
+            return .init(byteCount: 1_000_000, expectedByteCount: 1_000_000)
+        }
+        #expect(reading == "1.0 MB/s")
+        // The bytes are all here: no reading lingers beside the finished progress.
+        #expect(model.transferRates.rate(record.asset.id) == nil)
+    }
+    private func speedLibrary(_ sleep: HostIOSleep, _ time: ManualHostClock) throws
+        -> (URL, MonitorMediaLibraryModel<String>, MediaAssetID) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = MonitorMediaCache(directory: .init(root: root), codec: HostIOCodec(),
+            eligibility: .exactSize, catalogAddress: "index", preservedMetadata: [])
+        let model = MonitorMediaLibraryModel(cache: cache, favorites: HostIOFavorites(),
+            sleep: { await sleep.wait($0) }, rateClock: time.clock)
+        let record = HostIOCodec().capture(.init(id: .init("clip"), filename: "clip.mov", kind: .video,
+            representations: []), binding: HostIOBrowse().binding)
+        try model.applyLocalRecords(.init(resetLibrary: false, upserts: [record]), token: model.actionToken)
+        return (root, model, record.asset.id)
+    }
+    @Test func aDownloadRetiredByAProgressObserverLeavesNoReading() async throws {
+        let sleep = HostIOSleep(), time = ManualHostClock()
+        let (root, model, asset) = try speedLibrary(sleep, time)
+        defer { model.close(); sleep.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let capture = model.captureIO(key: .init("clip"), asset: asset, ifCurrent: { true })
+        // The observer retires the library while the download publishes its first progress.
+        withObservationTracking { _ = model.hostProgress } onChange: {
+            MainActor.assumeIsolated { model.close(); model.begin() }
+        }
+        do {
+            _ = try await model.cacheHostFile(capture, purpose: .download, at: "files/a") { _ in
+                .init(byteCount: 1)
+            }
+            Issue.record("The retired download survived")
+        } catch {}
+        #expect(model.transferRates.rate(asset) == nil)
+    }
+    @Test func anOlderPlaybackEndingKeepsTheNewerPlaybackSpeed() async throws {
+        let sleep = HostIOSleep(), time = ManualHostClock()
+        let (root, model, asset) = try speedLibrary(sleep, time)
+        defer { model.close(); sleep.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let (release, releasing) = AsyncStream<Void>.makeStream()
+        let older = Task { @MainActor in
+            _ = try? await model.cacheHostFile(
+                model.captureIO(key: .init("clip"), asset: asset, ifCurrent: { true }),
+                purpose: .playback, at: "play/a"
+            ) { _ in
+                for await _ in release { break }
+                throw CancellationError()
+            }
+        }
+        #expect(await eventually { model.hostProgress[.init("clip")] != nil })
+        var reading: String?
+        _ = try await model.cacheHostFile(
+            model.captureIO(key: .init("clip"), asset: asset, ifCurrent: { true }),
+            purpose: .playback, at: "play/b", expectedByteCount: 1_000_000
+        ) { sink in
+            for _ in 0..<10 {
+                try await sink.write(Data(count: 100_000))
+                time.advance(by: .milliseconds(100))
+            }
+            #expect(await eventually { model.transferRates.rate(asset)?.label == "1.0 MB/s" })
+            // The older playback ends while the newer one is still downloading.
+            releasing.yield(); releasing.finish()
+            await older.value
+            reading = model.transferRates.rate(asset)?.label
+            return .init(byteCount: 1_000_000, expectedByteCount: 1_000_000)
+        }
+        #expect(reading == "1.0 MB/s")
     }
     @Test func headerLengthOverridesSourceHintForProgress() async throws {
         let clock = HostIOSleep(), (root, model) = library(clock)
