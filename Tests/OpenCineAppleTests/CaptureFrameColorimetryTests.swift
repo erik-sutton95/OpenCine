@@ -67,6 +67,36 @@
             Self.expectNear(try Self.rendered(frame), Self.green601.rgb, Self.name(format))
         }
 
+        /// A frame carrying the UVC class-default colour claims (BT.709 primaries and transfer,
+        /// SMPTE 170M matrix: what every capture device without a colour matching descriptor
+        /// reports) still renders to the signal's own code values. The monitor's looks, scopes
+        /// and exposure tools all read code values, as they do for the camera's JPEG live view;
+        /// letting Core Image honour the transfer claim re-encoded BT.709 to sRGB first and lifted
+        /// a log mid grey by 11 codes (about two thirds of a stop under a Log3G10 look).
+        @Test(arguments: formats)
+        func classDefaultClaimsRenderTheSignalCodes(format: OSType) throws {
+            let ramp = [
+                Bar(name: "shadow", video: (64, 128, 128), full: (56, 128, 128), rgb: (56, 56, 56)),
+                Bar(name: "mid", video: (126, 128, 128), full: (128, 128, 128), rgb: (128, 128, 128)),
+                Bar(name: "high", video: (182, 128, 128), full: (193, 128, 128), rgb: (193, 193, 193)),
+                Self.bars709[0],
+            ]
+            for bar in ramp {
+                let frame = try Self.frame(
+                    format, width: 1920, height: 1080, bar: bar,
+                    matrix: kCVImageBufferYCbCrMatrix_ITU_R_601_4 as String)
+                CVBufferSetAttachment(
+                    frame, kCVImageBufferColorPrimariesKey,
+                    kCVImageBufferColorPrimaries_ITU_R_709_2, .shouldPropagate)
+                CVBufferSetAttachment(
+                    frame, kCVImageBufferTransferFunctionKey,
+                    kCVImageBufferTransferFunction_ITU_R_709_2, .shouldPropagate)
+                CaptureFrameColorimetry.prepareForDisplay(frame)
+                Self.expectNear(
+                    try Self.rendered(frame), bar.rgb, "\(Self.name(format)) \(bar.name)")
+            }
+        }
+
         /// The capture output is asked for the device's own YCbCr layout, or biplanar 4:2:0 in
         /// the device's range, and never for RGB (which would hand the matrix to AVFoundation).
         @Test func captureRequestsYCbCrNeverRGB() {
