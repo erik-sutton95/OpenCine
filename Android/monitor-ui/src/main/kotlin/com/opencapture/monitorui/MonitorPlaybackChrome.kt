@@ -196,6 +196,7 @@ data class MonitorMetadataRow(val label: String, val value: String)
 @Composable
 fun MonitorMetadataDrawer(rows: List<MonitorMetadataRow>, modifier: Modifier = Modifier,
     close: @Composable () -> Unit) {
+    val copy = MonitorPlaybackCopy.resolved(LocalCopyLanguage.current)
     Column(
         modifier
             .width(MonitorPlaybackLayout.INSPECTOR_WIDTH.dp)
@@ -206,7 +207,7 @@ fun MonitorMetadataDrawer(rows: List<MonitorMetadataRow>, modifier: Modifier = M
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                MonitorPlaybackCopy.CLIP_INFORMATION_TITLE,
+                copy.clipInformationTitle,
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                 style = MonitorTypography.text(9f, FontWeight.Bold).copy(letterSpacing = 1.8.sp),
             )

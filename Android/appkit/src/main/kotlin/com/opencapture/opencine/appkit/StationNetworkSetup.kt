@@ -86,6 +86,8 @@ import com.opencapture.monitorui.MonitorLinkHealth
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.monitorScrollFade
+import com.opencapture.monitorui.CopyLanguage
+import com.opencapture.monitorui.LocalCopyLanguage
 import com.opencapture.monitorui.MonitorIcon
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -147,6 +149,10 @@ private fun stationRouteCopy(kind: RouteKind): StationRouteCopy = when (kind) {
         "Best when the camera has no network", "Choose HDMI capture")
 }
 
+/** The same route copy in [language], or in English where the table has no row. */
+private fun StationRouteCopy.translated(language: CopyLanguage): StationRouteCopy = StationRouteCopy(
+    id, stationText(title, language), stationText(body, language), stationText(tag, language), stationText(action, language))
+
 /** The order every app lists its routes in: shared networks first, then the host's own. */
 private val STATION_ROUTE_ORDER = listOf(
     RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT, RouteKind.CAMERA_ACCESS_POINT, RouteKind.USB,
@@ -162,22 +168,28 @@ public fun stationSetupChooser(
     camera: SavedCamera?,
     routes: List<StationSetupRoute> = StationSetupRoute.STATION_NETWORKS,
     notice: AddSetupNotice? = null,
+    language: CopyLanguage = CopyLanguage.preferred(),
 ): AddSetupChooser {
     fun detail(kind: RouteKind, body: String, tag: String): String =
-        listOfNotNull(camera?.network(kind)?.let { "Added · $it" }, body, tag).joinToString("\n")
+        listOfNotNull(camera?.network(kind)?.let { "${stationText("Added", language)} · $it" }, body, tag)
+            .joinToString("\n")
     val options = STATION_ROUTE_ORDER.mapNotNull { kind ->
         val route = routes.firstOrNull { it.kind == kind } ?: return@mapNotNull null
-        val copy = stationRouteCopy(kind)
+        val copy = stationRouteCopy(kind).translated(language)
         AddSetupOption(copy.id, kind, copy.title, detail(kind, copy.body, copy.tag), route.actionTitle ?: copy.action, route.enabled)
     }
     return AddSetupChooser(
-        title = if (camera == null) "How will your cameras connect?" else "How should this camera connect?",
+        title = stationText(
+            if (camera == null) "How will your cameras connect?" else "How should this camera connect?", language),
         detail = camera?.let { listOf(it.displayName, it.model).filter(String::isNotEmpty).joinToString(" · ") }.orEmpty(),
         options = options,
         footer = when {
-            camera == null -> "Choose the shared network before adding cameras. Saved passwords stay on this phone."
-            options.any { it.kind == RouteKind.CAMERA_ACCESS_POINT } -> "Switch setups from the camera’s chips at any time."
-            else -> "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time."
+            camera == null -> stationText(
+                "Choose the shared network before adding cameras. Saved passwords stay on this phone.", language)
+            options.any { it.kind == RouteKind.CAMERA_ACCESS_POINT } ->
+                stationText("Switch setups from the camera’s chips at any time.", language)
+            else -> stationText(
+                "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time.", language)
         },
         identifierPrefix = "stationSetup",
         notice = notice,
@@ -220,6 +232,7 @@ public fun StationNetworkSetup(
     cameraSsids: Set<String> = emptySet(),
     startPage: StationSetupPage? = null,
 ) {
+    val language = LocalCopyLanguage.current
     val context = LocalContext.current
     // The keyboard must not replace the focused field by changing the form layout.
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -253,8 +266,8 @@ public fun StationNetworkSetup(
     fun storedPassword(ssid: String, hotspot: Boolean) =
         savedNetworks.lastOrNull { it.hotspot == hotspot && it.ssid == ssid }?.password
     val networkHint =
-        if (camera == null) "This phone joins first. Every camera you add will use the same Wi-Fi."
-        else "The camera and this phone must be on the same Wi-Fi."
+        if (camera == null) stationText("This phone joins first. Every camera you add will use the same Wi-Fi.", language)
+        else stationText("The camera and this phone must be on the same Wi-Fi.", language)
     // Saved on this phone with passwords; the store holds no password-less entries.
     val saved = savedNetworks.filter { !it.hotspot }.map { it.ssid }.distinct()
         .filter { it != current && !isCameraNetwork(it) }
@@ -351,12 +364,12 @@ public fun StationNetworkSetup(
             current = ssid?.takeUnless(::isCameraNetwork)
             locationHint = when {
                 ssid != null -> null
-                !permitted && wifiNameAccess.needsSettings -> "Allow Location to show this phone’s Wi-Fi" to
-                    "Settings › Apps › ${brand.appName} › Permissions › Location, with Use precise location on. Only the Wi-Fi name is used."
-                !permitted -> "Allow Location to show this phone’s Wi-Fi" to
-                    "Tap to allow precise location. Only the Wi-Fi name is used."
-                !located -> "Turn on Location to show this phone’s Wi-Fi" to
-                    "Settings › Location. Only the Wi-Fi name is used."
+                !permitted && wifiNameAccess.needsSettings -> stationText("Allow Location to show this phone’s Wi-Fi", language) to
+                    String.format(stationText("Settings › Apps › %1\$s › Permissions › Location, with Use precise location on. Only the Wi-Fi name is used.", language), brand.appName)
+                !permitted -> stationText("Allow Location to show this phone’s Wi-Fi", language) to
+                    stationText("Tap to allow precise location. Only the Wi-Fi name is used.", language)
+                !located -> stationText("Turn on Location to show this phone’s Wi-Fi", language) to
+                    stationText("Settings › Location. Only the Wi-Fi name is used.", language)
                 else -> null
             }
             hotspotDetected = hotspotActive()
@@ -412,7 +425,7 @@ public fun StationNetworkSetup(
     fun networksPage(side: SetupSide?) = columns(side, 7.dp, {
         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             if (!landscape) {
-                Text("Choose the network", style = setupFont(22f, FontWeight.SemiBold))
+                Text(stationText("Choose the network", language), style = setupFont(22f, FontWeight.SemiBold))
                 SetupHint(networkHint, Modifier.padding(bottom = 8.dp))
             }
             val here = current
@@ -421,7 +434,7 @@ public fun StationNetworkSetup(
                 SetupSectionHeader("THIS PHONE IS ON", Modifier.testTag("stationSetup.currentHeader"))
                 SetupGroup {
                     if (here != null) {
-                        networkRow(here, if (hasPassword(here)) "Connected · password saved" else "Connected", good)
+                        networkRow(here, if (hasPassword(here)) stationText("Connected · password saved", language) else stationText("Connected", language), good)
                     } else if (hint != null) {
                         SetupRow(MonitorIcon.WIFI, hint.first, hint.second,
                             modifier = Modifier.setupClickable(!working) {
@@ -432,11 +445,11 @@ public fun StationNetworkSetup(
                 }
             }
             if (saved.isNotEmpty()) {
-                SetupSectionHeader("SAVED ON THIS PHONE", Modifier.padding(top = 6.dp))
+                SetupSectionHeader(stationText("SAVED ON THIS PHONE", language), Modifier.padding(top = 6.dp))
                 SetupGroup {
                     saved.forEachIndexed { index, name ->
                         if (index > 0) SetupDivider()
-                        networkRow(name, if (hasPassword(name)) "Password saved" else null)
+                        networkRow(name, if (hasPassword(name)) stationText("Password saved", language) else null)
                     }
                 }
             }
@@ -450,7 +463,7 @@ public fun StationNetworkSetup(
             ) {
                 Row(Modifier.align(Alignment.CenterStart), horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    SetupSection("NEARBY")
+                    SetupSection(stationText("NEARBY", language))
                     if (scanning) SetupSpinner(12.dp)
                 }
                 if (!scanning && scan != null) {
@@ -459,7 +472,7 @@ public fun StationNetworkSetup(
                             .setupClickable(!working, ::rescan).testTag("stationSetup.rescan"),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("Scan again", style = setupFont(12f, FontWeight.SemiBold))
+                        Text(stationText("Scan again", language), style = setupFont(12f, FontWeight.SemiBold))
                     }
                 }
             }
@@ -467,20 +480,20 @@ public fun StationNetworkSetup(
                 val nearby = found.filter { it !in saved && it != current }
                 nearby.forEachIndexed { index, name ->
                     if (index > 0) SetupDivider()
-                    networkRow(name, if (hasPassword(name)) "Password saved" else null)
+                    networkRow(name, if (hasPassword(name)) stationText("Password saved", language) else null)
                 }
                 if (scan == null || scanning || nearby.isEmpty()) {
                     if (nearby.isNotEmpty()) SetupDivider()
                     SetupRow(
                         if (scanning) null else MonitorIcon.SCAN,
                         when {
-                            scanning -> "The camera is looking for networks…"
-                            scan == null -> "Turn the camera on to find networks"
-                            else -> "No networks found yet"
+                            scanning -> stationText("The camera is looking for networks…", language)
+                            scan == null -> stationText("Turn the camera on to find networks", language)
+                            else -> stationText("No networks found yet", language)
                         },
                         when {
-                            scanning -> "Networks appear here as it finds them"
-                            scanFailed -> "The scan did not finish. Try Scan again."
+                            scanning -> stationText("Networks appear here as it finds them", language)
+                            scanFailed -> stationText("The scan did not finish. Try Scan again.", language)
                             else -> null
                         },
                         progress = scanning, chevron = false, modifier = Modifier.testTag("stationSetup.scanStatus"),
@@ -495,7 +508,7 @@ public fun StationNetworkSetup(
     fun passwordPage(ssid: String, side: SetupSide?) {
         val summary: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SetupSectionHeader("NETWORK")
+                SetupSectionHeader(stationText("NETWORK", language))
                 Row(
                     Modifier.fillMaxWidth().setupCard().padding(horizontal = 16.dp, vertical = 13.dp)
                         .semantics(mergeDescendants = true) {}.testTag("stationSetup.networkSummary"),
@@ -507,7 +520,7 @@ public fun StationNetworkSetup(
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(ssid, style = setupFont(16f, FontWeight.SemiBold))
-                        Text(if (ssid == current) "This phone’s current network" else "This phone joins it too",
+                        Text(if (ssid == current) stationText("This phone’s current network", language) else stationText("This phone joins it too", language),
                             color = MonitorPalette.muted, style = setupFont(11.5f))
                     }
                 }
@@ -518,16 +531,19 @@ public fun StationNetworkSetup(
                 Modifier.fillMaxWidth().setupCard().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp),
             ) {
-                SetupSection("BEFORE YOU CONNECT")
-                SetupCheck("WPA2 or WPA2/WPA3 mixed", if (landscape) null else "WPA3-only networks can refuse some cameras.")
-                SetupCheck("Devices can see each other", if (landscape) null else "Guest networks with client isolation block the picture.")
-                SetupCheck("Camera within range", if (landscape) null else "The camera leaves its own Wi-Fi and joins this one.")
+                SetupSection(stationText("BEFORE YOU CONNECT", language))
+                SetupCheck(stationText("WPA2 or WPA2/WPA3 mixed", language),
+            if (landscape) null else stationText("WPA3-only networks can refuse some cameras.", language))
+                SetupCheck(stationText("Devices can see each other", language),
+            if (landscape) null else stationText("Guest networks with client isolation block the picture.", language))
+                SetupCheck(stationText("Camera within range", language),
+            if (landscape) null else stationText("The camera leaves its own Wi-Fi and joins this one.", language))
             }
         }
         val field: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SetupSecureField("PASSWORD", password, reveal, !working, "stationSetup.password", { reveal = !reveal }) { password = it }
-                SetupHint("Saved on this phone. Multiview can reuse it.")
+                SetupSecureField(stationText("PASSWORD", language), password, reveal, !working, "stationSetup.password", { reveal = !reveal }) { password = it }
+                SetupHint(stationText("Saved on this phone. Multiview can reuse it.", language))
             }
         }
         // Portrait keeps the password under the network, above the checklist.
@@ -552,16 +568,20 @@ public fun StationNetworkSetup(
             ) {
                 MonitorIcon(if (hotspotDetected) MonitorIcon.RADIO else MonitorIcon.TRIANGLE_ALERT, null, Modifier.size(18.dp), tint)
                 Text(
-                    if (hotspotDetected) "Hotspot is on" else "Hotspot not detected yet. It can appear once the camera joins.",
+                    if (hotspotDetected) stationText("Hotspot is on", language)
+        else stationText("Hotspot not detected yet. It can appear once the camera joins.", language),
                     color = tint, style = setupFont(13f, FontWeight.SemiBold),
                 )
             }
         }
         val checklist: @Composable () -> Unit = {
             Column(Modifier.fillMaxWidth().setupCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                SetupSection("IN SETTINGS › HOTSPOT")
-                SetupNumbered(1, "Turn on Hotspot", if (landscape) null else "Lets the camera join this phone.")
-                SetupNumbered(2, "Use the 2.4 GHz band", if (landscape) null else "Every ${brand.cameraFamily} camera supports 2.4 GHz.")
+                SetupSection(stationText("IN SETTINGS › HOTSPOT", language))
+                SetupNumbered(1, stationText("Turn on Hotspot", language),
+            if (landscape) null else stationText("Lets the camera join this phone.", language))
+                SetupNumbered(2, stationText("Use the 2.4 GHz band", language),
+            if (landscape) null else String.format(
+                stationText("Every %1\$s camera supports 2.4 GHz.", language), brand.cameraFamily))
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp)).background(MonitorPalette.tile)
                         .setupClickable(!working) { settings(Intent(Settings.ACTION_WIRELESS_SETTINGS)) },
@@ -569,15 +589,15 @@ public fun StationNetworkSetup(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     MonitorIcon(MonitorIcon.SETTINGS, null, Modifier.size(16.dp), MonitorPalette.text)
-                    Text("Open Settings", style = setupFont(13.5f, FontWeight.SemiBold))
+                    Text(stationText("Open Settings", language), style = setupFont(13.5f, FontWeight.SemiBold))
                 }
             }
         }
         val name: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SetupSectionHeader("HOTSPOT NAME")
+                SetupSectionHeader(stationText("HOTSPOT NAME", language))
                 SetupInput(
-                    hotspotName, { hotspotTouched = true; hotspotName = it }, "Hotspot name", !working,
+                    hotspotName, { hotspotTouched = true; hotspotName = it }, stationText("Hotspot name", language), !working,
                     Modifier.testTag("stationSetup.hotspotName").semantics { contentDescription = "Hotspot name" },
                 )
                 if (phones.size > 1 || (phones.size == 1 && phones.single() != hotspotName)) {
@@ -600,19 +620,20 @@ public fun StationNetworkSetup(
                 if (scanning && hotspotName.isEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         SetupSpinner(12.dp)
-                        SetupHint("The camera is looking for this phone’s hotspot…")
+                        SetupHint(stationText("The camera is looking for this phone’s hotspot…", language))
                     }
                 } else if (!landscape) {
-                    SetupHint("The network name shown in Settings › Hotspot.")
+                    SetupHint(stationText("The network name shown in Settings › Hotspot.", language))
                 }
             }
         }
         val pass: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SetupSecureField("HOTSPOT PASSWORD", hotspotPassword, reveal, !working, "stationSetup.hotspotPassword",
+                SetupSecureField(stationText("HOTSPOT PASSWORD", language), hotspotPassword, reveal, !working, "stationSetup.hotspotPassword",
                     { reveal = !reveal }) { hotspotPassword = it }
                 if (!landscape) {
-                    SetupHint("Android keeps it private: copy it from Settings › Hotspot once. It is remembered here.")
+                    SetupHint(stationText(
+            "Android keeps it private: copy it from Settings › Hotspot once. It is remembered here.", language))
                 }
             }
         }
@@ -620,7 +641,7 @@ public fun StationNetworkSetup(
             columns(side, 10.dp, {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        SetupSectionHeader("THIS PHONE’S HOTSPOT")
+                        SetupSectionHeader(stationText("THIS PHONE’S HOTSPOT", language))
                         status()
                     }
                     checklist()
@@ -657,7 +678,7 @@ public fun StationNetworkSetup(
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SetupSpinner(20.dp)
-                    Text(if (scanning) "Finishing camera scan…" else "Connecting…", color = MonitorPalette.muted,
+                    Text(if (scanning) stationText("Finishing camera scan…", language) else stationText("Connecting…", language), color = MonitorPalette.muted,
                         style = setupFont(15f))
                 }
             }
@@ -674,23 +695,23 @@ public fun StationNetworkSetup(
         Box(Modifier.fillMaxWidth().padding(start = inset, end = inset, top = 8.dp, bottom = 16.dp)) {
             when (page) {
                 StationSetupPage.Networks -> SetupRow(
-                    MonitorIcon.PLUS, "Other network…", null,
+                    MonitorIcon.PLUS, stationText("Other network…", language), null,
                     modifier = Modifier.setupCard().setupClickable(!working) { otherName = ""; otherNetwork = true }
                         .testTag("stationSetup.otherNetwork"),
                 )
                 is StationSetupPage.Password -> MonitorCameraAction(
-                    "Connect over Wi-Fi", primary = true,
+                    stationText("Connect over Wi-Fi", language), primary = true,
                     enabled = !working && validStationCredentials(page.ssid, password, hotspot = false),
-                    contentDescription = "Connect over Wi-Fi",
+                    contentDescription = stationText("Connect over Wi-Fi", language),
                     onClick = { submit(StationNetwork(page.ssid, password, false)) },
                     modifier = Modifier.fillMaxWidth().testTag("stationSetup.connect"),
                 )
                 StationSetupPage.Hotspot -> {
                     val trimmed = hotspotName.trim()
                     MonitorCameraAction(
-                        "Connect over Hotspot", primary = true,
+                        stationText("Connect over Hotspot", language), primary = true,
                         enabled = !working && validStationCredentials(trimmed, hotspotPassword, hotspot = true),
-                        contentDescription = "Connect over Hotspot",
+                        contentDescription = stationText("Connect over Hotspot", language),
                         onClick = { submit(StationNetwork(trimmed, hotspotPassword, true)) },
                         modifier = Modifier.fillMaxWidth().testTag("stationSetup.connect"),
                     )
@@ -727,10 +748,11 @@ public fun StationNetworkSetup(
                     }
                 }
                 val title = when {
-                    lockedNetwork != null -> "Shared Wi-Fi"
-                    top == null -> if (camera == null) "Connect your cameras" else "Add setup"
-                    top == StationSetupPage.Hotspot -> "Hotspot"
-                    else -> "Wi-Fi"
+                    lockedNetwork != null -> stationText("Shared Wi-Fi", language)
+                    top == null -> if (camera == null) stationText("Connect your cameras", language)
+            else stationText("Add setup", language)
+                    top == StationSetupPage.Hotspot -> stationText("Hotspot", language)
+                    else -> stationText("Wi-Fi", language)
                 }
                 SetupNavigationBar(
                     title,
@@ -753,7 +775,7 @@ public fun StationNetworkSetup(
                                 MonitorIcon(MonitorIcon.WIFI, null, Modifier.size(20.dp), MonitorPalette.text)
                                 Text(lockedNetwork.ssid, style = setupFont(15f))
                             }
-                            Text("Cameras are using this network. Remove them before changing it.",
+                            Text(stationText("Cameras are using this network. Remove them before changing it.", language),
                                 color = MonitorPalette.muted, style = setupFont(15f))
                         }
                     }
@@ -790,12 +812,12 @@ public fun StationNetworkSetup(
                 .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Other network", style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = MonitorPalette.text))
-            SetupInput(otherName, { otherName = it }, "Network name", true,
-                Modifier.focusRequester(focus).semantics { contentDescription = "Network name" }, capsule = true)
+            Text(stationText("Other network", language), style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = MonitorPalette.text))
+            SetupInput(otherName, { otherName = it }, stationText("Network name", language), true,
+                Modifier.focusRequester(focus).semantics { contentDescription = stationText("Network name", language) }, capsule = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SetupAlertButton("Cancel", Modifier.weight(1f)) { otherNetwork = false }
-                SetupAlertButton("Next", Modifier.weight(1f)) {
+                SetupAlertButton(stationText("Cancel", language), Modifier.weight(1f)) { otherNetwork = false }
+                SetupAlertButton(stationText("Next", language), Modifier.weight(1f)) {
                     otherNetwork = false
                     val name = otherName.trim()
                     if (name.isNotEmpty()) open(StationSetupPage.Password(name))
@@ -838,17 +860,18 @@ private fun SetupNavigationBar(
     onLeading: () -> Unit,
     onDone: () -> Unit,
 ) {
+    val language = LocalCopyLanguage.current
     // Measured from iOS 26: 44 dp glass controls 20 dp under the sheet top.
     Layout(
         content = {
             Text(title, Modifier.semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = MonitorPalette.text))
             when (leading) {
-                SetupBarAction.Cancel -> SetupBarButton("Cancel", enabled, Modifier, onLeading)
+                SetupBarAction.Cancel -> SetupBarButton(stationText("Cancel", language), enabled, Modifier, onLeading)
                 SetupBarAction.Back -> SetupBarButton(null, enabled, Modifier, onLeading)
                 null -> Box(Modifier)
             }
-            if (trailingDone) SetupBarButton("Done", enabled, Modifier, onDone) else Box(Modifier)
+            if (trailingDone) SetupBarButton(stationText("Done", language), enabled, Modifier, onDone) else Box(Modifier)
         },
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp).height(44.dp),
     ) { measurables, constraints ->
@@ -881,12 +904,13 @@ private fun SetupAlertButton(text: String, modifier: Modifier, onClick: () -> Un
 
 @Composable
 private fun SetupBarButton(text: String?, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val language = LocalCopyLanguage.current
     // iOS 26 glass bar button: a faint fill and rim over the sheet.
     Box(
         modifier.height(44.dp).widthIn(min = 44.dp).alpha(if (enabled) 1f else .4f).clip(CircleShape)
             .background(Color.White.copy(alpha = .03f)).border(1.dp, Color.White.copy(alpha = .1f), CircleShape)
             .setupClickable(enabled, onClick)
-            .semantics { if (text == null) contentDescription = "Back" }
+            .semantics { if (text == null) contentDescription = stationText("Back", language) }
             .padding(horizontal = if (text == null) 0.dp else 16.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -1039,16 +1063,17 @@ private fun SetupSecureField(
     onReveal: () -> Unit,
     onChange: (String) -> Unit,
 ) {
+    val language = LocalCopyLanguage.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SetupSectionHeader(label)
         SetupInput(
-            value, onChange, "Password", enabled,
+            value, onChange, stationText("Password", language), enabled,
             Modifier.testTag(tag).semantics { contentDescription = label.lowercase().replaceFirstChar { it.uppercase() } },
             secure = true, reveal = reveal,
         ) {
             Box(
                 Modifier.size(44.dp).setupClickable(enabled, onReveal)
-                    .semantics { contentDescription = if (reveal) "Hide password" else "Show password" },
+                    .semantics { contentDescription = if (reveal) stationText("Hide password", language) else stationText("Show password", language) },
                 contentAlignment = Alignment.Center,
             ) {
                 MonitorIcon(if (reveal) MonitorIcon.EYE_OFF else MonitorIcon.EYE, null, Modifier.size(18.dp), MonitorPalette.muted)

@@ -20,12 +20,13 @@ public fun MonitorStarRating(stars: Int, select: (Int) -> Unit, levels: List<Int
     Row(modifier.monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(percent = 50))
         .padding(horizontal = 4.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(0.dp),
         verticalAlignment = Alignment.CenterVertically) {
+        val copy = MonitorPlaybackCopy.resolved(LocalCopyLanguage.current)
         levels.forEach { level ->
             Box(Modifier.size(44.dp).testTag("$identifierPrefix.$level")
                 .monitorChromeClickable(enabled = enabled, onClickFeedback = selectionFeedback) {
                     select(if (level == stars) 0 else level)
                 }, contentAlignment = Alignment.Center) {
-                MonitorIcon(MonitorIcon.STAR, MonitorPlaybackCopy.rate(level), Modifier.size(22.dp),
+                MonitorIcon(MonitorIcon.STAR, copy.rate(level), Modifier.size(22.dp),
                     if (level <= stars) MonitorPalette.accent else MonitorPalette.muted, filled = level <= stars)
             }
         }

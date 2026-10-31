@@ -199,7 +199,7 @@ public fun MultiviewStage(
         }
         if (!clean) {
             ChromeButton(
-                MonitorIcon.X, "Exit Multiview", Modifier.at(layout.sessionControls),
+                MonitorIcon.X, stationText("Exit Multiview"), Modifier.at(layout.sessionControls),
                 enabled = !busy && !groupBusy, feedback = actions.feedback, onClick = actions.close,
             )
             if (arrangement == MultiviewArrangement.CENTER_STAGE && readouts != null) {
@@ -321,10 +321,10 @@ private fun AssistPalette(
         }
     }
     fun title(tool: MultiviewTool) = when (tool) {
-        MultiviewTool.LUT -> if (services?.automaticLUT == false) "Toggle LUT for all cameras" else "Toggle Auto LUT for all cameras"
-        MultiviewTool.FIT -> if (fill) "Fit feed in frame" else "Fill frame with feed"
-        MultiviewTool.LAYOUT -> if (grid) "Show Focused stage" else "Show Grid"
-        MultiviewTool.CAMERA -> "Camera settings"
+        MultiviewTool.LUT -> if (services?.automaticLUT == false) stationText("Toggle LUT for all cameras") else stationText("Toggle Auto LUT for all cameras")
+        MultiviewTool.FIT -> if (fill) stationText("Fit feed in frame") else stationText("Fill frame with feed")
+        MultiviewTool.LAYOUT -> if (grid) stationText("Show Focused stage") else stationText("Show Grid")
+        MultiviewTool.CAMERA -> stationText("Camera settings")
     }
     fun isOn(tool: MultiviewTool) = tool == MultiviewTool.LUT && lut
     fun isAvailable(tool: MultiviewTool) = (tool != MultiviewTool.LUT && tool != MultiviewTool.CAMERA) || cameras
@@ -412,7 +412,7 @@ private fun AssistPalette(
             accessibilityLabel = ::title,
             accessibilityIdentifier = ::identifier,
             accessibilityValue = { if (it == MultiviewTool.LUT) { if (lut) "On" else "Off" } else null },
-            expansionAccessibilityName = "Multiview tools", expansionAccessibilityIdentifier = "multiview.tools.expand",
+            expansionAccessibilityName = stationText("Multiview tools"), expansionAccessibilityIdentifier = "multiview.tools.expand",
             cellSize = cell, maxExpandedHeight = maxExpandedHeight,
             idOf = { it.name }, usage = presentation.toolUsage, onUsageChange = { presentation.toolUsage = it },
             onToggle = ::toggle,
@@ -432,8 +432,8 @@ private fun DisplayButton(clean: Boolean, modifier: Modifier, feedback: () -> Un
     Column(
         modifier.glass(ControlShape).monitorChromeClickable(onClickFeedback = feedback, onClick = onClick)
             .semantics {
-                contentDescription = "Change display mode"
-                stateDescription = if (clean) "Clean" else "Live"
+                contentDescription = stationText("Change display mode")
+                stateDescription = if (clean) stationText("Clean") else stationText("Live")
                 role = Role.Button
             },
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -504,7 +504,7 @@ private fun RecordAllButton(
                 }
             }
             .semantics {
-                contentDescription = if (recording) "Stop all recording" else "Record all"
+                contentDescription = if (recording) stationText("Stop all recording") else stationText("Record all")
                 if (refusal != null) stateDescription = refusal
                 role = Role.Button
             }.testTag("multiview.recordAll"),
@@ -533,17 +533,17 @@ public fun MultiviewRecordConfirmation(
                     .padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(prompt ?: if (stopping) "Stop recording?" else "Start recording?", color = MonitorPalette.text,
+                Text(prompt ?: if (stopping) stationText("Stop recording?") else stationText("Start recording?"), color = MonitorPalette.text,
                     style = MonitorTypography.text(16f, FontWeight.SemiBold))
-                (single ?: "All connected cameras".takeIf { prompt == null })?.let {
+                (single ?: stationText("All connected cameras").takeIf { prompt == null })?.let {
                     Text(it, color = MonitorPalette.muted, style = MonitorTypography.text(13f))
                 }
                 TextButton(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (stopping) "Stop" else "Start",
+                    Text(if (stopping) stationText("Stop") else stationText("Start"),
                         color = if (stopping) MonitorPalette.recording else MonitorPalette.accent)
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text("Cancel", color = MonitorPalette.muted)
+                    Text(stationText("Cancel"), color = MonitorPalette.muted)
                 }
             }
         }
@@ -592,7 +592,7 @@ private fun TileView(
                     )
                 }.semantics {
                     contentDescription = "Select camera ${MultiviewTile.letter(index)}, ${tile.name}"
-                    stateDescription = if (focused) "Selected" else "Not selected"
+                    stateDescription = if (focused) stationText("Selected") else stationText("Not selected")
                     role = Role.Button
                     if (enabled) onClick { actions.select(index); true }
                 },

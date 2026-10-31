@@ -15,6 +15,9 @@ The Compose implementation of the same design lives under `Android/` (`monitor-u
 Module names are the donor's (`MonitorPresentation`, `MonitorUI`) so the first adoption is a
 dependency swap, not an import rename.
 
+Localized operator copy (Android today, the playback surface first): see
+[LOCALIZATION.md](LOCALIZATION.md).
+
 ## Provenance
 
 Extracted from OpenPocketCine `origin/main`

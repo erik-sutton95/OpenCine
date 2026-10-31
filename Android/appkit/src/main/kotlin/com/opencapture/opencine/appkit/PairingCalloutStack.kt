@@ -87,17 +87,17 @@ public fun PairingCalloutStack(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!coreLoaded) {
             PairingCallout(
-                title = "Swift core",
-                body = "Swift core isn't loaded. Build with `just android-core` on an arm64 device.",
+                title = stationText("Swift core"),
+                body = stationText("Swift core isn't loaded. Build with `just android-core` on an arm64 device."),
                 icon = MonitorIcon.TRIANGLE_ALERT,
             )
         }
         if (!radioOn) {
             PairingCallout(
-                title = "Bluetooth",
+                title = stationText("Bluetooth"),
                 body = PairingCalloutRules.bluetoothBody(copy),
                 icon = MonitorIcon.RADIO,
-                action = "Turn on",
+                action = stationText("Turn on"),
                 onAction = onEnableBluetooth,
             )
         }
@@ -109,23 +109,23 @@ public fun PairingCalloutStack(
                     copy, name, discovery.needsSettings, DiscoveryPermissions.discoveryNeedsLocationServices(),
                 ),
                 icon = MonitorIcon.RADIO,
-                action = if (discovery.needsSettings) "Open Settings" else "Allow",
+                action = stationText(if (discovery.needsSettings) "Open Settings" else "Allow"),
                 onAction = discovery::request,
             )
         }
         if (permissionsGranted && locationOff) {
             PairingCallout(
-                title = "Location",
-                body = "Android 10 and 11 only find Bluetooth cameras while Location is on.",
+                title = stationText("Location"),
+                body = stationText("Android 10 and 11 only find Bluetooth cameras while Location is on."),
                 icon = MonitorIcon.RADIO,
-                action = "Turn on",
+                action = stationText("Turn on"),
                 onAction = { runCatching { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) } },
             )
         }
         if (slowScan && waitingForCamera) {
-            PairingCallout(title = "Still looking", body = copy.stillLooking, icon = MonitorIcon.RADIO)
+            PairingCallout(title = stationText("Still looking"), body = copy.stillLooking, icon = MonitorIcon.RADIO)
         } else if (choosing) {
-            PairingCallout(title = "Before you pair", body = copy.precheck, icon = MonitorIcon.TRIANGLE_ALERT)
+            PairingCallout(title = stationText("Before you pair"), body = copy.precheck, icon = MonitorIcon.TRIANGLE_ALERT)
         }
     }
 }
@@ -143,15 +143,19 @@ internal object PairingCalloutRules {
     ): Boolean = choosing && scanning && radioOn && permissionsGranted && !locationOff && nothingNearby
 
     fun bluetoothBody(copy: PairingCalloutCopy): String =
-        "Turn Bluetooth on so we can find your ${copy.cameraNoun}."
+        String.format(stationText("Turn Bluetooth on so we can find your %1\$s."), copy.cameraNoun)
 
     fun permissionBody(copy: PairingCalloutCopy, name: String, needsSettings: Boolean, needsLocation: Boolean): String =
         when {
             needsSettings ->
-                "Android won’t ask again. Open Settings › Permissions › $name and choose Allow."
+                String.format(stationText("Android won’t ask again. Open Settings › Permissions › %1\$s and choose Allow."), name)
             needsLocation ->
-                "Android 10 and 11 need Location to scan for Bluetooth cameras. It is only used to find your ${copy.cameraNoun}."
-            else -> "Allow Nearby devices so we can find your ${copy.cameraNoun} over Bluetooth. Location isn’t needed."
+                String.format(
+                stationText("Android 10 and 11 need Location to scan for Bluetooth cameras. It is only used to find your %1\$s."),
+                copy.cameraNoun)
+            else -> String.format(
+                stationText("Allow Nearby devices so we can find your %1\$s over Bluetooth. Location isn’t needed."),
+                copy.cameraNoun)
         }
 }
 
