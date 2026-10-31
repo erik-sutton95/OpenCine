@@ -77,14 +77,14 @@ public object CamerasMapping {
                 name = camera.displayName,
                 subtitle = listOfNotNull(camera.model, network).filter { it.isNotEmpty() }.joinToString(" · "),
                 badge = when {
-                    attempt != null -> "CONNECTING"
-                    failure != null -> "NOT CONNECTED"
-                    camera.id == latest -> "LAST USED"
-                    nearby -> "PAIRED"
-                    else -> "OFFLINE"
+                    attempt != null -> stationText("CONNECTING")
+                    failure != null -> stationText("NOT CONNECTED")
+                    camera.id == latest -> stationText("LAST USED")
+                    nearby -> stationText("PAIRED")
+                    else -> stationText("OFFLINE")
                 },
-                status = attempt?.let(::status) ?: if (nearby) "Nearby · ready to connect" else "Not found. Power it on to reconnect",
-                actionTitle = if (nearby) "Connect" else "Reconnect",
+                status = attempt?.let(::status) ?: if (nearby) stationText("Nearby · ready to connect") else stationText("Not found. Power it on to reconnect"),
+                actionTitle = if (nearby) stationText("Connect") else stationText("Reconnect"),
                 isPrimary = camera.id == latest,
                 isBusy = attempt != null,
                 isAvailable = nearby,
@@ -110,11 +110,11 @@ public object CamerasMapping {
 
     /** The chip title: the operator's setup name, else the shell's name for the kind. */
     public fun title(route: SavedRoute): String = route.title ?: when (route.kind) {
-        RouteKind.CAMERA_ACCESS_POINT -> "Camera Wi-Fi"
-        RouteKind.INFRASTRUCTURE_NETWORK -> route.network?.let { "Wi-Fi · $it" } ?: "Wi-Fi"
-        RouteKind.PHONE_HOTSPOT -> "Hotspot"
+        RouteKind.CAMERA_ACCESS_POINT -> stationText("Camera Wi-Fi")
+        RouteKind.INFRASTRUCTURE_NETWORK -> route.network?.let { "Wi-Fi · $it" } ?: stationText("Wi-Fi")
+        RouteKind.PHONE_HOTSPOT -> stationText("Hotspot")
         RouteKind.USB -> "USB-C"
-        RouteKind.CAPTURE_DEVICE -> "HDMI"
+        RouteKind.CAPTURE_DEVICE -> stationText("HDMI")
     }
 
     /** The chip's accessibility name: the setup names the apps' tests have always used. */
@@ -145,12 +145,12 @@ public object CamerasMapping {
             when (action) {
                 is RecoveryAction.UseRoute -> {
                     val route = camera?.routes?.firstOrNull { it.id == action.route }
-                    link = MonitorConnectFailure.Action(id(action), "Connect over ${route?.let(::title) ?: "another setup"} instead")
+                    link = MonitorConnectFailure.Action(id(action), String.format(stationText("Connect over %1\$s instead"), route?.let(::title) ?: stationText("another setup")))
                 }
-                RecoveryAction.Retry -> actions += MonitorConnectFailure.Action(id(action), "Try again", primary = true)
-                is RecoveryAction.EditRoute -> actions += MonitorConnectFailure.Action(id(action), "Edit setup")
-                RecoveryAction.PairAgain -> actions += MonitorConnectFailure.Action(id(action), "Pair again")
-                RecoveryAction.OpenSettings -> actions += MonitorConnectFailure.Action(id(action), "Open Settings")
+                RecoveryAction.Retry -> actions += MonitorConnectFailure.Action(id(action), stationText("Try again"), primary = true)
+                is RecoveryAction.EditRoute -> actions += MonitorConnectFailure.Action(id(action), stationText("Edit setup"))
+                RecoveryAction.PairAgain -> actions += MonitorConnectFailure.Action(id(action), stationText("Pair again"))
+                RecoveryAction.OpenSettings -> actions += MonitorConnectFailure.Action(id(action), stationText("Open Settings"))
                 is RecoveryAction.Integration -> actions += MonitorConnectFailure.Action(id(action), action.title)
             }
         }
