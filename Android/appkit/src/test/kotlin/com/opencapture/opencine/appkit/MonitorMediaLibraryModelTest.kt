@@ -230,6 +230,31 @@ class MonitorMediaLibraryModelTest {
             assertTrue(model.state.value.transferring.isEmpty() && model.state.value.progress.isEmpty())
         } finally { model.dispose(); fixture.root.deleteRecursively() }
     }
+    @Test fun aCacheRetiredByAProgressObserverLeavesNoReading() = runTest {
+        // A synchronous collector can retire a clip cache while it publishes; no speed reading
+        // outlives that cache, whether it retires at the start or at the first byte.
+        for (atFirstByte in listOf(false, true)) {
+            val source = ScriptedTransfer { sink -> sink.write(byteArrayOf(1)); MediaTransferReceipt(2) }
+            val browse = LibraryBrowse(mutableListOf(LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("take")), complete = true)))))
+            browse.transfers = source
+            val fixture = fixture(LibraryService(browse), backgroundScope); val model = fixture.model
+            try {
+                model.begin(); runCurrent()
+                var retired = false
+                val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                    model.state.collect {
+                        val progress = it.progress[MediaAssetID("take")] ?: return@collect
+                        if (!retired && (progress > 0.0) == atFirstByte) { retired = true; model.close() }
+                    }
+                }
+                runCatching { model.cacheOriginal(MediaAssetID("take")) }
+                runCurrent()
+                assertTrue(retired)
+                assertNull(model.transferRates.rate(MediaAssetID("take")), "retired at first byte: $atFirstByte")
+                collector.cancel()
+            } finally { model.close(); fixture.root.deleteRecursively() }
+        }
+    }
     @Test fun sourceCancellationIsAFailureForAnActiveCaller() = runTest {
         // A source that retires its own job (a replaced browse) cancels the transfer, not the
         // caller: the caller must see a failure it can report, never a silent cancellation.

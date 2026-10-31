@@ -50,6 +50,7 @@
         public var body: some View {
             // Named like the Compose cell: the app's description, else the clip's title.
             cell.accessibilityLabel(clip.accessibilityDescription ?? clip.title)
+                .accessibilityValue(Text(clip.progressCaption ?? ""))
         }
 
         private var cell: some View {
@@ -73,7 +74,7 @@
                     // The grid card's picture keeps the shape the masonry placed it with; the
                     // thumbnail fills it, so a loading thumbnail never changes the card height.
                     Color.clear.aspectRatio(artworkAspect, contentMode: .fit)
-                        .overlay { artwork }.clipped()
+                        .overlay { artwork(caption: clip.progressCaption) }.clipped()
                         .overlay(alignment: .topLeading) {
                             if selecting {
                                 selectButton.padding(2)
@@ -97,7 +98,7 @@
                         .onTapGesture { selecting ? onSelect() : onOpen() }
                 )
                 HStack(spacing: 4) {
-                    captions(titleSize: 10.5, detailSize: 9)
+                    captions(titleSize: 10.5, detailSize: 9, showsTransfer: false)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if favoriteBesideTitle { favoriteButton }
                 }
@@ -111,10 +112,11 @@
             browsingEntry(
                 HStack(spacing: 10) {
                     if selecting { selectButton }
-                    artwork.frame(width: tablet ? 96 : 76, height: tablet ? 54 : 43)
+                    artwork(caption: clip.progressPercentCaption)
+                        .frame(width: tablet ? 96 : 76, height: tablet ? 54 : 43)
                         .clipped().clipShape(RoundedRectangle(cornerRadius: 6))
                         .overlay(alignment: .bottomTrailing) { durationTag }
-                    captions(titleSize: 11.5, detailSize: 9.5)
+                    captions(titleSize: 11.5, detailSize: 9.5, showsTransfer: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if tablet {
                         Text(clip.format ?? "").font(MonitorTheme.font(10.5))
@@ -133,24 +135,35 @@
             )
         }
 
-        private var artwork: some View {
+        /// The thumbnail, dimmed under the download readout while the clip downloads.
+        private func artwork(caption: String?) -> some View {
             thumbnail.overlay {
-                if let caption = clip.transferCaption {
+                if let caption {
                     ZStack {
                         Color.black.opacity(0.45)
                         Text(caption).font(MonitorTheme.font(10, weight: .bold))
                             .monospacedDigit().foregroundStyle(MonitorTheme.text)
+                            .lineLimit(1).minimumScaleFactor(0.7).padding(.horizontal, 4)
+                            .accessibilityIdentifier("monitor.media.cell.transfer")
                     }
                 }
             }
         }
 
-        private func captions(titleSize: CGFloat, detailSize: CGFloat) -> some View {
+        /// A list row's thumbnail is too small for the speed: its detail line reads the full
+        /// download readout instead while a speed is known.
+        private func captions(titleSize: CGFloat, detailSize: CGFloat, showsTransfer: Bool) -> some View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(clip.title).font(MonitorTheme.font(titleSize, weight: .semibold))
                     .foregroundStyle(MonitorTheme.text)
-                Text(clip.detail).font(MonitorTheme.font(detailSize)).foregroundStyle(
-                    MonitorTheme.faint)
+                if showsTransfer, let caption = clip.transferDetail {
+                    Text(caption).font(MonitorTheme.font(detailSize, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(MonitorTheme.accent)
+                        .accessibilityIdentifier("monitor.media.cell.transfer.detail")
+                } else {
+                    Text(clip.detail).font(MonitorTheme.font(detailSize)).foregroundStyle(
+                        MonitorTheme.faint)
+                }
             }.lineLimit(1)
         }
 

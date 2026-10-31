@@ -548,8 +548,8 @@ public final class com/opencapture/monitorui/MonitorClipCatalogKt {
 
 public final class com/opencapture/monitorui/MonitorClipValue {
 	public static final field $stable I
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Float;JLjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Float;JLjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Float;JLjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Float;JLjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component10 ()Ljava/lang/String;
 	public final fun component11 ()Ljava/lang/String;
@@ -557,6 +557,7 @@ public final class com/opencapture/monitorui/MonitorClipValue {
 	public final fun component13 ()Ljava/lang/String;
 	public final fun component14 ()Ljava/lang/String;
 	public final fun component15 ()Ljava/lang/String;
+	public final fun component16 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()Ljava/lang/String;
@@ -565,8 +566,8 @@ public final class com/opencapture/monitorui/MonitorClipValue {
 	public final fun component7 ()Ljava/lang/Float;
 	public final fun component8-0d7_KjU ()J
 	public final fun component9 ()Ljava/lang/Integer;
-	public final fun copy-SPO2TK8 (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Float;JLjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorClipValue;
-	public static synthetic fun copy-SPO2TK8$default (Lcom/opencapture/monitorui/MonitorClipValue;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Float;JLjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorClipValue;
+	public final fun copy-j30j4ZQ (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Float;JLjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorClipValue;
+	public static synthetic fun copy-j30j4ZQ$default (Lcom/opencapture/monitorui/MonitorClipValue;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Float;JLjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorClipValue;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAccessibilityDescription ()Ljava/lang/String;
 	public final fun getBurstCount ()Ljava/lang/Integer;
@@ -578,11 +579,15 @@ public final class com/opencapture/monitorui/MonitorClipValue {
 	public final fun getId ()Ljava/lang/String;
 	public final fun getMediaBadge ()Ljava/lang/String;
 	public final fun getProgress ()Ljava/lang/Float;
+	public final fun getProgressCaption ()Ljava/lang/String;
+	public final fun getProgressPercentCaption ()Ljava/lang/String;
 	public final fun getSelectionEntryLabel ()Ljava/lang/String;
 	public final fun getSource ()Ljava/lang/String;
 	public final fun getSourceTint-0d7_KjU ()J
 	public final fun getTitle ()Ljava/lang/String;
 	public final fun getTransferCaption ()Ljava/lang/String;
+	public final fun getTransferDetail ()Ljava/lang/String;
+	public final fun getTransferRate ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -3369,8 +3374,8 @@ public final class com/opencapture/monitorui/MonitorPlaybackPictureGeometry {
 
 public final class com/opencapture/monitorui/MonitorPlaybackPresentation {
 	public static final field $stable I
-	public fun <init> (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;FZLjava/lang/String;Ljava/lang/Double;FFLjava/lang/String;Ljava/lang/String;ZZZZZZZZLcom/opencapture/opencine/media/MonitorConformPreview$Source;Ljava/lang/Double;ZZZFZZLcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;FF)V
-	public synthetic fun <init> (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;FZLjava/lang/String;Ljava/lang/Double;FFLjava/lang/String;Ljava/lang/String;ZZZZZZZZLcom/opencapture/opencine/media/MonitorConformPreview$Source;Ljava/lang/Double;ZZZFZZLcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;FFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;FZLjava/lang/String;Ljava/lang/Double;FFLjava/lang/String;Ljava/lang/String;ZZZZZZZZLcom/opencapture/opencine/media/MonitorConformPreview$Source;Ljava/lang/Double;ZZZFZZLcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;FFLjava/lang/String;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;FZLjava/lang/String;Ljava/lang/Double;FFLjava/lang/String;Ljava/lang/String;ZZZZZZZZLcom/opencapture/opencine/media/MonitorConformPreview$Source;Ljava/lang/Double;ZZZFZZLcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;FFLjava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;
 	public final fun component10 ()F
 	public final fun component11 ()F
@@ -3397,14 +3402,15 @@ public final class com/opencapture/monitorui/MonitorPlaybackPresentation {
 	public final fun component30 ()Lcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;
 	public final fun component31 ()F
 	public final fun component32 ()F
+	public final fun component33 ()Ljava/lang/String;
 	public final fun component4 ()Ljava/lang/String;
 	public final fun component5 ()Ljava/util/List;
 	public final fun component6 ()F
 	public final fun component7 ()Z
 	public final fun component8 ()Ljava/lang/String;
 	public final fun component9 ()Ljava/lang/Double;
-	public final fun copy (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;FZLjava/lang/String;Ljava/lang/Double;FFLjava/lang/String;Ljava/lang/String;ZZZZZZZZLcom/opencapture/opencine/media/MonitorConformPreview$Source;Ljava/lang/Double;ZZZFZZLcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;FF)Lcom/opencapture/monitorui/MonitorPlaybackPresentation;
-	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorPlaybackPresentation;Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;FZLjava/lang/String;Ljava/lang/Double;FFLjava/lang/String;Ljava/lang/String;ZZZZZZZZLcom/opencapture/opencine/media/MonitorConformPreview$Source;Ljava/lang/Double;ZZZFZZLcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;FFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackPresentation;
+	public final fun copy (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;FZLjava/lang/String;Ljava/lang/Double;FFLjava/lang/String;Ljava/lang/String;ZZZZZZZZLcom/opencapture/opencine/media/MonitorConformPreview$Source;Ljava/lang/Double;ZZZFZZLcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;FFLjava/lang/String;)Lcom/opencapture/monitorui/MonitorPlaybackPresentation;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorPlaybackPresentation;Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;FZLjava/lang/String;Ljava/lang/Double;FFLjava/lang/String;Ljava/lang/String;ZZZZZZZZLcom/opencapture/opencine/media/MonitorConformPreview$Source;Ljava/lang/Double;ZZZFZZLcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;FFLjava/lang/String;IILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorPlaybackPresentation;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAspect ()F
 	public final fun getBuffered ()F
@@ -3436,6 +3442,7 @@ public final class com/opencapture/monitorui/MonitorPlaybackPresentation {
 	public final fun getSource ()Ljava/lang/String;
 	public final fun getSubtitle ()Ljava/lang/String;
 	public final fun getTitle ()Ljava/lang/String;
+	public final fun getTransferRate ()Ljava/lang/String;
 	public final fun getVerticalPresentationScale ()F
 	public final fun getZoomBoundary ()Lcom/opencapture/monitorui/MonitorPlaybackZoomBoundary;
 	public fun hashCode ()I

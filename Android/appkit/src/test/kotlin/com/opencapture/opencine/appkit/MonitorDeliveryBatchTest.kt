@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appkit
 
+import com.opencapture.opencine.media.MediaTransferRate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -132,6 +133,33 @@ class MonitorDeliveryBatchTest {
         // The camera-network hop refuses with the same words.
         assertEquals("The camera stopped responding while caching 2 clip(s). Reconnect and try again.",
             MonitorDeliveryCacheException(2, cameraStopped = true).message)
+    }
+    @Test fun cachingProgressReadsTheCameraDownloadSpeed() = runTest {
+        val facts = Facts(); val clock = Gate<Unit>(); val acquire = Gate<Unit>()
+        var rate: MediaTransferRate? = null
+        val model = MonitorDeliveryModel<MonitorDeliveryBatchProgress, MonitorDeliveryBatchOutcome<String>, String>(backgroundScope)
+        model.beginAdmitted { progress, admission ->
+            completion(MonitorDeliveryModel.runBatch<Int, String, Int>(listOf(1),
+                MonitorDeliveryDestination.NATIVE_SHARE, MonitorDeliveryPostExportAction.SYSTEM_SHARE,
+                admission, MonitorDeliveryOriginalService({ it in facts.cached }, { record ->
+                    acquire.value(); facts.cached += record
+                }, { facts.fraction }, rate = { rate }), exporter(facts), share = { MonitorDeliveryShareFiles(it) },
+                photos = null, filename = { "$it" }, sleep = { clock.value() }, progress = { progress(it) }))
+        }
+        runCurrent()
+        // No byte has arrived yet: the stall still shows.
+        facts.fraction = 0.0; rate = MediaTransferRate.Stalled; clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera · Stalled", model.state.value.progress!!.statusLine())
+        rate = null
+        facts.fraction = 0.25; clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera 25%", model.state.value.progress!!.statusLine())
+        rate = MediaTransferRate.BytesPerSecond(42_000_000); clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera 25% · 42 MB/s", model.state.value.progress!!.statusLine())
+        rate = MediaTransferRate.Stalled; clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera 25% · Stalled", model.state.value.progress!!.statusLine())
+        acquire.release(Unit); runCurrent()
+        clock.release(Unit); runCurrent()
+        model.close()
     }
     @Test fun manualCacheProgressIgnoresUnknownAndLateTicks() = runTest {
         val facts = Facts(); val clock = Gate<Unit>(); val acquire = Gate<Unit>()

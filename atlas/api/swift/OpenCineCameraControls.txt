@@ -461,7 +461,7 @@ init MirrorLongPressMenu(assist: OpenCineAppKit.MonitorAssistState<Looks>, hapti
 init ModeBar(tabs: [Swift.String], selected: Swift.Int, enabled: Swift.Bool, uppercase: Swift.Bool, details: [Swift.String?], disabled: Swift.Set<Swift.Int>, onSelect: (Swift.Int) -> Swift.Void)
 init MonitorCaptureOperatorPreferences(storage: Foundation.UserDefaults, prefix: Swift.String)
 init MonitorClipDeliveryCopy(convertHelp: Swift.String, convertUnavailableHelp: Swift.String, notLog: (Swift.String) -> Swift.String)
-init MonitorClipLibrary(isCurrent: () -> Swift.Bool, connected: () -> Swift.Bool, cameraName: () -> Swift.String?, isDownloaded: (OpenCineCameraVocabulary.MediaFile) -> Swift.Bool, download: (OpenCineCameraVocabulary.MediaFile) async -> Swift.Void, downloadProgress: (OpenCineCameraVocabulary.MediaFile) -> Swift.Double?, localURL: (OpenCineCameraVocabulary.MediaFile) -> Foundation.URL?, shotColor: (OpenCineCameraVocabulary.MediaFile) -> OpenCineCameraVocabulary.ColorMode?, rememberShotColor: (OpenCineCameraVocabulary.ColorMode, OpenCineCameraVocabulary.MediaFile) -> Swift.Void)
+init MonitorClipLibrary(isCurrent: () -> Swift.Bool, connected: () -> Swift.Bool, cameraName: () -> Swift.String?, isDownloaded: (OpenCineCameraVocabulary.MediaFile) -> Swift.Bool, download: (OpenCineCameraVocabulary.MediaFile) async -> Swift.Void, downloadProgress: (OpenCineCameraVocabulary.MediaFile) -> Swift.Double?, localURL: (OpenCineCameraVocabulary.MediaFile) -> Foundation.URL?, shotColor: (OpenCineCameraVocabulary.MediaFile) -> OpenCineCameraVocabulary.ColorMode?, rememberShotColor: (OpenCineCameraVocabulary.ColorMode, OpenCineCameraVocabulary.MediaFile) -> Swift.Void, downloadRate: (OpenCineCameraVocabulary.MediaFile) -> OpenCineMedia.MediaTransferRate?)
 init MonitorHeaderCombinedCodec(codec: MonitorOperatorLiveReadout<Key, Section>, color: MonitorOperatorLiveReadout<Key, Section>)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 init MonitorHeaderReadoutPlan(format: [MonitorOperatorLiveReadout<Key, Section>], color: MonitorOperatorLiveReadout<Key, Section>?, foldedColor: MonitorOperatorLiveReadout<Key, Section>?, combined: MonitorHeaderCombinedCodec<Key, Section>?, accented: Key?)<Key, Section where Key : Swift.Hashable, Section : Swift.Hashable>
 init MonitorIndependentSettingsPanel(rows: [IndependentSettingRow<RowID, Request>], interactionEnabled: Swift.Bool, currentSource: () -> Swift.Bool, onSelect: (Request, Swift.String) -> Swift.Void, onUnavailable: (RowID, Swift.String?) -> Swift.Void)<RowID, Request where RowID : Swift.Hashable>
@@ -484,7 +484,7 @@ init MonitorMediaCatalogArtwork(identity: Identity, reload: Reload, isCurrent: (
 init MonitorMediaCatalogThumbnail(cameraID: Swift.String, assetID: Swift.String, file: OpenCineCameraVocabulary.MediaFile, cacheGrade: OpenCineCameraVocabulary.MediaCacheGrade, localURL: Foundation.URL?, thumbnailURL: Foundation.URL?, isCurrent: () -> Swift.Bool, onDuration: (Swift.String) -> Swift.Void, source: () -> any MonitorMediaThumbnailSource)
 init MonitorMediaDeletionOverlay(progress: OpenCineAppKit.MonitorMediaDeletionProgress, detail: Swift.String?)
 init MonitorMediaFilterForm(presentation: MonitorMediaGalleryPresentation, onAction: (MonitorMediaGalleryFilterAction) -> Swift.Void)
-init MonitorMediaGalleryFileFacts(resolution: Swift.String?, byteCount: Swift.UInt64?, durationSeconds: Swift.Int?, dateKey: Swift.String?, colorLabel: Swift.String?, progress: Swift.Double?)
+init MonitorMediaGalleryFileFacts(resolution: Swift.String?, byteCount: Swift.UInt64?, durationSeconds: Swift.Int?, dateKey: Swift.String?, colorLabel: Swift.String?, progress: Swift.Double?, transferRate: OpenCineMedia.MediaTransferRate?)
 init MonitorMediaGalleryFilters(formats: [Swift.String], resolutions: [Swift.String], photoSizes: [MonitorUI.MonitorMediaFilterChoice], dateWindows: [MonitorUI.MonitorMediaFilterChoice], storage: [MonitorUI.MonitorMediaFilterChoice], formatSelection: Swift.Set<Swift.String>, resolutionSelection: Swift.Set<Swift.String>, photoSizeSelection: Swift.Set<Swift.String>, dateWindow: Swift.String?, storageID: Swift.String?)
 init MonitorMediaGalleryPresentation(projection: OpenCineMedia.MonitorMediaProjectionResult, categories: [MonitorPresentation.MonitorMediaCategory], category: Swift.String, layout: MonitorPresentation.MonitorMediaLayout, thumbnailSize: MonitorPresentation.MonitorThumbnailSize, sortTitle: Swift.String, status: Swift.String, activeFilterCount: Swift.Int, filters: MonitorMediaGalleryFilters, storage: [MonitorMediaGalleryStorage], navigationClearsSelection: Swift.Bool, filterClearsSelection: Swift.Bool, retainsVisibleSelection: Swift.Bool)
 init MonitorMediaGalleryStorage(id: Swift.String, title: Swift.String, summary: Swift.String, selected: Swift.Bool)
@@ -723,6 +723,7 @@ let MonitorClipLibrary.cameraName: () -> Swift.String?
 let MonitorClipLibrary.connected: () -> Swift.Bool
 let MonitorClipLibrary.download: (OpenCineCameraVocabulary.MediaFile) async -> Swift.Void
 let MonitorClipLibrary.downloadProgress: (OpenCineCameraVocabulary.MediaFile) -> Swift.Double?
+let MonitorClipLibrary.downloadRate: (OpenCineCameraVocabulary.MediaFile) -> OpenCineMedia.MediaTransferRate?
 let MonitorClipLibrary.isCurrent: () -> Swift.Bool
 let MonitorClipLibrary.isDownloaded: (OpenCineCameraVocabulary.MediaFile) -> Swift.Bool
 let MonitorClipLibrary.localURL: (OpenCineCameraVocabulary.MediaFile) -> Foundation.URL?
@@ -791,6 +792,7 @@ let MonitorMediaGalleryFileFacts.dateKey: Swift.String?
 let MonitorMediaGalleryFileFacts.durationSeconds: Swift.Int?
 let MonitorMediaGalleryFileFacts.progress: Swift.Double?
 let MonitorMediaGalleryFileFacts.resolution: Swift.String?
+let MonitorMediaGalleryFileFacts.transferRate: OpenCineMedia.MediaTransferRate?
 let MonitorMediaGalleryFilters.dateWindow: Swift.String?
 let MonitorMediaGalleryFilters.dateWindows: [MonitorUI.MonitorMediaFilterChoice]
 let MonitorMediaGalleryFilters.formatSelection: Swift.Set<Swift.String>

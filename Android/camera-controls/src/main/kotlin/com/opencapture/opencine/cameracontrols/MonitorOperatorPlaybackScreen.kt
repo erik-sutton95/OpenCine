@@ -150,7 +150,9 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         MonitorOperatorMediaUnavailable(close = ::unavailableClose); return
     }
     val record = value.active ?: initial.record
-    val facts = source(record)
+    val rates by model.library.transferRates.rates.collectAsState()
+    // The library's own cache download, unless the source reports a transfer it runs itself.
+    val facts = source(record).let { it.copy(transferRate = it.transferRate ?: rates[record.asset.id]?.label) }
     // Existing hosts retain effect-first transfer precedence; an explicit source never falls back.
     val transfer = if (facts.allowsSignalFallback) effects?.scopeTap?.transfer ?: facts.transfer else facts.transfer
     val audio = nativeAudio(player)
@@ -221,7 +223,8 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         continuousPanBounds = interaction.continuousPanBounds,
         zoomBoundary = if (interaction.zoomAgainstCanvas) MonitorPlaybackZoomBoundary.CANVAS else MonitorPlaybackZoomBoundary.PICTURE,
         horizontalPresentationScale = interaction.horizontalPresentationScale,
-        verticalPresentationScale = interaction.verticalPresentationScale)
+        verticalPresentationScale = interaction.verticalPresentationScale,
+        transferRate = facts.transferRate)
     LaunchedEffect(player, value.token) { assist?.configureTool = null }
     LaunchedEffect(player, value.token, value.nativeItemInstalled, value.ready, value.lookResolution, cacheOriginal) {
         model.synchronizePlayback(cacheOriginal, operations, MonitorPlaybackStartTiming.AFTER_NATIVE_ITEM_INSTALLATION)
