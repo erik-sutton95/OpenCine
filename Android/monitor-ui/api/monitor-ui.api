@@ -375,6 +375,8 @@ public final class com/opencapture/monitorui/MonitorAssistTool : java/lang/Enum 
 public final class com/opencapture/monitorui/MonitorAssistTool$Companion {
 	public final fun fromPersisted (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorAssistTool;
 	public final fun getCleanPinCases ()Ljava/util/List;
+	public final fun getPhotoPictureTools ()Ljava/util/Set;
+	public final fun getPhotoToolbarCases ()Ljava/util/List;
 	public final fun getPlaybackToolbarCases ()Ljava/util/List;
 	public final fun getSettingsCases ()Ljava/util/List;
 	public final fun getToolbarCases ()Ljava/util/List;
@@ -1772,6 +1774,7 @@ public final class com/opencapture/monitorui/MonitorInstantReviewLayout {
 
 public final class com/opencapture/monitorui/MonitorInteractivePictureKt {
 	public static final fun MonitorInteractivePicture (Ljava/lang/Object;FFLandroidx/compose/ui/Modifier;FZLkotlin/jvm/functions/Function1;Ljava/lang/String;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorInteractivePicture (Ljava/lang/Object;FFLcom/opencapture/monitorui/MonitorRect;Landroidx/compose/ui/Modifier;FZLkotlin/jvm/functions/Function1;Ljava/lang/String;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/opencapture/monitorui/MonitorIosParity {
@@ -3120,6 +3123,18 @@ public final class com/opencapture/monitorui/MonitorPlaybackActions {
 	public final fun getUpdateFrameScrub ()Lkotlin/jvm/functions/Function3;
 	public final fun getUpdateScrub ()Lkotlin/jvm/functions/Function2;
 	public final fun setDeletionConfirmation (Lcom/opencapture/monitorui/MonitorPlaybackDeletionActions;)V
+}
+
+public final class com/opencapture/monitorui/MonitorPlaybackAssistChrome {
+	public static final field $stable I
+	public fun <init> (ZLcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorPlaybackInspectorContext;)V
+	public final fun getInspector ()Lcom/opencapture/monitorui/MonitorPlaybackInspectorContext;
+	public final fun getPortrait ()Z
+	public final fun getTools ()Lcom/opencapture/monitorui/MonitorRect;
+}
+
+public final class com/opencapture/monitorui/MonitorPlaybackAssistChromeKt {
+	public static final fun monitorPlaybackAssistChrome (FFLandroidx/compose/runtime/Composer;I)Lcom/opencapture/monitorui/MonitorPlaybackAssistChrome;
 }
 
 public final class com/opencapture/monitorui/MonitorPlaybackCanvasContext {
