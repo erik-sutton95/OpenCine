@@ -273,6 +273,9 @@
             // after the format choice, so the request follows the active format's own layout.
             let deviceFormat = CMFormatDescriptionGetMediaSubType(
                 device.activeFormat.formatDescription)
+            deviceFormatFourCC = CaptureFrameColorimetry.fourCC(deviceFormat)
+            reportedColorimetry = false
+            framesSinceLevels = 0
             output.videoSettings = [
                 kCVPixelBufferPixelFormatTypeKey as String:
                     CaptureFrameColorimetry.outputPixelFormat(
@@ -417,6 +420,29 @@
         /// readout, both look like "the app shifted my colors".
         public var onSignalColorimetry: (@MainActor (String) -> Void)?
         private var reportedColorimetry = false
+        /// The capture device's own active format (`2vuy`, `yuvs`, `dmb1` for motion JPEG...), which
+        /// AVFoundation may convert before the output format the frames arrive in.
+        private var deviceFormatFourCC = "?"
+
+        /// DIAGNOSTIC (HDMI green cast hunt): the code values the frames hold, every
+        /// `levelsInterval` frames (see `CaptureSignalLevels`). Says whether the signal is full or
+        /// video range, tinted at the source, and log or display-referred.
+        public var onSignalLevels: (@MainActor (String) -> Void)?
+        private static let levelsInterval = 60
+        private var framesSinceLevels = 0
+
+        private func reportSignalLevelsIfDue(of pixelBuffer: CVPixelBuffer) {
+            framesSinceLevels += 1
+            guard framesSinceLevels >= Self.levelsInterval else { return }
+            framesSinceLevels = 0
+            let format = CVPixelBufferGetPixelFormatType(pixelBuffer)
+            let range = CaptureSignalLevels.isFullRange(format) ? "full" : "video"
+            let levels =
+                CaptureSignalLevels.measure(pixelBuffer).map(\.summary) ?? "levels n/a"
+            let summary = "\(CaptureFrameColorimetry.fourCC(format)) \(range): \(levels)"
+            log.info("UVC signal levels: \(summary, privacy: .public)")
+            Task { @MainActor [onSignalLevels] in onSignalLevels?(summary) }
+        }
 
         private func reportSignalColorimetryOnce(of pixelBuffer: CVPixelBuffer) {
             guard !reportedColorimetry else { return }
@@ -431,6 +457,7 @@
             var summary =
                 "\(tag(kCVImageBufferColorPrimariesKey))/\(tag(kCVImageBufferTransferFunctionKey))"
                 + "/\(tag(kCVImageBufferYCbCrMatrixKey)) \(CaptureFrameColorimetry.fourCC(format))"
+                + " (device \(deviceFormatFourCC))"
             // The matrix the picture is actually decoded with, when it is not the one claimed.
             if CaptureFrameColorimetry.isYCbCr(format) {
                 let claimed = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, nil)
@@ -468,6 +495,7 @@
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
             // Read the claim before the decision overwrites it, then decide for every consumer.
             reportSignalColorimetryOnce(of: pixelBuffer)
+            reportSignalLevelsIfDue(of: pixelBuffer)
             CaptureFrameColorimetry.prepareForDisplay(pixelBuffer)
             // The capture clock is the host clock; nanoseconds of the frame's presentation time.
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
