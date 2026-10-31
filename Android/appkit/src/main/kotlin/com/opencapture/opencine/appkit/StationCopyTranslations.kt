@@ -49,6 +49,12 @@ internal object StationCopyTranslations {
             "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time." to
                 "相机 Wi-Fi 一直可用。随时可以从相机上的标签切换连接方式。",
             // The prefix a saved route's detail carries.
+            "Turn the camera on and keep this phone nearby." to "打开相机，把手机放在旁边。",
+            "Nothing selected yet" to "还没有选择",
+            "Choose the camera that matches your screen" to "选择与你屏幕相符的那台相机",
+            "Looking for cameras" to "正在搜索相机",
+            "No cameras yet" to "还没有相机",
+            "Selected %1\$s" to "已选择 %1\$s",
             "Keep %1\$s in clean view" to "在干净画面下保留%1\$s",
             "Multiview tools" to "多机位工具",
             "Change display mode" to "切换显示模式",

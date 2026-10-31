@@ -195,10 +195,11 @@ public object CamerasMapping {
             steps = listOf(MonitorPairingStep("Find your camera", "Nearby cameras")) + plan.map { MonitorPairingStep(it.title, it.detail) },
             currentStep = current,
             title = failure?.title ?: step?.title ?: "Find your camera",
-            body = failure?.message ?: step?.detail ?: "Turn the camera on and keep this phone nearby.",
-            target = selected?.camera?.name ?: "Nothing selected yet",
+            body = failure?.message ?: step?.detail ?: stationText("Turn the camera on and keep this phone nearby."),
+            target = selected?.camera?.name ?: stationText("Nothing selected yet"),
             hint = if (choosing) {
-                selected?.let { "Selected ${it.camera.name}" } ?: "Choose the camera that matches your screen"
+                selected?.let { String.format(stationText("Selected %1\$s"), it.camera.name) }
+            ?: stationText("Choose the camera that matches your screen")
             } else {
                 "Monitoring opens when the picture is ready"
             },
@@ -216,7 +217,7 @@ public object CamerasMapping {
             },
             instructions = instructions,
             emptyTitle = if (choosing && state.nearby.isEmpty()) {
-                if (state.scanning) "Looking for cameras" else "No cameras yet"
+                if (state.scanning) stationText("Looking for cameras") else stationText("No cameras yet")
             } else {
                 null
             },
