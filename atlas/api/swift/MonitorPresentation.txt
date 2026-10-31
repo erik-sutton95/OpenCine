@@ -365,6 +365,7 @@ func MonitorPlaybackZoom.panChangedBounded(translation: CoreFoundation.CGSize, s
 func MonitorPlaybackZoom.pinchChanged(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize) -> ()
 func MonitorPlaybackZoom.pinchChangedBounded(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize, boundsSize: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.preview(magnification: CoreGraphics.CGFloat, anchor: CoreFoundation.CGPoint?, translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize) -> MonitorPlaybackZoom
+func MonitorPlaybackZoom.preview(magnification: CoreGraphics.CGFloat, anchor: CoreFoundation.CGPoint?, translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize, picture: CoreFoundation.CGSize?) -> MonitorPlaybackZoom
 func MonitorPlaybackZoom.reset() -> ()
 func MonitorPlaybackZoom.settled() -> MonitorPlaybackZoom
 func MonitorPlaybackZoom.sourcePoint(_: CoreFoundation.CGPoint, size: CoreFoundation.CGSize) -> CoreFoundation.CGPoint
