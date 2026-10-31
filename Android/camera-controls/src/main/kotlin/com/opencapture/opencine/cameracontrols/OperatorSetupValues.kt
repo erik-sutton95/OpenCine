@@ -70,17 +70,17 @@ object OperatorLinkHealth {
 
 fun connectionPhaseLabel(phase: ConnectionPhase, failure: String?): String =
     when (phase) {
-        ConnectionPhase.IDLE -> "Idle"
-        ConnectionPhase.SCANNING -> "Scanning for camera…"
-        ConnectionPhase.CONNECTING_GATT -> "Connecting (Bluetooth)…"
-        ConnectionPhase.PAIRING -> "Pairing…"
-        ConnectionPhase.AWAITING_APPROVAL -> "Approve on the camera screen"
-        ConnectionPhase.READING_WIFI_CREDS -> "Reading Wi-Fi credentials…"
-        ConnectionPhase.JOINING_WIFI -> "Joining camera Wi-Fi…"
-        ConnectionPhase.OPENING_DATALINK -> "Opening datalink…"
-        ConnectionPhase.LIVE -> "Connected"
+        ConnectionPhase.IDLE -> cameraText("Idle")
+        ConnectionPhase.SCANNING -> cameraText("Scanning for camera…")
+        ConnectionPhase.CONNECTING_GATT -> cameraText("Connecting (Bluetooth)…")
+        ConnectionPhase.PAIRING -> cameraText("Pairing…")
+        ConnectionPhase.AWAITING_APPROVAL -> cameraText("Approve on the camera screen")
+        ConnectionPhase.READING_WIFI_CREDS -> cameraText("Reading Wi-Fi credentials…")
+        ConnectionPhase.JOINING_WIFI -> cameraText("Joining camera Wi-Fi…")
+        ConnectionPhase.OPENING_DATALINK -> cameraText("Opening datalink…")
+        ConnectionPhase.LIVE -> cameraText("Connected")
         ConnectionPhase.FAILED ->
-            if (failure.isNullOrBlank()) "Failed" else "Failed: $failure"
+            if (failure.isNullOrBlank()) cameraText("Failed") else cameraText("Failed: ") + failure
     }
 
 /** The assists a clean view can keep pinned, by stored key. */
@@ -104,7 +104,7 @@ enum class CleanPinTool(val key: String, val title: String) {
 }
 
 /** The cache size line: the shared decimal byte label, "Empty" for nothing cached. */
-fun formatCacheSize(bytes: Long): String = if (bytes <= 0L) "Empty" else MediaClipFormatting.byteLabel(bytes)
+fun formatCacheSize(bytes: Long): String = if (bytes <= 0L) cameraText("Empty") else MediaClipFormatting.byteLabel(bytes)
 
 fun formatAppVersion(versionName: String, versionCode: Long): String = "$versionName ($versionCode)"
 

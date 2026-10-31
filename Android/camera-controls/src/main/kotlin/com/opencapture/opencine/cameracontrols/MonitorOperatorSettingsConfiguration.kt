@@ -149,12 +149,12 @@ public class MonitorSettingsMotionSource(
     public val sensitivity: MonitorMotionIntegerSetting? = null,
     public val joystick: MonitorSettingsJoystickSource? = null,
     public val controller: MonitorMotionChoiceSetting? = null,
-    public val controllerStatus: String = "Not connected", public val controllerHelp: String = "",
+    public val controllerStatus: String = cameraText("Not connected"), public val controllerHelp: String = "",
 )
 /** The remote shutter row: the host's stored choice with its title and caption (A2-32). */
 public class MonitorSettingsRemoteShutter(
     public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
-    public val title: String = "Remote shutter", public val caption: String? = null,
+    public val title: String = cameraText("Remote shutter"), public val caption: String? = null,
 ) {
     public companion object {
         /** The media-button shutter [com.opencapture.opencine.appkit.MonitorRemoteShutter] runs, over the host's stored choice. */
@@ -166,7 +166,7 @@ public class MonitorSettingsRemoteShutter(
 /** The auto-rotate row, for a source that reports the camera body's orientation (A2-32). */
 public class MonitorSettingsAutoRotate(
     public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
-    public val title: String = "Auto-Rotate Feed", public val help: String = "",
+    public val title: String = cameraText("Auto-Rotate Feed"), public val help: String = "",
 )
 
 /**
@@ -180,7 +180,7 @@ public class MonitorSettingsControlsSource(
     public val keepAwake: Boolean, public val setKeepAwake: (Boolean) -> Unit,
     public val keepAwakeHelp: String,
     public val autoRotateFeed: Boolean? = null, public val setAutoRotateFeed: ((Boolean) -> Unit)? = null,
-    public val rotationTitle: String = "Auto-Rotate Feed", public val rotationHelp: String = "",
+    public val rotationTitle: String = cameraText("Auto-Rotate Feed"), public val rotationHelp: String = "",
     public val hapticsHelp: String? = null,
     public val motion: MonitorSettingsMotionSource? = null,
     public val shutter: MonitorSettingsRemoteShutter? = null,
@@ -196,13 +196,13 @@ public class MonitorSettingsControlsSource(
 public class MonitorSettingsCachePresentation(
     public val source: MonitorSettingsCacheSource,
     public val formatBytes: ((Long) -> String)? = null,
-    public val checking: String = "Checking…", public val readFailure: String = "Could not read the cache.",
-    public val clearFailure: String = "Could not clear the cache. Try again.",
-    public val scopeHelp: String = "Originals and playback proxies downloaded from the camera.",
-    public val clearHelp: String = "Remove downloaded picture files while keeping the clip list.",
+    public val checking: String = cameraText("Checking…"), public val readFailure: String = cameraText("Could not read the cache."),
+    public val clearFailure: String = cameraText("Could not clear the cache. Try again."),
+    public val scopeHelp: String = cameraText("Originals and playback proxies downloaded from the camera."),
+    public val clearHelp: String = cameraText("Remove downloaded picture files while keeping the clip list."),
     public val summaryColor: Color = MonitorPalette.accent,
     public val cacheOriginals: Boolean? = null, public val setCacheOriginals: ((Boolean) -> Unit)? = null,
-    public val cacheHelp: String = "Keep originals downloaded for playback.",
+    public val cacheHelp: String = cameraText("Keep originals downloaded for playback."),
 )
 /** Help & Feedback. Privacy and terms come from [MonitorOperatorSettingsConfiguration.legal]. */
 public class MonitorSettingsSupportSource(
@@ -210,9 +210,9 @@ public class MonitorSettingsSupportSource(
     public val automaticReports: Boolean? = null, public val available: Boolean = false,
     public val automaticHelp: String = "", public val unavailableHelp: String = "",
     public val setAutomaticReports: ((Boolean) -> Unit)? = null,
-    public val reportTitle: String = "Report a problem",
-    public val reportHelp: String = "Tell us what happened in the app. Choose whether to include technical details and an email for a reply.",
-    public val reportActionTitle: String = "Open",
+    public val reportTitle: String = cameraText("Report a problem"),
+    public val reportHelp: String = cameraText("Tell us what happened in the app. Choose whether to include technical details and an email for a reply."),
+    public val reportActionTitle: String = cameraText("Open"),
     public val status: MonitorReportStatus? = null, public val discard: (() -> Unit)? = null,
     public val actions: List<MonitorSupportAction> = emptyList(),
     public val sourceUrl: String? = null,
@@ -461,12 +461,12 @@ internal fun SettingsLink(source: MonitorSettingsLinkSource) {
     MonitorLinkHealthScale(source.healthTitle, source.healthCaption, source.score ?: 0)
     MonitorConnectionSettings(source.transport, source.transportHelp, source.phase, source.phaseHelp,
         source.network?.takeIf { it.isNotEmpty() }, source.networkHelp)
-    if (source.choices.isNotEmpty() || source.controlHolder != null) MonitorSettingsRowCard("Picture") {
+    if (source.choices.isNotEmpty() || source.controlHolder != null) MonitorSettingsRowCard(cameraText("Picture")) {
         source.controlHolder?.let { SettingsReadout(it) }
         source.choices.forEach { SettingsChoice(it) }
     }
     if (source.processingChoices.isNotEmpty() || source.processing.isNotEmpty()) {
-        MonitorSettingsRowCard(source.processingTitle ?: "Processing") {
+        MonitorSettingsRowCard(source.processingTitle ?: cameraText("Processing")) {
             source.processingChoices.forEachIndexed { index, choice ->
                 MonitorSettingsInlineRow(choice.title, choice.help, showTopDivider = index > 0) {
                     MonitorSettingsSegmented(choice.choices.map { it.title },
@@ -487,7 +487,7 @@ internal fun SettingsLink(source: MonitorSettingsLinkSource) {
 internal fun SettingsSharing(source: MonitorSettingsSharingSource?, feedback: () -> Unit) {
     if (source == null) {
         MonitorSettingsRowCard {
-            Text("Coming soon...", style = LiveType.ui(15f, FontWeight.Medium), color = LiveDesign.muted,
+            Text(cameraText("Coming soon..."), style = LiveType.ui(15f, FontWeight.Medium), color = LiveDesign.muted,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 2.dp))
         }
         return
@@ -539,29 +539,29 @@ internal fun SettingsSharing(source: MonitorSettingsSharingSource?, feedback: ()
 @Composable
 internal fun SettingsGyro(source: MonitorSettingsGyroSource?, feedback: () -> Unit) {
     source?.let { gyro ->
-        MonitorSettingsRowCard("Gyro logging") {
+        MonitorSettingsRowCard(cameraText("Gyro logging")) {
             for (row in monitorSettingsGyroRows(gyro)) when (row) {
-                MonitorSettingsGyroRow.LOGGING -> MonitorSettingsSwitchInlineRow("Log gyro with camera recordings", gyro.enabled,
-                    help = "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
+                MonitorSettingsGyroRow.LOGGING -> MonitorSettingsSwitchInlineRow(cameraText("Log gyro with camera recordings"), gyro.enabled,
+                    help = cameraText("Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow."),
                     showTopDivider = false) {
                     if (gyro.available) { feedback(); gyro.setEnabled(!gyro.enabled) }
                 }
-                MonitorSettingsGyroRow.STATUS -> MonitorSettingsInlineRow("Status", null) {
+                MonitorSettingsGyroRow.STATUS -> MonitorSettingsInlineRow(cameraText("Status"), null) {
                     MonitorSettingsValueText(gyro.status)
                 }
                 MonitorSettingsGyroRow.MOUNT -> gyro.configureMount?.let { configureMount ->
-                    MonitorSettingsInlineRow("Phone mount",
+                    MonitorSettingsInlineRow(cameraText("Phone mount"),
                         "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically) {
                             gyro.mountName?.let { MonitorSettingsValueText(it) }
-                            MonitorSettingsActionPill("Configure", onClick = configureMount)
+                            MonitorSettingsActionPill(cameraText("Configure"), onClick = configureMount)
                         }
                     }
                 }
                 MonitorSettingsGyroRow.CALIBRATE -> gyro.calibrate?.let { calibrate ->
                     MonitorSettingsInlineRow(GyroCopy.settingsCalibrate, null) {
-                        MonitorSettingsActionPill("Open", onClick = { feedback(); calibrate() })
+                        MonitorSettingsActionPill(cameraText("Open"), onClick = { feedback(); calibrate() })
                     }
                 }
             }
@@ -583,9 +583,9 @@ internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: (
     val shutter = source.shutter
     val rotation = source.autoRotateRow
     MonitorInputOrientationSettings(shutter?.enabled, shutter?.setEnabled,
-        remoteTitle = shutter?.title ?: "Remote shutter", remoteCaption = shutter?.caption,
+        remoteTitle = shutter?.title ?: cameraText("Remote shutter"), remoteCaption = shutter?.caption,
         autoRotateFeed = rotation?.enabled, onAutoRotateFeed = rotation?.setEnabled,
-        rotationTitle = rotation?.title ?: "Auto-Rotate Feed", rotationHelp = rotation?.help.orEmpty(),
+        rotationTitle = rotation?.title ?: cameraText("Auto-Rotate Feed"), rotationHelp = rotation?.help.orEmpty(),
         feedback = feedback)
     val motion = source.motion ?: return
     motion.sensitivity?.let { MonitorGimbalSettings(it) }
@@ -600,13 +600,13 @@ internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: (
 @Composable
 internal fun SettingsStorage(configuration: MonitorOperatorSettingsConfiguration) {
     configuration.gyro?.let { gyro ->
-        MonitorSettingsRowCard("Gyro logs") {
-            MonitorSettingsInlineRow("Saved motion logs",
+        MonitorSettingsRowCard(cameraText("Gyro logs")) {
+            MonitorSettingsInlineRow(cameraText("Saved motion logs"),
                 if (gyro.configureMount == null)
-                    "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow."
+                    cameraText("Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow.")
                 else "Share a log with the matching camera video, then select its lens in Gyroflow. A configured phone mount is included in each new log.",
                 showTopDivider = false) {
-                MonitorSettingsActionPill("Open", onClick = gyro.openLogs)
+                MonitorSettingsActionPill(cameraText("Open"), onClick = gyro.openLogs)
             }
         }
     }
@@ -640,7 +640,8 @@ internal fun SettingsSystem(configuration: MonitorOperatorSettingsConfiguration,
             delete = {
                 diagnostics.incidents.deleteStoredReports { deleted ->
                     Toast.makeText(context,
-                        if (deleted) "Saved feed reports deleted" else "Couldn't delete saved feed reports. Please try again.",
+                        if (deleted) cameraText("Saved feed reports deleted")
+                    else cameraText("Couldn't delete saved feed reports. Please try again."),
                         Toast.LENGTH_LONG).show()
                 }
             })
@@ -667,7 +668,7 @@ internal fun SettingsSystem(configuration: MonitorOperatorSettingsConfiguration,
 }
 
 /** The placeholder an empty passcode field shows, as on iOS (`SecureField("Optional")`). */
-internal const val SETTINGS_PASSCODE_PLACEHOLDER = "Optional"
+internal val SETTINGS_PASSCODE_PLACEHOLDER: String get() = cameraText("Optional")
 
 /**
  * The watcher passcode entry: an outlined field with a placeholder, so an empty code is still a
