@@ -12,6 +12,37 @@ public final class com/opencapture/monitorui/BottomBarSplit {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/monitorui/CopyCatalog {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/monitorui/CopyCatalog$Companion;
+	public fun <init> (Ljava/util/Map;)V
+	public fun <init> (Ljava/util/Map;Lcom/opencapture/monitorui/CopyLanguage;)V
+	public final fun entries (Lcom/opencapture/monitorui/CopyLanguage;)Ljava/util/Map;
+	public final fun getLanguages ()Ljava/util/Set;
+	public final fun missingKeys (Ljava/util/Collection;Lcom/opencapture/monitorui/CopyLanguage;)Ljava/util/List;
+	public final fun text (Ljava/lang/String;Lcom/opencapture/monitorui/CopyLanguage;)Ljava/lang/String;
+	public final fun unusedKeys (Ljava/util/Collection;Lcom/opencapture/monitorui/CopyLanguage;)Ljava/util/List;
+}
+
+public final class com/opencapture/monitorui/CopyCatalog$Companion {
+	public final fun getBundled ()Lcom/opencapture/monitorui/CopyCatalog;
+}
+
+public final class com/opencapture/monitorui/CopyLanguage : java/lang/Enum {
+	public static final field Companion Lcom/opencapture/monitorui/CopyLanguage$Companion;
+	public static final field ENGLISH Lcom/opencapture/monitorui/CopyLanguage;
+	public static final field SIMPLIFIED_CHINESE Lcom/opencapture/monitorui/CopyLanguage;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getTag ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/CopyLanguage;
+	public static fun values ()[Lcom/opencapture/monitorui/CopyLanguage;
+}
+
+public final class com/opencapture/monitorui/CopyLanguage$Companion {
+	public final fun preferred ()Lcom/opencapture/monitorui/CopyLanguage;
+	public final fun resolve (Ljava/util/List;)Lcom/opencapture/monitorui/CopyLanguage;
+}
+
 public final class com/opencapture/monitorui/GimbalCluster {
 	public static final field $stable I
 	public static final field Companion Lcom/opencapture/monitorui/GimbalCluster$Companion;
@@ -233,6 +264,10 @@ public final class com/opencapture/monitorui/LivePortraitMetrics {
 	public final fun getTOGGLE_GAP ()F
 	public final fun getTOP_BAR ()F
 	public final fun getTOP_BAR_LIFT ()F
+}
+
+public final class com/opencapture/monitorui/LocalCopyLanguageKt {
+	public static final fun getLocalCopyLanguage ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 }
 
 public final class com/opencapture/monitorui/MonitorAdjustableControlsKt {
