@@ -331,6 +331,7 @@ init MonitorInspector(title: Swift.String, viewport: CoreFoundation.CGSize, safe
 init MonitorInspectorCard(_: Swift.String?, content: () -> Content)<Content where Content : SwiftUI.View>
 init MonitorInspectorTool(value: Value, title: Swift.String, label: Swift.String, contentStyle: MonitorInspectorTool<Value>.ContentStyle)<Value where Value : Swift.Hashable>
 init MonitorInspectorWidth(preferred: CoreGraphics.CGFloat, fraction: CoreGraphics.CGFloat)
+init MonitorInteractivePicture(source: Source, canvas: CoreFoundation.CGSize, feed: CoreFoundation.CGRect, maximumZoom: CoreGraphics.CGFloat, enabled: Swift.Bool, swipe: ((MonitorPresentation.MonitorPlaybackChromeSwipe) -> Swift.Void)?, accessibilityLabel: Swift.String?, picture: (CoreGraphics.CGFloat) -> Picture)<Source, Picture where Source : Swift.Hashable, Picture : SwiftUI.View>
 init MonitorInteractivePicture(source: Source, size: CoreFoundation.CGSize, maximumZoom: CoreGraphics.CGFloat, enabled: Swift.Bool, focus: MonitorPictureFocusInteraction?, swipe: ((MonitorPresentation.MonitorPlaybackChromeSwipe) -> Swift.Void)?, picture: (CoreGraphics.CGFloat) -> Picture)<Source, Picture where Source : Swift.Hashable, Picture : SwiftUI.View>
 init MonitorInteractivePicture(source: Source, size: CoreFoundation.CGSize, maximumZoom: CoreGraphics.CGFloat, enabled: Swift.Bool, focus: MonitorPictureFocusInteraction?, swipe: ((MonitorPresentation.MonitorPlaybackChromeSwipe) -> Swift.Void)?, presentationScale: CoreFoundation.CGSize, picture: (CoreGraphics.CGFloat) -> Picture)<Source, Picture where Source : Swift.Hashable, Picture : SwiftUI.View>
 init MonitorJoystickSettings(size: MonitorMotionChoiceSetting, invertPan: MonitorMotionToggleSetting, invertTilt: MonitorMotionToggleSetting, deadZone: MonitorMotionIntegerSetting, response: MonitorMotionChoiceSetting, identifierPrefix: Swift.String)
@@ -358,6 +359,7 @@ init MonitorMediaNavigation(categories: [MonitorMediaNavigationCategory], select
 init MonitorMediaNavigationCategory(id: Swift.String, title: Swift.String, count: Swift.Int?)
 init MonitorMediaPhotoSizeChoices(options: [MonitorMediaFilterChoice], selectedIds: Swift.Set<Swift.String>, onToggle: (Swift.String) -> Swift.Void)
 init MonitorMediaStorageChoices(options: [MonitorMediaFilterChoice], selectedId: Swift.String?, onToggle: (Swift.String) -> Swift.Void)
+init MonitorMediaToolsStage(expanded: SwiftUI.Binding<Swift.Bool>, tools: (MonitorPlaybackToolsContext) -> Tools)<Tools where Tools : SwiftUI.View>
 init MonitorMetadataRow(_: Swift.String, _: Swift.String)
 init MonitorMirrorMenu(horizontal: SwiftUI.Binding<Swift.Bool>, vertical: SwiftUI.Binding<Swift.Bool>, explanation: Swift.String, horizontalHelp: Swift.String, verticalHelp: Swift.String, feedback: () -> Swift.Void)
 init MonitorMotionChoiceSetting(options: [Swift.String], selection: SwiftUI.Binding<Swift.String>, help: Swift.String, feedback: () -> Swift.Void)
@@ -1010,6 +1012,7 @@ struct MonitorMediaNavigation: Sendable, View
 struct MonitorMediaNavigationCategory: Equatable, Identifiable, Sendable
 struct MonitorMediaPhotoSizeChoices
 struct MonitorMediaStorageChoices
+struct MonitorMediaToolsStage<Tools where Tools : SwiftUI.View>: Sendable, View
 struct MonitorMetadataRow: Equatable, Identifiable
 struct MonitorMirrorMenu: Sendable, View
 struct MonitorMotionChoiceSetting
@@ -1345,6 +1348,7 @@ var MonitorMediaPhotoSizeChoices.selectedIds: Swift.Set<Swift.String>
 var MonitorMediaStorageChoices.onToggle: (Swift.String) -> Swift.Void
 var MonitorMediaStorageChoices.options: [MonitorMediaFilterChoice]
 var MonitorMediaStorageChoices.selectedId: Swift.String?
+var MonitorMediaToolsStage.body: some SwiftUI.View
 var MonitorMetadataRow.id: Swift.String
 var MonitorMirrorMenu.body: some SwiftUI.View
 var MonitorMotionDismissBackdrop.body: some SwiftUI.View

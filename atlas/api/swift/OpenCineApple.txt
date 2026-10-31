@@ -101,6 +101,7 @@ class MonitorPlaybackAudioSession: Sendable
 class MonitorPlaybackFeedHost: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorPlaybackFeedSession: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class MonitorPresentScaler: Sendable
+class MonitorStillLookRenderer: Sendable
 class MonitorTemporalNoiseFilter
 class MonitorUIImageGraphProcessor<Settings where Settings : Swift.Equatable>
 class MonitorUIImageScopeSampler: Actor, Sendable
@@ -331,6 +332,7 @@ func MonitorPresentationMetrics.drain(at: Foundation.TimeInterval) -> MonitorPre
 func MonitorPresentationMetrics.noteAcquire(milliseconds: Swift.Double) -> ()
 func MonitorPresentationMetrics.noteGPUCompletion(milliseconds: Swift.Double) -> ()
 func MonitorPresentationMetrics.notePresented(at: Foundation.TimeInterval) -> ()
+func MonitorStillLookRenderer.render(_: CoreGraphics.CGImage, effects: OpenCineMedia.MonitorFrameEffects) -> CoreGraphics.CGImage?
 func MonitorUIImageGraphProcessor.evictRenderCache()<Settings where Settings : Swift.Equatable> -> ()
 func MonitorUIImageGraphProcessor.outputCIImage(for: UIKit.UIImage, graph: MonitorUIImageGraph)<Settings where Settings : Swift.Equatable> -> CoreImage.CIImage?
 func MonitorUIImageGraphProcessor.render(_: UIKit.UIImage, settings: Settings, identity: Swift.Bool, prepare: () -> MonitorUIImageGraph)<Settings where Settings : Swift.Equatable> -> UIKit.UIImage
@@ -434,6 +436,7 @@ init MonitorPresentationMetrics(startedAt: Foundation.TimeInterval)
 init MonitorPresentationOptions(upscaler: MonitorUpscaler, hdr: Swift.Bool, hdrGain: Swift.Float, previewSuperResolutionInput: Swift.Bool, resampling: MonitorPresentationResampling, exactCopyAtNativeSize: Swift.Bool)
 init MonitorRGB(_: (Swift.Double, Swift.Double, Swift.Double))
 init MonitorSimulatorVideoConfiguration(clipURL: () -> Foundation.URL?, transfer: OpenCineMedia.MonitorTransfer, queueLabel: Swift.String, logSubsystem: Swift.String, missingClipMessage: Swift.String, startedMessage: Swift.String)
+init MonitorStillLookRenderer(lookCurves: [OpenCineMedia.MonitorTransfer : [Swift.Double]])
 init MonitorUIImageGraph()
 init MonitorUIImageGraphProcessor(beginReadback: () -> Swift.Void, endReadback: () -> Swift.Void)<Settings where Settings : Swift.Equatable>
 init MonitorUIImageScopeSampler()
@@ -592,6 +595,7 @@ static func MonitorPlaybackPixelCopy.untaggedBGRA(_: CoreVideo.CVPixelBuffer) ->
 static func MonitorPresentScaler.mpsFitTransform(sourceWidth: Swift.Int, sourceHeight: Swift.Int, targetWidth: Swift.Int, targetHeight: Swift.Int) -> MetalPerformanceShaders.MPSScaleTransform
 static func MonitorReaderWriterMediaExporter.audioVisualExportAsset(from: AVFoundation.AVAsset, diagnostics: (Swift.String) -> Swift.Void) throws -> AVFoundation.AVMutableComposition
 static func MonitorReaderWriterMediaExporter.export(sourceURL: Foundation.URL, outputURL: Foundation.URL, format: MonitorReaderWriterMediaExporter.Format, cube: OpenCineMedia.CubeLUT?, metadata: Metadata?, diagnostics: (Swift.String) -> Swift.Void, timecodeDiagnostics: ((MonitorMovieTimecode.Diagnostic) -> Swift.Void)?, progress: (Swift.Double) -> Swift.Void)<Metadata where Metadata : Swift.Encodable, Metadata : Swift.Sendable> throws -> MonitorReaderWriterMediaExporter.ExportResult
+static func MonitorStillLookRenderer.paints(_: OpenCineMedia.MonitorFrameEffects) -> Swift.Bool
 static func MonitorTemporalNoiseFilter.canRun(past: Swift.Int, previousWanted: Swift.Int, futures: Swift.Int, futureWanted: Swift.Int) -> Swift.Bool
 static func MonitorUpscaler.superResolutionInputSize(source: (width: Swift.Int, height: Swift.Int), target: (width: Swift.Int, height: Swift.Int), scale: Swift.Float, maximum: (width: Swift.Int, height: Swift.Int)) -> (width: Swift.Int, height: Swift.Int)
 static func MonitorUpscaler.superResolutionScale(offered: [Swift.Float], ratio: Swift.Double, held: Swift.Float?) -> Swift.Float?
