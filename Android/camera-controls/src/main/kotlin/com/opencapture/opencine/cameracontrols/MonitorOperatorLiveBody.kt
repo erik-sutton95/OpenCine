@@ -480,29 +480,46 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 val bundle = assists?.scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value ?: assist.scopeBundle
                 // A source with its own level meter draws it once, in the audio overlay below.
                 val floatingTools = renderedTools - if (audio != null) setOf(MonitorAssistTool.AUDIO) else emptySet()
-                AssistOverlayLayer(assist, bundle, assistHost, locked = !interactive,
-                    feedFrame = scopeFeed, framingFrame = framingFrame, placementFrame = scopePlacement ?: viewport,
-                    audioPlacementFrame = (scopePlacement ?: viewport).copy(x = safeLeading,
-                        width = max(0f, (scopePlacement ?: viewport).maxX - safeLeading)),
-                    audioChannels = audioChannels, transfer = scopeTransfer ?: bundle.transfer,
-                    onOpenOptions = { tool, frame -> if (interactive) { assist.longPressAnchor = frame; reviewing = false; assist.configureTool = tool } },
-                    referenceValues = signalOptions.reference, panelPlacement = assists?.panelPlacement,
-                    onScopeStackMoved = assists?.scopeStackMoved ?: {}, showsReference = showsReference,
-                    visibleTools = floatingTools,
-                    canvasFrame = null,
-                    paradeIntensityScale = assists?.paradeIntensityScale ?: 1.0,
-                    placementPaddingDp = assists?.panelPlacement?.movementInsetDp ?: 8f,
-                    focusLayer = { cameraViews.focusMarks?.invoke() })
-                if (audio != null && MonitorAssistTool.AUDIO in renderedTools) {
-                    val canvas = layout.viewport
-                    val clamp = scopePlacement ?: viewport
-                    with(density) {
-                        AssistAudioOverlay(assist, audio.levels,
-                            MonitorScopeRect(canvas.x.dp.toPx(), canvas.y.dp.toPx(), canvas.width.dp.toPx(), canvas.height.dp.toPx()),
-                            MonitorScopeRect(clamp.x.dp.toPx(), clamp.y.dp.toPx(), clamp.width.dp.toPx(), clamp.height.dp.toPx()),
-                            locked = !interactive, panelPlacement = assists?.panelPlacement,
-                            feed = MonitorScopeRect(scopeFeed.x.dp.toPx(), scopeFeed.y.dp.toPx(), scopeFeed.width.dp.toPx(), scopeFeed.height.dp.toPx()),
-                            caption = audio.caption, unavailableLabel = audio.unavailable, provenance = audio.provenance, spokenValue = audio.spokenValue)
+                // The chrome shown now that floating scopes and meters keep clear of (Swift `scopeChrome`).
+                val scopeChrome = buildSet {
+                    if (sections.display == null || sections.display in mounted) add(MonitorScopeChrome.DISPLAY)
+                    if (sections.status in mounted) add(MonitorScopeChrome.STATUS)
+                    if (sections.power in mounted || (usesCompactTelemetry && sections.status in mounted)) add(MonitorScopeChrome.TELEMETRY)
+                    if (sections.lock in mounted || returnToStage != null) add(MonitorScopeChrome.LOCK)
+                    if (sections.settings in mounted) add(MonitorScopeChrome.SETTINGS)
+                    if (sections.media in mounted) add(MonitorScopeChrome.MEDIA)
+                    if (sections.record in mounted) add(MonitorScopeChrome.RECORD)
+                    if (sections.capture in mounted) add(MonitorScopeChrome.VALUES)
+                    if (sections.assists in mounted) add(MonitorScopeChrome.TOOLS)
+                    if (cameraViews.motionCluster) add(MonitorScopeChrome.MOTION)
+                    if (!locked && editing == null && cameraViews.resetFocus != null) add(MonitorScopeChrome.FOCUS_RESET)
+                    if (aspect != null) add(MonitorScopeChrome.ASPECT_TOGGLE)
+                }
+                CompositionLocalProvider(LocalScopeObstacles provides layout.scopeObstacles(scopeChrome, cameraViews.motionCluster)) {
+                    AssistOverlayLayer(assist, bundle, assistHost, locked = !interactive,
+                        feedFrame = scopeFeed, framingFrame = framingFrame, placementFrame = scopePlacement ?: viewport,
+                        audioPlacementFrame = (scopePlacement ?: viewport).copy(x = safeLeading,
+                            width = max(0f, (scopePlacement ?: viewport).maxX - safeLeading)),
+                        audioChannels = audioChannels, transfer = scopeTransfer ?: bundle.transfer,
+                        onOpenOptions = { tool, frame -> if (interactive) { assist.longPressAnchor = frame; reviewing = false; assist.configureTool = tool } },
+                        referenceValues = signalOptions.reference, panelPlacement = assists?.panelPlacement,
+                        onScopeStackMoved = assists?.scopeStackMoved ?: {}, showsReference = showsReference,
+                        visibleTools = floatingTools,
+                        canvasFrame = null,
+                        paradeIntensityScale = assists?.paradeIntensityScale ?: 1.0,
+                        placementPaddingDp = assists?.panelPlacement?.movementInsetDp ?: 8f,
+                        focusLayer = { cameraViews.focusMarks?.invoke() })
+                    if (audio != null && MonitorAssistTool.AUDIO in renderedTools) {
+                        val canvas = layout.viewport
+                        val clamp = scopePlacement ?: viewport
+                        with(density) {
+                            AssistAudioOverlay(assist, audio.levels,
+                                MonitorScopeRect(canvas.x.dp.toPx(), canvas.y.dp.toPx(), canvas.width.dp.toPx(), canvas.height.dp.toPx()),
+                                MonitorScopeRect(clamp.x.dp.toPx(), clamp.y.dp.toPx(), clamp.width.dp.toPx(), clamp.height.dp.toPx()),
+                                locked = !interactive, panelPlacement = assists?.panelPlacement,
+                                feed = MonitorScopeRect(scopeFeed.x.dp.toPx(), scopeFeed.y.dp.toPx(), scopeFeed.width.dp.toPx(), scopeFeed.height.dp.toPx()),
+                                caption = audio.caption, unavailableLabel = audio.unavailable, provenance = audio.provenance, spokenValue = audio.spokenValue)
+                        }
                     }
                 }
                 if (sections.assists in mounted && !inspecting) CompositionLocalProvider(

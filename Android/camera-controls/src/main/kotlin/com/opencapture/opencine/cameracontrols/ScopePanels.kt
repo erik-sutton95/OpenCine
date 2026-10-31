@@ -45,6 +45,9 @@ fun MovableAssistPanel(
     val haptics = LocalOperatorHaptics.current
     val density = LocalDensity.current.density
     val origin = LocalLiveCanvasOrigin.current
+    val obstacles = LocalScopeObstacles.current.map {
+        MonitorScopeRect(it.x * density, it.y * density, it.width * density, it.height * density)
+    }
     val report = rememberUpdatedState(onFrameChanged)
     DisposableEffect(tool) { onDispose { report.value?.invoke(null) } }
     com.opencapture.monitorui.MonitorMovableScopePanel(
@@ -54,7 +57,7 @@ fun MovableAssistPanel(
         onOpenOptions = onOpenOptions?.let { open -> { rect -> open(MonitorRect(rect.x, rect.y, rect.width, rect.height)) } },
         anchorOrigin = LocalLiveCanvasOrigin.current,
         onActivate = onActivate, onConfirm = { haptics.confirm() },
-        fillPlate = fillPlate, chip = chip,
+        fillPlate = fillPlate, chip = chip, obstacles = obstacles,
     ) { size ->
         if (onFrameChanged == null) content(size)
         else Box(Modifier.size(size.width.dp, size.height.dp).onGloballyPositioned { coordinates ->

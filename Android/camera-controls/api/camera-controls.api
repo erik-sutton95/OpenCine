@@ -1145,6 +1145,7 @@ public final class com/opencapture/opencine/cameracontrols/LiveChromePartsKt {
 	public static final fun MonitorChromeButton-yxdYWRg (Lcom/opencapture/monitorui/MonitorIcon;Ljava/lang/String;Landroidx/compose/ui/Modifier;ZZILkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
 	public static final fun SdCardGlyph-3J-VO9M (JLandroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
 	public static final fun getLocalLiveCanvasOrigin ()Landroidx/compose/runtime/ProvidableCompositionLocal;
+	public static final fun getLocalScopeObstacles ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun reportChromeFrame (Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;)Landroidx/compose/ui/Modifier;
 }
 
