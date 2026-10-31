@@ -189,6 +189,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
     tools: @Composable (MonitorPlaybackToolsContext) -> Unit,
     assistInspector: @Composable (MonitorPlaybackInspectorContext) -> Unit,
 ) {
+    val copy = MonitorPlaybackCopy.resolved(LocalCopyLanguage.current)
     val scope = rememberCoroutineScope()
     var confirmDelete by remember { mutableStateOf<MonitorPlaybackItemToken?>(null) }
     var capturedDeletion by remember { mutableStateOf<MonitorPlaybackDeletionConfirmation?>(null) }
@@ -484,7 +485,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     if (canPrev) {
                         ClipNavButton(
                             icon = MonitorIcon.CHEVRON_LEFT,
-                            label = MonitorPlaybackCopy.PREVIOUS_CLIP,
+                            label = copy.previousClip,
                             modifier = Modifier.align(Alignment.CenterStart)
                                 .padding(start = MonitorPlaybackLayout.clipNavEdgePadding().dp),
                         ) { goToAdjacent(-1) }
@@ -492,7 +493,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     if (canNext) {
                         ClipNavButton(
                             icon = MonitorIcon.CHEVRON_RIGHT,
-                            label = MonitorPlaybackCopy.NEXT_CLIP,
+                            label = copy.nextClip,
                             modifier = Modifier.align(Alignment.CenterEnd)
                                 .padding(end = MonitorPlaybackLayout.clipNavEdgePadding().dp),
                         ) { goToAdjacent(1) }
@@ -562,16 +563,16 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     actions = {
                         slots.headerActionAccessory()
                         MonitorPlaybackActionChip(
-                            MonitorIcon.STAR, MonitorPlaybackCopy.FAVORITE, { withItem { currentActions.favorite(it) } },
+                            MonitorIcon.STAR, copy.favorite, { withItem { currentActions.favorite(it) } },
                             filled = favorite, tint = if (favorite) Color(0.914f, 0.674f, 0.208f) else MonitorPalette.text.copy(alpha = 0.86f),
                         )
-                        MonitorPlaybackActionChip(MonitorIcon.INFO, MonitorPlaybackCopy.CLIP_INFORMATION, { infoOpen = !infoOpen }, active = infoOpen)
+                        MonitorPlaybackActionChip(MonitorIcon.INFO, copy.clipInformation, { infoOpen = !infoOpen }, active = infoOpen)
                         MonitorPlaybackActionChip(
-                            MonitorIcon.SHARE, MonitorPlaybackCopy.SHARE, { withItem { currentActions.share(it) } },
-                            title = if (portraitPlayback) null else MonitorPlaybackCopy.SHARE_TITLE, active = true, enabled = value.shareEnabled,
+                            MonitorIcon.SHARE, copy.share, { withItem { currentActions.share(it) } },
+                            title = if (portraitPlayback) null else copy.shareTitle, active = true, enabled = value.shareEnabled,
                         )
                         if (actions.delete != null || actions.deletionConfirmation != null) {
-                            MonitorPlaybackActionChip(MonitorIcon.TRASH, MonitorPlaybackCopy.DELETE, {
+                            MonitorPlaybackActionChip(MonitorIcon.TRASH, copy.delete, {
                                 cancelDeleteConfirmation()
                                 val item = currentValue.item
                                 val typed = currentActions.deletionConfirmation
@@ -596,7 +597,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                         .offset(x = backX.dp, y = headerTop.dp)
                         .size(fieldLayout.lock.width.dp, fieldLayout.lock.height.dp)
                         .testTag("monitor.playback.back")
-                        .semantics { contentDescription = MonitorPlaybackCopy.BACK_TO_MEDIA },
+                        .semantics { contentDescription = copy.backToMedia },
                     onClick = { currentActions.back() },
                 ) { tint ->
                     MonitorIcon(MonitorIcon.CHEVRON_LEFT, contentDescription = null, tint = tint,
@@ -635,15 +636,15 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MonitorPlaybackLayout.TRANSPORT_SPACING.dp),
                         ) {
-                            PlaybackTransportButton(MonitorIcon.SKIP_BACK, MonitorPlaybackCopy.BACK_FIFTEEN) { seekBy(-15f) }
+                            PlaybackTransportButton(MonitorIcon.SKIP_BACK, copy.backFifteen) { seekBy(-15f) }
                             PlaybackTransportButton(
                                 if (reachedEnd) MonitorIcon.ROTATE_CW else if (isPlaying) MonitorIcon.PAUSE else MonitorIcon.PLAY,
-                                MonitorPlaybackCopy.transport(reachedEnd, isPlaying),
+                                copy.transport(reachedEnd, isPlaying),
                                 iconSize = MonitorPlaybackLayout.PLAY_ICON_SIZE.dp,
                             ) {
                                 withItem { if (reachedEnd) currentActions.restart(it) else currentActions.play(it, !isPlaying) }
                             }
-                            PlaybackTransportButton(MonitorIcon.SKIP_FORWARD, MonitorPlaybackCopy.FORWARD_FIFTEEN) { seekBy(15f) }
+                            PlaybackTransportButton(MonitorIcon.SKIP_FORWARD, copy.forwardFifteen) { seekBy(15f) }
                         }
                     },
                     options = {
@@ -655,11 +656,11 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                                 conformMenu, { conformMenu = it }, { target -> withItem { currentActions.conform(it, target) } }, actions.detentFeedback)
                             MonitorPlaybackActionChip(
                                 if (isMuted) MonitorIcon.VOLUME_X else MonitorIcon.VOLUME_2,
-                                MonitorPlaybackCopy.muteToggle(isMuted), { withItem { currentActions.mute(it, !isMuted) } }, active = isMuted,
+                                copy.muteToggle(isMuted), { withItem { currentActions.mute(it, !isMuted) } }, active = isMuted,
                             )
-                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, MonitorPlaybackCopy.LOOP, { withItem { currentActions.loop(it, !looping) } },
-                                active = looping, state = MonitorPlaybackCopy.toggleValue(looping))
-                            MonitorPlaybackActionChip(MonitorIcon.MAXIMIZE, MonitorPlaybackCopy.HIDE_CONTROLS, { chromeVisible = false })
+                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, copy.loop, { withItem { currentActions.loop(it, !looping) } },
+                                active = looping, state = copy.toggleValue(looping))
+                            MonitorPlaybackActionChip(MonitorIcon.MAXIMIZE, copy.hideControls, { chromeVisible = false })
                         }
                     },
                 )
@@ -675,7 +676,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 ) {
                     MonitorPlaybackActionChip(
                         MonitorIcon.MINIMIZE,
-                        MonitorPlaybackCopy.SHOW_CONTROLS,
+                        copy.showControls,
                         { chromeVisible = true },
                     )
                 }
@@ -690,7 +691,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                                 bottom = (safeBottom + 12f).dp,
                             )
                             .monitorChromeClickable(onClickFeedback = actions.selectionFeedback) { },
-                        close = { PlaybackCircleButton(MonitorIcon.X, MonitorPlaybackCopy.CLOSE_CLIP_INFORMATION, { infoOpen = false }) })
+                        close = { PlaybackCircleButton(MonitorIcon.X, copy.closeClipInformation, { infoOpen = false }) })
                 }
             }
 
@@ -700,12 +701,12 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
             // Inside the overlay window: in the host window it sits under the gesture well.
             if (confirmDelete != null || capturedDeletion != null) {
                 MonitorConfirmPopup(
-                    title = capturedDeletion?.title ?: MonitorPlaybackCopy.DELETE_CONFIRMATION_TITLE,
+                    title = capturedDeletion?.title ?: copy.deleteConfirmationTitle,
                     message = capturedDeletion?.message,
-                    confirmTitle = MonitorPlaybackCopy.DELETE_CONFIRM,
-                    cancelTitle = MonitorPlaybackCopy.DELETE_CANCEL,
-                    cancelDescription = MonitorPlaybackCopy.DELETE_CANCEL_DESCRIPTION,
-                    confirmDescription = MonitorPlaybackCopy.DELETE_CONFIRM_DESCRIPTION,
+                    confirmTitle = copy.deleteConfirm,
+                    cancelTitle = copy.deleteCancel,
+                    cancelDescription = copy.deleteCancelDescription,
+                    confirmDescription = copy.deleteConfirmDescription,
                     onDismiss = ::cancelDeleteConfirmation,
                     onConfirm = {
                         val captured = capturedDeletion; val admitted = confirmDelete
@@ -843,10 +844,11 @@ private fun PlaybackConformButton(
     onSelect: (Double?) -> Unit,
     onDetentFeedback: () -> Unit,
 ) {
+    val copy = MonitorPlaybackCopy.resolved(LocalCopyLanguage.current)
     Box {
         MonitorPlaybackActionChip(
             MonitorIcon.TIMER,
-            MonitorPlaybackCopy.CONFORM_PREVIEW,
+            copy.conformPreview,
             { onMenuOpenChange(true) },
             active = selected != null,
             enabled = availability.isAvailable,
@@ -869,16 +871,16 @@ private fun PlaybackConformButton(
                     .padding(horizontal = 14.dp, vertical = 11.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(MonitorPlaybackCopy.CONFORM_TITLE, style = MonitorTypography.text(9f, FontWeight.SemiBold))
-                            Text(MonitorPlaybackCopy.conformSubtitle(captureRate), color = MonitorPalette.muted, style = MonitorTypography.text(8.5f))
+                            Text(copy.conformTitle, style = MonitorTypography.text(9f, FontWeight.SemiBold))
+                            Text(copy.conformSubtitle(captureRate), color = MonitorPalette.muted, style = MonitorTypography.text(8.5f))
                         }
-                        PlaybackCircleButton(MonitorIcon.X, MonitorPlaybackCopy.CLOSE_CONFORM_PREVIEW, { onMenuOpenChange(false) }, size = 34.dp)
+                        PlaybackCircleButton(MonitorIcon.X, copy.closeConformPreview, { onMenuOpenChange(false) }, size = 34.dp)
                     }
                     val choices = listOf<Double?>(null) + availability.targets
-                    val labels = choices.map { if (it == null) MonitorPlaybackCopy.REAL_TIME else MonitorConformPreview.targetLabel(captureRate, it) }
+                    val labels = choices.map { if (it == null) copy.realTime else MonitorConformPreview.targetLabel(captureRate, it) }
                     com.opencapture.monitorui.MonitorValueDrum(
                         labels,
-                        if (selected == null) MonitorPlaybackCopy.REAL_TIME else MonitorConformPreview.targetLabel(captureRate, selected),
+                        if (selected == null) copy.realTime else MonitorConformPreview.targetLabel(captureRate, selected),
                         onDetent = onDetentFeedback,
                     ) { label ->
                         val index = labels.indexOf(label)

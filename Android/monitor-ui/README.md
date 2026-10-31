@@ -19,6 +19,14 @@ behind `MonitorIosParity.enabled` (default `false`). OpenZCine sets it to `true`
 next to `accent`. Flip the default and delete the switch once Pocket and Insta
 accept the iOS look.
 
+## Localized copy
+
+Operator copy stays English as the key and is translated beside it: a screen resolves
+`MonitorPlaybackCopy.resolved(LocalCopyLanguage.current)` and reads `copy.loop` instead of
+`MonitorPlaybackCopy.LOOP`. The playback surface ships a `zh-Hans` table; the settings, gyro and
+live-chrome surfaces are still English. The seam, the reasoning against `strings.xml` and the
+steps for a new language are in [docs/ui/LOCALIZATION.md](../../docs/ui/LOCALIZATION.md).
+
 ## Build and consume
 
 `Android/` is a standalone Gradle build. Coordinate:
