@@ -330,6 +330,9 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         set { commit { $0.selectedIDs = newValue } }
     }
     @ObservationIgnored public let cache: MonitorMediaCache<Payload>
+    /// Download speed per clip for every transfer this library runs (its own caching and the
+    /// host transfers captured with an asset), read by the grid, player and delivery progress.
+    @ObservationIgnored public let transferRates: MonitorTransferRates<MediaAssetID>
     @ObservationIgnored private let copy: MonitorMediaLibraryCopy
     @ObservationIgnored private let favoritesStore: any MonitorMediaFavoritesStore
     @ObservationIgnored private let sleep: @MainActor (Duration) async throws -> Void
@@ -436,7 +439,9 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         var next = committed
         change(&next)
         committed = next
-        pendingRevisions.formUnion(.init(before, committed.revisions))
+        let groups = MonitorMediaLibraryGroups(before, committed.revisions)
+        pendingRevisions.formUnion(groups)
+        if groups.contains(.progress) { retainRunningRates() }
         guard !notifying else { return }
         notifying = true
         defer { notifying = false }
@@ -460,6 +465,17 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             if groups.contains(.presentation) { presentationPublication &+= 1 }
             if groups.contains(.selection) { selectionPublication &+= 1 }
         } while !pendingRevisions.isEmpty || notifiedLifetime != committed.lifetimeToken
+    }
+
+    /// A speed reading lives exactly as long as its download's progress: every path that ends,
+    /// retires or replaces a transfer clears its progress, and with it the reading.
+    private func retainRunningRates() {
+        guard !transferRates.rates.isEmpty else { return }
+        var running = Set(committed.progress.keys)
+        for (key, authority) in hostProgressOwners where committed.hostProgress[key] != nil {
+            if let asset = authority.asset { running.insert(asset) }
+        }
+        transferRates.retain(running)
     }
 
     private struct Transfer {
@@ -510,8 +526,10 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         readSnapshot:
             (@MainActor (MonitorMediaCacheReadPlan) async throws -> MonitorMediaCacheSnapshot)? =
             nil,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
+        rateClock: HostClock = .live
     ) {
+        transferRates = .init(clock: rateClock)
         self.catalogBase = catalogBase
         self.cache = cache
         favoritesStore = favorites
@@ -1477,6 +1495,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             hostProgressOwners[authority.key] = authority
             oldDelay?.cancel()
             commit { $0.hostProgress[authority.key] = 0 }
+            // A synchronous progress observer can retire this operation inside the commit.
+            if ownsProgress(operation), let asset = authority.asset { transferRates.begin(asset) }
         }
         guard hostCurrent(operation) else {
             finishHost(operation, clearingProgress: true)
@@ -1491,17 +1511,29 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         hostOperations[authority.id] = nil
         let claim = HostClaim(key: authority.key, purpose: operation.purpose)
         if hostClaims[claim] == authority.id { hostClaims[claim] = nil }
+        // No more bytes come from this operation: its speed reading ends with it, unless a newer
+        // playback of the same clip has taken the progress (and the reading) over.
+        if operation.purpose.tracksProgress, hostProgressOwners[authority.key]?.id == authority.id,
+            let asset = authority.asset { transferRates.end(asset) }
         if clearingProgress { clearHostProgress(authority) }
+    }
+    private func ownsProgress(_ operation: HostOperation) -> Bool {
+        hostCurrent(operation) && hostProgressOwners[operation.authority.key]?.id == operation.authority.id
     }
     private func hostSink(_ operation: HostOperation, attempt: UUID, expected: UInt64?, into sink: any MediaByteSink)
         -> any MediaByteSink {
         LibraryHostProgressSink(sink: sink, expected: expected,
             admitted: { [weak self] in self?.hostCurrent(operation) == true && operation.attempt == attempt },
-            publish: { [weak self] value in
+            publish: { [weak self] value, bytes in
                 guard let self, self.hostCurrent(operation), operation.attempt == attempt,
                     self.hostProgressOwners[operation.authority.key]?.id == operation.authority.id,
                     operation.purpose.tracksProgress else { return }
                 self.commit { $0.hostProgress[operation.authority.key] = value }
+                // A retried attempt counts from zero again; the reading restarts with it. The commit
+                // can retire the operation through a synchronous observer: no reading outlives it.
+                guard self.ownsProgress(operation), operation.attempt == attempt,
+                    let asset = operation.authority.asset else { return }
+                self.transferRates.record(asset, totalBytes: bytes)
             })
     }
     private func performHost(_ operation: HostOperation, expected: UInt64?, into sink: any MediaByteSink,
@@ -1750,6 +1782,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         }
         hostProgressDelays[authority.key] = delay
         commit { $0.hostProgress[authority.key] = 1 }
+        if let asset = authority.asset { transferRates.end(asset) }
         if !authority.isCurrent || hostProgressOwners[authority.key]?.id != authority.id { delay.cancel() }
     }
 
@@ -1880,6 +1913,10 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                 let expected = descriptor.byteCount, expected > 0
             else { return }
             self.progress[id] = min(1, Double(bytes) / Double(expected))
+            // A synchronous progress observer can retire this transfer inside the write.
+            guard self.current(generation), self.transfers[id]?.id == operation, self.progress[id] != nil
+            else { return }
+            self.transferRates.record(id, totalBytes: bytes)
         }
         let task = Task { [weak self] () throws -> URL in
             defer { writer.abort() }
@@ -1909,6 +1946,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             // Preserve the donor's brief completion indication, with an injectable clock and
             // operation fencing. Supersession/clear can retire this delay without touching B.
             if self.progress[id] != nil { self.progress[id] = 1 }
+            self.transferRates.end(id)
             try? await self.sleep(.milliseconds(450))
             guard self.current(generation), self.transfers[id]?.id == operation, !Task.isCancelled
             else {
@@ -1932,6 +1970,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             writer.abort()
             throw MediaServiceError.retired
         }
+        // Only a transfer that survived its own first publication gets a reading.
+        if descriptor.byteCount != nil { transferRates.begin(id) }
         defer {
             if transfers[id]?.id == operation {
                 transfers[id] = nil
@@ -2051,12 +2091,12 @@ private actor LibraryProgressSink: MediaByteSink {
 private actor LibraryHostProgressSink: MediaTransferProgressSink {
     let sink: any MediaByteSink
     let admitted: @MainActor @Sendable () -> Bool
-    let publish: @MainActor @Sendable (Double) -> Void
+    let publish: @MainActor @Sendable (Double, UInt64) -> Void
     var expected: UInt64?
     var bytes: UInt64 = 0
     init(sink: any MediaByteSink, expected: UInt64?,
         admitted: @escaping @MainActor @Sendable () -> Bool,
-        publish: @escaping @MainActor @Sendable (Double) -> Void) {
+        publish: @escaping @MainActor @Sendable (Double, UInt64) -> Void) {
         self.sink = sink; self.expected = expected.flatMap { $0 > 0 ? $0 : nil }
         self.admitted = admitted; self.publish = publish
     }
@@ -2070,7 +2110,7 @@ private actor LibraryHostProgressSink: MediaTransferProgressSink {
         guard await admitted(), !Task.isCancelled else { throw MediaServiceError.retired }
         bytes += UInt64(chunk.count)
         let progress = expected.map { min(1, Double(bytes) / Double($0)) } ?? 0
-        await publish(progress)
+        await publish(progress, bytes)
     }
 }
 

@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -71,6 +72,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.findViewTreeLifecycleOwner
+import com.opencapture.opencine.media.MediaTransferRate
 import com.opencapture.opencine.media.MonitorConformPreview
 import com.opencapture.opencine.media.MonitorPlaybackDeletionConfirmation
 import java.util.UUID
@@ -102,6 +104,8 @@ data class MonitorPlaybackPresentation(
     val continuousPanBounds: Boolean = false,
     val zoomBoundary: MonitorPlaybackZoomBoundary = MonitorPlaybackZoomBoundary.PICTURE,
     val horizontalPresentationScale: Float = 1f, val verticalPresentationScale: Float = 1f,
+    /** The cache download's speed ("42 MB/s", "Stalled") beside [progress]; null hides it. */
+    val transferRate: String? = null,
 )
 
 class MonitorPlaybackDeletionActions(
@@ -552,7 +556,12 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                         }
                         Text(
                             loadError
-                                ?: if (progress != null) "Buffering from camera…" else "Preparing playback…",
+                                ?: if (progress != null) {
+                                    MediaTransferRate.caption(progress, value.transferRate)
+                                        ?.takeIf { value.transferRate != null }
+                                        ?.let { "Buffering from camera…\n$it" } ?: "Buffering from camera…"
+                                } else "Preparing playback…",
+                            textAlign = TextAlign.Center,
                             color = MonitorPalette.muted,
                             style = MonitorTypography.text(14f, FontWeight.Medium),
                             modifier = Modifier.padding(top = 12.dp),

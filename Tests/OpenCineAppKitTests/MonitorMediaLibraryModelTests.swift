@@ -275,6 +275,33 @@ import Testing
         #expect(model.note == MonitorMediaLibraryCopy().downloadFailed)
         #expect(model.progress.isEmpty && model.transferring.isEmpty)
     }
+    /// A synchronous progress observer can retire a clip cache while it publishes; no speed
+    /// reading outlives that cache, whether it retires at the start or at the first byte.
+    @available(macOS 14, *)
+    @Test func aCacheRetiredByAProgressObserverLeavesNoReading() async {
+        for atFirstByte in [false, true] {
+            var model: MonitorMediaLibraryModel<String>!
+            let source = ScriptedTransfer { sink in
+                if atFirstByte {
+                    withObservationTracking { _ = model.progress } onChange: {
+                        MainActor.assumeIsolated { model.close() }
+                    }
+                }
+                try await sink.write(Data([1])); return .init(byteCount: 2)
+            }
+            let browse = LibraryBrowse([LibraryCursor([.init(reset: true, upserts: [asset("take")], complete: true)])]); browse.transfers = source
+            let (root, built, _) = self.model(LibraryService(browse)); model = built
+            defer { model.close(); try? FileManager.default.removeItem(at: root) }
+            model.begin(); #expect(await eventually { model.records.count == 1 && !model.fetching })
+            if !atFirstByte {
+                withObservationTracking { _ = model.progress } onChange: {
+                    MainActor.assumeIsolated { model.close() }
+                }
+            }
+            _ = try? await model.cacheOriginal(.init("take"))
+            #expect(model.transferRates.rate(.init("take")) == nil, "retired at first byte: \(atFirstByte)")
+        }
+    }
     /// Owner hardware report 2026-10-28: leaving the player keeps its original cache running, and
     /// Share of that clip then failed with "couldn't cache". Share joins the running transfer.
     @available(macOS 14, *)

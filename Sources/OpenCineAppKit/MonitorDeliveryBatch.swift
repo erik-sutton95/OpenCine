@@ -53,7 +53,10 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                     guard gate.active, accepts() else { return }
                     let fraction = originals.progress(record)
                     guard gate.active, accepts(), let fraction else { continue }
+                    let rate = originals.rate(record)?.label
+                    guard gate.active, accepts() else { return }
                     value.clipFraction = fraction
+                    value.transferRate = rate
                     progress(value)
                 }
             }
