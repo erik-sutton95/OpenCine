@@ -8,4 +8,4 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * The default follows the device, so an app that does nothing shows the operator's language. A
  * host that offers its own picker provides this value around the shared screens instead.
  */
-internal val LocalCopyLanguage = staticCompositionLocalOf { CopyLanguage.preferred() }
+public val LocalCopyLanguage = staticCompositionLocalOf { CopyLanguage.preferred() }

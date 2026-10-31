@@ -86,6 +86,7 @@ import com.opencapture.monitorui.MonitorLinkHealth
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.monitorScrollFade
+import com.opencapture.monitorui.CopyLanguage
 import com.opencapture.monitorui.MonitorIcon
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -147,6 +148,10 @@ private fun stationRouteCopy(kind: RouteKind): StationRouteCopy = when (kind) {
         "Best when the camera has no network", "Choose HDMI capture")
 }
 
+/** The same route copy in [language], or in English where the table has no row. */
+private fun StationRouteCopy.translated(language: CopyLanguage): StationRouteCopy = StationRouteCopy(
+    id, stationText(title, language), stationText(body, language), stationText(tag, language), stationText(action, language))
+
 /** The order every app lists its routes in: shared networks first, then the host's own. */
 private val STATION_ROUTE_ORDER = listOf(
     RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT, RouteKind.CAMERA_ACCESS_POINT, RouteKind.USB,
@@ -162,22 +167,28 @@ public fun stationSetupChooser(
     camera: SavedCamera?,
     routes: List<StationSetupRoute> = StationSetupRoute.STATION_NETWORKS,
     notice: AddSetupNotice? = null,
+    language: CopyLanguage = CopyLanguage.preferred(),
 ): AddSetupChooser {
     fun detail(kind: RouteKind, body: String, tag: String): String =
-        listOfNotNull(camera?.network(kind)?.let { "Added · $it" }, body, tag).joinToString("\n")
+        listOfNotNull(camera?.network(kind)?.let { "${stationText("Added", language)} · $it" }, body, tag)
+            .joinToString("\n")
     val options = STATION_ROUTE_ORDER.mapNotNull { kind ->
         val route = routes.firstOrNull { it.kind == kind } ?: return@mapNotNull null
-        val copy = stationRouteCopy(kind)
+        val copy = stationRouteCopy(kind).translated(language)
         AddSetupOption(copy.id, kind, copy.title, detail(kind, copy.body, copy.tag), route.actionTitle ?: copy.action, route.enabled)
     }
     return AddSetupChooser(
-        title = if (camera == null) "How will your cameras connect?" else "How should this camera connect?",
+        title = stationText(
+            if (camera == null) "How will your cameras connect?" else "How should this camera connect?", language),
         detail = camera?.let { listOf(it.displayName, it.model).filter(String::isNotEmpty).joinToString(" · ") }.orEmpty(),
         options = options,
         footer = when {
-            camera == null -> "Choose the shared network before adding cameras. Saved passwords stay on this phone."
-            options.any { it.kind == RouteKind.CAMERA_ACCESS_POINT } -> "Switch setups from the camera’s chips at any time."
-            else -> "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time."
+            camera == null -> stationText(
+                "Choose the shared network before adding cameras. Saved passwords stay on this phone.", language)
+            options.any { it.kind == RouteKind.CAMERA_ACCESS_POINT } ->
+                stationText("Switch setups from the camera’s chips at any time.", language)
+            else -> stationText(
+                "Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time.", language)
         },
         identifierPrefix = "stationSetup",
         notice = notice,

@@ -13,7 +13,7 @@ import java.util.Locale
  * A host that shows its own language picker provides [LocalCopyLanguage]; nothing here reads a
  * global preference store.
  */
-internal enum class CopyLanguage(val tag: String) {
+public enum class CopyLanguage(val tag: String) {
     ENGLISH("en"),
     SIMPLIFIED_CHINESE("zh-Hans"),
     ;
@@ -55,7 +55,7 @@ internal enum class CopyLanguage(val tag: String) {
  * unchanged when the language or the entry is missing, so an untranslated label reads as English
  * rather than as an empty control.
  */
-internal class CopyCatalog(private val tables: Map<CopyLanguage, Map<String, String>>) {
+public class CopyCatalog(private val tables: Map<CopyLanguage, Map<String, String>>) {
     constructor(translations: Map<String, String>, language: CopyLanguage) :
         this(mapOf(language to translations))
 
