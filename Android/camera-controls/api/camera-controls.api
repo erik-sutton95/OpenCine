@@ -3281,11 +3281,11 @@ public final class com/opencapture/opencine/cameracontrols/MonitorSettingsContro
 public final class com/opencapture/opencine/cameracontrols/MonitorSettingsCopy {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/opencapture/opencine/cameracontrols/MonitorSettingsCopy;
-	public static final field automaticReports Ljava/lang/String;
-	public static final field feedUpscaler Ljava/lang/String;
-	public static final field keepScreenAwake Ljava/lang/String;
-	public static final field reliabilityReportsPrivacy Ljava/lang/String;
-	public static final field sourceCurveUnknown Ljava/lang/String;
+	public final fun getAutomaticReports ()Ljava/lang/String;
+	public final fun getFeedUpscaler ()Ljava/lang/String;
+	public final fun getKeepScreenAwake ()Ljava/lang/String;
+	public final fun getReliabilityReportsPrivacy ()Ljava/lang/String;
+	public final fun getSourceCurveUnknown ()Ljava/lang/String;
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorSettingsDiagnosticsSource {
