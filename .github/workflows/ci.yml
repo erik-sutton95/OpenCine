@@ -286,7 +286,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       # The quarantined test classes (QUARANTINE in docs/testing/CI.md, `quarantinedTests` in
       # Android/build.gradle.kts) are left out here and run only in the nightly step below.
       - name: Unit tests (Kotlin warnings are errors in core, media, multicam)
@@ -325,7 +325,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - name: Lint (Kotlin warnings are errors in core, media, multicam)
         env:
           GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/lint.tsv
@@ -350,7 +350,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - name: Release assembly (Kotlin warnings are errors in core, media, multicam)
         env:
           GRADLE_TASK_TIMING: ${{ runner.temp }}/gradle-timing/assemble-release.tsv
@@ -616,7 +616,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - name: Allow this ephemeral CI runner to use emulator acceleration
         run: if [ -e /dev/kvm ]; then sudo setfacl -m u:"$(id -un)":rw /dev/kvm; fi
       - name: Generate, test, build Debug/Release and prove the installed full operator flow
