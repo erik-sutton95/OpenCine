@@ -121,10 +121,12 @@ class MonitorFeedEffectsPlans(
             assist.zebraHighlightIRE.toFloat(), assist.zebraMidtoneIRE.toFloat()) else null
         val vectorscope = assist.renderToolVisible(MonitorAssistTool.VECTOR, playback, previewTool) ||
             assist.inspectorScopeDemand?.takeIf { it.playback == playback && previewTool == null }?.tool == MonitorAssistTool.VECTOR
-        val vectorLook = if (vectorscope && lut == null &&
+        // VECTOR reads the camera's own Auto conversion at its native exposure whether or not a
+        // monitoring LUT is on: scopes measure the signal, not the look (iOS `defaultScopeLook`).
+        val vectorLook = if (vectorscope &&
             colorMode in listOf(CameraCommands.COLOR_DLOG, CameraCommands.COLOR_DLOG2)) {
             lutCube(lutBytes, LutLookResolver.resolve(LutCatalog.AUTO, true, colorMode,
-                profile = lookProfile, isPhoto = isPhoto), exposureStops, colorMode, customLutGeneration)
+                profile = lookProfile, isPhoto = isPhoto), 0.0, colorMode, customLutGeneration)
         } else null
         return assist.renderPlan(transfer = sourceTransfer,
             iso = iso.takeIf { it in 50..102_400 }, playback = playback, previewTool = previewTool, isPhoto = isPhoto,

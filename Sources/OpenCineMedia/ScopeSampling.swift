@@ -221,8 +221,9 @@ public enum ScopeSampler {
             clipByte: clipByte)
     }
 
-    /// VECTOR input: sampled points through the display look (operator LUT if
-    /// armed, else the source-provided display cube for log, else the codes as-is).
+    /// VECTOR input: sampled points through the source's fixed display transform (its
+    /// log to Rec.709 cube, else the codes as-is). Never the operator's monitoring LUT: the
+    /// scopes measure the camera signal, so toggling a look leaves every scope unchanged.
     /// Trilinear `CubeLUT.map` per point is the benchmark-accepted cost  -  no
     /// transcendental math per pixel anywhere in the analysis path.
     public static func monitorPoints(_ points: [ScopePoint], look: CubeLUT?) -> [ScopePoint] {

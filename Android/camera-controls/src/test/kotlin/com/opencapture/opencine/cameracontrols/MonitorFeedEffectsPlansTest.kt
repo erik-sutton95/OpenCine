@@ -168,6 +168,23 @@ class MonitorFeedEffectsPlansTest {
         assertEquals(listOf("lut:dlog.cube:0.0:${CameraCommands.COLOR_DLOG}"), packer.calls.filter { it.startsWith("lut") })
     }
 
+    /** Scopes measure the camera signal: the monitoring LUT and its exposure trim never reach the tap. */
+    @Test fun togglingTheMonitoringLutLeavesTheScopeTapUnchanged() {
+        val packer = RecordingPacker()
+        val plans = MonitorFeedEffectsPlans(packer)
+        val scopes = arrayOf(MonitorAssistTool.WAVE, MonitorAssistTool.PARADE, MonitorAssistTool.HISTO,
+            MonitorAssistTool.VECTOR, MonitorAssistTool.LIGHTS)
+        val off = assist(*scopes).apply { updateLutExposure(1.0) }
+        val on = assist(MonitorAssistTool.LUT, *scopes).apply { updateLutExposure(1.0) }
+        val lutOff = plans.create(bytes, off, "creativeMono", CameraCommands.COLOR_DLOG, 800, dlogProfile)
+        val lutOn = plans.create(bytes, on, "creativeMono", CameraCommands.COLOR_DLOG, 800, dlogProfile)
+        assertNull(lutOff.lutCube); assertNotNull(lutOn.lutCube)
+        assertEquals(lutOff.scopeTap, lutOn.scopeTap)
+        assertNotNull(lutOn.scopeTap.vectorLut)
+        assertTrue("lut:dlog.cube:0.0:${CameraCommands.COLOR_DLOG}" in packer.calls,
+            "VECTOR reads the camera's Auto conversion at its native exposure")
+    }
+
     @Test fun withoutTheSwiftCoreThePlanCarriesNoBakes() {
         val packer = RecordingPacker(isAvailable = false)
         val state = assist(MonitorAssistTool.LUT, MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA)
