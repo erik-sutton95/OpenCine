@@ -114,7 +114,7 @@
                         options.brightness = next
                     }),
                 zoomHelp:
-                    "Magnifies only the chroma trace; the graticule stays at unity. The vectorscope reads the monitor image (your active LUT, or the built-in display tone map), where chroma is meaningful.",
+                    "Magnifies only the chroma trace; the graticule stays at unity. The vectorscope reads the camera signal through the built-in display tone map, whatever LUT is on, so chroma stays meaningful.",
                 brightnessHelp: "Raise trace intensity when the chroma plot is hard to read.",
                 brightnessRange: VectorscopeAssist.brightnessRange, compact: compact,
                 zoomFeedback: {
