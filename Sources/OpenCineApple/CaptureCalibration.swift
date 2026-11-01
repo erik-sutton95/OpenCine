@@ -36,38 +36,84 @@
         }
     }
 
-    /// A measured colour correction for one HDMI capture device, applied to the frame's R'G'B'
-    /// code values as they come out of ``LiveFrameDecoding``: `out = matrix * in + offset`, with
-    /// codes normalised to 0...1.
+    /// One channel's correction in BT.709 Y'CbCr, in 8-bit code units (chroma centred on 0):
+    /// `out = gain * x + offset + amplitude * tanh((x - centre) / width)`.
     ///
-    /// The correction belongs to the capture chain, not to the picture: it was fitted on one
-    /// picture profile and held unchanged on another, so it is a fixed property of the HDMI path.
-    /// It only ever applies to an HDMI capture frame; the camera's own live-view JPEG is the
-    /// reference it is measured against and is never corrected.
-    ///
-    /// It works on gamma-encoded code values, never on Core Image's linear working values: a
-    /// colour matrix inside a default render would run in linear extended sRGB, where the same
-    /// offset lifts black by about 24 codes instead of 2.4.
-    public struct CaptureCalibration: Equatable, Sendable {
-        /// Rows of the 3x3 matrix applied to normalised (R', G', B').
-        public let red: SIMD3<Double>
-        public let green: SIMD3<Double>
-        public let blue: SIMD3<Double>
-        /// Added after the matrix, in normalised code values (1/255 is one 8-bit code).
-        public let offset: SIMD3<Double>
+    /// The tanh term models a sign-dependent offset: it moves values on one side of `centre` by
+    /// up to `amplitude` more than those on the other, with a slope bounded by
+    /// `gain + amplitude / width`, so noise near neutral is not amplified without limit.
+    public struct CaptureChannelCurve: Equatable, Sendable {
+        public let gain: Double
+        public let offset: Double
+        public let amplitude: Double
+        public let centre: Double
+        public let width: Double
 
         public init(
-            red: SIMD3<Double>, green: SIMD3<Double>, blue: SIMD3<Double>, offset: SIMD3<Double>
+            gain: Double = 1, offset: Double = 0, amplitude: Double = 0, centre: Double = 0,
+            width: Double = 1
         ) {
-            self.red = red
-            self.green = green
-            self.blue = blue
+            self.gain = gain
             self.offset = offset
+            self.amplitude = amplitude
+            self.centre = centre
+            self.width = width
+        }
+
+        /// No change.
+        public static let identity = CaptureChannelCurve()
+
+        /// The corrected value of `x`, both in 8-bit code units.
+        public func callAsFunction(_ x: Double) -> Double {
+            gain * x + offset + amplitude * tanh((x - centre) / width)
+        }
+    }
+
+    /// A measured colour correction for one HDMI capture device, applied to the frame's R'G'B'
+    /// code values as they come out of ``LiveFrameDecoding``.
+    ///
+    /// The codes are taken to BT.709 full-range Y'CbCr (Kr 0.2126, Kb 0.0722, chroma centred on
+    /// 0, in 8-bit code units), each channel goes through its ``CaptureChannelCurve``, and the
+    /// result returns to R'G'B'. The chroma curves are nonlinear, so no colour matrix can stand in
+    /// for them, and their action lies within about 2 codes of neutral, finer than a 3D lookup
+    /// cube resolves.
+    ///
+    /// The correction belongs to the capture chain, not to the picture: one curve per channel
+    /// fits three picture profiles, so it is a fixed property of the HDMI path. It only ever
+    /// applies to an HDMI capture frame; the camera's own live-view JPEG is the reference it is
+    /// measured against and is never corrected.
+    ///
+    /// It works on gamma-encoded code values, never on Core Image's linear working values: the
+    /// same operations inside a default render would run in linear extended sRGB, where a 1-code
+    /// luma offset lifts a dark grey by several codes.
+    public struct CaptureCalibration: Equatable, Sendable {
+        /// Y' (luma).
+        public let luma: CaptureChannelCurve
+        /// Cb (blue difference).
+        public let blueDifference: CaptureChannelCurve
+        /// Cr (red difference).
+        public let redDifference: CaptureChannelCurve
+        /// The curves sampled for `CIColorCurves`, built once.
+        private let table: Data
+
+        public init(
+            luma: CaptureChannelCurve, blueDifference: CaptureChannelCurve,
+            redDifference: CaptureChannelCurve
+        ) {
+            self.luma = luma
+            self.blueDifference = blueDifference
+            self.redDifference = redDifference
+            self.table = Self.sampledTable(luma, blueDifference, redDifference)
+        }
+
+        public static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.luma == rhs.luma && lhs.blueDifference == rhs.blueDifference
+                && lhs.redDifference == rhs.redDifference
         }
 
         /// No correction: the frame's codes as they are.
         public static let identity = CaptureCalibration(
-            red: [1, 0, 0], green: [0, 1, 0], blue: [0, 0, 1], offset: [0, 0, 0])
+            luma: .identity, blueDifference: .identity, redDifference: .identity)
 
         public var isIdentity: Bool { self == .identity }
 
@@ -85,50 +131,112 @@
         /// SandbergCapture HDMI to USB dongle (MacroSilicon, USB 345F:2130), with a YCbCr HDMI
         /// signal from the camera.
         ///
-        /// Measured on 2026-11-01 against ground truth: an in-camera ProRes 422 HQ recording of a
-        /// ColorChecker Video in a log profile (decoded BT.709 limited range, no transfer change),
-        /// beside the HDMI and Wi-Fi live views of the same card, LUT off. The Wi-Fi feed's chroma
-        /// matches the recording (residual 0.2 code). The HDMI feed sits about 1 code toward green
-        /// and is slightly desaturated in Cr: Cb/Cr offsets -0.70/-0.86, gains 0.987/0.943.
+        /// Measured on 2026-11-01 on a Calibrite ColorChecker Video, LUT off, in three picture
+        /// profiles (SDR, N-Log, Log3G10), against in-camera recordings of the same card (ProRes
+        /// 422 HQ N-Log, and R3D Log3G10 through REDline). The Wi-Fi live view's chroma tracks
+        /// the recordings. The HDMI chroma error is not a gain but a sign-dependent offset:
+        /// positive Cb and Cr lose about 1.8 codes, negative ones about none. Flat log pictures
+        /// (median |chroma| 2 to 4 codes) suffer far more than SDR: with the Log3G10 look on,
+        /// HDMI against Wi-Fi had a chroma gain of 0.87 even after a linear correction.
         ///
-        /// The correction, in BT.709 Y'CbCr 8-bit full-scale units, is Y + 1.0,
-        /// Cb' = (Cb + 0.70) / 0.987, Cr' = (Cr + 0.86) / 0.943, written here as the equivalent
-        /// R'G'B' affine. Fitted on the log recording, validated on an independent SDR pair: HDMI
-        /// against Wi-Fi went from RMS 2.82 to 1.10 codes, mean RGB difference (-3.8, -0.9, -2.2)
-        /// to (-0.5, -0.7, -0.1). A neutral grey moves by about +2.4, +0.4, +2.3 codes.
+        /// One curve per chroma channel, fitted on all three profiles, predicts the Wi-Fi chroma
+        /// from the raw HDMI chroma with residuals of 0.14 to 0.28 code (N-Log Cr 0.57), where
+        /// the earlier linear correction left 0.5 to 0.7. Both curves are monotonic, with a slope
+        /// of at most about 1.6. A neutral grey gets Y' + 1.0, Cb' + 0.77, Cr' + 1.13 codes.
         ///
         /// The same dongle fed RGB HDMI from a Mac measured unbiased (greys at Cb = Cr = 128), so
         /// the bias is either the camera's YCbCr HDMI output or the dongle's YCbCr input path;
         /// this kit cannot separate the two. Evidence: OpenCine-Parity
         /// `evidence/hardware-pass-20261024/RESULTS.md`, "HDMI dongle characterisation" to the
-        /// in-camera ground truth (BUG-Z-HDMI-GREEN-TINT).
+        /// in-camera ground truth, and the pooled fit `dongle/cc/pool.py` (BUG-Z-HDMI-GREEN-TINT).
         static let yCbCrHDMIChroma = CaptureCalibration(
-            red: [1.047595, -0.043231, -0.004364],
-            green: [-0.013865, 1.013802, 0.000064],
-            blue: [-0.002800, -0.009420, 1.012220],
-            offset: [0.009554, 0.001726, 0.009082])
+            luma: CaptureChannelCurve(offset: 1.0),
+            blueDifference: CaptureChannelCurve(
+                gain: 1.0, offset: 0.899, amplitude: 0.875, centre: 0.226, width: 1.5),
+            redDifference: CaptureChannelCurve(
+                gain: 1.008, offset: 0.900, amplitude: 0.751, centre: -0.463, width: 1.5))
+
+        // MARK: - Core Image
+
+        static let kr = 0.2126
+        static let kb = 0.0722
+        static let kg = 1 - kr - kb
+
+        /// The curve table's domain, in normalised `(Y', Cb + 0.5, Cr + 0.5)`: wider than 0...1
+        /// so super-white and sub-black luma pass rather than clamp.
+        static let tableDomain = (lower: -0.25, upper: 1.25)
+        /// Entries per channel: about 0.19 code apart, so linear interpolation between them is
+        /// exact to well under a hundredth of a code on these curves.
+        static let tableSize = 2048
+
+        /// `CIColorCurves` data: `tableSize` float triples `(Y', Cb + 0.5, Cr + 0.5)` across
+        /// `tableDomain`.
+        static func sampledTable(
+            _ luma: CaptureChannelCurve, _ cb: CaptureChannelCurve, _ cr: CaptureChannelCurve
+        ) -> Data {
+            var values = [Float]()
+            values.reserveCapacity(tableSize * 3)
+            let (lower, upper) = tableDomain
+            for index in 0..<tableSize {
+                let x = lower + (upper - lower) * Double(index) / Double(tableSize - 1)
+                values.append(Float(luma(x * 255) / 255))
+                values.append(Float(cb((x - 0.5) * 255) / 255 + 0.5))
+                values.append(Float(cr((x - 0.5) * 255) / 255 + 0.5))
+            }
+            return values.withUnsafeBufferPointer { Data(buffer: $0) }
+        }
+
+        /// The correction as three Core Image filters on values that are already code values:
+        /// R'G'B' to `(Y', Cb + 0.5, Cr + 0.5)`, the per-channel curves, and back. None converts
+        /// colour (`CIColorCurves` is given no colour space), so the curves see the codes.
+        func correctingCodes(_ codes: CIImage) -> CIImage {
+            let (kr, kg, kb) = (Self.kr, Self.kg, Self.kb)
+            let toYCbCr = codes.applyingFilter(
+                "CIColorMatrix",
+                parameters: [
+                    "inputRVector": CIVector(x: kr, y: kg, z: kb, w: 0),
+                    "inputGVector": CIVector(
+                        x: -kr / (2 * (1 - kb)), y: -kg / (2 * (1 - kb)), z: 0.5, w: 0),
+                    "inputBVector": CIVector(
+                        x: 0.5, y: -kg / (2 * (1 - kr)), z: -kb / (2 * (1 - kr)), w: 0),
+                    "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputBiasVector": CIVector(x: 0, y: 0.5, z: 0.5, w: 0),
+                ])
+            let domain = Self.tableDomain
+            let curved = toYCbCr.applyingFilter(
+                "CIColorCurves",
+                parameters: [
+                    "inputCurvesData": table,
+                    "inputCurvesDomain": CIVector(x: domain.lower, y: domain.upper),
+                    "inputColorSpace": NSNull(),
+                ])
+            // R' = Y' + 2(1 - Kr) Cr, B' = Y' + 2(1 - Kb) Cb and
+            // G' = Y' - (2 Kr (1 - Kr) Cr + 2 Kb (1 - Kb) Cb) / Kg, the 0.5 chroma offsets folded
+            // into the bias.
+            let crToG = 2 * kr * (1 - kr) / kg
+            let cbToG = 2 * kb * (1 - kb) / kg
+            return curved.applyingFilter(
+                "CIColorMatrix",
+                parameters: [
+                    "inputRVector": CIVector(x: 1, y: 0, z: 2 * (1 - kr), w: 0),
+                    "inputGVector": CIVector(x: 1, y: -cbToG, z: -crToG, w: 0),
+                    "inputBVector": CIVector(x: 1, y: 2 * (1 - kb), z: 0, w: 0),
+                    "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputBiasVector": CIVector(
+                        x: -(1 - kr), y: (cbToG + crToG) / 2, z: -(1 - kb), w: 0),
+                ])
+        }
 
         /// `image` with the correction applied to its code values as seen in `codeValueSpace`.
         ///
         /// Core Image holds pixels as linear working values; the image is matched out of the
-        /// working space into `codeValueSpace` (its codes), the matrix runs on those codes, and the
-        /// result is matched back. The three are colour kernels Core Image concatenates into the
-        /// render's own pass, so the cost is a few arithmetic operations per pixel and no extra
-        /// pass over the frame. ``identity`` returns `image` itself.
+        /// working space into `codeValueSpace` (its codes), corrected there and matched back. All
+        /// of it runs on the GPU inside the render that consumes the image, with no extra pass
+        /// over the frame on the CPU. ``identity`` returns `image` itself.
         public func applied(to image: CIImage, codeValueSpace: CGColorSpace) -> CIImage {
             guard !isIdentity, let codes = image.matchedFromWorkingSpace(to: codeValueSpace)
             else { return image }
-            func vector(_ row: SIMD3<Double>) -> CIVector {
-                CIVector(x: row.x, y: row.y, z: row.z, w: 0)
-            }
-            let corrected = codes.applyingFilter(
-                "CIColorMatrix",
-                parameters: [
-                    "inputRVector": vector(red), "inputGVector": vector(green),
-                    "inputBVector": vector(blue), "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-                    "inputBiasVector": CIVector(x: offset.x, y: offset.y, z: offset.z, w: 0),
-                ])
-            return corrected.matchedToWorkingSpace(from: codeValueSpace) ?? image
+            return correctingCodes(codes).matchedToWorkingSpace(from: codeValueSpace) ?? image
         }
     }
 #endif

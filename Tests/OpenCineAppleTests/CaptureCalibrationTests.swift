@@ -35,58 +35,50 @@
             #expect(CaptureCalibration.forDevice(nil).isIdentity)
         }
 
-        /// Greys from black to white move by exactly the measured offsets, in code values: a
-        /// neutral 128 grey by about +2.4, +0.4, +2.3 codes. Every grey, the darkest included,
-        /// lands within half a code of the affine. The same matrix run in Core Image's linear
-        /// working space would lift a dark grey by several codes more, which the last check shows
-        /// this test would catch.
-        @Test func measuredDongleMovesGreysByItsOffsets() throws {
+        /// Greys, low-chroma log-like colours on both sides of neutral and saturated colours come
+        /// out at the measured model's values within 0.3 code. The model is written out here from
+        /// its published coefficients, independently of the implementation.
+        @Test func measuredDongleRendersTheModel() throws {
             let calibration = CaptureCalibration.forDevice(Self.dongle)
-            for grey in [16, 32, 64, 128, 192, 235] {
-                let frame = try Self.fullRangeFrame(y: grey, cb: 128, cr: 128)
+            let greys = [16, 32, 64, 128, 192, 235].map { ($0, $0, $0) }
+            let logLike = [
+                (122, 118, 114), (114, 118, 122), (100, 104, 99), (104, 100, 106),
+                (140, 139, 143), (139, 141, 137),
+            ]
+            let saturated = [(200, 60, 70), (60, 90, 170), (180, 120, 90), (100, 140, 60)]
+            for rgb in greys + logLike + saturated {
+                let (y, cb, cr) = Self.fullRange709(rgb)
+                let frame = try Self.fullRangeFrame(y: y, cb: cb, cr: cr)
                 let plain = try Self.renderedCodes(LiveFrameDecoding.image(frame))
-                #expect(Self.near(plain, [grey, grey, grey].map(Double.init), 0.5))
                 let corrected = try Self.renderedCodes(
                     LiveFrameDecoding.image(frame, calibration: calibration))
-                let expected = Self.affine(calibration, plain)
-                print("calibrated grey \(grey): plain \(plain), corrected \(corrected)")
+                let expected = Self.model(plain)
+                print("calibrated \(rgb): plain \(plain) corrected \(corrected) model \(expected)")
                 #expect(
-                    Self.near(corrected, expected, 0.5),
-                    "grey \(grey): expected \(expected), rendered \(corrected)")
-                if grey == 128 {
-                    let shift = zip(corrected, plain).map { $0 - $1 }
-                    #expect(Self.near(shift, [2.4, 0.4, 2.3], 0.5), "grey 128 moved by \(shift)")
-                }
+                    Self.near(corrected, expected, 0.3),
+                    "\(rgb): model \(expected), rendered \(corrected)")
             }
-            let dark = try Self.fullRangeFrame(y: 32, cb: 128, cr: 128)
-            let linear = try Self.renderedCodes(
-                Self.matrixInWorkingSpace(calibration, LiveFrameDecoding.image(dark)))
-            let expected = Self.affine(calibration, [32, 32, 32])
-            print("grey 32: code-value affine \(expected), linear-space matrix \(linear)")
-            #expect(!Self.near(linear, expected, 3), "linear-space matrix rendered \(linear)")
         }
 
-        /// Colours, not only greys: in every channel the corrected codes are the affine of the
-        /// uncorrected ones, through the decode's own Y'CbCr to R'G'B' step.
-        @Test func measuredDongleCorrectsColoursAsAnAffine() throws {
+        /// A neutral grey gains Y' + 1.0, Cb + 0.77 and Cr + 1.13 codes; a chroma just above
+        /// neutral moves further than the same chroma just below it (the sign-dependent offset).
+        @Test func measuredDongleShiftsNeutralAndChromaAsMeasured() throws {
             let calibration = CaptureCalibration.forDevice(Self.dongle)
-            let colours = [(180, 120, 90), (100, 140, 60), (60, 90, 170), (200, 60, 70)]
-            for rgb in colours {
-                let (y, cb, cr) = Fixture.video709(rgb)
-                let signal = Fixture.Bar(
-                    name: "\(rgb)", video: (y, cb, cr), full: (y, cb, cr), rgb: rgb)
-                let frame = try Fixture.frame(
-                    kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, width: 1920, height: 1080,
-                    bar: signal, matrix: kCVImageBufferYCbCrMatrix_ITU_R_709_2 as String)
-                CaptureFrameColorimetry.prepareForDisplay(frame)
-                let plain = try Self.renderedCodes(LiveFrameDecoding.image(frame))
-                let corrected = try Self.renderedCodes(
-                    LiveFrameDecoding.image(frame, calibration: calibration))
-                let expected = Self.affine(calibration, plain)
-                #expect(
-                    Self.near(corrected, expected, 0.5),
-                    "\(rgb): expected \(expected), rendered \(corrected)")
-            }
+            let grey = try Self.fullRangeFrame(y: 128, cb: 128, cr: 128)
+            let shift = try Self.yCbCrShift(grey, calibration)
+            #expect(Self.near(shift, [1.0, 0.768, 1.125], 0.15), "grey 128 moved by \(shift)")
+            let above = try Self.yCbCrShift(
+                Self.fullRangeFrame(y: 110, cb: 131, cr: 131), calibration)
+            let below = try Self.yCbCrShift(
+                Self.fullRangeFrame(y: 110, cb: 125, cr: 125), calibration)
+            #expect(above[1] > below[1] + 1 && above[2] > below[2] + 1, "\(above) vs \(below)")
+            // The same filters on Core Image's linear working values lift a dark grey by
+            // several codes more: the mistake the code-value matching avoids.
+            let dark = LiveFrameDecoding.image(try Self.fullRangeFrame(y: 32, cb: 128, cr: 128))
+            let linear = try Self.renderedCodes(calibration.correctingCodes(dark))
+            let expected = Self.model([32, 32, 32])
+            print("grey 32: model \(expected), filters in linear working space \(linear)")
+            #expect(!Self.near(linear, expected, 2), "linear-space correction rendered \(linear)")
         }
 
         /// A device without a measured correction renders bit for bit as the decode did before
@@ -138,33 +130,46 @@
             return pixel.prefix(3).map { Double($0) * 255 }
         }
 
-        /// `codes` (8-bit) through the calibration's affine.
-        static func affine(_ calibration: CaptureCalibration, _ codes: [Double]) -> [Double] {
-            let input = SIMD3(codes[0], codes[1], codes[2]) / 255
-            let rows = [calibration.red, calibration.green, calibration.blue]
-            return rows.enumerated().map { index, row in
-                ((row * input).sum() + calibration.offset[index]) * 255
-            }
+        /// BT.709 full-range Y'CbCr of R'G'B' codes, all in 8-bit codes, chroma centred on 0.
+        static func yCbCr(_ rgb: [Double]) -> [Double] {
+            let (kr, kb) = (0.2126, 0.0722)
+            let y = kr * rgb[0] + (1 - kr - kb) * rgb[1] + kb * rgb[2]
+            return [y, (rgb[2] - y) / (2 * (1 - kb)), (rgb[0] - y) / (2 * (1 - kr))]
         }
 
-        /// The mistake the calibration avoids: the same colour matrix applied to Core Image's
-        /// linear working values.
-        static func matrixInWorkingSpace(_ calibration: CaptureCalibration, _ image: CIImage)
-            -> CIImage
-        {
-            func vector(_ row: SIMD3<Double>) -> CIVector {
-                CIVector(x: row.x, y: row.y, z: row.z, w: 0)
-            }
-            let offset = calibration.offset
-            return image.applyingFilter(
-                "CIColorMatrix",
-                parameters: [
-                    "inputRVector": vector(calibration.red),
-                    "inputGVector": vector(calibration.green),
-                    "inputBVector": vector(calibration.blue),
-                    "inputBiasVector": CIVector(x: offset.x, y: offset.y, z: offset.z, w: 0),
-                ])
+        static func rgb(_ ycc: [Double]) -> [Double] {
+            let (kr, kb) = (0.2126, 0.0722)
+            let r = ycc[0] + 2 * (1 - kr) * ycc[2]
+            let b = ycc[0] + 2 * (1 - kb) * ycc[1]
+            return [r, (ycc[0] - kr * r - kb * b) / (1 - kr - kb), b]
         }
+
+        /// Full-range BT.709 Y'CbCr codes of an R'G'B' colour, as a frame stores them.
+        static func fullRange709(_ rgb: (Int, Int, Int)) -> (Int, Int, Int) {
+            let ycc = yCbCr([Double(rgb.0), Double(rgb.1), Double(rgb.2)])
+            return (
+                Int(ycc[0].rounded()), Int((ycc[1] + 128).rounded()), Int((ycc[2] + 128).rounded())
+            )
+        }
+
+        /// The measured model of the dongle's correction, on 8-bit R'G'B' codes.
+        static func model(_ codes: [Double]) -> [Double] {
+            let ycc = yCbCr(codes)
+            let cb = ycc[1] + 0.899 + 0.875 * tanh((ycc[1] - 0.226) / 1.5)
+            let cr = 1.008 * ycc[2] + 0.900 + 0.751 * tanh((ycc[2] + 0.463) / 1.5)
+            return rgb([ycc[0] + 1.0, cb, cr])
+        }
+
+        /// How far the correction moves `frame` in Y'CbCr codes.
+        static func yCbCrShift(_ frame: CVPixelBuffer, _ calibration: CaptureCalibration) throws
+            -> [Double]
+        {
+            let plain = yCbCr(try renderedCodes(LiveFrameDecoding.image(frame)))
+            let corrected = yCbCr(
+                try renderedCodes(LiveFrameDecoding.image(frame, calibration: calibration)))
+            return zip(corrected, plain).map { $0 - $1 }
+        }
+
 
         static func near(_ actual: [Double], _ expected: [Double], _ tolerance: Double) -> Bool {
             zip(actual, expected).allSatisfy { abs($0 - $1) <= tolerance }

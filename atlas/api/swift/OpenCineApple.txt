@@ -155,6 +155,7 @@ enum UVCVideoSourceState: Equatable, Sendable
 enum VideoToolboxDecoder.Output: Sendable
 extension OpenCineMedia.MonitorFrameEffects
 func CaptureCalibration.applied(to: CoreImage.CIImage, codeValueSpace: CoreGraphics.CGColorSpace) -> CoreImage.CIImage
+func CaptureChannelCurve.callAsFunction(_: Swift.Double) -> Swift.Double
 func DecodedFrameFence.advance() -> OpenCineCore.StreamGeneration
 func DecodedFrameFence.isCurrent(_: OpenCineCore.StreamGeneration) -> Swift.Bool
 func DecodedFrameFence.lease(_: CoreVideo.CVPixelBuffer, generation: OpenCineCore.StreamGeneration?, timeNs: Swift.Int64) -> DecodedFrameLease
@@ -376,7 +377,8 @@ func VideoToolboxDecoder.openSession() -> Swift.Bool
 func VideoToolboxDecoder.resetCounters() -> ()
 func VideoToolboxDecoder.sessionAccepts(_: CoreMedia.CMVideoFormatDescription) -> Swift.Bool
 init CameraHotspotSystem(cancellation: CameraHotspotSystem.Cancellation, readTimeout: Swift.Duration?, journal: ((Swift.String) -> Swift.Void)?)
-init CaptureCalibration(red: Swift.SIMD3<Swift.Double>, green: Swift.SIMD3<Swift.Double>, blue: Swift.SIMD3<Swift.Double>, offset: Swift.SIMD3<Swift.Double>)
+init CaptureCalibration(luma: CaptureChannelCurve, blueDifference: CaptureChannelCurve, redDifference: CaptureChannelCurve)
+init CaptureChannelCurve(gain: Swift.Double, offset: Swift.Double, amplitude: Swift.Double, centre: Swift.Double, width: Swift.Double)
 init CaptureDeviceIdentity(deviceIdentifier: Swift.String)
 init CaptureDeviceIdentity(vendorID: Swift.UInt16, productID: Swift.UInt16)
 init DarwinNotificationObserver(names: [Swift.String], handler: (Swift.String) -> Swift.Void)
@@ -456,10 +458,14 @@ init MonitorZebraSpec(highlightEnabled: Swift.Bool, highlightIRE: Swift.Double, 
 init UVCVideoSource(stream: OpenCineCore.StreamID, queueLabel: Swift.String, logSubsystem: Swift.String, onStateChange: (UVCVideoSourceState) -> Swift.Void)
 init VideoToolboxDecoder(stream: OpenCineCore.StreamID, hooks: VideoToolboxDecoder.Hooks)
 init VideoToolboxDecoder.Hooks(shouldRebuildSession: (Darwin.OSStatus) -> Swift.Bool, journal: (Swift.String) -> Swift.Void, logSubsystem: Swift.String)
-let CaptureCalibration.blue: Swift.SIMD3<Swift.Double>
-let CaptureCalibration.green: Swift.SIMD3<Swift.Double>
-let CaptureCalibration.offset: Swift.SIMD3<Swift.Double>
-let CaptureCalibration.red: Swift.SIMD3<Swift.Double>
+let CaptureCalibration.blueDifference: CaptureChannelCurve
+let CaptureCalibration.luma: CaptureChannelCurve
+let CaptureCalibration.redDifference: CaptureChannelCurve
+let CaptureChannelCurve.amplitude: Swift.Double
+let CaptureChannelCurve.centre: Swift.Double
+let CaptureChannelCurve.gain: Swift.Double
+let CaptureChannelCurve.offset: Swift.Double
+let CaptureChannelCurve.width: Swift.Double
 let CaptureDeviceIdentity.productID: Swift.UInt16
 let CaptureDeviceIdentity.vendorID: Swift.UInt16
 let DecodedFrameFence.stream: OpenCineCore.StreamID
@@ -551,6 +557,7 @@ let VideoToolboxDecoder.displayLayer: AVFoundation.AVSampleBufferDisplayLayer
 let VideoToolboxDecoder.fence: DecodedFrameFence
 let VideoToolboxDecoder.hooks: VideoToolboxDecoder.Hooks
 protocol MonitorPlaybackFrameSource<Self : OpenCineMedia.MonitorPlaybackPort>: MonitorPlaybackPort, Sendable
+static func CaptureCalibration.==(_: CaptureCalibration, _: CaptureCalibration) -> Swift.Bool
 static func CaptureCalibration.forDevice(_: CaptureDeviceIdentity?) -> CaptureCalibration
 static func DiagnosticExceptionHandler.install(record: (Foundation.NSException) -> Swift.Void) -> ()
 static func DiagnosticNetworkFacts.vpnActive() -> Swift.Bool
@@ -623,6 +630,7 @@ static func VideoToolboxDecoder.makeAVCFormat(sps: [Swift.UInt8], pps: [Swift.UI
 static func VideoToolboxDecoder.makeHEVCFormat(vps: [Swift.UInt8], sps: [Swift.UInt8], pps: [Swift.UInt8]) -> CoreMedia.CMVideoFormatDescription?
 static func VideoToolboxDecoder.markDoNotDisplay(_: CoreMedia.CMSampleBuffer) -> ()
 static let CaptureCalibration.identity: CaptureCalibration
+static let CaptureChannelCurve.identity: CaptureChannelCurve
 static let JPEGPixelBufferDecoder.pixelFormat: Darwin.OSType
 static let LiveFrameDecoding.codeValueSpace: CoreGraphics.CGColorSpace
 static let LiveViewPresentTiming.timescale: Swift.Int32
@@ -653,6 +661,7 @@ static var UVCVideoSource.attachedDeviceName: Swift.String?
 static var UVCVideoSource.isDocumentedHardware: Swift.Bool
 static var UVCVideoSource.isSupportedHardware: Swift.Bool
 struct CaptureCalibration: Equatable, Sendable
+struct CaptureChannelCurve: Equatable, Sendable
 struct CaptureDeviceIdentity: CustomStringConvertible, Equatable, Hashable, Sendable
 struct DecodedFrameFormat: Equatable, Sendable
 struct LiveFrameSampleBus.InspectorFrame: Sendable
