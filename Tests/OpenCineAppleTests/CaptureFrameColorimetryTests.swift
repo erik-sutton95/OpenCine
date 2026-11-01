@@ -3,6 +3,7 @@
     import CoreImage
     import CoreMedia
     import CoreVideo
+    import IOSurface
     import Testing
 
     @testable import OpenCineApple
@@ -97,6 +98,64 @@
             }
         }
 
+        /// The colour space the capture pipeline gives a frame never reaches the codes.
+        ///
+        /// On the iPad the capture pipeline writes an nclc ICC profile onto the frame's IOSurface
+        /// (`kIOSurfaceColorSpace`: BT.709 primaries and matrix, SMPTE 240M transfer), and after
+        /// `prepareForDisplay` has removed the CoreVideo transfer and primaries Core Image still
+        /// reads the frame in that profile ("QuickTime 'nclc' Video (1,7,1)" in the device's
+        /// decode readout): a 240M to sRGB re-encode that showed 128 as 138.5 and 64 as 72.3.
+        /// The simulator's Core Image ignores the surface value, so the fixture writes it as the
+        /// device does and hands Core Image the same profile through the frame's colour space
+        /// attachment, then checks the plain decode really is in that profile and lifts like the
+        /// device. The live-frame decode renders a grey ramp and saturated BT.709 bars to the
+        /// signal's R'G'B' codes within one code.
+        @Test func captureColourSpaceRendersTheSignalCodes() throws {
+            let space = try Self.captureSurfaceSpace()
+            let profile = try #require(space.copyICCData())
+            let greys = [16, 64, 96, 128, 160, 192, 235].map { ("grey \($0)", ($0, $0, $0)) }
+            let bars: [(String, (Int, Int, Int))] = [
+                ("red", (191, 0, 0)), ("green", (0, 191, 0)), ("blue", (0, 0, 191)),
+                ("yellow", (191, 191, 0)), ("cyan", (0, 191, 191)), ("magenta", (191, 0, 191)),
+            ]
+            for (name, rgb) in greys + bars {
+                let signal = Self.video709(rgb)
+                let frame = try Self.frame(
+                    kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, width: 1920, height: 1080,
+                    bar: Bar(name: name, video: signal, full: signal, rgb: rgb),
+                    matrix: kCVImageBufferYCbCrMatrix_ITU_R_601_4 as String)
+                CVBufferSetAttachment(
+                    frame, kCVImageBufferColorPrimariesKey,
+                    kCVImageBufferColorPrimaries_ITU_R_709_2, .shouldPropagate)
+                CVBufferSetAttachment(
+                    frame, kCVImageBufferTransferFunctionKey,
+                    kCVImageBufferTransferFunction_ITU_R_709_2, .shouldPropagate)
+                let surface = try #require(CVPixelBufferGetIOSurface(frame)?.takeUnretainedValue())
+                IOSurfaceSetValue(surface, kIOSurfaceColorSpace, profile)
+                CaptureFrameColorimetry.prepareForDisplay(frame)
+                CVBufferSetAttachment(frame, kCVImageBufferCGColorSpaceKey, space, .shouldPropagate)
+
+                let plainImage = CIImage(cvPixelBuffer: frame)
+                let plain = try Self.rendered(frame, plainImage)
+                let rendered = try Self.rendered(frame)
+                print("HDMI capture colour space \(name) \(rgb): plain \(plain), live \(rendered)")
+                // The fixture is the device's state: Core Image reads the frame in the nclc
+                // profile, and the plain decode lifts mid grey as it did through the dongle.
+                #expect(
+                    plainImage.colorSpace.map { CFCopyDescription($0) as String }?
+                        .contains("nclc") == true)
+                if rgb == (128, 128, 128) {
+                    #expect(plain.0 > 133, "the capture colour space did not lift: \(plain)")
+                }
+                let expected = Self.decoded709(signal)
+                #expect(
+                    abs(Double(rendered.0) - expected.0) <= 1
+                        && abs(Double(rendered.1) - expected.1) <= 1
+                        && abs(Double(rendered.2) - expected.2) <= 1,
+                    "\(name): signal codes \(expected), rendered \(rendered)")
+            }
+        }
+
         /// The capture output is asked for the device's own YCbCr layout, or biplanar 4:2:0 in
         /// the device's range, and never for RGB (which would hand the matrix to AVFoundation).
         @Test func captureRequestsYCbCrNeverRGB() {
@@ -158,6 +217,51 @@
 
         struct FixtureError: Error {}
 
+        /// The colour space the iPad's capture pipeline gives a frame: the nclc ICC profile for
+        /// BT.709 primaries, SMPTE 240M transfer and BT.709 matrix ("QuickTime 'nclc' Video
+        /// (1,7,1)", 632 bytes on device).
+        static func captureSurfaceSpace() throws -> CGColorSpace {
+            let attachments =
+                [
+                    kCVImageBufferColorPrimariesKey: kCVImageBufferColorPrimaries_ITU_R_709_2,
+                    kCVImageBufferTransferFunctionKey:
+                        kCVImageBufferTransferFunction_SMPTE_240M_1995,
+                    kCVImageBufferYCbCrMatrixKey: kCVImageBufferYCbCrMatrix_ITU_R_709_2,
+                ] as CFDictionary
+            guard
+                let space = CVImageBufferCreateColorSpaceFromAttachments(attachments)?
+                    .takeRetainedValue()
+            else { throw FixtureError() }
+            return space
+        }
+
+        static let kr = 0.2126
+        static let kb = 0.0722
+
+        /// BT.709 video-range Y'CbCr codes of 8-bit R'G'B' codes.
+        static func video709(_ rgb: (Int, Int, Int)) -> (Int, Int, Int) {
+            let (r, g, b) = (Double(rgb.0) / 255, Double(rgb.1) / 255, Double(rgb.2) / 255)
+            let y = kr * r + (1 - kr - kb) * g + kb * b
+            let cb = (b - y) / (2 * (1 - kb))
+            let cr = (r - y) / (2 * (1 - kr))
+            return (
+                Int((16 + 219 * y).rounded()), Int((128 + 224 * cb).rounded()),
+                Int((128 + 224 * cr).rounded())
+            )
+        }
+
+        /// The 8-bit R'G'B' codes BT.709 video-range Y'CbCr codes stand for.
+        static func decoded709(_ ycbcr: (Int, Int, Int)) -> (Double, Double, Double) {
+            let y = Double(ycbcr.0 - 16) / 219
+            let cb = Double(ycbcr.1 - 128) / 224
+            let cr = Double(ycbcr.2 - 128) / 224
+            let r = y + 2 * (1 - kr) * cr
+            let b = y + 2 * (1 - kb) * cb
+            let g = (y - kr * r - kb * b) / (1 - kr - kb)
+            func code(_ value: Double) -> Double { min(max(value, 0), 1) * 255 }
+            return (code(r), code(g), code(b))
+        }
+
         /// A uniform frame of one colour in `format`, carrying `matrix` as its YCbCr matrix tag.
         static func frame(
             _ format: OSType, width: Int, height: Int, bar: Bar, matrix: String?
@@ -203,12 +307,16 @@
             }
         }
 
-        /// The frame's centre pixel after the CoreImage render the capture consumers use.
-        static func rendered(_ frame: CVPixelBuffer) throws -> (Int, Int, Int) {
-            let image = CIImage(cvPixelBuffer: frame)
+        /// The frame's centre pixel after the live-frame decode every capture consumer uses
+        /// (`LiveFrameDecoding`), or after a default Core Image render of `image` when given.
+        static func rendered(_ frame: CVPixelBuffer, _ image: CIImage? = nil) throws -> (Int, Int, Int)
+        {
             let context = CIContext(options: [.cacheIntermediates: false])
-            guard let cgImage = context.createCGImage(image, from: image.extent),
-                let space = CGColorSpace(name: CGColorSpace.sRGB)
+            let decoded =
+                if let image { context.createCGImage(image, from: image.extent) } else {
+                    LiveFrameDecoding.cgImage(frame, context: context)
+                }
+            guard let cgImage = decoded, let space = CGColorSpace(name: CGColorSpace.sRGB)
             else { throw FixtureError() }
             var pixel = [UInt8](repeating: 0, count: 4)
             guard
