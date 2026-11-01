@@ -23,12 +23,15 @@ import com.opencapture.opencine.core.RecoveryAction
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SavedRoute
+import com.opencapture.opencine.core.StationRoutes
 import com.opencapture.opencine.insta360.shell.CameraIdentity
 import com.opencapture.opencine.insta360.shell.ConnectionPhase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emitAll
@@ -37,6 +40,29 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
+/** A Wi-Fi or hotspot setup the camera joins (station mode; Swift `LunaStationNetwork`). Never shows the password. */
+data class LunaStationNetwork(
+    val ssid: String,
+    val password: String,
+    /** This phone's hotspot rather than a router's Wi-Fi. */
+    val hotspot: Boolean,
+) {
+    override fun toString(): String = "LunaStationNetwork($ssid, hotspot: $hotspot, password: <redacted>)"
+}
+
+/** How a connect reaches the camera (Swift `LunaRoute`). */
+sealed interface LunaRoute {
+    /**
+     * This phone joins the camera's own Wi-Fi. [restoreAccessPoint]: a setup may have moved the
+     * camera onto another network, so it is asked back onto its own first.
+     */
+    data class CameraWiFi(val restoreAccessPoint: Boolean = false) : LunaRoute
+    /** The camera joins this network over Bluetooth and is found there. */
+    data class Station(val network: LunaStationNetwork) : LunaRoute
+}
+
+private val NO_NOTE = MutableStateFlow<String?>(null).asStateFlow()
 
 /**
  * What [LunaIntegration] needs from the Luna backend (Swift `LunaConnectPort`): discovery, one
@@ -65,6 +91,20 @@ interface LunaConnectPort : CameraMediaServiceSource {
     fun openSession(): CameraSession
     /** Drops the camera's saved Wi-Fi off Main. The approval identity stays. */
     suspend fun forget(id: String)
+    /**
+     * The connect over [route]: camera Wi-Fi as [connect], or moving the camera onto a Wi-Fi or
+     * hotspot setup and finding it there. A port without station mode connects over camera Wi-Fi only.
+     */
+    fun connect(id: String, route: LunaRoute) {
+        if (route is LunaRoute.Station) throw UnsupportedOperationException("This camera connects over its own Wi-Fi only.")
+        connect(id)
+    }
+    /** The password this phone keeps for a Wi-Fi or hotspot setup, read off Main. */
+    suspend fun stationPassword(network: String, hotspot: Boolean): String? = null
+    /** Keeps a Wi-Fi or hotspot setup's password on this phone, off Main. */
+    suspend fun saveStation(network: LunaStationNetwork) {}
+    /** A setup's live text (where the camera is going, the network search); `null` otherwise. */
+    val stationNote: StateFlow<String?> get() = NO_NOTE
 }
 
 /** The Luna failures with the copy the backend has always shown (Swift `ConnectionFailure.luna`). */
@@ -152,7 +192,13 @@ class LunaIntegration(
 ) : CameraIntegration {
     override val id: IntegrationID = LunaCameraSession.INTEGRATION
     override val profiles: List<CameraProfile> =
-        listOf(CameraProfile("${id.rawValue}.luna-ultra", "Luna Ultra", setOf(RouteKind.CAMERA_ACCESS_POINT)))
+        listOf(
+            CameraProfile(
+                "${id.rawValue}.luna-ultra", "Luna Ultra",
+                setOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT),
+                StationRoutes.MOVING,
+            ),
+        )
     override val discoveryModes: Set<DiscoveryMode> = setOf(DiscoveryMode.PASSIVE)
 
     /** A nearby card pairs at once (the camera approves it); setups keep their kind's name. */
@@ -161,12 +207,18 @@ class LunaIntegration(
 
     private var listening = 0
 
+    /**
+     * Stores a record before an attempt that moves the camera: the setup being added and the move
+     * itself are remembered first, so a later camera Wi-Fi connect asks the camera back onto its own
+     * access point even when this attempt fails. The app upserts it.
+     */
+    var saveRecord: (SavedCamera) -> Unit = {}
+
     companion object {
-        /** The connect card's plan, in the order the backend runs it. */
-        val STEPS = listOf(
-            ConnectionStep("Connecting over Bluetooth"), ConnectionStep("Joining camera Wi-Fi"),
-            ConnectionStep("Opening the video link"), ConnectionStep("Starting the picture"),
-        )
+        /** The connect card's plan over camera Wi-Fi, in the order the backend runs it. */
+        val STEPS = StationRoutes.steps(null)
+        /** The plan for a route: camera Wi-Fi, or moving the camera to a Wi-Fi or hotspot setup. */
+        fun steps(route: SavedRoute?): List<ConnectionStep> = StationRoutes.steps(route)
         const val APPROVE = "Approve on the camera"
         /** How long a saved connection gives Bluetooth to hear the camera before saved Wi-Fi. */
         const val SIGHTING_GRACE_MS = 4_000L
@@ -193,22 +245,62 @@ class LunaIntegration(
     override val discoveryRunning: Flow<Boolean> = port.scanBlocked.map { !it }.distinctUntilChanged()
 
     override fun connect(target: ConnectTarget): Flow<ConnectionEvent> = channelFlow {
+        val unsupported = LunaFailures.failure(ConnectionFailure.Reason.Unsupported, "route.unsupported", "This setup cannot be added.")
         val cameraID = when (target) {
             is ConnectTarget.Saved -> target.camera.id
             is ConnectTarget.Nearby -> target.camera.id
-            is ConnectTarget.AddRoute -> null
+            is ConnectTarget.AddRoute -> target.camera.id
         }
-        if (cameraID == null) {
-            send(ConnectionEvent.Failed(LunaFailures.failure(ConnectionFailure.Reason.Unsupported, "route.unsupported", "This camera connects over its own Wi-Fi only.")))
-            return@channelFlow
+        var route: SavedRoute? = null
+        var lunaRoute: LunaRoute = LunaRoute.CameraWiFi(restoreAccessPoint = false)
+        when (target) {
+            is ConnectTarget.Nearby -> Unit
+            is ConnectTarget.Saved -> {
+                route = target.camera.routes.firstOrNull { it.id == target.route }
+                val saved = route
+                if (saved != null && StationRoutes.moves(saved.kind)) {
+                    val hotspot = saved.kind == RouteKind.PHONE_HOTSPOT
+                    val network = saved.network
+                    val password = network?.let { port.stationPassword(it, hotspot) }
+                    if (network == null || password == null) {
+                        val missing = LunaFailures.failure(
+                            ConnectionFailure.Reason.Other, "station.password-missing",
+                            "This phone has no password for this setup. Edit the setup to enter it again.", CorePhase.JOINING_NETWORK,
+                        )
+                        send(ConnectionEvent.Failed(StationRoutes.withRouteActions(missing, saved, target.camera)))
+                        return@channelFlow
+                    }
+                    lunaRoute = LunaRoute.Station(LunaStationNetwork(network, password, hotspot))
+                    saveRecord(StationRoutes.stamping(target.camera, saved.kind))
+                } else {
+                    lunaRoute = LunaRoute.CameraWiFi(restoreAccessPoint = StationRoutes.mayBeInStationRole(target.camera))
+                }
+            }
+            is ConnectTarget.AddRoute -> {
+                val added = StationRoutes.route(target.draft)
+                val network = added?.network
+                if (added == null || network == null) {
+                    send(ConnectionEvent.Failed(unsupported))
+                    return@channelFlow
+                }
+                val hotspot = added.kind == RouteKind.PHONE_HOTSPOT
+                val password = target.draft.secret ?: port.stationPassword(network, hotspot) ?: ""
+                val station = LunaStationNetwork(network, password, hotspot)
+                route = added
+                lunaRoute = LunaRoute.Station(station)
+                port.saveStation(station)
+                saveRecord(StationRoutes.stamping(StationRoutes.adding(added, target.camera), added.kind))
+            }
         }
+        val moving = route?.let { StationRoutes.moves(it.kind) } == true
+        val usedRoute = route
         val attempt = ConnectionAttemptID()
         val session = port.openSession()
         // The baseline grace, before a newer attempt retires the old one: a saved camera that has
         // not advertised yet gets Bluetooth first, because an advert proves it is awake and waking
         // its Wi-Fi is quicker than dialling a sleeping access point.
-        if (target is ConnectTarget.Saved && port.hasSavedWiFi(cameraID) && !port.hasSeen(cameraID)) {
-            progress(attempt, ConnectionPhase.SCANNING)?.let { send(it) }
+        if (!moving && target is ConnectTarget.Saved && port.hasSavedWiFi(cameraID) && !port.hasSeen(cameraID)) {
+            progress(attempt, ConnectionPhase.SCANNING, usedRoute)?.let { send(it) }
             // A radio that cannot scan still has the saved Wi-Fi route (the baseline did the same).
             // The grace holds the scan like a listener, so a discovery page closing meanwhile
             // cannot stop it; a cancelled grace stops the scan unless a listener still wants it.
@@ -227,7 +319,7 @@ class LunaIntegration(
         }
         // One backend, one connection: a newer attempt ends the older one (its job is cancelled).
         port.disconnect()
-        port.connect(cameraID)
+        port.connect(cameraID, lunaRoute)
         val job = port.attempt
         val outcome = CompletableDeferred<ConnectionEvent?>()
         var last: ConnectionEvent.Progress? = null
@@ -237,10 +329,20 @@ class LunaIntegration(
                     val media = port.mediaService(session.id)?.takeIf { it.sessionID == session.id }
                     val services = media?.let { CameraServices().plus(CameraMediaService::class, it) }
                         ?: CameraServices()
-                    outcome.complete(ConnectionEvent.Connected(ConnectedCamera(record(target), session, services)))
+                    outcome.complete(ConnectionEvent.Connected(ConnectedCamera(record(target, usedRoute), session, services)))
                     return@collect
                 }
-                val progress = progress(attempt, phase) ?: return@collect
+                val progress = progress(attempt, phase, usedRoute) ?: return@collect
+                if (progress != last) {
+                    last = progress
+                    send(progress)
+                }
+            }
+        }
+        // A setup's live text is the card's caption while it moves and finds the camera.
+        val notes = if (!moving) null else launch {
+            port.stationNote.collect {
+                val progress = progress(attempt, port.phase.value, usedRoute) ?: return@collect
                 if (progress != last) {
                     last = progress
                     send(progress)
@@ -249,14 +351,18 @@ class LunaIntegration(
         }
         val ender = launch {
             job?.join()
+            val camera = (target as? ConnectTarget.Saved)?.camera ?: (target as? ConnectTarget.AddRoute)?.camera
             outcome.complete(
-                if (job == null || job.isCancelled) null else ConnectionEvent.Failed(port.failureDetail.value ?: LunaFailures.connect(port.phase.value)),
+                if (job == null || job.isCancelled) null else ConnectionEvent.Failed(
+                    StationRoutes.withRouteActions(port.failureDetail.value ?: LunaFailures.connect(port.phase.value), usedRoute, camera),
+                ),
             )
         }
         try {
             outcome.await()?.let { send(it) }
         } finally {
             watcher.cancel()
+            notes?.cancel()
             ender.cancel()
             // The consumer stopped listening before an outcome: cancel the attempt.
             if (!outcome.isCompleted) port.disconnect()
@@ -268,24 +374,30 @@ class LunaIntegration(
     }
 
     /** The connect card's step, prompt and note for a backend phase; `null` for idle and failed. */
-    private fun progress(attempt: ConnectionAttemptID, phase: ConnectionPhase): ConnectionEvent.Progress? {
+    private fun progress(attempt: ConnectionAttemptID, phase: ConnectionPhase, route: SavedRoute?): ConnectionEvent.Progress? {
         val corePhase = LunaFailures.corePhase(phase) ?: return null
+        val moving = route?.let { StationRoutes.moves(it.kind) } == true
+        // A setup's step titles already say where the camera is going; its live text is the caption.
+        val setupNote = if (moving) port.stationNote.value else null
         val (step, prompt, note) = when (phase) {
             ConnectionPhase.SCANNING -> Triple(0, null, "Looking for the camera")
             ConnectionPhase.AWAITING_APPROVAL -> Triple(0, ConnectionPrompt.ApproveOnCamera(APPROVE), null)
             // The Wi-Fi step's caption is its phase, as the app has always shown it.
-            ConnectionPhase.READING_WIFI_CREDS -> Triple(1, null, "Reading Wi-Fi credentials…")
-            ConnectionPhase.JOINING_WIFI -> Triple(1, null, "Joining camera Wi-Fi…")
-            ConnectionPhase.OPENING_DATALINK -> Triple(2, null, null)
+            ConnectionPhase.READING_WIFI_CREDS -> Triple(1, null, if (moving) setupNote else "Reading Wi-Fi credentials…")
+            ConnectionPhase.JOINING_WIFI -> Triple(1, null, if (moving) setupNote else "Joining camera Wi-Fi…")
+            ConnectionPhase.OPENING_DATALINK -> Triple(2, null, setupNote)
             ConnectionPhase.LIVE -> Triple(3, null, null)
             else -> Triple(0, null, null)
         }
-        return ConnectionEvent.Progress(ConnectionProgress(attempt, corePhase, STEPS, step, note), prompt)
+        return ConnectionEvent.Progress(ConnectionProgress(attempt, corePhase, StationRoutes.steps(route), step, note), prompt)
     }
 
-    /** The saved record after a connect: the camera's access point as the preferred route, the time. */
-    private fun record(target: ConnectTarget): SavedCamera {
-        val base = when (target) {
+    /**
+     * The saved record after a connect: an added setup in place, the camera Wi-Fi the Bluetooth read
+     * named (on a setup too: it is read before the move), the route it used as preferred, the time.
+     */
+    private fun record(target: ConnectTarget, route: SavedRoute?): SavedCamera {
+        var base = when (target) {
             is ConnectTarget.Saved -> target.camera
             is ConnectTarget.AddRoute -> target.camera
             is ConnectTarget.Nearby -> SavedCamera(
@@ -293,14 +405,17 @@ class LunaIntegration(
                 advertisedName = target.camera.name, model = target.camera.model,
             )
         }
+        if (target is ConnectTarget.AddRoute && route != null) base = StationRoutes.adding(route, base)
         val network = port.joinedSSID.value
         val index = base.routes.indexOfFirst { it.kind == RouteKind.CAMERA_ACCESS_POINT }
         val routes = if (index >= 0) {
-            base.routes.mapIndexed { i, route -> if (i == index && network != null) route.copy(network = network) else route }
+            base.routes.mapIndexed { i, saved -> if (i == index && network != null) saved.copy(network = network) else saved }
         } else {
             listOf(SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = network, bluetooth = true)) + base.routes
         }
-        val ap = routes.first { it.kind == RouteKind.CAMERA_ACCESS_POINT }
-        return base.copy(routes = routes, preferredRoute = ap.id, lastConnected = now())
+        // The connect leaves the camera in the role of the route it used.
+        val used = route?.takeIf { StationRoutes.moves(it.kind) }?.let { moved -> routes.firstOrNull { it.key == moved.key } }
+            ?: routes.first { it.kind == RouteKind.CAMERA_ACCESS_POINT }
+        return base.copy(routes = routes, preferredRoute = used.id, lastConnected = now(), extras = base.extras - "lastSetup")
     }
 }

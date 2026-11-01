@@ -24,6 +24,14 @@ public enum LunaCommand: UInt16, Sendable {
     case checkAuthorization = 39
     case execCmd = 81
     case requestAuthorization = 86
+    /// Station mode: the camera joins this network (`SetWifiConnectionInfo`).
+    case setWifiConnectionInfo = 112
+    /// Station mode: access point (0) or station (1), with the camera's region (`SetWifiMode`).
+    case setWifiMode = 147
+    /// Station mode: the joined network goes into the camera's list (`SetAvailableWifi`).
+    case setAvailableWifi = 215
+    /// The phone's platform, maker, model and OS version (`PhoneInfo`).
+    case phoneInfo = 220
     case getCameraParamsJSON = 216
     case setAccessCameraFileState = 118
     case darkEISStatus = 157
@@ -715,7 +723,7 @@ public enum LunaProtocol {
         return LunaWiFiCredentials(ssid: ssid, password: password)
     }
 
-    private static func responseOptions(_ data: Data) throws -> ProtoMessage {
+    static func responseOptions(_ data: Data) throws -> ProtoMessage {
         let response = try ProtoMessage(data)
         // GetOptionsResp field 1 contains returned option IDs, NOT an error
         // status. Command success/failure belongs to the outer 200/500 message.

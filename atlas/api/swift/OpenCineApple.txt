@@ -151,6 +151,7 @@ enum MonitorWebDownloadView.Failure
 enum MonitorWorkingSpace
 enum ReviewClip
 enum StationConfiguredNetworks
+enum StationNetworkSecurity
 enum UVCVideoSourceState: Equatable, Sendable
 enum VideoToolboxDecoder.Output: Sendable
 extension OpenCineMedia.MonitorFrameEffects
@@ -605,6 +606,7 @@ static func MonitorVideoBackdropSource.==(_: MonitorVideoBackdropSource, _: Moni
 static func MonitorWorkingRaster.targetSize(width: Swift.Int, height: Swift.Int, maxWidth: Swift.Int) -> (width: Swift.Int, height: Swift.Int)
 static func ReviewClip.write(to: Foundation.URL) throws -> ()
 static func StationConfiguredNetworks.ssids() -> [Swift.String]
+static func StationNetworkSecurity.currentNetwork(named: Swift.String) -> Swift.Bool?
 static func UVCVideoSource.isBroadcastShaped(_: CoreMedia.CMVideoDimensions) -> Swift.Bool
 static func VideoToolboxDecoder.isPresentable(_: CoreMedia.CMSampleBuffer) -> Swift.Bool
 static func VideoToolboxDecoder.isPresentable(_: CoreVideo.CVPixelBuffer) -> Swift.Bool

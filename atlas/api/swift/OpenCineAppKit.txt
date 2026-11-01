@@ -1613,9 +1613,12 @@ static func ReliabilityReportingURLProtocol.canInit(with: Foundation.URLRequest)
 static func ReliabilityReportingURLProtocol.canonicalRequest(for: Foundation.URLRequest) -> Foundation.URLRequest
 static func ReliabilityReportingURLProtocol.makeSDKSession() -> Foundation.URLSession
 static func ShellModel.applyThroughLaunch(_: () -> Swift.Void) -> ()
+static func StationNetworkSetupRules.acceptsPassword(_: Swift.String, secured: Swift.Bool?) -> Swift.Bool
 static func StationNetworkSetupRules.isCameraNetwork(_: Swift.String, brand: StationNetworkBrand, camera: OpenCineCore.SavedCamera?, cameraSSIDs: Swift.Set<Swift.String>) -> Swift.Bool
 static func StationNetworkSetupRules.network(_: OpenCineCore.SavedCamera, _: OpenCineCore.RouteKind) -> Swift.String?
+static func StationNetworkSetupRules.passwordNote(_: Swift.String, secured: Swift.Bool?) -> Swift.String?
 static func StationNetworkSetupRules.phoneNetworks(_: [Swift.String]) -> [Swift.String]
+static func StationNetworkSetupRules.security(of: Swift.String, saved: [StationNetwork], current: Swift.Bool?) -> Swift.Bool?
 static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext, routes: [StationSetupRoute], notice: AddSetupNotice?) -> AddSetupChooser
 static func StoredData.userDefaults(_: Foundation.UserDefaults, key: Swift.String) -> StoredData
 static let DiagnosticsDevice.current: DiagnosticsDevice
