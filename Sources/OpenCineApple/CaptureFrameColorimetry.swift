@@ -16,6 +16,11 @@
     /// So the capture source never asks AVFoundation for RGB. It takes the device's own YCbCr
     /// frames and writes the matrix decided here onto each one, and every consumer (CoreImage,
     /// Metal) decodes with that one answer. [verify-on-HW] whether a given dongle tags at all.
+    ///
+    /// The matrix is the only colour decision a frame carries. Its transfer and primaries are
+    /// not the signal's (see ``prepareForDisplay(_:)``), and the iPad's capture IOSurface carries
+    /// a colour space of its own that no CoreVideo attachment controls, so a frame becomes RGB
+    /// only through ``LiveFrameDecoding``, which ignores every colour claim but the matrix.
     enum CaptureFrameColorimetry {
         /// Frames this tall or taller are high definition.
         static let highDefinitionHeight = 720
@@ -51,16 +56,23 @@
         }
 
         /// Writes the decoding matrix onto a YCbCr frame, so CoreImage and Metal consumers decode
-        /// it alike, and drops its transfer and primaries claims, so the decode yields the
-        /// signal's own code values. An RGB frame is already decoded and passes untouched.
+        /// it alike, and drops its transfer, primaries, gamma and ICC attachments once the readout
+        /// has recorded them. An RGB frame is already decoded and passes untouched.
         ///
         /// Every look, scope and exposure tool of the monitor reads code values: a camera LUT
         /// expects the log codes the camera encoded, as the camera's own JPEG live view delivers
         /// them. A UVC device without a colour matching descriptor claims the class default
         /// BT.709 transfer and primaries whatever the signal is, and Core Image honours a transfer
-        /// claim by re-encoding BT.709 to sRGB: a log mid grey rose 11 codes, about two thirds of
-        /// a stop under a Log3G10 look, and 8-bit codes went missing (contour banding once the
-        /// look's gain stretched them). The claims are read for the operator readout first.
+        /// claim by re-encoding BT.709 to sRGB.
+        ///
+        /// Dropping the attachments is not enough on its own. On the iPad the capture pipeline
+        /// also writes `kIOSurfaceColorSpace` onto the frame's IOSurface (an nclc ICC profile:
+        /// BT.709 primaries and matrix, SMPTE 240M transfer), this leaves it in place, and a
+        /// plain `CIImage(cvPixelBuffer:)` falls back to it: a 240M to sRGB re-encode that showed
+        /// code 128 as 138.5 and 64 as 72.3 through the dongle. The simulator writes no surface
+        /// colour space. Consumers therefore decode with ``LiveFrameDecoding``, which reads the
+        /// frame in the space it renders into and so yields the signal's codes whatever the
+        /// surface says.
         static func prepareForDisplay(_ pixelBuffer: CVPixelBuffer) {
             guard isYCbCr(CVPixelBufferGetPixelFormatType(pixelBuffer)) else { return }
             for key in codeValueClaims { CVBufferRemoveAttachment(pixelBuffer, key) }

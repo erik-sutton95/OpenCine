@@ -130,8 +130,10 @@ public actor MonitorJPEGImageDecoder {
                 buffer = filtered
             }
             guard lifetime.isCurrent(source), !Task.isCancelled else { return nil }
-            let image = CIImage(cvPixelBuffer: buffer)
-            guard let cgImage = ciContext.createCGImage(image, from: image.extent),
+            // The camera's own codes, as the ImageIO fallback below yields them: VideoToolbox
+            // tags the untagged JPEG with guessed NTSC colour, which a colour-managed render
+            // turned into a 'Composite NTSC' to sRGB conversion (lifted mids, moved gamut).
+            guard let cgImage = LiveFrameDecoding.cgImage(buffer, context: ciContext),
                 lifetime.isCurrent(source), !Task.isCancelled
             else { return nil }
             return UIImage(cgImage: cgImage)
@@ -146,8 +148,8 @@ public actor MonitorJPEGImageDecoder {
             guard lifetime.isCurrent(source), let decoded = hardware.decode(jpeg),
                 let upscaled = superResolution.upscale(decoded), lifetime.isCurrent(source)
             else { return nil }
-            let image = CIImage(cvPixelBuffer: upscaled)
-            guard let cgImage = ciContext.createCGImage(image, from: image.extent),
+            LiveFrameDecoding.prepareJPEGFrame(upscaled)
+            guard let cgImage = LiveFrameDecoding.cgImage(upscaled, context: ciContext),
                 lifetime.isCurrent(source)
             else { return nil }
             return UIImage(cgImage: cgImage)

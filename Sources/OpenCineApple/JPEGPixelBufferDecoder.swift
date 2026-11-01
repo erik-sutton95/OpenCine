@@ -143,6 +143,8 @@
                 return nil
             }
             VTDecompressionSessionWaitForAsynchronousFrames(session)
+            // JFIF's matrix, and none of the colour VideoToolbox guesses for an untagged JPEG.
+            if let decoded { LiveFrameDecoding.prepareJPEGFrame(decoded) }
             if let decoded {
                 report = "hw \(fourCCName(CVPixelBufferGetPixelFormatType(decoded)))"
             } else {

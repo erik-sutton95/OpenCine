@@ -42,9 +42,11 @@
     /// Each captured `CVPixelBuffer` is lent to the consumer as a `DecodedFrameLease` stamped with
     /// this source's stream and generation. Frames stay YCbCr, in the device's own layout where the
     /// output can deliver it, carrying the YCbCr matrix `CaptureFrameColorimetry` decided and no
-    /// transfer or primaries claim, so they decode to the signal's own code values: asking
-    /// AVFoundation for BGRA let it pick the matrix, and it decoded an untagged or class-default
-    /// tagged HD signal as BT.601 (saturated colours thrown toward green). The generation advances
+    /// transfer or primaries attachment; a consumer renders them with `LiveFrameDecoding`, which
+    /// also ignores the colour space the capture IOSurface carries, so they decode to the signal's
+    /// own code values. Asking AVFoundation for BGRA let it pick the matrix, and it decoded an
+    /// untagged or class-default tagged HD signal as BT.601 (saturated colours thrown toward
+    /// green). The generation advances
     /// whenever the capture device goes away or changes, so a frame buffered from the previous
     /// device is stale.
     /// The source used to render every frame to a `UIImage` on the capture queue; that render (an
