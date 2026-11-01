@@ -542,25 +542,7 @@
         }
 
         private var playbackAssistOverlay: some View {
-            GeometryReader { proxy in
-                let safeArea = Self.safeArea(
-                    proxy.safeAreaInsets, scene: windowGeometry.safeArea)
-                let size = Self.canvasSize(
-                    layoutSize: proxy.size, safeArea: safeArea,
-                    screenSize: windowGeometry.validSize)
-                let presentation = FieldMonitorLayout(
-                    width: size.width, height: size.height,
-                    safeArea: MonitorSafeArea(
-                        top: safeArea.top, leading: safeArea.leading,
-                        bottom: safeArea.bottom, trailing: safeArea.trailing),
-                    showsValues: true,
-                    topControlInset: windowGeometry.topControlInset)
-                tools(
-                    .init(presentation: presentation, safeTop: safeArea.top, expanded: $assistMode)
-                )
-                .frame(width: size.width, height: size.height)
-            }
-            .ignoresSafeArea()
+            MonitorMediaToolsStage(expanded: $assistMode, tools: tools)
         }
 
         private var conformButton: some View {
@@ -978,12 +960,19 @@
                 x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
         }
         private static func safeArea(_ reported: EdgeInsets, scene: EdgeInsets) -> EdgeInsets {
+            MonitorMediaStageGeometry.safeArea(reported, scene: scene)
+        }
+    }
+    /// The full-screen geometry of a media page: the reported safe area restored from the window,
+    /// and the canvas the page ignores the safe area into.
+    enum MonitorMediaStageGeometry {
+        static func safeArea(_ reported: EdgeInsets, scene: EdgeInsets) -> EdgeInsets {
             .init(
                 top: max(reported.top, scene.top), leading: max(reported.leading, scene.leading),
                 bottom: max(reported.bottom, scene.bottom),
                 trailing: max(reported.trailing, scene.trailing))
         }
-        private static func canvasSize(
+        static func canvasSize(
             layoutSize: CGSize, safeArea: EdgeInsets, screenSize: CGSize?
         ) -> CGSize {
             let restored = CGSize(
@@ -1000,6 +989,38 @@
             return CGSize(
                 width: max(restored.width, screen.width),
                 height: max(restored.height, screen.height))
+        }
+    }
+    /// The assist bar's stage on the media pages, clip playback and stills alike: the field
+    /// monitor geometry of the whole screen, which the bar is placed in.
+    public struct MonitorMediaToolsStage<Tools: View>: View {
+        private let expanded: Binding<Bool>
+        private let tools: (MonitorPlaybackToolsContext) -> Tools
+        @Environment(\.monitorWindowGeometry) private var windowGeometry
+
+        public init(expanded: Binding<Bool>,
+            @ViewBuilder tools: @escaping (MonitorPlaybackToolsContext) -> Tools) {
+            self.expanded = expanded; self.tools = tools
+        }
+
+        public var body: some View {
+            GeometryReader { proxy in
+                let safeArea = MonitorMediaStageGeometry.safeArea(
+                    proxy.safeAreaInsets, scene: windowGeometry.safeArea)
+                let size = MonitorMediaStageGeometry.canvasSize(
+                    layoutSize: proxy.size, safeArea: safeArea,
+                    screenSize: windowGeometry.validSize)
+                let presentation = FieldMonitorLayout(
+                    width: size.width, height: size.height,
+                    safeArea: MonitorSafeArea(
+                        top: safeArea.top, leading: safeArea.leading,
+                        bottom: safeArea.bottom, trailing: safeArea.trailing),
+                    showsValues: true,
+                    topControlInset: windowGeometry.topControlInset)
+                tools(.init(presentation: presentation, safeTop: safeArea.top, expanded: expanded))
+                    .frame(width: size.width, height: size.height)
+            }
+            .ignoresSafeArea()
         }
     }
     /// The playback picture as drawn. At 1x it fills its letterboxed `feed` frame, exactly as

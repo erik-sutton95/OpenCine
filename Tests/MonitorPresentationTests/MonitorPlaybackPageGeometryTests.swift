@@ -142,4 +142,48 @@ struct MonitorPlaybackPageGeometryTests {
         held.endPinch(size: landscape, picture: frame)
         #expect(held.scale == 2 && held.offset == CGSize(width: -300, height: 225))
     }
+
+    // Owner hardware pass 2026-10-31: a vertical photo zoomed on the iPad stayed clipped to its
+    // 9:16 frame. A still's pinch and pan are projected over the whole canvas and bounded by the
+    // still's own frame, so it fills the screen like a clip. Kotlin twin: MonitorPlaybackPageGeometryTest.
+    @Test func zoomedStillCoversTheCanvasAndPansToItsEdgeNotItsFrame() {
+        let landscape = CGSize(width: 1194, height: 834)
+        let tall = CGRect(x: 362.4375, y: 0, width: 469.125, height: 834)
+        let pinched = MonitorPlaybackZoom().preview(magnification: 4,
+            anchor: CGPoint(x: landscape.width / 2, y: landscape.height / 2), translation: .zero,
+            size: landscape, picture: tall.size)
+        #expect(pinched.scale == 4)
+        #expect(pinched.visiblePictureRect(feed: tall, canvas: landscape)
+            == CGRect(origin: .zero, size: landscape))
+
+        // Pan far right: the still's left edge comes to the canvas's left edge and stops there.
+        var committed = pinched
+        committed.endPinch(size: landscape, picture: tall.size)
+        var panned = committed.preview(magnification: 1, anchor: nil,
+            translation: CGSize(width: 5000, height: 0), size: landscape, picture: tall.size)
+        panned.endPan(size: landscape, picture: tall.size)
+        let maximum = (tall.width * 4 - landscape.width) / 2
+        #expect(panned.offset == CGSize(width: maximum, height: 0))
+        #expect(panned.visiblePictureRect(feed: tall, canvas: landscape)
+            == CGRect(origin: .zero, size: landscape))
+
+        // At 1x nothing moves and the still keeps its frame.
+        let still = MonitorPlaybackZoom().preview(magnification: 1, anchor: nil,
+            translation: CGSize(width: 300, height: 300), size: landscape, picture: tall.size)
+        #expect(still == MonitorPlaybackZoom())
+        #expect(still.visiblePictureRect(feed: tall, canvas: landscape) == tall)
+    }
+
+    @Test func zoomedStillNarrowerThanTheCanvasStaysCentredOnThatAxis() {
+        let landscape = CGSize(width: 1000, height: 400)
+        let tall = CGSize(width: 225, height: 400)
+        var zoom = MonitorPlaybackZoom().preview(magnification: 2,
+            anchor: CGPoint(x: 900, y: 200), translation: .zero, size: landscape, picture: tall)
+        zoom.endPinch(size: landscape, picture: tall)
+        // 450 wide in a 1000 wide canvas: no horizontal travel; 800 tall in 400: 200 each way.
+        #expect(zoom.offset.width == 0)
+        zoom = zoom.preview(magnification: 1, anchor: nil, translation: CGSize(width: 0, height: -900),
+            size: landscape, picture: tall)
+        #expect(zoom.offset == CGSize(width: 0, height: -200))
+    }
 }
