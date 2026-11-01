@@ -69,6 +69,10 @@ public actor MonitorJPEGImageDecoder {
     private let unavailable: @Sendable (String?) -> Void
     private var historyGeneration: StreamGeneration?
     private lazy var ciContext = CIContext(options: [.cacheIntermediates: false])
+    /// DIAGNOSTIC (HDMI green cast hunt): the colour metadata of the latest decode, refreshed at
+    /// most once a second (see `CaptureDecodeReadout`).
+    private nonisolated let decodeReadout = CaptureDecodeReadout()
+    public nonisolated var decodeSummary: String? { decodeReadout.summary }
 
     public init(
         logSubsystem: String = "OpenCineApple",
@@ -110,7 +114,12 @@ public actor MonitorJPEGImageDecoder {
         if preferHardware, let image = hardwareDecoded(jpeg, source: source) { return image }
         guard lifetime.isCurrent(source), !Task.isCancelled else { return nil }
         return autoreleasepool {
-            let image = UIImage(data: jpeg)?.preparingForDisplay()
+            let decoded = UIImage(data: jpeg)
+            let image = decoded?.preparingForDisplay()
+            decodeReadout.recordIfDue {
+                CaptureDecodeReadout.describe(
+                    .wifiImageIO, decoded: decoded?.cgImage, prepared: image?.cgImage)
+            }
             return lifetime.isCurrent(source) && !Task.isCancelled ? image : nil
         }
     }
@@ -124,16 +133,24 @@ public actor MonitorJPEGImageDecoder {
             guard lifetime.isCurrent(source), lease.generation == source.generation,
                 var buffer = lease.pixelBuffer
             else { return nil }
+            var denoised = false
             if let strength = denoiseStrength(),
                 let filtered = noiseFilter.filter(buffer, strength: strength)
             {
                 buffer = filtered
+                denoised = true
             }
             guard lifetime.isCurrent(source), !Task.isCancelled else { return nil }
             let image = CIImage(cvPixelBuffer: buffer)
-            guard let cgImage = ciContext.createCGImage(image, from: image.extent),
-                lifetime.isCurrent(source), !Task.isCancelled
-            else { return nil }
+            guard let cgImage = ciContext.createCGImage(image, from: image.extent) else {
+                return nil
+            }
+            decodeReadout.recordIfDue {
+                CaptureDecodeReadout.describe(
+                    denoised ? .wifiHardwareDenoise : .wifiHardware, pixelBuffer: buffer,
+                    image: image, context: ciContext, rendered: cgImage)
+            }
+            guard lifetime.isCurrent(source), !Task.isCancelled else { return nil }
             return UIImage(cgImage: cgImage)
         }
     }
