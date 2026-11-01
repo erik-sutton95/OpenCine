@@ -154,6 +154,7 @@ enum StationConfiguredNetworks
 enum UVCVideoSourceState: Equatable, Sendable
 enum VideoToolboxDecoder.Output: Sendable
 extension OpenCineMedia.MonitorFrameEffects
+func CaptureCalibration.applied(to: CoreImage.CIImage, codeValueSpace: CoreGraphics.CGColorSpace) -> CoreImage.CIImage
 func DecodedFrameFence.advance() -> OpenCineCore.StreamGeneration
 func DecodedFrameFence.isCurrent(_: OpenCineCore.StreamGeneration) -> Swift.Bool
 func DecodedFrameFence.lease(_: CoreVideo.CVPixelBuffer, generation: OpenCineCore.StreamGeneration?, timeNs: Swift.Int64) -> DecodedFrameLease
@@ -375,6 +376,9 @@ func VideoToolboxDecoder.openSession() -> Swift.Bool
 func VideoToolboxDecoder.resetCounters() -> ()
 func VideoToolboxDecoder.sessionAccepts(_: CoreMedia.CMVideoFormatDescription) -> Swift.Bool
 init CameraHotspotSystem(cancellation: CameraHotspotSystem.Cancellation, readTimeout: Swift.Duration?, journal: ((Swift.String) -> Swift.Void)?)
+init CaptureCalibration(red: Swift.SIMD3<Swift.Double>, green: Swift.SIMD3<Swift.Double>, blue: Swift.SIMD3<Swift.Double>, offset: Swift.SIMD3<Swift.Double>)
+init CaptureDeviceIdentity(deviceIdentifier: Swift.String)
+init CaptureDeviceIdentity(vendorID: Swift.UInt16, productID: Swift.UInt16)
 init DarwinNotificationObserver(names: [Swift.String], handler: (Swift.String) -> Swift.Void)
 init DecodedFrameFence(stream: OpenCineCore.StreamID, generation: OpenCineCore.StreamGeneration)
 init DecodedFrameFormat(_: CoreVideo.CVPixelBuffer)
@@ -452,6 +456,12 @@ init MonitorZebraSpec(highlightEnabled: Swift.Bool, highlightIRE: Swift.Double, 
 init UVCVideoSource(stream: OpenCineCore.StreamID, queueLabel: Swift.String, logSubsystem: Swift.String, onStateChange: (UVCVideoSourceState) -> Swift.Void)
 init VideoToolboxDecoder(stream: OpenCineCore.StreamID, hooks: VideoToolboxDecoder.Hooks)
 init VideoToolboxDecoder.Hooks(shouldRebuildSession: (Darwin.OSStatus) -> Swift.Bool, journal: (Swift.String) -> Swift.Void, logSubsystem: Swift.String)
+let CaptureCalibration.blue: Swift.SIMD3<Swift.Double>
+let CaptureCalibration.green: Swift.SIMD3<Swift.Double>
+let CaptureCalibration.offset: Swift.SIMD3<Swift.Double>
+let CaptureCalibration.red: Swift.SIMD3<Swift.Double>
+let CaptureDeviceIdentity.productID: Swift.UInt16
+let CaptureDeviceIdentity.vendorID: Swift.UInt16
 let DecodedFrameFence.stream: OpenCineCore.StreamID
 let DecodedFrameFormat.height: Swift.Int
 let DecodedFrameFormat.pixelFormat: Darwin.OSType
@@ -541,11 +551,12 @@ let VideoToolboxDecoder.displayLayer: AVFoundation.AVSampleBufferDisplayLayer
 let VideoToolboxDecoder.fence: DecodedFrameFence
 let VideoToolboxDecoder.hooks: VideoToolboxDecoder.Hooks
 protocol MonitorPlaybackFrameSource<Self : OpenCineMedia.MonitorPlaybackPort>: MonitorPlaybackPort, Sendable
+static func CaptureCalibration.forDevice(_: CaptureDeviceIdentity?) -> CaptureCalibration
 static func DiagnosticExceptionHandler.install(record: (Foundation.NSException) -> Swift.Void) -> ()
 static func DiagnosticNetworkFacts.vpnActive() -> Swift.Bool
 static func JPEGPixelBufferDecoder.dimensions(of: Foundation.Data) -> (width: Swift.Int, height: Swift.Int)?
-static func LiveFrameDecoding.cgImage(_: CoreVideo.CVPixelBuffer, context: CoreImage.CIContext) -> CoreGraphics.CGImage?
-static func LiveFrameDecoding.image(_: CoreVideo.CVPixelBuffer, renderedInto: CoreGraphics.CGColorSpace) -> CoreImage.CIImage
+static func LiveFrameDecoding.cgImage(_: CoreVideo.CVPixelBuffer, context: CoreImage.CIContext, calibration: CaptureCalibration) -> CoreGraphics.CGImage?
+static func LiveFrameDecoding.image(_: CoreVideo.CVPixelBuffer, renderedInto: CoreGraphics.CGColorSpace, calibration: CaptureCalibration) -> CoreImage.CIImage
 static func LiveFrameDecoding.prepareJPEGFrame(_: CoreVideo.CVPixelBuffer) -> ()
 static func LiveViewPresentTiming.sampleTiming(frameIndex: Swift.Int64) -> CoreMedia.CMSampleTimingInfo
 static func MediaCellVideoFrames.durationSeconds(at: Foundation.URL) -> Swift.Double?
@@ -611,6 +622,7 @@ static func VideoToolboxDecoder.isPresentable(_: CoreVideo.CVPixelBuffer) -> Swi
 static func VideoToolboxDecoder.makeAVCFormat(sps: [Swift.UInt8], pps: [Swift.UInt8]) -> CoreMedia.CMVideoFormatDescription?
 static func VideoToolboxDecoder.makeHEVCFormat(vps: [Swift.UInt8], sps: [Swift.UInt8], pps: [Swift.UInt8]) -> CoreMedia.CMVideoFormatDescription?
 static func VideoToolboxDecoder.markDoNotDisplay(_: CoreMedia.CMSampleBuffer) -> ()
+static let CaptureCalibration.identity: CaptureCalibration
 static let JPEGPixelBufferDecoder.pixelFormat: Darwin.OSType
 static let LiveFrameDecoding.codeValueSpace: CoreGraphics.CGColorSpace
 static let LiveViewPresentTiming.timescale: Swift.Int32
@@ -640,6 +652,8 @@ static var MonitorWorkingSpace.imageOptions: [CoreImage.CIImageOption : Any]
 static var UVCVideoSource.attachedDeviceName: Swift.String?
 static var UVCVideoSource.isDocumentedHardware: Swift.Bool
 static var UVCVideoSource.isSupportedHardware: Swift.Bool
+struct CaptureCalibration: Equatable, Sendable
+struct CaptureDeviceIdentity: CustomStringConvertible, Equatable, Hashable, Sendable
 struct DecodedFrameFormat: Equatable, Sendable
 struct LiveFrameSampleBus.InspectorFrame: Sendable
 struct LocalNetworkPrivacy.Probe.Beacon: Sendable
@@ -699,6 +713,8 @@ typealias MonitorVideoBackdropRenderer.LookState = (OpenCineMedia.MonitorFrameEf
 typealias MonitorVideoBackdropRenderer.Operation = (CoreFoundation.CGSize, [MonitorVideoBackdropSource]) -> MonitorBackdropRasterSnapshot?
 typealias MonitorVideoBackdropSource.Buffer = CoreVideo.CVPixelBuffer
 var CameraHotspotSystem.host: OpenCineCore.CameraHotspotHost
+var CaptureCalibration.isIdentity: Swift.Bool
+var CaptureDeviceIdentity.description: Swift.String
 var DecodedFrameFence.generation: OpenCineCore.StreamGeneration
 var DecodedFrameLease.isReleased: Swift.Bool
 var DecodedFrameLease.pixelBuffer: CoreVideo.CVPixelBuffer?
@@ -1002,6 +1018,7 @@ var MonitorZebraSpec.midtoneIRE: Swift.Double
 var StationWiFiNameAccess.approximateOnly: Swift.Bool
 var StationWiFiNameAccess.denied: Swift.Bool
 var StationWiFiNameAccess.undecided: Swift.Bool
+var UVCVideoSource.captureDeviceIdentity: CaptureDeviceIdentity?
 var UVCVideoSource.onSignalColorimetry: ((Swift.String) -> Swift.Void)?
 var UVCVideoSourceState.isStreaming: Swift.Bool
 var VideoToolboxDecoder.Hooks.journal: (Swift.String) -> Swift.Void

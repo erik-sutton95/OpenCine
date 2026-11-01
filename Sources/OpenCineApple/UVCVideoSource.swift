@@ -90,6 +90,28 @@
         private let captureQueue: DispatchQueue
         private var currentDevice: AVCaptureDevice?
         private var isRunning = false
+        private let identityLock = NSLock()
+        private var deviceIdentity: CaptureDeviceIdentity?
+
+        /// The USB identity of the capture device frames currently come from, or nil before a
+        /// device streams or when AVFoundation names no USB IDs for it. A consumer reads it with
+        /// each lease to decode the frame with the device's ``CaptureCalibration``. It changes
+        /// with the device, before that device's first frame; a frame from the device before it
+        /// carries an older generation, which the fence already refuses.
+        public var captureDeviceIdentity: CaptureDeviceIdentity? {
+            identityLock.withLock { deviceIdentity }
+        }
+
+        /// A capture device's USB identity, from its model ID (`"UVC Camera VendorID_13407
+        /// ProductID_8496"`) or, failing that, its unique ID.
+        static func identity(modelID: String, uniqueID: String) -> CaptureDeviceIdentity? {
+            CaptureDeviceIdentity(deviceIdentifier: modelID)
+                ?? CaptureDeviceIdentity(deviceIdentifier: uniqueID)
+        }
+
+        private func setDeviceIdentity(_ identity: CaptureDeviceIdentity?) {
+            identityLock.withLock { deviceIdentity = identity }
+        }
 
         /// `queueLabel` and `logSubsystem` name the capture queue and log category after the app.
         public init(
@@ -204,6 +226,7 @@
                     currentDevice = nil
                     fence.advance()
                 }
+                setDeviceIdentity(nil)
                 publish(.waitingForDevice)
                 return
             }
@@ -213,6 +236,12 @@
             if currentDevice != nil { fence.advance() }
             // A new device reports its own format and colorimetry on its first frame.
             reportedColorimetry = false
+            let identity = Self.identity(modelID: device.modelID, uniqueID: device.uniqueID)
+            setDeviceIdentity(identity)
+            // The raw IDs the identity is read from, for a device whose IDs are not understood.
+            let ids = "model \(device.modelID) unique \(device.uniqueID)"
+            let usb = identity?.description ?? "unread"
+            log.info("UVC device \(ids, privacy: .public) USB \(usb, privacy: .public)")
 
             let selectedFormat: String?
             do {
@@ -445,8 +474,17 @@
                     summary += " → \(Self.shortColorimetryName(decoded))"
                 }
             }
+            summary += Self.calibrationReadout(captureDeviceIdentity)
             log.info("UVC signal colorimetry: \(summary, privacy: .public)")
             Task { @MainActor [onSignalColorimetry] in onSignalColorimetry?(summary) }
+        }
+
+        /// The device's USB identity and whether a measured correction applies to it: the line
+        /// that shows on hardware which calibration the picture is decoded with.
+        static func calibrationReadout(_ identity: CaptureDeviceIdentity?) -> String {
+            guard let identity else { return " · USB ID unread" }
+            let calibrated = !CaptureCalibration.forDevice(identity).isIdentity
+            return " · USB \(identity)" + (calibrated ? " calibrated" : "")
         }
 
         /// The CoreVideo constants' raw values, shortened to what an operator can read; anything

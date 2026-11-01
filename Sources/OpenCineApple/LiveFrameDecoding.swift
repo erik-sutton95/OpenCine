@@ -33,16 +33,25 @@
 
         /// A Core Image view of `frame` whose pixels, rendered into `outputSpace`, are the frame's
         /// R'G'B' code values. Pass the space of the render that consumes the image.
+        ///
+        /// `calibration` is the capture device's measured correction (``CaptureCalibration``),
+        /// applied to those code values; only an HDMI capture frame passes one. The default,
+        /// ``CaptureCalibration/identity``, adds nothing to the render.
         public static func image(
-            _ frame: CVPixelBuffer, renderedInto outputSpace: CGColorSpace = codeValueSpace
+            _ frame: CVPixelBuffer, renderedInto outputSpace: CGColorSpace = codeValueSpace,
+            calibration: CaptureCalibration = .identity
         ) -> CIImage {
-            CIImage(cvPixelBuffer: frame, options: [.colorSpace: outputSpace])
+            calibration.applied(
+                to: CIImage(cvPixelBuffer: frame, options: [.colorSpace: outputSpace]),
+                codeValueSpace: outputSpace)
         }
 
         /// `frame` rendered to an 8-bit bitmap of its R'G'B' code values, tagged
-        /// ``codeValueSpace``. Nil when the render fails.
-        public static func cgImage(_ frame: CVPixelBuffer, context: CIContext) -> CGImage? {
-            let image = image(frame)
+        /// ``codeValueSpace``, with `calibration` applied to them. Nil when the render fails.
+        public static func cgImage(
+            _ frame: CVPixelBuffer, context: CIContext, calibration: CaptureCalibration = .identity
+        ) -> CGImage? {
+            let image = image(frame, calibration: calibration)
             return context.createCGImage(
                 image, from: image.extent, format: .RGBA8, colorSpace: codeValueSpace)
         }
