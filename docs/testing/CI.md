@@ -85,10 +85,14 @@ test is quarantined here, in the same pull request, with its issue.
 | Playback labels, native typed cancellation (SIMULATED) | `playback-native-ios` | [#110](https://github.com/erik-sutton95/OpenCine/issues/110) |
 | Private simulator setup: `simctl list` timeouts | every simulator suite | [#111](https://github.com/erik-sutton95/OpenCine/issues/111) |
 | Nikon gallery projection scaling, Android (`NikonGalleryProjectionPerformanceTest`, wall-clock ratio) | `android-test` step | [#300](https://github.com/erik-sutton95/OpenCine/issues/300) |
+| Native bad-data reference loss, iOS simulator (`MonitorLiveVideoRuntimeDamageTests.nativeBadDataOnAReferencePictureIsKnownReferenceLossAtOnce`, irapAge under load) | `.disabled` trait in the test; no hosted job runs it | [#317](https://github.com/erik-sutton95/OpenCine/issues/317) |
 
 Quarantined tests still run every night and their failures are listed in the run summary, but
 they neither open nor keep open the nightly tracking issue: a quarantined step has
 `continue-on-error`, a quarantined job is named in `QUARANTINED_JOBS` in `nightly.yml`.
+
+A Swift test that no hosted job runs (an iOS simulator only suite run by hand) is quarantined
+with a `.disabled` trait naming its issue and a `.bug` link; remove the trait to run it.
 
 An Android unit test class is quarantined by listing it in `quarantinedTests` in
 `Android/build.gradle.kts`: the PR tier runs `test` with `-Popencine.quarantine=exclude`, and
