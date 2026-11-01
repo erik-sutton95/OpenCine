@@ -956,7 +956,7 @@
                     record: { .init(photo: probe.photo, confirm: false, busy: false, openMode: nil, external: nil) },
                     exposure: nil, level: nil, audio: { nil }, readOnly: { false }, borrowed: { false },
                     returnToStage: nil, coverOpen: { false }, note: $probe.note, settings: {}, media: {}),
-                assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, fitted: { [] },
+                assists: .init(scopes: nil, tools: { [] }, rendered: { nil },
                     signalOptions: .init(), usage: $probe.usage, usageSeed: [:], toggle: { _ in }),
                 views: .init(motion: testsMotionVisibility ? .init(
                     controls: AnyView(EmptyView()), editor: AnyView(EmptyView()),

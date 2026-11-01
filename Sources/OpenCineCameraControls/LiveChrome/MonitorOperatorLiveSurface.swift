@@ -252,21 +252,21 @@ public struct MonitorOperatorLiveAudio {
 }
 
 /// The assist palette the source offers. `scopes` nil renders the palette without scopes
-/// or inspectors; `rendered` nil renders every offered tool.
+/// or inspectors; `rendered` nil renders every offered tool. Every rendered scope floats over
+/// the canvas in landscape, portrait fit and portrait fill alike.
 @MainActor public struct MonitorOperatorLiveAssists {
     public let scopes: MonitorOperatorLiveAssistSource?
     public let tools: () -> [MonitorAssistSelection]
     public let rendered: () -> Set<MonitorAssistSelection>?
-    public let fitted: () -> [MonitorAssistSelection]
     public let signalOptions: MonitorOperatorSignalOptions
     public let usage: Binding<MonitorToolUsage>
     public let usageSeed: [String: Int]
     public let toggle: (MonitorAssistSelection) -> Void
     public init(scopes: MonitorOperatorLiveAssistSource?, tools: @escaping () -> [MonitorAssistSelection],
-        rendered: @escaping () -> Set<MonitorAssistSelection>?, fitted: @escaping () -> [MonitorAssistSelection],
+        rendered: @escaping () -> Set<MonitorAssistSelection>?,
         signalOptions: MonitorOperatorSignalOptions, usage: Binding<MonitorToolUsage>,
         usageSeed: [String: Int], toggle: @escaping (MonitorAssistSelection) -> Void) {
-        self.scopes = scopes; self.tools = tools; self.rendered = rendered; self.fitted = fitted
+        self.scopes = scopes; self.tools = tools; self.rendered = rendered
         self.signalOptions = signalOptions; self.usage = usage; self.usageSeed = usageSeed; self.toggle = toggle
     }
 }
@@ -360,8 +360,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             facts: .init(identity: source.identity(), available: source.available(), picture: source.picture(), status: source.status(),
                 cameraBattery: source.cameraBattery(), capture: source.capture(), record: source.record(),
                 audio: source.audio(), readOnly: source.readOnly(), borrowed: source.borrowed(),
-                covered: source.coverOpen(), tools: tools, rendered: (assists.rendered() ?? Set(tools)).filter(assist.offers),
-                fitted: assists.fitted().filter(assist.offers)),
+                covered: source.coverOpen(), tools: tools, rendered: (assists.rendered() ?? Set(tools)).filter(assist.offers)),
             assists: assists, views: views, portraitAspect: portraitAspect, telemetryMetrics: telemetryMetrics, picture: picture,
             nativePanel: cameraPanel, photoRelease: photoRelease, preview: preview, lookMenu: lookMenu)
     }
@@ -382,7 +381,6 @@ struct MonitorOperatorLiveFacts<Key: Hashable, NativeIdentity: Hashable & Sendab
     let covered: Bool
     let tools: [MonitorAssistSelection]
     let rendered: Set<MonitorAssistSelection>
-    let fitted: [MonitorAssistSelection]
 }
 
 /// The composition behind the surface. Section roles are the shared DISP sections.
@@ -963,26 +961,38 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         }
     }
 
+    /// The chrome shown now that floating scopes and meters keep clear of.
+    private var scopeChrome: MonitorScopeChrome {
+        var shown: MonitorScopeChrome = [.display]
+        if mounts(.statusBar) { shown.insert(.status) }
+        if mounts(.batteries) || (usesCompactTelemetry && mounts(.statusBar)) { shown.insert(.telemetry) }
+        if source.returnToStage != nil || mounts(.lockButton) { shown.insert(.lock) }
+        if mounts(.railSettings) { shown.insert(.settings) }
+        if mounts(.railMedia) { shown.insert(.media) }
+        if mounts(.railRecord) { shown.insert(.record) }
+        if mounts(.cameraValues) { shown.insert(.values) }
+        if mounts(.toolBar) { shown.insert(.tools) }
+        if cameraViews.motion != nil { shown.insert(.motion) }
+        if !locked, editing == nil, cameraViews.resetFocus != nil { shown.insert(.focusReset) }
+        if portraitAspect != nil, layout.portrait, !facts.picture.vertical, editing == nil,
+            !assist.isVisible(.desqueeze) { shown.insert(.aspectToggle) }
+        return shown
+    }
+
     @ViewBuilder private var scopes: some View {
         if let assistSource, let stores {
+        let obstacles = layout.scopeObstacles(scopeChrome, motionCluster: cameraViews.motion != nil).map(\.cgRect)
+        Group { scopePanels(assistSource, stores) }.environment(\.monitorScopeObstacles, obstacles)
+        }
+    }
+    @ViewBuilder private func scopePanels(_ assistSource: MonitorOperatorLiveAssistSource, _ stores: AssistPanelStores) -> some View {
         let canvas = CGRect(x: 0, y: 0, width: layout.viewport.width, height: layout.viewport.height)
         let feed = CGRect(x: layout.picture.x, y: layout.picture.y, width: layout.picture.width, height: layout.picture.height)
-        let floor = layout.portrait ? layout.system.y : layout.viewport.height
-        let right = layout.portrait ? layout.viewport.width - safeArea.trailing : layout.settings.x - 6
-        let clearance = EdgeInsets(top: safeArea.top, leading: safeArea.leading,
-            bottom: max(0, layout.viewport.height - floor), trailing: max(0, layout.viewport.width - right))
-        if layout.portrait && !layout.fillsPicture && !facts.fitted.isEmpty {
-                let room = max(0, layout.values.y - layout.picture.maxY - 32)
-                MonitorScopeFitStack(tools: facts.fitted, assist: assist, stores: stores, haptics: assistSource.haptics,
-                    readBundle: assistSource.readBundle, configureDisplay: assistSource.configureDisplay,
-                    paradeIntensityScale: assistSource.paradeIntensityScale)
-                    .frame(width: max(0, layout.picture.width - 28), height: min(184, room))
-                    .position(x: layout.picture.midX, y: layout.picture.maxY + 16 + min(184, room) / 2)
-        }
+        let inset = layout.scopeClearance(safeArea: safeArea)
+        let clearance = EdgeInsets(top: inset.top, leading: inset.leading, bottom: inset.bottom, trailing: inset.trailing)
         MonitorScopeOverlays(assist: assist, stores: stores, haptics: assistSource.haptics,
                 canvas: canvas, feed: feed, chromeClearance: clearance, readBundle: assistSource.readBundle,
-                configureDisplay: assistSource.configureDisplay,
-                available: layout.portrait && !layout.fillsPicture ? facts.rendered.subtracting(facts.fitted) : facts.rendered,
+                configureDisplay: assistSource.configureDisplay, available: facts.rendered,
                 paradeIntensityScale: assistSource.paradeIntensityScale)
         if facts.rendered.contains(.audioMeters), assist.isVisible(.audioMeters), let audio = facts.audio {
             AudioMeterOverlay(stores: stores, levels: audio.levels, sensitivity: audio.caption, bounds: canvas,
@@ -996,7 +1006,6 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 transfer: transfer, rec709: assist.falseColorRec709, clipByte: assistSource.readClipByte(transfer),
                 bounds: canvas, chromeClearance: clearance, hapticsEnabled: host.hapticsEnabled,
                 onConfigure: { if admitted { assist.configureTool = .falseColor } }, referenceValues: assists.signalOptions.reference)
-        }
         }
     }
     @ViewBuilder private var panelsChrome: some View {

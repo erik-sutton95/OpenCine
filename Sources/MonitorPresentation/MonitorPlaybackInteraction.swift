@@ -34,13 +34,21 @@ public struct MonitorPlaybackZoom: Equatable, Sendable {
 
     /// A cumulative native gesture is projected from its committed origin without mutating it.
     public func preview(magnification: CGFloat, anchor: CGPoint?, translation: CGSize, size: CGSize) -> Self {
+        preview(magnification: magnification, anchor: anchor, translation: translation, size: size, picture: nil)
+    }
+
+    /// The same projection over a gesture area `size` that is larger than the unzoomed `picture`
+    /// it centres (a still or clip shown past its letterbox): the anchor is a point of `size` and
+    /// the zoomed picture's edge stops at the edge of `size`. A nil `picture` fills `size`.
+    public func preview(magnification: CGFloat, anchor: CGPoint?, translation: CGSize, size: CGSize,
+        picture: CGSize?) -> Self {
         var value = self
         if let anchor, size.width > 0, size.height > 0 {
             value.pinchChanged(magnification: magnification,
                 startAnchorX: anchor.x / size.width, startAnchorY: anchor.y / size.height,
                 size: size)
         }
-        value.panChangedBounded(translation: translation, size: size)
+        value.panChangedBounded(translation: translation, size: size, picture: picture)
         return value
     }
 

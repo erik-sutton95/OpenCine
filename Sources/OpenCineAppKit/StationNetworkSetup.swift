@@ -175,4 +175,33 @@ public enum StationNetworkSetupRules {
     public static func network(_ camera: SavedCamera, _ kind: RouteKind) -> String? {
         camera.routes.first { $0.kind == kind }?.network
     }
+
+    /// Whether a Wi-Fi password can be confirmed. `secured` is the network's security when this
+    /// phone knows it (its current network, or a setup saved with a password): a secured network
+    /// needs its password. Unknown or open, an empty password is allowed, and a refused join then
+    /// asks to check it (`StationRoutes.checkPasswordMessage`). A WPA2 passphrase has 8 or more
+    /// characters.
+    public static func acceptsPassword(_ password: String, secured: Bool?) -> Bool {
+        if password.isEmpty { return secured != true }
+        return password.count >= 8
+    }
+
+    /// The line under the password field: why Connect waits, or what an empty password means.
+    public static func passwordNote(_ password: String, secured: Bool?) -> String? {
+        guard password.isEmpty else { return nil }
+        switch secured {
+        case true: return "This network is secured. Enter its password."
+        case false: return nil
+        default: return "Leave it empty only for an open network."
+        }
+    }
+
+    /// What this phone knows about `ssid`'s security: a saved setup with a password says it is
+    /// secured; otherwise `current` (the phone's own network, nil when unknown) decides.
+    public static func security(
+        of ssid: String, saved: [StationNetwork], current: Bool?
+    ) -> Bool? {
+        if saved.contains(where: { !$0.hotspot && $0.ssid == ssid && !$0.password.isEmpty }) { return true }
+        return current
+    }
 }

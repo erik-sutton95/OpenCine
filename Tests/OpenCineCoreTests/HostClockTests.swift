@@ -35,7 +35,7 @@ struct HostClockTests {
         let woke = Woke()
         let long = Task { try await clock.sleep(.seconds(2)); await woke.append("long") }
         let short = Task { try await clock.sleep(.seconds(1)); await woke.append("short") }
-        try await parked(manual, count: 2)
+        try await manual.waitForSleeps(2)
 
         manual.advance(by: .milliseconds(999))
         #expect(manual.pendingSleeps == 2)
@@ -60,7 +60,7 @@ struct HostClockTests {
         let manual = ManualHostClock()
         let clock = manual.clock
         let sleeper = Task { try await clock.sleep(.seconds(60)) }
-        try await parked(manual, count: 1)
+        try await manual.waitForSleeps(1)
         sleeper.cancel()
         await #expect(throws: CancellationError.self) { try await sleeper.value }
         #expect(manual.pendingSleeps == 0)
@@ -77,13 +77,27 @@ struct HostClockTests {
         #expect(manual.pendingSleeps == 0)
     }
 
-    /// Waits until `count` sleeps are parked; the limit only stops a genuine hang.
-    private func parked(_ manual: ManualHostClock, count: Int) async throws {
-        let deadline = ContinuousClock.now + .seconds(30)
-        while manual.pendingSleeps < count {
-            try #require(ContinuousClock.now < deadline, "sleeps never parked")
-            await Task.yield()
-        }
+    @Test(.timeLimit(.minutes(1)))
+    func aWaitForSleepsResumesOnceThatManySleepsPark() async throws {
+        let manual = ManualHostClock()
+        let clock = manual.clock
+        let waiter = Task { try await manual.waitForSleeps(2) }
+        let first = Task { try await clock.sleep(.seconds(1)) }
+        let second = Task { try await clock.sleep(.seconds(2)) }
+        try await waiter.value
+        #expect(manual.pendingSleeps == 2)
+        // Already parked: the wait returns at once.
+        try await manual.waitForSleeps(1)
+        manual.advance(by: .seconds(2))
+        try await first.value
+        try await second.value
+    }
+
+    @Test func cancellingAWaitForSleepsThrows() async {
+        let manual = ManualHostClock()
+        let waiter = Task { try await manual.waitForSleeps(1) }
+        waiter.cancel()
+        await #expect(throws: CancellationError.self) { try await waiter.value }
     }
 }
 

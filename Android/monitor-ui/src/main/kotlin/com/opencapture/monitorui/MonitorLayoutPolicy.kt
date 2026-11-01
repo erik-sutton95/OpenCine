@@ -112,6 +112,57 @@ data class MonitorFieldLayout(
      */
     fun aeUnlock(motionCluster: Boolean): MonitorRect =
         MonitorLayoutPolicy.aeUnlock(focusReset(motionCluster), assists.maxX, picture.midX, portrait && motionCluster)
+
+    /**
+     * The chrome rects a floating scope never covers, for the parts the surface shows now;
+     * [MonitorScopeChromeAvoidance] moves a panel off each one, so scopes reach the edges only where
+     * no control stands. The status row (format, recording and timecode), the gauges, the rail keys,
+     * the camera values, the assist palette as it rests collapsed (an expanded palette draws over
+     * panels as it draws over the values), the motion cluster, the recenter key and the portrait
+     * fit/fill toggle. Fit and fill share it (owner hardware pass 2026-10-30, iPad Pro 11-inch).
+     * Swift `FieldMonitorLayout.scopeObstacles(_:motionCluster:)`.
+     */
+    fun scopeObstacles(shown: Set<MonitorScopeChrome>, motionCluster: Boolean = false): List<MonitorRect> =
+        shown.sorted().flatMap { part ->
+            when (part) {
+                MonitorScopeChrome.STATUS -> listOf(status)
+                MonitorScopeChrome.TELEMETRY -> listOf(telemetry)
+                MonitorScopeChrome.LOCK -> listOf(lock)
+                MonitorScopeChrome.SETTINGS -> listOf(settings)
+                MonitorScopeChrome.MEDIA -> listOf(media)
+                MonitorScopeChrome.RECORD -> listOf(record)
+                MonitorScopeChrome.DISPLAY -> listOf(display)
+                MonitorScopeChrome.VALUES -> listOf(values)
+                MonitorScopeChrome.TOOLS -> listOf(assists)
+                MonitorScopeChrome.MOTION -> if (motionCluster) listOf(stick, zoom, gimbal, headTrack) else emptyList()
+                MonitorScopeChrome.FOCUS_RESET -> listOf(focusReset(motionCluster))
+                MonitorScopeChrome.ASPECT_TOGGLE -> if (portrait) listOf(aspectToggle) else emptyList()
+            }
+        }.filter { it.width > 0f && it.height > 0f }
+}
+
+/** A part of the live chrome a floating scope keeps clear of ([MonitorFieldLayout.scopeObstacles]). Swift `MonitorScopeChrome`. */
+enum class MonitorScopeChrome {
+    /** The status row: format, recording, timecode and storage. */
+    STATUS,
+    /** The link and battery gauges. */
+    TELEMETRY,
+    LOCK, SETTINGS, MEDIA, RECORD,
+    /** DISP. */
+    DISPLAY,
+    /** The camera values. */
+    VALUES,
+    /** The assist palette, collapsed. */
+    TOOLS,
+    /** The gimbal stick, zoom chip, gimbal key and head lock. */
+    MOTION,
+    FOCUS_RESET,
+    /** The portrait fit/fill toggle. */
+    ASPECT_TOGGLE;
+
+    companion object {
+        val ALL: Set<MonitorScopeChrome> = entries.toSet()
+    }
 }
 
 /**
@@ -331,6 +382,19 @@ object MonitorLayoutPolicy {
     fun landscapeValuesInset(recordSize: Float): Float = 14f + recordSize + 28f
 
     /**
+     * The landscape feed frame's shape: the 16:9 region a video picture fills. A taller picture
+     * fits inside it; chrome is laid out around it. Swift `FieldMonitorLayout.frameAspect`.
+     */
+    private const val FRAME_ASPECT = 16f / 9f
+
+    /** The largest rect of `aspect` centred in a landscape viewport, clear of the cutout band `cut`. */
+    private fun landscapeFrame(width: Float, height: Float, cut: Float, aspect: Float): MonitorRect {
+        val imageW = min(width - 2f * cut, height * aspect)
+        val imageH = imageW / aspect
+        return MonitorRect((width - imageW) / 2f, (height - imageH) / 2f, imageW, imageH)
+    }
+
+    /**
      * Production Field Monitor geometry. Viewport and insets are inputs;
      * camera brands are absent. Native shells retain the feed.
      */
@@ -393,9 +457,15 @@ object MonitorLayoutPolicy {
             )
         }
         val cut = max(0f, max(safeLeading, safeTrailing) - 14f)
-        val imageW = min(w - 2f * cut, h * aspect)
-        val imageH = imageW / aspect
-        val picture = MonitorRect((w - imageW) / 2f, (h - imageH) / 2f, imageW, imageH)
+        val frame = landscapeFrame(w, h, cut, FRAME_ASPECT)
+        // A picture taller than the frame (a 3:2 or 4:3 still) scales down inside the video's
+        // 16:9 frame instead of growing taller: on a tablet the video's bars stay top and bottom
+        // and the still is pillarboxed. A wider picture still spans the usable width.
+        val picture = if (aspect < FRAME_ASPECT) frame.fittedContent(aspect) else landscapeFrame(w, h, cut, aspect)
+        // Where the frame leaves bars above and below (a tablet), the status row sits on the top
+        // bar as in video, so a still keeps it where video has it. Where the frame runs the full
+        // height (a phone), the status row stays on the picture itself.
+        val anchor = if (aspect < FRAME_ASPECT && frame.height < h - 0.5f) frame else picture
         val system = MonitorRect(0f, 0f, 0f, 0f)
         val hasHome = safeBottom > 0f
         val bottom = if (hasHome) 12f else 8f
@@ -419,7 +489,7 @@ object MonitorLayoutPolicy {
         val lock = MonitorRect(12f, cornerTop, button, button)
         // Gauges share the lock's edge so a 19.5:9 phone's 16:9 picture starts at their trailing edge.
         val gauges = MonitorRect(lock.x, lock.maxY + landscapeGaugeGap(tablet), 58f, 68f)
-        val statusX = max(77f, picture.x + 12f)
+        val statusX = max(77f, anchor.x + 12f)
         val status = MonitorRect(
             statusX, (if (tablet) 4f else 0f) + controlInset,
             max(0f, settings.x - statusX - 12f), if (tablet) 46f else 44f,

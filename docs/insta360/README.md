@@ -58,6 +58,27 @@ join the camera Wi-Fi.
   Android rules match no Luna copy, so Kotlin keeps the backend's text.
 - A connect yields the saved record (camera access point as the preferred route with the joined
   network; iOS also the verified serial as the durable device) and the core session.
+- Wi-Fi and hotspot setups (station mode): the profile offers `.infrastructureNetwork` and
+  `.phoneHotspot` as addable routes, and `connect` takes `.addRoute` and saved station routes
+  through `LunaConnectPort.connect(to:route:)`. The backend authorizes over Bluetooth, reads the
+  camera's own Wi-Fi (kept for the camera Wi-Fi route), then sends SET_WIFI_MODE 147 (station,
+  with the camera's region from option 37), PHONE_INFO 220 and SET_WIFI_CONNECTION_INFO 112,
+  waits for notification 8232 and sends SET_AVAILABLE_WIFI 215 (`LunaStation.swift`). The join
+  (`LunaStationJoin`, Kotlin twin alike) follows the official app: a 112 answered 505
+  (`WIFI_BUSY_SWITCHING`, the camera still switching roles) is sent again after notification
+  8215 (`CAM_WIFI_START`, up to 38 s) and a 2 s settle; only an 8232 that echoes this join's
+  network and password counts; a missing or transient result (TIMEOUT 1, CONNECT_FAILED 2,
+  UNABLE_ASSIGN_IP 4) gets one more try. A setup saved without a password that is refused says
+  to check the Wi-Fi password. The phone
+  joins the network (or hosts the hotspot) and searches its subnet for TCP 6666 answering the
+  UCD2 magic (`LunaStationPath`); control and HTTP media then use that address
+  (`cameraHost`), with the Bluetooth serial checked as for camera Wi-Fi. On that address the
+  preview is H.264, which the shared decoders detect. Camera Wi-Fi after a setup sends 147 AP
+  first. Passwords stay in the Keychain (`savedStations()`), and the shared rules for routes,
+  stamping and failure actions are Core's `StationRoutes`, shared with DJI. Evidence: router
+  join, LAN control and H.264 preview with the lab tools on firmware 1.1.15 (2026-10-01); the
+  app path and the hotspot route are untested on hardware. The Luna has no verified network
+  scan, so the wizard runs with `cameraScansNetworks: false`.
 - `forget` drops the camera's saved Wi-Fi (Swift: the Keychain entry; Kotlin: the host's
   `forgetWifi`), never the approval identity. Every backend event is also forwarded to
   `LunaIntegration.onEvent` (Swift) for the app's live view.

@@ -498,7 +498,7 @@ func MonitorDisplaySession.retireEditor()<Mode where Mode : Swift.Equatable> -> 
 func MonitorDisplaySession.select(_: Mode, order: [Mode])<Mode where Mode : Swift.Equatable> -> Swift.Bool
 func MonitorFalseColorReferencePositionStore.setCenter(_: CoreFoundation.CGPoint, in: CoreFoundation.CGRect) -> ()
 func MonitorFalseColorReferencePositionStore.setCenter(_: MonitorPresentation.MonitorScopePoint, canvas: MonitorPresentation.MonitorRect) -> ()
-func MonitorFalseColorReferencePositions.center(in: CoreFoundation.CGRect, size: CoreFoundation.CGSize, movement: CoreFoundation.CGRect) -> CoreFoundation.CGPoint
+func MonitorFalseColorReferencePositions.center(in: CoreFoundation.CGRect, size: CoreFoundation.CGSize, movement: CoreFoundation.CGRect, avoiding: [CoreFoundation.CGRect]) -> CoreFoundation.CGPoint
 func MonitorInteractionLifecycle.close() -> MonitorInteractionTransition
 func MonitorInteractionLifecycle.update(_: MonitorInteractionContext) -> MonitorInteractionTransition
 func MonitorInternetHop.begin(_: Route, admission: () -> Swift.Bool)<Route> -> MonitorInternetHop<Route>.Token?
@@ -1613,9 +1613,12 @@ static func ReliabilityReportingURLProtocol.canInit(with: Foundation.URLRequest)
 static func ReliabilityReportingURLProtocol.canonicalRequest(for: Foundation.URLRequest) -> Foundation.URLRequest
 static func ReliabilityReportingURLProtocol.makeSDKSession() -> Foundation.URLSession
 static func ShellModel.applyThroughLaunch(_: () -> Swift.Void) -> ()
+static func StationNetworkSetupRules.acceptsPassword(_: Swift.String, secured: Swift.Bool?) -> Swift.Bool
 static func StationNetworkSetupRules.isCameraNetwork(_: Swift.String, brand: StationNetworkBrand, camera: OpenCineCore.SavedCamera?, cameraSSIDs: Swift.Set<Swift.String>) -> Swift.Bool
 static func StationNetworkSetupRules.network(_: OpenCineCore.SavedCamera, _: OpenCineCore.RouteKind) -> Swift.String?
+static func StationNetworkSetupRules.passwordNote(_: Swift.String, secured: Swift.Bool?) -> Swift.String?
 static func StationNetworkSetupRules.phoneNetworks(_: [Swift.String]) -> [Swift.String]
+static func StationNetworkSetupRules.security(of: Swift.String, saved: [StationNetwork], current: Swift.Bool?) -> Swift.Bool?
 static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext, routes: [StationSetupRoute], notice: AddSetupNotice?) -> AddSetupChooser
 static func StoredData.userDefaults(_: Foundation.UserDefaults, key: Swift.String) -> StoredData
 static let DiagnosticsDevice.current: DiagnosticsDevice

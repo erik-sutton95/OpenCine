@@ -24,6 +24,10 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
     private let focus: MonitorPictureFocusInteraction?
     private let swipe: ((MonitorPlaybackChromeSwipe) -> Void)?
     private let picture: (CGFloat) -> Picture
+    /// The canvas the picture may cover once zoomed, and the picture's unzoomed frame in it.
+    private let stage: (canvas: CGSize, feed: CGRect)?
+    /// The picture's spoken name; a named staged picture offers Zoom in, Zoom out and Reset zoom.
+    private let pictureLabel: String?
     @State private var zoom: MonitorPlaybackZoom
     @State private var pinch = MonitorEditingSession()
     @State private var pan = MonitorEditingSession()
@@ -55,13 +59,62 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
         self.source = source; self.size = size; self.enabled = enabled
         self.focus = focus; self.swipe = swipe; self.picture = picture
         self.presentationScale = presentationScale
+        stage = nil; pictureLabel = nil
         _zoom = State(initialValue: MonitorPlaybackZoom(maximumScale: maximumZoom))
     }
+
+    /// A picture shown in its `feed` frame of a larger `canvas`, as playback shows a clip. At 1x it
+    /// fills `feed` and answers gestures only there. Zoomed, it is drawn past that frame up to the
+    /// canvas edge (never beyond), pinch and pan answer anywhere on the canvas, and the picture's
+    /// edge pans to the canvas edge. The view fills `canvas`; `picture` is laid out at `feed` size.
+    /// With an `accessibilityLabel` the picture is one element that zooms by its actions too.
+    public init(source: Source, canvas: CGSize, feed: CGRect,
+        maximumZoom: CGFloat = MonitorPlaybackZoom.maxScale, enabled: Bool = true,
+        swipe: ((MonitorPlaybackChromeSwipe) -> Void)? = nil, accessibilityLabel: String? = nil,
+        @ViewBuilder picture: @escaping (CGFloat) -> Picture) {
+        self.source = source; self.size = canvas; self.enabled = enabled
+        self.focus = nil; self.swipe = swipe; self.picture = picture
+        presentationScale = CGSize(width: 1, height: 1)
+        stage = (canvas, feed); pictureLabel = accessibilityLabel
+        _zoom = State(initialValue: MonitorPlaybackZoom(maximumScale: maximumZoom))
+    }
+    /// The unzoomed picture the zoom bounds against: its feed frame on a stage, else the view.
+    private var bounded: CGSize? { stage?.feed.size }
     private var transform: MonitorPlaybackZoom {
         zoom.preview(magnification: pinch.isEditing ? magnification : 1,
-            anchor: pinch.isEditing ? anchor : nil, translation: pan.isEditing ? translation : .zero, size: size)
+            anchor: pinch.isEditing ? anchor : nil, translation: pan.isEditing ? translation : .zero,
+            size: size, picture: bounded)
     }
     public var body: some View {
+        if let stage { staged(canvas: stage.canvas, feed: stage.feed) } else { framed }
+    }
+    private func staged(canvas: CGSize, feed: CGRect) -> some View {
+        let area = CGRect(origin: .zero, size: canvas)
+        return ZStack(alignment: .topLeading) {
+            MonitorPlaybackPictureCanvas(canvas: canvas, feed: feed, zoom: transform,
+                mirrorHorizontal: false, mirrorVertical: false) { picture(lockProgress) }
+            .allowsHitTesting(false)
+            Color.clear.frame(width: canvas.width, height: canvas.height)
+                .contentShape(Path(zoom.isZoomed ? area : feed))
+                .simultaneousGesture(zoomGestures)
+                .modifier(MonitorPictureZoomActions(label: pictureLabel, scale: zoom.scale) { change in
+                    guard enabled else { return }
+                    zoom = change.map {
+                        zoom.transformed(zoomChange: $0, centroid: CGPoint(x: canvas.width / 2, y: canvas.height / 2),
+                            panChange: .zero, frame: canvas, picture: feed.size)
+                    } ?? MonitorPlaybackZoom(maximumScale: zoom.maximumScale)
+                })
+        }
+        .frame(width: canvas.width, height: canvas.height, alignment: .topLeading)
+        .onChange(of: source) { _, _ in retire(reset: true) }
+        .onChange(of: enabled) { _, active in if !active { retire(reset: false) } }
+        .onChange(of: canvas) { _, _ in retire(reset: false) }
+        .onChange(of: feed) { _, _ in retire(reset: false) }
+        .onChange(of: pinching) { _, active in if !active, !pinch.isEditing { _ = pinch.end() } }
+        .onChange(of: panning) { _, active in if !active, !pan.isEditing { _ = pan.end() } }
+        .onDisappear { retire(reset: true) }
+    }
+    private var framed: some View {
         picture(lockProgress)
             .scaleEffect(transform.scale, anchor: .center).offset(transform.offset)
             .frame(width: size.width, height: size.height).clipped().contentShape(Rectangle())
@@ -103,8 +156,8 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
             .onEnded { value in
                 guard pinch.end(), enabled else { return }
                 var next = zoom.preview(magnification: value.magnification, anchor: value.startLocation,
-                    translation: .zero, size: size)
-                next.endPinch(size: size)
+                    translation: .zero, size: size, picture: bounded)
+                next.endPinch(size: size, picture: bounded)
                 if next.scale == 1 { withAnimation(.spring(duration: 0.25)) { zoom = next } }
                 else { zoom = next }
             }
@@ -115,8 +168,9 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
             .onEnded { value in
                 guard pan.end(), enabled else { return }
                 if zoom.isZoomed {
-                    zoom = zoom.preview(magnification: 1, anchor: nil, translation: value.translation, size: size)
-                    zoom.endPan(size: size)
+                    zoom = zoom.preview(magnification: 1, anchor: nil, translation: value.translation,
+                        size: size, picture: bounded)
+                    zoom.endPan(size: size, picture: bounded)
                 } else {
                     swipe?(MonitorPlaybackChromeSwipe.classify(dx: Double(value.translation.width), dy: Double(value.translation.height)))
                 }
@@ -128,7 +182,27 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
         _ = pan.cancel(pointerIsActive: panning)
         _ = focusHold.cancel(pointerIsActive: holding)
         lockProgress = 0
-        if reset { zoom.reset() } else { zoom.endGesture(size: size) }
+        if reset { zoom.reset() } else { zoom.endGesture(size: size, picture: bounded) }
+    }
+}
+/// A named picture's zoom for VoiceOver: its label, its zoom as the value and the same three
+/// actions the Android still viewer offers. `zoom(nil)` resets.
+private struct MonitorPictureZoomActions: ViewModifier {
+    let label: String?
+    let scale: CGFloat
+    let zoom: (CGFloat?) -> Void
+
+    func body(content: Content) -> some View {
+        if let label {
+            content.accessibilityElement()
+                .accessibilityLabel(label)
+                .accessibilityValue(String(format: "Zoom %.1fx", locale: Locale(identifier: "en_US_POSIX"), Double(scale)))
+                .accessibilityAction(named: "Zoom in") { zoom(1.5) }
+                .accessibilityAction(named: "Zoom out") { zoom(1 / 1.5) }
+                .accessibilityAction(named: "Reset zoom") { zoom(nil) }
+        } else {
+            content
+        }
     }
 }
 #endif

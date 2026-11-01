@@ -342,7 +342,7 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         let point = track.target(lookRightDeg: 53, lookUpDeg: 12)
         #expect(point?.yawDeg == 33)
         #expect(point?.pitchDeg == 2)
-        #expect(point?.nativePitchDeg == 177)
+        #expect(point?.nativePitchDeg == -183, "continuous beside the −171° calibration, not +177°")
         #expect(HeadTrackNative.commandDuration == 0.1)
     }
 
@@ -354,7 +354,7 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         let point = track.target(lookRightDeg: 120, lookUpDeg: 100)
         #expect(point?.yawDeg == reach.pan.upperBound)
         #expect(point?.pitchDeg == reach.tilt.upperBound)
-        #expect(point?.nativePitchDeg == 109)
+        #expect(point?.nativePitchDeg == -251, "80° of look-up from −171°, on the calibration side")
         #expect(track.target(lookRightDeg: 0, lookUpDeg: 0) == edgeOrigin)
     }
 
@@ -370,11 +370,14 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         }
     }
 
-    @Test func nativePitchCrossesWrapWithoutInventingMountOffset() {
+    /// OpenPocketCine#621: a target wrapped to the far side of ±180° sent a Pocket 3 the long way.
+    @Test func nativePitchStaysContinuousAcrossTheWrapWithoutInventingMountOffset() {
         var track = HeadTrackNative(bounds: reach)
         let mounted = GimbalWaypoint(yawDeg: 180, pitchDeg: 3, zoom: 1, nativePitchDeg: 179)
         #expect(track.center(pose: mounted) == .centered)
-        #expect(track.target(lookRightDeg: 0, lookUpDeg: -2)?.nativePitchDeg == -179)
+        #expect(track.target(lookRightDeg: 0, lookUpDeg: -2)?.nativePitchDeg == 181)
+        #expect(track.target(lookRightDeg: 0, lookUpDeg: 2)?.nativePitchDeg == 177)
+        #expect(track.target(lookRightDeg: 0, lookUpDeg: 0)?.nativePitchDeg == 179, "back to centre")
         #expect(track.target(lookRightDeg: 10, lookUpDeg: 0)?.yawDeg == 190)
     }
 

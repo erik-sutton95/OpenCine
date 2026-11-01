@@ -545,8 +545,10 @@ import OpenCineAppleObjC
                 rgbOutput = device.makeTexture(descriptor: descriptor)
             }
             guard let rgbOutput else { return nil }
+            // Read in the space the input leg wrote it in, so the round trip returns the bake's
+            // codes whatever colour the model's output surface claims.
             ciContext.render(
-                CIImage(cvPixelBuffer: buffer),
+                LiveFrameDecoding.image(buffer, renderedInto: workingColorSpace),
                 to: rgbOutput,
                 commandBuffer: commandBuffer,
                 bounds: CGRect(x: 0, y: 0, width: width, height: height),

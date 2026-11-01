@@ -17,6 +17,22 @@ public struct MonitorRect: Equatable, Sendable {
     }
 }
 
+extension MonitorRect {
+    /// The largest rect of `aspect` (width over height) centred inside this one.
+    /// Mirrors Kotlin `MonitorRect.fittedContent`.
+    func fitting(aspect: Double) -> MonitorRect {
+        guard aspect.isFinite, aspect > 0, height > 0 else { return self }
+        if width / height > aspect {
+            let fittedWidth = height * aspect
+            return MonitorRect(
+                x: x + (width - fittedWidth) / 2, y: y, width: fittedWidth, height: height)
+        }
+        let fittedHeight = width / aspect
+        return MonitorRect(
+            x: x, y: y + (height - fittedHeight) / 2, width: width, height: fittedHeight)
+    }
+}
+
 public struct MonitorSafeArea: Equatable, Sendable {
     public var top: Double
     public var leading: Double
@@ -231,9 +247,18 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             // The physical cutout is smaller than the full safe inset. The
             // picture stays centred across either landscape orientation.
             let cut = max(0, max(safeArea.leading, safeArea.trailing) - 14)
-            let imageW = min(w - 2 * cut, h * aspect)
-            let imageH = imageW / aspect
-            picture = .init(x: (w - imageW) / 2, y: (h - imageH) / 2, width: imageW, height: imageH)
+            let frame = Self.landscapeFrame(width: w, height: h, cut: cut, aspect: Self.frameAspect)
+            // A picture taller than the frame (a 3:2 or 4:3 still) scales down inside the video's
+            // 16:9 frame instead of growing taller: on a tablet the video's bars stay top and
+            // bottom and the still is pillarboxed. A wider picture still spans the usable width.
+            picture =
+                aspect < Self.frameAspect
+                ? frame.fitting(aspect: aspect)
+                : Self.landscapeFrame(width: w, height: h, cut: cut, aspect: aspect)
+            // Where the frame leaves bars above and below (a tablet), the status row sits on the
+            // top bar as in video, so a still keeps it where video has it. Where the frame runs
+            // the full height (a phone), the status row stays on the picture itself.
+            let anchor = aspect < Self.frameAspect && frame.height < h - 0.5 ? frame : picture
             system = .init()
             let bottom = hasHome ? 16.0 : 12.0
             record = .init(x: w - 10 - rec, y: h - bottom - rec, width: rec, height: rec)
@@ -270,8 +295,8 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             // centred at 21.5pt put its accessibility bounds above the window,
             // causing automatic hit-point selection to miss the top buttons.
             status = .init(
-                x: max(77, picture.x + 12), y: (tablet ? 4 : 0) + controlInset,
-                width: settings.x - max(77, picture.x + 12) - 12, height: tablet ? 46 : 44)
+                x: max(77, anchor.x + 12), y: (tablet ? 4 : 0) + controlInset,
+                width: settings.x - max(77, anchor.x + 12) - 12, height: tablet ? 46 : 44)
             let side = 14 + rec + 28
             let valuesH = showsValues ? 43.0 : 0
             let bottomPad = Self.landscapeBottomClearance(safeBottom: safeArea.bottom)
@@ -297,6 +322,54 @@ public struct FieldMonitorLayout: Equatable, Sendable {
         focusReset = .init(
             x: portrait ? max(safeArea.leading + 8, assists.x) : max(safeArea.leading + 8, stick.x - 50),
             y: portrait ? assists.y - 48 : stick.maxY - 40, width: 40, height: 40)
+    }
+
+    /// The landscape feed frame's shape: the 16:9 region a video picture fills. A taller picture
+    /// fits inside it; chrome is laid out around it. Mirrors Kotlin `MonitorLayoutPolicy.FRAME_ASPECT`.
+    static let frameAspect = 16.0 / 9.0
+
+    /// The largest rect of `aspect` centred in a landscape viewport, its width clear of the
+    /// cutout band `cut` on both long edges.
+    static func landscapeFrame(width: Double, height: Double, cut: Double, aspect: Double)
+        -> MonitorRect
+    {
+        let imageW = min(width - 2 * cut, height * aspect)
+        let imageH = imageW / aspect
+        return MonitorRect(
+            x: (width - imageW) / 2, y: (height - imageH) / 2, width: imageW, height: imageH)
+    }
+
+    /// How far the floating scope panels keep from each viewport edge: the safe area on every
+    /// side and, in portrait, the system band below the camera values. Fit and fill share it, so
+    /// scopes float in both. A panel reaches the trailing edge as it reaches the leading one; the
+    /// side rail draws above it and keeps its touches (owner hardware pass 2026-10-30: clearing
+    /// the paired tablet Settings and Media keys stopped panels about 140 pt short of the edge).
+    /// Mirrors Kotlin `monitorOperatorLiveLayout` and `monitorOperatorFieldLayout` placement.
+    public func scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea {
+        MonitorSafeArea(
+            top: max(0, safeArea.top), leading: max(0, safeArea.leading),
+            bottom: portrait ? max(0, viewport.height - system.y) : 0,
+            trailing: max(0, safeArea.trailing))
+    }
+
+    /// The chrome rects a floating scope never covers, for the parts the surface shows now;
+    /// `MonitorScopeChromeAvoidance` moves a panel off each one, so scopes reach the edges only
+    /// where no control stands. The status row (format, recording and timecode), the gauges, the
+    /// rail keys, the camera values, the assist palette as it rests collapsed (an expanded palette
+    /// draws over panels as it draws over the values), the motion cluster, the recenter key and
+    /// the portrait fit/fill toggle. Fit and fill share it (owner hardware pass 2026-10-30, iPad
+    /// Pro 11-inch). Mirrors Kotlin `MonitorFieldLayout.scopeObstacles`.
+    public func scopeObstacles(_ shown: MonitorScopeChrome, motionCluster: Bool = false) -> [MonitorRect] {
+        let parts: [(MonitorScopeChrome, [MonitorRect])] = [
+            (.status, [status]), (.telemetry, [telemetry]), (.lock, [lock]),
+            (.settings, [settings]), (.media, [media]), (.record, [record]),
+            (.display, [display]), (.values, [values]), (.tools, [assists]),
+            (.motion, motionCluster ? [stick, zoom, gimbal, headTrack] : []),
+            (.focusReset, [focusReset(motionCluster: motionCluster)]),
+            (.aspectToggle, portrait ? [aspectToggle] : []),
+        ]
+        return parts.filter { shown.contains($0.0) }.flatMap(\.1)
+            .filter { $0.width > 0 && $0.height > 0 }
     }
 
     /// Landscape camera values sit above the home indicator instead of overlapping it.
@@ -379,4 +452,34 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public static func headTrack(stick: MonitorRect, zoom: MonitorRect) -> MonitorRect {
         MonitorRect(x: stick.maxX - 44, y: zoom.y - 8 - 44, width: 44, height: 44)
     }
+}
+
+/// A part of the live chrome a floating scope keeps clear of (`FieldMonitorLayout.scopeObstacles`).
+/// The surface names the parts it shows. Mirrors Kotlin `MonitorScopeChrome`.
+public struct MonitorScopeChrome: OptionSet, Hashable, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    /// The status row: format, recording, timecode and storage.
+    public static let status = Self(rawValue: 1 << 0)
+    /// The link and battery gauges.
+    public static let telemetry = Self(rawValue: 1 << 1)
+    public static let lock = Self(rawValue: 1 << 2)
+    public static let settings = Self(rawValue: 1 << 3)
+    public static let media = Self(rawValue: 1 << 4)
+    public static let record = Self(rawValue: 1 << 5)
+    /// DISP.
+    public static let display = Self(rawValue: 1 << 6)
+    /// The camera values.
+    public static let values = Self(rawValue: 1 << 7)
+    /// The assist palette, collapsed.
+    public static let tools = Self(rawValue: 1 << 8)
+    /// The gimbal stick, zoom chip, gimbal key and head lock.
+    public static let motion = Self(rawValue: 1 << 9)
+    public static let focusReset = Self(rawValue: 1 << 10)
+    /// The portrait fit/fill toggle.
+    public static let aspectToggle = Self(rawValue: 1 << 11)
+    public static let all: Self = [
+        .status, .telemetry, .lock, .settings, .media, .record, .display, .values, .tools,
+        .motion, .focusReset, .aspectToggle,
+    ]
 }

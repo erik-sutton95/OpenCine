@@ -1,5 +1,6 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.GimbalPath
 import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.CamFov
@@ -314,17 +315,90 @@ fun CameraCommands.lensForZoomFactor(factor: Double): Int =
 
 fun CameraCommands.zoomForFactor(factor: Double): ByteArray = zoomLens(lensForZoomFactor(factor))
 
-/** Native timed target: yaw/roll/pitch i16 LE, absolute + ignore roll, duration in 0.1s. */
-fun CameraCommands.gimbalTimedTarget(target: GimbalWaypoint, duration: Double): ByteArray? {
-    if (target.pitchDeg !in GimbalWaypoint.TILT_MIN_DEG..GimbalWaypoint.TILT_MAX_DEG) return null
-    val nativePitch = target.nativePitchDeg ?: return null
-    return gimbalTimedTarget(target.yawDeg, nativePitch, duration)
+/**
+ * How the gimbal reads the native pitch of a `0x04/0x14` absolute target, per attitude layout
+ * ([AttitudeLayout.nativePitch]); Swift `GimbalNativePitchWire`. Native pitch is about 180° at
+ * level, so small tilts cross the ±180° wrap of the reported value.
+ */
+enum class NativePitchWire {
+    /** Targets go out in ±180°; this firmware turns the short way across the wrap. */
+    WRAPPED,
+
+    /**
+     * This firmware drives straight to the number it is sent (OpenPocketCine#621): a target stays
+     * continuous with the reference it is relative to, never wrapped to the far side.
+     */
+    CONTINUOUS;
+
+    /** Native pitch values the wire accepts in this convention. */
+    val range: ClosedFloatingPointRange<Double>
+        get() = if (this == WRAPPED) -180.0..180.0 else (-180.0 - MAX_OFFSET_DEG)..(180.0 + MAX_OFFSET_DEG)
+
+    /**
+     * [target] expressed beside [reference], the reported native pitch it is relative to (the
+     * pose at Start, the pose Level starts from). [WRAPPED] keeps it as is. `null` when the
+     * reference is outside the reported range or the offset exceeds [MAX_OFFSET_DEG].
+     */
+    fun target(target: Double, around: Double): Double? {
+        if (!target.isFinite() || !around.isFinite()) return null
+        if (this == WRAPPED) return target
+        if (around !in -180.0..180.0) return null
+        val offset = GimbalPath.wrapAngle(target - around)
+        return if (kotlin.math.abs(offset) <= MAX_OFFSET_DEG) around + offset else null
+    }
+
+    /**
+     * The native pitch to send for [target] while the gimbal reports [live]. [WRAPPED] folds a
+     * continuous target back into ±180°. [CONTINUOUS] sends the target as is when it lies within
+     * [MAX_OFFSET_DEG] of [live]; otherwise `null`.
+     */
+    fun wireDeg(target: Double, live: Double): Double? {
+        if (!target.isFinite() || !live.isFinite()) return null
+        if (this == WRAPPED) return if (target in -180.0..180.0) target else GimbalPath.wrapAngle(target)
+        if (live !in -180.0..180.0 || target !in range ||
+            kotlin.math.abs(GimbalPath.wrapAngle(target - live)) > MAX_OFFSET_DEG) return null
+        return target
+    }
+
+    companion object {
+        /**
+         * The farthest a native target may sit from its reference or the live pitch: the declared
+         * tilt reach, as native pitch moves 1° per 1° of display tilt. Under half a turn.
+         */
+        val MAX_OFFSET_DEG: Double = GimbalWaypoint.TILT_MAX_DEG - GimbalWaypoint.TILT_MIN_DEG
+    }
 }
 
-fun CameraCommands.gimbalTimedTarget(yawDeg: Double, nativePitchDeg: Double, duration: Double): ByteArray? {
+/** Native timed target: yaw/roll/pitch i16 LE, absolute + ignore roll, duration in 0.1s. */
+fun CameraCommands.gimbalTimedTarget(
+    target: GimbalWaypoint, duration: Double, wire: NativePitchWire = NativePitchWire.WRAPPED,
+): ByteArray? {
+    if (target.pitchDeg !in GimbalWaypoint.TILT_MIN_DEG..GimbalWaypoint.TILT_MAX_DEG) return null
+    val nativePitch = target.nativePitchDeg ?: return null
+    return gimbalTimedTarget(target.yawDeg, nativePitch, duration, wire)
+}
+
+/**
+ * A native target for [target] while the gimbal reports [live], in that gimbal's native pitch
+ * convention. [reference] is the reported native pitch a wrapped target is relative to (pose at
+ * Start). `null` stops the move.
+ */
+fun CameraCommands.gimbalTimedTarget(
+    target: GimbalWaypoint, live: GimbalWaypoint, wire: NativePitchWire, reference: Double?, duration: Double,
+): ByteArray? {
+    var native = target.nativePitchDeg ?: return null
+    val liveNative = live.nativePitchDeg ?: return null
+    if (reference != null) native = wire.target(native, reference) ?: return null
+    val sent = wire.wireDeg(native, liveNative) ?: return null
+    return gimbalTimedTarget(target.copy(nativePitchDeg = sent), duration, wire)
+}
+
+fun CameraCommands.gimbalTimedTarget(
+    yawDeg: Double, nativePitchDeg: Double, duration: Double, wire: NativePitchWire = NativePitchWire.WRAPPED,
+): ByteArray? {
     if (!yawDeg.isFinite() || !nativePitchDeg.isFinite() || !duration.isFinite() ||
         yawDeg !in GimbalWaypoint.PAN_MIN_DEG..GimbalWaypoint.PAN_MAX_DEG ||
-        nativePitchDeg !in -180.0..180.0 || duration !in 0.1..25.5 ||
+        nativePitchDeg !in wire.range || duration !in 0.1..25.5 ||
         kotlin.math.abs(duration * 10 - kotlin.math.round(duration * 10)) >= 1e-6) return null
     fun tenth(value: Double): Int =
         java.lang.Math.copySign(kotlin.math.floor(kotlin.math.abs(value * 10) + 0.5), value).toInt()
@@ -414,12 +488,29 @@ fun CameraCommands.setMediaFavorite(handle: Int, on: Boolean, counter: Int, came
     }
 
 /**
- * The only `0x04/0x05` layout with known offsets. Another length is a different
- * frame; reading it as attitude corrupts pan/tilt and Motion Control.
+ * The `0x04/0x05` attitude layouts with known offsets (Swift `GimbalStick.AttitudeLayout`). Both
+ * carry native pitch i16-LE `@0`, yaw `@4` and display pitch `@20`. Any other length is a
+ * different frame and fails closed: reading it as attitude corrupts pan/tilt and Motion Control.
  */
-val CameraCommands.ATTITUDE_LENGTH: Int get() = 50
+enum class AttitudeLayout(val length: Int, val nativePitch: NativePitchWire) {
+    /** Pocket 3 on earlier firmware and Pocket 4. Native targets are sent wrapped to ±180°. */
+    FULL(50, NativePitchWire.WRAPPED),
 
-fun CameraCommands.isAttitude(payload: ByteArray): Boolean = payload.size == ATTITUDE_LENGTH
+    /**
+     * Pocket 3 on current firmware (OpenPocketCine#621). Yaw, native and display pitch match the
+     * full layout; no other field is mapped. A wrapped target sent this gimbal the long way.
+     */
+    POCKET3_COMPACT(49, NativePitchWire.CONTINUOUS);
+
+    companion object {
+        fun of(payload: ByteArray): AttitudeLayout? = entries.firstOrNull { it.length == payload.size }
+    }
+}
+
+/** Length of the full attitude layout ([AttitudeLayout.FULL]). */
+val CameraCommands.ATTITUDE_LENGTH: Int get() = AttitudeLayout.FULL.length
+
+fun CameraCommands.isAttitude(payload: ByteArray): Boolean = AttitudeLayout.of(payload) != null
 
 private fun CameraCommands.i16(payload: ByteArray, at: Int): Int =
     ((payload[at].toInt() and 0xFF) or ((payload[at + 1].toInt() and 0xFF) shl 8)).toShort().toInt()

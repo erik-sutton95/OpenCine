@@ -9,15 +9,20 @@ import com.opencapture.opencine.vocabulary.CameraStatus
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
-/** One immutable camera observation, timestamped before any UI delivery. */
-data class NativeGimbalFeedback(val pose: GimbalWaypoint, val receivedAt: Double, val zoomReceivedAt: Double? = null) {
+/**
+ * One immutable camera observation, timestamped before any UI delivery. [nativePitch] is the
+ * native pitch convention of the attitude layout it came from.
+ */
+data class NativeGimbalFeedback(val pose: GimbalWaypoint, val receivedAt: Double, val zoomReceivedAt: Double? = null,
+    val nativePitch: NativePitchWire = NativePitchWire.WRAPPED) {
     companion object {
         fun from(frame: DumlFrame, receivedAt: Double, zoom: Double = 1.0): NativeGimbalFeedback? {
-            if (frame.cmdSet != 0x04 || frame.cmdId != 0x05 || !CameraCommands.isAttitude(frame.payload)) return null
+            if (frame.cmdSet != 0x04 || frame.cmdId != 0x05) return null
+            val layout = AttitudeLayout.of(frame.payload) ?: return null
             val payload = frame.payload
             val pose = GimbalWaypoint.from(CameraCommands.yawTenthDeg(payload),
                 CameraCommands.pitchTenthDeg(payload), zoom, CameraCommands.nativePitchTenthDeg(payload)) ?: return null
-            return NativeGimbalFeedback(pose, receivedAt)
+            return NativeGimbalFeedback(pose, receivedAt, nativePitch = layout.nativePitch)
         }
     }
 }
@@ -116,14 +121,21 @@ internal fun nativeProgramZoomStatus(frame: DumlFrame, status: CameraStatus, mod
     return if (StatusExtras.reportsShootingMode(frame)) next.copy(shootingMode = frame.payload[57].toInt() and 0xFF) else next
 }
 
-/** Firmware may take the forbidden yaw shortcut for an absolute target half a turn away. */
+/**
+ * Firmware may take the forbidden yaw shortcut for an absolute target half a turn away. A target's
+ * native pitch stays in the feedback's wire range; a continuous one also lies near the live pitch.
+ */
 internal fun nativeGimbalTargetIsSafe(target: GimbalWaypoint, feedback: NativeGimbalFeedback?, now: Double): Boolean {
     val current = feedback ?: return false
     if (!now.isFinite() || now - current.receivedAt !in 0.0..0.3) return false
-    fun reachable(point: GimbalWaypoint): Boolean = point == point.clamped() &&
+    fun reachable(point: GimbalWaypoint, range: ClosedFloatingPointRange<Double>): Boolean = point == point.clamped() &&
         point.yawDeg.isFinite() && point.pitchDeg.isFinite() &&
-        point.nativePitchDeg?.let { it.isFinite() && it in -180.0..180.0 } == true
-    return reachable(target) && reachable(current.pose) && GimbalMoveEngine.canSendNativeTarget(current.pose, target)
+        point.nativePitchDeg?.let { it.isFinite() && it in range } == true
+    val live = current.pose.nativePitchDeg
+    val native = target.nativePitchDeg
+    return reachable(target, current.nativePitch.range) && reachable(current.pose, -180.0..180.0) &&
+        live != null && native != null && current.nativePitch.wireDeg(native, live) != null &&
+        GimbalMoveEngine.canSendNativeTarget(current.pose, target)
 }
 
 /** Engine and socket commands share one serial monotonic scheduler, independent of UI work. */
@@ -154,7 +166,10 @@ class NativeGimbalProgramRunner internal constructor(
         var nextZoomAt: Double = lastTick, var lastZoomLens: Int? = null, var ownsZoom: Boolean = false,
         var lastNativeZoom: NativeProgramZoomCommand? = null,
         var lastNativeSampleAt: Double = Double.NEGATIVE_INFINITY,
-        var preparationZoom: Double? = null, var preparationSentAt: Double? = null)
+        var preparationZoom: Double? = null, var preparationSentAt: Double? = null,
+        // Native pitch convention and the reported native pitch at Start, which every planned
+        // target is relative to.
+        val nativePitch: NativePitchWire = NativePitchWire.WRAPPED, var nativeReference: Double? = null)
 
     private data class Request(val token: Long, val program: GimbalProgram, val publish: (Progress) -> Unit)
     private val controlLock = Any()
@@ -192,7 +207,8 @@ class NativeGimbalProgramRunner internal constructor(
                     return@schedule
                 }
                 val run = Run(token, program, engine, publish, current,
-                    zoomStability = NativeZoomPauseStability(if (usesHighRateZoom) 0.85 else 0.3))
+                    zoomStability = NativeZoomPauseStability(if (usesHighRateZoom) 0.85 else 0.3),
+                    nativePitch = sample.nativePitch, nativeReference = sample.pose.nativePitchDeg)
                 active = run
                 if (!sampleZoom(run, current, epoch)) return@schedule
                 if (generation.get() != token || callbackEpoch.get() != epoch) return@schedule
@@ -262,7 +278,8 @@ class NativeGimbalProgramRunner internal constructor(
                 val engine = GimbalMoveEngine()
                 if (engine.start(saved.program, sample.pose)) {
                     run = Run(token, saved.program, engine, saved.publish, now(),
-                        zoomStability = NativeZoomPauseStability(if (usesHighRateZoom) 0.85 else 0.3))
+                        zoomStability = NativeZoomPauseStability(if (usesHighRateZoom) 0.85 else 0.3),
+                        nativePitch = sample.nativePitch, nativeReference = sample.pose.nativePitchDeg)
                     active = run
                 }
             }
@@ -300,12 +317,15 @@ class NativeGimbalProgramRunner internal constructor(
             // Lens reports can advance while the still-fresh angular receipt is unchanged.
             val pose = if (run.program.changesZoom) current?.let { sample?.pose?.copy(zoom = it.pose.zoom) } else sample?.pose
             if (pose == null || (run.program.changesZoom && (!run.zoomStability.ready(now()) || !zoomResumeReady(now()))) ||
-                !run.engine.resume(pose)) {
+                current?.nativePitch != run.nativePitch || !run.engine.resume(pose)) {
                 run.publish(Progress(token, run.program, current?.pose, current?.pose?.let { run.engine.readout(it) },
                     null, false, paused = true, note = "Hold the camera still before resuming", epoch = epoch,
                     verificationInterruptedByPause = run.engine.verificationInterruptedByPause))
                 return@schedule
             }
+            // Resume plans the rest of the take from this pose, so its targets are relative to it
+            // rather than to the pose at Start.
+            run.nativeReference = pose.nativePitchDeg
             callbackEpoch.incrementAndGet()
             run.lastTick = now()
             run.nextZoomAt = run.lastTick
@@ -363,7 +383,7 @@ class NativeGimbalProgramRunner internal constructor(
             if (generation.get() != run.token || callbackEpoch.get() != epoch) return@schedule
             if (out.stop) stop()
             if (out.stop || out.finished) stopOwnedZoom(run)
-            if (out.target != null && !send(out.target, out.duration)) {
+            if (out.target != null && !sendNative(run, out.target, out.duration, sample)) {
                 fail(run, sample.pose, "Set reachable gimbal points again")
                 return@schedule
             }
@@ -374,6 +394,18 @@ class NativeGimbalProgramRunner internal constructor(
             publish(run, sample.pose, out.finished, force = out.finished)
             if (!out.finished) wakeNext(run, current)
         }
+    }
+
+    /**
+     * The engine plans wrapped native pitch; a continuous gimbal gets each target beside the
+     * reference at Start. A layout change mid-take leaves no trusted reference, so it stops.
+     */
+    private fun sendNative(run: Run, target: GimbalWaypoint, duration: Double, sample: NativeGimbalFeedback): Boolean {
+        if (sample.nativePitch != run.nativePitch) return false
+        val native = target.nativePitchDeg ?: return send(target, duration)
+        val reference = run.nativeReference ?: return false
+        val beside = run.nativePitch.target(native, reference) ?: return false
+        return send(target.copy(nativePitchDeg = beside), duration)
     }
 
     private fun wakeNext(run: Run, current: Double) {

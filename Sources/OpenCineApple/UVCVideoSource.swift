@@ -39,9 +39,16 @@
     ///
     /// ## Frames
     ///
-    /// Each captured `CVPixelBuffer` (BGRA) is lent to the consumer as a `DecodedFrameLease`
-    /// stamped with this source's stream and generation. The generation advances whenever the
-    /// capture device goes away or changes, so a frame buffered from the previous device is stale.
+    /// Each captured `CVPixelBuffer` is lent to the consumer as a `DecodedFrameLease` stamped with
+    /// this source's stream and generation. Frames stay YCbCr, in the device's own layout where the
+    /// output can deliver it, carrying the YCbCr matrix `CaptureFrameColorimetry` decided and no
+    /// transfer or primaries attachment; a consumer renders them with `LiveFrameDecoding`, which
+    /// also ignores the colour space the capture IOSurface carries, so they decode to the signal's
+    /// own code values. Asking AVFoundation for BGRA let it pick the matrix, and it decoded an
+    /// untagged or class-default tagged HD signal as BT.601 (saturated colours thrown toward
+    /// green). The generation advances
+    /// whenever the capture device goes away or changes, so a frame buffered from the previous
+    /// device is stale.
     /// The source used to render every frame to a `UIImage` on the capture queue; that render (an
     /// app whose consumers need a CGImage-backed bitmap) is now the app's, done only for the frames
     /// the newest-wins stream actually hands over.
@@ -83,6 +90,29 @@
         private let captureQueue: DispatchQueue
         private var currentDevice: AVCaptureDevice?
         private var isRunning = false
+        private let identityLock = NSLock()
+        private var deviceIdentity: CaptureDeviceIdentity?
+
+        /// The USB identity of the capture device frames currently come from, or nil before a
+        /// device streams or when AVFoundation names no USB IDs for it. A consumer passes it to
+        /// ``CaptureCalibration/forDevice(_:)``, which corrects every UVC capture device alike;
+        /// the identity itself is diagnostic. It changes with the device, before that device's
+        /// first frame; a frame from the device before it carries an older generation, which the
+        /// fence already refuses.
+        public var captureDeviceIdentity: CaptureDeviceIdentity? {
+            identityLock.withLock { deviceIdentity }
+        }
+
+        /// A capture device's USB identity, from its model ID (`"UVC Camera VendorID_13407
+        /// ProductID_8496"`) or, failing that, its unique ID.
+        static func identity(modelID: String, uniqueID: String) -> CaptureDeviceIdentity? {
+            CaptureDeviceIdentity(deviceIdentifier: modelID)
+                ?? CaptureDeviceIdentity(deviceIdentifier: uniqueID)
+        }
+
+        private func setDeviceIdentity(_ identity: CaptureDeviceIdentity?) {
+            identityLock.withLock { deviceIdentity = identity }
+        }
 
         /// `queueLabel` and `logSubsystem` name the capture queue and log category after the app.
         public init(
@@ -197,6 +227,7 @@
                     currentDevice = nil
                     fence.advance()
                 }
+                setDeviceIdentity(nil)
                 publish(.waitingForDevice)
                 return
             }
@@ -204,6 +235,14 @@
             // running session alone rather than restarting it and dropping frames.
             if isRunning, currentDevice?.uniqueID == device.uniqueID { return }
             if currentDevice != nil { fence.advance() }
+            // A new device reports its own format and colorimetry on its first frame.
+            reportedColorimetry = false
+            let identity = Self.identity(modelID: device.modelID, uniqueID: device.uniqueID)
+            setDeviceIdentity(identity)
+            // The raw IDs the identity is read from, for a device whose IDs are not understood.
+            let ids = "model \(device.modelID) unique \(device.uniqueID)"
+            let usb = identity?.description ?? "unread"
+            log.info("UVC device \(ids, privacy: .public) USB \(usb, privacy: .public)")
 
             let selectedFormat: String?
             do {
@@ -243,10 +282,6 @@
             session.addInput(input)
 
             let output = AVCaptureVideoDataOutput()
-            // BGRA so a CIImage to CGImage render is a straight copy rather than a colour conversion.
-            output.videoSettings = [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-            ]
             // A monitor shows the newest frame or it is not a monitor: never queue behind a slow bake.
             output.alwaysDiscardsLateVideoFrames = true
             output.setSampleBufferDelegate(self, queue: captureQueue)
@@ -268,7 +303,18 @@
                 connection.videoScaleAndCropFactor = 1
             }
 
-            return selectBestFormat(on: device)
+            let selected = selectBestFormat(on: device)
+            // YCbCr, never RGB: the matrix is ours to decide (see `CaptureFrameColorimetry`). Set
+            // after the format choice, so the request follows the active format's own layout.
+            let deviceFormat = CMFormatDescriptionGetMediaSubType(
+                device.activeFormat.formatDescription)
+            output.videoSettings = [
+                kCVPixelBufferPixelFormatTypeKey as String:
+                    CaptureFrameColorimetry.outputPixelFormat(
+                        deviceFormat: deviceFormat,
+                        available: output.availableVideoPixelFormatTypes)
+            ]
+            return selected
         }
 
         /// Below this a format is a slideshow, not a monitor feed.
@@ -398,7 +444,7 @@
 
         // MARK: - Signal colorimetry
 
-        /// What the capture chain CLAIMS the signal is, read from the first frame's attachments.
+        /// What the capture chain CLAIMS the signal is, read from each device's first frame.
         /// Two distinct field reports hide in one "the HDMI picture looks wrong": a camera sending
         /// its recording gamma over HDMI (log/HLG: flat or green-tinted until the monitoring LUT is
         /// applied; fixed on the CAMERA's HDMI output setting), and a dongle mis-tagging matrix or
@@ -416,11 +462,30 @@
                 }
                 return Self.shortColorimetryName(value)
             }
-            let summary =
+            let format = CVPixelBufferGetPixelFormatType(pixelBuffer)
+            var summary =
                 "\(tag(kCVImageBufferColorPrimariesKey))/\(tag(kCVImageBufferTransferFunctionKey))"
-                + "/\(tag(kCVImageBufferYCbCrMatrixKey))"
+                + "/\(tag(kCVImageBufferYCbCrMatrixKey)) \(CaptureFrameColorimetry.fourCC(format))"
+            // The matrix the picture is actually decoded with, when it is not the one claimed.
+            if CaptureFrameColorimetry.isYCbCr(format) {
+                let claimed = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, nil)
+                let decoded = CaptureFrameColorimetry.decodingMatrix(
+                    tagged: claimed as? String, height: CVPixelBufferGetHeight(pixelBuffer))
+                if claimed as? String != decoded {
+                    summary += " → \(Self.shortColorimetryName(decoded))"
+                }
+            }
+            summary += Self.calibrationReadout(captureDeviceIdentity)
             log.info("UVC signal colorimetry: \(summary, privacy: .public)")
             Task { @MainActor [onSignalColorimetry] in onSignalColorimetry?(summary) }
+        }
+
+        /// The device's USB identity, when it could be read, and whether the HDMI capture
+        /// correction applies: the line that shows on hardware how the picture is decoded.
+        static func calibrationReadout(_ identity: CaptureDeviceIdentity?) -> String {
+            let usb = identity.map { " · USB \($0)" } ?? " · USB ID unread"
+            let calibrated = !CaptureCalibration.forDevice(identity).isIdentity
+            return usb + (calibrated ? " · calibrated" : "")
         }
 
         /// The CoreVideo constants' raw values, shortened to what an operator can read; anything
@@ -445,7 +510,9 @@
             from connection: AVCaptureConnection
         ) {
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+            // Read the claim before the decision overwrites it, then decide for every consumer.
             reportSignalColorimetryOnce(of: pixelBuffer)
+            CaptureFrameColorimetry.prepareForDisplay(pixelBuffer)
             // The capture clock is the host clock; nanoseconds of the frame's presentation time.
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             let timeNs = pts.isNumeric ? Int64(CMTimeGetSeconds(pts) * 1_000_000_000) : 0

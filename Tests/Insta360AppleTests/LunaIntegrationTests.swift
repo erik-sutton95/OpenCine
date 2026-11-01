@@ -176,25 +176,165 @@ import Testing
         port.finishConnect()
         var record: SavedCamera?
         for await case .connected(let camera) in events { record = camera.saved }
-        #expect(record?.name == "A cam" && record?.routes == [ap] && record?.extras == ["lastSetup": "wifi"])
+        // Camera Wi-Fi leaves the camera on its own access point, so the legacy move marker goes.
+        #expect(record?.name == "A cam" && record?.routes == [ap] && record?.extras == [:])
+        #expect(port.routes == [.cameraWiFi(restoreAccessPoint: true)], "main's lastSetup may have moved it")
         #expect(record?.device == nil, "no serial was read")
     }
 
-    /// A legacy hotspot setup (main's records could carry one) is no dead chip: Luna dials the
-    /// camera over its own Wi-Fi, keeps the setup, and makes the camera Wi-Fi preferred again.
-    @Test func aLegacyHotspotSetupConnectsOverCameraWiFi() async throws {
+    // MARK: Wi-Fi and hotspot setups (station mode)
+
+    func station(_ ssid: String, _ password: String, hotspot: Bool = false) -> LunaRoute {
+        .station(LunaStationNetwork(ssid: ssid, password: password, hotspot: hotspot))
+    }
+
+    @Test func theLunaOffersWiFiAndHotspotSetups() {
+        let profile = integration().profiles[0]
+        #expect(profile.addableRoutes == [.infrastructureNetwork, .phoneHotspot])
+        #expect(profile.routes == [.cameraAccessPoint, .infrastructureNetwork, .phoneHotspot])
+    }
+
+    /// Add setup › Wi-Fi: the camera moves onto the network over Bluetooth, the password is kept
+    /// for later connects, the record remembers the move before it happens, and the new setup
+    /// becomes the camera's preferred route once live.
+    @Test func addingAWiFiSetupMovesTheCameraAndSavesTheSetup() async throws {
+        let luna = integration()
+        var stamped: [SavedCamera] = []
+        luna.saveRecord = { stamped.append($0) }
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B",
+            model: LunaProtocol.model, routes: [ap], preferredRoute: ap.id)
+        let events = luna.connect(
+            .addRoute(saved, RouteDraft(kind: .infrastructureNetwork, network: "Studio", secret: "synthetic1")))
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(port.routes == [station("Studio", "synthetic1")])
+        #expect(port.stationPassword(for: "Studio", hotspot: false) == "synthetic1")
+        let remembered = try #require(stamped.last)
+        let wifi = try #require(remembered.routes.first { $0.kind == .infrastructureNetwork })
+        #expect(wifi.key == "wifi" && wifi.network == "Studio" && wifi.bluetooth)
+        #expect(remembered.preferredRoute == wifi.id, "remembered before the camera moves")
+        port.emit(.phase(.joiningWiFi))
+        port.emit(.phase(.openingVideo))
+        port.finishConnect()
+        var steps: [[ConnectionStep]] = []
+        var notes: [String?] = []
+        var record: SavedCamera?
+        for await event in events {
+            switch event {
+            case .progress(let progress, _):
+                steps.append(progress.steps)
+                notes.append(progress.note)
+            case .connected(let connected): record = connected.saved
+            case .failed(let failure): Issue.record("failed: \(failure.code)")
+            }
+        }
+        #expect(steps.allSatisfy { $0.map(\.title)[1] == "Moving the camera to Studio" })
+        #expect(steps.first?.map(\.title)[2] == "Finding the camera")
+        #expect(!notes.contains("Joining camera Wi-Fi…"), "the camera moves; the phone joins nothing of the camera's")
+        let live = try #require(record)
+        #expect(live.routes.map(\.kind) == [.cameraAccessPoint, .infrastructureNetwork])
+        #expect(live.preferredRoute == live.routes[1].id && live.routes[0].network == "LUNA-1A2B")
+    }
+
+    @Test func aHotspotSetupMovesTheCameraOntoThisPhonesHotspot() async throws {
+        let luna = integration()
+        let saved = SavedCamera(id: camera.uuidString, integration: luna.id, advertisedName: "", model: "")
+        let events = luna.connect(
+            .addRoute(saved, RouteDraft(kind: .phoneHotspot, network: "Rig iPhone", secret: "synthetic2")))
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(port.routes == [station("Rig iPhone", "synthetic2", hotspot: true)])
+        port.finishConnect()
+        var record: SavedCamera?
+        for await case .connected(let connected) in events { record = connected.saved }
+        let hotspot = try #require(record?.routes.first { $0.kind == .phoneHotspot })
+        #expect(hotspot.key == "hotspot" && record?.preferredRoute == hotspot.id)
+    }
+
+    @Test func aSetupThatCannotBeAddedNeverDialsTheCamera() async {
+        let luna = integration()
+        let saved = SavedCamera(id: camera.uuidString, integration: luna.id, advertisedName: "", model: "")
+        let usb = await failure(of: luna.connect(.addRoute(saved, RouteDraft(kind: .usb))))
+        #expect(usb?.reason == .unsupported)
+        let unnamed = await failure(of: luna.connect(.addRoute(saved, RouteDraft(kind: .infrastructureNetwork))))
+        #expect(unnamed?.reason == .unsupported)
+        #expect(port.connects.isEmpty)
+    }
+
+    /// A saved Wi-Fi setup connects again with the password saved when it was added.
+    @Test func aSavedWiFiSetupReconnectsWithItsSavedPassword() async throws {
+        let luna = integration()
+        port.saveStation(LunaStationNetwork(ssid: "Studio", password: "synthetic1", hotspot: false))
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
+        let wifi = SavedRoute(key: "wifi", kind: .infrastructureNetwork, network: "Studio", bluetooth: true)
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B", model: LunaProtocol.model,
+            routes: [ap, wifi], preferredRoute: ap.id)
+        let events = luna.connect(.saved(saved, route: wifi.id))
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(port.routes == [station("Studio", "synthetic1")])
+        port.finishConnect()
+        var record: SavedCamera?
+        for await case .connected(let connected) in events { record = connected.saved }
+        #expect(record?.routes == [ap, wifi] && record?.preferredRoute == wifi.id)
+    }
+
+    /// A setup whose password this phone does not hold (a record from an older build) is no dead
+    /// chip and never dials: it asks for the setup again or offers the camera's own Wi-Fi.
+    @Test func aSetupWithoutItsPasswordAsksToEditIt() async throws {
         let luna = integration()
         let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
         let hotspot = SavedRoute(key: "hotspot", kind: .phoneHotspot, network: "Rig iPhone")
         let saved = SavedCamera(
             id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B", model: LunaProtocol.model,
             routes: [ap, hotspot], preferredRoute: hotspot.id)
-        let events = luna.connect(.saved(saved, route: hotspot.id))
-        #expect(await eventually { port.connects.map(\.id) == [camera] })
+        let failed = try #require(await failure(of: luna.connect(.saved(saved, route: hotspot.id))))
+        #expect(failed.title == "Couldn’t connect over Rig iPhone")
+        #expect(failed.actions == [.editRoute(hotspot.id), .retry, .useRoute(ap.id)])
+        #expect(port.connects.isEmpty)
+    }
+
+    @Test func aFailedSetupOffersEditingItAndTheCameraWiFi() async throws {
+        let luna = integration()
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B", model: LunaProtocol.model,
+            routes: [ap], preferredRoute: ap.id)
+        let events = luna.connect(
+            .addRoute(saved, RouteDraft(kind: .infrastructureNetwork, network: "Studio", secret: "wrongpass")))
+        #expect(await eventually { port.connects.count == 1 })
+        port.finishConnect(throwing: ConnectionFailure.luna(
+            .notFound, "station.wrong-password", "The camera could not join “Studio”. Check the password.",
+            phase: .joiningNetwork))
+        let failed = try #require(await failure(of: events))
+        #expect(failed.title == "Couldn’t connect over Studio")
+        #expect(failed.message == "The camera could not join “Studio”. Check the password.")
+        #expect(failed.actions.first.map { if case .editRoute = $0 { true } else { false } } == true)
+        #expect(failed.actions.last == .useRoute(ap.id))
+    }
+
+    /// After a setup moved the camera, its own Wi-Fi asks it back to its access point first, and
+    /// once live the camera Wi-Fi is preferred again.
+    @Test func cameraWiFiAfterASetupRestoresTheAccessPoint() async throws {
+        let luna = integration()
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
+        let wifi = SavedRoute(key: "wifi", kind: .infrastructureNetwork, network: "Studio", bluetooth: true)
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B", model: LunaProtocol.model,
+            routes: [ap, wifi], preferredRoute: wifi.id)
+        let events = luna.connect(.saved(saved, route: ap.id))
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(port.routes == [.cameraWiFi(restoreAccessPoint: true)])
         port.finishConnect()
         var record: SavedCamera?
-        for await case .connected(let camera) in events { record = camera.saved }
-        #expect(record?.routes == [ap, hotspot] && record?.preferredRoute == ap.id)
+        for await case .connected(let connected) in events { record = connected.saved }
+        #expect(record?.preferredRoute == ap.id)
+
+        let nearby = luna.connect(.nearby(sighting()))
+        #expect(await eventually { port.connects.count == 2 })
+        #expect(port.routes.last == .cameraWiFi(restoreAccessPoint: false), "a camera never moved stays put")
+        port.finishConnect()
+        for await _ in nearby {}
     }
 
     @Test func typedFailuresKeepTheirCopy() async throws {
@@ -286,13 +426,6 @@ import Testing
         await luna.forget(SavedCamera(id: camera.uuidString, integration: luna.id, advertisedName: "", model: ""))
         await luna.forget(SavedCamera(id: "AA:BB:CC:DD:EE:01", integration: luna.id, advertisedName: "", model: ""))
         #expect(port.forgotten == [camera])
-    }
-
-    @Test func addingARouteIsUnsupported() async {
-        let luna = integration()
-        let saved = SavedCamera(id: camera.uuidString, integration: luna.id, advertisedName: "", model: "")
-        let failed = await failure(of: luna.connect(.addRoute(saved, RouteDraft(kind: .infrastructureNetwork))))
-        #expect(failed?.reason == .unsupported && port.connects.isEmpty)
     }
 
     func failure(of events: AsyncStream<ConnectionEvent>) async -> ConnectionFailure? {

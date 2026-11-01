@@ -375,6 +375,8 @@ public final class com/opencapture/monitorui/MonitorAssistTool : java/lang/Enum 
 public final class com/opencapture/monitorui/MonitorAssistTool$Companion {
 	public final fun fromPersisted (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorAssistTool;
 	public final fun getCleanPinCases ()Ljava/util/List;
+	public final fun getPhotoPictureTools ()Ljava/util/Set;
+	public final fun getPhotoToolbarCases ()Ljava/util/List;
 	public final fun getPlaybackToolbarCases ()Ljava/util/List;
 	public final fun getSettingsCases ()Ljava/util/List;
 	public final fun getToolbarCases ()Ljava/util/List;
@@ -1074,6 +1076,8 @@ public final class com/opencapture/monitorui/MonitorFieldLayout {
 	public final fun getViewport ()Lcom/opencapture/monitorui/MonitorRect;
 	public final fun getZoom ()Lcom/opencapture/monitorui/MonitorRect;
 	public fun hashCode ()I
+	public final fun scopeObstacles (Ljava/util/Set;Z)Ljava/util/List;
+	public static synthetic fun scopeObstacles$default (Lcom/opencapture/monitorui/MonitorFieldLayout;Ljava/util/Set;ZILjava/lang/Object;)Ljava/util/List;
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -1772,6 +1776,7 @@ public final class com/opencapture/monitorui/MonitorInstantReviewLayout {
 
 public final class com/opencapture/monitorui/MonitorInteractivePictureKt {
 	public static final fun MonitorInteractivePicture (Ljava/lang/Object;FFLandroidx/compose/ui/Modifier;FZLkotlin/jvm/functions/Function1;Ljava/lang/String;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorInteractivePicture (Ljava/lang/Object;FFLcom/opencapture/monitorui/MonitorRect;Landroidx/compose/ui/Modifier;FZLkotlin/jvm/functions/Function1;Ljava/lang/String;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/opencapture/monitorui/MonitorIosParity {
@@ -2855,7 +2860,7 @@ public final class com/opencapture/monitorui/MonitorMotionKt {
 }
 
 public final class com/opencapture/monitorui/MonitorMovableScopePanelKt {
-	public static final fun MonitorMovableScopePanel-xxGQv8s (Ljava/lang/String;Lcom/opencapture/monitorui/MonitorScopeSize;DLcom/opencapture/monitorui/MonitorScopeStoredCenter;Lcom/opencapture/monitorui/MonitorScopeRect;Lcom/opencapture/monitorui/MonitorScopeRect;Lcom/opencapture/monitorui/MonitorScopePoint;ZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;JLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorMovableScopePanel-6XKTGtk (Ljava/lang/String;Lcom/opencapture/monitorui/MonitorScopeSize;DLcom/opencapture/monitorui/MonitorScopeStoredCenter;Lcom/opencapture/monitorui/MonitorScopeRect;Lcom/opencapture/monitorui/MonitorScopeRect;Lcom/opencapture/monitorui/MonitorScopePoint;ZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;JLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLjava/util/List;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/opencapture/monitorui/MonitorNDFilterChipKt {
@@ -3120,6 +3125,18 @@ public final class com/opencapture/monitorui/MonitorPlaybackActions {
 	public final fun getUpdateFrameScrub ()Lkotlin/jvm/functions/Function3;
 	public final fun getUpdateScrub ()Lkotlin/jvm/functions/Function2;
 	public final fun setDeletionConfirmation (Lcom/opencapture/monitorui/MonitorPlaybackDeletionActions;)V
+}
+
+public final class com/opencapture/monitorui/MonitorPlaybackAssistChrome {
+	public static final field $stable I
+	public fun <init> (ZLcom/opencapture/monitorui/MonitorRect;Lcom/opencapture/monitorui/MonitorPlaybackInspectorContext;)V
+	public final fun getInspector ()Lcom/opencapture/monitorui/MonitorPlaybackInspectorContext;
+	public final fun getPortrait ()Z
+	public final fun getTools ()Lcom/opencapture/monitorui/MonitorRect;
+}
+
+public final class com/opencapture/monitorui/MonitorPlaybackAssistChromeKt {
+	public static final fun monitorPlaybackAssistChrome (FFLandroidx/compose/runtime/Composer;I)Lcom/opencapture/monitorui/MonitorPlaybackAssistChrome;
 }
 
 public final class com/opencapture/monitorui/MonitorPlaybackCanvasContext {
@@ -3749,6 +3766,35 @@ public final class com/opencapture/monitorui/MonitorRect {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/monitorui/MonitorScopeChrome : java/lang/Enum {
+	public static final field ASPECT_TOGGLE Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field Companion Lcom/opencapture/monitorui/MonitorScopeChrome$Companion;
+	public static final field DISPLAY Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field FOCUS_RESET Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field LOCK Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field MEDIA Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field MOTION Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field RECORD Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field SETTINGS Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field STATUS Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field TELEMETRY Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field TOOLS Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static final field VALUES Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorScopeChrome;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorScopeChrome;
+}
+
+public final class com/opencapture/monitorui/MonitorScopeChrome$Companion {
+	public final fun getALL ()Ljava/util/Set;
+}
+
+public final class com/opencapture/monitorui/MonitorScopeChromeAvoidance {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorScopeChromeAvoidance;
+	public final fun resolve (Lcom/opencapture/monitorui/MonitorScopePoint;FFFLjava/util/List;FLkotlin/jvm/functions/Function1;)Lcom/opencapture/monitorui/MonitorScopePoint;
+}
+
 public final class com/opencapture/monitorui/MonitorScopeGeometry {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorScopeGeometry;
@@ -3786,6 +3832,7 @@ public final class com/opencapture/monitorui/MonitorScopeMenusKt {
 
 public final class com/opencapture/monitorui/MonitorScopePanelMath {
 	public static final field $stable I
+	public static final field CHROME_GAP_DP F
 	public static final field DRAG_HIT_PADDING_DP F
 	public static final field GRIP_BOTTOM_EXTERIOR_DP F
 	public static final field GRIP_EXTERIOR_DP F
@@ -3800,6 +3847,7 @@ public final class com/opencapture/monitorui/MonitorScopePanelMath {
 	public static final field SCALE_MIN D
 	public final fun clamp (Lcom/opencapture/monitorui/MonitorScopePoint;Lcom/opencapture/monitorui/MonitorScopeSize;Lcom/opencapture/monitorui/MonitorScopeRect;)Lcom/opencapture/monitorui/MonitorScopePoint;
 	public final fun clampWithGrip (Lcom/opencapture/monitorui/MonitorScopePoint;Lcom/opencapture/monitorui/MonitorScopeSize;Lcom/opencapture/monitorui/MonitorScopeRect;F)Lcom/opencapture/monitorui/MonitorScopePoint;
+	public final fun clampWithGrip (Lcom/opencapture/monitorui/MonitorScopePoint;Lcom/opencapture/monitorui/MonitorScopeSize;Lcom/opencapture/monitorui/MonitorScopeRect;FLjava/util/List;F)Lcom/opencapture/monitorui/MonitorScopePoint;
 	public final fun clampedScale (D)D
 	public final fun fittedSize (Lcom/opencapture/monitorui/MonitorScopeSize;Lcom/opencapture/monitorui/MonitorScopeRect;F)Lcom/opencapture/monitorui/MonitorScopeSize;
 	public final fun getGripPadDp ()F

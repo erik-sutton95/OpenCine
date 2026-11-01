@@ -262,16 +262,8 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
             capture = { model.captureDeletion(it, operations) }, isCurrent = model::isDeletionCurrent,
             confirm = model::confirmDeletion, cancel = model::cancelDeletion)
     }
-    fun hasOptions(tool: MonitorAssistTool): Boolean = tool.hasConfiguration && when (tool) {
-        MonitorAssistTool.FALSE -> transfer != null || signalOptions.falseColor != null
-        MonitorAssistTool.ZEBRA -> transfer != null || signalOptions.zebra != null
-        else -> true
-    }
-    fun options(tool: MonitorAssistTool, frame: MonitorRect? = null) {
-        if (assist == null || supportedTools?.contains(tool) == false || !hasOptions(tool)) return
-        if (frame != null) assist.longPressAnchor = frame
-        assist.configureTool = tool
-    }
+    val media = assist?.let { MonitorOperatorMediaAssists(it, assists, usageStore, supportedTools, transfer, signalOptions) }
+    fun options(tool: MonitorAssistTool, frame: MonitorRect? = null) { media?.options(tool, frame) }
     val slots = MonitorPlaybackPageSlots(headerAccessory = {
         operations.rating?.let { rating -> MonitorPlaybackRatingDetails(owner.ratingStars, rating.levels,
             model.isCurrent(value.token), owner.ratingNotice, owner.ratingShadeOpen,
@@ -289,30 +281,14 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         picture = { picture(player, it) }, feedAssists = {}, canvasAssists = {
             if (assist != null && assists?.panelPlacement?.usesAnalysisViewport != true)
                 OperatorPlaybackAssistOverlays(assist, assists, it, scopes, levels, transfer, signalOptions, ::options, visibleTools = supportedTools)
-        }, tools = { chrome ->
-            if (assist != null) MonitorAssistCluster(usageStore, chrome.portrait, false, assist::isPlaybackVisible,
-                { assist.togglePlayback(it) }, { options(it) },
-                Modifier.offset(chrome.frame.x.dp, chrome.frame.y.dp).size(chrome.frame.width.dp, chrome.frame.height.dp),
-                requestExpand = chrome.expanded, onExpansionHandled = chrome.onExpansionHandled,
-                showsAudio = audio != null, playback = true, availableTools = supportedTools, hasOptions = ::hasOptions)
-        }, assistInspector = { chrome ->
-            if (assist != null) assist.configureTool?.takeIf { supportedTools?.contains(it) != false && hasOptions(it) }?.let { tool ->
-                val image: (@Composable () -> Unit)? = assists?.preview?.let { renderer -> { renderer(tool) } }
-                AssistInspectorFrame(tool, assist, chrome.width, chrome.height, chrome.leading, chrome.top, chrome.bottom,
-                    onDismiss = { assist.configureTool = null }, playback = true, safeTrailing = chrome.trailing,
-                    tabs = MonitorAssistTool.settingsCases.filter { supportedTools?.contains(it) != false && hasOptions(it) }) { maximum ->
-                    AssistOptionsPanel(tool, assist, { assist.configureTool = null }, assists?.host ?: MonitorDefaultAssistHost, assists?.lookPicker,
-                        maxHeightDp = maximum, transfer = transfer, embedded = true,
-                        playback = true, imagePreview = image, signalOptions = signalOptions,
-                        lookMenu = assists?.lookMenu)
-                }
-            }
+        }, tools = { chrome -> media?.Bar(chrome, showsAudio = audio != null)
+        }, assistInspector = { chrome -> media?.Inspector(chrome)
         })
 }
 
 
 @Composable
-private fun OperatorPlaybackAssistOverlays(
+internal fun OperatorPlaybackAssistOverlays(
     assist: MonitorAssistState, assists: MonitorOperatorAssistSource?,
     geometry: MonitorPlaybackPictureGeometry, scopes: Flow<ScopeAssistBundle>?,
     levelsFlow: StateFlow<MonitorAudioMeterLevels?>?, transfer: MonitorTransfer?,
