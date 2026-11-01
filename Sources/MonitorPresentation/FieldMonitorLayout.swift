@@ -17,6 +17,22 @@ public struct MonitorRect: Equatable, Sendable {
     }
 }
 
+extension MonitorRect {
+    /// The largest rect of `aspect` (width over height) centred inside this one.
+    /// Mirrors Kotlin `MonitorRect.fittedContent`.
+    func fitting(aspect: Double) -> MonitorRect {
+        guard aspect.isFinite, aspect > 0, height > 0 else { return self }
+        if width / height > aspect {
+            let fittedWidth = height * aspect
+            return MonitorRect(
+                x: x + (width - fittedWidth) / 2, y: y, width: fittedWidth, height: height)
+        }
+        let fittedHeight = width / aspect
+        return MonitorRect(
+            x: x, y: y + (height - fittedHeight) / 2, width: width, height: fittedHeight)
+    }
+}
+
 public struct MonitorSafeArea: Equatable, Sendable {
     public var top: Double
     public var leading: Double
@@ -231,9 +247,18 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             // The physical cutout is smaller than the full safe inset. The
             // picture stays centred across either landscape orientation.
             let cut = max(0, max(safeArea.leading, safeArea.trailing) - 14)
-            let imageW = min(w - 2 * cut, h * aspect)
-            let imageH = imageW / aspect
-            picture = .init(x: (w - imageW) / 2, y: (h - imageH) / 2, width: imageW, height: imageH)
+            let frame = Self.landscapeFrame(width: w, height: h, cut: cut, aspect: Self.frameAspect)
+            // A picture taller than the frame (a 3:2 or 4:3 still) scales down inside the video's
+            // 16:9 frame instead of growing taller: on a tablet the video's bars stay top and
+            // bottom and the still is pillarboxed. A wider picture still spans the usable width.
+            picture =
+                aspect < Self.frameAspect
+                ? frame.fitting(aspect: aspect)
+                : Self.landscapeFrame(width: w, height: h, cut: cut, aspect: aspect)
+            // Where the frame leaves bars above and below (a tablet), the status row sits on the
+            // top bar as in video, so a still keeps it where video has it. Where the frame runs
+            // the full height (a phone), the status row stays on the picture itself.
+            let anchor = aspect < Self.frameAspect && frame.height < h - 0.5 ? frame : picture
             system = .init()
             let bottom = hasHome ? 16.0 : 12.0
             record = .init(x: w - 10 - rec, y: h - bottom - rec, width: rec, height: rec)
@@ -270,8 +295,8 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             // centred at 21.5pt put its accessibility bounds above the window,
             // causing automatic hit-point selection to miss the top buttons.
             status = .init(
-                x: max(77, picture.x + 12), y: (tablet ? 4 : 0) + controlInset,
-                width: settings.x - max(77, picture.x + 12) - 12, height: tablet ? 46 : 44)
+                x: max(77, anchor.x + 12), y: (tablet ? 4 : 0) + controlInset,
+                width: settings.x - max(77, anchor.x + 12) - 12, height: tablet ? 46 : 44)
             let side = 14 + rec + 28
             let valuesH = showsValues ? 43.0 : 0
             let bottomPad = Self.landscapeBottomClearance(safeBottom: safeArea.bottom)
@@ -297,6 +322,21 @@ public struct FieldMonitorLayout: Equatable, Sendable {
         focusReset = .init(
             x: portrait ? max(safeArea.leading + 8, assists.x) : max(safeArea.leading + 8, stick.x - 50),
             y: portrait ? assists.y - 48 : stick.maxY - 40, width: 40, height: 40)
+    }
+
+    /// The landscape feed frame's shape: the 16:9 region a video picture fills. A taller picture
+    /// fits inside it; chrome is laid out around it. Mirrors Kotlin `MonitorLayoutPolicy.FRAME_ASPECT`.
+    static let frameAspect = 16.0 / 9.0
+
+    /// The largest rect of `aspect` centred in a landscape viewport, its width clear of the
+    /// cutout band `cut` on both long edges.
+    static func landscapeFrame(width: Double, height: Double, cut: Double, aspect: Double)
+        -> MonitorRect
+    {
+        let imageW = min(width - 2 * cut, height * aspect)
+        let imageH = imageW / aspect
+        return MonitorRect(
+            x: (width - imageW) / 2, y: (height - imageH) / 2, width: imageW, height: imageH)
     }
 
     /// How far the floating scope panels keep from each viewport edge: the safe area on every
