@@ -69,8 +69,8 @@
         }
     }
 
-    /// A measured colour correction for one HDMI capture device, applied to the frame's R'G'B'
-    /// code values as they come out of ``LiveFrameDecoding``.
+    /// A measured colour correction for HDMI capture frames, applied to the frame's R'G'B' code
+    /// values as they come out of ``LiveFrameDecoding``.
     ///
     /// The codes are taken to BT.709 full-range Y'CbCr (Kr 0.2126, Kb 0.0722, chroma centred on
     /// 0, in 8-bit code units), each channel goes through its ``CaptureChannelCurve``, and the
@@ -117,19 +117,20 @@
 
         public var isIdentity: Bool { self == .identity }
 
-        /// The correction for `device`. A device without a measured entry, or one whose identity
-        /// could not be read, gets ``identity`` and renders exactly as before.
+        /// The correction for a frame from a UVC capture device: ``uvcHDMICapture`` for every
+        /// device, whatever its USB identity and whether or not that identity could be read.
+        /// The identity stays in the signature for the readout and for a known-good exception,
+        /// should a device ever measure clean.
         public static func forDevice(_ device: CaptureDeviceIdentity?) -> CaptureCalibration {
-            device.flatMap { measured[$0] } ?? .identity
+            .uvcHDMICapture
         }
 
-        /// Measured corrections, by capture device.
-        static let measured: [CaptureDeviceIdentity: CaptureCalibration] = [
-            CaptureDeviceIdentity(vendorID: 0x345F, productID: 0x2130): .yCbCrHDMIChroma
-        ]
-
-        /// SandbergCapture HDMI to USB dongle (MacroSilicon, USB 345F:2130), with a YCbCr HDMI
-        /// signal from the camera.
+        /// The correction for a YCbCr HDMI signal through a USB (UVC) capture device.
+        ///
+        /// Fitted on one dongle (SandbergCapture, MacroSilicon, USB 345F:2130), and applied to
+        /// every UVC capture device: four or five different USB-C capture dongles used with the
+        /// camera over time all showed the same tint, so the bias belongs to the HDMI YCbCr
+        /// chain, not to one device.
         ///
         /// Measured on 2026-11-01 on a Calibrite ColorChecker Video, LUT off, in three picture
         /// profiles (SDR, N-Log, Log3G10), against in-camera recordings of the same card (ProRes
@@ -149,7 +150,7 @@
         /// this kit cannot separate the two. Evidence: OpenCine-Parity
         /// `evidence/hardware-pass-20261024/RESULTS.md`, "HDMI dongle characterisation" to the
         /// in-camera ground truth, and the pooled fit `dongle/cc/pool.py` (BUG-Z-HDMI-GREEN-TINT).
-        static let yCbCrHDMIChroma = CaptureCalibration(
+        public static let uvcHDMICapture = CaptureCalibration(
             luma: CaptureChannelCurve(offset: 1.0),
             blueDifference: CaptureChannelCurve(
                 gain: 1.0, offset: 0.899, amplitude: 0.875, centre: 0.226, width: 1.5),

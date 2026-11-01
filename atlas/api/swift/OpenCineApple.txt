@@ -630,6 +630,7 @@ static func VideoToolboxDecoder.makeAVCFormat(sps: [Swift.UInt8], pps: [Swift.UI
 static func VideoToolboxDecoder.makeHEVCFormat(vps: [Swift.UInt8], sps: [Swift.UInt8], pps: [Swift.UInt8]) -> CoreMedia.CMVideoFormatDescription?
 static func VideoToolboxDecoder.markDoNotDisplay(_: CoreMedia.CMSampleBuffer) -> ()
 static let CaptureCalibration.identity: CaptureCalibration
+static let CaptureCalibration.uvcHDMICapture: CaptureCalibration
 static let CaptureChannelCurve.identity: CaptureChannelCurve
 static let JPEGPixelBufferDecoder.pixelFormat: Darwin.OSType
 static let LiveFrameDecoding.codeValueSpace: CoreGraphics.CGColorSpace

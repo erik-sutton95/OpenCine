@@ -19,7 +19,7 @@
         }
 
         /// The capture device's USB identity comes from its model ID, then its unique ID, and the
-        /// readout says which calibration the picture decodes with.
+        /// readout shows it and that every capture device decodes calibrated.
         @Test func deviceIdentityPicksTheCalibration() {
             let dongle = CaptureDeviceIdentity(vendorID: 0x345F, productID: 0x2130)
             #expect(
@@ -34,11 +34,11 @@
             let unnamed = UVCVideoSource.identity(
                 modelID: "UVC Camera", uniqueID: "0x11213302e1a4c04")
             #expect(unnamed == nil)
-            #expect(UVCVideoSource.calibrationReadout(dongle) == " · USB 345F:2130 calibrated")
+            #expect(UVCVideoSource.calibrationReadout(dongle) == " · USB 345F:2130 · calibrated")
             #expect(
                 UVCVideoSource.calibrationReadout(CaptureDeviceIdentity(vendorID: 1, productID: 2))
-                    == " · USB 0001:0002")
-            #expect(UVCVideoSource.calibrationReadout(nil) == " · USB ID unread")
+                    == " · USB 0001:0002 · calibrated")
+            #expect(UVCVideoSource.calibrationReadout(nil) == " · USB ID unread · calibrated")
         }
 
         @Test func streamingStateIsTheOnlyLiveOne() {

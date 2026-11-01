@@ -6,9 +6,9 @@
 
     @testable import OpenCineApple
 
-    /// An HDMI capture frame from a device with a measured correction decodes to its code values
-    /// with that correction applied to the codes themselves; any other device decodes exactly as
-    /// it did without one.
+    /// An HDMI capture frame from any UVC capture device decodes to its code values with the
+    /// measured HDMI correction applied to the codes themselves; the camera's live-view JPEG
+    /// decodes exactly as it did without one.
     @Suite struct CaptureCalibrationTests {
         typealias Fixture = CaptureFrameColorimetryTests
 
@@ -29,17 +29,20 @@
             #expect(CaptureDeviceIdentity(deviceIdentifier: "VendorID_99999 ProductID_1") == nil)
         }
 
-        @Test func onlyTheMeasuredDeviceIsCorrected() {
-            #expect(!CaptureCalibration.forDevice(Self.dongle).isIdentity)
-            #expect(CaptureCalibration.forDevice(Self.unknown).isIdentity)
-            #expect(CaptureCalibration.forDevice(nil).isIdentity)
+        /// Every UVC capture device gets the correction, whatever its USB identity and whether or
+        /// not it could be read.
+        @Test func everyCaptureDeviceIsCorrected() {
+            for device in [Self.dongle, Self.unknown, nil] {
+                #expect(CaptureCalibration.forDevice(device) == .uvcHDMICapture)
+            }
+            #expect(!CaptureCalibration.uvcHDMICapture.isIdentity)
         }
 
         /// Greys, low-chroma log-like colours on both sides of neutral and saturated colours come
         /// out at the measured model's values within 0.3 code. The model is written out here from
         /// its published coefficients, independently of the implementation.
         @Test func measuredDongleRendersTheModel() throws {
-            let calibration = CaptureCalibration.forDevice(Self.dongle)
+            let calibration = CaptureCalibration.uvcHDMICapture
             let greys = [16, 32, 64, 128, 192, 235].map { ($0, $0, $0) }
             let logLike = [
                 (122, 118, 114), (114, 118, 122), (100, 104, 99), (104, 100, 106),
@@ -63,7 +66,7 @@
         /// A neutral grey gains Y' + 1.0, Cb + 0.77 and Cr + 1.13 codes; a chroma just above
         /// neutral moves further than the same chroma just below it (the sign-dependent offset).
         @Test func measuredDongleShiftsNeutralAndChromaAsMeasured() throws {
-            let calibration = CaptureCalibration.forDevice(Self.dongle)
+            let calibration = CaptureCalibration.uvcHDMICapture
             let grey = try Self.fullRangeFrame(y: 128, cb: 128, cr: 128)
             let shift = try Self.yCbCrShift(grey, calibration)
             #expect(Self.near(shift, [1.0, 0.768, 1.125], 0.15), "grey 128 moved by \(shift)")
@@ -81,30 +84,43 @@
             #expect(!Self.near(linear, expected, 2), "linear-space correction rendered \(linear)")
         }
 
-        /// A device without a measured correction renders bit for bit as the decode did before
-        /// calibrations existed, through both the image and the 8-bit bitmap path.
-        @Test func unknownDeviceRendersExactlyAsBefore() throws {
-            let context = CIContext(options: [.cacheIntermediates: false])
-            for calibration in [CaptureCalibration.forDevice(Self.unknown), .forDevice(nil)] {
-                let samples = [(16, 128, 128), (128, 128, 128), (90, 60, 200), (235, 128, 128)]
-                for (y, cb, cr) in samples {
-                    let frame = try Self.fullRangeFrame(y: y, cb: cb, cr: cr)
-                    let before = CIImage(
-                        cvPixelBuffer: frame,
-                        options: [.colorSpace: LiveFrameDecoding.codeValueSpace])
-                    let beforeImage = try #require(
-                        context.createCGImage(
-                            before, from: before.extent, format: .RGBA8,
-                            colorSpace: LiveFrameDecoding.codeValueSpace))
-                    let after = try #require(
-                        LiveFrameDecoding.cgImage(
-                            frame, context: context, calibration: calibration))
-                    #expect(try Self.bytes(after) == Self.bytes(beforeImage))
-                    let image = CIImage(color: .gray)
-                    let space = LiveFrameDecoding.codeValueSpace
-                    #expect(calibration.applied(to: image, codeValueSpace: space) === image)
-                }
+        /// A capture device of another make, or one whose USB identity could not be read, still
+        /// decodes with the correction: a neutral grey moves as through the measured dongle.
+        @Test func unknownOrUnreadableCaptureDeviceStillGetsTheCorrection() throws {
+            let grey = try Self.fullRangeFrame(y: 128, cb: 128, cr: 128)
+            for device in [Self.unknown, nil] {
+                let shift = try Self.yCbCrShift(grey, .forDevice(device))
+                #expect(
+                    Self.near(shift, [1.0, 0.768, 1.125], 0.15),
+                    "\(device?.description ?? "unread"): grey 128 moved by \(shift)")
             }
+        }
+
+        /// The camera's live-view JPEG decode takes no calibration and renders bit for bit as it
+        /// did before calibrations existed: a BT.601 full-range frame prepared as the JPEG paths
+        /// prepare it, through the 8-bit bitmap path both Wi-Fi decoders use.
+        @Test func wifiJPEGDecodeIsByteIdenticalToBefore() throws {
+            let context = CIContext(options: [.cacheIntermediates: false])
+            let samples = [(16, 128, 128), (128, 128, 128), (90, 60, 200), (235, 128, 128)]
+            for (y, cb, cr) in samples {
+                let jpeg = Fixture.Bar(
+                    name: "", video: (y, cb, cr), full: (y, cb, cr), rgb: (0, 0, 0))
+                let frame = try Fixture.frame(
+                    kCVPixelFormatType_420YpCbCr8BiPlanarFullRange, width: 1280, height: 720,
+                    bar: jpeg, matrix: nil)
+                LiveFrameDecoding.prepareJPEGFrame(frame)
+                let before = CIImage(
+                    cvPixelBuffer: frame, options: [.colorSpace: LiveFrameDecoding.codeValueSpace])
+                let beforeImage = try #require(
+                    context.createCGImage(
+                        before, from: before.extent, format: .RGBA8,
+                        colorSpace: LiveFrameDecoding.codeValueSpace))
+                let after = try #require(LiveFrameDecoding.cgImage(frame, context: context))
+                #expect(try Self.bytes(after) == Self.bytes(beforeImage), "Y'CbCr \((y, cb, cr))")
+            }
+            let image = CIImage(color: .gray)
+            let space = LiveFrameDecoding.codeValueSpace
+            #expect(CaptureCalibration.identity.applied(to: image, codeValueSpace: space) === image)
         }
 
         // MARK: - Fixtures
@@ -152,7 +168,7 @@
             )
         }
 
-        /// The measured model of the dongle's correction, on 8-bit R'G'B' codes.
+        /// The measured model of the HDMI capture correction, on 8-bit R'G'B' codes.
         static func model(_ codes: [Double]) -> [Double] {
             let ycc = yCbCr(codes)
             let cb = ycc[1] + 0.899 + 0.875 * tanh((ycc[1] - 0.226) / 1.5)

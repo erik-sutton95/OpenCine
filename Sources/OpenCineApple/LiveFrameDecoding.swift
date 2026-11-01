@@ -34,8 +34,8 @@
         /// A Core Image view of `frame` whose pixels, rendered into `outputSpace`, are the frame's
         /// R'G'B' code values. Pass the space of the render that consumes the image.
         ///
-        /// `calibration` is the capture device's measured correction (``CaptureCalibration``),
-        /// applied to those code values; only an HDMI capture frame passes one. The default,
+        /// `calibration` is the HDMI capture correction (``CaptureCalibration``), applied to those
+        /// code values; only an HDMI capture frame passes one, never the camera's live-view JPEG. The default,
         /// ``CaptureCalibration/identity``, adds nothing to the render.
         public static func image(
             _ frame: CVPixelBuffer, renderedInto outputSpace: CGColorSpace = codeValueSpace,

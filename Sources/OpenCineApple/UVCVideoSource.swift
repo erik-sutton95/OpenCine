@@ -94,10 +94,11 @@
         private var deviceIdentity: CaptureDeviceIdentity?
 
         /// The USB identity of the capture device frames currently come from, or nil before a
-        /// device streams or when AVFoundation names no USB IDs for it. A consumer reads it with
-        /// each lease to decode the frame with the device's ``CaptureCalibration``. It changes
-        /// with the device, before that device's first frame; a frame from the device before it
-        /// carries an older generation, which the fence already refuses.
+        /// device streams or when AVFoundation names no USB IDs for it. A consumer passes it to
+        /// ``CaptureCalibration/forDevice(_:)``, which corrects every UVC capture device alike;
+        /// the identity itself is diagnostic. It changes with the device, before that device's
+        /// first frame; a frame from the device before it carries an older generation, which the
+        /// fence already refuses.
         public var captureDeviceIdentity: CaptureDeviceIdentity? {
             identityLock.withLock { deviceIdentity }
         }
@@ -479,12 +480,12 @@
             Task { @MainActor [onSignalColorimetry] in onSignalColorimetry?(summary) }
         }
 
-        /// The device's USB identity and whether a measured correction applies to it: the line
-        /// that shows on hardware which calibration the picture is decoded with.
+        /// The device's USB identity, when it could be read, and whether the HDMI capture
+        /// correction applies: the line that shows on hardware how the picture is decoded.
         static func calibrationReadout(_ identity: CaptureDeviceIdentity?) -> String {
-            guard let identity else { return " · USB ID unread" }
+            let usb = identity.map { " · USB \($0)" } ?? " · USB ID unread"
             let calibrated = !CaptureCalibration.forDevice(identity).isIdentity
-            return " · USB \(identity)" + (calibrated ? " calibrated" : "")
+            return usb + (calibrated ? " · calibrated" : "")
         }
 
         /// The CoreVideo constants' raw values, shortened to what an operator can read; anything
