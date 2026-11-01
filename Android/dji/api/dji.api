@@ -6,6 +6,21 @@ public final class com/opencapture/opencine/dji/ApertureStrategyWireKt {
 	public static final fun parseState (Lcom/opencapture/opencine/vocabulary/ApertureStrategy;[B)Ljava/lang/Integer;
 }
 
+public final class com/opencapture/opencine/dji/AttitudeLayout : java/lang/Enum {
+	public static final field Companion Lcom/opencapture/opencine/dji/AttitudeLayout$Companion;
+	public static final field FULL Lcom/opencapture/opencine/dji/AttitudeLayout;
+	public static final field POCKET3_COMPACT Lcom/opencapture/opencine/dji/AttitudeLayout;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getLength ()I
+	public final fun getNativePitch ()Lcom/opencapture/opencine/dji/NativePitchWire;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/AttitudeLayout;
+	public static fun values ()[Lcom/opencapture/opencine/dji/AttitudeLayout;
+}
+
+public final class com/opencapture/opencine/dji/AttitudeLayout$Companion {
+	public final fun of ([B)Lcom/opencapture/opencine/dji/AttitudeLayout;
+}
+
 public final class com/opencapture/opencine/dji/BleLink {
 	public static final field Companion Lcom/opencapture/opencine/dji/BleLink$Companion;
 	public static final field MTU_DISCOVERY_FALLBACK_MS J
@@ -100,8 +115,11 @@ public final class com/opencapture/opencine/dji/CameraCommandsWireKt {
 	public static final fun gimbalRecenter (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
 	public static final fun gimbalStickPayload (Lcom/opencapture/opencine/vocabulary/CameraCommands;II)[B
 	public static final fun gimbalTimedStop (Lcom/opencapture/opencine/vocabulary/CameraCommands;)[B
-	public static final fun gimbalTimedTarget (Lcom/opencapture/opencine/vocabulary/CameraCommands;DDD)[B
-	public static final fun gimbalTimedTarget (Lcom/opencapture/opencine/vocabulary/CameraCommands;Lcom/opencapture/opencine/motion/GimbalWaypoint;D)[B
+	public static final fun gimbalTimedTarget (Lcom/opencapture/opencine/vocabulary/CameraCommands;DDDLcom/opencapture/opencine/dji/NativePitchWire;)[B
+	public static final fun gimbalTimedTarget (Lcom/opencapture/opencine/vocabulary/CameraCommands;Lcom/opencapture/opencine/motion/GimbalWaypoint;DLcom/opencapture/opencine/dji/NativePitchWire;)[B
+	public static final fun gimbalTimedTarget (Lcom/opencapture/opencine/vocabulary/CameraCommands;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/motion/GimbalWaypoint;Lcom/opencapture/opencine/dji/NativePitchWire;Ljava/lang/Double;D)[B
+	public static synthetic fun gimbalTimedTarget$default (Lcom/opencapture/opencine/vocabulary/CameraCommands;DDDLcom/opencapture/opencine/dji/NativePitchWire;ILjava/lang/Object;)[B
+	public static synthetic fun gimbalTimedTarget$default (Lcom/opencapture/opencine/vocabulary/CameraCommands;Lcom/opencapture/opencine/motion/GimbalWaypoint;DLcom/opencapture/opencine/dji/NativePitchWire;ILjava/lang/Object;)[B
 	public static final fun isAttitude (Lcom/opencapture/opencine/vocabulary/CameraCommands;[B)Z
 	public static final fun isSelfieFlipGetReply (Lcom/opencapture/opencine/vocabulary/CameraCommands;II[B)Z
 	public static final fun lensForZoomFactor (Lcom/opencapture/opencine/vocabulary/CameraCommands;D)I
@@ -1687,14 +1705,16 @@ public final class com/opencapture/opencine/dji/MultiviewProvisioner {
 
 public final class com/opencapture/opencine/dji/NativeGimbalFeedback {
 	public static final field Companion Lcom/opencapture/opencine/dji/NativeGimbalFeedback$Companion;
-	public fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;)V
-	public synthetic fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;Lcom/opencapture/opencine/dji/NativePitchWire;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;Lcom/opencapture/opencine/dji/NativePitchWire;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
 	public final fun component2 ()D
 	public final fun component3 ()Ljava/lang/Double;
-	public final fun copy (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;)Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/NativeGimbalFeedback;Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
+	public final fun component4 ()Lcom/opencapture/opencine/dji/NativePitchWire;
+	public final fun copy (Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;Lcom/opencapture/opencine/dji/NativePitchWire;)Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/dji/NativeGimbalFeedback;Lcom/opencapture/opencine/motion/GimbalWaypoint;DLjava/lang/Double;Lcom/opencapture/opencine/dji/NativePitchWire;ILjava/lang/Object;)Lcom/opencapture/opencine/dji/NativeGimbalFeedback;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNativePitch ()Lcom/opencapture/opencine/dji/NativePitchWire;
 	public final fun getPose ()Lcom/opencapture/opencine/motion/GimbalWaypoint;
 	public final fun getReceivedAt ()D
 	public final fun getZoomReceivedAt ()Ljava/lang/Double;
@@ -1750,6 +1770,22 @@ public final class com/opencapture/opencine/dji/NativeGimbalProgramRunner$Progre
 public final class com/opencapture/opencine/dji/NativeGimbalProgramRunnerKt {
 	public static final fun nativeProgramZoomFailure (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/Double;)Ljava/lang/String;
 	public static synthetic fun nativeProgramZoomFailure$default (Lcom/opencapture/opencine/motion/GimbalProgram;Lcom/opencapture/opencine/vocabulary/CameraModel;Lcom/opencapture/opencine/vocabulary/CameraStatus;Ljava/lang/Double;ILjava/lang/Object;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/NativePitchWire : java/lang/Enum {
+	public static final field CONTINUOUS Lcom/opencapture/opencine/dji/NativePitchWire;
+	public static final field Companion Lcom/opencapture/opencine/dji/NativePitchWire$Companion;
+	public static final field WRAPPED Lcom/opencapture/opencine/dji/NativePitchWire;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getRange ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public final fun target (DD)Ljava/lang/Double;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/dji/NativePitchWire;
+	public static fun values ()[Lcom/opencapture/opencine/dji/NativePitchWire;
+	public final fun wireDeg (DD)Ljava/lang/Double;
+}
+
+public final class com/opencapture/opencine/dji/NativePitchWire$Companion {
+	public final fun getMAX_OFFSET_DEG ()D
 }
 
 public final class com/opencapture/opencine/dji/PocketCameraSession : com/opencapture/opencine/dji/DjiConnectPort, com/opencapture/opencine/dji/PocketControlPort {
@@ -2315,6 +2351,7 @@ public final class com/opencapture/opencine/dji/WorldLevelDjiKt {
 	public static final fun attitude (Lcom/opencapture/opencine/motion/WorldLevel;[B)Lcom/opencapture/opencine/motion/WorldLevel$Quat;
 	public static final fun failureNote (Lcom/opencapture/opencine/motion/WorldLevelSnap$Companion;Ljava/lang/Double;)Ljava/lang/String;
 	public static final fun ingest (Lcom/opencapture/opencine/motion/LevelReading;[BD)V
-	public static final fun plan (Lcom/opencapture/opencine/motion/WorldLevelSnap$Companion;DLcom/opencapture/opencine/motion/GimbalWaypoint;D)Lkotlin/Pair;
+	public static final fun plan (Lcom/opencapture/opencine/motion/WorldLevelSnap$Companion;DLcom/opencapture/opencine/motion/GimbalWaypoint;DLcom/opencapture/opencine/dji/NativePitchWire;)Lkotlin/Pair;
+	public static synthetic fun plan$default (Lcom/opencapture/opencine/motion/WorldLevelSnap$Companion;DLcom/opencapture/opencine/motion/GimbalWaypoint;DLcom/opencapture/opencine/dji/NativePitchWire;ILjava/lang/Object;)Lkotlin/Pair;
 }
 
