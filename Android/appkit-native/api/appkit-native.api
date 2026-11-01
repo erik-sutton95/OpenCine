@@ -13,6 +13,7 @@ public final class com/opencapture/opencine/appkitnative/MonitorBitmapStillLook 
 	public fun <init> ()V
 	public fun <init> (I)V
 	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getPaints ()Z
 	public fun render (Landroid/graphics/Bitmap;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)Landroid/graphics/Bitmap;
 }
 

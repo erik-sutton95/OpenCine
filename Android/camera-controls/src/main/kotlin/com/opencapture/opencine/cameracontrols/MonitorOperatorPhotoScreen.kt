@@ -51,12 +51,18 @@ import java.nio.ByteBuffer
  */
 public fun interface MonitorStillLook {
     public fun render(picture: Bitmap, plan: FeedEffectsRenderPlan): Bitmap?
+
+    /**
+     * Whether this backend paints on this device. When it does not (the AGSL chain below API 33),
+     * the viewer does not offer peaking, false colour and zebra, as without a backend.
+     */
+    public val paints: Boolean get() = true
 }
 
 /**
  * Complete still-photo page over a borrowed source; adapters only decode one bounded image. The
  * page shows the playback page's view assist bar and option inspector over the still (the tools of
- * [MonitorAssistTool.photoToolbarCases]; peaking, false colour and zebra only with a [stillLook]),
+ * [MonitorAssistTool.photoToolbarCases]; peaking, false colour and zebra only with a [stillLook] that paints),
  * shares the playback-visible tool state with clip playback, and zooms the still past its frame up
  * to the screen edge like playback. [usageStore] keeps the bar's ordering and [assists] the app's
  * assist host, look menu and panel placement, as on the playback page.
@@ -102,8 +108,9 @@ public fun <P> MonitorOperatorPhotoScreen(library: MonitorMediaLibraryModel<P>, 
     DisposableEffect(model) { model.activate(); model.load(loaders, policy); onDispose { model.retire() } }
     LaunchedEffect(libraryState.lifetimeToken) { if (!library.isCurrent(admission)) model.sourceChanged() }
     LaunchedEffect(model, rating) { model.readRating(rating) }
+    val painter = stillLook?.takeIf { it.paints }
     val tools = MonitorAssistTool.photoToolbarCases.filter {
-        availableAssistTools?.contains(it) != false && (stillLook != null || it !in MonitorAssistTool.photoPictureTools)
+        availableAssistTools?.contains(it) != false && (painter != null || it !in MonitorAssistTool.photoPictureTools)
     }.toSet()
     val media = MonitorOperatorMediaAssists(assist, assists, usageStore, tools, MonitorTransfer.REC709, signalOptions)
     DisposableEffect(assist) { onDispose { assist.configureTool = null } }
@@ -123,7 +130,7 @@ public fun <P> MonitorOperatorPhotoScreen(library: MonitorMediaLibraryModel<P>, 
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             val image = state.picture
             if (image != null) {
-                val shown = rememberStillLook(image, assist, stillLook)
+                val shown = rememberStillLook(image, assist, painter)
                 val bundles = rememberStillScopes(image, assist, tools)
                 val mirrorX = assist.isPlaybackVisible(MonitorAssistTool.MIRROR) && assist.mirrorHorizontal
                 val mirrorY = assist.isPlaybackVisible(MonitorAssistTool.MIRROR) && assist.mirrorVertical
@@ -223,7 +230,7 @@ public fun <P> MonitorOperatorPhotoScreen(library: MonitorMediaLibraryModel<P>, 
                         inspectorOpen = assist.configureTool != null)
                     media.Inspector(chrome.inspector, preview = image@{ tool ->
                         val picture = state.picture ?: return@image
-                        StillInspectorPreview(picture, tool, assist, stillLook)
+                        StillInspectorPreview(picture, tool, assist, painter)
                     })
                 }
             }

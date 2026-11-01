@@ -59,8 +59,14 @@ class MonitorPhotoViewerAssistTest {
 
     @Test(timeout = 120_000) fun tallPhotoInLandscapeZoomsPastItsPillarbox() = assertZoom(landscape = true)
 
-    @Test(timeout = 120_000) fun withoutAStillLookThePictureAssistsAreNotOffered() {
-        val fixture = Fixture(landscape = false, look = false)
+    @Test(timeout = 120_000) fun withoutAStillLookThePictureAssistsAreNotOffered() =
+        assertGeometryOnly(Fixture(landscape = false, look = false))
+
+    /** A backend that cannot paint on this device (AGSL below API 33) offers what no backend does. */
+    @Test(timeout = 120_000) fun aStillLookThatCannotPaintHereOffersNoPictureAssists() =
+        assertGeometryOnly(Fixture(landscape = false, paints = false))
+
+    private fun assertGeometryOnly(fixture: Fixture) {
         fixture.launch { scenario ->
             fixture.await("the still is drawn") { red(capture(scenario).pixel(fixture.center())) }
             val expand = fixture.awaitNode("the shared bar is shown") { it.contentDescription?.toString() == "Show view assists" }
@@ -109,7 +115,8 @@ class MonitorPhotoViewerAssistTest {
         }
     }
 
-    private class Fixture(private val landscape: Boolean, private val look: Boolean = true) {
+    private class Fixture(private val landscape: Boolean, private val look: Boolean = true,
+        private val paints: Boolean = true) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val root = Files.createTempDirectory("SIMULATED-photo-assist-").toFile()
         val record = MonitorMediaRecord(
@@ -169,10 +176,7 @@ class MonitorPhotoViewerAssistTest {
                             MonitorOperatorPhotoScreen(library, record, assist,
                                 MonitorMediaPictureLoaders<String, Bitmap>(cached = { still }),
                                 MonitorMediaGalleryOperations(), close = {},
-                                stillLook = if (look) MonitorStillLook { picture, plan ->
-                                    if (!plan.peaking) null else Bitmap.createBitmap(picture.width, picture.height,
-                                        Bitmap.Config.ARGB_8888).also { it.eraseColor(android.graphics.Color.GREEN) }
-                                } else null)
+                                stillLook = if (look) GreenWhenPeaking(paints) else null)
                         }
                     }
                 }
@@ -344,4 +348,11 @@ private fun findNode(matches: (AccessibilityNodeInfo) -> Boolean): Accessibility
         for (i in 0 until node.childCount) node.getChild(i)?.let(pending::add)
     }
     return null
+}
+
+/** Paints the whole still green when peaking is on, or reports that it cannot paint here. */
+private class GreenWhenPeaking(override val paints: Boolean) : MonitorStillLook {
+    override fun render(picture: Bitmap, plan: FeedEffectsRenderPlan): Bitmap? =
+        if (!paints || !plan.peaking) null else Bitmap.createBitmap(picture.width, picture.height,
+            Bitmap.Config.ARGB_8888).also { it.eraseColor(android.graphics.Color.GREEN) }
 }

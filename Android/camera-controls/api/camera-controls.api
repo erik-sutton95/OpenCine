@@ -3471,7 +3471,12 @@ public final class com/opencapture/opencine/cameracontrols/MonitorSettingsSuppor
 }
 
 public abstract interface class com/opencapture/opencine/cameracontrols/MonitorStillLook {
+	public fun getPaints ()Z
 	public abstract fun render (Landroid/graphics/Bitmap;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)Landroid/graphics/Bitmap;
+}
+
+public final class com/opencapture/opencine/cameracontrols/MonitorStillLook$DefaultImpls {
+	public static fun getPaints (Lcom/opencapture/opencine/cameracontrols/MonitorStillLook;)Z
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorWatcherConnectionLabels {
