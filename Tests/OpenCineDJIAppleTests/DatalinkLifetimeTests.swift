@@ -123,6 +123,97 @@ struct DJIAppleDatalinkLifetimeTests {
         #expect(!driver.isClosed)
     }
 
+    /// SIMULATED attitude: native pitch `@0`, yaw and display pitch zero, `count` bytes.
+    nonisolated private static func attitude(nativeTenth: Int16, count: Int) -> [UInt8] {
+        var payload = [UInt8](repeating: 0, count: count)
+        let bits = UInt16(bitPattern: nativeTenth)
+        payload[0] = UInt8(bits & 0xFF)
+        payload[1] = UInt8(bits >> 8)
+        return payload
+    }
+
+    nonisolated private static func timedTargets(_ peer: SimulatedDjiApplePeer) -> [Duml.Frame] {
+        peer.snapshot.commandFrames.filter {
+            $0.cmdSet == 4 && $0.cmdId == 0x14 && $0.payload.count == 8 && $0.payload[6] == 0x05
+        }
+    }
+
+    private static func statusFrame(
+        _ driver: DjiAppleDatalink, where match: @escaping @Sendable (Duml.Frame) -> Bool
+    ) async throws {
+        let observed = DjiAppleCallbackWaiter<Void>()
+        driver.onStatusFrame = { if match($0) { observed.resolve(.success(())) } }
+        try await withCheckedThrowingContinuation { observed.install($0) }
+    }
+
+    /// OpenPocketCine#621 review: Resume plans the rest of the take from the resumed pose, so a
+    /// compact gimbal gets targets beside that pose. The handle tilted while paused, moving native
+    /// pitch from −176.9° to +133.1°; B (30° up) goes out as +103.1°, not −256.9°.
+    @Test func simulatedResumeSendsCompactTargetsBesideTheResumedPose() async throws {
+        let peer = try SimulatedDjiApplePeer()
+        let driver = DjiAppleDatalink.loopbackForTesting(port: try await peer.start())
+        defer { driver.close(); peer.close() }
+        try await driver.open()
+        let current = OSAllocatedUnfairLock(initialState: Self.attitude(nativeTenth: -1769, count: 49))
+        let feed = Task.detached {
+            var seq: UInt16 = 1
+            while !Task.isCancelled {
+                peer.sendAttitude(current.withLock { $0 }, seq: seq)
+                seq &+= 1
+                try? await Task.sleep(for: .milliseconds(40))
+            }
+        }
+        defer { feed.cancel() }
+        try await Self.statusFrame(driver) { $0.cmdSet == 4 && $0.cmdId == 5 }
+        let program = GimbalProgram(
+            a: .init(yawDeg: 0, pitchDeg: 0, zoom: 1, nativePitchDeg: -176.9),
+            b: .init(yawDeg: 0, pitchDeg: 30, zoom: 1, nativePitchDeg: 153.1), durationAB: 2)
+        #expect(driver.startNativeProgram(program: program, token: 9) { _, _, _ in })
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(driver.pauseNativeProgram(token: 9))
+        current.withLock { $0 = Self.attitude(nativeTenth: 1331, count: 49) }
+        var resumed = false
+        for _ in 0..<40 where !resumed {
+            try await Task.sleep(for: .milliseconds(100))
+            resumed = driver.resumeNativeProgram(token: 9)
+        }
+        #expect(resumed)
+        var sent: [Duml.Frame] = []
+        for _ in 0..<50 where sent.isEmpty {
+            try await Task.sleep(for: .milliseconds(100))
+            sent = Self.timedTargets(peer)
+        }
+        let natives = sent.map { GimbalStick.i16LE($0.payload, at: 4) }
+        #expect(natives.first == 1031, "\(natives)")
+        _ = driver.cancelNativeProgram(token: 9)
+    }
+
+    /// OpenPocketCine#621 review: a head target encoded for the full layout is never sent once
+    /// the camera reports the compact layout; the stream is retired and the gimbal stopped.
+    @Test func simulatedLayoutChangeRetiresPendingHeadTargets() async throws {
+        let peer = try SimulatedDjiApplePeer()
+        let driver = DjiAppleDatalink.loopbackForTesting(port: try await peer.start())
+        defer { driver.close(); peer.close() }
+        try await driver.open()
+        peer.sendAttitude(Self.attitude(nativeTenth: 1744, count: 50), seq: 1)
+        try await Self.statusFrame(driver) { $0.cmdSet == 4 && $0.cmdId == 5 }
+        driver.beginNativeTargets(token: 7)
+        let wrapped = try #require(Commands.gimbalTimedTarget(
+            yawDeg: 0, nativePitchDeg: -176.6, duration: 0.1))
+        #expect(driver.noteNativeTarget(wrapped, token: 7))
+        peer.sendAttitude(Self.attitude(nativeTenth: 1744, count: 49), seq: 2)
+        try await Self.statusFrame(driver) { $0.cmdSet == 4 && $0.cmdId == 5 && $0.payload.count == 49 }
+        #expect(!driver.noteNativeTarget(wrapped, token: 7), "the stream was retired")
+        var stopped = false
+        for _ in 0..<30 where !stopped {
+            try await Task.sleep(for: .milliseconds(50))
+            stopped = peer.snapshot.commandFrames.contains {
+                $0.cmdSet == 4 && $0.cmdId == 0x14 && $0.payload == Commands.gimbalTimedStop().payload
+            }
+        }
+        #expect(stopped)
+    }
+
     @Test func simulatedInitialWindowOrdersRegistrationBeforeEnable() async throws {
         let peer = try SimulatedDjiApplePeer(holdInitialWindow: true)
         let journal = Journal()
@@ -293,10 +384,11 @@ private final class SimulatedDjiApplePeer: Sendable {
         let peer = state.withLock { state in state.holdInitialWindow = false; return state.peer }
         if let peer { sendInitialWindow(peer) }
     }
-    func sendAttitude() {
+    func sendAttitude(
+        _ payload: [UInt8] = [UInt8](repeating: 0, count: GimbalStick.attitudeLength), seq: UInt16 = 1
+    ) {
         guard let peer = state.withLock({ $0.peer }) else { return }
-        let payload = [UInt8](repeating: 0, count: GimbalStick.attitudeLength)
-        let frame = Duml.encode(.init(sender: 8, receiver: 2, seq: 1, flags: 0x80,
+        let frame = Duml.encode(.init(sender: 8, receiver: 2, seq: seq, flags: 0x80,
             cmdSet: 4, cmdId: 5, payload: payload))
         let packet = DumlTransport.transportHeader(pktType: 1, payloadLen: frame.count,
             sessionId: 1, seq: 8) + frame

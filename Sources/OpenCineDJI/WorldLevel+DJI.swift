@@ -35,13 +35,18 @@ extension LevelReading {
 
 extension WorldLevelSnap {
     /// One `0x04/0x14` timed target to the nearest world target (mode `05` ignores roll).
-    public static func plan(tiltDeg: Double, pose: GimbalWaypoint, now: TimeInterval)
-        -> (snap: WorldLevelSnap, frame: Duml.Frame)?
-    {
-        guard let move = move(tiltDeg: tiltDeg, pose: pose),
+    /// `nativePitch` is the gimbal's convention: a continuous gimbal gets the goal beside the
+    /// pose's native pitch instead of wrapped across ±180°.
+    public static func plan(
+        tiltDeg: Double, pose: GimbalWaypoint, now: TimeInterval,
+        nativePitch wire: GimbalNativePitchWire = .wrapped
+    ) -> (snap: WorldLevelSnap, frame: Duml.Frame)? {
+        guard let move = move(tiltDeg: tiltDeg, pose: pose), let native = pose.nativePitchDeg,
+            let goal = wire.target(move.nativePitchDeg, around: native),
+            let sent = wire.wireDeg(goal, live: native),
             let frame = Commands.gimbalTimedTarget(
-                yawDeg: pose.yawDeg, nativePitchDeg: (move.nativePitchDeg * 10).rounded() / 10,
-                duration: move.duration)
+                yawDeg: pose.yawDeg, nativePitchDeg: (sent * 10).rounded() / 10,
+                duration: move.duration, nativePitch: wire)
         else { return nil }
         return (WorldLevelSnap(target: move.target, deadline: now + move.duration + settleGrace), frame)
     }

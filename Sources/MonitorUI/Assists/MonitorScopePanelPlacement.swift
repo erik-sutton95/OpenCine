@@ -51,6 +51,39 @@ public enum MonitorScopePanelPlacement {
             y: min(max(minY, point.y), max(minY,
                 bounds.maxY - size.height / 2 - (resizable ? gripBottomExtent : 0))))
     }
+
+    /// `clamp`, then the nearest centre whose body and resize strip keep `padding` from every
+    /// chrome rect (`MonitorScopeChromeAvoidance`). Without obstacles it is `clamp`.
+    public static func clamp(_ point: CGPoint, size: CGSize, in bounds: CGRect,
+        resizable: Bool = true, avoiding obstacles: [CGRect]) -> CGPoint {
+        guard !obstacles.isEmpty else { return clamp(point, size: size, in: bounds, resizable: resizable) }
+        let resolved = MonitorScopeChromeAvoidance.resolve(
+            MonitorScopePoint(x: Double(point.x), y: Double(point.y)),
+            width: Double(size.width), height: Double(size.height),
+            bottomExtent: resizable ? Double(gripBottomExtent) : 0,
+            avoiding: obstacles.map {
+                MonitorRect(x: Double($0.minX), y: Double($0.minY), width: Double($0.width), height: Double($0.height))
+            },
+            gap: Double(padding)
+        ) { candidate in
+            let clamped = clamp(CGPoint(x: candidate.x, y: candidate.y), size: size, in: bounds, resizable: resizable)
+            return MonitorScopePoint(x: Double(clamped.x), y: Double(clamped.y))
+        }
+        return CGPoint(x: resolved.x, y: resolved.y)
+    }
+}
+
+/// The live chrome rects, in canvas coordinates, that floating scopes and meters keep clear of
+/// (`FieldMonitorLayout.scopeObstacles`). The live surface sets them; empty elsewhere.
+extension EnvironmentValues {
+    public var monitorScopeObstacles: [CGRect] {
+        get { self[MonitorScopeObstaclesKey.self] }
+        set { self[MonitorScopeObstaclesKey.self] = newValue }
+    }
+}
+
+private struct MonitorScopeObstaclesKey: EnvironmentKey {
+    static let defaultValue: [CGRect] = []
 }
 
 /// Coordinates are normalized against the full canvas; fitting never rewrites storage.
@@ -95,14 +128,17 @@ public struct MonitorScopePanelLayout: Equatable {
     public let canvas: CGRect
     public let movementBounds: CGRect
     public let resizable: Bool
+    /// Chrome the panel keeps clear of, at rest and while dragged.
+    public let obstacles: [CGRect]
     public init(baseSize: CGSize, preferredSize: CGSize, center: CGPoint, scale: Double,
-        canvas: CGRect, movementBounds: CGRect, resizable: Bool = true) {
+        canvas: CGRect, movementBounds: CGRect, resizable: Bool = true, obstacles: [CGRect] = []) {
         self.baseSize = baseSize; self.scale = scale; self.canvas = canvas
         self.movementBounds = movementBounds
         self.resizable = resizable
+        self.obstacles = obstacles
         size = MonitorScopePanelPlacement.fittedSize(preferredSize, in: movementBounds, resizable: resizable)
         self.center = MonitorScopePanelPlacement.clamp(center, size: size, in: movementBounds,
-            resizable: resizable)
+            resizable: resizable, avoiding: obstacles)
     }
 }
 

@@ -23,6 +23,36 @@ extension ConnectionFailure {
         .linkLost, "bluetooth.closed", "The camera Bluetooth connection closed.", phase: .link)
 }
 
+/// A Wi-Fi or hotspot setup the camera joins (station mode). Never shows the password.
+public struct LunaStationNetwork: Equatable, Sendable, CustomStringConvertible,
+    CustomDebugStringConvertible
+{
+    public var ssid: String
+    public var password: String
+    /// This phone's Personal Hotspot rather than a router's Wi-Fi.
+    public var hotspot: Bool
+
+    public init(ssid: String, password: String, hotspot: Bool) {
+        self.ssid = ssid
+        self.password = password
+        self.hotspot = hotspot
+    }
+
+    public var description: String {
+        "LunaStationNetwork(\(ssid), hotspot: \(hotspot), password: <redacted>)"
+    }
+    public var debugDescription: String { description }
+}
+
+/// How a connect reaches the camera.
+public enum LunaRoute: Equatable, Sendable {
+    /// This phone joins the camera's own Wi-Fi. `restoreAccessPoint`: a setup may have moved the
+    /// camera onto another network, so it is asked back onto its own first.
+    case cameraWiFi(restoreAccessPoint: Bool)
+    /// The camera joins this network over Bluetooth and is found there.
+    case station(LunaStationNetwork)
+}
+
 /// What `LunaIntegration` needs from the Luna backend: discovery, one connection, its session,
 /// and forgetting a camera's saved Wi-Fi. `LunaCameraBackend` is the one implementation; tests
 /// script a fake.
@@ -48,10 +78,28 @@ public protocol LunaConnectPort: AnyObject {
     func mediaService(for session: CameraSessionID) -> (any CameraMediaService)?
     /// Drops the camera's saved Wi-Fi. The approval identity stays.
     func forget(cameraID: UUID)
+    /// The connect over `route`: camera Wi-Fi as `connect(to:)`, or moving the camera onto a
+    /// Wi-Fi or hotspot setup and finding it there. Throws `ConnectionFailure`.
+    func connect(to camera: MonitorCamera, route: LunaRoute) async throws
+    /// The password this phone keeps for a Wi-Fi or hotspot setup.
+    func stationPassword(for network: String, hotspot: Bool) -> String?
+    /// Keeps a Wi-Fi or hotspot setup's password on this phone.
+    func saveStation(_ network: LunaStationNetwork)
 }
 
 extension LunaConnectPort {
     public func mediaService(for session: CameraSessionID) -> (any CameraMediaService)? { nil }
+
+    /// A port without station mode connects over camera Wi-Fi only.
+    public func connect(to camera: MonitorCamera, route: LunaRoute) async throws {
+        guard case .cameraWiFi = route else {
+            throw ConnectionFailure.luna(
+                .unsupported, "route.unsupported", "This camera connects over its own Wi-Fi only.")
+        }
+        try await connect(to: camera)
+    }
+    public func stationPassword(for network: String, hotspot: Bool) -> String? { nil }
+    public func saveStation(_ network: LunaStationNetwork) {}
 }
 
 extension LunaCameraBackend: LunaConnectPort {
@@ -68,7 +116,9 @@ public final class LunaIntegration: CameraIntegration {
     public nonisolated var id: IntegrationID { LunaCameraSession.integration }
     public nonisolated let profiles = [
         CameraProfile(
-            id: "\(LunaCameraSession.integration.rawValue).luna-ultra", title: "Luna Ultra", routes: [.cameraAccessPoint])
+            id: "\(LunaCameraSession.integration.rawValue).luna-ultra", title: "Luna Ultra",
+            routes: [.cameraAccessPoint, .infrastructureNetwork, .phoneHotspot],
+            addableRoutes: StationRoutes.moving)
     ]
     public nonisolated let discoveryModes: Set<DiscoveryMode> = [.passive]
     public var onEvent: ((CameraBackendEvent) -> Void)?
@@ -84,12 +134,15 @@ public final class LunaIntegration: CameraIntegration {
         }
     }
     public var onDiscoveryFailure: ((ConnectionFailure?) -> Void)?
+    /// Stores a record before an attempt that moves the camera: the setup being added and the
+    /// move itself are remembered first, so a later camera Wi-Fi connect asks the camera back
+    /// onto its own access point even when this attempt fails. The app upserts it.
+    public var saveRecord: (SavedCamera) -> Void = { _ in }
 
-    /// The connect card's plan, in the order the backend runs it.
-    public static let steps = [
-        ConnectionStep(title: "Connecting over Bluetooth"), ConnectionStep(title: "Joining camera Wi-Fi"),
-        ConnectionStep(title: "Opening the video link"), ConnectionStep(title: "Starting the picture"),
-    ]
+    /// The connect card's plan over camera Wi-Fi, in the order the backend runs it.
+    public static let steps = StationRoutes.steps(nil)
+    /// The plan for a route: camera Wi-Fi, or moving the camera to a Wi-Fi or hotspot setup.
+    public static func steps(_ route: SavedRoute?) -> [ConnectionStep] { StationRoutes.steps(route) }
     /// How long a saved connection gives Bluetooth to hear the camera before saved Wi-Fi.
     static let sightingGrace: TimeInterval = 4
     static let sightingStep = Duration.milliseconds(100)
@@ -111,6 +164,9 @@ public final class LunaIntegration: CameraIntegration {
     private final class Attempt {
         let target: ConnectTarget
         let camera: MonitorCamera
+        /// The saved or added route this attempt uses; nil for a nearby camera.
+        let route: SavedRoute?
+        let lunaRoute: LunaRoute
         let continuation: AsyncStream<ConnectionEvent>.Continuation
         let id = ConnectionAttemptID()
         var task: Task<Void, Never>?
@@ -119,9 +175,17 @@ public final class LunaIntegration: CameraIntegration {
         var prompt: ConnectionPrompt?
         var note: String?
 
-        init(target: ConnectTarget, camera: MonitorCamera, continuation: AsyncStream<ConnectionEvent>.Continuation) {
+        var steps: [ConnectionStep] { LunaIntegration.steps(route) }
+        var moving: Bool { route.map { StationRoutes.moves($0.kind) } ?? false }
+
+        init(
+            target: ConnectTarget, camera: MonitorCamera, route: SavedRoute?, lunaRoute: LunaRoute,
+            continuation: AsyncStream<ConnectionEvent>.Continuation
+        ) {
             self.target = target
             self.camera = camera
+            self.route = route
+            self.lunaRoute = lunaRoute
             self.continuation = continuation
         }
     }
@@ -199,15 +263,54 @@ public final class LunaIntegration: CameraIntegration {
 
     public func connect(_ target: ConnectTarget) -> AsyncStream<ConnectionEvent> {
         let (stream, continuation) = AsyncStream.makeStream(of: ConnectionEvent.self)
-        guard let camera = Self.monitorCamera(for: target) else {
-            continuation.yield(
-                .failed(.luna(.unsupported, "route.unsupported", "This camera connects over its own Wi-Fi only.")))
+        func fail(_ failure: ConnectionFailure) -> AsyncStream<ConnectionEvent> {
+            continuation.yield(.failed(failure))
             continuation.finish()
             return stream
         }
+        guard let camera = Self.monitorCamera(for: target) else {
+            return fail(.luna(.unsupported, "route.unsupported", "This setup cannot be added."))
+        }
+        var route: SavedRoute?
+        var lunaRoute = LunaRoute.cameraWiFi(restoreAccessPoint: false)
+        switch target {
+        case .nearby: break
+        case .saved(let saved, let routeID):
+            route = saved.routes.first { $0.id == routeID }
+            if let route, StationRoutes.moves(route.kind) {
+                let hotspot = route.kind == .phoneHotspot
+                guard let network = route.network,
+                    let password = port.stationPassword(for: network, hotspot: hotspot)
+                else {
+                    return fail(
+                        StationRoutes.withRouteActions(
+                            .luna(
+                                .other, "station.password-missing",
+                                "This phone has no password for this setup. Edit the setup to enter it again.",
+                                phase: .joiningNetwork),
+                            route: route, camera: saved))
+                }
+                lunaRoute = .station(LunaStationNetwork(ssid: network, password: password, hotspot: hotspot))
+                saveRecord(StationRoutes.stamping(saved, movingTo: route.kind))
+            } else {
+                lunaRoute = .cameraWiFi(restoreAccessPoint: StationRoutes.mayBeInStationRole(saved))
+            }
+        case .addRoute(let saved, let draft):
+            guard let added = StationRoutes.route(adding: draft), let network = added.network else {
+                return fail(.luna(.unsupported, "route.unsupported", "This setup cannot be added."))
+            }
+            let hotspot = added.kind == .phoneHotspot
+            let password = draft.secret ?? port.stationPassword(for: network, hotspot: hotspot) ?? ""
+            let station = LunaStationNetwork(ssid: network, password: password, hotspot: hotspot)
+            route = added
+            lunaRoute = .station(station)
+            port.saveStation(station)
+            saveRecord(StationRoutes.stamping(StationRoutes.adding(added, to: saved), movingTo: added.kind))
+        }
         // One backend, one connection: a newer attempt ends the older one, whichever camera.
         current?.continuation.finish()
-        let attempt = Attempt(target: target, camera: camera, continuation: continuation)
+        let attempt = Attempt(
+            target: target, camera: camera, route: route, lunaRoute: lunaRoute, continuation: continuation)
         current = attempt
         continuation.onTermination = { [weak self] termination in
             guard case .cancelled = termination else { return }
@@ -221,7 +324,7 @@ public final class LunaIntegration: CameraIntegration {
             await self?.waitForSightingIfSaved(attempt)
             if let self, self.current !== attempt { return }
             do {
-                try await self?.port.connect(to: camera)
+                try await self?.port.connect(to: camera, route: attempt.lunaRoute)
                 self?.connected(attempt, session: session)
             } catch {
                 self?.failed(attempt, error)
@@ -239,7 +342,7 @@ public final class LunaIntegration: CameraIntegration {
     /// access point. Only a camera with saved Wi-Fi is dialled after the grace; one without it
     /// stays on the Bluetooth path, which the backend has always taken at once.
     private func waitForSightingIfSaved(_ attempt: Attempt) async {
-        guard case .saved(let saved, _) = attempt.target, let id = UUID(uuidString: saved.id),
+        guard !attempt.moving, case .saved(let saved, _) = attempt.target, let id = UUID(uuidString: saved.id),
             port.hasSavedWiFi(cameraID: id), !port.hasSeen(id)
         else { return }
         attempt.note = "Looking for the camera"
@@ -291,7 +394,13 @@ public final class LunaIntegration: CameraIntegration {
                 ?? .luna(.other, "unexpected", (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
             failure.phase = failure.phase ?? attempt.phase
             failure.message = Self.operatorMessage(failure.message)
-            attempt.continuation.yield(.failed(failure))
+            let camera: SavedCamera? =
+                switch attempt.target {
+                case .saved(let camera, _), .addRoute(let camera, _): camera
+                case .nearby: nil
+                }
+            attempt.continuation.yield(
+                .failed(StationRoutes.withRouteActions(failure, route: attempt.route, camera: camera)))
         }
         attempt.continuation.finish()
     }
@@ -311,6 +420,13 @@ public final class LunaIntegration: CameraIntegration {
             for continuation in listeners.values { continuation.yield(sightings) }
         case .phase(let phase):
             if let attempt = current, Self.apply(phase, to: attempt) { report(attempt) }
+        case .note(let note):
+            // A setup's live text (where the camera is going, the network search) is the card's
+            // caption; camera Wi-Fi keeps its phase caption.
+            if let attempt = current, attempt.moving {
+                attempt.note = note
+                report(attempt)
+            }
         default: break
         }
         onEvent?(event)
@@ -341,7 +457,7 @@ public final class LunaIntegration: CameraIntegration {
         attempt.continuation.yield(
             .progress(
                 ConnectionProgress(
-                    attempt: attempt.id, phase: attempt.phase, steps: Self.steps, current: attempt.step,
+                    attempt: attempt.id, phase: attempt.phase, steps: attempt.steps, current: attempt.step,
                     note: attempt.note),
                 prompt: attempt.prompt))
     }
@@ -359,9 +475,10 @@ public final class LunaIntegration: CameraIntegration {
         case .awaitingApproval:
             (attempt.phase, attempt.step, attempt.prompt) = (.awaitingApproval, 0, .approveOnCamera(approve))
         case .readingWiFi, .joiningWiFi:
-            // The Wi-Fi step's caption is its phase, as the app has always shown it.
             (attempt.phase, attempt.step, attempt.prompt) = (.joiningNetwork, 1, nil)
-            attempt.note = phase == .readingWiFi ? reading : joining
+            // The Wi-Fi step's caption is its phase, as the app has always shown it; a setup's
+            // step title already says where the camera is going.
+            if !attempt.moving { attempt.note = phase == .readingWiFi ? reading : joining }
         case .openingVideo: (attempt.phase, attempt.step, attempt.prompt) = (.link, 2, nil)
         case .streaming: (attempt.phase, attempt.step, attempt.prompt) = (.link, 3, nil)
         }
@@ -370,7 +487,7 @@ public final class LunaIntegration: CameraIntegration {
 
     private static func monitorCamera(for target: ConnectTarget) -> MonitorCamera? {
         switch target {
-        case .saved(let camera, _):
+        case .saved(let camera, _), .addRoute(let camera, _):
             UUID(uuidString: camera.id).map {
                 MonitorCamera(id: $0, name: camera.advertisedName, model: camera.model, capabilities: [.liveVideo])
             }
@@ -378,7 +495,6 @@ public final class LunaIntegration: CameraIntegration {
             UUID(uuidString: camera.id).map {
                 MonitorCamera(id: $0, name: camera.name, model: camera.model, capabilities: [.liveVideo])
             }
-        case .addRoute: nil
         }
     }
 
@@ -392,16 +508,27 @@ public final class LunaIntegration: CameraIntegration {
             camera = SavedCamera(
                 id: nearby.savedID ?? nearby.id, integration: id, advertisedName: nearby.name, model: nearby.model)
         }
+        if case .addRoute = attempt.target, let route = attempt.route {
+            camera = StationRoutes.adding(route, to: camera)
+        }
         camera.lastConnected = now()
         if let serial = port.connectedSerial, !serial.isEmpty { camera.device = .durable(serial, integration: id) }
+        // The camera Wi-Fi the Bluetooth read named (on a setup too: it is read before the move).
         let network = port.joinedNetwork
         if let index = camera.routes.firstIndex(where: { $0.kind == .cameraAccessPoint }) {
             if let network { camera.routes[index].network = network }
-            camera.preferredRoute = camera.routes[index].id
         } else {
-            let route = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: network, bluetooth: true)
-            camera.routes.insert(route, at: 0)
-            camera.preferredRoute = route.id
+            camera.routes.insert(
+                SavedRoute(key: "ap", kind: .cameraAccessPoint, network: network, bluetooth: true), at: 0)
+        }
+        // The connect leaves the camera in the role of the route it used.
+        camera.extras["lastSetup"] = nil
+        if attempt.moving, let route = attempt.route,
+            let used = camera.routes.first(where: { $0.key == route.key })
+        {
+            camera.preferredRoute = used.id
+        } else {
+            camera.preferredRoute = camera.routes.first { $0.kind == .cameraAccessPoint }?.id
         }
         return camera
     }

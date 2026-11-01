@@ -212,7 +212,7 @@ private struct WaitingSurface: View {
                 exposure: nil, level: nil, audio: { nil }, readOnly: { false }, borrowed: { false },
                 returnToStage: probe.returnsToStage ? {} : nil, coverOpen: { false }, note: $probe.note,
                 settings: {}, media: {}),
-            assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
+            assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, signalOptions: .init(),
                 usage: $probe.usage, usageSeed: [:], toggle: { _ in }),
             views: .init(dashboard: AnyView(Color(red: 0, green: 1, blue: 0).accessibilityElement(children: .ignore)
                 .accessibilityLabel("SIMULATED dashboard")),

@@ -57,6 +57,8 @@ fun MonitorMovableScopePanel(
     onConfirm: () -> Unit = {},
     fillPlate: Boolean = true,
     chip: Boolean = false,
+    /** Chrome rects in [canvas] pixels the panel keeps clear of, at rest and while dragged. */
+    obstacles: List<MonitorScopeRect> = emptyList(),
     content: @Composable (MonitorScopeSize) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -93,8 +95,10 @@ fun MonitorMovableScopePanel(
             size = sizePx,
             bounds = canvas,
         )
-    val center = MonitorScopePanelMath.clampWithGrip(rawCenter, sizePx, placementBounds, gripPx)
+    val gapPx = with(density) { MonitorScopePanelMath.CHROME_GAP_DP.dp.toPx() }
+    val center = MonitorScopePanelMath.clampWithGrip(rawCenter, sizePx, placementBounds, gripPx, obstacles, gapPx)
     val placementState = rememberUpdatedState(placementBounds)
+    val obstaclesState = rememberUpdatedState(obstacles)
     val centerState = rememberUpdatedState(center)
     val sizeState = rememberUpdatedState(sizePx)
     val scaleState = rememberUpdatedState(scale)
@@ -160,6 +164,8 @@ fun MonitorMovableScopePanel(
                                     size,
                                     placementState.value,
                                     gripPx,
+                                    obstaclesState.value,
+                                    gapPx,
                                 )
                             session = snapped
                         },

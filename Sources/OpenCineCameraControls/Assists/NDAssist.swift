@@ -105,6 +105,7 @@
         @State private var sessionCenter: CGPoint?
         @State private var sessionCenterPortrait: CGPoint?
         @Environment(\.interfaceLocked) private var interfaceLocked
+        @Environment(\.monitorScopeObstacles) private var obstacles
 
         public init(
             store: MonitorNDPreferenceStore, size: CGSize, defaultCenter: CGPoint,
@@ -131,7 +132,7 @@
                 layout: MonitorScopePanelLayout(
                     baseSize: NDAssist.baseSize,
                     preferredSize: size, center: center, scale: store.scale, canvas: bounds,
-                    movementBounds: movement),
+                    movementBounds: movement, obstacles: obstacles),
                 enabled: !interfaceLocked, resizeLabel: "Resize ND meter",
                 onMove: { event in
                     switch event {

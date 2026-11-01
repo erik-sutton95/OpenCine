@@ -149,13 +149,12 @@ public class MonitorOperatorLiveSource<K, N>(
 )
 
 /** The assist palette the source offers. [scopes] null renders the palette without scopes or inspectors.
- * [fitted] scopes stack under a portrait fit picture instead of floating over it. */
+ * Every rendered scope floats over the canvas in landscape, portrait fit and portrait fill alike. */
 public class MonitorOperatorLiveAssists(
     public val scopes: MonitorOperatorAssistSource?, public val palette: List<MonitorOperatorPaletteItem>,
     public val rendered: Set<MonitorAssistTool>, public val transfer: MonitorTransfer?,
     public val signalOptions: MonitorOperatorSignalOptions, public val usage: MonitorToolUsageState,
     public val setUsage: (MonitorToolUsageState) -> Unit, public val usageSeed: Map<String, Int>,
-    public val fitted: List<MonitorAssistTool> = emptyList(),
 )
 
 /**
@@ -201,8 +200,6 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
     val feed = if (desqueezed) geometry.pictureContent else layout.onFeed.fittedContent(source.picture.aspect)
     val framing = if (desqueezed) geometry.pictureContent.fittedContent(assist.presentedAspect(source.picture.aspect)) else null
     val field = checkNotNull(layout.field)
-    // Portrait fit stacks the fitted scopes between the picture and the camera values.
-    val scopeZone = if (assists.fitted.isNotEmpty()) monitorOperatorFittedScopeZone(field) else null
     val aspect = portraitAspect?.takeIf { field.portrait && !source.picture.vertical && session.editingMode == null &&
         !desqueezed && !command }?.let { current ->
         val fills = current == PortraitFeedAspect.FILL
@@ -251,7 +248,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         source.record.photo, source.record.confirm, !source.record.busy, onRecordConfirming = source.record.confirmingChanged,
         assist = assist, assists = assists.scopes,
         palette = assists.palette, usage = assists.usage, setUsage = assists.setUsage, usageSeed = assists.usageSeed,
-        renderedTools = assists.rendered, fittedScopes = if (scopeZone != null) assists.fitted else emptyList(), scopeZone = scopeZone,
+        renderedTools = assists.rendered,
         signalOptions = assists.signalOptions, audioChannels = source.audio, aspect = aspect, focusResetFrame = layout.focusReset(views.motionCluster),
         cameraViews = bodyViews, chromeBoxes = boxes, audio = source.audioLevels,
         modifier = modifier, displayTitle = index?.let { "DISP ${it + 1} ${mode.title.lowercase()}" },
@@ -259,7 +256,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         interactionEnabled = session.interactive, borrowed = source.borrowed, returnToStage = source.returnToStage,
         safeLeading = layout.safeLeading, safeTrailing = layout.safeTrailing, safeTop = layout.safeTop,
         safeBottom = layout.safeBottom, scopeFeed = feed, framingFrame = framing,
-        scopePlacement = geometry.scopePlacement, scopeFloating = scopeZone == null, scopeTransfer = assists.transfer,
+        scopePlacement = geometry.scopePlacement, scopeTransfer = assists.transfer,
         paletteFrameChanged = { paletteBounds = it }, transitionChanged = transitionChanged,
         picture = {
             CompositionLocalProvider(LocalMonitorOperatorChromeEdit provides chromeEdit) {

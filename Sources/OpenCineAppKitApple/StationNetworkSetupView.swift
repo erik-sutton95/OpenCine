@@ -16,17 +16,22 @@
         public var hotspotActive: @MainActor () -> Bool
         /// The camera's join command accepts this network name and password.
         public var acceptsJoin: @MainActor (String, String) -> Bool
+        /// Whether a network needs a password, nil when unknown. Nil uses this phone's current
+        /// network (`StationNetworkSecurity.currentNetwork(named:)`), as every app does.
+        public var networkSecured: (@MainActor (String) async -> Bool?)?
 
         public init(
             savedNetworks: @escaping @MainActor () -> [StationNetwork],
             currentSSID: @escaping @MainActor () async -> String?,
             hotspotActive: @escaping @MainActor () -> Bool,
-            acceptsJoin: @escaping @MainActor (String, String) -> Bool
+            acceptsJoin: @escaping @MainActor (String, String) -> Bool,
+            networkSecured: (@MainActor (String) async -> Bool?)? = nil
         ) {
             self.savedNetworks = savedNetworks
             self.currentSSID = currentSSID
             self.hotspotActive = hotspotActive
             self.acceptsJoin = acceptsJoin
+            self.networkSecured = networkSecured
         }
     }
 
@@ -47,6 +52,9 @@
         var cameraSSIDs: Set<String> = []
         /// Nil when the camera is not nearby over Bluetooth. Reports each network as it arrives.
         var scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?
+        /// False for a camera that cannot list networks at all: Nearby says so instead of asking
+        /// for the camera to be turned on.
+        var cameraScansNetworks = true
         /// Saves the confirmed network as this route kind; true closes the wizard.
         var save: @MainActor (StationNetwork) async -> Bool
         var errorMessage: String? = nil
@@ -57,6 +65,7 @@
             context: Context, brand: StationNetworkBrand, services: StationNetworkServices,
             cameraSSIDs: Set<String> = [],
             scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?,
+            cameraScansNetworks: Bool = true,
             save: @escaping @MainActor (StationNetwork) async -> Bool, errorMessage: String? = nil,
             close: @escaping () -> Void, path: [Page] = []
         ) {
@@ -65,6 +74,7 @@
             self.services = services
             self.cameraSSIDs = cameraSSIDs
             self.scan = scan
+            self.cameraScansNetworks = cameraScansNetworks
             self.save = save
             self.errorMessage = errorMessage
             self.close = close
@@ -72,6 +82,8 @@
         }
 
         @State private var working = false
+        /// The password page's network and its security (nil: unknown).
+        @State private var security: (ssid: String, secured: Bool?)?
         @State private var currentSSID: String?
         @State private var configured: [String] = []
         @State private var found: [String] = []
@@ -463,11 +475,15 @@
                             icon: scanning ? nil : .scan,
                             title: scanning
                                 ? "The camera is looking for networks…"
-                                : scan == nil
-                                    ? "Turn the camera on to find networks" : "No networks found yet",
+                                : !cameraScansNetworks
+                                    ? "This camera can’t list networks"
+                                    : scan == nil
+                                        ? "Turn the camera on to find networks" : "No networks found yet",
                             detail: scanning
                                 ? "Networks appear here as it finds them"
-                                : scanFailed ? "The scan did not finish. Try Scan again." : nil,
+                                : !cameraScansNetworks
+                                    ? "Choose a known network, or Other network."
+                                    : scanFailed ? "The scan did not finish. Try Scan again." : nil,
                             showsProgress: scanning, chevron: false
                         )
                         .accessibilityIdentifier("\(context.prefix).scanStatus")
@@ -528,9 +544,22 @@
                     landscape ? nil : "The camera leaves its own Wi-Fi and joins this one.")
             }
             .padding(16).frame(maxWidth: .infinity, alignment: .leading).background(card)
+            let secured = security?.ssid == ssid ? security?.secured : nil
             let field = VStack(alignment: .leading, spacing: 6) {
                 secureField("PASSWORD", text: $password, id: "\(context.prefix).password")
+                if let note = StationNetworkSetupRules.passwordNote(password, secured: secured) {
+                    hint(note).accessibilityIdentifier("\(context.prefix).passwordNote")
+                }
                 hint("Saved in this iPhone’s Keychain. Multiview can reuse it.")
+            }
+            .task(id: ssid) {
+                let lookup = services.networkSecured ?? StationNetworkSecurity.currentNetwork(named:)
+                let current = await lookup(ssid)
+                security = (
+                    ssid,
+                    StationNetworkSetupRules.security(
+                        of: ssid, saved: services.savedNetworks(), current: current)
+                )
             }
             // Portrait keeps the password under the network, above the checklist.
             return Group {
@@ -699,8 +728,9 @@
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("\(context.prefix).otherNetwork")
             case .password(let ssid):
+                let secured = security?.ssid == ssid ? security?.secured : nil
                 let valid =
-                    (password.isEmpty || password.count >= 8)
+                    StationNetworkSetupRules.acceptsPassword(password, secured: secured)
                     && services.acceptsJoin(ssid, password)
                 connectButton("Connect over Wi-Fi", enabled: valid) {
                     await save(StationNetwork(ssid: ssid, password: password, hotspot: false))

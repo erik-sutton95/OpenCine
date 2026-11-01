@@ -313,47 +313,21 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
             val overlayHeightPx = constraints.maxHeight
             val viewportWidth = maxWidth.value
             val viewportHeight = maxHeight.value
-            val layoutDir = LocalLayoutDirection.current
-            val safeTop = with(density) {
-                maxOf(
-                    WindowInsets.displayCutout.getTop(this),
-                    WindowInsets.statusBars.getTop(this),
-                ).toDp().value
-            }
-            val safeLeading = with(density) {
-                maxOf(
-                    WindowInsets.displayCutout.getLeft(this, layoutDir),
-                    WindowInsets.systemBars.getLeft(this, layoutDir),
-                ).toDp().value
-            }
-            val safeTrailing = with(density) {
-                maxOf(
-                    WindowInsets.displayCutout.getRight(this, layoutDir),
-                    WindowInsets.systemBars.getRight(this, layoutDir),
-                ).toDp().value
-            }
+            val insets = monitorPlaybackSafeInsets(portraitPlayback)
+            val safeTop = insets.top
+            val safeLeading = insets.leading
+            val safeTrailing = insets.trailing
             val sideInset = max(safeLeading, safeTrailing)
-            val safeBottom = playbackBottomInsetDp(
-                rawInsetDp = with(density) {
-                    maxOf(
-                        WindowInsets.displayCutout.getBottom(this),
-                        WindowInsets.navigationBars.getBottom(this),
-                    ).toDp().value
-                },
-                isPortrait = portraitPlayback,
-            )
+            val safeBottom = insets.bottom
             val fieldLayout = MonitorLayoutPolicy.fieldMonitor(
                 viewportWidth, viewportHeight, safeTop, safeLeading, safeBottom, safeTrailing,
                 hasDisplayCutout = max(safeLeading, safeTrailing) > 0f,
             )
             val headerTop = MonitorPlaybackLayout.headerTop(portraitPlayback, safeTop, fieldLayout.lock.y)
             val backX = if (portraitPlayback) safeLeading + 22f else fieldLayout.lock.x
-            val navLeading = with(density) { WindowInsets.navigationBars.getLeft(this, layoutDir).toDp().value }
-            val navTrailing = with(density) { WindowInsets.navigationBars.getRight(this, layoutDir).toDp().value }
-            val assistFrame = MonitorLayoutPolicy.fieldMonitorAssists(
-                viewportWidth - navLeading - navTrailing, viewportHeight, safeTop, safeBottom,
-            )
-            val assistRect = MonitorRect(assistFrame.x + navLeading, assistFrame.y, assistFrame.width, assistFrame.height)
+            val assistChrome = monitorPlaybackAssistChrome(portraitPlayback, viewportWidth, viewportHeight, insets)
+            val assistFrame = assistChrome.tools.let { MonitorRect(it.x - insets.navigationLeading, it.y, it.width, it.height) }
+            val assistRect = assistChrome.tools
             // At 1x the picture fills its letterboxed frame, as before. Zoomed, it is shown past
             // that frame up to the canvas edge. The picture keeps its frame-sized node: zoom is a
             // transform of the one existing view, so no frame is copied or redrawn at another size.
@@ -718,8 +692,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 }
             }
 
-            assistInspector(MonitorPlaybackInspectorContext(viewportWidth, viewportHeight,
-                safeLeading, safeTop, safeBottom, safeTrailing, viewportHeight - 120f))
+            assistInspector(assistChrome.inspector)
 
             // Inside the overlay window: in the host window it sits under the gesture well.
             if (confirmDelete != null || capturedDeletion != null) {
@@ -916,7 +889,7 @@ private fun PlaybackConformButton(
     }
 }
 
-private fun playbackBottomInsetDp(rawInsetDp: Float, isPortrait: Boolean): Float =
+internal fun playbackBottomInsetDp(rawInsetDp: Float, isPortrait: Boolean): Float =
     if (isPortrait) maxOf(rawInsetDp, 30f) else rawInsetDp
 private fun playbackTimeLabel(seconds: Float): String {
     val value = if (seconds.isFinite()) seconds.coerceAtLeast(0f).toInt() else 0

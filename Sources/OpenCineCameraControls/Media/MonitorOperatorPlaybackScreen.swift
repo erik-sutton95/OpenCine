@@ -336,16 +336,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         guard value.isFinite, value >= 0, value < Double(Int.max) else { return "0:00" }
         return MediaClipFormatting.durationLabel(seconds: Int(value.rounded(.down)))
     }
-    private func feedMarks(_ rect: CGRect) -> some View {
-        ZStack {
-            if let assist {
-                if assist.isPlaybackVisible(.guides) { GuidesAssist.overlay(feed: rect, assist: assist, fallback: assist.guideAspect) }
-                if assist.isPlaybackVisible(.grid) { MonitorFeedGrid(feed: rect, thirds: assist.gridThirds, phi: assist.gridPhi, diagonal: assist.gridDiagonal) }
-                if assist.isPlaybackVisible(.crosshair) { MonitorFeedCrosshair(feed: rect) }
-                if assist.splitComparison, assist.isPlaybackVisible(.lut) { MonitorFeedComparisonMarks(vertical: assist.splitVertical, feed: rect) }
-            }
-        }.allowsHitTesting(false)
-    }
+    private func feedMarks(_ rect: CGRect) -> some View { MonitorMediaFeedMarks(assist: assist, rect: rect) }
     private func options(_ tool: MonitorAssistSelection) {
         guard let assist, availableTools.contains(tool), hasOptions(tool) else { return }
         assist.longPressAnchorRect = .init(x: toolbarFrame.minX, y: toolbarFrame.minY,
@@ -358,23 +349,16 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         if let assist, let stores {
             let canvas = CGRect(origin: .zero, size: size)
             let values = sourceValues, tools = availableTools(values)
-            let clearance = EdgeInsets(top: 56, leading: 56, bottom: 110, trailing: 56)
-            if let readScopes {
-                MonitorScopeOverlays(assist: assist, stores: stores, haptics: haptics, canvas: canvas,
-                    feed: rect, chromeClearance: clearance, readBundle: readScopes,
-                    configureDisplay: configureDisplay, playback: true, available: Set(tools), paradeIntensityScale: paradeIntensityScale)
-            }
+            MonitorMediaSignalOverlays(assist: assist, stores: stores, looks: looks, haptics: haptics,
+                canvas: canvas, feed: rect, tools: tools, readScopes: readScopes,
+                configureDisplay: configureDisplay, paradeIntensityScale: paradeIntensityScale,
+                transfer: values.resolvedTransfer(fallback: player.transfer ?? effects.transfer),
+                clipByte: values.clipByte ?? effects.resolvedClipByte, signalOptions: signalOptions,
+                onConfigure: { options($0) })
             if assist.isPlaybackVisible(.audioMeters), let levels = nativeAssists(player)?.audioLevels {
                 AudioMeterOverlay(stores: stores, levels: levels, sensitivity: nil, bounds: canvas,
-                    chromeClearance: clearance, hapticsEnabled: haptics.isEnabled(), onConfigure: { options(.audioMeters) })
-            }
-            if assist.isPlaybackVisible(.falseColor), tools.contains(.falseColor), assist.falseColorReference, signalOptions.referenceAvailable != false,
-                let transfer = values.resolvedTransfer(fallback: player.transfer ?? effects.transfer) {
-                FalseColorReferenceOverlay(stores: stores, looks: looks, scale: assist.falseColorScale,
-                    transfer: transfer,
-                    rec709: assist.falseColorRec709, clipByte: values.clipByte ?? effects.resolvedClipByte, bounds: canvas,
-                    chromeClearance: clearance, hapticsEnabled: haptics.isEnabled(), onConfigure: { options(.falseColor) },
-                    referenceValues: signalOptions.reference)
+                    chromeClearance: MonitorMediaSignalOverlays<Looks>.clearance,
+                    hapticsEnabled: haptics.isEnabled(), onConfigure: { options(.audioMeters) })
             }
         }
     }
@@ -383,7 +367,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
     private var availableTools: [MonitorAssistSelection] { availableTools(sourceValues) }
     private func availableTools(_ values: MonitorPlaybackSourceValues) -> [MonitorAssistSelection] {
         guard assist != nil else { return [] }
-        let scopes: Set<MonitorAssistSelection> = [.waveform, .parade, .histogram, .vectorscope, .trafficLights, .ndMeter]
+        let scopes = MonitorAssistSelection.mediaScopes
         return MonitorAssistSelection.playbackToolbarCases.filter {
             (availableAssistTools?.contains($0) ?? true)
                 && (values.allowsSignalFallback || values.transfer != nil || ![MonitorAssistSelection.falseColor, .zebra, .trafficLights, .ndMeter].contains($0)) && ($0 != .audioMeters || (stores != nil && player.flatMap(nativeAssists) != nil))
@@ -391,30 +375,13 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         }
     }
     private func hasOptions(_ tool: MonitorAssistSelection) -> Bool {
-        let stored: Set<MonitorAssistSelection> = [.zebra, .waveform, .parade, .histogram,
-            .vectorscope, .trafficLights, .ndMeter, .audioMeters]
-        return tool.hasConfiguration && (stores != nil || !stored.contains(tool)
-            || (tool == .zebra && signalOptions.zebra != nil))
+        MonitorMediaAssistOptions.hasOptions(tool, stores: stores != nil, signalOptions: signalOptions)
     }
     @ViewBuilder private func palette(_ context: MonitorPlaybackToolsContext) -> some View {
         if let assist {
-            let tools = availableTools
-            let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(context.presentation,
-                toolCount: tools.count, safeTop: context.safeTop)
-            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
-                    enabled: assist.isPlaybackVisible($0), hasOptions: hasOptions($0), accessibilityLabel: $0.title) },
-                layout: metrics, usageSeed: MonitorToolUsage.fieldMonitorSeed, usage: $usage,
-                expanded: context.expanded, onToggle: { if let tool = MonitorAssistSelection(rawValue: $0) { assist.togglePlayback(tool) } },
-                onOptions: { if let tool = MonitorAssistSelection(rawValue: $0) { options(tool) } }) { id in
-                    if let tool = MonitorAssistSelection(rawValue: id), let glyph = tool.sharedTool { MonitorAssistToolGlyph(tool: glyph, size: nil) }
-                }
-                .background { GeometryReader { proxy in
-                    Color.clear.onAppear { toolbarFrame = proxy.frame(in: .global) }
-                        .onChange(of: proxy.frame(in: .global)) { _, frame in toolbarFrame = frame }
-                } }
-                .position(x: frame.midX, y: frame.midY)
-                .frame(width: context.presentation.viewport.width, height: context.presentation.viewport.height, alignment: .topLeading)
-                .onAppear { toolbarFrame = frame.cgRect }
+            MonitorMediaAssistBar(assist: assist, tools: availableTools, hasOptions: hasOptions, usage: $usage,
+                presentation: context.presentation, safeTop: context.safeTop, expanded: context.expanded,
+                onFrame: { toolbarFrame = $0 }, onOptions: { options($0) })
         }
     }
 }

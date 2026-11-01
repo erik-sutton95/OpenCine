@@ -112,6 +112,57 @@ data class MonitorFieldLayout(
      */
     fun aeUnlock(motionCluster: Boolean): MonitorRect =
         MonitorLayoutPolicy.aeUnlock(focusReset(motionCluster), assists.maxX, picture.midX, portrait && motionCluster)
+
+    /**
+     * The chrome rects a floating scope never covers, for the parts the surface shows now;
+     * [MonitorScopeChromeAvoidance] moves a panel off each one, so scopes reach the edges only where
+     * no control stands. The status row (format, recording and timecode), the gauges, the rail keys,
+     * the camera values, the assist palette as it rests collapsed (an expanded palette draws over
+     * panels as it draws over the values), the motion cluster, the recenter key and the portrait
+     * fit/fill toggle. Fit and fill share it (owner hardware pass 2026-10-30, iPad Pro 11-inch).
+     * Swift `FieldMonitorLayout.scopeObstacles(_:motionCluster:)`.
+     */
+    fun scopeObstacles(shown: Set<MonitorScopeChrome>, motionCluster: Boolean = false): List<MonitorRect> =
+        shown.sorted().flatMap { part ->
+            when (part) {
+                MonitorScopeChrome.STATUS -> listOf(status)
+                MonitorScopeChrome.TELEMETRY -> listOf(telemetry)
+                MonitorScopeChrome.LOCK -> listOf(lock)
+                MonitorScopeChrome.SETTINGS -> listOf(settings)
+                MonitorScopeChrome.MEDIA -> listOf(media)
+                MonitorScopeChrome.RECORD -> listOf(record)
+                MonitorScopeChrome.DISPLAY -> listOf(display)
+                MonitorScopeChrome.VALUES -> listOf(values)
+                MonitorScopeChrome.TOOLS -> listOf(assists)
+                MonitorScopeChrome.MOTION -> if (motionCluster) listOf(stick, zoom, gimbal, headTrack) else emptyList()
+                MonitorScopeChrome.FOCUS_RESET -> listOf(focusReset(motionCluster))
+                MonitorScopeChrome.ASPECT_TOGGLE -> if (portrait) listOf(aspectToggle) else emptyList()
+            }
+        }.filter { it.width > 0f && it.height > 0f }
+}
+
+/** A part of the live chrome a floating scope keeps clear of ([MonitorFieldLayout.scopeObstacles]). Swift `MonitorScopeChrome`. */
+enum class MonitorScopeChrome {
+    /** The status row: format, recording, timecode and storage. */
+    STATUS,
+    /** The link and battery gauges. */
+    TELEMETRY,
+    LOCK, SETTINGS, MEDIA, RECORD,
+    /** DISP. */
+    DISPLAY,
+    /** The camera values. */
+    VALUES,
+    /** The assist palette, collapsed. */
+    TOOLS,
+    /** The gimbal stick, zoom chip, gimbal key and head lock. */
+    MOTION,
+    FOCUS_RESET,
+    /** The portrait fit/fill toggle. */
+    ASPECT_TOGGLE;
+
+    companion object {
+        val ALL: Set<MonitorScopeChrome> = entries.toSet()
+    }
 }
 
 /**
