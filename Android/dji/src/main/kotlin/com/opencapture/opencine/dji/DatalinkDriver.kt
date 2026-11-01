@@ -221,9 +221,12 @@ class DatalinkDriver(
         },
         feedback = ::readNativeProgramFeedback,
         send = { target, duration ->
-            val payload = CameraCommands.gimbalTimedTarget(target, duration)
+            val feedback = readNativeProgramFeedback()
+            val payload = feedback?.let {
+                CameraCommands.gimbalTimedTarget(target, it.pose, it.nativePitch, null, duration)
+            }
             if (closed.get() || payload == null || !nativeGimbalTargetIsSafe(target,
-                    readNativeProgramFeedback(), SystemClock.elapsedRealtimeNanos() / 1e9)) false else {
+                    feedback, SystemClock.elapsedRealtimeNanos() / 1e9)) false else {
                 sendDumlLocked(0x04, CameraCommands.CMD_GIMBAL_ANGLE, payload, 0,
                     CameraCommands.RX_GIMBAL, CameraCommands.SENDER_APP)
             }
