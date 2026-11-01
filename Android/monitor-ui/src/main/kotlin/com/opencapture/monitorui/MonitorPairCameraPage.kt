@@ -215,13 +215,13 @@ private fun PairingRail(
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
-                    "STEP ${current + 1} OF ${presentation.steps.size}",
+                    String.format(pageText("STEP %1\$d OF %2\$d"), current + 1, presentation.steps.size),
                     color = MonitorPalette.accent,
                     style = MonitorTypography.text(8f, FontWeight.Bold).copy(letterSpacing = 1.4.sp),
                     maxLines = 1,
                 )
                 Text(
-                    "Pair a camera",
+                    pageText("Pair a camera"),
                     color = MonitorPalette.text,
                     style = MonitorTypography.text(13f, FontWeight.SemiBold),
                     maxLines = 1,
@@ -254,7 +254,7 @@ private fun PairingRail(
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(
-                "TARGET",
+                pageText("TARGET"),
                 color = MonitorPalette.faint,
                 style = MonitorTypography.text(8f, FontWeight.Bold).copy(letterSpacing = 1.3.sp),
                 maxLines = 1,
@@ -274,7 +274,7 @@ private fun PairingRail(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                "Report a problem",
+                pageText("Report a problem"),
                 color = MonitorPalette.accent,
                 style = MonitorTypography.text(12f, FontWeight.SemiBold),
             )
@@ -290,7 +290,7 @@ private fun PairingOverflowMenu(onDiagnostics: () -> Unit, onWatchFeed: (() -> U
         Box(
             Modifier.size(width = 32.dp, height = 44.dp)
                 .clickable(role = Role.Button, onClick = { open = true })
-                .semantics { contentDescription = "Pairing help and diagnostics" },
+                .semantics { contentDescription = pageText("Pairing help and diagnostics") },
             contentAlignment = Alignment.Center,
         ) {
             MonitorIcon(MonitorIcon.ELLIPSIS, null, Modifier.size(15.dp), MonitorPalette.text)
@@ -298,7 +298,7 @@ private fun PairingOverflowMenu(onDiagnostics: () -> Unit, onWatchFeed: (() -> U
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = {
-                    Text("Share Diagnostics", style = MonitorTypography.text(13f, FontWeight.SemiBold))
+                    Text(pageText("Share Diagnostics"), style = MonitorTypography.text(13f, FontWeight.SemiBold))
                 },
                 onClick = {
                     open = false
@@ -308,7 +308,7 @@ private fun PairingOverflowMenu(onDiagnostics: () -> Unit, onWatchFeed: (() -> U
             if (onWatchFeed != null) {
                 DropdownMenuItem(
                     text = {
-                        Text("Watch a feed", style = MonitorTypography.text(13f, FontWeight.SemiBold))
+                        Text(pageText("Watch a feed"), style = MonitorTypography.text(13f, FontWeight.SemiBold))
                     },
                     onClick = {
                         open = false

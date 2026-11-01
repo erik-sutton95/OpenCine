@@ -35,23 +35,27 @@ public data class PairingWizard(
     val blocker: String? = null,
 ) {
     public companion object {
-        internal val titles = listOf("Find your camera", "Approve on the camera", "Join camera Wi-Fi", "Open video link")
-        internal val rail = listOf("Bluetooth scan", "Camera prompt", "Camera network", "Video link")
+        internal val titles: List<String> get() = listOf(
+        stationText("Find your camera"), stationText("Approve on the camera"),
+        stationText("Join camera Wi-Fi"), stationText("Open video link"))
+        internal val rail: List<String> get() = listOf(
+        stationText("Bluetooth scan"), stationText("Camera prompt"),
+        stationText("Camera network"), stationText("Video link"))
 
         /**
          * The apps' live label for a connection phase (Swift `ConnectionPhase.label`). Reads each
          * integration's phase enum by its constant names, which match by design.
          */
         public fun phaseLabel(phase: Enum<*>): String = when (phase.name) {
-            "SCANNING" -> "Scanning for camera…"
-            "CONNECTING_GATT" -> "Connecting (Bluetooth)…"
-            "PAIRING" -> "Pairing…"
-            "AWAITING_APPROVAL" -> "Approve on the camera screen"
-            "READING_WIFI_CREDS" -> "Reading Wi-Fi credentials…"
-            "JOINING_WIFI" -> "Joining camera Wi-Fi…"
-            "OPENING_DATALINK" -> "Opening datalink…"
-            "LIVE" -> "Connected"
-            else -> "Idle"
+            "SCANNING" -> stationText("Scanning for camera…")
+            "CONNECTING_GATT" -> stationText("Connecting (Bluetooth)…")
+            "PAIRING" -> stationText("Pairing…")
+            "AWAITING_APPROVAL" -> stationText("Approve on the camera screen")
+            "READING_WIFI_CREDS" -> stationText("Reading Wi-Fi credentials…")
+            "JOINING_WIFI" -> stationText("Joining camera Wi-Fi…")
+            "OPENING_DATALINK" -> stationText("Opening datalink…")
+            "LIVE" -> stationText("Connected")
+            else -> stationText("Idle")
         }
 
         /** A connect's scan (a first step with a live note, as both integrations report it) is still page 0. */
@@ -111,21 +115,21 @@ public fun CamerasMapping.wizard(model: CamerasModel, wizard: PairingWizard): Mo
     val instructions = when (page) {
         0 -> listOfNotNull(wizard.choosing.takeIf { failure == null })
         1 -> listOf(
-            MonitorPairingInstruction("On the camera", MonitorPairingInstructionIcon.CAMERA, wizard.approveLines),
+            MonitorPairingInstruction(stationText("On the camera"), MonitorPairingInstructionIcon.CAMERA, wizard.approveLines),
             MonitorPairingInstruction(
-                "On this phone", MonitorPairingInstructionIcon.PHONE,
-                listOf("Wait here, we keep the Bluetooth link alive", "Don't force-quit the app"),
+                stationText("On this phone"), MonitorPairingInstructionIcon.PHONE,
+                listOf(stationText("Wait here, we keep the Bluetooth link alive"), stationText("Don't force-quit the app")),
             ),
         )
         2 -> listOf(
-            MonitorPairingInstruction("On the camera", MonitorPairingInstructionIcon.CAMERA, wizard.joinLines),
+            MonitorPairingInstruction(stationText("On the camera"), MonitorPairingInstructionIcon.CAMERA, wizard.joinLines),
             MonitorPairingInstruction(
-                "On this phone", MonitorPairingInstructionIcon.PHONE,
-                listOf("Tap Join when Android asks to join the camera network", LocalVPNFilter.JOIN_WIFI_PHONE_STEP),
+                stationText("On this phone"), MonitorPairingInstructionIcon.PHONE,
+                listOf(stationText("Tap Join when Android asks to join the camera network"), LocalVPNFilter.JOIN_WIFI_PHONE_STEP),
             ),
         )
         else -> if (wizard.vpnActive) {
-            listOf(MonitorPairingInstruction("Check the connection", MonitorPairingInstructionIcon.PHONE, listOf(LocalVPNFilter.WIZARD_BANNER)))
+            listOf(MonitorPairingInstruction(stationText("Check the connection"), MonitorPairingInstructionIcon.PHONE, listOf(LocalVPNFilter.WIZARD_BANNER)))
         } else {
             emptyList()
         }
@@ -139,11 +143,11 @@ public fun CamerasMapping.wizard(model: CamerasModel, wizard: PairingWizard): Mo
     val name = selected?.let { device(it, state, model).name } ?: failedName
     val checks = if (page >= 2) {
         listOf(
-            MonitorPairingCheck("Bluetooth link", name ?: "Camera connected", MonitorPairingCheckState.COMPLETE, "OK"),
+            MonitorPairingCheck(stationText("Bluetooth link"), name ?: stationText("Camera connected"), MonitorPairingCheckState.COMPLETE, "OK"),
             MonitorPairingCheck(
-                "Camera Wi-Fi", wizard.joinedNetwork ?: "Waiting for the camera network",
+                stationText("Camera Wi-Fi"), wizard.joinedNetwork ?: stationText("Waiting for the camera network"),
                 if (page > 2) MonitorPairingCheckState.COMPLETE else MonitorPairingCheckState.ACTIVE,
-                if (page > 2) "OK" else "JOINING",
+                if (page > 2) stationText("OK") else stationText("JOINING"),
             ),
             MonitorPairingCheck(
                 "Live picture", if (page > 2) "Opening the video link…" else "Starts after Wi-Fi joins",

@@ -58,6 +58,7 @@ fun MonitorPlaybackScrubber(progressSeconds: Float, durationSeconds: Float,
     commit: (com.opencapture.opencine.media.MonitorPlaybackScrubToken, Double) -> Unit,
     cancel: (com.opencapture.opencine.media.MonitorPlaybackScrubToken, MonitorEditingCancellation) -> Unit,
     modifier: Modifier = Modifier, bufferedFraction: Float = 0f) {
+    val copy = MonitorPlaybackCopy.resolved(LocalCopyLanguage.current)
     val duration = max(0.1f, durationSeconds)
     val window = LocalWindowInfo.current.containerSize
     val latestItem by rememberUpdatedState(item)
@@ -112,8 +113,8 @@ fun MonitorPlaybackScrubber(progressSeconds: Float, durationSeconds: Float,
     }
     Canvas(modifier.fillMaxWidth().height(22.dp)
         .semantics {
-            contentDescription = MonitorPlaybackCopy.POSITION
-            stateDescription = MonitorPlaybackCopy.positionValue(display.toDouble())
+            contentDescription = copy.position
+            stateDescription = copy.positionValue(display.toDouble())
             progressBarRangeInfo = ProgressBarRangeInfo(display.coerceIn(0f, duration), 0f..duration)
             setProgress { requested -> seek(requested.coerceIn(0f, duration)); true }
         }

@@ -4,6 +4,7 @@ import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SavedRoute
+import com.opencapture.monitorui.CopyLanguage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -20,7 +21,7 @@ class StationSetupChooserTest {
     )
 
     @Test fun cameraChooserNamesTheCameraAndItsAddedSetups() {
-        val chooser = stationSetupChooser(camera)
+        val chooser = stationSetupChooser(camera, language = CopyLanguage.ENGLISH)
         assertEquals("How should this camera connect?", chooser.title)
         assertEquals("Body A · Model 1", chooser.detail)
         assertEquals("stationSetup", chooser.identifierPrefix)
@@ -62,18 +63,18 @@ class StationSetupChooserTest {
     }
 
     @Test fun aCameraWithoutModelIsNamedAlone() {
-        assertEquals("Body A", stationSetupChooser(camera.copy(model = "")).detail)
+        assertEquals("Body A", stationSetupChooser(camera.copy(model = ""), language = CopyLanguage.ENGLISH).detail)
     }
 
     @Test fun stationHostsKeepWiFiAndHotspotOnly() {
-        val chooser = stationSetupChooser(camera)
+        val chooser = stationSetupChooser(camera, language = CopyLanguage.ENGLISH)
         assertEquals(listOf("Choose Wi-Fi", "Choose hotspot"), chooser.options.map { it.actionTitle })
         assertEquals(null, chooser.notice)
         assertEquals("Camera Wi-Fi stays available. Switch setups from the camera’s chips at any time.", chooser.footer)
     }
 
     @Test fun multiviewChooserHasNoCamera() {
-        val chooser = stationSetupChooser(null)
+        val chooser = stationSetupChooser(null, language = CopyLanguage.ENGLISH)
         assertEquals("How will your cameras connect?", chooser.title)
         assertEquals("", chooser.detail)
         assertTrue(chooser.footer.orEmpty().startsWith("Choose the shared network"))
