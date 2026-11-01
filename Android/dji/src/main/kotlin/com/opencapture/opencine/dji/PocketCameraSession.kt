@@ -364,6 +364,8 @@ class PocketCameraSession(
     private val gimbalOverlayMotion = GimbalOverlayMotion()
     @Volatile private var lastValidGimbalAttitudeAt = 0L
     @Volatile private var lastNativeGimbalPose: GimbalWaypoint? = null
+    /** Native pitch convention of the attitude layout [lastNativeGimbalPose] came from. */
+    @Volatile private var lastNativePitchWire: NativePitchWire? = null
     private var captureStableSince = 0L
     private var captureStablePose: GimbalWaypoint? = null
     private var gimbalRestedAt = 0L
@@ -3093,12 +3095,14 @@ class PocketCameraSession(
             gimbalStickMapping = gimbalStickMapping.applyAttitude(frame.payload)
             levelReading.ingest(frame.payload, SystemClock.elapsedRealtimeNanos() / 1e9)
             judgeWorldLevelSnap()
-            if (CameraCommands.isAttitude(frame.payload)) {
+            val attitudeLayout = AttitudeLayout.of(frame.payload)
+            if (attitudeLayout != null) {
                 val now = SystemClock.elapsedRealtime()
                 val previousAt = lastValidGimbalAttitudeAt
                 lastNativeGimbalPose = GimbalWaypoint.from(
                     CameraCommands.yawTenthDeg(frame.payload), CameraCommands.pitchTenthDeg(frame.payload),
                     _zoomReadout.value, CameraCommands.nativePitchTenthDeg(frame.payload))
+                lastNativePitchWire = attitudeLayout.nativePitch
                 lastValidGimbalAttitudeAt = now
                 val pose = liveGimbalWaypoint
                 pose?.let { gimbalOverlayMotion.observe(it, now / 1000.0) }
@@ -3578,8 +3582,11 @@ class PocketCameraSession(
             return
         }
         val link = datalink ?: return
-        val pose = lastNativeGimbalPose
-        val plan = pose?.let { WorldLevelSnap.plan(tilt, it, now) }
+        // A continuous-pitch gimbal moves relative to the pose it reports, so that pose must be fresh.
+        val wire = lastNativePitchWire ?: NativePitchWire.WRAPPED
+        val fresh = SystemClock.elapsedRealtime() - lastValidGimbalAttitudeAt <= 300
+        val pose = lastNativeGimbalPose?.takeIf { wire == NativePitchWire.WRAPPED || fresh }
+        val plan = pose?.let { WorldLevelSnap.plan(tilt, it, now, wire) }
         if (plan == null) {
             _controlNote.value = WorldLevelSnap.UNREACHABLE_NOTE
             return
@@ -5438,6 +5445,7 @@ class PocketCameraSession(
         cancelProgrammedMove()
         lastValidGimbalAttitudeAt = 0L
         lastNativeGimbalPose = null
+        lastNativePitchWire = null
         gimbalOverlayMotion.reset()
         captureStableSince = 0L
         captureStablePose = null
