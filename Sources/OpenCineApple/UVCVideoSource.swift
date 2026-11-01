@@ -211,6 +211,8 @@
             // running session alone rather than restarting it and dropping frames.
             if isRunning, currentDevice?.uniqueID == device.uniqueID { return }
             if currentDevice != nil { fence.advance() }
+            // A new device reports its own format and colorimetry on its first frame.
+            reportedColorimetry = false
 
             let selectedFormat: String?
             do {
@@ -412,7 +414,7 @@
 
         // MARK: - Signal colorimetry
 
-        /// What the capture chain CLAIMS the signal is, read from the first frame's attachments.
+        /// What the capture chain CLAIMS the signal is, read from each device's first frame.
         /// Two distinct field reports hide in one "the HDMI picture looks wrong": a camera sending
         /// its recording gamma over HDMI (log/HLG: flat or green-tinted until the monitoring LUT is
         /// applied; fixed on the CAMERA's HDMI output setting), and a dongle mis-tagging matrix or
