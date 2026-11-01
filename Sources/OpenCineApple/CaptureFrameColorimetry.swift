@@ -52,12 +52,13 @@
             [
                 kCVImageBufferTransferFunctionKey, kCVImageBufferColorPrimariesKey,
                 kCVImageBufferGammaLevelKey, kCVImageBufferICCProfileKey,
+                kCVImageBufferCGColorSpaceKey,
             ]
         }
 
         /// Writes the decoding matrix onto a YCbCr frame, so CoreImage and Metal consumers decode
-        /// it alike, and drops its transfer, primaries, gamma and ICC attachments once the readout
-        /// has recorded them. An RGB frame is already decoded and passes untouched.
+        /// it alike, and drops its transfer, primaries, gamma, ICC and colour space attachments
+        /// once the readout has recorded them. An RGB frame is already decoded and passes untouched.
         ///
         /// Every look, scope and exposure tool of the monitor reads code values: a camera LUT
         /// expects the log codes the camera encoded, as the camera's own JPEG live view delivers
