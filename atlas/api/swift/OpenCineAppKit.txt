@@ -498,7 +498,7 @@ func MonitorDisplaySession.retireEditor()<Mode where Mode : Swift.Equatable> -> 
 func MonitorDisplaySession.select(_: Mode, order: [Mode])<Mode where Mode : Swift.Equatable> -> Swift.Bool
 func MonitorFalseColorReferencePositionStore.setCenter(_: CoreFoundation.CGPoint, in: CoreFoundation.CGRect) -> ()
 func MonitorFalseColorReferencePositionStore.setCenter(_: MonitorPresentation.MonitorScopePoint, canvas: MonitorPresentation.MonitorRect) -> ()
-func MonitorFalseColorReferencePositions.center(in: CoreFoundation.CGRect, size: CoreFoundation.CGSize, movement: CoreFoundation.CGRect) -> CoreFoundation.CGPoint
+func MonitorFalseColorReferencePositions.center(in: CoreFoundation.CGRect, size: CoreFoundation.CGSize, movement: CoreFoundation.CGRect, avoiding: [CoreFoundation.CGRect]) -> CoreFoundation.CGPoint
 func MonitorInteractionLifecycle.close() -> MonitorInteractionTransition
 func MonitorInteractionLifecycle.update(_: MonitorInteractionContext) -> MonitorInteractionTransition
 func MonitorInternetHop.begin(_: Route, admission: () -> Swift.Bool)<Route> -> MonitorInternetHop<Route>.Token?

@@ -6,10 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.widthIn
@@ -17,7 +15,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -190,7 +187,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     assist: MonitorAssistState, assists: MonitorOperatorAssistSource?,
     palette: List<MonitorOperatorPaletteItem>, usage: MonitorToolUsageState,
     setUsage: (MonitorToolUsageState) -> Unit, usageSeed: Map<String, Int>,
-    renderedTools: Set<MonitorAssistTool>, fittedScopes: List<MonitorAssistTool>, scopeZone: MonitorRect?,
+    renderedTools: Set<MonitorAssistTool>,
     signalOptions: MonitorOperatorSignalOptions = MonitorOperatorSignalOptions(),
     audioChannels: Pair<AudioMeterReading, AudioMeterReading>? = null,
     aspect: MonitorOperatorAspectControl? = null, focusResetFrame: MonitorRect = layout.focusReset,
@@ -204,7 +201,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     safeLeading: Float = viewport.x, safeTrailing: Float = max(0f, layout.viewport.maxX - viewport.maxX),
     safeTop: Float = viewport.y, safeBottom: Float = max(0f, layout.viewport.maxY - viewport.maxY),
     scopeFeed: MonitorRect = layout.picture, framingFrame: MonitorRect? = null,
-    scopePlacement: MonitorRect? = null, scopeFloating: Boolean? = null,
+    scopePlacement: MonitorRect? = null,
     scopeTransfer: com.opencapture.opencine.media.MonitorTransfer? = null,
     showsReference: Boolean = true, assistHost: AssistHost = assists?.host ?: MonitorDefaultAssistHost,
     lookOptions: AssistLutPicker? = assists?.lookPicker,
@@ -481,34 +478,48 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     .refusingInput(!(accepts && admitted))) { dashboard(accepts && admitted) }
             } else {
                 val bundle = assists?.scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value ?: assist.scopeBundle
-                val scopesFloat = scopeFloating ?: !layout.portrait
                 // A source with its own level meter draws it once, in the audio overlay below.
                 val floatingTools = renderedTools - if (audio != null) setOf(MonitorAssistTool.AUDIO) else emptySet()
-                AssistOverlayLayer(assist, bundle, assistHost, locked = !interactive,
-                    feedFrame = scopeFeed, framingFrame = framingFrame, placementFrame = scopePlacement ?: viewport,
-                    audioPlacementFrame = (scopePlacement ?: viewport).copy(x = safeLeading,
-                        width = max(0f, (scopePlacement ?: viewport).maxX - safeLeading)),
-                    audioChannels = audioChannels, transfer = scopeTransfer ?: bundle.transfer,
-                    onOpenOptions = { tool, frame -> if (interactive) { assist.longPressAnchor = frame; reviewing = false; assist.configureTool = tool } },
-                    referenceValues = signalOptions.reference, panelPlacement = assists?.panelPlacement,
-                    onScopeStackMoved = assists?.scopeStackMoved ?: {}, showsReference = showsReference,
-                    visibleTools = if (scopesFloat) floatingTools else floatingTools - fittedScopes.toSet(),
-                    canvasFrame = null,
-                    paradeIntensityScale = assists?.paradeIntensityScale ?: 1.0,
-                    placementPaddingDp = assists?.panelPlacement?.movementInsetDp ?: 8f,
-                    focusLayer = { cameraViews.focusMarks?.invoke() })
-                if (!scopesFloat) MonitorOperatorFittedScopes(assist, bundle, fittedScopes, scopeZone,
-                    assists?.paradeIntensityScale ?: 1.0)
-                if (audio != null && MonitorAssistTool.AUDIO in renderedTools) {
-                    val canvas = layout.viewport
-                    val clamp = scopePlacement ?: viewport
-                    with(density) {
-                        AssistAudioOverlay(assist, audio.levels,
-                            MonitorScopeRect(canvas.x.dp.toPx(), canvas.y.dp.toPx(), canvas.width.dp.toPx(), canvas.height.dp.toPx()),
-                            MonitorScopeRect(clamp.x.dp.toPx(), clamp.y.dp.toPx(), clamp.width.dp.toPx(), clamp.height.dp.toPx()),
-                            locked = !interactive, panelPlacement = assists?.panelPlacement,
-                            feed = MonitorScopeRect(scopeFeed.x.dp.toPx(), scopeFeed.y.dp.toPx(), scopeFeed.width.dp.toPx(), scopeFeed.height.dp.toPx()),
-                            caption = audio.caption, unavailableLabel = audio.unavailable, provenance = audio.provenance, spokenValue = audio.spokenValue)
+                // The chrome shown now that floating scopes and meters keep clear of (Swift `scopeChrome`).
+                val scopeChrome = buildSet {
+                    if (sections.display == null || sections.display in mounted) add(MonitorScopeChrome.DISPLAY)
+                    if (sections.status in mounted) add(MonitorScopeChrome.STATUS)
+                    if (sections.power in mounted || (usesCompactTelemetry && sections.status in mounted)) add(MonitorScopeChrome.TELEMETRY)
+                    if (sections.lock in mounted || returnToStage != null) add(MonitorScopeChrome.LOCK)
+                    if (sections.settings in mounted) add(MonitorScopeChrome.SETTINGS)
+                    if (sections.media in mounted) add(MonitorScopeChrome.MEDIA)
+                    if (sections.record in mounted) add(MonitorScopeChrome.RECORD)
+                    if (sections.capture in mounted) add(MonitorScopeChrome.VALUES)
+                    if (sections.assists in mounted) add(MonitorScopeChrome.TOOLS)
+                    if (cameraViews.motionCluster) add(MonitorScopeChrome.MOTION)
+                    if (!locked && editing == null && cameraViews.resetFocus != null) add(MonitorScopeChrome.FOCUS_RESET)
+                    if (aspect != null) add(MonitorScopeChrome.ASPECT_TOGGLE)
+                }
+                CompositionLocalProvider(LocalScopeObstacles provides layout.scopeObstacles(scopeChrome, cameraViews.motionCluster)) {
+                    AssistOverlayLayer(assist, bundle, assistHost, locked = !interactive,
+                        feedFrame = scopeFeed, framingFrame = framingFrame, placementFrame = scopePlacement ?: viewport,
+                        audioPlacementFrame = (scopePlacement ?: viewport).copy(x = safeLeading,
+                            width = max(0f, (scopePlacement ?: viewport).maxX - safeLeading)),
+                        audioChannels = audioChannels, transfer = scopeTransfer ?: bundle.transfer,
+                        onOpenOptions = { tool, frame -> if (interactive) { assist.longPressAnchor = frame; reviewing = false; assist.configureTool = tool } },
+                        referenceValues = signalOptions.reference, panelPlacement = assists?.panelPlacement,
+                        onScopeStackMoved = assists?.scopeStackMoved ?: {}, showsReference = showsReference,
+                        visibleTools = floatingTools,
+                        canvasFrame = null,
+                        paradeIntensityScale = assists?.paradeIntensityScale ?: 1.0,
+                        placementPaddingDp = assists?.panelPlacement?.movementInsetDp ?: 8f,
+                        focusLayer = { cameraViews.focusMarks?.invoke() })
+                    if (audio != null && MonitorAssistTool.AUDIO in renderedTools) {
+                        val canvas = layout.viewport
+                        val clamp = scopePlacement ?: viewport
+                        with(density) {
+                            AssistAudioOverlay(assist, audio.levels,
+                                MonitorScopeRect(canvas.x.dp.toPx(), canvas.y.dp.toPx(), canvas.width.dp.toPx(), canvas.height.dp.toPx()),
+                                MonitorScopeRect(clamp.x.dp.toPx(), clamp.y.dp.toPx(), clamp.width.dp.toPx(), clamp.height.dp.toPx()),
+                                locked = !interactive, panelPlacement = assists?.panelPlacement,
+                                feed = MonitorScopeRect(scopeFeed.x.dp.toPx(), scopeFeed.y.dp.toPx(), scopeFeed.width.dp.toPx(), scopeFeed.height.dp.toPx()),
+                                caption = audio.caption, unavailableLabel = audio.unavailable, provenance = audio.provenance, spokenValue = audio.spokenValue)
+                        }
                     }
                 }
                 if (sections.assists in mounted && !inspecting) CompositionLocalProvider(
@@ -659,26 +670,4 @@ private fun Modifier.refusingInput(refused: Boolean): Modifier = if (!refused) t
 
 private const val FOCUS_DRIVE_WIDTH = 44f
 
-@Composable
-private fun MonitorOperatorFittedScopes(state: MonitorAssistState, bundle: ScopeAssistBundle,
-    tools: List<MonitorAssistTool>, zone: MonitorRect?, paradeIntensityScale: Double) {
-    if (zone == null || tools.isEmpty()) return
-    val height = max(0f, (zone.height - 8f * (tools.size - 1)) / tools.size)
-    Column(Modifier.descriptorFrame(zone), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        tools.forEach { tool ->
-            val panelHeight = height
-            Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).size((zone.width - 24f).coerceAtLeast(0f).dp, panelHeight.dp)
-                .monitorMaterial(MonitorMaterial.Scope, RoundedCornerShape(12.dp))) {
-                when (tool) {
-                    MonitorAssistTool.WAVE -> WaveformPanel(state, bundle.transfer, Modifier.fillMaxSize(), bundle)
-                    MonitorAssistTool.PARADE -> ParadePanel(state, bundle.transfer, Modifier.fillMaxSize(), bundle, paradeIntensityScale)
-                    MonitorAssistTool.HISTO -> HistogramPanel(state, Modifier.fillMaxSize(), bundle)
-                    MonitorAssistTool.VECTOR -> VectorscopePanel(state, Modifier.fillMaxSize(), bundle)
-                    MonitorAssistTool.LIGHTS -> TrafficLightsPanel(state, Modifier.fillMaxSize(), bundle)
-                    else -> Unit
-                }
-            }
-        }
-    }
-}
 private fun Modifier.descriptorFrame(frame: MonitorRect): Modifier = offset(frame.x.dp, frame.y.dp).size(frame.width.dp, frame.height.dp)

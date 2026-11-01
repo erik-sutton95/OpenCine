@@ -36,16 +36,15 @@
             MonitorAudioReadout.label(db)
         }
 
+        /// The stored or default centre, kept inside `movement` and off the live chrome.
         public static func center(
-            stored: StoredCenter?, size: CGSize, canvas: CGRect, movement: CGRect
+            stored: StoredCenter?, size: CGSize, canvas: CGRect, movement: CGRect,
+            avoiding obstacles: [CGRect] = []
         ) -> CGPoint {
             let fallback = CGPoint(x: movement.minX + size.width / 2, y: canvas.midY)
-            let point = stored?.point(in: canvas) ?? fallback
-            let minX = movement.minX + size.width / 2
-            let minY = movement.minY + size.height / 2
-            return CGPoint(
-                x: min(max(minX, point.x), max(minX, movement.maxX - size.width / 2)),
-                y: min(max(minY, point.y), max(minY, movement.maxY - size.height / 2)))
+            return MonitorScopePanelPlacement.clamp(
+                stored?.point(in: canvas) ?? fallback, size: size, in: movement, resizable: false,
+                avoiding: obstacles)
         }
 
         @MainActor
