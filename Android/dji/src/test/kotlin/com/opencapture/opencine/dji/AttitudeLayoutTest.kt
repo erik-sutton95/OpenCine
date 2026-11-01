@@ -189,6 +189,50 @@ class AttitudeLayoutTest {
         assertTrue(native in 174.4..190.0 + 1e-9, "beside +174.4°, never wrapped below −170°: $native")
     }
 
+    /**
+     * OpenPocketCine#621 review: Resume plans the rest of the take from the resumed pose, so a
+     * continuous gimbal gets targets beside that pose. The handle tilted while paused (native
+     * -176.9 to +133.1); B, 30 degrees up, goes out as +103.1, not -256.9.
+     */
+    @Test
+    fun resumeSendsContinuousTargetsBesideTheResumedPose() {
+        var now = 0.0
+        val tasks = mutableListOf<Pair<Double, () -> Unit>>()
+        val start = GimbalWaypoint(0.0, 0.0, 1.0, -176.9)
+        var pose = start
+        var sample = NativeGimbalFeedback(pose, 0.0, nativePitch = NativePitchWire.CONTINUOUS)
+        val sent = mutableListOf<GimbalWaypoint>()
+        val runner = NativeGimbalProgramRunner({ now }, { delay, action -> tasks += (now + delay) to action },
+            { sample }, { point, _ -> sent += point; true }, {})
+        fun receive() {
+            sample = NativeGimbalFeedback(pose, now, nativePitch = NativePitchWire.CONTINUOUS)
+            tasks += (now + 0.04) to ::receive
+        }
+        fun through(until: Double) {
+            while (true) {
+                val next = tasks.filter { it.first <= until }.minByOrNull { it.first } ?: break
+                tasks.remove(next)
+                now = maxOf(now, next.first)
+                next.second()
+            }
+            now = maxOf(now, until)
+        }
+        receive()
+        val token = runner.start(GimbalProgram(start, GimbalWaypoint(0.0, 30.0, 1.0, 153.1), durationAB = 2.0)) {}
+        through(1.0)
+        assertTrue(sent.isEmpty(), "still holding at A")
+        assertTrue(runner.pause(token))
+        through(1.05)
+        pose = start.copy(nativePitchDeg = 133.1)
+        through(1.6)
+        assertTrue(runner.resume(token))
+        through(1.65)
+        if (sent.isEmpty() && runner.resume(token)) through(1.7)
+        through(5.0)
+        val native = assertNotNull(sent.firstOrNull()?.nativePitchDeg, "B was sent after the hold")
+        assertEquals(103.1, native, 1e-9)
+    }
+
     @Test
     fun levelPlansBesideTheLiveNativePitch() {
         // Display tilt +6° at native +177°: the horizon is a 6° look-down, native +183°.

@@ -169,7 +169,7 @@ class NativeGimbalProgramRunner internal constructor(
         var preparationZoom: Double? = null, var preparationSentAt: Double? = null,
         // Native pitch convention and the reported native pitch at Start, which every planned
         // target is relative to.
-        val nativePitch: NativePitchWire = NativePitchWire.WRAPPED, val nativeReference: Double? = null)
+        val nativePitch: NativePitchWire = NativePitchWire.WRAPPED, var nativeReference: Double? = null)
 
     private data class Request(val token: Long, val program: GimbalProgram, val publish: (Progress) -> Unit)
     private val controlLock = Any()
@@ -317,12 +317,15 @@ class NativeGimbalProgramRunner internal constructor(
             // Lens reports can advance while the still-fresh angular receipt is unchanged.
             val pose = if (run.program.changesZoom) current?.let { sample?.pose?.copy(zoom = it.pose.zoom) } else sample?.pose
             if (pose == null || (run.program.changesZoom && (!run.zoomStability.ready(now()) || !zoomResumeReady(now()))) ||
-                !run.engine.resume(pose)) {
+                current?.nativePitch != run.nativePitch || !run.engine.resume(pose)) {
                 run.publish(Progress(token, run.program, current?.pose, current?.pose?.let { run.engine.readout(it) },
                     null, false, paused = true, note = "Hold the camera still before resuming", epoch = epoch,
                     verificationInterruptedByPause = run.engine.verificationInterruptedByPause))
                 return@schedule
             }
+            // Resume plans the rest of the take from this pose, so its targets are relative to it
+            // rather than to the pose at Start.
+            run.nativeReference = pose.nativePitchDeg
             callbackEpoch.incrementAndGet()
             run.lastTick = now()
             run.nextZoomAt = run.lastTick

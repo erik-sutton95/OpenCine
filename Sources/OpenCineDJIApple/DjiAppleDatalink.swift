@@ -693,8 +693,13 @@
                         let anchor = run.pauseAnchor,
                         GimbalMoveEngine.angularDistance(anchor, pose) <= 0.100001,
                         run.zoom?.canResume(at: now) ?? true,
+                        w.nativeProgramPitchWire == run.nativePitch,
+                        let reference = pose.nativePitchDeg,
                         run.engine.resume(live: pose)
                     else { return nil }
+                    // Resume plans the rest of the take from this pose, so its targets are
+                    // relative to it rather than to the pose at Start.
+                    run.nativeReference = reference
                     w.nativeProgramEpoch &+= 1
                     run.epoch = w.nativeProgramEpoch
                     run.timer = DispatchSource.makeTimerSource(queue: q)
@@ -934,7 +939,11 @@
                         nativePitchTenth: GimbalStick.nativePitchTenthDeg(frame.payload))
                 else { continue }
                 let now = ProcessInfo.processInfo.systemUptime
-                wire.withLock { w in
+                let headTargetsRetired = wire.withLock { w -> Bool in
+                    // Pending head targets were encoded for the previous native pitch convention.
+                    let retired =
+                        w.nativeProgramPitchWire.map { $0 != layout.nativePitch } == true
+                        && w.nativeTargetStream.cancel()
                     var pose = reportedPose
                     if let zoom = w.nativeProgram?.zoom?.liveZoom { pose.zoom = zoom }
                     if var run = w.nativeProgram, run.engine.isPaused,
@@ -954,6 +963,11 @@
                     w.nativeProgramPose = pose
                     w.nativeProgramPoseAt = now
                     w.nativeProgramPitchWire = layout.nativePitch
+                    return retired
+                }
+                if headTargetsRetired {
+                    host.journal("gimbal-native: attitude layout changed, head targets stopped")
+                    _ = sendNativeProgramFrame(Commands.gimbalTimedStop())
                 }
             }
         }
