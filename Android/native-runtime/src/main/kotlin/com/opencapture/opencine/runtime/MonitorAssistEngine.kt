@@ -72,10 +72,12 @@ public class MonitorAssistEngine(
         ): ScopeAssistBundle {
             val readable = samples.histogramLuma.any { it > 0 }
             val history = if (readable) previous else ScopeAssistBundle.EMPTY
+            // A source without a display transform (Rec.709) plots its codes as they are: a null
+            // look is identity, never "no vectorscope" (Swift twin `MonitorAssistEngine`).
             val look = policy.vectorLut ?: configuration.defaultScopeLook
             return ScopeSampler.bundle(
                 samples, configuration.transfer, includePoints = policy.includePoints,
-                includeVectorPoints = policy.includeVectorPoints && look != null,
+                includeVectorPoints = policy.includeVectorPoints,
                 look = look,
                 trafficThreshold = policy.trafficThreshold, previous = history,
                 ceiling = configuration.ceiling, iso = policy.iso,

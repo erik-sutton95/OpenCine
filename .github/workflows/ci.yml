@@ -155,14 +155,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Keep all three tests and their original 300 ms readiness assertions.
+          # Keep all four tests; the three readiness tests keep their original 300 ms assertions.
           # Fresh processes exercise cold native readiness without unrelated suites.
           for attempt in 1 2 3; do
             log="test-still-${attempt}.log"
             swift test --skip-build -Xswiftc -strict-concurrency=complete \
               --filter MonitorAssistEngineStillTests 2>&1 | tee "$log"
             # A missing or changed selection must fail rather than silently skip coverage.
-            grep -Eq 'Test run with 3 tests in 1 suite passed' "$log"
+            grep -Eq 'Test run with 4 tests in 1 suite passed' "$log"
           done
       - name: Test join prompt retry (real clock, isolated)
         if: always()

@@ -106,6 +106,70 @@ private final class StillScopeClock: @unchecked Sendable {
                 trafficThreshold: 0.05, previous: .empty) == expected)
     }
 
+    /// A 2-point cube in red-fastest order, from a per-corner colour map.
+    private static func cube(_ map: (Float, Float, Float) -> (Float, Float, Float)) -> CubeLUT {
+        var rgb = [Float]()
+        for b in 0..<2 { for g in 0..<2 { for r in 0..<2 {
+            let out = map(Float(r), Float(g), Float(b))
+            rgb.append(contentsOf: [out.0, out.1, out.2])
+        } } }
+        return CubeLUT(size: 2, rgb: rgb)
+    }
+
+    private static func allScopes() -> MonitorAssistPolicy {
+        var policy = MonitorAssistPolicy()
+        policy.histogram = true
+        policy.waveform = true
+        policy.parade = true
+        policy.vectorscope = true
+        policy.trafficLights = true
+        return policy
+    }
+
+    private static func firstBundle(
+        _ policy: MonitorAssistPolicy, configuration: MonitorAssistConfiguration,
+        still: Bool
+    ) async throws -> ScopeAssistBundle {
+        let engine = MonitorAssistEngine(configuration: configuration)
+        let results = AsyncStream<MonitorAssistEngine.Result>.makeStream()
+        let receive: @Sendable (MonitorAssistEngine.Result) -> Void = {
+            if $0.bundle != nil { results.continuation.yield($0) }
+        }
+        if still {
+            engine.sample(try image(rgba()), effects: policy, transfer: .log3G10, completion: receive)
+        } else {
+            engine.submit(try buffer(rgba()), effects: policy, transfer: .log3G10, completion: receive)
+        }
+        var iterator = results.stream.makeAsyncIterator()
+        let result = try #require(await iterator.next())
+        return try #require(result.bundle)
+    }
+
+    /// The scopes measure the camera signal, not the monitoring look: arming a LUT (here one
+    /// that inverts every colour) leaves waveform, parade, histogram, traffic lights and VECTOR
+    /// exactly as they were, on a still source and on a video source alike. VECTOR still reads
+    /// the source's fixed display transform.
+    @Test(arguments: [true, false])
+    func togglingTheMonitoringLUTLeavesEveryScopeUnchanged(still: Bool) async throws {
+        let display = Self.cube { r, g, b in (b, g, r) }
+        let configuration = MonitorAssistConfiguration(
+            defaultScopeLook: { $0 == .log3G10 ? display : nil })
+        let lutOff = Self.allScopes()
+        var lutOn = lutOff
+        let inverting = Self.cube { r, g, b in (1 - r, 1 - g, 1 - b) }
+        lutOn.image.lutDimension = inverting.size
+        lutOn.image.lutRGBA = inverting.rgbaComponents.withUnsafeBytes { Data($0) }
+
+        let off = try await Self.firstBundle(lutOff, configuration: configuration, still: still)
+        let on = try await Self.firstBundle(lutOn, configuration: configuration, still: still)
+
+        #expect(on == off, "a monitoring LUT never reaches the scope bundle")
+        #expect(!off.samples.points.isEmpty && !off.vectorscopePoints.isEmpty)
+        #expect(
+            off.vectorscopePoints == ScopeSampler.monitorPoints(off.samples.points, look: display),
+            "VECTOR reads the source's display transform of the clean samples")
+    }
+
     // Native preparation is fixture setup, not a cold-start latency contract. Each cadence
     // scenario starts after the real per-owner conversion and a queued reset have completed.
     private static func prepareNativeStill(

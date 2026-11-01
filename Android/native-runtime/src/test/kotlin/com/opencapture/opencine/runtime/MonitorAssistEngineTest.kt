@@ -50,6 +50,23 @@ class MonitorAssistEngineTest {
         }
     }
 
+    /**
+     * A Rec.709 source has no display transform, and VECTOR never reads the monitoring LUT, so
+     * its tap carries no vector look whether the LUT is armed or not. The vectorscope still plots
+     * the source's own codes (Swift twin: `MonitorAssistEngine` passes `fx.vectorscope` as is).
+     */
+    @Test fun aRec709SourceWithTheLutArmedStillDrawsVectorPoints() {
+        val rec709 = MonitorAssistScopeConfiguration(
+            MonitorTransfer.REC709, ScopeClipSnapshot(MonitorTransfer.REC709, 255))
+        // What the render plan hands a Rec.709 source with VECTOR shown and the LUT armed.
+        val vector = ScopeTapPolicy(vectorscope = true, transfer = MonitorTransfer.REC709, vectorLut = null)
+        val picture = ScopeSampler.sampleRaw(byteArrayOf(200.toByte(), 60, 70, -1), 1, 1, 4,
+            rec709.transfer, includePoints = true)
+        val bundle = MonitorAssistEngine.bundle(picture, rec709, vector)
+        assertTrue(bundle.vectorscopePoints.isNotEmpty(), "VECTOR drew nothing for a Rec.709 source")
+        assertEquals(picture.points, bundle.vectorscopePoints)
+    }
+
     @Test fun unreadableSourceClearsItsLampsAndPreviousTraceButMeasuredBlackRemainsKnown() {
         val first = MonitorAssistEngine.bundle(samples(), source, policy)
         assertTrue(first.traffic.blue.clip)
