@@ -336,3 +336,16 @@ path math and overlay projection are core `motion`'s; `Android/dji` keeps the Ko
 (`GimbalWaypoint.PAN_MIN_DEG` and the rest, `unwrapYaw(raw)`, `from`, `clamped()`) and the 84°
 overlay field of view (`GimbalWaypointOverlay.project(waypoint, live, aspect)`). Physical
 behavior is untested.
+
+`GimbalStick.AttitudeLayout` (Kotlin `AttitudeLayout`) accepts the 50-byte `0x04/0x05` push and
+the 49-byte push of current Pocket 3 firmware (OpenPocketCine#621); any other length fails
+closed. Both read native pitch `@0`, yaw `@4` and display pitch `-@20`; the mode family stays
+50-byte only. Native pitch is about 180° at level, so small tilts cross the ±180° wrap. Each
+layout names how its gimbal reads a native target (`GimbalNativePitchWire`, Kotlin
+`NativePitchWire`): the 50-byte firmware takes wrapped ±180° targets, while the 49-byte firmware
+drives straight to the number it is sent. For that layout head tracking, programmed moves and
+Level send native pitch beside the reference it is relative to (the calibration point, the pose
+at Start, the Level pose), within the tilt reach of it and of the live pitch, and stop instead
+when either is out of range. `HeadTrackNative` targets are continuous around the calibration
+point on every camera; the 50-byte wire folds them back to ±180°. The 49-byte offsets and the
+continuous convention are untested on hardware.
