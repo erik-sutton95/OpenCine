@@ -17,6 +17,7 @@ struct DJIAppleGimbalControlTests {
         var endedTokens: [UInt64] = []
         var programTokens: [UInt64] = []
         var canceledTokens: [UInt64] = []
+        var nativeTargets: [Duml.Frame] = []
         func send(_ frame: Duml.Frame) -> UInt16 {
             sent.append(frame)
             return UInt16(sent.count)
@@ -28,7 +29,10 @@ struct DJIAppleGimbalControlTests {
         func noteGimbalStick(axis0: UInt16, axis1: UInt16) { sticks += [axis0, axis1] }
         func restGimbalStick() { rests += 1 }
         func beginNativeTargets(token: UInt64) { targetTokens.append(token) }
-        func noteNativeTarget(_ frame: Duml.Frame, token: UInt64) -> Bool { true }
+        func noteNativeTarget(_ frame: Duml.Frame, token: UInt64) -> Bool {
+            nativeTargets.append(frame)
+            return true
+        }
         func endNativeTargets(token: UInt64) { endedTokens.append(token) }
         func startNativeProgram(
             program: GimbalProgram, token: UInt64, zoom: GimbalProgramZoom?,
@@ -102,6 +106,22 @@ struct DJIAppleGimbalControlTests {
                 return UInt8(hex[start..<hex.index(start, offsetBy: 2)], radix: 16)!
             }
             gimbal.ingest(frame(0x05, payload), status: status)
+        }
+
+        /// SYNTHETIC push: the captured frame above with native pitch `@0` and display pitch
+        /// `-@20` set, cut to `count` bytes. 49 is the current Pocket 3 layout (OpenPocketCine#621).
+        func attitude(nativeTenth: Int16, pitchTenth: Int16, count: Int) {
+            let hex = "0807000000008600000000020219CD05B3C5000000000200AA10D73532D7763F15BB873E1FB8B43600000000010000000000"
+            var payload = stride(from: 0, to: hex.count, by: 2).map { i -> UInt8 in
+                let start = hex.index(hex.startIndex, offsetBy: i)
+                return UInt8(hex[start..<hex.index(start, offsetBy: 2)], radix: 16)!
+            }
+            for (value, offset) in [(nativeTenth, 0), (0 &- pitchTenth, 20)] {
+                let bits = UInt16(bitPattern: value)
+                payload[offset] = UInt8(bits & 0xFF)
+                payload[offset + 1] = UInt8(bits >> 8)
+            }
+            gimbal.ingest(frame(0x05, Array(payload.prefix(count))), status: status)
         }
 
         func frame(_ cmdId: UInt8, _ payload: [UInt8]) -> Duml.Frame {
@@ -241,6 +261,65 @@ struct DJIAppleGimbalControlTests {
         host.gimbal.performDoubleTap()
         #expect(host.link.sent.map(\.payload).last == Commands.gimbalRecenter().payload)
         #expect(host.controlNote == "Gimbal re-centered")
+    }
+
+    /// OpenPocketCine#621: 49-byte attitude used to leave head tracking "waiting for gimbal",
+    /// and once accepted a 9° look-down from native +174.4° went out as −176.6° (the long way).
+    @Test func compactAttitudeFeedsHeadTrackingAndKeepsNativePitchOnTheCalibrationSide() throws {
+        let host = Host()
+        host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 48)
+        #expect(host.gimbal.freshWaypoint == nil, "an unknown layout is not feedback")
+        host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 49)
+        let calibration = try #require(host.gimbal.freshWaypoint)
+        #expect(calibration.nativePitchDeg == 174.4 && calibration.pitchDeg == 5.6)
+        var track = HeadTrackNative()
+        #expect(track.center(pose: calibration) == .centered)
+        let token = try #require(host.gimbal.beginNativeHeadTrack())
+        for lookUp in [-9.0, 5, 0] {
+            let targetLook = track.target(lookRightDeg: 0, lookUpDeg: lookUp)
+            let target = try #require(targetLook)
+            #expect(host.gimbal.updateNativeHeadTrack(target: target, token: token))
+        }
+        // The gimbal crossed the wrap and reports −178.3°; the next look-down stays beside +174.4°.
+        host.attitude(nativeTenth: -1783, pitchTenth: -21, count: 49)
+        let downAgainLook = track.target(lookRightDeg: 0, lookUpDeg: -9)
+        let downAgain = try #require(downAgainLook)
+        #expect(host.gimbal.updateNativeHeadTrack(target: downAgain, token: token))
+        let sent = host.link.nativeTargets.map { GimbalStick.i16LE($0.payload, at: 4) }
+        #expect(sent == [1834, 1694, 1744, 1834])
+        #expect(host.link.endedTokens.isEmpty)
+    }
+
+    @Test func fullAttitudeHeadTrackSendsTheWrappedNativePitchAsBefore() throws {
+        let host = Host()
+        host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 50)
+        let calibration = try #require(host.gimbal.freshWaypoint)
+        var track = HeadTrackNative()
+        #expect(track.center(pose: calibration) == .centered)
+        let token = try #require(host.gimbal.beginNativeHeadTrack())
+        for lookUp in [-9.0, 5, 0] {
+            let targetLook = track.target(lookRightDeg: 0, lookUpDeg: lookUp)
+            let target = try #require(targetLook)
+            #expect(host.gimbal.updateNativeHeadTrack(target: target, token: token))
+        }
+        let sent = host.link.nativeTargets.map { GimbalStick.i16LE($0.payload, at: 4) }
+        #expect(sent == [-1766, 1694, 1744])
+    }
+
+    @Test func compactHeadTrackStopsWhenTheGimbalIsFarFromTheTarget() throws {
+        let host = Host()
+        host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 49)
+        let calibration = try #require(host.gimbal.freshWaypoint)
+        var track = HeadTrackNative()
+        #expect(track.center(pose: calibration) == .centered)
+        let token = try #require(host.gimbal.beginNativeHeadTrack())
+        // Implausible live feedback: native 0° while the target sits beside +174.4°.
+        host.attitude(nativeTenth: 0, pitchTenth: 56, count: 49)
+        let targetLook = track.target(lookRightDeg: 0, lookUpDeg: -2)
+        let target = try #require(targetLook)
+        #expect(!host.gimbal.updateNativeHeadTrack(target: target, token: token))
+        #expect(host.link.nativeTargets.isEmpty)
+        #expect(host.link.endedTokens == [token])
     }
 
     @Test func levelWithoutAttitudeSaysSoAndSendsNothing() {

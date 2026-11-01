@@ -129,6 +129,10 @@
             var lastTickAt: TimeInterval
             var logsAllTargets: Bool
             var finalTarget: GimbalWaypoint?
+            /// Native pitch convention and the reported native pitch at Start, which every
+            /// planned target is relative to.
+            var nativePitch: GimbalNativePitchWire
+            var nativeReference: Double
             var lastProgressAt: TimeInterval = -.infinity
             var pausedAt: TimeInterval?
             var pauseAnchor: GimbalWaypoint?
@@ -158,6 +162,7 @@
             var nativeProgramEpoch: UInt64 = 0
             var nativeProgramPose: GimbalWaypoint?
             var nativeProgramPoseAt: TimeInterval?
+            var nativeProgramPitchWire: GimbalNativePitchWire?
             var nativeZoomFeedback: [String: (frame: Duml.Frame, receivedAt: TimeInterval)] = [:]
             var nativeZoomSentAt: TimeInterval?
             var gimbalStickHeld = false
@@ -573,7 +578,7 @@
                 var engine = GimbalMoveEngine()
                 let initialZoom = zoom
                 let prepared = wire.withLock {
-                    w -> (pose: GimbalWaypoint?, zoom: GimbalProgramZoom?) in
+                    w -> (pose: GimbalWaypoint?, zoom: GimbalProgramZoom?, wire: GimbalNativePitchWire?) in
                     var zoom = initialZoom
                     for sample in w.nativeZoomFeedback.values.sorted(by: {
                         $0.receivedAt < $1.receivedAt
@@ -583,13 +588,16 @@
                     guard let conn = w.conn, case .ready = conn.state,
                         var pose = w.nativeProgramPose, let receivedAt = w.nativeProgramPoseAt,
                         now >= receivedAt, now - receivedAt <= 0.3, zoom?.failureReason == nil
-                    else { return (nil, zoom) }
+                    else { return (nil, zoom, nil) }
                     if let factor = zoom?.liveZoom { pose.zoom = factor }
                     w.nativeProgramPose = pose
-                    return (pose, zoom)
+                    return (pose, zoom, w.nativeProgramPitchWire)
                 }
                 let zoom = prepared.zoom
-                guard let pose = prepared.pose, engine.start(program: program, live: pose) else {
+                guard let pose = prepared.pose, let nativePitch = prepared.wire,
+                    let nativeReference = pose.nativePitchDeg,
+                    engine.start(program: program, live: pose)
+                else {
                     return
                 }
                 let preparedEngine = engine
@@ -616,7 +624,8 @@
                         zoom: zoom,
                         timer: timer, lastTickAt: now,
                         logsAllTargets: GimbalProgramCurve(program: program) == nil,
-                        finalTarget: program.c ?? program.b, onProgress: onProgress)
+                        finalTarget: program.c ?? program.b, nativePitch: nativePitch,
+                        nativeReference: nativeReference, onProgress: onProgress)
                     return w.nativeProgramEpoch
                 }
                 timer.setEventHandler { @Sendable [weak self] in
@@ -756,8 +765,11 @@
                 w -> (NativeProgramRun, GimbalWaypoint, GimbalMoveEngine.Output, Bool, Duml.Frame?)?
                 in
                 guard w.nativeProgramEpoch == epoch, var run = w.nativeProgram,
-                    !run.engine.isPaused, let pose = w.nativeProgramPose
+                    !run.engine.isPaused, var pose = w.nativeProgramPose
                 else { return nil }
+                // A layout change mid-take leaves no trusted native reference: drop the feedback
+                // so the engine stops.
+                if w.nativeProgramPitchWire != run.nativePitch { pose.nativePitchDeg = nil }
                 let ready: Bool
                 if let conn = w.conn, case .ready = conn.state {
                     ready = true
@@ -809,7 +821,8 @@
             if let target = output.target {
                 guard GimbalMoveEngine.canSendNativeTarget(from: pose, to: target),
                     let frame = Commands.gimbalTimedTarget(
-                        waypoint: target, duration: output.duration),
+                        waypoint: target, live: pose, nativePitch: run.nativePitch,
+                        reference: run.nativeReference, duration: output.duration),
                     sendNativeProgramFrame(
                         frame,
                         logTarget: run.logsAllTargets || target == run.finalTarget ? target : nil,
@@ -890,7 +903,7 @@
             if let target = logTarget {
                 let now = ProcessInfo.processInfo.systemUptime
                 host.journal(
-                    "gimbal-native: seq=\(seq) target=\(target.yawDeg),\(target.pitchDeg) nativePitch=\(target.nativePitchDeg ?? 0) duration=\(duration) monotonic=\(now)"
+                    "gimbal-native: seq=\(seq) target=\(target.yawDeg),\(target.pitchDeg) nativePitch=\(target.nativePitchDeg ?? 0) wireNativePitch=\(Double(GimbalStick.i16LE(frame.payload, at: 4) ?? 0) / 10) duration=\(duration) monotonic=\(now)"
                 )
             }
             return true
@@ -912,7 +925,7 @@
                 }
                 if let zoomFailure { _ = cancelNativeProgramOnQueue(reason: zoomFailure) }
                 guard frame.cmdSet == 0x04, frame.cmdId == 0x05,
-                    GimbalStick.isAttitude(frame.payload)
+                    let layout = GimbalStick.AttitudeLayout(frame.payload)
                 else { continue }
                 guard
                     let reportedPose = GimbalWaypoint.from(
@@ -940,6 +953,7 @@
                     }
                     w.nativeProgramPose = pose
                     w.nativeProgramPoseAt = now
+                    w.nativeProgramPitchWire = layout.nativePitch
                 }
             }
         }
@@ -1067,6 +1081,7 @@
                 wire.withLock {
                     $0.nativeProgramPose = nil
                     $0.nativeProgramPoseAt = nil
+                    $0.nativeProgramPitchWire = nil
                     $0.nativeZoomFeedback = [:]
                 }
             }
