@@ -2,9 +2,12 @@ package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.motion.GimbalProgram
 import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.motion.LevelReading
+import com.opencapture.opencine.motion.WorldLevel
 import com.opencapture.opencine.motion.WorldLevelSnap
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.GimbalStickMapping
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -19,6 +22,68 @@ import kotlin.test.assertTrue
  * pitch `-@20`). Replace with captured frames once the reporter attaches them.
  */
 class AttitudeLayoutTest {
+    /** One real 49-byte push and its expected tenths of a degree. */
+    private data class Captured(val payload: ByteArray, val native: Int, val yaw: Int, val display: Int)
+
+    /** `Fixtures/dji-attitude-pocket3-49.tsv` (Gradle passes its folder as `opencine.fixtures`), by pose. */
+    private val captured: Map<String, Captured> by lazy {
+        File(System.getProperty("opencine.fixtures"), "dji-attitude-pocket3-49.tsv").readLines()
+            .filter { it.isNotBlank() && !it.startsWith("#") }
+            .map { it.split("\t") }
+            .associate { f ->
+                f[0] to Captured(f[1].chunked(2).map { it.toInt(16).toByte() }.toByteArray(),
+                    f[2].toInt(), f[3].toInt(), f[4].toInt())
+            }
+    }
+
+    @Test
+    fun capturedCompactFramesDecode() {
+        assertEquals(setOf("level", "up", "down"), captured.keys)
+        for ((name, item) in captured) {
+            assertEquals(49, item.payload.size, name)
+            assertEquals(AttitudeLayout.POCKET3_COMPACT, AttitudeLayout.of(item.payload))
+            assertEquals(item.native, CameraCommands.nativePitchTenthDeg(item.payload))
+            assertEquals(item.yaw, CameraCommands.yawTenthDeg(item.payload))
+            assertEquals(item.display, CameraCommands.pitchTenthDeg(item.payload))
+            assertTrue(item.payload.copyOfRange(40, 49).all { it == 0.toByte() }, "bytes 40-48 are unused zeros")
+            assertNotNull(WorldLevel.attitude(item.payload), "unit quaternion at @24")
+            assertEquals(NativePitchWire.CONTINUOUS, NativeGimbalFeedback.from(frame(item.payload), 1.0)?.nativePitch)
+        }
+        assertEquals(listOf(-1769, -1682, -7), captured.getValue("level").let { listOf(it.native, it.yaw, it.display) })
+        assertEquals(listOf(1719, -1682, 100), captured.getValue("up").let { listOf(it.native, it.yaw, it.display) })
+        assertEquals(listOf(-1695, -1681, -90), captured.getValue("down").let { listOf(it.native, it.yaw, it.display) })
+    }
+
+    /** Look-up crosses the wrap: +171.9° tilted up is −188.1° beside the −176.9° level pose. */
+    @Test
+    fun capturedPosesStayOnTheReferenceSide() {
+        val wire = NativePitchWire.CONTINUOUS
+        assertEquals(-188.1, wire.target(171.9, -176.9)!!, 1e-9)
+        assertEquals(-169.5, wire.target(-169.5, -176.9)!!, 1e-9)
+        val up = NativeGimbalFeedback.from(frame(captured.getValue("up").payload), 1.0)!!.pose
+        val target = up.copy(pitchDeg = 10.0, nativePitchDeg = -187.6)
+        assertEquals(-1876, nativeTenths(CameraCommands.gimbalTimedTarget(target, up, wire, null, 0.1)))
+        assertEquals(1724, nativeTenths(CameraCommands.gimbalTimedTarget(target, up, NativePitchWire.WRAPPED, null, 0.1)))
+    }
+
+    /** The quaternion uses the 50-byte offsets and follows the display pitch (about 2° below). */
+    @Test
+    fun capturedQuaternionFollowsTheDisplayPitchAndLevelsOnTheReferenceSide() {
+        val tilts = captured.mapValues { (_, item) ->
+            val reading = LevelReading()
+            reading.ingest(item.payload, 1.0)
+            reading.pitchDeg(1.0)!!.also { assertTrue(kotlin.math.abs(it - item.display / 10.0) < 2.5) }
+        }
+        assertTrue(kotlin.math.abs(tilts.getValue("up") - tilts.getValue("level") - 10.7) < 1)
+        assertTrue(kotlin.math.abs(tilts.getValue("down") - tilts.getValue("level") + 8.3) < 1)
+        for ((name, continuous, wrapped) in listOf(Triple("up", 1800, -1800), Triple("down", -1800, 1800))) {
+            val pose = NativeGimbalFeedback.from(frame(captured.getValue(name).payload), 1.0)!!.pose
+            val tilt = tilts.getValue(name)
+            assertEquals(continuous, nativeTenths(WorldLevelSnap.plan(tilt, pose, 1.0, NativePitchWire.CONTINUOUS)?.second), name)
+            assertEquals(wrapped, nativeTenths(WorldLevelSnap.plan(tilt, pose, 1.0)?.second), name)
+        }
+    }
+
     private fun attitude(native: Int, yaw: Int, pitch: Int, count: Int): ByteArray {
         val bytes = ByteArray(maxOf(count, 22))
         fun i16(at: Int, value: Int) {

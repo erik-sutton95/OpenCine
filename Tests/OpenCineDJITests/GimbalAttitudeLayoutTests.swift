@@ -4,11 +4,140 @@ import OpenCineMotion
 import Testing
 
 /// OpenPocketCine#621: Pocket 3 on current firmware pushes 49-byte `0x04/0x05` attitude.
-/// SYNTHETIC frames: no real 49-byte payload is on file yet, so every frame here is built from
-/// the documented offsets (native pitch `@0`, yaw `@4`, display pitch `-@20`) on top of a captured
-/// 50-byte push, cut to 49 bytes for the compact layout. Replace with captured frames once the
-/// reporter attaches them.
+/// The `captured...` tests read the reporter's real frames from
+/// `Fixtures/dji-attitude-pocket3-49.tsv`. The other frames are SYNTHETIC: built from the
+/// documented offsets (native pitch `@0`, yaw `@4`, display pitch `-@20`) on top of a captured
+/// 50-byte push, cut to 49 bytes for the compact layout, to reach poses the capture lacks.
 @Suite struct GimbalAttitudeLayoutTests {
+    /// One real 49-byte push and its expected tenths of a degree.
+    struct CapturedFrame {
+        var payload: [UInt8]
+        var native: Int16
+        var yaw: Int16
+        var display: Int16
+    }
+
+    /// `Fixtures/dji-attitude-pocket3-49.tsv`, keyed by pose (`level`, `up`, `down`).
+    static let captured: [String: CapturedFrame] = {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let path = root.appendingPathComponent("Fixtures/dji-attitude-pocket3-49.tsv").path
+        let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        var frames: [String: CapturedFrame] = [:]
+        for line in text.split(separator: "\n") where !line.hasPrefix("#") {
+            let f = line.split(separator: "\t").map(String.init)
+            guard f.count == 5, let native = Int16(f[2]), let yaw = Int16(f[3]),
+                let display = Int16(f[4])
+            else { continue }
+            let hex = Array(f[1])
+            let payload = stride(from: 0, to: hex.count, by: 2).compactMap {
+                UInt8(String(hex[$0..<$0 + 2]), radix: 16)
+            }
+            frames[f[0]] = CapturedFrame(payload: payload, native: native, yaw: yaw, display: display)
+        }
+        return frames
+    }()
+
+    static func pose(_ payload: [UInt8]) -> GimbalWaypoint? {
+        GimbalWaypoint.from(
+            yawTenth: GimbalStick.yawTenthDeg(payload), pitchTenth: GimbalStick.pitchTenthDeg(payload),
+            zoom: 1, nativePitchTenth: GimbalStick.nativePitchTenthDeg(payload))
+    }
+
+    @Test func capturedCompactFramesDecode() throws {
+        #expect(Self.captured.keys.sorted() == ["down", "level", "up"])
+        for (name, frame) in Self.captured {
+            #expect(frame.payload.count == 49, "\(name)")
+            #expect(GimbalStick.AttitudeLayout(frame.payload) == .pocket3Compact)
+            #expect(GimbalStick.nativePitchTenthDeg(frame.payload) == frame.native)
+            #expect(GimbalStick.yawTenthDeg(frame.payload) == frame.yaw)
+            #expect(GimbalStick.pitchTenthDeg(frame.payload) == frame.display)
+            #expect(frame.payload[40...].allSatisfy { $0 == 0 }, "bytes 40-48 are unused zeros")
+            #expect(WorldLevel.attitude(frame.payload) != nil, "unit quaternion at @24")
+            let pose = try #require(Self.pose(frame.payload))
+            #expect(pose.yawDeg == Double(frame.yaw) / 10 + 360, "yaw -168° unwraps past selfie")
+        }
+        let level = try #require(Self.captured["level"]), up = try #require(Self.captured["up"])
+        let down = try #require(Self.captured["down"])
+        #expect((level.native, level.yaw, level.display) == (-1769, -1682, -7))
+        #expect((up.native, up.yaw, up.display) == (1719, -1682, 100))
+        #expect((down.native, down.yaw, down.display) == (-1695, -1681, -90))
+    }
+
+    /// The capture's look-up crosses the wrap: native −176.9° at level reads +171.9° tilted up,
+    /// which is −188.1° on the calibration side. Look-down raises native to −169.5°.
+    @Test func capturedPosesKeepHeadTrackTargetsOnTheCalibrationSide() throws {
+        let level = try #require(Self.captured["level"]), up = try #require(Self.captured["up"])
+        let down = try #require(Self.captured["down"])
+        let calibration = try #require(Self.pose(level.payload))
+        let wire = try #require(GimbalStick.AttitudeLayout(level.payload)).nativePitch
+        var track = HeadTrackNative()
+        #expect(track.center(pose: calibration) == .centered)
+        let upMeasured = try #require(wire.target(Double(up.native) / 10, around: -176.9))
+        #expect(abs(upMeasured - -188.1) < 1e-9, "continuous up pose is below −180°")
+        let downMeasured = try #require(wire.target(Double(down.native) / 10, around: -176.9))
+        #expect(abs(downMeasured - -169.5) < 1e-9)
+
+        for (frame, measured) in [(up, upMeasured), (down, downMeasured)] {
+            let live = try #require(Self.pose(frame.payload))
+            let lookUp = Double(frame.display - level.display) / 10
+            let targetLook = track.target(lookRightDeg: 0, lookUpDeg: lookUp)
+            let target = try #require(targetLook)
+            let native = try #require(target.nativePitchDeg)
+            #expect(abs(native - measured) < 1, "head target agrees with the camera's own reading")
+            let sent = Self.nativeTenths(Commands.gimbalTimedTarget(
+                waypoint: target, live: live, nativePitch: wire,
+                duration: HeadTrackNative.commandDuration))
+            #expect(sent == Int16((native * 10).rounded()))
+        }
+        // Up (+10.7° of look) goes out as −187.6°, never +172.4° on the far side of −180°.
+        let upLook = track.target(lookRightDeg: 0, lookUpDeg: 10.7)
+        let upTarget = try #require(upLook)
+        let upLive = try #require(Self.pose(up.payload))
+        #expect(Self.nativeTenths(Commands.gimbalTimedTarget(
+            waypoint: upTarget, live: upLive, nativePitch: wire,
+            duration: HeadTrackNative.commandDuration)) == -1876)
+        #expect(Self.nativeTenths(Commands.gimbalTimedTarget(
+            waypoint: upTarget, live: upLive, nativePitch: .wrapped,
+            duration: HeadTrackNative.commandDuration)) == 1724, "the old wrapped encoding")
+        let centreLook = track.target(lookRightDeg: 0, lookUpDeg: 0)
+        #expect(centreLook?.nativePitchDeg == -176.9, "return to centre is the calibration point")
+    }
+
+    /// Bytes 24-39 decode with the 50-byte quaternion offsets: unit norm, and the world tilt
+    /// follows the display pitch (about 2° below it on this capture, which three frames cannot
+    /// explain; the 50-byte fit was within 0.5°).
+    @Test func capturedQuaternionFollowsTheDisplayPitch() throws {
+        var tilts: [String: Double] = [:]
+        for (name, frame) in Self.captured {
+            var reading = LevelReading()
+            reading.ingest(frame.payload, now: 1)
+            let tilt = try #require(reading.pitchDeg(now: 1))
+            #expect(abs(tilt - Double(frame.display) / 10) < 2.5, "\(name) \(tilt)")
+            tilts[name] = tilt
+        }
+        let level = try #require(tilts["level"]), up = try #require(tilts["up"])
+        let down = try #require(tilts["down"])
+        #expect(abs((up - level) - 10.7) < 1 && abs((down - level) - -8.3) < 1)
+    }
+
+    /// Level from the captured poses lands on the reference's side; the old wrap sent the
+    /// tilted-down Pocket 3 to +180.0° from −169.5°.
+    @Test func capturedPosesLevelBesideTheirNativePitch() throws {
+        for (name, continuous, wrapped) in [("up", Int16(1800), Int16(-1800)), ("down", -1800, 1800)] {
+            let frame = try #require(Self.captured[name])
+            var reading = LevelReading()
+            reading.ingest(frame.payload, now: 1)
+            let tilt = try #require(reading.pitchDeg(now: 1))
+            let pose = try #require(Self.pose(frame.payload))
+            let wire = try #require(GimbalStick.AttitudeLayout(frame.payload)).nativePitch
+            let plan = try #require(WorldLevelSnap.plan(tiltDeg: tilt, pose: pose, now: 1, nativePitch: wire))
+            #expect(Self.nativeTenths(plan.frame) == continuous, "\(name)")
+            let old = try #require(WorldLevelSnap.plan(tiltDeg: tilt, pose: pose, now: 1))
+            #expect(Self.nativeTenths(old.frame) == wrapped, "\(name)")
+        }
+    }
+
     /// Captured 50-byte push (2026-09-12 reliability logs): native 180.0°, yaw 0, display 0.
     static let captured50: [UInt8] = {
         let hex =

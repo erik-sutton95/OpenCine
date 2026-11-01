@@ -290,6 +290,51 @@ struct DJIAppleGimbalControlTests {
         #expect(host.link.endedTokens.isEmpty)
     }
 
+    /// The reporter's real 49-byte frames (`Fixtures/dji-attitude-pocket3-49.tsv`), by pose.
+    static let captured: [String: [UInt8]] = {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let path = root.appendingPathComponent("Fixtures/dji-attitude-pocket3-49.tsv").path
+        let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        var frames: [String: [UInt8]] = [:]
+        for line in text.split(separator: "\n") where !line.hasPrefix("#") {
+            let f = line.split(separator: "\t").map(String.init)
+            guard f.count == 5 else { continue }
+            let hex = Array(f[1])
+            frames[f[0]] = stride(from: 0, to: hex.count, by: 2).compactMap {
+                UInt8(String(hex[$0..<$0 + 2]), radix: 16)
+            }
+        }
+        return frames
+    }()
+
+    /// Real capture: calibrated near level at native −176.9°, the look-up pose reads +171.9°.
+    /// Head tracking keeps the target below −180° and Level keeps the tilted-down goal at −180.0°.
+    @Test func capturedCompactFramesTrackAndLevelOnTheReferenceSide() throws {
+        let level = try #require(Self.captured["level"]), up = try #require(Self.captured["up"])
+        let down = try #require(Self.captured["down"])
+        let host = Host()
+        host.gimbal.ingest(host.frame(0x05, level), status: host.status)
+        let calibration = try #require(host.gimbal.freshWaypoint)
+        #expect(calibration.nativePitchDeg == -176.9 && calibration.pitchDeg == -0.7)
+        var track = HeadTrackNative()
+        #expect(track.center(pose: calibration) == .centered)
+        let token = try #require(host.gimbal.beginNativeHeadTrack())
+        host.gimbal.ingest(host.frame(0x05, up), status: host.status)
+        let upLook = track.target(lookRightDeg: 0, lookUpDeg: 10.7)
+        let upTarget = try #require(upLook)
+        #expect(host.gimbal.updateNativeHeadTrack(target: upTarget, token: token))
+        #expect(host.link.nativeTargets.map { GimbalStick.i16LE($0.payload, at: 4) } == [-1876])
+        host.gimbal.endNativeHeadTrack(token: token)
+
+        let leveler = Host()
+        leveler.gimbalDoubleTap = .level
+        leveler.gimbal.ingest(leveler.frame(0x05, down), status: leveler.status)
+        leveler.gimbal.performDoubleTap()
+        let sent = try #require(leveler.link.sent.last { $0.cmdId == 0x14 })
+        #expect(GimbalStick.i16LE(sent.payload, at: 4) == -1800, "not +180.0° on the far side")
+    }
+
     @Test func fullAttitudeHeadTrackSendsTheWrappedNativePitchAsBefore() throws {
         let host = Host()
         host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 50)

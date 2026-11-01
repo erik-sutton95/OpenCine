@@ -347,5 +347,7 @@ drives straight to the number it is sent. For that layout head tracking, program
 Level send native pitch beside the reference it is relative to (the calibration point, the pose
 at Start, the Level pose), within the tilt reach of it and of the live pitch, and stop instead
 when either is out of range. `HeadTrackNative` targets are continuous around the calibration
-point on every camera; the 50-byte wire folds them back to ±180°. The 49-byte offsets and the
-continuous convention are untested on hardware.
+point on every camera; the 50-byte wire folds them back to ±180°. Three real 49-byte frames
+(`Fixtures/dji-attitude-pocket3-49.tsv`) confirm the offsets: the quaternion sits at the 50-byte
+`@24...@39`, bytes 40-48 are zero and unread. Its world tilt reads about 2° below the display
+pitch on that capture. Sending continuous targets is untested on hardware.
