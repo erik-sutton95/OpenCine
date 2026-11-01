@@ -115,6 +115,7 @@ class VideoToolboxDecoder: Sendable
 enum CameraHotspotSystem.Cancellation: Equatable, Hashable, Sendable
 enum DiagnosticExceptionHandler
 enum DiagnosticNetworkFacts
+enum LiveFrameDecoding
 enum LiveFrameSampleBus.Role: Equatable, Hashable, Sendable
 enum LiveViewPresentTiming
 enum MediaCellVideoFrames
@@ -543,6 +544,9 @@ protocol MonitorPlaybackFrameSource<Self : OpenCineMedia.MonitorPlaybackPort>: M
 static func DiagnosticExceptionHandler.install(record: (Foundation.NSException) -> Swift.Void) -> ()
 static func DiagnosticNetworkFacts.vpnActive() -> Swift.Bool
 static func JPEGPixelBufferDecoder.dimensions(of: Foundation.Data) -> (width: Swift.Int, height: Swift.Int)?
+static func LiveFrameDecoding.cgImage(_: CoreVideo.CVPixelBuffer, context: CoreImage.CIContext) -> CoreGraphics.CGImage?
+static func LiveFrameDecoding.image(_: CoreVideo.CVPixelBuffer, renderedInto: CoreGraphics.CGColorSpace) -> CoreImage.CIImage
+static func LiveFrameDecoding.prepareJPEGFrame(_: CoreVideo.CVPixelBuffer) -> ()
 static func LiveViewPresentTiming.sampleTiming(frameIndex: Swift.Int64) -> CoreMedia.CMSampleTimingInfo
 static func MediaCellVideoFrames.durationSeconds(at: Foundation.URL) -> Swift.Double?
 static func MediaCellVideoFrames.poster(at: Foundation.URL) -> UIKit.UIImage?
@@ -608,6 +612,7 @@ static func VideoToolboxDecoder.makeAVCFormat(sps: [Swift.UInt8], pps: [Swift.UI
 static func VideoToolboxDecoder.makeHEVCFormat(vps: [Swift.UInt8], sps: [Swift.UInt8], pps: [Swift.UInt8]) -> CoreMedia.CMVideoFormatDescription?
 static func VideoToolboxDecoder.markDoNotDisplay(_: CoreMedia.CMSampleBuffer) -> ()
 static let JPEGPixelBufferDecoder.pixelFormat: Darwin.OSType
+static let LiveFrameDecoding.codeValueSpace: CoreGraphics.CGColorSpace
 static let LiveViewPresentTiming.timescale: Swift.Int32
 static let MediaCellImageLoader.shared: MediaCellImageLoader
 static let MonitorImageSampling.fileCodeColorSpace: CoreGraphics.CGColorSpace
