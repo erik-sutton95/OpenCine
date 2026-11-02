@@ -254,9 +254,10 @@ final class MonitorScreenAccessibilityTests: XCTestCase {
         let exposed = try await exposedProbes(inputs)
 
         XCTAssertTrue(ProbeInputs.slotProbes.isSubset(of: exposed), "Exposed: \(exposed.sorted())")
-        // Pocket's zoom chip hides itself under an open picker. A slot or group attachment
-        // above it would expose it again while the chrome is visible.
-        XCTAssertFalse(exposed.contains("probe.tools.selfHidden"))
+        // Pocket's zoom chip hides itself under an open picker, and a header readout hides its
+        // painted text under its 44 pt target. A slot or group attachment above either would
+        // expose it again while the chrome is visible.
+        XCTAssertTrue(exposed.isDisjoint(with: ProbeInputs.selfHiddenProbes), "Exposed: \(exposed.sorted())")
     }
 
     func testCoveredChromeIsNotExposed() async throws {
@@ -274,7 +275,7 @@ final class MonitorScreenAccessibilityTests: XCTestCase {
 
         // Status, power and values are hidden by the screen; tools and system content hide
         // per control, as the zoom-dial apps already do (LiveSystemChrome `visible`).
-        for probe in ["probe.status", "probe.power", "probe.capture", "probe.tools.selfHidden"] {
+        for probe in ["probe.status", "probe.power", "probe.capture"] + ProbeInputs.selfHiddenProbes.sorted() {
             XCTAssertFalse(exposed.contains(probe), "\(probe) exposed: \(exposed.sorted())")
         }
     }
@@ -287,7 +288,7 @@ final class MonitorScreenAccessibilityTests: XCTestCase {
         XCTAssertFalse(exposed.contains("probe.status"), "Exposed: \(exposed.sorted())")
         XCTAssertTrue(ProbeInputs.slotProbes.subtracting(["probe.status"]).isSubset(of: exposed),
             "Exposed: \(exposed.sorted())")
-        XCTAssertFalse(exposed.contains("probe.tools.selfHidden"))
+        XCTAssertTrue(exposed.isDisjoint(with: ProbeInputs.selfHiddenProbes), "Exposed: \(exposed.sorted())")
     }
 
     private func exposedProbes(_ inputs: ProbeInputs) async throws -> Set<String> {
@@ -394,7 +395,10 @@ private final class ProbeInputs {
         "probe.status", "probe.power", "probe.capture", "probe.tools", "probe.system.lock",
         "probe.system.settings", "probe.system.media", "probe.system.record", "probe.system.display",
     ]
-    static let allProbes = slotProbes.union(["probe.tools.selfHidden"])
+    static let selfHiddenProbes: Set<String> = [
+        "probe.status.selfHidden", "probe.capture.selfHidden", "probe.tools.selfHidden",
+    ]
+    static let allProbes = slotProbes.union(selfHiddenProbes)
 
     var visible = true
     var transientControlsHidden = false
@@ -423,11 +427,11 @@ private struct ProbeScreen: View {
         } signal: {
             EmptyView()
         } status: {
-            probe("status")
+            HStack { probe("status"); probe("status.selfHidden").accessibilityHidden(true) }
         } power: {
             probe("power")
         } capture: {
-            probe("capture")
+            HStack { probe("capture"); probe("capture.selfHidden").accessibilityHidden(true) }
         } system: {
             // The real placement: each control carries its own `accessibilityHidden(!visible)`,
             // which an app (Nikon) may leave at its default while a full-screen page covers it.
