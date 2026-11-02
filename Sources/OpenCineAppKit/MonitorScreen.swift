@@ -50,7 +50,8 @@
                     .position(x: layout.picture.midX, y: layout.picture.midY)
                     .opacity(presentation.pictureWaiting ? 1 : 0)
                     .monitorPresentationVisibility(presentation.visible)
-                    .accessibilityHidden(!presentation.pictureWaiting || !presentation.visible)
+                    .modifier(MonitorSlotAccessibilityVisibility(
+                        hidden: !presentation.pictureWaiting || !presentation.visible))
                     .allowsHitTesting(false)
 
                 if layout.portrait {
@@ -99,7 +100,9 @@
                         }
                     }
                     .allowsHitTesting(presentation.statusInteractive)
-                    .accessibilityHidden(!presentation.statusInteractive || !presentation.visible || presentation.transientControlsHidden)
+                    .modifier(MonitorSlotAccessibilityVisibility(
+                        hidden: !presentation.statusInteractive || !presentation.visible
+                            || presentation.transientControlsHidden))
                 }
                 if presentation.powerMounted {
                     MonitorScreenSlot(content: power)
@@ -115,13 +118,33 @@
                         .position(x: layout.values.midX, y: layout.values.midY)
                         .opacity(presentation.captureHidden ? 0 : (presentation.locked ? 0.4 : 1))
                         .allowsHitTesting(!presentation.captureHidden && !presentation.locked && presentation.captureInteractive)
-                        .accessibilityHidden(presentation.captureHidden || !presentation.visible || presentation.transientControlsHidden)
+                        .modifier(MonitorSlotAccessibilityVisibility(
+                            hidden: presentation.captureHidden || !presentation.visible
+                                || presentation.transientControlsHidden))
                 }
             }
             .allowsHitTesting(presentation.interactive && !presentation.transientControlsHidden && presentation.visible)
             // No AX attachment on the Group or the tools and system slots: while visible it would
             // override a control that hides itself (Pocket's zoom chip under a picker). Their
             // content hides per control; covered chrome is excluded by zero opacity.
+        }
+    }
+
+    /// Hides a chrome slot without revealing what its content hides. SwiftUI applies a
+    /// container's `accessibilityHidden(false)` to every descendant, so a visible slot that
+    /// attached it would re-expose content that hides itself: a header readout's painted text
+    /// under its 44 pt target, which VoiceOver then reached twice (the readout, then its value
+    /// again as a stray static text). From iOS 18 the slot attaches nothing while visible and
+    /// keeps its identity, so its controls keep their state across hide and show; iOS 17 has
+    /// no such form and keeps the plain attachment.
+    private struct MonitorSlotAccessibilityVisibility: ViewModifier {
+        let hidden: Bool
+        func body(content: Content) -> some View {
+            if #available(iOS 18.0, *) {
+                content.accessibilityHidden(true, isEnabled: hidden)
+            } else {
+                content.accessibilityHidden(hidden)
+            }
         }
     }
 

@@ -1134,6 +1134,7 @@
             let color = try node("Color mode")
             let codec = try node("Codec")
             let picture = try node("SIMULATED production picture")
+            assertReadoutsReachedOnce(nodes)
             let image = try native.renderedImage()
             let photo = XCTAttachment(image: image)
             photo.name = "SIMULATED production long width \(sample.width) raw \(sample.safeTop) side \(sample.sideSafe) elapsed \(probe.status.elapsedLabel)"
@@ -1264,6 +1265,14 @@
             XCTAssertEqual(probe.formatCalls, beforeFormat + 1); XCTAssertEqual(probe.codecCalls, beforeCodec + 1)
             return nativeHeights
         }
+        /// VoiceOver reaches each header readout once, through its 44 pt target. The painted text
+        /// under the target is never a second element: a visible chrome slot that re-exposed it
+        /// read every value twice and put a stray element over the primary's own glyphs.
+        private func assertReadoutsReachedOnce(_ nodes: [NSObject]) {
+            let painted = ["[\(probe.sensorArea)] 6K · 25p", "R3D NE", "D-Log2"]
+            XCTAssertEqual(nodes.compactMap(\.accessibilityLabel).filter(painted.contains), [],
+                "Painted readout text is reachable as its own element at \(sample)")
+        }
         private func settledNodes(labels: [String] = ["Recording format", "Codec", "Color mode"]) async throws -> [NSObject] {
             var nodes: [NSObject] = []
             for _ in 0..<200 {
@@ -1290,6 +1299,7 @@
             let codec = try node("Codec")
             let color = try node("Color mode")
             let context = "\(sample)"
+            assertReadoutsReachedOnce(nodes)
             // One top edge for STBY/REC, the clock and the resolution and frame rate.
             XCTAssertEqual(recording.minY, field.status.y, accuracy: 0.5, context)
             XCTAssertEqual(clock.minY, field.status.y, accuracy: 0.5, context)
