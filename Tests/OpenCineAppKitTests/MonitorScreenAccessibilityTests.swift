@@ -257,7 +257,7 @@ final class MonitorScreenAccessibilityTests: XCTestCase {
         // Pocket's zoom chip hides itself under an open picker, and a header readout hides its
         // painted text under its 44 pt target. A slot or group attachment above either would
         // expose it again while the chrome is visible.
-        XCTAssertTrue(exposed.isDisjoint(with: ProbeInputs.selfHiddenProbes), "Exposed: \(exposed.sorted())")
+        XCTAssertTrue(exposed.isDisjoint(with: ProbeInputs.selfHiddenWhileVisible), "Exposed: \(exposed.sorted())")
     }
 
     func testCoveredChromeIsNotExposed() async throws {
@@ -288,7 +288,7 @@ final class MonitorScreenAccessibilityTests: XCTestCase {
         XCTAssertFalse(exposed.contains("probe.status"), "Exposed: \(exposed.sorted())")
         XCTAssertTrue(ProbeInputs.slotProbes.subtracting(["probe.status"]).isSubset(of: exposed),
             "Exposed: \(exposed.sorted())")
-        XCTAssertTrue(exposed.isDisjoint(with: ProbeInputs.selfHiddenProbes), "Exposed: \(exposed.sorted())")
+        XCTAssertTrue(exposed.isDisjoint(with: ProbeInputs.selfHiddenWhileVisible), "Exposed: \(exposed.sorted())")
     }
 
     private func exposedProbes(_ inputs: ProbeInputs) async throws -> Set<String> {
@@ -399,6 +399,12 @@ private final class ProbeInputs {
         "probe.status.selfHidden", "probe.capture.selfHidden", "probe.tools.selfHidden",
     ]
     static let allProbes = slotProbes.union(selfHiddenProbes)
+    /// What stays hidden inside visible chrome. iOS 17 has no attachment-free hidden form, so its
+    /// visible status and capture slots keep the attachment that re-exposes their content.
+    static var selfHiddenWhileVisible: Set<String> {
+        if #available(iOS 18.0, *) { return selfHiddenProbes }
+        return ["probe.tools.selfHidden"]
+    }
 
     var visible = true
     var transientControlsHidden = false
