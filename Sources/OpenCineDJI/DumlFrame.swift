@@ -46,6 +46,18 @@ public enum Duml {
         }
     }
 
+    /// A live `0x02/*` command that only asks the camera for state. A read cannot pause the
+    /// encoder, so it must not arm the watchdog's post-SET grace. `0x02/0x8E` carries GET and SET
+    /// on one opcode and the first payload byte tells them apart. Anything else counts as a write.
+    public static func isLiveCameraRead(_ frame: Frame) -> Bool {
+        guard frame.cmdSet == 0x02 else { return false }
+        switch frame.cmdId {
+        case 0xA0, 0xA5: return true
+        case 0x8E: return frame.payload.first == 0x00
+        default: return false
+        }
+    }
+
     /// Pairing / Wi-Fi / live-control replies that can land before the waiter.
     public static func shouldHoldReply(set: UInt8, cmd: UInt8) -> Bool {
         switch (set, cmd) {
