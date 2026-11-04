@@ -38,10 +38,12 @@ data class MonitorPlaybackGestureConfig(
     val enableSwipe: Boolean = true,
 )
 
+/** [answers] admits a gesture by where its first finger lands; an unadmitted gesture is ignored. */
 public suspend fun PointerInputScope.detectMonitorPlaybackVideoGestures(
     isReady: () -> Boolean,
     isZoomed: () -> Boolean,
     config: MonitorPlaybackGestureConfig = MonitorPlaybackGestureConfig(),
+    answers: (Offset) -> Boolean = { true },
     onTap: () -> Unit,
     onChromeSwipe: (MonitorPlaybackChromeSwipe) -> Unit,
     onScrubStart: () -> Unit,
@@ -55,6 +57,7 @@ public suspend fun PointerInputScope.detectMonitorPlaybackVideoGestures(
 ) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+        if (!answers(down.position)) return@awaitEachGesture
         val start = down.position
         var total = Offset.Zero
         var armedScrub = false

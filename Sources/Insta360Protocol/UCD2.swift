@@ -21,6 +21,9 @@ public enum LunaProtocolError: Error, Equatable, Sendable {
     case unexpectedResponse
     case responseEncryptionMismatch
     case cameraRejectedRequest
+    /// Reply 505 (`INS_ERRORCODE_WIFI_BUSY_SWITCHING`): the camera is still switching its Wi-Fi
+    /// role and refuses the request until notification 8215 says its Wi-Fi started.
+    case cameraBusySwitchingWiFi
     case malformedMedia
 }
 
@@ -236,8 +239,10 @@ public struct UCD2Message: Equatable, Sendable {
     public func successfulResponseBody(for identifier: UInt32, encrypted: Bool,
                                        requiresEncryption: Bool) throws -> Data {
         guard self.identifier == identifier, contentType == 1 || contentType == 2, reserved == 0,
-              code == 200 || code == 500 else { throw LunaProtocolError.unexpectedResponse }
+              code == 200 || code == 500 || code == LunaProtocol.wifiBusySwitchingCode
+        else { throw LunaProtocolError.unexpectedResponse }
         guard encrypted == requiresEncryption else { throw LunaProtocolError.responseEncryptionMismatch }
+        if code == LunaProtocol.wifiBusySwitchingCode { throw LunaProtocolError.cameraBusySwitchingWiFi }
         guard code == 200 else { throw LunaProtocolError.cameraRejectedRequest }
         return body
     }

@@ -122,7 +122,7 @@ private struct ClockSurface: View {
                 record: { .init(photo: false, confirm: false, busy: false, openMode: nil, external: nil) },
                 exposure: nil, level: nil, audio: { nil }, readOnly: { false }, borrowed: { false },
                 returnToStage: nil, coverOpen: { false }, note: $probe.note, settings: {}, media: {}),
-            assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
+            assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, signalOptions: .init(),
                 usage: $probe.usage, usageSeed: [:], toggle: { _ in }),
             views: .init(), portraitAspect: $probe.portraitAspect,
             picture: { Color.black }, cameraPanel: { _, _ in EmptyView() },

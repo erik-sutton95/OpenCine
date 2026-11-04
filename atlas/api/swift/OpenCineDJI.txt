@@ -63,6 +63,10 @@ case DumlTransport.PktType.command
 case DumlTransport.PktType.handshake
 case DumlTransport.PktType.telemetry
 case DumlTransport.PktType.video
+case GimbalNativePitchWire.continuous
+case GimbalNativePitchWire.wrapped
+case GimbalStick.AttitudeLayout.full
+case GimbalStick.AttitudeLayout.pocket3Compact
 case LinkFailure.bleLost
 case LinkFailure.decoderWedged
 case LinkFailure.encoderPaused
@@ -140,7 +144,9 @@ enum DumlTransport.PktType: Equatable, Hashable, RawRepresentable
 enum ExpoParam
 enum FoundCameraIdentity
 enum GimbalControl
+enum GimbalNativePitchWire: Equatable, Hashable, Sendable
 enum GimbalReach
+enum GimbalStick.AttitudeLayout: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum GlamourEffect
 enum LinkDiagnoser
 enum LinkFailure: Equatable, Hashable, Sendable
@@ -297,6 +303,8 @@ func DatalinkHandshakeAdmission.receive(_: [Swift.UInt8], epoch: Swift.Int) -> (
 func DatalinkHandshakeAdmission.reset(epoch: Swift.Int) -> ()
 func DumlNotificationAssembler.append(_: [Swift.UInt8]) -> [Duml.Frame]
 func DumlTransport.AckWindows.advancing(datagram: [Swift.UInt8]) -> DumlTransport.AckWindows
+func GimbalNativePitchWire.target(_: Swift.Double, around: Swift.Double) -> Swift.Double?
+func GimbalNativePitchWire.wireDeg(_: Swift.Double, live: Swift.Double) -> Swift.Double?
 func GimbalNativeTargetStream.begin(token: Swift.UInt64) -> ()
 func GimbalNativeTargetStream.cancel(token: Swift.UInt64?) -> Swift.Bool
 func GimbalNativeTargetStream.next(now: Foundation.TimeInterval, connectionReady: Swift.Bool) -> Duml.Frame?
@@ -366,6 +374,7 @@ init GimbalNativeTargetStream()
 init GimbalParamPoll()
 init GimbalPrepRestore()
 init GimbalProgramZoom(program: OpenCineMotion.GimbalProgram, model: OpenCineCameraVocabulary.CameraModel?, status: OpenCineCameraVocabulary.CameraStatus)
+init GimbalStick.AttitudeLayout(_: [Swift.UInt8])
 init HeadTrackNative()
 init HevcDepacketizer()
 init MediaBrowsePolicy(listNewestPage: Swift.Bool, listOlderPages: Swift.Bool, keepBrowsing: Swift.Bool)
@@ -466,8 +475,9 @@ static func Commands.gimbalParamsGet(seq: Swift.UInt16) -> Duml.Frame
 static func Commands.gimbalRecenter(seq: Swift.UInt16) -> Duml.Frame
 static func Commands.gimbalStick(axis0: Swift.UInt16, axis1: Swift.UInt16, seq: Swift.UInt16) -> Duml.Frame
 static func Commands.gimbalTimedStop(seq: Swift.UInt16) -> Duml.Frame
-static func Commands.gimbalTimedTarget(waypoint: OpenCineMotion.GimbalWaypoint, duration: Foundation.TimeInterval, seq: Swift.UInt16) -> Duml.Frame?
-static func Commands.gimbalTimedTarget(yawDeg: Swift.Double, nativePitchDeg: Swift.Double, duration: Foundation.TimeInterval, seq: Swift.UInt16) -> Duml.Frame?
+static func Commands.gimbalTimedTarget(waypoint: OpenCineMotion.GimbalWaypoint, duration: Foundation.TimeInterval, seq: Swift.UInt16, nativePitch: GimbalNativePitchWire) -> Duml.Frame?
+static func Commands.gimbalTimedTarget(waypoint: OpenCineMotion.GimbalWaypoint, live: OpenCineMotion.GimbalWaypoint, nativePitch: GimbalNativePitchWire, reference: Swift.Double?, duration: Foundation.TimeInterval, seq: Swift.UInt16) -> Duml.Frame?
+static func Commands.gimbalTimedTarget(yawDeg: Swift.Double, nativePitchDeg: Swift.Double, duration: Foundation.TimeInterval, seq: Swift.UInt16, nativePitch: GimbalNativePitchWire) -> Duml.Frame?
 static func Commands.liveViewEnable(seq: Swift.UInt16, receiver: Swift.UInt8) -> Duml.Frame
 static func Commands.liveViewPrepare(seq: Swift.UInt16) -> Duml.Frame
 static func Commands.mediaList(counter: Swift.UInt8, cursor: Swift.UInt32, seq: Swift.UInt16) -> Duml.Frame
@@ -660,7 +670,7 @@ static func VideoFormat.trailer(frameRate: OpenCineCameraVocabulary.VideoFrameRa
 static func WhiteBalance.autoKelvin(_: [Swift.UInt8]) -> Swift.Int?
 static func WhiteBalance.parseImageEffect(_: [Swift.UInt8]) -> OpenCineCameraVocabulary.WhiteBalance?
 static func WorldLevel.attitude(_: [Swift.UInt8]) -> OpenCineMotion.HeadTrack.Quat?
-static func WorldLevelSnap.plan(tiltDeg: Swift.Double, pose: OpenCineMotion.GimbalWaypoint, now: Foundation.TimeInterval) -> (snap: OpenCineMotion.WorldLevelSnap, frame: Duml.Frame)?
+static func WorldLevelSnap.plan(tiltDeg: Swift.Double, pose: OpenCineMotion.GimbalWaypoint, now: Foundation.TimeInterval, nativePitch: GimbalNativePitchWire) -> (snap: OpenCineMotion.WorldLevelSnap, frame: Duml.Frame)?
 static let ApertureStrategy.capabilityKey: Swift.String
 static let ApertureStrategy.stateKey: Swift.String
 static let AudioDspBlob.size: Swift.Int
@@ -706,6 +716,7 @@ static let Duml.rxCamera: Swift.UInt8
 static let Duml.rxSession: Swift.UInt8
 static let Duml.rxWifi: Swift.UInt8
 static let Duml.senderApp: Swift.UInt8
+static let GimbalNativePitchWire.maxOffsetDeg: Swift.Double
 static let GimbalPrepRestore.idleDelay: Foundation.TimeInterval
 static let GimbalProgramZoom.interval: Foundation.TimeInterval
 static let GimbalReach.bounds: OpenCineMotion.MotionBounds
@@ -856,6 +867,7 @@ var DumlTransport.AckWindows.hasExtra: Swift.Bool
 var DumlTransport.AckWindows.video: Swift.UInt16
 var ExpoMode.setPayload: [Swift.UInt8]
 var FocusTrackMode.setValue: [Swift.UInt8]
+var GimbalNativePitchWire.range: Swift.ClosedRange<Swift.Double>
 var GimbalNativeTargetStream.token: Swift.UInt64?
 var GimbalPrepRestore.Restore.frames: [Duml.Frame]
 var GimbalPrepRestore.Restore.mode: OpenCineCameraVocabulary.GimbalMode?
@@ -867,6 +879,7 @@ var GimbalProgramZoom.failureReason: Swift.String?
 var GimbalProgramZoom.hasSentTarget: Swift.Bool
 var GimbalProgramZoom.liveZoom: Swift.Double?
 var GimbalProgramZoom.usesHighRateTargets: Swift.Bool
+var GimbalStick.AttitudeLayout.nativePitch: GimbalNativePitchWire
 var HevcDepacketizer.droppedIncomplete: Swift.Int
 var MediaBrowsePolicy.keepBrowsing: Swift.Bool
 var MediaBrowsePolicy.listNewestPage: Swift.Bool

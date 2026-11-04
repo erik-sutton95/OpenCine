@@ -5,6 +5,100 @@
     import XCTest
 
     final class MonitorScopePanelPlacementTests: XCTestCase {
+        /// A waveform dragged past either side ends flush with that edge: the same padding from
+        /// the trailing edge as from the leading one, on an 11-inch iPad and a phone, in both
+        /// orientations, fit and fill (owner hardware pass 2026-10-30).
+        func testScopeDraggedToEitherSideEndsFlushWithThatEdge() {
+            let devices: [(CGFloat, CGFloat, MonitorSafeArea)] = [
+                (1210, 834, MonitorSafeArea(top: 24, bottom: 20)),
+                (834, 1210, MonitorSafeArea(top: 24, bottom: 20)),
+                (874, 402, MonitorSafeArea(leading: 62, bottom: 21, trailing: 62)),
+                (402, 874, MonitorSafeArea(top: 62, bottom: 34)),
+            ]
+            for (width, height, safe) in devices {
+                for fill in [false, true] {
+                    let layout = FieldMonitorLayout(
+                        width: Double(width), height: Double(height), safeArea: safe, fill: fill)
+                    let inset = layout.scopeClearance(safeArea: safe)
+                    let canvas = CGRect(x: 0, y: 0, width: width, height: height)
+                    let bounds = MonitorScopePanelPlacement.bounds(
+                        in: canvas,
+                        clearance: EdgeInsets(
+                            top: inset.top, leading: inset.leading, bottom: inset.bottom,
+                            trailing: inset.trailing))
+                    let size = MonitorScopePanelPlacement.fittedSize(MonitorScopePanelSize.waveform, in: bounds)
+                    let right = MonitorScopePanelPlacement.clamp(
+                        CGPoint(x: width * 10, y: canvas.midY), size: size, in: bounds)
+                    let left = MonitorScopePanelPlacement.clamp(
+                        CGPoint(x: -width * 10, y: canvas.midY), size: size, in: bounds)
+                    let label = "\(width)x\(height) fill \(fill)"
+                    XCTAssertEqual(
+                        canvas.maxX - CGFloat(safe.trailing) - (right.x + size.width / 2),
+                        MonitorScopePanelPlacement.padding, label)
+                    XCTAssertEqual(
+                        left.x - size.width / 2 - CGFloat(safe.leading),
+                        MonitorScopePanelPlacement.padding, label)
+                }
+            }
+        }
+        /// A vectorscope restored onto the record button, or dragged into the bottom-right or
+        /// top-right corner, rests clear of the rail and status chrome the live surface passes;
+        /// a histogram dragged to the right edge beside the picture still ends flush (owner
+        /// hardware pass 2026-10-30: a scope ended under DISP and the record button on an iPad
+        /// Pro 11-inch).
+        func testScopeNeverRestsOnTheChromeYetReachesTheFreeRightEdge() {
+            let devices: [(CGFloat, CGFloat, MonitorSafeArea)] = [
+                (1210, 834, MonitorSafeArea(top: 24, bottom: 20)),
+                (834, 1210, MonitorSafeArea(top: 24, bottom: 20)),
+                (874, 402, MonitorSafeArea(leading: 62, bottom: 21, trailing: 62)),
+                (402, 874, MonitorSafeArea(top: 62, bottom: 34)),
+            ]
+            for (width, height, safe) in devices {
+                for fill in [false, true] {
+                    let layout = FieldMonitorLayout(
+                        width: Double(width), height: Double(height), safeArea: safe, fill: fill)
+                    let inset = layout.scopeClearance(safeArea: safe)
+                    let canvas = CGRect(x: 0, y: 0, width: width, height: height)
+                    let bounds = MonitorScopePanelPlacement.bounds(
+                        in: canvas,
+                        clearance: EdgeInsets(
+                            top: inset.top, leading: inset.leading, bottom: inset.bottom,
+                            trailing: inset.trailing))
+                    let chrome = layout.scopeObstacles(MonitorScopeChrome.all.subtracting(.focusReset))
+                        .map(\.cgRect)
+                    let label = "\(width)x\(height) fill \(fill)"
+                    func isClear(_ center: CGPoint, _ size: CGSize) -> Bool {
+                        let frame = CGRect(
+                            x: center.x - size.width / 2, y: center.y - size.height / 2,
+                            width: size.width,
+                            height: size.height + MonitorScopePanelPlacement.gripBottomExtent)
+                        return chrome.allSatisfy {
+                            !frame.insetBy(dx: 0.01, dy: 0.01).intersects(
+                                $0.insetBy(
+                                    dx: -MonitorScopePanelPlacement.padding,
+                                    dy: -MonitorScopePanelPlacement.padding))
+                        }
+                    }
+                    let restored = MonitorScopePanelLayout(
+                        baseSize: MonitorScopePanelSize.vectorscope,
+                        preferredSize: MonitorScopePanelSize.vectorscope,
+                        center: CGPoint(x: layout.record.midX, y: layout.record.midY), scale: 1,
+                        canvas: canvas, movementBounds: bounds, obstacles: chrome)
+                    XCTAssertTrue(isClear(restored.center, restored.size), "restored \(label)")
+                    for corner in [CGPoint(x: width * 10, y: height * 10), CGPoint(x: width * 10, y: -height * 10)] {
+                        let dragged = MonitorScopePanelPlacement.clamp(
+                            corner, size: restored.size, in: bounds, avoiding: chrome)
+                        XCTAssertTrue(isClear(dragged, restored.size), "corner \(corner) \(label)")
+                    }
+                    let histogram = MonitorScopePanelPlacement.fittedSize(MonitorScopePanelSize.histogram, in: bounds)
+                    let row = layout.portrait ? CGFloat(layout.picture.midY) : height / 2
+                    let edge = MonitorScopePanelPlacement.clamp(
+                        CGPoint(x: width * 10, y: row), size: histogram, in: bounds, avoiding: chrome)
+                    XCTAssertEqual(edge.x + histogram.width / 2, bounds.maxX, accuracy: 0.01, "edge \(label)")
+                    XCTAssertEqual(edge.y, row, accuracy: 0.01, "edge row \(label)")
+                }
+            }
+        }
         func testFixedPanelUsesItsWholeBodyWithoutAnInvisibleResizeWell() {
             let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
             let panel = MonitorScopePanelLayout(baseSize: bounds.size, preferredSize: bounds.size,

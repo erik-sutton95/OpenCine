@@ -3,10 +3,8 @@ package com.opencapture.opencine.appkit.diagnostics
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
-import java.io.ByteArrayInputStream
+import com.opencapture.opencine.appkit.MonitorBitmapDecoder
 import java.io.ByteArrayOutputStream
 
 /**
@@ -88,31 +86,6 @@ public object ManualReportImageNormalizer {
         return null
     }
 
-    private fun applyOrientation(bitmap: Bitmap, jpegBytes: ByteArray): Bitmap {
-        val orientation =
-            runCatching {
-                ExifInterface(ByteArrayInputStream(jpegBytes))
-                    .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-            }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
-        val matrix = Matrix()
-        when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
-            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1f, -1f)
-            ExifInterface.ORIENTATION_TRANSPOSE -> {
-                matrix.postRotate(90f)
-                matrix.preScale(-1f, 1f)
-            }
-            ExifInterface.ORIENTATION_TRANSVERSE -> {
-                matrix.postRotate(270f)
-                matrix.preScale(-1f, 1f)
-            }
-            else -> return bitmap
-        }
-        return runCatching {
-            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        }.getOrDefault(bitmap)
-    }
+    private fun applyOrientation(bitmap: Bitmap, jpegBytes: ByteArray): Bitmap =
+        MonitorBitmapDecoder.upright(bitmap, MonitorBitmapDecoder.exifOrientation(jpegBytes))
 }

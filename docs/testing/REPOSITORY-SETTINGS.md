@@ -17,10 +17,10 @@ PRs can retain every original source commit. Strict checks, fresh review, stale-
 dismissal, conversation resolution and force-push/deletion/admin/signature policy are preserved.
 Source extraction still lands in OpenCine first, followed by each app's reviewed pin move.
 
-`CI gate` requires the PR tier (Meta, Swift, Android, Atlas) to succeed; a skipped, cancelled or
-failed job fails it. Hosted conformance and both SIMULATED new-app jobs run in the nightly tier,
-which tracks failures on `main` in one issue ([CI.md](CI.md)). SIMULATED acceptance does not
-qualify camera behavior on hardware or ship a consuming app.
+`CI gate` requires the PR tier (Meta, Swift, the three Android jobs, Atlas) to succeed; a skipped,
+cancelled or failed job fails it. Hosted conformance and both SIMULATED new-app jobs run in the
+nightly tier, which tracks failures on `main` in one issue ([CI.md](CI.md)). SIMULATED acceptance
+does not qualify camera behavior on hardware or ship a consuming app.
 
 ## Security and automation
 

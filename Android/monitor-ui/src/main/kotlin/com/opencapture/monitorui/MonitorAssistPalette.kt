@@ -99,6 +99,13 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     expansionAccessibilityIdentifier: String = "monitor.assists.expand",
     cellSize: Float? = null,
     maxExpandedHeight: Float? = null,
+    /**
+     * The open plate keeps the rest of the screen live, as on iOS: a touch outside it reaches the
+     * control under it (a camera value the plate does not cover) instead of only dismissing the
+     * plate, and the host closes it on Back. A touch on the plate stays the plate's. Off, the
+     * open plate is modal.
+     */
+    passesOutsideTouches: Boolean = false,
     onBoundsInRootChanged: (Rect?) -> Unit = {}, collapseRevision: Long = 0L) {
     val localExpanded = remember { mutableStateOf(false) }
     var expanded by (LocalMonitorAssistExpansion.current ?: localExpanded)
@@ -408,7 +415,8 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
         } else {
             Popup(popupPositionProvider = popupPosition,
                 onDismissRequest = { if (expanded) expanded = false },
-                properties = PopupProperties(focusable = expanded, clippingEnabled = false)) {
+                properties = PopupProperties(focusable = expanded && !passesOutsideTouches,
+                    dismissOnClickOutside = !passesOutsideTouches, clippingEnabled = false)) {
                 CompositionLocalProvider(LocalDensity provides density) { plate() }
             }
         }

@@ -176,8 +176,8 @@ init MonitorScreenWakeOwner(apply: (Swift.Bool) -> Swift.Void)
 init MonitorVideoBackdropConfiguration(source: Swift.ObjectIdentifier, generation: Swift.Int, effects: OpenCineMedia.MonitorFrameEffects, geometry: [CoreGraphics.CGFloat])
 init MonitorVideoBackdropRenderer(lookCurves: [OpenCineMedia.MonitorTransfer : [Swift.Double]], cacheEligibility: OpenCineApple.MonitorVideoBackdropRenderer.CacheEligibility, externalLookState: OpenCineApple.MonitorVideoBackdropRenderer.LookState?, clock: () -> Swift.UInt64, minimumInterval: () -> Swift.Double, operation: MonitorVideoBackdropRenderer.Operation?)
 init MonitorWatcherSource(decoder: Decoder, samples: OpenCineApple.LiveFrameSampleBus, versionMismatchReason: Swift.String, journal: (Swift.String) -> Swift.Void, commandWire: ((Foundation.Data) -> Swift.Void)?, clock: OpenCineApple.MonitorHostClock?)<Decoder where Decoder : OpenCineApple.MonitorLiveVideoRuntime>
-init StationNetworkServices(savedNetworks: () -> [OpenCineAppKit.StationNetwork], currentSSID: () async -> Swift.String?, hotspotActive: () -> Swift.Bool, acceptsJoin: (Swift.String, Swift.String) -> Swift.Bool)
-init StationNetworkSetupView(context: StationNetworkSetupView.Context, brand: OpenCineAppKit.StationNetworkBrand, services: StationNetworkServices, cameraSSIDs: Swift.Set<Swift.String>, scan: ((@escaping (Swift.String) -> Swift.Void) async throws -> Swift.Void)?, save: (OpenCineAppKit.StationNetwork) async -> Swift.Bool, errorMessage: Swift.String?, close: () -> Swift.Void, path: [StationNetworkSetupView.Page])
+init StationNetworkServices(savedNetworks: () -> [OpenCineAppKit.StationNetwork], currentSSID: () async -> Swift.String?, hotspotActive: () -> Swift.Bool, acceptsJoin: (Swift.String, Swift.String) -> Swift.Bool, networkSecured: ((Swift.String) async -> Swift.Bool?)?)
+init StationNetworkSetupView(context: StationNetworkSetupView.Context, brand: OpenCineAppKit.StationNetworkBrand, services: StationNetworkServices, cameraSSIDs: Swift.Set<Swift.String>, scan: ((@escaping (Swift.String) -> Swift.Void) async throws -> Swift.Void)?, cameraScansNetworks: Swift.Bool, save: (OpenCineAppKit.StationNetwork) async -> Swift.Bool, errorMessage: Swift.String?, close: () -> Swift.Void, path: [StationNetworkSetupView.Page])
 init WatcherFeedRow(id: Swift.String, name: Swift.String, cameraName: Swift.String?)
 init WatcherWiFiCodeView(appName: Swift.String, ssid: Swift.String?, joinCode: Swift.String?, isLive: Swift.Bool)
 let DiagnosticCenterRuntime.host: DiagnosticCenterRuntime.Host
@@ -360,6 +360,7 @@ var MonitorWatcherSource.waitingForPicture: Swift.Bool
 var StationNetworkServices.acceptsJoin: (Swift.String, Swift.String) -> Swift.Bool
 var StationNetworkServices.currentSSID: () async -> Swift.String?
 var StationNetworkServices.hotspotActive: () -> Swift.Bool
+var StationNetworkServices.networkSecured: ((Swift.String) async -> Swift.Bool?)?
 var StationNetworkServices.savedNetworks: () -> [OpenCineAppKit.StationNetwork]
 var StationNetworkSetupView.body: some SwiftUI.View
 var WatcherRelayViewer.isLive: Swift.Bool

@@ -36,7 +36,8 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
             quickEnabled: Bool = true, marked: Set<String> = []) {
             readouts.append(.init(id: sheet, title: title, value: value, section: section,
                 field: field, valueIcon: icon, badgeIcon: badge, quickEnabled: quickEnabled,
-                accessibilityIdentifier: "monitor.capture.\(sheet.rawValue)", marked: marked))
+                accessibilityIdentifier: "monitor.capture.\(sheet.rawValue)", marked: marked,
+                group: sheet.captureGroup))
         }
         let selection: MonitorCaptureSelection = host.captureStripShowsPendingEdits ? .pending : .reported
         func commonValue(_ key: SettingKey) -> String {
@@ -134,6 +135,18 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
             }, presentationOwner: { host.captureDrum?.id }, supplementaryReadouts: supplementary)
     }
 }
+extension CaptureSheet {
+    /// The exposure program (the strip's EXPOSURE, a camera's shooting MODE) sets the scene up, and
+    /// the metering toggle anchored to it moves with it; ISO, shutter, aperture, white balance and
+    /// focus are ridden. `MonitorStatusCorner` moves setup values in a landscape photo row.
+    var captureGroup: MonitorCaptureReadoutGroup {
+        switch self {
+        case .exposure: .setup
+        default: .ridden
+        }
+    }
+}
+
 extension MonitorOperatorSupplementaryCaptureReadout where Key == CaptureSheet {
     /// The face-priority metering toggle beside EXPOSURE: two values, so it switches in place.
     /// It speaks its full name and what a tap does, not the visual caption.

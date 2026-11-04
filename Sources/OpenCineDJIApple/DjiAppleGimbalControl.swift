@@ -92,6 +92,8 @@ import OpenCineMotion
     /// In-flight Double-tap Level move, judged on each attitude push.
     private var worldLevelSnap: WorldLevelSnap?
     private var lastNativeWaypoint: GimbalWaypoint?
+    /// Native pitch convention of the attitude layout `lastNativeWaypoint` came from.
+    private var lastNativePitchWire: GimbalNativePitchWire?
     private var overlayMotion = GimbalOverlayMotion()
     private var moveEngine = GimbalMoveEngine()
     private var moveTask: Task<Void, Never>?
@@ -158,9 +160,11 @@ import OpenCineMotion
         guard let host, host.isLivePhase, !host.sessionRecovery.isRecovering,
             host.gimbalControlSceneActive, nativeHeadToken == token, !host.gimbalMoveRunning,
             !stickHeld, !host.isLocked, !host.isBrowsingMedia, !host.isLiveVideoStale,
-            let live = freshWaypoint, GimbalMoveEngine.canSendNativeTarget(from: live, to: target),
+            let live = freshWaypoint, let wire = lastNativePitchWire,
+            GimbalMoveEngine.canSendNativeTarget(from: live, to: target),
             let frame = Commands.gimbalTimedTarget(
-                waypoint: target, duration: HeadTrackNative.commandDuration),
+                waypoint: target, live: live, nativePitch: wire,
+                duration: HeadTrackNative.commandDuration),
             let link = host.gimbalLink
         else {
             endNativeHeadTrack(token: token)
@@ -290,8 +294,10 @@ import OpenCineMotion
             return
         }
         guard let link = host.gimbalLink else { return }
-        guard let pose = lastNativeWaypoint,
-            let plan = WorldLevelSnap.plan(tiltDeg: tilt, pose: pose, now: now)
+        // A continuous-pitch gimbal moves relative to the pose it reports, so that pose must be fresh.
+        let wire = lastNativePitchWire ?? .wrapped
+        guard let pose = wire == .continuous ? freshWaypoint : lastNativeWaypoint,
+            let plan = WorldLevelSnap.plan(tiltDeg: tilt, pose: pose, now: now, nativePitch: wire)
         else {
             host.controlNote = WorldLevelSnap.unreachableNote
             return
@@ -679,6 +685,7 @@ import OpenCineMotion
         cancelProgrammedMove()
         lastMoveAttitudeAt = nil
         lastNativeWaypoint = nil
+        lastNativePitchWire = nil
         overlayMotion.reset()
         movePoseStableSince = nil
         lastMoveObservedPose = nil
@@ -697,6 +704,7 @@ import OpenCineMotion
         host.gimbalProgram = GimbalProgram()
         lastMoveAttitudeAt = nil
         lastNativeWaypoint = nil
+        lastNativePitchWire = nil
         overlayMotion.reset()
         movePoseStableSince = nil
         lastMoveObservedPose = nil
@@ -753,12 +761,14 @@ import OpenCineMotion
             let wasTT180 = stickMapping.commanded180
             stickMapping.applyAttitude(frame.payload)
             syncPose()
-            let attitude = GimbalStick.isAttitude(frame.payload)
-            if attitude {
+            let layout = GimbalStick.AttitudeLayout(frame.payload)
+            let attitude = layout != nil
+            if let layout {
                 lastNativeWaypoint = GimbalWaypoint.from(
                     yawTenth: GimbalStick.yawTenthDeg(frame.payload),
                     pitchTenth: GimbalStick.pitchTenthDeg(frame.payload), zoom: host.zoomReadout,
                     nativePitchTenth: GimbalStick.nativePitchTenthDeg(frame.payload))
+                lastNativePitchWire = layout.nativePitch
             }
             if attitude, let pose = liveWaypoint {
                 let now = uptime()

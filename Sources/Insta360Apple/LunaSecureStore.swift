@@ -38,6 +38,44 @@ struct LunaSecureStore {
     func forget(cameraID: UUID) {
         SecItemDelete(query("wifi.\(cameraID.uuidString)") as CFDictionary)
     }
+    /// Wi-Fi and hotspot setups this phone keeps, oldest first. Passwords stay in the Keychain.
+    func stations() -> [LunaStationNetwork] {
+        let request: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+            kSecReturnAttributes as String: true, kSecMatchLimit as String: kSecMatchLimitAll,
+        ]
+        var value: CFTypeRef?
+        guard SecItemCopyMatching(request as CFDictionary, &value) == errSecSuccess,
+            let items = value as? [[String: Any]]
+        else { return [] }
+        return items.compactMap { item -> (Date, LunaStationNetwork)? in
+            guard let account = item[kSecAttrAccount as String] as? String,
+                account.hasPrefix("station."), let data = read(account),
+                let network = try? JSONDecoder().decode(StoredStation.self, from: data)
+            else { return nil }
+            let created = item[kSecAttrCreationDate as String] as? Date ?? .distantPast
+            return (created, LunaStationNetwork(ssid: network.ssid, password: network.password, hotspot: network.hotspot))
+        }
+        .sorted { $0.0 < $1.0 }.map(\.1)
+    }
+    func stationPassword(ssid: String, hotspot: Bool) -> String? {
+        read(Self.stationAccount(ssid, hotspot)).flatMap {
+            try? JSONDecoder().decode(StoredStation.self, from: $0).password
+        }
+    }
+    func save(_ network: LunaStationNetwork) throws {
+        let stored = StoredStation(ssid: network.ssid, password: network.password, hotspot: network.hotspot)
+        try write(JSONEncoder().encode(stored), account: Self.stationAccount(network.ssid, network.hotspot))
+    }
+    private static func stationAccount(_ ssid: String, _ hotspot: Bool) -> String {
+        "station.\(hotspot ? "hotspot" : "wifi").\(ssid)"
+    }
+    private struct StoredStation: Codable {
+        let ssid: String
+        let password: String
+        let hotspot: Bool
+    }
+
     private func query(_ account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,

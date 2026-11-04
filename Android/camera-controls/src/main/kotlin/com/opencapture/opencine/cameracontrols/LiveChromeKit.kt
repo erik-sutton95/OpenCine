@@ -64,8 +64,8 @@ internal fun Modifier.pickerPanelGlass(shape: Shape = ChromeShape): Modifier = m
 fun Modifier.chromeClickable(enabled: Boolean = true, onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit): Modifier {
     val haptics = LocalOperatorHaptics.current
-    return this.monitorChromeClickable(
-        enabled, onLongClick, { haptics.selection() }, { haptics.longPress() }, onClick)
+    return this.monitorChromeClickable(enabled, onLongClick, onClickFeedback = { haptics.selection() },
+        onLongClickFeedback = { haptics.longPress() }, onClick = onClick)
 }
 
 /** iOS `CloseButton` on live picker / assist cards: 34dp glass circle. */

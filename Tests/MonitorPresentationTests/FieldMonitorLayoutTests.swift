@@ -428,6 +428,27 @@ struct FieldMonitorLayoutTests {
         #expect(tablet.picture.maxY <= tablet.values.y + 0.05)
     }
 
+    /// Floating scopes keep only the safe area from either side edge, so a panel reaches the
+    /// trailing edge as it reaches the leading one on a tablet and a phone, and portrait fit
+    /// floats the same area as fill, down to the system band (owner hardware pass 2026-10-30,
+    /// iPad Pro 11-inch landscape). Same table as Kotlin `MonitorOperatorLiveOwnerTest`.
+    @Test(arguments: [
+        (1210.0, 834.0, MonitorSafeArea(top: 24, bottom: 20)),
+        (834.0, 1210.0, MonitorSafeArea(top: 24, bottom: 20)),
+        (874.0, 402.0, MonitorSafeArea(leading: 62, bottom: 21, trailing: 62)),
+        (402.0, 874.0, MonitorSafeArea(top: 62, bottom: 34)),
+    ])
+    func scopesReachBothSideEdgesAndFloatInFitAndFill(width: Double, height: Double, safe: MonitorSafeArea) {
+        for fill in [false, true] {
+            let layout = FieldMonitorLayout(width: width, height: height, safeArea: safe, fill: fill)
+            let clearance = layout.scopeClearance(safeArea: safe)
+            #expect(clearance.leading == safe.leading, "\(width)x\(height) fill \(fill)")
+            #expect(clearance.trailing == safe.trailing, "\(width)x\(height) fill \(fill)")
+            #expect(clearance.top == safe.top)
+            #expect(clearance.bottom == (layout.portrait ? height - layout.system.y : 0))
+        }
+    }
+
     @Test func absentOrInvalidCornerExclusionPreservesTheReferenceLayout() {
         for (width, height) in [(1133.0, 744.0), (744, 1133), (844, 390), (390, 844)] {
             let fullscreen = FieldMonitorLayout(width: width, height: height)

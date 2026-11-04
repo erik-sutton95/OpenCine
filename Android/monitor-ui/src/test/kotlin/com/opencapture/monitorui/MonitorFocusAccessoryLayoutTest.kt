@@ -31,7 +31,7 @@ class MonitorFocusAccessoryLayoutTest {
             }
         }
     }
-    @Test fun draggedPanelClampsAndScopeReservationFollowsIt() {
+    @Test fun draggedPanelClampsAndScopesAvoidItsPosition() {
         val layout = MonitorLayoutPolicy.fieldMonitor(956f, 440f)
         val original = MonitorFocusAccessoryLayout.resolve(layout, 0f, 0f, 0f, false)
         val left = MonitorFocusAccessoryLayout.resolve(layout, 0f, 0f, 0f, false,
@@ -42,9 +42,15 @@ class MonitorFocusAccessoryLayoutTest {
         assertTrue(left.frame.y >= layout.status.maxY + 8f)
         assertTrue(right.frame.maxX == original.frame.maxX)
         assertTrue(right.frame.maxY <= layout.values.y - 12f)
-        val region = MonitorRect(0f, 0f, layout.settings.x, 440f)
-        assertTrue(left.reserveSpace(region).x >= left.frame.maxX + 8f)
-        assertTrue(original.reserveSpace(region).maxX <= original.frame.x - 8f)
+        for (accessory in listOf(left, original)) {
+            val frame = accessory.frame
+            val center = MonitorScopeChromeAvoidance.resolve(
+                MonitorScopePoint(frame.midX, frame.midY), 100f, 60f, 0f,
+                listOf(MonitorScopeRect(frame.x, frame.y, frame.width, frame.height)), 8f,
+            ) { MonitorScopePoint(it.x.coerceIn(50f, 906f), it.y.coerceIn(30f, 410f)) }
+            assertTrue(center.x + 50f <= frame.x - 8f || center.x - 50f >= frame.maxX + 8f ||
+                center.y + 30f <= frame.y - 8f || center.y - 30f >= frame.maxY + 8f)
+        }
     }
 
     @Test fun collapsedAndRotatedBoundsKeepTheStoredPreference() {

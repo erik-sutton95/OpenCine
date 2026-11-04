@@ -43,6 +43,10 @@
                         }
                     }
                     .frame(height: 4)
+                    // Announces the status line, speed included ("Caching from camera 18% · 42 MB/s").
+                    .accessibilityElement()
+                    .accessibilityLabel("Progress")
+                    .accessibilityValue(value.status)
                     .accessibilityIdentifier("monitor.share.progress.bar")
                 }
                 if let filename = details.filename {
@@ -108,8 +112,9 @@
                         MonitorTheme.accent)
                 }
                 VStack(alignment: .leading, spacing: 2) {
+                    // Shrinks before it truncates so the download speed stays readable on compact widths.
                     Text(value.status).font(MonitorTheme.font(12, weight: .semibold))
-                        .foregroundStyle(MonitorTheme.text).lineLimit(1)
+                        .foregroundStyle(MonitorTheme.text).lineLimit(1).minimumScaleFactor(0.75)
                     if let batch = value.batch {
                         Text(batch).font(MonitorTheme.font(10, weight: .medium)).monospacedDigit()
                             .foregroundStyle(MonitorTheme.muted)

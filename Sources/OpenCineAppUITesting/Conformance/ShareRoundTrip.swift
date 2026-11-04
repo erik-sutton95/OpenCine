@@ -46,10 +46,10 @@ open class ShareRoundTrip: SharedAppUITestCase {
         XCTAssertEqual(
             gallery.settledAnchor()?.id, anchor.id, "The selection share must not move the gallery")
         XCTAssertTrue(count.exists, "The selection share must keep the selection")
-        XCTAssertTrue(
-            app.buttons["Clear selection"].exists,
-            "The selection share must keep selection mode")
-        guard tapWhenReady(app.buttons["Clear selection"], in: app, timeout: 5) else { return }
+        let exit = app.buttons[MonitorMediaSelectionCopy.exitIdentifier]
+        XCTAssertTrue(exit.exists, "The selection share must keep selection mode")
+        XCTAssertEqual(exit.label, MonitorMediaSelectionCopy.exit)
+        guard tapWhenReady(exit, in: app, timeout: 5) else { return }
 
         // The clip share from playback, with Loop on, then back to the gallery.
         guard let opened = gallery.settledAnchor() else {

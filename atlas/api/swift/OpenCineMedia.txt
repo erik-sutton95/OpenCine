@@ -120,6 +120,9 @@ case MediaServiceError.retired
 case MediaServiceError.unavailable
 case MediaServiceError.unknownAsset
 case MediaServiceError.unsupported
+case MediaTransferRate.bytesPerSecond(Swift.UInt64)
+case MediaTransferRate.measuring
+case MediaTransferRate.stalled
 case MonitorConformPreview.Availability.alreadyConformed
 case MonitorConformPreview.Availability.available([Swift.Double])
 case MonitorConformPreview.Availability.notHighFrameRate
@@ -297,6 +300,7 @@ enum MediaAssetKind: Decodable, Encodable, Equatable, Hashable, RawRepresentable
 enum MediaDeleteOutcome: Equatable, Hashable, Sendable
 enum MediaRepresentationRole: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum MediaServiceError: Equatable, Error, Hashable, Sendable
+enum MediaTransferRate: Equatable, Sendable
 enum MonitorAnamorphicDesqueeze
 enum MonitorAudioMeterBallistics
 enum MonitorBackdropRenderValues
@@ -401,6 +405,8 @@ func MediaCatalog.applying(_: MediaCatalogDelta) -> MediaCatalog
 func MediaCatalogCursor.close() -> ()
 func MediaCatalogCursor.next() async throws -> MediaCatalogDelta?
 func MediaTransferProgressSink.expectedByteCount(_: Swift.UInt64?) async throws -> ()
+func MediaTransferRateEstimator.rate(at: OpenCineCore.MonotonicInstant) -> MediaTransferRate
+func MediaTransferRateEstimator.record(totalBytes: Swift.UInt64, at: OpenCineCore.MonotonicInstant) -> ()
 func MonitorColorSourceProfile.inferredTransfer(minByte: Swift.UInt8, maxByte: Swift.UInt8, fallback: MonitorTransfer) -> MonitorTransfer
 func MonitorCrushClipCompensation.encode(to: any Swift.Encoder) throws -> ()
 func MonitorDeliveryExportStore.byteCount() -> Swift.UInt64
@@ -527,6 +533,7 @@ init MediaRepresentation(id: MediaRepresentationID, role: MediaRepresentationRol
 init MediaRepresentationID(_: Swift.String)
 init MediaRepresentationID(rawValue: Swift.String)
 init MediaTransferPlan(expectedByteCount: Swift.UInt64?, attempts: [MediaTransferPlan.Attempt], retry: (any Swift.Error) -> Swift.Bool, accepted: ((Swift.Int, MediaTransferReceipt) -> Swift.Void)?)
+init MediaTransferRateEstimator(startedAt: OpenCineCore.MonotonicInstant, bytes: Swift.UInt64)
 init MediaTransferReceipt(byteCount: Swift.UInt64, expectedByteCount: Swift.UInt64?)
 init MonitorAudioMeterChannel(levelDB: Swift.Double, peakDB: Swift.Double, peakAge: Swift.Double)
 init MonitorAudioMeterLevels(left: MonitorAudioMeterChannel, right: MonitorAudioMeterChannel)
@@ -559,7 +566,7 @@ init MonitorPlaybackItemToken(owner: Foundation.UUID, revision: Swift.UInt64)
 init MonitorPlaybackMetadata(duration: Swift.Double?, width: Swift.Double?, height: Swift.Double?, conform: MonitorConformPreview.Source)
 init MonitorPlaybackMetadataValue(_: Swift.String, _: Swift.String)
 init MonitorPlaybackScrubToken(item: MonitorPlaybackItemToken, edit: Foundation.UUID)
-init MonitorPlaybackSourceValues(availability: MonitorPlaybackAvailability?, progress: Swift.Double?, buffered: Swift.Double?, colorLabel: Swift.String?, transfer: MonitorTransfer?, clipByte: Swift.Int?, metadata: [MonitorPlaybackMetadataValue], clockStyle: MonitorPlaybackClockStyle, bufferedThroughSeconds: Swift.Double?, allowsSignalFallback: Swift.Bool, notice: Swift.String?)
+init MonitorPlaybackSourceValues(availability: MonitorPlaybackAvailability?, progress: Swift.Double?, buffered: Swift.Double?, colorLabel: Swift.String?, transfer: MonitorTransfer?, clipByte: Swift.Int?, metadata: [MonitorPlaybackMetadataValue], clockStyle: MonitorPlaybackClockStyle, bufferedThroughSeconds: Swift.Double?, allowsSignalFallback: Swift.Bool, notice: Swift.String?, transferRate: Swift.String?)
 init MonitorPreviewAdmission()
 init MonitorSceneToneMap(sceneWhite: Swift.Double, contrast: Swift.Double)
 init MonitorTransferInferenceRule(fallback: MonitorTransfer, transfer: MonitorTransfer, minByte: Swift.ClosedRange<Swift.UInt8>, maxByte: Swift.ClosedRange<Swift.UInt8>)
@@ -874,6 +881,8 @@ static func LiveVideo.nalTypeSummary(_: [Swift.UInt8]) -> Swift.String
 static func LiveVideo.parameterSetAnnexB(_: [Swift.UInt8]) -> [Swift.UInt8]?
 static func Log3G10.decode(_: Swift.Double) -> Swift.Double
 static func Log3G10.encode(_: Swift.Double) -> Swift.Double
+static func MediaTransferRate.caption(fraction: Swift.Double?, rate: Swift.String?) -> Swift.String?
+static func MediaTransferRate.label(bytesPerSecond: Swift.UInt64) -> Swift.String
 static func MonitorAnamorphicDesqueeze.aspect(sourceAspect: Swift.Double?, enabled: Swift.Bool, factor: Swift.Double, direction: MonitorDesqueezeDirection) -> Swift.Double?
 static func MonitorAnamorphicDesqueeze.label(_: Swift.Double) -> Swift.String
 static func MonitorAnamorphicDesqueeze.snap(_: Swift.Double) -> Swift.Double
@@ -1042,6 +1051,11 @@ static let LiveColorScience.sceneStopDefaultClip: Swift.Double
 static let LiveZebra.highlightIRE: Swift.Double
 static let LiveZebra.midtoneHalfWidthIRE: Swift.Double
 static let LiveZebra.midtoneIRE: Swift.Double
+static let MediaTransferRateEstimator.earlyTime: Swift.Duration
+static let MediaTransferRateEstimator.settleBytes: Swift.UInt64
+static let MediaTransferRateEstimator.settleTime: Swift.Duration
+static let MediaTransferRateEstimator.stallAfter: Swift.Duration
+static let MediaTransferRateEstimator.window: Swift.Duration
 static let MonitorAnamorphicDesqueeze.factorRange: Swift.ClosedRange<Swift.Double>
 static let MonitorAnamorphicDesqueeze.factorStep: Swift.Double
 static let MonitorAudioMeterBallistics.floorDB: Swift.Double
@@ -1164,6 +1178,7 @@ struct MediaPixelSize: Decodable, Encodable, Equatable, Sendable
 struct MediaRepresentation: Decodable, Encodable, Equatable, Sendable
 struct MediaRepresentationID: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 struct MediaTransferPlan: Sendable
+struct MediaTransferRateEstimator: Sendable
 struct MediaTransferReceipt: Equatable, Sendable
 struct MonitorAudioMeterChannel: Equatable, Sendable
 struct MonitorAudioMeterLevels: Equatable, Sendable
@@ -1526,6 +1541,7 @@ var LiveFalseColorBand.red: Swift.Double
 var LiveFalseColorBand.upperBound: Swift.Double
 var LiveFalseColorScale.edgeSoftness: Swift.Double
 var LiveFalseColorScale.usesSceneStops: Swift.Bool
+var MediaTransferRate.label: Swift.String?
 var MonitorAudioMeterChannel.levelDB: Swift.Double
 var MonitorAudioMeterChannel.peakAge: Swift.Double
 var MonitorAudioMeterChannel.peakDB: Swift.Double
@@ -1641,6 +1657,7 @@ var MonitorPlaybackSourceValues.notice: Swift.String?
 var MonitorPlaybackSourceValues.progress: Swift.Double?
 var MonitorPlaybackSourceValues.sourceLabel: Swift.String?
 var MonitorPlaybackSourceValues.transfer: MonitorTransfer?
+var MonitorPlaybackSourceValues.transferRate: Swift.String?
 var MonitorTransfer.id: Swift.String
 var MonitorTransfer.label: Swift.String
 var MonitorTransfer.middleGrayEncoded: Swift.Double

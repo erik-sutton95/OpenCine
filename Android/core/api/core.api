@@ -2343,6 +2343,19 @@ public final class com/opencapture/opencine/core/SnapshotRevision : java/lang/Co
 	public final synthetic fun unbox-impl ()J
 }
 
+public final class com/opencapture/opencine/core/StationRoutes {
+	public static final field INSTANCE Lcom/opencapture/opencine/core/StationRoutes;
+	public final fun adding (Lcom/opencapture/opencine/core/SavedRoute;Lcom/opencapture/opencine/core/SavedCamera;)Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun checkPasswordMessage (Ljava/lang/String;)Ljava/lang/String;
+	public final fun getMOVING ()Ljava/util/Set;
+	public final fun mayBeInStationRole (Lcom/opencapture/opencine/core/SavedCamera;)Z
+	public final fun moves (Lcom/opencapture/opencine/core/RouteKind;)Z
+	public final fun route (Lcom/opencapture/opencine/core/RouteDraft;)Lcom/opencapture/opencine/core/SavedRoute;
+	public final fun stamping (Lcom/opencapture/opencine/core/SavedCamera;Lcom/opencapture/opencine/core/RouteKind;)Lcom/opencapture/opencine/core/SavedCamera;
+	public final fun steps (Lcom/opencapture/opencine/core/SavedRoute;)Ljava/util/List;
+	public final fun withRouteActions (Lcom/opencapture/opencine/core/ConnectionFailure;Lcom/opencapture/opencine/core/SavedRoute;Lcom/opencapture/opencine/core/SavedCamera;)Lcom/opencapture/opencine/core/ConnectionFailure;
+}
+
 public final class com/opencapture/opencine/core/StorageVolume {
 	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;)V
 	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;Lcom/opencapture/opencine/core/ObservedValue;ILkotlin/jvm/internal/DefaultConstructorMarker;)V

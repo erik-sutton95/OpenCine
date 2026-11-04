@@ -42,7 +42,8 @@
 
         public mutating func applyChanged(
             translation: CGSize, visualCenter: CGPoint, currentBounds: CGRect, size: CGSize,
-            canvas: CGRect, movement: CGRect, locked: Bool, sceneActive: Bool, usable: Bool
+            canvas: CGRect, movement: CGRect, obstacles: [CGRect] = [], locked: Bool,
+            sceneActive: Bool, usable: Bool
         ) {
             guard !cancelled, !locked, sceneActive, usable else { return }
             if origin == nil {
@@ -54,7 +55,7 @@
                 x: origin.x + translation.width, y: origin.y + translation.height)
             center = AudioAssist.center(
                 stored: AudioAssist.StoredCenter(proposed, in: currentBounds),
-                size: size, canvas: canvas, movement: movement)
+                size: size, canvas: canvas, movement: movement, avoiding: obstacles)
         }
 
         public func persistableCenter(
@@ -83,6 +84,7 @@
         public var hapticsEnabled = false
         public var onConfigure: () -> Void = {}
         @Environment(\.interfaceLocked) private var interfaceLocked
+        @Environment(\.monitorScopeObstacles) private var obstacles
         @Environment(\.scenePhase) private var scenePhase
         @GestureState private var pointerActive = false
         @State private var drag = AudioMeterDragLifecycle()
@@ -115,7 +117,7 @@
             let center = AudioAssist.center(
                 stored: drag.center.map { AudioAssist.StoredCenter($0, in: bounds) }
                     ?? store.storedCenter(in: bounds),
-                size: size, canvas: bounds, movement: movement)
+                size: size, canvas: bounds, movement: movement, avoiding: obstacles)
             ZStack {
                 Color.clear.contentShape(Rectangle())
                 AudioMetersPanelMini(
@@ -160,7 +162,7 @@
                 .onChanged { value in
                     drag.applyChanged(
                         translation: value.translation, visualCenter: center, currentBounds: bounds,
-                        size: size, canvas: bounds, movement: movement,
+                        size: size, canvas: bounds, movement: movement, obstacles: obstacles,
                         locked: interfaceLocked, sceneActive: scenePhase == .active,
                         usable: MonitorScopePanelPlacement.isUsable(movement)
                     )

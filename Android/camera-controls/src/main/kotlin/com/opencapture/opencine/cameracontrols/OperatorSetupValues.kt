@@ -193,7 +193,7 @@ open class OperatorHelpCopy(appName: String) {
         "Raise trace intensity when the waveform is hard to read in bright light."
     val PARADE_BRIGHTNESS = "Raise trace intensity when channel separation is hard to see."
     val VECTORSCOPE_ZOOM =
-        "Magnifies only the chroma trace; the graticule stays at unity. The vectorscope reads the monitor image (your active LUT, or the built-in display tone map), where chroma is meaningful."
+        "Magnifies only the chroma trace; the graticule stays at unity. The vectorscope reads the camera signal through the built-in display tone map, whatever LUT is on, so chroma stays meaningful."
     val VECTORSCOPE_BRIGHTNESS =
         "Raise trace intensity when the chroma plot is hard to read."
     val TRAFFIC_LIGHTS_COMPENSATION =

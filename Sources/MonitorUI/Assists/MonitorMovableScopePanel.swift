@@ -125,7 +125,8 @@ public struct MonitorMovableScopePanel<Content: View>: View {
                     y: origin.y + drag.translation.height)
                 let size = layout.size
                 let snapped = MonitorScopePanelPlacement.clamp(
-                    Self.snap(proposed), size: size, in: movementBounds, resizable: resizable)
+                    Self.snap(proposed), size: size, in: movementBounds, resizable: resizable,
+                    avoiding: layout.obstacles)
                 let cell = Self.hapticCell(snapped)
                 if cell != snapCell { snapCell = cell }
                 onMove(.changed(snapped))

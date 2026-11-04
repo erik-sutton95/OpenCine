@@ -21,7 +21,13 @@ public interface LunaMediaCatalogRecordSource {
     public fun mediaCatalogRecord(asset: MediaAssetID, binding: MediaBrowseBinding): LunaMediaCatalogRecord?
 }
 
-internal data class LunaMediaSourceState(val session: CameraSessionID, val epoch: ControlEpoch, val connection: Long)
+internal data class LunaMediaSourceState(
+    val session: CameraSessionID,
+    val epoch: ControlEpoch,
+    val connection: Long,
+    /** The camera's address on this connection: its own access point, or where a setup found it. Files come from here. */
+    val host: String = LunaBackend.CAMERA_HOST,
+)
 internal interface LunaMediaSourcePort {
     val mediaSourceState: LunaMediaSourceState?
     val mediaTransfer: LunaMediaTransferPort?
@@ -188,9 +194,9 @@ internal class LunaMediaBrowse(
         val assets = listed.map { file ->
             val asset = asset(file)
             nextFiles[asset.id] = file
-            nextRepresentations[asset.representations.first().id] = "http://192.168.42.1${file.uri}"
+            nextRepresentations[asset.representations.first().id] = "http://${source.host}${file.uri}"
             file.proxyUri?.let { uri ->
-                nextRepresentations[asset.representations.first { it.role == MediaRepresentationRole.PROXY }.id] = "http://192.168.42.1$uri"
+                nextRepresentations[asset.representations.first { it.role == MediaRepresentationRole.PROXY }.id] = "http://${source.host}$uri"
             }
             asset
         }

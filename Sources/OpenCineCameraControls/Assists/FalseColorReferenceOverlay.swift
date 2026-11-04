@@ -27,6 +27,7 @@
         public var onConfigure: () -> Void = {}
         public var referenceValues: MonitorFalseColorReferenceValues?
         @Environment(\.interfaceLocked) private var interfaceLocked
+        @Environment(\.monitorScopeObstacles) private var obstacles
         @Environment(\.scenePhase) private var scenePhase
         @GestureState private var pointerActive = false
         @State private var dragOrigin: CGPoint?
@@ -62,7 +63,8 @@
                 max(1, movement.height) / preferred.height)
             let size = CGSize(width: preferred.width * fit, height: preferred.height * fit)
             let center =
-                dragCenter ?? store.positions.center(in: bounds, size: size, movement: movement)
+                dragCenter
+                ?? store.positions.center(in: bounds, size: size, movement: movement, avoiding: obstacles)
             ZStack {
                 Color.clear.contentShape(Rectangle())
                 Group {
@@ -115,7 +117,7 @@
                         CGPoint(
                             x: origin.x + value.translation.width,
                             y: origin.y + value.translation.height),
-                        size: size, in: movement)
+                        size: size, in: movement, avoiding: obstacles)
                 }
                 .onEnded { _ in
                     defer { resetDrag() }

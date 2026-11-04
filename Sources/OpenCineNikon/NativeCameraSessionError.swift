@@ -8,6 +8,16 @@ public enum NativeCameraSessionError: Error, LocalizedError {
         if case NativeCameraSessionError.operationRejected = error { return true }
         return false
     }
+    /// True when the link to the body failed mid-command (closed, timed out, unreadable), so
+    /// the camera stopped answering; never for a refusal or a local precondition.
+    public static func isLinkFailure(_ error: any Error) -> Bool {
+        switch error as? NativeCameraSessionError {
+        case .connectionClosed, .connectionFailed, .timeout, .invalidPacketLength,
+            .unexpectedPacket:
+            return true
+        default: return false
+        }
+    }
     case noHost
     case connectionFailed(String)
     case connectionClosed

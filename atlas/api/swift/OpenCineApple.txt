@@ -101,6 +101,7 @@ class MonitorPlaybackAudioSession: Sendable
 class MonitorPlaybackFeedHost: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorPlaybackFeedSession: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class MonitorPresentScaler: Sendable
+class MonitorStillLookRenderer: Sendable
 class MonitorTemporalNoiseFilter
 class MonitorUIImageGraphProcessor<Settings where Settings : Swift.Equatable>
 class MonitorUIImageScopeSampler: Actor, Sendable
@@ -115,6 +116,7 @@ class VideoToolboxDecoder: Sendable
 enum CameraHotspotSystem.Cancellation: Equatable, Hashable, Sendable
 enum DiagnosticExceptionHandler
 enum DiagnosticNetworkFacts
+enum LiveFrameDecoding
 enum LiveFrameSampleBus.Role: Equatable, Hashable, Sendable
 enum LiveViewPresentTiming
 enum MediaCellVideoFrames
@@ -150,9 +152,12 @@ enum MonitorWebDownloadView.Failure
 enum MonitorWorkingSpace
 enum ReviewClip
 enum StationConfiguredNetworks
+enum StationNetworkSecurity
 enum UVCVideoSourceState: Equatable, Sendable
 enum VideoToolboxDecoder.Output: Sendable
 extension OpenCineMedia.MonitorFrameEffects
+func CaptureCalibration.applied(to: CoreImage.CIImage, codeValueSpace: CoreGraphics.CGColorSpace) -> CoreImage.CIImage
+func CaptureChannelCurve.callAsFunction(_: Swift.Double) -> Swift.Double
 func DecodedFrameFence.advance() -> OpenCineCore.StreamGeneration
 func DecodedFrameFence.isCurrent(_: OpenCineCore.StreamGeneration) -> Swift.Bool
 func DecodedFrameFence.lease(_: CoreVideo.CVPixelBuffer, generation: OpenCineCore.StreamGeneration?, timeNs: Swift.Int64) -> DecodedFrameLease
@@ -331,6 +336,7 @@ func MonitorPresentationMetrics.drain(at: Foundation.TimeInterval) -> MonitorPre
 func MonitorPresentationMetrics.noteAcquire(milliseconds: Swift.Double) -> ()
 func MonitorPresentationMetrics.noteGPUCompletion(milliseconds: Swift.Double) -> ()
 func MonitorPresentationMetrics.notePresented(at: Foundation.TimeInterval) -> ()
+func MonitorStillLookRenderer.render(_: CoreGraphics.CGImage, effects: OpenCineMedia.MonitorFrameEffects) -> CoreGraphics.CGImage?
 func MonitorUIImageGraphProcessor.evictRenderCache()<Settings where Settings : Swift.Equatable> -> ()
 func MonitorUIImageGraphProcessor.outputCIImage(for: UIKit.UIImage, graph: MonitorUIImageGraph)<Settings where Settings : Swift.Equatable> -> CoreImage.CIImage?
 func MonitorUIImageGraphProcessor.render(_: UIKit.UIImage, settings: Settings, identity: Swift.Bool, prepare: () -> MonitorUIImageGraph)<Settings where Settings : Swift.Equatable> -> UIKit.UIImage
@@ -374,6 +380,10 @@ func VideoToolboxDecoder.openSession() -> Swift.Bool
 func VideoToolboxDecoder.resetCounters() -> ()
 func VideoToolboxDecoder.sessionAccepts(_: CoreMedia.CMVideoFormatDescription) -> Swift.Bool
 init CameraHotspotSystem(cancellation: CameraHotspotSystem.Cancellation, readTimeout: Swift.Duration?, journal: ((Swift.String) -> Swift.Void)?)
+init CaptureCalibration(luma: CaptureChannelCurve, blueDifference: CaptureChannelCurve, redDifference: CaptureChannelCurve)
+init CaptureChannelCurve(gain: Swift.Double, offset: Swift.Double, amplitude: Swift.Double, centre: Swift.Double, width: Swift.Double)
+init CaptureDeviceIdentity(deviceIdentifier: Swift.String)
+init CaptureDeviceIdentity(vendorID: Swift.UInt16, productID: Swift.UInt16)
 init DarwinNotificationObserver(names: [Swift.String], handler: (Swift.String) -> Swift.Void)
 init DecodedFrameFence(stream: OpenCineCore.StreamID, generation: OpenCineCore.StreamGeneration)
 init DecodedFrameFormat(_: CoreVideo.CVPixelBuffer)
@@ -434,6 +444,7 @@ init MonitorPresentationMetrics(startedAt: Foundation.TimeInterval)
 init MonitorPresentationOptions(upscaler: MonitorUpscaler, hdr: Swift.Bool, hdrGain: Swift.Float, previewSuperResolutionInput: Swift.Bool, resampling: MonitorPresentationResampling, exactCopyAtNativeSize: Swift.Bool)
 init MonitorRGB(_: (Swift.Double, Swift.Double, Swift.Double))
 init MonitorSimulatorVideoConfiguration(clipURL: () -> Foundation.URL?, transfer: OpenCineMedia.MonitorTransfer, queueLabel: Swift.String, logSubsystem: Swift.String, missingClipMessage: Swift.String, startedMessage: Swift.String)
+init MonitorStillLookRenderer(lookCurves: [OpenCineMedia.MonitorTransfer : [Swift.Double]])
 init MonitorUIImageGraph()
 init MonitorUIImageGraphProcessor(beginReadback: () -> Swift.Void, endReadback: () -> Swift.Void)<Settings where Settings : Swift.Equatable>
 init MonitorUIImageScopeSampler()
@@ -451,6 +462,16 @@ init MonitorZebraSpec(highlightEnabled: Swift.Bool, highlightIRE: Swift.Double, 
 init UVCVideoSource(stream: OpenCineCore.StreamID, queueLabel: Swift.String, logSubsystem: Swift.String, onStateChange: (UVCVideoSourceState) -> Swift.Void)
 init VideoToolboxDecoder(stream: OpenCineCore.StreamID, hooks: VideoToolboxDecoder.Hooks)
 init VideoToolboxDecoder.Hooks(shouldRebuildSession: (Darwin.OSStatus) -> Swift.Bool, journal: (Swift.String) -> Swift.Void, logSubsystem: Swift.String)
+let CaptureCalibration.blueDifference: CaptureChannelCurve
+let CaptureCalibration.luma: CaptureChannelCurve
+let CaptureCalibration.redDifference: CaptureChannelCurve
+let CaptureChannelCurve.amplitude: Swift.Double
+let CaptureChannelCurve.centre: Swift.Double
+let CaptureChannelCurve.gain: Swift.Double
+let CaptureChannelCurve.offset: Swift.Double
+let CaptureChannelCurve.width: Swift.Double
+let CaptureDeviceIdentity.productID: Swift.UInt16
+let CaptureDeviceIdentity.vendorID: Swift.UInt16
 let DecodedFrameFence.stream: OpenCineCore.StreamID
 let DecodedFrameFormat.height: Swift.Int
 let DecodedFrameFormat.pixelFormat: Darwin.OSType
@@ -540,9 +561,14 @@ let VideoToolboxDecoder.displayLayer: AVFoundation.AVSampleBufferDisplayLayer
 let VideoToolboxDecoder.fence: DecodedFrameFence
 let VideoToolboxDecoder.hooks: VideoToolboxDecoder.Hooks
 protocol MonitorPlaybackFrameSource<Self : OpenCineMedia.MonitorPlaybackPort>: MonitorPlaybackPort, Sendable
+static func CaptureCalibration.==(_: CaptureCalibration, _: CaptureCalibration) -> Swift.Bool
+static func CaptureCalibration.forDevice(_: CaptureDeviceIdentity?) -> CaptureCalibration
 static func DiagnosticExceptionHandler.install(record: (Foundation.NSException) -> Swift.Void) -> ()
 static func DiagnosticNetworkFacts.vpnActive() -> Swift.Bool
 static func JPEGPixelBufferDecoder.dimensions(of: Foundation.Data) -> (width: Swift.Int, height: Swift.Int)?
+static func LiveFrameDecoding.cgImage(_: CoreVideo.CVPixelBuffer, context: CoreImage.CIContext, calibration: CaptureCalibration) -> CoreGraphics.CGImage?
+static func LiveFrameDecoding.image(_: CoreVideo.CVPixelBuffer, renderedInto: CoreGraphics.CGColorSpace, calibration: CaptureCalibration) -> CoreImage.CIImage
+static func LiveFrameDecoding.prepareJPEGFrame(_: CoreVideo.CVPixelBuffer) -> ()
 static func LiveViewPresentTiming.sampleTiming(frameIndex: Swift.Int64) -> CoreMedia.CMSampleTimingInfo
 static func MediaCellVideoFrames.durationSeconds(at: Foundation.URL) -> Swift.Double?
 static func MediaCellVideoFrames.poster(at: Foundation.URL) -> UIKit.UIImage?
@@ -592,6 +618,7 @@ static func MonitorPlaybackPixelCopy.untaggedBGRA(_: CoreVideo.CVPixelBuffer) ->
 static func MonitorPresentScaler.mpsFitTransform(sourceWidth: Swift.Int, sourceHeight: Swift.Int, targetWidth: Swift.Int, targetHeight: Swift.Int) -> MetalPerformanceShaders.MPSScaleTransform
 static func MonitorReaderWriterMediaExporter.audioVisualExportAsset(from: AVFoundation.AVAsset, diagnostics: (Swift.String) -> Swift.Void) throws -> AVFoundation.AVMutableComposition
 static func MonitorReaderWriterMediaExporter.export(sourceURL: Foundation.URL, outputURL: Foundation.URL, format: MonitorReaderWriterMediaExporter.Format, cube: OpenCineMedia.CubeLUT?, metadata: Metadata?, diagnostics: (Swift.String) -> Swift.Void, timecodeDiagnostics: ((MonitorMovieTimecode.Diagnostic) -> Swift.Void)?, progress: (Swift.Double) -> Swift.Void)<Metadata where Metadata : Swift.Encodable, Metadata : Swift.Sendable> throws -> MonitorReaderWriterMediaExporter.ExportResult
+static func MonitorStillLookRenderer.paints(_: OpenCineMedia.MonitorFrameEffects) -> Swift.Bool
 static func MonitorTemporalNoiseFilter.canRun(past: Swift.Int, previousWanted: Swift.Int, futures: Swift.Int, futureWanted: Swift.Int) -> Swift.Bool
 static func MonitorUpscaler.superResolutionInputSize(source: (width: Swift.Int, height: Swift.Int), target: (width: Swift.Int, height: Swift.Int), scale: Swift.Float, maximum: (width: Swift.Int, height: Swift.Int)) -> (width: Swift.Int, height: Swift.Int)
 static func MonitorUpscaler.superResolutionScale(offered: [Swift.Float], ratio: Swift.Double, held: Swift.Float?) -> Swift.Float?
@@ -601,13 +628,18 @@ static func MonitorVideoBackdropSource.==(_: MonitorVideoBackdropSource, _: Moni
 static func MonitorWorkingRaster.targetSize(width: Swift.Int, height: Swift.Int, maxWidth: Swift.Int) -> (width: Swift.Int, height: Swift.Int)
 static func ReviewClip.write(to: Foundation.URL) throws -> ()
 static func StationConfiguredNetworks.ssids() -> [Swift.String]
+static func StationNetworkSecurity.currentNetwork(named: Swift.String) -> Swift.Bool?
 static func UVCVideoSource.isBroadcastShaped(_: CoreMedia.CMVideoDimensions) -> Swift.Bool
 static func VideoToolboxDecoder.isPresentable(_: CoreMedia.CMSampleBuffer) -> Swift.Bool
 static func VideoToolboxDecoder.isPresentable(_: CoreVideo.CVPixelBuffer) -> Swift.Bool
 static func VideoToolboxDecoder.makeAVCFormat(sps: [Swift.UInt8], pps: [Swift.UInt8]) -> CoreMedia.CMVideoFormatDescription?
 static func VideoToolboxDecoder.makeHEVCFormat(vps: [Swift.UInt8], sps: [Swift.UInt8], pps: [Swift.UInt8]) -> CoreMedia.CMVideoFormatDescription?
 static func VideoToolboxDecoder.markDoNotDisplay(_: CoreMedia.CMSampleBuffer) -> ()
+static let CaptureCalibration.identity: CaptureCalibration
+static let CaptureCalibration.uvcHDMICapture: CaptureCalibration
+static let CaptureChannelCurve.identity: CaptureChannelCurve
 static let JPEGPixelBufferDecoder.pixelFormat: Darwin.OSType
+static let LiveFrameDecoding.codeValueSpace: CoreGraphics.CGColorSpace
 static let LiveViewPresentTiming.timescale: Swift.Int32
 static let MediaCellImageLoader.shared: MediaCellImageLoader
 static let MonitorImageSampling.fileCodeColorSpace: CoreGraphics.CGColorSpace
@@ -635,6 +667,9 @@ static var MonitorWorkingSpace.imageOptions: [CoreImage.CIImageOption : Any]
 static var UVCVideoSource.attachedDeviceName: Swift.String?
 static var UVCVideoSource.isDocumentedHardware: Swift.Bool
 static var UVCVideoSource.isSupportedHardware: Swift.Bool
+struct CaptureCalibration: Equatable, Sendable
+struct CaptureChannelCurve: Equatable, Sendable
+struct CaptureDeviceIdentity: CustomStringConvertible, Equatable, Hashable, Sendable
 struct DecodedFrameFormat: Equatable, Sendable
 struct LiveFrameSampleBus.InspectorFrame: Sendable
 struct LocalNetworkPrivacy.Probe.Beacon: Sendable
@@ -694,6 +729,8 @@ typealias MonitorVideoBackdropRenderer.LookState = (OpenCineMedia.MonitorFrameEf
 typealias MonitorVideoBackdropRenderer.Operation = (CoreFoundation.CGSize, [MonitorVideoBackdropSource]) -> MonitorBackdropRasterSnapshot?
 typealias MonitorVideoBackdropSource.Buffer = CoreVideo.CVPixelBuffer
 var CameraHotspotSystem.host: OpenCineCore.CameraHotspotHost
+var CaptureCalibration.isIdentity: Swift.Bool
+var CaptureDeviceIdentity.description: Swift.String
 var DecodedFrameFence.generation: OpenCineCore.StreamGeneration
 var DecodedFrameLease.isReleased: Swift.Bool
 var DecodedFrameLease.pixelBuffer: CoreVideo.CVPixelBuffer?
@@ -997,6 +1034,7 @@ var MonitorZebraSpec.midtoneIRE: Swift.Double
 var StationWiFiNameAccess.approximateOnly: Swift.Bool
 var StationWiFiNameAccess.denied: Swift.Bool
 var StationWiFiNameAccess.undecided: Swift.Bool
+var UVCVideoSource.captureDeviceIdentity: CaptureDeviceIdentity?
 var UVCVideoSource.onSignalColorimetry: ((Swift.String) -> Swift.Void)?
 var UVCVideoSourceState.isStreaming: Swift.Bool
 var VideoToolboxDecoder.Hooks.journal: (Swift.String) -> Swift.Void

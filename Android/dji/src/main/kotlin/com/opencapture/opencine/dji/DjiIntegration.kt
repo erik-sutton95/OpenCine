@@ -21,6 +21,7 @@ import com.opencapture.opencine.core.RecoveryAction
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SavedRoute
+import com.opencapture.opencine.core.StationRoutes
 import com.opencapture.opencine.vocabulary.ConnectionPhase
 import com.opencapture.opencine.vocabulary.FoundCamera
 import kotlinx.coroutines.TimeoutCancellationException
@@ -196,7 +197,7 @@ class DjiIntegration(
 
     companion object {
         val ALL_ROUTES = setOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT)
-        val MOVING_ROUTES = setOf(RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT)
+        val MOVING_ROUTES = StationRoutes.MOVING
         const val APPROVE = "Approve on the camera"
         const val LOOKING = "Looking for the camera"
         /** The Wi-Fi step's caption while the session reports no setup progress (the apps' phase labels). */
@@ -204,31 +205,10 @@ class DjiIntegration(
         const val JOINING = "Joining camera Wi-Fi…"
 
         /** The connect card's plan: camera Wi-Fi, or moving the camera to a Wi-Fi or hotspot setup. */
-        fun steps(route: SavedRoute?): List<ConnectionStep> {
-            val moving = route != null && route.kind != RouteKind.CAMERA_ACCESS_POINT
-            val network = route?.network ?: if (route?.kind == RouteKind.PHONE_HOTSPOT) "Hotspot" else "Wi-Fi"
-            return listOf(
-                ConnectionStep("Connecting over Bluetooth"),
-                ConnectionStep(if (moving) "Moving the camera to $network" else "Joining camera Wi-Fi"),
-                ConnectionStep(if (moving) "Finding the camera" else "Opening the video link"),
-                ConnectionStep("Starting the picture"),
-            )
-        }
+        fun steps(route: SavedRoute?): List<ConnectionStep> = StationRoutes.steps(route)
 
-        /**
-         * [camera] remembering that a setup of [kind] may move it to station role: that route
-         * becomes preferred, or without one the legacy `lastSetup` stays in `extras`. Camera
-         * Wi-Fi is stamped only once live, so a failed restore is retried on the next connect.
-         */
-        fun stamping(camera: SavedCamera, kind: RouteKind): SavedCamera {
-            if (kind !in MOVING_ROUTES) return camera
-            val route = camera.routes.firstOrNull { it.kind == kind }
-            return if (route != null) {
-                camera.copy(preferredRoute = route.id, extras = camera.extras - "lastSetup")
-            } else {
-                camera.copy(preferredRoute = null, extras = camera.extras + ("lastSetup" to if (kind == RouteKind.PHONE_HOTSPOT) "phoneHotspot" else "wifi"))
-            }
-        }
+        /** [camera] remembering that a setup of [kind] may move it to station role ([StationRoutes.stamping]). */
+        fun stamping(camera: SavedCamera, kind: RouteKind): SavedCamera = StationRoutes.stamping(camera, kind)
 
         /** The iOS save rule (D9): a network another saved camera owns, or of another body family. */
         fun ownedElsewhere(network: String, camera: SavedCamera, saved: List<SavedCamera>): Boolean {
@@ -290,13 +270,13 @@ class DjiIntegration(
             is ConnectTarget.AddRoute -> {
                 val draft = target.draft
                 val network = draft.network
-                if (draft.kind !in MOVING_ROUTES || network == null) {
+                val added = StationRoutes.route(draft)
+                if (added == null || network == null) {
                     send(ConnectionEvent.Failed(DjiFailures.classify(null, ConnectionPhase.IDLE, "This setup cannot be added.").copy(reason = ConnectionFailure.Reason.Unsupported)))
                     return@channelFlow
                 }
                 draft.secret?.let { saveNetwork(network, it, draft.kind == RouteKind.PHONE_HOTSPOT) }
-                val added = SavedRoute(key = if (draft.kind == RouteKind.PHONE_HOTSPOT) "hotspot" else "wifi", kind = draft.kind, title = draft.title, network = network, bluetooth = true)
-                Triple(target.camera.id, added, target.camera.copy(routes = target.camera.routes.filter { it.key != added.key } + added))
+                Triple(target.camera.id, added, StationRoutes.adding(added, target.camera))
                     .also { saveRecord(stamping(it.third, added.kind)) }
             }
         }
@@ -307,7 +287,7 @@ class DjiIntegration(
         current = attempt
         // One session, one connection: end whatever runs, then connect with this setup.
         if (port.phaseFlow.value !in setOf(ConnectionPhase.IDLE, ConnectionPhase.SCANNING, ConnectionPhase.FAILED)) port.disconnect()
-        port.useSetup(setup, network, restoreAccessPoint = camera?.let(::mayBeInStationRole) == true)
+        port.useSetup(setup, network, restoreAccessPoint = camera?.let(StationRoutes::mayBeInStationRole) == true)
         port.reconnect(cameraID)
         var last: ConnectionEvent.Progress? = null
         var outcome: ConnectionEvent? = null
@@ -370,21 +350,9 @@ class DjiIntegration(
         return ConnectionEvent.Progress(ConnectionProgress(attempt, corePhase, steps, step, note), prompt)
     }
 
-    /** A setup that moves the camera may have left it in station role (iOS `lastSetup`). */
-    private fun mayBeInStationRole(camera: SavedCamera): Boolean {
-        val preferred = camera.routes.firstOrNull { it.id == camera.preferredRoute }
-        return preferred?.kind in MOVING_ROUTES || camera.extras["lastSetup"] in setOf("wifi", "phoneHotspot")
-    }
-
     /** Route actions: edit the setup that failed, or fall back to the camera's own Wi-Fi. */
-    private fun withRouteActions(failure: ConnectionFailure, camera: SavedCamera?, route: SavedRoute?): ConnectionFailure {
-        if (route == null || route.kind !in MOVING_ROUTES) return failure
-        val ap = camera?.routes?.firstOrNull { it.kind == RouteKind.CAMERA_ACCESS_POINT }
-        val title = "Couldn’t connect over ${route.title ?: route.network ?: if (route.kind == RouteKind.PHONE_HOTSPOT) "Hotspot" else "Wi-Fi"}"
-        val actions = failure.actions.filter { it != RecoveryAction.Retry } + RecoveryAction.EditRoute(route.id) + RecoveryAction.Retry +
-            listOfNotNull(ap?.let { RecoveryAction.UseRoute(it.id) })
-        return failure.copy(title = title, actions = actions)
-    }
+    private fun withRouteActions(failure: ConnectionFailure, camera: SavedCamera?, route: SavedRoute?): ConnectionFailure =
+        StationRoutes.withRouteActions(failure, route, camera)
 
     /**
      * The saved record after a connect: the route it used as preferred, the joined camera network

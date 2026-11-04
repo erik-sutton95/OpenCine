@@ -205,11 +205,15 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
                 let rect = DesqueezeAssist.presentationRect(sourceSize: dimensions,
                     in: CGRect(origin: .zero, size: size), effects: effects)
                 effects.clipByte = host.frameSamples.exposureCeiling.clipByte(transfer: effects.transfer)
+                let frame = MonitorVideoBackdropSource.displayedFrame(
+                    sourceAspect: dimensions.width / max(1, dimensions.height), effects: effects,
+                    in: rect, zoom: pictureGeometry?.zoom.scale ?? 1,
+                    offset: pictureGeometry?.zoom.offset ?? .zero)
+                // A zoomed picture is drawn past its letterboxed frame up to the canvas edge, so
+                // glass over that area samples the picture too.
+                let clip = rect.union(frame).intersection(CGRect(origin: .zero, size: size))
                 return [MonitorVideoBackdropSource(buffer: buffer, effects: effects,
-                    frame: MonitorVideoBackdropSource.displayedFrame(
-                        sourceAspect: dimensions.width / max(1, dimensions.height), effects: effects,
-                        in: rect, zoom: pictureGeometry?.zoom.scale ?? 1,
-                        offset: pictureGeometry?.zoom.offset ?? .zero), clip: rect, identity: .playback(item: token, epoch: epoch),
+                    frame: frame, clip: clip.isNull ? rect : clip, identity: .playback(item: token, epoch: epoch),
                     admission: { [weak owner, weak playback, weak native, weak presentation, weak samples] in
                         guard let owner, let playback, let native, let presentation, let samples else { return false }
                         return owner.presents(token) && playback.token == token && presentation.native === native
@@ -260,7 +264,8 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
 }
 
 /// The one photo page of the camera apps: the shared still screen with the share popup and the
-/// delivery chrome. The source supplies its loaders, operations and source admission.
+/// delivery chrome. The source supplies its loaders, operations and source admission; the view
+/// assists use the same host and page values (and options) as the app's playback page.
 public struct MonitorOperatorPhotoHost<Payload: Sendable, Host: MonitorMediaHost, Palette: LiveChromePalette,
     DeliveryPopup: View>: View {
     private let opening: MonitorMediaGalleryOpen<Payload>
@@ -271,14 +276,17 @@ public struct MonitorOperatorPhotoHost<Payload: Sendable, Host: MonitorMediaHost
     private let operations: MonitorMediaGalleryOperations<Payload>
     private let sourceCurrent: @MainActor () -> Bool
     private let deliveryPopup: (MonitorMediaRecord<Payload>, @escaping () -> Void) -> DeliveryPopup
+    private let options: MonitorPlaybackPageOptions
     @Environment(\.dismiss) private var dismiss
     @State private var deliveryRecord: MonitorMediaRecord<Payload>?
 
     public init(opening: MonitorMediaGalleryOpen<Payload>, library: MonitorMediaLibraryModel<Payload>, host: Host,
-        values: MonitorMediaPageValues<Palette>, loaders: MonitorMediaPictureLoaders<Payload, UIImage>,
+        values: MonitorMediaPageValues<Palette>, options: MonitorPlaybackPageOptions = .init(),
+        loaders: MonitorMediaPictureLoaders<Payload, UIImage>,
         operations: MonitorMediaGalleryOperations<Payload>, sourceCurrent: @escaping @MainActor () -> Bool,
         @ViewBuilder deliveryPopup: @escaping (MonitorMediaRecord<Payload>, @escaping () -> Void) -> DeliveryPopup) {
         self.opening = opening; self.library = library; self.host = host; self.values = values
+        self.options = options
         self.loaders = loaders; self.operations = operations; self.sourceCurrent = sourceCurrent
         self.deliveryPopup = deliveryPopup
     }
@@ -290,7 +298,7 @@ public struct MonitorOperatorPhotoHost<Payload: Sendable, Host: MonitorMediaHost
             close: { dismiss() }, share: { request in
                 guard request.isCurrent() else { return }
                 deliveryRecord = request.record
-            })
+            }, assistTools: .init(host: host, values: values, options: options))
         .overlay {
             if let deliveryRecord {
                 deliveryPopup(deliveryRecord) { self.deliveryRecord = nil }

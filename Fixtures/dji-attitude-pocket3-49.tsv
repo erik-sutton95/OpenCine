@@ -1,0 +1,15 @@
+# Real 49-byte `0x04/0x05` attitude pushes from a Pocket 3 on current firmware, shared by
+# both shells (OpenPocketCine#621, reporter capture of 2026-10-31, posted 2026-11-01).
+# The bytes are as captured: nothing padded or modified. Pose labels follow the reported
+# display pitch, not an external measurement.
+#
+# Read by `GimbalAttitudeLayoutTests` and `DJIAppleGimbalControlTests` (Swift) and
+# `AttitudeLayoutTest` (Kotlin). Expected values are tenths of a degree, int16 LE:
+# native pitch @0, yaw @4, display pitch = -@20. Bytes 24-39 hold the unit attitude
+# quaternion (float32 LE x, w, y, z, the same offsets as the 50-byte push); bytes 40-48
+# are zero in all three frames and nothing reads them.
+#
+# pose	payload hex	native	yaw	display
+level	17F900006EF9800083F800013FCF1A006B040000070005001D72C63C45D7C93D6FAD7EBFF9611D3B000000000000000000	-1769	-1682	-7
+up	B70600006EF9800081F80001F3CA1A006B0400009CFF04006FB1903DD563C9BD301C7E3FFE76E53B000000000000000000	1719	-1682	100
+down	61F900006FF9800083F800018BD31A006B0400005A000800618FBA3DC50DC93DEEAE7DBFE3F6133C000000000000000000	-1695	-1681	-90

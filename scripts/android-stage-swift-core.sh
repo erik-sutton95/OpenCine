@@ -103,8 +103,8 @@ esac
 
 sdk_configuration="$($swift sdk configure --show-configuration "$sdk_id" "$target")" || fail \
     "Swift Android SDK $sdk_id is not configured for $target"
-sdk_root="$(printf '%s\n' "$sdk_configuration" | awk -F': ' '/^sdkRootPath:/{print $2; exit}')"
-swift_resources="$(printf '%s\n' "$sdk_configuration" | awk -F': ' '/^swiftResourcesPath:/{print $2; exit}')"
+sdk_root="$(awk -F': ' '/^sdkRootPath:/{print $2; exit}' <<<"$sdk_configuration")"
+swift_resources="$(awk -F': ' '/^swiftResourcesPath:/{print $2; exit}' <<<"$sdk_configuration")"
 [[ -d "$sdk_root" ]] || fail "Swift SDK root is missing: $sdk_root"
 [[ -d "$swift_resources/android" ]] || fail "Swift runtime is missing: $swift_resources/android"
 

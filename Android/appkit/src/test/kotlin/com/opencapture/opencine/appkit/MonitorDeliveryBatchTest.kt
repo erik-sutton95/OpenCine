@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appkit
 
+import com.opencapture.opencine.media.MediaTransferRate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -109,6 +110,56 @@ class MonitorDeliveryBatchTest {
         assertEquals(listOf("prepare 1", "upload 1"), facts.calls)
         assertEquals("1 uploaded", (upload(true) as MonitorDeliveryBatchOutcome.Uploaded<String>).summary)
         assertEquals(listOf("prepare 1", "upload 1", "prepare 1", "upload 1"), facts.calls)
+    }
+    /**
+     * Owner report 2026-10-29: a camera that stops answering mid-cache is named as such; a clip
+     * that simply could not be cached keeps the connection advice.
+     */
+    @Test fun cacheFailureSaysWhenTheCameraStoppedResponding() = runTest {
+        for (stopped in listOf(true, false)) {
+            val facts = Facts()
+            val outcome = MonitorDeliveryModel.runBatch<Int, String, Int>(listOf(1),
+                MonitorDeliveryDestination.NATIVE_SHARE, MonitorDeliveryPostExportAction.SYSTEM_SHARE,
+                MonitorDeliveryAdmission { true },
+                MonitorDeliveryOriginalService({ false }, { facts.calls += "cache $it" }, { null }, { stopped }),
+                exporter(facts), share = { MonitorDeliveryShareFiles(it) }, photos = null,
+                filename = { "$it" }, progress = {})
+            assertEquals(
+                if (stopped) "The camera stopped responding while caching 1 clip(s). Reconnect and try again."
+                else "Couldn't cache 1 clip(s) from the camera. Check the connection and try again.",
+                (outcome as MonitorDeliveryBatchOutcome.Failed).message)
+            assertEquals(listOf("cache 1"), facts.calls)
+        }
+        // The camera-network hop refuses with the same words.
+        assertEquals("The camera stopped responding while caching 2 clip(s). Reconnect and try again.",
+            MonitorDeliveryCacheException(2, cameraStopped = true).message)
+    }
+    @Test fun cachingProgressReadsTheCameraDownloadSpeed() = runTest {
+        val facts = Facts(); val clock = Gate<Unit>(); val acquire = Gate<Unit>()
+        var rate: MediaTransferRate? = null
+        val model = MonitorDeliveryModel<MonitorDeliveryBatchProgress, MonitorDeliveryBatchOutcome<String>, String>(backgroundScope)
+        model.beginAdmitted { progress, admission ->
+            completion(MonitorDeliveryModel.runBatch<Int, String, Int>(listOf(1),
+                MonitorDeliveryDestination.NATIVE_SHARE, MonitorDeliveryPostExportAction.SYSTEM_SHARE,
+                admission, MonitorDeliveryOriginalService({ it in facts.cached }, { record ->
+                    acquire.value(); facts.cached += record
+                }, { facts.fraction }, rate = { rate }), exporter(facts), share = { MonitorDeliveryShareFiles(it) },
+                photos = null, filename = { "$it" }, sleep = { clock.value() }, progress = { progress(it) }))
+        }
+        runCurrent()
+        // No byte has arrived yet: the stall still shows.
+        facts.fraction = 0.0; rate = MediaTransferRate.Stalled; clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera · Stalled", model.state.value.progress!!.statusLine())
+        rate = null
+        facts.fraction = 0.25; clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera 25%", model.state.value.progress!!.statusLine())
+        rate = MediaTransferRate.BytesPerSecond(42_000_000); clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera 25% · 42 MB/s", model.state.value.progress!!.statusLine())
+        rate = MediaTransferRate.Stalled; clock.release(Unit); runCurrent()
+        assertEquals("Caching from camera 25% · Stalled", model.state.value.progress!!.statusLine())
+        acquire.release(Unit); runCurrent()
+        clock.release(Unit); runCurrent()
+        model.close()
     }
     @Test fun manualCacheProgressIgnoresUnknownAndLateTicks() = runTest {
         val facts = Facts(); val clock = Gate<Unit>(); val acquire = Gate<Unit>()

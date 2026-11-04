@@ -17,6 +17,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -30,8 +31,10 @@ const val MONITOR_MIN_TAP_TARGET_DP = 44f
 
 /**
  * Actual native press/tap/hold input; hosts supply their own optional feedback. A control drawn
- * smaller than [MONITOR_MIN_TAP_TARGET_DP] is still hit across that size, without moving anything drawn.
- * Disabled controls keep their accessibility state and return pointers to the surface underneath.
+ * smaller than [minimumTarget] dp (default [MONITOR_MIN_TAP_TARGET_DP]) is still hit across that size,
+ * without moving anything drawn. [semantics] describes the clickable node itself, so its label and
+ * bounds are the touch target's. Disabled controls keep their accessibility state and return pointers
+ * to the surface underneath.
  */
 @Composable
 fun Modifier.monitorChromeClickable(
@@ -39,6 +42,8 @@ fun Modifier.monitorChromeClickable(
     onLongClick: (() -> Unit)? = null,
     onClickFeedback: () -> Unit = {},
     onLongClickFeedback: () -> Unit = {},
+    minimumTarget: Float = MONITOR_MIN_TAP_TARGET_DP,
+    semantics: (SemanticsPropertyReceiver.() -> Unit)? = null,
     onClick: () -> Unit,
 ): Modifier {
     val interaction = remember { MutableInteractionSource() }
@@ -80,7 +85,8 @@ fun Modifier.monitorChromeClickable(
                 },
             )
         }
-    return this.then(press).tapTargetFloor(clicks)
+    val described = if (semantics != null) clicks.semantics(mergeDescendants = true, properties = semantics) else clicks
+    return this.then(press).tapTargetFloor(described, minimumTarget)
 }
 
 /**
@@ -91,8 +97,8 @@ fun Modifier.monitorChromeClickable(
  * the pad lands one pass later.
  */
 @Composable
-private fun Modifier.tapTargetFloor(clicks: Modifier): Modifier {
-    val floorPx = with(LocalDensity.current) { MONITOR_MIN_TAP_TARGET_DP.dp.roundToPx() }
+private fun Modifier.tapTargetFloor(clicks: Modifier, floorDp: Float): Modifier {
+    val floorPx = with(LocalDensity.current) { floorDp.dp.roundToPx() }
     var drawn by remember { mutableStateOf(IntSize.Zero) }
     val padX = if (drawn.width <= 0) 0 else ((floorPx - drawn.width) / 2).coerceAtLeast(0)
     val padY = if (drawn.height <= 0) 0 else ((floorPx - drawn.height) / 2).coerceAtLeast(0)

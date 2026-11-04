@@ -11,7 +11,13 @@
     /// VideoToolbox fails every later dependent picture with no output until an IRAP; the iOS
     /// simulator decoder used here conceals instead. Only an IRAP repairs either.
     @MainActor @Suite(.serialized) struct MonitorLiveVideoRuntimeDamageTests {
-        @Test func nativeBadDataOnAReferencePictureIsKnownReferenceLossAtOnce() async throws {
+        /// QUARANTINE (docs/testing/CI.md, #317): in full iOS simulator runs the first decode
+        /// error is sometimes attributed to a later access unit (irapAge 3 or more); alone it
+        /// passes.
+        @Test(
+            .disabled("Quarantined: irapAge flakes in full simulator runs (#317)"),
+            .bug("https://github.com/erik-sutton95/OpenCine/issues/317"))
+        func nativeBadDataOnAReferencePictureIsKnownReferenceLossAtOnce() async throws {
             let gop = try SyntheticHevcGOP.encode()
             let runtime = try await establishedRuntime(gop)
             let source = runtime.sourceToken

@@ -16,6 +16,7 @@
         let onConfirm: () -> Void
         let content: () -> Content
         @Environment(\.interfaceLocked) private var interfaceLocked
+        @Environment(\.monitorScopeObstacles) private var obstacles
 
         public init(
             store: MonitorScopePanelStore<Options>, baseSize: CGSize, canvas: CGRect,
@@ -46,7 +47,7 @@
             MonitorMovableScopePanel(
                 layout: MonitorScopePanelLayout(
                     baseSize: baseSize, preferredSize: preferred, center: center, scale: scale,
-                    canvas: canvas, movementBounds: bounds),
+                    canvas: canvas, movementBounds: bounds, obstacles: obstacles),
                 enabled: !interfaceLocked, resizeLabel: resizeLabel,
                 onMove: { event in
                     switch event {

@@ -91,6 +91,134 @@ data class MonitorFieldLayout(
      * orientation. The badge's touch target stays inside this rect. Swift `FieldMonitorLayout.appBadge`.
      */
     val appBadge: MonitorRect get() = MonitorLayoutPolicy.appBadge(status, listOf(lock, gauges, telemetry))
+
+    /**
+     * The recenter key for a camera with or without a motion cluster (gimbal stick and zoom
+     * chip). With one, [focusReset] keeps the key beside the cluster. Without one nothing takes
+     * the feed's trailing bottom corner, so the key moves into it: just inside the picture, above
+     * the camera values and clear of the rail. Swift `FieldMonitorLayout.focusReset(motionCluster:)`.
+     */
+    fun focusReset(motionCluster: Boolean): MonitorRect {
+        if (motionCluster) return focusReset
+        val inset = 8f
+        val right = minOf(picture.maxX - inset, stick.maxX)
+        val bottom = minOf(picture.maxY - inset, stick.maxY)
+        return MonitorRect(right - focusReset.width, bottom - focusReset.height, focusReset.width, focusReset.height)
+    }
+
+    /**
+     * The AE unlock capsule beside [focusReset] for the same capability. In the corner it sits on
+     * the key's centre side in either orientation. Swift `FieldMonitorLayout.aeUnlock(motionCluster:)`.
+     */
+    fun aeUnlock(motionCluster: Boolean): MonitorRect =
+        MonitorLayoutPolicy.aeUnlock(focusReset(motionCluster), assists.maxX, picture.midX, portrait && motionCluster)
+
+    /**
+     * The chrome rects a floating scope never covers, for the parts the surface shows now;
+     * [MonitorScopeChromeAvoidance] moves a panel off each one, so scopes reach the edges only where
+     * no control stands. The status row (format, recording and timecode), the gauges, the rail keys,
+     * the camera values, the assist palette as it rests collapsed (an expanded palette draws over
+     * panels as it draws over the values), the motion cluster, the recenter key and the portrait
+     * fit/fill toggle. Fit and fill share it (owner hardware pass 2026-10-30, iPad Pro 11-inch).
+     * Swift `FieldMonitorLayout.scopeObstacles(_:motionCluster:)`.
+     */
+    fun scopeObstacles(shown: Set<MonitorScopeChrome>, motionCluster: Boolean = false): List<MonitorRect> =
+        shown.sorted().flatMap { part ->
+            when (part) {
+                MonitorScopeChrome.STATUS -> listOf(status)
+                MonitorScopeChrome.TELEMETRY -> listOf(telemetry)
+                MonitorScopeChrome.LOCK -> listOf(lock)
+                MonitorScopeChrome.SETTINGS -> listOf(settings)
+                MonitorScopeChrome.MEDIA -> listOf(media)
+                MonitorScopeChrome.RECORD -> listOf(record)
+                MonitorScopeChrome.DISPLAY -> listOf(display)
+                MonitorScopeChrome.VALUES -> listOf(values)
+                MonitorScopeChrome.TOOLS -> listOf(assists)
+                MonitorScopeChrome.MOTION -> if (motionCluster) listOf(stick, zoom, gimbal, headTrack) else emptyList()
+                MonitorScopeChrome.FOCUS_RESET -> listOf(focusReset(motionCluster))
+                MonitorScopeChrome.ASPECT_TOGGLE -> if (portrait) listOf(aspectToggle) else emptyList()
+            }
+        }.filter { it.width > 0f && it.height > 0f }
+}
+
+/** A part of the live chrome a floating scope keeps clear of ([MonitorFieldLayout.scopeObstacles]). Swift `MonitorScopeChrome`. */
+enum class MonitorScopeChrome {
+    /** The status row: format, recording, timecode and storage. */
+    STATUS,
+    /** The link and battery gauges. */
+    TELEMETRY,
+    LOCK, SETTINGS, MEDIA, RECORD,
+    /** DISP. */
+    DISPLAY,
+    /** The camera values. */
+    VALUES,
+    /** The assist palette, collapsed. */
+    TOOLS,
+    /** The gimbal stick, zoom chip, gimbal key and head lock. */
+    MOTION,
+    FOCUS_RESET,
+    /** The portrait fit/fill toggle. */
+    ASPECT_TOGGLE;
+
+    companion object {
+        val ALL: Set<MonitorScopeChrome> = entries.toSet()
+    }
+}
+
+/**
+ * How often a camera value changes. Ridden values (ISO, shutter, aperture, white balance, focus)
+ * are adjusted shot to shot and stay in the strip along the bottom; setup values (shooting mode,
+ * drive, metering, picture profile) are set once for a scene. A value nobody grouped is ridden.
+ * Swift `MonitorCaptureReadoutGroup`.
+ */
+enum class MonitorCaptureReadoutGroup { RIDDEN, SETUP }
+
+/**
+ * The trailing corner of the landscape status row. While video runs it holds the recording
+ * readout and the clock. A photo row has neither, so the camera's setup values move up into it
+ * and the strip along the bottom keeps the ridden values: nine photo values in one landscape row
+ * ran off a compact phone (hardware pass 2026-10-30; the owner chose mode, drive, metering and
+ * profile for the corner). Portrait keeps every value in the strip's grid.
+ * Swift `MonitorStatusCorner`.
+ */
+object MonitorStatusCorner {
+    /** Space between two corner tiles. */
+    const val TILE_SPACING = 12f
+
+    /** The least space kept between the leading status readouts and the corner. */
+    const val LEADING_GAP = 16f
+
+    /** A landscape photo row that shows both the status row and the camera values. */
+    fun holdsSetup(photo: Boolean, portrait: Boolean, statusShown: Boolean, valuesShown: Boolean): Boolean =
+        photo && !portrait && statusShown && valuesShown
+
+    /** The values the strip and the corner show, each in the source's order. */
+    fun <T> split(values: List<T>, holdsSetup: Boolean, group: (T) -> MonitorCaptureReadoutGroup): Pair<List<T>, List<T>> =
+        if (!holdsSetup) values to emptyList()
+        else values.filter { group(it) != MonitorCaptureReadoutGroup.SETUP } to
+            values.filter { group(it) == MonitorCaptureReadoutGroup.SETUP }
+
+    /**
+     * Tile widths for a corner [available] wide: natural widths when they fit; otherwise every
+     * tile gives up the same share of its width above its floor (its whole caption) and none goes
+     * below it. When even the floors do not fit, the corner keeps its floors.
+     */
+    fun widths(natural: List<Float>, floors: List<Float>, available: Float, spacing: Float = TILE_SPACING): List<Float> {
+        if (natural.size != floors.size || natural.isEmpty()) return natural
+        val bounded = natural.zip(floors) { n, f -> minOf(n, maxOf(0f, f)) }
+        val room = maxOf(0f, available - spacing * (natural.size - 1))
+        val total = natural.sum()
+        if (total <= room) return natural
+        val floorTotal = bounded.sum()
+        val slack = total - floorTotal
+        if (slack <= 0f || room <= floorTotal) return bounded
+        val keep = (room - floorTotal) / slack
+        return natural.zip(bounded) { n, f -> f + (n - f) * keep }
+    }
+
+    /** The corner's width for the tile widths [widths] returns. */
+    fun width(tiles: List<Float>, spacing: Float = TILE_SPACING): Float =
+        tiles.sum() + spacing * maxOf(0, tiles.size - 1)
 }
 
 /** Operator choice for the on-feed gimbal joystick diameter. */
@@ -254,6 +382,19 @@ object MonitorLayoutPolicy {
     fun landscapeValuesInset(recordSize: Float): Float = 14f + recordSize + 28f
 
     /**
+     * The landscape feed frame's shape: the 16:9 region a video picture fills. A taller picture
+     * fits inside it; chrome is laid out around it. Swift `FieldMonitorLayout.frameAspect`.
+     */
+    private const val FRAME_ASPECT = 16f / 9f
+
+    /** The largest rect of `aspect` centred in a landscape viewport, clear of the cutout band `cut`. */
+    private fun landscapeFrame(width: Float, height: Float, cut: Float, aspect: Float): MonitorRect {
+        val imageW = min(width - 2f * cut, height * aspect)
+        val imageH = imageW / aspect
+        return MonitorRect((width - imageW) / 2f, (height - imageH) / 2f, imageW, imageH)
+    }
+
+    /**
      * Production Field Monitor geometry. Viewport and insets are inputs;
      * camera brands are absent. Native shells retain the feed.
      */
@@ -316,9 +457,15 @@ object MonitorLayoutPolicy {
             )
         }
         val cut = max(0f, max(safeLeading, safeTrailing) - 14f)
-        val imageW = min(w - 2f * cut, h * aspect)
-        val imageH = imageW / aspect
-        val picture = MonitorRect((w - imageW) / 2f, (h - imageH) / 2f, imageW, imageH)
+        val frame = landscapeFrame(w, h, cut, FRAME_ASPECT)
+        // A picture taller than the frame (a 3:2 or 4:3 still) scales down inside the video's
+        // 16:9 frame instead of growing taller: on a tablet the video's bars stay top and bottom
+        // and the still is pillarboxed. A wider picture still spans the usable width.
+        val picture = if (aspect < FRAME_ASPECT) frame.fittedContent(aspect) else landscapeFrame(w, h, cut, aspect)
+        // Where the frame leaves bars above and below (a tablet), the status row sits on the top
+        // bar as in video, so a still keeps it where video has it. Where the frame runs the full
+        // height (a phone), the status row stays on the picture itself.
+        val anchor = if (aspect < FRAME_ASPECT && frame.height < h - 0.5f) frame else picture
         val system = MonitorRect(0f, 0f, 0f, 0f)
         val hasHome = safeBottom > 0f
         val bottom = if (hasHome) 12f else 8f
@@ -342,7 +489,7 @@ object MonitorLayoutPolicy {
         val lock = MonitorRect(12f, cornerTop, button, button)
         // Gauges share the lock's edge so a 19.5:9 phone's 16:9 picture starts at their trailing edge.
         val gauges = MonitorRect(lock.x, lock.maxY + landscapeGaugeGap(tablet), 58f, 68f)
-        val statusX = max(77f, picture.x + 12f)
+        val statusX = max(77f, anchor.x + 12f)
         val status = MonitorRect(
             statusX, (if (tablet) 4f else 0f) + controlInset,
             max(0f, settings.x - statusX - 12f), if (tablet) 46f else 44f,

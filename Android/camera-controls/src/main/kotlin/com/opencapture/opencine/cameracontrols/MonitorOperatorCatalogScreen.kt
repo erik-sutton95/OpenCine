@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.*
 import com.opencapture.opencine.appkit.*
 import com.opencapture.opencine.media.MediaAssetID
+import com.opencapture.opencine.media.MediaTransferRate
 import com.opencapture.opencine.vocabulary.MediaLibrarySort
 import com.opencapture.opencine.vocabulary.MediaLibraryTab
 
@@ -42,6 +43,8 @@ public data class MonitorMediaGalleryFileFacts(
     public val detail: String,
     public val duration: String? = null,
     public val progress: Double? = null,
+    /** A download this source runs itself; null reads the library's own transfer. */
+    public val transferRate: MediaTransferRate? = null,
 )
 
 /** A bounded native thumbnail leaf, with the source/window authority captured by the catalog. */
@@ -79,6 +82,7 @@ public fun <P> MonitorOperatorCatalogScreen(
     open: (MonitorMediaGalleryOpen<P>) -> Unit,
     share: ((List<MonitorMediaRecord<P>>, MonitorMediaLibraryActionToken) -> Unit)? = null,
     handlesBack: Boolean = true,
+    aspectRatio: (MonitorMediaRecord<P>) -> Double? = ::monitorStoredAspectRatio,
     thumbnail: @Composable BoxScope.(MonitorMediaGalleryThumbnail<P>) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -87,6 +91,7 @@ public fun <P> MonitorOperatorCatalogScreen(
     // whole gallery. The header bar and each visible card read the ticks themselves.
     val value by library.content.collectAsState()
     val ticks by library.transferProgress.collectAsState()
+    val rates by library.transferRates.rates.collectAsState()
     val state by gallery.state.collectAsState()
     val haptics = LocalOperatorHaptics.current
     DisposableEffect(gallery) { gallery.activate(); begin(); onDispose { gallery.retire() } }
@@ -129,9 +134,10 @@ public fun <P> MonitorOperatorCatalogScreen(
             else -> (presentation?.projection?.displayIDs?.size ?: records.size).let { "$it item${if (it == 1) "" else "s"}" }
         }, fetchInProgress = value.fetching, isLive = sourceAvailable, isSelecting = value.selecting,
         filterOpen = state.filterPopupPresented, activeFilterCount = presentation?.activeFilterCount ?: value.activeFilterCount,
-        selectedCount = selected.size, cacheEnabled = selected.any { gallery.canDownload(it, operations) },
+        selectedCount = selected.size,
         deleteEnabled = selected.any { gallery.canDelete(it, operations) },
         caching = { cachingProgress(library, ticks, records, facts) },
+        cachingRate = { cachingRate(library, rates, ticks, records, facts) },
         shareEnabled = share != null && selected.isNotEmpty() && selected.all { gallery.canShare(it, operations) },
     )
     val filterID = state.filterRequestID
@@ -178,8 +184,6 @@ public fun <P> MonitorOperatorCatalogScreen(
         override fun toggleFilter() = admitted { gallery.filterPopup(!state.filterPopupPresented) }
         override fun selectAll() = admitted { gallery.selectAll(presented) }
         override fun clearSelection() = admitted { library.clearSelection(); gallery.cancelDelete() }
-        override fun cacheSelected() = gallery.cacheSelection(presented, operations)
-        override fun favoriteSelected() = gallery.favoriteSelection(presented, operations, toggleUniform = true)
         override fun deleteSelected() = gallery.requestDelete(presented, operations, supportedSubset = true)
         override fun shareSelected() { gallery.shareSelection(presented, operations)?.let { share?.invoke(it, presented.token) } }
         override fun toggleFormat(format: String) {
@@ -209,7 +213,8 @@ public fun <P> MonitorOperatorCatalogScreen(
         MediaLibraryPage(page, filters, actions, gallery = {
             MonitorOperatorCatalogGallery(gallery, snapshot, state.presentationRevision, facts, operations, sourceAvailable, refresh,
                 open = open, select = ::select, thumbnail = thumbnail, presentation = presentation,
-                cell = cell, selectionConfiguration = selectionConfiguration, selectionChanged = selectionChanged)
+                cell = cell, selectionConfiguration = selectionConfiguration, selectionChanged = selectionChanged,
+                aspectRatio = aspectRatio)
         }, overlays = {
             library.deletionProgress?.let { progress -> MonitorMediaDeletionOverlay(progress, deletionDetail?.invoke(progress)) }
             state.notice?.let { Text(it, Modifier.align(Alignment.BottomCenter).padding(24.dp), color = LiveDesign.text) }
@@ -245,14 +250,18 @@ private fun <P> MonitorOperatorCatalogGallery(
     cell: ((MonitorMediaRecord<P>, MonitorMediaGalleryCellContext) -> MonitorClipValue)?,
     selectionConfiguration: MonitorMediaSelectionConfiguration,
     selectionChanged: (() -> Unit)?,
+    aspectRatio: (MonitorMediaRecord<P>) -> Double?,
 ) {
     val library = owner.library
     val value by library.content.collectAsState()
     val ticks by library.transferProgress.collectAsState()
+    val rates by library.transferRates.rates.collectAsState()
     val state by owner.state.collectAsState()
     val listState = rememberLazyListState()
-    val gridState = rememberLazyGridState()
+    val gridState = rememberLazyStaggeredGridState()
     val list = (presentation?.layout ?: value.layout) == MonitorMediaLayout.LIST
+    // The smallest grid keeps its cells uncluttered: percent only.
+    val showsRate = list || (presentation?.thumbnailSize ?: value.thumbnailSize) != MonitorThumbnailSize.SMALL
     val records = snapshot.records
     val empty = presentation?.empty
     val configuration = LocalConfiguration.current
@@ -292,12 +301,14 @@ private fun <P> MonitorOperatorCatalogGallery(
                 MonitorMediaHitTarget(registry, id.rawValue) {
                     val cellValue = cell?.invoke(record, MonitorMediaGalleryCellContext(list, value.selecting,
                         id in value.selectedIDs, state.resolvedDurations[id]))
-                    MonitorClipCard(monitorCatalogClip(record, entry, metadata, state.resolvedDurations[id], ticks.progress[id], cellValue),
+                    MonitorClipCard(monitorCatalogClip(record, entry, metadata, state.resolvedDurations[id], ticks.progress[id], cellValue,
+                        libraryRate = rates[id], showsRate = showsRate),
                         list, value.selecting, id in value.selectedIDs,
                         modifier = Modifier.testTag("monitor.media.clip.${id.rawValue}"),
                         onOpen = { owner.open(id, snapshot, operations, sourceAvailable = connected)?.let(open) },
                         onSelect = { select(if (value.selecting) value.selectedIDs.toggled(id) else setOf(id), true) },
-                        onFavorite = { owner.favorite(id, snapshot, operations) }, clicks = false) {
+                        onFavorite = { owner.favorite(id, snapshot, operations) }, clicks = false,
+                        artworkAspect = MonitorMediaMasonry.aspect(if (list) null else aspectRatio(record))) {
                         // A cover can retire this presentation while the library admission stays
                         // unchanged. Its new thumbnails must retry reads refused by the old context.
                         key(presentationRevision) { thumbnail(context) }
@@ -347,6 +358,17 @@ internal fun <P> cachingProgress(library: MonitorMediaLibraryModel<P>, ticks: Mo
     return records.firstNotNullOfOrNull { record -> facts(record).progress?.let { record.asset.filename to it } }
 }
 
+/** The caching bar's download speed, for the same transfer [cachingProgress] reads. */
+internal fun <P> cachingRate(library: MonitorMediaLibraryModel<P>, rates: Map<MediaAssetID, MediaTransferRate>,
+    ticks: MonitorMediaLibraryTransferProgress, records: List<MonitorMediaRecord<P>>,
+    facts: (MonitorMediaRecord<P>) -> MonitorMediaGalleryFileFacts): String? {
+    if (ticks.progress.isEmpty() && ticks.hostProgress.isEmpty()) return null
+    ticks.progress.keys.firstOrNull { library.record(it) != null }?.let { return rates[it]?.label }
+    if (ticks.hostProgress.isEmpty()) return null
+    val record = records.firstOrNull { facts(it).progress != null } ?: return null
+    return (facts(record).transferRate ?: rates[record.asset.id])?.label
+}
+
 /** The newest clip stays first while the operator rests at the top of the catalog. */
 internal class MonitorCatalogHeadAnchor {
     private var pinned = true
@@ -367,16 +389,25 @@ internal class MonitorCatalogHeadAnchor {
     }
 }
 
+/** The picture shape the catalog listing reports; sources that know a still's orientation supply
+ * their own (`aspectRatio`). */
+public fun <P> monitorStoredAspectRatio(record: MonitorMediaRecord<P>): Double? =
+    MonitorMediaMasonry.uprightAspect(record.asset.pixelSize?.width, record.asset.pixelSize?.height)
+
 /** The catalog owns cache state and progress for every cell; a source cell supplies its own facts only. */
 internal fun <P> monitorCatalogClip(
     record: MonitorMediaRecord<P>, entry: MonitorMediaCacheEntry?, facts: MonitorMediaGalleryFileFacts,
     resolvedDuration: String?, libraryProgress: Double?, cell: MonitorClipValue?,
+    libraryRate: MediaTransferRate? = null, showsRate: Boolean = true,
 ): MonitorClipValue {
     val source = if (entry?.original != null) "CACHED" else if (entry?.proxy != null) "PROXY" else "ON CAMERA"
     val progress = (facts.progress ?: libraryProgress)?.toFloat()
-    return cell?.copy(id = record.asset.id.rawValue, favorite = record.favorite, source = source, progress = progress)
+    val rate = if (showsRate) (facts.transferRate ?: libraryRate)?.label else null
+    // A source cell's own speed wins, as on iOS.
+    return cell?.copy(id = record.asset.id.rawValue, favorite = record.favorite, source = source, progress = progress,
+        transferRate = if (showsRate) cell.transferRate ?: rate else null)
         ?: MonitorClipValue(record.asset.id.rawValue, record.asset.filename, facts.detail,
-            resolvedDuration ?: facts.duration, source, record.favorite, progress)
+            resolvedDuration ?: facts.duration, source, record.favorite, progress, transferRate = rate)
 }
 
 private fun <T> Set<T>.toggled(value: T): Set<T> = if (value in this) this - value else this + value

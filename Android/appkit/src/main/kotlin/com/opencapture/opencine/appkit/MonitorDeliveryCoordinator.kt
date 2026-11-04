@@ -107,8 +107,10 @@ public class MonitorDeliveryCoordinator(
         run.awaitEnteredCleanup()
         if (!source.isCurrent()) throw CancellationException("Selection is no longer available.")
         // The cache itself is the truth: a cancelled or superseded run leaves clips uncached.
-        val missing = records.count { !originals.available(it) }
-        if (missing > 0) throw MonitorDeliveryCacheException(missing)
+        val missing = records.filter { !originals.available(it) }
+        if (missing.isNotEmpty()) {
+            throw MonitorDeliveryCacheException(missing.size, missing.any(originals.cameraStoppedResponding))
+        }
     }
 
     /** Announces a refusal through the same outcome toast. */
@@ -174,6 +176,11 @@ public class MonitorDeliveryCoordinator(
     }
 }
 
-/** Some selected originals could not be cached before the camera network was left. */
-public class MonitorDeliveryCacheException(public val count: Int) :
-    Exception(MonitorDeliveryBatchPolicy.cacheFailure(count))
+/**
+ * Some selected originals could not be cached before the camera network was left;
+ * [cameraStopped] when the camera stopped answering while they cached.
+ */
+public class MonitorDeliveryCacheException(public val count: Int, public val cameraStopped: Boolean = false) :
+    Exception(
+        if (cameraStopped) MonitorDeliveryBatchPolicy.cameraStoppedResponding(count)
+        else MonitorDeliveryBatchPolicy.cacheFailure(count))

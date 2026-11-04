@@ -131,37 +131,32 @@
                     let container = CGRect(origin: .zero, size: geo.size)
                     let videoRect = Self.fit(aspect: value.aspect, in: container)
 
-                    ZStack {
-                        picture()
-                            .scaleEffect(
-                                x: value.mirrorHorizontal ? -1 : 1,
-                                y: value.mirrorVertical ? -1 : 1,
-                                anchor: .center
-                            )
-                            .scaleEffect(zoom.scale)
-                            .offset(zoom.offset)
-                    }
-                    .frame(width: videoRect.width, height: videoRect.height)
-                    .clipped()
-                    .position(x: videoRect.midX, y: videoRect.midY)
+                    MonitorPlaybackPictureCanvas(
+                        canvas: geo.size, feed: videoRect, zoom: zoom,
+                        mirrorHorizontal: value.mirrorHorizontal,
+                        mirrorVertical: value.mirrorVertical, picture: picture)
                     .allowsHitTesting(false)
 
                     feedAssists(videoRect)
                         .frame(width: geo.size.width, height: geo.size.height)
                         .allowsHitTesting(false)
 
+                    // The gesture well spans the canvas. At 1x it answers only inside the
+                    // letterboxed frame, as before; zoomed, the picture may cover the whole
+                    // canvas, so a pinch or pan anywhere on it moves the picture.
                     Color.clear
-                        .frame(width: videoRect.width, height: videoRect.height)
-                        .contentShape(Rectangle())
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .contentShape(Path(zoom.isZoomed ? container : videoRect))
                         .onAppear {
                             updateGeometry(canvas: geo.size, feed: videoRect)
                         }
                         .onChange(of: videoRect.size) { _, size in
                             cancelEditing(.interrupted)
                             zoom.endGesture(
-                                size: value.zoomBoundary == .canvas ? geo.size : size,
+                                size: geo.size,
                                 horizontalPresentationScale: value.horizontalPresentationScale,
-                                verticalPresentationScale: value.verticalPresentationScale)
+                                verticalPresentationScale: value.verticalPresentationScale,
+                                picture: size)
                             updateGeometry(canvas: geo.size, feed: videoRect)
                         }
                         .onChange(of: zoom) { _, _ in
@@ -173,7 +168,7 @@
                         .gesture(playbackVideoGesture)
                         .simultaneousGesture(playbackFrameTapGesture)
                         .simultaneousGesture(playbackFrameScrubGesture)
-                        .position(x: videoRect.midX, y: videoRect.midY)
+                        .position(x: container.midX, y: container.midY)
 
                     playbackTransportFlashOverlay(in: videoRect)
                     playbackFrameScrubOverlay(in: videoRect)
@@ -537,32 +532,17 @@
         }
 
         private var loadingCopy: String {
-            if value.progress != nil {
-                return "Buffering from camera…"
+            if let progress = value.progress {
+                guard let rate = value.transferRate,
+                    let caption = MediaTransferRate.caption(fraction: progress, rate: rate)
+                else { return "Buffering from camera…" }
+                return "Buffering from camera…\n\(caption)"
             }
             return "Preparing playback…"
         }
 
         private var playbackAssistOverlay: some View {
-            GeometryReader { proxy in
-                let safeArea = Self.safeArea(
-                    proxy.safeAreaInsets, scene: windowGeometry.safeArea)
-                let size = Self.canvasSize(
-                    layoutSize: proxy.size, safeArea: safeArea,
-                    screenSize: windowGeometry.validSize)
-                let presentation = FieldMonitorLayout(
-                    width: size.width, height: size.height,
-                    safeArea: MonitorSafeArea(
-                        top: safeArea.top, leading: safeArea.leading,
-                        bottom: safeArea.bottom, trailing: safeArea.trailing),
-                    showsValues: true,
-                    topControlInset: windowGeometry.topControlInset)
-                tools(
-                    .init(presentation: presentation, safeTop: safeArea.top, expanded: $assistMode)
-                )
-                .frame(width: size.width, height: size.height)
-            }
-            .ignoresSafeArea()
+            MonitorMediaToolsStage(expanded: $assistMode, tools: tools)
         }
 
         private var conformButton: some View {
@@ -773,13 +753,15 @@
                         suppressNextPlaybackTap = true
                         frameScrubPending = false
                     }
+                    // The anchor is a unit point of the canvas-wide gesture well.
                     if self.value.continuousPanBounds {
                         zoom.pinchChangedBounded(
                             magnification: value.magnification,
                             startAnchorX: value.startAnchor.x, startAnchorY: value.startAnchor.y,
-                            size: zoomPictureSize, boundsSize: zoomContainerSize,
+                            size: zoomContainerSize, boundsSize: zoomContainerSize,
                             horizontalPresentationScale: self.value.horizontalPresentationScale,
-                            verticalPresentationScale: self.value.verticalPresentationScale)
+                            verticalPresentationScale: self.value.verticalPresentationScale,
+                            picture: zoomPictureSize)
                     } else {
                         zoom.pinchChanged(
                             magnification: value.magnification,
@@ -795,7 +777,8 @@
                         zoom.endPinch(
                             size: zoomContainerSize,
                             horizontalPresentationScale: value.horizontalPresentationScale,
-                            verticalPresentationScale: value.verticalPresentationScale)
+                            verticalPresentationScale: value.verticalPresentationScale,
+                            picture: zoomPictureSize)
                     }
                 }
         }
@@ -813,7 +796,8 @@
                         zoom.panChangedBounded(
                             translation: value.translation, size: zoomContainerSize,
                             horizontalPresentationScale: self.value.horizontalPresentationScale,
-                            verticalPresentationScale: self.value.verticalPresentationScale)
+                            verticalPresentationScale: self.value.verticalPresentationScale,
+                            picture: zoomPictureSize)
                     } else {
                         zoom.panChanged(translation: value.translation)
                     }
@@ -826,7 +810,8 @@
                         zoom.endPan(
                             size: zoomContainerSize,
                             horizontalPresentationScale: value.horizontalPresentationScale,
-                            verticalPresentationScale: value.verticalPresentationScale)
+                            verticalPresentationScale: value.verticalPresentationScale,
+                            picture: zoomPictureSize)
                     }
                 }
         }
@@ -964,7 +949,7 @@
         private func updateGeometry(canvas: CGSize, feed: CGRect) {
             frameScrubVideoWidth = feed.width
             zoomPictureSize = feed.size
-            zoomContainerSize = value.zoomBoundary == .canvas ? canvas : feed.size
+            zoomContainerSize = canvas
             onGeometry(.init(item: value.item, canvas: canvas, feed: feed, zoom: zoom))
         }
         private static func fit(aspect: Double, in rect: CGRect) -> CGRect {
@@ -975,12 +960,19 @@
                 x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
         }
         private static func safeArea(_ reported: EdgeInsets, scene: EdgeInsets) -> EdgeInsets {
+            MonitorMediaStageGeometry.safeArea(reported, scene: scene)
+        }
+    }
+    /// The full-screen geometry of a media page: the reported safe area restored from the window,
+    /// and the canvas the page ignores the safe area into.
+    enum MonitorMediaStageGeometry {
+        static func safeArea(_ reported: EdgeInsets, scene: EdgeInsets) -> EdgeInsets {
             .init(
                 top: max(reported.top, scene.top), leading: max(reported.leading, scene.leading),
                 bottom: max(reported.bottom, scene.bottom),
                 trailing: max(reported.trailing, scene.trailing))
         }
-        private static func canvasSize(
+        static func canvasSize(
             layoutSize: CGSize, safeArea: EdgeInsets, screenSize: CGSize?
         ) -> CGSize {
             let restored = CGSize(
@@ -999,6 +991,67 @@
                 height: max(restored.height, screen.height))
         }
     }
+    /// The assist bar's stage on the media pages, clip playback and stills alike: the field
+    /// monitor geometry of the whole screen, which the bar is placed in.
+    public struct MonitorMediaToolsStage<Tools: View>: View {
+        private let expanded: Binding<Bool>
+        private let tools: (MonitorPlaybackToolsContext) -> Tools
+        @Environment(\.monitorWindowGeometry) private var windowGeometry
+
+        public init(expanded: Binding<Bool>,
+            @ViewBuilder tools: @escaping (MonitorPlaybackToolsContext) -> Tools) {
+            self.expanded = expanded; self.tools = tools
+        }
+
+        public var body: some View {
+            GeometryReader { proxy in
+                let safeArea = MonitorMediaStageGeometry.safeArea(
+                    proxy.safeAreaInsets, scene: windowGeometry.safeArea)
+                let size = MonitorMediaStageGeometry.canvasSize(
+                    layoutSize: proxy.size, safeArea: safeArea,
+                    screenSize: windowGeometry.validSize)
+                let presentation = FieldMonitorLayout(
+                    width: size.width, height: size.height,
+                    safeArea: MonitorSafeArea(
+                        top: safeArea.top, leading: safeArea.leading,
+                        bottom: safeArea.bottom, trailing: safeArea.trailing),
+                    showsValues: true,
+                    topControlInset: windowGeometry.topControlInset)
+                tools(.init(presentation: presentation, safeTop: safeArea.top, expanded: expanded))
+                    .frame(width: size.width, height: size.height)
+            }
+            .ignoresSafeArea()
+        }
+    }
+    /// The playback picture as drawn. At 1x it fills its letterboxed `feed` frame, exactly as
+    /// before. Zoomed, it is shown past that frame up to the edge of the playback `canvas`, never
+    /// beyond it. The native picture keeps its feed-sized frame: zoom is a transform of the one
+    /// existing view, so no frame is copied or redrawn at another size.
+    struct MonitorPlaybackPictureCanvas<Picture: View>: View {
+        let canvas: CGSize
+        let feed: CGRect
+        let zoom: MonitorPlaybackZoom
+        let mirrorHorizontal: Bool
+        let mirrorVertical: Bool
+        let picture: () -> Picture
+
+        var body: some View {
+            let visible = zoom.visiblePictureRect(feed: feed, canvas: canvas)
+            ZStack {
+                picture()
+                    .scaleEffect(
+                        x: mirrorHorizontal ? -1 : 1, y: mirrorVertical ? -1 : 1, anchor: .center)
+                    .scaleEffect(zoom.scale)
+                    .offset(zoom.offset)
+            }
+            .frame(width: feed.width, height: feed.height)
+            .offset(x: feed.minX - visible.minX, y: feed.minY - visible.minY)
+            .frame(width: visible.width, height: visible.height, alignment: .topLeading)
+            .clipped()
+            .position(x: visible.midX, y: visible.midY)
+        }
+    }
+
     private struct MonitorPlaybackScrubControl: View {
         let value: MonitorPlaybackPresentation
         let actions: MonitorPlaybackActions

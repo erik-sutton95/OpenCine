@@ -58,9 +58,11 @@ open class PhysicalDesqueezeTests: SharedAppUITestCase {
 
     func testCachedPhotoDesqueezeOptions() throws {
         try openCachedMedia(category: "Photos")
-        let chip = app.descendants(matching: .any)["photo.desqueeze"].firstMatch
-        XCTAssertTrue(chip.waitForExistence(timeout: 15))
-        try exerciseOptions(chip: chip, name: "cached-photo") {}
+        // A still carries the playback page's view assist bar, so DE-SQ is the same chip.
+        XCTAssertTrue(app.buttons["Back to media"].waitForExistence(timeout: 15))
+        try exerciseOptions(chip: revealDesqueeze(), name: "cached-photo") {
+            XCTAssertTrue(self.app.buttons["Back to media"].isHittable)
+        }
     }
 
     private func exerciseOptions(

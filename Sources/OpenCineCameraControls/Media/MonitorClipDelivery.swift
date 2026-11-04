@@ -16,6 +16,8 @@ import OpenCineMedia
     public let isDownloaded: @MainActor (MediaFile) -> Bool
     public let download: @MainActor (MediaFile) async -> Void
     public let downloadProgress: @MainActor (MediaFile) -> Double?
+    /// The running download's speed, read beside its progress.
+    public let downloadRate: @MainActor (MediaFile) -> MediaTransferRate?
     public let localURL: @MainActor (MediaFile) -> URL?
     public let shotColor: @MainActor (MediaFile) -> ColorMode?
     public let rememberShotColor: @MainActor (ColorMode, MediaFile) -> Void
@@ -27,7 +29,8 @@ import OpenCineMedia
         downloadProgress: @escaping @MainActor (MediaFile) -> Double?,
         localURL: @escaping @MainActor (MediaFile) -> URL?,
         shotColor: @escaping @MainActor (MediaFile) -> ColorMode?,
-        rememberShotColor: @escaping @MainActor (ColorMode, MediaFile) -> Void
+        rememberShotColor: @escaping @MainActor (ColorMode, MediaFile) -> Void,
+        downloadRate: @escaping @MainActor (MediaFile) -> MediaTransferRate? = { _ in nil }
     ) {
         self.isCurrent = isCurrent
         self.connected = connected
@@ -35,6 +38,7 @@ import OpenCineMedia
         self.isDownloaded = isDownloaded
         self.download = download
         self.downloadProgress = downloadProgress
+        self.downloadRate = downloadRate
         self.localURL = localURL
         self.shotColor = shotColor
         self.rememberShotColor = rememberShotColor
@@ -48,7 +52,7 @@ import OpenCineMedia
             acquire: { file in
                 guard isCurrent() else { return }
                 await download(file)
-            }, progress: downloadProgress)
+            }, progress: downloadProgress, rate: downloadRate)
     }
 }
 

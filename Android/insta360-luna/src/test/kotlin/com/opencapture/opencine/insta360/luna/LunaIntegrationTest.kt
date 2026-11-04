@@ -51,6 +51,11 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     var scans = 0
     var scanStops = 0
     val connects = mutableListOf<String>()
+    /** The route of every connect, in order. */
+    val routes = mutableListOf<LunaRoute>()
+    /** Wi-Fi and hotspot passwords the backend keeps. */
+    val stations = mutableListOf<LunaStationNetwork>()
+    override val stationNote = MutableStateFlow<String?>(null)
     /** Whether the most recent connect started after the camera had advertised. */
     var connectSawSighting: Boolean? = null
     var disconnects = 0
@@ -64,7 +69,15 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     override fun stopScan() { scanStops += 1 }
     override fun hasSeen(id: String): Boolean = id in seen
     override suspend fun hasSavedWiFi(id: String): Boolean = id in savedWiFi
-    override fun connect(id: String) {
+    override fun connect(id: String) = connect(id, LunaRoute.CameraWiFi())
+    override suspend fun stationPassword(network: String, hotspot: Boolean): String? =
+        stations.lastOrNull { it.ssid == network && it.hotspot == hotspot }?.password
+    override suspend fun saveStation(network: LunaStationNetwork) {
+        stations.removeAll { it.ssid == network.ssid && it.hotspot == network.hotspot }
+        stations += network
+    }
+    override fun connect(id: String, route: LunaRoute) {
+        routes += route
         connects += id
         connectSawSighting = id in seen
         val done = CompletableDeferred<ConnectionFailure?>()
@@ -259,27 +272,148 @@ class LunaIntegrationTest {
         port.goLive()
         runCurrent()
         val record = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
-        assertTrue(record.name == "A cam" && record.routes == listOf(ap) && record.extras == mapOf("lastSetup" to "wifi"))
+        // Camera Wi-Fi leaves the camera on its own access point, so the legacy move marker goes.
+        assertTrue(record.name == "A cam" && record.routes == listOf(ap) && record.extras.isEmpty())
+        assertEquals(listOf<LunaRoute>(LunaRoute.CameraWiFi(restoreAccessPoint = true)), port.routes, "main's lastSetup may have moved it")
     }
 
-    /** A legacy hotspot setup (main's records could carry one) is no dead chip: Luna dials the
-     *  camera over its own Wi-Fi, keeps the setup, and makes the camera Wi-Fi preferred again. */
+    // Wi-Fi and hotspot setups (station mode).
+
+    private fun station(ssid: String, password: String, hotspot: Boolean = false): LunaRoute =
+        LunaRoute.Station(LunaStationNetwork(ssid, password, hotspot))
+
+    private val ap = SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = "LUNA-1A2B", bluetooth = true)
+
+    private fun saved(luna: LunaIntegration, vararg routes: SavedRoute, preferred: SavedRoute? = routes.firstOrNull()) = SavedCamera(
+        id = camera, integration = luna.id, advertisedName = "Luna 1A2B", model = "Insta360 Luna Ultra",
+        routes = routes.toList(), preferredRoute = preferred?.id,
+    )
+
     @Test
-    fun aLegacyHotspotSetupConnectsOverCameraWiFi() = runTest {
+    fun theLunaOffersWiFiAndHotspotSetups() = runTest {
+        val (_, luna) = setup()
+        val profile = luna.profiles.single()
+        assertEquals(setOf(RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT), profile.addableRoutes)
+        assertEquals(setOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT), profile.routes)
+    }
+
+    /** Add setup › Wi-Fi: the camera moves onto the network over Bluetooth, the password is kept for
+     *  later connects, the record remembers the move before it happens, and the new setup becomes
+     *  the camera's preferred route once live. */
+    @Test
+    fun addingAWiFiSetupMovesTheCameraAndSavesTheSetup() = runTest {
         val (port, luna) = setup()
-        val ap = SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = "LUNA-1A2B", bluetooth = true)
-        val hotspot = SavedRoute(key = "hotspot", kind = RouteKind.PHONE_HOTSPOT, network = "Rig iPhone")
-        val saved = SavedCamera(
-            id = camera, integration = luna.id, advertisedName = "Luna 1A2B", model = "Insta360 Luna Ultra",
-            routes = listOf(ap, hotspot), preferredRoute = hotspot.id,
-        )
-        val events = collect(luna.connect(ConnectTarget.Saved(saved, hotspot.id)))
+        val stamped = mutableListOf<SavedCamera>()
+        luna.saveRecord = { stamped += it }
+        val events = collect(luna.connect(ConnectTarget.AddRoute(saved(luna, ap), RouteDraft(RouteKind.INFRASTRUCTURE_NETWORK, "Studio", "synthetic1"))))
         runCurrent()
-        assertEquals(listOf(camera), port.connects)
+        assertEquals(listOf(station("Studio", "synthetic1")), port.routes)
+        assertEquals("synthetic1", port.stationPassword("Studio", hotspot = false))
+        val remembered = stamped.last()
+        val wifi = remembered.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        assertTrue(wifi.key == "wifi" && wifi.network == "Studio" && wifi.bluetooth)
+        assertEquals(wifi.id, remembered.preferredRoute, "remembered before the camera moves")
+        port.phase.value = ConnectionPhase.JOINING_WIFI
+        port.stationNote.value = "Moving the camera to “Studio”…"
+        runCurrent()
+        port.phase.value = ConnectionPhase.OPENING_DATALINK
+        runCurrent()
+        port.goLive()
+        runCurrent()
+        val progress = events.filterIsInstance<ConnectionEvent.Progress>()
+        assertTrue(progress.all { it.progress.steps[1].title == "Moving the camera to Studio" })
+        assertEquals("Finding the camera", progress.first().progress.steps[2].title)
+        assertTrue(progress.none { it.progress.note == "Joining camera Wi-Fi…" }, "the camera moves; the phone joins nothing of the camera's")
+        assertTrue(progress.any { it.progress.note == "Moving the camera to “Studio”…" }, "the setup's live text is the caption")
+        val live = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+        assertEquals(listOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK), live.routes.map { it.kind })
+        assertTrue(live.preferredRoute == live.routes[1].id && live.routes[0].network == "LUNA-1A2B")
+    }
+
+    @Test
+    fun aHotspotSetupMovesTheCameraOntoThisPhonesHotspot() = runTest {
+        val (port, luna) = setup()
+        val bare = SavedCamera(id = camera, integration = luna.id, advertisedName = "", model = "")
+        val events = collect(luna.connect(ConnectTarget.AddRoute(bare, RouteDraft(RouteKind.PHONE_HOTSPOT, "Rig iPhone", "synthetic2"))))
+        runCurrent()
+        assertEquals(listOf(station("Rig iPhone", "synthetic2", hotspot = true)), port.routes)
         port.goLive()
         runCurrent()
         val record = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
-        assertTrue(record.routes == listOf(ap, hotspot) && record.preferredRoute == ap.id)
+        val hotspot = record.routes.first { it.kind == RouteKind.PHONE_HOTSPOT }
+        assertTrue(hotspot.key == "hotspot" && record.preferredRoute == hotspot.id)
+    }
+
+    @Test
+    fun aSetupThatCannotBeAddedNeverDialsTheCamera() = runTest {
+        val (port, luna) = setup()
+        val bare = SavedCamera(id = camera, integration = luna.id, advertisedName = "", model = "")
+        for (draft in listOf(RouteDraft(RouteKind.USB), RouteDraft(RouteKind.INFRASTRUCTURE_NETWORK))) {
+            val events = luna.connect(ConnectTarget.AddRoute(bare, draft)).toList()
+            assertEquals(ConnectionFailure.Reason.Unsupported, assertIs<ConnectionEvent.Failed>(events.single()).failure.reason)
+        }
+        assertTrue(port.connects.isEmpty())
+    }
+
+    /** A saved Wi-Fi setup connects again with the password saved when it was added. */
+    @Test
+    fun aSavedWiFiSetupReconnectsWithItsSavedPassword() = runTest {
+        val (port, luna) = setup()
+        port.saveStation(LunaStationNetwork("Studio", "synthetic1", hotspot = false))
+        val wifi = SavedRoute(key = "wifi", kind = RouteKind.INFRASTRUCTURE_NETWORK, network = "Studio", bluetooth = true)
+        val camera = saved(luna, ap, wifi, preferred = ap)
+        val events = collect(luna.connect(ConnectTarget.Saved(camera, wifi.id)))
+        runCurrent()
+        assertEquals(listOf(station("Studio", "synthetic1")), port.routes)
+        port.goLive()
+        runCurrent()
+        val record = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+        assertTrue(record.routes == listOf(ap, wifi) && record.preferredRoute == wifi.id)
+    }
+
+    /** A setup whose password this phone does not hold (a record from an older build) is no dead
+     *  chip and never dials: it asks for the setup again or offers the camera's own Wi-Fi. */
+    @Test
+    fun aSetupWithoutItsPasswordAsksToEditIt() = runTest {
+        val (port, luna) = setup()
+        val hotspot = SavedRoute(key = "hotspot", kind = RouteKind.PHONE_HOTSPOT, network = "Rig iPhone")
+        val events = luna.connect(ConnectTarget.Saved(saved(luna, ap, hotspot, preferred = hotspot), hotspot.id)).toList()
+        val failed = assertIs<ConnectionEvent.Failed>(events.single()).failure
+        assertEquals("Couldn’t connect over Rig iPhone", failed.title)
+        assertEquals(listOf(RecoveryAction.EditRoute(hotspot.id), RecoveryAction.Retry, RecoveryAction.UseRoute(ap.id)), failed.actions)
+        assertTrue(port.connects.isEmpty())
+    }
+
+    @Test
+    fun aFailedSetupOffersEditingItAndTheCameraWiFi() = runTest {
+        val (port, luna) = setup()
+        val events = collect(luna.connect(ConnectTarget.AddRoute(saved(luna, ap), RouteDraft(RouteKind.INFRASTRUCTURE_NETWORK, "Studio", "wrongpass"))))
+        runCurrent()
+        port.fail(LunaFailures.failure(ConnectionFailure.Reason.JoinFailed, "station.wrong-password", "The camera could not join “Studio”. Check the password.", CorePhase.JOINING_NETWORK))
+        runCurrent()
+        val failed = assertIs<ConnectionEvent.Failed>(events.last()).failure
+        assertEquals("Couldn’t connect over Studio", failed.title)
+        assertEquals("The camera could not join “Studio”. Check the password.", failed.message)
+        assertIs<RecoveryAction.EditRoute>(failed.actions.first())
+        assertEquals(RecoveryAction.UseRoute(ap.id), failed.actions.last())
+    }
+
+    /** After a setup moved the camera, its own Wi-Fi asks it back to its access point first, and once
+     *  live the camera Wi-Fi is preferred again. */
+    @Test
+    fun cameraWiFiAfterASetupRestoresTheAccessPoint() = runTest {
+        val (port, luna) = setup()
+        val wifi = SavedRoute(key = "wifi", kind = RouteKind.INFRASTRUCTURE_NETWORK, network = "Studio", bluetooth = true)
+        val events = collect(luna.connect(ConnectTarget.Saved(saved(luna, ap, wifi, preferred = wifi), ap.id)))
+        runCurrent()
+        assertEquals(listOf<LunaRoute>(LunaRoute.CameraWiFi(restoreAccessPoint = true)), port.routes)
+        port.goLive()
+        runCurrent()
+        assertEquals(ap.id, assertIs<ConnectionEvent.Connected>(events.last()).camera.saved.preferredRoute)
+        port.disconnect()
+        collect(luna.connect(ConnectTarget.Nearby(sighting)))
+        runCurrent()
+        assertEquals(LunaRoute.CameraWiFi(restoreAccessPoint = false), port.routes.last(), "a camera never moved stays put")
     }
 
     @Test
@@ -366,15 +500,6 @@ class LunaIntegrationTest {
         val (port, luna) = setup()
         luna.forget(SavedCamera(id = camera, integration = luna.id, advertisedName = "", model = ""))
         assertEquals(listOf(camera), port.forgotten)
-    }
-
-    @Test
-    fun addingARouteIsUnsupported() = runTest {
-        val (port, luna) = setup()
-        val saved = SavedCamera(id = camera, integration = luna.id, advertisedName = "", model = "")
-        val events = luna.connect(ConnectTarget.AddRoute(saved, RouteDraft(RouteKind.INFRASTRUCTURE_NETWORK))).toList()
-        assertEquals(ConnectionFailure.Reason.Unsupported, assertIs<ConnectionEvent.Failed>(events.single()).failure.reason)
-        assertTrue(port.connects.isEmpty())
     }
 
     private fun describe(prompt: ConnectionPrompt): String = when (prompt) {

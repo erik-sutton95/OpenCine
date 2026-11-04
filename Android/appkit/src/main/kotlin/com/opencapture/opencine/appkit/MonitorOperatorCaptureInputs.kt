@@ -67,6 +67,11 @@ public class MonitorOperatorLiveReadout<K, S>(
     public val dimmed: Boolean = false,
     /** A hold on the cell while it has no quick adjust (for example a camera-side lock toggle). */
     public val holdAction: (() -> Unit)? = null,
+    /**
+     * How often the value changes. A landscape photo monitor moves setup values from the strip into
+     * the status row's trailing corner ([MonitorStatusCorner]). Swift `MonitorOperatorLiveReadout.group`.
+     */
+    public val group: MonitorCaptureReadoutGroup = MonitorCaptureReadoutGroup.RIDDEN,
 )
 
 public enum class MonitorOperatorCameraPanelChrome { DESCRIPTOR, CONTENT, SHARED_SHEET }
@@ -110,7 +115,27 @@ public class MonitorOperatorCaptureInputs<K, S, N>(
     public val commitAdmission: () -> Boolean = { true },
     public val quickActiveChanged: (Boolean) -> Unit = {},
     public val retireNative: () -> Unit = {},
-)
+) {
+    /** The setup readouts the status corner takes when [holdsSetup] ([MonitorStatusCorner]). */
+    public fun cornerReadouts(holdsSetup: Boolean): List<MonitorOperatorLiveReadout<K, S>> =
+        MonitorStatusCorner.split(readouts, holdsSetup) { it.group }.second
+
+    /**
+     * The same inputs with [keys] shown at the top: their drawers and previews open from the top
+     * edge, beside the corner that shows them, and leave the strip in place.
+     */
+    public fun raising(keys: Set<K>): MonitorOperatorCaptureInputs<K, S, N> {
+        if (keys.isEmpty()) return this
+        val top = isTop
+        val raised = panel?.let { p ->
+            if (p.key in keys) MonitorOperatorCameraPanel(p.key, true, p.preferredWidth, p.maximumHeight, p.chrome,
+                p.title, p.subtitle, p.field) else p
+        }
+        return MonitorOperatorCaptureInputs(readouts, raised, fields, columns, open, dismiss,
+            { it in keys || top(it) }, nativeQuick, nativeCurrent, nativeCommit, previewChanged,
+            commitAdmission, quickActiveChanged, retireNative)
+    }
+}
 
 @Stable public class MonitorOperatorCaptureState<K, N> {
     public val frames: MutableMap<K, MonitorRect> = mutableStateMapOf()
@@ -277,24 +302,52 @@ private class CaptureReadoutActions(
     enabled: Boolean, commandEnabled: Boolean = true, currentSource: () -> Boolean,
     layout: MonitorFieldLayout, modifier: Modifier = Modifier,
     onCaptureFrame: (MonitorRect) -> Unit = {},
+    excluded: Set<K> = emptySet(),
+): Unit {
+    CaptureValues(inputs, inputs.readouts.filter { it.id !in excluded }, control, state, source, enabled,
+        commandEnabled, currentSource, layout, modifier, onCaptureFrame, corner = false)
+    DisposableEffect(state, source) { onDispose { state.retire() } }
+}
+
+/**
+ * The status row's trailing corner of capture readouts ([MonitorStatusCorner]): the strip's
+ * tiles, gestures and ownership, at their natural widths, narrowing toward their whole captions
+ * only when the row is short. Swift `MonitorOperatorCaptureCorner`.
+ */
+@Composable public fun <K, S, N> MonitorOperatorCaptureCorner(
+    inputs: MonitorOperatorCaptureInputs<K, S, N>, readouts: List<MonitorOperatorLiveReadout<K, S>>,
+    control: MonitorControlModel, state: MonitorOperatorCaptureState<K, N>, source: MonitorCaptureSourceIdentity,
+    enabled: Boolean, commandEnabled: Boolean = true, currentSource: () -> Boolean,
+    layout: MonitorFieldLayout, modifier: Modifier = Modifier,
+): Unit {
+    CaptureValues(inputs, readouts, control, state, source, enabled, commandEnabled, currentSource, layout,
+        modifier.testTag("monitor.capture.corner"), {}, corner = true)
+}
+
+@Composable private fun <K, S, N> CaptureValues(
+    inputs: MonitorOperatorCaptureInputs<K, S, N>, readouts: List<MonitorOperatorLiveReadout<K, S>>,
+    control: MonitorControlModel, state: MonitorOperatorCaptureState<K, N>, source: MonitorCaptureSourceIdentity,
+    enabled: Boolean, commandEnabled: Boolean, currentSource: () -> Boolean,
+    layout: MonitorFieldLayout, modifier: Modifier, onCaptureFrame: (MonitorRect) -> Unit, corner: Boolean,
 ): Unit {
     val owner = state.gestureOwner
     key(owner) {
-        val hideReadouts = state.preview?.let { !inputs.isTop(it.key) } == true
+        // A strip preview hides the strip; the corner stays where it is, as the drawer drops from the top.
+        val hideReadouts = !corner && state.preview?.let { !inputs.isTop(it.key) } == true
         val stripModifier = modifier.alpha(if (hideReadouts) 0f else 1f)
             .then(if (hideReadouts) Modifier.clearAndSetSemantics { } else Modifier)
         val density = LocalDensity.current
         val admitted by rememberUpdatedState(enabled && currentSource())
         val currentInputs by rememberUpdatedState(inputs)
         SideEffect { state.bindRetirement(inputs.retireNative) }
-        val actions = inputs.readouts.associate { readout ->
+        val actions = readouts.associate { readout ->
             readout.id.toString() to captureReadoutActions(readout, inputs, control, state, source,
                 enabled, commandEnabled, currentSource, owner, readout.id.toString(), layout.portrait)
         }
-        inputs.readouts.forEach { readout ->
+        readouts.forEach { readout ->
             DisposableEffect(state, readout.id) { onDispose { state.frames.remove(readout.id) } }
         }
-        val itemModifiers = inputs.readouts.associate { readout ->
+        val itemModifiers = readouts.associate { readout ->
             readout.id.toString() to readout.itemModifier.monitorPickerPassthrough(admitted).onGloballyPositioned { coordinates ->
                 if (currentSource()) {
                     val r = coordinates.boundsInRoot()
@@ -303,7 +356,7 @@ private class CaptureReadoutActions(
                 }
             }
         }
-        MonitorCameraValues(inputs.readouts.map { MonitorValue(it.id.toString(), it.title, it.value ?: "--",
+        MonitorCameraValues(readouts.map { MonitorValue(it.id.toString(), it.title, it.value ?: "--",
             selected = inputs.panel?.key == it.id || state.preview?.key == it.id,
             annotation = it.annotation, valueIcon = it.icon, badgeIcon = it.badgeIcon,
             enabled = actions[it.id.toString()]?.inert != true, dimmed = it.dimmed) },
@@ -324,11 +377,10 @@ private class CaptureReadoutActions(
                 }
             }, quickBottomClearanceDp = if (layout.portrait) layout.viewport.height - layout.system.y + 12f else 0f,
             gestureOwner = owner,
-            columns = inputs.columns, onHold = { id -> actions[id]?.hold }, onOpen = { id ->
+            columns = inputs.columns, corner = corner, onHold = { id -> actions[id]?.hold }, onOpen = { id ->
                 actions[id]?.open?.invoke()
             })
     }
-    DisposableEffect(state, source) { onDispose { state.retire() } }
 }
 
 /** The same projection is consumed by the real drawer body and geometry contract tests. */

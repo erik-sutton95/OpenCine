@@ -82,13 +82,18 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
         modifier, recordingModifier, clockModifier, storage, format, color, mode, link)
 }
 
-/** A native occupied boundary extends the original viewport clearance without changing content calls. */
+/**
+ * A native occupied boundary extends the original viewport clearance without changing content calls.
+ * [corner] fills the landscape row's trailing corner beside the recording readout and the clock (a
+ * photo row shows camera setup values there, [MonitorStatusCorner]); portrait rows never show it.
+ */
 @Composable
 fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresentation,
     showsTimecode: Boolean, showsRecording: Boolean, showsCompactTelemetry: Boolean,
     minimumOccupiedTop: Float, modifier: Modifier = Modifier, recordingModifier: Modifier = Modifier,
     clockModifier: Modifier = Modifier, storage: @Composable () -> Unit = {}, format: @Composable () -> Unit,
-    color: @Composable () -> Unit = {}, mode: @Composable () -> Unit = {}, link: @Composable () -> Unit = {}) {
+    color: @Composable () -> Unit = {}, mode: @Composable () -> Unit = {}, link: @Composable () -> Unit = {},
+    corner: (@Composable () -> Unit)? = null) {
     Box(modifier.fillMaxWidth().then(if (layout.portrait) Modifier else Modifier.height(layout.status.height.dp))) {
         // iOS `MonitorStatusChrome`: the readouts carry the shared glow; telemetry pills keep their own glass.
         if (layout.portrait) {
@@ -100,14 +105,23 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
                 format = { Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(
                     (LocalMonitorPortraitPrimaryFit.current?.spacing ?: 8f).dp)) { format(); color() } })
         } else {
-            Row(Modifier.fillMaxSize().monitorReadoutShadow(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(24.dp),
+            // Each readout group takes the readout shadow once. The corner's tiles are camera value
+            // readouts that already carry it ([MonitorCameraValues]), as the strip's do, so the row's
+            // shadow stops short of them instead of stacking a second halo (Swift `MonitorStatusChrome`).
+            // A corner keeps [MonitorStatusCorner.LEADING_GAP] from the leading readouts.
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (corner != null) MonitorStatusCorner.LEADING_GAP.dp else 24.dp)) {
+                FlowRow(Modifier.weight(1f).monitorReadoutShadow(), horizontalArrangement = Arrangement.spacedBy(24.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)) { storage(); format(); color(); mode() }
                 Row(Modifier.padding(end = MonitorLayoutPolicy.recordingReadoutTrailingInset(layout.status.maxX, layout.picture.maxX).dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (showsRecording) MonitorRecordingReadout(status, recordingModifier)
-                    if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier, placeholder = status.timecodePlaceholder)
+                    if (showsRecording || showsTimecode) Row(Modifier.monitorReadoutShadow(),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (showsRecording) MonitorRecordingReadout(status, recordingModifier)
+                        if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier, placeholder = status.timecodePlaceholder)
+                    }
+                    // Measured before the leading readouts, so its tiles keep their natural widths.
+                    corner?.invoke()
                 }
             }
         }

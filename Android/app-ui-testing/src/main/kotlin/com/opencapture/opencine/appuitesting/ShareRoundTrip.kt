@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appuitesting
 
+import com.opencapture.monitorui.MonitorMediaSelectionCopy
 import com.opencapture.monitorui.MonitorPlaybackCopy
 import com.opencapture.monitorui.ReviewLaunch
 import kotlin.test.assertEquals
@@ -35,10 +36,10 @@ public abstract class ShareRoundTrip(subject: ConformanceApp) : ConformanceTest(
         assertEquals(anchor.id, gallery.settledAnchor()?.id, "The selection share must not move the gallery")
         assertNotNull(snapshot().nodes.firstOrNull { it.visible && it.label == "2 selected" },
             "The selection share must keep the selection")
-        // The tray's Clear chip is announced by its description, as the Swift twin queries it.
-        val clear = assertNotNull(snapshot().nodes.firstOrNull { it.visible && it.label == "Clear selection" && it.info.isClickable },
+        // The bar's Close is announced by its description, as the Swift twin queries it.
+        val exit = assertNotNull(snapshot().nodes.firstOrNull { it.visible && it.label == MonitorMediaSelectionCopy.EXIT && it.info.isClickable },
             "The selection share must keep selection mode")
-        tap(clear)
+        tap(exit)
 
         // The clip share from playback, with Loop on, then back to the gallery.
         val opened = assertNotNull(gallery.settledAnchor(), "No visible clip to open")

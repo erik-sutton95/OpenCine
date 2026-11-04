@@ -14,10 +14,13 @@ public struct MonitorMediaGalleryFileFacts {
     public let dateKey: String?
     public let colorLabel: String?
     public let progress: Double?
+    /// A download this source runs itself; nil reads the library's own transfer.
+    public let transferRate: MediaTransferRate?
     public init(resolution: String?, byteCount: UInt64?, durationSeconds: Int?, dateKey: String?,
-        colorLabel: String?, progress: Double? = nil) {
+        colorLabel: String?, progress: Double? = nil, transferRate: MediaTransferRate? = nil) {
         self.resolution = resolution; self.byteCount = byteCount; self.durationSeconds = durationSeconds
         self.dateKey = dateKey; self.colorLabel = colorLabel; self.progress = progress
+        self.transferRate = transferRate
     }
 }
 
@@ -47,6 +50,7 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
         resolutionLevels: [MonitorMediaResolutionLevel] = MonitorMediaResolutionLevel.standard,
         facts: @escaping @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts,
         cell: (@MainActor (MonitorMediaRecord<Payload>, MonitorMediaGalleryCellContext) -> MonitorMediaItem)? = nil,
+        aspectRatio: (@MainActor (MonitorMediaRecord<Payload>) -> Double?)? = nil,
         begin: (@MainActor () -> Void)? = nil, refresh: (@MainActor () -> Void)? = nil,
         close: @escaping @MainActor () -> Void,
         open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
@@ -57,7 +61,7 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
             operations: operations, presentation: presentation, navigation: navigation,
             sourceFilter: sourceFilter, managesVisibility: managesVisibility, deletionDetail: deletionDetail,
             colorChoices: colorChoices, resolutionLevels: resolutionLevels, facts: facts, cell: cell,
-            begin: begin, refresh: refresh, close: close, open: open, share: share,
+            aspectRatio: aspectRatio, begin: begin, refresh: refresh, close: close, open: open, share: share,
             cachingActive: cachingActive, thumbnail: thumbnail)
     }
 
@@ -79,6 +83,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
     private let resolutionLevels: [MonitorMediaResolutionLevel]
     private let cell: (@MainActor (MonitorMediaRecord<Payload>, MonitorMediaGalleryCellContext) -> MonitorMediaItem)?
     private let facts: @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts
+    private let aspectRatio: @MainActor (MonitorMediaRecord<Payload>) -> Double?
     private let begin: @MainActor () -> Void
     private let refresh: @MainActor () -> Void
     private let close: @MainActor () -> Void
@@ -91,6 +96,13 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
 
     var source: ObjectIdentifier { ObjectIdentifier(library) }
 
+    /// The picture shape the catalog listing reports; sources that know a still's orientation
+    /// supply their own (`aspectRatio`).
+    private static func storedAspectRatio(_ record: MonitorMediaRecord<Payload>) -> Double? {
+        MonitorMediaMasonry.uprightAspect(
+            width: record.asset.pixelSize?.width, height: record.asset.pixelSize?.height)
+    }
+
     init(library: MonitorMediaLibraryModel<Payload>, brand: String, safeArea: EdgeInsets = .init(),
         sourceAvailable: Bool, operations: MonitorMediaGalleryOperations<Payload>,
         presentation: MonitorMediaGalleryPresentation? = nil,
@@ -102,6 +114,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         resolutionLevels: [MonitorMediaResolutionLevel] = MonitorMediaResolutionLevel.standard,
         facts: @escaping @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts,
         cell: (@MainActor (MonitorMediaRecord<Payload>, MonitorMediaGalleryCellContext) -> MonitorMediaItem)? = nil,
+        aspectRatio: (@MainActor (MonitorMediaRecord<Payload>) -> Double?)? = nil,
         begin: (@MainActor () -> Void)? = nil, refresh: (@MainActor () -> Void)? = nil,
         close: @escaping @MainActor () -> Void,
         open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
@@ -113,6 +126,8 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         self.managesVisibility = managesVisibility; self.deletionDetail = deletionDetail
         self.sourceAvailable = sourceAvailable; self.operations = operations; self.colorChoices = colorChoices
         self.resolutionLevels = resolutionLevels; self.facts = facts; self.cell = cell
+        // Resolved here, not as a closure-literal default (swiftlang/swift#92017).
+        self.aspectRatio = aspectRatio ?? Self.storedAspectRatio
         self.begin = begin ?? { library.begin() }; self.refresh = refresh ?? { library.refresh() }
         self.close = close; self.open = open; self.share = share; self.thumbnail = thumbnail
         self.cachingActive = cachingActive
@@ -132,6 +147,8 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                     ids: snapshot.records.map(\.asset.id.rawValue),
                     item: { id in snapshot.displayed(MediaAssetID(id)).map(item) },
                     permissions: { id in snapshot.displayed(MediaAssetID(id)).map(permissions) },
+                    aspectRatios: (presentation?.layout ?? library.layout) == .grid
+                        ? snapshot.records.map(aspectRatio) : [],
                     categories: presentation?.categories ?? MonitorMediaCategoryFilter.allCases.map {
                         .init(id: $0.rawValue, title: $0.rawValue.capitalized, count: library.records(in: $0).count)
                     }, category: presentation?.category ?? library.category.rawValue,
@@ -166,7 +183,7 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                         }
                     }, accessory: {
                         MonitorOperatorCachingHeader(records: snapshot.records, hidden: library.selecting,
-                            active: cachingActive, facts: facts)
+                            active: cachingActive, facts: facts, rates: library.transferRates)
                     })
                     .id(catalogIdentity)
                 if gallery.filterPopupPresented { filterPopup(snapshot: snapshot, size: proxy.size) }
@@ -230,6 +247,11 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
             reported.byteCount.map(MediaClipFormatting.byteLabel), photo ? nil : duration]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         let allowed = permissions(record)
+        // The smallest grid keeps its cells uncluttered: percent only.
+        let showsRate = (presentation?.layout ?? library.layout) == .list
+            || (presentation?.thumbnailSize ?? library.thumbnailSize) != .small
+        let rate = showsRate
+            ? (reported.transferRate ?? library.transferRates.rate(record.asset.id))?.label : nil
         if let value = cell?(record, .init(list: (presentation?.layout ?? library.layout) == .list,
             selecting: library.selecting, duration: gallery.resolvedDurations[record.asset.id],
             selected: library.selectedIDs.contains(record.asset.id))) {
@@ -239,7 +261,8 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                 photo: value.photo, permissions: allowed,
                 burstCount: library.selecting ? nil : value.burstCount,
                 mediaBadge: library.selecting ? nil : value.mediaBadge,
-                completionBadge: library.selecting ? nil : value.completionBadge, transferCaption: value.transferCaption)
+                completionBadge: library.selecting ? nil : value.completionBadge, transferCaption: value.transferCaption,
+                transferRate: showsRate ? (value.transferRate ?? rate) : nil)
         }
         return .init(id: record.asset.id.rawValue, filename: record.asset.filename,
             metadata: metadata, format: reported.resolution ?? "", color: reported.colorLabel ?? "",
@@ -248,11 +271,10 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
             date: reported.dateKey.map(MonitorMediaGalleryLabels.date) ?? "",
             availability: cached?.originalURL != nil ? .original : cached?.proxyURL != nil ? .proxy : .camera,
             progress: reported.progress ?? library.progress[record.asset.id], favorite: record.favorite, photo: photo,
-            permissions: allowed)
+            permissions: allowed, transferRate: rate)
     }
     private func permissions(_ record: MonitorMediaRecord<Payload>) -> MonitorMediaPermissions {
         var permissions: MonitorMediaPermissions = [.favorite]
-        if gallery.canDownload(record, operations: operations) { permissions.insert(.cache) }
         if share != nil, gallery.canShare(record, operations: operations) { permissions.insert(.share) }
         if gallery.canDelete(record, operations: operations) { permissions.insert(.delete) }
         return permissions
@@ -386,8 +408,6 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
         case .favorite(let id): gallery.favorite(MediaAssetID(id), admitted: snapshot, operations: operations)
         case .selectAll: gallery.selectAll(admitted: snapshot)
         case .clearSelection: library.clearSelection()
-        case .favoriteSelection: gallery.favoriteSelection(admitted: snapshot, operations: operations)
-        case .cacheSelection: gallery.cacheSelection(admitted: snapshot, operations: operations)
         case .deleteSelection: gallery.requestDelete(admitted: snapshot, operations: operations)
         case .shareSelection:
             if let records = gallery.shareSelection(admitted: snapshot, operations: operations) { share?(records, snapshot.token) }
@@ -403,18 +423,26 @@ private struct MonitorOperatorCachingHeader<Payload: Sendable>: View {
     /// header skips asking every record's facts. Nil keeps the scan.
     let active: (@MainActor () -> Bool)?
     let facts: @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts
+    let rates: MonitorTransferRates<MediaAssetID>
     var body: some View {
-        if !hidden, active?() ?? true, let (record, progress) = caching {
+        if !hidden, active?() ?? true, let (record, reported) = caching, let progress = reported.progress {
+            let rate = (reported.transferRate ?? rates.rate(record.asset.id))?.label
+            let caption = MediaTransferRate.caption(fraction: progress, rate: rate) ?? ""
             HStack(spacing: 10) {
                 ProgressView(value: progress).tint(MonitorTheme.accent).frame(maxWidth: 120)
-                Text("CACHING \(record.asset.filename) \(Int(progress * 100))%")
-                    .font(MonitorTheme.font(10, weight: .medium)).foregroundStyle(MonitorTheme.muted).lineLimit(1)
+                    .accessibilityValue(caption)
+                Text("CACHING \(record.asset.filename) \(caption)")
+                    .font(MonitorTheme.font(10, weight: .medium)).monospacedDigit()
+                    .foregroundStyle(MonitorTheme.muted).lineLimit(1)
             }.padding(.horizontal, 14).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
                 .liquidGlass(in: Capsule(), interactive: false)
         }
     }
-    private var caching: (MonitorMediaRecord<Payload>, Double)? {
-        for record in records { if let progress = facts(record).progress { return (record, progress) } }
+    private var caching: (MonitorMediaRecord<Payload>, MonitorMediaGalleryFileFacts)? {
+        for record in records {
+            let reported = facts(record)
+            if reported.progress != nil { return (record, reported) }
+        }
         return nil
     }
 }

@@ -29,14 +29,7 @@ struct MonitorFocusAccessoryLayoutTests {
         }
     }
 
-    @Test func focusAccessoryReservationDoesNotMutateTheSavedLayout() {
-        let layout = FieldMonitorLayout(width: 852, height: 393)
-        let original = layout
-        _ = MonitorFocusAccessoryLayout(layout: layout, safeArea: .init(), expanded: true)
-        _ = MonitorFocusAccessoryLayout(layout: layout, safeArea: .init(), expanded: false)
-        #expect(layout == original)
-    }
-    @Test func draggedPanelClampsAndScopeReservationFollowsIt() {
+    @Test func draggedPanelClampsAndScopesAvoidItsPosition() {
         let layout = FieldMonitorLayout(width: 956, height: 440)
         let safe = MonitorSafeArea()
         let original = MonitorFocusAccessoryLayout(layout: layout, safeArea: safe, expanded: false)
@@ -48,9 +41,14 @@ struct MonitorFocusAccessoryLayoutTests {
         #expect(left.frame.y >= layout.status.maxY + 8)
         #expect(right.frame.maxX == original.frame.maxX)
         #expect(right.frame.maxY <= layout.values.y - 12)
-        let region = MonitorRect(x: 0, y: 0, width: layout.settings.x, height: 440)
-        #expect(left.reserveSpace(in: region).x >= left.frame.maxX + 8)
-        #expect(original.reserveSpace(in: region).maxX <= original.frame.x - 8)
+        for accessory in [left, original] {
+            let center = MonitorScopeChromeAvoidance.resolve(
+                .init(x: accessory.frame.midX, y: accessory.frame.midY), width: 100, height: 60,
+                avoiding: [accessory.frame], gap: 8,
+                clamp: { .init(x: min(906, max(50, $0.x)), y: min(410, max(30, $0.y))) })
+            #expect(center.x + 50 <= accessory.frame.x - 8 || center.x - 50 >= accessory.frame.maxX + 8
+                || center.y + 30 <= accessory.frame.y - 8 || center.y - 30 >= accessory.frame.maxY + 8)
+        }
     }
 
     @Test func collapsedAndRotatedBoundsKeepTheStoredPreference() {

@@ -11,12 +11,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.layout.positionInRoot
@@ -28,6 +31,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlin.math.abs
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -203,7 +207,84 @@ class MonitorAssistRevealInputTest {
         }
     }
 
+    /**
+     * Owner decision 2026-10-30 (hardware pass A2): the camera values stay where they are and the
+     * open landscape plate, which is only there for a moment, draws over the ones it reaches. As
+     * the live monitor hosts it (host-owned open flag, outside touches passed through): opening
+     * and closing never move or resize a value, a touch on the plate over a value is the plate's,
+     * and a value beside the plate still takes its touch while the plate stays open.
+     */
+    @Test fun anOpenLandscapePlateDrawsOverTheValuesAndLeavesThemInPlace() {
+        ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
+            val probe = AssistRevealProbe()
+            val values = ValuesProbe()
+            composePalette(scenario, probe, portrait = false, values = values)
+            settle()
+            val closed = frames(values)
+            assertTrue(closed.all { it.width > 0f && it.height > 0f }, "The values must lay out: $closed")
+            val chevron = requireChevron(probe)
+            tap(chevron)
+            SystemClock.sleep(450)
+            instrumentation.waitForIdleSync()
+            var plate: Rect? = null
+            instrumentation.runOnMainSync {
+                assertTrue(probe.expansion.value, "The chevron must open the plate")
+                plate = probe.plate
+            }
+            val open = checkNotNull(plate) { "The open plate must report its bounds" }
+            assertTrue(open.contains(closed[0].center), "The open plate must reach the first value: $open ${closed[0]}")
+            assertFalse(open.contains(closed[1].center), "The second value must sit beside the plate: $open ${closed[1]}")
+            assertEquals(closed, frames(values), "Opening the plate must not move or resize a value")
+            tap(values.screenCenter(0))
+            settle()
+            instrumentation.runOnMainSync {
+                assertEquals(0, values.clicks[0], "The plate draws over the value it covers and takes its touch")
+                assertTrue(probe.expansion.value, "A touch on the plate keeps it open")
+            }
+            tap(values.screenCenter(1))
+            settle()
+            instrumentation.runOnMainSync {
+                assertEquals(1, values.clicks[1], "A value beside the open plate must take its touch")
+            }
+            tap(requireChevron(probe))
+            SystemClock.sleep(450)
+            instrumentation.waitForIdleSync()
+            instrumentation.runOnMainSync { assertFalse(probe.expansion.value, "The chevron must close the plate") }
+            assertEquals(closed, frames(values), "Closing the plate must leave every value as it was")
+            tap(values.screenCenter(0))
+            settle()
+            instrumentation.runOnMainSync {
+                assertEquals(1, values.clicks[0], "The uncovered value must take its touch again")
+            }
+        }
+    }
+
+    /** Two camera value tiles on the bottom row: the first where the open plate reaches, the second beside it. */
+    private class ValuesProbe {
+        val root = arrayOf(Rect.Zero, Rect.Zero)
+        val screen = arrayOf(Offset.Zero, Offset.Zero)
+        val clicks = intArrayOf(0, 0)
+        fun screenCenter(index: Int) = screen[index] + Offset(root[index].width / 2f, root[index].height / 2f)
+    }
+
+    private fun frames(values: ValuesProbe): List<Rect> {
+        instrumentation.waitForIdleSync()
+        var frames = emptyList<Rect>()
+        instrumentation.runOnMainSync { frames = values.root.toList() }
+        return frames
+    }
+
+    private fun tap(point: Offset) {
+        val down = SystemClock.uptimeMillis()
+        inject(MotionEvent.ACTION_DOWN, point, down)
+        inject(MotionEvent.ACTION_UP, point, down)
+        settle()
+    }
+
     private class AssistRevealProbe {
+        /** The palette's open flag, owned by the host as the live monitor owns it. */
+        val expansion = mutableStateOf(false)
+        var plate: Rect? = null
         var locked by mutableStateOf(false)
         var chevronHost: View? = null
         var chevron = Offset.Zero
@@ -224,6 +305,7 @@ class MonitorAssistRevealInputTest {
         scenario: ActivityScenario<MonitorTestActivity>,
         probe: AssistRevealProbe,
         portrait: Boolean,
+        values: ValuesProbe? = null,
     ) {
         scenario.onActivity { activity ->
             activity.setContent {
@@ -236,24 +318,46 @@ class MonitorAssistRevealInputTest {
                             }
                             .clickable { probe.aboveClicks++ },
                     ) { Text("above") }
+                    values?.let { tiles ->
+                        // Bottom-aligned with the plate: x 150 lies past the collapsed slot and
+                        // under the open eight-tool plate; x 290 lies past the open plate.
+                        listOf(150, 290).forEachIndexed { index, x ->
+                            Box(
+                                Modifier.align(Alignment.BottomStart).offset(x.dp, (-40).dp).size(60.dp, 34.dp)
+                                    .onGloballyPositioned {
+                                        val origin = it.positionInRoot()
+                                        tiles.root[index] = Rect(origin, Size(it.size.width.toFloat(), it.size.height.toFloat()))
+                                        tiles.screen[index] = it.positionOnScreen()
+                                    }
+                                    .clickable { tiles.clicks[index]++ },
+                            ) { Text("value $index") }
+                        }
+                    }
                     Box(Modifier.align(Alignment.BottomStart).offset(16.dp, (-24).dp)) {
-                        MonitorAssistPalette(
-                            tools = listOf(
-                                "Peaking", "False Color", "Zebra", "Waveform",
-                                "Parade", "Histogram", "Vectorscope", "Guides",
-                            ),
-                            portrait = portrait, locked = probe.locked, isOn = { false },
-                            title = { it }, label = { it }, hasOptions = { false },
-                            onToggle = {}, onOptions = {},
-                            glyph = { tool, _, modifier -> Text(tool.take(1), modifier) },
-                            chevron = { _, _ ->
-                                probe.chevronHost = LocalView.current
-                                Box(Modifier.size(14.dp).onGloballyPositioned {
-                                    probe.chevron = it.positionInRoot()
-                                    probe.chevronSize = it.size
-                                }) { Text(">") }
-                            },
-                        )
+                        CompositionLocalProvider(
+                            LocalMonitorAssistExpansion provides
+                                if (values != null) probe.expansion else null,
+                        ) {
+                            MonitorAssistPalette(
+                                tools = listOf(
+                                    "Peaking", "False Color", "Zebra", "Waveform",
+                                    "Parade", "Histogram", "Vectorscope", "Guides",
+                                ),
+                                portrait = portrait, locked = probe.locked, isOn = { false },
+                                title = { it }, label = { it }, hasOptions = { false },
+                                onToggle = {}, onOptions = {},
+                                glyph = { tool, _, modifier -> Text(tool.take(1), modifier) },
+                                chevron = { _, _ ->
+                                    probe.chevronHost = LocalView.current
+                                    Box(Modifier.size(14.dp).onGloballyPositioned {
+                                        probe.chevron = it.positionInRoot()
+                                        probe.chevronSize = it.size
+                                    }) { Text(">") }
+                                },
+                                passesOutsideTouches = values != null,
+                                onBoundsInRootChanged = { probe.plate = it },
+                            )
+                        }
                     }
                 }
             }

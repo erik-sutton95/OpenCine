@@ -35,6 +35,8 @@ case MonitorCapturePopupEdge.bottom
 case MonitorCapturePopupEdge.top
 case MonitorCapturePopupKind.compact
 case MonitorCapturePopupKind.details
+case MonitorCaptureReadoutGroup.ridden
+case MonitorCaptureReadoutGroup.setup
 case MonitorCommandHeader.hidden
 case MonitorCommandHeader.telemetry
 case MonitorDeviceOrientation.landscapeLeft
@@ -93,13 +95,11 @@ case MonitorLinkHealthBand.watch
 case MonitorLiveViewGeometrySpace.fullScreen
 case MonitorLiveViewGeometrySpace.safeArea
 case MonitorMediaAction.back
-case MonitorMediaAction.cacheSelection
 case MonitorMediaAction.category(Swift.String)
 case MonitorMediaAction.clearSelection
 case MonitorMediaAction.cycleSort
 case MonitorMediaAction.deleteSelection
 case MonitorMediaAction.favorite(Swift.String)
-case MonitorMediaAction.favoriteSelection
 case MonitorMediaAction.layout(MonitorMediaLayout)
 case MonitorMediaAction.open(Swift.String)
 case MonitorMediaAction.refresh
@@ -226,6 +226,7 @@ enum MonitorBatteryUrgency: Equatable, Hashable, Sendable
 enum MonitorCapturePopupChrome: Sendable
 enum MonitorCapturePopupEdge: Equatable, Hashable, Sendable
 enum MonitorCapturePopupKind: Equatable, Hashable, Sendable
+enum MonitorCaptureReadoutGroup: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorCommandDashboardLayout
 enum MonitorCommandGridLayout
 enum MonitorCommandHeader: Equatable, Hashable, Sendable
@@ -264,6 +265,7 @@ enum MonitorMediaItem.Availability: Equatable, Hashable, RawRepresentable, Senda
 enum MonitorMediaLayout: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorMediaSelectionConfiguration.EdgeCurve: Equatable, Hashable, Sendable
 enum MonitorMediaSelectionController.News: Equatable, Sendable
+enum MonitorMediaSelectionCopy
 enum MonitorMediaSelectionFeedback: Equatable, Hashable, Sendable
 enum MonitorMediaSelectionScroll
 enum MonitorMotionPlacement
@@ -275,10 +277,12 @@ enum MonitorReadoutInteraction.Outcome: Equatable, Sendable
 enum MonitorReadoutInteraction.Phase: Equatable, Hashable, Sendable
 enum MonitorReadoutTypography: Sendable
 enum MonitorScopeCanvasSlot: Equatable, Hashable, RawRepresentable, Sendable
+enum MonitorScopeChromeAvoidance
 enum MonitorScopeSizing
 enum MonitorSettingsCardMetrics: Sendable
 enum MonitorSettingsTab: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorSideRailControlLayout
+enum MonitorStatusCorner
 enum MonitorStorageReadoutFormat
 enum MonitorSystemButtonMetrics: Sendable
 enum MonitorTelemetryMetrics: Equatable, Hashable, Sendable
@@ -306,6 +310,10 @@ enum StartupLayoutMargins
 enum StartupLayoutProfile: Equatable, Hashable, Sendable
 enum StartupReadyLiveViewPolicy
 extension OpenCineMedia.MonitorFrameEffects
+func FieldMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> MonitorRect
+func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
+func FieldMonitorLayout.scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea
+func FieldMonitorLayout.scopeObstacles(_: MonitorScopeChrome, motionCluster: Swift.Bool) -> [MonitorRect]
 func GimbalCluster.offsetBy(dx: Swift.Double, dy: Swift.Double) -> GimbalCluster
 func MonitorAssistCapabilities.isPhotographyOnly(_: MonitorAssistSelection) -> Swift.Bool
 func MonitorAssistCapabilities.offers(_: MonitorAssistSelection, photography: Swift.Bool) -> Swift.Bool
@@ -331,13 +339,14 @@ func MonitorFloatingDrag.cancel()<Position where Position : Swift.Equatable> -> 
 func MonitorFloatingDrag.end(store: (Position) -> Swift.Void)<Position where Position : Swift.Equatable> -> ()
 func MonitorFloatingDrag.move(to: Position)<Position where Position : Swift.Equatable> -> ()
 func MonitorFocusAccessoryLayout.movedBy(x: Swift.Double, y: Swift.Double) -> MonitorScopePoint
-func MonitorFocusAccessoryLayout.reserveSpace(in: MonitorRect) -> MonitorRect
 func MonitorFrameEffects.withInspectorDemand(_: MonitorAssistSelection?) -> OpenCineMedia.MonitorFrameEffects
 func MonitorLayoutRegion.inset(_: MonitorEdgeInsets) -> MonitorLayoutRegion
 func MonitorLayoutRegion.insetBy(dx: Swift.Double, dy: Swift.Double) -> MonitorLayoutRegion
 func MonitorLayoutRegion.intersects(_: MonitorLayoutRegion) -> Swift.Bool
 func MonitorLayoutRegion.offsetBy(dx: Swift.Double, dy: Swift.Double) -> MonitorLayoutRegion
 func MonitorMediaDragSelection.move(to: Swift.Int) -> Swift.Bool
+func MonitorMediaMasonry.Frame.contains(x: Swift.Double, y: Swift.Double) -> Swift.Bool
+func MonitorMediaMasonry.index(atX: Swift.Double, y: Swift.Double) -> Swift.Int?
 func MonitorMediaSelectionController.afterScroll(hitID: Swift.String?) -> MonitorMediaSelectionController.News?
 func MonitorMediaSelectionController.bind(ids: [Swift.String], selecting: Swift.Bool, selected: Swift.Set<Swift.String>, context: Swift.String) -> ()
 func MonitorMediaSelectionController.cancel() -> ()
@@ -352,18 +361,20 @@ func MonitorMediaSelectionController.up(childConsumed: Swift.Bool) -> MonitorMed
 func MonitorMediaSelectionController.viewportResized(pointerY: Swift.Double) -> ()
 func MonitorPlaybackEditing.admit(_: OpenCineMedia.MonitorPlaybackScrubToken?, item: OpenCineMedia.MonitorPlaybackItemToken?) -> Swift.Bool
 func MonitorPlaybackEditing.take(_: OpenCineMedia.MonitorPlaybackScrubToken?) -> OpenCineMedia.MonitorPlaybackScrubToken?
-func MonitorPlaybackZoom.endGesture(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
-func MonitorPlaybackZoom.endPan(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
-func MonitorPlaybackZoom.endPinch(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.endGesture(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
+func MonitorPlaybackZoom.endPan(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
+func MonitorPlaybackZoom.endPinch(size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.panChanged(translation: CoreFoundation.CGSize) -> ()
-func MonitorPlaybackZoom.panChangedBounded(translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.panChangedBounded(translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.pinchChanged(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize) -> ()
-func MonitorPlaybackZoom.pinchChangedBounded(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize, boundsSize: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat) -> ()
+func MonitorPlaybackZoom.pinchChangedBounded(magnification: CoreGraphics.CGFloat, startAnchorX: CoreGraphics.CGFloat, startAnchorY: CoreGraphics.CGFloat, size: CoreFoundation.CGSize, boundsSize: CoreFoundation.CGSize, horizontalPresentationScale: CoreGraphics.CGFloat, verticalPresentationScale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> ()
 func MonitorPlaybackZoom.preview(magnification: CoreGraphics.CGFloat, anchor: CoreFoundation.CGPoint?, translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize) -> MonitorPlaybackZoom
+func MonitorPlaybackZoom.preview(magnification: CoreGraphics.CGFloat, anchor: CoreFoundation.CGPoint?, translation: CoreFoundation.CGSize, size: CoreFoundation.CGSize, picture: CoreFoundation.CGSize?) -> MonitorPlaybackZoom
 func MonitorPlaybackZoom.reset() -> ()
 func MonitorPlaybackZoom.settled() -> MonitorPlaybackZoom
 func MonitorPlaybackZoom.sourcePoint(_: CoreFoundation.CGPoint, size: CoreFoundation.CGSize) -> CoreFoundation.CGPoint
 func MonitorPlaybackZoom.transformed(zoomChange: CoreGraphics.CGFloat, centroid: CoreFoundation.CGPoint, panChange: CoreFoundation.CGSize, frame: CoreFoundation.CGSize, picture: CoreFoundation.CGSize?) -> MonitorPlaybackZoom
+func MonitorPlaybackZoom.visiblePictureRect(feed: CoreFoundation.CGRect, canvas: CoreFoundation.CGSize) -> CoreFoundation.CGRect
 func MonitorReadoutInteraction.begin() -> ()
 func MonitorReadoutInteraction.cancel() -> ()
 func MonitorReadoutInteraction.end() -> MonitorReadoutInteraction.Outcome
@@ -424,7 +435,7 @@ init MonitorAssistSelection(rawValue: Swift.String)
 init MonitorAudioOptions(orientation: MonitorAudioOrientation, showsDB: Swift.Bool, landscapeCenter: MonitorAudioStoredCenter?, portraitCenter: MonitorAudioStoredCenter?)
 init MonitorAudioStoredCenter(x: Swift.Double, y: Swift.Double)
 init MonitorCapturePopupLayout(viewportWidth: Swift.Double, viewportHeight: Swift.Double, tablet: Swift.Bool, safeArea: MonitorSafeArea, bottomBoundary: Swift.Double?, ceiling: Swift.Double, edge: MonitorCapturePopupEdge, topBoundary: Swift.Double?)
-init MonitorClipValue(id: Swift.String, title: Swift.String, detail: Swift.String, duration: Swift.String?, source: Swift.String?, favorite: Swift.Bool, progress: Swift.Double?, burstCount: Swift.Int?, mediaBadge: Swift.String?, completionBadge: Swift.String?, transferCaption: Swift.String?, format: Swift.String?, color: Swift.String?, accessibilityDescription: Swift.String?, favoriteLabel: Swift.String?, selectionEntryLabel: Swift.String?)
+init MonitorClipValue(id: Swift.String, title: Swift.String, detail: Swift.String, duration: Swift.String?, source: Swift.String?, favorite: Swift.Bool, progress: Swift.Double?, burstCount: Swift.Int?, mediaBadge: Swift.String?, completionBadge: Swift.String?, transferCaption: Swift.String?, format: Swift.String?, color: Swift.String?, accessibilityDescription: Swift.String?, favoriteLabel: Swift.String?, selectionEntryLabel: Swift.String?, transferRate: Swift.String?)
 init MonitorClipValue(item: MonitorMediaItem)
 init MonitorCommandGridCell(tileWidth: CoreGraphics.CGFloat, rowHeight: CoreGraphics.CGFloat, spacing: CoreGraphics.CGFloat, columns: Swift.Int)
 init MonitorCommandGridDrag()<Kind where Kind : Swift.Hashable>
@@ -463,7 +474,8 @@ init MonitorMediaDeliveryValue.Footer(summary: Swift.String?, postExport: Monito
 init MonitorMediaDeliveryValue.Notice(_: Swift.String, accented: Swift.Bool)
 init MonitorMediaDeliveryValue.Toggle(_: Swift.String, help: Swift.String, isOn: Swift.Bool, enabled: Swift.Bool)
 init MonitorMediaDragSelection(orderedIDs: [Swift.String], originID: Swift.String, selectedIDs: Swift.Set<Swift.String>)
-init MonitorMediaItem(id: Swift.String, filename: Swift.String, metadata: Swift.String, format: Swift.String, color: Swift.String, duration: Swift.String, date: Swift.String, availability: MonitorMediaItem.Availability, progress: Swift.Double?, favorite: Swift.Bool, photo: Swift.Bool, permissions: MonitorMediaPermissions, burstCount: Swift.Int?, mediaBadge: Swift.String?, completionBadge: Swift.String?, transferCaption: Swift.String?)
+init MonitorMediaItem(id: Swift.String, filename: Swift.String, metadata: Swift.String, format: Swift.String, color: Swift.String, duration: Swift.String, date: Swift.String, availability: MonitorMediaItem.Availability, progress: Swift.Double?, favorite: Swift.Bool, photo: Swift.Bool, permissions: MonitorMediaPermissions, burstCount: Swift.Int?, mediaBadge: Swift.String?, completionBadge: Swift.String?, transferCaption: Swift.String?, transferRate: Swift.String?)
+init MonitorMediaMasonry(aspects: [Swift.Double?], columnCount: Swift.Int, width: Swift.Double, spacing: Swift.Double, captionHeight: Swift.Double)
 init MonitorMediaPermissions(rawValue: Swift.UInt8)
 init MonitorMediaResolutionLevel(minimumWidth: Swift.Int, label: Swift.String)
 init MonitorMediaSelectionConfiguration(holdMilliseconds: Swift.Int, movementTolerance: Swift.Double, allowsSelectionEntry: Swift.Bool, sweepsSideways: Swift.Bool, edgeBand: Swift.Double, maximumEdgeSpeed: Swift.Double, edgeCurve: MonitorMediaSelectionConfiguration.EdgeCurve, viewportEdgeLimitRatio: Swift.Double?, roundsScrollSteps: Swift.Bool)
@@ -484,6 +496,7 @@ init MonitorReadoutSnapshot(title: Swift.String, options: [Swift.String], select
 init MonitorReadoutValue(id: Foundation.UUID, sourceIdentity: SourceIdentity, snapshot: MonitorReadoutSnapshot, position: Swift.Double)<SourceIdentity where SourceIdentity : Swift.Hashable, SourceIdentity : Swift.Sendable>
 init MonitorRect(x: Swift.Double, y: Swift.Double, width: Swift.Double, height: Swift.Double)
 init MonitorSafeArea(top: Swift.Double, leading: Swift.Double, bottom: Swift.Double, trailing: Swift.Double)
+init MonitorScopeChrome(rawValue: Swift.Int)
 init MonitorScopeGuides(clip: Swift.Bool, crush: Swift.Bool, middle: Swift.Bool)
 init MonitorScopePoint(x: Swift.Double, y: Swift.Double)
 init MonitorScopeStoredCenter(xFraction: Swift.Double, yFraction: Swift.Double)
@@ -577,6 +590,7 @@ let MonitorClipValue.selectionEntryLabel: Swift.String?
 let MonitorClipValue.source: Swift.String?
 let MonitorClipValue.title: Swift.String
 let MonitorClipValue.transferCaption: Swift.String?
+let MonitorClipValue.transferRate: Swift.String?
 let MonitorCompactTelemetryBudget.leading: Swift.Double
 let MonitorCompactTelemetryBudget.performanceWidth: Swift.Double
 let MonitorCompactTelemetryBudget.performanceX: Swift.Double
@@ -687,6 +701,15 @@ let MonitorMediaItem.permissions: MonitorMediaPermissions
 let MonitorMediaItem.photo: Swift.Bool
 let MonitorMediaItem.progress: Swift.Double?
 let MonitorMediaItem.transferCaption: Swift.String?
+let MonitorMediaItem.transferRate: Swift.String?
+let MonitorMediaMasonry.Frame.aspect: Swift.Double
+let MonitorMediaMasonry.Frame.column: Swift.Int
+let MonitorMediaMasonry.Frame.height: Swift.Double
+let MonitorMediaMasonry.Frame.width: Swift.Double
+let MonitorMediaMasonry.Frame.x: Swift.Double
+let MonitorMediaMasonry.Frame.y: Swift.Double
+let MonitorMediaMasonry.columns: [[Swift.Int]]
+let MonitorMediaMasonry.frames: [MonitorMediaMasonry.Frame]
 let MonitorMediaPermissions.rawValue: Swift.UInt8
 let MonitorMediaResolutionLevel.label: Swift.String
 let MonitorMediaResolutionLevel.minimumWidth: Swift.Int
@@ -723,6 +746,7 @@ let MonitorReadoutValue.id: Foundation.UUID
 let MonitorReadoutValue.position: Swift.Double
 let MonitorReadoutValue.snapshot: MonitorReadoutSnapshot
 let MonitorReadoutValue.sourceIdentity: SourceIdentity
+let MonitorScopeChrome.rawValue: Swift.Int
 let MonitorSideRailPlan.batteries: Swift.Bool
 let MonitorSideRailPlan.disp: Swift.Bool
 let MonitorSideRailPlan.lock: Swift.Bool
@@ -821,7 +845,6 @@ static func GimbalCluster.inTrailingBottom(well: MonitorLayoutRegion, floorY: Sw
 static func MonitorAssistPaletteLayout.fieldMonitor(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double) -> (layout: MonitorAssistPaletteLayout, frame: MonitorRect)
 static func MonitorAssistPaletteLayout.fieldMonitorFootprint(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double, expanded: Swift.Bool) -> MonitorRect
 static func MonitorAssistPaletteReveal.compactToolCount(portrait: Swift.Bool) -> Swift.Int
-static func MonitorAssistPaletteReveal.coversValues(palette: MonitorRect?, values: MonitorRect) -> Swift.Bool
 static func MonitorAssistPaletteReveal.extraToolOpacity(progress: Swift.Double) -> Swift.Double
 static func MonitorAssistPaletteReveal.landscapeCellIndex(column: Swift.Int, row: Swift.Int) -> Swift.Int
 static func MonitorAssistPaletteReveal.lerp(_: Swift.Double, _: Swift.Double, _: Swift.Double) -> Swift.Double
@@ -888,6 +911,8 @@ static func MonitorMediaGalleryCopy.galleryHint(sourceAvailable: Swift.Bool, sel
 static func MonitorMediaGalleryLabels.date(_: Swift.String) -> Swift.String
 static func MonitorMediaGalleryLabels.metadata(resolution: Swift.String?, bytes: Swift.String?, duration: Swift.String?, levels: [MonitorMediaResolutionLevel]) -> Swift.String
 static func MonitorMediaGalleryLabels.resolution(_: Swift.String?, levels: [MonitorMediaResolutionLevel]) -> Swift.String?
+static func MonitorMediaMasonry.aspect(_: Swift.Double?) -> Swift.Double
+static func MonitorMediaMasonry.uprightAspect(width: Swift.Int?, height: Swift.Int?, exifOrientation: Swift.Int?) -> Swift.Double?
 static func MonitorMediaSelectionScroll.step(pointerY: Swift.Double, viewportHeight: Swift.Double, elapsed: Swift.Double, scale: Swift.Double, configuration: MonitorMediaSelectionConfiguration) -> Swift.Double
 static func MonitorMediaSelectionScroll.velocity(pointerY: Swift.Double, viewportHeight: Swift.Double) -> Swift.Double
 static func MonitorMediaSelectionScroll.velocity(pointerY: Swift.Double, viewportHeight: Swift.Double, configuration: MonitorMediaSelectionConfiguration) -> Swift.Double
@@ -906,11 +931,16 @@ static func MonitorPlaybackCopy.transport(reachedEnd: Swift.Bool, playing: Swift
 static func MonitorPlaybackZoom.boundPan(_: CoreFoundation.CGSize, frame: CoreFoundation.CGSize, scale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> CoreFoundation.CGSize
 static func MonitorReadoutTypography.valueSize(tablet: Swift.Bool) -> Swift.Double
 static func MonitorScopeCanvasSlot.forSize(width: Swift.Double, height: Swift.Double) -> MonitorScopeCanvasSlot
+static func MonitorScopeChromeAvoidance.resolve(_: MonitorScopePoint, width: Swift.Double, height: Swift.Double, bottomExtent: Swift.Double, avoiding: [MonitorRect], gap: Swift.Double, clamp: (MonitorScopePoint) -> MonitorScopePoint) -> MonitorScopePoint
 static func MonitorScopePanelOptions.clampedScale(_: Swift.Double) -> Swift.Double
 static func MonitorScopeSizing.scale(portrait: Swift.Bool, tablet: Swift.Bool, preferred: Swift.Double?) -> Swift.Double
 static func MonitorSettingsCardMetrics.contentOriginY(titleLineHeight: Swift.Double) -> Swift.Double
 static func MonitorSideRailPlan.showsLock(visible: Swift.Bool, interfaceLocked: Swift.Bool) -> Swift.Bool
 static func MonitorSideRailPlan.showsSettings(visible: Swift.Bool, reachable: Swift.Bool) -> Swift.Bool
+static func MonitorStatusCorner.holdsSetup(photo: Swift.Bool, portrait: Swift.Bool, statusShown: Swift.Bool, valuesShown: Swift.Bool) -> Swift.Bool
+static func MonitorStatusCorner.split(_: [Value], holdsSetup: Swift.Bool, group: (Value) -> MonitorCaptureReadoutGroup)<Value> -> (strip: [Value], corner: [Value])
+static func MonitorStatusCorner.width(of: [Swift.Double], spacing: Swift.Double) -> Swift.Double
+static func MonitorStatusCorner.widths(natural: [Swift.Double], floors: [Swift.Double], available: Swift.Double, spacing: Swift.Double) -> [Swift.Double]
 static func MonitorStorageReadoutFormat.alternatives(percent: Swift.String?, recordingTime: Swift.String?, photo: Swift.Bool) -> [Swift.String]
 static func MonitorStorageReadoutFormat.capacity(gigabytes: Swift.Int64?) -> Swift.String
 static func MonitorStorageReadoutFormat.nextForm(after: Swift.Int, count: Swift.Int) -> Swift.Int
@@ -1050,12 +1080,15 @@ static let MonitorMediaGalleryCopy.noCachedTitle: Swift.String
 static let MonitorMediaGalleryCopy.proxyHelp: Swift.String
 static let MonitorMediaGalleryCopy.proxyTag: Swift.String
 static let MonitorMediaGalleryCopy.selectingHint: Swift.String
-static let MonitorMediaPermissions.cache: MonitorMediaPermissions
+static let MonitorMediaMasonry.aspectRange: Swift.ClosedRange<Swift.Double>
+static let MonitorMediaMasonry.defaultAspect: Swift.Double
 static let MonitorMediaPermissions.delete: MonitorMediaPermissions
 static let MonitorMediaPermissions.favorite: MonitorMediaPermissions
 static let MonitorMediaPermissions.share: MonitorMediaPermissions
 static let MonitorMediaResolutionLevel.standard: [MonitorMediaResolutionLevel]
 static let MonitorMediaSelectionConfiguration.standard: MonitorMediaSelectionConfiguration
+static let MonitorMediaSelectionCopy.exit: Swift.String
+static let MonitorMediaSelectionCopy.exitIdentifier: Swift.String
 static let MonitorParadeOptions.brightnessRange: Swift.ClosedRange<Swift.Int>
 static let MonitorParadeOptions.default: MonitorParadeOptions
 static let MonitorParadeOptions.defaultBrightness: Swift.Int
@@ -1109,6 +1142,19 @@ static let MonitorReadoutTypography.labelSize: Swift.Double
 static let MonitorReadoutTypography.labelTracking: Swift.Double
 static let MonitorReadoutTypography.phoneValueSize: Swift.Double
 static let MonitorReadoutTypography.tabletValueSize: Swift.Double
+static let MonitorScopeChrome.all: MonitorScopeChrome
+static let MonitorScopeChrome.aspectToggle: MonitorScopeChrome
+static let MonitorScopeChrome.display: MonitorScopeChrome
+static let MonitorScopeChrome.focusReset: MonitorScopeChrome
+static let MonitorScopeChrome.lock: MonitorScopeChrome
+static let MonitorScopeChrome.media: MonitorScopeChrome
+static let MonitorScopeChrome.motion: MonitorScopeChrome
+static let MonitorScopeChrome.record: MonitorScopeChrome
+static let MonitorScopeChrome.settings: MonitorScopeChrome
+static let MonitorScopeChrome.status: MonitorScopeChrome
+static let MonitorScopeChrome.telemetry: MonitorScopeChrome
+static let MonitorScopeChrome.tools: MonitorScopeChrome
+static let MonitorScopeChrome.values: MonitorScopeChrome
 static let MonitorScopeGuides.default: MonitorScopeGuides
 static let MonitorSettingsCardMetrics.rowTitlePointSize: Swift.Double
 static let MonitorSettingsCardMetrics.titleContentGap: Swift.Double
@@ -1116,6 +1162,8 @@ static let MonitorSettingsCardMetrics.titleMinHeight: Swift.Double
 static let MonitorSettingsCardMetrics.titlePointSize: Swift.Double
 static let MonitorSettingsCardMetrics.titleTopPadding: Swift.Double
 static let MonitorSideRailControlLayout.recordButtonSize: Swift.Double
+static let MonitorStatusCorner.leadingGap: Swift.Double
+static let MonitorStatusCorner.tileSpacing: Swift.Double
 static let MonitorToolUsage.fieldMonitorSeed: [Swift.String : Swift.Int]
 static let MonitorToolUsage.halfLife: Swift.Double
 static let MonitorVectorscopeOptions.brightnessRange: Swift.ClosedRange<Swift.Int>
@@ -1214,6 +1262,8 @@ struct MonitorMediaDeliveryValue.Toggle: Equatable, Sendable
 struct MonitorMediaDeliveryValue: Equatable, Sendable
 struct MonitorMediaDragSelection: Sendable
 struct MonitorMediaItem: Equatable, Identifiable, Sendable
+struct MonitorMediaMasonry.Frame: Equatable, Sendable
+struct MonitorMediaMasonry: Equatable, Sendable
 struct MonitorMediaPermissions: Equatable, ExpressibleByArrayLiteral, OptionSet, RawRepresentable, Sendable, SetAlgebra
 struct MonitorMediaResolutionLevel: Equatable, Sendable
 struct MonitorMediaSelectionConfiguration: Equatable, Sendable
@@ -1233,6 +1283,7 @@ struct MonitorReadoutSnapshot: Equatable, Hashable, Sendable
 struct MonitorReadoutValue<SourceIdentity where SourceIdentity : Swift.Hashable, SourceIdentity : Swift.Sendable>: Equatable, Sendable
 struct MonitorRect: Equatable, Sendable
 struct MonitorSafeArea: Equatable, Sendable
+struct MonitorScopeChrome: Equatable, ExpressibleByArrayLiteral, Hashable, OptionSet, RawRepresentable, Sendable, SetAlgebra
 struct MonitorScopeGuides: Decodable, Encodable, Equatable, Sendable
 struct MonitorScopePoint: Equatable, Sendable
 struct MonitorScopeStoredCenter: Decodable, Encodable, Equatable, Sendable
@@ -1361,6 +1412,9 @@ var MonitorAudioStoredCenter.x: Swift.Double
 var MonitorAudioStoredCenter.y: Swift.Double
 var MonitorCapturePopupKind.showsClose: Swift.Bool
 var MonitorCapturePopupKind.subtitle: Swift.String?
+var MonitorClipValue.progressCaption: Swift.String?
+var MonitorClipValue.progressPercentCaption: Swift.String?
+var MonitorClipValue.transferDetail: Swift.String?
 var MonitorCommandGridCell.columns: Swift.Int
 var MonitorCommandGridCell.rowHeight: CoreGraphics.CGFloat
 var MonitorCommandGridCell.spacing: CoreGraphics.CGFloat

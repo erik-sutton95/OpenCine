@@ -16,6 +16,7 @@ data class ScopeTapPolicy(
     val trafficThreshold: Double = 0.0,
     val transfer: MonitorTransfer = MonitorTransfer.REC709,
     val iso: Int? = null,
+    /** VECTOR's fixed source display transform; never the operator's monitoring LUT. */
     val vectorLut: MonitorLUTCube? = null,
     val allowsTransferInference: Boolean = true,
 ) {

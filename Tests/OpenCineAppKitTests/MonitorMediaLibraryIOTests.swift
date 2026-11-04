@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import OpenCineAppKit
 import OpenCineCore
+import OpenCineCoreTestSupport
 import OpenCineMedia
 import Testing
 
@@ -309,7 +310,9 @@ private actor HostIOBorrowedSink: MediaByteSink {
         #expect(model.browsing && model.binding == nil && !model.canRefresh)
         #expect(model.note == "Source unavailable" && model.records.map(\.payload) == ["cached"] && model.catalog.assets.isEmpty)
     }
-    @Test func duplicateDownloadDoesNotRetireActiveWriter() async throws {
+    /// A second download of the same clip (Share while the player's cache runs) joins the active
+    /// writer: it neither retires it nor sends its own transfer, and it receives the cached file.
+    @Test func duplicateDownloadJoinsTheActiveWriter() async throws {
         let clock = HostIOSleep(), gate = HostIOGate(), (root, model) = library(clock)
         defer { model.close(); gate.release(); clock.gate.release(); try? FileManager.default.removeItem(at: root) }
         let first = authority(model), duplicate = authority(model)
@@ -320,15 +323,49 @@ private actor HostIOBorrowedSink: MediaByteSink {
             }
         }
         #expect(await eventually { gate.entered == 1 })
-        var duplicateSent = false
-        let refused = try await model.cacheHostFile(duplicate, purpose: .download, at: "files/a") { _ in
-            duplicateSent = true; return .init(byteCount: 1)
+        var duplicateSent = false, duplicateEntered = false
+        let joined = Task {
+            duplicateEntered = true
+            return try await model.cacheHostFile(duplicate, purpose: .download, at: "files/a") { _ in
+                duplicateSent = true; return .init(byteCount: 1)
+            }
         }
-        #expect(refused == nil && !duplicateSent && model.hostProgress[first.key] == 0.5)
+        #expect(await eventually { duplicateEntered })
+        #expect(model.hostProgress[first.key] == 0.5)
         gate.release()
         let location = try #require(try await download.value)
+        #expect(try await joined.value == location)
+        #expect(!duplicateSent)
         #expect(try Data(contentsOf: location) == Data([1, 2]))
         #expect(model.records.isEmpty && model.catalog.assets.isEmpty)
+    }
+    /// Owner hardware report 2026-10-28: the player's cache was cancelled while its transport was
+    /// still finishing a chunk; Share of that clip must cache it, not fail on the cancelled owner.
+    @Test func downloadAfterACancelledDownloadOfTheSameClipCachesIt() async throws {
+        let clock = HostIOSleep(), gate = HostIOGate(), (root, model) = library(clock)
+        defer { model.close(); gate.release(); clock.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let player = authority(model), share = authority(model)
+        let download = Task {
+            try await model.cacheHostFile(player, purpose: .download, at: "files/a", expectedByteCount: 2) { sink in
+                try await sink.write(Data([1])); await gate.wait(); try await sink.write(Data([2]))
+                return .init(byteCount: 2)
+            }
+        }
+        #expect(await eventually { gate.entered == 1 })
+        download.cancel()
+        var shareEntered = false
+        let shared = Task {
+            shareEntered = true
+            return try await model.cacheHostFile(share, purpose: .download, at: "files/a", expectedByteCount: 2) { sink in
+                try await sink.write(Data([3])); try await sink.write(Data([4]))
+                return .init(byteCount: 2)
+            }
+        }
+        #expect(await eventually { shareEntered })
+        gate.release()
+        await #expect(throws: (any Error).self) { try await download.value }
+        let location = try #require(try await shared.value)
+        #expect(try Data(contentsOf: location) == Data([3, 4]))
     }
     @Test func duplicateThumbnailDoesNotRetireActiveWriter() async throws {
         let clock = HostIOSleep(), gate = HostIOGate(), (root, model) = library(clock)
@@ -385,6 +422,96 @@ private actor HostIOBorrowedSink: MediaByteSink {
         gate.release(); #expect(await outgoing.value == false)
         #expect(model.records.isEmpty && model.catalog.assets.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("play/a").path))
+    }
+    @Test func aDownloadReadsItsSpeedWhileItsBytesArrive() async throws {
+        let sleep = HostIOSleep(), time = ManualHostClock()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = MonitorMediaCache(directory: .init(root: root), codec: HostIOCodec(),
+            eligibility: .exactSize, catalogAddress: "index", preservedMetadata: [])
+        let model = MonitorMediaLibraryModel(cache: cache, favorites: HostIOFavorites(),
+            sleep: { await sleep.wait($0) }, rateClock: time.clock)
+        defer { model.close(); sleep.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let record = HostIOCodec().capture(.init(id: .init("clip"), filename: "clip.mov", kind: .video,
+            representations: []), binding: HostIOBrowse().binding)
+        try model.applyLocalRecords(.init(resetLibrary: false, upserts: [record]), token: model.actionToken)
+        let capture = model.captureIO(key: .init("clip"), asset: record.asset.id, ifCurrent: { true })
+        var reading: String?
+        _ = try await model.cacheHostFile(capture, purpose: .playback, at: "play/a",
+            expectedByteCount: 1_000_000) { sink in
+            // 1 MB over one second, 100 KB every 100 ms.
+            for _ in 0..<10 {
+                try await sink.write(Data(count: 100_000))
+                time.advance(by: .milliseconds(100))
+            }
+            #expect(await eventually { model.transferRates.rate(record.asset.id)?.label == "1.0 MB/s" })
+            reading = model.transferRates.rate(record.asset.id)?.label
+            return .init(byteCount: 1_000_000, expectedByteCount: 1_000_000)
+        }
+        #expect(reading == "1.0 MB/s")
+        // The bytes are all here: no reading lingers beside the finished progress.
+        #expect(model.transferRates.rate(record.asset.id) == nil)
+    }
+    private func speedLibrary(_ sleep: HostIOSleep, _ time: ManualHostClock) throws
+        -> (URL, MonitorMediaLibraryModel<String>, MediaAssetID) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = MonitorMediaCache(directory: .init(root: root), codec: HostIOCodec(),
+            eligibility: .exactSize, catalogAddress: "index", preservedMetadata: [])
+        let model = MonitorMediaLibraryModel(cache: cache, favorites: HostIOFavorites(),
+            sleep: { await sleep.wait($0) }, rateClock: time.clock)
+        let record = HostIOCodec().capture(.init(id: .init("clip"), filename: "clip.mov", kind: .video,
+            representations: []), binding: HostIOBrowse().binding)
+        try model.applyLocalRecords(.init(resetLibrary: false, upserts: [record]), token: model.actionToken)
+        return (root, model, record.asset.id)
+    }
+    @Test func aDownloadRetiredByAProgressObserverLeavesNoReading() async throws {
+        let sleep = HostIOSleep(), time = ManualHostClock()
+        let (root, model, asset) = try speedLibrary(sleep, time)
+        defer { model.close(); sleep.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let capture = model.captureIO(key: .init("clip"), asset: asset, ifCurrent: { true })
+        // The observer retires the library while the download publishes its first progress.
+        withObservationTracking { _ = model.hostProgress } onChange: {
+            MainActor.assumeIsolated { model.close(); model.begin() }
+        }
+        do {
+            _ = try await model.cacheHostFile(capture, purpose: .download, at: "files/a") { _ in
+                .init(byteCount: 1)
+            }
+            Issue.record("The retired download survived")
+        } catch {}
+        #expect(model.transferRates.rate(asset) == nil)
+    }
+    @Test func anOlderPlaybackEndingKeepsTheNewerPlaybackSpeed() async throws {
+        let sleep = HostIOSleep(), time = ManualHostClock()
+        let (root, model, asset) = try speedLibrary(sleep, time)
+        defer { model.close(); sleep.gate.release(); try? FileManager.default.removeItem(at: root) }
+        let (release, releasing) = AsyncStream<Void>.makeStream()
+        let older = Task { @MainActor in
+            _ = try? await model.cacheHostFile(
+                model.captureIO(key: .init("clip"), asset: asset, ifCurrent: { true }),
+                purpose: .playback, at: "play/a"
+            ) { _ in
+                for await _ in release { break }
+                throw CancellationError()
+            }
+        }
+        #expect(await eventually { model.hostProgress[.init("clip")] != nil })
+        var reading: String?
+        _ = try await model.cacheHostFile(
+            model.captureIO(key: .init("clip"), asset: asset, ifCurrent: { true }),
+            purpose: .playback, at: "play/b", expectedByteCount: 1_000_000
+        ) { sink in
+            for _ in 0..<10 {
+                try await sink.write(Data(count: 100_000))
+                time.advance(by: .milliseconds(100))
+            }
+            #expect(await eventually { model.transferRates.rate(asset)?.label == "1.0 MB/s" })
+            // The older playback ends while the newer one is still downloading.
+            releasing.yield(); releasing.finish()
+            await older.value
+            reading = model.transferRates.rate(asset)?.label
+            return .init(byteCount: 1_000_000, expectedByteCount: 1_000_000)
+        }
+        #expect(reading == "1.0 MB/s")
     }
     @Test func headerLengthOverridesSourceHintForProgress() async throws {
         let clock = HostIOSleep(), (root, model) = library(clock)

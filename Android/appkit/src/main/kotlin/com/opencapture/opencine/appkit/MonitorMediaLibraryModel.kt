@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.monitorui.MonitorMediaLayout
 import com.opencapture.monitorui.MonitorThumbnailSize
+import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.media.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,12 +101,17 @@ public class MonitorMediaLibraryModel<P>(
     private val catalogBase: MonitorMediaCatalogBase = MonitorMediaCatalogBase.RETAIN_OBSERVED,
     /** Restores and keeps the operator's gallery view options; preferences with a view prefix supply it. */
     private val viewOptions: MonitorMediaViewOptionsStore? = favoritesStore as? MonitorMediaViewOptionsStore,
+    /** The download speed readings' clock; tests pass the scheduler's time. */
+    rateClock: () -> MonotonicInstant = { MonotonicInstant.now() },
 ) {
     /** Original constructor, including positional and trailing sleep lambda compatibility. */
     public constructor(cache: MonitorMediaCache<P>, favoritesStore: MonitorMediaFavoritesStore,
         service: CameraMediaService? = null, scope: CoroutineScope, sleep: suspend (Long) -> Unit = { delay(it) }) :
         this(cache, favoritesStore, service, scope, cacheScanning = MonitorMediaCacheScanning.IMMEDIATE, sleep = sleep)
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
+    /** Download speed per clip for every transfer this library runs (its own caching and the host
+     * transfers captured with an asset), read by the grid, player and delivery progress. */
+    public val transferRates: MonitorTransferRates<MediaAssetID> = MonitorTransferRates(owner, rateClock)
     /** Work that belongs to this library's lifetime rather than to one page (a playback download). */
     public val lifetimeScope: CoroutineScope get() = owner
     private var favorites = favoritesStore.favorites()
@@ -136,7 +142,10 @@ public class MonitorMediaLibraryModel<P>(
     private var reconciliationTask: Deferred<Unit>? = null
     private var entryTask: Job? = null
     private var entryRequest = UUID.randomUUID()
-    private data class Transfer(val id: UUID, val writer: MonitorMediaCacheWrite, val task: Deferred<File>)
+    private data class Transfer(val id: UUID, val representation: MediaRepresentationID,
+        val writer: MonitorMediaCacheWrite, val task: Deferred<File>,
+        /** The cached file, or null when the operation ended without one; a second request joins it. */
+        val completion: CompletableDeferred<File?>)
     private val transfers = mutableMapOf<MediaAssetID, Transfer>()
     private val hostOwner = UUID.randomUUID()
     private data class HostClaim(val key: MonitorMediaLibraryIOKey, val purpose: MonitorMediaLibraryIOPurpose)
@@ -145,6 +154,8 @@ public class MonitorMediaLibraryModel<P>(
         var task: Deferred<MediaTransferReceipt>? = null
         var attempt: UUID = UUID.randomUUID()
         var deletion: MonitorMediaLibraryDeletionAuthority? = null
+        /** A download's file, or null when it ended without one; a second download joins it. */
+        val completion = CompletableDeferred<File?>()
     }
     private val hostOperations = mutableMapOf<UUID, HostOperation>()
     private val hostClaims = mutableMapOf<HostClaim, UUID>()
@@ -180,11 +191,24 @@ public class MonitorMediaLibraryModel<P>(
     private var indexMemo: Pair<List<MonitorMediaRecord<P>>, Map<MediaAssetID, MonitorMediaRecord<P>>>? = null
     init { mutate { it.copy(catalog = initialCatalog ?: MediaCatalog(assets = it.records.map { record -> record.asset })) }; reloadEntries() }
     private fun mutate(change: (MonitorMediaLibraryState<P>) -> MonitorMediaLibraryState<P>) {
-        val next = change(mutable.value)
+        val previous = mutable.value
+        val next = change(previous)
         mutable.value = next
         // StateFlow equality: unchanged fields keep their identity, so a tick compares in O(1).
         contentMutable.value = next.withoutTicks()
         progressMutable.value = MonitorMediaLibraryTransferProgress(next.progress, next.hostProgress)
+        if (next.progress !== previous.progress || next.hostProgress !== previous.hostProgress) retainRunningRates()
+    }
+    /** A speed reading lives exactly as long as its download's progress: every path that ends,
+     * retires or replaces a transfer clears its progress, and with it the reading. */
+    private fun retainRunningRates() {
+        if (transferRates.rates.value.isEmpty()) return
+        val progress = mutable.value
+        val running = progress.progress.keys.toMutableSet()
+        hostProgressOwners.forEach { (key, authority) ->
+            if (key in progress.hostProgress) authority.asset?.let(running::add)
+        }
+        transferRates.retain(running)
     }
     private fun MonitorMediaLibraryState<P>.withoutTicks(): MonitorMediaLibraryState<P> =
         if (progress.isEmpty() && hostProgress.isEmpty()) this else copy(progress = emptyMap(), hostProgress = emptyMap())
@@ -827,6 +851,8 @@ public class MonitorMediaLibraryModel<P>(
             hostProgressOwners[authority.key] = authority
             previous?.cancel()
             mutate { it.copy(hostProgress = it.hostProgress + (authority.key to 0.0)) }
+            // A synchronous state collector can retire this operation inside the mutation.
+            if (ownsProgress(operation)) authority.asset?.let { transferRates.begin(it) }
         }
         if (!hostCurrent(operation)) {
             finishHost(operation, clearingProgress = true); writer?.abort()
@@ -840,8 +866,14 @@ public class MonitorMediaLibraryModel<P>(
         hostOperations.remove(authority.id)
         val claim = HostClaim(authority.key, operation.purpose)
         if (hostClaims[claim] == authority.id) hostClaims.remove(claim)
+        // No more bytes come from this operation: its speed reading ends with it, unless a newer
+        // playback of the same clip has taken the progress (and the reading) over.
+        if (operation.purpose.tracksProgress && hostProgressOwners[authority.key]?.id == authority.id)
+            authority.asset?.let { transferRates.end(it) }
         if (clearingProgress) clearHostProgress(authority)
     }
+    private fun ownsProgress(operation: HostOperation): Boolean =
+        hostCurrent(operation) && hostProgressOwners[operation.authority.key]?.id == operation.authority.id
     private fun hostSink(operation: HostOperation, attempt: UUID, hint: Long?, sink: MediaByteSink): MediaByteSink =
         object : MediaTransferProgressSink {
             var expected = hint?.takeIf { it > 0 }
@@ -865,6 +897,10 @@ public class MonitorMediaLibraryModel<P>(
                         operation.purpose.tracksProgress) {
                         val value = expected?.let { (bytes.toDouble() / it).coerceAtMost(1.0) } ?: 0.0
                         mutate { it.copy(hostProgress = it.hostProgress + (operation.authority.key to value)) }
+                        // A retried attempt counts from zero again; the reading restarts with it. The
+                        // mutation can retire the operation through a synchronous collector.
+                        if (ownsProgress(operation) && operation.attempt == attempt)
+                            operation.authority.asset?.let { transferRates.record(it, bytes) }
                     }
                 }
             }
@@ -945,10 +981,20 @@ public class MonitorMediaLibraryModel<P>(
         purpose: MonitorMediaLibraryIOPurpose, address: String, plan: MediaTransferPlan): File? {
         if (purpose == MonitorMediaLibraryIOPurpose.DELETION) throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
         currentCoroutineContext().ensureActive(); requireAuthority(authority)
+        // A download of a clip that is already downloading (Share while the player's cache runs,
+        // or while a cancelled one finishes its chunk) joins it and downloads only if it failed.
+        while (purpose == MonitorMediaLibraryIOPurpose.DOWNLOAD) {
+            val claimant = hostClaims[HostClaim(authority.key, purpose)] ?: break
+            val running = hostOperations[claimant]?.takeIf { it.purpose == MonitorMediaLibraryIOPurpose.DOWNLOAD } ?: break
+            val joined = running.completion.await()
+            requireAuthority(authority)
+            if (joined != null) return joined
+            if (hostOperations[claimant] === running) break
+        }
         if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && HostClaim(authority.key, purpose) in hostClaims) return null
         if (authority.id in hostOperations) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val operation = startHost(authority, purpose, null) ?: return null
-        var committed = false
+        var committed: File? = null
         try {
             var lastError: Throwable = MediaServiceException(MediaServiceFailure.UNAVAILABLE)
             for ((index, transfer) in plan.attempts.withIndex()) {
@@ -962,11 +1008,14 @@ public class MonitorMediaLibraryModel<P>(
                 }
                 requireHost(operation); plan.accepted?.invoke(index, receipt); requireHost(operation)
                 val location = writer.commit(receipt); reloadEntries(authority.asset?.let(::setOf)); requireHost(operation)
-                committed = true
+                committed = location
                 return location
             }
             throw lastError
-        } finally { operation.writer?.abort(); finishHost(operation, clearingProgress = !committed) }
+        } finally {
+            operation.writer?.abort(); finishHost(operation, clearingProgress = committed == null)
+            operation.completion.complete(committed)
+        }
     }
     /** SDK staging compatibility; the shared owner alone copies and commits the canonical name. */
     public suspend fun cacheHostStagedFile(authority: MonitorMediaLibraryIOAuthority,
@@ -974,7 +1023,9 @@ public class MonitorMediaLibraryModel<P>(
         stagingAt: File? = null, staging: suspend (File) -> Unit): File? {
         if (purpose == MonitorMediaLibraryIOPurpose.DELETION) throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
         currentCoroutineContext().ensureActive(); requireAuthority(authority)
-        if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && HostClaim(authority.key, purpose) in hostClaims) return null
+        // A running download is joined by cacheHostFile below, not refused here.
+        if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && purpose != MonitorMediaLibraryIOPurpose.DOWNLOAD &&
+            HostClaim(authority.key, purpose) in hostClaims) return null
         if (authority.id in hostOperations) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val destination = cache.directory.file(address)
         val incoming = stagingAt ?: File(destination.parentFile, ".incoming-${authority.id}")
@@ -1058,6 +1109,7 @@ public class MonitorMediaLibraryModel<P>(
         }
         hostProgressDelays[authority.key] = task
         mutate { it.copy(hostProgress = it.hostProgress + (authority.key to 1.0)) }
+        authority.asset?.let { transferRates.end(it) }
         if (!authority.isCurrent || hostProgressOwners[authority.key]?.id != authority.id) task.cancel() else task.start()
     }
     private data class RetiredOperations(val ids: Set<MediaAssetID>,
@@ -1132,6 +1184,16 @@ public class MonitorMediaLibraryModel<P>(
         thumbnailTasks[id]?.join()
     }
     public suspend fun cacheRepresentation(representation: MediaRepresentationID, id: MediaAssetID): File {
+        // A clip already being cached (the player left its cache running, or a cancelled cache
+        // is still finishing a chunk) is joined, never refused: Share of that clip waits for it
+        // and caches the clip itself only when it ended without this representation.
+        while (true) {
+            val running = transfers[id] ?: break
+            val joined = running.completion.await()
+            if (running.representation == representation && joined != null && isCurrentFile(joined, representation, id)) return joined
+            // An operation refused before it started can leave its finished slot behind.
+            if (transfers[id]?.id == running.id) transfers.remove(id)
+        }
         val record = record(id) ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val source = browse?.transfers ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val descriptor = record.asset.representations.firstOrNull { it.id == representation }
@@ -1148,6 +1210,9 @@ public class MonitorMediaLibraryModel<P>(
                 withContext(owner.coroutineContext.minusKey(Job)) {
                     if (current(generation) && transfers[id]?.id == operation && (descriptor.byteCount ?: 0) > 0) {
                         mutate { it.copy(progress = it.progress + (id to (bytes.toDouble() / checkNotNull(descriptor.byteCount)).coerceAtMost(1.0))) }
+                        // A synchronous state collector can retire this transfer inside the mutation.
+                        if (current(generation) && transfers[id]?.id == operation && id in state.value.progress)
+                            transferRates.record(id, bytes)
                     }
                 }
             }
@@ -1166,27 +1231,35 @@ public class MonitorMediaLibraryModel<P>(
                 val file = writer.commit(receipt); reloadEntries(setOf(id))
                 if (!current(generation) || transfers[id]?.id != operation || !isActive) throw MediaServiceException(MediaServiceFailure.RETIRED)
                 if (id in state.value.progress) mutate { it.copy(progress = it.progress + (id to 1.0)) }
+                transferRates.end(id)
                 sleep(450)
                 currentCoroutineContext().ensureActive()
                 if (!current(generation) || transfers[id]?.id != operation) throw MediaServiceException(MediaServiceFailure.RETIRED)
                 file
             } finally { writer.abort() }
         }
-        transfers[id] = Transfer(operation, writer, task)
+        val completion = CompletableDeferred<File?>()
+        var location: File? = null
+        transfers[id] = Transfer(operation, representation, writer, task, completion)
         mutate { it.copy(transferring = it.transferring + id,
             progress = if (descriptor.byteCount != null) it.progress + (id to 0.0) else it.progress) }
         if (!current(generation) || transfers[id]?.id != operation) {
-            task.cancel(); writer.abort(); throw MediaServiceException(MediaServiceFailure.RETIRED)
+            task.cancel(); writer.abort(); completion.complete(null)
+            throw MediaServiceException(MediaServiceFailure.RETIRED)
         }
+        // Only a transfer that survived its own first publication gets a reading.
+        if (descriptor.byteCount != null) transferRates.begin(id)
         task.start()
         try {
-            return try { task.await() } catch (error: CancellationException) {
+            val file = try { task.await() } catch (error: CancellationException) {
                 task.cancel()
                 // Only the caller's own cancellation stays a cancellation. A transfer the source
                 // or a retirement cancelled is a failure, so a batch reports it and goes on.
                 currentCoroutineContext().ensureActive()
                 throw MediaServiceException(MediaServiceFailure.RETIRED)
             }
+            location = file
+            return file
         }
         catch (error: CancellationException) { throw error }
         catch (error: Exception) {
@@ -1197,7 +1270,16 @@ public class MonitorMediaLibraryModel<P>(
             if (transfers[id]?.id == operation) {
                 transfers.remove(id); mutate { it.copy(transferring = it.transferring - id, progress = it.progress - id) }
             }
+            // After the slot is released, so a joiner never rejoins this operation.
+            completion.complete(location)
         }
+    }
+    /** A joined file stands only while it is still the current record's file: a retained amendment can move an original's address while its transfer runs. */
+    private fun isCurrentFile(location: File, representation: MediaRepresentationID, id: MediaAssetID): Boolean {
+        val current = record(id) ?: return false
+        val descriptor = current.asset.representations.firstOrNull { it.id == representation } ?: return false
+        if (descriptor.role != MediaRepresentationRole.ORIGINAL) return true
+        return cache.entry(current).original?.absoluteFile?.normalize() == location.absoluteFile.normalize()
     }
     public suspend fun cacheOriginal(id: MediaAssetID): File = cacheRepresentation(
         record(id)?.asset?.representations?.firstOrNull { it.role == MediaRepresentationRole.ORIGINAL }?.id

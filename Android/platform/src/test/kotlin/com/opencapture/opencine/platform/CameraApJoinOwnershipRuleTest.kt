@@ -8,12 +8,13 @@ import kotlin.test.assertTrue
 /**
  * One camera access-point join and one Wi-Fi low-latency lock for every integration (A4-22): a fix
  * to the join (timeouts, scan permission, reassociation) lands once. Joining the operator's own
- * Wi-Fi for the DJI station setups is a different network and stays DJI's.
+ * Wi-Fi for a Wi-Fi setup (DJI and Luna station mode) is a different network with its own single
+ * owner, the shared Wi-Fi path.
  */
 class CameraApJoinOwnershipRuleTest {
     private val androidRoot = File("..").canonicalFile
     private val owners = setOf("platform/src/main/kotlin/com/opencapture/opencine/platform/CameraApJoiner.kt")
-    private val stationJoin = "dji/src/main/kotlin/com/opencapture/opencine/dji/MultiviewNetwork.kt"
+    private val stationJoin = "platform/src/main/kotlin/com/opencapture/opencine/platform/SharedWiFiPath.kt"
 
     private fun sourcesUsing(token: String): Set<String> =
         androidRoot.walk()

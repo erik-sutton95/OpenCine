@@ -450,6 +450,17 @@ disconnected. Showing clips cached on this phone." An empty gallery's heading na
 camera listed nothing for the tab (`MonitorMediaGalleryCopy.emptyTitle`, Kotlin
 `MediaLibraryCopy.emptyTitle`).
 
+The grid is staggered (masonry): each card goes, in the displayed order, into the column that is
+shortest so far (the leftmost on a tie), so a column stacks its cards with no row gaps. A card is
+as tall as its picture at the column width plus its caption, and the picture's shape comes from
+metadata before any thumbnail loads (`aspectRatio` on the operator catalog screen, by default the
+listed `pixelSize`, which carries no EXIF orientation; OpenZCine supplies a shape turned by each
+still's learned orientation), so loading thumbnails
+never moves a card. SwiftUI places with `MonitorMediaMasonry` into one lazy stack per column;
+Compose uses `LazyVerticalStaggeredGrid` (`MonitorCatalogGrid`), which places the same way. Drag
+selection hit-tests the cards' real frames and sweeps the displayed order. The list view stays a
+list.
+
 `MediaCatalog` applies content-qualified opaque identities from the source. A proxy can remove a
 master in a later delta, two volumes can carry the same filename, and an old removal at a recycled
 location cannot erase new content. Unknown volume updates preserve the previous fact; a known

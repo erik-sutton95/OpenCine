@@ -2,7 +2,9 @@ import Foundation
 
 /// Shared-forward head lock mapped directly to camera-native angular targets.
 /// The 100 ms native horizon is independent of programmed-path speed limits.
-/// Every target lies inside `bounds`, the reach the motion service declared.
+/// Every target lies inside `bounds`, the reach the motion service declared. Native pitch
+/// targets are continuous around the calibration pose; the integration folds them into the
+/// camera's wire range.
 public struct HeadTrackNative: Equatable, Sendable {
     public static let commandDuration: TimeInterval = 0.1
     public static let maxHeadSampleAge: TimeInterval = 0.2
@@ -55,9 +57,12 @@ public struct HeadTrackNative: Equatable, Sendable {
         lookUp = HeadTrack.unwrap(lookUpDeg, previous: lookUp)
         let projected = bounds.project(
             lookRight: lookRight, lookUp: lookUp, yaw0: origin.yawDeg, pitch0: origin.pitchDeg)
+        // Native pitch falls 1° per 1° of look-up tilt. The target stays continuous around the
+        // calibration point and is never wrapped across ±180° to the far side (a +174° point
+        // looking down 9° is +183°, not −177°). The offset is bounded by the tilt projection.
         let point = GimbalWaypoint(
             yawDeg: projected.yaw, pitchDeg: projected.pitch, zoom: origin.zoom,
-            nativePitchDeg: GimbalPath.wrapAngle(nativePitch - (projected.pitch - origin.pitchDeg)))
+            nativePitchDeg: nativePitch - (projected.pitch - origin.pitchDeg))
         lastTarget = point
         return point
     }

@@ -55,6 +55,25 @@ class MonitorAssistRenderPlanTest {
         assertEquals(400, painted.scopeTap.iso)
     }
 
+    /** Scopes measure the camera signal (Swift twin: `togglingTheMonitoringLUTLeavesEveryScopeUnchanged`). */
+    @Test fun togglingTheMonitoringLutLeavesTheScopeTapUnchanged() {
+        val scopes = listOf(MonitorAssistTool.WAVE, MonitorAssistTool.PARADE, MonitorAssistTool.HISTO,
+            MonitorAssistTool.VECTOR, MonitorAssistTool.LIGHTS).joinToString(",") { "\"${it.name}\"" }
+        val lut = MonitorLUTCube(2, ByteArray(32) { 9 })
+        val display = MonitorLUTCube(2, ByteArray(32) { 3 })
+        val off = MonitorAssistState(encoded = """{"tools":[$scopes]}""")
+            .renderPlan(MonitorTransfer.DLOG, raster = MonitorAssistRasterValues(vectorLook = display))
+        val on = MonitorAssistState(encoded = """{"tools":["LUT",$scopes]}""")
+            .renderPlan(MonitorTransfer.DLOG, raster = MonitorAssistRasterValues(lut = lut, vectorLook = display))
+        assertSame(lut, on.lutCube)
+        assertEquals(off.scopeTap, on.scopeTap)
+        assertSame(display, on.scopeTap.vectorLut)
+        // A source without a display transform reads its codes as-is, LUT or not.
+        val plain = MonitorAssistState(encoded = """{"tools":["LUT",$scopes]}""")
+            .renderPlan(MonitorTransfer.REC709, raster = MonitorAssistRasterValues(lut = lut))
+        assertEquals(null, plain.scopeTap.vectorLut)
+    }
+
     /** Product ruling 2026-10-16 (Swift twin: `curveToolsWaitForAKnownSourceCurveAndReturnOnTheirOwn`). */
     @Test fun anUnknownSourceCurveDrawsNoFalseColourOrZebraAndKeepsTheChoices() {
         val assist = MonitorAssistState(encoded = """{"tools":["FALSE","ZEBRA","PEAK"]}""")

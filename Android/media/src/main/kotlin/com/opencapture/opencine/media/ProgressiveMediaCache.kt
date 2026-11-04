@@ -1,5 +1,6 @@
 package com.opencapture.opencine.media
 
+import com.opencapture.opencine.core.MonotonicInstant
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.nio.ByteBuffer
@@ -114,8 +115,12 @@ public data class ProgressiveMediaCacheClearResult(
  * integration should pass a directory below `Context.noBackupFilesDir`.
  *
  * @property rootDirectory App-owned directory dedicated to camera media.
+ * @param clock the instant each entry's download speed is measured on; tests pass a manual one.
  */
-class ProgressiveMediaCache(rootDirectory: Path) {
+class ProgressiveMediaCache @JvmOverloads constructor(
+    rootDirectory: Path,
+    private val clock: () -> MonotonicInstant = { MonotonicInstant.now() },
+) {
     /** Normalized absolute root containing every cache bucket. */
     val rootDirectory: Path = rootDirectory.toAbsolutePath().normalize()
 
@@ -338,7 +343,7 @@ class ProgressiveMediaCache(rootDirectory: Path) {
         if (partialLength > expectedLength) {
             throw ProgressiveMediaCacheLengthException(expectedLength, partialLength)
         }
-        return ProgressiveMediaCacheEntry.active(partialPath, finalPath, expectedLength, partialLength)
+        return ProgressiveMediaCacheEntry.active(partialPath, finalPath, expectedLength, partialLength, clock)
     }
 
     private fun requireRegularFile(path: Path) {
@@ -485,8 +490,11 @@ class ProgressiveMediaCacheEntry private constructor(
     val expectedLength: Long,
     initialLength: Long,
     initialState: ProgressiveMediaCacheState,
+    private val clock: () -> MonotonicInstant = { MonotonicInstant.now() },
 ) {
     private val lock = ReentrantLock()
+    /** Measures the transfer that is filling this entry; restarted at each (re)activation. */
+    private var rate = MediaTransferRateEstimator(clock(), initialLength)
     private val changed = lock.newCondition()
     private var currentLength = initialLength
     private var currentState = initialState
@@ -511,6 +519,15 @@ class ProgressiveMediaCacheEntry private constructor(
                     currentLength.toDouble() / expectedLength.toDouble()
                 }
             }
+
+    /**
+     * The running transfer's download speed (OpenCine's one rate estimator), or null when no
+     * transfer is filling this entry. Read it beside [progress]; a quiet transfer reads Stalled.
+     */
+    fun transferRate(): MediaTransferRate? =
+        lock.withLock {
+            if (retired || currentState != ProgressiveMediaCacheState.ACTIVE) null else rate.rate(clock())
+        }
 
     /**
      * Appends one transfer chunk at [offset].
@@ -549,6 +566,7 @@ class ProgressiveMediaCacheEntry private constructor(
                 }
             }
             currentLength = proposedLength
+            rate.record(currentLength, clock())
             changed.signalAll()
         }
     }
@@ -615,6 +633,8 @@ class ProgressiveMediaCacheEntry private constructor(
                     }
                     currentFailure = null
                     currentState = ProgressiveMediaCacheState.ACTIVE
+                    // The resumed offset is already here: only new bytes count as speed.
+                    rate = MediaTransferRateEstimator(clock(), currentLength)
                     changed.signalAll()
                 }
             }
@@ -674,6 +694,7 @@ class ProgressiveMediaCacheEntry private constructor(
             finalPath: Path,
             expectedLength: Long,
             initialLength: Long,
+            clock: () -> MonotonicInstant = { MonotonicInstant.now() },
         ): ProgressiveMediaCacheEntry =
             ProgressiveMediaCacheEntry(
                 partialPath,
@@ -681,6 +702,7 @@ class ProgressiveMediaCacheEntry private constructor(
                 expectedLength,
                 initialLength,
                 ProgressiveMediaCacheState.ACTIVE,
+                clock,
             )
 
         fun completed(

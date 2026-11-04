@@ -90,11 +90,16 @@ fun MonitorPlaybackFeedView(
         val h = constraints.maxHeight.toFloat()
         val left = (w - w * zoom.scale) / 2f + zoom.offsetX
         val top = (h - h * zoom.scale) / 2f + zoom.offsetY
+        val image = Rect(left, top, left + w * zoom.scale, top + h * zoom.scale)
         Box(
             Modifier.fillMaxSize().monitorBackdropSource(
                 backdrop.source,
-                imageRect = Rect(left, top, left + w * zoom.scale, top + h * zoom.scale),
+                imageRect = image,
                 mirrored = mirrored, flippedVertically = flippedVertically,
+                // The shared playback screen shows a zoomed picture past this frame, up to the
+                // canvas edge, so glass over that area samples the picture too.
+                visibleRect = if (!zoom.isZoomed) null else Rect(minOf(0f, image.left), minOf(0f, image.top),
+                    maxOf(w, image.right), maxOf(h, image.bottom)),
             ),
         )
         Box(

@@ -3589,17 +3589,6 @@ public final class PTPIPClientSession: @unchecked Sendable {
         return .refused(.deviceBusy)
     }
 
-    /// Prepares a fresh, increasing positive run ID without taking the camera command lock.
-    /// Replaced runs are stopped and reused IDs cannot rearm a cancelled receipt.
-    private func prepareFocusRackRun(runID: Int64) -> Bool {
-        focusRackRuns.prepare(runID: runID)
-    }
-
-    /// Publishes stop without waiting behind an active camera transaction.
-    private func requestFocusRackStop(runID: Int64) {
-        focusRackRuns.requestStop(runID: runID)
-    }
-
     /// Cancels the current prepared run before any command lock is acquired.
     public func requestActiveFocusRackStop() {
         focusRackRuns.requestStopCurrent()
@@ -3620,8 +3609,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
         let queue = DispatchQueue(label: "opencine.focus-rack")
         return NikonFocusRackAccess(
             isCurrent: isAdmitted,
-            prepareRun: { isAdmitted() && self.prepareFocusRackRun(runID: $0) },
-            requestStop: { self.requestFocusRackStop(runID: $0) },
+            prepareRun: { isAdmitted() && self.focusRackRuns.prepare(runID: $0) },
+            requestStop: { self.focusRackRuns.requestStop(runID: $0) },
             driveChunk: { runID, towardNear, pulses in
                 await withTaskCancellationHandler {
                     await withCheckedContinuation { continuation in
@@ -3633,7 +3622,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                         }
                     }
                 } onCancel: {
-                    self.requestFocusRackStop(runID: runID)
+                    self.focusRackRuns.requestStop(runID: runID)
                 }
             },
             refreshSafety: {

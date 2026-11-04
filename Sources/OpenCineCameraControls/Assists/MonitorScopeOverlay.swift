@@ -18,17 +18,15 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
     private let readBundle: () -> ScopeAssistBundle
     private let configureDisplay: @MainActor (MTKView) -> MonitorScopeDisplayOptions
     private let paradeIntensityScale: Double
-    private let fittedSize: CGSize?
     public init(tool: MonitorAssistSelection, assist: MonitorAssistState<Looks>, stores: AssistPanelStores,
         haptics: OperatorHaptics, canvas: CGRect = .zero, feed: CGRect = .zero,
         chromeClearance: EdgeInsets = EdgeInsets(), readBundle: @escaping () -> ScopeAssistBundle,
         configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr },
-        fittedSize: CGSize? = nil, paradeIntensityScale: Double = 1) {
+        paradeIntensityScale: Double = 1) {
         self.tool = tool; self.assist = assist; self.stores = stores; self.haptics = haptics
         self.canvas = canvas; self.feed = feed; self.clearance = chromeClearance
         self.readBundle = readBundle; self.configureDisplay = configureDisplay
         self.paradeIntensityScale = paradeIntensityScale
-        self.fittedSize = fittedSize
     }
     @ViewBuilder public var body: some View {
         switch tool {
@@ -46,7 +44,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
     private var hasCanvas: Bool { canvas.width > 1 && canvas.height > 1 }
     @ViewBuilder private var waveform: some View {
         let options = stores.waveform.options
-        let size = fittedSize ?? MonitorScopePanelPlacement.size(WaveformAssist.panelSize(scale: stores.waveform.presentationScale(in: canvas)),
+        let size = MonitorScopePanelPlacement.size(WaveformAssist.panelSize(scale: stores.waveform.presentationScale(in: canvas)),
             canvas: canvas, clearance: clearance)
         let plot = MonitorScopePanelPlate(title: "Wave", chip: options.mode.rawValue.uppercased(), size: size) {
             MonitorScopeBundleContent(read: readBundle) { bundle in
@@ -64,7 +62,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
     }
     @ViewBuilder private var parade: some View {
         let options = stores.parade.options
-        let size = fittedSize ?? MonitorScopePanelPlacement.size(ParadeAssist.panelSize(scale: stores.parade.presentationScale(in: canvas)),
+        let size = MonitorScopePanelPlacement.size(ParadeAssist.panelSize(scale: stores.parade.presentationScale(in: canvas)),
             canvas: canvas, clearance: clearance)
         let plot = MonitorScopePanelPlate(title: "Parade", chip: ParadeAssist.chip(options.mode), size: size) {
             MonitorScopeBundleContent(read: readBundle) { bundle in
@@ -80,7 +78,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
     }
     @ViewBuilder private var histogram: some View {
         let options = stores.histogram.options
-        let size = fittedSize ?? MonitorScopePanelPlacement.size(HistogramAssist.panelSize(scale: stores.histogram.presentationScale(in: canvas)),
+        let size = MonitorScopePanelPlacement.size(HistogramAssist.panelSize(scale: stores.histogram.presentationScale(in: canvas)),
             canvas: canvas, clearance: clearance)
         let plot = MonitorScopePanelPlate(title: HistogramAssist.panelTitle, chip: HistogramAssist.chip, size: size) {
             MonitorScopeBundleContent(read: readBundle) { bundle in
@@ -93,7 +91,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
     }
     @ViewBuilder private var vectorscope: some View {
         let options = stores.vectorscope.options
-        let size = fittedSize ?? MonitorScopePanelPlacement.size(VectorscopeAssist.panelSize(scale: stores.vectorscope.presentationScale(in: canvas)),
+        let size = MonitorScopePanelPlacement.size(VectorscopeAssist.panelSize(scale: stores.vectorscope.presentationScale(in: canvas)),
             canvas: canvas, clearance: clearance)
         let plot = MonitorScopePanelPlate(title: "Vector", chip: VectorscopeAssist.chip(zoom: options.zoom), size: size) {
             MonitorScopeBundleContent(read: readBundle) { bundle in
@@ -113,45 +111,6 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
             placementBounds: MonitorScopePanelPlacement.bounds(in: canvas, clearance: clearance)) {
             MonitorScopeBundleContent(read: readBundle) { bundle in
                 if bundle.levelAxis?.supportsCalibratedReferences != false { MonitorTrafficLightsMeter(reading: bundle.traffic) }
-            }
-        }
-    }
-}
-
-/// A portrait fit region borrows the same saved scope options and immutable sample values as
-/// the floating panels. The source supplies its supported order; placement remains common.
-public struct MonitorScopeFitStack<Looks: MonitorLookProvider>: View {
-    private let tools: [MonitorAssistSelection]
-    private let assist: MonitorAssistState<Looks>
-    private let stores: AssistPanelStores
-    private let haptics: OperatorHaptics
-    private let readBundle: () -> ScopeAssistBundle
-    private let configureDisplay: @MainActor (MTKView) -> MonitorScopeDisplayOptions
-    private let paradeIntensityScale: Double
-    public init(tools: [MonitorAssistSelection], assist: MonitorAssistState<Looks>,
-        stores: AssistPanelStores, haptics: OperatorHaptics,
-        readBundle: @escaping () -> ScopeAssistBundle,
-        configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr },
-        paradeIntensityScale: Double = 1) {
-        self.tools = tools; self.assist = assist; self.stores = stores; self.haptics = haptics
-        self.readBundle = readBundle; self.configureDisplay = configureDisplay
-        self.paradeIntensityScale = paradeIntensityScale
-    }
-    public var body: some View {
-        VStack(spacing: 8) {
-            ForEach(tools, id: \.self) { tool in
-                GeometryReader { geometry in
-                    if tool == .trafficLights {
-                        MonitorScopeBundleContent(read: readBundle) {
-                            if $0.levelAxis?.supportsCalibratedReferences != false {
-                                MonitorTrafficLightsMeter(reading: $0.traffic, fillsWidth: true)
-                            }
-                        }
-                    } else {
-                        MonitorScopeOverlay(tool: tool, assist: assist, stores: stores, haptics: haptics,
-                            readBundle: readBundle, configureDisplay: configureDisplay, fittedSize: geometry.size, paradeIntensityScale: paradeIntensityScale)
-                    }
-                }
             }
         }
     }

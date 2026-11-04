@@ -101,4 +101,33 @@ import Testing
             StationNetworkSetupRules.phoneNetworks(["studio", "Ana’s iPhone", "IPAD 2", "Pixel"])
                 == ["Ana’s iPhone", "IPAD 2"])
     }
+
+    // A Wi-Fi password: required for a network this phone knows is secured, optional when the
+    // security is unknown or open (a refused join then asks to check it).
+
+    @Test func aSecuredNetworkNeedsItsPasswordBeforeConnect() {
+        #expect(!StationNetworkSetupRules.acceptsPassword("", secured: true))
+        #expect(StationNetworkSetupRules.acceptsPassword("synthetic1", secured: true))
+        #expect(
+            StationNetworkSetupRules.passwordNote("", secured: true)
+                == "This network is secured. Enter its password.")
+    }
+
+    @Test func anEmptyPasswordIsAllowedWhenTheSecurityIsUnknownOrOpen() {
+        #expect(StationNetworkSetupRules.acceptsPassword("", secured: nil))
+        #expect(StationNetworkSetupRules.acceptsPassword("", secured: false))
+        #expect(
+            StationNetworkSetupRules.passwordNote("", secured: nil)
+                == "Leave it empty only for an open network.")
+        #expect(StationNetworkSetupRules.passwordNote("", secured: false) == nil)
+        #expect(!StationNetworkSetupRules.acceptsPassword("short", secured: nil))
+    }
+
+    @Test func aSetupSavedWithAPasswordMarksItsNetworkSecured() {
+        let saved = [StationNetwork(ssid: "Studio", password: "synthetic1", hotspot: false)]
+        #expect(StationNetworkSetupRules.security(of: "Studio", saved: saved, current: nil) == true)
+        #expect(StationNetworkSetupRules.security(of: "Venue", saved: saved, current: false) == false)
+        #expect(StationNetworkSetupRules.security(of: "Venue", saved: saved, current: nil) == nil)
+    }
 }
+

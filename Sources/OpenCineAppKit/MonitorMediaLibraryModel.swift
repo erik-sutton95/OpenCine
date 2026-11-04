@@ -330,6 +330,9 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         set { commit { $0.selectedIDs = newValue } }
     }
     @ObservationIgnored public let cache: MonitorMediaCache<Payload>
+    /// Download speed per clip for every transfer this library runs (its own caching and the
+    /// host transfers captured with an asset), read by the grid, player and delivery progress.
+    @ObservationIgnored public let transferRates: MonitorTransferRates<MediaAssetID>
     @ObservationIgnored private let copy: MonitorMediaLibraryCopy
     @ObservationIgnored private let favoritesStore: any MonitorMediaFavoritesStore
     @ObservationIgnored private let sleep: @MainActor (Duration) async throws -> Void
@@ -347,7 +350,6 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         set { commit { $0.lifetimeToken = newValue } }
     }
     @ObservationIgnored private var listing = UUID()
-    @ObservationIgnored private var batchTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var openTask: Task<Void, Never>?
     @ObservationIgnored private var acquisitionTask: Task<Void, Never>?
     @ObservationIgnored private var acquisition = UUID()
@@ -437,7 +439,9 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         var next = committed
         change(&next)
         committed = next
-        pendingRevisions.formUnion(.init(before, committed.revisions))
+        let groups = MonitorMediaLibraryGroups(before, committed.revisions)
+        pendingRevisions.formUnion(groups)
+        if groups.contains(.progress) { retainRunningRates() }
         guard !notifying else { return }
         notifying = true
         defer { notifying = false }
@@ -463,10 +467,23 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         } while !pendingRevisions.isEmpty || notifiedLifetime != committed.lifetimeToken
     }
 
+    /// A speed reading lives exactly as long as its download's progress: every path that ends,
+    /// retires or replaces a transfer clears its progress, and with it the reading.
+    private func retainRunningRates() {
+        guard !transferRates.rates.isEmpty else { return }
+        var running = Set(committed.progress.keys)
+        for (key, authority) in hostProgressOwners where committed.hostProgress[key] != nil {
+            if let asset = authority.asset { running.insert(asset) }
+        }
+        transferRates.retain(running)
+    }
+
     private struct Transfer {
         let id: UUID
+        let representation: MediaRepresentationID
         let writer: MonitorMediaCacheWrite
         let task: Task<URL, Error>
+        let completion: LibraryCacheCompletion
     }
     private struct HostClaim: Hashable {
         let key: MonitorMediaLibraryIOKey
@@ -479,6 +496,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         var task: Task<MediaTransferReceipt, Error>?
         var attempt = UUID()
         var deletion: MonitorMediaLibraryDeletionAuthority?
+        let completion = LibraryCacheCompletion()
         init(authority: MonitorMediaLibraryIOAuthority, purpose: MonitorMediaLibraryIOPurpose,
             writer: MonitorMediaCacheWrite?) {
             self.authority = authority; self.purpose = purpose; self.writer = writer
@@ -508,8 +526,10 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         readSnapshot:
             (@MainActor (MonitorMediaCacheReadPlan) async throws -> MonitorMediaCacheSnapshot)? =
             nil,
-        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:)
+        sleep: @escaping @MainActor (Duration) async throws -> Void = hostSleep(for:),
+        rateClock: HostClock = .live
     ) {
+        transferRates = .init(clock: rateClock)
         self.catalogBase = catalogBase
         self.cache = cache
         favoritesStore = favorites
@@ -826,22 +846,6 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             }
         }
     }
-    /// Caches originals in order for as long as this library lifetime lasts. The batch outlives
-    /// gallery covers and Back, as the original unstructured download did; close, rebind and a
-    /// source change end it before the next record.
-    public func cacheBatch(_ records: [MonitorMediaRecord<Payload>], admitted token: MonitorMediaLibraryActionToken,
-        download: @escaping @MainActor (MonitorMediaRecord<Payload>) async -> Void) {
-        guard !records.isEmpty, !disposed, isCurrent(token) else { return }
-        let id = UUID()
-        batchTasks[id] = Task { @MainActor [weak self] in
-            defer { self?.batchTasks[id] = nil }
-            for record in records {
-                guard !Task.isCancelled, let self, !self.disposed, self.isCurrent(token),
-                    self.record(record.asset.id) != nil else { return }
-                await download(record)
-            }
-        }
-    }
     /// A host operation's outcome (a refused delete, a failed download) for the gallery's note line.
     public func showNote(_ value: String?) { note = value }
     public func close() { _ = retireGallery() }
@@ -879,8 +883,6 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         let oldEntries = entryTask
         cancelTargetedEntryReads()
         let closed = browse
-        let oldBatches = batchTasks.values
-        batchTasks.removeAll()
         openTask = nil
         listTask = nil
         reconciliationTask = nil
@@ -907,7 +909,6 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         oldReconciliation?.cancel()
         oldCursor?.close()
         oldEntries?.cancel()
-        oldBatches.forEach { $0.cancel() }
         retired.dispose()
         return token
     }
@@ -1494,6 +1495,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             hostProgressOwners[authority.key] = authority
             oldDelay?.cancel()
             commit { $0.hostProgress[authority.key] = 0 }
+            // A synchronous progress observer can retire this operation inside the commit.
+            if ownsProgress(operation), let asset = authority.asset { transferRates.begin(asset) }
         }
         guard hostCurrent(operation) else {
             finishHost(operation, clearingProgress: true)
@@ -1508,17 +1511,29 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         hostOperations[authority.id] = nil
         let claim = HostClaim(key: authority.key, purpose: operation.purpose)
         if hostClaims[claim] == authority.id { hostClaims[claim] = nil }
+        // No more bytes come from this operation: its speed reading ends with it, unless a newer
+        // playback of the same clip has taken the progress (and the reading) over.
+        if operation.purpose.tracksProgress, hostProgressOwners[authority.key]?.id == authority.id,
+            let asset = authority.asset { transferRates.end(asset) }
         if clearingProgress { clearHostProgress(authority) }
+    }
+    private func ownsProgress(_ operation: HostOperation) -> Bool {
+        hostCurrent(operation) && hostProgressOwners[operation.authority.key]?.id == operation.authority.id
     }
     private func hostSink(_ operation: HostOperation, attempt: UUID, expected: UInt64?, into sink: any MediaByteSink)
         -> any MediaByteSink {
         LibraryHostProgressSink(sink: sink, expected: expected,
             admitted: { [weak self] in self?.hostCurrent(operation) == true && operation.attempt == attempt },
-            publish: { [weak self] value in
+            publish: { [weak self] value, bytes in
                 guard let self, self.hostCurrent(operation), operation.attempt == attempt,
                     self.hostProgressOwners[operation.authority.key]?.id == operation.authority.id,
                     operation.purpose.tracksProgress else { return }
                 self.commit { $0.hostProgress[operation.authority.key] = value }
+                // A retried attempt counts from zero again; the reading restarts with it. The commit
+                // can retire the operation through a synchronous observer: no reading outlives it.
+                guard self.ownsProgress(operation), operation.attempt == attempt,
+                    let asset = operation.authority.asset else { return }
+                self.transferRates.record(asset, totalBytes: bytes)
             })
     }
     private func performHost(_ operation: HostOperation, expected: UInt64?, into sink: any MediaByteSink,
@@ -1597,8 +1612,10 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         reloadEntries(for: authority.asset)
     }
 
-    /// One captured host stream and canonical write. Download/thumbnail purposes deduplicate by
-    /// source key; playback attempts retain the original independent-source fallback behavior.
+    /// One captured host stream and canonical write. A download of a source key that is already
+    /// downloading joins that download (and starts its own only if it ended without a file);
+    /// other purposes deduplicate by source key; playback attempts retain the original
+    /// independent-source fallback behavior.
     public func cacheHostFile(_ authority: MonitorMediaLibraryIOAuthority,
         purpose: MonitorMediaLibraryIOPurpose, at address: String, expectedByteCount: UInt64? = nil,
         transfer: @escaping @MainActor (any MediaByteSink) async throws -> MediaTransferReceipt)
@@ -1613,12 +1630,24 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         async throws -> URL? {
         guard purpose != .deletion else { throw MediaServiceError.unsupported }
         try requireAuthority(authority)
+        // A download of a clip that is already downloading (Share while the player's cache runs,
+        // or while a cancelled one finishes its chunk) joins it and downloads only if it failed.
+        while purpose == .download, let claimant = hostClaims[.init(key: authority.key, purpose: purpose)],
+            let running = hostOperations[claimant], running.purpose == .download {
+            try await running.completion.wait()
+            try requireAuthority(authority)
+            if let location = running.completion.location { return location }
+            if hostOperations[claimant] === running { break }
+        }
         if purpose != .playback,
             hostClaims[.init(key: authority.key, purpose: purpose)] != nil { return nil }
         guard hostOperations[authority.id] == nil else { throw MediaServiceError.unavailable }
         guard let operation = try startHost(authority, purpose: purpose, writer: nil) else { return nil }
-        var committed = false
-        defer { operation.writer?.abort(); finishHost(operation, clearingProgress: !committed) }
+        var committed: URL?
+        defer {
+            operation.writer?.abort(); finishHost(operation, clearingProgress: committed == nil)
+            operation.completion.finish(committed)
+        }
         var lastError: any Error = MediaServiceError.unavailable
         for (index, transfer) in plan.attempts.enumerated() {
             try requireHost(operation)
@@ -1641,7 +1670,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             let location = try writer.commit(receipt)
             reloadEntries(for: authority.asset)
             try requireHost(operation)
-            committed = true
+            committed = location
             return location
         }
         throw lastError
@@ -1653,7 +1682,9 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         staging: @escaping @MainActor (URL) async throws -> Void) async throws -> URL? {
         guard purpose != .deletion else { throw MediaServiceError.unsupported }
         try requireAuthority(authority)
-        if purpose != .playback, hostClaims[.init(key: authority.key, purpose: purpose)] != nil { return nil }
+        // A running download is joined by cacheHostFile below, not refused here.
+        if purpose != .playback, purpose != .download,
+            hostClaims[.init(key: authority.key, purpose: purpose)] != nil { return nil }
         guard hostOperations[authority.id] == nil else { throw MediaServiceError.unavailable }
         let destination = try cache.directory.url(address)
         let incoming = destination.deletingLastPathComponent().appendingPathComponent(".incoming-" + authority.id.uuidString)
@@ -1751,6 +1782,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         }
         hostProgressDelays[authority.key] = delay
         commit { $0.hostProgress[authority.key] = 1 }
+        if let asset = authority.asset { transferRates.end(asset) }
         if !authority.isCurrent || hostProgressOwners[authority.key]?.id != authority.id { delay.cancel() }
     }
 
@@ -1854,6 +1886,19 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
     public func cacheRepresentation(_ representation: MediaRepresentationID, asset id: MediaAssetID)
         async throws -> URL
     {
+        // A clip already being cached (the player left its cache running, or a cancelled cache
+        // is still finishing a chunk) is joined, never refused: Share of that clip waits for it
+        // and caches the clip itself only when it ended without this representation.
+        while let running = transfers[id] {
+            try await running.completion.wait()
+            if running.representation == representation, let location = running.completion.location,
+                isCurrentFile(location, of: representation, asset: id)
+            {
+                return location
+            }
+            // An operation refused before it started can leave its finished slot behind.
+            if transfers[id]?.id == running.id { transfers[id] = nil }
+        }
         guard let record = record(id), let source = browse?.transfers,
             let descriptor = record.asset.representations.first(where: { $0.id == representation }),
             let address = record.address.representations[representation], transfers[id] == nil
@@ -1868,6 +1913,10 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                 let expected = descriptor.byteCount, expected > 0
             else { return }
             self.progress[id] = min(1, Double(bytes) / Double(expected))
+            // A synchronous progress observer can retire this transfer inside the write.
+            guard self.current(generation), self.transfers[id]?.id == operation, self.progress[id] != nil
+            else { return }
+            self.transferRates.record(id, totalBytes: bytes)
         }
         let task = Task { [weak self] () throws -> URL in
             defer { writer.abort() }
@@ -1897,6 +1946,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             // Preserve the donor's brief completion indication, with an injectable clock and
             // operation fencing. Supersession/clear can retire this delay without touching B.
             if self.progress[id] != nil { self.progress[id] = 1 }
+            self.transferRates.end(id)
             try? await self.sleep(.milliseconds(450))
             guard self.current(generation), self.transfers[id]?.id == operation, !Task.isCancelled
             else {
@@ -1904,7 +1954,13 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             }
             return url
         }
-        transfers[id] = .init(id: operation, writer: writer, task: task)
+        let completion = LibraryCacheCompletion()
+        var location: URL?
+        // Runs after the transfer slot below is released, so a joiner never rejoins this one.
+        defer { completion.finish(location) }
+        transfers[id] = .init(
+            id: operation, representation: representation, writer: writer, task: task,
+            completion: completion)
         commit {
             $0.transferring.insert(id)
             if descriptor.byteCount != nil { $0.progress[id] = 0 }
@@ -1914,6 +1970,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             writer.abort()
             throw MediaServiceError.retired
         }
+        // Only a transfer that survived its own first publication gets a reading.
+        if descriptor.byteCount != nil { transferRates.begin(id) }
         defer {
             if transfers[id]?.id == operation {
                 transfers[id] = nil
@@ -1924,11 +1982,13 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             }
         }
         do {
-            return try await withTaskCancellationHandler {
+            let url = try await withTaskCancellationHandler {
                 try await task.value
             } onCancel: {
                 task.cancel()
             }
+            location = url
+            return url
         } catch {
             // Only the caller's own cancellation stays a cancellation. A transfer the source
             // cancelled is a failure the operator sees, like any other.
@@ -1939,6 +1999,17 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             if error is CancellationError, !callerCancelled { throw MediaServiceError.retired }
             throw error
         }
+    }
+    /// A joined file stands only while it is still the current record's file: a retained
+    /// amendment can move an original's address while its transfer runs.
+    private func isCurrentFile(_ location: URL, of representation: MediaRepresentationID, asset id: MediaAssetID)
+        -> Bool
+    {
+        guard let current = record(id),
+            let descriptor = current.asset.representations.first(where: { $0.id == representation })
+        else { return false }
+        guard descriptor.role == .original else { return true }
+        return cache.entry(current).originalURL?.standardizedFileURL.path == location.standardizedFileURL.path
     }
     public func cacheOriginal(_ id: MediaAssetID) async throws -> URL {
         guard
@@ -1975,6 +2046,33 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
 
 extension Optional where Wrapped == Bool { fileprivate var orFalse: Bool { self == true } }
 
+/// The end of one original cache operation, which a second request for the same clip joins.
+/// Cancelling a joiner ends only its own wait, never the operation it joined.
+@MainActor private final class LibraryCacheCompletion {
+    private(set) var location: URL?
+    private var finished = false
+    private var waiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    func finish(_ location: URL?) {
+        guard !finished else { return }
+        finished = true
+        self.location = location
+        let held = waiters
+        waiters = [:]
+        for waiter in held.values { waiter.resume() }
+    }
+    func wait() async throws {
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if finished || Task.isCancelled { continuation.resume() } else { waiters[id] = continuation }
+            }
+        } onCancel: {
+            Task { @MainActor in self.waiters.removeValue(forKey: id)?.resume() }
+        }
+        try Task.checkCancellation()
+    }
+}
+
 private actor LibraryProgressSink: MediaByteSink {
     let writer: MonitorMediaCacheWrite
     let publish: @MainActor @Sendable (UInt64) -> Void
@@ -1993,12 +2091,12 @@ private actor LibraryProgressSink: MediaByteSink {
 private actor LibraryHostProgressSink: MediaTransferProgressSink {
     let sink: any MediaByteSink
     let admitted: @MainActor @Sendable () -> Bool
-    let publish: @MainActor @Sendable (Double) -> Void
+    let publish: @MainActor @Sendable (Double, UInt64) -> Void
     var expected: UInt64?
     var bytes: UInt64 = 0
     init(sink: any MediaByteSink, expected: UInt64?,
         admitted: @escaping @MainActor @Sendable () -> Bool,
-        publish: @escaping @MainActor @Sendable (Double) -> Void) {
+        publish: @escaping @MainActor @Sendable (Double, UInt64) -> Void) {
         self.sink = sink; self.expected = expected.flatMap { $0 > 0 ? $0 : nil }
         self.admitted = admitted; self.publish = publish
     }
@@ -2012,7 +2110,7 @@ private actor LibraryHostProgressSink: MediaTransferProgressSink {
         guard await admitted(), !Task.isCancelled else { throw MediaServiceError.retired }
         bytes += UInt64(chunk.count)
         let progress = expected.map { min(1, Double(bytes) / Double($0)) } ?? 0
-        await publish(progress)
+        await publish(progress, bytes)
     }
 }
 

@@ -74,11 +74,12 @@ extension MonitorFalseColorReferencePositions.Center {
     }
 }
 extension MonitorFalseColorReferencePositions {
-    public func center(in bounds: CGRect, size: CGSize, movement: CGRect) -> CGPoint {
+    public func center(in bounds: CGRect, size: CGSize, movement: CGRect,
+        avoiding obstacles: [CGRect] = []) -> CGPoint {
         let stored = MonitorScopeCanvasSlot.pick(landscape, portrait, in: bounds)
         return MonitorScopePanelPlacement.clamp(
             stored?.point(in: bounds) ?? CGPoint(x: bounds.midX, y: bounds.midY),
-            size: size, in: movement)
+            size: size, in: movement, avoiding: obstacles)
     }
 }
 extension MonitorFalseColorReferencePositionStore {

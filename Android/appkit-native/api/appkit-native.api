@@ -6,6 +6,20 @@ public final class com/opencapture/opencine/appkitnative/MonitorBackdropFeed : j
 	public final fun getSource ()Lcom/opencapture/monitorui/MonitorBackdropSource;
 }
 
+public final class com/opencapture/opencine/appkitnative/MonitorBitmapStillLook : com/opencapture/opencine/cameracontrols/MonitorStillLook {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/opencine/appkitnative/MonitorBitmapStillLook$Companion;
+	public static final field DEFAULT_MAXIMUM_WIDTH I
+	public fun <init> ()V
+	public fun <init> (I)V
+	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getPaints ()Z
+	public fun render (Landroid/graphics/Bitmap;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;)Landroid/graphics/Bitmap;
+}
+
+public final class com/opencapture/opencine/appkitnative/MonitorBitmapStillLook$Companion {
+}
+
 public final class com/opencapture/opencine/appkitnative/MonitorFaceReadbackEpoch {
 	public static final field $stable I
 	public synthetic fun <init> (Ljava/util/UUID;JLcom/opencapture/opencine/core/StreamGeneration;ILkotlin/jvm/internal/DefaultConstructorMarker;)V

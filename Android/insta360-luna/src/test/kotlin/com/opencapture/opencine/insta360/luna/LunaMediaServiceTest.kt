@@ -294,6 +294,25 @@ class LunaMediaServiceTest {
         assertTrue(chunks.isEmpty()); service.retire()
     }
 
+    @Test fun filesComeFromWhereTheConnectionReachesTheCamera() = runTest {
+        for ((host, expected) in listOf(null to "192.168.42.1", "10.0.0.9" to "10.0.0.9")) {
+            val port = MediaPort(); val urls = mutableListOf<String>()
+            if (host != null) port.mediaSourceState = LunaMediaSourceState(CameraSessionID(), ControlEpoch(1), 1, host)
+            port.mediaTransfer = object : LunaMediaTransferPort {
+                override suspend fun transfer(url: String, sink: MediaByteSink): MediaTransferReceipt {
+                    urls += url; return MediaTransferReceipt(0)
+                }
+            }
+            val service = port.service(backgroundScope); val browse = service.openBrowse()
+            try {
+                val representation = assertNotNull(browse.catalog().next()).upserts.first().representations.first()
+                val sink = object : MediaByteSink { override suspend fun write(chunk: ByteArray) {} }
+                assertNotNull(browse.transfers).transfer(representation.id, sink)
+                assertEquals(listOf("http://$expected/storage_internal/DCIM/Camera01/VID_20260916_124229_002.mp4"), urls)
+            } finally { service.retire() }
+        }
+    }
+
     @Test fun retiredTransferCannotWriteThroughItsNativeSink() = runTest {
         val port = MediaPort(); val release = CompletableDeferred<Unit>(); var entered = false
         port.mediaTransfer = object : LunaMediaTransferPort {

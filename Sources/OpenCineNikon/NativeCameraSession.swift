@@ -178,12 +178,20 @@
                 onLiveViewObject: onLiveViewObject
             )
             do {
-                return try await session.openAndIdentify(
-                    requestPairing: requestPairing,
-                    onPairingChallenge: onPairingChallenge,
-                    onStage: { onEstablishmentDiagnostic?("stage:\($0)") },
-                    onConnectTrace: { onEstablishmentDiagnostic?("connect.gate \($0)") }
-                )
+                return try await withTaskCancellationHandler {
+                    try await session.openAndIdentify(
+                        requestPairing: requestPairing,
+                        onPairingChallenge: onPairingChallenge,
+                        onStage: { onEstablishmentDiagnostic?("stage:\($0)") },
+                        onConnectTrace: { onEstablishmentDiagnostic?("connect.gate \($0)") }
+                    )
+                } onCancel: {
+                    // A started PTP-IP transaction outlives its caller's cancellation, so an
+                    // abandoned Wi-Fi establishment lets go of the body here, at once: a retry must
+                    // never open a second command channel to a one-initiator body while this one
+                    // still waits on its OpenSession reply (audit H4). USB keeps ICC's own lifetime.
+                    (transport as? PTPIPTransport)?.interrupt()
+                }
             } catch {
                 if !session.establishmentSummary.isEmpty {
                     onEstablishmentDiagnostic?(session.establishmentSummary)
@@ -1345,6 +1353,19 @@
             )
             guard result.operationResponse.responseCode == .ok else { return nil }
             return result.data.isEmpty ? nil : result.data
+        }
+
+        /// The camera's thumbnail for one object, tagged with the still's own EXIF orientation
+        /// so a portrait shot draws upright (`GetThumb`, then for a JPEG or RAW whose thumbnail
+        /// states none, one ``NikonThumbnailOrientation/headLength`` `GetPartialObject` of the
+        /// still's head). Nil when the camera reports no thumbnail. [ZR · verify-on-HW]
+        public func getUprightThumb(handle: UInt32, filename: String) async throws -> Data? {
+            try await NikonThumbnailOrientation.uprightThumbnail(
+                filename: filename,
+                readThumbnail: { try await self.getThumb(handle: handle) },
+                readHead: { length in
+                    try await self.getPartialObject(handle: handle, offset: 0, length: length)
+                })
         }
 
         /// Reads a byte range of one object - `GetPartialObject` (0x101B): p1=handle, p2=offset,

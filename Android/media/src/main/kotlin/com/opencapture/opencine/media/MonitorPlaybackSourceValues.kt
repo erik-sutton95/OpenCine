@@ -33,6 +33,8 @@ public data class MonitorPlaybackSourceValues(
     public val allowsSignalFallback: Boolean = true,
     /** A source condition the operator should read now (a share waiting on the camera cache). */
     public val notice: String? = null,
+    /** The running cache download's speed ("42 MB/s", "Stalled"); null hides it. */
+    public val transferRate: String? = null,
 ) {
     /** The header line under the title: the source's notice while it has one, else the clip facts. */
     public fun headerSubtitle(facts: String): String = notice?.takeIf { it.isNotBlank() } ?: facts
@@ -49,6 +51,6 @@ public data class MonitorPlaybackSourceValues(
         if (source == MonitorPlaybackAvailability.ORIGINAL) return "ORIGINAL · ON PHONE"
         val label = if (source == MonitorPlaybackAvailability.PROXY) "PROXY" else "ON CAMERA"
         val fraction = progress?.takeIf { it.isFinite() } ?: return label
-        return "$label · CACHING ORIGINAL ${(fraction.coerceIn(0.0, 1.0) * 100).toInt()}%"
+        return "$label · CACHING ORIGINAL ${MediaTransferRate.caption(fraction, transferRate)}"
     }
 }

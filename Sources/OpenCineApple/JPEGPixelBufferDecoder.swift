@@ -15,14 +15,19 @@
         return text.allSatisfy { $0.isASCII && !$0.isNewline } ? text : String(format)
     }
 
-    /// Decodes motion-JPEG live-view frames to `420v` pixel buffers in hardware, and lends them as
+    /// Decodes motion-JPEG live-view frames to `420f` pixel buffers in hardware, and lends them as
     /// `DecodedFrameLease`s stamped by `fence`.
     ///
-    /// A camera live view in motion JPEG is the case this serves, and `420v` (biplanar YCbCr 4:2:0,
-    /// video range) is what a JPEG already *is* internally. Decoding through VideoToolbox therefore
-    /// lands the frame in the exact format a super-resolution processor demands, with no colour
-    /// conversion at any point: an RGB round-trip exists only because `UIImage(data:)` throws the
-    /// chroma-subsampled original away and hands back RGB.
+    /// A camera live view in motion JPEG is the case this serves, and `420f` (biplanar YCbCr 4:2:0,
+    /// full range) is what a JPEG already *is* internally: JFIF is full-range BT.601 Y'CbCr.
+    /// Decoding through VideoToolbox therefore needs no colour or range conversion at any point: an
+    /// RGB round-trip exists only because `UIImage(data:)` throws the chroma-subsampled original
+    /// away and hands back RGB. Each frame is marked BT.601 and carries none of the colour
+    /// VideoToolbox guesses for an untagged JPEG (`LiveFrameDecoding.prepareJPEGFrame`).
+    ///
+    /// Full range, not `420v`: asked for video range, the simulator's decoder wrote the JPEG's
+    /// full-range samples unconverted into the video-range buffer (Y 16 and 235 for codes 16 and
+    /// 235), which decoded to crushed blacks and clipped highlights (16 to 0, 235 to 255).
     ///
     /// One session per (width, height). The dimensions come from the JPEG's own header via ImageIO,
     /// which reads the SOF marker without decoding a pixel.
@@ -35,7 +40,7 @@
         private var format: CMFormatDescription?
         private var size: (width: Int, height: Int)?
         /// Whether the session forces the preferred planar format. Starts true, and drops to native
-        /// output after one refusal: the simulator's software JPEG decoder rejects forced `420v` for
+        /// output after one refusal: the simulator's software JPEG decoder rejects a forced format for
         /// the camera's 4:2:2 stream, while macOS and device hardware convert it happily; the same
         /// frame, probed both ways. Native mode hands back whatever the decoder produces and lets the
         /// consumer adapt.
@@ -58,8 +63,8 @@
             }
         }
 
-        /// The pixel format every frame comes back in; the one the model wants.
-        public static let pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+        /// The pixel format every frame comes back in: the JPEG's own full-range 4:2:0 planes.
+        public static let pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
 
         /// Reads a JPEG's dimensions from its header without decoding it.
         public static func dimensions(of jpeg: Data) -> (width: Int, height: Int)? {
@@ -143,6 +148,8 @@
                 return nil
             }
             VTDecompressionSessionWaitForAsynchronousFrames(session)
+            // JFIF's matrix, and none of the colour VideoToolbox guesses for an untagged JPEG.
+            if let decoded { LiveFrameDecoding.prepareJPEGFrame(decoded) }
             if let decoded {
                 report = "hw \(fourCCName(CVPixelBufferGetPixelFormatType(decoded)))"
             } else {
@@ -169,7 +176,7 @@
                 let description
             else { return false }
 
-            // Prefer `420v`, the chroma-subsampled planes the JPEG already carries, but a decoder
+            // Prefer `420f`, the chroma-subsampled planes the JPEG already carries, but a decoder
             // that refuses the conversion gets asked for its native output instead (see
             // `forcesPreferredFormat`).
             var attributes: [String: Any] = [

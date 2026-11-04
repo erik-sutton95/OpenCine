@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,11 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /** Expanded chrome; the host retains expansion lifetime, placement and the delivery task. */
 @Composable
@@ -47,6 +52,8 @@ fun MonitorMediaDeliveryProgressPanel(
             val barShape = RoundedCornerShape(50)
             Box(Modifier.fillMaxWidth().height(4.dp).clip(barShape)
                 .background(MonitorPalette.border.copy(alpha = .55f))
+                // Announces the status line, speed included ("Caching from camera 18% · 42 MB/s").
+                .semantics { contentDescription = "Progress"; stateDescription = value.status }
                 .testTag("monitor.share.progress.bar")) {
                 Box(Modifier.fillMaxWidth(value.fraction.toFloat().coerceIn(0f, 1f))
                     .height(4.dp).background(MonitorPalette.accent))
@@ -109,8 +116,10 @@ private fun ProgressStatus(
             CircularProgressIndicator(Modifier.size(16.dp), color = MonitorPalette.accent, strokeWidth = 2.dp)
         } else Box(Modifier.size(13.dp)) { destinationIcon() }
         Column(Modifier.weight(1f)) {
-            Text(value.status, style = MonitorTypography.text(12f, FontWeight.SemiBold), color = MonitorPalette.text,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Shrinks before it truncates so the download speed stays readable on compact widths.
+            BasicText(value.status, style = MonitorTypography.text(12f, FontWeight.SemiBold).copy(color = MonitorPalette.text),
+                maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(9.sp, 12.sp, .25f.sp))
             value.batch?.let {
                 Text(it, style = MonitorTypography.readout(10f, FontWeight.Medium), color = MonitorPalette.muted, maxLines = 1)
             }

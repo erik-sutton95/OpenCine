@@ -13,14 +13,6 @@ public data class MonitorFocusAccessoryLayout(public val frame: MonitorRect, pub
             if (travelY > 0f) ((frame.y + y - bounds.y) / travelY).coerceIn(0f, 1f) else preferredPosition.y)
     }
 
-    /** Reserves the larger horizontal region without changing saved scope positions. */
-    public fun reserveSpace(region: MonitorRect): MonitorRect {
-        val leftWidth = maxOf(0f, minOf(region.maxX, frame.x - 8f) - region.x)
-        val rightStart = maxOf(region.x, frame.maxX + 8f)
-        val rightWidth = maxOf(0f, region.maxX - rightStart)
-        return if (rightWidth > leftWidth) region.copy(x = rightStart, width = rightWidth)
-            else region.copy(width = leftWidth)
-    }
 
     public companion object {
         /** Keeps transport clear of window insets, status, readouts and the system rail. */

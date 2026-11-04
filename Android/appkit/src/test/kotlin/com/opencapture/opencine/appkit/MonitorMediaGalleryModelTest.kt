@@ -104,17 +104,6 @@ class MonitorMediaGalleryModelTest {
             assertTrue(shared?.first()?.favorite == true)
         } finally { f.close() }
     }
-    @Test fun representativeFavoriteDoesNotChangeHiddenGroupMembers() = runTest {
-        val f = Fixture(backgroundScope)
-        try {
-            val window = f.gallery.snapshot(projection())
-            f.gallery.selectAll(window)
-            assertEquals(setOf(MediaAssetID("A")), f.library.state.value.selectedIDs)
-            f.gallery.favoriteSelection(window, MonitorMediaGalleryOperations())
-            assertTrue(f.library.record(MediaAssetID("A"))?.favorite == true)
-            assertFalse(f.library.record(MediaAssetID("B"))?.favorite == true)
-        } finally { f.close() }
-    }
     @Test fun allSurvivorsSelectionKeepsHiddenMembersAndRejectsUnrelatedRows() = runTest {
         val f = Fixture(backgroundScope, listOf("A", "B", "C"))
         try {
@@ -122,40 +111,22 @@ class MonitorMediaGalleryModelTest {
             f.gallery.selectAll(window)
             assertEquals(setOf(MediaAssetID("A"), MediaAssetID("B")), f.library.state.value.selectedIDs)
             assertFalse(f.gallery.select(setOf(MediaAssetID("C")), window))
-            f.gallery.favoriteSelection(window, MonitorMediaGalleryOperations())
-            assertTrue(f.library.record(MediaAssetID("A"))?.favorite == true && f.library.record(MediaAssetID("B"))?.favorite == true)
-            assertFalse(f.library.record(MediaAssetID("C"))?.favorite == true)
         } finally { f.close() }
     }
-    @Test fun retiredProjectionCannotContinueItsHeldGroupDownload() = runTest {
-        val f = Fixture(backgroundScope); val gate = CompletableDeferred<Unit>()
-        try {
-            val window = f.gallery.snapshot(projection()); val calls = mutableListOf<String>()
-            f.gallery.selectAll(window)
-            f.gallery.cacheSelection(window, MonitorMediaGalleryOperations(download = { record ->
-                calls += record.payload; withContext(NonCancellable) { gate.await() }
-            }))
-            runCurrent(); assertEquals(listOf("B"), calls)
-            f.library.close(); f.gallery.sourceChanged(); f.library.clearSelection()
-            gate.complete(Unit); runCurrent()
-            assertEquals(listOf("B"), calls); assertTrue(f.library.state.value.selectedIDs.isEmpty())
-            assertFalse(f.gallery.isCurrent(window))
-        } finally { gate.complete(Unit); f.close() }
-    }
-    @Test fun aRetiredTransferFailsItsClipAndTheBatchCachesTheNext() = runTest {
-        // Hardware pass 10.1: the first clip's transfer was cancelled by its source while the
-        // gallery stayed current; the batch stopped silently and the second clip was never asked.
+    @Test fun aRecordCancelledByItsSourceFailsAloneAndTheBatchContinues() = runTest {
+        // Hardware pass 10.1: a record's operation cancelled by its source (not the batch) stopped
+        // the batch silently; the next record was never asked.
         val f = Fixture(backgroundScope)
         try {
             val requested = mutableListOf<String>()
             f.library.select(setOf(MediaAssetID("A"), MediaAssetID("B")))
-            f.gallery.cacheSelection(f.gallery.snapshot(), MonitorMediaGalleryOperations(download = { record ->
+            f.gallery.requestDelete(f.gallery.snapshot(), MonitorMediaGalleryOperations(delete = { record ->
                 requested += record.payload
-                if (requested.size == 1) throw CancellationException("transfer retired by its source")
+                if (requested.size == 1) throw CancellationException("operation retired by its source")
             }))
-            runCurrent()
+            f.gallery.confirmDelete(f.gallery.state.value.deleteRequestID); runCurrent()
             assertEquals(setOf("A", "B"), requested.toSet()); assertEquals(2, requested.size)
-            assertEquals("Could not cache that clip.", f.gallery.state.value.failure)
+            assertEquals("Could not delete that clip.", f.gallery.state.value.failure)
         } finally { f.close() }
     }
     @Test fun selectionStartsOnceAndAnOldWindowCannotSelectAfterReentry() = runTest {
@@ -169,19 +140,6 @@ class MonitorMediaGalleryModelTest {
             assertFalse(f.gallery.select(setOf(MediaAssetID("A")), displayed))
             assertTrue(f.library.state.value.selectedIDs.isEmpty())
             assertTrue(f.gallery.select(setOf(MediaAssetID("B")), f.gallery.snapshot()))
-        } finally { f.close() }
-    }
-    @Test fun favoriteSelectionOnlyAddsAndKeepsTheExistingLocalStore() = runTest {
-        val f = Fixture(backgroundScope)
-        try {
-            val displayed = f.gallery.snapshot()
-            f.library.toggleFavorite(MediaAssetID("A")); f.library.select(setOf(MediaAssetID("A"), MediaAssetID("B")))
-            f.gallery.favoriteSelection(displayed, MonitorMediaGalleryOperations())
-            assertTrue(f.library.record(MediaAssetID("A"))?.favorite == true)
-            assertTrue(f.library.record(MediaAssetID("B"))?.favorite == true)
-            f.gallery.favoriteSelection(displayed, MonitorMediaGalleryOperations())
-            assertTrue(f.library.record(MediaAssetID("A"))?.favorite == true && f.library.record(MediaAssetID("B"))?.favorite == true)
-            assertTrue(java.io.File(f.root, "index.json").exists())
         } finally { f.close() }
     }
     @Test fun deleteConfirmationKeepsItsDisplayedSelectionAndCancelDoesNoIO() = runTest {
@@ -219,11 +177,12 @@ class MonitorMediaGalleryModelTest {
         val f = Fixture(backgroundScope); val pending = CompletableDeferred<Unit>()
         try {
             val requested = mutableListOf<String>()
-            val operations = MonitorMediaGalleryOperations<String>(download = {
+            val operations = MonitorMediaGalleryOperations<String>(delete = {
                 requested += it.payload; withContext(NonCancellable) { pending.await() }
             })
             f.library.select(setOf(MediaAssetID("A"), MediaAssetID("B")))
-            f.gallery.cacheSelection(f.gallery.snapshot(), operations); runCurrent(); assertEquals(1, requested.size)
+            f.gallery.requestDelete(f.gallery.snapshot(), operations)
+            f.gallery.confirmDelete(f.gallery.state.value.deleteRequestID); runCurrent(); assertEquals(1, requested.size)
             f.gallery.retire(); f.gallery.activate(); f.library.select(setOf(MediaAssetID("A")))
             pending.complete(Unit); runCurrent()
             assertEquals(1, requested.size); assertEquals(setOf(MediaAssetID("A")), f.library.state.value.selectedIDs)
@@ -233,7 +192,6 @@ class MonitorMediaGalleryModelTest {
         val f = Fixture(backgroundScope)
         try {
             val record = assertNotNull(f.library.record(MediaAssetID("A"))); val displayed = f.gallery.snapshot()
-            assertFalse(f.gallery.canDownload(record, MonitorMediaGalleryOperations()))
             assertFalse(f.gallery.canDelete(record, MonitorMediaGalleryOperations()))
             assertFalse(f.gallery.canShare(record, MonitorMediaGalleryOperations()))
             assertNull(f.gallery.open(MediaAssetID("A"), displayed, MonitorMediaGalleryOperations()))
@@ -254,22 +212,12 @@ class MonitorMediaGalleryModelTest {
             assertEquals("20260901", f.library.state.value.dateStart); assertEquals("20260901", f.library.state.value.dateEnd)
         } finally { f.close() }
     }
-    @Test fun declaredUniformFavoritesRetainTheExistingToggleAllBehavior() = runTest {
-        val f = Fixture(backgroundScope)
-        try {
-            f.library.select(setOf(MediaAssetID("A"), MediaAssetID("B")))
-            val displayed = f.gallery.snapshot()
-            f.gallery.favoriteSelection(displayed, MonitorMediaGalleryOperations(), toggleUniform = true)
-            assertTrue(f.library.selectedRecords.all { it.favorite })
-            f.gallery.favoriteSelection(displayed, MonitorMediaGalleryOperations(), toggleUniform = true)
-            assertTrue(f.library.selectedRecords.none { it.favorite })
-        } finally { f.close() }
-    }
     @Test fun refusedBulkIOPublishesOnlyInItsCurrentPresentation() = runTest {
         val f = Fixture(backgroundScope)
         try {
             f.library.select(setOf(MediaAssetID("A")))
-            f.gallery.cacheSelection(f.gallery.snapshot(), MonitorMediaGalleryOperations(download = { throw IllegalStateException("refused") }))
+            f.gallery.requestDelete(f.gallery.snapshot(), MonitorMediaGalleryOperations(delete = { throw IllegalStateException("refused") }))
+            f.gallery.confirmDelete(f.gallery.state.value.deleteRequestID)
             runCurrent(); assertNotNull(f.gallery.state.value.failure)
             f.gallery.retire(); f.gallery.activate(); assertNull(f.gallery.state.value.failure)
         } finally { f.close() }
@@ -282,10 +230,10 @@ class MonitorMediaGalleryModelTest {
                 representations = listOf(MediaRepresentation(MediaRepresentationID("A-original"), MediaRepresentationRole.PROXY, 2))))
             f.library.applyLocalRecords(MonitorMediaCatalogCapture(resetLibrary = false, upserts = listOf(record)), f.library.actionToken)
             val direct = MonitorMediaGalleryOperations<String>(download = {}, delete = {})
-            assertFalse(f.gallery.canDownload(record, direct)); assertFalse(f.gallery.canDelete(record, direct))
+            assertFalse(f.gallery.canDelete(record, direct))
             val source = MonitorMediaGalleryOperations<String>(download = {}, delete = {},
                 access = { MonitorMediaGalleryAccess(download = true, share = false, delete = true) })
-            assertTrue(f.gallery.canDownload(record, source)); assertTrue(f.gallery.canDelete(record, source))
+            assertTrue(f.gallery.canDelete(record, source))
             assertFalse(f.gallery.canShare(record, source)); assertNull(f.library.record(record.asset.id)?.asset?.deletable)
             assertFalse(f.gallery.canDelete(record, MonitorMediaGalleryOperations(access = { MonitorMediaGalleryAccess(delete = true) })))
         } finally { f.close() }

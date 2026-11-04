@@ -65,6 +65,13 @@ import kotlinx.coroutines.launch
 /** Canvas origin in window pixels: capture / top-picker anchors are relative to this. */
 val LocalLiveCanvasOrigin = compositionLocalOf { Offset.Zero }
 
+/**
+ * The live chrome rects, in canvas dp, that floating scopes and meters keep clear of
+ * ([com.opencapture.monitorui.MonitorFieldLayout.scopeObstacles]). The live surface provides them;
+ * empty elsewhere. Swift `EnvironmentValues.monitorScopeObstacles`.
+ */
+val LocalScopeObstacles = compositionLocalOf { emptyList<MonitorRect>() }
+
 fun Modifier.reportChromeFrame(onFrame: (MonitorRect) -> Unit): Modifier =
     composed {
         val density = LocalDensity.current

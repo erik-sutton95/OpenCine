@@ -33,7 +33,6 @@ public struct MonitorFocusAccessoryLayout: Equatable, Sendable {
             width: width, height: height)
     }
 
-
     /// Applies a header-drag delta and preserves preference on axes with no available travel.
     public func movedBy(x: Double, y: Double) -> MonitorScopePoint {
         let travelX = bounds.width - frame.width
@@ -41,15 +40,5 @@ public struct MonitorFocusAccessoryLayout: Equatable, Sendable {
         return .init(
             x: travelX > 0 ? min(1, max(0, (frame.x + x - bounds.x) / travelX)) : preferredPosition.x,
             y: travelY > 0 ? min(1, max(0, (frame.y + y - bounds.y) / travelY)) : preferredPosition.y)
-    }
-
-    /// Reserves the larger horizontal region without changing saved scope positions.
-    public func reserveSpace(in region: MonitorRect) -> MonitorRect {
-        let leftWidth = max(0, min(region.maxX, frame.x - 8) - region.x)
-        let rightStart = max(region.x, frame.maxX + 8)
-        let rightWidth = max(0, region.maxX - rightStart)
-        return rightWidth > leftWidth
-            ? .init(x: rightStart, y: region.y, width: rightWidth, height: region.height)
-            : .init(x: region.x, y: region.y, width: leftWidth, height: region.height)
     }
 }

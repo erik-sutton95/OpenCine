@@ -37,10 +37,18 @@ fun LevelReading.ingest(payload: ByteArray, now: Double) {
     ingest(q, now)
 }
 
-/** One `0x04/0x14` timed target to the nearest world target (mode `05` ignores roll). */
-fun WorldLevelSnap.Companion.plan(tiltDeg: Double, pose: GimbalWaypoint, now: Double): Pair<WorldLevelSnap, ByteArray>? {
+/**
+ * One `0x04/0x14` timed target to the nearest world target (mode `05` ignores roll). [wire] is
+ * the gimbal's convention: a continuous gimbal gets the goal beside the pose's native pitch.
+ */
+fun WorldLevelSnap.Companion.plan(
+    tiltDeg: Double, pose: GimbalWaypoint, now: Double, wire: NativePitchWire = NativePitchWire.WRAPPED,
+): Pair<WorldLevelSnap, ByteArray>? {
     val move = move(tiltDeg, pose) ?: return null
-    val payload = CameraCommands.gimbalTimedTarget(pose.yawDeg, roundAway(move.nativePitchDeg * 10) / 10, move.duration)
+    val native = pose.nativePitchDeg ?: return null
+    val goal = wire.target(move.nativePitchDeg, native) ?: return null
+    val sent = wire.wireDeg(goal, native) ?: return null
+    val payload = CameraCommands.gimbalTimedTarget(pose.yawDeg, roundAway(sent * 10) / 10, move.duration, wire)
         ?: return null
     return WorldLevelSnap(move.target, now + move.duration + WorldLevelSnap.SETTLE_GRACE) to payload
 }

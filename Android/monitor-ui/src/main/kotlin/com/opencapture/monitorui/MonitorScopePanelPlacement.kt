@@ -76,6 +76,8 @@ object MonitorScopePanelMath {
     const val GRIP_BOTTOM_EXTERIOR_DP = 12f
     const val MIN_GRIP_HIT_DP = 44f
     const val DRAG_HIT_PADDING_DP = 10f
+    /** Space a panel keeps from each chrome rect, the same as its movement padding. */
+    const val CHROME_GAP_DP = 8f
 
     val gripPadDp: Float
         get() = GRIP_EXTERIOR_DP
@@ -142,6 +144,19 @@ object MonitorScopePanelMath {
             point.y.coerceIn(minY, maxOf(minY, bounds.maxY - size.height / 2 - bottomGrip)))
     }
 
+    /**
+     * [clampWithGrip], then the nearest centre whose body and resize strip keep [gap] from every
+     * chrome rect ([MonitorScopeChromeAvoidance]). Without obstacles it is [clampWithGrip].
+     */
+    fun clampWithGrip(point: MonitorScopePoint, size: MonitorScopeSize, bounds: MonitorScopeRect, grip: Float,
+        obstacles: List<MonitorScopeRect>, gap: Float): MonitorScopePoint {
+        if (obstacles.isEmpty()) return clampWithGrip(point, size, bounds, grip)
+        val bottomGrip = if (grip > 0f) GRIP_BOTTOM_EXTERIOR_DP * grip / GRIP_EXTERIOR_DP else 0f
+        return MonitorScopeChromeAvoidance.resolve(point, size.width, size.height, bottomGrip, obstacles, gap) {
+            clampWithGrip(it, size, bounds, grip)
+        }
+    }
+
     fun snap(point: MonitorScopePoint, grid: Float = POSITION_GRID): MonitorScopePoint =
         MonitorScopePoint(round(point.x / grid) * grid, round(point.y / grid) * grid)
 
@@ -155,5 +170,57 @@ object MonitorScopePanelMath {
         if (session != null) return clamp(session, size, bounds)
         if (stored != null) return clamp(stored.center(bounds), size, bounds)
         return clamp(defaultCenter, size, bounds)
+    }
+}
+
+/**
+ * Where a floating scope or meter may rest beside the live chrome. One rule for every panel,
+ * orientation and fit or fill: the panel's frame (its body and the strip below it that the resize
+ * corner takes) keeps `gap` from every chrome rect, as it keeps its padding from a screen edge. A
+ * drag or a restored centre that lands on chrome moves to the nearest clear centre, so a panel
+ * still reaches each edge wherever no control stands there (owner hardware pass 2026-10-30: never
+ * under the record button, DISP, Settings, Media or the timecode). Swift `MonitorScopeChromeAvoidance`.
+ */
+object MonitorScopeChromeAvoidance {
+    /**
+     * The clear centre nearest [center], among the centres [clamp] keeps inside the movement
+     * bounds. [clamp] treats each axis on its own. When chrome leaves no clear centre the clamped
+     * centre stands, so a panel never disappears.
+     */
+    fun resolve(center: MonitorScopePoint, width: Float, height: Float, bottomExtent: Float,
+        obstacles: List<MonitorScopeRect>, gap: Float, clamp: (MonitorScopePoint) -> MonitorScopePoint,
+    ): MonitorScopePoint {
+        val start = clamp(center)
+        val blocked = obstacles.filter { it.width > 0f && it.height > 0f }
+            .map { MonitorScopeRect(it.x - gap, it.y - gap, it.width + 2 * gap, it.height + 2 * gap) }
+        if (blocked.isEmpty()) return start
+        val tolerance = 0.01f
+        fun clear(point: MonitorScopePoint): Boolean {
+            val left = point.x - width / 2; val right = point.x + width / 2
+            val top = point.y - height / 2; val bottom = point.y + height / 2 + bottomExtent
+            return blocked.none {
+                left < it.maxX - tolerance && right > it.minX + tolerance &&
+                    top < it.maxY - tolerance && bottom > it.minY + tolerance
+            }
+        }
+        if (clear(start)) return start
+        // The nearest clear centre lies on the start's own row or column, on a chrome edge or at a
+        // corner where two edges meet, the movement bounds included.
+        val far = 1e9f
+        val xs = mutableListOf(start.x, clamp(MonitorScopePoint(-far, start.y)).x, clamp(MonitorScopePoint(far, start.y)).x)
+        val ys = mutableListOf(start.y, clamp(MonitorScopePoint(start.x, -far)).y, clamp(MonitorScopePoint(start.x, far)).y)
+        for (rect in blocked) {
+            xs += listOf(rect.minX - width / 2, rect.maxX + width / 2)
+            ys += listOf(rect.minY - height / 2 - bottomExtent, rect.maxY + height / 2)
+        }
+        var best: MonitorScopePoint? = null
+        var nearest = Float.POSITIVE_INFINITY
+        for (x in xs) for (y in ys) {
+            val candidate = clamp(MonitorScopePoint(x, y))
+            val dx = candidate.x - start.x; val dy = candidate.y - start.y
+            val distance = dx * dx + dy * dy
+            if (distance < nearest && clear(candidate)) { best = candidate; nearest = distance }
+        }
+        return best ?: start
     }
 }

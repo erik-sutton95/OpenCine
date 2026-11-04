@@ -195,10 +195,10 @@ public fun MonitorOperatorScreen(
             index, modes.size, false, operatorPreferences.recordConfirmation, true,
             displayTitle = index?.let { "DISP ${it + 1} ${session.mode.title.lowercase()}" },
             assist = assist, assists = null, palette = tools, usage = usage, setUsage = { usage = it }, usageSeed = emptyMap(),
-            renderedTools = availableAssistTools, fittedScopes = emptyList(), scopeZone = null,
+            renderedTools = availableAssistTools,
             interactionEnabled = session.interactive, borrowed = shellState.monitor?.isBorrowed == true,
             safeLeading = safeLeading, safeTrailing = safeTrailing, safeTop = safeTop, safeBottom = safeBottom,
-            scopeFloating = true, assistHost = assistHost, lookOptions = lookOptions,
+            assistHost = assistHost, lookOptions = lookOptions,
             picture = {
                 Box(Modifier.offset(layout.picture.x.dp, layout.picture.y.dp)
                     .size(layout.picture.width.dp, layout.picture.height.dp).graphicsLayer {

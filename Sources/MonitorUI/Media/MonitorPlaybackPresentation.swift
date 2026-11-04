@@ -14,6 +14,8 @@
         }
     }
 
+    /// Retained for source compatibility. A zoomed picture now always covers and pans against the
+    /// whole playback canvas, past its letterboxed frame, whichever boundary a host names.
     public enum MonitorPlaybackZoomBoundary: Equatable, Sendable { case picture, canvas }
 
     /// Immutable facts accepted by the playback owner plus app-supplied source labels.
@@ -54,6 +56,8 @@
         public var zoomBoundary: MonitorPlaybackZoomBoundary
         public var horizontalPresentationScale: CGFloat
         public var verticalPresentationScale: CGFloat
+        /// The cache download's speed ("42 MB/s", "Stalled") beside `progress`; nil hides it.
+        public var transferRate: String?
         public init(
             item: MonitorPlaybackItemToken?, title: String, subtitle: String, source: String?,
             metadata: [MonitorMetadataRow], aspect: Double, mirrorHorizontal: Bool = false,
@@ -68,8 +72,10 @@
             shareEnabled: Bool = true,
             doubleTapResetsZoom: Bool = false, continuousPanBounds: Bool = false,
             zoomBoundary: MonitorPlaybackZoomBoundary = .picture,
-            horizontalPresentationScale: CGFloat = 1, verticalPresentationScale: CGFloat = 1
+            horizontalPresentationScale: CGFloat = 1, verticalPresentationScale: CGFloat = 1,
+            transferRate: String? = nil
         ) {
+            self.transferRate = transferRate
             self.item = item
             self.title = title
             self.subtitle = subtitle

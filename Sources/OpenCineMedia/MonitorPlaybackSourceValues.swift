@@ -40,12 +40,15 @@ public struct MonitorPlaybackSourceValues: Sendable {
     public var clockStyle: MonitorPlaybackClockStyle
     /// A source condition the operator should read now (a share waiting on the camera cache).
     public var notice: String?
+    /// The running cache download's speed ("42 MB/s", "Stalled"); nil hides it.
+    public var transferRate: String?
     public init(availability: MonitorPlaybackAvailability? = nil, progress: Double? = nil,
         buffered: Double? = nil, colorLabel: String? = nil, transfer: MonitorTransfer? = nil,
         clipByte: Int? = nil, metadata: [MonitorPlaybackMetadataValue] = [],
         clockStyle: MonitorPlaybackClockStyle = .elapsed, bufferedThroughSeconds: Double? = nil,
-        allowsSignalFallback: Bool = true, notice: String? = nil) {
+        allowsSignalFallback: Bool = true, notice: String? = nil, transferRate: String? = nil) {
         self.notice = notice
+        self.transferRate = transferRate
         self.availability = availability; self.progress = progress; self.buffered = buffered
         self.colorLabel = colorLabel; self.transfer = transfer; self.clipByte = clipByte
         self.metadata = metadata
@@ -74,6 +77,7 @@ public struct MonitorPlaybackSourceValues: Sendable {
         if availability == .original { return "ORIGINAL · ON PHONE" }
         let label = availability == .proxy ? "PROXY" : "ON CAMERA"
         guard let progress, progress.isFinite else { return label }
-        return "\(label) · CACHING ORIGINAL \(Int(min(1, max(0, progress)) * 100))%"
+        let caption = MediaTransferRate.caption(fraction: progress, rate: transferRate) ?? ""
+        return "\(label) · CACHING ORIGINAL \(caption)"
     }
 }

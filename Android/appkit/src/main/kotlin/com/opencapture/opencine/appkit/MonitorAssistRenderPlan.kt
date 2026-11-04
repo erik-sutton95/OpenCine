@@ -15,6 +15,7 @@ public data class MonitorAssistRasterValues(
     public val lut: MonitorLUTCube? = null,
     public val falseColorPaint: MonitorLUTCube? = null,
     public val falseColorWeight: MonitorLUTCube? = null,
+    /** VECTOR's fixed source display transform (log to Rec.709), independent of [lut]; null reads the codes as-is. */
     public val vectorLook: MonitorLUTCube? = null,
     public val highlightCode: Float? = null,
     public val midtoneCode: Float? = null,
@@ -110,6 +111,9 @@ public fun MonitorAssistState.renderPlan(
             ndMeter = shown(MonitorAssistTool.ND), evMeter = ev,
             trafficThreshold = crushClipCompensation.pixelFractionThreshold,
             transfer = transfer ?: MonitorTransfer.REC709, iso = iso, allowsTransferInference = playback || !isPhoto,
-            vectorLut = (lut ?: raster.vectorLook).takeIf { shown(MonitorAssistTool.VECTOR) || inspector == MonitorAssistTool.VECTOR }),
+            // Scopes measure the camera signal: VECTOR reads the source's fixed display transform,
+            // never the operator's LUT, so toggling a look cannot move it (Swift twin
+            // `MonitorAssistEngine`, `defaultScopeLook`).
+            vectorLut = raster.vectorLook.takeIf { shown(MonitorAssistTool.VECTOR) || inspector == MonitorAssistTool.VECTOR }),
     )
 }

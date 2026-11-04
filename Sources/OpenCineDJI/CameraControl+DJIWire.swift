@@ -745,19 +745,40 @@ extension GimbalStick {
         return Int16(bitPattern: UInt16(payload[offset]) | UInt16(payload[offset + 1]) << 8)
     }
 
-    /// The only `0x04/0x05` layout with known offsets. Another length is a
-    /// different frame; reading it as attitude corrupts pan/tilt and Motion Control.
-    public static let attitudeLength = 50
+    /// The `0x04/0x05` attitude layouts with known offsets. Both carry native pitch i16-LE `@0`,
+    /// yaw `@4` and display pitch `@20`. Any other length is a different frame and fails closed:
+    /// reading it as attitude corrupts pan/tilt and Motion Control.
+    public enum AttitudeLayout: Int, CaseIterable, Sendable {
+        /// Pocket 3 on earlier firmware and Pocket 4. Native targets are sent wrapped to ±180°.
+        case full = 50
+        /// Pocket 3 on current firmware (OpenPocketCine#621). Yaw `@4`, native pitch `@0` and
+        /// display pitch `@20` match the full layout; no other field is mapped. A native pitch
+        /// target wrapped across ±180° sent this gimbal the long way into its limit.
+        case pocket3Compact = 49
+
+        public init?(_ payload: [UInt8]) { self.init(rawValue: payload.count) }
+
+        /// How the gimbal reads a native pitch target against its reported pitch.
+        public var nativePitch: GimbalNativePitchWire {
+            switch self {
+            case .full: .wrapped
+            case .pocket3Compact: .continuous
+            }
+        }
+    }
+
+    /// Length of the full attitude layout (`AttitudeLayout.full`).
+    public static let attitudeLength = AttitudeLayout.full.rawValue
 
     public static func isAttitude(_ payload: [UInt8]) -> Bool {
-        payload.count == attitudeLength
+        AttitudeLayout(payload) != nil
     }
 
     public static func yawTenthDeg(_ payload: [UInt8]) -> Int16? {
         isAttitude(payload) ? i16LE(payload, at: 4) : nil
     }
 
-    /// `0x04/0x05` i16-LE @4 in 0.1°. Any length but the known 50-byte layout fails closed (`nil`).
+    /// `0x04/0x05` i16-LE @4 in 0.1°. A length outside `AttitudeLayout` fails closed (`nil`).
     public static func rotated180(_ payload: [UInt8]) -> Bool? {
         guard let yaw = yawTenthDeg(payload) else { return nil }
         return abs(Int(yaw)) > rotated180TenthDeg

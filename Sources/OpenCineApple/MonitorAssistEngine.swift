@@ -285,8 +285,9 @@ public final class MonitorAssistEngine: @unchecked Sendable {
                 clipByte: exposureCeiling.clipByte(transfer: transfer),
                 includePoints: fx.waveform || fx.parade,
                 includeVectorPoints: fx.vectorscope,
-                look: fx.vectorscope
-                    ? (Self.armedCube(fx.image) ?? configuration.defaultScopeLook(transfer)) : nil,
+                // Scopes measure the camera signal. VECTOR maps it through the source's fixed
+                // display transform, never the operator's LUT, so toggling a look cannot move it.
+                look: fx.vectorscope ? configuration.defaultScopeLook(transfer) : nil,
                 trafficThreshold: fx.trafficThreshold,
                 previous: previousBundle)
             let observed = exposureCeiling.observeTapMax(tapMax, transfer: transfer)

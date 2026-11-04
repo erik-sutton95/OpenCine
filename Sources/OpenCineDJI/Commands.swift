@@ -546,12 +546,14 @@ public enum Commands {
     /// Native angle command: yaw/roll/pitch i16-LE tenths, mode, time in
     /// tenths. Mode 0x05 = absolute, roll ignored. Pocket look-up pitch is
     /// distinct from native absolute pitch at attitude i16 @0. Uses notify.
+    /// `wire` sets the native pitch range: ±180° unless the gimbal reads continuous targets.
     public static func gimbalTimedTarget(
-        yawDeg: Double, nativePitchDeg: Double, duration: TimeInterval, seq: UInt16 = 0
+        yawDeg: Double, nativePitchDeg: Double, duration: TimeInterval, seq: UInt16 = 0,
+        nativePitch wire: GimbalNativePitchWire = .wrapped
     ) -> Duml.Frame? {
         guard yawDeg.isFinite, nativePitchDeg.isFinite, duration.isFinite,
             (GimbalReach.panMinDeg...GimbalReach.panMaxDeg).contains(yawDeg),
-            (-180...180).contains(nativePitchDeg),
+            wire.range.contains(nativePitchDeg),
             duration >= 0.1, duration <= 25.5,
             abs(duration * 10 - (duration * 10).rounded()) < 1e-6
         else { return nil }
