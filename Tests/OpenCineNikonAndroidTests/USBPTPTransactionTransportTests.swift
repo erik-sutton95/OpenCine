@@ -5,6 +5,18 @@ import Testing
 @testable import OpenCineNikonAndroid
 
 struct USBPTPTransactionTransportTests {
+    @Test func revokedRackAuthorityNeverWritesOrConsumesATransactionIdentity() throws {
+        let raw = FakeUSBPTPRawIO(bulkReads: [response(transactionID: 1)])
+        let transport = AndroidUSBPTPTransport(rawIO: raw)
+        #expect(throws: NativeCameraSessionError.self) {
+            try transport.executeTransactionSynchronously(
+                operationCode: .mfDrive, parameters: [2, 16], focusRackAuthority: { false })
+        }
+        #expect(raw.writes.isEmpty)
+        _ = try transport.executeTransactionSynchronously(operationCode: .deviceReady)
+        #expect(try PTPUSBContainer(serializedBytes: #require(raw.writes.first)).transactionID == 1)
+    }
+
     @Test func idleInterruptReadIsNonterminalAndTheNextEventStillArrives() throws {
         let event = PTPUSBContainer(
             type: .event,

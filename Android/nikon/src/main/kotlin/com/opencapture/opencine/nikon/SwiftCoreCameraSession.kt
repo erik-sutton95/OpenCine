@@ -121,6 +121,8 @@ internal interface SwiftCoreSessionBridge {
     /** Raw `sessionMFDrive` outcome; -1 is the native no-session sentinel. */
     fun mfDrive(connectionOwner: Long, towardNear: Boolean, pulses: Int): Int = -1
 
+    fun requestActiveFocusRackStop(connectionOwner: Long) = Unit
+
     fun changeAfArea(connectionOwner: Long, point: CameraFocusPoint): Int =
         NikonNative.FOCUS_COMMAND_UNAVAILABLE
 
@@ -268,6 +270,10 @@ internal interface SwiftCoreSessionBridge {
 
         override fun mfDrive(connectionOwner: Long, towardNear: Boolean, pulses: Int): Int =
             NikonNative.sessionMFDrive(connectionOwner, towardNear, pulses)
+
+        override fun requestActiveFocusRackStop(connectionOwner: Long) {
+            NikonNative.sessionRequestActiveFocusRackStop(connectionOwner)
+        }
 
         override fun changeAfArea(connectionOwner: Long, point: CameraFocusPoint): Int =
             NikonNative.sessionChangeAfArea(connectionOwner, point.x, point.y)
@@ -479,6 +485,13 @@ class SwiftCoreCameraSession internal constructor(
      */
     val connectionOwner: Long?
         get() = synchronized(attemptLock) { activeConnectionOwner }
+
+    override val focusRackConnectionOwner: Long?
+        get() = synchronized(attemptLock) {
+            if (core.isAvailable && _state.value is CameraSessionState.Connected) {
+                activeConnectionOwner
+            } else null
+        }
 
     private val _recordingState = MutableStateFlow(CameraRecordingState.STANDBY)
     override val recordingState: StateFlow<CameraRecordingState> = _recordingState.asStateFlow()
@@ -773,6 +786,11 @@ class SwiftCoreCameraSession internal constructor(
     private suspend fun setRecordingAdmitted(
         recording: Boolean, admission: CameraCommandAdmission?,
     ) {
+        // A shared Swift runner prepares runs directly, so stop the native current run
+        // before waiting for this Kotlin command mutex.
+        if (!recording && admits(admission)) {
+            connectionOwner?.let(core::requestActiveFocusRackStop)
+        }
         cameraCommandMutex.withLock {
             if (!admits(admission)) throw CameraRecordingException.CommandRejected
             if (_state.value !is CameraSessionState.Connected) {
@@ -1118,6 +1136,7 @@ class SwiftCoreCameraSession internal constructor(
     }
 
     override suspend fun disconnect() {
+        connectionOwner?.let(core::requestActiveFocusRackStop)
         focusRequestVersion.incrementAndGet()
         // A manual refresh is not owned by either cancellable refresh job, so
         // clear state only after this mutex waits for any such JNI call. That

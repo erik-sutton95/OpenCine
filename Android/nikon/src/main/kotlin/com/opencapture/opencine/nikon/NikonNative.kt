@@ -387,6 +387,9 @@ object NikonNative {
      */
     external fun sessionMFDrive(connectionOwner: Long, towardNear: Boolean, pulses: Int): Int
 
+    /** Publishes a current-run stop before record-stop or teardown waits on any command lock. */
+    external fun sessionRequestActiveFocusRackStop(connectionOwner: Long)
+
     /** Snapshots the card's handle sets as the instant-review diff baseline. */
     external fun sessionSeedStillReviewBaseline(connectionOwner: Long): Int
 

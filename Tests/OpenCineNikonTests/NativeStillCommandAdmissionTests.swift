@@ -8,6 +8,109 @@
     /// SIMULATED transaction scheduling over the real NativeCameraSession still-release methods.
     /// Exact request bytes are asserted; this fixture provides no SDK or camera qualification.
     @MainActor @Suite struct NativeStillCommandAdmissionTests {
+        @Test func capturedRackAuthorityIsRecheckedAtSendAndAllowsCleanup() async throws {
+            for hold in [Transport.Hold.beforeSend, .afterSend] {
+                let transport = Transport()
+                let session = try await makeSession(transport)
+                let gate = ReceiptGate()
+                let access = try #require(
+                    session.focusRackAccess(cadence: .fastExperimental) { gate.isCurrent })
+                #expect(access.prepareRun(1))
+                await transport.clear(hold: hold)
+                let driving = Task { await access.driveChunk(1, false, 16) }
+                await transport.waitUntilHeld()
+                gate.revoke()
+                await transport.release()
+                #expect(
+                    await driving.value
+                        == (hold == .beforeSend
+                            ? .cancelledBeforeActivation : .cancelledReady))
+                #expect(
+                    await transport.calls.map(\.operation)
+                        == (hold == .beforeSend
+                            ? [] : [.mfDrive, .afDriveCancel, .deviceReady]))
+                #expect(!access.isCurrent())
+                #expect(!access.prepareRun(2))
+                session.close()
+            }
+        }
+
+        @Test func inertAccessCanBeCapturedAndClosedOwnerCannotRearm() async throws {
+            let transport = Transport()
+            let session = try await makeSession(transport)
+            let inert = try #require(session.focusRackAccess { false })
+            #expect(!inert.isCurrent())
+            let access = try #require(session.focusRackAccess { true })
+            session.close()
+            #expect(!access.isCurrent())
+            #expect(!access.prepareRun(1))
+            #expect(await access.driveChunk(1, false, 16) == .cancelledBeforeActivation)
+        }
+
+        @Test func recordingStopPublishesRackStopBeforeTransportWait() async throws {
+            let transport = Transport()
+            let session = try await makeSession(transport)
+            let access = try #require(session.focusRackAccess { true })
+            #expect(access.prepareRun(1))
+            await transport.clear(hold: .afterSend)
+            let driving = Task { await access.driveChunk(1, false, 16) }
+            await transport.waitUntilHeld()
+            let stopping = Task { try await session.stopRecording() }
+            try await stopping.value
+            await transport.release()
+            #expect(await driving.value == .cancelledReady)
+            #expect(await access.driveChunk(1, false, 16) == .cancelledBeforeActivation)
+            session.close()
+        }
+
+        @Test func rackTaskCancellationStillExecutesSerializedCleanup() async throws {
+            let transport = Transport()
+            let session = try await makeSession(transport)
+            let access = try #require(session.focusRackAccess { true })
+            #expect(access.prepareRun(1))
+            await transport.clear(hold: .afterSend)
+            let driving = Task {
+                await access.driveChunk(1, false, 40)
+            }
+            await transport.waitUntilHeld()
+            driving.cancel()
+            await transport.release()
+            #expect(await driving.value == .cancelledReady)
+            #expect(await access.driveChunk(1, false, 40) == .cancelledBeforeActivation)
+            #expect(
+                await transport.calls.map(\.operation) == [.mfDrive, .afDriveCancel, .deviceReady])
+            session.close()
+        }
+
+        @Test func rackStopBeforeSendAndAfterActivationHaveDifferentDisplacementEvidence()
+            async throws
+        {
+            for hold in [Transport.Hold.beforeSend, .afterSend] {
+                let transport = Transport()
+                let session = try await makeSession(transport)
+                let access = try #require(session.focusRackAccess { true })
+                #expect(access.prepareRun(1))
+                await transport.clear(hold: hold)
+                let driving = Task {
+                    await access.driveChunk(1, true, 40)
+                }
+                await transport.waitUntilHeld()
+                access.requestStop(1)
+                await transport.release()
+                #expect(
+                    await driving.value
+                        == (hold == .beforeSend
+                            ? .cancelledBeforeActivation : .cancelledReady))
+                let calls = await transport.calls
+                #expect(
+                    calls.map(\.operation)
+                        == (hold == .beforeSend
+                            ? [] : [.mfDrive, .afDriveCancel, .deviceReady]))
+                if hold == .afterSend { #expect(calls.first?.parameters == [1, 40]) }
+                session.close()
+            }
+        }
+
         @Test func currentAndDirectReleasesPreserveAdvertisedOperationAndFocusParameters()
             async throws
         {

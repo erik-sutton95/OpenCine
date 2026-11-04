@@ -283,17 +283,36 @@ public struct MonitorOperatorLiveAudio {
     public let feedGestures: AnyView?
     public let focusControls: AnyView?
     public let motion: MonitorOperatorMotionViews?
+    public let focusAccessory: MonitorOperatorFocusAccessoryViews?
     /// Why the picture is missing and how to recover it (a relay's refusal and retry), under
     /// the shared waiting plate while the first frame is awaited.
     public let waiting: AnyView?
     public init(focusDrive: AnyView? = nil, dashboard: AnyView? = nil, connection: AnyView? = nil,
         comparison: AnyView? = nil, resetFocus: (() -> Void)? = nil,
         feedMarks: AnyView? = nil, feedGestures: AnyView? = nil, focusControls: AnyView? = nil,
-        motion: MonitorOperatorMotionViews? = nil, waiting: AnyView? = nil) {
+        motion: MonitorOperatorMotionViews? = nil, waiting: AnyView? = nil,
+        focusAccessory: MonitorOperatorFocusAccessoryViews? = nil) {
         self.focusDrive = focusDrive; self.dashboard = dashboard; self.connection = connection
         self.comparison = comparison; self.resetFocus = resetFocus
         self.feedMarks = feedMarks; self.feedGestures = feedGestures; self.focusControls = focusControls
         self.motion = motion; self.waiting = waiting
+        self.focusAccessory = focusAccessory
+    }
+}
+
+/// Native focus setup and safety transport, positioned by the common monitor surface.
+@MainActor public struct MonitorOperatorFocusAccessoryViews {
+    public let isExpanded: Bool
+    public let active: Bool
+    public let expanded: (CGFloat) -> AnyView
+    public let compact: AnyView
+    public let position: MonitorScopePoint?
+
+    /// Expanded content receives its available height. Compact content keeps Pause/Stop reachable.
+    public init(isExpanded: Bool, active: Bool, expanded: @escaping (CGFloat) -> AnyView, compact: AnyView,
+        position: MonitorScopePoint? = nil) {
+        self.isExpanded = isExpanded; self.active = active
+        self.expanded = expanded; self.compact = compact; self.position = position
     }
 }
 
@@ -555,6 +574,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                         .offset(y: layout.portrait ? 0 : layout.assists.y - 18)
                 }
             }
+            .overlay(alignment: .topLeading) { focusAccessoryChrome }
             .onChange(of: context, initial: true) { _, value in apply(lifecycle.update(value)) }
             .onChange(of: identity) { _, _ in
                 captureState.retire(); captureState.frames = [:]; dismiss(); session.finishEditing()
@@ -878,7 +898,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                     .position(x: frame.midX, y: frame.midY).allowsHitTesting(admitted)
             }
             // Hidden under the lock like focus reset (pre-shared Z Android hid the MF strip there).
-            if !command, !locked, let drive = cameraViews.focusDrive {
+            if !command, !locked, cameraViews.focusAccessory == nil, let drive = cameraViews.focusDrive {
                 drive.frame(height: min(280, layout.viewport.height * 0.55))
                     .position(x: max(layout.picture.x + 30, layout.record.x - 34), y: layout.picture.midY).allowsHitTesting(admitted)
             }
@@ -915,6 +935,25 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                     else { MonitorIcon.image }
                 }.modifier(ChromeEditableModifier<Host>(section: .toolBar, mode: editing))
                 .opacity(locked ? 0.4 : 1).allowsHitTesting(!locked).position(x: frame.midX, y: frame.midY).zIndex(6)
+        }
+    }
+    private var focusAccessoryLayout: MonitorFocusAccessoryLayout? {
+        guard exposed, !command, editing == nil else { return nil }
+        return cameraViews.focusAccessory.map {
+            .init(layout: layout, safeArea: safeArea, expanded: $0.isExpanded && session.mode != .clean && !locked,
+                position: $0.position)
+        }
+    }
+    @ViewBuilder private var focusAccessoryChrome: some View {
+        if exposed, !command, editing == nil, let accessory = cameraViews.focusAccessory,
+            let placement = focusAccessoryLayout, placement.frame.width > 0, placement.frame.height > 0 {
+            Group {
+                if placement.compact { accessory.compact }
+                else { accessory.expanded(placement.frame.height) }
+            }
+            .frame(width: placement.frame.width, height: placement.frame.height, alignment: .top)
+            .position(x: placement.frame.midX, y: placement.frame.midY)
+            .allowsHitTesting(session.interactive || accessory.active)
         }
     }
     private func openOptions(_ id: String) {
@@ -982,6 +1021,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @ViewBuilder private var scopes: some View {
         if let assistSource, let stores {
         let obstacles = layout.scopeObstacles(scopeChrome, motionCluster: cameraViews.motion != nil).map(\.cgRect)
+            + (focusAccessoryLayout.map { [$0.frame.cgRect] } ?? [])
         Group { scopePanels(assistSource, stores) }.environment(\.monitorScopeObstacles, obstacles)
         }
     }

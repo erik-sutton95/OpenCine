@@ -177,7 +177,9 @@ final class AndroidUSBPTPTransport: CameraTransport, @unchecked Sendable {
         parameters: [UInt32] = [],
         dataPhase: PTPDataPhase = .noDataOrDataIn,
         dataOut: Data? = nil,
-        deadline: Duration? = nil
+        deadline: Duration? = nil,
+        focusRackCancellation: NikonFocusRackCancellation? = nil,
+        focusRackAuthority: (@Sendable () -> Bool)? = nil
     ) throws -> PTPIPTransactionResult {
         try validateDataPhase(operationCode: operationCode, dataPhase: dataPhase, dataOut: dataOut)
 
@@ -187,6 +189,9 @@ final class AndroidUSBPTPTransport: CameraTransport, @unchecked Sendable {
         let closed = isClosed
         stateLock.unlock()
         guard !closed else { throw AndroidUSBPTPTransportError.connectionClosed }
+        if focusRackCancellation?.isStopRequested == true || focusRackAuthority?() == false {
+            throw NativeCameraSessionError.commandAuthorityExpired
+        }
         let roundTripStart = PTPIPClientSession.monotonicNanoseconds()
         let transactionID = explicitTransactionID ?? nextTransactionID
         if explicitTransactionID == nil { nextTransactionID += 1 }
