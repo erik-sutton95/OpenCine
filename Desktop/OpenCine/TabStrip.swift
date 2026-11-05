@@ -1,3 +1,4 @@
+import AppKit
 import OpenCineDesktopKit
 import SwiftUI
 
@@ -29,7 +30,16 @@ struct TabStrip: View {
                 .accessibilityLabel(accessibilityLabel(for: module))
             }
             Spacer(minLength: 12)
-            Text(driverText).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+            if model.driver.state == .awaitingApproval, model.problem == nil {
+                Button("Turn on camera driver") {
+                    NSWorkspace.shared.open(DriverController.approvalSettingsURL)
+                }
+                .font(.system(size: 12, weight: .medium))
+                .accessibilityHint("Opens System Settings. Turn on OpenCine Camera under Camera Extensions.")
+            } else {
+                Text(driverText).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                    .truncationMode(.middle).help(driverText)
+            }
         }
         .padding(.leading, 84).padding(.trailing, 12)
         .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
@@ -62,8 +72,7 @@ struct TabStrip: View {
         switch model.driver.state {
         case .checking: return "Checking camera driver"
         case .notInstalled: return "Installing camera driver"
-        case .awaitingApproval:
-            return "Allow OpenCine in System Settings > General > Login Items & Extensions > Camera Extensions"
+        case .awaitingApproval: return ""
         case .installed: return ""
         case .restartNeeded: return "Restart the Mac to finish the camera driver"
         case .failed(let reason): return "Camera driver: \(reason)"

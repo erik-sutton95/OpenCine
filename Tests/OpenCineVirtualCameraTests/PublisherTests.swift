@@ -14,6 +14,46 @@ struct PublisherTests {
         init(_ number: Int) { self.number = number }
     }
 
+    /// A live frame reaches the webcam as its own code values. Any tone shift here would make the
+    /// webcam disagree with the monitor.
+    @Test func converterKeepsTheCodeValuesOfACodeValueFrame() throws {
+        var source: CVPixelBuffer?
+        let attributes = [kCVPixelBufferIOSurfacePropertiesKey as String: [:]] as CFDictionary
+        #expect(
+            CVPixelBufferCreate(
+                kCFAllocatorDefault, 64, 36, kCVPixelFormatType_32BGRA, attributes, &source)
+                == kCVReturnSuccess)
+        let frame = try #require(source)
+        let (blue, green, red): (UInt8, UInt8, UInt8) = (40, 128, 200)
+        CVPixelBufferLockBaseAddress(frame, [])
+        let bytes = try #require(CVPixelBufferGetBaseAddress(frame))
+            .assumingMemoryBound(to: UInt8.self)
+        for offset in stride(
+            from: 0, to: CVPixelBufferGetBytesPerRow(frame) * 36, by: 4)
+        {
+            bytes[offset] = blue
+            bytes[offset + 1] = green
+            bytes[offset + 2] = red
+            bytes[offset + 3] = 255
+        }
+        CVPixelBufferUnlockBaseAddress(frame, [])
+        let sRGB = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+        let image = CIImage(cvPixelBuffer: frame, options: [.colorSpace: sRGB])
+
+        let output = try #require(VirtualCameraConverter().convert(image))
+
+        #expect(CVPixelBufferGetWidth(output) == 1_920)
+        #expect(CVPixelBufferGetHeight(output) == 1_080)
+        CVPixelBufferLockBaseAddress(output, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(output, .readOnly) }
+        let pixels = try #require(CVPixelBufferGetBaseAddress(output))
+            .assumingMemoryBound(to: UInt8.self)
+        let centre = 540 * CVPixelBufferGetBytesPerRow(output) + 960 * 4
+        #expect(abs(Int(pixels[centre]) - Int(blue)) <= 1)
+        #expect(abs(Int(pixels[centre + 1]) - Int(green)) <= 1)
+        #expect(abs(Int(pixels[centre + 2]) - Int(red)) <= 1)
+    }
+
     @Test func slowConsumerKeepsOnlyNewestPendingFrame() {
         let mailbox = VirtualCameraMailbox<Frame>()
         let generation = mailbox.setEnabled(true)

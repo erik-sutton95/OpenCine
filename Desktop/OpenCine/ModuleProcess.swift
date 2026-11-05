@@ -104,6 +104,8 @@ final class ModuleProcess: Identifiable {
         }
     }
 
+    var processIdentifier: pid_t? { process?.processIdentifier }
+
     var activate: () -> Void {
         { [process] in
             guard let process else { return }
