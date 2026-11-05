@@ -1,7 +1,9 @@
 #if targetEnvironment(macCatalyst)
+    import CoreImage
     import Foundation
     import ObjectiveC
     import OpenCineDesktopKit
+    import os
     import UIKit
 
     /// What runs a Catalyst app as a camera module of the OpenCine dock: its slot's webcam output,
@@ -18,6 +20,8 @@
         public let output: VirtualCameraOutput
         private var inbound = Data()
         private var lastStatus: ModuleStatus?
+        private nonisolated let lastFrame = OSAllocatedUnfairLock<UInt64?>(initialState: nil)
+        private var statusTimer: Timer?
 
         static func launchedByDock(environment: [String: String]) -> DesktopModuleHost? {
             guard let moduleID = environment["OPENCINE_MODULE_ID"],
@@ -48,6 +52,30 @@
                 Task { @MainActor [weak self] in self?.received(data) }
             }
             send(.ready(moduleID: moduleID))
+            report(.idle)
+            statusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateStatus() }
+            }
+        }
+
+        /// Records that a real picture reached the output. Cheap enough to call per frame.
+        public nonisolated func noteFrame() {
+            let now = DispatchTime.now().uptimeNanoseconds
+            lastFrame.withLock { $0 = now }
+        }
+
+        /// Sends one clean picture to this module's input.
+        public nonisolated func publish(_ image: CIImage) {
+            noteFrame()
+            output.submit(image)
+        }
+
+        /// A camera counts as live while pictures arrive, whichever route they take.
+        private func updateStatus() {
+            let last = lastFrame.withLock { $0 }
+            let now = DispatchTime.now().uptimeNanoseconds
+            let live = last.map { now - $0 < 2_000_000_000 } ?? false
+            report(live ? .live(cameraName: nil) : .idle)
         }
 
         public func report(_ status: ModuleStatus) {
