@@ -160,6 +160,12 @@
             publisher.submit(pixelBuffer, timestamp: timestamp, generation: sourceGeneration)
         }
 
+        /// Publish an immutable image graph, stamped now, on the current source.
+        public nonisolated func submit(_ image: CIImage) {
+            publisher.submit(
+                image, timestamp: CMClockGetTime(CMClockGetHostTimeClock()), generation: nil)
+        }
+
         /// Publish an immutable native image graph after the shared look is applied.
         public nonisolated func submit(
             _ image: CIImage, timestamp: CMTime, sourceGeneration: UInt64
@@ -241,9 +247,10 @@
                 generation: generation ?? mailbox.currentGeneration)
         }
 
-        func submit(_ image: CIImage, timestamp: CMTime, generation: UInt64) {
+        func submit(_ image: CIImage, timestamp: CMTime, generation: UInt64?) {
             mailbox.offer(
-                Frame(picture: .image(image), timestamp: timestamp), generation: generation)
+                Frame(picture: .image(image), timestamp: timestamp),
+                generation: generation ?? mailbox.currentGeneration)
         }
 
         private func stop() {
