@@ -23,7 +23,15 @@ final class DriverController: NSObject, @preconcurrency OSSystemExtensionRequest
         )?.object(forInfoDictionaryKey: "CFBundleVersion") as? String
     }
     private var activeRequest: OSSystemExtensionRequest?
-    private(set) var state = State.checking
+    private(set) var state = State.checking {
+        didSet {
+            // A module that started before the driver existed never sees its input appear.
+            if state == .installed, oldValue == .awaitingApproval || oldValue == .notInstalled {
+                onDriverArrived?()
+            }
+        }
+    }
+    @ObservationIgnored var onDriverArrived: (() -> Void)?
     private var installAfterCheck = false
     /// macOS sends nothing to a later launch when the owner approves, so the dock asks again.
     private var approvalPoll: Task<Void, Never>?

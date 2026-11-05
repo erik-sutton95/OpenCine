@@ -44,6 +44,8 @@ struct TabStrip: View {
         .padding(.leading, 84).padding(.trailing, 12)
         .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
         .background(Color(white: 0.11))
+        // The strip shares the title bar's row with the window buttons.
+        .ignoresSafeArea()
     }
 
     private func color(for module: ModuleProcess) -> Color {

@@ -45,16 +45,7 @@
         public func start() {
             AppKitBridge.setAccessoryActivationPolicy()
             output.setEnabled(true)
-            let input = FileHandle(fileDescriptor: 0, closeOnDealloc: false)
-            input.readabilityHandler = { [weak self] file in
-                let data = file.availableData
-                // The dock going away must not take a live camera with it.
-                guard !data.isEmpty else {
-                    file.readabilityHandler = nil
-                    return
-                }
-                Task { @MainActor [weak self] in self?.received(data) }
-            }
+            startReadingChannel()
             send(.ready(moduleID: moduleID))
             report(.idle)
             windowTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -115,9 +106,40 @@
             }
         }
 
+        /// The channel is a socket on standard input. A plain blocking reader stays reliable where a
+        /// `FileHandle` readability handler stopped after its first message, because each `send`
+        /// made and released another `FileHandle` for the same descriptor.
+        private func startReadingChannel() {
+            let thread = Thread { [weak self] in
+                var buffer = [UInt8](repeating: 0, count: 4_096)
+                while true {
+                    let count = read(0, &buffer, buffer.count)
+                    if count < 0, errno == EINTR { continue }
+                    // The dock going away must not take a live camera with it.
+                    guard count > 0 else { return }
+                    let data = Data(buffer[0..<count])
+                    DispatchQueue.main.async { [weak self] in
+                        MainActor.assumeIsolated { self?.received(data) }
+                    }
+                }
+            }
+            thread.name = "com.opencapture.opencine.module-channel"
+            thread.start()
+        }
+
         private func send(_ message: ModuleMessage) {
             guard let data = try? LengthPrefixedJSON.encode(message) else { return }
-            try? FileHandle(fileDescriptor: 0, closeOnDealloc: false).write(contentsOf: data)
+            var noSignal: Int32 = 1
+            setsockopt(0, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
+            data.withUnsafeBytes { bytes in
+                var offset = 0
+                while offset < bytes.count {
+                    let written = write(0, bytes.baseAddress! + offset, bytes.count - offset)
+                    if written < 0, errno == EINTR { continue }
+                    guard written > 0 else { return }
+                    offset += written
+                }
+            }
         }
     }
 
@@ -157,8 +179,9 @@
             for window in windows {
                 let current = (window.value(forKey: "frame") as? NSValue)?.cgRectValue
                 let visible = window.value(forKey: "visible") as? Bool ?? false
-                if visible, current == target { continue }
+                // Catalyst can put the title bar back when a scene updates, so this is checked too.
                 prepare(window)
+                if visible, current == target { continue }
                 let selector = NSSelectorFromString("setFrame:display:")
                 typealias Function = @convention(c) (AnyObject, Selector, CGRect, Bool) -> Void
                 unsafeBitCast(window.method(for: selector), to: Function.self)(
@@ -177,11 +200,15 @@
         private static func prepare(_ window: NSObject) {
             let titled = 1
             let fullSizeContentView = 1 << 15
+            let wanted = titled | fullSizeContentView
             typealias SetMask = @convention(c) (AnyObject, Selector, Int) -> Void
             let mask = NSSelectorFromString("setStyleMask:")
+            let isPrepared =
+                (window.value(forKey: "styleMask") as? Int) == wanted
+                && (window.value(forKey: "movable") as? Bool) == false
+            if isPrepared { return }
             if window.responds(to: mask) {
-                unsafeBitCast(window.method(for: mask), to: SetMask.self)(
-                    window, mask, titled | fullSizeContentView)
+                unsafeBitCast(window.method(for: mask), to: SetMask.self)(window, mask, wanted)
             }
             typealias SetFlag = @convention(c) (AnyObject, Selector, Bool) -> Void
             for (name, value) in [
