@@ -22,6 +22,10 @@
         private var lastStatus: ModuleStatus?
         private nonisolated let lastFrame = OSAllocatedUnfairLock<UInt64?>(initialState: nil)
         private var statusTimer: Timer?
+        private var windowTimer: Timer?
+        /// The dock's latest window instruction. Reapplied until it holds: the first one can arrive
+        /// before the window exists, and the system can restore a window's old place.
+        private var windowInstruction: DockMessage?
 
         static func launchedByDock(environment: [String: String]) -> DesktopModuleHost? {
             guard let moduleID = environment["OPENCINE_MODULE_ID"],
@@ -53,6 +57,9 @@
             }
             send(.ready(moduleID: moduleID))
             report(.idle)
+            windowTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.holdWindow() }
+            }
             statusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.updateStatus() }
             }
@@ -92,10 +99,19 @@
             }
             for message in messages {
                 switch message {
-                case .show(let frame): AppKitBridge.show(frame: frame)
-                case .hide: AppKitBridge.hide()
+                case .show, .hide:
+                    windowInstruction = message
+                    holdWindow()
                 case .quit: exit(0)
                 }
+            }
+        }
+
+        private func holdWindow() {
+            switch windowInstruction {
+            case .show(let frame): AppKitBridge.hold(frame: frame)
+            case .hide: AppKitBridge.holdHidden()
+            case .quit, nil: break
             }
         }
 
@@ -135,20 +151,24 @@
                 application, selector, 1)
         }
 
-        static func show(frame: WindowFrame) {
+        /// Places every content window at `frame` and in front, only when it is not already there.
+        static func hold(frame: WindowFrame) {
+            let target = CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
             for window in windows {
+                let current = (window.value(forKey: "frame") as? NSValue)?.cgRectValue
+                let visible = window.value(forKey: "visible") as? Bool ?? false
+                if visible, current == target { continue }
                 prepare(window)
                 let selector = NSSelectorFromString("setFrame:display:")
                 typealias Function = @convention(c) (AnyObject, Selector, CGRect, Bool) -> Void
                 unsafeBitCast(window.method(for: selector), to: Function.self)(
-                    window, selector,
-                    CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height), true)
+                    window, selector, target, true)
                 window.perform(NSSelectorFromString("orderFrontRegardless"))
             }
         }
 
-        static func hide() {
-            for window in windows {
+        static func holdHidden() {
+            for window in windows where window.value(forKey: "visible") as? Bool ?? false {
                 window.perform(NSSelectorFromString("orderOut:"), with: nil)
             }
         }

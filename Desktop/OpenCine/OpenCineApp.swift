@@ -39,12 +39,13 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.contentView = NSHostingView(rootView: TabStrip(model: model))
-        if let screen = NSScreen.main?.visibleFrame {
-            window.setFrameOrigin(
-                NSPoint(
-                    x: screen.midX - contentSize.width / 2,
-                    y: screen.midY + contentSize.height / 2))
-        }
+        // The content view fills the frame, so the strip's own height is the whole window.
+        let screen = NSScreen.main?.visibleFrame ?? .zero
+        window.setFrame(
+            NSRect(
+                x: screen.midX - contentSize.width / 2,
+                y: screen.midY + contentSize.height / 2 - Self.stripHeight / 2,
+                width: contentSize.width, height: Self.stripHeight), display: true)
         model.contentFrame = { [weak self] in self?.moduleFrame() }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
