@@ -484,9 +484,17 @@
         }
 
         private static func discoverCaptureDevices() -> [AVCaptureDevice] {
-            AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.external], mediaType: .video, position: .unspecified
-            ).devices
+            #if targetEnvironment(macCatalyst)
+                // Mac Catalyst files every camera as built in and answers `.external` with nothing.
+                AVCaptureDevice.DiscoverySession(
+                    deviceTypes: [.external, .builtInWideAngleCamera], mediaType: .video,
+                    position: .unspecified
+                ).devices.filter { UVCCaptureSelection.isCaptureHardware(modelID: $0.modelID) }
+            #else
+                AVCaptureDevice.DiscoverySession(
+                    deviceTypes: [.external], mediaType: .video, position: .unspecified
+                ).devices
+            #endif
         }
 
         private static func attachedCaptureDevice(selectedID: String? = nil) -> AVCaptureDevice? {
