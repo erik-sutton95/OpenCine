@@ -38,7 +38,10 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentView = NSHostingView(rootView: TabStrip(model: model))
+        // The hosting view would otherwise size the window to its own ideal and add the title bar.
+        let host = NSHostingView(rootView: TabStrip(model: model))
+        host.sizingOptions = []
+        window.contentView = host
         // The content view fills the frame, so the strip's own height is the whole window.
         let screen = NSScreen.main?.visibleFrame ?? .zero
         window.setFrame(
