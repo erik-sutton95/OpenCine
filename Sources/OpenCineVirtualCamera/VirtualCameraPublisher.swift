@@ -420,8 +420,16 @@
                     translationX: bounds.midX - scaled.extent.midX,
                     y: bounds.midY - scaled.extent.midY))
             let image = centered.composited(over: CIImage(color: .black).cropped(to: bounds))
-            // This synchronous render returns after the output is usable by another process.
-            context.render(image, to: output, bounds: bounds, colorSpace: colorSpace)
+            // Waits for the GPU: the buffer goes to another process next, and a fresh pool buffer
+            // sent before its render lands is all zeros, a black frame in the receiving app.
+            let destination = CIRenderDestination(pixelBuffer: output)
+            destination.colorSpace = colorSpace
+            do {
+                try context.startTask(toRender: image, from: bounds, to: destination, at: .zero)
+                    .waitUntilCompleted()
+            } catch {
+                return nil
+            }
             return output
         }
     }
