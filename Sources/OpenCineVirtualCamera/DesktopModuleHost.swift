@@ -93,6 +93,8 @@
                 case .show, .hide:
                     windowInstruction = message
                     holdWindow()
+                    // Each instruction is the dock saying this tab is the visible one right now.
+                    if case .show = message { AppKitBridge.raise() }
                 case .quit: exit(0)
                 }
             }
@@ -188,6 +190,13 @@
                 typealias Function = @convention(c) (AnyObject, Selector, CGRect, Bool) -> Void
                 unsafeBitCast(window.method(for: selector), to: Function.self)(
                     window, selector, target, true)
+                window.perform(NSSelectorFromString("orderFrontRegardless"))
+            }
+        }
+
+        /// Puts the module's content windows in front, without taking keyboard focus.
+        static func raise() {
+            for window in windows {
                 window.perform(NSSelectorFromString("orderFrontRegardless"))
             }
         }

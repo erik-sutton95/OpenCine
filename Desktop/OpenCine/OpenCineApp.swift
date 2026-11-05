@@ -188,6 +188,18 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowDidBecomeKey(_ notification: Notification) { model.applySelection() }
 
+    /// Coming forward by any route, such as the Dock icon, brings the selected camera along.
+    func applicationDidBecomeActive(_ notification: Notification) { model.applySelection() }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication, hasVisibleWindows flag: Bool
+    ) -> Bool {
+        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
+        window?.makeKeyAndOrderFront(nil)
+        model.applySelection()
+        return false
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         // `terminate` runs the one live-input confirmation.
         NSApp.terminate(nil)
