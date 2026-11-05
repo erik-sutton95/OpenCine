@@ -23,6 +23,7 @@ final class ModuleProcess: Identifiable {
     @ObservationIgnored private var channel: FileHandle?
     @ObservationIgnored private var inbound = Data()
     @ObservationIgnored private var expectingExit = false
+    @ObservationIgnored private var restartAfterExit = false
     /// Latest window instruction, replayed when the module reports ready.
     @ObservationIgnored private var lastInstruction: DockMessage?
 
@@ -51,6 +52,10 @@ final class ModuleProcess: Identifiable {
             status = .failed("Could not open the module's channel.")
             return
         }
+        // Writing to a module that has just gone must fail, not take the dock down with SIGPIPE.
+        var noSignal: Int32 = 1
+        setsockopt(
+            sockets[0], SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
         let child = Process()
         child.executableURL = executable
         var environment = ProcessInfo.processInfo.environment
@@ -105,6 +110,18 @@ final class ModuleProcess: Identifiable {
     }
 
     var processIdentifier: pid_t? { process?.processIdentifier }
+    var isProcessRunning: Bool { process?.isRunning == true }
+
+    func forceStop() {
+        if process?.isRunning == true { process?.terminate() }
+    }
+
+    /// Stops a running module and starts it again once it has gone.
+    func restartRunning() {
+        guard isProcessRunning else { return }
+        restartAfterExit = true
+        quit()
+    }
 
     var activate: () -> Void {
         { [process] in
@@ -134,7 +151,11 @@ final class ModuleProcess: Identifiable {
         process = nil
         channel?.readabilityHandler = nil
         channel = nil
-        if expectingExit {
+        if restartAfterExit {
+            restartAfterExit = false
+            phase = .stopped
+            start()
+        } else if expectingExit {
             phase = .stopped
         } else {
             phase = .crashed

@@ -55,6 +55,9 @@ final class DockModel {
             problem = "The camera input table could not be saved: \(error.localizedDescription)"
         }
         modules = processes
+        driver.onDriverArrived = { [weak self] in
+            for module in self?.modules ?? [] { module.restartRunning() }
+        }
         driver.ensureInstalled()
         DriverSlotTableChannel.keepDelivered(table)
         for module in modules { module.start() }
@@ -93,7 +96,13 @@ final class DockModel {
         modules.contains { $0.processIdentifier == identifier }
     }
 
+    /// Ends every module before the dock exits, since nothing is left to escalate afterwards.
     func quitAll() {
         for module in modules { module.quit() }
+        let deadline = Date().addingTimeInterval(2)
+        while modules.contains(where: \.isProcessRunning), Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        for module in modules { module.forceStop() }
     }
 }

@@ -8,6 +8,8 @@ import SwiftUI
 @MainActor
 final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     static let stripHeight: CGFloat = 44
+    /// The strip's leading space, which holds the window buttons.
+    private static let windowButtonsWidth: CGFloat = 76
     private let model = DockModel()
     private var window: NSWindow!
     private var contentSize = NSSize(width: 1280, height: 756)
@@ -35,7 +37,9 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
+        // The dock moves the strip itself: macOS reports a system drag only when it ends, and the
+        // module's window has to follow every step.
+        window.isMovable = false
         window.isReleasedWhenClosed = false
         window.delegate = self
         // The hosting view would otherwise size the window to its own ideal and add the title bar.
@@ -51,6 +55,8 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 width: contentSize.width, height: Self.stripHeight), display: true)
         model.contentFrame = { [weak self] in self?.moduleFrame() }
         NSApp.mainMenu = Self.makeMainMenu()
+        installStripDrag()
+        followStrip()
         // A click in a module brings only that process forward, so the strip follows it.
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(applicationActivated(_:)),
@@ -58,6 +64,54 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
         model.load()
+    }
+
+    /// Keeps the module under the strip however the strip got there: a drag, a display change or
+    /// another app. The window delegate's move callback did not arrive for these moves.
+    private func followStrip() {
+        var last = window.frame
+        let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let frame = self.window?.frame, frame != last else { return }
+                last = frame
+                self.model.applySelection()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    /// Drags the strip, and the selected module with it, from anywhere but the window buttons.
+    private func installStripDrag() {
+        var start: (mouse: NSPoint, origin: NSPoint)?
+        var dragging = false
+        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) {
+            [weak self] event in
+            guard let self, let window = self.window, event.window === window else { return event }
+            let mouse = NSEvent.mouseLocation
+            switch event.type {
+            case .leftMouseDown:
+                dragging = false
+                start = event.locationInWindow.x > Self.windowButtonsWidth
+                    ? (mouse, window.frame.origin) : nil
+            case .leftMouseDragged:
+                guard let start else { return event }
+                let delta = NSPoint(x: mouse.x - start.mouse.x, y: mouse.y - start.mouse.y)
+                if !dragging, hypot(delta.x, delta.y) < 3 { return event }
+                dragging = true
+                window.setFrameOrigin(
+                    NSPoint(x: start.origin.x + delta.x, y: start.origin.y + delta.y))
+                self.model.applySelection()
+                return nil
+            case .leftMouseUp:
+                start = nil
+                if dragging {
+                    dragging = false
+                    return nil
+                }
+            default: break
+            }
+            return event
+        }
     }
 
     private static func makeMainMenu() -> NSMenu {
@@ -131,8 +185,6 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             x: strip.minX, y: strip.minY - contentSize.height,
             width: strip.width, height: contentSize.height)
     }
-
-    func windowDidMove(_ notification: Notification) { model.applySelection() }
 
     func windowDidBecomeKey(_ notification: Notification) { model.applySelection() }
 
