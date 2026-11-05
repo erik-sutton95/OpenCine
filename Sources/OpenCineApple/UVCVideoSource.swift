@@ -613,6 +613,9 @@
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             let timeNs = pts.isNumeric ? Int64(CMTimeGetSeconds(pts) * 1_000_000_000) : 0
             counters.withLock { $0.captured &+= 1 }
+            if CaptureFrameLevel.isBlack(pixelBuffer) {
+                log.notice("capture frame black at \(timeNs, privacy: .public)")
+            }
             let lease = fence.lease(pixelBuffer, timeNs: timeNs)
             switch framesContinuation.yield(lease) {
             case .dropped(let previous):
@@ -624,4 +627,37 @@
             }
         }
     }
+
+    /// Whether a captured frame is black throughout, read from a sparse grid of its luma. A
+    /// diagnostic for picture dropouts upstream of the app: the camera's HDMI or the capture device.
+    enum CaptureFrameLevel {
+        static func isBlack(_ frame: CVPixelBuffer) -> Bool {
+            CVPixelBufferLockBaseAddress(frame, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(frame, .readOnly) }
+            let format = CVPixelBufferGetPixelFormatType(frame)
+            let planar = CVPixelBufferIsPlanar(frame)
+            guard
+                let base = planar
+                    ? CVPixelBufferGetBaseAddressOfPlane(frame, 0)
+                    : CVPixelBufferGetBaseAddress(frame)
+            else { return false }
+            let bytes = base.assumingMemoryBound(to: UInt8.self)
+            let width = planar ? CVPixelBufferGetWidthOfPlane(frame, 0) : CVPixelBufferGetWidth(frame)
+            let height = planar ? CVPixelBufferGetHeightOfPlane(frame, 0) : CVPixelBufferGetHeight(frame)
+            let row = planar ? CVPixelBufferGetBytesPerRowOfPlane(frame, 0) : CVPixelBufferGetBytesPerRow(frame)
+            // Luma byte per pixel: the plane itself, every other byte of 2vuy/yuvs, or green of BGRA.
+            let (step, offset): (Int, Int) =
+                planar ? (1, 0)
+                : format == kCVPixelFormatType_422YpCbCr8 ? (2, 1)
+                : format == kCVPixelFormatType_422YpCbCr8_yuvs ? (2, 0) : (4, 1)
+            var brightest = 0
+            for y in stride(from: height / 16, to: height, by: height / 8) {
+                for x in stride(from: width / 32, to: width, by: width / 16) {
+                    brightest = max(brightest, Int(bytes[y * row + x * step + offset]))
+                }
+            }
+            return brightest < 24
+        }
+    }
 #endif
+
