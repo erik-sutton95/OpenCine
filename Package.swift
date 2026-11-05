@@ -47,6 +47,7 @@ let package = Package(
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
         .library(name: "OpenCineGyro", targets: ["OpenCineGyro"]),
         .library(name: "OpenCineDesktopKit", targets: ["OpenCineDesktopKit"]),
+        .library(name: "OpenCineVirtualCamera", targets: ["OpenCineVirtualCamera"]),
         .library(name: "OpenCineGyroApple", targets: ["OpenCineGyroApple"]),
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
         .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
@@ -118,6 +119,10 @@ let package = Package(
         // module messages. Foundation only; names no manufacturer or app.
         .target(name: "OpenCineDesktopKit"),
         .testTarget(name: "OpenCineDesktopKitTests", dependencies: ["OpenCineDesktopKit"]),
+        // The virtual camera producer and frame policy, shared by the driver and every camera module.
+        // Apple frameworks plus OpenCineDesktopKit only; no UI, integration or app.
+        .target(name: "OpenCineVirtualCamera", dependencies: ["OpenCineDesktopKit"]),
+        .testTarget(name: "OpenCineVirtualCameraTests", dependencies: ["OpenCineVirtualCamera", "OpenCineDesktopKit"]),
         .target(name: "OpenCineGyro"),
         .testTarget(name: "OpenCineGyroTests", dependencies: ["OpenCineGyro"]),
         // Gyro capture's Apple shell: CoreMotion driver, UserDefaults store and the capture coordinator.
