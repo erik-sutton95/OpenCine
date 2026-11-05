@@ -39,3 +39,16 @@ import Testing
                 .matches(width: 0, height: 1080, minimumRate: 0, maximumRate: 60))
     }
 }
+
+@Suite("Which attached devices count as capture hardware")
+struct CaptureHardwareFilterTests {
+    @Test func aUSBDeviceNamingItsIDsIsCaptureHardware() {
+        #expect(UVCCaptureSelection.isCaptureHardware(modelID: "UVC Camera VendorID_13407 ProductID_8496"))
+    }
+
+    @Test func theMacsOwnCameraAndVirtualCamerasAreNot() {
+        for model in ["MacBookPro18,3", "OpenCine Nikon Z", "Insta360 Model", "iPhone17,2", ""] {
+            #expect(!UVCCaptureSelection.isCaptureHardware(modelID: model), "\(model)")
+        }
+    }
+}
