@@ -352,6 +352,11 @@
       "name": "OpenCineDesktopKit",
       "kind": "swift-library",
       "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineVirtualCamera",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
     }
   ],
   "layers": {
@@ -394,7 +399,9 @@
       ":relay-runtime",
       ":watch-runtime",
       "OpenCineDesktopKit",
-      "OpenCineDesktopKitTests"
+      "OpenCineDesktopKitTests",
+      "OpenCineVirtualCamera",
+      "OpenCineVirtualCameraTests"
     ],
     "ui": [
       "MonitorPresentation",
