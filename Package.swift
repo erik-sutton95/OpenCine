@@ -53,6 +53,7 @@ let package = Package(
         .library(name: "OpenCineMedia", targets: ["OpenCineMedia"]),
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
         .library(name: "OpenCineGyro", targets: ["OpenCineGyro"]),
+        .library(name: "OpenCineDesktopKit", targets: ["OpenCineDesktopKit"]),
         .library(name: "OpenCineGyroApple", targets: ["OpenCineGyroApple"]),
         .library(name: "OpenCineStreaming", targets: ["OpenCineStreaming"]),
         .library(name: "OpenCineStreamingApple", targets: ["OpenCineStreamingApple"]),
@@ -123,6 +124,10 @@ let package = Package(
         .testTarget(name: "OpenCineFrameIOTests", dependencies: ["OpenCineFrameIO"]),
         // Phone gyro capture for Gyroflow: take segmentation, GCSV, mount calibration, drift,
         // stabilization save/restore and log storage. Foundation only; names no app or manufacturer.
+        // The desktop dock's portable rules: driver slots, module manifest and registry, dock and
+        // module messages. Foundation only; names no manufacturer or app.
+        .target(name: "OpenCineDesktopKit"),
+        .testTarget(name: "OpenCineDesktopKitTests", dependencies: ["OpenCineDesktopKit"]),
         .target(name: "OpenCineGyro"),
         .testTarget(name: "OpenCineGyroTests", dependencies: ["OpenCineGyro"]),
         // Gyro capture's Apple shell: CoreMotion driver, UserDefaults store and the capture coordinator.
