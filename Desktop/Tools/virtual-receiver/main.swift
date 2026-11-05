@@ -73,7 +73,8 @@ final class Receiver: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             report.uniqueFrames += 1
             previousHash = hash
         }
-        if let path = savePath {
+        // Two seconds in, past the slate a stream can open on before its first picture.
+        if report.frames >= 60, let path = savePath {
             savePath = nil
             let image = CIImage(cvPixelBuffer: buffer)
             try? CIContext().writePNGRepresentation(
