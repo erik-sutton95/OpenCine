@@ -84,3 +84,44 @@ public enum VirtualCameraSlotTableFile {
         try encoder.encode(table).write(to: url, options: .atomic)
     }
 }
+
+/// How the dock hands the table to the driver: a custom Core Media IO property on the first input.
+/// The driver's sandbox cannot read a file the dock writes. Its temporary file exception makes the
+/// macOS profile fail to compile (`cmioextension.sb`, `(allow filter)` with no operation), and the
+/// driver runs as another user, so an app group container is not shared either.
+public enum VirtualCameraSlotTableWire {
+    /// The property's Core Media IO selector, and its name on the driver's side.
+    public static let selector = "ocst"
+    public static let propertyName = "4cc_ocst_glob_0000"
+    public static let maximumBytes = 4_096
+    public static let maximumNameLength = 64
+
+    /// Stable for equal tables, so the dock can compare the driver's read-back.
+    public static func encode(_ table: VirtualCameraSlotTable) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return String(decoding: try encoder.encode(table), as: UTF8.self)
+    }
+
+    /// Any local process can write this property, so the driver takes only a table it can publish
+    /// safely. `nil` for anything else, which leaves the published inputs as they are.
+    public static func decode(_ text: String) -> VirtualCameraSlotTable? {
+        guard text.utf8.count <= maximumBytes,
+            let table = try? JSONDecoder().decode(
+                VirtualCameraSlotTable.self, from: Data(text.utf8)),
+            table.version == VirtualCameraSlotTable.currentVersion
+        else { return nil }
+        let assignments = table.assignments
+        guard Set(assignments.map(\.slot)).count == assignments.count,
+            Set(assignments.map(\.moduleID)).count == assignments.count
+        else { return nil }
+        for assignment in assignments {
+            let name = assignment.displayName
+            guard VirtualCameraSlot(number: assignment.slot) != nil, !name.isEmpty,
+                name.count <= maximumNameLength,
+                !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+            else { return nil }
+        }
+        return table
+    }
+}

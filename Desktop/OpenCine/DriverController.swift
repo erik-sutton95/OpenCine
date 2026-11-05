@@ -2,8 +2,8 @@ import Foundation
 import Observation
 import SystemExtensions
 
-/// Installs the one shared driver. Activation runs only when the driver is absent, because
-/// repeated replacement is what macOS handles worst.
+/// Installs the one shared driver. Activation runs only when the installed driver differs from the
+/// one this dock carries, because repeated replacement is what macOS handles worst.
 @MainActor @Observable
 final class DriverController: NSObject, @preconcurrency OSSystemExtensionRequestDelegate {
     enum State: Equatable {
@@ -16,9 +16,17 @@ final class DriverController: NSObject, @preconcurrency OSSystemExtensionRequest
     }
 
     private let extensionID = "com.opencapture.opencine.camera"
+    private var embeddedVersion: String? {
+        Bundle(
+            url: Bundle.main.bundleURL.appendingPathComponent(
+                "Contents/Library/SystemExtensions/\(extensionID).systemextension")
+        )?.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+    }
     private var activeRequest: OSSystemExtensionRequest?
     private(set) var state = State.checking
     private var installAfterCheck = false
+    /// macOS sends nothing to a later launch when the owner approves, so the dock asks again.
+    private var approvalPoll: Task<Void, Never>?
 
     /// Checks, and installs when absent.
     func ensureInstalled() {
@@ -40,6 +48,27 @@ final class DriverController: NSObject, @preconcurrency OSSystemExtensionRequest
 
     func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
         state = .awaitingApproval
+        watchForApproval()
+    }
+
+    /// The Settings page where the owner turns the driver on.
+    static let approvalSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
+
+    private func watchForApproval() {
+        guard approvalPoll == nil else { return }
+        approvalPoll = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard let self, self.state == .awaitingApproval else { break }
+                if self.activeRequest == nil {
+                    self.submit(
+                        .propertiesRequest(
+                            forExtensionWithIdentifier: self.extensionID, queue: .main))
+                }
+            }
+            self?.approvalPoll = nil
+        }
     }
 
     func request(
@@ -61,16 +90,18 @@ final class DriverController: NSObject, @preconcurrency OSSystemExtensionRequest
     ) {
         activeRequest = nil
         let live = properties.filter { !$0.isUninstalling }
-        if live.contains(where: \.isEnabled) {
+        let current = live.filter { $0.bundleVersion == embeddedVersion }
+        if current.contains(where: \.isEnabled) {
             state = .installed
-        } else if live.contains(where: \.isAwaitingUserApproval) {
+        } else if current.contains(where: \.isAwaitingUserApproval) {
             state = .awaitingApproval
+            watchForApproval()
         } else if installAfterCheck {
             installAfterCheck = false
             state = .notInstalled
             submit(.activationRequest(forExtensionWithIdentifier: extensionID, queue: .main))
         } else {
-            state = .notInstalled
+            state = live.contains(where: \.isEnabled) ? .installed : .notInstalled
         }
     }
 }

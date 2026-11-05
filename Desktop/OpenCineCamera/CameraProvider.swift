@@ -14,14 +14,19 @@ private let signposter = OSSignposter(logger: log)
 
 /// One serial provider queue owns all stream state and the sole outstanding sink request.
 final class OpenCineCameraProvider: NSObject, CMIOExtensionProviderSource {
-    /// Where the dock writes which module owns which slot. The driver runs as a system user, so
-    /// this is a shared path readable through the extension's sandbox exception, not a container.
-    static let slotTableURL = URL(fileURLWithPath: "/Users/Shared/OpenCine/virtual-camera-slots.json")
+    /// The driver's own copy of the table, so its inputs exist before the dock next runs.
+    static let slotTableURL: URL = {
+        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder.appendingPathComponent("virtual-camera-slots.json")
+    }()
+    /// Until the dock names the inputs, one input exists so the dock has something to reach.
+    static let unnamedInput = "OpenCine Camera"
     private(set) var provider: CMIOExtensionProvider!
     /// Devices by slot number. A device is added once and stays while the driver runs, so receiving
     /// apps never see an input vanish mid-session.
     private var cameras: [Int: CameraDevice] = [:]
-    private var watcher: DispatchSourceTimer?
+    private var table = VirtualCameraSlotTable()
     private let queue = DispatchQueue(
         label: "com.opencapture.opencine.camera.delivery", qos: .userInteractive,
         autoreleaseFrequency: .workItem)
@@ -33,31 +38,63 @@ final class OpenCineCameraProvider: NSObject, CMIOExtensionProviderSource {
     convenience init(configured: Bool = true) throws {
         self.init()
         provider = CMIOExtensionProvider(source: self, clientQueue: queue)
-        queue.sync { publishAssignedSlots() }
-        let watcher = DispatchSource.makeTimerSource(queue: queue)
-        watcher.schedule(deadline: .now() + 2, repeating: 2)
-        watcher.setEventHandler { [weak self] in self?.publishAssignedSlots() }
-        self.watcher = watcher
-        watcher.resume()
+        queue.sync {
+            table = (try? VirtualCameraSlotTableFile.load(from: Self.slotTableURL)) ?? table
+            publishAssignedSlots()
+            if cameras.isEmpty, let first = VirtualCameraSlot(number: 1) {
+                publish(slot: first, name: Self.unnamedInput)
+            }
+        }
     }
 
-    /// Adds a device for every assignment not yet published. An unreadable table changes nothing.
-    private func publishAssignedSlots() {
-        guard let table = try? Data(contentsOf: Self.slotTableURL),
-            let decoded = try? JSONDecoder().decode(VirtualCameraSlotTable.self, from: table),
-            decoded.version == VirtualCameraSlotTable.currentVersion
-        else { return }
-        for assignment in decoded.assignments where cameras[assignment.slot] == nil {
-            guard let slot = VirtualCameraSlot(number: assignment.slot) else { continue }
+    /// A table from the dock. Refused content changes nothing, and a slot once published stays.
+    private func receive(_ text: String) {
+        guard let received = VirtualCameraSlotTableWire.decode(text) else { return }
+        if received != table {
+            table = received
             do {
-                let camera = try CameraDevice(
-                    slot: slot, displayName: assignment.displayName, queue: queue)
-                try provider.addDevice(camera.device)
-                cameras[assignment.slot] = camera
-                log.notice("Published slot \(slot.number) as \(assignment.displayName, privacy: .public)")
+                try VirtualCameraSlotTableFile.save(received, to: Self.slotTableURL)
             } catch {
-                log.error("Could not publish slot \(slot.number): \(error, privacy: .public)")
+                log.error("Could not keep the slot table: \(error, privacy: .public)")
             }
+        }
+        // The dock repeats the table, so a rename held back by an app using the input lands later.
+        publishAssignedSlots()
+    }
+
+    /// Publishes each assignment. A new name replaces an input only while no receiving app is using
+    /// it, and its stable ID keeps saved scenes attached. A module feeding it reconnects by itself.
+    private func publishAssignedSlots() {
+        for assignment in table.assignments {
+            guard let slot = VirtualCameraSlot(number: assignment.slot) else { continue }
+            if let existing = cameras[assignment.slot] {
+                guard existing.displayName != assignment.displayName, !existing.isInUse else { continue }
+                do { try provider.removeDevice(existing.device) } catch {
+                    log.error("Could not rename slot \(slot.number): \(error, privacy: .public)")
+                    continue
+                }
+                cameras[assignment.slot] = nil
+            }
+            publish(slot: slot, name: assignment.displayName)
+        }
+    }
+
+    private func publish(slot: VirtualCameraSlot, name: String) {
+        do {
+            let camera = try CameraDevice(
+                slot: slot, displayName: name, queue: queue,
+                tableText: { [weak self] in
+                    self.flatMap { try? VirtualCameraSlotTableWire.encode($0.table) } ?? ""
+                },
+                receiveTable: { [weak self] text in
+                    // Later on the queue: this can replace the device delivering the call.
+                    self?.queue.async { self?.receive(text) }
+                })
+            try provider.addDevice(camera.device)
+            cameras[slot.number] = camera
+            log.notice("Published slot \(slot.number) as \(name, privacy: .public)")
+        } catch {
+            log.error("Could not publish slot \(slot.number): \(error, privacy: .public)")
         }
     }
 
@@ -75,6 +112,10 @@ final class OpenCineCameraProvider: NSObject, CMIOExtensionProviderSource {
     func disconnect(from client: CMIOExtensionClient) {
         for camera in cameras.values { camera.disconnected(client) }
     }
+}
+
+private extension CMIOExtensionProperty {
+    static let slotTable = CMIOExtensionProperty(rawValue: VirtualCameraSlotTableWire.propertyName)
 }
 
 private enum CameraError: Error {
@@ -107,12 +148,20 @@ private final class CameraDevice: NSObject, CMIOExtensionDeviceSource, @unchecke
     private var lastDiagnostics: UInt64 = 0
 
     private let slot: VirtualCameraSlot
-    private let displayName: String
+    let displayName: String
+    private let tableText: () -> String
+    private let receiveTable: (String) -> Void
+    var isInUse: Bool { sourceStarts > 0 }
 
-    init(slot: VirtualCameraSlot, displayName: String, queue: DispatchQueue) throws {
+    init(
+        slot: VirtualCameraSlot, displayName: String, queue: DispatchQueue,
+        tableText: @escaping () -> String, receiveTable: @escaping (String) -> Void
+    ) throws {
         self.slot = slot
         self.displayName = displayName
         self.queue = queue
+        self.tableText = tableText
+        self.receiveTable = receiveTable
         formatDescription = try CMFormatDescription(
             videoCodecType: CMFormatDescription.MediaSubType(rawValue: kCVPixelFormatType_32BGRA),
             width: 1920, height: 1080)
@@ -132,16 +181,24 @@ private final class CameraDevice: NSObject, CMIOExtensionDeviceSource, @unchecke
         try device.addStream(sink.stream)
     }
 
-    var availableProperties: Set<CMIOExtensionProperty> { [.deviceTransportType, .deviceModel] }
+    var availableProperties: Set<CMIOExtensionProperty> {
+        [.deviceTransportType, .deviceModel, .slotTable]
+    }
     func deviceProperties(forProperties properties: Set<CMIOExtensionProperty>) throws
         -> CMIOExtensionDeviceProperties
     {
         let value = CMIOExtensionDeviceProperties(dictionary: [:])
         value.transportType = 0x7669_7274
         value.model = displayName
+        value.setPropertyState(
+            CMIOExtensionPropertyState(value: tableText() as NSString), forProperty: .slotTable)
         return value
     }
-    func setDeviceProperties(_ deviceProperties: CMIOExtensionDeviceProperties) throws {}
+    func setDeviceProperties(_ deviceProperties: CMIOExtensionDeviceProperties) throws {
+        if let text = deviceProperties.propertiesDictionary[.slotTable]?.value as? String {
+            receiveTable(text)
+        }
+    }
 
     func authorize(_ client: CMIOExtensionClient) -> Bool {
         let signingID = client.signingID ?? "missing"

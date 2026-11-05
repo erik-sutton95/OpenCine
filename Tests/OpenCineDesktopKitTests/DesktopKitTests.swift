@@ -192,3 +192,51 @@ import Testing
         }
     }
 }
+
+@Suite("Slot table handed to the driver")
+struct SlotTableWireTests {
+    private func table() -> VirtualCameraSlotTable {
+        var table = VirtualCameraSlotTable()
+        table.assign(moduleID: "nikon-z", displayName: "OpenCine Nikon Z")
+        table.assign(moduleID: "pocket", displayName: "OpenCine Pocket")
+        return table
+    }
+
+    @Test func aTableSurvivesTheTrip() throws {
+        let text = try VirtualCameraSlotTableWire.encode(table())
+        #expect(VirtualCameraSlotTableWire.decode(text) == table())
+    }
+
+    @Test func encodingIsStableSoTheDockCanCompareTheReadBack() throws {
+        #expect(
+            try VirtualCameraSlotTableWire.encode(table())
+                == VirtualCameraSlotTableWire.encode(table()))
+    }
+
+    private func payload(_ assignments: String, version: Int = 1) -> String {
+        "{\"version\":\(version),\"assignments\":[\(assignments)]}"
+    }
+
+    private func entry(slot: Int, id: String = "a", name: String = "OpenCine A") -> String {
+        "{\"slot\":\(slot),\"moduleID\":\"\(id)\",\"displayName\":\"\(name)\"}"
+    }
+
+    @Test func theDriverRefusesAnythingItCouldNotPublishSafely() {
+        let refused = [
+            "not json",
+            payload(entry(slot: 0)),
+            payload(entry(slot: 9)),
+            payload(entry(slot: 1, name: "")),
+            payload(entry(slot: 1, name: String(repeating: "x", count: 65))),
+            payload(entry(slot: 1, name: "line\\nbreak")),
+            payload(entry(slot: 1, id: "a") + "," + entry(slot: 1, id: "b")),
+            payload(entry(slot: 1, id: "a") + "," + entry(slot: 2, id: "a")),
+            payload(entry(slot: 1), version: 2),
+            String(repeating: " ", count: VirtualCameraSlotTableWire.maximumBytes + 1),
+        ]
+        for text in refused {
+            #expect(VirtualCameraSlotTableWire.decode(text) == nil, "\(text.prefix(80))")
+        }
+        #expect(VirtualCameraSlotTableWire.decode(payload(entry(slot: 8))) != nil)
+    }
+}

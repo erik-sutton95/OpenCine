@@ -50,9 +50,77 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 y: screen.midY + contentSize.height / 2 - Self.stripHeight / 2,
                 width: contentSize.width, height: Self.stripHeight), display: true)
         model.contentFrame = { [weak self] in self?.moduleFrame() }
+        NSApp.mainMenu = Self.makeMainMenu()
+        // A click in a module brings only that process forward, so the strip follows it.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(applicationActivated(_:)),
+            name: NSWorkspace.didActivateApplicationNotification, object: nil)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
         model.load()
+    }
+
+    private static func makeMainMenu() -> NSMenu {
+        let menu = NSMenu()
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Hide OpenCine", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit OpenCine", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        menu.addItem(appItem)
+        let windowItem = NSMenuItem()
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(
+            withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowItem.submenu = windowMenu
+        menu.addItem(windowItem)
+        NSApp.windowsMenu = windowMenu
+        return menu
+    }
+
+    @objc private func applicationActivated(_ notification: Notification) {
+        guard
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+            model.ownsProcess(app.processIdentifier), window?.isMiniaturized == false
+        else { return }
+        window?.orderFrontRegardless()
+    }
+
+    func windowDidMiniaturize(_ notification: Notification) {
+        model.windowsVisible = false
+        model.applySelection()
+    }
+
+    func windowDidDeminiaturize(_ notification: Notification) {
+        model.windowsVisible = true
+        model.applySelection()
+    }
+
+    func applicationDidHide(_ notification: Notification) {
+        model.windowsVisible = false
+        model.applySelection()
+    }
+
+    func applicationDidUnhide(_ notification: Notification) {
+        model.windowsVisible = true
+        model.applySelection()
+    }
+
+    /// Quitting ends every input, so it asks while any camera is live, as closing the window does.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard model.anyLive else { return .terminateNow }
+        return confirmStoppingLiveInputs() ? .terminateNow : .terminateCancel
+    }
+
+    private func confirmStoppingLiveInputs() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "A camera is live"
+        alert.informativeText =
+            "Quitting OpenCine stops every camera input, so apps using them will show nothing."
+        alert.addButton(withTitle: "Keep Running")
+        alert.addButton(withTitle: "Quit Anyway")
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     /// The rectangle directly below the strip, in screen coordinates with the origin at the bottom left.
@@ -69,17 +137,8 @@ final class OpenCineApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowDidBecomeKey(_ notification: Notification) { model.applySelection() }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard model.anyLive else {
-            NSApp.terminate(nil)
-            return false
-        }
-        let alert = NSAlert()
-        alert.messageText = "A camera is live"
-        alert.informativeText =
-            "Closing OpenCine stops every camera input, so apps using them will show nothing."
-        alert.addButton(withTitle: "Keep Running")
-        alert.addButton(withTitle: "Close Anyway")
-        if alert.runModal() == .alertSecondButtonReturn { NSApp.terminate(nil) }
+        // `terminate` runs the one live-input confirmation.
+        NSApp.terminate(nil)
         return false
     }
 

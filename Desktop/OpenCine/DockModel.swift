@@ -8,7 +8,9 @@ import OpenCineDesktopKit
 final class DockModel {
     static let modulesDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/OpenCine/Modules", isDirectory: true)
-    static let slotTableURL = URL(fileURLWithPath: "/Users/Shared/OpenCine/virtual-camera-slots.json")
+    static let slotTableURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(
+            "Library/Application Support/OpenCine/virtual-camera-slots.json", isDirectory: false)
     static let dockVersion =
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
 
@@ -16,6 +18,10 @@ final class DockModel {
     private(set) var modules: [ModuleProcess] = []
     private(set) var problem: String?
     var selectedID: String?
+    /// The tab the owner last chose, kept across launches.
+    private static let selectedKey = "selectedModuleID"
+    /// False while the strip is minimized or OpenCine is hidden: every module stays out of sight.
+    @ObservationIgnored var windowsVisible = true
     /// The screen rectangle a module's window should fill, in AppKit coordinates.
     @ObservationIgnored var contentFrame: () -> WindowFrame? = { nil }
 
@@ -43,21 +49,23 @@ final class DockModel {
         do {
             try FileManager.default.createDirectory(
                 at: Self.slotTableURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true,
-                attributes: [.posixPermissions: 0o755])
+                withIntermediateDirectories: true)
             try VirtualCameraSlotTableFile.save(table, to: Self.slotTableURL)
         } catch {
             problem = "The camera input table could not be saved: \(error.localizedDescription)"
         }
         modules = processes
         driver.ensureInstalled()
+        DriverSlotTableChannel.keepDelivered(table)
         for module in modules { module.start() }
-        selectedID = selectedID ?? modules.first?.id
+        let remembered = UserDefaults.standard.string(forKey: Self.selectedKey)
+        selectedID = modules.first { $0.id == remembered }?.id ?? modules.first?.id
         applySelection()
     }
 
     func select(_ id: String) {
         selectedID = id
+        UserDefaults.standard.set(id, forKey: Self.selectedKey)
         applySelection()
         modules.first { $0.id == id }?.activate()
     }
@@ -67,7 +75,7 @@ final class DockModel {
     func applySelection() {
         guard let frame = contentFrame() else { return }
         for module in modules {
-            module.send(module.id == selectedID ? .show(frame: frame) : .hide)
+            module.send(windowsVisible && module.id == selectedID ? .show(frame: frame) : .hide)
         }
     }
 
@@ -78,6 +86,11 @@ final class DockModel {
 
     var anyLive: Bool {
         modules.contains { if case .live = $0.status { true } else { false } }
+    }
+
+    /// Whether this process belongs to one of the modules.
+    func ownsProcess(_ identifier: pid_t) -> Bool {
+        modules.contains { $0.processIdentifier == identifier }
     }
 
     func quitAll() {
