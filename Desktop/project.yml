@@ -50,6 +50,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.opencapture.opencine.simulated-producer
+        SWIFT_VERSION: "5.0"
     dependencies:
       - package: OpenCine
         product: OpenCineDesktopKit
