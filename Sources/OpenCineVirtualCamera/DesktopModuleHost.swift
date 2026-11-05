@@ -157,9 +157,11 @@
                 application?.perform(NSSelectorFromString("windows"))?.takeUnretainedValue() as? [NSObject]
                 ?? []
             let content = all.filter { $0.responds(to: NSSelectorFromString("setFrame:display:")) }
+            // A file panel or alert keeps its own place and size.
             return content.filter {
-                !NSStringFromClass(type(of: $0)).contains("StatusBar")
-                    && !NSStringFromClass(type(of: $0)).contains("Menu")
+                let name = NSStringFromClass(type(of: $0))
+                return !name.contains("StatusBar") && !name.contains("Menu") && !name.contains("Panel")
+                    && !name.contains("Alert")
             }
         }
 
