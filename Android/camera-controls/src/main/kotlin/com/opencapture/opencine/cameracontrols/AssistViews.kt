@@ -230,7 +230,7 @@ fun AssistOptionsPanel(
 private fun AssistOptionsBody(tool: MonitorAssistTool, state: MonitorAssistState, transfer: MonitorTransfer?, host: AssistHost,
     signalOptions: MonitorOperatorSignalOptions) {
     when (tool) {
-        MonitorAssistTool.LUT, MonitorAssistTool.EV -> Spacer(Modifier.height(0.dp))
+        MonitorAssistTool.LUT, MonitorAssistTool.EV, MonitorAssistTool.PROMPT -> Spacer(Modifier.height(0.dp))
         MonitorAssistTool.LEVEL -> signalOptions.level?.invoke() ?: Spacer(Modifier.height(0.dp))
         MonitorAssistTool.PEAK -> PeakingOptions(state, host)
         MonitorAssistTool.FALSE -> if (signalOptions.falseColor != null) signalOptions.falseColor.invoke()
@@ -434,7 +434,7 @@ fun AssistInspectorFrame(
     com.opencapture.monitorui.MonitorToolInspector(selection = descriptor(tool), tools = entries.map(::descriptor),
         viewportWidth = viewportWidth, viewportHeight = viewportHeight,
         safeLeading = safeLeading, safeTop = safeTop, safeBottom = safeBottom, safeTrailing = safeTrailing,
-        trailing = trailing, scrollContents = tool == null,
+        trailing = trailing, scrollContents = tool == null || tool == MonitorAssistTool.PROMPT,
         onSelect = { haptics.selection(); onSelect(it) }, onDismiss = onDismiss,
         glyph = { item, tint, modifier ->
             if (item != null) AssistToolGlyph(item, tint, modifier) else review?.glyph?.invoke(tint, modifier)
@@ -699,6 +699,7 @@ private fun StackedScopePanel(
             MonitorAssistTool.CROSS,
             MonitorAssistTool.MIRROR,
             MonitorAssistTool.DESQ,
+            MonitorAssistTool.PROMPT,
             -> return
         }
     MovableAssistPanel(

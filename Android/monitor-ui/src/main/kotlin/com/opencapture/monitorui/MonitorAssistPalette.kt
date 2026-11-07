@@ -106,7 +106,8 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
      * open plate is modal.
      */
     passesOutsideTouches: Boolean = false,
-    onBoundsInRootChanged: (Rect?) -> Unit = {}, collapseRevision: Long = 0L) {
+    onBoundsInRootChanged: (Rect?) -> Unit = {}, collapseRevision: Long = 0L,
+    priorityIds: List<String> = emptyList(), trailingIds: List<String> = emptyList()) {
     val localExpanded = remember { mutableStateOf(false) }
     var expanded by (LocalMonitorAssistExpansion.current ?: localExpanded)
     var previousCollapseRevision by remember { mutableStateOf(collapseRevision) }
@@ -119,12 +120,14 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     val nowUsage by rememberUpdatedState(usage)
     val nowBoundsChanged by rememberUpdatedState(onBoundsInRootChanged)
     DisposableEffect(Unit) { onDispose { nowBoundsChanged(null) } }
-    val liveRanked = remember(tools, usage) {
+    val liveRanked = remember(tools, usage, priorityIds) {
         MonitorAssistUsage.ranked(tools, idOf, usage, usageSeed)
     }
     val frozen = expanded || dragging || progress.value > 0.02f
-    val rankedIds = remember(frozen, pinnedIds, liveRanked) {
-        MonitorAssistPaletteReveal.pinnedOrder(liveRanked.map(idOf), pinnedIds, frozen)
+    val rankedIds = remember(frozen, pinnedIds, liveRanked, priorityIds, trailingIds, portrait) {
+        val pinned = MonitorAssistPaletteReveal.pinnedOrder(liveRanked.map(idOf), pinnedIds, frozen)
+        MonitorAssistPaletteReveal.displayOrder(pinned, priorityIds, trailingIds,
+            if (frozen) null else MonitorAssistPaletteReveal.compactToolCount(portrait))
     }
     val ranked = remember(rankedIds, tools) {
         val byId = tools.associateBy(idOf)

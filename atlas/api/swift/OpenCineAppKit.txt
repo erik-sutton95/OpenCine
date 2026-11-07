@@ -216,6 +216,7 @@ class MonitorSettingsAccountModel: Observable, Sendable
 class MonitorSettingsCacheModel: Observable, Sendable
 class MonitorSettingsSupportModel: Observable, Sendable
 class MonitorSharingPreferences: Sendable
+class MonitorTeleprompterModel: Observable, Sendable
 class MonitorToolUsagePreferences: Sendable
 class MonitorTrafficLightsPreferenceStore: Observable, Sendable
 class MonitorTransferRates<Key where Key : Swift.Hashable, Key : Swift.Sendable>: Observable, Sendable
@@ -761,6 +762,14 @@ func MonitorSettingsSupportModel.dismissReport() -> ()
 func MonitorSettingsSupportModel.prepareReport() -> ()
 func MonitorSettingsSupportModel.request(_: MonitorSettingsBrowserDestination) -> ()
 func MonitorSettingsSupportModel.retire() -> ()
+func MonitorTeleprompterModel.cancelImport() -> ()
+func MonitorTeleprompterModel.load(using: () async throws -> MonitorPresentation.TeleprompterScript) -> _Concurrency.Task<Swift.Void, Swift.Never>
+func MonitorTeleprompterModel.pause() -> ()
+func MonitorTeleprompterModel.previewPaste(_: Swift.String) -> ()
+func MonitorTeleprompterModel.requestEditor() -> ()
+func MonitorTeleprompterModel.reset() -> ()
+func MonitorTeleprompterModel.updateText(_: Swift.String) -> Swift.Bool
+func MonitorTeleprompterModel.useCandidate() -> ()
 func MonitorTrafficLightsPreferenceStore.persist() -> ()
 func MonitorTransferRates.begin(_: Key, bytes: Swift.UInt64)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
 func MonitorTransferRates.end(_: Key)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
@@ -1025,6 +1034,7 @@ init MonitorSharingPreferences.Keys(prefix: Swift.String)
 init MonitorSharingPreferences.Keys(shareThisFeed: Swift.String, controlRequests: Swift.String, broadcastPriority: Swift.String)
 init MonitorStartupReports(isAvailable: () -> Swift.Bool, hasDecision: () -> Swift.Bool, setConsent: (Swift.Bool) -> Swift.Void, tick: () -> Swift.Void)
 init MonitorStartupReports(reporting: ReliabilityReporting, tick: () -> Swift.Void)
+init MonitorTeleprompterModel(defaults: Foundation.UserDefaults)
 init MonitorToolUsagePreferences(storage: Foundation.UserDefaults, key: Swift.String)
 init MonitorTrafficLightsPreferenceStore(storage: Foundation.UserDefaults, key: Swift.String, histogram: MonitorScopePanelStore<MonitorPresentation.MonitorHistogramOptions>)
 init MonitorTransferRates(clock: OpenCineCore.HostClock)<Key where Key : Swift.Hashable, Key : Swift.Sendable>
@@ -2036,6 +2046,7 @@ var MonitorAssistState.showLUTPicker: Swift.Bool
 var MonitorAssistState.sourceCurveKnown: Swift.Bool
 var MonitorAssistState.splitComparison: Swift.Bool
 var MonitorAssistState.splitVertical: Swift.Bool
+var MonitorAssistState.teleprompterEnabled: Swift.Bool
 var MonitorAssistState.trafficLights: Swift.Bool
 var MonitorAssistState.trafficLightsPosition: MonitorPresentation.MonitorScopeStoredCenter?
 var MonitorAssistState.trafficLightsScale: Swift.Double
@@ -2456,6 +2467,19 @@ var MonitorSharingPreferences.Defaults.shareThisFeed: Swift.Bool
 var MonitorSharingPreferences.broadcastPriority: Swift.Int
 var MonitorSharingPreferences.controlRequests: Swift.Bool
 var MonitorSharingPreferences.shareThisFeed: Swift.Bool
+var MonitorTeleprompterModel.backgroundOpacity: Swift.Double
+var MonitorTeleprompterModel.candidate: MonitorPresentation.TeleprompterScript?
+var MonitorTeleprompterModel.editorRequested: Swift.Bool
+var MonitorTeleprompterModel.error: Swift.String?
+var MonitorTeleprompterModel.fontSize: Swift.Double
+var MonitorTeleprompterModel.loading: Swift.Bool
+var MonitorTeleprompterModel.mirrored: Swift.Bool
+var MonitorTeleprompterModel.playing: Swift.Bool
+var MonitorTeleprompterModel.position: Swift.Double
+var MonitorTeleprompterModel.resetID: Swift.Int
+var MonitorTeleprompterModel.script: MonitorPresentation.TeleprompterScript?
+var MonitorTeleprompterModel.showsPreview: Swift.Bool
+var MonitorTeleprompterModel.speed: Swift.Double
 var MonitorToolUsagePreferences.value: MonitorPresentation.MonitorToolUsage
 var MonitorTrafficLightsPreferenceStore.compensation: OpenCineMedia.MonitorCrushClipCompensation
 var MonitorTrafficLightsPreferenceStore.position: MonitorPresentation.MonitorScopeStoredCenter?

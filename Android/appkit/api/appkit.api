@@ -633,6 +633,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun getSelectedGuides ()Ljava/util/Set;
 	public final fun getSplitComparison ()Z
 	public final fun getSplitVertical ()Z
+	public final fun getTeleprompterEnabled ()Z
 	public final fun getTrafficLights ()Z
 	public final fun getVectorBrightness ()I
 	public final fun getVectorCenter ()Lcom/opencapture/monitorui/MonitorScopeStoredCenter;
@@ -720,6 +721,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun setSelectedGuides (Ljava/util/Set;)V
 	public final fun setSplitComparison (ZZ)V
 	public static synthetic fun setSplitComparison$default (Lcom/opencapture/opencine/appkit/MonitorAssistState;ZZILjava/lang/Object;)V
+	public final fun setTeleprompterEnabled (Z)V
 	public final fun setVectorBrightness (I)V
 	public final fun setVectorCenter (Lcom/opencapture/monitorui/MonitorScopeStoredCenter;)V
 	public final fun setVectorCenterPortrait (Lcom/opencapture/monitorui/MonitorScopeStoredCenter;)V
@@ -4314,6 +4316,38 @@ public final class com/opencapture/opencine/appkit/MonitorStatusProjectionKt {
 public final class com/opencapture/opencine/appkit/MonitorSystemBarsKt {
 	public static final fun applyMonitorSystemBars (Landroid/view/Window;Z)V
 	public static synthetic fun applyMonitorSystemBars$default (Landroid/view/Window;ZILjava/lang/Object;)V
+}
+
+public final class com/opencapture/opencine/appkit/MonitorTeleprompterModel {
+	public static final field $stable I
+	public fun <init> (Landroid/content/Context;)V
+	public fun <init> (Landroid/content/SharedPreferences;)V
+	public final fun cancelImport ()V
+	public final fun getBackgroundOpacity ()F
+	public final fun getBusy ()Z
+	public final fun getCandidate ()Lcom/opencapture/monitorui/TeleprompterScript;
+	public final fun getError ()Ljava/lang/String;
+	public final fun getFontSize ()F
+	public final fun getHasScript ()Z
+	public final fun getMirrored ()Z
+	public final fun getPlaying ()Z
+	public final fun getPosition ()D
+	public final fun getScript ()Lcom/opencapture/monitorui/TeleprompterScript;
+	public final fun getShowsPreview ()Z
+	public final fun getSpeed ()F
+	public final fun load (Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun pause ()V
+	public final fun previewText (Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun previewText$default (Lcom/opencapture/opencine/appkit/MonitorTeleprompterModel;Ljava/lang/String;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun reset ()V
+	public final fun seek (D)V
+	public final fun togglePlayback ()V
+	public final fun updateBackgroundOpacity (F)V
+	public final fun updateFontSize (F)V
+	public final fun updateMirrored (Z)V
+	public final fun updateShowsPreview (Z)V
+	public final fun updateSpeed (F)V
+	public final fun useCandidate ()Z
 }
 
 public final class com/opencapture/opencine/appkit/MonitorToolUsagePreferences {

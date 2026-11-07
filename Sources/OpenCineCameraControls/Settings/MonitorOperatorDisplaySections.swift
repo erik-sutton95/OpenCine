@@ -13,12 +13,14 @@ public struct MonitorOperatorDisplaySections<Looks: MonitorLookProvider>: View {
     private let available: Set<MonitorDisplayChrome.Section>
     private let edit: ((MonitorDisplayMode) -> Void)?
     private let feedback: () -> Void
+    private let teleprompterAvailable: Bool
 
     public init(modes: [MonitorDisplayMode], chrome: @escaping (MonitorDisplayMode) -> Binding<MonitorDisplayChrome>,
         assist: MonitorAssistState<Looks>, available: Set<MonitorDisplayChrome.Section>,
-        edit: ((MonitorDisplayMode) -> Void)?, feedback: @escaping () -> Void) {
+        edit: ((MonitorDisplayMode) -> Void)?, feedback: @escaping () -> Void, teleprompterAvailable: Bool = false) {
         self.modes = modes; self.chrome = chrome; self.assist = assist
         self.available = available; self.edit = edit; self.feedback = feedback
+        self.teleprompterAvailable = teleprompterAvailable
     }
 
     public var body: some View {
@@ -38,7 +40,7 @@ public struct MonitorOperatorDisplaySections<Looks: MonitorLookProvider>: View {
                         feedback(); chrome.wrappedValue.toggle(section)
                     }
                 }, pinsTitle: "View assists that stay on in clean view",
-                pins: mode == .clean ? MonitorAssistSelection.cleanPinCases.map { tool in
+                pins: mode == .clean ? MonitorAssistSelection.cleanPinCases.filter { $0 != .teleprompter || teleprompterAvailable }.map { tool in
                     MonitorDisplayToggle(id: "clean.pin." + tool.rawValue, title: tool.displaySettingsTitle,
                         isOn: assist.cleanViewPinnedTools.contains(tool),
                         accessibilityLabel: "Keep \(tool.displaySettingsTitle) in clean view") {

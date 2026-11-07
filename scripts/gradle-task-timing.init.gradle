@@ -43,7 +43,7 @@ abstract class OpenCineTaskTiming implements BuildService<Params>, OperationComp
             outcome = 'executed'
         }
         rows << [event.descriptor.taskPath, result.endTime - result.startTime, outcome, result.startTime,
-                 result.endTime].join('\t')
+                result.endTime].join('\t')
     }
 
     @Override

@@ -1,5 +1,6 @@
 #if os(iOS)
     import AVFoundation
+    import MonitorUI
     import OpenCineApple
     import OpenCineMedia
     import SwiftUI
@@ -79,6 +80,7 @@
     /// MIRROR assist lands with the presented picture. MIRROR Vertical is a negative Y on the
     /// same host; it has no pose latch, so it applies on the toggle.
     public struct MonitorLiveVideoView<App: MonitorLivePictureApp>: View {
+        @Environment(\.monitorPresentationIsVisible) private var presentationIsVisible
         public let decoder: App.Decoder
         public var effects: MonitorFrameEffects
         public var sampleBus: LiveFrameSampleBus
@@ -118,6 +120,9 @@
                 qualification: qualification
             )
             .transaction { $0.animation = nil }
+            .onChange(of: presentationIsVisible) { _, visible in
+                if visible { decoder.prepareAfterForeground() }
+            }
         }
 
         /// Mirror stays a view-space flip so the GPU path does not also flip the buffer.

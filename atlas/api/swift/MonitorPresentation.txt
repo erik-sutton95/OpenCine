@@ -22,6 +22,7 @@ case MonitorAssistTool.mirror
 case MonitorAssistTool.ndMeter
 case MonitorAssistTool.parade
 case MonitorAssistTool.peaking
+case MonitorAssistTool.teleprompter
 case MonitorAssistTool.trafficLights
 case MonitorAssistTool.vectorscope
 case MonitorAssistTool.waveform
@@ -214,6 +215,12 @@ case StartupLayoutProfile.compactLandscape
 case StartupLayoutProfile.compactPortrait
 case StartupLayoutProfile.regularLandscape
 case StartupLayoutProfile.wideLandscape
+case TeleprompterScriptImportError.empty
+case TeleprompterScriptImportError.invalidEncoding
+case TeleprompterScriptImportError.invalidLink
+case TeleprompterScriptImportError.tooLarge
+case TeleprompterScriptImportError.unsupportedFormat
+case TeleprompterScriptImportError.webPage
 enum CameraConnectStep.State: Equatable, Hashable, Sendable
 enum CameraPairingCheck.State: Equatable, Hashable, Sendable
 enum CameraPairingInstruction.Icon: Equatable, Hashable, Sendable
@@ -309,6 +316,9 @@ enum StartupDiscoveryPrimaryAction: Equatable, Sendable
 enum StartupLayoutMargins
 enum StartupLayoutProfile: Equatable, Hashable, Sendable
 enum StartupReadyLiveViewPolicy
+enum TeleprompterOverlayLayout
+enum TeleprompterScriptImport
+enum TeleprompterScriptImportError: Equatable, Error, Hashable, LocalizedError, Sendable
 extension OpenCineMedia.MonitorFrameEffects
 func FieldMonitorLayout.aeUnlock(motionCluster: Swift.Bool) -> MonitorRect
 func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
@@ -414,6 +424,11 @@ func MonitorZoomScale.position(_: Swift.Double) -> Swift.Double
 func MonitorZoomScale.quantized(_: Swift.Double) -> Swift.Double
 func MonitorZoomScale.value(at: Swift.Double) -> Swift.Double
 func MonitorZoomTapStops.next(from: Swift.Double, extended: Swift.Bool) -> Swift.Double?
+func TeleprompterPlayback.advance(elapsed: Foundation.TimeInterval, speed: Swift.Double, end: Swift.Double) -> ()
+func TeleprompterPlayback.pause() -> ()
+func TeleprompterPlayback.play() -> ()
+func TeleprompterPlayback.reset() -> ()
+func TeleprompterPlayback.seek(to: Swift.Double) -> ()
 func monitorCommandTileOrder(_: [Kind], all: [Kind])<Kind where Kind : Swift.Hashable> -> [Kind]
 func moveMonitorCommandTile(_: [Kind], _: Kind, targetIndex: Swift.Int, all: [Kind])<Kind where Kind : Swift.Hashable> -> [Kind]
 init CameraConnectFailure(title: Swift.String, message: Swift.String, actions: [CameraConnectFailure.Action], link: CameraConnectFailure.Action?)
@@ -530,6 +545,8 @@ init ReviewLaunch(environment: [Swift.String : Swift.String])
 init ReviewLaunch(screen: ReviewLaunch.Screen, state: Swift.String?, layout: MonitorMediaLayout, mediaCount: Swift.Int, source: ReviewLaunch.Source, connected: Swift.Bool, settingsTab: MonitorSettingsTab?, commonControls: Swift.Bool, meteredEV: Swift.Double?)
 init ReviewLiveValues(iso: Swift.Int, shutterDenominator: Swift.Int, whiteBalanceKelvin: Swift.Int, recordWidth: Swift.Int, recordHeight: Swift.Int, framesPerSecond: Swift.Int, batteryPercent: Swift.Int, storageFreeMebibytes: Swift.Int64, storageTotalMebibytes: Swift.Int64, timecodeHours: Swift.Int, timecodeMinutes: Swift.Int, timecodeSeconds: Swift.Int)
 init StartupSideCutoutAvoidance(leading: Swift.Double, trailing: Swift.Double)
+init TeleprompterPlayback()
+init TeleprompterScript(text: Swift.String, name: Swift.String, sourceURL: Foundation.URL?)
 let FieldMonitorLayout.aspectToggle: MonitorRect
 let FieldMonitorLayout.assists: MonitorRect
 let FieldMonitorLayout.display: MonitorRect
@@ -826,6 +843,9 @@ let StartupContentLayout.showFooterLinks: Swift.Bool
 let StartupContentLayout.showSecondaryVisuals: Swift.Bool
 let StartupSideCutoutAvoidance.leading: Swift.Double
 let StartupSideCutoutAvoidance.trailing: Swift.Double
+let TeleprompterScript.name: Swift.String
+let TeleprompterScript.sourceURL: Foundation.URL?
+let TeleprompterScript.text: Swift.String
 protocol MonitorScopePanelOptions<Self : Swift.Decodable, Self : Swift.Encodable, Self : Swift.Equatable, Self : Swift.Sendable>: Decodable, Encodable, Equatable, Sendable
 static func FieldMonitorLayout.aeUnlock(focusReset: MonitorRect, leadingColumnMaxX: Swift.Double, pictureMidX: Swift.Double, portrait: Swift.Bool) -> MonitorRect
 static func FieldMonitorLayout.appBadge(status: MonitorRect, reserved: [MonitorRect]) -> MonitorRect
@@ -841,12 +861,14 @@ static func GimbalCluster.inTrailingBottom(well: MonitorLayoutRegion, floorY: Sw
 static func MonitorAssistPaletteLayout.fieldMonitor(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double) -> (layout: MonitorAssistPaletteLayout, frame: MonitorRect)
 static func MonitorAssistPaletteLayout.fieldMonitorFootprint(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double, expanded: Swift.Bool) -> MonitorRect
 static func MonitorAssistPaletteReveal.compactToolCount(portrait: Swift.Bool) -> Swift.Int
+static func MonitorAssistPaletteReveal.displayOrder(ranked: [Swift.String], priorityIDs: [Swift.String], trailingIDs: [Swift.String], compactToolCount: Swift.Int?) -> [Swift.String]
 static func MonitorAssistPaletteReveal.extraToolOpacity(progress: Swift.Double) -> Swift.Double
 static func MonitorAssistPaletteReveal.landscapeCellIndex(column: Swift.Int, row: Swift.Int) -> Swift.Int
 static func MonitorAssistPaletteReveal.lerp(_: Swift.Double, _: Swift.Double, _: Swift.Double) -> Swift.Double
 static func MonitorAssistPaletteReveal.pinnedOrder(ranked: [Swift.String], pinned: [Swift.String], frozen: Swift.Bool) -> [Swift.String]
 static func MonitorAssistPaletteReveal.portraitGrabOffset(fingerY: Swift.Double, visibleHeight: Swift.Double, fullHeight: Swift.Double) -> Swift.Double
 static func MonitorAssistPaletteReveal.portraitVisibleHeight(fingerY: Swift.Double, grabOffset: Swift.Double, compact: Swift.Double, full: Swift.Double) -> Swift.Double
+static func MonitorAssistPaletteReveal.prioritizedOrder(ranked: [Swift.String], priorityIDs: [Swift.String]) -> [Swift.String]
 static func MonitorAssistPaletteReveal.progress(translationAlongExpand: Swift.Double, span: Swift.Double, fromExpanded: Swift.Bool) -> Swift.Double
 static func MonitorAssistPaletteReveal.progress(visible: Swift.Double, compact: Swift.Double, full: Swift.Double) -> Swift.Double
 static func MonitorAssistPaletteReveal.projectedProgress(progress: Swift.Double, velocityAlongExpand: Swift.Double, span: Swift.Double) -> Swift.Double
@@ -967,6 +989,10 @@ static func StartupDiscoveryPrimaryAction.resolve(hasSelectedCamera: Swift.Bool,
 static func StartupLayoutMargins.content(for: MonitorEdgeInsets, compact: Swift.Bool) -> MonitorEdgeInsets
 static func StartupReadyLiveViewPolicy.canEnterMonitor(isConnected: Swift.Bool, hasActiveSession: Swift.Bool, isBusy: Swift.Bool) -> Swift.Bool
 static func StartupSideCutoutAvoidance.resolve(for: MonitorEdgeInsets) -> StartupSideCutoutAvoidance
+static func TeleprompterOverlayLayout.frame(layout: FieldMonitorLayout, safeArea: MonitorSafeArea, shown: MonitorScopeChrome, motionCluster: Swift.Bool, extraObstacles: [MonitorRect]) -> MonitorRect
+static func TeleprompterScriptImport.decode(_: Foundation.Data, name: Swift.String, sourceURL: Foundation.URL?, contentType: Swift.String?) throws -> TeleprompterScript
+static func TeleprompterScriptImport.link(_: Swift.String) throws -> Foundation.URL
+static func TeleprompterScriptImport.paste(_: Swift.String) throws -> TeleprompterScript
 static let FieldMonitorLayout.appBadgeGap: Swift.Double
 static let FieldMonitorLayout.appBadgeWidth: Swift.Double
 static let FieldMonitorLayout.minimumTapTarget: Swift.Double
@@ -1002,6 +1028,7 @@ static let MonitorAssistSelection.mirror: MonitorAssistSelection
 static let MonitorAssistSelection.ndMeter: MonitorAssistSelection
 static let MonitorAssistSelection.parade: MonitorAssistSelection
 static let MonitorAssistSelection.peaking: MonitorAssistSelection
+static let MonitorAssistSelection.teleprompter: MonitorAssistSelection
 static let MonitorAssistSelection.trafficLights: MonitorAssistSelection
 static let MonitorAssistSelection.vectorscope: MonitorAssistSelection
 static let MonitorAssistSelection.waveform: MonitorAssistSelection
@@ -1196,6 +1223,7 @@ static let StartupContentLayout.minimumColumnSpacing: Swift.Double
 static let StartupContentLayout.minimumIntroColumnWidth: Swift.Double
 static let StartupSideCutoutAvoidance.minimumCutoutInset: Swift.Double
 static let StartupSideCutoutAvoidance.none: StartupSideCutoutAvoidance
+static let TeleprompterScriptImport.maximumBytes: Swift.Int
 static var MonitorAssistSelection.allCases: [MonitorAssistSelection]
 static var MonitorPlaybackLayout.actionsWidth: Swift.Double
 static var MonitorPlaybackLayout.transportWidth: Swift.Double
@@ -1312,6 +1340,8 @@ struct ReviewLaunch: Equatable, Hashable, Sendable
 struct ReviewLiveValues: Equatable, Hashable, Sendable
 struct StartupContentLayout: Equatable, Sendable
 struct StartupSideCutoutAvoidance: Equatable, Sendable
+struct TeleprompterPlayback: Equatable, Sendable
+struct TeleprompterScript: Decodable, Encodable, Equatable, Sendable
 subscript MonitorLegalDocuments(_: MonitorLegalPage) -> MonitorLegalDocument
 typealias MonitorCapabilities = OpenCineCore.MonitorLayoutCapabilities
 typealias MonitorPreviewAdmission = OpenCineMedia.MonitorPreviewAdmission
@@ -1630,3 +1660,6 @@ var StartupContentLayout.totalColumnWidth: Swift.Double
 var StartupDiscoveryPrimaryAction.isEnabled: Swift.Bool
 var StartupDiscoveryPrimaryAction.title: Swift.String?
 var StartupSideCutoutAvoidance.hasSideCutout: Swift.Bool
+var TeleprompterPlayback.isPlaying: Swift.Bool
+var TeleprompterPlayback.position: Swift.Double
+var TeleprompterScriptImportError.errorDescription: Swift.String?

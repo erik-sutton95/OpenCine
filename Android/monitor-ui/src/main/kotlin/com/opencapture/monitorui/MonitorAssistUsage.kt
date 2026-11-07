@@ -55,8 +55,11 @@ object MonitorAssistUsage {
         usage: MonitorToolUsageState,
         seed: Map<String, Int>,
         now: Double = System.currentTimeMillis() / 1000.0,
+        priorityIds: List<String> = emptyList(),
     ): List<T> {
         val byId = tools.associateBy(idOf)
-        return usage.ranked(tools.map(idOf), seed, now).mapNotNull { byId[it] }
+        val ranked = usage.ranked(tools.map(idOf), seed, now)
+        val priority = priorityIds.distinct().filter { it in byId }
+        return (priority + ranked.filter { it !in priority }).mapNotNull { byId[it] }
     }
 }

@@ -11,6 +11,17 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class MonitorAssistRenderPlanTest {
+    @Test fun theLocalScriptAndItsInspectorDoNotChangeImageProcessingDemand() {
+        val assist = MonitorAssistState()
+        val before = assist.renderPlan(MonitorTransfer.REC709)
+        assist.toggle(MonitorAssistTool.PROMPT)
+        assist.configureTool = MonitorAssistTool.PROMPT
+        val after = assist.renderPlan(MonitorTransfer.REC709)
+        assertEquals(before.playbackLookKey, after.playbackLookKey)
+        assertEquals(before.scopeTap, after.scopeTap)
+        assertFalse(after.scopeTap.includePoints)
+    }
+
     @Test fun scopeChangesDoNotRebuildTheNativePlaybackLook() {
         val assist = MonitorAssistState()
         val before = assist.renderPlan(MonitorTransfer.REC709)

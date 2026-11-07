@@ -55,7 +55,7 @@ class ReportTests(unittest.TestCase):
         problems = REPORT.guard(parsed, True, [], ["MonitorUITests"])
         self.assertEqual(len(problems), 1)
         self.assertIn("MonitorPortraitHeaderClearanceTests/testCodecSpaceControlsDecideTheRecordedR3DNEArtifact",
-                      problems[0])
+                        problems[0])
 
     def test_only_an_allowed_skip_passes(self):
         parsed = {"kit": REPORT.parse(SKIPPED_NIGHTLY)}
@@ -87,26 +87,26 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(tests['"Retry failed after a timeout"']["seconds"], 1.5)
         self.assertEqual(tests['"11. Session owners receive only their own native events"']["result"], "skipped")
         self.assertEqual(REPORT.guard({"host": REPORT.parse(SWIFT_TESTING)}, True,
-                                      [r"realMimo", r"Session owners"], []), [])
+                                        [r"realMimo", r"Session owners"], []), [])
 
     def test_a_skip_reason_inside_a_display_name_is_not_a_skip(self):
         parsed = REPORT.parse('✔ Test "Tests skipped: offline mode" passed after 0.100 seconds.\n'
-                              '➜ Test "Upload skipped: no network" skipped: "needs a server"\n')
+                                '➜ Test "Upload skipped: no network" skipped: "needs a server"\n')
         self.assertEqual([(t["name"], t["result"]) for t in parsed["tests"]],
-                         [('"Tests skipped: offline mode"', "passed"), ('"Upload skipped: no network"', "skipped")])
+                        [('"Tests skipped: offline mode"', "passed"), ('"Upload skipped: no network"', "skipped")])
 
     def test_a_skip_comment_over_several_lines_fails_the_skip_guard(self):
         # Swift Testing prints a comment's line breaks as they are (swift test, 2026-10-30).
         log = ('◇ Test "Upload skipped: "x"" started.\n'
-               '➜ Test multi() skipped: "first line\n'
-               'second line"\n'
-               '✔ Test "Upload skipped: "x"" passed after 0.001 seconds.\n'
-               '✔ Test run with 2 tests in 0 suites passed after 0.001 seconds.\n')
+                '➜ Test multi() skipped: "first line\n'
+                'second line"\n'
+                '✔ Test "Upload skipped: "x"" passed after 0.001 seconds.\n'
+                '✔ Test run with 2 tests in 0 suites passed after 0.001 seconds.\n')
         parsed = REPORT.parse(log)
         self.assertEqual([(t["name"], t["result"]) for t in parsed["tests"]],
-                         [("multi()", "skipped"), ('"Upload skipped: "x""', "passed")])
+                        [("multi()", "skipped"), ('"Upload skipped: "x""', "passed")])
         self.assertEqual(REPORT.guard({"host": parsed}, True, [], []),
-                         ["host: 1 unexpected skipped tests: multi()"])
+                        ["host: 1 unexpected skipped tests: multi()"])
 
     def test_xctest_case_lines_are_not_read_as_swift_testing_lines(self):
         parsed = REPORT.parse(SKIPPED_NIGHTLY)
@@ -141,7 +141,7 @@ class HeaderClearanceRunnerTests(unittest.TestCase):
     def test_the_old_skip_fails_the_runner_verdict(self):
         names = ["testCodecSpaceControlsDecideTheRecordedR3DNEArtifact"]
         log = SKIPPED_NIGHTLY.replace("MonitorUITests.MonitorPortraitHeaderClearanceTests",
-                                      "HeaderClearanceHostedTests.MonitorPortraitHeaderClearanceTests")
+                                        "HeaderClearanceHostedTests.MonitorPortraitHeaderClearanceTests")
         verdict = HEADER.verdict(HEADER.outcomes(log, names))
         self.assertEqual((verdict["executed"], verdict["skipped"]), (0, 1))
         self.assertEqual(verdict["unexpected"], {names[0]: ["skipped"]})

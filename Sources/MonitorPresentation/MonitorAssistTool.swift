@@ -20,6 +20,7 @@ public enum MonitorAssistTool: String, CaseIterable, Sendable, Identifiable {
     case level = "LEVEL"
     case desqueeze = "DE-SQ"
     case mirror = "MIRROR"
+    case teleprompter = "PROMPT"
 
     public var id: String { rawValue }
     public var chipLabel: String { rawValue }
@@ -53,6 +54,7 @@ public enum MonitorAssistTool: String, CaseIterable, Sendable, Identifiable {
         case .level: "Level"
         case .desqueeze: "Anamorphic Desqueeze"
         case .mirror: "Mirror"
+        case .teleprompter: "Teleprompter"
         }
     }
 }

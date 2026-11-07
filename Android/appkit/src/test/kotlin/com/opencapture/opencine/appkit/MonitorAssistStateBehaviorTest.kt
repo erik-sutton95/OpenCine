@@ -84,16 +84,25 @@ class MonitorAssistStateBehaviorTest {
 
     @Test
     fun toggleAndCleanPinsFilterVisibility() {
-        val state = MonitorAssistState()
-        state.toggle(MonitorAssistTool.WAVE)
-        assertTrue(state.isOn(MonitorAssistTool.WAVE))
-        assertTrue(state.isVisible(MonitorAssistTool.WAVE))
-        state.clean = true
-        assertTrue(state.isOn(MonitorAssistTool.WAVE))
-        assertFalse(state.isVisible(MonitorAssistTool.WAVE))
-        assertTrue(state.isVisible(MonitorAssistTool.LUT))
-        state.togglePin(MonitorAssistTool.WAVE)
-        assertTrue(state.isVisible(MonitorAssistTool.WAVE))
+        for (tool in listOf(MonitorAssistTool.WAVE, MonitorAssistTool.PROMPT)) {
+            var saved: String? = null
+            var pins = setOf("LUT", "PEAK", "MIRROR", "DESQ")
+            val state = MonitorAssistState(onPersist = { saved = it }, onPersistPins = { pins = it })
+            state.toggle(tool)
+            assertTrue(state.isOn(tool))
+            assertTrue(state.isVisible(tool))
+            state.clean = true
+            assertTrue(state.isOn(tool))
+            assertFalse(state.isVisible(tool))
+            assertTrue(state.isVisible(MonitorAssistTool.LUT))
+            state.togglePin(tool)
+            assertTrue(state.isVisible(tool))
+            val restored = MonitorAssistState(encoded = saved, pinnedNames = pins)
+            restored.clean = true
+            assertTrue(restored.isVisible(tool))
+            state.togglePin(tool)
+            assertFalse(state.isVisible(tool))
+        }
     }
 
     @Test
@@ -178,13 +187,17 @@ class MonitorAssistStateBehaviorTest {
     @Test
     fun syncVisibleAppliesToolSetWithoutClearingPins() {
         val state = MonitorAssistState()
-        state.syncVisible(setOf(MonitorAssistTool.GRID, MonitorAssistTool.WAVE), guideRatio = 1.85f)
+        state.syncVisible(setOf(MonitorAssistTool.GRID, MonitorAssistTool.WAVE, MonitorAssistTool.PROMPT), guideRatio = 1.85f)
         assertTrue(state.isOn(MonitorAssistTool.GRID))
         assertTrue(state.isOn(MonitorAssistTool.WAVE))
         assertFalse(state.lutOn)
         assertEquals(MonitorGuideAspect.WIDE, state.guideAspect)
         assertEquals(MonitorAssistState.defaultPinned, state.pinned)
         assertEquals("GRID", MonitorAssistTool.GRID.label)
+        assertTrue(state.isOn(MonitorAssistTool.PROMPT))
+        state.syncVisible(setOf(MonitorAssistTool.GRID, MonitorAssistTool.WAVE))
+        assertFalse(state.isOn(MonitorAssistTool.PROMPT))
+        assertEquals(MonitorAssistState.defaultPinned, state.pinned)
     }
 
     @Test

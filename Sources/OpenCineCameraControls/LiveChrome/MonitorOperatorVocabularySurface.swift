@@ -108,6 +108,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
         headTracking: MonitorOperatorHeadTrackingSource? = nil,
         readLevel: ((TimeInterval, Bool) -> MonitorLevelDisplay)? = nil,
         pictureEV: (() -> EvComp?)? = nil,
+        teleprompter: MonitorTeleprompterModel? = nil,
         @ViewBuilder picture: @escaping () -> Picture,
         @ViewBuilder preview: @escaping (MonitorAssistSelection) -> Preview,
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
@@ -158,7 +159,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                         + (host.cameraStatus.isPhoto || !host.controlCapabilities.liveAudioLevels.isShown ? [] : [.audioMeters])
                 }, rendered: { nil }, signalOptions: .init(),
                 usage: Binding(get: { host.assistToolUsage }, set: { host.assistToolUsage = $0 }),
-                usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: host.assist.toggle),
+                usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: host.assist.toggle, teleprompter: teleprompter),
             views: accessories.views, portraitAspect: portraitAspect, picture: picture,
             cameraPanel: { key, popup in
                 let camera = host.control.snapshot?.session, epoch = host.control.snapshot?.epoch
@@ -235,7 +236,25 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             motion: .init(controls: AnyView(MonitorOperatorMotionContent(accessories: self, part: .controls)),
                 editor: AnyView(MonitorOperatorMotionContent(accessories: self, part: .editor)),
                 feedback: AnyView(MonitorOperatorMotionContent(accessories: self, part: .feedback)),
-                dimmed: interaction.zoomVisible, covering: interaction.zoomMounted))
+                dimmed: interaction.zoomVisible, covering: interaction.zoomMounted),
+            teleprompterObstacles: { teleprompterObstacles })
+    }
+
+    // Read changing focus geometry inside the reader, independently of the live feed owner.
+    private var teleprompterObstacles: [MonitorRect] {
+        var obstacles: [CGRect] = []
+        if interactive, !locked {
+            let value = focus.read()
+            if value.resetAvailable { obstacles.append(layout.focusReset(motionCluster: motionCluster)) }
+            if host.autoExposureLocked { obstacles.append(layout.aeUnlock(motionCluster: motionCluster)) }
+            if let subject = value.trackedSubject {
+                obstacles.append(MonitorTrackingGeometry.cancelRect(box: subject, feed: layout.onFeed,
+                    mirrored: host.livePictureViewFlip, flippedVertically: host.assist.flipsVertically))
+            }
+        }
+        return obstacles.map {
+            MonitorRect(x: Double($0.minX), y: Double($0.minY), width: Double($0.width), height: Double($0.height))
+        }
     }
 
     var editing: MonitorDisplayMode? { host.chromeEditorMode }
