@@ -1,5 +1,8 @@
 package com.opencapture.opencine.cameracontrols
 
+import com.opencapture.opencine.vocabulary.LiveTrackingChrome
+import com.opencapture.opencine.appkit.MonitorTeleprompterModel
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -156,7 +159,8 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     source: MonitorOperatorLiveSource<String, MonitorOperatorLegacyCaptureIdentity>,
     assists: MonitorOperatorAssistSource, focus: MonitorOperatorFocusObservation,
     focusActions: MonitorOperatorFocusActions, nativeInputBlocked: (MonitorInputBlock) -> Unit,
-    modifier: Modifier = Modifier, picture: @Composable BoxScope.() -> Unit): Unit
+    modifier: Modifier = Modifier, teleprompter: MonitorTeleprompterModel? = null,
+    picture: @Composable BoxScope.() -> Unit): Unit
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val layout = geometry.layout
     val zones = geometry.zones
@@ -229,10 +233,21 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
                 LiveGimbalSheetHost(chrome.host, layout, layout.gimbalCluster(true), layout.safeLeading, layout.safeTrailing,
                     layout.safeTop, layout.safeBottom)
         }), resetFocus = if (focus.resetAvailable) MonitorOperatorFocusReset("Recenter focus", true, false, focusActions.reset) else null,
-        motionCluster = motionCluster)
+        motionCluster = motionCluster,
+        teleprompterObstacles = buildList {
+            if (!locked && interactive) {
+                if (focus.aeLocked) add(layout.aeUnlock(motionCluster))
+                val subject = focus.tracking.overlay as? FocusOverlay.Subject
+                if (subject != null) {
+                    val rect = LiveTrackingChrome.cancelRect(subject.box, layout.onFeed.width,
+                        layout.onFeed.height, mirrored, assist.flipsVertically)
+                    add(MonitorRect(rect.x + layout.onFeed.x, rect.y + layout.onFeed.y, rect.width, rect.height))
+                }
+            }
+        })
     MonitorOperatorLiveSurface(chrome.capture.control, session, geometry, source,
         MonitorOperatorLiveAssists(assists, palette, tools.toSet(), status.monitorTransfer, MonitorOperatorSignalOptions(),
-            usage, { usage = it; usageStore.value = it }, MONITOR_OPERATOR_USAGE_SEED),
+            usage, { usage = it; usageStore.value = it }, MONITOR_OPERATOR_USAGE_SEED, teleprompter),
         native, modifier, portraitAspect = chrome.portraitAspect, setPortraitAspect = chrome.setPortraitAspect,
         transitionChanged = { transition ->
             if (transition.cameraReplaced) state.storageForm = 0

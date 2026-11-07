@@ -162,7 +162,8 @@ private fun MonitorOperatorSettingsRows(
             is MonitorOperatorPictureSettings.Configured -> {
                 val display = picture.display
                 if (display != null) OperatorDisplaySections(display.session,
-                    display.available, display.edit, revision, onPreferenceChanged, configuration.feedback)
+                    display.available, display.edit, revision, onPreferenceChanged, configuration.feedback,
+                    teleprompterOffered = configuration.controls.teleprompter != null)
                 else {
                     val borrowed = requireNotNull(picture.borrowedDisplay)
                     MonitorDisplaySettings(borrowed.layoutTitle, borrowed.layoutHelp, borrowed.choices,
@@ -172,7 +173,7 @@ private fun MonitorOperatorSettingsRows(
                 }
             }
             is MonitorOperatorPictureSettings.Session -> SessionDisplaySettings(picture, configuration.isLive,
-                revision, onPreferenceChanged)
+                revision, onPreferenceChanged, configuration.controls.teleprompter != null)
         }
         MonitorSettingsTab.STORAGE -> SettingsStorage(configuration)
         MonitorSettingsTab.SYSTEM -> SettingsSystem(configuration, openLegal)
@@ -199,7 +200,7 @@ private fun SessionAssistSettings(source: MonitorOperatorPictureSettings.Session
 
 @Composable
 private fun SessionDisplaySettings(source: MonitorOperatorPictureSettings.Session, live: Boolean,
-    revision: MutableIntState, onPreferenceChanged: () -> Unit) {
+    revision: MutableIntState, onPreferenceChanged: () -> Unit, teleprompterOffered: Boolean) {
     @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
     val preferences = source.preferences
     val session = source.session
@@ -209,14 +210,14 @@ private fun SessionDisplaySettings(source: MonitorOperatorPictureSettings.Sessio
         MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.REC_READOUT, MonitorDisplaySection.TIMECODE,
         MonitorDisplaySection.TOOL_BAR,
         MonitorDisplaySection.RAIL_RECORD, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_SETTINGS),
-        if (live) session::beginEditing else null, revision, onPreferenceChanged)
+        if (live) session::beginEditing else null, revision, onPreferenceChanged, teleprompterOffered = teleprompterOffered)
 }
 
 /** The one Display form over the session: each declared mode's chrome, its pins and its Edit view. */
 @Composable
 private fun OperatorDisplaySections(session: MonitorOperatorSessionModel, available: Set<MonitorDisplaySection>,
     edit: ((MonitorDisplayMode) -> Unit)?, revision: MutableIntState, onPreferenceChanged: () -> Unit,
-    feedback: () -> Unit = {}) {
+    feedback: () -> Unit = {}, teleprompterOffered: Boolean = false) {
     @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
     MonitorOperatorDisplaySections(session.modes, session::chrome, session.assist,
         onChange = { mode, value ->
@@ -226,5 +227,6 @@ private fun OperatorDisplaySections(session: MonitorOperatorSessionModel, availa
                 MonitorDisplayMode.COMMAND -> session.command = value
             }
             onPreferenceChanged()
-        }, available = available, edit = edit, feedback = feedback)
+        }, available = available, edit = edit, feedback = feedback,
+        pinnable = MonitorAssistTool.cleanPinCases.filter { it != MonitorAssistTool.PROMPT || teleprompterOffered }.toSet())
 }

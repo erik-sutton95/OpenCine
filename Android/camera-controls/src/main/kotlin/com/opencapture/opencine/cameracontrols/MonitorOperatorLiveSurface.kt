@@ -1,5 +1,7 @@
 package com.opencapture.opencine.cameracontrols
 
+import com.opencapture.opencine.appkit.MonitorTeleprompterModel
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -155,6 +157,7 @@ public class MonitorOperatorLiveAssists(
     public val rendered: Set<MonitorAssistTool>, public val transfer: MonitorTransfer?,
     public val signalOptions: MonitorOperatorSignalOptions, public val usage: MonitorToolUsageState,
     public val setUsage: (MonitorToolUsageState) -> Unit, public val usageSeed: Map<String, Int>,
+    public val teleprompter: MonitorTeleprompterModel? = null,
 )
 
 /**
@@ -260,10 +263,16 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         paletteFrameChanged = { paletteBounds = it }, transitionChanged = transitionChanged,
         picture = {
             CompositionLocalProvider(LocalMonitorOperatorChromeEdit provides chromeEdit) {
-                Box(Modifier.matchParentSize().then(if (command) Modifier.alpha(0f) else Modifier)) { picture() }
+                Box(Modifier.matchParentSize().then(if (command) Modifier.alpha(0f) else Modifier)) {
+                    picture()
+                    if (assists.teleprompter?.let { it.hasScript && !it.showsPreview } == true &&
+                        assist.isVisible(MonitorAssistTool.PROMPT) && !source.coverOpen && !command && session.editingMode == null) {
+                        Box(Modifier.matchParentSize().background(Color.Black))
+                    }
+                }
             }
         },
-        cameraPanel = cameraPanel, photoRelease = photoRelease)
+        cameraPanel = cameraPanel, photoRelease = photoRelease, teleprompter = assists.teleprompter)
 }
 
 @Composable

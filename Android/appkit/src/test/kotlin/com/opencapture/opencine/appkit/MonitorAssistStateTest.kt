@@ -12,6 +12,26 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MonitorAssistStateTest {
+    @Test fun teleprompterUsesAuthoritativeLiveVisibilityAndNeverEntersPlayback() {
+        var hostToggles = 0
+        var stored: String? = null
+        val state = MonitorAssistState(onPersist = { stored = it }, onToggle = { _, _ -> hostToggles++ })
+        state.toggle(MonitorAssistTool.PROMPT)
+        assertTrue(state.teleprompterEnabled)
+        assertTrue(state.isVisible(MonitorAssistTool.PROMPT))
+        assertEquals(0, hostToggles)
+        state.clean = true
+        assertFalse(state.isVisible(MonitorAssistTool.PROMPT))
+        state.togglePin(MonitorAssistTool.PROMPT)
+        assertTrue(state.isVisible(MonitorAssistTool.PROMPT))
+        state.togglePlayback(MonitorAssistTool.PROMPT)
+        assertFalse(state.isPlaybackVisible(MonitorAssistTool.PROMPT))
+        assertFalse(MonitorAssistState(playbackNames = setOf("PROMPT")).isPlaybackVisible(MonitorAssistTool.PROMPT))
+        assertFalse(MonitorAssistTool.PROMPT in MonitorAssistTool.playbackToolbarCases)
+        assertFalse(MonitorAssistTool.PROMPT in MonitorAssistTool.photoToolbarCases)
+        assertTrue(MonitorAssistState(encoded = stored).teleprompterEnabled)
+    }
+
     @Test fun legacySelectionsKeepTheirActualStoredMeaning() {
         val state = MonitorAssistState(encoded = """{"tools":["WAVE","FALSE","ZEBRA"],"falseColorScale":"CineStop","zebraUnit":"Native","waveCenter":{"xFraction":0.25,"yFraction":0.75},"crushClipCompensation":2,"audioCenter":{"xFraction":0.1,"yFraction":0.2}}""")
         assertEquals(MonitorFalseColorSelection.STOPS, state.falseColorScale)

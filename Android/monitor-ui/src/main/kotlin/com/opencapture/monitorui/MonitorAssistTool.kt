@@ -28,11 +28,11 @@ fun MonitorAssistToolGlyph(tool: MonitorAssistTool, tint: Color, modifier: Modif
         MonitorAssistTool.LEVEL -> com.opencapture.monitorui.MonitorAssistIcon.LEVEL
         MonitorAssistTool.MIRROR -> com.opencapture.monitorui.MonitorAssistIcon.MIRROR
         MonitorAssistTool.AUDIO -> com.opencapture.monitorui.MonitorAssistIcon.AUDIO_METERS
-        MonitorAssistTool.ND, MonitorAssistTool.EV, MonitorAssistTool.DESQ -> null
+        MonitorAssistTool.ND, MonitorAssistTool.EV, MonitorAssistTool.DESQ, MonitorAssistTool.PROMPT -> null
     }
-    if (tool == MonitorAssistTool.EV) {
+    if (tool == MonitorAssistTool.EV || tool == MonitorAssistTool.PROMPT) {
         Box(modifier, contentAlignment = Alignment.Center) {
-            Text("EV", style = MonitorTypography.text(evFontSize, FontWeight.SemiBold), color = tint, maxLines = 1)
+            Text(if (tool == MonitorAssistTool.PROMPT) "T" else "EV", style = MonitorTypography.text(evFontSize, FontWeight.SemiBold), color = tint, maxLines = 1)
         }
     } else if (tool == MonitorAssistTool.DESQ) MonitorIcon(MonitorIcon.CHEVRONS_UP_DOWN, null, modifier.rotate(90f), tint)
     else if (icon == null) MonitorIcon(MonitorIcon.APERTURE, null, modifier, tint)

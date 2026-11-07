@@ -94,7 +94,8 @@ public struct MonitorOperatorAssistInspector<Looks: MonitorLookProvider, Palette
     }
 
     private var tools: [MonitorAssistSelection] {
-        (MonitorAssistSelection.settingsCases + (signalOptions.instantReview == nil ? [] : [.instantReview])).filter {
+        (MonitorAssistSelection.settingsCases + (available.contains(.teleprompter) ? [.teleprompter] : [])
+            + (signalOptions.instantReview == nil ? [] : [.instantReview])).filter {
             available.contains($0) && ($0.hasConfiguration || $0 == .instantReview)
                 && ($0 != .audioMeters || (audioAvailable ?? assist.cameraHasAudio))
         }

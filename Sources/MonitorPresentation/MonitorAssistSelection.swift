@@ -34,4 +34,5 @@ public struct MonitorAssistSelection: RawRepresentable, Hashable, Sendable, Iden
     public static let level = Self(.level)
     public static let desqueeze = Self(.desqueeze)
     public static let mirror = Self(.mirror)
+    public static let teleprompter = Self(.teleprompter)
 }

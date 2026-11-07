@@ -86,11 +86,34 @@ import Testing
         #expect(!other.waveform && other.playbackVisibleTools.isEmpty)
     }
 
+    @Test func localPrompterHasNoCameraHookAndRespectsCleanPinsWithoutPlaybackDemand() throws {
+        guard #available(macOS 14, *) else { return }
+        let (defaults, domain) = try storage()
+        defer { defaults.removePersistentDomain(forName: domain) }
+        var cameraHooks = 0
+        let state = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys,
+            cleanPinCases: allowed, onToggle: { _, _ in cameraHooks += 1 })
+        state.toggle(.teleprompter)
+        #expect(state.teleprompterEnabled && cameraHooks == 0)
+        state.clean = true
+        #expect(!state.isVisible(.teleprompter) && state.teleprompterEnabled)
+        state.toggleCleanViewPin(.teleprompter)
+        #expect(state.isVisible(.teleprompter))
+        state.playbackVisibleTools.insert(.teleprompter)
+        state.configureTool = .teleprompter
+        #expect(!state.isPlaybackVisible(.teleprompter) && !state.effects.inspectorSample)
+        let restored = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        #expect(
+            restored.teleprompterEnabled && restored.cleanViewPinnedTools.contains(.teleprompter))
+    }
+
     @Test func legacySelectionsDoNotExpandTheCurrentCatalog() throws {
         guard #available(macOS 14, *) else { return }
-        #expect(MonitorAssistTool.allCases.count == 18)
+        #expect(MonitorAssistSelection.teleprompter.sharedTool == .teleprompter)
         #expect(
-            MonitorAssistSelection.allCases.map(\.rawValue).prefix(18)
+            MonitorAssistSelection.allCases.map(\.rawValue).prefix(MonitorAssistTool.allCases.count)
                 == MonitorAssistTool.allCases.map(\.rawValue)[...])
         #expect(MonitorAssistSelection(rawValue: "PLAY") == .instantReview)
         #expect(MonitorAssistSelection(rawValue: "MAG") == .magnification)
@@ -182,15 +205,17 @@ import Testing
         #expect(!state.offers(.falseColor) && !state.offers(.zebra))
         #expect(state.offers(.peaking) && state.offers(.lut) && state.offers(.waveform))
         let cube = try #require(looks.cube)
-        #expect(state.exportCube(bakeExposure: true)
-            == cube.preparedForExport(bakeExposure: true, stops: 0, transfer: .rec709))
+        #expect(
+            state.exportCube(bakeExposure: true)
+                == cube.preparedForExport(bakeExposure: true, stops: 0, transfer: .rec709))
 
         looks.sourceTransfer = .dlog
         #expect(state.sourceCurveKnown)
         #expect(state.effects.falseColor && state.effects.zebra)
         #expect(state.offers(.falseColor) && state.offers(.zebra))
-        #expect(state.exportCube(bakeExposure: true)
-            == cube.preparedForExport(bakeExposure: true, stops: 1, transfer: .rec709))
+        #expect(
+            state.exportCube(bakeExposure: true)
+                == cube.preparedForExport(bakeExposure: true, stops: 1, transfer: .rec709))
     }
 
     /// The curve-reading tools are exactly false colour and zebra; every other tool is offered alike.

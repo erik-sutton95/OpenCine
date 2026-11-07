@@ -37,7 +37,7 @@
 
         /// Tools the operator can keep on DISP 2. Camera EV stays exclusive to DISP 1.
         public static var cleanPinCases: [MonitorAssistSelection] {
-            settingsCases.filter { $0 != .evMeter }
+            settingsCases.filter { $0 != .evMeter } + [.teleprompter]
         }
 
         /// Compact label for the Display > DISP 2 pin grid.
