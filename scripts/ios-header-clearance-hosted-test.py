@@ -79,7 +79,7 @@ def verdict(found: dict[str, list[dict]]) -> dict:
     """Counts and the cases that did not run exactly once and pass."""
     results = [entry["result"] for entries in found.values() for entry in entries]
     unexpected = {name: [entry["result"] for entry in entries]
-                  for name, entries in found.items() if [entry["result"] for entry in entries] != ["passed"]}
+                    for name, entries in found.items() if [entry["result"] for entry in entries] != ["passed"]}
     return {
         "selected": len(found),
         "executed": sum(1 for result in results if result != "skipped"),
@@ -192,7 +192,7 @@ struct HeaderClearanceSimulatedApp: App {
     for group, names in groups.items():
         selection = ["-only-testing:" + TARGET + "/" + SUITE] if group == "phone" else []
         selection += [("-skip-testing:" if group == "phone" else "-only-testing:") + TARGET + "/" + SUITE + "/" + name
-                      for name in TABLET_CASES]
+                        for name in TABLET_CASES]
         code, seconds = run_logged(base + [
             "-destination", "platform=iOS Simulator,id=" + destinations[group],
             "-parallel-testing-enabled", "NO", "-test-timeouts-enabled", "YES",
@@ -201,7 +201,7 @@ struct HeaderClearanceSimulatedApp: App {
             *selection, "test-without-building"], out / (group + ".log"))
         found = outcomes((out / (group + ".log")).read_text(errors="replace"), names)
         report["runs"][group] = dict(verdict(found), exit=code, wallSeconds=seconds,
-                                     destination=destinations[group], cases=found)
+                                    destination=destinations[group], cases=found)
     after = {str(path): sha256(path.read_bytes()).hexdigest() for path in inputs}
     runs = report["runs"].values()
     report.update({
@@ -217,7 +217,7 @@ struct HeaderClearanceSimulatedApp: App {
     print(json.dumps({key: value for key, value in report.items() if key != "runs"}), flush=True)
     for group, run in report["runs"].items():
         print(f"{group}: {run['passed']} of {run['selected']} passed, {run['skipped']} skipped, "
-              f"{run['failed']} failed; unexpected {run['unexpected']}", flush=True)
+                f"{run['failed']} failed; unexpected {run['unexpected']}", flush=True)
     if not report["allPassedOnce"] or report["passed"] != EXPECTED_CASES or not report["inputsUnchanged"]:
         raise SystemExit("every header clearance case must run once and pass; see outcomes.json")
 
