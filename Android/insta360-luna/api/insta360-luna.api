@@ -2,8 +2,8 @@ public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/open
 	public static final field CAMERA_HOST Ljava/lang/String;
 	public static final field Companion Lcom/opencapture/opencine/insta360/luna/LunaBackend$Companion;
 	public static final field DEFAULT_CLIENT_IDENTITY_PREFERENCES Ljava/lang/String;
-	public fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/insta360/shell/LunaMediaTransferPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)V
-	public synthetic fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/insta360/shell/LunaMediaTransferPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/insta360/shell/LunaMediaTransferPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/platform/SharedWiFiPath;)V
+	public synthetic fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/insta360/shell/LunaMediaTransferPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/platform/SharedWiFiPath;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
 	public fun connect (Ljava/lang/String;)V
 	public fun connect (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaRoute;)V
@@ -28,6 +28,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/open
 	public fun getReadout ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getScanBlocked ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getSnapshot ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getStationHostsInUse ()Lkotlin/jvm/functions/Function0;
 	public fun getStationNote ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getTrackFrames ()Lkotlinx/coroutines/flow/Flow;
 	public fun getZoomRange ()Lkotlin/ranges/ClosedFloatingPointRange;
@@ -57,6 +58,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/open
 	public final fun setPrepareMediaLiveReturn (Lkotlin/jvm/functions/Function2;)V
 	public fun setRecordFormat (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun setShootingMode (Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun setStationHostsInUse (Lkotlin/jvm/functions/Function0;)V
 	public fun setZoom (DLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun startScan ()V
 	public fun startTracking (DDDDLkotlin/coroutines/Continuation;)Ljava/lang/Object;

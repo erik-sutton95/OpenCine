@@ -322,6 +322,7 @@ var LunaCameraBackend.secondsSinceVideo: Foundation.TimeInterval?
 var LunaCameraBackend.session: LunaCameraSession?
 var LunaCameraSession.Timing.readbackInterval: Swift.Duration
 var LunaCameraSession.Timing.settle: [OpenCineCore.SettingKey : Swift.Duration]
+var LunaCameraBackend.stationHostsInUse: (() -> Swift.Set<Swift.String>)?
 var LunaCameraSession.admitsControl: Swift.Bool
 var LunaCameraSession.current: OpenCineCore.CameraSnapshot
 var LunaCameraSession.recordingProfile: OpenCineCore.ObservedValue<Swift.String>

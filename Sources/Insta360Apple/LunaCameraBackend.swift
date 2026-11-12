@@ -49,6 +49,9 @@ public final class LunaCameraBackend: CameraBackend {
     /// Where this connection reaches the camera: its own access point, or the address a Wi-Fi or
     /// hotspot setup found it at. Control and files use it.
     public private(set) var cameraHost = LunaProtocol.defaultHost
+    /// Hosts other connections of this app hold on a Wi-Fi or hotspot setup's network (their
+    /// `cameraHost`s); this backend's search never probes them. Nil searches every host.
+    public var stationHostsInUse: (@MainActor () -> Set<String>)?
     public private(set) var deviceInformation: LunaDeviceInformation?
 
     /// App-supplied names (keychain service, operator-facing app name, log prefix).
@@ -189,7 +192,7 @@ public final class LunaCameraBackend: CameraBackend {
         }
         var expectedSerial: String?
         var localAddress: String? { LunaWiFi.localAddress }
-        var stationLocal: String?
+        var controlOpen = false
         do {
             let stored = store.credentials(cameraID: camera.id)
             switch route {
@@ -217,30 +220,47 @@ public final class LunaCameraBackend: CameraBackend {
                 }
                 let moved = try await moveOverBluetooth(
                     camera: camera, identity: identity, network: network, token: token)
-                expectedSerial = moved.serial
                 emit(.openingVideo)
                 let local = try await joinStation(network, token: token)
                 eventHandler?(.note("Finding the camera on “\(network.ssid)”…"))
+                // Several cameras may share the network: a host whose serial is not this
+                // camera's is closed and skipped, and the search goes on.
                 guard
-                    let host = try await LunaStationPath.findCamera(
+                    try await LunaStationPath.findRequestedCamera(
                         on: local, preferred: moved.address, budget: .seconds(60),
-                        isCurrent: { [weak self] in self?.generation == token })
+                        excluding: stationHostsInUse?() ?? [],
+                        isCurrent: { [weak self] in self?.generation == token },
+                        open: { host in
+                            try validate(token)
+                            cameraHost = host
+                            noteReachable(token)
+                            emit(.openingVideo)
+                            do {
+                                try await openControl(
+                                    token: token, identity: identity, expectedSerial: moved.serial,
+                                    localAddress: local.address)
+                            } catch let failure as ConnectionFailure where failure.reason == .wrongCamera {
+                                onLog?("luna: another camera answered on the setup's network; searching on")
+                                closeControlLink()
+                                cameraHost = LunaProtocol.defaultHost
+                                throw failure
+                            }
+                        }) != nil
                 else {
                     throw ConnectionFailure.luna(
                         .notFound, "station.camera-not-found",
                         "The camera joined “\(network.ssid)”, but this phone could not find it there. Check that the network lets its devices reach each other, then connect again.",
                         phase: .joiningNetwork)
                 }
-                try validate(token)
-                cameraHost = host
-                stationLocal = local.address
-                noteReachable(token)
+                controlOpen = true
             }
             try validate(token)
-            emit(.openingVideo)
-            try await openControl(
-                token: token, identity: identity, expectedSerial: expectedSerial,
-                localAddress: stationLocal ?? localAddress)
+            if !controlOpen {
+                emit(.openingVideo)
+                try await openControl(
+                    token: token, identity: identity, expectedSerial: expectedSerial,
+                    localAddress: localAddress)
+            }
             liveStartAttempted = true
             _ = try? await send(
                 LunaProtocol.setAccessCameraFileState(LunaProtocol.shootingViewAccessState))
@@ -561,6 +581,19 @@ public final class LunaCameraBackend: CameraBackend {
                 phase: .awaitingApproval)
         }
         await refreshStatus()
+    }
+
+    /// Closes a control link that reached another camera on a shared network: nothing more is
+    /// sent to it, and this connect goes on as before the link opened.
+    private func closeControlLink() {
+        heartbeat?.cancel()
+        heartbeat = nil
+        tcp.disconnect()
+        failPending(CancellationError())
+        isTCP = false
+        tcpGreetingSeen = false
+        tcpParser = try! UCD2Reassembler()
+        counter = LunaRequestCounter()
     }
 
     #if DEBUG
