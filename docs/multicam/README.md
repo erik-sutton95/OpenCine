@@ -85,6 +85,13 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
   A member borrowed into full Live View holds an `EditorLease`, is `busy` for
   group plans and keeps its session (no CloseSession).
   Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
+- Insta360 Luna (OpenInstaCine, in progress): members join over saved Wi-Fi and hotspot
+  (station) routes only; `LunaMulticamPolicy` (Swift `Insta360Apple`, Kotlin `insta360-luna`)
+  refuses the camera access point as `.unsupportedConfiguration` and a camera already in the
+  group as `.alreadyMember`. Each member owns its own backend; the app gives each one
+  `stationHostsInUse` (the other members' hosts), and on Android one shared `SharedWiFiPath`.
+  The station connect checks the camera's serial and skips another camera on the same network.
+  Not hardware-qualified. See [insta360](../insta360/README.md#multicam-over-station-routes).
 - Each app keeps its own qualified camera count, routes and policies. The stage UI is shared:
   OpenCineAppKit `MultiviewStage` takes `MultiviewTile` values and a `MultiviewRecordContext`
   over the app's `RecordPlan` ([appkit](../appkit/README.md#multiview-stage)). Pocket maps its

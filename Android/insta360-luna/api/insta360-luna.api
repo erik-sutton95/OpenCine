@@ -271,6 +271,11 @@ public final class com/opencapture/opencine/insta360/luna/LunaMotionService$Comp
 	public final fun hasReached (Lcom/opencapture/opencine/insta360/shell/CameraGimbalAngle;Lcom/opencapture/opencine/motion/GimbalWaypoint;)Z
 }
 
+public final class com/opencapture/opencine/insta360/luna/LunaMulticamPolicy {
+	public static final field INSTANCE Lcom/opencapture/opencine/insta360/luna/LunaMulticamPolicy;
+	public final fun qualification (Lcom/opencapture/opencine/core/SavedRoute;Lcom/opencapture/opencine/core/CameraDeviceID;Ljava/util/Set;)Lcom/opencapture/opencine/core/MulticamQualification;
+}
+
 public abstract interface class com/opencapture/opencine/insta360/luna/LunaRoute {
 }
 
