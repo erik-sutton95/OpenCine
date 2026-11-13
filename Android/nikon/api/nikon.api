@@ -1819,6 +1819,7 @@ public final class com/opencapture/opencine/nikon/NikonDiscovery {
 	public final fun currentHolder (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getShieldedHosts ()Ljava/util/Set;
 	public final fun liveness (Ljava/util/Collection;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun multiviewSightings (Ljava/util/List;Ljava/util/Collection;Ljava/util/Set;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun presenceSweep (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun search (Lcom/opencapture/opencine/core/DiscoveryMode;Ljava/util/List;Ljava/util/Set;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun search$default (Lcom/opencapture/opencine/nikon/NikonDiscovery;Lcom/opencapture/opencine/core/DiscoveryMode;Ljava/util/List;Ljava/util/Set;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -2225,11 +2226,160 @@ public abstract interface class com/opencapture/opencine/nikon/NikonMediaSourceP
 	public abstract fun sourceIdentity ()Lcom/opencapture/opencine/nikon/NikonMediaSourceIdentity;
 }
 
+public final class com/opencapture/opencine/nikon/NikonMemberOpenRefusal : java/lang/Enum {
+	public static final field ALREADY_MEMBER Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public static final field DIFFERENT_BODY Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public static final field HOST_IN_USE Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public static final field NO_IDENTITY Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public static fun values ()[Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+}
+
+public abstract interface class com/opencapture/opencine/nikon/NikonMemberOpenResult {
+	public abstract fun getDevice ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public abstract fun getLink ()Ljava/lang/Object;
+	public abstract fun getRefusal ()Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberOpenResult$Opened : com/opencapture/opencine/nikon/NikonMemberOpenResult {
+	public fun <init> (Ljava/lang/Object;Lcom/opencapture/opencine/core/CameraDeviceID;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public final fun copy (Ljava/lang/Object;Lcom/opencapture/opencine/core/CameraDeviceID;)Lcom/opencapture/opencine/nikon/NikonMemberOpenResult$Opened;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikon/NikonMemberOpenResult$Opened;Ljava/lang/Object;Lcom/opencapture/opencine/core/CameraDeviceID;ILjava/lang/Object;)Lcom/opencapture/opencine/nikon/NikonMemberOpenResult$Opened;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getDevice ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public fun getLink ()Ljava/lang/Object;
+	public fun getRefusal ()Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberOpenResult$Refused : com/opencapture/opencine/nikon/NikonMemberOpenResult {
+	public fun <init> (Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;)V
+	public final fun component1 ()Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public final fun copy (Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;)Lcom/opencapture/opencine/nikon/NikonMemberOpenResult$Refused;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikon/NikonMemberOpenResult$Refused;Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;ILjava/lang/Object;)Lcom/opencapture/opencine/nikon/NikonMemberOpenResult$Refused;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getDevice ()Lcom/opencapture/opencine/core/CameraDeviceID;
+	public synthetic fun getLink ()Ljava/lang/Object;
+	public fun getLink ()Ljava/lang/Void;
+	public fun getRefusal ()Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberOpener {
+	public synthetic fun <init> (JLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun close (Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun open (Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/util/Set;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun open$default (Lcom/opencapture/opencine/nikon/NikonMemberOpener;Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;Ljava/util/Set;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberRepair {
+	public static final field Companion Lcom/opencapture/opencine/nikon/NikonMemberRepair$Companion;
+	public static final field MISSED_FRAMES_FOR_STALL I
+	public fun <init> ()V
+	public synthetic fun <init> (JJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attemptFailed-_5MYWhY (J)V
+	public final fun attemptSucceeded ()V
+	public final fun frameArrived ()V
+	public final fun frameMissed-_5MYWhY (J)V
+	public final fun linkLost-_5MYWhY (J)V
+	public final fun next-R549WiI (JLkotlin/jvm/functions/Function0;)Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step;
+	public final fun reset ()V
+	public final fun streamStalled-_5MYWhY (J)V
+	public final fun takenOver ()V
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberRepair$Companion {
+}
+
+public abstract interface class com/opencapture/opencine/nikon/NikonMemberRepair$Step {
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberRepair$Step$None : com/opencapture/opencine/nikon/NikonMemberRepair$Step {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$None;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberRepair$Step$Reopen : com/opencapture/opencine/nikon/NikonMemberRepair$Step {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$Reopen;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberRepair$Step$RestartLiveView : com/opencapture/opencine/nikon/NikonMemberRepair$Step {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$RestartLiveView;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberRepair$Step$Wait : com/opencapture/opencine/nikon/NikonMemberRepair$Step {
+	public synthetic fun <init> (JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-AehAGeA ()J
+	public final fun copy-_5MYWhY (J)Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$Wait;
+	public static synthetic fun copy-_5MYWhY$default (Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$Wait;JILjava/lang/Object;)Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$Wait;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getUntil-AehAGeA ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberRepair$Step$WaitForOperator : com/opencapture/opencine/nikon/NikonMemberRepair$Step {
+	public fun <init> (Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;)V
+	public final fun component1 ()Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;
+	public final fun copy (Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;)Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$WaitForOperator;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$WaitForOperator;Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;ILjava/lang/Object;)Lcom/opencapture/opencine/nikon/NikonMemberRepair$Step$WaitForOperator;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberRepair$WaitReason : java/lang/Enum {
+	public static final field BUDGET_SPENT Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;
+	public static final field TAKEN_OVER Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;
+	public static fun values ()[Lcom/opencapture/opencine/nikon/NikonMemberRepair$WaitReason;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMemberTiming {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMemberTiming;
+	public final fun getRECONNECT_SETTLE-UwyO8pc ()J
+	public final fun getREOPEN_SPACING-UwyO8pc ()J
+}
+
 public final class com/opencapture/opencine/nikon/NikonMonitorColorProfile {
 	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMonitorColorProfile;
 	public final fun getLog3G10Rec709 ()Lcom/opencapture/opencine/media/MonitorLogDisplayTransform;
 	public final fun getNLogRec709 ()Lcom/opencapture/opencine/media/MonitorLogDisplayTransform;
 	public final fun getRec709LookCurves ()Ljava/util/Map;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMovieTone : java/lang/Enum {
+	public static final field Companion Lcom/opencapture/opencine/nikon/NikonMovieTone$Companion;
+	public static final field HLG Lcom/opencapture/opencine/nikon/NikonMovieTone;
+	public static final field LOG3G10 Lcom/opencapture/opencine/nikon/NikonMovieTone;
+	public static final field N_LOG Lcom/opencapture/opencine/nikon/NikonMovieTone;
+	public static final field SDR Lcom/opencapture/opencine/nikon/NikonMovieTone;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getLabel ()Ljava/lang/String;
+	public final fun getMonitorTransfer ()Lcom/opencapture/opencine/media/MonitorTransfer;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonMovieTone;
+	public static fun values ()[Lcom/opencapture/opencine/nikon/NikonMovieTone;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMovieTone$Companion {
+	public final fun fromLabel (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonMovieTone;
 }
 
 public final class com/opencapture/opencine/nikon/NikonMulticamPolicy {
@@ -2248,6 +2398,10 @@ public final class com/opencapture/opencine/nikon/NikonMulticamRefusal : java/la
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonMulticamRefusal;
 	public static fun values ()[Lcom/opencapture/opencine/nikon/NikonMulticamRefusal;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewKt {
+	public static final fun getRecordingTone (Lcom/opencapture/opencine/nikon/CameraPropertySnapshot;)Lcom/opencapture/opencine/nikon/NikonMovieTone;
 }
 
 public final class com/opencapture/opencine/nikon/NikonNative {

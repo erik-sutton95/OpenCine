@@ -195,6 +195,19 @@ case NikonMemberControl.WriteOutcome.applied
 case NikonMemberControl.WriteOutcome.failed(Swift.Bool)
 case NikonMemberControl.WriteOutcome.notApplied
 case NikonMemberControl.WriteOutcome.unknown
+case NikonMemberOpenRefusal.alreadyMember
+case NikonMemberOpenRefusal.differentBody
+case NikonMemberOpenRefusal.hostInUse
+case NikonMemberOpenRefusal.noIdentity
+case NikonMemberOpenResult.opened(Link, OpenCineCore.CameraDeviceID)
+case NikonMemberOpenResult.refused(NikonMemberOpenRefusal)
+case NikonMemberRepair.Step.none
+case NikonMemberRepair.Step.reopen
+case NikonMemberRepair.Step.restartLiveView
+case NikonMemberRepair.Step.wait(OpenCineCore.MonotonicInstant)
+case NikonMemberRepair.Step.waitForOperator(NikonMemberRepair.WaitReason)
+case NikonMemberRepair.WaitReason.budgetSpent
+case NikonMemberRepair.WaitReason.takenOver
 case NikonMonitorRelayCommand.focusPoint(Swift.Int, Swift.Int, Swift.Int, Swift.Int)
 case NikonMonitorRelayCommand.pickerValue(Swift.String, Swift.String)
 case NikonMonitorRelayCommand.toggleRecording
@@ -571,6 +584,7 @@ class NikonIntegration: CameraIntegration, Sendable
 class NikonLiveViewPump: Sendable
 class NikonMediaService: CameraMediaService, NikonMediaCatalogRecordSource, Sendable
 class NikonMemberControl: NikonControlDriver, Sendable
+class NikonMemberOpener<Link where Link : Swift.Sendable>: Sendable
 class NikonMonitorRuntime: NikonControlDriver, Sendable
 class NikonPropertyBootstrap: Sendable
 class NikonStillReviewObjectTracker: Sendable
@@ -655,6 +669,11 @@ enum NikonMediaLibraryAssets
 enum NikonMediaPhotoSizeClass: CaseIterable, Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum NikonMediaResolutionBucket: CaseIterable, Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum NikonMemberControl.WriteOutcome: Equatable, Hashable, Sendable
+enum NikonMemberOpenRefusal: Equatable, Hashable, Sendable
+enum NikonMemberOpenResult<Link where Link : Swift.Sendable>: Sendable
+enum NikonMemberRepair.Step: Equatable, Hashable, Sendable
+enum NikonMemberRepair.WaitReason: Equatable, Hashable, Sendable
+enum NikonMemberTiming
 enum NikonMonitorColorProfile
 enum NikonMonitorRelayCommand: Decodable, Encodable, Equatable, Sendable
 enum NikonMonitorRelayProtocol
@@ -903,6 +922,7 @@ func NikonDialer.presence(_: Swift.String) async -> NikonPresence?
 func NikonDialer.scanControlPort(_: [Swift.String]) async -> [Swift.String : HostProbeVerdict]
 func NikonDiscovery.currentHolder(of: Swift.String, priorityHosts: [Swift.String]) async -> Swift.String?
 func NikonDiscovery.discover(_: OpenCineCore.DiscoveryMode, guid: Foundation.Data, priorityHosts: [Swift.String], excludedHosts: (() async -> Swift.Set<Swift.String>)?, browsesUSB: Swift.Bool, status: ((Swift.String) async -> Swift.Void)?, onPresences: (([Swift.String : NikonPresence]) async -> Swift.Void)?) async throws -> [DiscoveredCamera]
+func NikonDiscovery.multiviewSightings(savedHosts: [Swift.String], excludedHosts: Swift.Set<Swift.String>, browsesUSB: Swift.Bool) async -> [DiscoveredCamera]
 func NikonDiscoverySources.bonjour(timeout: Swift.Duration) async -> [DiscoveredCamera]
 func NikonDiscoverySources.interfaces() -> [NikonLocalInterface]
 func NikonDiscoverySources.log(_: Swift.String) -> ()
@@ -940,6 +960,7 @@ func NikonMediaService.retire() -> ()
 func NikonMemberControl.admits(_: NikonCommandAdmission) -> Swift.Bool
 func NikonMemberControl.enqueue(_: PTPCameraPropertyWrite, operation: OpenCineCore.OperationID?) -> ()
 func NikonMemberControl.lend() -> ()
+func NikonMemberControl.pollRecordingTone(on: some NikonControlTransport) -> NikonMovieTone?
 func NikonMemberControl.queueRecord(start: Swift.Bool, operation: OpenCineCore.OperationID) -> ()
 func NikonMemberControl.queueRecord(start: Swift.Bool, operation: OpenCineCore.OperationID, admission: NikonCommandAdmission) -> ()
 func NikonMemberControl.queueSettingWrites(_: Swift.String, for: NikonControlSetting, operation: OpenCineCore.OperationID?) -> Swift.Int
@@ -948,6 +969,17 @@ func NikonMemberControl.reclaim() -> ()
 func NikonMemberControl.reset() -> ()
 func NikonMemberControl.service(_: some NikonControlTransport) -> [NikonMemberControl.WriteResult]
 func NikonMemberControl.update(_: (inout NikonControlFacts) -> Swift.Void) -> ()
+func NikonMemberOpener.close(_: Link, host: Swift.String)<Link where Link : Swift.Sendable> async -> ()
+func NikonMemberOpener.open(host: Swift.String, expectedSerial: Swift.String?, members: Swift.Set<OpenCineCore.CameraDeviceID>, hostsInUse: Swift.Set<Swift.String>)<Link where Link : Swift.Sendable> async throws -> NikonMemberOpenResult<Link>
+func NikonMemberRepair.attemptFailed(at: OpenCineCore.MonotonicInstant) -> ()
+func NikonMemberRepair.attemptSucceeded() -> ()
+func NikonMemberRepair.frameArrived() -> ()
+func NikonMemberRepair.frameMissed(at: OpenCineCore.MonotonicInstant) -> ()
+func NikonMemberRepair.linkLost(at: OpenCineCore.MonotonicInstant) -> ()
+func NikonMemberRepair.next(at: OpenCineCore.MonotonicInstant, beginAttempt: () -> Swift.Bool) -> NikonMemberRepair.Step
+func NikonMemberRepair.reset() -> ()
+func NikonMemberRepair.streamStalled(at: OpenCineCore.MonotonicInstant) -> ()
+func NikonMemberRepair.takenOver() -> ()
 func NikonMonitorLink.configureLiveView(size: Swift.UInt8, compression: Swift.UInt8) async -> ()
 func NikonMonitorLink.liveViewFrame(deadline: Swift.Duration?) async throws -> PTPLiveViewFrame
 func NikonMonitorLink.nextEvent() async throws -> PTPEvent
@@ -980,6 +1012,7 @@ func NikonMonitorRuntime.updateFacts(_: NikonControlFacts) -> ()
 func NikonPropertyBootstrap.consumeStagedClock(recording: Swift.Bool?) async -> ()
 func NikonPropertyBootstrap.observeStabilizationDescriptors(isCurrent: () -> Swift.Bool, receive: (NikonBootstrapObservation) -> Swift.Void) async -> ()
 func NikonPropertyBootstrap.run(initial: PTPCameraPropertySnapshot, isCurrent: () -> Swift.Bool, receive: (NikonBootstrapObservation) -> Swift.Void) async -> ()
+func NikonRecordingTone.apply(_: PTPPropertyCode, data: Foundation.Data) -> ()
 func NikonRelayPresence.encodedLine() -> Foundation.Data
 func NikonSavedRecordsV0.cameras(in: Foundation.Data) -> [OpenCineCore.LegacyCamera]?
 func NikonSavedRecordsV0.patched(_: Foundation.Data?, to: [OpenCineCore.SavedCamera]) -> Foundation.Data?
@@ -1119,6 +1152,8 @@ init NikonMediaService(session: OpenCineCore.CameraSessionID, io: any NikonMedia
 init NikonMediaSourceIdentity(native: Swift.ObjectIdentifier, session: OpenCineCore.CameraSessionID, epoch: OpenCineCore.ControlEpoch)
 init NikonMediaStorageRecord(id: Swift.UInt32, info: PTPStorageInfo)
 init NikonMemberControl(serialNumber: Swift.String, facts: NikonControlFacts, recordObservationTimeout: Swift.Duration, now: () -> OpenCineCore.MonotonicInstant, commandOwner: NikonCommandOwner?, isCameraRefusal: (any Swift.Error) -> Swift.Bool)
+init NikonMemberOpener(settle: Swift.Duration, now: () -> OpenCineCore.MonotonicInstant, sleep: (Swift.Duration) async throws -> Swift.Void, connect: (Swift.String) async throws -> Link, serialNumber: (Link) -> Swift.String?, close: (Link) async -> Swift.Void)<Link where Link : Swift.Sendable>
+init NikonMemberRepair(settle: Swift.Duration, reopenSpacing: Swift.Duration)
 init NikonMonitorRelayControlToken(holderName: Swift.String, holderIsRecipient: Swift.Bool)
 init NikonMonitorRelayFrameMetadata(timecode: Timecode?, isRecording: Swift.Bool, focus: NikonMonitorRelayFrameMetadata.Focus?, levelRoll: Swift.Double?, levelPitch: Swift.Double?, sound: NikonMonitorRelayFrameMetadata.Sound?, codec: Swift.Int, isKeyframe: Swift.Bool, parameterSets: [Foundation.Data]?, rotation: Swift.Int?)
 init NikonMonitorRelayFrameMetadata.Box(centerX: Swift.Int, centerY: Swift.Int, width: Swift.Int, height: Swift.Int)
@@ -1135,6 +1170,7 @@ init NikonPresence(deviceName: Swift.String, servedCamera: Swift.String?, line: 
 init NikonPreviewDemand(mode: NikonPreviewDemand.Mode, size: Swift.UInt8, compression: Swift.UInt8)
 init NikonPropertyBootstrap(link: any NikonBootstrapLink)
 init NikonRecordingFormatPresentation(mode: PTPCameraScreenSizeMode, currentCodec: Swift.String?, isNikonZR: Swift.Bool)
+init NikonRecordingTone()
 init NikonRelayPresence(name: Swift.String, watchable: Swift.Bool, servedCameraHost: Swift.String?, relayPort: Swift.Int?)
 init NikonSavedRecordsV0()
 init NikonStillReviewObjectKind(filename: Swift.String)
@@ -2086,6 +2122,9 @@ static let NikonGyroCamera.electronicVRKey: Swift.String
 static let NikonGyroCamera.movieVRKey: Swift.String
 static let NikonGyroCamera.settings: [OpenCineGyro.GyroStabilizationSetting]
 static let NikonMediaFilterOptions.none: NikonMediaFilterOptions
+static let NikonMemberRepair.missedFramesForStall: Swift.Int
+static let NikonMemberTiming.reconnectSettle: Swift.Duration
+static let NikonMemberTiming.reopenSpacing: Swift.Duration
 static let NikonMonitorColorProfile.log3G10Rec709: OpenCineMedia.MonitorLogDisplayTransform
 static let NikonMonitorColorProfile.nLogRec709: OpenCineMedia.MonitorLogDisplayTransform
 static let NikonMonitorColorProfile.rec709LookCurves: [OpenCineMedia.MonitorTransfer : [Swift.Double]]
@@ -2228,6 +2267,7 @@ struct NikonMediaPairingUpdate: Equatable, Sendable
 struct NikonMediaSourceIdentity: Equatable, Sendable
 struct NikonMediaStorageRecord: Equatable, Sendable
 struct NikonMemberControl.WriteResult: Equatable, Sendable
+struct NikonMemberRepair: Equatable, Hashable, Sendable
 struct NikonMonitorRelayControlToken: Decodable, Encodable, Equatable, Sendable
 struct NikonMonitorRelayFrameMetadata.Box: Decodable, Encodable, Equatable, Sendable
 struct NikonMonitorRelayFrameMetadata.Focus: Decodable, Encodable, Equatable, Sendable
@@ -2240,6 +2280,7 @@ struct NikonMonitorRelayState: Decodable, Encodable, Equatable, Sendable
 struct NikonPresence: Equatable, Hashable, Sendable
 struct NikonPreviewDemand: Equatable, Sendable
 struct NikonRecordingFormatPresentation: Equatable, Sendable
+struct NikonRecordingTone: Equatable, Hashable, Sendable
 struct NikonRelayPresence: Decodable, Encodable, Equatable, Sendable
 struct NikonSavedRecordsV0: LegacySavedCameraCodec, Sendable
 struct NikonScalarPropertyDescriptor: Equatable, Sendable
@@ -2446,7 +2487,11 @@ var NikonMediaService.storageRecords: [NikonMediaStorageRecord]
 var NikonMemberControl.hasQueuedCommands: Swift.Bool
 var NikonMemberControl.isLent: Swift.Bool
 var NikonMemberControl.nikonControlFacts: NikonControlFacts
+var NikonMemberControl.recordingTone: NikonRecordingTone
 var NikonMemberControl.session: NikonCameraSession!
+var NikonMemberOpenResult.device: OpenCineCore.CameraDeviceID?
+var NikonMemberOpenResult.link: Link?
+var NikonMemberOpenResult.refusal: NikonMemberOpenRefusal?
 var NikonMonitorLink.serialNumber: Swift.String
 var NikonMonitorRelayHello.acceptsHEVC: Swift.Bool
 var NikonMonitorRelayState.allowsControlRequests: Swift.Bool?
@@ -2460,12 +2505,17 @@ var NikonMonitorRuntime.onRecordQueued: (Swift.Bool) -> Swift.Void
 var NikonMonitorRuntime.session: NikonCameraSession
 var NikonMonitorRuntime.teardown: _Concurrency.Task<Swift.Void, Swift.Never>?
 var NikonMovieTone.label: Swift.String
+var NikonMovieTone.monitorTransfer: OpenCineMedia.MonitorTransfer
 var NikonPresence.deviceName: Swift.String
 var NikonPresence.line: Foundation.Data?
 var NikonPresence.servedCamera: Swift.String?
 var NikonPreviewDemand.compression: Swift.UInt8
 var NikonPreviewDemand.mode: NikonPreviewDemand.Mode
 var NikonPreviewDemand.size: Swift.UInt8
+var NikonRecordingTone.fileType: Swift.UInt32?
+var NikonRecordingTone.tone: NikonMovieTone?
+var NikonRecordingTone.tones: [PTPPropertyCode : NikonMovieTone]
+var NikonRecordingTone.transfer: OpenCineMedia.MonitorTransfer?
 var NikonRelayPresence.ch: Swift.String?
 var NikonRelayPresence.isWatchable: Swift.Bool
 var NikonRelayPresence.n: Swift.String
