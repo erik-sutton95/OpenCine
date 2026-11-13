@@ -242,6 +242,30 @@ explicitly; integration copy (steps, failures, prompts) is rendered, never rewri
   and in the integrations that wrote their own legacy format.
 - `FakeIntegration` (test support, Kotlin test fixtures) scripts discovery, attempts and a dial log.
 
+## Multiview seams
+
+What the shared Multiview coordinator drives, so it never imports an integration or a platform
+module. Swift and Kotlin twins, same names; Kotlin `suspend` where Swift is `async`.
+
+- **`StationNetwork`**: a shared network (router or venue Wi-Fi, or this phone's hotspot) that
+  cameras and the phone meet on. The station wizard and the seams below carry it.
+- **`StationHostPath`** (platform): this phone's address and netmask on Wi-Fi or its own
+  hotspot, and joining a router's Wi-Fi (a hotspot is this phone's own: nothing to join). iOS
+  `SharedWiFiPath` (`OpenCineApple`), Android `SharedWiFiPath` (`:platform`).
+- **`StationCommissioner`** (integration, optional): qualification and preview support for a
+  nearby camera, its `StationCameraRecord` for the cleanup journal, `connect` (a per-camera
+  `StationCommission`: `identity()`, `join(...)` with the caller's `verifyOnNetwork`, `close()`),
+  `closeCommissions()` when the stage stops, `restoreAccessPoint` with the integration's own
+  bounded retry, and an optional network scan through a camera (`scansNetworks`). DJI:
+  `DJIStationCommissioner` (`OpenCineDJIApple`), `DjiStationCommissioner` (`:dji`).
+- **`MultiviewMemberLink`** (integration or app): one member's Core `CameraSession`, picture
+  health, `probe`, `open` at an address with the identity check, `startPreview`, `keepalive`,
+  `close` (never a camera command) and `repair`, which returns a `MultiviewRepairStep`: `healthy`
+  (the coordinator applies its path-loss rule), `handled`, or `repair` (a closure the coordinator
+  runs as the member's recovery; `true` asks for a rejoin within its budget). Its `autoLUT`
+  (`MultiviewAutoLUT`: the reported color mode and the look profile's conversion) gives every app
+  the same LUT caption. Pocket supplies DJI's link from its own tiles (spec's settled call).
+
 ## OpenCineFrameIO
 
 Optional. A camera-only consumer never links it: depending on the `OpenCineCore` or
