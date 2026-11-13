@@ -19,6 +19,8 @@ android {
 }
 
 dependencies {
+    // Core values only: the station host path seam and the network it joins.
+    api(project(":core"))
     // The camera access-point join and the credential IO helper suspend.
     api(libs.kotlinx.coroutines.core)
     testImplementation(libs.kotlin.test.junit)
