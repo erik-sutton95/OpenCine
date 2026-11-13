@@ -98,6 +98,44 @@ supplies.
   app decodes its own presence line. Tests: `NikonDiscoveryTests` / `NikonDiscoveryTest`, same
   method names (zero camera-control dials and zero PTP bytes in `.passive`).
 
+## Multiview prep (shared Multiview Plan 6)
+
+What a Pocket-standard Multiview needs from Nikon, as plain values and closures (Swift
+`NikonMultiview.swift`, Kotlin `NikonMultiview.kt`, same names). Plan 6 wraps them in the app
+shell's Multiview seams and adopts them in OpenZCine; nothing here names that shell, and no app
+uses them yet.
+
+- **Add camera lists, it does not probe.** `NikonDiscovery.multiviewSightings` is one passive pass
+  (Bonjour or the app's NSD listing, USB, the rate-limited presence sweep, liveness dials of saved
+  hosts): no control-port dial, no PTP byte. A host in `excludedHosts` (held by a member or the
+  app's own Live View) is neither dialled for liveness nor listed; a camera another device holds is
+  listed as `heldByAnotherDevice`, not to be picked. Rows are the existing twins (Swift
+  `DiscoveredCamera`, Kotlin `NikonSighting`) and carry no serial. The active search compares excluded hosts by their
+  normalized key, so an untrimmed address still keeps its host undialled.
+- **Only the picked body is opened.** `NikonMemberOpener.open` refuses a host in use without a
+  dial, opens the picked host, reads the serial (GetDeviceInfo after OpenSession) and closes and
+  refuses a body already in the group, a different body than expected, or one without a serial.
+  Every close or failed dial starts that host's `NikonMemberTiming.reconnectSettle` (1200 ms, the
+  ZR's PTP slot release); an open inside it waits out the rest.
+- **Auto LUT source.** `NikonRecordingTone` (from `MovFileType` and the per-codec tone properties)
+  and Kotlin `CameraPropertySnapshot.recordingTone` give the member's recording tone (SDR, HLG,
+  N-Log, Log3G10) and its neutral `MonitorTransfer`. Unknown is nil, never SDR. iOS members poll
+  it with `NikonMemberControl.pollRecordingTone(on:)` (the codec, then only its tone property);
+  Android's Swift session already reads the tone properties in its live-monitor round robin, so a
+  tile reads `reportedCameraProperties.value.recordingTone`. The tone names the recording, not the
+  live-view pixels.
+- **Bounded repair.** `NikonMemberRepair` is the member's ladder a coordinator ticks: a stall on a
+  live link restarts live view in place once per episode; a lost link, a failed restart or a
+  second stall reopens (close, then `NikonMemberOpener` with the member's serial expected) no
+  sooner than the settle after the loss and `NikonMemberTiming.reopenSpacing` (5 s) after a failed
+  reopen; each attempt first asks the caller's budget (the coordinator's `RecoveryBudget`), and a
+  refusal or a take-over (`NikonDiscovery.currentHolder` before a reopen) waits for the operator.
+  A picture ends the episode.
+
+Tests: `NikonMultiviewTests` / `NikonMultiviewTest` and the `multiviewSightings` cases in
+`NikonDiscoveryTests` / `NikonDiscoveryTest`, scripted links and manual clocks. Physical Nikon
+behavior is untested. No JNI member changed.
+
 ## Integration and saved setups (SHELL-02)
 
 `NikonIntegration` (Swift and Kotlin) is the Nikon `CameraIntegration` over a `NikonConnectPort`

@@ -85,6 +85,11 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
   A member borrowed into full Live View holds an `EditorLease`, is `busy` for
   group plans and keeps its session (no CloseSession).
   Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
+  Shared Multiview prep (Plan 6, not adopted yet): `NikonDiscovery.multiviewSightings`
+  (passive Add camera list, member hosts excluded), `NikonMemberOpener` (opens only the
+  picked host, serial identity check, 1200 ms reconnect settle), `NikonRecordingTone` /
+  `recordingTone` (Auto LUT source) and `NikonMemberRepair` (bounded repair ladder under the
+  coordinator's budget), Swift and Kotlin ([nikon](../nikon/README.md#multiview-prep-shared-multiview-plan-6)).
 - Each app keeps its own qualified camera count, routes and policies. The stage UI is shared:
   OpenCineAppKit `MultiviewStage` takes `MultiviewTile` values and a `MultiviewRecordContext`
   over the app's `RecordPlan` ([appkit](../appkit/README.md#multiview-stage)). Pocket maps its

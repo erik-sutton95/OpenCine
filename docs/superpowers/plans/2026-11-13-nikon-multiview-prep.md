@@ -35,7 +35,7 @@
 | Path | Responsibility |
 |---|---|
 | `Sources/OpenCineNikon/NikonDiscovery.swift` | normalized excluded hosts; `multiviewSightings` |
-| `Sources/OpenCineNikon/NikonMultiview.swift` (new) | `NikonSighting`, `NikonMemberOpener`, `NikonMemberOpenResult`, `NikonMemberOpenRefusal`, `NikonRecordingTone`, `NikonMemberRepair` |
+| `Sources/OpenCineNikon/NikonMultiview.swift` (new) | `NikonMemberTiming`, `NikonMemberOpener`, `NikonMemberOpenResult`, `NikonMemberOpenRefusal`, `NikonRecordingTone`, `NikonMemberRepair` |
 | `Sources/OpenCineNikon/NikonMovieTone.swift` | `NikonMovieTone.monitorTransfer` |
 | `Sources/OpenCineNikon/NikonMulticam.swift` | `NikonMemberControl.recordingTone`, `pollRecordingTone(on:)` |
 | `Tests/OpenCineNikonTests/NikonDiscoveryTests.swift`, `NikonMultiviewTests.swift` (new) | Swift tests |
@@ -52,18 +52,16 @@
 **Interfaces (Swift; Kotlin same names):**
 
 ```swift
-public struct NikonSighting: Hashable, Sendable, Identifiable {
-    public enum Source: Hashable, Sendable { case listened, usb, liveness, heldByAnotherDevice }
-    public var host: String; public var name: String?; public var source: Source
-    public var heldByDeviceName: String?
-    public var isPickable: Bool { source != .heldByAnotherDevice }
-}
 extension NikonDiscovery {
-    public func multiviewSightings(savedHosts: [String], excludedHosts: Set<String>, browsesUSB: Bool = true) async -> [NikonSighting]
+    public func multiviewSightings(savedHosts: [String], excludedHosts: Set<String>, browsesUSB: Bool = true) async -> [DiscoveredCamera]
 }
 ```
 
+Rows reuse the existing twins (Swift `DiscoveredCamera`, Kotlin `NikonSighting`); a held camera is a `heldByAnotherDevice` row, never picked.
+
 Kotlin: `suspend fun multiviewSightings(listened: List<NikonSighting>, savedHosts: Collection<String>, excludedHosts: Set<String>): List<NikonSighting>` (Android's NSD/USB listing is the app's, so it is passed in).
+
+Ruling during execution: a new `NikonSighting` struct was dropped because Kotlin already has `NikonSighting` as the twin of Swift `DiscoveredCamera`.
 
 - [ ] Write failing tests (Swift `NikonDiscoveryTests`, Kotlin `NikonDiscoveryTest`, same names):
   `multiviewSightingsNeverDialsTheControlPortOrAnExcludedHost` (zero control dials, zero PTP Inits, no liveness dial to an excluded host, excluded rows absent, a held camera listed as not pickable) and
