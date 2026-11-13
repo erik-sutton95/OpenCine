@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
+import com.opencapture.opencine.core.StationNetwork
 import android.content.Intent
 import android.content.res.Configuration
 import android.provider.Settings
@@ -93,9 +94,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-/** A shared network the station wizard offers, prefills or joins (Swift `StationNetwork`). */
-public data class StationNetwork(public val ssid: String, public val password: String, public val hotspot: Boolean)
 
 /**
  * The brand words and camera-network naming the station wizard shows (Swift

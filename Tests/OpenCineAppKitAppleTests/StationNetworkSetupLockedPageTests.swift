@@ -1,5 +1,6 @@
 #if os(iOS)
 import OpenCineAppKit
+import OpenCineCore
 import Testing
 
 @testable import OpenCineAppKitApple

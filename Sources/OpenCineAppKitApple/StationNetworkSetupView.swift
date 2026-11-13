@@ -2,6 +2,7 @@
     import MonitorUI
     import OpenCineAppKit
     import OpenCineApple
+    import OpenCineCore
     import SwiftUI
     import UIKit
 
