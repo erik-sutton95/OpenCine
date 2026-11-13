@@ -171,3 +171,154 @@ public enum class NikonMovieTone(public val label: String) {
  */
 public val CameraPropertySnapshot.recordingTone: NikonMovieTone?
     get() = NikonMovieTone.fromLabel(movieTone)
+
+/**
+ * One Multiview member's automatic repair ladder (Swift `NikonMemberRepair`): the coordinator ticks
+ * it. Bounded automatic steps, each paid from the caller's budget (the coordinator's recovery
+ * budget):
+ *
+ * 1. A stream that stops on a live link ([MISSED_FRAMES_FOR_STALL] frame deadlines missed, or a
+ *    watchdog stall) restarts live view in place once per episode: no re-Init.
+ * 2. A lost link, a failed restart, or a stall after the restart reopens the member: close the old
+ *    link, then [NikonMemberOpener.open] with the member's serial expected. Not before the settle
+ *    after the loss, and not before the reopen spacing after a failed reopen.
+ * 3. The budget refusing, or another device holding the body ([takenOver], from
+ *    [NikonDiscovery.currentHolder] before a reopen), waits for the operator.
+ *
+ * A picture ([frameArrived]) ends the episode.
+ */
+public class NikonMemberRepair(
+    private val settle: Duration = NikonMemberTiming.RECONNECT_SETTLE,
+    private val reopenSpacing: Duration = NikonMemberTiming.REOPEN_SPACING,
+) {
+    public sealed interface Step {
+        /** Nothing to do now (healthy, or an attempt is in flight). */
+        public data object None : Step
+
+        /** Stop and start live view on the member's current link. */
+        public data object RestartLiveView : Step
+
+        /** Close the member's link and open its host again with the identity check. */
+        public data object Reopen : Step
+
+        /** Tick again at this instant; no attempt was spent. */
+        public data class Wait(val until: MonotonicInstant) : Step
+
+        /** No automatic step remains: the tile offers Reconnect. */
+        public data class WaitForOperator(val reason: WaitReason) : Step
+    }
+
+    public enum class WaitReason { BUDGET_SPENT, TAKEN_OVER }
+
+    public companion object {
+        /** Frame deadlines missed in a row that make a stall (today's member pump threshold). */
+        public const val MISSED_FRAMES_FOR_STALL: Int = 3
+    }
+
+    private sealed interface Phase {
+        data object Streaming : Phase
+        data object Stalled : Phase
+        data class Lost(val since: MonotonicInstant, val reopenFailedAt: MonotonicInstant?) : Phase
+        data class Attempting(val step: Step) : Phase
+        data class WaitingForOperator(val reason: WaitReason) : Phase
+    }
+
+    private var phase: Phase = Phase.Streaming
+    private var misses = 0
+    private var restartedThisEpisode = false
+
+    /** A picture arrived: the episode is over. */
+    public fun frameArrived() {
+        if (phase is Phase.WaitingForOperator) return
+        phase = Phase.Streaming
+        misses = 0
+        restartedThisEpisode = false
+    }
+
+    /** A frame deadline passed without a picture. */
+    public fun frameMissed(at: MonotonicInstant) {
+        if (phase != Phase.Streaming) return
+        misses += 1
+        if (misses >= MISSED_FRAMES_FOR_STALL) streamStalled(at)
+    }
+
+    /** The stream is judged stalled (the miss count, or a watchdog verdict). */
+    public fun streamStalled(at: MonotonicInstant) {
+        if (phase == Phase.Streaming || phase == Phase.Attempting(Step.RestartLiveView)) {
+            misses = 0
+            phase = if (restartedThisEpisode) Phase.Lost(at, null) else Phase.Stalled
+        }
+    }
+
+    /** The link is gone: the camera closed it, the socket failed, or a command found it dead. */
+    public fun linkLost(at: MonotonicInstant) {
+        when (phase) {
+            is Phase.WaitingForOperator, is Phase.Lost -> return
+            Phase.Attempting(Step.Reopen) -> attemptFailed(at)
+            else -> phase = Phase.Lost(at, null)
+        }
+    }
+
+    /** Another device holds the body now: no automatic step may take it back. */
+    public fun takenOver() {
+        phase = Phase.WaitingForOperator(WaitReason.TAKEN_OVER)
+    }
+
+    /**
+     * The step [next] returned has run and its link is up (live view restarted, or the member
+     * reopened and attached); a picture still has to arrive to end the episode.
+     */
+    public fun attemptSucceeded() {
+        val attempting = phase as? Phase.Attempting ?: return
+        if (attempting.step == Step.Reopen) restartedThisEpisode = false
+        phase = Phase.Streaming
+        misses = 0
+    }
+
+    /** The step [next] returned failed. */
+    public fun attemptFailed(at: MonotonicInstant) {
+        val attempting = phase as? Phase.Attempting ?: return
+        phase = Phase.Lost(at, if (attempting.step == Step.Reopen) at else null)
+    }
+
+    /** The operator's Reconnect (or Remove): a fresh ladder. */
+    public fun reset() {
+        phase = Phase.Streaming
+        misses = 0
+        restartedThisEpisode = false
+    }
+
+    /**
+     * The step to take [at] this instant. [beginAttempt] is asked once before every restart or
+     * reopen and never for a wait; refusing it ends the automatic ladder.
+     */
+    public fun next(at: MonotonicInstant, beginAttempt: () -> Boolean): Step =
+        when (val current = phase) {
+            Phase.Streaming, is Phase.Attempting -> Step.None
+            is Phase.WaitingForOperator -> Step.WaitForOperator(current.reason)
+            Phase.Stalled -> if (!beginAttempt()) {
+                waitForOperator()
+            } else {
+                restartedThisEpisode = true
+                phase = Phase.Attempting(Step.RestartLiveView)
+                Step.RestartLiveView
+            }
+            is Phase.Lost -> {
+                var earliest = current.since + settle
+                current.reopenFailedAt?.let { earliest = maxOf(earliest, it + reopenSpacing) }
+                when {
+                    at < earliest -> Step.Wait(earliest)
+                    !beginAttempt() -> waitForOperator()
+                    else -> {
+                        phase = Phase.Attempting(Step.Reopen)
+                        Step.Reopen
+                    }
+                }
+            }
+        }
+
+    private fun waitForOperator(): Step {
+        phase = Phase.WaitingForOperator(WaitReason.BUDGET_SPENT)
+        return Step.WaitForOperator(WaitReason.BUDGET_SPENT)
+    }
+}

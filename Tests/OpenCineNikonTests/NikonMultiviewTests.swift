@@ -215,4 +215,103 @@ import Testing
         _ = await control.pollRecordingTone(on: body)
         #expect(body.reads.count == before, "a link lent to Live View is that view's to read")
     }
+
+    // MARK: Bounded member repair
+
+    static func at(_ milliseconds: Int) -> MonotonicInstant { .zero + .milliseconds(milliseconds) }
+
+    /// A caller-owned budget of `limit` attempts, counting every ask.
+    final class Budget {
+        let limit: Int
+        var asks = 0
+        var used = 0
+        init(limit: Int) { self.limit = limit }
+        func begin() -> Bool {
+            asks += 1
+            guard used < limit else { return false }
+            used += 1
+            return true
+        }
+    }
+
+    /// A stream that stops on a live link restarts live view in place first: no re-Init.
+    @Test func repairRestartsLiveViewInPlaceForAStall() {
+        var repair = NikonMemberRepair()
+        let budget = Budget(limit: 3)
+        repair.frameMissed(at: Self.at(0))
+        repair.frameMissed(at: Self.at(0))
+        #expect(repair.next(at: Self.at(0), beginAttempt: budget.begin) == .none)
+        repair.frameMissed(at: Self.at(0))
+        #expect(NikonMemberRepair.missedFramesForStall == 3)
+        #expect(repair.next(at: Self.at(0), beginAttempt: budget.begin) == .restartLiveView)
+        #expect(repair.next(at: Self.at(0), beginAttempt: budget.begin) == .none, "one attempt in flight")
+        repair.attemptSucceeded()
+        // Still no picture after the restart: the link is gone, so the next rung reopens it.
+        for _ in 0..<3 { repair.frameMissed(at: Self.at(2_000)) }
+        #expect(repair.next(at: Self.at(2_000), beginAttempt: budget.begin) == .wait(until: Self.at(3_200)))
+        #expect(repair.next(at: Self.at(3_200), beginAttempt: budget.begin) == .reopen)
+        #expect(budget.used == 2)
+    }
+
+    @Test func repairReopensOnlyAfterTheSettle() {
+        var repair = NikonMemberRepair()
+        let budget = Budget(limit: 3)
+        repair.linkLost(at: Self.at(0))
+        #expect(repair.next(at: Self.at(500), beginAttempt: budget.begin) == .wait(until: Self.at(1_200)))
+        #expect(budget.asks == 0, "waiting costs no attempt")
+        #expect(repair.next(at: Self.at(1_200), beginAttempt: budget.begin) == .reopen)
+        #expect(budget.used == 1)
+    }
+
+    @Test func repairSpacesFailedReopens() {
+        var repair = NikonMemberRepair()
+        let budget = Budget(limit: 3)
+        repair.linkLost(at: Self.at(0))
+        #expect(repair.next(at: Self.at(1_200), beginAttempt: budget.begin) == .reopen)
+        repair.attemptFailed(at: Self.at(3_000))
+        #expect(repair.next(at: Self.at(3_000), beginAttempt: budget.begin) == .wait(until: Self.at(8_000)))
+        #expect(NikonMemberTiming.reopenSpacing == .seconds(5))
+        #expect(repair.next(at: Self.at(8_000), beginAttempt: budget.begin) == .reopen)
+    }
+
+    /// The caller's budget (the coordinator's `RecoveryBudget`) decides every attempt; once it
+    /// refuses, the tile waits for the operator's Reconnect and nothing asks again.
+    @Test func repairAsksTheBudgetBeforeEveryAttempt() {
+        var repair = NikonMemberRepair()
+        let budget = Budget(limit: 2)
+        repair.linkLost(at: Self.at(0))
+        #expect(repair.next(at: Self.at(1_200), beginAttempt: budget.begin) == .reopen)
+        repair.attemptFailed(at: Self.at(1_300))
+        #expect(repair.next(at: Self.at(6_300), beginAttempt: budget.begin) == .reopen)
+        repair.attemptFailed(at: Self.at(6_400))
+        #expect(repair.next(at: Self.at(11_400), beginAttempt: budget.begin) == .waitForOperator(.budgetSpent))
+        #expect(repair.next(at: Self.at(20_000), beginAttempt: budget.begin) == .waitForOperator(.budgetSpent))
+        #expect(budget.asks == 3)
+        repair.reset()
+        #expect(repair.next(at: Self.at(20_000), beginAttempt: budget.begin) == .none)
+    }
+
+    /// Another phone took the body: reopening would take it straight back (two phones re-taking one
+    /// session wedge a ZR), so the tile waits for the operator without spending an attempt.
+    @Test func repairWaitsForTheOperatorAfterATakeOver() {
+        var repair = NikonMemberRepair()
+        let budget = Budget(limit: 3)
+        repair.linkLost(at: Self.at(0))
+        repair.takenOver()
+        #expect(repair.next(at: Self.at(5_000), beginAttempt: budget.begin) == .waitForOperator(.takenOver))
+        #expect(budget.asks == 0)
+    }
+
+    /// A picture ends the episode: a later stall starts at the first rung again.
+    @Test func aFrameEndsTheEpisode() {
+        var repair = NikonMemberRepair()
+        let budget = Budget(limit: 5)
+        repair.streamStalled(at: Self.at(0))
+        #expect(repair.next(at: Self.at(0), beginAttempt: budget.begin) == .restartLiveView)
+        repair.attemptSucceeded()
+        repair.frameArrived()
+        #expect(repair.next(at: Self.at(100), beginAttempt: budget.begin) == .none)
+        repair.streamStalled(at: Self.at(9_000))
+        #expect(repair.next(at: Self.at(9_000), beginAttempt: budget.begin) == .restartLiveView)
+    }
 }

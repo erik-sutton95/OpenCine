@@ -140,4 +140,109 @@ class NikonMultiviewTest {
         assertNull(CameraPropertySnapshot().recordingTone)
         assertNull(CameraPropertySnapshot(movieTone = "Standard").recordingTone)
     }
+
+    // Bounded member repair
+
+    private fun at(milliseconds: Int) = MonotonicInstant.ZERO + milliseconds.milliseconds
+
+    /** A caller-owned budget of [limit] attempts, counting every ask. */
+    private class Budget(val limit: Int) {
+        var asks = 0
+        var used = 0
+        fun begin(): Boolean {
+            asks += 1
+            if (used >= limit) return false
+            used += 1
+            return true
+        }
+    }
+
+    /** A stream that stops on a live link restarts live view in place first: no re-Init. */
+    @Test
+    fun repairRestartsLiveViewInPlaceForAStall() {
+        val repair = NikonMemberRepair()
+        val budget = Budget(3)
+        repair.frameMissed(at(0))
+        repair.frameMissed(at(0))
+        assertEquals(NikonMemberRepair.Step.None, repair.next(at(0), budget::begin))
+        repair.frameMissed(at(0))
+        assertEquals(3, NikonMemberRepair.MISSED_FRAMES_FOR_STALL)
+        assertEquals(NikonMemberRepair.Step.RestartLiveView, repair.next(at(0), budget::begin))
+        assertEquals(NikonMemberRepair.Step.None, repair.next(at(0), budget::begin), "one attempt in flight")
+        repair.attemptSucceeded()
+        // Still no picture after the restart: the link is gone, so the next rung reopens it.
+        repeat(3) { repair.frameMissed(at(2_000)) }
+        assertEquals(NikonMemberRepair.Step.Wait(at(3_200)), repair.next(at(2_000), budget::begin))
+        assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(3_200), budget::begin))
+        assertEquals(2, budget.used)
+    }
+
+    @Test
+    fun repairReopensOnlyAfterTheSettle() {
+        val repair = NikonMemberRepair()
+        val budget = Budget(3)
+        repair.linkLost(at(0))
+        assertEquals(NikonMemberRepair.Step.Wait(at(1_200)), repair.next(at(500), budget::begin))
+        assertEquals(0, budget.asks, "waiting costs no attempt")
+        assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(1_200), budget::begin))
+        assertEquals(1, budget.used)
+    }
+
+    @Test
+    fun repairSpacesFailedReopens() {
+        val repair = NikonMemberRepair()
+        val budget = Budget(3)
+        repair.linkLost(at(0))
+        assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(1_200), budget::begin))
+        repair.attemptFailed(at(3_000))
+        assertEquals(NikonMemberRepair.Step.Wait(at(8_000)), repair.next(at(3_000), budget::begin))
+        assertEquals(5.seconds, NikonMemberTiming.REOPEN_SPACING)
+        assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(8_000), budget::begin))
+    }
+
+    /** The caller's budget decides every attempt; once it refuses, nothing asks again. */
+    @Test
+    fun repairAsksTheBudgetBeforeEveryAttempt() {
+        val repair = NikonMemberRepair()
+        val budget = Budget(2)
+        repair.linkLost(at(0))
+        assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(1_200), budget::begin))
+        repair.attemptFailed(at(1_300))
+        assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(6_300), budget::begin))
+        repair.attemptFailed(at(6_400))
+        val spent = NikonMemberRepair.Step.WaitForOperator(NikonMemberRepair.WaitReason.BUDGET_SPENT)
+        assertEquals(spent, repair.next(at(11_400), budget::begin))
+        assertEquals(spent, repair.next(at(20_000), budget::begin))
+        assertEquals(3, budget.asks)
+        repair.reset()
+        assertEquals(NikonMemberRepair.Step.None, repair.next(at(20_000), budget::begin))
+    }
+
+    /** Another phone took the body: the tile waits for the operator without spending an attempt. */
+    @Test
+    fun repairWaitsForTheOperatorAfterATakeOver() {
+        val repair = NikonMemberRepair()
+        val budget = Budget(3)
+        repair.linkLost(at(0))
+        repair.takenOver()
+        assertEquals(
+            NikonMemberRepair.Step.WaitForOperator(NikonMemberRepair.WaitReason.TAKEN_OVER),
+            repair.next(at(5_000), budget::begin),
+        )
+        assertEquals(0, budget.asks)
+    }
+
+    /** A picture ends the episode: a later stall starts at the first rung again. */
+    @Test
+    fun aFrameEndsTheEpisode() {
+        val repair = NikonMemberRepair()
+        val budget = Budget(5)
+        repair.streamStalled(at(0))
+        assertEquals(NikonMemberRepair.Step.RestartLiveView, repair.next(at(0), budget::begin))
+        repair.attemptSucceeded()
+        repair.frameArrived()
+        assertEquals(NikonMemberRepair.Step.None, repair.next(at(100), budget::begin))
+        repair.streamStalled(at(9_000))
+        assertEquals(NikonMemberRepair.Step.RestartLiveView, repair.next(at(9_000), budget::begin))
+    }
 }

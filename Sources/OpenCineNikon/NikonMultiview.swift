@@ -172,3 +172,154 @@ public struct NikonRecordingTone: Hashable, Sendable {
         fileType.flatMap(NikonMovieToneCapability.toneProperty(forFileType:))
     }
 }
+
+/// One Multiview member's automatic repair ladder (Kotlin `NikonMemberRepair`): a pure value the
+/// coordinator ticks. It replaces "three missed frames, then the operator's Reconnect" with bounded
+/// automatic steps, each paid from the caller's budget (the coordinator's `RecoveryBudget`):
+///
+/// 1. A stream that stops on a live link (`missedFramesForStall` frame deadlines missed, or a
+///    `LiveViewWatchdog` stall) restarts live view in place once per episode: no re-Init.
+/// 2. A lost link, a failed restart, or a stall after the restart reopens the member: close the
+///    old link, then `NikonMemberOpener.open` with the member's serial expected. Not before
+///    `NikonMemberTiming.reconnectSettle` after the loss, and not before `reopenSpacing` after a
+///    failed reopen; each reopen attempt keeps `NikonSessionRecovery.attemptDeadline` as its ceiling.
+/// 3. The budget refusing, or another device holding the body (`takenOver`, from
+///    `NikonDiscovery.currentHolder` before a reopen), waits for the operator.
+///
+/// A picture (`frameArrived`) ends the episode.
+public struct NikonMemberRepair: Hashable, Sendable {
+    public enum Step: Hashable, Sendable {
+        /// Nothing to do now (healthy, or an attempt is in flight).
+        case none
+        /// Stop and start live view on the member's current link.
+        case restartLiveView
+        /// Close the member's link and open its host again with the identity check.
+        case reopen
+        /// Tick again at this instant; no attempt was spent.
+        case wait(until: MonotonicInstant)
+        /// No automatic step remains: the tile offers Reconnect.
+        case waitForOperator(WaitReason)
+    }
+
+    public enum WaitReason: Hashable, Sendable {
+        case budgetSpent
+        case takenOver
+    }
+
+    /// Frame deadlines missed in a row that make a stall (today's member pump threshold).
+    public static let missedFramesForStall = 3
+
+    private enum Phase: Hashable, Sendable {
+        case streaming
+        case stalled
+        case lost(since: MonotonicInstant, reopenFailedAt: MonotonicInstant?)
+        case attempting(Step)
+        case waitingForOperator(WaitReason)
+    }
+
+    private let settle: Duration
+    private let reopenSpacing: Duration
+    private var phase = Phase.streaming
+    private var misses = 0
+    private var restartedThisEpisode = false
+
+    public init(
+        settle: Duration = NikonMemberTiming.reconnectSettle,
+        reopenSpacing: Duration = NikonMemberTiming.reopenSpacing
+    ) {
+        self.settle = settle
+        self.reopenSpacing = reopenSpacing
+    }
+
+    /// A picture arrived: the episode is over.
+    public mutating func frameArrived() {
+        guard !isWaitingForOperator else { return }
+        phase = .streaming
+        misses = 0
+        restartedThisEpisode = false
+    }
+
+    /// A frame deadline passed without a picture.
+    public mutating func frameMissed(at now: MonotonicInstant) {
+        guard case .streaming = phase else { return }
+        misses += 1
+        if misses >= Self.missedFramesForStall { streamStalled(at: now) }
+    }
+
+    /// The stream is judged stalled (the miss count, or a `LiveViewWatchdog` verdict).
+    public mutating func streamStalled(at now: MonotonicInstant) {
+        switch phase {
+        case .streaming, .attempting(.restartLiveView):
+            misses = 0
+            phase = restartedThisEpisode ? .lost(since: now, reopenFailedAt: nil) : .stalled
+        default: break
+        }
+    }
+
+    /// The link is gone: the camera closed it, the socket failed, or a command found it dead.
+    public mutating func linkLost(at now: MonotonicInstant) {
+        switch phase {
+        case .waitingForOperator, .lost: return
+        case .attempting(.reopen): attemptFailed(at: now)
+        default: phase = .lost(since: now, reopenFailedAt: nil)
+        }
+    }
+
+    /// Another device holds the body now: no automatic step may take it back.
+    public mutating func takenOver() { phase = .waitingForOperator(.takenOver) }
+
+    /// The step `next` returned has run and its link is up (live view restarted, or the member
+    /// reopened and attached); a picture still has to arrive to end the episode.
+    public mutating func attemptSucceeded() {
+        guard case .attempting(let step) = phase else { return }
+        if step == .reopen { restartedThisEpisode = false }
+        phase = .streaming
+        misses = 0
+    }
+
+    /// The step `next` returned failed.
+    public mutating func attemptFailed(at now: MonotonicInstant) {
+        guard case .attempting(let step) = phase else { return }
+        phase = .lost(since: now, reopenFailedAt: step == .reopen ? now : nil)
+    }
+
+    /// The operator's Reconnect (or Remove): a fresh ladder.
+    public mutating func reset() {
+        phase = .streaming
+        misses = 0
+        restartedThisEpisode = false
+    }
+
+    /// The step to take at `now`. `beginAttempt` is asked once before every restart or reopen and
+    /// is never asked for a wait; refusing it ends the automatic ladder.
+    public mutating func next(at now: MonotonicInstant, beginAttempt: () -> Bool) -> Step {
+        switch phase {
+        case .streaming, .attempting:
+            return .none
+        case .waitingForOperator(let reason):
+            return .waitForOperator(reason)
+        case .stalled:
+            guard beginAttempt() else { return waitForOperator() }
+            restartedThisEpisode = true
+            phase = .attempting(.restartLiveView)
+            return .restartLiveView
+        case .lost(let since, let reopenFailedAt):
+            var earliest = since + settle
+            if let reopenFailedAt { earliest = max(earliest, reopenFailedAt + reopenSpacing) }
+            if now < earliest { return .wait(until: earliest) }
+            guard beginAttempt() else { return waitForOperator() }
+            phase = .attempting(.reopen)
+            return .reopen
+        }
+    }
+
+    private var isWaitingForOperator: Bool {
+        if case .waitingForOperator = phase { return true }
+        return false
+    }
+
+    private mutating func waitForOperator() -> Step {
+        phase = .waitingForOperator(.budgetSpent)
+        return .waitForOperator(.budgetSpent)
+    }
+}
