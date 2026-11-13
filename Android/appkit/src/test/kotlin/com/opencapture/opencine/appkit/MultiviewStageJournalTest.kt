@@ -29,10 +29,11 @@ class MultiviewStageJournalTest {
         cameras = cameras, pendingReset = pendingReset,
     )
 
-    @Test fun aStageSavedByPocketIOSDecodes() {
+    @Test fun aStageFromTheIOSEncoderDecodes() {
+        // Golden captured from a stage the iOS encoder wrote.
         // iOS writes no device address and no identity for a camera without one.
         val json = """{"version":1,"ssid":"Test network","hotspot":true,"layout":"Grid","focusedIndex":2,""" +
-            """"cameras":[{"slot":1,"id":"0F8FAD5B-D9CB-469F-A165-70867728950E","name":"OsmoPocket3-Test",""" +
+            """"cameras":[{"slot":1,"id":"0F8FAD5B-D9CB-469F-A165-70867728950E","name":"Camera-Test",""" +
             """"modelId":32,"address":"192.168.1.31","experimental":false,"lutEnabled":true}],""" +
             """"pendingReset":[],"returnedToCameraWiFi":true,"fill":true}"""
         val decoded = assertNotNull(MultiviewStageJournal.decode(json))
@@ -43,9 +44,10 @@ class MultiviewStageJournalTest {
         assertEquals(true, decoded.fill)
     }
 
-    @Test fun aStageSavedByPocketAndroidDecodes() {
+    @Test fun aStageFromTheAndroidEncoderDecodes() {
+        // Golden captured from a stage the Android encoder wrote.
         val json = """{"version":1,"ssid":"Test","hotspot":false,"layout":"Center stage","focusedIndex":0,""" +
-            """"cameras":[{"slot":0,"id":"a","name":"OsmoPocket3-a","bleAddress":"AA:BB:CC:DD:EE:00",""" +
+            """"cameras":[{"slot":0,"id":"a","name":"Camera-A","bleAddress":"AA:BB:CC:DD:EE:00",""" +
             """"address":"192.168.1.30","experimental":false,"lutEnabled":false,"modelId":32,"identity":"000541"}]}"""
         val decoded = assertNotNull(MultiviewStageJournal.decode(json))
         assertEquals("AA:BB:CC:DD:EE:00", decoded.cameras[0].deviceAddress)

@@ -26,10 +26,11 @@ private func decode(_ json: String) throws -> Journal.Stage {
 }
 
 @Suite struct MultiviewStageJournalTests {
-    @Test func aStageSavedByPocketIOSDecodes() throws {
+    @Test func aStageFromTheIOSEncoderDecodes() throws {
+        // Golden captured from a stage the iOS encoder wrote.
         let json = """
             {"version":1,"ssid":"Test network","hotspot":true,"layout":"Grid","focusedIndex":2,\
-            "cameras":[{"slot":1,"id":"0F8FAD5B-D9CB-469F-A165-70867728950E","name":"OsmoPocket3-Test",\
+            "cameras":[{"slot":1,"id":"0F8FAD5B-D9CB-469F-A165-70867728950E","name":"Camera-Test",\
             "modelId":32,"identity":[0,5,65],"address":"192.168.1.31","experimental":false,\
             "lutEnabled":true}],"pendingReset":[],"returnedToCameraWiFi":true,"fill":true}
             """
@@ -42,11 +43,12 @@ private func decode(_ json: String) throws -> Journal.Stage {
         #expect(decoded.fill == true)
     }
 
-    @Test func aStageSavedByPocketAndroidDecodes() throws {
+    @Test func aStageFromTheAndroidEncoderDecodes() throws {
+        // Golden captured from a stage the Android encoder wrote.
         // Android writes the device address under "bleAddress".
         let json = """
             {"version":1,"ssid":"Test","hotspot":false,"layout":"Center stage","focusedIndex":0,\
-            "cameras":[{"slot":0,"id":"0F8FAD5B-D9CB-469F-A165-70867728950E","name":"OsmoPocket3-a",\
+            "cameras":[{"slot":0,"id":"0F8FAD5B-D9CB-469F-A165-70867728950E","name":"Camera-A",\
             "bleAddress":"AA:BB:CC:DD:EE:00","address":"192.168.1.30","experimental":false,\
             "lutEnabled":false,"modelId":32}]}
             """
