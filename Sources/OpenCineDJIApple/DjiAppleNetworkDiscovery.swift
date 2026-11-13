@@ -34,6 +34,13 @@ import OpenCineDJI
         return Array(found.prefix(8))
     }
 
+    /// Whether a DJI camera's control port answers at `host` on the shared network (Wi-Fi, or
+    /// this phone's hotspot). Opens no session.
+    public func probe(_ host: String, hotspot: Bool) async -> Bool {
+        guard let address = DjiAppleSharedWiFiPath.address(hotspot: hotspot) else { return false }
+        return await probe(host, localAddress: address)
+    }
+
     private func probe(_ host: String, localAddress: String) async -> Bool {
         guard !cancelled, !Task.isCancelled else { return false }
         let params = NWParameters.tcp
