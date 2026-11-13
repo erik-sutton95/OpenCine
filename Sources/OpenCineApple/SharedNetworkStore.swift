@@ -2,19 +2,6 @@
 import Foundation
 import Security
 
-/// A saved shared network: a router's Wi-Fi or this phone's hotspot. A missing `hotspot` in
-/// stored JSON means Wi-Fi.
-public struct SharedNetwork: Codable, Hashable, Sendable {
-    public var ssid: String
-    public var password: String
-    public var hotspot: Bool?
-    public init(ssid: String, password: String, hotspot: Bool? = nil) {
-        self.ssid = ssid
-        self.password = password
-        self.hotspot = hotspot
-    }
-}
-
 /// Where saved networks live: one value per account.
 public protocol SharedNetworkStorage: Sendable {
     func read(account: String) -> Data?
@@ -58,8 +45,30 @@ public struct KeychainSharedNetworkStorage: SharedNetworkStorage {
     }
 }
 
-/// Saved shared networks for the station-network setup. Twin of the Android `SharedNetworkStore`.
+/// Saved shared networks for the station-network setup. Twin of the Android `SharedNetworkStore`;
+/// iOS alone also reads and keeps the legacy `last-network` account.
 public struct SharedNetworkStore: Sendable {
+    /// A saved network: a router's Wi-Fi or this phone's hotspot. Stored JSON without `hotspot`
+    /// (written before it existed) reads as Wi-Fi. Kotlin twin: `SharedNetworkStore.Network`.
+    public struct Network: Codable, Hashable, Sendable {
+        public var ssid: String
+        public var password: String
+        public var hotspot: Bool
+
+        public init(ssid: String, password: String, hotspot: Bool) {
+            self.ssid = ssid
+            self.password = password
+            self.hotspot = hotspot
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            ssid = try values.decode(String.self, forKey: .ssid)
+            password = try values.decode(String.self, forKey: .password)
+            hotspot = try values.decodeIfPresent(Bool.self, forKey: .hotspot) ?? false
+        }
+    }
+
     private static let lastAccount = "last-network"
     private static let listAccount = "saved-networks"
     private let storage: any SharedNetworkStorage
@@ -67,29 +76,29 @@ public struct SharedNetworkStore: Sendable {
     public init(storage: any SharedNetworkStorage) { self.storage = storage }
 
     /// The saved list, oldest first; else the legacy last network; else empty.
-    public func savedNetworks() -> [SharedNetwork] {
+    public func savedNetworks() -> [Network] {
         if let data = storage.read(account: Self.listAccount),
-            let list = try? JSONDecoder().decode([SharedNetwork].self, from: data)
+            let list = try? JSONDecoder().decode([Network].self, from: data)
         {
             return list
         }
         if let data = storage.read(account: Self.lastAccount),
-            let last = try? JSONDecoder().decode(SharedNetwork.self, from: data)
+            let last = try? JSONDecoder().decode(Network.self, from: data)
         {
             return [last]
         }
         return []
     }
 
-    public func load(ssid: String, hotspot: Bool) -> SharedNetwork? {
-        savedNetworks().first { $0.ssid == ssid && ($0.hotspot ?? false) == hotspot }
+    public func load(ssid: String, hotspot: Bool) -> Network? {
+        savedNetworks().first { $0.ssid == ssid && $0.hotspot == hotspot }
     }
 
     /// Replaces the entry with the same name and kind, appends the new one, and records it as
     /// the last network.
     public func save(ssid: String, password: String, hotspot: Bool) {
-        var list = savedNetworks().filter { !($0.ssid == ssid && ($0.hotspot ?? false) == hotspot) }
-        let network = SharedNetwork(ssid: ssid, password: password, hotspot: hotspot)
+        var list = savedNetworks().filter { !($0.ssid == ssid && $0.hotspot == hotspot) }
+        let network = Network(ssid: ssid, password: password, hotspot: hotspot)
         guard let last = try? JSONEncoder().encode(network) else { return }
         storage.write(last, account: Self.lastAccount)
         list.append(network)

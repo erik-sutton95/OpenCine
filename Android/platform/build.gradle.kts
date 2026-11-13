@@ -25,4 +25,6 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // org.json from android.jar is a stub on the JVM; the real artifact backs the store tests.
+    testImplementation(libs.json)
 }
