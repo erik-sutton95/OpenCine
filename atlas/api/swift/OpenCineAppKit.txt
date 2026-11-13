@@ -285,6 +285,7 @@ enum MonitorScreenWakePolicy
 enum MonitorSettingsInternetCleanup: Equatable, Hashable, Sendable
 enum MultiviewCameraAction.Kind: Equatable, Hashable, Sendable
 enum MultiviewNetworkRestore: Equatable, Hashable, Sendable
+enum MultiviewStageJournal
 enum MultiviewStageLayout: CaseIterable, Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum MultiviewTally
 enum MultiviewTool: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
@@ -768,6 +769,7 @@ func MonitorTransferRates.rate(_: Key)<Key where Key : Swift.Hashable, Key : Swi
 func MonitorTransferRates.record(_: Key, totalBytes: Swift.UInt64)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
 func MonitorTransferRates.retain(_: Swift.Set<Key>)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
 func MultiviewRecordContext.question(single: Swift.Bool) -> Swift.String
+func MultiviewStageJournal.Stage.validated(tileCount: Swift.Int) -> MultiviewStageJournal.Stage?
 func MultiviewStagePreferencesStore.load() -> MultiviewStagePreferences?
 func MultiviewStagePreferencesStore.save(_: MultiviewStagePreferences) -> Swift.Bool
 func MultiviewStageState.attachPersistence(load: () -> MultiviewStagePreferences?, save: (MultiviewStagePreferences) -> Swift.Bool) -> ()
@@ -1038,6 +1040,8 @@ init MultiviewStage(tiles: [MultiviewTile?], layout: MonitorPresentation.Multivi
 init MultiviewStage(tiles: [MultiviewTile?], layout: MonitorPresentation.MultiviewPresentationLayout, viewport: CoreFoundation.CGSize, safeArea: SwiftUI.EdgeInsets, arrangement: SwiftUI.Binding<MonitorPresentation.MultiviewPresentationLayout.Arrangement>, selected: SwiftUI.Binding<Swift.Int>, fill: SwiftUI.Binding<Swift.Bool>, tools: [MultiviewTool], readouts: [MultiviewReadout]?, lut: Swift.Bool, recording: Swift.Bool, busy: Swift.Bool, groupBusy: Swift.Bool, confirmsRecord: Swift.Bool, network: MultiviewStageButton?, geometry: MonitorUI.MultiviewStageGeometry, actions: MultiviewStageActions, picture: (Swift.Int) -> Picture, backdrop: Backdrop)<Picture, Backdrop where Picture : SwiftUI.View, Backdrop : SwiftUI.ViewModifier>
 init MultiviewStageActions(openLiveView: (Swift.Int) -> Swift.Void, add: (Swift.Int) -> Swift.Void, perform: (Swift.String, Swift.Int) -> Swift.Void, choose: (Swift.Int, Swift.Int, Swift.String) -> Swift.Void, toggleLUT: () -> Swift.Void, openSettings: (Swift.Int) -> Swift.Void, close: () -> Swift.Void, recordContext: (Swift.Int?) -> MultiviewRecordContext, record: (OpenCineMulticam.RecordPlan, Swift.Int?) async -> Swift.Void, popupsClosed: () -> Swift.Void)
 init MultiviewStageButton(title: Swift.String, value: Swift.String, icon: MonitorUI.MonitorIcon, enabled: Swift.Bool, identifier: Swift.String, action: () -> Swift.Void)
+init MultiviewStageJournal.Camera(slot: Swift.Int, id: Foundation.UUID, name: Swift.String, modelId: Swift.Int?, identity: [Swift.UInt8]?, deviceAddress: Swift.String?, address: Swift.String, experimental: Swift.Bool, lutEnabled: Swift.Bool)
+init MultiviewStageJournal.Stage(version: Swift.Int, ssid: Swift.String, hotspot: Swift.Bool, layout: Swift.String, focusedIndex: Swift.Int, cameras: [MultiviewStageJournal.Camera], pendingReset: [MultiviewStageJournal.Camera]?, returnedToCameraWiFi: Swift.Bool?, fill: Swift.Bool?)
 init MultiviewStagePreferences(from: any Swift.Decoder) throws
 init MultiviewStagePreferences(layout: MultiviewStageLayout, selected: Swift.Int, fill: Swift.Bool, clean: Swift.Bool, toolsExpanded: Swift.Bool, toolUsage: MonitorPresentation.MonitorToolUsage)
 init MultiviewStagePreferencesStore(storage: Foundation.UserDefaults, key: Swift.String)
@@ -1564,6 +1568,7 @@ static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraTimecode, precisio
 static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraTimecodeReading, precision: OpenCineCore.TimecodePrecision?) -> Swift.String?
 static func MonitorTimecodeFormat.placeholder(_: OpenCineCore.TimecodePrecision?) -> Swift.String
 static func MonitorTimecodeFormat.widthTemplate(_: Swift.String) -> Swift.String
+static func MultiviewStageJournal.cleanupTargets(_: [MultiviewStageJournal.Camera], including: [MultiviewStageJournal.Camera]) -> [MultiviewStageJournal.Camera]
 static func MultiviewTally.running(_: Swift.Int) -> Swift.String
 static func MultiviewTally.text(recording: Swift.Bool?, seconds: Swift.Int?, waiting: Swift.Bool, holding: Swift.Bool, failed: Swift.Bool) -> Swift.String
 static func MultiviewTile.letter(_: Swift.Int) -> Swift.String
@@ -1818,6 +1823,8 @@ struct MultiviewRecordContext: Equatable, Hashable, Sendable
 struct MultiviewStage<Picture, Backdrop where Picture : SwiftUI.View, Backdrop : SwiftUI.ViewModifier>: Sendable, View
 struct MultiviewStageActions
 struct MultiviewStageButton
+struct MultiviewStageJournal.Camera: Decodable, Encodable, Equatable, Sendable
+struct MultiviewStageJournal.Stage: Decodable, Encodable, Equatable, Sendable
 struct MultiviewStagePreferences: Decodable, Encodable, Equatable, Sendable
 struct MultiviewStageServices: Sendable
 struct MultiviewStageSurface<Content where Content : SwiftUI.View>: Sendable, View
@@ -2498,6 +2505,24 @@ var MultiviewStageButton.icon: MonitorUI.MonitorIcon
 var MultiviewStageButton.identifier: Swift.String
 var MultiviewStageButton.title: Swift.String
 var MultiviewStageButton.value: Swift.String
+var MultiviewStageJournal.Camera.address: Swift.String
+var MultiviewStageJournal.Camera.deviceAddress: Swift.String?
+var MultiviewStageJournal.Camera.experimental: Swift.Bool
+var MultiviewStageJournal.Camera.id: Foundation.UUID
+var MultiviewStageJournal.Camera.identity: [Swift.UInt8]?
+var MultiviewStageJournal.Camera.lutEnabled: Swift.Bool
+var MultiviewStageJournal.Camera.modelId: Swift.Int?
+var MultiviewStageJournal.Camera.name: Swift.String
+var MultiviewStageJournal.Camera.slot: Swift.Int
+var MultiviewStageJournal.Stage.cameras: [MultiviewStageJournal.Camera]
+var MultiviewStageJournal.Stage.fill: Swift.Bool?
+var MultiviewStageJournal.Stage.focusedIndex: Swift.Int
+var MultiviewStageJournal.Stage.hotspot: Swift.Bool
+var MultiviewStageJournal.Stage.layout: Swift.String
+var MultiviewStageJournal.Stage.pendingReset: [MultiviewStageJournal.Camera]?
+var MultiviewStageJournal.Stage.returnedToCameraWiFi: Swift.Bool?
+var MultiviewStageJournal.Stage.ssid: Swift.String
+var MultiviewStageJournal.Stage.version: Swift.Int
 var MultiviewStageLayout.arrangement: MonitorPresentation.MultiviewPresentationLayout.Arrangement
 var MultiviewStagePreferences.clean: Swift.Bool
 var MultiviewStagePreferences.fill: Swift.Bool
