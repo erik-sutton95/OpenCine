@@ -56,14 +56,20 @@ class MultiviewDiscovery(private val path: SharedWiFi) {
             currentCoroutineContext().ensureActive()
             if (cancelled) throw kotlinx.coroutines.CancellationException("discovery cancelled")
             found += coroutineScope {
-                batch.map { host -> async(Dispatchers.IO) { if (probe(host, address)) host else null } }.awaitAll()
+                batch.map { host -> async(Dispatchers.IO) { if (reaches(host, address)) host else null } }.awaitAll()
             }.filterNotNull()
             if (found.size >= MAX_CANDIDATES) break
         }
         return found.take(MAX_CANDIDATES)
     }
 
-    private fun probe(host: String, local: String): Boolean {
+    /** Whether a DJI camera's control port answers at [host] on the shared path. Opens no session. */
+    suspend fun probe(host: String): Boolean {
+        val local = path.address() ?: return false
+        return withContext(Dispatchers.IO) { reaches(host, local) }
+    }
+
+    private fun reaches(host: String, local: String): Boolean {
         if (cancelled) return false
         return runCatching {
             Socket().use { socket ->

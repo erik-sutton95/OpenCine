@@ -180,6 +180,22 @@ stays with the app comes in through `DjiSessionHost`: operator preferences, the 
 recorder and reliability reporting, build identity, and the face detector (`FaceDetectorPort`; the
 app keeps ML Kit). The app keeps all UI.
 
+## Multiview station commissioning
+
+DJI implements Core's `StationCommissioner` ([core](../core/README.md#multiview-seams)):
+`DJIStationCommissioner` (`OpenCineDJIApple`, over `DjiAppleMultiviewProvisioner`, moved from
+OpenPocketCine) and `DjiStationCommissioner` (`:dji`, over `MultiviewProvisioner`). Each camera
+gets its own Bluetooth link, sequence space, reply router and keepalive; `connect` pairs and wakes
+a Nano's Wi-Fi, `identity()` reads `07/07` (Android adds one Wi-Fi wake when the reply is missing),
+`join` runs `StationJoin`, `restoreAccessPoint` sends `07/48 00` under
+`restoreCameraWiFiWithRetry` (three attempts across a deferred `00 06` pairing reply; Swift
+returns false on cancellation, Kotlin propagates it), and `scanNetworks` lists `07/AC` reports
+and always returns the camera to its own access point. `MultiviewFailure` and
+`MultiviewPairing.acceptsReply` (Kotlin `acceptsMultiviewPairingReply`) are the shared copy and
+reply rule; `MultiviewExitTests` / `MultiviewExitTest` are twins. `DjiAppleNetworkDiscovery` and
+`MultiviewDiscovery` expose `probe` for a member link. The DJI member link itself is Pocket's
+(its tiles), per the shared Multiview spec.
+
 ## Integration contract (SHELL-02)
 
 `DJIIntegration` (Swift, over a `DJIConnectPort` the app's DJI connect pipeline implements in
