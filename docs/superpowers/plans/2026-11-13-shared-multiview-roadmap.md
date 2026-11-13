@@ -38,3 +38,23 @@ Plan 1 landed on `feat/shared-multiview-1` (OpenCine and OpenPocketCine). For th
   `MultiviewTileControl.kt` gates by availability) with iOS.
 - Before merging Pocket: the on-device upgrade checklist (iPhone and Android installed over the
   current build with saved stage, networks and a pending cleanup).
+
+## Carried from Plan 2 (2026-11-13)
+
+Plan 2 landed on `feat/shared-multiview-2` (OpenCine and OpenPocketCine), stacked on Plan 1. The
+Plan 1 carry-overs for the locked page and `SharedNetworkStore` are done there. For Plan 3:
+
+- Fakes of `StationCommissioner`, `StationHostPath` and `MultiviewMemberLink` in
+  `OpenCineCoreTestSupport` and the Kotlin `core` test fixtures, written with the coordinator's
+  first tests.
+- Discovery through `MultiviewMemberLink.probe` (Pocket still runs DJI's batched discovery; both
+  DJI probes exist but are not called yet).
+- Swift `SharedWiFiPath` (`OpenCineApple`) and `DjiAppleSharedWiFiPath` (`OpenCineDJIApple`) are
+  near copies, because `OpenCineDJIApple` may not import `OpenCineApple`. Fold the DJI one into
+  the host path the commissioner already receives.
+- `MultiviewAutoLUT` carries the color mode and conversion as names, because Core cannot see the
+  camera vocabulary; revisit when the coordinator owns the LUT strip.
+- Kotlin `DjiStationCommissioner` has no injectable retry wait (a suspend-lambda default in its
+  constructor crashed the Kotlin IR backend); Pocket's test hook keeps its own retry.
+- The iOS/Android differences the seams keep as they are: Android's early identity read and
+  Wi-Fi wake retry, foreground-only repair on iOS, probe width.
