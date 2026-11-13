@@ -96,6 +96,82 @@ import Testing
         time.advance(by: .seconds(1))
         #expect(try await search.value == "172.20.10.4")
     }
+
+    // Several cameras on one network (multicam over a router or hotspot): the connect must end on
+    // the camera it asked for, never on whichever camera answered first.
+
+    private static let router = LunaStationPath.Address(address: "192.168.1.20", netmask: "255.255.255.0")
+    private static let anotherCamera = ConnectionFailure.luna(
+        .wrongCamera, "wifi.serial-mismatch", "another camera", phase: .negotiating)
+
+    /// `.21` is in the first batch searched, `.200` in a later one.
+    @Test(arguments: [("192.168.1.200", "192.168.1.21"), ("192.168.1.21", "192.168.1.200")])
+    @MainActor func theRequestedCameraIsFoundWhicheverCameraAnswersFirst(requested: String, other: String) async throws {
+        let cameras: Set<String> = [requested, other]
+        var opened: [String] = []
+        let host = try await LunaStationPath.findRequestedCamera(
+            on: Self.router, preferred: nil, budget: .seconds(60), excluding: [], isCurrent: { true },
+            clock: ManualHostClock().clock,
+            probe: { host, _ in cameras.contains(host) ? .camera : .absent },
+            open: { host in
+                opened.append(host)
+                if host != requested { throw Self.anotherCamera }
+            })
+        #expect(host == requested)
+        #expect(opened.filter { $0 == other }.count <= 1, "a camera that is not the requested one is opened once at most")
+    }
+
+    @Test @MainActor func aHostAnotherConnectionHoldsIsNeverProbed() async throws {
+        let probed = Recorder()
+        let host = try await LunaStationPath.findRequestedCamera(
+            on: Self.hotspot, preferred: "172.20.10.9", budget: .seconds(60), excluding: ["172.20.10.9"],
+            isCurrent: { true }, clock: ManualHostClock().clock,
+            probe: { host, _ in
+                await probed.add(host)
+                return host == "172.20.10.9" || host == "172.20.10.4" ? .camera : .absent
+            },
+            open: { _ in })
+        #expect(host == "172.20.10.4")
+        #expect(await !probed.hosts.contains("172.20.10.9"))
+    }
+
+    @Test @MainActor func onlyAnotherCameraOnTheNetworkEndsAsNotFoundWhenTheSearchTimeRunsOut() async throws {
+        let time = ManualHostClock()
+        var opened: [String] = []
+        let host = try await LunaStationPath.findRequestedCamera(
+            on: Self.hotspot, preferred: nil, budget: .milliseconds(100), excluding: [], isCurrent: { true },
+            clock: time.clock,
+            probe: { host, _ in
+                time.advance(by: .milliseconds(10))
+                return host == "172.20.10.9" ? .camera : .absent
+            },
+            open: { host in
+                opened.append(host)
+                throw Self.anotherCamera
+            })
+        #expect(host == nil)
+        #expect(opened == ["172.20.10.9"], "the other camera is not opened again")
+        #expect(time.pendingSleeps == 0)
+    }
+
+    @Test @MainActor func aFailureOtherThanAnotherCameraEndsTheSearch() async {
+        do {
+            _ = try await LunaStationPath.findRequestedCamera(
+                on: Self.hotspot, preferred: nil, budget: .seconds(60), excluding: [], isCurrent: { true },
+                clock: ManualHostClock().clock, probe: { host, _ in host == "172.20.10.9" ? .camera : .absent },
+                open: { _ in throw ConnectionFailure.luna(.linkLost, "link.dropped", "lost") })
+            Issue.record("a failure that is not another camera must end the search")
+        } catch let failure as ConnectionFailure {
+            #expect(failure.reason == .linkLost)
+        } catch {
+            Issue.record("unexpected \(error)")
+        }
+    }
+}
+
+private actor Recorder {
+    private(set) var hosts: Set<String> = []
+    func add(_ host: String) { hosts.insert(host) }
 }
 
 private actor Flag {
