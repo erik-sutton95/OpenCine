@@ -151,7 +151,6 @@
                     Text(page.message).foregroundStyle(MonitorTheme.muted)
                     Spacer()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
                 .navigationTitle(page.title)
                 .navigationBarTitleDisplayMode(.inline)
