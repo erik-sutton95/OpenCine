@@ -26,6 +26,8 @@ public enum StationNetworkSetupContext: Sendable {
         return nil
     }
     public var prefix: String { camera == nil ? "multiview.setup" : "addSetup" }
+    /// The sheet's accessibility identifier (Kotlin: the wizard's test tag).
+    public var identifier: String { camera == nil ? "multiview.networkSetup" : "addSetup" }
     public var title: String { camera == nil ? "Connect your cameras" : "Add setup" }
     public var networkHint: String {
         camera == nil

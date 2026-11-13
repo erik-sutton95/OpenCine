@@ -121,8 +121,10 @@ card or pair-page progress until picture readiness; it needs no additional prepa
 The station-network wizard (`StationNetworkSetupView` on iOS, `StationNetworkSetup` on Android)
 takes `lockedNetwork: StationNetwork? = nil` on both platforms. When set, it shows only the
 read-only "Shared Wi-Fi" page: the network name, "Cameras are using this network. Remove them
-before changing it.", and a Done action that closes the wizard. No scan starts. Multiview passes it
-while cameras use the shared network.
+before changing it.", and a Done action that completes the wizard (iOS `complete`, falling back to
+`close`; Android `complete`). No scan starts. Its accessibility identifier comes from the wizard
+context (`StationNetworkSetupContext.identifier`: `multiview.networkSetup` or `addSetup`, Android's
+test tag). Multiview passes it while cameras use the shared network.
 
 ## Shell: root, monitor lifetime and common controls (SHELL-03)
 
