@@ -118,6 +118,13 @@ first frame and the app owns progress, render `PairCameraPage` / `MonitorPairCam
 and actions without starting `PairScreen` discovery. A shared connection attempt retains its own
 card or pair-page progress until picture readiness; it needs no additional preparing page.
 
+
+The station-network wizard (`StationNetworkSetupView` on iOS, `StationNetworkSetup` on Android)
+takes `lockedNetwork: StationNetwork? = nil` on both platforms. When set, it shows only the
+read-only "Shared Wi-Fi" page: the network name, "Cameras are using this network. Remove them
+before changing it.", and a Done action that closes the wizard. No scan starts. Multiview passes it
+while cameras use the shared network.
+
 ## Shell: root, monitor lifetime and common controls (SHELL-03)
 
 `ShellModel` is the app's root state over `CamerasModel`: the route (`cameras`, `pair`,
