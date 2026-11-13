@@ -374,6 +374,14 @@ once their slot empties. A readout with `choices` opens them wherever it shows (
 and Grid's inline values); `choose` gets the choice as shown, so the app writes only a value the
 camera still advertises. Qualified camera counts, routes and limits stay app parameters.
 
+`MultiviewStageJournal` is the saved stage: `Stage` (network name, layout, focus, assigned cameras,
+the camera-network cleanup ledger `pendingReset`, fit or fill) and `Camera`, with `validated(tileCount:)`
+(the app passes its own tile count; a stage with no network is valid only as a cleanup ledger),
+`cleanupTargets` (replace by id, append new) and, on Android, `encode`/`decode` (org.json). The JSON
+keys are the ones the apps already store (`deviceAddress` is written as `bleAddress`, Android's
+identity is hex, iOS's an array of bytes), so earlier saved stages decode unchanged. Storage (Keychain,
+SharedPreferences) stays in the app.
+
 Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
 ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come
 from `MultiviewTileStatus.actions`. Kotlin differences: `recordingSince` is epoch milliseconds
