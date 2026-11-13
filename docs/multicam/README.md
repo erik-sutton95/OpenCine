@@ -30,6 +30,7 @@ hardware-qualified.
 | `MulticamSnapshot` | The state the engine evaluates against at one instant |
 | `GroupSummary`, `EntrySummary`, `RoleStatus` | Picture health, control-link state, telemetry freshness and reported recording, kept separate; camera counts deduplicated by session |
 | `RecordPlan` | Group start/stop plan: targets deduplicated by control session, satisfied cameras, exclusions with reasons, strict or eligible-subset policy, `isCurrent` revalidation, bounded `submit` |
+| `RecordAll` | Record all and a tile's record press, identical in Swift and Kotlin: the strict policy, the stop-if-any-records plan rule, `run` (revalidate, submit, wait; `nil` when stale or refused) and the operator's words (`progress`, `waiting`, `changed`, `note`, `summary`) |
 | `AdmissionFingerprint` | Per-target session, epoch, capability revision, authority, mode and reported recording; routine telemetry is excluded |
 | `RecordSubmission`, `RecordResult`, `TargetOutcome` | Per-target outcomes (pending, accepted, confirmed, rejected, failed, timedOut, outcomeUnknown, superseded), mapped back to entries |
 | `EditorLeases`, `EditorLease` | Per-entry settings/detail-view leases that retire when the entry's session, epoch or authority changes, or when closed or reopened; `refusal(for:in:at:)` answers "may this editor send now?" for an app's existing command path |
