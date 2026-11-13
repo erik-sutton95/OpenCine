@@ -20,6 +20,7 @@ import com.opencapture.opencine.core.IntegrationPresentation
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RecoveryAction
+import com.opencapture.opencine.core.RouteDraft
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SavedRoute
@@ -105,6 +106,13 @@ interface LunaConnectPort : CameraMediaServiceSource {
     suspend fun saveStation(network: LunaStationNetwork) {}
     /** A setup's live text (where the camera is going, the network search); `null` otherwise. */
     val stationNote: StateFlow<String?> get() = NO_NOTE
+    /**
+     * One try at asking the camera back onto its own Wi-Fi over Bluetooth (authorize, access point
+     * mode, disconnect). Ends this port's connection first; never a record command. A port without
+     * Bluetooth cannot move a camera, so it has nothing to return. Throws only cancellation.
+     */
+    suspend fun returnToAccessPoint(id: String): LunaAccessPointReturn =
+        LunaAccessPointReturn.Failed(LunaAccessPointReturn.unsupported)
 }
 
 /** The Luna failures with the copy the backend has always shown (Swift `ConnectionFailure.luna`). */
@@ -223,7 +231,26 @@ class LunaIntegration(
         /** How long a saved connection gives Bluetooth to hear the camera before saved Wi-Fi. */
         const val SIGHTING_GRACE_MS = 4_000L
         const val SIGHTING_STEP_MS = 100L
+
+        /**
+         * The target that moves a camera seen over Bluetooth (not yet saved) onto [network] and finds
+         * it there, as Multiview's add does (Swift twin, same name): an Add setup on a record made from
+         * the sighting, so the setup's password is kept and the record is saved before the camera
+         * moves. The connected event carries the session and the record with the camera's own Wi-Fi
+         * and the setup, the setup preferred. A sighting that is already a saved camera adds the setup
+         * to that record instead ([ConnectTarget.AddRoute]), so its other setups stay. Hardware-untested.
+         */
+        fun target(nearby: NearbyCamera, onto: LunaStationNetwork): ConnectTarget = ConnectTarget.AddRoute(
+            SavedCamera(
+                id = nearby.savedID ?: nearby.id, integration = LunaCameraSession.INTEGRATION,
+                advertisedName = nearby.name, model = nearby.model,
+            ),
+            RouteDraft(if (onto.hotspot) RouteKind.PHONE_HOTSPOT else RouteKind.INFRASTRUCTURE_NETWORK, onto.ssid, onto.password),
+        )
     }
+
+    /** Connects [nearby] straight onto [onto]: [connect] with [target]. */
+    fun connect(nearby: NearbyCamera, onto: LunaStationNetwork): Flow<ConnectionEvent> = connect(target(nearby, onto))
 
     override fun discover(mode: DiscoveryMode): Flow<List<NearbyCamera>> {
         if (mode !in discoveryModes) return emptyFlow()
@@ -371,6 +398,19 @@ class LunaIntegration(
 
     override suspend fun forget(camera: SavedCamera) {
         port.forget(camera.id)
+    }
+
+    /**
+     * One try at asking [camera] back onto its own Wi-Fi over Bluetooth, as Multiview's close does
+     * for every camera it moved onto a shared network (Swift twin, same name). One backend, one
+     * link: an attempt in flight ends first. Nothing but the Wi-Fi role is asked, so a recording
+     * continues, and the phone joins no network. A deferred result may be tried again
+     * ([LunaAccessPointReturn.retrying]); the caller keeps the camera in its cleanup record until one
+     * returns. Throws only cancellation. Hardware-untested.
+     */
+    suspend fun returnToAccessPoint(camera: SavedCamera): LunaAccessPointReturn {
+        port.disconnect()
+        return port.returnToAccessPoint(camera.id)
     }
 
     /** The connect card's step, prompt and note for a backend phase; `null` for idle and failed. */

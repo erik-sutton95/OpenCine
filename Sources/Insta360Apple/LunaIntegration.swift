@@ -85,6 +85,10 @@ public protocol LunaConnectPort: AnyObject {
     func stationPassword(for network: String, hotspot: Bool) -> String?
     /// Keeps a Wi-Fi or hotspot setup's password on this phone.
     func saveStation(_ network: LunaStationNetwork)
+    /// One try at asking the camera back onto its own Wi-Fi over Bluetooth (authorize, access
+    /// point mode, disconnect). Ends this port's connection first; never a record command.
+    /// Throws only `CancellationError`.
+    func returnToAccessPoint(cameraID: UUID) async throws -> LunaAccessPointReturn
 }
 
 extension LunaConnectPort {
@@ -100,6 +104,10 @@ extension LunaConnectPort {
     }
     public func stationPassword(for network: String, hotspot: Bool) -> String? { nil }
     public func saveStation(_ network: LunaStationNetwork) {}
+    /// A port without Bluetooth cannot move a camera, so it has nothing to return.
+    public func returnToAccessPoint(cameraID: UUID) async throws -> LunaAccessPointReturn {
+        .failed(LunaAccessPointReturn.unsupported)
+    }
 }
 
 extension LunaCameraBackend: LunaConnectPort {
@@ -333,8 +341,45 @@ public final class LunaIntegration: CameraIntegration {
         return stream
     }
 
+    /// The target that moves a camera seen over Bluetooth (not yet saved) onto `network` and finds
+    /// it there, as Multiview's add does (Kotlin twin, same name): an Add setup on a record made from
+    /// the sighting, so the setup's password is kept and the record is saved before the camera
+    /// moves. The connected event carries the session and the record with the camera's own Wi-Fi and
+    /// the setup, the setup preferred. A sighting that is already a saved camera adds the setup to
+    /// that record instead (`.addRoute`), so its other setups stay. Hardware-untested.
+    public nonisolated static func target(_ nearby: NearbyCamera, onto network: LunaStationNetwork) -> ConnectTarget {
+        let camera = SavedCamera(
+            id: nearby.savedID ?? nearby.id, integration: LunaCameraSession.integration,
+            advertisedName: nearby.name, model: nearby.model)
+        return .addRoute(
+            camera,
+            RouteDraft(
+                kind: network.hotspot ? .phoneHotspot : .infrastructureNetwork, network: network.ssid,
+                secret: network.password))
+    }
+
+    /// Connects `nearby` straight onto `network`: `connect(_:)` with `target(_:onto:)`.
+    public func connect(_ nearby: NearbyCamera, onto network: LunaStationNetwork) -> AsyncStream<ConnectionEvent> {
+        connect(Self.target(nearby, onto: network))
+    }
+
     public func forget(_ camera: SavedCamera) async {
         if let id = UUID(uuidString: camera.id) { port.forget(cameraID: id) }
+    }
+
+    /// One try at asking `camera` back onto its own Wi-Fi over Bluetooth, as Multiview's close
+    /// does for every camera it moved onto a shared network (Kotlin twin, same name). One
+    /// backend, one link: an attempt in flight ends first. Nothing but the Wi-Fi role is asked, so
+    /// a recording continues, and the phone joins no network. A `.deferred` result may be tried
+    /// again (`LunaAccessPointReturn.retrying`); the caller keeps the camera in its cleanup record
+    /// until one returns. Throws only `CancellationError`. Hardware-untested.
+    public func returnToAccessPoint(_ camera: SavedCamera) async throws -> LunaAccessPointReturn {
+        guard let id = UUID(uuidString: camera.id) else { return .failed(LunaAccessPointReturn.unsupported) }
+        if let attempt = current {
+            attempt.continuation.finish()
+            cancel(attempt)
+        }
+        return try await port.returnToAccessPoint(cameraID: id)
     }
 
     /// The baseline grace for a saved camera: Bluetooth for a few seconds first, because an
