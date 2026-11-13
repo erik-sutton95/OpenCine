@@ -19,3 +19,22 @@ working. Nothing is pushed, merged or pinned without the owner.
 
 Plan 0 is independent of 1 to 4 and can land any time. Plans 5 and 6 can run in parallel once
 plan 4 has landed.
+
+## Carried from Plan 1 (2026-11-13)
+
+Plan 1 landed on `feat/shared-multiview-1` (OpenCine and OpenPocketCine). For the later plans:
+
+- Plan 2/3: locked Shared Wi-Fi page Done should call an explicit "complete" (today it calls the
+  wizard's `close`, which in Pocket can cancel Multiview when no network is configured); take its
+  accessibility id from the wizard context instead of a fixed `multiview.networkSetup`; add a
+  rendered test (`OpenCineHostedTestSupport` exists).
+- Plan 2: reconcile Swift `SharedNetworkStore` / `SharedNetwork` with Android's `SharedNetworkStore`
+  (names, `hotspot` optionality, matching test names); AppKit cannot import `OpenCineApple`, so the
+  network seam carries `StationNetwork`.
+- Plan 3: move the tile-note rule (no note for "Recording" / "Recording stopped") into the shared
+  tile values, keyed off `RecordAll`; drop Pocket's typealias shims and the app-side `validated`
+  overload; remove the unused `recordingAvailable` parameter of Pocket Android
+  `multiviewTileReadouts`; unify the control-port recording gate (Pocket Android
+  `MultiviewTileControl.kt` gates by availability) with iOS.
+- Before merging Pocket: the on-device upgrade checklist (iPhone and Android installed over the
+  current build with saved stage, networks and a pending cleanup).
