@@ -135,3 +135,40 @@ public final class NikonMemberOpener<Link: Sendable>: @unchecked Sendable {
         lock.withLock { released[key] = time }
     }
 }
+
+/// A member's recording tone for Multiview's Auto LUT (Kotlin `CameraPropertySnapshot.recordingTone`):
+/// the active codec (`MovFileType`) and the per-codec tone properties, as read. Unknown is `nil`,
+/// never SDR: a tone property alone does not say which codec records.
+public struct NikonRecordingTone: Hashable, Sendable {
+    /// The packed `MovFileType` the body last reported; `nil` until read or after a malformed read.
+    public private(set) var fileType: UInt32?
+    /// The tone each per-codec tone property last reported; an unnamed or malformed value is absent.
+    public private(set) var tones: [PTPPropertyCode: NikonMovieTone] = [:]
+
+    public init() {}
+
+    /// Applies one property read; properties other than the codec and its tone properties are ignored.
+    public mutating func apply(_ property: PTPPropertyCode, data: Data) {
+        if property == .movieFileType {
+            fileType = data.count >= 4 ? ByteCoding.readUInt32LE([UInt8](data), at: 0) : nil
+        } else if NikonMovieToneCapability.toneProperties.contains(property) {
+            tones[property] = NikonMovieToneCapability.tone(readback: [UInt8](data))
+        }
+    }
+
+    /// The tone the active codec records: its fixed tone, or its tone property's value.
+    public var tone: NikonMovieTone? {
+        guard let fileType else { return nil }
+        if let fixed = NikonMovieToneCapability.fixedTone(forFileType: fileType) { return fixed }
+        guard let property = NikonMovieToneCapability.toneProperty(forFileType: fileType) else { return nil }
+        return tones[property]
+    }
+
+    /// `tone` as the neutral transfer a Multiview tile's Auto LUT reads.
+    public var transfer: MonitorTransfer? { tone?.monitorTransfer }
+
+    /// The tone property the next poll reads after the codec, or `nil` when the codec has none.
+    var toneProperty: PTPPropertyCode? {
+        fileType.flatMap(NikonMovieToneCapability.toneProperty(forFileType:))
+    }
+}

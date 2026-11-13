@@ -142,6 +142,8 @@ public final class NikonMemberControl: NikonControlDriver {
     /// link, so this one sends nothing (two pumps would interleave PTP transactions).
     public private(set) var isLent = false
     public var hasQueuedCommands: Bool { !writes.isEmpty || record != nil }
+    /// The recording tone `pollRecordingTone(on:)` last read: Multiview's Auto LUT source.
+    public private(set) var recordingTone = NikonRecordingTone()
 
     private var writes: [(write: PTPCameraPropertyWrite, operation: OperationID?, admission: NikonCommandAdmission?)] = []
     private var record: (start: Bool, operation: OperationID, admission: NikonCommandAdmission?)?
@@ -342,6 +344,31 @@ public final class NikonMemberControl: NikonControlDriver {
         guard admits(admission) else { return session.commandAdmissionExpired(operation) }
         if let earlier = record { session.operationDropped(earlier.operation, superseded: true) }
         record = (start, operation, admission)
+    }
+
+    /// The member poll's tone step (Plan 6 Auto LUT): reads the codec, then only that codec's tone
+    /// property (none for a fixed-tone codec), so two reads at most. A read that fails keeps the
+    /// last value. Nothing is read while the link is lent to Live View. Run it at the pump's safe
+    /// point with the other polled properties (OpenZCine polls every 5 s outside a take; the codec
+    /// and tone cannot change during one).
+    @discardableResult
+    public func pollRecordingTone(on transport: some NikonControlTransport) async -> NikonMovieTone? {
+        guard !isLent else { return recordingTone.tone }
+        if let data = try? await transport.readCameraProperty(.movieFileType), !isLent {
+            applyToneRead(.movieFileType, data)
+        }
+        if let property = recordingTone.toneProperty, !isLent,
+            let data = try? await transport.readCameraProperty(property), !isLent
+        {
+            applyToneRead(property, data)
+        }
+        session.refresh()
+        return recordingTone.tone
+    }
+
+    private func applyToneRead(_ property: PTPPropertyCode, _ data: Data) {
+        recordingTone.apply(property, data: data)
+        nikonControlFacts.reported = nikonControlFacts.reported.applying(property: property, data: data)
     }
 
     private func reread(_ property: PTPPropertyCode, on transport: some NikonControlTransport) async

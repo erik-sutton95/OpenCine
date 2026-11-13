@@ -116,4 +116,28 @@ class NikonMultiviewTest {
         assertEquals(listOf(1_000.milliseconds, NikonMemberTiming.RECONNECT_SETTLE), network.sleeps)
         assertEquals(1_200.milliseconds, NikonMemberTiming.RECONNECT_SETTLE)
     }
+
+    // Auto LUT source (Android's Swift session already polls the tone properties)
+
+    @Test
+    fun recordingToneMapsTheSnapshotsTone() {
+        val expected = mapOf(
+            "SDR" to MonitorTransfer.REC709,
+            "HLG" to MonitorTransfer.HDR,
+            "N-Log" to MonitorTransfer.NLOG,
+            "Log3G10" to MonitorTransfer.LOG3G10,
+        )
+        for ((label, transfer) in expected) {
+            val tone = CameraPropertySnapshot(movieTone = label).recordingTone
+            assertEquals(label, tone?.label)
+            assertEquals(transfer, tone?.monitorTransfer)
+        }
+    }
+
+    /** Unknown is null, never SDR. */
+    @Test
+    fun recordingToneIsUnknownForAnUnnamedTone() {
+        assertNull(CameraPropertySnapshot().recordingTone)
+        assertNull(CameraPropertySnapshot(movieTone = "Standard").recordingTone)
+    }
 }

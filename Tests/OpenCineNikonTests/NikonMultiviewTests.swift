@@ -127,4 +127,92 @@ import Testing
         #expect(network.sleeps == [.milliseconds(1_000), NikonMemberTiming.reconnectSettle])
         #expect(NikonMemberTiming.reconnectSettle == .milliseconds(1_200))
     }
+
+    // MARK: Auto LUT source
+
+    /// Packed `MovFileType` values (`0x00_CC_DD_KK`, little-endian on the wire).
+    static func fileType(_ raw: UInt32) -> Data { Data(ByteCoding.uint32LE(raw)) }
+    static let h265TenBit: UInt32 = 0x0001_0A00
+    static let h265EightBit: UInt32 = 0x0001_0800
+    static let proResHQ: UInt32 = 0x0010_0A00
+    static let r3d: UInt32 = 0x0031_0C00
+
+    /// Unknown is nil, never SDR: a tone property alone does not say which codec records.
+    @Test func recordingToneIsUnknownUntilTheCodecReads() {
+        var tone = NikonRecordingTone()
+        tone.apply(.movieH265ToneMode, data: Data([1]))
+        #expect(tone.tone == nil && tone.transfer == nil)
+        tone.apply(.movieFileType, data: Self.fileType(Self.h265TenBit))
+        #expect(tone.tone == .nLog && tone.transfer == .nlog)
+        tone.apply(.movieH265ToneMode, data: Data([7]))
+        #expect(tone.tone == nil, "a value the body has not named")
+        tone.apply(.movieH265ToneMode, data: Data([1]))
+        tone.apply(.movieFileType, data: Data([0x00]))
+        #expect(tone.tone == nil, "a malformed codec read")
+    }
+
+    @Test func recordingToneFollowsTheCodecsToneProperty() {
+        var tone = NikonRecordingTone()
+        tone.apply(.movieH265ToneMode, data: Data([0]))
+        tone.apply(.movieProResToneMode, data: Data([2]))
+        tone.apply(.movieFileType, data: Self.fileType(Self.proResHQ))
+        #expect(tone.tone == .hlg && tone.transfer == .hdr)
+        tone.apply(.movieFileType, data: Self.fileType(Self.h265TenBit))
+        #expect(tone.tone == .sdr && tone.transfer == .rec709)
+    }
+
+    @Test func fixedToneCodecsNeedNoToneRead() {
+        var tone = NikonRecordingTone()
+        tone.apply(.movieFileType, data: Self.fileType(Self.r3d))
+        #expect(tone.tone == .log3G10 && tone.transfer == .log3G10)
+        tone.apply(.movieH265ToneMode, data: Data([1]))
+        tone.apply(.movieFileType, data: Self.fileType(Self.h265EightBit))
+        #expect(tone.tone == .sdr, "8-bit H.265 records SDR whatever 0x1D001 holds")
+    }
+
+    /// One scripted body for the member poll: what it reports and every read it answered.
+    final class ToneBody: NikonControlTransport, @unchecked Sendable {
+        // SAFETY: all state behind `lock`.
+        private let lock = NSLock()
+        private var _reads: [PTPPropertyCode] = []
+        var properties: [PTPPropertyCode: Data] = [:]
+        var readFails = false
+
+        var reads: [PTPPropertyCode] { lock.withLock { _reads } }
+
+        func readCameraProperty(_ property: PTPPropertyCode) async throws -> Data {
+            lock.withLock { _reads.append(property) }
+            if readFails { throw LinkDown() }
+            guard let data = lock.withLock({ properties[property] }) else { throw LinkDown() }
+            return data
+        }
+
+        func writeCameraProperty(_ write: PTPCameraPropertyWrite) async throws { throw LinkDown() }
+        func startRecording() async throws { throw LinkDown() }
+        func stopRecording() async throws { throw LinkDown() }
+    }
+
+    /// The member poll reads the codec, then only that codec's tone property (none for a fixed
+    /// tone). A read that fails keeps the last value: telemetry is never invented or dropped.
+    @MainActor @Test func pollRecordingToneReadsTheCodecThenItsToneOnly() async {
+        let body = ToneBody()
+        body.properties = [.movieFileType: Self.fileType(Self.h265TenBit), .movieH265ToneMode: Data([1])]
+        let control = NikonMemberControl(serialNumber: Self.serial, isCameraRefusal: { _ in false })
+        #expect(control.recordingTone.tone == nil)
+        #expect(await control.pollRecordingTone(on: body) == .nLog)
+        #expect(body.reads == [.movieFileType, .movieH265ToneMode])
+        #expect(control.recordingTone.transfer == .nlog)
+
+        body.properties[.movieFileType] = Self.fileType(Self.r3d)
+        #expect(await control.pollRecordingTone(on: body) == .log3G10)
+        #expect(body.reads.suffix(1) == [.movieFileType])
+
+        body.readFails = true
+        #expect(await control.pollRecordingTone(on: body) == .log3G10)
+
+        control.lend()
+        let before = body.reads.count
+        _ = await control.pollRecordingTone(on: body)
+        #expect(body.reads.count == before, "a link lent to Live View is that view's to read")
+    }
 }

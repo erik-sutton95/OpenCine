@@ -134,3 +134,40 @@ public class NikonMemberOpener<L : Any>(
 
     private fun hostKey(host: String): String = NikonHosts.normalizedHost(host) ?: host
 }
+
+/** A movie tone a Nikon Z body records in (Swift `NikonMovieTone`), by its label. */
+public enum class NikonMovieTone(public val label: String) {
+    SDR("SDR"),
+    HLG("HLG"),
+    N_LOG("N-Log"),
+
+    /** R3D NE records RED Log3G10 only. */
+    LOG3G10("Log3G10"),
+    ;
+
+    /**
+     * The neutral transfer this tone records in, the value an Auto LUT lookup keys on. It names the
+     * recording, not the live-view pixels.
+     */
+    public val monitorTransfer: MonitorTransfer
+        get() = when (this) {
+            SDR -> MonitorTransfer.REC709
+            HLG -> MonitorTransfer.HDR
+            N_LOG -> MonitorTransfer.NLOG
+            LOG3G10 -> MonitorTransfer.LOG3G10
+        }
+
+    public companion object {
+        /** The tone a label names, or null for an unknown or missing label. */
+        public fun fromLabel(label: String?): NikonMovieTone? = entries.firstOrNull { it.label == label }
+    }
+}
+
+/**
+ * The member's recording tone for Multiview's Auto LUT (Swift `NikonRecordingTone`): the tone the
+ * active codec records, as the Swift session decided it from `MovFileType` and the per-codec tone
+ * properties it polls in its live-monitor round robin. Read it from `reportedCameraProperties`.
+ * Unknown is null, never SDR.
+ */
+public val CameraPropertySnapshot.recordingTone: NikonMovieTone?
+    get() = NikonMovieTone.fromLabel(movieTone)
