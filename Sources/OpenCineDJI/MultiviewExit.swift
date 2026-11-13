@@ -39,8 +39,10 @@ public enum MultiviewPairing {
 /// One Exit handles the captured post-session `00 06` reply: at most three attempts, waiting
 /// between them only after a deferred pairing. Any other failure, cancellation included, ends at
 /// once with false; a cancelled return is never reported as success. Kotlin twin:
-/// `restoreCameraWiFiWithRetry` (which propagates cancellation instead).
+/// `restoreCameraWiFiWithRetry` (which propagates cancellation instead). Runs on the caller's
+/// actor, so the closures may touch its state.
 public func restoreCameraWiFiWithRetry(
+    isolation: isolated (any Actor)? = #isolation,
     waitBetween: () async -> Void,
     attempt: () async throws -> Bool
 ) async -> Bool {
