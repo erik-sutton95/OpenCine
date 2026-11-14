@@ -1713,7 +1713,9 @@ public final class com/opencapture/opencine/core/MultiviewRecordReport {
 }
 
 public final class com/opencapture/opencine/core/MultiviewRepairContext {
+	public fun <init> ()V
 	public fun <init> (ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getApplicationActive ()Lkotlin/jvm/functions/Function0;
 	public final fun getBeginAttempt ()Lkotlin/jvm/functions/Function0;
 	public final fun getBluetoothTurn ()Lkotlin/jvm/functions/Function1;
@@ -2610,6 +2612,11 @@ public final class com/opencapture/opencine/core/StationSubnet {
 	public final fun hosts (Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;)Ljava/util/List;
 	public static synthetic fun hosts$default (Lcom/opencapture/opencine/core/StationSubnet;Ljava/lang/String;Ljava/lang/String;Ljava/util/Set;ILjava/lang/Object;)Ljava/util/List;
 	public final fun validAddress (Ljava/lang/String;)Z
+}
+
+public final class com/opencapture/opencine/core/StationVerifyFinal : java/lang/Exception {
+	public fun <init> (Ljava/lang/Exception;)V
+	public final fun getReason ()Ljava/lang/Exception;
 }
 
 public final class com/opencapture/opencine/core/StorageVolume {

@@ -117,6 +117,7 @@ static func FakeCameraSession.lunaLike() -> FakeCameraSession
 static func FakeCameraSession.nikonLike() -> FakeCameraSession
 static func FakeEntries.captureOnly(_: OpenCineCore.PictureSourceDescriptor) -> OpenCineCore.MonitorEntryDescriptor
 static func FakeEntries.controlOnly(_: OpenCineCore.CameraSessionID, name: Swift.String) -> OpenCineCore.MonitorEntryDescriptor
+static let FakeStationCommissioner.silentJoin: Swift.String
 struct FakeCameraBehavior: Sendable
 struct FakeDevice: Sendable
 struct FakeIntegration.Dial: Equatable, Hashable, Sendable
@@ -208,6 +209,7 @@ var FakeStationCamera.modelId: Swift.Int?
 var FakeStationCamera.name: Swift.String
 var FakeStationCamera.record: OpenCineCore.StationCameraRecord
 var FakeStationCamera.sightedAt: Swift.String?
+var FakeStationCommissioner.afterVerifyGate: FakeGate?
 var FakeStationCommissioner.commissionsClosed: Swift.Int
 var FakeStationCommissioner.connectError: (any Swift.Error)?
 var FakeStationCommissioner.connectGate: FakeGate?
@@ -216,6 +218,7 @@ var FakeStationCommissioner.joinError: (any Swift.Error)?
 var FakeStationCommissioner.joinProgress: [Swift.String]
 var FakeStationCommissioner.joins: [(camera: Foundation.UUID, network: OpenCineCore.StationNetwork, experimental: Swift.Bool)]
 var FakeStationCommissioner.linksClosed: Swift.Int
+var FakeStationCommissioner.lostJoinReply: Swift.Bool
 var FakeStationCommissioner.restoreGate: FakeGate?
 var FakeStationCommissioner.restoreResults: [Foundation.UUID : [OpenCineCore.StationRestoreResult]]
 var FakeStationCommissioner.restores: [Foundation.UUID]

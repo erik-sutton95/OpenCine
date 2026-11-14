@@ -430,7 +430,7 @@ init MonotonicInstant(_: Swift.Duration)
 init MultiviewAutoLUT(colorMode: Swift.String?, conversion: Swift.String?)
 init MultiviewCameraPolicy(discoversByProbe: Swift.Bool, hostKey: ((Swift.String) -> Swift.String)?, qualification: (Camera, Swift.Bool) -> MulticamQualification, hasPreview: (Camera) -> Swift.Bool)<Camera>
 init MultiviewRecordReport(recording: Swift.Bool, receivedAt: Foundation.Date)
-init MultiviewRepairContext(pathReady: Swift.Bool, running: () -> Swift.Bool, applicationActive: () -> Swift.Bool, foregroundUnchanged: () -> Swift.Bool, pathAvailable: () -> Swift.Bool, beginAttempt: () -> Swift.Bool, observeHealth: (Swift.Bool) -> Swift.Void, bluetoothTurn: () async -> (() -> Swift.Void)?)
+init MultiviewRepairContext(pathReady: Swift.Bool, running: (() -> Swift.Bool)?, applicationActive: (() -> Swift.Bool)?, foregroundUnchanged: (() -> Swift.Bool)?, pathAvailable: (() -> Swift.Bool)?, beginAttempt: (() -> Swift.Bool)?, observeHealth: ((Swift.Bool) -> Swift.Void)?, bluetoothTurn: (() async -> (() -> Swift.Void)?)?)
 init NearbyCamera(id: Swift.String, savedID: Swift.String?, name: Swift.String, model: Swift.String, routes: Swift.Set<RouteKind>, signalBars: Swift.Int?, availability: Availability, routeKey: Swift.String?)
 init ObservedValue(_: Value, origin: ObservationOrigin, at: MonotonicInstant?, validity: ObservationValidity, precision: ObservationPrecision?)<Value where Value : Swift.Sendable>
 init PictureSourceDescriptor(stream: StreamID, generation: StreamGeneration, label: Swift.String)
@@ -450,6 +450,7 @@ init SettingSemantics(implementation: SettingSemantics.Implementation, confirmat
 init StationCameraRecord(id: Foundation.UUID, name: Swift.String, modelId: Swift.Int?, deviceAddress: Swift.String?)
 init StationNetwork(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool)
 init StationScanUnsupported()
+init StationVerifyFinal(_: any Swift.Error)
 init StorageVolume(from: any Swift.Decoder) throws
 init StorageVolume(id: Swift.String, media: ObservedValue<MediaState>, freeBytes: ObservedValue<Swift.UInt64>, totalBytes: ObservedValue<Swift.UInt64>, remainingRecordingTime: ObservedValue<Swift.Duration>)
 init TimecodeCapability(from: any Swift.Decoder) throws
@@ -588,6 +589,7 @@ struct SettingSemantics: Decodable, Encodable, Equatable, Hashable, Sendable
 struct StationCameraRecord: Equatable, Hashable, Sendable
 struct StationNetwork: Equatable, Sendable
 struct StationScanUnsupported: Equatable, Error, Sendable
+struct StationVerifyFinal: Error, Sendable
 struct StorageVolume: Decodable, Encodable, Equatable, Hashable, Sendable
 struct TimecodeCapability: Decodable, Encodable, Equatable, Hashable, Sendable
 subscript CameraServices(_: S.Type)<S> -> S?
@@ -860,6 +862,7 @@ var StationCommissioner.scansNetworks: Swift.Bool
 var StationNetwork.hotspot: Swift.Bool
 var StationNetwork.password: Swift.String
 var StationNetwork.ssid: Swift.String
+var StationVerifyFinal.reason: any Swift.Error
 var StorageVolume.freeBytes: ObservedValue<Swift.UInt64>
 var StorageVolume.id: Swift.String
 var StorageVolume.media: ObservedValue<MediaState>
