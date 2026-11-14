@@ -75,7 +75,7 @@ public enum LunaAccessPointReturn: Equatable, Sendable {
 /// The camera's side of a return to its own Wi-Fi: Bluetooth reaches it, it authorizes this
 /// phone (`LunaBluetoothAuthorization`, whose credential read names the camera's region), and one
 /// SET_WIFI_MODE 147 on the same link asks it onto its access point. The link always closes
-/// afterwards. Nothing else is sent: no capture, record or live request, so a recording continues;
+/// afterwards. Nothing else is sent: no capture, record or live request, so no recording is stopped;
 /// and the phone joins no network. Kotlin twin: `LunaAccessPointRestore`.
 @MainActor
 struct LunaAccessPointRestore {

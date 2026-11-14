@@ -763,8 +763,8 @@ class LunaBackend(
      * Asks the camera back onto its own Wi-Fi over Bluetooth, as Multiview's close does for a camera
      * it moved onto a shared network (Swift `returnToAccessPoint(cameraID:)`): authorize,
      * SET_WIFI_MODE 147 for access point mode, disconnect. This backend's own connection ends first
-     * and the return runs as its job, so a newer connect cancels it; nothing else is sent, so a
-     * recording continues, and this phone joins no network. One try: a deferred result may be tried
+     * and the return runs as its job, so a newer connect (or a caller that stops waiting) cancels
+     * it; nothing else is sent, so no recording is stopped, and this phone joins no network. One try: a deferred result may be tried
      * again ([LunaAccessPointReturn.retrying]). Throws only [CancellationException].
      * Hardware-untested.
      */

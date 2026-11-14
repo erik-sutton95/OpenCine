@@ -402,7 +402,7 @@ public final class LunaIntegration: CameraIntegration {
     /// One try at asking `camera` back onto its own Wi-Fi over Bluetooth, as Multiview's close
     /// does for every camera it moved onto a shared network (Kotlin twin, same name). One
     /// backend, one link: an attempt in flight ends first. Nothing but the Wi-Fi role is asked, so
-    /// a recording continues, and the phone joins no network. A `.deferred` result may be tried
+    /// no recording is stopped, and the phone joins no network. A `.deferred` result may be tried
     /// again (`LunaAccessPointReturn.retrying`); the caller keeps the camera in its cleanup record
     /// until one returns. Throws only `CancellationError`. Hardware-untested.
     public func returnToAccessPoint(_ camera: SavedCamera) async throws -> LunaAccessPointReturn {

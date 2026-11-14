@@ -94,8 +94,8 @@ internal class LunaNotApproved(message: String) : IllegalStateException(message)
  * The camera's side of a return to its own Wi-Fi (Swift `LunaAccessPointRestore`): Bluetooth reaches
  * it, it authorizes this phone ([LunaBluetoothAuthorization], whose credential read names the
  * camera's region), and one SET_WIFI_MODE 147 on the same link asks it onto its access point. The
- * link always closes afterwards. Nothing else is sent: no capture, record or live request, so a
- * recording continues; and the phone joins no network.
+ * link always closes afterwards. Nothing else is sent: no capture, record or live request, so no
+ * recording is stopped; and the phone joins no network.
  */
 internal class LunaAccessPointRestore(
     /** Bluetooth reaches the camera; the authorization runs on that link and also carries the switch. */

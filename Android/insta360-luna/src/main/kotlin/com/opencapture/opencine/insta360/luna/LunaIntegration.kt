@@ -445,8 +445,8 @@ class LunaIntegration(
     /**
      * One try at asking [camera] back onto its own Wi-Fi over Bluetooth, as Multiview's close does
      * for every camera it moved onto a shared network (Swift twin, same name). One backend, one
-     * link: an attempt in flight ends first. Nothing but the Wi-Fi role is asked, so a recording
-     * continues, and the phone joins no network. A deferred result may be tried again
+     * link: an attempt in flight ends first. Nothing but the Wi-Fi role is asked, so no recording
+     * is stopped, and the phone joins no network. A deferred result may be tried again
      * ([LunaAccessPointReturn.retrying]); the caller keeps the camera in its cleanup record until one
      * returns. Throws only cancellation. Hardware-untested.
      */
