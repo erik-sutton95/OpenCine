@@ -259,8 +259,8 @@ class LunaIntegration(
             )
         }
 
-        /** A camera id as the backend reaches it: the peripheral's Bluetooth address. */
-        private val BLUETOOTH_ADDRESS = Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+        /** A camera id as the backend reaches it: the peripheral's Bluetooth address, uppercase as Android takes it. */
+        private val BLUETOOTH_ADDRESS = Regex("^([0-9A-F]{2}:){5}[0-9A-F]{2}$")
 
         /** Backend phases past authorization: the camera is about to be asked onto the network, or is reached there. */
         private val MOVING_PHASES = setOf(ConnectionPhase.JOINING_WIFI, ConnectionPhase.OPENING_DATALINK, ConnectionPhase.LIVE)

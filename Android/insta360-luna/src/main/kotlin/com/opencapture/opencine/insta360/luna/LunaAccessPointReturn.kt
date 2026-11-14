@@ -26,8 +26,8 @@ sealed interface LunaAccessPointReturn {
     data class Deferred(override val failure: ConnectionFailure) : LunaAccessPointReturn
 
     /**
-     * Trying again now will not help: the camera did not authorize this phone (it declined, or it is
-     * no supported Luna) or refused the switch.
+     * Trying again now will not help: the camera did not authorize this phone (it declined, another
+     * phone holds it, or it is no supported Luna) or refused the switch.
      */
     data class Failed(override val failure: ConnectionFailure) : LunaAccessPointReturn
 
