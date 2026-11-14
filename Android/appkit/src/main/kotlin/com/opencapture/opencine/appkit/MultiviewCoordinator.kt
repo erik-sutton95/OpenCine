@@ -249,6 +249,9 @@ internal class MultiviewBluetoothQueue {
     private val waiters = ArrayDeque<CompletableDeferred<Boolean>>()
     private var held = false
 
+    /** The waiter just granted a turn, until it takes it. */
+    private var granting: CompletableDeferred<Boolean>? = null
+
     /** Adds and scans use Bluetooth now. */
     var othersUsing: () -> Boolean = { false }
 
@@ -268,12 +271,14 @@ internal class MultiviewBluetoothQueue {
         } catch (e: CancellationException) {
             waiters.remove(waiter)
             // Granted while the caller was cancelled: hand the turn on.
-            if (waiter.isCompleted && !waiter.isCancelled && waiter.getCompleted()) {
+            if (granting === waiter) {
+                granting = null
                 held = false
                 pump()
             }
             throw e
         }
+        if (granting === waiter) granting = null
         return if (granted) release() else null
     }
 
@@ -286,7 +291,9 @@ internal class MultiviewBluetoothQueue {
         }
         if (held || othersUsing()) return
         held = true
-        waiters.removeFirst().complete(true)
+        val next = waiters.removeFirst()
+        granting = next
+        next.complete(true)
     }
 
     /** Answers every waiter with no turn (the stage stopped). */
