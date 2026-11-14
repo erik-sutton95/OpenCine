@@ -111,6 +111,20 @@ class LunaAccessPointReturnTest {
         assertTrue(camera.sent.isEmpty() && camera.closes == 1)
     }
 
+    /**
+     * A camera at the edge of Bluetooth range drops the link during the key exchange (the GATT
+     * callback fails the channel): a later try may reach it, so the return is deferred, never "not
+     * authorized".
+     */
+    @Test fun aBluetoothDropDuringAuthorizationIsDeferred() = runTest {
+        val camera = Camera().apply { fails[39] = { throw IllegalStateException("Camera Bluetooth disconnected (8)") } }
+        val result = camera.restore().run()
+        assertEquals("com.opencapture.insta360.luna.return.not-reachable", result.failure?.code)
+        assertTrue(result.isRetryable)
+        assertTrue(camera.sent.none { it.first == LunaStationWire.SET_WIFI_MODE })
+        assertEquals(1, camera.closes)
+    }
+
     @Test fun aCameraStillSwitchingItsWiFiIsDeferred() = runTest {
         val authorizing = Camera().apply { fails[8] = { throw LunaWiFiBusy(8) } }
         val switching = Camera().apply { switchMode = { throw LunaWiFiBusy(LunaStationWire.SET_WIFI_MODE) } }

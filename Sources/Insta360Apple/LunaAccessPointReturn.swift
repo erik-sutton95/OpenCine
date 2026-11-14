@@ -11,8 +11,8 @@ public enum LunaAccessPointReturn: Equatable, Sendable {
     /// Not now: Bluetooth could not reach it, it is still switching its Wi-Fi, or it did not
     /// answer. Trying again a little later may succeed.
     case deferred(ConnectionFailure)
-    /// Trying again now will not help: the camera did not authorize this phone or refused the
-    /// switch.
+    /// Trying again now will not help: the camera did not authorize this phone (it declined, another
+    /// phone holds it, or it is no supported Luna) or refused the switch.
     case failed(ConnectionFailure)
 
     /// A deferred result: the caller may try again.
@@ -102,13 +102,7 @@ struct LunaAccessPointRestore {
             reply = try await authorization.run(identity: identity).credentials
         } catch {
             try Self.rethrowCancellation(error)
-            if case LunaProtocolError.cameraBusySwitchingWiFi = error {
-                return .deferred(LunaAccessPointReturn.cameraBusy)
-            }
-            if (error as? ConnectionFailure)?.reason == .timedOut {
-                return .deferred(LunaAccessPointReturn.noAnswer)
-            }
-            return .failed(LunaAccessPointReturn.notAuthorized)
+            return Self.authorizationResult(error)
         }
         do {
             let region = try? LunaProtocol.wifiCountryCode(response: reply)
@@ -125,6 +119,30 @@ struct LunaAccessPointRestore {
             }
         }
         return .returned
+    }
+
+    /// A failed authorization: final only when the camera itself said no (it did not approve this
+    /// phone, another phone holds it, it is no supported Luna). A Bluetooth link that dropped, a
+    /// camera still switching its Wi-Fi or one that did not answer may answer a later try.
+    static func authorizationResult(_ error: Error) -> LunaAccessPointReturn {
+        if case LunaProtocolError.cameraBusySwitchingWiFi = error {
+            return .deferred(LunaAccessPointReturn.cameraBusy)
+        }
+        if let failure = error as? ConnectionFailure {
+            switch failure.reason {
+            case .timedOut: return .deferred(LunaAccessPointReturn.noAnswer)
+            case .notApproved, .heldElsewhere, .unsupported, .wrongCamera:
+                return .failed(LunaAccessPointReturn.notAuthorized)
+            default: return .deferred(LunaAccessPointReturn.notReachable)
+            }
+        }
+        switch error {
+        case LunaProtocolError.authorizationRejected, LunaProtocolError.unsupportedAuthorizationStatus,
+            LunaProtocolError.unexpectedModel:
+            return .failed(LunaAccessPointReturn.notAuthorized)
+        default:
+            return .deferred(LunaAccessPointReturn.notReachable)
+        }
     }
 
     private static func rethrowCancellation(_ error: Error) throws {

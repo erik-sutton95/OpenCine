@@ -25,7 +25,10 @@ sealed interface LunaAccessPointReturn {
      */
     data class Deferred(override val failure: ConnectionFailure) : LunaAccessPointReturn
 
-    /** Trying again now will not help: the camera did not authorize this phone or refused the switch. */
+    /**
+     * Trying again now will not help: the camera did not authorize this phone (it declined, or it is
+     * no supported Luna) or refused the switch.
+     */
     data class Failed(override val failure: ConnectionFailure) : LunaAccessPointReturn
 
     /** A deferred result: the caller may try again. */
@@ -115,10 +118,14 @@ internal class LunaAccessPointRestore(
                 authorization.run(authBody).second
             } catch (error: Exception) {
                 rethrowCancellation(error)
+                // Final only when the camera itself said no (it did not approve this phone, or it is
+                // no supported Luna). A Bluetooth link that dropped (the GATT callback fails the
+                // channel), a camera still switching or one that did not answer may answer later.
                 return when (error) {
                     is LunaWiFiBusy -> LunaAccessPointReturn.Deferred(LunaAccessPointReturn.cameraBusy)
                     is TimeoutCancellationException -> LunaAccessPointReturn.Deferred(LunaAccessPointReturn.noAnswer)
-                    else -> LunaAccessPointReturn.Failed(LunaAccessPointReturn.notAuthorized)
+                    is LunaNotApproved, is LunaUnsupportedCamera -> LunaAccessPointReturn.Failed(LunaAccessPointReturn.notAuthorized)
+                    else -> LunaAccessPointReturn.Deferred(LunaAccessPointReturn.notReachable)
                 }
             }
             try {

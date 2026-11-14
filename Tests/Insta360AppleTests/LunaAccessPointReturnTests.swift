@@ -100,6 +100,17 @@ import Testing
         #expect(camera.sent.isEmpty && camera.closes == 1)
     }
 
+    /// A camera at the edge of Bluetooth range drops the link during the key exchange: a later try
+    /// may reach it, so the return is deferred, never "not authorized".
+    @Test func aBluetoothDropDuringAuthorizationIsDeferred() async throws {
+        let camera = Camera()
+        camera.fails[.checkAuthorization] = ConnectionFailure.luna(.linkLost, "link.dropped", "Bluetooth dropped")
+        let result = try await camera.restore().run()
+        #expect(result.failure?.code == "com.opencapture.insta360.luna.return.not-reachable" && result.isRetryable)
+        #expect(!camera.sent.contains { $0.command == .setWifiMode })
+        #expect(camera.closes == 1)
+    }
+
     @Test func aCameraStillSwitchingItsWiFiIsDeferred() async throws {
         let authorizing = Camera()
         authorizing.fails[.getOptions] = LunaProtocolError.cameraBusySwitchingWiFi
