@@ -56,7 +56,8 @@ public object MultiviewRecordConfirmation {
     public val WINDOW: Duration = 8.seconds
 
     /**
-     * Polls every 100 ms until the window closes on [clock] (milliseconds).
+     * Polls every 100 ms until the window closes on [clock] (milliseconds). Cancelling the caller
+     * ends the wait with its cancellation (Swift returns `unconfirmed`).
      * @param current the command's link is still the member's.
      * @param reply the camera's reply to the command so far: true accepted, false refused.
      * @param report the camera's latest take report.

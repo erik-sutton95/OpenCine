@@ -104,6 +104,10 @@ public final class MultiviewMember<Camera> {
     @ObservationIgnored var onChange: (@MainActor (MultiviewMemberChange) -> Void)?
     @ObservationIgnored var sameCamera: (@MainActor (Camera?, Camera?) -> Bool)?
     @ObservationIgnored var repairTask: Task<Void, Never>?
+    /// Which repair task is the member's: an older one never clears a newer one's state.
+    @ObservationIgnored var repairGeneration = 0
+    /// The removed camera's last address, offered back only when the same camera is added again.
+    @ObservationIgnored var removedAddress: (camera: UUID, address: String)?
 
     public init(
         id: UUID = UUID(),
@@ -305,6 +309,8 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
     public var closing = false
     public var groupRecordingBusy = false
     public var groupRecordingNote: String?
+    /// Change it through `setApplicationActive(_:)`: a direct write (tests only) skips the
+    /// foreground grace, the generation and the host's callback.
     public var applicationActive = true
     public private(set) var running = false
     /// Settings-editor leases: one per open editor, asked before every setting change.
@@ -637,7 +643,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         if let hostJoin { return try await hostJoin.value }
         let task = Task { try await self.performHostJoin() }
         hostJoin = task
-        defer { hostJoin = nil }
+        defer { if hostJoin == task { hostJoin = nil } }
         try await task.value
         try Task.checkCancellation()
         guard running else { throw CancellationError() }
@@ -725,6 +731,14 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             member.camera == nil,
             !members.contains(where: { $0.camera.map { sameCamera($0, camera) } == true })
         else { return }
+        // A removed camera's address comes back only for that camera: another camera opened there
+        // could be the removed one (a sighting has no identity to check it against).
+        if let kept = member.removedAddress, member.address.isEmpty,
+            kept.camera == describe(camera).id
+        {
+            member.address = kept.address
+        }
+        member.removedAddress = nil
         member.connecting = true
         var client: (any StationCommission)?
         member.camera = camera
@@ -759,7 +773,12 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
                 stationNetwork, identity: identity, experimental: experimental,
                 progress: { member.status = $0 },
                 verifyOnNetwork: {
-                    try await self.discoverPreview(slot, camera: camera, identity: identity)
+                    do {
+                        try await self.discoverPreview(slot, camera: camera, identity: identity)
+                    } catch MultiviewStageFailure.duplicate {
+                        // Final: the commissioner must not join this camera again.
+                        throw StationVerifyFinal(MultiviewStageFailure.duplicate)
+                    }
                     return true
                 })
             member.identity = identity
@@ -771,6 +790,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             try await discoverPreview(slot, camera: camera, identity: identity)
         } catch {
             guard running, !Task.isCancelled else { return }
+            let error = (error as? StationVerifyFinal)?.reason ?? error
             links[slot].close()
             member.status = MultiviewCopy.couldNotConnect
             member.failureMessage = failureText(error)
@@ -824,6 +844,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         defer {
             member.connecting = false
             if running { persistStage() }
+            bluetooth.pump()
         }
         do { try await discoverPreview(slot, camera: camera, identity: identity) } catch {
             guard running, !Task.isCancelled else { return }
@@ -941,7 +962,10 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             link.close()
             throw MultiviewStageFailure.duplicate
         }
-        guard running else { throw CancellationError() }
+        guard running else {
+            link.close()
+            throw CancellationError()
+        }
         if identity == nil { member.identity = proven }
         member.networkVerified = true
         if !policy.hasPreview(camera) {
@@ -952,6 +976,10 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             return
         }
         try await link.startPreview(camera)
+        guard running else {
+            link.close()
+            throw CancellationError()
+        }
         member.publishing = true
     }
 
@@ -969,6 +997,8 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         member.pathLostAt = nil
         member.failureMessage = nil
         links[slot].close()
+        member.removedAddress = member.camera.map { (describe($0).id, member.address) }
+        member.address = ""
         member.camera = nil
         member.networkVerified = false
         member.experimental = false
@@ -982,6 +1012,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         member.onChange?(.removed)
         persistStage()
         refreshDiscovery()
+        bluetooth.pump()
         return true
     }
 
@@ -994,7 +1025,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         let link = links[slot]
         let now = clock.date()
         guard applicationActive, now.timeIntervalSince(foregroundAt) > 3, !busy,
-            !member.recovering, !member.budget.exhausted, member.publishing, !member.connecting,
+            !member.recovering, !member.budget.exhausted, member.publishing,
             member.camera != nil, host?.showsPicture(slot: slot) ?? true
         else { return }
         let pathReady = hostPath.address(hotspot: usePhoneHotspot) != nil
@@ -1033,11 +1064,15 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             member.recovering = true
             let deadline = link.repairDeadline
             let sleep = clock.sleep
+            member.repairGeneration &+= 1
+            let repair = member.repairGeneration
             member.repairTask = Task { [weak self, weak member] in
                 guard let self, let member else { return }
                 defer {
-                    member.recovering = false
-                    member.repairTask = nil
+                    if member.repairGeneration == repair {
+                        member.recovering = false
+                        member.repairTask = nil
+                    }
                 }
                 switch await MultiviewRepairResult.race(deadline: deadline, sleep: sleep, work) {
                 case .done: break

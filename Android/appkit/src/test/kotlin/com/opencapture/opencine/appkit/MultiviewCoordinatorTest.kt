@@ -17,6 +17,7 @@ import com.opencapture.opencine.core.testing.FakeStationCamera
 import com.opencapture.opencine.core.testing.FakeStationCommissioner
 import com.opencapture.opencine.core.testing.FakeStationHostPath
 import com.opencapture.opencine.multicam.RecordDirection
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -616,6 +617,7 @@ class MultiviewCoordinatorTest {
     fun removeClearsTheMemberWithoutACameraCommand() = runTest {
         val stage = Fixture(this)
         val (c, link, member) = stage.liveMember()
+        val camera = assertNotNull(member.camera)
         member.recordingBusy = true
         assertFalse(c.remove(0), "not while a record command waits")
         member.recordingBusy = false
@@ -627,6 +629,10 @@ class MultiviewCoordinatorTest {
         assertTrue(stage.host.changes.contains(0 to MultiviewMemberChange.REMOVED))
         assertTrue(link.fakeSession.wire.isEmpty(), "removing never commands the camera")
         assertEquals(emptyList(), stage.journal?.cameras)
+        val probes = link.probes.size
+        c.add(camera, 0)
+        assertEquals("192.168.1.12", link.opens.last().first, "the same camera again: its address first")
+        assertEquals(probes, link.probes.size, "found there without a search")
         c.stop()
     }
 
@@ -716,6 +722,172 @@ class MultiviewCoordinatorTest {
         assertFalse("192.168.1.12" in stage.links[0].probes, "another member's host, in another form")
         assertEquals(MultiviewCopy.NOT_FOUND, c.members[0].failureMessage)
         c.stop()
+    }
+
+    @Test
+    fun bluetoothTurnsResumeWhenAReconnectEnds() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        for ((slot, name) in listOf("Camera A", "Camera B").withIndex()) {
+            val camera = FakeStationCamera(name)
+            stage.links[slot].place(camera, "192.168.1.1${slot + 2}")
+            c.add(camera, slot)
+        }
+        val gate = FakeGate()
+        stage.links[1].openGate = gate
+        val reconnecting = launch { c.connectPreview(1) }
+        runCurrent()
+        assertEquals(1, gate.waiting)
+        var granted = false
+        stage.links[0].repairStep = { context ->
+            MultiviewRepairStep.Repair {
+                val release = context.bluetoothTurn() ?: return@Repair MultiviewRepairResult.Done
+                granted = true
+                release()
+                MultiviewRepairResult.Done
+            }
+        }
+        stage.tick()
+        assertTrue(c.members[0].recovering)
+        assertFalse(granted, "no turn while another member connects")
+        gate.open()
+        reconnecting.join()
+        runCurrent()
+        assertTrue(granted)
+        c.stop()
+    }
+
+    @Test
+    fun aCancelledCloseStillEnds() = runTest {
+        val stage = Fixture(this)
+        val gate = FakeGate()
+        stage.commissioner.restoreGate = gate
+        val camera = FakeStationCamera("Scan camera")
+        stage.coordinator.recordStationChange(camera)
+        val closing = launch { stage.coordinator.closeStage() }
+        runCurrent()
+        assertEquals(1, gate.waiting)
+        closing.cancel()
+        runCurrent()
+        gate.open()
+        runCurrent()
+        assertFalse(stage.coordinator.closing)
+        assertNull(stage.journal, "the camera's return finishes for a cancelled caller")
+        assertTrue(stage.coordinator.closeStage(), "the stage closes again")
+    }
+
+    /** Kotlin only: a Swift return cannot throw. */
+    @Test
+    fun aReturnThatThrowsStaysForTheNextClose() = runTest {
+        val stage = Fixture(this)
+        val camera = FakeStationCamera("Scan camera")
+        stage.commissioner.restoreError = CancellationException("the return was cancelled")
+        stage.coordinator.recordStationChange(camera)
+        assertFalse(stage.coordinator.closeStage())
+        assertTrue(stage.coordinator.hasPendingCleanup)
+        assertEquals(listOf(camera.id), stage.journal?.pendingReset?.map { it.id })
+        stage.commissioner.restoreError = IllegalStateException("radio unavailable")
+        assertFalse(stage.coordinator.closeStage())
+        stage.commissioner.restoreError = null
+        assertTrue(stage.coordinator.closeStage())
+        assertEquals(listOf(camera.id, camera.id, camera.id), stage.commissioner.restores)
+        assertNull(stage.journal)
+    }
+
+    /** Kotlin only: Swift's links cannot throw from these steps. */
+    @Test
+    fun aLinkThatThrowsFailsOnlyItsMember() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        val camera = FakeStationCamera("Camera A")
+        stage.links[0].probeErrors["192.168.1.9"] = IllegalStateException("socket refused")
+        stage.links[0].place(camera, "192.168.1.12")
+        c.add(camera, 0)
+        val member = c.members[0]
+        assertTrue(member.publishing, "a probe that throws is a host that did not answer")
+        stage.links[0].keepaliveError = IllegalStateException("socket gone")
+        stage.links[0].repairStep = { MultiviewRepairStep.Repair { throw IllegalStateException("repair broke") } }
+        stage.tick()
+        assertEquals(MultiviewCopy.COULD_NOT_RESTORE, member.failureMessage)
+        assertFalse(member.recovering)
+        assertEquals(1, stage.links[1].keepalives, "the other members keep their monitor")
+        c.stop()
+    }
+
+    @Test
+    fun removeForgetsTheAddressForAnotherCamera() = runTest {
+        val stage = Fixture(this, commissioner = false, discoversByProbe = false)
+        stage.configure()
+        val c = stage.coordinator
+        val a = FakeStationCamera("Body A", sightedAt = "192.168.1.12")
+        val b = FakeStationCamera("Body B", sightedAt = "192.168.1.13")
+        stage.links[0].place(a, "192.168.1.12")
+        stage.links[0].place(b, "192.168.1.13")
+        c.add(a, 0)
+        assertTrue(c.remove(0))
+        assertEquals("", c.members[0].address)
+        c.add(b, 0)
+        assertEquals(
+            listOf("192.168.1.12", "192.168.1.13"), stage.links[0].opens.map { it.first },
+            "the new camera is never opened at the removed camera's address",
+        )
+        assertContentEquals(b.identity, c.members[0].identity)
+        c.stop()
+    }
+
+    @Test
+    fun aMemberWhosePreviewStartedDuringItsJoinIsWatched() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        val gate = FakeGate()
+        stage.commissioner.verifiesOnJoin = true
+        stage.commissioner.afterVerifyGate = gate
+        val camera = FakeStationCamera("Camera A")
+        stage.links[0].place(camera, "192.168.1.12")
+        val adding = launch { c.add(camera, 0) }
+        runCurrent()
+        assertEquals(1, gate.waiting)
+        assertTrue(c.members[0].publishing && c.members[0].connecting)
+        stage.tick()
+        assertEquals(1, stage.links[0].repairTicks, "the watchdog runs while the join finishes")
+        gate.open()
+        adding.join()
+        c.stop()
+    }
+
+    @Test
+    fun aDuplicateFoundWhileTheCameraJoinsIsFinal() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        val camera = FakeStationCamera("Camera A")
+        c.members[1].camera = FakeStationCamera("Camera B")
+        c.members[1].identity = camera.identity // the same body, already a member
+        stage.commissioner.lostJoinReply = true
+        stage.links[0].place(camera, "192.168.1.12")
+        c.add(camera, 0)
+        assertEquals(MultiviewCopy.DUPLICATE, c.members[0].failureMessage)
+        assertEquals(listOf("192.168.1.12"), stage.links[0].opens.map { it.first }, "the search stops there")
+        c.stop()
+    }
+
+    /** Swift returns `unconfirmed`; Kotlin's wait ends with the caller's cancellation. */
+    @Test
+    fun aCancelledConfirmationWaitEndsAtOnce() = runTest {
+        val waiting = launch {
+            MultiviewRecordConfirmation.wait(
+                start = true, sentAtMillis = 0, clock = { currentTime }, current = { true },
+                reply = { null }, report = { null }, acknowledged = {},
+            )
+        }
+        runCurrent()
+        waiting.cancel()
+        runCurrent()
+        assertTrue(waiting.isCompleted)
+        assertEquals(0, currentTime, "no time passed")
     }
 }
 

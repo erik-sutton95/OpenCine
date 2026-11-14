@@ -20,6 +20,7 @@ import com.opencapture.opencine.core.StationHostPath
 import com.opencapture.opencine.core.StationNetwork
 import com.opencapture.opencine.core.StationRestoreResult
 import com.opencapture.opencine.core.StationSubnet
+import com.opencapture.opencine.core.StationVerifyFinal
 import com.opencapture.opencine.core.StreamID
 import com.opencapture.opencine.multicam.EditorLease
 import com.opencapture.opencine.multicam.EditorLeases
@@ -33,6 +34,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -42,6 +44,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -175,6 +178,9 @@ public class MultiviewMember<Camera>(
     internal var onChange: ((MultiviewMemberChange) -> Unit)? = null
     internal var sameCamera: ((Camera?, Camera?) -> Boolean)? = null
     internal var repairJob: Job? = null
+
+    /** The removed camera's id and last address, offered back only when that camera is added again. */
+    internal var removedAddress: Pair<String, String>? = null
 }
 
 /** Where the stage journal lives (the app's preferences). Swift twin: `MultiviewJournalStorage`. */
@@ -331,7 +337,8 @@ internal class MultiviewBluetoothQueue {
  * @param sightingAddress the address an integration that does not discover by probe saw the camera at.
  * @param failureMessage the operator copy for a failed add (default: the error's message).
  * @param probeWidth probes per batch while searching the subnet.
- * @param clock the coordinator's clock in milliseconds (record report freshness, path loss, grace).
+ * @param clock the coordinator's clock in milliseconds (record report freshness, path loss, grace):
+ *   the clock the links stamp [MultiviewRecordReport.receivedAtMillis] on, so it has no default.
  * @param monotonic the host clock the sessions stamp on (record plans, recovery budgets).
  */
 public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
@@ -349,7 +356,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     private val sightingAddress: ((Camera) -> String?)? = null,
     failureMessage: ((Throwable) -> String)? = null,
     probeWidth: Int = 64,
-    internal val clock: () -> Long = System::currentTimeMillis,
+    internal val clock: () -> Long,
     internal val monotonic: () -> MonotonicInstant = { MonotonicInstant.now() },
 ) {
     public val members: List<MultiviewMember<Camera>> = members ?: links.map { MultiviewMember() }
@@ -503,13 +510,29 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     internal suspend fun tick() {
         ready = hostPath.address(usePhoneHotspot) != null
         for (slot in links.indices) {
-            links[slot].keepalive()
+            contained("keepalive") { links[slot].keepalive() }
             val member = members[slot]
             val fresh = links[slot].recordReport?.let { clock() - it.receivedAtMillis < 3_000 } == true
             val available = member.controlHost != null && fresh
             if (member.recordingAvailable != available) member.recordingAvailable = available
-            monitorPreview(slot)
+            if (contained("repair") { monitorPreview(slot) } == null) waitForOperator(member, MultiviewCopy.COULD_NOT_RESTORE)
         }
+    }
+
+    /**
+     * Runs one of a link's or scanner's steps (Kotlin seams can throw; Swift's cannot): anything
+     * but this coroutine's own cancellation is logged and comes back as null, so one member's
+     * failure never ends the monitor or the app.
+     */
+    private suspend inline fun <T> contained(step: String, block: () -> T): T? = try {
+        block()
+    } catch (e: CancellationException) {
+        currentCoroutineContext().ensureActive()
+        host?.log("multiview: $step ended ${e.javaClass.simpleName}")
+        null
+    } catch (e: Exception) {
+        host?.log("multiview: $step failed ${e.javaClass.simpleName}")
+        null
     }
 
     // Nearby discovery
@@ -534,11 +557,15 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             if (!scanner.waitUntilReady()) return@launch
             ensureActive()
             found = emptyList()
-            scanner.scan { camera ->
-                if (scanGeneration == generation && found.none { sameCamera(it, camera) }) {
-                    found = found + camera
+            val scanned = contained("scan") {
+                scanner.scan { camera ->
+                    if (scanGeneration == generation && found.none { sameCamera(it, camera) }) {
+                        found = found + camera
+                    }
                 }
             }
+            // A scanner that failed is no longer discovering; the next demand starts it again.
+            if (scanned == null && scanGeneration == generation) discovering = false
         }
     }
 
@@ -747,6 +774,11 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         ) {
             return
         }
+        // A removed camera's address comes back only for that camera: another camera opened there
+        // could be the removed one (a sighting has no identity to check it against).
+        val kept = member.removedAddress
+        if (kept != null && member.address.isEmpty() && kept.first == describe(camera).id) member.address = kept.second
+        member.removedAddress = null
         member.connecting = true
         var client: StationCommission? = null
         member.camera = camera
@@ -775,7 +807,12 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                 stationNetwork, identity, experimental,
                 progress = { member.status = it },
                 verifyOnNetwork = {
-                    discoverPreview(slot, camera, identity)
+                    try {
+                        discoverPreview(slot, camera, identity)
+                    } catch (e: MultiviewStageFailure.Duplicate) {
+                        // Final: the commissioner must not join this camera again.
+                        throw StationVerifyFinal(e)
+                    }
                     true
                 },
             )
@@ -788,7 +825,8 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             discoverPreview(slot, camera, identity)
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (thrown: Exception) {
+            val e = (thrown as? StationVerifyFinal)?.reason ?: thrown
             if (!running || e is StageStopped) return
             links[slot].close()
             member.status = MultiviewCopy.COULD_NOT_CONNECT
@@ -860,6 +898,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         } finally {
             member.connecting = false
             if (running) persistStage()
+            bluetooth.pump()
         }
     }
 
@@ -923,7 +962,9 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         for (batch in hosts.chunked(probeWidth)) {
             currentCoroutineContext().ensureActive()
             if (!running) throw StageStopped()
-            val answered = coroutineScope { batch.map { host -> async { link.probe(host, network) } }.awaitAll() }
+            val answered = coroutineScope {
+                batch.map { host -> async { contained("probe") { link.probe(host, network) } == true } }.awaitAll()
+            }
             found += batch.filterIndexed { index, _ -> answered[index] }
             if (found.size >= 8) break
         }
@@ -950,7 +991,10 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                 link.close()
                 throw MultiviewStageFailure.Duplicate()
             }
-            if (!running) throw StageStopped()
+            if (!running) {
+                link.close()
+                throw StageStopped()
+            }
             if (identity == null) member.identity = proven
             member.networkVerified = true
             if (!policy.hasPreview(camera)) {
@@ -961,6 +1005,10 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                 return
             }
             link.startPreview(camera)
+            if (!running) {
+                link.close()
+                throw StageStopped()
+            }
             member.publishing = true
         } finally {
             if (addressReservations[key] == member.id) addressReservations.remove(key)
@@ -978,6 +1026,8 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         member.pathLostAtMillis = null
         member.failureMessage = null
         links[slot].close()
+        member.removedAddress = member.camera?.let { describe(it).id to member.address }
+        member.address = ""
         member.camera = null
         member.networkVerified = false
         member.experimental = false
@@ -991,6 +1041,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         member.onChange?.invoke(MultiviewMemberChange.REMOVED)
         persistStage()
         refreshDiscovery()
+        bluetooth.pump()
         return true
     }
 
@@ -1005,7 +1056,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         val link = links[slot]
         val now = clock()
         if (!applicationActive || now - foregroundAtMillis <= 3_000 || busy || member.recovering ||
-            member.budget.exhausted || !member.publishing || member.connecting || member.camera == null ||
+            member.budget.exhausted || !member.publishing || member.camera == null ||
             host?.showsPicture(slot) == false
         ) {
             return
@@ -1039,18 +1090,34 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             is MultiviewRepairStep.Repair -> {
                 member.recovering = true
                 val deadline = link.repairDeadline
-                member.repairJob = tasks.launch {
+                val job = tasks.launch(start = CoroutineStart.LAZY) {
                     try {
-                        when (val result = MultiviewRepairResult.race(deadline, tasks, step.run)) {
+                        val result = try {
+                            MultiviewRepairResult.race(deadline, tasks, step.run)
+                        } catch (e: CancellationException) {
+                            // Only the link's own step was cancelled: the next tick judges again.
+                            ensureActive()
+                            MultiviewRepairResult.Done
+                        } catch (e: Exception) {
+                            // A repair that throws fails its member, as one that gave up.
+                            host?.log("multiview: repair failed ${e.javaClass.simpleName}")
+                            MultiviewRepairResult.WaitForOperator(MultiviewCopy.COULD_NOT_RESTORE)
+                        }
+                        when (result) {
                             MultiviewRepairResult.Done -> Unit
                             MultiviewRepairResult.Rejoin -> rejoinWhenAvailable(slot)
                             is MultiviewRepairResult.WaitForOperator -> waitForOperator(member, result.message)
                         }
                     } finally {
-                        member.recovering = false
-                        member.repairJob = null
+                        // An older repair never clears a newer one's state.
+                        if (member.repairJob === coroutineContext[Job]) {
+                            member.recovering = false
+                            member.repairJob = null
+                        }
                     }
                 }
+                member.repairJob = job
+                job.start()
             }
         }
     }
@@ -1203,18 +1270,24 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         closeEditors()
         if (closing) return false
         closing = true
-        networkScanJob?.let { job ->
-            job.cancel()
-            runCatching { job.join() }
+        try {
+            networkScanJob?.let { job ->
+                job.cancel()
+                runCatching { job.join() }
+            }
+            if (running) pendingReset = MultiviewStageJournal.cleanupTargets(pendingReset, savedCameras())
+            persistStage()
+            stop()
+            // The returns finish for a cancelled caller too (Swift awaits them the same way).
+            withContext(NonCancellable) {
+                coroutineScope {
+                    for (saved in pendingReset) launch { resetStationOnce(saved) }
+                }
+            }
+        } finally {
+            persistStage()
+            closing = false
         }
-        if (running) pendingReset = MultiviewStageJournal.cleanupTargets(pendingReset, savedCameras())
-        persistStage()
-        stop()
-        coroutineScope {
-            for (saved in pendingReset) launch { resetStationOnce(saved) }
-        }
-        persistStage()
-        closing = false
         if (pendingReset.isNotEmpty()) {
             error = pendingReset.firstNotNullOfOrNull { deferredReturns[it.id] } ?: MultiviewCopy.CLOSE_CLEANUP_FAILED
             return false
@@ -1231,20 +1304,29 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         if (pendingReset.none { it.id == saved.id }) return true
         val commissioner = commissioner
         val task = tasks.async(start = CoroutineStart.LAZY) {
-            val result = commissioner?.restoreAccessPoint(
-                StationCameraRecord(saved.id, saved.name, saved.modelId, saved.deviceAddress),
-            ) ?: StationRestoreResult.Restored
-            when (result) {
-                StationRestoreResult.Restored -> {
-                    pendingReset = pendingReset.filter { it.id != saved.id }
-                    deferredReturns.remove(saved.id)
+            try {
+                // A return that is cancelled or throws stays in the journal for the next close.
+                val result = try {
+                    commissioner?.restoreAccessPoint(
+                        StationCameraRecord(saved.id, saved.name, saved.modelId, saved.deviceAddress),
+                    ) ?: StationRestoreResult.Restored
+                } catch (e: Exception) {
+                    host?.log("multiview: camera return ended ${e.javaClass.simpleName}")
+                    StationRestoreResult.Failed
                 }
-                is StationRestoreResult.Deferred -> deferredReturns[saved.id] = result.message
-                StationRestoreResult.Failed -> deferredReturns.remove(saved.id)
+                when (result) {
+                    StationRestoreResult.Restored -> {
+                        pendingReset = pendingReset.filter { it.id != saved.id }
+                        deferredReturns.remove(saved.id)
+                    }
+                    is StationRestoreResult.Deferred -> deferredReturns[saved.id] = result.message
+                    StationRestoreResult.Failed -> deferredReturns.remove(saved.id)
+                }
+                persistStage()
+                result
+            } finally {
+                stationResetTasks.remove(saved.id)
             }
-            persistStage()
-            stationResetTasks.remove(saved.id)
-            result
         }
         stationResetTasks[saved.id] = task
         return task.await() == StationRestoreResult.Restored

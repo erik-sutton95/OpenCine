@@ -69,7 +69,8 @@ public enum MultiviewRecordConfirmation {
     /// The stage's window: a reply or a matching report within 8 s.
     public static let window: Duration = .seconds(8)
 
-    /// Polls every 100 ms on `clock` until the window closes.
+    /// Polls every 100 ms on `clock` until the window closes. A cancelled caller gets
+    /// `unconfirmed` at once (Kotlin: the cancellation propagates).
     /// - Parameters:
     ///   - current: the command's link is still the member's.
     ///   - reply: the camera's reply to the command so far: true accepted, false refused.
@@ -84,7 +85,7 @@ public enum MultiviewRecordConfirmation {
         let deadline = clock.now() + window
         var accepted = false
         while clock.now() < deadline {
-            try? await clock.sleep(.milliseconds(100))
+            do { try await clock.sleep(.milliseconds(100)) } catch { return .unconfirmed }
             guard current() else { return .unconfirmed }
             if let answer = reply() {
                 if !answer { return .refused }

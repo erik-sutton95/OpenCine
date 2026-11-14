@@ -571,6 +571,7 @@ import Testing
     @Test func removeClearsTheMemberWithoutACameraCommand() async {
         let stage = Fixture()
         let (c, link, member) = await stage.liveMember()
+        let camera = member.camera!
         member.recordingBusy = true
         #expect(!c.remove(slot: 0), "not while a record command waits")
         member.recordingBusy = false
@@ -582,6 +583,10 @@ import Testing
         #expect(stage.host.changes.contains { $0.slot == 0 && $0.change == .removed })
         #expect(await link.fakeSession.wire.isEmpty, "removing never commands the camera")
         #expect(stage.journal?.cameras == [])
+        let probes = link.probes.count
+        await c.add(camera, slot: 0)
+        #expect(link.opens.last?.address == "192.168.1.12", "the same camera again: its address first")
+        #expect(link.probes.count == probes, "found there without a search")
         c.stop()
     }
 
@@ -674,6 +679,141 @@ import Testing
         #expect(!stage.links[0].probes.contains("192.168.1.12"), "another member's host, in another form")
         #expect(c.members[0].failureMessage == MultiviewCopy.notFound)
         c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func bluetoothTurnsResumeWhenAReconnectEnds() async throws {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        let b = FakeStationCamera(name: "Camera B")
+        for (slot, camera) in [FakeStationCamera(name: "Camera A"), b].enumerated() {
+            stage.links[slot].place(camera, at: "192.168.1.1\(slot + 2)")
+            await c.add(camera, slot: slot)
+        }
+        let gate = FakeGate()
+        stage.links[1].openGate = gate
+        let reconnecting = Task { await c.connectPreview(slot: 1) }
+        await until { gate.waiting == 1 }
+        var granted = false
+        stage.links[0].repairStep = { context in
+            .repair {
+                guard let release = await context.bluetoothTurn() else { return .done }
+                granted = true
+                release()
+                return .done
+            }
+        }
+        try await stage.tick(.seconds(1))
+        await until { c.members[0].recovering }
+        for _ in 0..<20 { await Task.yield() }
+        #expect(!granted, "no turn while another member connects")
+        gate.open()
+        await reconnecting.value
+        await until { granted }
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aCancelledCloseStillEnds() async {
+        let stage = Fixture()
+        let gate = FakeGate()
+        stage.commissioner.restoreGate = gate
+        let camera = FakeStationCamera(name: "Scan camera")
+        stage.coordinator.recordStationChange(camera)
+        let closing = Task { await stage.coordinator.closeStage() }
+        await until { gate.waiting == 1 }
+        closing.cancel()
+        gate.open()
+        #expect(await closing.value, "the camera's return finishes for a cancelled caller")
+        #expect(!stage.coordinator.closing)
+        #expect(stage.journal == nil)
+        #expect(await stage.coordinator.closeStage(), "the stage closes again")
+    }
+
+    @available(macOS 14, *)
+    @Test func removeForgetsTheAddressForAnotherCamera() async {
+        let stage = Fixture(commissioner: false, discoversByProbe: false)
+        await stage.configure()
+        let c = stage.coordinator
+        let a = FakeStationCamera(name: "Body A", sightedAt: "192.168.1.12")
+        let b = FakeStationCamera(name: "Body B", sightedAt: "192.168.1.13")
+        stage.links[0].place(a, at: "192.168.1.12")
+        stage.links[0].place(b, at: "192.168.1.13")
+        await c.add(a, slot: 0)
+        #expect(c.remove(slot: 0))
+        #expect(c.members[0].address == "")
+        await c.add(b, slot: 0)
+        #expect(
+            stage.links[0].opens.map(\.address) == ["192.168.1.12", "192.168.1.13"],
+            "the new camera is never opened at the removed camera's address")
+        #expect(c.members[0].identity == b.identity)
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aMemberWhosePreviewStartedDuringItsJoinIsWatched() async throws {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        let gate = FakeGate()
+        stage.commissioner.verifiesOnJoin = true
+        stage.commissioner.afterVerifyGate = gate
+        let camera = FakeStationCamera(name: "Camera A")
+        stage.links[0].place(camera, at: "192.168.1.12")
+        let adding = Task { await c.add(camera, slot: 0) }
+        await until { gate.waiting == 1 }
+        #expect(c.members[0].publishing && c.members[0].connecting)
+        try await stage.tick(.seconds(1))
+        await until { stage.links[0].keepalives >= 1 }
+        #expect(stage.links[0].repairTicks == 1, "the watchdog runs while the join finishes")
+        gate.open()
+        await adding.value
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aDuplicateFoundWhileTheCameraJoinsIsFinal() async {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        let camera = FakeStationCamera(name: "Camera A")
+        c.members[1].camera = FakeStationCamera(name: "Camera B")
+        c.members[1].identity = camera.identity  // the same body, already a member
+        stage.commissioner.lostJoinReply = true
+        stage.links[0].place(camera, at: "192.168.1.12")
+        await c.add(camera, slot: 0)
+        #expect(c.members[0].failureMessage == MultiviewCopy.duplicate)
+        #expect(stage.links[0].opens.map(\.address) == ["192.168.1.12"], "the search stops there")
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aCancelledConfirmationWaitEndsAtOnce() async {
+        let counter = SleepCounter()
+        // Every sleep throws, as a cancelled task's does; the clock moves 1 ms per reading.
+        let clock = HostClock(
+            now: { counter.tick() }, date: { Date(timeIntervalSinceReferenceDate: 0) },
+            sleep: { _ in
+                counter.sleeps += 1
+                throw CancellationError()
+            })
+        let outcome = await MultiviewRecordConfirmation.wait(
+            start: true, sentAt: .distantPast, clock: clock, current: { true }, reply: { nil },
+            report: { nil }, acknowledged: {})
+        #expect(outcome == .unconfirmed)
+        #expect(counter.sleeps == 1, "a cancelled wait ends instead of polling out the window")
+    }
+}
+
+/// A clock reading count and the sleeps asked of it.
+private final class SleepCounter: @unchecked Sendable {
+    var sleeps = 0
+    private var readings = 0
+
+    func tick() -> MonotonicInstant {
+        readings += 1
+        return MonotonicInstant(.milliseconds(readings))
     }
 }
 
