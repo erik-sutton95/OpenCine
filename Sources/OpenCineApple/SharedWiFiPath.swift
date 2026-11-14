@@ -67,23 +67,29 @@ public final class SharedWiFiPath: StationHostPath {
         return address(hotspot: false)
     }
 
-    /// This phone's Wi-Fi name, nil when iOS withholds it (no permission, the simulator) or does
-    /// not answer within three seconds.
+    /// This phone's Wi-Fi name, nil when iOS withholds it (no permission, the simulator), does not
+    /// answer within three seconds, or the caller is cancelled (as `DjiAppleWiFiJoiner.currentSSID`,
+    /// which DJI's own setups use).
     private static func currentSSID() async -> String? {
         #if targetEnvironment(simulator)
             return nil
         #else
             let once = OSAllocatedUnfairLock<CheckedContinuation<String?, Never>?>(initialState: nil)
-            return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
-                once.withLock { $0 = continuation }
-                let finish: @Sendable (String?) -> Void = { value in
-                    once.withLock { pending -> CheckedContinuation<String?, Never>? in
-                        defer { pending = nil }
-                        return pending
-                    }?.resume(returning: value)
+            let finish: @Sendable (String?) -> Void = { value in
+                once.withLock { pending -> CheckedContinuation<String?, Never>? in
+                    defer { pending = nil }
+                    return pending
+                }?.resume(returning: value)
+            }
+            return await withTaskCancellationHandler {
+                await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+                    once.withLock { $0 = continuation }
+                    guard !Task.isCancelled else { return finish(nil) }
+                    NEHotspotNetwork.fetchCurrent { network in finish(network?.ssid) }
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 3) { finish(nil) }
                 }
-                NEHotspotNetwork.fetchCurrent { network in finish(network?.ssid) }
-                DispatchQueue.global().asyncAfter(deadline: .now() + 3) { finish(nil) }
+            } onCancel: {
+                finish(nil)
             }
         #endif
     }
