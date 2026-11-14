@@ -10,8 +10,13 @@ case FakeIntegration.DialPurpose.cameraControl
 case FakeIntegration.DialPurpose.presence
 class FakeAttempt: Sendable
 class FakeCameraSession: Actor, CameraSession, Sendable
+class FakeGate: Sendable
 class FakeGyroCameraAdapter: GyroCameraAdapter, Sendable
 class FakeIntegration: CameraIntegration, Sendable
+class FakeMemberLink: MultiviewMemberLink, Sendable
+class FakeNearbyScanner: NearbyCameraScanner, Sendable
+class FakeStationCommissioner: Sendable, StationCommissioner
+class FakeStationHostPath: Sendable, StationHostPath
 class ManualHostClock: Sendable
 enum FakeAttempt.End: Equatable, Hashable, Sendable
 enum FakeCameraBehavior.RecordWire: Equatable, Hashable, Sendable
@@ -41,6 +46,8 @@ func FakeCameraSession.silenceReports(_: Swift.Bool) -> ()
 func FakeCameraSession.snapshots() -> _Concurrency.AsyncStream<OpenCineCore.CameraSnapshot>
 func FakeCameraSession.stages(of: OpenCineCore.OperationID) -> [OpenCineCore.CommandStage]
 func FakeCameraSession.submit(_: OpenCineCore.CameraCommand) -> OpenCineCore.CommandReceipt
+func FakeGate.open() -> ()
+func FakeGate.wait() async -> ()
 func FakeGyroCameraAdapter.attach(_: any OpenCineGyro.GyroCameraSink) -> ()
 func FakeGyroCameraAdapter.connect(stabilization: OpenCineGyro.GyroStabilizationState?, recording: Swift.Bool?, videoMode: Swift.Bool?, at: Swift.Double) -> ()
 func FakeGyroCameraAdapter.detach() -> ()
@@ -52,19 +59,46 @@ func FakeIntegration.discover(_: OpenCineCore.DiscoveryMode) -> _Concurrency.Asy
 func FakeIntegration.forget(_: OpenCineCore.SavedCamera) async -> ()
 func FakeIntegration.liveAttempt(for: Swift.String) -> FakeAttempt?
 func FakeIntegration.publish(_: [OpenCineCore.NearbyCamera]) -> ()
+func FakeMemberLink.close() -> ()
+func FakeMemberLink.keepalive() async -> ()
+func FakeMemberLink.open(_: FakeStationCamera, at: Swift.String, expecting: [Swift.UInt8]?, on: OpenCineCore.StationNetwork) async throws -> [Swift.UInt8]
+func FakeMemberLink.place(_: FakeStationCamera, at: Swift.String) -> ()
+func FakeMemberLink.probe(_: Swift.String, on: OpenCineCore.StationNetwork) async -> Swift.Bool
+func FakeMemberLink.repair(_: OpenCineCore.MultiviewRepairContext) -> OpenCineCore.MultiviewRepairStep
+func FakeMemberLink.startPreview(_: FakeStationCamera) async throws -> ()
+func FakeMemberLink.syncSnapshot() async -> ()
+func FakeNearbyScanner.scan(_: (FakeStationCamera) -> Swift.Void) async -> ()
+func FakeNearbyScanner.see(_: FakeStationCamera) -> ()
+func FakeNearbyScanner.stop() -> ()
+func FakeNearbyScanner.waitUntilReady() async -> Swift.Bool
 func FakePictureSource.fail() -> ()
 func FakePictureSource.start() -> ()
+func FakeStationCommissioner.closeCommissions() -> ()
+func FakeStationCommissioner.connect(_: FakeStationCamera, progress: (Swift.String) -> Swift.Void) async throws -> any OpenCineCore.StationCommission
+func FakeStationCommissioner.record(_: FakeStationCamera) -> OpenCineCore.StationCameraRecord
+func FakeStationCommissioner.restoreAccessPoint(_: OpenCineCore.StationCameraRecord) async -> OpenCineCore.StationRestoreResult
+func FakeStationCommissioner.scanNetworks(through: FakeStationCamera, beforeStationChange: () throws -> Swift.Void, onRestored: (Swift.Bool) -> Swift.Void, onFound: (Swift.String) -> Swift.Void) async throws -> ()
+func FakeStationHostPath.address(hotspot: Swift.Bool) -> Swift.String?
+func FakeStationHostPath.join(_: OpenCineCore.StationNetwork) async throws -> Swift.String?
+func FakeStationHostPath.netmask(hotspot: Swift.Bool) -> Swift.String?
 func ManualHostClock.advance(by: Swift.Duration) -> ()
 func ManualHostClock.waitForSleeps(_: Swift.Int) async throws -> ()
 init FakeCameraBehavior(integration: OpenCineCore.IntegrationID, reportDelay: Swift.Duration, observationTimeout: Swift.Duration, recordWire: FakeCameraBehavior.RecordWire, recordNeedsLiveView: Swift.Bool, modes: [Swift.UInt8 : FakeMode], timecodeOrigin: OpenCineCore.ObservationOrigin)
 init FakeCameraSession(behavior: FakeCameraBehavior, device: FakeDevice, authority: OpenCineCore.ControlAuthority)
 init FakeDevice(rawMode: Swift.UInt8, settings: [OpenCineCore.SettingValue], recording: Swift.Bool?, batteryPercent: Swift.Int?, freeBytes: Swift.UInt64?, timecode: OpenCineCore.CameraTimecode?, audioLevels: OpenCineCore.AudioLevels?)
 init FakeDevice(rawMode: Swift.UInt8, settings: [OpenCineCore.SettingValue], recording: Swift.Bool?, batteryPercent: Swift.Int?, freeBytes: Swift.UInt64?, timecodeReading: OpenCineCore.CameraTimecodeReading?, audioLevels: OpenCineCore.AudioLevels?)
+init FakeGate()
 init FakeGyroCameraAdapter(identity: OpenCineGyro.GyroCameraIdentity, providesLevel: Swift.Bool, settings: [OpenCineGyro.GyroStabilizationSetting])
 init FakeIntegration(id: OpenCineCore.IntegrationID, profiles: [OpenCineCore.CameraProfile], discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>, steps: [OpenCineCore.ConnectionStep], endpoints: [Swift.String], discoveryRunning: Swift.Bool)
+init FakeMemberLink(session: FakeCameraSession)
 init FakeMode(_: OpenCineCore.CaptureMode, _: [OpenCineCore.SettingDescriptor], unsupported: Swift.Set<OpenCineCore.SettingKey>, timecode: OpenCineCore.SupportStatus, audioLevels: OpenCineCore.SupportStatus)
 init FakeMode(_: OpenCineCore.CaptureMode, _: [OpenCineCore.SettingDescriptor], unsupported: Swift.Set<OpenCineCore.SettingKey>, timecodeCapability: OpenCineCore.TimecodeCapability, audioLevels: OpenCineCore.SupportStatus)
+init FakeMultiviewFailure(_: Swift.String)
+init FakeNearbyScanner()
 init FakePictureSource(label: Swift.String)
+init FakeStationCamera(id: Foundation.UUID, name: Swift.String, modelId: Swift.Int?, sightedAt: Swift.String?)
+init FakeStationCommissioner()
+init FakeStationHostPath(address: Swift.String?, netmask: Swift.String?, hotspotAddress: Swift.String?, hotspotNetmask: Swift.String?)
 init ManualHostClock(origin: OpenCineCore.MonotonicInstant, date: Foundation.Date)
 let FakeAttempt.id: OpenCineCore.ConnectionAttemptID
 let FakeAttempt.steps: [OpenCineCore.ConnectionStep]
@@ -77,6 +111,7 @@ let FakeIntegration.discoveryIsRunning: Swift.Bool
 let FakeIntegration.discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>
 let FakeIntegration.id: OpenCineCore.IntegrationID
 let FakeIntegration.profiles: [OpenCineCore.CameraProfile]
+let FakeMemberLink.fakeSession: FakeCameraSession
 static func FakeCameraSession.djiLike() -> FakeCameraSession
 static func FakeCameraSession.lunaLike() -> FakeCameraSession
 static func FakeCameraSession.nikonLike() -> FakeCameraSession
@@ -86,7 +121,12 @@ struct FakeCameraBehavior: Sendable
 struct FakeDevice: Sendable
 struct FakeIntegration.Dial: Equatable, Hashable, Sendable
 struct FakeMode: Sendable
+struct FakeMultiviewFailure: Equatable, Error, LocalizedError, Sendable
 struct FakePictureSource: Sendable
+struct FakeStationCamera: Equatable, Hashable, Sendable
+typealias FakeMemberLink.Camera = FakeStationCamera
+typealias FakeNearbyScanner.Camera = FakeStationCamera
+typealias FakeStationCommissioner.Camera = FakeStationCamera
 var FakeAttempt.dropped: Swift.Int
 var FakeAttempt.end: FakeAttempt.End?
 var FakeCameraBehavior.integration: OpenCineCore.IntegrationID
@@ -110,6 +150,8 @@ var FakeDevice.recording: Swift.Bool?
 var FakeDevice.settings: [OpenCineCore.SettingKey : OpenCineCore.SettingValue]
 var FakeDevice.timecode: OpenCineCore.CameraTimecode?
 var FakeDevice.timecodeReading: OpenCineCore.CameraTimecodeReading?
+var FakeGate.isOpen: Swift.Bool
+var FakeGate.waiting: Swift.Int
 var FakeGyroCameraAdapter.acceptsWrites: Swift.Bool
 var FakeGyroCameraAdapter.heldWriteCount: Swift.Int
 var FakeGyroCameraAdapter.holdsWrites: Swift.Bool
@@ -128,14 +170,63 @@ var FakeIntegration.forgotten: [OpenCineCore.SavedCamera]
 var FakeIntegration.liveDiscoveries: [OpenCineCore.DiscoveryMode]
 var FakeIntegration.onAttempt: ((FakeAttempt) -> Swift.Void)?
 var FakeIntegration.steps: [OpenCineCore.ConnectionStep]
+var FakeMemberLink.answering: [Swift.String : [Swift.UInt8]]
+var FakeMemberLink.autoLUT: OpenCineCore.MultiviewAutoLUT
+var FakeMemberLink.closes: Swift.Int
+var FakeMemberLink.keepalives: Swift.Int
+var FakeMemberLink.onStatus: ((OpenCineCore.MultiviewLinkStatus) -> Swift.Void)?
+var FakeMemberLink.openAddress: Swift.String?
+var FakeMemberLink.openGate: FakeGate?
+var FakeMemberLink.opens: [(address: Swift.String, expecting: [Swift.UInt8]?)]
+var FakeMemberLink.pictureHealth: OpenCineCore.PictureHealth
+var FakeMemberLink.probes: [Swift.String]
+var FakeMemberLink.recordReport: OpenCineCore.MultiviewRecordReport?
+var FakeMemberLink.repairDeadline: Swift.Duration
+var FakeMemberLink.repairStep: (OpenCineCore.MultiviewRepairContext) -> OpenCineCore.MultiviewRepairStep
+var FakeMemberLink.repairTicks: Swift.Int
+var FakeMemberLink.session: any OpenCineCore.CameraSession
+var FakeMemberLink.snapshot: OpenCineCore.CameraSnapshot
+var FakeMemberLink.startError: (any Swift.Error)?
+var FakeMemberLink.starts: Swift.Int
 var FakeMode.audioLevels: OpenCineCore.SupportStatus
 var FakeMode.descriptors: [OpenCineCore.SettingDescriptor]
 var FakeMode.mode: OpenCineCore.CaptureMode
 var FakeMode.timecode: OpenCineCore.SupportStatus
 var FakeMode.timecodeCapability: OpenCineCore.TimecodeCapability
 var FakeMode.unsupported: Swift.Set<OpenCineCore.SettingKey>
+var FakeMultiviewFailure.errorDescription: Swift.String?
+var FakeMultiviewFailure.message: Swift.String
+var FakeNearbyScanner.ready: Swift.Bool
+var FakeNearbyScanner.scanning: Swift.Bool
+var FakeNearbyScanner.starts: Swift.Int
+var FakeNearbyScanner.stops: Swift.Int
 var FakePictureSource.descriptor: OpenCineCore.PictureSourceDescriptor
 var FakePictureSource.health: OpenCineCore.PictureHealth
+var FakeStationCamera.id: Foundation.UUID
+var FakeStationCamera.identity: [Swift.UInt8]
+var FakeStationCamera.modelId: Swift.Int?
+var FakeStationCamera.name: Swift.String
+var FakeStationCamera.record: OpenCineCore.StationCameraRecord
+var FakeStationCamera.sightedAt: Swift.String?
+var FakeStationCommissioner.commissionsClosed: Swift.Int
+var FakeStationCommissioner.connectError: (any Swift.Error)?
+var FakeStationCommissioner.connectGate: FakeGate?
+var FakeStationCommissioner.connects: [Foundation.UUID]
+var FakeStationCommissioner.joinError: (any Swift.Error)?
+var FakeStationCommissioner.joinProgress: [Swift.String]
+var FakeStationCommissioner.joins: [(camera: Foundation.UUID, network: OpenCineCore.StationNetwork, experimental: Swift.Bool)]
+var FakeStationCommissioner.linksClosed: Swift.Int
+var FakeStationCommissioner.restoreGate: FakeGate?
+var FakeStationCommissioner.restoreResults: [Foundation.UUID : [OpenCineCore.StationRestoreResult]]
+var FakeStationCommissioner.restores: [Foundation.UUID]
+var FakeStationCommissioner.scanFound: [Swift.String]
+var FakeStationCommissioner.scans: [Foundation.UUID]
+var FakeStationCommissioner.scansNetworks: Swift.Bool
+var FakeStationCommissioner.verifiesOnJoin: Swift.Bool
+var FakeStationHostPath.addresses: [Swift.Bool : Swift.String]
+var FakeStationHostPath.joinError: (any Swift.Error)?
+var FakeStationHostPath.joins: [OpenCineCore.StationNetwork]
+var FakeStationHostPath.netmasks: [Swift.Bool : Swift.String]
 var ManualHostClock.clock: OpenCineCore.HostClock
 var ManualHostClock.date: Foundation.Date
 var ManualHostClock.elapsed: Swift.Duration

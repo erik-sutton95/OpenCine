@@ -230,7 +230,7 @@ func DJIMediaCatalogRecordSource.mediaCatalogRecord(_: OpenCineMedia.MediaAssetI
 func DJIStationCommissioner.closeCommissions() -> ()
 func DJIStationCommissioner.connect(_: DjiAppleSighting, progress: (Swift.String) -> Swift.Void) async throws -> any OpenCineCore.StationCommission
 func DJIStationCommissioner.record(_: DjiAppleSighting) -> OpenCineCore.StationCameraRecord
-func DJIStationCommissioner.restoreAccessPoint(_: OpenCineCore.StationCameraRecord) async -> Swift.Bool
+func DJIStationCommissioner.restoreAccessPoint(_: OpenCineCore.StationCameraRecord) async -> OpenCineCore.StationRestoreResult
 func DJIStationCommissioner.scanNetworks(through: DjiAppleSighting, beforeStationChange: () throws -> Swift.Void, onRestored: (Swift.Bool) -> Swift.Void, onFound: (Swift.String) -> Swift.Void) async throws -> ()
 func DjiAppleBluetoothLink.centralManager(_: CoreBluetooth.CBCentralManager, didConnect: CoreBluetooth.CBPeripheral) -> ()
 func DjiAppleBluetoothLink.centralManager(_: CoreBluetooth.CBCentralManager, didDisconnectPeripheral: CoreBluetooth.CBPeripheral, error: (any Swift.Error)?) -> ()
@@ -497,7 +497,7 @@ init DjiAppleControlEndpoint(bluetooth: DjiAppleBluetoothLink?, datalink: DjiApp
 init DjiAppleControlEndpoint(writeBLE: (OpenCineDJI.Duml.Frame) -> Swift.Void, writeDatalink: (OpenCineDJI.Duml.Frame) -> DjiAppleCommandWrite, writeAdmittedDatalink: ((OpenCineDJI.Duml.Frame, OpenCineDJI.DJICommandAdmission) -> DjiAppleCommandWrite)?)
 init DjiAppleControlExchange(endpoint: DjiAppleControlEndpoint, timing: DjiAppleExchangeTiming, context: () -> DjiAppleControlContext, event: (DjiAppleControlExchange.Event) -> Swift.Void, journal: (Swift.String) -> Swift.Void)
 init DjiAppleControlExchange.SetRequest(_: OpenCineDJI.Duml.Frame, name: Swift.String, expectation: DjiAppleControlExpectation?, retransmits: Swift.Bool, coalesce: Swift.Bool, admission: OpenCineDJI.DJICommandAdmission?)
-init DjiAppleDatalink(port: Swift.UInt16, tcpPoke: Swift.Bool, pairingToken: Swift.String, stationHost: Swift.String?, stationHotspot: Swift.Bool, subscriptionKeys: [Swift.String], host: DjiAppleTransportHost)
+init DjiAppleDatalink(port: Swift.UInt16, tcpPoke: Swift.Bool, pairingToken: Swift.String, stationHost: Swift.String?, stationHotspot: Swift.Bool, subscriptionKeys: [Swift.String], host: DjiAppleTransportHost, stationLocalAddress: ((Swift.Bool) -> Swift.String?)?)
 init DjiAppleEditorReconciliation(binding: () -> DjiAppleSettingsBinding, now: () -> Foundation.Date, whiteBalanceChanged: (OpenCineCameraVocabulary.WhiteBalance?, OpenCineCameraVocabulary.WhiteBalance?) -> Swift.Void)
 init DjiAppleExchangeTiming(now: () -> Foundation.TimeInterval, schedule: (Swift.Duration, @escaping () -> Swift.Void) -> Swift.Void)
 init DjiAppleFirstPictureFormat(binding: () -> DjiAppleSettingsBinding, facts: () -> DjiAppleFirstPictureFormat.Facts, setFormat: (OpenCineCameraVocabulary.VideoFormat) -> Swift.Void, enable: () -> Swift.Void, timing: DjiAppleTrackingTiming, event: (DjiAppleFirstPictureFormat.Event) -> Swift.Void)
