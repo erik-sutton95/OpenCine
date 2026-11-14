@@ -96,7 +96,9 @@ public final class NikonDiscovery: @unchecked Sendable {
 
     /// One discovery pass.
     /// - `priorityHosts`: saved cameras' last hosts (liveness in `.passive`, trusted probes in `.active`).
-    /// - `excludedHosts`: cameras some visible broadcast already serves; never dialled.
+    /// - `excludedHosts`: cameras some visible broadcast already serves; never dialled in `.active`
+    ///   (`.passive` dials no camera-control port and ignores it; Multiview's picker excludes member
+    ///   hosts through `multiviewSightings`).
     /// - `onPresences`: every completed presence sweep's answers (empty is a verdict too).
     public func discover(
         _ mode: DiscoveryMode, guid: Data, priorityHosts: [String] = [],
@@ -181,7 +183,8 @@ public final class NikonDiscovery: @unchecked Sendable {
     /// dial and no PTP byte. A host in `excludedHosts` (held by a Multiview member or this app's own
     /// Live View) is neither dialled for liveness nor listed. Cameras another device holds are listed
     /// as `.heldByAnotherDevice`, never to be picked. Only the body the operator picks is opened,
-    /// through `NikonMemberOpener`; a row has no serial until then.
+    /// through `NikonMemberOpener`; a row has no serial until then. A saved host is listed only when
+    /// its liveness dial answers: the picker merges in saved setups that do not.
     public func multiviewSightings(
         savedHosts: [String], excludedHosts: Set<String>, browsesUSB: Bool = true
     ) async -> [DiscoveredCamera] {

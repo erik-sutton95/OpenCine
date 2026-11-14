@@ -267,7 +267,8 @@ class NikonDiscovery(
      * camera-control dial at all. A host in [excludedHosts] (held by a Multiview member or this
      * app's own Live View) is neither dialled for liveness nor listed. Cameras another device holds
      * are listed, not pickable. Only the body the operator picks is opened, through
-     * [NikonMemberOpener].
+     * [NikonMemberOpener]. A saved host is listed only when its liveness dial answers: the picker
+     * merges in saved setups that do not.
      */
     suspend fun multiviewSightings(
         listened: List<NikonSighting>,

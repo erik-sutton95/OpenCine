@@ -82,16 +82,20 @@ class NikonDiscoveryTest {
     fun multiviewSightingsNeverDialsTheControlPortOrAnExcludedHost() = runTest {
         val dialer = FakeDialer().apply {
             presences = mapOf("192.168.1.7" to NikonPresence("Phone B", "192.168.1.20"))
-            alive = setOf("192.168.1.20", "192.168.1.30", "192.168.1.31")
-            open = setOf("192.168.1.20", "192.168.1.30", "192.168.1.31")
+            alive = setOf("192.168.1.20", "192.168.1.30", "192.168.1.31", "192.168.1.32")
+            open = setOf("192.168.1.20", "192.168.1.30", "192.168.1.31", "192.168.1.32")
         }
+        // Member .31 is only a saved host (no NSD row, as on networks that drop mDNS), so only the
+        // exclusion keeps it from a liveness dial; member .32 is listed by NSD.
         val listened = listOf(
             NikonSighting("192.168.1.10", "Z_8", NikonSighting.Source.NETWORK),
             NikonSighting("usb:1", "Z_6", NikonSighting.Source.USB),
-            NikonSighting("192.168.1.31", "Z_r", NikonSighting.Source.NETWORK),
+            NikonSighting("192.168.1.32", "Z_r", NikonSighting.Source.NETWORK),
         )
         val sightings = discovery(dialer).multiviewSightings(
-            listened, savedHosts = listOf("192.168.1.20", "192.168.1.30", "192.168.1.31"), excludedHosts = setOf(" 192.168.1.31"),
+            listened,
+            savedHosts = listOf("192.168.1.20", "192.168.1.30", "192.168.1.31"),
+            excludedHosts = setOf(" 192.168.1.31", "192.168.1.32"),
         )
 
         assertTrue(dialer.controlDials.isEmpty())

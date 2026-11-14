@@ -109,12 +109,15 @@ struct FakeSources: NikonDiscoverySources {
     @Test func multiviewSightingsNeverDialsTheControlPortOrAnExcludedHost() async {
         let dialer = FakeDialer()
         dialer.presences = ["192.168.1.7": NikonPresence(deviceName: "Phone B", servedCamera: "192.168.1.20")]
-        dialer.alive = ["192.168.1.20", "192.168.1.30", "192.168.1.31"]
-        dialer.openControlPorts = ["192.168.1.20", "192.168.1.30", "192.168.1.31"]
-        dialer.cameras = ["192.168.1.20": "Z_9", "192.168.1.30": "Z_f", "192.168.1.31": "Z_r"]
-        let member = DiscoveredCamera(ip: "192.168.1.31", name: "Z_r", source: .bonjour)
+        dialer.alive = ["192.168.1.20", "192.168.1.30", "192.168.1.31", "192.168.1.32"]
+        dialer.openControlPorts = ["192.168.1.20", "192.168.1.30", "192.168.1.31", "192.168.1.32"]
+        dialer.cameras = ["192.168.1.20": "Z_9", "192.168.1.30": "Z_f", "192.168.1.31": "Z_r", "192.168.1.32": "Z_8"]
+        // Member .31 is only a saved host (no Bonjour row, as on networks that drop mDNS), so only
+        // the exclusion keeps it from a liveness dial; member .32 is listed by Bonjour.
+        let member = DiscoveredCamera(ip: "192.168.1.32", name: "Z_8", source: .bonjour)
         let sightings = await discovery(dialer, bonjour: [bonjour, member]).multiviewSightings(
-            savedHosts: ["192.168.1.20", "192.168.1.30", "192.168.1.31"], excludedHosts: [" 192.168.1.31"])
+            savedHosts: ["192.168.1.20", "192.168.1.30", "192.168.1.31"],
+            excludedHosts: [" 192.168.1.31", "192.168.1.32"])
 
         #expect(dialer.controlDials.isEmpty && dialer.ptpInits == 0)
         #expect(
