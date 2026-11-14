@@ -191,10 +191,13 @@ a Nano's Wi-Fi, `identity()` reads `07/07` (Android adds one Wi-Fi wake when the
 `restoreCameraWiFiWithRetry` (three attempts across a deferred `00 06` pairing reply; Swift
 returns false on cancellation, Kotlin propagates it), and `scanNetworks` lists `07/AC` reports
 and always returns the camera to its own access point. `MultiviewFailure` and
-`MultiviewPairing.acceptsReply` (Kotlin `acceptsMultiviewPairingReply`) are the shared copy and
-reply rule; `MultiviewExitTests` / `MultiviewExitTest` are twins. `DjiAppleNetworkDiscovery` and
-`MultiviewDiscovery` expose `probe` for a member link. The DJI member link itself is Pocket's
-(its tiles), per the shared Multiview spec.
+`MultiviewPairing.acceptsReply` are the shared copy and reply rule on both platforms;
+`MultiviewExitTests` / `MultiviewExitTest` are twins. Which bodies may join a stage and show a
+picture is `MultiviewCameraPolicy.dji` (an extension on Core's policy, both platforms), so the
+commissioner keeps only commissioning. `DjiAppleNetworkDiscovery.probe(_:localAddress:)` and
+`MultiviewDiscovery.probe(host, localAddress)` dial from the address the caller's host path gives.
+The DJI member link itself is Pocket's (its tiles), per the shared Multiview spec. Kotlin
+`DjiStationCommissioner` is called from one thread (its open-link record is not synchronized).
 
 ## Integration contract (SHELL-02)
 

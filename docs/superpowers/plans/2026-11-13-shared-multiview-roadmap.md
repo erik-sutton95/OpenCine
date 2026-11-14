@@ -39,22 +39,46 @@ Plan 1 landed on `feat/shared-multiview-1` (OpenCine and OpenPocketCine). For th
 - Before merging Pocket: the on-device upgrade checklist (iPhone and Android installed over the
   current build with saved stage, networks and a pending cleanup).
 
-## Carried from Plan 2 (2026-11-13)
+## Carried from Plan 2 (2026-11-13, seam fixes 2026-11-14)
 
 Plan 2 landed on `feat/shared-multiview-2` (OpenCine and OpenPocketCine), stacked on Plan 1. The
-Plan 1 carry-overs for the locked page and `SharedNetworkStore` are done there. For Plan 3:
+Plan 1 carry-overs for the locked page and `SharedNetworkStore` are done there. An independent
+review's seam fixes landed on the same branches before Plan 3 builds on them: camera policy off
+the commissioner (`MultiviewCameraPolicy`, with `discoversByProbe`); `open` takes an optional
+expected identity and returns the proven one (the coordinator refuses a duplicate); `probe`/`open`
+receive the `StationNetwork`; the repair seam carries `beginAttempt`, `bluetoothTurn`,
+`waitForOperator` and a link-declared `repairDeadline` raced by `MultiviewRepairResult.race`; the
+link reports `MultiviewLinkStatus` and `isPublishing` and never writes tile state. For Plan 3:
 
 - Fakes of `StationCommissioner`, `StationHostPath` and `MultiviewMemberLink` in
   `OpenCineCoreTestSupport` and the Kotlin `core` test fixtures, written with the coordinator's
   first tests.
-- Discovery through `MultiviewMemberLink.probe` (Pocket still runs DJI's batched discovery; both
-  DJI probes exist but are not called yet).
+- Discovery through `MultiviewMemberLink.probe`, only when the policy `discoversByProbe` (Pocket
+  still runs DJI's batched discovery; both DJI probes exist, take the caller's local address, and
+  are not called yet).
+- The coordinator takes over what Pocket's session does for the seams today: the status-to-copy
+  mapping (`MultiviewSession.show`), the control host set on `controlling`, the duplicate-identity
+  refusal after `open`, the race of each repair, `waitForOperator`, and a real Bluetooth queue
+  behind `bluetoothTurn` (Pocket only waits for its adds and network scan; DJI's link never asks).
+  `beginAttempt` maps to Pocket's DJI rejoin budget today; the coordinator maps it to
+  `RecoveryBudget`.
+- Whether a link's `close()` ends `isPublishing`: Pocket's session still clears `publishing` itself
+  after closing a tile (keeps a foreground decoder check during a rejoin exactly as today).
+- `restoreAccessPoint` returns a Bool; Luna's return distinguishes deferred from failed with
+  operator copy. Decide with Plan 5 whether the cleanup prompt needs a result type.
 - Swift `SharedWiFiPath` (`OpenCineApple`) and `DjiAppleSharedWiFiPath` (`OpenCineDJIApple`) are
-  near copies, because `OpenCineDJIApple` may not import `OpenCineApple`. Fold the DJI one into
-  the host path the commissioner already receives.
+  near copies, because `OpenCineDJIApple` may not import `OpenCineApple`. Their behavior now
+  matches (the SSID read returns nil on cancellation in both). Fold the DJI one into the host path
+  the commissioner already receives.
 - `MultiviewAutoLUT` carries the color mode and conversion as names, because Core cannot see the
   camera vocabulary; revisit when the coordinator owns the LUT strip.
 - Kotlin `DjiStationCommissioner` has no injectable retry wait (a suspend-lambda default in its
   constructor crashed the Kotlin IR backend); Pocket's test hook keeps its own retry.
+- Kotlin `SharedWiFiPath.address(hotspot = this.hotspot)` became two overloads, so
+  `address$default` left the ABI: source compatible, but an app on a prebuilt AAR relinks.
+- Pocket Android has no unit test for the link status mapping (its `MultiviewSession` needs a
+  `Context`); the coordinator's shared tests cover it on both platforms.
 - The iOS/Android differences the seams keep as they are: Android's early identity read and
-  Wi-Fi wake retry, foreground-only repair on iOS, probe width.
+  Wi-Fi wake retry, foreground-only repair on iOS, probe width. Deliberate twin differences:
+  `StationCameraRecord.id` (`UUID` / `String`) and restore cancellation (Swift false, Kotlin
+  propagates), recorded in `docs/core/README.md`.
