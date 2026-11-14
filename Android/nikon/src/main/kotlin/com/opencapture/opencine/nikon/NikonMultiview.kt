@@ -3,7 +3,9 @@ package com.opencapture.opencine.nikon
 import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.media.MonitorTransfer
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -188,10 +190,16 @@ public class NikonMemberOpener<L : Any>(
         return NikonMemberOpenResult.Opened(link, device)
     }
 
-    /** Closes a link this opener handed out (or any link to [host]) and starts the host's settle. */
+    /**
+     * Closes a link this opener handed out (or any link to [host]) and starts the host's settle. The
+     * close runs to the end even if the caller is cancelled: a half-closed session holds the PTP slot.
+     */
     public suspend fun close(link: L, host: String) {
-        closeLink(link)
-        markReleased(hostKey(host))
+        try {
+            withContext(NonCancellable) { closeLink(link) }
+        } finally {
+            markReleased(hostKey(host))
+        }
     }
 
     private fun markReleased(key: String) {

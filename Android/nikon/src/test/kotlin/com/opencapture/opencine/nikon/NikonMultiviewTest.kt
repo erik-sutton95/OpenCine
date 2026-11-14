@@ -5,6 +5,7 @@ import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.media.MonitorTransfer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -215,6 +216,25 @@ class NikonMultiviewTest {
         // Once that open is over, the host is free to open again.
         opener.open("192.168.1.30", members = setOf(device), hostsInUse = emptySet())
         assertEquals(listOf("192.168.1.30", "192.168.1.30"), network.connects)
+    }
+
+    /**
+     * Closing a refused body finishes even when the picker goes away mid-close: a half-closed
+     * session would hold the PTP slot, and the next open must still wait the settle.
+     */
+    @Test
+    fun refusalCloseCompletesWhenTheOpenIsCancelled() = runTest {
+        val network = Network().apply { serials["192.168.1.30"] = serial }
+        val gate = Gate()
+        val opener = opener(network, closeGate = gate)
+        val open = launch { opener.open("192.168.1.30", members = setOf(device), hostsInUse = emptySet()) }
+        gate.arrived.await()
+        open.cancel()
+        gate.open()
+        open.join()
+        assertEquals(listOf("192.168.1.30"), network.closed)
+        opener.open("192.168.1.30", members = emptySet(), hostsInUse = emptySet())
+        assertEquals(listOf(NikonMemberTiming.RECONNECT_SETTLE), network.sleeps)
     }
 
     // Auto LUT source (Android's Swift session already polls the tone properties)

@@ -251,6 +251,23 @@ import Testing
         #expect(network.connects == ["192.168.1.30", "192.168.1.30"])
     }
 
+    /// Closing a refused body finishes even when the picker goes away mid-close: a half-closed
+    /// session would hold the PTP slot, and the next open must still wait the settle.
+    @Test func refusalCloseCompletesWhenTheOpenIsCancelled() async throws {
+        let network = Network()
+        network.serials = ["192.168.1.30": Self.serial]
+        let gate = Gate()
+        let opener = opener(network, closeGate: gate)
+        let open = Task { try await opener.open(host: "192.168.1.30", members: [Self.device], hostsInUse: []) }
+        await gate.arrival()
+        open.cancel()
+        gate.open()
+        _ = try? await open.value
+        #expect(network.closed == ["192.168.1.30"])
+        _ = try await opener.open(host: "192.168.1.30", members: [], hostsInUse: [])
+        #expect(network.sleeps == [NikonMemberTiming.reconnectSettle])
+    }
+
     // MARK: Auto LUT source
 
     /// Packed `MovFileType` values (`0x00_CC_DD_KK`, little-endian on the wire).
