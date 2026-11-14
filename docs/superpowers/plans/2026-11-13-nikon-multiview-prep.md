@@ -88,7 +88,7 @@ public final class NikonMemberOpener<Link: Sendable>: @unchecked Sendable {
 }
 ```
 
-Kotlin: `class NikonMemberOpener<L : Any>`, `object NikonMemberTiming` (`RECONNECT_SETTLE_MILLIS = 1_200`, `REOPEN_SPACING_MILLIS = 5_000`), `sealed interface NikonMemberOpenResult<out L>`.
+Kotlin: `class NikonMemberOpener<L : Any>`, `object NikonMemberTiming` (`RECONNECT_SETTLE: Duration = 1_200.milliseconds`, `REOPEN_SPACING: Duration = 5.seconds`; drifted from the planned `*_MILLIS` longs during execution), `sealed interface NikonMemberOpenResult<out L>`.
 
 - [ ] Failing tests (Swift `NikonMultiviewTests`, Kotlin `NikonMultiviewTest`): `openReturnsTheBodyAndItsSerialDevice`, `openRefusesAHostInUseWithoutDialling`, `openClosesAndRefusesABodyAlreadyInTheGroup`, `openClosesAndRefusesADifferentBody`, `openClosesAndRefusesABodyWithoutASerial`, `openWaitsTheReconnectSettleAfterAClose`.
 - [ ] Implement; a failed connect also starts the settle for that host.
@@ -127,6 +127,20 @@ Ladder: a stall on a live link restarts live view in place once per episode; a s
 - [ ] `python3 atlas/tools/atlas.py api --write --build` (derived data on OCScratch), `cd Android && ./gradlew updateKotlinAbi updateAndroidApi`.
 - [ ] Gates: `swift build --build-tests -Xswiftc -strict-concurrency=complete`, `swift test --filter Nikon`, `./gradlew :nikon:test :nikon-wire:test :nikon:lint`, `atlas check`.
 - [ ] Commit `docs(nikon): multiview prep` and `chore(api): nikon multiview snapshots`.
+
+## Review fixes (2026-11-14)
+
+The independent review of PR #348 found the opener and the ladder short of their own contract. Fixed, test first, Swift and Kotlin together:
+
+- I1: `NikonMemberOpener.reopen(_ member:, host:, members:, hostsInUse:)` names the member a repair reopens; the member's own host and serial no longer refuse it. Test `reopenOpensTheMembersOwnHostAndChecksItsSerial`.
+- I2: the opener takes `currentHolder` and refuses `heldByAnotherDevice` (result `heldBy`) without dialling. Test `openRefusesABodyAnotherDeviceHoldsWithoutDialling`.
+- I3: a host whose open is in flight is refused `hostInUse`. Test `openRefusesAHostWhileAnOpenOfItIsInFlight`.
+- I4: `multiviewSightingsNeverDialsTheControlPortOrAnExcludedHost` now excludes a saved-only member, so removing the exclusion fails it (checked with a temporary mutant on both platforms).
+- I5: Kotlin closes a refused body under `NonCancellable` and starts the settle in `finally`. Test `refusalCloseCompletesWhenTheOpenIsCancelled`.
+- I6: `NikonMemberRepair(attemptDeadline:)` (default `NikonSessionRecovery.attemptDeadline`, 30 s) fails a step that never reports back. Test `repairFailsAnAttemptThatOutlivesItsDeadline`.
+- M1 (Swift): a write the member control sends updates `recordingTone` from its readback. Test `recordingToneFollowsAWriteTheControlSends`.
+- Documented: M2, M4, M5, M6 (Swift repair is a value), M7, M8, M9, M11. M10: constant pins dropped from the tests.
+- Not changed: M3 (a frame after a stall-made loss is real proof the link works; telling a stale frame of a dead link from it needs the link identity the coordinator holds, so Plan 6 filters frames by link). M1's larger form (deriving the tone from `reported`) needs the raw `MovFileType` in the snapshot, which keeps only the decoded label; a read the app applies through `update(_:)` still bypasses `recordingTone`. M12: no consumer run; the active-discovery change only excludes more hosts and no app uses the new API.
 
 ## Left for Plan 6
 
