@@ -259,6 +259,9 @@ class LunaIntegration(
             )
         }
 
+        /** A camera id as the backend reaches it: the peripheral's Bluetooth address. */
+        private val BLUETOOTH_ADDRESS = Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+
         /** Backend phases past authorization: the camera is about to be asked onto the network, or is reached there. */
         private val MOVING_PHASES = setOf(ConnectionPhase.JOINING_WIFI, ConnectionPhase.OPENING_DATALINK, ConnectionPhase.LIVE)
     }
@@ -448,6 +451,8 @@ class LunaIntegration(
      * returns. Throws only cancellation. Hardware-untested.
      */
     suspend fun returnToAccessPoint(camera: SavedCamera): LunaAccessPointReturn {
+        // A record whose id is no Bluetooth address is no Luna this backend can reach (Swift: no UUID).
+        if (!BLUETOOTH_ADDRESS.matches(camera.id)) return LunaAccessPointReturn.Failed(LunaAccessPointReturn.unsupported)
         port.disconnect()
         return port.returnToAccessPoint(camera.id)
     }

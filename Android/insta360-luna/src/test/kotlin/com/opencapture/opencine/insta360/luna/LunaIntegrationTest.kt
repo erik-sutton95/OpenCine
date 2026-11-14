@@ -632,6 +632,9 @@ class LunaIntegrationTest {
         runCurrent()
         assertTrue(port.returns == listOf(camera) && port.disconnects >= 1)
         assertTrue(events.none { it is ConnectionEvent.Connected }, "the ended attempt must not connect")
+        val unknown = SavedCamera(id = "6F9619FF-8B86-D011-B42D-00C04FC964FF", integration = luna.id, advertisedName = "", model = "")
+        assertTrue(!luna.returnToAccessPoint(unknown).isRetryable)
+        assertEquals(listOf(camera), port.returns, "a record that is no Luna camera id never reaches the backend")
     }
 
     @Test
