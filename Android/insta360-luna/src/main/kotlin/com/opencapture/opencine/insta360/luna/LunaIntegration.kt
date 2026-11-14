@@ -417,10 +417,10 @@ class LunaIntegration(
         val ender = launch {
             job?.join()
             val camera = (target as? ConnectTarget.Saved)?.camera ?: (target as? ConnectTarget.AddRoute)?.camera
+            // A failure saves nothing: the record is saved only once the camera starts to move (the
+            // watcher's moving phase), as Swift does. The network check and the credential read fail
+            // on the network step too, before the camera moves.
             val failure = port.failureDetail.value ?: LunaFailures.connect(port.phase.value)
-            // The phase flow keeps only its latest value: a failure on the network step still saves
-            // the record of a camera that may have moved.
-            if (job != null && !job.isCancelled && failure.phase == CorePhase.JOINING_NETWORK) savedOnMove()
             outcome.complete(
                 if (job == null || job.isCancelled) null else ConnectionEvent.Failed(
                     StationRoutes.withRouteActions(failure, usedRoute, camera),

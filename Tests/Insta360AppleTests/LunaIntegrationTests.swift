@@ -302,6 +302,19 @@ import Testing
         for await case .failed(let failed) in events { failure = failed }
         #expect(failure?.reason == .heldElsewhere)
         #expect(stamped.isEmpty, "no record for a camera that never moved")
+
+        // A network the camera cannot use fails on the network step, before Bluetooth starts.
+        let unusable = LunaStationNetwork(ssid: "Studio", password: "short", hotspot: false)
+        var checked: ConnectionFailure?
+        do { try LunaStationJoin.check(unusable) } catch let refused as ConnectionFailure { checked = refused }
+        let refused = try #require(checked)
+        let again = luna.connect(sighting(), onto: unusable)
+        #expect(await eventually { port.connects.count == 2 })
+        port.finishConnect(throwing: refused)
+        var code: String?
+        for await case .failed(let failed) in again { code = failed.code }
+        #expect(code == refused.code)
+        #expect(stamped.isEmpty, "no record for a camera the network step never moved")
     }
 
     /// A sighting that is already a saved camera goes onto the network as an added setup on its

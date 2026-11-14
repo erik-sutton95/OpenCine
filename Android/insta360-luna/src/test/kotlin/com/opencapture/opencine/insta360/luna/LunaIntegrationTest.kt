@@ -37,6 +37,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -533,6 +534,16 @@ class LunaIntegrationTest {
         runCurrent()
         assertEquals(ConnectionFailure.Reason.NotApproved, assertIs<ConnectionEvent.Failed>(events.last()).failure.reason)
         assertTrue(stamped.isEmpty(), "no record for a camera that never moved")
+
+        // A network the camera cannot use fails on the network step, before Bluetooth starts.
+        val unusable = LunaStationNetwork("Studio", "short", hotspot = false)
+        val refused = assertFailsWith<LunaStationFailure> { LunaStationJoin.check(unusable) }.failure
+        val again = collect(luna.connect(sighting, onto = unusable))
+        runCurrent()
+        port.fail(refused)
+        runCurrent()
+        assertEquals(refused.code, assertIs<ConnectionEvent.Failed>(again.last()).failure.code)
+        assertTrue(stamped.isEmpty(), "no record for a camera the network step never moved")
     }
 
     /**

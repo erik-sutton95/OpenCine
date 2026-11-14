@@ -170,7 +170,7 @@ camera**.
   the camera's own Wi-Fi and the setup, the setup preferred. A sighting that is not yet saved gets
   a record made from it, which `saveRecord` stores only once the camera starts to move (the
   backend reaches the network step), so an attempt that fails before then (not reachable, not
-  approved) leaves no saved camera. A sighting that is already saved (`savedID`) needs its record
+  approved, a network name or password the camera cannot use) leaves no saved camera. A sighting that is already saved (`savedID`) needs its record
   as `saved`: the setup is added to it, so its camera Wi-Fi, its other setups and its serial stay
   (a Wi-Fi setup replaces its earlier Wi-Fi setup, a hotspot its hotspot, as Add setup does);
   without it the target is nil and `connect` fails at once, since a record made from the sighting
