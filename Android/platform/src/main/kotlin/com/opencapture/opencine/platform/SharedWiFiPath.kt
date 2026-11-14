@@ -10,6 +10,8 @@ import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Handler
 import android.os.Looper
+import com.opencapture.opencine.core.StationHostPath
+import com.opencapture.opencine.core.StationNetwork
 import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -24,13 +26,14 @@ import kotlin.coroutines.resume
  * it; `com.opencapture.opencine.dji.SharedWiFi` keeps its API on top). iOS `SharedWiFiPath` plus the host join that
  * `NEHotspotConfiguration` performs there. Local Wi-Fi sockets are bound to the
  * Wi-Fi [Network]; Android otherwise routes LAN traffic over cellular when the
- * Wi-Fi has no internet. The phone's own hotspot uses its tethering interface.
+ * Wi-Fi has no internet. The phone's own hotspot uses its tethering interface. Core's
+ * [StationHostPath] for the Multiview coordinator and the integrations' station setups.
  */
 open class SharedWiFiPath(
     context: Context,
     /** Diagnostics: `(level, code, message)`; never a password. */
     private val log: (String, String, String) -> Unit = { _, _, _ -> },
-) {
+) : StationHostPath {
     private val app = context.applicationContext
     private val connectivity = app.getSystemService(ConnectivityManager::class.java)
     private val wifi = app.getSystemService(WifiManager::class.java)
@@ -49,9 +52,26 @@ open class SharedWiFiPath(
         return name.takeIf { it.isNotEmpty() && it != "<unknown ssid>" }
     }
 
-    fun address(hotspot: Boolean = this.hotspot): String? = ipv4(hotspot)?.first
+    override fun address(hotspot: Boolean): String? = ipv4(hotspot)?.first
 
-    fun netmask(hotspot: Boolean = this.hotspot): String? = ipv4(hotspot)?.second?.let(::mask)
+    /** [address] on the path's current kind ([hotspot]). */
+    fun address(): String? = address(hotspot)
+
+    override fun netmask(hotspot: Boolean): String? = ipv4(hotspot)?.second?.let(::mask)
+
+    /** [netmask] on the path's current kind ([hotspot]). */
+    fun netmask(): String? = netmask(hotspot)
+
+    /**
+     * [StationHostPath.join]: a hotspot is this phone's own, so its current address is returned
+     * without joining; a router's Wi-Fi is joined with [join] and this phone's address there
+     * returned, null when it did not join.
+     */
+    override suspend fun join(network: StationNetwork): String? {
+        if (network.hotspot) return address(true)
+        if (!join(network.ssid, network.password)) return null
+        return address(false)
+    }
 
     /** Local Wi-Fi only; the hosting phone never joins its own hotspot. */
     suspend fun join(ssid: String, password: String): Boolean {

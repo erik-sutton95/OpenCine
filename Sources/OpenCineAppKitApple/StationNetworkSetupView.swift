@@ -2,6 +2,7 @@
     import MonitorUI
     import OpenCineAppKit
     import OpenCineApple
+    import OpenCineCore
     import SwiftUI
     import UIKit
 
@@ -62,6 +63,9 @@
         /// The network cameras are using. When set, the view shows only the read-only Shared Wi-Fi
         /// page and never scans.
         var lockedNetwork: StationNetwork?
+        /// The locked page's Done: the network stays confirmed (never `close`, which may cancel).
+        /// Kotlin: the wizard's `complete`.
+        var complete: () -> Void
         @State var path: [Page] = []
 
         public init(
@@ -70,7 +74,8 @@
             scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?,
             cameraScansNetworks: Bool = true,
             save: @escaping @MainActor (StationNetwork) async -> Bool, errorMessage: String? = nil,
-            close: @escaping () -> Void, path: [Page] = [], lockedNetwork: StationNetwork? = nil
+            close: @escaping () -> Void, path: [Page] = [], lockedNetwork: StationNetwork? = nil,
+            complete: @escaping () -> Void
         ) {
             self.context = context
             self.brand = brand
@@ -82,6 +87,7 @@
             self.errorMessage = errorMessage
             self.close = close
             self.lockedNetwork = lockedNetwork
+            self.complete = complete
             _path = State(initialValue: path)
         }
 
@@ -130,7 +136,6 @@
             var ssid: String { network.ssid }
             var message: String { "Cameras are using this network. Remove them before changing it." }
             var allowsScan: Bool { false }
-            func done(close: () -> Void) { close() }
         }
 
         public var body: some View {
@@ -156,7 +161,7 @@
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { page.done(close: close) }
+                        Button("Done") { complete() }
                     }
                 }
             }
@@ -164,7 +169,10 @@
             .foregroundStyle(MonitorTheme.text)
             .tint(MonitorTheme.accent)
             .preferredColorScheme(.dark)
-            .accessibilityIdentifier("multiview.networkSetup")
+            // A container of its own, so the sheet carries the wizard context's name while its
+            // rows stay separately reachable.
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(context.identifier)
         }
 
         private var wizard: some View {

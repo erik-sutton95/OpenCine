@@ -110,6 +110,7 @@ class MonitorVideoBackdropRenderer: Sendable
 class MonitorVideoPictureContainer: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorWebDownloadView: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorWorkingRaster: Sendable
+class SharedWiFiPath: Sendable, StationHostPath
 class StationWiFiNameAccess: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class UVCVideoSource: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class VideoToolboxDecoder: Sendable
@@ -367,9 +368,12 @@ func MonitorWorkingRaster.reset() -> ()
 func SharedNetworkStorage.delete(account: Swift.String) -> ()
 func SharedNetworkStorage.read(account: Swift.String) -> Foundation.Data?
 func SharedNetworkStorage.write(_: Foundation.Data, account: Swift.String) -> ()
-func SharedNetworkStore.load(ssid: Swift.String, hotspot: Swift.Bool) -> SharedNetwork?
+func SharedNetworkStore.load(ssid: Swift.String, hotspot: Swift.Bool) -> SharedNetworkStore.Network?
 func SharedNetworkStore.save(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool) -> ()
-func SharedNetworkStore.savedNetworks() -> [SharedNetwork]
+func SharedNetworkStore.savedNetworks() -> [SharedNetworkStore.Network]
+func SharedWiFiPath.address(hotspot: Swift.Bool) -> Swift.String?
+func SharedWiFiPath.join(_: OpenCineCore.StationNetwork) async throws -> Swift.String?
+func SharedWiFiPath.netmask(hotspot: Swift.Bool) -> Swift.String?
 func StationWiFiNameAccess.locationManagerDidChangeAuthorization(_: CoreLocation.CLLocationManager) -> ()
 func StationWiFiNameAccess.request() async -> ()
 func UVCVideoSource.captureOutput(_: AVFoundation.AVCaptureOutput, didOutput: CoreMedia.CMSampleBuffer, from: AVFoundation.AVCaptureConnection) -> ()
@@ -469,8 +473,10 @@ init MonitorWebDownloadView(configuration: MonitorWebDownloadView.Configuration,
 init MonitorWebDownloadView.Configuration(pageURL: Swift.String, archiveFileName: Swift.String, isAllowedDownload: (Swift.String) -> Swift.Bool, loadingScript: Swift.String?, helperScript: Swift.String?, backgroundColor: UIKit.UIColor)
 init MonitorWorkingRaster()
 init MonitorZebraSpec(highlightEnabled: Swift.Bool, highlightIRE: Swift.Double, highlightColor: MonitorRGB, midtoneEnabled: Swift.Bool, midtoneIRE: Swift.Double, midtoneColor: MonitorRGB)
-init SharedNetwork(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool?)
 init SharedNetworkStore(storage: any SharedNetworkStorage)
+init SharedNetworkStore.Network(from: any Swift.Decoder) throws
+init SharedNetworkStore.Network(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool)
+init SharedWiFiPath()
 init UVCVideoSource(stream: OpenCineCore.StreamID, queueLabel: Swift.String, logSubsystem: Swift.String, onStateChange: (UVCVideoSourceState) -> Swift.Void)
 init VideoToolboxDecoder(stream: OpenCineCore.StreamID, hooks: VideoToolboxDecoder.Hooks)
 init VideoToolboxDecoder.Hooks(shouldRebuildSession: (Darwin.OSStatus) -> Swift.Bool, journal: (Swift.String) -> Swift.Void, logSubsystem: Swift.String)
@@ -640,6 +646,7 @@ static func MonitorUpscalerPreference.storedChoice(_: Swift.String) -> MonitorUp
 static func MonitorVideoBackdropSource.==(_: MonitorVideoBackdropSource, _: MonitorVideoBackdropSource) -> Swift.Bool
 static func MonitorWorkingRaster.targetSize(width: Swift.Int, height: Swift.Int, maxWidth: Swift.Int) -> (width: Swift.Int, height: Swift.Int)
 static func ReviewClip.write(to: Foundation.URL) throws -> ()
+static func SharedWiFiPath.validAddress(_: Swift.String) -> Swift.Bool
 static func StationConfiguredNetworks.ssids() -> [Swift.String]
 static func StationNetworkSecurity.currentNetwork(named: Swift.String) -> Swift.Bool?
 static func UVCVideoSource.isBroadcastShaped(_: CoreMedia.CMVideoDimensions) -> Swift.Bool
@@ -731,7 +738,7 @@ struct MonitorVideoHealth: Equatable, Sendable
 struct MonitorVideoSourceToken: Equatable, Sendable
 struct MonitorWebDownloadView.Configuration
 struct MonitorZebraSpec: Equatable, Sendable
-struct SharedNetwork: Decodable, Encodable, Equatable, Hashable, Sendable
+struct SharedNetworkStore.Network: Decodable, Encodable, Equatable, Hashable, Sendable
 struct SharedNetworkStore: Sendable
 struct VideoToolboxDecoder.Hooks: Sendable
 typealias MonitorHostClock = OpenCineCore.HostClock
@@ -1047,9 +1054,9 @@ var MonitorZebraSpec.highlightIRE: Swift.Double
 var MonitorZebraSpec.midtoneColor: MonitorRGB
 var MonitorZebraSpec.midtoneEnabled: Swift.Bool
 var MonitorZebraSpec.midtoneIRE: Swift.Double
-var SharedNetwork.hotspot: Swift.Bool?
-var SharedNetwork.password: Swift.String
-var SharedNetwork.ssid: Swift.String
+var SharedNetworkStore.Network.hotspot: Swift.Bool
+var SharedNetworkStore.Network.password: Swift.String
+var SharedNetworkStore.Network.ssid: Swift.String
 var StationWiFiNameAccess.approximateOnly: Swift.Bool
 var StationWiFiNameAccess.denied: Swift.Bool
 var StationWiFiNameAccess.undecided: Swift.Bool

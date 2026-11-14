@@ -164,6 +164,7 @@ case DjiAppleZoomGesture.Event.stopPreparing
 case DjiAppleZoomGesture.Event.stopRequested
 case DjiAppleZoomGesture.Event.stopSettled(OpenCineDJI.Duml.Frame, Swift.Bool)
 case DjiAppleZoomGesture.Event.unavailableChip(Swift.String)
+class DJIStationCommissioner: Sendable, StationCommissioner
 class DjiAppleBluetoothLink: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class DjiAppleCameraSettings: Sendable
 class DjiAppleConnectionRun.Attempt: Sendable
@@ -177,6 +178,7 @@ class DjiAppleGimbalControl: Sendable
 class DjiAppleLiveViewScope: Sendable
 class DjiAppleMediaIngressSlot: Sendable
 class DjiAppleMediaService: CameraMediaService, DJIMediaCatalogRecordSource, Sendable
+class DjiAppleMultiviewProvisioner: Sendable
 class DjiAppleNetworkDiscovery: Sendable
 class DjiApplePictureRecovery.Attempt: Sendable
 class DjiApplePictureRecovery: Sendable
@@ -222,8 +224,14 @@ enum DjiAppleWiFiJoiner: Sendable
 enum DjiAppleZoomColor.Event
 enum DjiAppleZoomGesture.Event
 extension OpenCineCameraVocabulary.Attempt
+extension OpenCineCore.MultiviewCameraPolicy
 func Attempt.retireCapturedConnectionRun() -> Swift.Bool
 func DJIMediaCatalogRecordSource.mediaCatalogRecord(_: OpenCineMedia.MediaAssetID, binding: OpenCineMedia.MediaBrowseBinding) -> DJIMediaCatalogRecord?
+func DJIStationCommissioner.closeCommissions() -> ()
+func DJIStationCommissioner.connect(_: DjiAppleSighting, progress: (Swift.String) -> Swift.Void) async throws -> any OpenCineCore.StationCommission
+func DJIStationCommissioner.record(_: DjiAppleSighting) -> OpenCineCore.StationCameraRecord
+func DJIStationCommissioner.restoreAccessPoint(_: OpenCineCore.StationCameraRecord) async -> Swift.Bool
+func DJIStationCommissioner.scanNetworks(through: DjiAppleSighting, beforeStationChange: () throws -> Swift.Void, onRestored: (Swift.Bool) -> Swift.Void, onFound: (Swift.String) -> Swift.Void) async throws -> ()
 func DjiAppleBluetoothLink.centralManager(_: CoreBluetooth.CBCentralManager, didConnect: CoreBluetooth.CBPeripheral) -> ()
 func DjiAppleBluetoothLink.centralManager(_: CoreBluetooth.CBCentralManager, didDisconnectPeripheral: CoreBluetooth.CBPeripheral, error: (any Swift.Error)?) -> ()
 func DjiAppleBluetoothLink.centralManager(_: CoreBluetooth.CBCentralManager, didDiscover: CoreBluetooth.CBPeripheral, advertisementData: [Swift.String : Any], rssi: Foundation.NSNumber) -> ()
@@ -388,8 +396,15 @@ func DjiAppleMediaService.newestCatalog(binding: OpenCineMedia.MediaBrowseBindin
 func DjiAppleMediaService.openBrowse() async throws -> any OpenCineMedia.CameraMediaBrowse
 func DjiAppleMediaService.retire() -> ()
 func DjiAppleMediaService.setFavorite(_: OpenCineMedia.MediaAssetID, on: Swift.Bool, binding: OpenCineMedia.MediaBrowseBinding) async throws -> ()
+func DjiAppleMultiviewProvisioner.close() -> ()
+func DjiAppleMultiviewProvisioner.closeAndWait() async -> ()
+func DjiAppleMultiviewProvisioner.connect(_: DjiAppleSighting, pairingTimeout: Foundation.TimeInterval) async throws -> ()
+func DjiAppleMultiviewProvisioner.exchange(_: OpenCineDJI.Duml.Frame, timeout: Foundation.TimeInterval) async throws -> OpenCineDJI.Duml.Frame
+func DjiAppleMultiviewProvisioner.next() -> Swift.UInt16
+func DjiAppleMultiviewProvisioner.send(_: OpenCineDJI.Duml.Frame) -> ()
 func DjiAppleNetworkDiscovery.cancel() -> ()
 func DjiAppleNetworkDiscovery.candidates(excluding: Swift.Set<Swift.String>, hotspot: Swift.Bool) async throws -> [Swift.String]
+func DjiAppleNetworkDiscovery.probe(_: Swift.String, localAddress: Swift.String) async -> Swift.Bool
 func DjiApplePictureRecovery.Attempt.bindReplacementLiveView(_: any DjiAppleLiveViewEndpoint, recovery: DjiApplePictureRecoveryEndpoint) -> Swift.Bool
 func DjiApplePictureRecovery.Attempt.prepareReplacementEndpoint() -> Foundation.TimeInterval?
 func DjiApplePictureRecovery.Attempt.repairEndpoint(_: DjiApplePictureRecoveryEndpoint, reason: Swift.String, pictureIntent: Swift.Int, timeout: Swift.Duration) async -> DjiApplePictureRecovery.Result
@@ -456,6 +471,7 @@ func DjiAppleZoomGesture.slider(_: Swift.Double, admission: OpenCineDJI.DJIComma
 func DjiAppleZoomGesture.slider(_: Swift.Double, onStage: ((OpenCineDJI.ControlWireEvent) -> Swift.Void)?) -> ()
 func DjiAppleZoomGesture.stop() -> ()
 func DjiAppleZoomGesture.updatePinch(magnification: Swift.Double) -> ()
+init DJIStationCommissioner(host: DjiAppleTransportHost, hostPath: any OpenCineCore.StationHostPath, retryDelay: () async -> Swift.Void)
 init DjiAppleAudioDSPFacts(blob: [Swift.UInt8]?, at2: OpenCineDJI.AudioDspAt2?, wind: OpenCineCameraVocabulary.WindNoiseReduction?, directional: OpenCineCameraVocabulary.DirectionalAudio?)
 init DjiAppleBluetoothLink()
 init DjiAppleBluetoothLink(allowsConcurrentCameras: Swift.Bool)
@@ -500,6 +516,7 @@ init DjiAppleMediaIngressSlot()
 init DjiAppleMediaReturnAuthority(isCurrent: () -> Swift.Bool, inPlayback: () -> Swift.Bool, pictureFresh: () -> Swift.Bool, exitPlayback: () async -> Swift.Bool, enableLiveView: () -> Swift.Bool, completed: (DjiAppleMediaLiveReturn.Result) -> Swift.Void)
 init DjiAppleMediaService(session: OpenCineDJI.DJICameraSessionID, port: any DjiAppleMediaPort, timing: DjiAppleMediaTiming, ingress: DjiAppleMediaIngressSlot, journal: (Swift.String) -> Swift.Void)
 init DjiAppleMediaTiming(now: () -> Foundation.TimeInterval, sleep: (Swift.Duration) async throws -> Swift.Void)
+init DjiAppleMultiviewProvisioner(host: DjiAppleTransportHost)
 init DjiAppleNativeOutputObservation(pathReady: Swift.Bool, playbackBlocked: Swift.Bool, presentationReady: Swift.Bool, awaitingIDR: Swift.Bool, nativeOutputExpected: Swift.Bool, nativeOutputAge: Foundation.TimeInterval?, lastIrapWallTime: Foundation.TimeInterval?, picture: DjiAppleRecoveryPicture)
 init DjiAppleNetworkDiscovery()
 init DjiApplePictureRecovery(connectionRun: DjiAppleConnectionRun, context: () -> DjiApplePictureRecoveryContext, native: DjiApplePictureRecoveryNative, liveViewNative: DjiAppleLiveViewNative, timing: DjiApplePictureRecoveryTiming, event: (DjiApplePictureRecovery.Event, DjiAppleLiveViewScope) -> Swift.Void)
@@ -589,6 +606,7 @@ static func DjiAppleLiveViewRecipe.captured(from: OpenCineCameraVocabulary.Camer
 static func DjiAppleLocalNetwork.isDenied(_: Network.NWError?, path: Network.NWPath?) -> Swift.Bool
 static func DjiAppleMediaAssets.asset(for: OpenCineCameraVocabulary.MediaFile) -> OpenCineMedia.MediaAsset
 static func DjiAppleMediaLiveReturn.run(timeout: Swift.Duration, timing: DjiAppleMediaTiming, isCurrent: () -> Swift.Bool, inPlayback: () -> Swift.Bool, pictureFresh: () -> Swift.Bool, exitPlayback: () async -> Swift.Bool, enableLiveView: () -> Swift.Bool) -> DjiAppleMediaLiveReturn.Result
+static func DjiAppleMultiviewProvisioner.scanNetworks(_: DjiAppleSighting, host: DjiAppleTransportHost, rounds: Swift.Int, beforeStationChange: () throws -> Swift.Void, onRestored: (Swift.Bool) -> Swift.Void, onFound: (Swift.String) -> Swift.Void) throws -> ()
 static func DjiAppleRecoveryEpisode.deadline(for: DjiAppleRecoveryEpisode.Stage?) -> Swift.Duration
 static func DjiAppleSharedWiFiPath.address(hotspot: Swift.Bool) -> Swift.String?
 static func DjiAppleSharedWiFiPath.joinHost(ssid: Swift.String, password: Swift.String) throws -> Swift.String?
@@ -622,6 +640,7 @@ static var DjiAppleHeartbeatTiming.continuous: DjiAppleHeartbeatTiming
 static var DjiAppleMediaTiming.continuous: DjiAppleMediaTiming
 static var DjiApplePictureRecoveryTiming.continuous: DjiApplePictureRecoveryTiming
 static var DjiAppleTrackingTiming.continuous: DjiAppleTrackingTiming
+static var MultiviewCameraPolicy.dji: OpenCineCore.MultiviewCameraPolicy<DjiAppleSighting>
 struct DJIMediaCatalogRecord: Sendable
 struct DjiAppleAudioDSPFacts: Equatable, Sendable
 struct DjiAppleCameraSettings.Authority
@@ -683,10 +702,12 @@ struct DjiAppleZoomColor.Snapshot: Equatable, Sendable
 struct DjiAppleZoomGesture.Authority
 struct DjiAppleZoomGesture.Facts
 struct DjiAppleZoomGesture.Snapshot: Equatable, Sendable
+typealias DJIStationCommissioner.Camera = DjiAppleSighting
 typealias DjiAppleRecoveryEpisode.Attempt = OpenCineCameraVocabulary.SessionRecoveryEpisode.Attempt
 typealias DjiAppleRecoveryEpisode.Cleanup = OpenCineCameraVocabulary.SessionRecoveryEpisode.Cleanup
 typealias DjiAppleRecoveryEpisode.Snapshot = OpenCineCameraVocabulary.SessionRecoveryEpisode.Snapshot
 typealias DjiAppleRecoveryTiming = OpenCineCameraVocabulary.SessionRecoveryEpisode.Timing
+var DJIStationCommissioner.scansNetworks: Swift.Bool
 var DjiAppleAudioDSPFacts.at2: OpenCineDJI.AudioDspAt2?
 var DjiAppleAudioDSPFacts.blob: [Swift.UInt8]?
 var DjiAppleAudioDSPFacts.directional: OpenCineCameraVocabulary.DirectionalAudio?
@@ -888,6 +909,7 @@ var DjiAppleMediaService.isReturning: Swift.Bool
 var DjiAppleMediaService.sourcePolicy: OpenCineDJI.DJIMediaSourcePolicy?
 var DjiAppleMediaTiming.now: () -> Foundation.TimeInterval
 var DjiAppleMediaTiming.sleep: (Swift.Duration) async throws -> Swift.Void
+var DjiAppleMultiviewProvisioner.onFrame: ((OpenCineDJI.Duml.Frame) -> Swift.Void)?
 var DjiAppleNativeOutputObservation.awaitingIDR: Swift.Bool
 var DjiAppleNativeOutputObservation.lastIrapWallTime: Foundation.TimeInterval?
 var DjiAppleNativeOutputObservation.nativeOutputAge: Foundation.TimeInterval?
