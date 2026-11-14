@@ -266,7 +266,8 @@ module. Swift and Kotlin twins, same names; Kotlin `suspend` where Swift is `asy
   camera address).
 - **`StationCommissioner`** (integration, optional): connect, identity and join only. Its
   `StationCameraRecord` for the cleanup journal, `connect` (a per-camera `StationCommission`:
-  `identity()`, `join(...)` with the caller's `verifyOnNetwork`, `close()`), `closeCommissions()`
+  `identity()`, `join(...)` with the caller's `verifyOnNetwork`, which ends the join at once with a
+  `StationVerifyFinal` when the camera it found can never join, `close()`), `closeCommissions()`
   when the stage stops, `restoreAccessPoint` with the integration's own bounded retry (a
   `StationRestoreResult`: `restored`, `deferred(message)` when the camera needs the operator first,
   with the copy the stage shows, or `failed`), and an
@@ -297,7 +298,10 @@ module. Swift and Kotlin twins, same names; Kotlin `suspend` where Swift is `asy
   `observeHealth`, the link's judgement of its transport, which restores the budget after 30 s
   healthy) and its Bluetooth queue (`bluetoothTurn`, for a repair that needs Bluetooth). Its `autoLUT`
   (`MultiviewAutoLUT`: the reported color mode and the look profile's conversion) gives every app
-  the same LUT caption. Pocket supplies DJI's link from its own tiles (spec's settled call).
+  the same LUT caption. Every context value has a default, so a link test builds one with only
+  what it needs and the context grows without breaking it. `keepalive` returns promptly (the
+  coordinator calls each member's in turn). Pocket supplies DJI's link from its own tiles (spec's
+  settled call).
 - Platform differences kept on purpose: `StationCameraRecord.id` is a `UUID` in Swift (Apple
   Bluetooth peripheral ids) and a `String` in Kotlin; Swift `restoreAccessPoint` returns `failed`
   on cancellation, Kotlin propagates it; `MultiviewRecordReport.receivedAt` is a `Date` in Swift

@@ -104,11 +104,44 @@ already matched iOS, fakes, probe discovery, the real Bluetooth queue, `Recovery
 - `DjiAppleSharedWiFiPath` stays for the single-camera transport (Multiview no longer uses it:
   the datalink takes the host path's address from its caller); fold it when that transport moves.
 - `MultiviewAutoLUT` still carries names; the LUT strip is still Pocket's.
-- Recovery semantics: `RecoveryBudget.beginAttempt` clears the healthy streak (DJI's own ladder
-  did not), so a member that rejoins and stalls again within 30 s keeps spending its budget.
-- Pocket Android keeps on purpose (handbook): 24 probes a batch, the early identity read (kept
-  through a lost join reply), the decoder rebuild after Live View and repair only while a surface
-  is mounted. Everything else moved to iOS's rules through the coordinator.
+- Recovery semantics (review fix): `RecoveryBudget.beginAttempt` keeps the healthy streak, as
+  DJI's per-tile ladder did, so Pocket iOS keeps its frozen-picture behavior (a rejoin while the
+  transport stays healthy does not restart the 30 s that restore the budget). If Luna or Nikon
+  need attempts to restart the streak, add that as an explicit `RecoveryBudget` option, never as
+  the default.
+- Cleanup ruling (review): `StationRestoreResult` has no "give up" case. A `failed`, `deferred`,
+  cancelled or thrown return keeps the camera in the journal and every later close retries it,
+  as Pocket iOS does today; giving up is the operator's decision (the app's "Close anyway" leaves
+  the entry journaled), never an integration result. Luna's permanent refusals (declined, held by
+  another phone, unsupported) return `deferred(copy)` with the operator copy that says so; a
+  "forget this camera's cleanup" action, if wanted, is a coordinator or app operation for a later
+  plan.
+- Seam stability (review fix): every `MultiviewRepairContext` value has a default (Swift `nil`
+  defaults filled in by the initializer, Kotlin default arguments), so the context grows without
+  breaking a link test. `StationVerifyFinal` (Core) lets `verifyOnNetwork` end a commissioner's
+  join at once; DJI's `StationJoin` rethrows it on its lost-reply path, so the duplicate refusal is
+  final there too. Kotlin's coordinator `clock` has no default: it must be the clock the links
+  stamp `recordReport` on.
+- Review fixes in the coordinator (both twins unless noted): the Bluetooth queue moves on when a
+  LAN-only reconnect or rejoin ends and on Remove; Remove forgets the member's address (offered
+  back only to the same camera), so a new camera is never opened at the removed one's address;
+  repairs no longer wait while a member connects (iOS never did); an older repair task never clears
+  a newer one's state; a stopped stage closes a link that opened after it; Swift's record
+  confirmation returns `unconfirmed` when cancelled; Swift's host join clears only its own task;
+  Kotlin `closeStage` ends (and its returns finish) for a cancelled caller; a Kotlin return that is
+  cancelled or throws stays for the next close; a Kotlin keepalive, probe or scan that throws is
+  logged and a repair that throws fails its member, instead of crashing the app.
+- For Plan 6 (Nikon), from the review: `sightingAddress` must return a normalized dotted IPv4
+  address (`StationSubnet.validAddress`; `hostKey` only normalizes comparisons); nearby discovery
+  stops when the stage is full and `connectPreview` does not restart it, so a rejoin reads the last
+  sighting; end Nikon's own ladder with `waitForOperator` rather than `rejoin` unless its
+  per-attempt `beginAttempt` plus the coordinator's per-rejoin spend is wanted; keep `keepalive`
+  non-blocking; pick a `repairDeadline` above Nikon's 30 s attempt deadline.
+- Pocket Android keeps on purpose (handbook, Android differences): 24 probes a batch, the early
+  identity read (kept through a lost join reply), the decoder rebuild after Live View and repair
+  only while a surface is mounted. Everything else moved to iOS's rules through the coordinator,
+  including the per-tile "Waiting for camera confirmation" at send and the settings editor staying
+  open in the background.
 - Pocket Android keeps its `MultiviewMulticam` helper only for its engine tests of the record port.
 - Before merging Pocket: the on-device upgrade checklist and a Multiview hardware pass on both
   platforms (add, two cameras, record together, rejoin, close cleanup), untested in this plan.

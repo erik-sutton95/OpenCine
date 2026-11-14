@@ -400,8 +400,10 @@ Plan 4's screen and tile picture can grow it without breaking an adopter).
 - Lifecycle: `start` always asks for a network and starts with empty slots, takes presentation and
   cleanup from the journal and runs the 1 s monitor (keepalive, record freshness, repair);
   `stop` closes every link, task and scan; `closeStage` closes the links first, then returns each
-  camera to its own access point in parallel. Unfinished returns stay in the journal; a deferred
-  return shows the integration's copy, others the shared one.
+  camera to its own access point in parallel, also for a cancelled caller. Unfinished returns
+  (failed, deferred, cancelled or thrown) stay in the journal for the next close; nothing gives
+  them up but the operator (the app's "Close anyway" leaves them journaled). A deferred return
+  shows the integration's copy, others the shared one.
 - Network: an explicit source and name before any credential loads; an assigned camera locks the
   network; Connect checks a name of 1 to 32 bytes and a password of at most 63 and joins (never
   this phone's own hotspot). Network scans through a nearby camera journal their cleanup first.
@@ -411,13 +413,17 @@ Plan 4's screen and tile picture can grow it without breaking an adopter).
   was seen and keeps the proof it gives), joins, and finds the camera on the network: the known
   address first, then two passes over the subnet (`probeWidth` probes at a time, at most eight
   candidates, other members' hosts excluded by their host key, each address reserved while it is
-  tried) when the policy discovers by probe. A camera already in the stage is refused, finally.
-  `reconnect` tries the known camera, then sets it up again; `remove` sends no camera command.
+  tried) when the policy discovers by probe. A camera already in the stage is refused, finally,
+  also when the commissioner's join found it (`StationVerifyFinal`). `reconnect` tries the known
+  camera, then sets it up again; `remove` sends no camera command and forgets the member's address
+  except for the same camera added again.
 - Recovery: each member's link judges its picture once a second; the coordinator owns when it may
-  (foreground, 3 s after a return, not busy or connecting, the app shows the picture), the 45 s
+  (foreground, 3 s after a return, no network scan, the app shows the picture), the 45 s
   path-loss rule, the race against the link's deadline, and a bounded rejoin (`RecoveryBudget`:
-  two, restored after 30 s healthy) before waiting for the operator. Repairs that need Bluetooth
-  take turns behind adds and scans (`bluetoothTurn`).
+  two, restored after 30 s healthy, attempts or not) before waiting for the operator. Repairs that
+  need Bluetooth take turns behind adds, reconnects and scans (`bluetoothTurn`); the queue moves on
+  when any of them ends. Kotlin seams may throw: a keepalive, probe or scan that throws is logged,
+  a repair that throws fails its member, and the monitor keeps running.
 - Record: the camera's record state counts only within 3 s of its last report; plans are strict
   (`RecordAll`), each outcome lands on its member, the group note summarizes;
   `MultiviewRecordConfirmation` is one command's 8 s confirmation window. `tile(_:_:)` turns the
