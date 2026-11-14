@@ -25,6 +25,6 @@ class MultiviewSeamTest {
 
         override fun closeCommissions() {}
 
-        override suspend fun restoreAccessPoint(record: StationCameraRecord): Boolean = false
+        override suspend fun restoreAccessPoint(record: StationCameraRecord): StationRestoreResult = StationRestoreResult.Failed
     }
 }

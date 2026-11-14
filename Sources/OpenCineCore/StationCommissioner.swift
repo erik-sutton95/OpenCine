@@ -29,6 +29,17 @@ public enum StationCommissionOutcome: Equatable, Sendable {
     case verified
 }
 
+/// How a camera's return to its own access point ended. The cleanup journal keeps every camera
+/// that was not `restored`. Kotlin twin: `StationRestoreResult`.
+public enum StationRestoreResult: Equatable, Sendable {
+    case restored
+    /// The camera answered but did not return now; `message` tells the operator what to do (for
+    /// example approve this phone on the camera). Close again to retry.
+    case deferred(String)
+    /// The camera did not confirm.
+    case failed
+}
+
 /// One nearby camera's setup link (for example its Bluetooth link) while a commissioner moves it
 /// onto a station network. The caller closes it when the move ended either way.
 @MainActor
@@ -67,9 +78,9 @@ public protocol StationCommissioner<Camera>: AnyObject {
     /// Closes every commission link still open, connecting or not (the stage stopped). A network
     /// scan's link is left to finish returning its camera.
     func closeCommissions()
-    /// Returns the camera to its own access point, with the integration's own bounded retry.
-    /// False when the camera did not confirm; never throws, cancellation included.
-    func restoreAccessPoint(_ record: StationCameraRecord) async -> Bool
+    /// Returns the camera to its own access point, with the integration's own bounded retry. Never
+    /// throws; a cancelled return is not `restored`.
+    func restoreAccessPoint(_ record: StationCameraRecord) async -> StationRestoreResult
     /// Whether this integration can list the networks a camera sees. Without it `scanNetworks`
     /// throws `StationScanUnsupported`.
     var scansNetworks: Bool { get }

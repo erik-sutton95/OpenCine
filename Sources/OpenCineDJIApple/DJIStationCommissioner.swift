@@ -65,15 +65,16 @@ public final class DJIStationCommissioner: StationCommissioner {
         open.removeAll()
     }
 
-    public func restoreAccessPoint(_ record: StationCameraRecord) async -> Bool {
+    public func restoreAccessPoint(_ record: StationCameraRecord) async -> StationRestoreResult {
         var retries = 0
-        return await restoreCameraWiFiWithRetry(waitBetween: {
+        let restored = await restoreCameraWiFiWithRetry(waitBetween: {
             retries += 1
             host.journal("multiview: camera pairing deferred; Wi-Fi return retry \(retries) of 2")
             await retryDelay()
         }) {
             try await restoreOnce(record)
         }
+        return restored ? .restored : .failed
     }
 
     public var scansNetworks: Bool { true }

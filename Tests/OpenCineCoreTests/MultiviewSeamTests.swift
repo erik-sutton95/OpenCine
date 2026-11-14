@@ -31,5 +31,5 @@ private final class MenuOnlyCommissioner: StationCommissioner {
 
     func closeCommissions() {}
 
-    func restoreAccessPoint(_ record: StationCameraRecord) async -> Bool { false }
+    func restoreAccessPoint(_ record: StationCameraRecord) async -> StationRestoreResult { .failed }
 }

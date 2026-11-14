@@ -52,6 +52,23 @@ public interface StationCommission {
 }
 
 /**
+ * How a camera's return to its own access point ended. The cleanup journal keeps every camera that
+ * was not [Restored]. Swift twin: `StationRestoreResult`.
+ */
+public sealed interface StationRestoreResult {
+    public data object Restored : StationRestoreResult
+
+    /**
+     * The camera answered but did not return now; [message] tells the operator what to do (for
+     * example approve this phone on the camera). Close again to retry.
+     */
+    public data class Deferred(public val message: String) : StationRestoreResult
+
+    /** The camera did not confirm. */
+    public data object Failed : StationRestoreResult
+}
+
+/**
  * An integration that moves a nearby camera from its own access point onto a shared station
  * network and back. Optional: an integration whose cameras join a network only from their own
  * menus supplies none. Whether a camera may join a stage and shows a picture is the integration's
@@ -71,10 +88,10 @@ public interface StationCommissioner<Camera> {
     public fun closeCommissions()
 
     /**
-     * Returns the camera to its own access point, with the integration's own bounded retry. False
-     * when the camera did not confirm. Cancellation propagates.
+     * Returns the camera to its own access point, with the integration's own bounded retry.
+     * Cancellation propagates.
      */
-    public suspend fun restoreAccessPoint(record: StationCameraRecord): Boolean
+    public suspend fun restoreAccessPoint(record: StationCameraRecord): StationRestoreResult
 
     /** Whether this integration can list the networks a camera sees. Without it [scanNetworks] throws [StationScanUnsupported]. */
     public val scansNetworks: Boolean get() = false

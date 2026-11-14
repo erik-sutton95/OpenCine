@@ -47,6 +47,8 @@ public enum MultiviewRepairResult: Equatable, Sendable {
     /// The repair ended; the link's next repair tick judges the picture again.
     case done
     /// The link cannot recover in place: the coordinator rejoins the member within its budget.
+    /// A rejoin finds the camera again as an add does: by probing when the policy
+    /// `discoversByProbe`, otherwise only at the member's last address.
     case rejoin
     /// No automatic step remains: the coordinator fails the member with this message and waits
     /// for the operator's Reconnect.
@@ -86,6 +88,9 @@ public struct MultiviewRepairContext {
     /// when the budget is spent (the link then ends with `waitForOperator`). A link whose ladder
     /// pays per attempt asks before each one; the coordinator also spends one per `rejoin`.
     public var beginAttempt: @MainActor () -> Bool
+    /// Reports whether the member's transport is healthy now, as the link judges it. A sustained
+    /// healthy period restores the member's recovery budget (`RecoveryBudget.observe`).
+    public var observeHealth: @MainActor (Bool) -> Void
     /// Waits for this member's turn on the coordinator's Bluetooth queue (adds and other members'
     /// Bluetooth repairs take turns). Returns the release to call when the link no longer needs
     /// Bluetooth, or nil when the stage stopped first. A repair that uses Bluetooth asks inside its
@@ -98,6 +103,7 @@ public struct MultiviewRepairContext {
         foregroundUnchanged: @escaping @MainActor () -> Bool,
         pathAvailable: @escaping @MainActor () -> Bool,
         beginAttempt: @escaping @MainActor () -> Bool,
+        observeHealth: @escaping @MainActor (Bool) -> Void,
         bluetoothTurn: @escaping @MainActor () async -> (@MainActor () -> Void)?
     ) {
         self.pathReady = pathReady
@@ -106,15 +112,30 @@ public struct MultiviewRepairContext {
         self.foregroundUnchanged = foregroundUnchanged
         self.pathAvailable = pathAvailable
         self.beginAttempt = beginAttempt
+        self.observeHealth = observeHealth
         self.bluetoothTurn = bluetoothTurn
+    }
+}
+
+/// The camera's own latest report of whether it records, and when that report arrived on the
+/// coordinator's clock (`HostClock.date`). The coordinator treats a member's record state as known
+/// only while the report is fresh. Kotlin twin: `MultiviewRecordReport`.
+public struct MultiviewRecordReport: Equatable, Sendable {
+    public var recording: Bool
+    public var receivedAt: Date
+
+    public init(recording: Bool, receivedAt: Date) {
+        self.recording = recording
+        self.receivedAt = receivedAt
     }
 }
 
 /// One Multiview member's link to its camera on the station network: its common session, its
 /// picture, and the steps the coordinator drives (probe, open with an identity check, preview,
 /// keepalive, repair, close). An integration or the app supplies it. The coordinator owns the
-/// tile (its copy, control host, failure and budget); the link reports through `onStatus` and
-/// `isPublishing`. Kotlin twin: `MultiviewMemberLink`.
+/// tile (its copy, control host, failure, budget and whether it publishes a picture); the link
+/// reports through `onStatus`, `recordReport` and its repair context. Kotlin twin:
+/// `MultiviewMemberLink`.
 @MainActor
 public protocol MultiviewMemberLink<Camera>: AnyObject {
     /// The camera as the integration's discovery reports it.
@@ -122,13 +143,15 @@ public protocol MultiviewMemberLink<Camera>: AnyObject {
 
     /// The member's camera as a common session, one for the member's lifetime.
     var session: any CameraSession { get }
+    /// The session's current snapshot, read on the main actor (the record plan and editor leases
+    /// are built from it synchronously). Swift only: Kotlin reads `session.snapshots.value`.
+    var snapshot: CameraSnapshot { get }
     /// The member's picture, apart from its control link.
     var pictureHealth: PictureHealth { get }
     /// Where the link reports its status; the coordinator sets it once per member.
     var onStatus: (@MainActor (MultiviewLinkStatus) -> Void)? { get set }
-    /// The link asked for the picture and keeps it flowing (from `startPreview` until the next
-    /// `open`).
-    var isPublishing: Bool { get }
+    /// The camera's latest report of whether it records; nil until it reported one on this link.
+    var recordReport: MultiviewRecordReport? { get }
     /// The longest one of this link's `repair` closures may run before the coordinator gives up on
     /// it (AppKit's `MultiviewRepairResult.race`). The link bounds its own steps within it.
     var repairDeadline: Duration { get }
@@ -149,7 +172,8 @@ public protocol MultiviewMemberLink<Camera>: AnyObject {
     func startPreview(_ camera: Camera) async throws
     /// Keeps the link alive; the coordinator calls it once a second.
     func keepalive() async
-    /// Closes the link. Never sends the camera a command.
+    /// Closes the link. Never sends a record or access-point command. A link whose close is a
+    /// session goodbye may finish it asynchronously; it then serializes its next `open` behind it.
     func close()
     /// The integration's own repair step, once a second while the member publishes a picture.
     func repair(_ context: MultiviewRepairContext) -> MultiviewRepairStep
