@@ -139,15 +139,19 @@ uses them yet.
   not the live-view pixels.
 - **Bounded repair.** `NikonMemberRepair` is the member's ladder a coordinator ticks: a stall on a
   live link restarts live view in place once per episode; a lost link, a failed restart or a
-  second stall reopens (close, then `NikonMemberOpener` with the member's serial expected) no
+  second stall reopens (close, then `reopen(member, host:, ...)` on the `NikonMemberOpener`) no
   sooner than the settle after the loss and `NikonMemberTiming.reopenSpacing` (5 s) after a failed
   reopen; each attempt first asks the caller's budget (the coordinator's `RecoveryBudget`), and a
-  refusal or a take-over (`NikonDiscovery.currentHolder` before a reopen) waits for the operator.
+  refusal or a take-over (the opener's `heldByAnotherDevice`) waits for the operator.
   A step that has not reported back by `NikonSessionRecovery.attemptDeadline` (30 s) counts as
   failed, so a hung dial still ends in the next rung or the operator's Reconnect. The ladder's
   settle is measured from the loss and the opener's from the close, so a reopen after a stall
   can wait both. A take-over during an in-flight reopen leaves that reopen's link to the caller to
-  close. A picture ends the episode. Swift `NikonMemberRepair` is a value: the coordinator writes
+  close, and so does a link a timed-out attempt hands back late (`opener.close`; Kotlin's
+  `closeLink` must be bounded). A reopen's `hostInUse` can mean "still dialling" (a hung attempt
+  keeps its reservation past the deadline), not a failure to show. Filtering frames by link
+  identity is the coordinator's job: a stale frame after a stall-caused loss only delays
+  recovery until the next stall. A picture ends the episode. Swift `NikonMemberRepair` is a value: the coordinator writes
   it back after every call (Kotlin's is a class).
 
 Tests: `NikonMultiviewTests` / `NikonMultiviewTest` and the `multiviewSightings` cases in

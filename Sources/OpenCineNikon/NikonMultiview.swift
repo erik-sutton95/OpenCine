@@ -236,10 +236,13 @@ public struct NikonRecordingTone: Hashable, Sendable {
 /// 3. The budget refusing, or another device holding the body (`takenOver`, from the opener's
 ///    `.heldByAnotherDevice` or `NikonDiscovery.currentHolder`), waits for the operator. A
 ///    take-over during an in-flight reopen leaves that reopen's link to the caller to close.
+///    A reopen's `.hostInUse` can mean the host is still being dialled (a hung attempt keeps the
+///    opener's reservation past `attemptDeadline` until the OS gives up): not a failure to show.
 ///
 /// A step that has not reported back (`attemptSucceeded` / `attemptFailed`) by `attemptDeadline`
 /// failed: a dial into a vanished network can block past every cancellation, and the tile must
-/// still reach the next rung or the operator's Reconnect. A late report is then ignored.
+/// still reach the next rung or the operator's Reconnect. A late report is then ignored, and the
+/// caller closes, via `opener.close`, any link a timed-out attempt hands back late.
 ///
 /// A picture (`frameArrived`) ends the episode. A value: the coordinator stores it back after
 /// every mutating call.

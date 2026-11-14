@@ -97,7 +97,8 @@ public sealed interface NikonMemberOpenResult<out L> {
  *   ([NikonDiscovery.currentHolder]), or null. Asked right before every Init.
  * @param connect opens a PTP session to the host (Init, OpenSession, GetDeviceInfo).
  * @param serialNumber the serial the link's GetDeviceInfo reported.
- * @param close a graceful CloseSession, then the sockets. Never a record command.
+ * @param close a graceful CloseSession, then the sockets. Never a record command. It must be
+ *   bounded (it runs under NonCancellable, so a hang would also hang a cancelled picker).
  */
 public class NikonMemberOpener<L : Any>(
     private val settle: Duration = NikonMemberTiming.RECONNECT_SETTLE,
@@ -261,10 +262,13 @@ public val CameraPropertySnapshot.recordingTone: NikonMovieTone?
  * 3. The budget refusing, or another device holding the body ([takenOver], from the opener's
  *    HELD_BY_ANOTHER_DEVICE or [NikonDiscovery.currentHolder]), waits for the operator. A take-over
  *    during an in-flight reopen leaves that reopen's link to the caller to close.
+ *    A reopen's HOST_IN_USE can mean the host is still being dialled (a hung attempt keeps the
+ *    opener's reservation past [attemptDeadline] until the OS gives up): not a failure to show.
  *
  * A step that has not reported back ([attemptSucceeded] / [attemptFailed]) by [attemptDeadline]
  * failed: a dial into a vanished network can block past every cancellation, and the tile must still
- * reach the next rung or the operator's Reconnect. A late report is then ignored.
+ * reach the next rung or the operator's Reconnect. A late report is then ignored, and the caller
+ * closes, via [NikonMemberOpener.close], any link a timed-out attempt hands back late.
  *
  * A picture ([frameArrived]) ends the episode.
  */

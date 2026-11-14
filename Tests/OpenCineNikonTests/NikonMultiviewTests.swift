@@ -233,7 +233,7 @@ import Testing
 
     /// A double tap, or an Add pick racing a repair of the same host, must not send two Inits to
     /// one body: the second Init drops the first session.
-    @Test func openRefusesAHostWhileAnOpenOfItIsInFlight() async throws {
+    @Test(.timeLimit(.minutes(1))) func openRefusesAHostWhileAnOpenOfItIsInFlight() async throws {
         let network = Network()
         network.serials = ["192.168.1.30": Self.serial]
         let gate = Gate()
@@ -246,14 +246,14 @@ import Testing
         gate.open()
         #expect(try await first.value.device == Self.device)
         #expect(network.connects == ["192.168.1.30"])
-        // Once that open is over, the host is free to open again (after its settle).
+        // Once that open is over, the host is free to open again (a successful open starts no settle).
         _ = try await opener.open(host: "192.168.1.30", members: [Self.device], hostsInUse: [])
         #expect(network.connects == ["192.168.1.30", "192.168.1.30"])
     }
 
     /// Closing a refused body finishes even when the picker goes away mid-close: a half-closed
     /// session would hold the PTP slot, and the next open must still wait the settle.
-    @Test func refusalCloseCompletesWhenTheOpenIsCancelled() async throws {
+    @Test(.timeLimit(.minutes(1))) func refusalCloseCompletesWhenTheOpenIsCancelled() async throws {
         let network = Network()
         network.serials = ["192.168.1.30": Self.serial]
         let gate = Gate()
