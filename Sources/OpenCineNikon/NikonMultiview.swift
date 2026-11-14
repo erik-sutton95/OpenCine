@@ -19,9 +19,15 @@ public enum NikonMemberTiming {
 
 /// Why `NikonMemberOpener` did not hand back a link.
 public enum NikonMemberOpenRefusal: Hashable, Sendable {
-    /// A Multiview member or this app's Live View holds the host: it was not dialled.
+    /// A Multiview member or this app's Live View holds the host, or an open of it is in flight:
+    /// it was not dialled.
     case hostInUse
-    /// The body (by serial) is already in the group, under whatever host: closed.
+    /// Another device (the result's `heldBy`) holds the body now: it was not dialled, because a
+    /// body that takes one initiator hands its session to a new Init (a ZR drops the phone).
+    case heldByAnotherDevice
+    /// The body (by serial) is already in the group, under whatever host: closed. This guards the
+    /// group's identity, not the member's session: the check runs after the Init, so only
+    /// `hostsInUse` keeps a live member's session from being dropped.
     case alreadyMember
     /// The host answered with another body than the one picked: closed.
     case differentBody
@@ -32,7 +38,8 @@ public enum NikonMemberOpenRefusal: Hashable, Sendable {
 public enum NikonMemberOpenResult<Link: Sendable>: Sendable {
     /// An open link to the picked body, and its member identity (the serial from GetDeviceInfo).
     case opened(Link, device: CameraDeviceID)
-    case refused(NikonMemberOpenRefusal)
+    /// Refused; `heldBy` names the holding device for `.heldByAnotherDevice`.
+    case refused(NikonMemberOpenRefusal, heldBy: String? = nil)
 
     public var link: Link? {
         if case .opened(let link, _) = self { return link }
@@ -45,7 +52,13 @@ public enum NikonMemberOpenResult<Link: Sendable>: Sendable {
     }
 
     public var refusal: NikonMemberOpenRefusal? {
-        if case .refused(let refusal) = self { return refusal }
+        if case .refused(let refusal, _) = self { return refusal }
+        return nil
+    }
+
+    /// The device that holds the body, for a `.heldByAnotherDevice` refusal.
+    public var heldBy: String? {
+        if case .refused(_, let holder) = self { return holder }
         return nil
     }
 }
@@ -56,18 +69,24 @@ public enum NikonMemberOpenResult<Link: Sendable>: Sendable {
 /// are the platform's (iOS `NativeCameraSession`; Android the Swift session behind `NikonNative`).
 ///
 /// Every close or failed dial of a host starts that host's `NikonMemberTiming.reconnectSettle`; an
-/// open inside it waits out the rest before its Init.
+/// open inside it waits out the rest before its Init. One open per host at a time: a second open of
+/// a host whose open is in flight is refused `.hostInUse` (one opener per group).
 public final class NikonMemberOpener<Link: Sendable>: @unchecked Sendable {
-    // SAFETY: `@unchecked Sendable`: the only mutable state is `released`, guarded by `lock`.
+    // SAFETY: `@unchecked Sendable`: the only mutable state is `released` and `opening`, guarded by
+    // `lock`.
     private let settle: Duration
     private let now: @Sendable () -> MonotonicInstant
     private let sleep: @Sendable (Duration) async throws -> Void
+    private let currentHolder: @Sendable (String) async -> String?
     private let connect: @Sendable (String) async throws -> Link
     private let serialNumber: @Sendable (Link) -> String?
     private let closeLink: @Sendable (Link) async -> Void
     private let lock = NSLock()
     private var released: [String: MonotonicInstant] = [:]
+    private var opening: Set<String> = []
 
+    /// - `currentHolder`: the device serving the host now, from a fresh presence sweep
+    ///   (`NikonDiscovery.currentHolder`), or `nil`. Asked right before every Init.
     /// - `connect`: opens a PTP session to the host (Init, OpenSession, GetDeviceInfo).
     /// - `serialNumber`: the serial the link's GetDeviceInfo reported.
     /// - `close`: a graceful CloseSession, then the sockets. Never a record command.
@@ -75,6 +94,7 @@ public final class NikonMemberOpener<Link: Sendable>: @unchecked Sendable {
         settle: Duration = NikonMemberTiming.reconnectSettle,
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        currentHolder: @escaping @Sendable (String) async -> String?,
         connect: @escaping @Sendable (String) async throws -> Link,
         serialNumber: @escaping @Sendable (Link) -> String?,
         close: @escaping @Sendable (Link) async -> Void
@@ -82,25 +102,53 @@ public final class NikonMemberOpener<Link: Sendable>: @unchecked Sendable {
         self.settle = settle
         self.now = now
         self.sleep = sleep
+        self.currentHolder = currentHolder
         self.connect = connect
         self.serialNumber = serialNumber
         closeLink = close
     }
 
-    /// Opens `host` and checks the body: refused (and closed) when it is already in the group
-    /// (`members`), is not the `expectedSerial` body, or reports no serial. A host in `hostsInUse` is
-    /// refused without a dial. A failed dial throws.
+    /// Opens the picked `host` and checks the body: refused (and closed) when it is already in the
+    /// group (`members`), is not the `expectedSerial` body, or reports no serial. Refused without a
+    /// dial when `hostsInUse` has the host, an open of it is in flight, or another device holds it.
+    /// A failed dial throws.
     public func open(
         host: String, expectedSerial: String? = nil, members: Set<CameraDeviceID>,
         hostsInUse: Set<String>
     ) async throws -> NikonMemberOpenResult<Link> {
+        try await open(
+            host: host, expected: NikonMulticamPolicy.device(serialNumber: expectedSerial), members: members,
+            hostsInUse: hostsInUse)
+    }
+
+    /// A repair's reopen of `member` at its own `host`, with the group's own sets: that host is not
+    /// in use against the member itself, and its serial is not "already in the group". Every other
+    /// rule of `open` holds, and the body must be `member`.
+    public func reopen(
+        _ member: CameraDeviceID, host: String, members: Set<CameraDeviceID>, hostsInUse: Set<String>
+    ) async throws -> NikonMemberOpenResult<Link> {
         let key = NikonDiscovery.hostKey(host)
-        guard !hostsInUse.contains(where: { NikonDiscovery.hostKey($0) == key }) else {
+        return try await open(
+            host: host, expected: member, members: members.subtracting([member]),
+            hostsInUse: hostsInUse.filter { NikonDiscovery.hostKey($0) != key })
+    }
+
+    private func open(
+        host: String, expected: CameraDeviceID?, members: Set<CameraDeviceID>, hostsInUse: Set<String>
+    ) async throws -> NikonMemberOpenResult<Link> {
+        let key = NikonDiscovery.hostKey(host)
+        guard !hostsInUse.contains(where: { NikonDiscovery.hostKey($0) == key }),
+            lock.withLock({ opening.insert(key).inserted })
+        else {
             return .refused(.hostInUse)
         }
+        defer { lock.withLock { _ = opening.remove(key) } }
         if let releasedAt = lock.withLock({ released[key] }) {
             let wait = settle - (now() - releasedAt)
             if wait > .zero { try await sleep(wait) }
+        }
+        if let holder = await currentHolder(host) {
+            return .refused(.heldByAnotherDevice, heldBy: holder)
         }
         let link: Link
         do {
@@ -117,7 +165,7 @@ public final class NikonMemberOpener<Link: Sendable>: @unchecked Sendable {
             await close(link, host: host)
             return .refused(.alreadyMember)
         }
-        if let expected = NikonMulticamPolicy.device(serialNumber: expectedSerial), expected != device {
+        if let expected, expected != device {
             await close(link, host: host)
             return .refused(.differentBody)
         }

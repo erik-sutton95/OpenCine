@@ -24,12 +24,16 @@ import Testing
         private var _closed: [String] = []
         private var _sleeps: [Duration] = []
         private var _now = MonotonicInstant.zero
+        private var _holderAsks: [String] = []
         var serials: [String: String?] = [:]
+        /// Camera host to the device a fresh presence sweep finds serving it.
+        var holders: [String: String] = [:]
 
         var connects: [String] { lock.withLock { _connects } }
         var closed: [String] { lock.withLock { _closed } }
         var sleeps: [Duration] { lock.withLock { _sleeps } }
         var now: MonotonicInstant { lock.withLock { _now } }
+        var holderAsks: [String] { lock.withLock { _holderAsks } }
 
         func advance(_ duration: Duration) { lock.withLock { _now = _now + duration } }
 
@@ -47,15 +51,82 @@ import Testing
         }
 
         func close(_ link: Link) { lock.withLock { _closed.append(link.host) } }
+
+        func holder(of host: String) -> String? {
+            lock.withLock {
+                _holderAsks.append(host)
+                return holders[host]
+            }
+        }
+    }
+
+    /// A point the first caller stops at until the test opens it (later callers pass straight
+    /// through, so a regression fails instead of hanging), and tells the test it arrived.
+    final class Gate: @unchecked Sendable {
+        // SAFETY: all state behind `lock`.
+        private let lock = NSLock()
+        private var isOpen = false
+        private var hasArrived = false
+        private var passer: CheckedContinuation<Void, Never>?
+        private var watchers: [CheckedContinuation<Void, Never>] = []
+
+        /// The code under test: the first caller waits here until `open()`.
+        func pass() async {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let (resume, arrived) = lock.withLock { () -> (Bool, [CheckedContinuation<Void, Never>]) in
+                    if hasArrived { return (true, []) }
+                    hasArrived = true
+                    let arrived = watchers
+                    watchers = []
+                    if isOpen { return (true, arrived) }
+                    passer = continuation
+                    return (false, arrived)
+                }
+                arrived.forEach { $0.resume() }
+                if resume { continuation.resume() }
+            }
+        }
+
+        /// The test: returns once the code under test waits at the gate.
+        func arrival() async {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let now = lock.withLock { () -> Bool in
+                    if hasArrived { return true }
+                    watchers.append(continuation)
+                    return false
+                }
+                if now { continuation.resume() }
+            }
+        }
+
+        func open() {
+            let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+                isOpen = true
+                defer { passer = nil }
+                return passer
+            }
+            waiting?.resume()
+        }
     }
 
     static let serial = "3001234"
     static let device = NikonMulticamPolicy.device(serialNumber: serial)!
 
-    func opener(_ network: Network) -> NikonMemberOpener<Link> {
+    func opener(
+        _ network: Network, connectGate: Gate? = nil, closeGate: Gate? = nil
+    ) -> NikonMemberOpener<Link> {
         NikonMemberOpener(
-            now: { network.now }, sleep: { network.sleep($0) }, connect: { try network.connect($0) },
-            serialNumber: { $0.serial }, close: { network.close($0) })
+            now: { network.now }, sleep: { network.sleep($0) },
+            currentHolder: { network.holder(of: $0) },
+            connect: { host in
+                await connectGate?.pass()
+                return try network.connect(host)
+            },
+            serialNumber: { $0.serial },
+            close: { link in
+                await closeGate?.pass()
+                network.close(link)
+            })
     }
 
     // MARK: Open a picked body
@@ -125,7 +196,59 @@ import Testing
         }
         _ = try? await opener.open(host: "192.168.1.50", members: [], hostsInUse: [])
         #expect(network.sleeps == [.milliseconds(1_000), NikonMemberTiming.reconnectSettle])
-        #expect(NikonMemberTiming.reconnectSettle == .milliseconds(1_200))
+    }
+
+    /// A body another phone holds hands its session to a new Init without refusing it (a ZR drops
+    /// the phone holding it), and the list's held rows can be 30 s old: the opener asks now.
+    @Test func openRefusesABodyAnotherDeviceHoldsWithoutDialling() async throws {
+        let network = Network()
+        network.serials = ["192.168.1.30": Self.serial]
+        network.holders = ["192.168.1.30": "Phone B"]
+        let result = try await opener(network).open(host: "192.168.1.30", members: [], hostsInUse: [])
+        #expect(result.refusal == .heldByAnotherDevice && result.heldBy == "Phone B")
+        #expect(network.holderAsks == ["192.168.1.30"] && network.connects.isEmpty)
+    }
+
+    /// A repair passes the group's own sets: the member's host is not in use against itself, and
+    /// its serial is not "already in the group". Another member and another body are still refused.
+    @Test func reopenOpensTheMembersOwnHostAndChecksItsSerial() async throws {
+        let network = Network()
+        let other = try #require(NikonMulticamPolicy.device(serialNumber: "3005678"))
+        network.serials = ["192.168.1.30": Self.serial]
+        let opener = opener(network)
+        let members: Set<CameraDeviceID> = [Self.device, other]
+        let hosts: Set<String> = [" 192.168.1.30", "192.168.1.31"]
+        let result = try await opener.reopen(Self.device, host: "192.168.1.30", members: members, hostsInUse: hosts)
+        #expect(result.link == Link(host: "192.168.1.30", serial: Self.serial) && result.device == Self.device)
+        #expect(network.connects == ["192.168.1.30"] && network.closed.isEmpty)
+
+        network.serials = ["192.168.1.30": "3005678"]
+        let swapped = try await opener.reopen(Self.device, host: "192.168.1.30", members: members, hostsInUse: hosts)
+        #expect(swapped.refusal == .alreadyMember, "another member answered at this host")
+        network.serials = ["192.168.1.30": "3009999"]
+        let stranger = try await opener.reopen(Self.device, host: "192.168.1.30", members: members, hostsInUse: hosts)
+        #expect(stranger.refusal == .differentBody)
+        #expect(network.closed == ["192.168.1.30", "192.168.1.30"])
+    }
+
+    /// A double tap, or an Add pick racing a repair of the same host, must not send two Inits to
+    /// one body: the second Init drops the first session.
+    @Test func openRefusesAHostWhileAnOpenOfItIsInFlight() async throws {
+        let network = Network()
+        network.serials = ["192.168.1.30": Self.serial]
+        let gate = Gate()
+        let opener = opener(network, connectGate: gate)
+        let first = Task { try await opener.open(host: "192.168.1.30", members: [], hostsInUse: []) }
+        await gate.arrival()
+        let second = try await opener.open(host: "192.168.1.30 ", members: [], hostsInUse: [])
+        let repair = try await opener.reopen(Self.device, host: "192.168.1.30", members: [Self.device], hostsInUse: [])
+        #expect(second.refusal == .hostInUse && repair.refusal == .hostInUse)
+        gate.open()
+        #expect(try await first.value.device == Self.device)
+        #expect(network.connects == ["192.168.1.30"])
+        // Once that open is over, the host is free to open again (after its settle).
+        _ = try await opener.open(host: "192.168.1.30", members: [Self.device], hostsInUse: [])
+        #expect(network.connects == ["192.168.1.30", "192.168.1.30"])
     }
 
     // MARK: Auto LUT source
@@ -242,7 +365,6 @@ import Testing
         repair.frameMissed(at: Self.at(0))
         #expect(repair.next(at: Self.at(0), beginAttempt: budget.begin) == .none)
         repair.frameMissed(at: Self.at(0))
-        #expect(NikonMemberRepair.missedFramesForStall == 3)
         #expect(repair.next(at: Self.at(0), beginAttempt: budget.begin) == .restartLiveView)
         #expect(repair.next(at: Self.at(0), beginAttempt: budget.begin) == .none, "one attempt in flight")
         repair.attemptSucceeded()
@@ -270,7 +392,6 @@ import Testing
         #expect(repair.next(at: Self.at(1_200), beginAttempt: budget.begin) == .reopen)
         repair.attemptFailed(at: Self.at(3_000))
         #expect(repair.next(at: Self.at(3_000), beginAttempt: budget.begin) == .wait(until: Self.at(8_000)))
-        #expect(NikonMemberTiming.reopenSpacing == .seconds(5))
         #expect(repair.next(at: Self.at(8_000), beginAttempt: budget.begin) == .reopen)
     }
 

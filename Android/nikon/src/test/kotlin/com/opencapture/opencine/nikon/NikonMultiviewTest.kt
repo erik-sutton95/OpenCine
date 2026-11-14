@@ -1,7 +1,10 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.media.MonitorTransfer
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -10,7 +13,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * Swift suite `NikonMultiviewTests`: the Nikon operations a Pocket-standard Multiview tile needs.
@@ -30,6 +32,15 @@ class NikonMultiviewTest {
         var now = MonotonicInstant.ZERO
         val serials = mutableMapOf<String, String?>()
 
+        /** Camera host to the device a fresh presence sweep finds serving it. */
+        val holders = mutableMapOf<String, String>()
+        val holderAsks = mutableListOf<String>()
+
+        fun holder(host: String): String? {
+            holderAsks += host
+            return holders[host]
+        }
+
         fun connect(host: String): Link {
             connects += host
             if (host !in serials) throw LinkDown()
@@ -37,13 +48,43 @@ class NikonMultiviewTest {
         }
     }
 
-    private fun opener(network: Network) = NikonMemberOpener(
+    /** [connectGate] and [closeGate], when given, hold the connect or the close until completed. */
+    private fun opener(
+        network: Network,
+        connectGate: Gate? = null,
+        closeGate: Gate? = null,
+    ) = NikonMemberOpener(
         now = { network.now },
         sleep = { network.sleeps += it; network.now += it },
-        connect = { network.connect(it) },
+        currentHolder = { network.holder(it) },
+        connect = {
+            connectGate?.pass()
+            network.connect(it)
+        },
         serialNumber = { it.serial },
-        close = { network.closed += it.host },
+        close = {
+            closeGate?.pass()
+            network.closed += it.host
+        },
     )
+
+    /**
+     * A point the first caller stops at until the test opens it (later callers pass straight through,
+     * so a regression fails instead of hanging), and tells the test it arrived.
+     */
+    private class Gate {
+        val arrived = CompletableDeferred<Unit>()
+        private val opened = CompletableDeferred<Unit>()
+
+        suspend fun pass() {
+            if (!arrived.complete(Unit)) return
+            opened.await()
+        }
+
+        fun open() {
+            opened.complete(Unit)
+        }
+    }
 
     private val serial = "3001234"
     private val device = NikonMulticamPolicy.device(serial)!!
@@ -114,7 +155,66 @@ class NikonMultiviewTest {
         assertFailsWith<LinkDown> { opener.open("192.168.1.50", members = emptySet(), hostsInUse = emptySet()) }
         runCatching { opener.open("192.168.1.50", members = emptySet(), hostsInUse = emptySet()) }
         assertEquals(listOf(1_000.milliseconds, NikonMemberTiming.RECONNECT_SETTLE), network.sleeps)
-        assertEquals(1_200.milliseconds, NikonMemberTiming.RECONNECT_SETTLE)
+    }
+
+    /** The list's held rows can be 30 s old: the opener asks who holds the body now. */
+    @Test
+    fun openRefusesABodyAnotherDeviceHoldsWithoutDialling() = runTest {
+        val network = Network().apply {
+            serials["192.168.1.30"] = serial
+            holders["192.168.1.30"] = "Phone B"
+        }
+        val result = opener(network).open("192.168.1.30", members = emptySet(), hostsInUse = emptySet())
+        assertEquals(NikonMemberOpenRefusal.HELD_BY_ANOTHER_DEVICE, result.refusal)
+        assertEquals("Phone B", result.heldBy)
+        assertEquals(listOf("192.168.1.30"), network.holderAsks)
+        assertTrue(network.connects.isEmpty())
+    }
+
+    /**
+     * A repair passes the group's own sets: the member's host is not in use against itself, and its
+     * serial is not "already in the group". Another member and another body are still refused.
+     */
+    @Test
+    fun reopenOpensTheMembersOwnHostAndChecksItsSerial() = runTest {
+        val network = Network().apply { serials["192.168.1.30"] = serial }
+        val other = NikonMulticamPolicy.device("3005678")!!
+        val opener = opener(network)
+        val members: Set<CameraDeviceID> = setOf(device, other)
+        val hosts = setOf(" 192.168.1.30", "192.168.1.31")
+        val result = opener.reopen(device, "192.168.1.30", members = members, hostsInUse = hosts)
+        assertEquals(Link("192.168.1.30", serial), result.link)
+        assertEquals(device, result.device)
+        assertEquals(listOf("192.168.1.30"), network.connects)
+        assertTrue(network.closed.isEmpty())
+
+        network.serials["192.168.1.30"] = "3005678"
+        val swapped = opener.reopen(device, "192.168.1.30", members = members, hostsInUse = hosts)
+        assertEquals(NikonMemberOpenRefusal.ALREADY_MEMBER, swapped.refusal, "another member answered at this host")
+        network.serials["192.168.1.30"] = "3009999"
+        val stranger = opener.reopen(device, "192.168.1.30", members = members, hostsInUse = hosts)
+        assertEquals(NikonMemberOpenRefusal.DIFFERENT_BODY, stranger.refusal)
+        assertEquals(listOf("192.168.1.30", "192.168.1.30"), network.closed)
+    }
+
+    /** A double tap, or an Add pick racing a repair of the same host, must not send two Inits. */
+    @Test
+    fun openRefusesAHostWhileAnOpenOfItIsInFlight() = runTest {
+        val network = Network().apply { serials["192.168.1.30"] = serial }
+        val gate = Gate()
+        val opener = opener(network, connectGate = gate)
+        val first = async { opener.open("192.168.1.30", members = emptySet(), hostsInUse = emptySet()) }
+        gate.arrived.await()
+        val second = opener.open("192.168.1.30 ", members = emptySet(), hostsInUse = emptySet())
+        val repair = opener.reopen(device, "192.168.1.30", members = setOf(device), hostsInUse = emptySet())
+        assertEquals(NikonMemberOpenRefusal.HOST_IN_USE, second.refusal)
+        assertEquals(NikonMemberOpenRefusal.HOST_IN_USE, repair.refusal)
+        gate.open()
+        assertEquals(device, first.await().device)
+        assertEquals(listOf("192.168.1.30"), network.connects)
+        // Once that open is over, the host is free to open again.
+        opener.open("192.168.1.30", members = setOf(device), hostsInUse = emptySet())
+        assertEquals(listOf("192.168.1.30", "192.168.1.30"), network.connects)
     }
 
     // Auto LUT source (Android's Swift session already polls the tone properties)
@@ -166,7 +266,6 @@ class NikonMultiviewTest {
         repair.frameMissed(at(0))
         assertEquals(NikonMemberRepair.Step.None, repair.next(at(0), budget::begin))
         repair.frameMissed(at(0))
-        assertEquals(3, NikonMemberRepair.MISSED_FRAMES_FOR_STALL)
         assertEquals(NikonMemberRepair.Step.RestartLiveView, repair.next(at(0), budget::begin))
         assertEquals(NikonMemberRepair.Step.None, repair.next(at(0), budget::begin), "one attempt in flight")
         repair.attemptSucceeded()
@@ -196,7 +295,6 @@ class NikonMultiviewTest {
         assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(1_200), budget::begin))
         repair.attemptFailed(at(3_000))
         assertEquals(NikonMemberRepair.Step.Wait(at(8_000)), repair.next(at(3_000), budget::begin))
-        assertEquals(5.seconds, NikonMemberTiming.REOPEN_SPACING)
         assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(8_000), budget::begin))
     }
 

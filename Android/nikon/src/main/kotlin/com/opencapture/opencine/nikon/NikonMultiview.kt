@@ -30,10 +30,23 @@ public object NikonMemberTiming {
 
 /** Why [NikonMemberOpener] did not hand back a link (Swift `NikonMemberOpenRefusal`). */
 public enum class NikonMemberOpenRefusal {
-    /** A Multiview member or this app's Live View holds the host: it was not dialled. */
+    /**
+     * A Multiview member or this app's Live View holds the host, or an open of it is in flight: it
+     * was not dialled.
+     */
     HOST_IN_USE,
 
-    /** The body (by serial) is already in the group, under whatever host: closed. */
+    /**
+     * Another device (the result's `heldBy`) holds the body now: it was not dialled, because a body
+     * that takes one initiator hands its session to a new Init (a ZR drops the phone).
+     */
+    HELD_BY_ANOTHER_DEVICE,
+
+    /**
+     * The body (by serial) is already in the group, under whatever host: closed. This guards the
+     * group's identity, not the member's session: the check runs after the Init, so only
+     * `hostsInUse` keeps a live member's session from being dropped.
+     */
     ALREADY_MEMBER,
 
     /** The host answered with another body than the one picked: closed. */
@@ -49,12 +62,20 @@ public sealed interface NikonMemberOpenResult<out L> {
     public val device: CameraDeviceID?
     public val refusal: NikonMemberOpenRefusal?
 
+    /** The device that holds the body, for a [NikonMemberOpenRefusal.HELD_BY_ANOTHER_DEVICE] refusal. */
+    public val heldBy: String?
+
     /** An open link to the picked body, and its member identity (the serial from GetDeviceInfo). */
     public data class Opened<out L>(override val link: L, override val device: CameraDeviceID) : NikonMemberOpenResult<L> {
         override val refusal: NikonMemberOpenRefusal? get() = null
+        override val heldBy: String? get() = null
     }
 
-    public data class Refused(override val refusal: NikonMemberOpenRefusal) : NikonMemberOpenResult<Nothing> {
+    /** Refused; [heldBy] names the holding device for [NikonMemberOpenRefusal.HELD_BY_ANOTHER_DEVICE]. */
+    public data class Refused(
+        override val refusal: NikonMemberOpenRefusal,
+        override val heldBy: String? = null,
+    ) : NikonMemberOpenResult<Nothing> {
         override val link: Nothing? get() = null
         override val device: CameraDeviceID? get() = null
     }
@@ -67,8 +88,11 @@ public sealed interface NikonMemberOpenResult<out L> {
  * app's (Android: a session over [NikonNative]).
  *
  * Every close or failed dial of a host starts that host's [NikonMemberTiming.RECONNECT_SETTLE]; an
- * open inside it waits out the rest before its Init.
+ * open inside it waits out the rest before its Init. One open per host at a time: a second open of a
+ * host whose open is in flight is refused [NikonMemberOpenRefusal.HOST_IN_USE] (one opener per group).
  *
+ * @param currentHolder the device serving the host now, from a fresh presence sweep
+ *   ([NikonDiscovery.currentHolder]), or null. Asked right before every Init.
  * @param connect opens a PTP session to the host (Init, OpenSession, GetDeviceInfo).
  * @param serialNumber the serial the link's GetDeviceInfo reported.
  * @param close a graceful CloseSession, then the sockets. Never a record command.
@@ -77,29 +101,72 @@ public class NikonMemberOpener<L : Any>(
     private val settle: Duration = NikonMemberTiming.RECONNECT_SETTLE,
     private val now: () -> MonotonicInstant = MonotonicInstant::now,
     private val sleep: suspend (Duration) -> Unit = { delay(it) },
+    private val currentHolder: suspend (String) -> String?,
     private val connect: suspend (String) -> L,
     private val serialNumber: (L) -> String?,
     close: suspend (L) -> Unit,
 ) {
     private val closeLink = close
     private val released = mutableMapOf<String, MonotonicInstant>()
+    private val opening = mutableSetOf<String>()
 
     /**
-     * Opens [host] and checks the body: refused (and closed) when it is already in the group
-     * ([members]), is not the [expectedSerial] body, or reports no serial. A host in [hostsInUse] is
-     * refused without a dial. A failed dial throws.
+     * Opens the picked [host] and checks the body: refused (and closed) when it is already in the
+     * group ([members]), is not the [expectedSerial] body, or reports no serial. Refused without a
+     * dial when [hostsInUse] has the host, an open of it is in flight, or another device holds it.
+     * A failed dial throws.
      */
     public suspend fun open(
         host: String,
         expectedSerial: String? = null,
         members: Set<CameraDeviceID>,
         hostsInUse: Set<String>,
+    ): NikonMemberOpenResult<L> = open(host, NikonMulticamPolicy.device(expectedSerial), members, hostsInUse)
+
+    /**
+     * A repair's reopen of [member] at its own [host], with the group's own sets: that host is not in
+     * use against the member itself, and its serial is not "already in the group". Every other rule
+     * of [open] holds, and the body must be [member].
+     */
+    public suspend fun reopen(
+        member: CameraDeviceID,
+        host: String,
+        members: Set<CameraDeviceID>,
+        hostsInUse: Set<String>,
     ): NikonMemberOpenResult<L> {
         val key = hostKey(host)
-        if (hostsInUse.any { hostKey(it) == key }) return NikonMemberOpenResult.Refused(NikonMemberOpenRefusal.HOST_IN_USE)
+        return open(host, member, members - member, hostsInUse.filterTo(mutableSetOf()) { hostKey(it) != key })
+    }
+
+    private suspend fun open(
+        host: String,
+        expected: CameraDeviceID?,
+        members: Set<CameraDeviceID>,
+        hostsInUse: Set<String>,
+    ): NikonMemberOpenResult<L> {
+        val key = hostKey(host)
+        if (hostsInUse.any { hostKey(it) == key } || !synchronized(released) { opening.add(key) }) {
+            return NikonMemberOpenResult.Refused(NikonMemberOpenRefusal.HOST_IN_USE)
+        }
+        try {
+            return openReserved(host, key, expected, members)
+        } finally {
+            synchronized(released) { opening.remove(key) }
+        }
+    }
+
+    private suspend fun openReserved(
+        host: String,
+        key: String,
+        expected: CameraDeviceID?,
+        members: Set<CameraDeviceID>,
+    ): NikonMemberOpenResult<L> {
         synchronized(released) { released[key] }?.let { releasedAt ->
             val wait = settle - (now() - releasedAt)
             if (wait.isPositive()) sleep(wait)
+        }
+        currentHolder(host)?.let { holder ->
+            return NikonMemberOpenResult.Refused(NikonMemberOpenRefusal.HELD_BY_ANOTHER_DEVICE, heldBy = holder)
         }
         val link = try {
             connect(host)
@@ -111,7 +178,7 @@ public class NikonMemberOpener<L : Any>(
         val refusal = when {
             device == null -> NikonMemberOpenRefusal.NO_IDENTITY
             device in members -> NikonMemberOpenRefusal.ALREADY_MEMBER
-            NikonMulticamPolicy.device(expectedSerial)?.let { it != device } == true -> NikonMemberOpenRefusal.DIFFERENT_BODY
+            expected != null && expected != device -> NikonMemberOpenRefusal.DIFFERENT_BODY
             else -> null
         }
         if (refusal != null || device == null) {
