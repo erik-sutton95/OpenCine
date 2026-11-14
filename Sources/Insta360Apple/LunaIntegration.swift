@@ -341,16 +341,27 @@ public final class LunaIntegration: CameraIntegration {
         return stream
     }
 
-    /// The target that moves a camera seen over Bluetooth (not yet saved) onto `network` and finds
-    /// it there, as Multiview's add does (Kotlin twin, same name): an Add setup on a record made from
-    /// the sighting, so the setup's password is kept and the record is saved before the camera
-    /// moves. The connected event carries the session and the record with the camera's own Wi-Fi and
-    /// the setup, the setup preferred. A sighting that is already a saved camera adds the setup to
-    /// that record instead (`.addRoute`), so its other setups stay. Hardware-untested.
-    public nonisolated static func target(_ nearby: NearbyCamera, onto network: LunaStationNetwork) -> ConnectTarget {
-        let camera = SavedCamera(
-            id: nearby.savedID ?? nearby.id, integration: LunaCameraSession.integration,
-            advertisedName: nearby.name, model: nearby.model)
+    /// The target that moves a camera seen over Bluetooth onto `network` and finds it there, as
+    /// Multiview's add does (Kotlin twin, same name): an Add setup, so the setup's password is kept
+    /// and the connected event carries the session and the record with the camera's own Wi-Fi and
+    /// the setup, the setup preferred. A sighting that is already a saved camera (`savedID`) adds
+    /// the setup to `saved`, its record, so its camera Wi-Fi, other setups and serial stay (a Wi-Fi
+    /// setup takes the place of its earlier Wi-Fi setup, a hotspot of its hotspot, as Add setup
+    /// does); nil without that record, since a record made from the sighting would replace it. An
+    /// unsaved sighting gets a record made from it. Hardware-untested.
+    public nonisolated static func target(
+        _ nearby: NearbyCamera, onto network: LunaStationNetwork, saved: SavedCamera? = nil
+    ) -> ConnectTarget? {
+        let id = nearby.savedID ?? nearby.id
+        let camera: SavedCamera
+        if let saved {
+            guard saved.id == id else { return nil }
+            camera = saved
+        } else {
+            guard nearby.savedID == nil else { return nil }
+            camera = SavedCamera(
+                id: id, integration: LunaCameraSession.integration, advertisedName: nearby.name, model: nearby.model)
+        }
         return .addRoute(
             camera,
             RouteDraft(
@@ -358,9 +369,20 @@ public final class LunaIntegration: CameraIntegration {
                 secret: network.password))
     }
 
-    /// Connects `nearby` straight onto `network`: `connect(_:)` with `target(_:onto:)`.
-    public func connect(_ nearby: NearbyCamera, onto network: LunaStationNetwork) -> AsyncStream<ConnectionEvent> {
-        connect(Self.target(nearby, onto: network))
+    /// Connects `nearby` straight onto `network`: `connect(_:)` with `target(_:onto:saved:)`. A
+    /// saved camera's sighting without its record fails at once, before anything is saved or dialled.
+    public func connect(
+        _ nearby: NearbyCamera, onto network: LunaStationNetwork, saved: SavedCamera? = nil
+    ) -> AsyncStream<ConnectionEvent> {
+        if let target = Self.target(nearby, onto: network, saved: saved) { return connect(target) }
+        return AsyncStream { continuation in
+            continuation.yield(
+                .failed(
+                    .luna(
+                        .other, "route.saved-record-missing",
+                        "This camera is already saved. Add the setup to its saved record.")))
+            continuation.finish()
+        }
     }
 
     public func forget(_ camera: SavedCamera) async {

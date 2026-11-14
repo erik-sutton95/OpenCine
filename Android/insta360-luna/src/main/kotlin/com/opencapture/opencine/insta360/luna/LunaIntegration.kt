@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -233,24 +234,40 @@ class LunaIntegration(
         const val SIGHTING_STEP_MS = 100L
 
         /**
-         * The target that moves a camera seen over Bluetooth (not yet saved) onto [network] and finds
-         * it there, as Multiview's add does (Swift twin, same name): an Add setup on a record made from
-         * the sighting, so the setup's password is kept and the record is saved before the camera
-         * moves. The connected event carries the session and the record with the camera's own Wi-Fi
-         * and the setup, the setup preferred. A sighting that is already a saved camera adds the setup
-         * to that record instead ([ConnectTarget.AddRoute]), so its other setups stay. Hardware-untested.
+         * The target that moves a camera seen over Bluetooth onto [onto] and finds it there, as
+         * Multiview's add does (Swift twin, same name): an Add setup, so the setup's password is kept
+         * and the connected event carries the session and the record with the camera's own Wi-Fi and
+         * the setup, the setup preferred. A sighting that is already a saved camera ([NearbyCamera.savedID])
+         * adds the setup to [saved], its record, so its camera Wi-Fi, other setups and serial stay (a
+         * Wi-Fi setup takes the place of its earlier Wi-Fi setup, a hotspot of its hotspot, as Add
+         * setup does); null without that record, since a record made from the sighting would replace
+         * it. An unsaved sighting gets a record made from it. Hardware-untested.
          */
-        fun target(nearby: NearbyCamera, onto: LunaStationNetwork): ConnectTarget = ConnectTarget.AddRoute(
-            SavedCamera(
-                id = nearby.savedID ?: nearby.id, integration = LunaCameraSession.INTEGRATION,
-                advertisedName = nearby.name, model = nearby.model,
-            ),
-            RouteDraft(if (onto.hotspot) RouteKind.PHONE_HOTSPOT else RouteKind.INFRASTRUCTURE_NETWORK, onto.ssid, onto.password),
-        )
+        fun target(nearby: NearbyCamera, onto: LunaStationNetwork, saved: SavedCamera? = null): ConnectTarget? {
+            val id = nearby.savedID ?: nearby.id
+            val camera = when {
+                saved != null -> saved.takeIf { it.id == id } ?: return null
+                nearby.savedID != null -> return null
+                else -> SavedCamera(id = id, integration = LunaCameraSession.INTEGRATION, advertisedName = nearby.name, model = nearby.model)
+            }
+            return ConnectTarget.AddRoute(
+                camera,
+                RouteDraft(if (onto.hotspot) RouteKind.PHONE_HOTSPOT else RouteKind.INFRASTRUCTURE_NETWORK, onto.ssid, onto.password),
+            )
+        }
     }
 
-    /** Connects [nearby] straight onto [onto]: [connect] with [target]. */
-    fun connect(nearby: NearbyCamera, onto: LunaStationNetwork): Flow<ConnectionEvent> = connect(target(nearby, onto))
+    /**
+     * Connects [nearby] straight onto [onto]: [connect] with [target]. A saved camera's sighting
+     * without its record fails at once, before anything is saved or dialled.
+     */
+    fun connect(nearby: NearbyCamera, onto: LunaStationNetwork, saved: SavedCamera? = null): Flow<ConnectionEvent> =
+        target(nearby, onto, saved)?.let { connect(it) } ?: flowOf(
+            ConnectionEvent.Failed(LunaFailures.failure(
+                ConnectionFailure.Reason.Other, "route.saved-record-missing",
+                "This camera is already saved. Add the setup to its saved record.",
+            )),
+        )
 
     override fun discover(mode: DiscoveryMode): Flow<List<NearbyCamera>> {
         if (mode !in discoveryModes) return emptyFlow()

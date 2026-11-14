@@ -1,5 +1,6 @@
 package com.opencapture.opencine.insta360.luna
 
+import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.media.CameraMediaService
@@ -502,6 +503,46 @@ class LunaIntegrationTest {
         assertTrue(live.preferredRoute == live.routes[1].id && live.routes[1].network == "Studio")
         assertEquals("LUNA-1A2B", live.routes[0].network)
         assertTrue(live.advertisedName == "Luna 1A2B" && live.model == "Insta360 Luna Ultra")
+    }
+
+    /**
+     * A sighting that is already a saved camera goes onto the network as an added setup on its own
+     * record: its camera Wi-Fi, its other setups and its serial stay. Without that record the target
+     * is refused, since a record made from the sighting would replace the saved one.
+     */
+    @Test
+    fun aSavedNearbyCameraKeepsItsRecordOnANetwork() = runTest {
+        val (port, luna) = setup()
+        val stamped = mutableListOf<SavedCamera>()
+        luna.saveRecord = { stamped += it }
+        val saved = SavedCamera(
+            id = camera, integration = luna.id, device = CameraDeviceID.durable("SN-LUNA", luna.id),
+            advertisedName = "Luna 1A2B", model = "Insta360 Luna Ultra",
+            routes = listOf(ap, SavedRoute(key = "hotspot", kind = RouteKind.PHONE_HOTSPOT, network = "Rig phone", bluetooth = true)),
+        )
+        val nearby = sighting.copy(savedID = saved.id)
+        val studio = LunaStationNetwork("Studio", "synthetic1", hotspot = false)
+        assertNull(LunaIntegration.target(nearby, studio))
+        val refused = collect(luna.connect(nearby, onto = studio))
+        runCurrent()
+        assertIs<ConnectionEvent.Failed>(refused.single())
+        assertTrue(port.connects.isEmpty() && stamped.isEmpty(), "the saved camera is never replaced")
+
+        val events = collect(luna.connect(nearby, onto = studio, saved = saved))
+        runCurrent()
+        assertEquals(listOf(station("Studio", "synthetic1")), port.routes)
+        val remembered = stamped.last()
+        assertEquals(
+            listOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.PHONE_HOTSPOT, RouteKind.INFRASTRUCTURE_NETWORK),
+            remembered.routes.map { it.kind }, "a saved camera's record remembers the move at once, as Add setup does",
+        )
+        assertEquals(saved.device, remembered.device)
+        port.goLive()
+        runCurrent()
+        val live = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+        assertEquals(listOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.PHONE_HOTSPOT, RouteKind.INFRASTRUCTURE_NETWORK), live.routes.map { it.kind })
+        assertTrue(live.routes[0].network == "LUNA-1A2B" && live.device == saved.device)
+        assertEquals(live.routes[2].id, live.preferredRoute)
     }
 
     @Test

@@ -280,6 +280,43 @@ import Testing
         #expect(live.saved.advertisedName == "Luna 1A2B" && live.saved.model == "Luna Ultra")
     }
 
+    /// A sighting that is already a saved camera goes onto the network as an added setup on its
+    /// own record: its camera Wi-Fi, its other setups and its serial stay. Without that record the
+    /// target is refused, since a record made from the sighting would replace the saved one.
+    @Test func aSavedNearbyCameraKeepsItsRecordOnANetwork() async throws {
+        let luna = integration()
+        var stamped: [SavedCamera] = []
+        luna.saveRecord = { stamped.append($0) }
+        var saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B", model: "Luna Ultra")
+        saved.routes = [
+            SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true),
+            SavedRoute(key: "hotspot", kind: .phoneHotspot, network: "Rig iPhone", bluetooth: true),
+        ]
+        saved.device = .durable("SN-LUNA", integration: luna.id)
+        var nearby = sighting()
+        nearby.savedID = saved.id
+        let studio = LunaStationNetwork(ssid: "Studio", password: "synthetic1", hotspot: false)
+        #expect(LunaIntegration.target(nearby, onto: studio) == nil)
+        var refused: ConnectionFailure?
+        for await case .failed(let failure) in luna.connect(nearby, onto: studio) { refused = failure }
+        #expect(refused != nil && port.connects.isEmpty && stamped.isEmpty, "the saved camera is never replaced")
+
+        let events = luna.connect(nearby, onto: studio, saved: saved)
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(port.routes == [station("Studio", "synthetic1")])
+        let remembered = try #require(stamped.last, "a saved camera's record remembers the move at once, as Add setup does")
+        #expect(remembered.routes.map(\.kind) == [.cameraAccessPoint, .phoneHotspot, .infrastructureNetwork])
+        #expect(remembered.device == saved.device)
+        port.finishConnect()
+        var connected: SavedCamera?
+        for await case .connected(let camera) in events { connected = camera.saved }
+        let live = try #require(connected)
+        #expect(live.routes.map(\.kind) == [.cameraAccessPoint, .phoneHotspot, .infrastructureNetwork])
+        #expect(live.routes[0].network == "LUNA-1A2B" && live.device == saved.device)
+        #expect(live.preferredRoute == live.routes[2].id)
+    }
+
     @Test func aNearbyCameraConnectsStraightOntoThisPhonesHotspot() async throws {
         let luna = integration()
         let events = luna.connect(
