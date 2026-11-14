@@ -96,7 +96,9 @@ public final class NikonDiscovery: @unchecked Sendable {
 
     /// One discovery pass.
     /// - `priorityHosts`: saved cameras' last hosts (liveness in `.passive`, trusted probes in `.active`).
-    /// - `excludedHosts`: cameras some visible broadcast already serves; never dialled.
+    /// - `excludedHosts`: cameras some visible broadcast already serves; never dialled in `.active`
+    ///   (`.passive` dials no camera-control port and ignores it; Multiview's picker excludes member
+    ///   hosts through `multiviewSightings`).
     /// - `onPresences`: every completed presence sweep's answers (empty is a verdict too).
     public func discover(
         _ mode: DiscoveryMode, guid: Data, priorityHosts: [String] = [],
@@ -160,7 +162,8 @@ public final class NikonDiscovery: @unchecked Sendable {
             return CameraDiscovery.dedupeAndSort(usbNow + bonjour + alive)
         }
 
-        let excluded = await excludedHosts()
+        // Compared by host key: a caller's untrimmed address still keeps its host undialled.
+        let excluded = Set(await excludedHosts().map(Self.hostKey))
         let trusted = await probeTrustedHosts(
             guid: guid, priorityHosts: priorityHosts, excluded: excluded.union(bonjourHosts).union(shielded),
             dialer: dialer)
@@ -173,6 +176,37 @@ public final class NikonDiscovery: @unchecked Sendable {
             dialer: dialer)
         let usbNow = browsesUSB ? await sources.usbCameras(start: false) : []
         return CameraDiscovery.dedupeAndSort(usbNow + swept + heldRows)
+    }
+
+    /// Multiview's Add camera list (Plan 6, Kotlin `multiviewSightings`): one passive pass (Bonjour,
+    /// USB, the rate-limited presence sweep and liveness dials of saved hosts), so no camera-control
+    /// dial and no PTP byte. A host in `excludedHosts` (held by a Multiview member or this app's own
+    /// Live View) is neither dialled for liveness nor listed. Cameras another device holds are listed
+    /// as `.heldByAnotherDevice`, never to be picked. Only the body the operator picks is opened,
+    /// through `NikonMemberOpener`; a row has no serial until then. A saved host is listed only when
+    /// its liveness dial answers: the picker merges in saved setups that do not.
+    public func multiviewSightings(
+        savedHosts: [String], excludedHosts: Set<String>, browsesUSB: Bool = true
+    ) async -> [DiscoveredCamera] {
+        let excluded = Set(excludedHosts.map(Self.hostKey))
+        let saved = savedHosts.filter { !excluded.contains(Self.hostKey($0)) }
+        // The passive pass throws only on cancellation; a cancelled picker lists nothing.
+        let found = (try? await discover(.passive, guid: Data(), priorityHosts: saved, browsesUSB: browsesUSB)) ?? []
+        let held = Dictionary(
+            lock.withLock { state.held }.map { (Self.hostKey($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
+        var seen = Set<String>()
+        var sightings: [DiscoveredCamera] = []
+        for camera in found {
+            let key = Self.hostKey(camera.ip)
+            guard !excluded.contains(key), seen.insert(key).inserted else { continue }
+            sightings.append(
+                held[key].map { DiscoveredCamera(ip: camera.ip, source: .heldByAnotherDevice, heldByDeviceName: $0) }
+                    ?? camera)
+        }
+        for (key, holder) in held.sorted(by: { $0.key < $1.key }) where !excluded.contains(key) && !seen.contains(key) {
+            sightings.append(DiscoveredCamera(ip: key, source: .heldByAnotherDevice, heldByDeviceName: holder))
+        }
+        return sightings
     }
 
     // MARK: Passes
@@ -241,7 +275,7 @@ public final class NikonDiscovery: @unchecked Sendable {
     ) async -> [DiscoveredCamera] {
         let split = CameraDiscovery.prioritizedScanHosts(
             priorityHosts: priorityHosts, localAddresses: scanInterfaces().map(\.address))
-        let hosts = split.priority.filter { !excluded.contains($0) }
+        let hosts = split.priority.filter { !excluded.contains(Self.hostKey($0)) }
         if !hosts.isEmpty || !excluded.isEmpty {
             sources.log(
                 "discovery probe pass trusted=[\(hosts.joined(separator: " "))] "
@@ -270,11 +304,11 @@ public final class NikonDiscovery: @unchecked Sendable {
         let interfaces = scanInterfaces()
         let localAddresses = interfaces.map(\.address)
         let split = CameraDiscovery.prioritizedScanHosts(priorityHosts: priorityHosts, localAddresses: localAddresses)
-        let priorityChunk = split.priority.filter { !excluded.contains($0) }
+        let priorityChunk = split.priority.filter { !excluded.contains(Self.hostKey($0)) }
         let locals = Set(localAddresses.compactMap(PTPIPPairedHosts.normalizedHost))
         let subnets = Array(Set(interfaces.compactMap { CameraDiscovery.subnetBase(for: $0.address) })).sorted()
         let sweep = subnets.flatMap(CameraDiscovery.fastHosts(inSubnet:))
-            .filter { !excluded.contains($0) && !locals.contains($0) }
+            .filter { !excluded.contains(Self.hostKey($0)) && !locals.contains($0) }
         let chunks = [priorityChunk].filter { !$0.isEmpty }
             + stride(from: 0, to: sweep.count, by: 254).map { Array(sweep[$0..<min($0 + 254, sweep.count)]) }
         sources.log(
@@ -319,6 +353,9 @@ public final class NikonDiscovery: @unchecked Sendable {
         }
         return found
     }
+
+    /// The one key a host is compared by (trimmed, lower-cased); the input itself when empty.
+    static func hostKey(_ host: String) -> String { PTPIPPairedHosts.normalizedHost(host) ?? host }
 
     private static func hostKeys(_ host: String) -> Set<String> {
         var keys: Set<String> = [host]

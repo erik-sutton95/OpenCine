@@ -103,6 +103,53 @@ struct FakeSources: NikonDiscoverySources {
         #expect(found.map(\.ip).contains("192.168.1.30") && !found.map(\.ip).contains("192.168.1.20"))
     }
 
+    /// Multiview's Add camera: a passive pass that lists what is there without dialling a camera's
+    /// control port, and never dials or lists a host a member or Live View holds (a second Init
+    /// drops the first device's session).
+    @Test func multiviewSightingsNeverDialsTheControlPortOrAnExcludedHost() async {
+        let dialer = FakeDialer()
+        dialer.presences = ["192.168.1.7": NikonPresence(deviceName: "Phone B", servedCamera: "192.168.1.20")]
+        dialer.alive = ["192.168.1.20", "192.168.1.30", "192.168.1.31", "192.168.1.32"]
+        dialer.openControlPorts = ["192.168.1.20", "192.168.1.30", "192.168.1.31", "192.168.1.32"]
+        dialer.cameras = ["192.168.1.20": "Z_9", "192.168.1.30": "Z_f", "192.168.1.31": "Z_r", "192.168.1.32": "Z_8"]
+        // Member .31 is only a saved host (no Bonjour row, as on networks that drop mDNS), so only
+        // the exclusion keeps it from a liveness dial; member .32 is listed by Bonjour.
+        let member = DiscoveredCamera(ip: "192.168.1.32", name: "Z_8", source: .bonjour)
+        let sightings = await discovery(dialer, bonjour: [bonjour, member]).multiviewSightings(
+            savedHosts: ["192.168.1.20", "192.168.1.30", "192.168.1.31"],
+            excludedHosts: [" 192.168.1.31", "192.168.1.32"])
+
+        #expect(dialer.controlDials.isEmpty && dialer.ptpInits == 0)
+        #expect(
+            dialer.dials.filter { $0.host == "192.168.1.31" }.count == 1,
+            "the presence sweep's one dial, never a liveness dial of the member")
+        #expect(
+            sightings.map(\.ip).sorted() == ["192.168.1.10", "192.168.1.20", "192.168.1.30", "usb:1"])
+        #expect(sightings.first { $0.ip == "192.168.1.30" }?.source == .liveness)
+        let held = sightings.first { $0.ip == "192.168.1.20" }
+        #expect(held?.isHeldByAnotherDevice == true && held?.heldByDeviceName == "Phone B")
+        #expect(
+            sightings.filter { !$0.isHeldByAnotherDevice }.map(\.ip).sorted() == ["192.168.1.10", "192.168.1.30", "usb:1"])
+    }
+
+    @Test func activeDiscoveryComparesExcludedHostsByTheirKey() async throws {
+        let dialer = FakeDialer()
+        dialer.cameras = ["192.168.1.30": "Z_f", "192.168.1.31": "Z_5"]
+        _ = try await discovery(dialer).discover(
+            .active, guid: guid, priorityHosts: ["192.168.1.30", "192.168.1.31"],
+            excludedHosts: { [" 192.168.1.31 "] })
+        #expect(dialer.controlDials == ["192.168.1.30"])
+    }
+
+    @Test func activeDiscoveryComparesMixedCaseHostsByTheirKeyOnBothSides() async throws {
+        let dialer = FakeDialer()
+        dialer.cameras = ["192.168.1.30": "Z_f", "192.168.1.31": "Z_5"]
+        _ = try await discovery(dialer).discover(
+            .active, guid: guid, priorityHosts: ["192.168.1.30", " 192.168.1.31"],
+            excludedHosts: { ["192.168.1.31 "] })
+        #expect(dialer.controlDials == ["192.168.1.30"])
+    }
+
     /// physical-C C9: the list's last sweep predated the phone that went live, so a saved connect
     /// asks with a fresh sweep, outside the list's rate window, and never dials the control port.
     @Test func currentHolderSweepsFreshAndNamesTheServingDevice() async throws {

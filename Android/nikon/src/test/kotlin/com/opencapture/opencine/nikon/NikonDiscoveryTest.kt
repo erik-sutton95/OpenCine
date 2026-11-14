@@ -74,6 +74,58 @@ class NikonDiscoveryTest {
         assertTrue(search.openHosts.isEmpty())
     }
 
+    /**
+     * Multiview's Add camera: a passive pass that lists what is there without dialling a camera's
+     * control port, and never dials or lists a host a member or Live View holds.
+     */
+    @Test
+    fun multiviewSightingsNeverDialsTheControlPortOrAnExcludedHost() = runTest {
+        val dialer = FakeDialer().apply {
+            presences = mapOf("192.168.1.7" to NikonPresence("Phone B", "192.168.1.20"))
+            alive = setOf("192.168.1.20", "192.168.1.30", "192.168.1.31", "192.168.1.32")
+            open = setOf("192.168.1.20", "192.168.1.30", "192.168.1.31", "192.168.1.32")
+        }
+        // Member .31 is only a saved host (no NSD row, as on networks that drop mDNS), so only the
+        // exclusion keeps it from a liveness dial; member .32 is listed by NSD.
+        val listened = listOf(
+            NikonSighting("192.168.1.10", "Z_8", NikonSighting.Source.NETWORK),
+            NikonSighting("usb:1", "Z_6", NikonSighting.Source.USB),
+            NikonSighting("192.168.1.32", "Z_r", NikonSighting.Source.NETWORK),
+        )
+        val sightings = discovery(dialer).multiviewSightings(
+            listened,
+            savedHosts = listOf("192.168.1.20", "192.168.1.30", "192.168.1.31"),
+            excludedHosts = setOf(" 192.168.1.31", "192.168.1.32"),
+        )
+
+        assertTrue(dialer.controlDials.isEmpty())
+        assertEquals(1, dialer.dials.count { it.first == "192.168.1.31" }, "the presence sweep's one dial, never a liveness dial of the member")
+        assertEquals(
+            setOf(
+                NikonSighting("192.168.1.10", "Z_8", NikonSighting.Source.NETWORK),
+                NikonSighting("usb:1", "Z_6", NikonSighting.Source.USB),
+                NikonSighting("192.168.1.30", null, NikonSighting.Source.LIVENESS),
+                NikonSighting("192.168.1.20", null, NikonSighting.Source.HELD_BY_ANOTHER_DEVICE, heldBy = "Phone B"),
+            ),
+            sightings.toSet(),
+        )
+        assertEquals(listOf("192.168.1.10", "192.168.1.30", "usb:1"), sightings.filter { it.source != NikonSighting.Source.HELD_BY_ANOTHER_DEVICE }.map { it.host }.sorted())
+    }
+
+    @Test
+    fun activeDiscoveryComparesExcludedHostsByTheirKey() = runTest {
+        val dialer = FakeDialer().apply { open = setOf("192.168.1.30", "192.168.1.31") }
+        discovery(dialer).search(DiscoveryMode.ACTIVE, listOf("192.168.1.30", "192.168.1.31"), excludedHosts = setOf(" 192.168.1.31 "))
+        assertEquals(listOf("192.168.1.30"), dialer.controlDials.distinct())
+    }
+
+    @Test
+    fun activeDiscoveryComparesPriorityAndExcludedHostsByTheSameKey() = runTest {
+        val dialer = FakeDialer().apply { open = setOf("192.168.1.30", "192.168.1.31") }
+        discovery(dialer).search(DiscoveryMode.ACTIVE, listOf("192.168.1.30", " 192.168.1.31"), excludedHosts = setOf("192.168.1.31 "))
+        assertEquals(listOf("192.168.1.30"), dialer.controlDials.distinct())
+    }
+
     @Test
     fun thePassiveDialerRefusesCameraControl() = runTest {
         val dialer = FakeDialer()
