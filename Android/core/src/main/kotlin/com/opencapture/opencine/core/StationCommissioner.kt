@@ -1,11 +1,10 @@
 package com.opencapture.opencine.core
 
-import kotlin.coroutines.cancellation.CancellationException
-
 /**
  * What a commissioner remembers of a camera it may have moved onto a station network: enough to
  * find it again nearby and return it to its own access point after the session closed. The
- * identifiers are the integration's. Swift twin: `StationCameraRecord`.
+ * identifiers are the integration's. Swift twin: `StationCameraRecord`, whose `id` is a `UUID` on
+ * purpose: Apple names a Bluetooth peripheral by a UUID, Android discovery by text.
  */
 public data class StationCameraRecord(
     public val id: String,
@@ -55,15 +54,10 @@ public interface StationCommission {
 /**
  * An integration that moves a nearby camera from its own access point onto a shared station
  * network and back. Optional: an integration whose cameras join a network only from their own
- * menus supplies none. Swift twin: `StationCommissioner`.
+ * menus supplies none. Whether a camera may join a stage and shows a picture is the integration's
+ * [MultiviewCameraPolicy], which every integration supplies. Swift twin: `StationCommissioner`.
  */
 public interface StationCommissioner<Camera> {
-    /** Whether this camera, in this configuration, may join a stage. */
-    public fun qualification(camera: Camera, experimental: Boolean): MulticamQualification
-
-    /** Whether a stage shows this camera's picture; without it only the network join is checked. */
-    public fun hasPreview(camera: Camera): Boolean
-
     /** The record kept in the cleanup journal before the camera leaves its access point. */
     public fun record(camera: Camera): StationCameraRecord
 
@@ -82,7 +76,7 @@ public interface StationCommissioner<Camera> {
      */
     public suspend fun restoreAccessPoint(record: StationCameraRecord): Boolean
 
-    /** Whether this integration can list the networks a camera sees. */
+    /** Whether this integration can list the networks a camera sees. Without it [scanNetworks] throws [StationScanUnsupported]. */
     public val scansNetworks: Boolean get() = false
 
     /**
@@ -97,6 +91,13 @@ public interface StationCommissioner<Camera> {
         onRestored: (Boolean) -> Unit,
         onFound: (String) -> Unit,
     ) {
-        throw CancellationException("this integration cannot list networks")
+        throw StationScanUnsupported()
     }
 }
+
+/**
+ * [StationCommissioner.scanNetworks] of an integration that cannot list networks (its
+ * `scansNetworks` is false). A plain exception, never a cancellation, so a caller's job is not
+ * silently cancelled. Swift twin: `StationScanUnsupported`.
+ */
+public class StationScanUnsupported : UnsupportedOperationException("this integration cannot list networks")

@@ -1,7 +1,6 @@
 package com.opencapture.opencine.dji
 
 import android.content.Context
-import com.opencapture.opencine.core.MulticamQualification
 import com.opencapture.opencine.core.StationCameraRecord
 import com.opencapture.opencine.core.StationCommission
 import com.opencapture.opencine.core.StationCommissionOutcome
@@ -17,7 +16,9 @@ import kotlinx.coroutines.delay
  * DJI's [StationCommissioner]: Multiview's Bluetooth pairing, the Nano Wi-Fi wake, the `07/07`
  * identity (with one Wi-Fi wake when its reply is missing), the captured station join and the
  * return to the camera's own access point, over [MultiviewProvisioner]. [hostPath] answers
- * whether this phone's hotspot is up; [log] receives diagnostics, never a password. Swift twin:
+ * whether this phone's hotspot is up; [log] receives diagnostics, never a password. Which bodies
+ * may join and show a picture is [MultiviewCameraPolicy.dji]. Call it from one thread (the
+ * coordinator's main thread): its record of open commission links is not synchronized. Swift twin:
  * `DJIStationCommissioner` in `OpenCineDJIApple`.
  */
 class DjiStationCommissioner(
@@ -28,11 +29,6 @@ class DjiStationCommissioner(
     private val app = context.applicationContext
     private val open = LinkedHashSet<MultiviewProvisioner>()
     private val joinPolicy: StationJoin.Policy by lazy { StationJoin.Policy.fromCore() }
-
-    override fun qualification(camera: FoundCamera, experimental: Boolean): MulticamQualification =
-        camera.multicamSupport().qualification(experimental)
-
-    override fun hasPreview(camera: FoundCamera): Boolean = camera.hasMultiviewPreview
 
     override fun record(camera: FoundCamera): StationCameraRecord =
         StationCameraRecord(camera.id, camera.name, camera.modelId, camera.address)

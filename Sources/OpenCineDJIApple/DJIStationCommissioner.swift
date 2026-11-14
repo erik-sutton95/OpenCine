@@ -5,8 +5,9 @@ import OpenCineDJI
 
 /// DJI's `StationCommissioner`: Multiview's Bluetooth pairing, the Nano Wi-Fi wake, the `07/07`
 /// identity, the captured station join and the return to the camera's own access point, over
-/// `DjiAppleMultiviewProvisioner`. `hostPath` answers whether this phone's hotspot is up.
-/// Android twin: `DjiStationCommissioner` in `:dji`.
+/// `DjiAppleMultiviewProvisioner`. `hostPath` answers whether this phone's hotspot is up. Which
+/// bodies may join and show a picture is `MultiviewCameraPolicy.dji`. Android twin:
+/// `DjiStationCommissioner` in `:dji`.
 @MainActor
 public final class DJIStationCommissioner: StationCommissioner {
     public typealias Camera = DjiAppleSighting
@@ -24,14 +25,6 @@ public final class DJIStationCommissioner: StationCommissioner {
         self.host = host
         self.hostPath = hostPath
         self.retryDelay = retryDelay
-    }
-
-    public func qualification(_ camera: DjiAppleSighting, experimental: Bool) -> MulticamQualification {
-        MulticamSupport.qualification(camera.model, experimental: experimental)
-    }
-
-    public func hasPreview(_ camera: DjiAppleSighting) -> Bool {
-        MulticamSupport.hasPreview(camera.model)
     }
 
     public func record(_ camera: DjiAppleSighting) -> StationCameraRecord {

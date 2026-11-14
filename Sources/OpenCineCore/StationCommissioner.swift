@@ -3,7 +3,8 @@ import Foundation
 /// What a commissioner remembers of a camera it may have moved onto a station network: enough to
 /// find it again nearby and return it to its own access point after the session closed. The
 /// identifiers are the integration's (a Bluetooth peripheral id; `deviceAddress` where the
-/// platform exposes a hardware address). Kotlin twin: `StationCameraRecord`.
+/// platform exposes a hardware address). Kotlin twin: `StationCameraRecord`, whose `id` is a
+/// `String` on purpose: Apple names a Bluetooth peripheral by a UUID, Android discovery by text.
 public struct StationCameraRecord: Hashable, Sendable {
     public var id: UUID
     public var name: String
@@ -48,16 +49,14 @@ public protocol StationCommission: AnyObject {
 
 /// An integration that moves a nearby camera from its own access point onto a shared station
 /// network and back. Optional: an integration whose cameras join a network only from their own
-/// menus supplies none. Kotlin twin: `StationCommissioner`.
+/// menus supplies none. Whether a camera may join a stage and shows a picture is the
+/// integration's `MultiviewCameraPolicy`, which every integration supplies. Kotlin twin:
+/// `StationCommissioner`.
 @MainActor
 public protocol StationCommissioner<Camera>: AnyObject {
     /// A nearby camera as the integration's discovery reports it.
     associatedtype Camera: Sendable
 
-    /// Whether this camera, in this configuration, may join a stage.
-    func qualification(_ camera: Camera, experimental: Bool) -> MulticamQualification
-    /// Whether a stage shows this camera's picture; without it only the network join is checked.
-    func hasPreview(_ camera: Camera) -> Bool
     /// The record kept in the cleanup journal before the camera leaves its access point.
     func record(_ camera: Camera) -> StationCameraRecord
     /// Opens the camera's setup link (pairing, waking its Wi-Fi). `progress` reports
@@ -71,7 +70,8 @@ public protocol StationCommissioner<Camera>: AnyObject {
     /// Returns the camera to its own access point, with the integration's own bounded retry.
     /// False when the camera did not confirm; never throws, cancellation included.
     func restoreAccessPoint(_ record: StationCameraRecord) async -> Bool
-    /// Whether this integration can list the networks a camera sees.
+    /// Whether this integration can list the networks a camera sees. Without it `scanNetworks`
+    /// throws `StationScanUnsupported`.
     var scansNetworks: Bool { get }
     /// Networks `camera` can see, reported as they arrive. `beforeStationChange` runs before the
     /// camera leaves its access point (the caller journals the cleanup there and may refuse);
@@ -93,6 +93,13 @@ extension StationCommissioner {
         onRestored: @escaping @MainActor (Bool) -> Void,
         onFound: @escaping @MainActor (String) -> Void
     ) async throws {
-        throw CancellationError()
+        throw StationScanUnsupported()
     }
+}
+
+/// `StationCommissioner.scanNetworks` of an integration that cannot list networks (its
+/// `scansNetworks` is false). A plain error, never a cancellation, so a caller cannot mistake it
+/// for its own task ending. Kotlin twin: `StationScanUnsupported`.
+public struct StationScanUnsupported: Error, Equatable, Sendable {
+    public init() {}
 }
