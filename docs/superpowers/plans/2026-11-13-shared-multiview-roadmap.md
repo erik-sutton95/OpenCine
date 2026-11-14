@@ -82,3 +82,34 @@ link reports `MultiviewLinkStatus` and `isPublishing` and never writes tile stat
   Wi-Fi wake retry, foreground-only repair on iOS, probe width. Deliberate twin differences:
   `StationCameraRecord.id` (`UUID` / `String`) and restore cancellation (Swift false, Kotlin
   propagates), recorded in `docs/core/README.md`.
+
+## Carried from Plan 3 (2026-11-14)
+
+Plan 3 landed on `feat/shared-multiview-3` (OpenCine and OpenPocketCine), stacked on Plan 2.
+AppKit's `MultiviewCoordinator` (Swift and Kotlin) owns the stage; Pocket's `MultiviewSession` on
+both platforms is an adapter and its `MultiviewHost`. The Plan 1 and Plan 2 carry-overs for Plan 3
+are done (tile note keyed off `RecordAll`, Pocket's typealias shims and `validated` overload gone,
+Android's unused `recordingAvailable` readout parameter gone, the record port's availability gate
+already matched iOS, fakes, probe discovery, the real Bluetooth queue, `RecoveryBudget`,
+`isPublishing` replaced by the coordinator's `publishing` and the link's `recordReport`,
+`StationRestoreResult`). For the later plans:
+
+- Plan 4 grows `MultiviewHost` into the screen and settings popup composition: today the host
+  answers Live View, editors, member changes, foreground, stage stop, whether a picture shows and
+  the log; tile pictures, surfaces, the backdrop and the Live View borrow stay in Pocket.
+- Plan 5: Luna's `restoreAccessPoint` returns `deferred(copy)` when the camera needs the operator
+  first (the stage shows that copy after close); DJI returns only `restored` or `failed`.
+- Plan 5 (N1): OpenInstaCine `ios/OpenInstaCine/AddSetupView.swift:46-56` must pass
+  `complete: { done(nil) }` to the locked Shared Wi-Fi page at its next pin move.
+- `DjiAppleSharedWiFiPath` stays for the single-camera transport (Multiview no longer uses it:
+  the datalink takes the host path's address from its caller); fold it when that transport moves.
+- `MultiviewAutoLUT` still carries names; the LUT strip is still Pocket's.
+- Recovery semantics: `RecoveryBudget.beginAttempt` clears the healthy streak (DJI's own ladder
+  did not), so a member that rejoins and stalls again within 30 s keeps spending its budget.
+- Pocket Android keeps on purpose (handbook): 24 probes a batch, the early identity read (kept
+  through a lost join reply), the decoder rebuild after Live View and repair only while a surface
+  is mounted. Everything else moved to iOS's rules through the coordinator.
+- Pocket Android keeps its `MultiviewMulticam` helper only for its engine tests of the record port.
+- Before merging Pocket: the on-device upgrade checklist and a Multiview hardware pass on both
+  platforms (add, two cameras, record together, rejoin, close cleanup), untested in this plan.
+
