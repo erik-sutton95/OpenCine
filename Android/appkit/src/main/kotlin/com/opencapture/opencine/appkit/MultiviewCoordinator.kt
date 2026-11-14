@@ -229,6 +229,19 @@ public object MultiviewCopy {
 
     /** The search line while the stage looks for a member on the shared network. */
     public fun finding(attempt: Int, of: Int): String = "Finding camera on Wi-Fi · $attempt of $of"
+
+    /** The Add camera list's footer: cameras the app moves onto [network], or cameras already there. */
+    public fun pickerFooter(network: String, commissioned: Boolean): String =
+        if (commissioned) "Each camera will join $network. Approve on the camera if asked."
+        else "Cameras already on $network appear here."
+
+    /** A listed camera that joins without its picture. */
+    public const val PREVIEW_UNAVAILABLE: String = "Try experimental shared Wi-Fi · Preview unavailable"
+    public const val RECONNECT_BEFORE_SETTINGS: String = "Reconnect this camera before changing settings."
+    public const val WAITING_FOR_CONTROLS: String = "Waiting for camera controls\u2026"
+    public const val CONTROLS_UNAVAILABLE: String = "Controls unavailable"
+    public const val LOCKED_WHILE_RECORDING: String = "Locked while recording"
+    public const val CAMERA_SETTINGS: String = "Camera settings"
 }
 
 /** Why a coordinator step failed, with its operator copy. Swift twin: `MultiviewStageFailure`. */

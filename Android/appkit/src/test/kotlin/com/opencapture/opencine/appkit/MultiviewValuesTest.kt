@@ -55,4 +55,52 @@ class MultiviewValuesTest {
             MultiviewRecordContext(plan(MulticamSnapshot(listOf(camera.current), now = MonotonicInstant.ZERO))).refusal,
         )
     }
+    @Test fun settingsCategoriesFollowTheCamerasCapabilitiesInIOSOrder() {
+        val c = MultiviewSettingsCategory
+        assertEquals(
+            listOf(MultiviewSettingsCategory.ISO, MultiviewSettingsCategory.SHUTTER, MultiviewSettingsCategory.EXPOSURE,
+                MultiviewSettingsCategory.WB, MultiviewSettingsCategory.FOCUS, MultiviewSettingsCategory.MODE,
+                MultiviewSettingsCategory.RESOLUTION, MultiviewSettingsCategory.COLOR, MultiviewSettingsCategory.AUDIO),
+            c.offered(focus = true, aperture = false, photo = false, audio = true),
+        )
+        assertEquals(
+            listOf(MultiviewSettingsCategory.ISO, MultiviewSettingsCategory.SHUTTER, MultiviewSettingsCategory.EXPOSURE,
+                MultiviewSettingsCategory.WB, MultiviewSettingsCategory.APERTURE, MultiviewSettingsCategory.MODE,
+                MultiviewSettingsCategory.RESOLUTION, MultiviewSettingsCategory.COLOR),
+            c.offered(focus = false, aperture = true, photo = false, audio = false),
+        )
+        assertEquals(
+            listOf(MultiviewSettingsCategory.ISO, MultiviewSettingsCategory.SHUTTER, MultiviewSettingsCategory.EXPOSURE,
+                MultiviewSettingsCategory.WB, MultiviewSettingsCategory.FOCUS, MultiviewSettingsCategory.APERTURE,
+                MultiviewSettingsCategory.MODE),
+            c.offered(focus = true, aperture = true, photo = true, audio = true),
+            "a photo mode offers no format, color or audio",
+        )
+        assertEquals(
+            listOf("Iso", "Shutter", "Exposure", "WB", "Focus", "Aperture", "Mode", "Format", "Color", "Audio"),
+            MultiviewSettingsCategory.entries.map { it.title },
+        )
+        assertEquals("multiview.settings.control.wb", MultiviewSettingsCategory.WB.identifier)
+    }
+
+    @Test fun recordingLocksModeFormatAndColor() {
+        for (category in MultiviewSettingsCategory.entries) {
+            assertFalse(category.locked(recording = false))
+            assertEquals(
+                category in listOf(MultiviewSettingsCategory.MODE, MultiviewSettingsCategory.RESOLUTION,
+                    MultiviewSettingsCategory.COLOR),
+                category.locked(recording = true),
+            )
+        }
+    }
+
+    @Test fun closeCopyFollowsWhetherCamerasReturn() {
+        assertEquals("Returning cameras to their Wi-Fi\u2026", MultiviewNetworkRestore.CAMERA_NETWORKS.closingProgress)
+        assertEquals("Closing Multiview\u2026", MultiviewNetworkRestore.NONE.closingProgress)
+        assertEquals(
+            "Each camera will join Studio. Approve on the camera if asked.",
+            MultiviewCopy.pickerFooter("Studio", commissioned = true),
+        )
+        assertEquals("Cameras already on Studio appear here.", MultiviewCopy.pickerFooter("Studio", commissioned = false))
+    }
 }
