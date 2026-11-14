@@ -219,7 +219,9 @@ class LunaIntegration(
     /**
      * Stores a record before an attempt that moves the camera: the setup being added and the move
      * itself are remembered first, so a later camera Wi-Fi connect asks the camera back onto its own
-     * access point even when this attempt fails. The app upserts it.
+     * access point even when this attempt fails. The app upserts it. A record made from a sighting
+     * (no routes yet) is stored only once the camera starts to move, so an attempt that fails before
+     * then leaves no saved camera behind.
      */
     var saveRecord: (SavedCamera) -> Unit = {}
 
@@ -241,7 +243,8 @@ class LunaIntegration(
          * adds the setup to [saved], its record, so its camera Wi-Fi, other setups and serial stay (a
          * Wi-Fi setup takes the place of its earlier Wi-Fi setup, a hotspot of its hotspot, as Add
          * setup does); null without that record, since a record made from the sighting would replace
-         * it. An unsaved sighting gets a record made from it. Hardware-untested.
+         * it. An unsaved sighting gets a record made from it, saved once the camera starts to move.
+         * Hardware-untested.
          */
         fun target(nearby: NearbyCamera, onto: LunaStationNetwork, saved: SavedCamera? = null): ConnectTarget? {
             val id = nearby.savedID ?: nearby.id
@@ -255,6 +258,9 @@ class LunaIntegration(
                 RouteDraft(if (onto.hotspot) RouteKind.PHONE_HOTSPOT else RouteKind.INFRASTRUCTURE_NETWORK, onto.ssid, onto.password),
             )
         }
+
+        /** Backend phases past authorization: the camera is about to be asked onto the network, or is reached there. */
+        private val MOVING_PHASES = setOf(ConnectionPhase.JOINING_WIFI, ConnectionPhase.OPENING_DATALINK, ConnectionPhase.LIVE)
     }
 
     /**
@@ -297,6 +303,8 @@ class LunaIntegration(
         }
         var route: SavedRoute? = null
         var lunaRoute: LunaRoute = LunaRoute.CameraWiFi(restoreAccessPoint = false)
+        // A record made from a sighting, saved once the camera starts to move.
+        var saveOnMove: SavedCamera? = null
         when (target) {
             is ConnectTarget.Nearby -> Unit
             is ConnectTarget.Saved -> {
@@ -333,7 +341,10 @@ class LunaIntegration(
                 route = added
                 lunaRoute = LunaRoute.Station(station)
                 port.saveStation(station)
-                saveRecord(StationRoutes.stamping(StationRoutes.adding(added, target.camera), added.kind))
+                val remembered = StationRoutes.stamping(StationRoutes.adding(added, target.camera), added.kind)
+                // Every record this integration saves has the camera's own Wi-Fi route, so one without
+                // routes was made from a sighting: it is saved once the camera moves.
+                if (target.camera.routes.isEmpty()) saveOnMove = remembered else saveRecord(remembered)
             }
         }
         val moving = route?.let { StationRoutes.moves(it.kind) } == true
@@ -367,8 +378,15 @@ class LunaIntegration(
         val job = port.attempt
         val outcome = CompletableDeferred<ConnectionEvent?>()
         var last: ConnectionEvent.Progress? = null
+        val savedOnMove = {
+            saveOnMove?.let {
+                saveOnMove = null
+                saveRecord(it)
+            }
+        }
         val watcher = launch {
             port.phase.collect { phase ->
+                if (moving && phase in MOVING_PHASES) savedOnMove()
                 if (phase == ConnectionPhase.LIVE && job?.isActive == true) {
                     val media = port.mediaService(session.id)?.takeIf { it.sessionID == session.id }
                     val services = media?.let { CameraServices().plus(CameraMediaService::class, it) }
@@ -396,9 +414,13 @@ class LunaIntegration(
         val ender = launch {
             job?.join()
             val camera = (target as? ConnectTarget.Saved)?.camera ?: (target as? ConnectTarget.AddRoute)?.camera
+            val failure = port.failureDetail.value ?: LunaFailures.connect(port.phase.value)
+            // The phase flow keeps only its latest value: a failure on the network step still saves
+            // the record of a camera that may have moved.
+            if (job != null && !job.isCancelled && failure.phase == CorePhase.JOINING_NETWORK) savedOnMove()
             outcome.complete(
                 if (job == null || job.isCancelled) null else ConnectionEvent.Failed(
-                    StationRoutes.withRouteActions(port.failureDetail.value ?: LunaFailures.connect(port.phase.value), usedRoute, camera),
+                    StationRoutes.withRouteActions(failure, usedRoute, camera),
                 ),
             )
         }

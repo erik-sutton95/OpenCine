@@ -480,8 +480,9 @@ class LunaIntegrationTest {
 
     /**
      * Multiview's add: a camera seen over Bluetooth (not yet saved) goes straight onto the shared
-     * network. The setup's password is kept, the record remembers the move before it happens, and the
-     * connected record has the camera's own Wi-Fi and the setup, the setup preferred.
+     * network. The setup's password is kept, the record is saved once the camera moves (so a later
+     * connect can ask it back), and the connected record has the camera's own Wi-Fi and the setup,
+     * the setup preferred.
      */
     @Test
     fun aNearbyCameraConnectsStraightOntoAWiFiSetup() = runTest {
@@ -492,6 +493,14 @@ class LunaIntegrationTest {
         runCurrent()
         assertTrue(port.connects == listOf(camera) && port.routes == listOf(station("Studio", "synthetic1")))
         assertEquals("synthetic1", port.stationPassword("Studio", hotspot = false))
+        port.phase.value = ConnectionPhase.CONNECTING_GATT
+        runCurrent()
+        port.phase.value = ConnectionPhase.AWAITING_APPROVAL
+        runCurrent()
+        assertTrue(stamped.isEmpty(), "nothing is saved before the camera moves")
+        port.phase.value = ConnectionPhase.JOINING_WIFI
+        runCurrent()
+        assertEquals(1, stamped.size)
         val remembered = stamped.last()
         val wifi = remembered.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
         assertTrue(remembered.id == camera && remembered.preferredRoute == wifi.id, "remembered before the camera moves")
@@ -503,6 +512,27 @@ class LunaIntegrationTest {
         assertTrue(live.preferredRoute == live.routes[1].id && live.routes[1].network == "Studio")
         assertEquals("LUNA-1A2B", live.routes[0].network)
         assertTrue(live.advertisedName == "Luna 1A2B" && live.model == "Insta360 Luna Ultra")
+    }
+
+    /**
+     * A sighting the operator cannot reach or does not approve never becomes a saved camera: the
+     * attempt failed before the camera moved, so there is nothing to ask back later.
+     */
+    @Test
+    fun aNearbyCameraThatFailsBeforeItMovesLeavesNoRecord() = runTest {
+        val (port, luna) = setup()
+        val stamped = mutableListOf<SavedCamera>()
+        luna.saveRecord = { stamped += it }
+        val events = collect(luna.connect(sighting, onto = LunaStationNetwork("Studio", "synthetic1", hotspot = false)))
+        runCurrent()
+        port.phase.value = ConnectionPhase.CONNECTING_GATT
+        runCurrent()
+        port.phase.value = ConnectionPhase.AWAITING_APPROVAL
+        runCurrent()
+        port.fail(LunaFailures.connect(ConnectionPhase.AWAITING_APPROVAL))
+        runCurrent()
+        assertEquals(ConnectionFailure.Reason.NotApproved, assertIs<ConnectionEvent.Failed>(events.last()).failure.reason)
+        assertTrue(stamped.isEmpty(), "no record for a camera that never moved")
     }
 
     /**
