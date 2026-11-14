@@ -38,7 +38,7 @@ public interface StationCommission {
     /**
      * Moves the camera onto [network]. [progress] reports operator-facing steps.
      * [verifyOnNetwork] lets the caller find and open the camera on the network while this link is
-     * still up; it returns true when it did.
+     * still up; it returns true when it did. A [StationVerifyFinal] it throws ends the join.
      */
     public suspend fun join(
         network: StationNetwork,
@@ -50,6 +50,14 @@ public interface StationCommission {
 
     public fun close()
 }
+
+/**
+ * What a caller's `verifyOnNetwork` throws when the camera it found there can never join (for
+ * example it is already a member of the stage). A commissioner rethrows it at once instead of
+ * treating it as "not found yet" and joining again; the caller reports [reason]. Swift twin:
+ * `StationVerifyFinal`.
+ */
+public class StationVerifyFinal(public val reason: Exception) : Exception(reason.message, reason)
 
 /**
  * How a camera's return to its own access point ended. The cleanup journal keeps every camera that
@@ -89,7 +97,7 @@ public interface StationCommissioner<Camera> {
 
     /**
      * Returns the camera to its own access point, with the integration's own bounded retry.
-     * Cancellation propagates.
+     * Cancellation propagates; a caller keeps a cancelled (or throwing) return as not restored.
      */
     public suspend fun restoreAccessPoint(record: StationCameraRecord): StationRestoreResult
 

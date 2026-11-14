@@ -72,7 +72,9 @@ public enum MultiviewRepairStep {
 }
 
 /// What a member link's repair may read and ask of the coordinator while it decides and while its
-/// repair runs. Kotlin twin: `MultiviewRepairContext`.
+/// repair runs. Every value has a default (a running, foreground stage on its network with budget
+/// and Bluetooth to spare), so the context grows without breaking a link test that builds one.
+/// Kotlin twin: `MultiviewRepairContext`.
 public struct MultiviewRepairContext {
     /// This phone is on the shared network now.
     public var pathReady: Bool
@@ -97,23 +99,25 @@ public struct MultiviewRepairContext {
     /// `repair` closure; LAN-only repairs never ask.
     public var bluetoothTurn: @MainActor () async -> (@MainActor () -> Void)?
 
+    // The defaults are nil and filled in here: a closure literal as a public default argument is
+    // compiled again into each client module (see `hostSleep`).
     public init(
-        pathReady: Bool, running: @escaping @MainActor () -> Bool,
-        applicationActive: @escaping @MainActor () -> Bool,
-        foregroundUnchanged: @escaping @MainActor () -> Bool,
-        pathAvailable: @escaping @MainActor () -> Bool,
-        beginAttempt: @escaping @MainActor () -> Bool,
-        observeHealth: @escaping @MainActor (Bool) -> Void,
-        bluetoothTurn: @escaping @MainActor () async -> (@MainActor () -> Void)?
+        pathReady: Bool = true, running: (@MainActor () -> Bool)? = nil,
+        applicationActive: (@MainActor () -> Bool)? = nil,
+        foregroundUnchanged: (@MainActor () -> Bool)? = nil,
+        pathAvailable: (@MainActor () -> Bool)? = nil,
+        beginAttempt: (@MainActor () -> Bool)? = nil,
+        observeHealth: (@MainActor (Bool) -> Void)? = nil,
+        bluetoothTurn: (@MainActor () async -> (@MainActor () -> Void)?)? = nil
     ) {
         self.pathReady = pathReady
-        self.running = running
-        self.applicationActive = applicationActive
-        self.foregroundUnchanged = foregroundUnchanged
-        self.pathAvailable = pathAvailable
-        self.beginAttempt = beginAttempt
-        self.observeHealth = observeHealth
-        self.bluetoothTurn = bluetoothTurn
+        self.running = running ?? { true }
+        self.applicationActive = applicationActive ?? { true }
+        self.foregroundUnchanged = foregroundUnchanged ?? { true }
+        self.pathAvailable = pathAvailable ?? { true }
+        self.beginAttempt = beginAttempt ?? { true }
+        self.observeHealth = observeHealth ?? { _ in }
+        self.bluetoothTurn = bluetoothTurn ?? { {} }
     }
 }
 
@@ -170,7 +174,8 @@ public protocol MultiviewMemberLink<Camera>: AnyObject {
     ) async throws -> [UInt8]
     /// Starts the picture on the link `open` left open, at the address it reached.
     func startPreview(_ camera: Camera) async throws
-    /// Keeps the link alive; the coordinator calls it once a second.
+    /// Keeps the link alive; the coordinator calls it once a second, one member after another, so
+    /// it returns promptly (a slow keepalive delays every member's freshness and repair).
     func keepalive() async
     /// Closes the link. Never sends a record or access-point command. A link whose close is a
     /// session goodbye may finish it asynchronously; it then serializes its next `open` behind it.

@@ -104,6 +104,13 @@ public final class FakeStationCommissioner: StationCommissioner {
     public var joinError: Error?
     /// The join finds the camera through `verifyOnNetwork` and reports `.verified`.
     public var verifiesOnJoin = false
+    /// The verified join waits here before it reports, when set (the camera's preview already
+    /// started while its join still runs).
+    public var afterVerifyGate: FakeGate?
+    /// The camera's join reply is lost, as a real commissioner sees it: the join looks for the
+    /// camera on the network, treats what that throws as "not there yet" unless it is a
+    /// `StationVerifyFinal`, and then fails as a silent join.
+    public var lostJoinReply = false
     /// Each camera's return results, in order; `.restored` once they run out.
     public var restoreResults: [UUID: [StationRestoreResult]] = [:]
     /// Every return waits here when set.
@@ -119,6 +126,9 @@ public final class FakeStationCommissioner: StationCommissioner {
     /// Commission links closed by the caller.
     public private(set) var linksClosed = 0
     public private(set) var scans: [UUID] = []
+
+    /// How a join whose reply was lost fails.
+    public static let silentJoin = "The camera did not answer the Wi-Fi join."
 
     public init() {}
 
@@ -179,7 +189,18 @@ public final class FakeStationCommissioner: StationCommissioner {
             owner.joins.append((camera.id, network, experimental))
             for line in owner.joinProgress { progress(line) }
             if let error = owner.joinError { throw error }
-            if owner.verifiesOnJoin, try await verifyOnNetwork() { return .verified }
+            if owner.lostJoinReply {
+                do {
+                    if try await verifyOnNetwork() { return .verified }
+                } catch {
+                    if error is CancellationError || error is StationVerifyFinal { throw error }
+                }
+                throw FakeMultiviewFailure(FakeStationCommissioner.silentJoin)
+            }
+            if owner.verifiesOnJoin, try await verifyOnNetwork() {
+                if let gate = owner.afterVerifyGate { await gate.wait() }
+                return .verified
+            }
             return .joined
         }
 

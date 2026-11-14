@@ -16,6 +16,8 @@ import com.opencapture.opencine.core.StationCommissioner
 import com.opencapture.opencine.core.StationHostPath
 import com.opencapture.opencine.core.StationNetwork
 import com.opencapture.opencine.core.StationRestoreResult
+import com.opencapture.opencine.core.StationVerifyFinal
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -110,6 +112,22 @@ public class FakeStationCommissioner : StationCommissioner<FakeStationCamera> {
     /** The join finds the camera through `verifyOnNetwork` and reports VERIFIED. */
     public var verifiesOnJoin: Boolean = false
 
+    /**
+     * The verified join waits here before it reports, when set (the camera's preview already
+     * started while its join still runs).
+     */
+    public var afterVerifyGate: FakeGate? = null
+
+    /**
+     * The camera's join reply is lost, as a real commissioner sees it: the join looks for the
+     * camera on the network, treats what that throws as "not there yet" unless it is a
+     * [StationVerifyFinal], and then fails as a silent join.
+     */
+    public var lostJoinReply: Boolean = false
+
+    /** Thrown by [restoreAccessPoint] when set (Kotlin only: a Swift return cannot throw). */
+    public var restoreError: Exception? = null
+
     /** Each camera's return results, in order; RESTORED once they run out. */
     public val restoreResults: MutableMap<String, MutableList<StationRestoreResult>> = mutableMapOf()
 
@@ -133,6 +151,11 @@ public class FakeStationCommissioner : StationCommissioner<FakeStationCamera> {
 
     override fun record(camera: FakeStationCamera): StationCameraRecord = camera.record
 
+    public companion object {
+        /** How a join whose reply was lost fails. */
+        public const val SILENT_JOIN: String = "The camera did not answer the Wi-Fi join."
+    }
+
     override suspend fun connect(camera: FakeStationCamera, progress: (String) -> Unit): StationCommission {
         connects += camera.id
         progress("Bluetooth pairing")
@@ -149,6 +172,7 @@ public class FakeStationCommissioner : StationCommissioner<FakeStationCamera> {
     override suspend fun restoreAccessPoint(record: StationCameraRecord): StationRestoreResult {
         restores += record.id
         restoreGate?.await()
+        restoreError?.let { throw it }
         val queue = restoreResults[record.id]
         return if (queue.isNullOrEmpty()) StationRestoreResult.Restored else queue.removeAt(0)
     }
@@ -178,7 +202,22 @@ public class FakeStationCommissioner : StationCommissioner<FakeStationCamera> {
             joins += Triple(camera.id, network, experimental)
             for (line in joinProgress) progress(line)
             joinError?.let { throw it }
-            if (verifiesOnJoin && verifyOnNetwork()) return StationCommissionOutcome.VERIFIED
+            if (lostJoinReply) {
+                try {
+                    if (verifyOnNetwork()) return StationCommissionOutcome.VERIFIED
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: StationVerifyFinal) {
+                    throw e
+                } catch (_: Exception) {
+                    // Not there yet: the join goes on and fails silent.
+                }
+                throw FakeMultiviewFailure(SILENT_JOIN)
+            }
+            if (verifiesOnJoin && verifyOnNetwork()) {
+                afterVerifyGate?.await()
+                return StationCommissionOutcome.VERIFIED
+            }
             return StationCommissionOutcome.JOINED
         }
 
@@ -207,6 +246,12 @@ public class FakeMemberLink(public val fakeSession: FakeCameraSession = FakeCame
     /** [open] waits here when set. */
     public var openGate: FakeGate? = null
 
+    /** Thrown by [keepalive] when set (Kotlin only: Swift's cannot throw). */
+    public var keepaliveError: Exception? = null
+
+    /** Thrown by [probe] at these addresses (Kotlin only: Swift's cannot throw). */
+    public val probeErrors: MutableMap<String, Exception> = mutableMapOf()
+
     /** The next repair tick's verdict. */
     public var repairStep: (MultiviewRepairContext) -> MultiviewRepairStep = { MultiviewRepairStep.Healthy }
 
@@ -230,6 +275,7 @@ public class FakeMemberLink(public val fakeSession: FakeCameraSession = FakeCame
 
     override suspend fun probe(address: String, network: StationNetwork): Boolean {
         probes += address
+        probeErrors[address]?.let { throw it }
         return answering[address] != null
     }
 
@@ -256,6 +302,7 @@ public class FakeMemberLink(public val fakeSession: FakeCameraSession = FakeCame
 
     override suspend fun keepalive() {
         keepalives += 1
+        keepaliveError?.let { throw it }
     }
 
     override fun close() {

@@ -40,6 +40,18 @@ public enum StationRestoreResult: Equatable, Sendable {
     case failed
 }
 
+/// What a caller's `verifyOnNetwork` throws when the camera it found there can never join (for
+/// example it is already a member of the stage). A commissioner rethrows it at once instead of
+/// treating it as "not found yet" and joining again; the caller reports `reason`. Kotlin twin:
+/// `StationVerifyFinal`.
+public struct StationVerifyFinal: Error {
+    public var reason: any Error
+
+    public init(_ reason: any Error) {
+        self.reason = reason
+    }
+}
+
 /// One nearby camera's setup link (for example its Bluetooth link) while a commissioner moves it
 /// onto a station network. The caller closes it when the move ended either way.
 @MainActor
@@ -49,7 +61,7 @@ public protocol StationCommission: AnyObject {
     func identity() async throws -> [UInt8]
     /// Moves the camera onto `network`. `progress` reports operator-facing steps.
     /// `verifyOnNetwork` lets the caller find and open the camera on the network while this link
-    /// is still up; it returns true when it did.
+    /// is still up; it returns true when it did. A `StationVerifyFinal` it throws ends the join.
     func join(
         _ network: StationNetwork, identity: [UInt8], experimental: Bool,
         progress: @escaping @MainActor (String) -> Void,
