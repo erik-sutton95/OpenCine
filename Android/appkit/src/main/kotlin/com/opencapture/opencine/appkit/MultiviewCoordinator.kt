@@ -65,9 +65,9 @@ public enum class MultiviewMemberChange {
 }
 
 /**
- * What only the app has, as the coordinator asks for it. Every member has a default, so an app
- * adopts only what it offers and the interface grows (Plan 4: the screen and the tile picture)
- * without breaking an adopter. Swift twin: `MultiviewHost`.
+ * What only the app has, as the coordinator and the shared screen ask for it. Every member has a
+ * default, so an app adopts only what it offers and the interface grows without breaking an adopter.
+ * The views the screen needs from the app are [MultiviewScreenHost]'s. Swift twin: `MultiviewHost`.
  */
 public interface MultiviewHost {
     /** The operator's record confirmation preference (Settings): the stage asks before a record press when true. */
@@ -96,6 +96,41 @@ public interface MultiviewHost {
 
     /** A diagnostic line (never a password). */
     public fun log(line: String) {}
+
+    // The screen's half (Plan 4): what the shared screen asks of the app.
+
+    /**
+     * [slot]'s camera readings for its tile (names, format, storage, timecode, readouts, power,
+     * whether a picture shows); null when the app has none, and the tile names its camera only.
+     */
+    public fun readings(slot: Int): MultiviewTileReadings? = null
+
+    /** The app edits camera settings: the stage offers the CAMERA tool and its settings popup. */
+    public val editsCameraSettings: Boolean get() = false
+
+    /**
+     * The app grades each member's picture with its Auto LUT: the stage offers the LUT tool and each
+     * camera's Auto LUT option.
+     */
+    public val appliesAutoLUT: Boolean get() = false
+
+    /** [slot]'s member changed its Auto LUT choice ([MultiviewMember.lutEnabled]): apply it. */
+    public fun lutChanged(slot: Int) {}
+
+    /**
+     * Opens the app's settings editor on [slot], closing any other. The app opens the coordinator's
+     * editor lease (`openEditorLease`) with it and asks `editorAdmits` before each change.
+     */
+    public fun openCameraSettings(slot: Int) {}
+
+    /** The open settings editor on [slot] as the popup shows it; null while none is open. */
+    public fun cameraSettings(slot: Int): MultiviewCameraSettingsState? = null
+
+    /**
+     * What only the app knows about whether [slot] takes a settings change now (its own link is open,
+     * no Live View borrows the member). [MultiviewCoordinator.controlsAvailable] asks it.
+     */
+    public fun admitsControls(slot: Int): Boolean = true
 }
 
 /**
@@ -358,7 +393,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     public val links: List<Link>,
     members: List<MultiviewMember<Camera>>? = null,
     internal val policy: MultiviewCameraPolicy<Camera>,
-    private val commissioner: StationCommissioner<Camera>?,
+    internal val commissioner: StationCommissioner<Camera>?,
     private val scanner: NearbyCameraScanner<Camera>?,
     public val hostPath: StationHostPath,
     internal val describe: (Camera) -> StationCameraRecord,
@@ -1173,14 +1208,14 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     }
 
     /**
-     * Whether the stage admits a settings change on [slot] now (the app adds what only it knows,
-     * such as its link and a borrowed Live View).
+     * Whether the stage admits a settings change on [slot] now, with what only the app knows
+     * ([MultiviewHost.admitsControls], such as its link and a borrowed Live View).
      */
     public fun controlsAvailable(slot: Int): Boolean {
         val member = members[slot]
         return member.camera != null && member.controlHost != null && !member.connecting && !member.recovering &&
             !busy && !closing && applicationActive && member.recordingAvailable && !groupRecordingBusy &&
-            !member.recordingBusy
+            !member.recordingBusy && host?.admitsControls(slot) != false
     }
 
     /**

@@ -14,9 +14,10 @@ public enum MultiviewMemberChange: Hashable, Sendable {
     case removed
 }
 
-/// What only the app has, as the coordinator asks for it. Every requirement has a default, so an
-/// app adopts only what it offers and the protocol grows (Plan 4: the screen and the tile picture)
-/// without breaking an adopter. Kotlin twin: `MultiviewHost`.
+/// What only the app has, as the coordinator and the shared screen ask for it. Every requirement
+/// has a default, so an app adopts only what it offers and the protocol grows without breaking an
+/// adopter. The views the screen needs from the app are `MultiviewScreenHost`'s (AppKitApple).
+/// Kotlin twin: `MultiviewHost`.
 @MainActor
 public protocol MultiviewHost: AnyObject {
     /// The operator's record confirmation preference (Settings): the stage asks before a record
@@ -38,6 +39,28 @@ public protocol MultiviewHost: AnyObject {
     func showsPicture(slot: Int) -> Bool
     /// A diagnostic line (never a password).
     func log(_ line: String)
+
+    // The screen's half (Plan 4): what the shared screen asks of the app.
+
+    /// `slot`'s camera readings for its tile (names, format, storage, timecode, readouts, power,
+    /// whether a picture shows); nil when the app has none, and the tile names its camera only.
+    func readings(slot: Int) -> MultiviewTileReadings?
+    /// The app edits camera settings: the stage offers the CAMERA tool and its settings popup.
+    var editsCameraSettings: Bool { get }
+    /// The app grades each member's picture with its Auto LUT: the stage offers the LUT tool and
+    /// each camera's Auto LUT option.
+    var appliesAutoLUT: Bool { get }
+    /// `slot`'s member changed its Auto LUT choice (`MultiviewMember.lutEnabled`): apply it.
+    func lutChanged(slot: Int)
+    /// Opens the app's settings editor on `slot`, closing any other. The app opens the
+    /// coordinator's editor lease (`openEditorLease`) with it and asks `editorAdmits` before each
+    /// change.
+    func openCameraSettings(slot: Int)
+    /// The open settings editor on `slot` as the popup shows it; nil while none is open.
+    func cameraSettings(slot: Int) -> MultiviewCameraSettingsState?
+    /// What only the app knows about whether `slot` takes a settings change now (its own link is
+    /// open, no Live View borrows the member). `controlsAvailable(slot:)` asks it.
+    func admitsControls(slot: Int) -> Bool
 }
 
 extension MultiviewHost {
@@ -50,6 +73,13 @@ extension MultiviewHost {
     public func stageStopped() {}
     public func showsPicture(slot: Int) -> Bool { true }
     public func log(_ line: String) {}
+    public func readings(slot: Int) -> MultiviewTileReadings? { nil }
+    public var editsCameraSettings: Bool { false }
+    public var appliesAutoLUT: Bool { false }
+    public func lutChanged(slot: Int) {}
+    public func openCameraSettings(slot: Int) {}
+    public func cameraSettings(slot: Int) -> MultiviewCameraSettingsState? { nil }
+    public func admitsControls(slot: Int) -> Bool { true }
 }
 
 /// One slot's member as the coordinator owns it: its camera, its link's state on the stage, its
@@ -1126,13 +1156,14 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
 
     public func closeLiveView() { host?.closeLiveView() }
 
-    /// Whether the stage admits a settings change on `slot` now (the app adds what only it knows,
-    /// such as its link and a borrowed Live View).
+    /// Whether the stage admits a settings change on `slot` now, with what only the app knows
+    /// (`MultiviewHost.admitsControls`, such as its link and a borrowed Live View).
     public func controlsAvailable(slot: Int) -> Bool {
         let member = members[slot]
         return member.camera != nil && member.controlHost != nil && !member.connecting
             && !member.recovering && !busy && !closing && applicationActive
             && member.recordingAvailable && !groupRecordingBusy && !member.recordingBusy
+            && host?.admitsControls(slot: slot) ?? true
     }
 
     /// Opens the one editor lease on `slot` (closing any other); nil when the member cannot be

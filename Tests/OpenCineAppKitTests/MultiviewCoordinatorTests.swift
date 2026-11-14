@@ -884,6 +884,116 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func thePickerListsFoundCamerasThatMayJoinAndAreNotMembers() async {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        let a = FakeStationCamera(name: "Camera A")
+        let limited = FakeStationCamera(name: "NoPreview B")
+        let member = FakeStationCamera(name: "Camera M")
+        c.members[1].camera = member
+        c.found = [a, limited, FakeStationCamera(name: "Unqualified U"), member]
+        #expect(
+            c.pickerRows() == [
+                MultiviewPickerRow(id: a.record.id.uuidString, title: "Camera A"),
+                MultiviewPickerRow(
+                    id: limited.record.id.uuidString, title: "NoPreview B",
+                    detail: MultiviewCopy.previewUnavailable, limited: true),
+            ])
+        #expect(c.pickerFooter == "Each camera will join Test network. Approve on the camera if asked.")
+        #expect(c.networkRestore == .cameraNetworks)
+        #expect(!c.scansNetworks)
+        stage.commissioner.scansNetworks = true
+        #expect(c.scansNetworks)
+        #expect(c.cameraName(slot: 1) == "Camera M")
+        #expect(c.cameraName(slot: 0) == nil)
+        c.stop()
+
+        let passive = Fixture(commissioner: false, discoversByProbe: false)
+        #expect(passive.coordinator.networkRestore == .none)
+        #expect(!passive.coordinator.scansNetworks)
+    }
+
+    @available(macOS 14, *)
+    @Test func pickingARowWithoutPreviewAddsItExperimentally() async {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        let camera = FakeStationCamera(name: "NoPreview B")
+        stage.links[0].place(camera, at: "192.168.1.12")
+        c.found = [camera]
+        #expect(!c.enqueueAdd(pickerRow: UUID().uuidString, slot: 0), "an unknown row adds nothing")
+        #expect(c.enqueueAdd(pickerRow: camera.record.id.uuidString, slot: 0))
+        await until { c.members[0].networkVerified && !c.members[0].connecting }
+        #expect(c.members[0].experimental)
+        #expect(c.members[0].status == MultiviewCopy.verifiedWithoutPreview)
+        #expect(c.pickerRows().isEmpty, "a member is no longer offered")
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func lutTogglesFollowTheMembersAndTheJournal() async {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        c.members[0].camera = FakeStationCamera(name: "Camera A")
+        c.members[1].camera = FakeStationCamera(name: "Camera B")
+        #expect(c.lutOn)
+        c.toggleLUT(slot: 0)
+        #expect(!c.members[0].lutEnabled && c.members[1].lutEnabled)
+        #expect(stage.host.lutChanges == [0])
+        #expect(stage.journal?.cameras.map(\.lutEnabled) == [false, true])
+        #expect(c.lutOn, "one camera still grades its picture")
+        c.toggleLUT()
+        #expect(c.members[0].lutEnabled && c.members[1].lutEnabled, "a mixed stage turns every LUT on")
+        #expect(stage.host.lutChanges == [0, 0])
+        c.toggleLUT()
+        #expect(!c.members[0].lutEnabled && !c.members[1].lutEnabled)
+        #expect(stage.host.lutChanges == [0, 0, 0, 1])
+        #expect(!c.lutOn)
+        #expect(stage.journal?.cameras.map(\.lutEnabled) == [false, false])
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func stageTilesUseTheHostsReadingsAndCapabilities() async {
+        let stage = Fixture()
+        let c = stage.coordinator
+        c.members[0].camera = FakeStationCamera(name: "Camera A")
+        c.members[1].camera = FakeStationCamera(name: "Camera B")
+        let readouts = [MultiviewReadout(title: "ISO", value: "800")]
+        stage.host.readings[0] = MultiviewTileReadings(
+            name: "Wide", readouts: readouts, hasPicture: true)
+        #expect(c.stageTile(0)?.name == "Wide")
+        #expect(c.stageTile(1)?.name == "Camera B", "without readings the tile names its camera")
+        #expect(c.stageTile(2) == nil)
+        #expect(c.stageTile(0)?.actions.contains { $0.id == MultiviewCameraAction.lut } == false)
+        #expect(c.toolAvailability == MultiviewToolAvailability())
+        stage.host.autoLUT = true
+        stage.host.edits = true
+        #expect(c.stageTile(0)?.actions.contains { $0.id == MultiviewCameraAction.lut } == true)
+        #expect(
+            c.toolAvailability
+                == MultiviewToolAvailability(cameraSettingsSlots: [0, 1], pictureLUTSlots: [0, 1]))
+        #expect(c.cameraSettingsSlots == [0, 1])
+        c.presentation.selected = 0
+        #expect(c.programReadouts == readouts)
+        c.presentation.selected = 2
+        #expect(c.programReadouts == nil, "an empty program slot shows no values")
+    }
+
+    @available(macOS 14, *)
+    @Test func controlsWaitForWhatOnlyTheAppAdmits() async {
+        let stage = Fixture()
+        let (c, _, member) = await stage.liveMember()
+        member.recordingAvailable = true
+        #expect(c.controlsAvailable(slot: 0))
+        stage.host.admits = false
+        #expect(!c.controlsAvailable(slot: 0), "the app's own link or Live View decides too")
+        c.stop()
+    }
+
+    @available(macOS 14, *)
     @Test func aCancelledConfirmationWaitEndsAtOnce() async {
         let counter = SleepCounter()
         // Every sleep throws, as a cancelled task's does; the clock moves 1 ms per reading.
@@ -952,6 +1062,17 @@ private final class RecordingHost: MultiviewHost {
     var liveViews: [Int] = []
     var editorsClosed = 0
     var opensLiveView = false
+    var readings: [Int: MultiviewTileReadings] = [:]
+    var lutChanges: [Int] = []
+    var autoLUT = false
+    var edits = false
+    var admits = true
+
+    var appliesAutoLUT: Bool { autoLUT }
+    var editsCameraSettings: Bool { edits }
+    func readings(slot: Int) -> MultiviewTileReadings? { readings[slot] }
+    func lutChanged(slot: Int) { lutChanges.append(slot) }
+    func admitsControls(slot: Int) -> Bool { admits }
 
     func openLiveView(slot: Int) -> Bool {
         guard opensLiveView else { return false }

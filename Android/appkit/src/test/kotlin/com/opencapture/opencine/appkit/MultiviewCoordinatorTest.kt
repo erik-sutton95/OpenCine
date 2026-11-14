@@ -851,6 +851,114 @@ class MultiviewCoordinatorTest {
     }
 
     @Test
+    fun thePickerListsFoundCamerasThatMayJoinAndAreNotMembers() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        val a = FakeStationCamera("Camera A")
+        val limited = FakeStationCamera("NoPreview B")
+        val member = FakeStationCamera("Camera M")
+        c.members[1].camera = member
+        c.found = listOf(a, limited, FakeStationCamera("Unqualified U"), member)
+        assertEquals(
+            listOf(
+                MultiviewPickerRow(a.record.id, "Camera A"),
+                MultiviewPickerRow(limited.record.id, "NoPreview B", detail = MultiviewCopy.PREVIEW_UNAVAILABLE, limited = true),
+            ),
+            c.pickerRows(),
+        )
+        assertEquals("Each camera will join Test network. Approve on the camera if asked.", c.pickerFooter)
+        assertEquals(MultiviewNetworkRestore.CAMERA_NETWORKS, c.networkRestore)
+        assertFalse(c.scansNetworks)
+        stage.commissioner.scansNetworks = true
+        assertTrue(c.scansNetworks)
+        assertEquals("Camera M", c.cameraName(1))
+        assertNull(c.cameraName(0))
+        c.stop()
+
+        val passive = Fixture(this, commissioner = false, discoversByProbe = false)
+        assertEquals(MultiviewNetworkRestore.NONE, passive.coordinator.networkRestore)
+        assertFalse(passive.coordinator.scansNetworks)
+    }
+
+    @Test
+    fun pickingARowWithoutPreviewAddsItExperimentally() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        val camera = FakeStationCamera("NoPreview B")
+        stage.links[0].place(camera, "192.168.1.12")
+        c.found = listOf(camera)
+        assertFalse(c.enqueueAdd("unknown-row", 0), "an unknown row adds nothing")
+        assertTrue(c.enqueueAdd(camera.record.id, 0))
+        runCurrent()
+        assertTrue(c.members[0].networkVerified && !c.members[0].connecting)
+        assertTrue(c.members[0].experimental)
+        assertEquals(MultiviewCopy.VERIFIED_WITHOUT_PREVIEW, c.members[0].status)
+        assertTrue(c.pickerRows().isEmpty(), "a member is no longer offered")
+        c.stop()
+    }
+
+    @Test
+    fun lutTogglesFollowTheMembersAndTheJournal() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        c.members[0].camera = FakeStationCamera("Camera A")
+        c.members[1].camera = FakeStationCamera("Camera B")
+        assertTrue(c.lutOn)
+        c.toggleLUT(0)
+        assertTrue(!c.members[0].lutEnabled && c.members[1].lutEnabled)
+        assertEquals(listOf(0), stage.host.lutChanges)
+        assertEquals(listOf(false, true), stage.journal?.cameras?.map { it.lutEnabled })
+        assertTrue(c.lutOn, "one camera still grades its picture")
+        c.toggleLUT()
+        assertTrue(c.members[0].lutEnabled && c.members[1].lutEnabled, "a mixed stage turns every LUT on")
+        assertEquals(listOf(0, 0), stage.host.lutChanges)
+        c.toggleLUT()
+        assertTrue(!c.members[0].lutEnabled && !c.members[1].lutEnabled)
+        assertEquals(listOf(0, 0, 0, 1), stage.host.lutChanges)
+        assertFalse(c.lutOn)
+        assertEquals(listOf(false, false), stage.journal?.cameras?.map { it.lutEnabled })
+        c.stop()
+    }
+
+    @Test
+    fun stageTilesUseTheHostsReadingsAndCapabilities() = runTest {
+        val stage = Fixture(this)
+        val c = stage.coordinator
+        c.members[0].camera = FakeStationCamera("Camera A")
+        c.members[1].camera = FakeStationCamera("Camera B")
+        val readouts = listOf(MultiviewReadout("ISO", "800"))
+        stage.host.readings[0] = MultiviewTileReadings("Wide", readouts = readouts, hasPicture = true)
+        assertEquals("Wide", c.stageTile(0)?.name)
+        assertEquals("Camera B", c.stageTile(1)?.name, "without readings the tile names its camera")
+        assertNull(c.stageTile(2))
+        assertFalse(c.stageTile(0)!!.actions.any { it.id == MultiviewCameraAction.LUT })
+        assertEquals(MultiviewToolAvailability(), c.toolAvailability)
+        stage.host.autoLUT = true
+        stage.host.edits = true
+        assertTrue(c.stageTile(0)!!.actions.any { it.id == MultiviewCameraAction.LUT })
+        assertEquals(MultiviewToolAvailability(setOf(0, 1), setOf(0, 1)), c.toolAvailability)
+        assertEquals(listOf(0, 1), c.cameraSettingsSlots)
+        c.presentation.selected = 0
+        assertEquals(readouts, c.programReadouts)
+        c.presentation.selected = 2
+        assertNull(c.programReadouts, "an empty program slot shows no values")
+    }
+
+    @Test
+    fun controlsWaitForWhatOnlyTheAppAdmits() = runTest {
+        val stage = Fixture(this)
+        val (c, _, member) = stage.liveMember()
+        member.recordingAvailable = true
+        assertTrue(c.controlsAvailable(0))
+        stage.host.admits = false
+        assertFalse(c.controlsAvailable(0), "the app's own link or Live View decides too")
+        c.stop()
+    }
+
+    @Test
     fun aCancelledCloseStillEnds() = runTest {
         val stage = Fixture(this)
         val gate = FakeGate()
@@ -996,6 +1104,22 @@ private class RecordingHost : MultiviewHost {
     val liveViews = mutableListOf<Int>()
     var editorsClosed = 0
     var opensLiveView = false
+    val readings = mutableMapOf<Int, MultiviewTileReadings>()
+    val lutChanges = mutableListOf<Int>()
+    var autoLUT = false
+    var edits = false
+    var admits = true
+
+    override val appliesAutoLUT: Boolean get() = autoLUT
+    override val editsCameraSettings: Boolean get() = edits
+
+    override fun readings(slot: Int): MultiviewTileReadings? = readings[slot]
+
+    override fun lutChanged(slot: Int) {
+        lutChanges += slot
+    }
+
+    override fun admitsControls(slot: Int): Boolean = admits
 
     override fun openLiveView(slot: Int): Boolean {
         if (!opensLiveView) return false
