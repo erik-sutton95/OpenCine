@@ -738,23 +738,26 @@ class LunaBackend(
      * Hardware-untested.
      */
     override suspend fun returnToAccessPoint(id: String): LunaAccessPointReturn {
-        val previous = connectJob
-        disconnect()
-        previous?.join()
         val identity = clientIdentity.toByteArray()
         val authBody = LunaWire.blob(1, identity) + LunaWire.integer(2, 1) + LunaWire.blob(3, identity)
+        // One job owns the Bluetooth link: the return takes the connection's place synchronously, as
+        // [connect] does, so a connect started meanwhile cancels it instead of sharing the link.
+        val previous = connectJob
+        disconnect()
         val job = scope.async {
-            LunaAccessPointRestore(
+            previous?.join()
+            val result = LunaAccessPointRestore(
                 link = { bluetoothAuthorization(reachOverBluetooth(id, reports = false), reports = false) },
                 authBody = authBody,
                 close = { gatt?.close(); gatt = null },
             ).run()
+            android.util.Log.i("LunaBackend", "luna: return to access point ${result.failure?.code ?: "done"}")
+            if (result == LunaAccessPointReturn.Returned) stationHosts.remove(id)
+            result
         }
         connectJob = job
-        val result = job.await()
-        android.util.Log.i("LunaBackend", "luna: return to access point ${result.failure?.code ?: "done"}")
-        if (result == LunaAccessPointReturn.Returned) stationHosts.remove(id)
-        return result
+        // A caller that stops waiting (Multiview's close aborted) ends the return: no late 147.
+        return try { job.await() } catch (cancelled: CancellationException) { job.cancel(); throw cancelled }
     }
     override fun close() { disconnect(); cleanup(); scope.cancel() }
     override fun sceneActive(active: Boolean) {
