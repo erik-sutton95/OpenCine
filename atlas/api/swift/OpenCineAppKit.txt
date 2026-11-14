@@ -315,6 +315,7 @@ extension MonitorPresentation.MonitorAudioStoredCenter
 extension MonitorPresentation.MonitorFalseColorReferencePositions
 extension MonitorPresentation.MonitorRect
 extension MonitorPresentation.MonitorScopePoint
+extension OpenCineCore.MultiviewRepairResult
 extension OpenCineMedia.MonitorTimecodeFormat
 extension SwiftUICore.View
 func AddSetupChooser.select(_: Swift.String, onSelect: (AddSetupOption) -> Swift.Void) -> Swift.Bool
@@ -1567,6 +1568,7 @@ static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraTimecode, precisio
 static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraTimecodeReading, precision: OpenCineCore.TimecodePrecision?) -> Swift.String?
 static func MonitorTimecodeFormat.placeholder(_: OpenCineCore.TimecodePrecision?) -> Swift.String
 static func MonitorTimecodeFormat.widthTemplate(_: Swift.String) -> Swift.String
+static func MultiviewRepairResult.race(deadline: Swift.Duration, sleep: (Swift.Duration) async throws -> Swift.Void, _: () async -> OpenCineCore.MultiviewRepairResult) -> OpenCineCore.MultiviewRepairResult
 static func MultiviewStageJournal.cleanupTargets(_: [MultiviewStageJournal.Camera], including: [MultiviewStageJournal.Camera]) -> [MultiviewStageJournal.Camera]
 static func MultiviewTally.running(_: Swift.Int) -> Swift.String
 static func MultiviewTally.text(recording: Swift.Bool?, seconds: Swift.Int?, waiting: Swift.Bool, holding: Swift.Bool, failed: Swift.Bool) -> Swift.String

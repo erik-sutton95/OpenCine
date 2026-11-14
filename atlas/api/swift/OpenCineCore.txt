@@ -140,9 +140,18 @@ case MulticamQualificationRefusal.alreadyMember
 case MulticamQualificationRefusal.notReachable
 case MulticamQualificationRefusal.operationUnavailable
 case MulticamQualificationRefusal.unsupportedConfiguration
+case MultiviewLinkStatus.awaitingPicture
+case MultiviewLinkStatus.controlling
+case MultiviewLinkStatus.live
+case MultiviewLinkStatus.opening
+case MultiviewLinkStatus.reconnecting
+case MultiviewRepairResult.done
+case MultiviewRepairResult.rejoin
+case MultiviewRepairResult.waitForOperator(Swift.String)
 case MultiviewRepairStep.handled
 case MultiviewRepairStep.healthy
-case MultiviewRepairStep.repair(@escaping () async -> Swift.Bool)
+case MultiviewRepairStep.repair(@escaping () async -> MultiviewRepairResult)
+case MultiviewRepairStep.waitForOperator(Swift.String)
 case ObservationOrigin.cameraReported
 case ObservationOrigin.clockDerived
 case ObservationOrigin.estimated
@@ -277,6 +286,8 @@ enum MediaState: Decodable, Encodable, Equatable, Hashable, Sendable
 enum MonitorEntryError: Equatable, Error, Hashable, Sendable
 enum MulticamQualification: Decodable, Encodable, Equatable, Hashable, Sendable
 enum MulticamQualificationRefusal: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
+enum MultiviewLinkStatus: Equatable, Hashable, Sendable
+enum MultiviewRepairResult: Equatable, Sendable
 enum MultiviewRepairStep
 enum ObservationOrigin: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum ObservationPrecision: Decodable, Encodable, Equatable, Hashable, Sendable
@@ -328,10 +339,12 @@ func LegacySavedCameraCodec.patched(_: Foundation.Data?, to: [SavedCamera]) -> F
 func LocalVPNNotice.noteIfActive() -> ()
 func MonitorEntryDescriptor.validate() throws -> ()
 func MultiviewAutoLUT.caption(enabled: Swift.Bool, conversionLoaded: Swift.Bool) -> Swift.String
+func MultiviewCameraPolicy.hasPreview(_: Camera)<Camera> -> Swift.Bool
+func MultiviewCameraPolicy.qualification(_: Camera, experimental: Swift.Bool)<Camera> -> MulticamQualification
 func MultiviewMemberLink.close() -> ()
-func MultiviewMemberLink.keepalive() -> ()
-func MultiviewMemberLink.open(_: Self.Camera, at: Swift.String, identity: [Swift.UInt8], hotspot: Swift.Bool) async throws -> ()
-func MultiviewMemberLink.probe(_: Swift.String, hotspot: Swift.Bool) async -> Swift.Bool
+func MultiviewMemberLink.keepalive() async -> ()
+func MultiviewMemberLink.open(_: Self.Camera, at: Swift.String, expecting: [Swift.UInt8]?, on: StationNetwork) async throws -> [Swift.UInt8]
+func MultiviewMemberLink.probe(_: Swift.String, on: StationNetwork) async -> Swift.Bool
 func MultiviewMemberLink.repair(_: MultiviewRepairContext) -> MultiviewRepairStep
 func MultiviewMemberLink.startPreview(_: Self.Camera) async throws -> ()
 func ObservedValue.compactMap(_: (Value) -> Mapped?)<Value, Mapped where Value : Swift.Sendable, Mapped : Swift.Sendable> -> ObservedValue<Mapped>
@@ -346,8 +359,6 @@ func StationCommission.identity() async throws -> [Swift.UInt8]
 func StationCommission.join(_: StationNetwork, identity: [Swift.UInt8], experimental: Swift.Bool, progress: (Swift.String) -> Swift.Void, verifyOnNetwork: () async throws -> Swift.Bool) async throws -> StationCommissionOutcome
 func StationCommissioner.closeCommissions() -> ()
 func StationCommissioner.connect(_: Self.Camera, progress: (Swift.String) -> Swift.Void) async throws -> any StationCommission
-func StationCommissioner.hasPreview(_: Self.Camera) -> Swift.Bool
-func StationCommissioner.qualification(_: Self.Camera, experimental: Swift.Bool) -> MulticamQualification
 func StationCommissioner.record(_: Self.Camera) -> StationCameraRecord
 func StationCommissioner.restoreAccessPoint(_: StationCameraRecord) async -> Swift.Bool
 func StationCommissioner.scanNetworks(through: Self.Camera, beforeStationChange: () throws -> Swift.Void, onRestored: (Swift.Bool) -> Swift.Void, onFound: (Swift.String) -> Swift.Void) async throws -> ()
@@ -407,7 +418,8 @@ init MonitorLayoutCapabilities(_: CapabilitySnapshot, base: MonitorLayoutCapabil
 init MonitorLayoutCapabilities(gimbal: Swift.Bool, zoom: Swift.Bool, focus: Swift.Bool, iris: Swift.Bool, audio: Swift.Bool, headTracking: Swift.Bool, clipDelete: Swift.Bool, clipStar: Swift.Bool, requiresInternetHop: Swift.Bool, timecode: Swift.Bool)
 init MonotonicInstant(_: Swift.Duration)
 init MultiviewAutoLUT(colorMode: Swift.String?, conversion: Swift.String?)
-init MultiviewRepairContext(pathReady: Swift.Bool, running: () -> Swift.Bool, applicationActive: () -> Swift.Bool, foregroundUnchanged: () -> Swift.Bool, pathAvailable: () -> Swift.Bool)
+init MultiviewCameraPolicy(discoversByProbe: Swift.Bool, qualification: (Camera, Swift.Bool) -> MulticamQualification, hasPreview: (Camera) -> Swift.Bool)<Camera>
+init MultiviewRepairContext(pathReady: Swift.Bool, running: () -> Swift.Bool, applicationActive: () -> Swift.Bool, foregroundUnchanged: () -> Swift.Bool, pathAvailable: () -> Swift.Bool, beginAttempt: () -> Swift.Bool, bluetoothTurn: () async -> (() -> Swift.Void)?)
 init NearbyCamera(id: Swift.String, savedID: Swift.String?, name: Swift.String, model: Swift.String, routes: Swift.Set<RouteKind>, signalBars: Swift.Int?, availability: Availability, routeKey: Swift.String?)
 init ObservedValue(_: Value, origin: ObservationOrigin, at: MonotonicInstant?, validity: ObservationValidity, precision: ObservationPrecision?)<Value where Value : Swift.Sendable>
 init PictureSourceDescriptor(stream: StreamID, generation: StreamGeneration, label: Swift.String)
@@ -426,6 +438,7 @@ init SettingDomain(choices: [SettingValue], range: Swift.ClosedRange<Swift.Doubl
 init SettingSemantics(implementation: SettingSemantics.Implementation, confirmation: SettingSemantics.Confirmation, qualification: SettingSemantics.Qualification)
 init StationCameraRecord(id: Foundation.UUID, name: Swift.String, modelId: Swift.Int?, deviceAddress: Swift.String?)
 init StationNetwork(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool)
+init StationScanUnsupported()
 init StorageVolume(from: any Swift.Decoder) throws
 init StorageVolume(id: Swift.String, media: ObservedValue<MediaState>, freeBytes: ObservedValue<Swift.UInt64>, totalBytes: ObservedValue<Swift.UInt64>, remainingRecordingTime: ObservedValue<Swift.Duration>)
 init TimecodeCapability(from: any Swift.Decoder) throws
@@ -450,6 +463,7 @@ let IntegrationID.rawValue: Swift.String
 let MonitorConnectionPolicy.holdsRelayControl: Swift.Bool
 let MonitorConnectionPolicy.ownsCameraSession: Swift.Bool
 let MonitorConnectionPolicy.receivesCameraMetadata: Swift.Bool
+let MultiviewCameraPolicy.discoversByProbe: Swift.Bool
 let Rational.denominator: Swift.Int
 let Rational.numerator: Swift.Int
 protocol CameraIntegration<Self : AnyObject>
@@ -541,6 +555,7 @@ struct MonitorEntryDescriptor: Decodable, Encodable, Equatable, Hashable, Sendab
 struct MonitorLayoutCapabilities: Equatable, Hashable, Sendable
 struct MonotonicInstant: Comparable, Decodable, Encodable, Equatable, Hashable, Sendable
 struct MultiviewAutoLUT: Equatable, Sendable
+struct MultiviewCameraPolicy<Camera>: Sendable
 struct MultiviewRepairContext
 struct NearbyCamera: Equatable, Hashable, Identifiable, Sendable
 struct ObservedValue<Value where Value : Swift.Sendable>: Decodable, Encodable, Equatable, Hashable, Sendable
@@ -557,6 +572,7 @@ struct SettingDomain: Decodable, Encodable, Equatable, Hashable, Sendable
 struct SettingSemantics: Decodable, Encodable, Equatable, Hashable, Sendable
 struct StationCameraRecord: Equatable, Hashable, Sendable
 struct StationNetwork: Equatable, Sendable
+struct StationScanUnsupported: Equatable, Error, Sendable
 struct StorageVolume: Decodable, Encodable, Equatable, Hashable, Sendable
 struct TimecodeCapability: Decodable, Encodable, Equatable, Hashable, Sendable
 subscript CameraServices(_: S.Type)<S> -> S?
@@ -736,9 +752,14 @@ var MonotonicInstant.sinceReference: Swift.Duration
 var MultiviewAutoLUT.colorMode: Swift.String?
 var MultiviewAutoLUT.conversion: Swift.String?
 var MultiviewMemberLink.autoLUT: MultiviewAutoLUT
+var MultiviewMemberLink.isPublishing: Swift.Bool
+var MultiviewMemberLink.onStatus: ((MultiviewLinkStatus) -> Swift.Void)?
 var MultiviewMemberLink.pictureHealth: PictureHealth
+var MultiviewMemberLink.repairDeadline: Swift.Duration
 var MultiviewMemberLink.session: any CameraSession
 var MultiviewRepairContext.applicationActive: () -> Swift.Bool
+var MultiviewRepairContext.beginAttempt: () -> Swift.Bool
+var MultiviewRepairContext.bluetoothTurn: () async -> (() -> Swift.Void)?
 var MultiviewRepairContext.foregroundUnchanged: () -> Swift.Bool
 var MultiviewRepairContext.pathAvailable: () -> Swift.Bool
 var MultiviewRepairContext.pathReady: Swift.Bool

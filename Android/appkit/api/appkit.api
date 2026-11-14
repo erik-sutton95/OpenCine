@@ -4509,6 +4509,10 @@ public final class com/opencapture/opencine/appkit/MultiviewRecordContext {
 public final class com/opencapture/opencine/appkit/MultiviewRecordContext$Companion {
 }
 
+public final class com/opencapture/opencine/appkit/MultiviewRepairRaceKt {
+	public static final fun race-WPwdCS8 (Lcom/opencapture/opencine/core/MultiviewRepairResult$Companion;JLkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public final class com/opencapture/opencine/appkit/MultiviewStageActions {
 	public static final field $stable I
 	public fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V

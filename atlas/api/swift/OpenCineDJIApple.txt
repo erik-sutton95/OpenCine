@@ -224,12 +224,11 @@ enum DjiAppleWiFiJoiner: Sendable
 enum DjiAppleZoomColor.Event
 enum DjiAppleZoomGesture.Event
 extension OpenCineCameraVocabulary.Attempt
+extension OpenCineCore.MultiviewCameraPolicy
 func Attempt.retireCapturedConnectionRun() -> Swift.Bool
 func DJIMediaCatalogRecordSource.mediaCatalogRecord(_: OpenCineMedia.MediaAssetID, binding: OpenCineMedia.MediaBrowseBinding) -> DJIMediaCatalogRecord?
 func DJIStationCommissioner.closeCommissions() -> ()
 func DJIStationCommissioner.connect(_: DjiAppleSighting, progress: (Swift.String) -> Swift.Void) async throws -> any OpenCineCore.StationCommission
-func DJIStationCommissioner.hasPreview(_: DjiAppleSighting) -> Swift.Bool
-func DJIStationCommissioner.qualification(_: DjiAppleSighting, experimental: Swift.Bool) -> OpenCineCore.MulticamQualification
 func DJIStationCommissioner.record(_: DjiAppleSighting) -> OpenCineCore.StationCameraRecord
 func DJIStationCommissioner.restoreAccessPoint(_: OpenCineCore.StationCameraRecord) async -> Swift.Bool
 func DJIStationCommissioner.scanNetworks(through: DjiAppleSighting, beforeStationChange: () throws -> Swift.Void, onRestored: (Swift.Bool) -> Swift.Void, onFound: (Swift.String) -> Swift.Void) async throws -> ()
@@ -405,7 +404,7 @@ func DjiAppleMultiviewProvisioner.next() -> Swift.UInt16
 func DjiAppleMultiviewProvisioner.send(_: OpenCineDJI.Duml.Frame) -> ()
 func DjiAppleNetworkDiscovery.cancel() -> ()
 func DjiAppleNetworkDiscovery.candidates(excluding: Swift.Set<Swift.String>, hotspot: Swift.Bool) async throws -> [Swift.String]
-func DjiAppleNetworkDiscovery.probe(_: Swift.String, hotspot: Swift.Bool) async -> Swift.Bool
+func DjiAppleNetworkDiscovery.probe(_: Swift.String, localAddress: Swift.String) async -> Swift.Bool
 func DjiApplePictureRecovery.Attempt.bindReplacementLiveView(_: any DjiAppleLiveViewEndpoint, recovery: DjiApplePictureRecoveryEndpoint) -> Swift.Bool
 func DjiApplePictureRecovery.Attempt.prepareReplacementEndpoint() -> Foundation.TimeInterval?
 func DjiApplePictureRecovery.Attempt.repairEndpoint(_: DjiApplePictureRecoveryEndpoint, reason: Swift.String, pictureIntent: Swift.Int, timeout: Swift.Duration) async -> DjiApplePictureRecovery.Result
@@ -641,6 +640,7 @@ static var DjiAppleHeartbeatTiming.continuous: DjiAppleHeartbeatTiming
 static var DjiAppleMediaTiming.continuous: DjiAppleMediaTiming
 static var DjiApplePictureRecoveryTiming.continuous: DjiApplePictureRecoveryTiming
 static var DjiAppleTrackingTiming.continuous: DjiAppleTrackingTiming
+static var MultiviewCameraPolicy.dji: OpenCineCore.MultiviewCameraPolicy<DjiAppleSighting>
 struct DJIMediaCatalogRecord: Sendable
 struct DjiAppleAudioDSPFacts: Equatable, Sendable
 struct DjiAppleCameraSettings.Authority
