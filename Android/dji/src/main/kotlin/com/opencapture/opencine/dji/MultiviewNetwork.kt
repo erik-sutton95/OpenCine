@@ -186,7 +186,7 @@ class MultiviewProvisioner(context: Context) {
         while (!approved && System.currentTimeMillis() < deadline) {
             if (closed) throw kotlinx.coroutines.CancellationException("provisioner closed")
             replies.remove(pair)?.let { response ->
-                approved = acceptsMultiviewPairingReply(response, pair)
+                approved = MultiviewPairing.acceptsReply(response, pair)
             }
             if (!approved) delay(100)
         }
@@ -261,15 +261,18 @@ sealed class MultiviewFailure(message: String) : Exception(message) {
     class Message(text: String) : MultiviewFailure(text)
 }
 
-/** Exact pairing replies; a deferred session is never treated as approval. */
-internal fun acceptsMultiviewPairingReply(response: DumlFrame, sequence: Int): Boolean {
-    if (response.seq != sequence || response.cmdSet != 7 || response.cmdId != 0x45 ||
-        response.flags and 0x80 == 0) return false
-    return when (response.payload.map { it.toInt() and 0xff }) {
-        listOf(0, 1) -> true
-        listOf(0, 2) -> false
-        listOf(0, 6) -> throw MultiviewFailure.PairingDeferred()
-        else -> throw MultiviewFailure.Rejected()
+/** The Multiview pairing reply rule. Swift twin: `MultiviewPairing`. */
+internal object MultiviewPairing {
+    /** Exact pairing replies; a deferred session is never treated as approval. */
+    fun acceptsReply(response: DumlFrame, sequence: Int): Boolean {
+        if (response.seq != sequence || response.cmdSet != 7 || response.cmdId != 0x45 ||
+            response.flags and 0x80 == 0) return false
+        return when (response.payload.map { it.toInt() and 0xff }) {
+            listOf(0, 1) -> true
+            listOf(0, 2) -> false
+            listOf(0, 6) -> throw MultiviewFailure.PairingDeferred()
+            else -> throw MultiviewFailure.Rejected()
+        }
     }
 }
 

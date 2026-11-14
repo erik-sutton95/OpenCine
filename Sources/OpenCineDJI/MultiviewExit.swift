@@ -18,7 +18,7 @@ public enum MultiviewFailure: LocalizedError, Equatable, Sendable {
     }
 }
 
-/// The Multiview pairing reply rule. Kotlin twin: `acceptsMultiviewPairingReply`.
+/// The Multiview pairing reply rule. Kotlin twin: `MultiviewPairing`.
 public enum MultiviewPairing {
     /// Exact pairing replies only. A previous network session can answer `00 06` at cleanup: that
     /// is not approval, so it throws `pairingDeferred` and the caller closes the link and retries
