@@ -324,6 +324,19 @@ class RecoveryTests {
         budget.reset()
         assertTrue(budget.beginAttempt())
     }
+
+    @Test
+    fun anAttemptKeepsTheHealthyStreak() {
+        // A frozen picture over a live transport: each rejoin runs while the transport stays
+        // healthy, and the 30 s that restore the budget keep counting through it.
+        val budget = RecoveryBudget(limit = 2, resetAfterHealthy = 30.seconds)
+        budget.observe(healthy = true, now = MonotonicInstant(0.seconds))
+        assertTrue(budget.beginAttempt())
+        budget.observe(healthy = true, now = MonotonicInstant(20.seconds))
+        assertTrue(budget.beginAttempt())
+        budget.observe(healthy = true, now = MonotonicInstant(30.seconds))
+        assertEquals(0, budget.used, "30 s of health restore the budget, attempts or not")
+    }
 }
 
 /** Swift suite `ImportRuleTests`. */

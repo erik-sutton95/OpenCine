@@ -47,7 +47,9 @@ public class RecoveryBudget(public val limit: Int, public val resetAfterHealthy:
 
     /**
      * Whether the integration may start another recovery attempt. Returns `false` and exhausts
-     * the budget once the limit is used.
+     * the budget once the limit is used. The healthy streak runs on: an attempt made while the
+     * entry stays healthy (a frozen picture over a live transport) does not restart the period
+     * that restores the budget, as the per-tile rejoin budget this came from counted it.
      */
     public fun beginAttempt(): Boolean {
         if (exhausted || used >= limit) {
@@ -55,7 +57,6 @@ public class RecoveryBudget(public val limit: Int, public val resetAfterHealthy:
             return false
         }
         used += 1
-        healthySince = null
         return true
     }
 

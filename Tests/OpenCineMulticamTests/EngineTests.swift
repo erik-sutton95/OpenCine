@@ -283,6 +283,20 @@ import Testing
         let granted = budget.beginAttempt()
         #expect(granted)
     }
+
+    @Test func anAttemptKeepsTheHealthyStreak() {
+        // A frozen picture over a live transport: each rejoin runs while the transport stays
+        // healthy, and the 30 s that restore the budget keep counting through it.
+        var budget = RecoveryBudget(limit: 2, resetAfterHealthy: .seconds(30))
+        budget.observe(healthy: true, at: MonotonicInstant(.seconds(0)))
+        let first = budget.beginAttempt()
+        #expect(first)
+        budget.observe(healthy: true, at: MonotonicInstant(.seconds(20)))
+        let second = budget.beginAttempt()
+        #expect(second)
+        budget.observe(healthy: true, at: MonotonicInstant(.seconds(30)))
+        #expect(budget.used == 0, "30 s of health restore the budget, attempts or not")
+    }
 }
 
 @Suite struct ImportRuleTests {
