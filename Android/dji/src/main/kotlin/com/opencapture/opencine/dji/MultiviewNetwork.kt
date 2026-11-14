@@ -63,11 +63,13 @@ class MultiviewDiscovery(private val path: SharedWiFi) {
         return found.take(MAX_CANDIDATES)
     }
 
-    /** Whether a DJI camera's control port answers at [host] on the shared path. Opens no session. */
-    suspend fun probe(host: String): Boolean {
-        val local = path.address() ?: return false
-        return withContext(Dispatchers.IO) { reaches(host, local) }
-    }
+    /**
+     * Whether a DJI camera's control port answers at [host], dialled from [localAddress] (this
+     * phone's address on the shared path, from the caller's host path). Opens no session. Swift
+     * twin: `DjiAppleNetworkDiscovery.probe`.
+     */
+    suspend fun probe(host: String, localAddress: String): Boolean =
+        withContext(Dispatchers.IO) { reaches(host, localAddress) }
 
     private fun reaches(host: String, local: String): Boolean {
         if (cancelled) return false
