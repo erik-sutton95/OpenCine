@@ -146,3 +146,29 @@ already matched iOS, fakes, probe discovery, the real Bluetooth queue, `Recovery
 - Before merging Pocket: the on-device upgrade checklist and a Multiview hardware pass on both
   platforms (add, two cameras, record together, rejoin, close cleanup), untested in this plan.
 
+
+## Carried from Plan 4 (2026-11-14)
+
+Plan 4 landed on `feat/shared-multiview-4` (OpenCine and OpenPocketCine), stacked on Plan 3.
+`MultiviewScreen` (SwiftUI in OpenCineAppKitApple, Compose in appkit) is the whole Multiview
+screen and its settings popup; `MultiviewScreenHost` refines `MultiviewHost` with the app's views
+(picture, settings preview and controls, Live View; SwiftUI also the backdrop and the wizard's
+brand and services, Compose the wizard). Pocket renders it on both platforms. The Plan 3
+carry-over for Plan 4 is done (the host answers the screen; the tile pictures, surfaces, backdrop
+and Live View borrow stay Pocket's, behind the host). The coordinator fixes from the Plan 3
+re-review are in (N1 a removed member's cancelled repair changes nothing, N2 a reconnect search
+starts no repair on the link it closed, N3 the older-repair test). For the later plans:
+
+- Plan 5 (OpenInstaCine) and Plan 6 (OpenZCine) adopt `MultiviewScreen` with their own host:
+  pictures, settings controls (or `editsCameraSettings = false`, which hides the CAMERA tool),
+  `appliesAutoLUT`, a commissioner or none (the close copy, the Add footer and the scan follow).
+- The popup's categories come from `MultiviewSettingsCategory.offered`; an integration with other
+  controls maps each category to its own, or adds a category to the shared enum on both twins.
+- `MultiviewRepairResult.race` returns `done` at once when its task is cancelled (Swift's stream
+  ends; Kotlin's await throws in the cancelled job), so the N1 guards (Swift's repair generation,
+  Kotlin's job check) are defensive today: the N1 and N3 tests pass with or without them. They
+  stay so a later race that waits for its work cannot bring a stale result back.
+- Compose has no host renderer here: the Compose screen is exercised by Pocket's
+  instrumentation tests, the SwiftUI screen by the hosted `MultiviewScreenTests`.
+- Before merging Pocket: a Multiview hardware pass on both platforms (the list is in the Plan 4
+  report), untested in this plan.

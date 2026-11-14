@@ -440,6 +440,48 @@ where SwiftUI takes bindings; `record` returns at once where Swift is `async`, a
 the plan in a scope that outlives the stage (Live View can replace it mid-command); the SwiftUI stage takes
 a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` and `interactive`.
 
+### Multiview screen
+
+`MultiviewScreen` (SwiftUI in OpenCineAppKitApple, `MultiviewScreen.swift`; Compose in appkit,
+`MultiviewScreen.kt`) is the whole Multiview screen over a coordinator, lifted from
+OpenPocketCine's iOS `MultiviewView`, the reference: the stage with its tools in iOS order (Layout,
+Camera, Fit, LUT), tally and format, tile status and failures, Add with the camera list, the
+network wizard (`StationNetworkSetupView` / `StationNetworkSetup`, locked while cameras use the
+network), the camera settings popup (`MultiviewCameraSettingsPanel`), Live View, record all and per
+tile, the close prompt and the cleanup error with "Close anyway", the closing progress, Back and
+the foreground rules. `MultiviewStageContent` (Compose) is the stage alone, for an app or a test
+that draws its own overlays.
+
+The app's half is `MultiviewScreenHost`, which refines `MultiviewHost` with the views only the
+app has: each member's picture (Fit or Fill), the settings popup's live preview and controls, and
+the borrowed Live View. SwiftUI adds the stage backdrop and the wizard's brand and services;
+Compose's host composes the wizard itself (`NetworkSetup`) through the shared
+`MultiviewNetworkSetup`, because Android's Wi-Fi name permission, saved networks and network
+path binding are the app's. `MultiviewHost` grew without breaking an adopter (every new
+requirement has a default): `readings(slot)` (the tile's `MultiviewTileReadings`; the stage
+falls back to the camera's name), `editsCameraSettings`, `appliesAutoLUT`, `lutChanged(slot)`,
+`openCameraSettings(slot)`, `cameraSettings(slot)` (the open editor as
+`MultiviewCameraSettingsState`: categories, recording, note) and `admitsControls(slot)` (what only
+the app knows before a settings change; `controlsAvailable` asks it).
+
+Every part of the screen follows the camera and the app, never a brand:
+
+| Capability | What it shows or hides |
+|---|---|
+| Commissioner present (`StationCommissioner`) | The close question and progress (`networkRestore`: "Close Multiview and return cameras to their own Wi-Fi?" and "Returning cameras to their Wi-Fi..." with one, "Close Multiview?" and "Closing Multiview..." without), the Add list footer ("Each camera will join ..." or "Cameras already on ... appear here.", `pickerFooter`) |
+| Commissioner scans networks (`scansNetworks`) | The wizard's network scan through a camera; without it the wizard lists saved and typed networks only |
+| `MultiviewCameraPolicy` | The Add list: found cameras that may join (not refused, not members); a camera without preview joins experimentally with "Try experimental shared Wi-Fi · Preview unavailable" |
+| Host `editsCameraSettings` | The CAMERA tool for every slot with a camera |
+| Host `appliesAutoLUT` | The LUT tool and each tile's Auto LUT option |
+| Host `cameraSettings(slot)` categories | The popup's rail (`MultiviewSettingsCategory.offered`: focus mode and aperture where the camera has them; format, color and audio only in a video mode); recording locks mode, format and color |
+| Host `admitsControls(slot)` | Whether a settings change may reach the camera now (the popup says "Controls unavailable") |
+| Host `confirmsRecord` | The record confirmation |
+
+The popup's tabs read upper-cased on both platforms, as iOS draws them; each camera tab is
+"A · Name". Kotlin differences: the host's composables are `Picture`, `SettingsPreview`,
+`SettingsControls` (with `locked` and the drum's `maxHeight`), `LiveView` and `NetworkSetup`; the
+popup shows the host's command note inside its controls (the app's note is a flow there).
+
 ## Tests
 
 | Swift (`Tests/OpenCineAppKitTests`) | Kotlin (`Android/appkit/src/test`) |
@@ -455,7 +497,9 @@ a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` 
 | `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
 | `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
 | `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
-| `MultiviewCoordinatorTests` (SIMULATED over Core's Multiview fakes on a manual clock: network choice and lock, journal and cleanup, deferred returns, discovery demand, status copy and control host, add by probe and by sighting, known address then two passes, duplicate refusal is final, reconnect, rejoin budget, healthy transport, 45 s path loss, foreground grace, Bluetooth turns, record freshness and outcomes, confirmation window, Live View, remove, tile values, host keys) | `MultiviewCoordinatorTest`, same names (virtual time) |
+| `MultiviewCoordinatorTests` (SIMULATED over Core's Multiview fakes on a manual clock: network choice and lock, journal and cleanup, deferred returns, discovery demand, status copy and control host, add by probe and by sighting, known address then two passes, duplicate refusal is final, reconnect, rejoin budget, healthy transport, 45 s path loss, foreground grace, Bluetooth turns, record freshness and outcomes, confirmation window, Live View, remove, tile values, host keys, a closed link and a replaced repair change nothing, the Add list, LUT toggles, stage tiles from the host's readings, controls the app admits) | `MultiviewCoordinatorTest`, same names (virtual time) |
+| `MultiviewValuesTests` screen values (settings categories in iOS order from capabilities, the recording lock, close copy) | `MultiviewValuesTest`, same names |
+| `MultiviewScreenTests` in `OpenCineAppKitAppleTests` (iOS simulator, hosted: Add opens the camera list; the popup shows a tab per camera with its state and opens the chosen camera's editor; the list's rows and footer, the rail in order and the unavailable note are checked where the runner has an application scene, because scroll views vend their content only there) | not ported (no Compose host renderer here; Pocket's instrumentation tests drive the Compose screen) |
 | `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, camera path lease fenced per owner, host isolation, backoff, receipts refuse IDs that leave their directory) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `cameraPathLeaseIsFencedPerOwner`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`, `receiptsRefuseIdsThatLeaveTheReceiptsDirectory`; the envelope cases are Swift only |
 | `SentryReliabilitySinkTests` in `OpenCineSentryAppleTests` (iOS simulator: crash capture installs on camera Wi-Fi, scrub never stamps current origin on fatal events, breadcrumb allowlist, user/request/path removal, original release after upgrade, queued origin survives the SDK scope merge, options privacy flags) | `appkit-sentry`: `SentryReliabilitySinkTest`, `ReliabilityTransportCacheFailureTest` (A6-01), `ReliabilityTransportRetryTest`, `OkHttpManualReportUploadTest`, `AdapterIsolationTest` |
 | `FeedSessionSummaryStoreTests` (healthy sessions survive later sessions and an interrupted process, retention and invalid identity cannot escape the spool) | `FeedSessionSummaryStoreTest` (same cases, Kotlin names) |
