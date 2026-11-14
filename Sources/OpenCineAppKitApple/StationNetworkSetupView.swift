@@ -168,6 +168,9 @@
             .foregroundStyle(MonitorTheme.text)
             .tint(MonitorTheme.accent)
             .preferredColorScheme(.dark)
+            // A container of its own, so the sheet carries the wizard context's name while its
+            // rows stay separately reachable.
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier(context.identifier)
         }
 

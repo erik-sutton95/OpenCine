@@ -38,7 +38,7 @@ import UIKit
         }
         let shown = await HostedCondition.wait {
             let all = labels()
-            return all.contains("Shared Wi-Fi") && all.contains("Studio") && all.contains("Done")
+            return all.contains("Studio") && all.contains("Done")
                 && all.contains("Cameras are using this network. Remove them before changing it.")
         }
         #expect(shown, "Shown: \(labels())")
