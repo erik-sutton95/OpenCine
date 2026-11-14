@@ -42,6 +42,9 @@ import UIKit
                 && all.contains("Cameras are using this network. Remove them before changing it.")
         }
         #expect(shown, "Shown: \(labels())")
+        // The inline navigation title is not in a hosted window's accessibility tree, so the page
+        // value that titles it is checked.
+        #expect(view.lockedPage?.title == "Shared Wi-Fi")
         #expect(
             HostedAccessibility.elements(in: window).contains {
                 HostedAccessibility.identifier($0) == StationNetworkSetupContext.multiview.identifier
@@ -58,7 +61,7 @@ import UIKit
     @Test func withoutALockedNetworkTheWizardRuns() {
         let open = StationNetworkSetupView(
             context: .multiview, brand: brand, services: services, scan: { _ in },
-            save: { _ in true }, close: {})
+            save: { _ in true }, close: {}, complete: {})
         #expect(open.lockedPage == nil)
     }
 }

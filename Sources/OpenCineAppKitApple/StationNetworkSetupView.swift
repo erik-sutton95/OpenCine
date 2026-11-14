@@ -63,8 +63,9 @@
         /// The network cameras are using. When set, the view shows only the read-only Shared Wi-Fi
         /// page and never scans.
         var lockedNetwork: StationNetwork?
-        /// The locked page's Done: the network stays confirmed. Nil falls back to `close`.
-        var complete: (() -> Void)?
+        /// The locked page's Done: the network stays confirmed (never `close`, which may cancel).
+        /// Kotlin: the wizard's `complete`.
+        var complete: () -> Void
         @State var path: [Page] = []
 
         public init(
@@ -74,7 +75,7 @@
             cameraScansNetworks: Bool = true,
             save: @escaping @MainActor (StationNetwork) async -> Bool, errorMessage: String? = nil,
             close: @escaping () -> Void, path: [Page] = [], lockedNetwork: StationNetwork? = nil,
-            complete: (() -> Void)? = nil
+            complete: @escaping () -> Void
         ) {
             self.context = context
             self.brand = brand
@@ -160,7 +161,7 @@
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { (complete ?? close)() }
+                        Button("Done") { complete() }
                     }
                 }
             }
