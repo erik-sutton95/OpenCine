@@ -19,8 +19,10 @@ import com.opencapture.opencine.core.testing.FakeStationHostPath
 import com.opencapture.opencine.multicam.RecordDirection
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
@@ -755,6 +757,96 @@ class MultiviewCoordinatorTest {
         reconnecting.join()
         runCurrent()
         assertTrue(granted)
+        c.stop()
+    }
+
+    @Test
+    fun aRemovedMembersCancelledRepairChangesNothing() = runTest {
+        val stage = Fixture(this)
+        val (c, link, member) = stage.liveMember()
+        val gate = FakeGate()
+        // A repair that ignores cancellation and gives up late.
+        link.repairStep = {
+            MultiviewRepairStep.Repair {
+                withContext(NonCancellable) { gate.await() }
+                MultiviewRepairResult.WaitForOperator("Late verdict")
+            }
+        }
+        stage.tick()
+        assertEquals(1, gate.waiting)
+        assertTrue(member.recovering)
+        link.repairStep = { MultiviewRepairStep.Healthy }
+        assertTrue(c.remove(0))
+        gate.open()
+        runCurrent()
+        // The same camera comes back into the emptied slot.
+        val camera = FakeStationCamera("Camera A")
+        link.place(camera, "192.168.1.12")
+        c.add(camera, 0)
+        assertNull(member.failureMessage, "a removed member's late verdict changes nothing")
+        assertFalse(member.budget.exhausted)
+        assertTrue(member.publishing)
+        c.stop()
+    }
+
+    @Test
+    fun aReconnectSearchStartsNoRepairOnTheClosedLink() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        for ((slot, name) in listOf("Camera A", "Camera B").withIndex()) {
+            val camera = FakeStationCamera(name)
+            stage.links[slot].place(camera, "192.168.1.1${slot + 2}")
+            c.add(camera, slot)
+        }
+        // B's known address now belongs to A's control path, and B answers nowhere: the search
+        // waits between its passes with B's link closed.
+        c.members[1].address = "192.168.1.12"
+        stage.links[1].answering.clear()
+        val reconnecting = launch { c.reconnect(1) }
+        runCurrent()
+        assertTrue(c.members[1].connecting)
+        val repairs = stage.links[1].repairTicks
+        stage.tick()
+        assertTrue(c.members[1].connecting, "the search still waits between its passes")
+        assertEquals(repairs, stage.links[1].repairTicks, "no repair on a link the search closed")
+        reconnecting.cancel()
+        c.stop()
+    }
+
+    @Test
+    fun anOlderRepairNeverClearsANewerOne() = runTest {
+        val stage = Fixture(this)
+        val (c, link, member) = stage.liveMember()
+        val older = FakeGate()
+        val newer = FakeGate()
+        link.repairStep = {
+            MultiviewRepairStep.Repair {
+                withContext(NonCancellable) { older.await() }
+                MultiviewRepairResult.Done
+            }
+        }
+        stage.tick()
+        assertEquals(1, older.waiting)
+        assertTrue(c.remove(0))
+        val camera = FakeStationCamera("Camera B")
+        link.place(camera, "192.168.1.12")
+        link.repairStep = {
+            MultiviewRepairStep.Repair {
+                newer.await()
+                MultiviewRepairResult.Done
+            }
+        }
+        c.add(camera, 0)
+        stage.tick()
+        assertEquals(1, newer.waiting)
+        assertTrue(member.recovering)
+        older.open()
+        runCurrent()
+        assertTrue(member.recovering, "the newer repair still owns the member")
+        newer.open()
+        runCurrent()
+        assertFalse(member.recovering)
         c.stop()
     }
 

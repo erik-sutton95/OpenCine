@@ -789,6 +789,101 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func aRemovedMembersCancelledRepairChangesNothing() async throws {
+        let stage = Fixture()
+        let (c, link, member) = await stage.liveMember()
+        let gate = FakeGate()
+        var returned = false
+        // A repair that ignores cancellation and gives up late.
+        link.repairStep = { _ in
+            .repair {
+                await gate.wait()
+                returned = true
+                return .waitForOperator("Late verdict")
+            }
+        }
+        try await stage.tick(.seconds(1))
+        await until { gate.waiting == 1 && member.recovering }
+        link.repairStep = { _ in .healthy }
+        #expect(c.remove(slot: 0))
+        gate.open()
+        await until { returned }
+        // The same camera comes back into the emptied slot.
+        let camera = FakeStationCamera(name: "Camera A")
+        link.place(camera, at: "192.168.1.12")
+        await c.add(camera, slot: 0)
+        #expect(member.failureMessage == nil, "a removed member's late verdict changes nothing")
+        #expect(!member.budget.exhausted)
+        #expect(member.publishing)
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aReconnectSearchStartsNoRepairOnTheClosedLink() async throws {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        for (slot, name) in ["Camera A", "Camera B"].enumerated() {
+            let camera = FakeStationCamera(name: name)
+            stage.links[slot].place(camera, at: "192.168.1.1\(slot + 2)")
+            await c.add(camera, slot: slot)
+        }
+        // B's known address now belongs to A's control path, and B answers nowhere: the search
+        // waits between its passes with B's link closed.
+        c.members[1].address = "192.168.1.12"
+        stage.links[1].answering = [:]
+        let reconnecting = Task { await c.reconnect(slot: 1) }
+        try await stage.clock.waitForSleeps(2)
+        let repairs = stage.links[1].repairTicks
+        let ticks = stage.links[2].keepalives
+        stage.clock.advance(by: .seconds(1))
+        await until { stage.links[2].keepalives > ticks }
+        #expect(stage.links[1].repairTicks == repairs, "no repair on a link the search closed")
+        reconnecting.cancel()
+        c.stop()
+        await reconnecting.value
+    }
+
+    @available(macOS 14, *)
+    @Test func anOlderRepairNeverClearsANewerOne() async throws {
+        let stage = Fixture()
+        let (c, link, member) = await stage.liveMember()
+        let older = FakeGate()
+        let newer = FakeGate()
+        var olderReturned = false
+        // The older repair ignores cancellation and ends only after the newer one started.
+        link.repairStep = { _ in
+            .repair {
+                await older.wait()
+                olderReturned = true
+                return .done
+            }
+        }
+        try await stage.tick(.seconds(1))
+        await until { older.waiting == 1 }
+        #expect(c.remove(slot: 0))
+        let camera = FakeStationCamera(name: "Camera B")
+        link.place(camera, at: "192.168.1.12")
+        link.repairStep = { _ in
+            .repair {
+                await newer.wait()
+                return .done
+            }
+        }
+        await c.add(camera, slot: 0)
+        try await stage.tick(.seconds(1))
+        await until { newer.waiting == 1 && member.recovering }
+        older.open()
+        await until { olderReturned }
+        try await stage.tick(.seconds(1))
+        try await stage.clock.waitForSleeps(1)
+        #expect(member.recovering, "the newer repair still owns the member")
+        newer.open()
+        await until { !member.recovering }
+        c.stop()
+    }
+
+    @available(macOS 14, *)
     @Test func aCancelledConfirmationWaitEndsAtOnce() async {
         let counter = SleepCounter()
         // Every sleep throws, as a cancelled task's does; the clock moves 1 ms per reading.

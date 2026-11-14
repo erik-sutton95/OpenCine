@@ -910,6 +910,8 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         val member = members[slot]
         val link = links[slot]
         link.close()
+        // A closed link publishes nothing: no repair may start on it while the search runs.
+        member.publishing = false
         member.controlHost = null
         member.recordingAvailable = false
         val excluded = members.filter { it !== member }.mapNotNull { it.controlHost }.map(policy::hostKey).toSet()
@@ -1103,10 +1105,13 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                             host?.log("multiview: repair failed ${e.javaClass.simpleName}")
                             MultiviewRepairResult.WaitForOperator(MultiviewCopy.COULD_NOT_RESTORE)
                         }
-                        when (result) {
-                            MultiviewRepairResult.Done -> Unit
-                            MultiviewRepairResult.Rejoin -> rejoinWhenAvailable(slot)
-                            is MultiviewRepairResult.WaitForOperator -> waitForOperator(member, result.message)
+                        // Only the member's current repair acts: Remove or a newer repair replaced it.
+                        if (member.repairJob === coroutineContext[Job]) {
+                            when (result) {
+                                MultiviewRepairResult.Done -> Unit
+                                MultiviewRepairResult.Rejoin -> rejoinWhenAvailable(slot)
+                                is MultiviewRepairResult.WaitForOperator -> waitForOperator(member, result.message)
+                            }
                         }
                     } finally {
                         // An older repair never clears a newer one's state.

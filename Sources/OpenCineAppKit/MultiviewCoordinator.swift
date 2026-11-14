@@ -865,6 +865,8 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         let member = members[slot]
         let link = links[slot]
         link.close()
+        // A closed link publishes nothing: no repair may start on it while the search runs.
+        member.publishing = false
         member.controlHost = nil
         member.recordingAvailable = false
         let excluded = Set(
@@ -992,6 +994,8 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         }
         member.repairTask?.cancel()
         member.repairTask = nil
+        // The cancelled repair is no longer the member's: its late result changes nothing.
+        member.repairGeneration &+= 1
         member.recovering = false
         member.budget.reset()
         member.pathLostAt = nil
@@ -1074,7 +1078,11 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
                         member.repairTask = nil
                     }
                 }
-                switch await MultiviewRepairResult.race(deadline: deadline, sleep: sleep, work) {
+                let result = await MultiviewRepairResult.race(
+                    deadline: deadline, sleep: sleep, work)
+                // Only the member's current repair acts: Remove or a newer repair replaced it.
+                guard member.repairGeneration == repair else { return }
+                switch result {
                 case .done: break
                 case .rejoin: await self.rejoinWhenAvailable(slot)
                 case .waitForOperator(let message): self.waitForOperator(member, message)
