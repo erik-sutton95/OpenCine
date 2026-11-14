@@ -55,6 +55,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/open
 	public fun close ()V
 	public fun connect (Ljava/lang/String;)V
 	public fun connect (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaRoute;)V
+	public final fun connect (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaStationHost;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;)Lcom/opencapture/opencine/core/ConnectionFailure;
 	public fun deleteMedia (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun disconnect ()V
 	public fun forget (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -264,7 +265,8 @@ public final class com/opencapture/opencine/insta360/luna/LunaIntegration : com/
 	public fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaConnectPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaConnectPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun connect (Lcom/opencapture/opencine/core/ConnectTarget;)Lkotlinx/coroutines/flow/Flow;
-	public final fun connect (Lcom/opencapture/opencine/core/NearbyCamera;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;)Lkotlinx/coroutines/flow/Flow;
+	public final fun connect (Lcom/opencapture/opencine/core/NearbyCamera;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;Lcom/opencapture/opencine/core/SavedCamera;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun connect$default (Lcom/opencapture/opencine/insta360/luna/LunaIntegration;Lcom/opencapture/opencine/core/NearbyCamera;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;Lcom/opencapture/opencine/core/SavedCamera;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
 	public fun discover (Lcom/opencapture/opencine/core/DiscoveryMode;)Lkotlinx/coroutines/flow/Flow;
 	public fun forget (Lcom/opencapture/opencine/core/SavedCamera;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun getDiscoveryModes ()Ljava/util/Set;
@@ -280,7 +282,8 @@ public final class com/opencapture/opencine/insta360/luna/LunaIntegration : com/
 public final class com/opencapture/opencine/insta360/luna/LunaIntegration$Companion {
 	public final fun getSTEPS ()Ljava/util/List;
 	public final fun steps (Lcom/opencapture/opencine/core/SavedRoute;)Ljava/util/List;
-	public final fun target (Lcom/opencapture/opencine/core/NearbyCamera;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;)Lcom/opencapture/opencine/core/ConnectTarget;
+	public final fun target (Lcom/opencapture/opencine/core/NearbyCamera;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;Lcom/opencapture/opencine/core/SavedCamera;)Lcom/opencapture/opencine/core/ConnectTarget;
+	public static synthetic fun target$default (Lcom/opencapture/opencine/insta360/luna/LunaIntegration$Companion;Lcom/opencapture/opencine/core/NearbyCamera;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;Lcom/opencapture/opencine/core/SavedCamera;ILjava/lang/Object;)Lcom/opencapture/opencine/core/ConnectTarget;
 }
 
 public final class com/opencapture/opencine/insta360/luna/LunaMediaCatalogRecord {

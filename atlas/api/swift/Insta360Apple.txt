@@ -67,6 +67,7 @@ func CameraBackend.rejoinCameraNetwork() async throws -> ()
 func CameraBackend.startScan() async throws -> ()
 func LunaCameraBackend.connect(review: LunaReviewCamera) -> ()
 func LunaCameraBackend.connect(to: MonitorCamera) async throws -> ()
+func LunaCameraBackend.connect(to: MonitorCamera, at: LunaStationHost, on: LunaStationNetwork) async throws -> ()
 func LunaCameraBackend.connect(to: MonitorCamera, route: LunaRoute) async throws -> ()
 func LunaCameraBackend.deleteFile(uri: Swift.String) async throws -> ()
 func LunaCameraBackend.disconnect() -> ()
@@ -143,7 +144,7 @@ func LunaFrameTimecode.reset() -> ()
 func LunaHeadTrackSteering.sent(pan: Swift.Int32, tilt: Swift.Int32, now: Foundation.TimeInterval, tuning: LunaHeadTrackSteering.Tuning) -> ()
 func LunaHeadTrackSteering.step(yaw: Swift.Double, pitch: Swift.Double, readAt: Foundation.TimeInterval, toward: OpenCineMotion.HeadTrack.Reference, now: Foundation.TimeInterval, tuning: LunaHeadTrackSteering.Tuning) -> LunaHeadTrackSteering.Step
 func LunaIntegration.connect(_: OpenCineCore.ConnectTarget) -> _Concurrency.AsyncStream<OpenCineCore.ConnectionEvent>
-func LunaIntegration.connect(_: OpenCineCore.NearbyCamera, onto: LunaStationNetwork) -> _Concurrency.AsyncStream<OpenCineCore.ConnectionEvent>
+func LunaIntegration.connect(_: OpenCineCore.NearbyCamera, onto: LunaStationNetwork, saved: OpenCineCore.SavedCamera?) -> _Concurrency.AsyncStream<OpenCineCore.ConnectionEvent>
 func LunaIntegration.discover(_: OpenCineCore.DiscoveryMode) -> _Concurrency.AsyncStream<[OpenCineCore.NearbyCamera]>
 func LunaIntegration.forget(_: OpenCineCore.SavedCamera) async -> ()
 func LunaIntegration.retryDiscovery() -> ()
@@ -245,7 +246,7 @@ static func LunaCameraSession.controlCapabilities(snapshot: OpenCineCore.Capabil
 static func LunaFrameTimecode.timecode(unixSeconds: Swift.Double, timeZoneSeconds: Swift.Int) -> OpenCineCore.CameraTimecodeReading
 static func LunaFrameTimecode.timecode(unixSeconds: Swift.Double, timeZoneSeconds: Swift.Int, fps: Swift.Int) -> OpenCineCore.CameraTimecode
 static func LunaIntegration.steps(_: OpenCineCore.SavedRoute?) -> [OpenCineCore.ConnectionStep]
-static func LunaIntegration.target(_: OpenCineCore.NearbyCamera, onto: LunaStationNetwork) -> OpenCineCore.ConnectTarget
+static func LunaIntegration.target(_: OpenCineCore.NearbyCamera, onto: LunaStationNetwork, saved: OpenCineCore.SavedCamera?) -> OpenCineCore.ConnectTarget?
 static func LunaIntegration.title(advertised: Swift.String) -> Swift.String
 static func LunaMotionService.hasReached(_: Insta360Protocol.LunaGimbalAngle, _: OpenCineMotion.GimbalWaypoint) -> Swift.Bool
 static func LunaMotionService.wireSpeed(_: Swift.Double) -> Swift.Int32
