@@ -197,10 +197,11 @@ case NikonMemberControl.WriteOutcome.notApplied
 case NikonMemberControl.WriteOutcome.unknown
 case NikonMemberOpenRefusal.alreadyMember
 case NikonMemberOpenRefusal.differentBody
+case NikonMemberOpenRefusal.heldByAnotherDevice
 case NikonMemberOpenRefusal.hostInUse
 case NikonMemberOpenRefusal.noIdentity
 case NikonMemberOpenResult.opened(Link, OpenCineCore.CameraDeviceID)
-case NikonMemberOpenResult.refused(NikonMemberOpenRefusal)
+case NikonMemberOpenResult.refused(NikonMemberOpenRefusal, Swift.String?)
 case NikonMemberRepair.Step.none
 case NikonMemberRepair.Step.reopen
 case NikonMemberRepair.Step.restartLiveView
@@ -971,6 +972,7 @@ func NikonMemberControl.service(_: some NikonControlTransport) -> [NikonMemberCo
 func NikonMemberControl.update(_: (inout NikonControlFacts) -> Swift.Void) -> ()
 func NikonMemberOpener.close(_: Link, host: Swift.String)<Link where Link : Swift.Sendable> async -> ()
 func NikonMemberOpener.open(host: Swift.String, expectedSerial: Swift.String?, members: Swift.Set<OpenCineCore.CameraDeviceID>, hostsInUse: Swift.Set<Swift.String>)<Link where Link : Swift.Sendable> async throws -> NikonMemberOpenResult<Link>
+func NikonMemberOpener.reopen(_: OpenCineCore.CameraDeviceID, host: Swift.String, members: Swift.Set<OpenCineCore.CameraDeviceID>, hostsInUse: Swift.Set<Swift.String>)<Link where Link : Swift.Sendable> async throws -> NikonMemberOpenResult<Link>
 func NikonMemberRepair.attemptFailed(at: OpenCineCore.MonotonicInstant) -> ()
 func NikonMemberRepair.attemptSucceeded() -> ()
 func NikonMemberRepair.frameArrived() -> ()
@@ -1152,8 +1154,8 @@ init NikonMediaService(session: OpenCineCore.CameraSessionID, io: any NikonMedia
 init NikonMediaSourceIdentity(native: Swift.ObjectIdentifier, session: OpenCineCore.CameraSessionID, epoch: OpenCineCore.ControlEpoch)
 init NikonMediaStorageRecord(id: Swift.UInt32, info: PTPStorageInfo)
 init NikonMemberControl(serialNumber: Swift.String, facts: NikonControlFacts, recordObservationTimeout: Swift.Duration, now: () -> OpenCineCore.MonotonicInstant, commandOwner: NikonCommandOwner?, isCameraRefusal: (any Swift.Error) -> Swift.Bool)
-init NikonMemberOpener(settle: Swift.Duration, now: () -> OpenCineCore.MonotonicInstant, sleep: (Swift.Duration) async throws -> Swift.Void, connect: (Swift.String) async throws -> Link, serialNumber: (Link) -> Swift.String?, close: (Link) async -> Swift.Void)<Link where Link : Swift.Sendable>
-init NikonMemberRepair(settle: Swift.Duration, reopenSpacing: Swift.Duration)
+init NikonMemberOpener(settle: Swift.Duration, now: () -> OpenCineCore.MonotonicInstant, sleep: (Swift.Duration) async throws -> Swift.Void, currentHolder: (Swift.String) async -> Swift.String?, connect: (Swift.String) async throws -> Link, serialNumber: (Link) -> Swift.String?, close: (Link) async -> Swift.Void)<Link where Link : Swift.Sendable>
+init NikonMemberRepair(settle: Swift.Duration, reopenSpacing: Swift.Duration, attemptDeadline: Swift.Duration)
 init NikonMonitorRelayControlToken(holderName: Swift.String, holderIsRecipient: Swift.Bool)
 init NikonMonitorRelayFrameMetadata(timecode: Timecode?, isRecording: Swift.Bool, focus: NikonMonitorRelayFrameMetadata.Focus?, levelRoll: Swift.Double?, levelPitch: Swift.Double?, sound: NikonMonitorRelayFrameMetadata.Sound?, codec: Swift.Int, isKeyframe: Swift.Bool, parameterSets: [Foundation.Data]?, rotation: Swift.Int?)
 init NikonMonitorRelayFrameMetadata.Box(centerX: Swift.Int, centerY: Swift.Int, width: Swift.Int, height: Swift.Int)
@@ -2490,6 +2492,7 @@ var NikonMemberControl.nikonControlFacts: NikonControlFacts
 var NikonMemberControl.recordingTone: NikonRecordingTone
 var NikonMemberControl.session: NikonCameraSession!
 var NikonMemberOpenResult.device: OpenCineCore.CameraDeviceID?
+var NikonMemberOpenResult.heldBy: Swift.String?
 var NikonMemberOpenResult.link: Link?
 var NikonMemberOpenResult.refusal: NikonMemberOpenRefusal?
 var NikonMonitorLink.serialNumber: Swift.String
