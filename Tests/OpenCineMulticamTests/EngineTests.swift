@@ -269,6 +269,20 @@ import Testing
         #expect(budget.used == 0)
         #expect(budget.status == .healthy)
     }
+
+    @Test func anExhaustedBudgetWaitsForTheOperator() {
+        var budget = RecoveryBudget(limit: 2, resetAfterHealthy: .seconds(30))
+        budget.exhaust()
+        #expect(budget.status == .exhausted)
+        let refused = budget.beginAttempt()
+        #expect(!refused)
+        budget.observe(healthy: true, at: MonotonicInstant(.seconds(0)))
+        budget.observe(healthy: true, at: MonotonicInstant(.seconds(60)))
+        #expect(budget.exhausted, "health alone never restores an exhausted budget")
+        budget.reset()
+        let granted = budget.beginAttempt()
+        #expect(granted)
+    }
 }
 
 @Suite struct ImportRuleTests {

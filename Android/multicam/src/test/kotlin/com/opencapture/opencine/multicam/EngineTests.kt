@@ -32,6 +32,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -309,6 +310,19 @@ class RecoveryTests {
         budget.observe(healthy = true, now = MonotonicInstant(51.seconds))
         assertEquals(0, budget.used)
         assertEquals(RecoveryBudget.Status.Healthy, budget.status)
+    }
+
+    @Test
+    fun anExhaustedBudgetWaitsForTheOperator() {
+        val budget = RecoveryBudget(limit = 2, resetAfterHealthy = 30.seconds)
+        budget.exhaust()
+        assertEquals(RecoveryBudget.Status.Exhausted, budget.status)
+        assertFalse(budget.beginAttempt())
+        budget.observe(healthy = true, now = MonotonicInstant(0.seconds))
+        budget.observe(healthy = true, now = MonotonicInstant(60.seconds))
+        assertTrue(budget.exhausted, "health alone never restores an exhausted budget")
+        budget.reset()
+        assertTrue(budget.beginAttempt())
     }
 }
 

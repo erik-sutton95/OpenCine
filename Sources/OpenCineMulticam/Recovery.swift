@@ -54,6 +54,13 @@ public struct RecoveryBudget: Hashable, Sendable {
         return true
     }
 
+    /// No automatic attempt remains (the integration's own ladder gave up, or the entry lost what
+    /// it recovers through): the entry waits for an operator action until `reset()`.
+    public mutating func exhaust() {
+        exhausted = true
+        healthySince = nil
+    }
+
     /// The operator's retry: a fresh budget.
     public mutating func reset() {
         used = 0

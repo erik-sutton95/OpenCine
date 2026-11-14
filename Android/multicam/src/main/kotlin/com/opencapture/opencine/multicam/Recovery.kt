@@ -59,6 +59,15 @@ public class RecoveryBudget(public val limit: Int, public val resetAfterHealthy:
         return true
     }
 
+    /**
+     * No automatic attempt remains (the integration's own ladder gave up, or the entry lost what it
+     * recovers through): the entry waits for an operator action until [reset].
+     */
+    public fun exhaust() {
+        exhausted = true
+        healthySince = null
+    }
+
     /** The operator's retry: a fresh budget. */
     public fun reset() {
         used = 0
