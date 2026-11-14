@@ -56,7 +56,11 @@ public sealed interface MultiviewRepairResult {
     /** The repair ended; the link's next repair tick judges the picture again. */
     public data object Done : MultiviewRepairResult
 
-    /** The link cannot recover in place: the coordinator rejoins the member within its budget. */
+    /**
+     * The link cannot recover in place: the coordinator rejoins the member within its budget. A
+     * rejoin finds the camera again as an add does: by probing when the policy `discoversByProbe`,
+     * otherwise only at the member's last address.
+     */
     public data object Rejoin : MultiviewRepairResult
 
     /**
@@ -94,40 +98,54 @@ public sealed interface MultiviewRepairStep {
 
 /**
  * What a member link's repair may read and ask of the coordinator while it decides and while its
- * repair runs. Swift twin: `MultiviewRepairContext`.
+ * repair runs. Every value has a default (a running, foreground stage on its network with budget
+ * and Bluetooth to spare), so the context grows without breaking a link test that builds one.
+ * Swift twin: `MultiviewRepairContext`.
  */
 public class MultiviewRepairContext(
     /** This phone is on the shared network now. */
-    public val pathReady: Boolean,
+    public val pathReady: Boolean = true,
     /** The stage is still running. */
-    public val running: () -> Boolean,
+    public val running: () -> Boolean = { true },
     /** The app is in the foreground. */
-    public val applicationActive: () -> Boolean,
+    public val applicationActive: () -> Boolean = { true },
     /** The app has not left and re-entered the foreground since this tick. */
-    public val foregroundUnchanged: () -> Boolean,
+    public val foregroundUnchanged: () -> Boolean = { true },
     /** This phone is on the shared network at the moment of asking. */
-    public val pathAvailable: () -> Boolean,
+    public val pathAvailable: () -> Boolean = { true },
     /**
      * Spends one automatic attempt from the coordinator's recovery budget for this member; false
      * when the budget is spent (the link then ends with `WaitForOperator`). A link whose ladder pays
      * per attempt asks before each one; the coordinator also spends one per `Rejoin`.
      */
-    public val beginAttempt: () -> Boolean,
+    public val beginAttempt: () -> Boolean = { true },
+    /**
+     * Reports whether the member's transport is healthy now, as the link judges it. A sustained
+     * healthy period restores the member's recovery budget (`RecoveryBudget.observe`).
+     */
+    public val observeHealth: (Boolean) -> Unit = {},
     /**
      * Waits for this member's turn on the coordinator's Bluetooth queue (adds and other members'
      * Bluetooth repairs take turns). Returns the release to call when the link no longer needs
      * Bluetooth, or null when the stage stopped first. A repair that uses Bluetooth asks inside its
      * `Repair` block; LAN-only repairs never ask.
      */
-    public val bluetoothTurn: suspend () -> (() -> Unit)?,
+    public val bluetoothTurn: suspend () -> (() -> Unit)? = { {} },
 )
+
+/**
+ * The camera's own latest report of whether it records, and when that report arrived on the
+ * coordinator's clock (milliseconds). The coordinator treats a member's record state as known only
+ * while the report is fresh. Swift twin: `MultiviewRecordReport` (its time is a `Date`).
+ */
+public data class MultiviewRecordReport(public val recording: Boolean, public val receivedAtMillis: Long)
 
 /**
  * One Multiview member's link to its camera on the station network: its common session, its
  * picture, and the steps the coordinator drives (probe, open with an identity check, preview,
  * keepalive, repair, close). An integration or the app supplies it. The coordinator owns the tile
- * (its copy, control host, failure and budget); the link reports through [onStatus] and
- * [isPublishing]. Swift twin: `MultiviewMemberLink`.
+ * (its copy, control host, failure, budget and whether it publishes a picture); the link reports
+ * through [onStatus], [recordReport] and its repair context. Swift twin: `MultiviewMemberLink`.
  */
 public interface MultiviewMemberLink<Camera> {
     /** The member's camera as a common session, one for the member's lifetime. */
@@ -139,8 +157,8 @@ public interface MultiviewMemberLink<Camera> {
     /** Where the link reports its status, on the main thread; the coordinator sets it once per member. */
     public var onStatus: ((MultiviewLinkStatus) -> Unit)?
 
-    /** The link asked for the picture and keeps it flowing (from `startPreview` until the next `open`). */
-    public val isPublishing: Boolean
+    /** The camera's latest report of whether it records; null until it reported one on this link. */
+    public val recordReport: MultiviewRecordReport?
 
     /**
      * The longest one of this link's `repair` blocks may run before the coordinator gives up on it
@@ -167,10 +185,16 @@ public interface MultiviewMemberLink<Camera> {
     /** Starts the picture on the link [open] left open, at the address it reached. */
     public suspend fun startPreview(camera: Camera)
 
-    /** Keeps the link alive; the coordinator calls it once a second. */
+    /**
+     * Keeps the link alive; the coordinator calls it once a second, one member after another, so
+     * it returns promptly (a slow keepalive delays every member's freshness and repair).
+     */
     public suspend fun keepalive()
 
-    /** Closes the link. Never sends the camera a command. */
+    /**
+     * Closes the link. Never sends a record or access-point command. A link whose close is a
+     * session goodbye may finish it asynchronously; it then serializes its next [open] behind it.
+     */
     public fun close()
 
     /** The integration's own repair step, once a second while the member publishes a picture. */

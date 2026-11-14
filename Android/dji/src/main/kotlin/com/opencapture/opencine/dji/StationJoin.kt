@@ -1,5 +1,6 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.StationVerifyFinal
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -149,6 +150,9 @@ class StationJoin(
                     try {
                         if (verifyOnNetwork()) return Outcome.VERIFIED
                     } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: StationVerifyFinal) {
+                        // Final: the camera answered but can never join (already a member).
                         throw error
                     } catch (_: Exception) {
                         // Not found on the LAN: fall through to the bounded join retry.

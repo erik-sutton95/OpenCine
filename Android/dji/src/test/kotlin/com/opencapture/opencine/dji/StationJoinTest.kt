@@ -1,5 +1,6 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.StationVerifyFinal
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
@@ -78,6 +79,27 @@ class StationJoinTest {
         )
         assertEquals(StationJoin.Outcome.VERIFIED, outcome)
         assertEquals(2, probes)
+    }
+
+    @Test
+    fun aFinalVerifyEndsTheJoinWhenItsReplyIsLost() {
+        val camera = Camera(joinReplies = mutableListOf(null, null, null))
+        var verifies = 0
+        assertFailsWith<StationVerifyFinal> {
+            runBlocking {
+                join().run(
+                    identity, exchange = { kind, extra, _ -> camera.exchange(kind, extra) }, send = { camera.sent += it },
+                    status = {}, hotspotReady = { false },
+                    verifyOnNetwork = {
+                        verifies += 1
+                        throw StationVerifyFinal(IllegalStateException("already a member"))
+                    },
+                    sleep = {},
+                )
+            }
+        }
+        assertEquals(1, verifies, "the camera is not joined again")
+        assertEquals(1, camera.sent.count { it == DjiNative.CMD_MULTICAM_JOIN })
     }
 
     @Test

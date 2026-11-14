@@ -43,15 +43,23 @@ public struct RecoveryBudget: Hashable, Sendable {
     }
 
     /// Whether the integration may start another recovery attempt. Returns `false` and exhausts
-    /// the budget once the limit is used.
+    /// the budget once the limit is used. The healthy streak runs on: an attempt made while the
+    /// entry stays healthy (a frozen picture over a live transport) does not restart the period
+    /// that restores the budget, as the per-tile rejoin budget this came from counted it.
     public mutating func beginAttempt() -> Bool {
         guard !exhausted, used < limit else {
             exhausted = true
             return false
         }
         used += 1
-        healthySince = nil
         return true
+    }
+
+    /// No automatic attempt remains (the integration's own ladder gave up, or the entry lost what
+    /// it recovers through): the entry waits for an operator action until `reset()`.
+    public mutating func exhaust() {
+        exhausted = true
+        healthySince = nil
     }
 
     /// The operator's retry: a fresh budget.

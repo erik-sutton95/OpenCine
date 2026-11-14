@@ -388,6 +388,50 @@ coordinator's deadline on a member link's repair (Core's `MultiviewMemberLink.re
 the repair's own result when it ends first, `done` after cancelling it when the deadline passes
 first. It lives here because Core's Kotlin twin may not import coroutine builders.
 
+### Multiview coordinator
+
+`MultiviewCoordinator` (Swift `@Observable`, generic over its `MultiviewMemberLink`; Kotlin
+`MultiviewCoordinator<Camera, Link>` on Compose state, main-thread confined, running its work in
+the app's scope) is one stage's rules, the same in every app (lifted from OpenPocketCine's iOS
+session, the reference): it drives cameras only through Core's Multiview seams and asks the app
+for what only the app has through a small `MultiviewHost` (every requirement has a default, so
+Plan 4's screen and tile picture can grow it without breaking an adopter).
+
+- Lifecycle: `start` always asks for a network and starts with empty slots, takes presentation and
+  cleanup from the journal and runs the 1 s monitor (keepalive, record freshness, repair);
+  `stop` closes every link, task and scan; `closeStage` closes the links first, then returns each
+  camera to its own access point in parallel, also for a cancelled caller. Unfinished returns
+  (failed, deferred, cancelled or thrown) stay in the journal for the next close; nothing gives
+  them up but the operator (the app's "Close anyway" leaves them journaled). A deferred return
+  shows the integration's copy, others the shared one.
+- Network: an explicit source and name before any credential loads; an assigned camera locks the
+  network; Connect checks a name of 1 to 32 bytes and a password of at most 63 and joins (never
+  this phone's own hotspot). Network scans through a nearby camera journal their cleanup first.
+- Members (`MultiviewMember`: camera, copy, control host, failure, record state, recovery budget;
+  an app whose own link objects present tile state creates them and forwards): `add` admits to the
+  app's budget, commissions over Bluetooth (or, without a commissioner, opens the camera where it
+  was seen and keeps the proof it gives), joins, and finds the camera on the network: the known
+  address first, then two passes over the subnet (`probeWidth` probes at a time, at most eight
+  candidates, other members' hosts excluded by their host key, each address reserved while it is
+  tried) when the policy discovers by probe. A camera already in the stage is refused, finally,
+  also when the commissioner's join found it (`StationVerifyFinal`). `reconnect` tries the known
+  camera, then sets it up again; `remove` sends no camera command and forgets the member's address
+  except for the same camera added again.
+- Recovery: each member's link judges its picture once a second; the coordinator owns when it may
+  (foreground, 3 s after a return, no network scan, the app shows the picture), the 45 s
+  path-loss rule, the race against the link's deadline, and a bounded rejoin (`RecoveryBudget`:
+  two, restored after 30 s healthy, attempts or not) before waiting for the operator. Repairs that
+  need Bluetooth take turns behind adds, reconnects and scans (`bluetoothTurn`); the queue moves on
+  when any of them ends. Kotlin seams may throw: a keepalive, probe or scan that throws is logged,
+  a repair that throws fails its member, and the monitor keeps running.
+- Record: the camera's record state counts only within 3 s of its last report; plans are strict
+  (`RecordAll`), each outcome lands on its member, the group note summarizes;
+  `MultiviewRecordConfirmation` is one command's 8 s confirmation window. `tile(_:_:)` turns the
+  app's `MultiviewTileReadings` into the stage's `MultiviewTile` (tally, notes, status, options:
+  the plain record confirmations stay off the tile).
+- Live View and editors: Live View needs a controlled member and closes any editor first; editor
+  leases name the member's session and control epoch (`openEditorLease`, `editorAdmits`).
+
 Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
 ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come
 from `MultiviewTileStatus.actions`. Kotlin differences: `recordingSince` is epoch milliseconds
@@ -411,6 +455,7 @@ a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` 
 | `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
 | `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
 | `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
+| `MultiviewCoordinatorTests` (SIMULATED over Core's Multiview fakes on a manual clock: network choice and lock, journal and cleanup, deferred returns, discovery demand, status copy and control host, add by probe and by sighting, known address then two passes, duplicate refusal is final, reconnect, rejoin budget, healthy transport, 45 s path loss, foreground grace, Bluetooth turns, record freshness and outcomes, confirmation window, Live View, remove, tile values, host keys) | `MultiviewCoordinatorTest`, same names (virtual time) |
 | `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, camera path lease fenced per owner, host isolation, backoff, receipts refuse IDs that leave their directory) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `cameraPathLeaseIsFencedPerOwner`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`, `receiptsRefuseIdsThatLeaveTheReceiptsDirectory`; the envelope cases are Swift only |
 | `SentryReliabilitySinkTests` in `OpenCineSentryAppleTests` (iOS simulator: crash capture installs on camera Wi-Fi, scrub never stamps current origin on fatal events, breadcrumb allowlist, user/request/path removal, original release after upgrade, queued origin survives the SDK scope merge, options privacy flags) | `appkit-sentry`: `SentryReliabilitySinkTest`, `ReliabilityTransportCacheFailureTest` (A6-01), `ReliabilityTransportRetryTest`, `OkHttpManualReportUploadTest`, `AdapterIsolationTest` |
 | `FeedSessionSummaryStoreTests` (healthy sessions survive later sessions and an interrupted process, retention and invalid identity cannot escape the spool) | `FeedSessionSummaryStoreTest` (same cases, Kotlin names) |

@@ -22,6 +22,9 @@
         private let subscriptionKeys: [String]
         private let stationHost: String?
         private let stationHotspot: Bool
+        /// This phone's address on the station network (`StationHostPath.address(hotspot:)`); nil
+        /// keeps the DJI module's own interface read.
+        private let stationLocalAddress: (@MainActor (Bool) -> String?)?
         #if DEBUG
             private var usesLoopbackForTesting = false
             /// Runs the real UDP handshake/recovery against a deterministic local peer.
@@ -46,7 +49,11 @@
             #endif
             return stationHost == nil
                 ? DjiAppleWiFiJoiner.isCameraPathReady()
-                : DjiAppleSharedWiFiPath.address(hotspot: stationHotspot) != nil
+                : stationAddress() != nil
+        }
+        private func stationAddress() -> String? {
+            stationLocalAddress?(stationHotspot)
+                ?? DjiAppleSharedWiFiPath.address(hotspot: stationHotspot)
         }
         private let port: UInt16
         private let tcpPoke: Bool
@@ -256,8 +263,10 @@
         public init(
             port: UInt16, tcpPoke: Bool, pairingToken: String, stationHost: String? = nil,
             stationHotspot: Bool = false, subscriptionKeys: [String] = Commands.subscriptionKeys,
-            host: DjiAppleTransportHost = .init()
+            host: DjiAppleTransportHost = .init(),
+            stationLocalAddress: (@MainActor (_ hotspot: Bool) -> String?)? = nil
         ) {
+            self.stationLocalAddress = stationLocalAddress
             self.host = host
             self.log = Logger(subsystem: host.logSubsystem, category: "datalink")
             self.subscriptionKeys = subscriptionKeys
@@ -1968,7 +1977,7 @@
                 if usesLoopbackForTesting { return }
             #endif
             if stationHost != nil {
-                cameraLocalIPv4 = DjiAppleSharedWiFiPath.address(hotspot: stationHotspot)
+                cameraLocalIPv4 = stationAddress()
                 cameraInterface = nil
                 guard cameraLocalIPv4 != nil else { throw DatalinkError.notReady }
                 return
