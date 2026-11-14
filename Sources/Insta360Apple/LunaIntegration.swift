@@ -85,6 +85,10 @@ public protocol LunaConnectPort: AnyObject {
     func stationPassword(for network: String, hotspot: Bool) -> String?
     /// Keeps a Wi-Fi or hotspot setup's password on this phone.
     func saveStation(_ network: LunaStationNetwork)
+    /// One try at asking the camera back onto its own Wi-Fi over Bluetooth (authorize, access
+    /// point mode, disconnect). Ends this port's connection first; never a record command.
+    /// Throws only `CancellationError`.
+    func returnToAccessPoint(cameraID: UUID) async throws -> LunaAccessPointReturn
 }
 
 extension LunaConnectPort {
@@ -100,6 +104,10 @@ extension LunaConnectPort {
     }
     public func stationPassword(for network: String, hotspot: Bool) -> String? { nil }
     public func saveStation(_ network: LunaStationNetwork) {}
+    /// A port without Bluetooth cannot move a camera, so it has nothing to return.
+    public func returnToAccessPoint(cameraID: UUID) async throws -> LunaAccessPointReturn {
+        .failed(LunaAccessPointReturn.unsupported)
+    }
 }
 
 extension LunaCameraBackend: LunaConnectPort {
@@ -136,7 +144,9 @@ public final class LunaIntegration: CameraIntegration {
     public var onDiscoveryFailure: ((ConnectionFailure?) -> Void)?
     /// Stores a record before an attempt that moves the camera: the setup being added and the
     /// move itself are remembered first, so a later camera Wi-Fi connect asks the camera back
-    /// onto its own access point even when this attempt fails. The app upserts it.
+    /// onto its own access point even when this attempt fails. The app upserts it. A record made
+    /// from a sighting (no routes yet) is stored only once the camera starts to move, so an attempt
+    /// that fails before then leaves no saved camera behind.
     public var saveRecord: (SavedCamera) -> Void = { _ in }
 
     /// The connect card's plan over camera Wi-Fi, in the order the backend runs it.
@@ -174,6 +184,8 @@ public final class LunaIntegration: CameraIntegration {
         var step = 0
         var prompt: ConnectionPrompt?
         var note: String?
+        /// A record made from a sighting, stored once the camera starts to move.
+        var saveOnMove: SavedCamera?
 
         var steps: [ConnectionStep] { LunaIntegration.steps(route) }
         var moving: Bool { route.map { StationRoutes.moves($0.kind) } ?? false }
@@ -273,6 +285,7 @@ public final class LunaIntegration: CameraIntegration {
         }
         var route: SavedRoute?
         var lunaRoute = LunaRoute.cameraWiFi(restoreAccessPoint: false)
+        var saveOnMove: SavedCamera?
         switch target {
         case .nearby: break
         case .saved(let saved, let routeID):
@@ -305,12 +318,16 @@ public final class LunaIntegration: CameraIntegration {
             route = added
             lunaRoute = .station(station)
             port.saveStation(station)
-            saveRecord(StationRoutes.stamping(StationRoutes.adding(added, to: saved), movingTo: added.kind))
+            let remembered = StationRoutes.stamping(StationRoutes.adding(added, to: saved), movingTo: added.kind)
+            // Every record this integration saves has the camera's own Wi-Fi route, so one without
+            // routes was made from a sighting: it is stored once the camera moves (`moved(_:)`).
+            if saved.routes.isEmpty { saveOnMove = remembered } else { saveRecord(remembered) }
         }
         // One backend, one connection: a newer attempt ends the older one, whichever camera.
         current?.continuation.finish()
         let attempt = Attempt(
             target: target, camera: camera, route: route, lunaRoute: lunaRoute, continuation: continuation)
+        attempt.saveOnMove = saveOnMove
         current = attempt
         continuation.onTermination = { [weak self] termination in
             guard case .cancelled = termination else { return }
@@ -333,8 +350,68 @@ public final class LunaIntegration: CameraIntegration {
         return stream
     }
 
+    /// The target that moves a camera seen over Bluetooth onto `network` and finds it there, as
+    /// Multiview's add does (Kotlin twin, same name): an Add setup, so the setup's password is kept
+    /// and the connected event carries the session and the record with the camera's own Wi-Fi and
+    /// the setup, the setup preferred. A sighting that is already a saved camera (`savedID`) adds
+    /// the setup to `saved`, its record, so its camera Wi-Fi, other setups and serial stay (a Wi-Fi
+    /// setup takes the place of its earlier Wi-Fi setup, a hotspot of its hotspot, as Add setup
+    /// does); nil without that record, since a record made from the sighting would replace it. An
+    /// unsaved sighting gets a record made from it, saved once the camera starts to move.
+    /// Hardware-untested.
+    public nonisolated static func target(
+        _ nearby: NearbyCamera, onto network: LunaStationNetwork, saved: SavedCamera? = nil
+    ) -> ConnectTarget? {
+        let id = nearby.savedID ?? nearby.id
+        let camera: SavedCamera
+        if let saved {
+            guard saved.id == id else { return nil }
+            camera = saved
+        } else {
+            guard nearby.savedID == nil else { return nil }
+            camera = SavedCamera(
+                id: id, integration: LunaCameraSession.integration, advertisedName: nearby.name, model: nearby.model)
+        }
+        return .addRoute(
+            camera,
+            RouteDraft(
+                kind: network.hotspot ? .phoneHotspot : .infrastructureNetwork, network: network.ssid,
+                secret: network.password))
+    }
+
+    /// Connects `nearby` straight onto `network`: `connect(_:)` with `target(_:onto:saved:)`. A
+    /// saved camera's sighting without its record fails at once, before anything is saved or dialled.
+    public func connect(
+        _ nearby: NearbyCamera, onto network: LunaStationNetwork, saved: SavedCamera? = nil
+    ) -> AsyncStream<ConnectionEvent> {
+        if let target = Self.target(nearby, onto: network, saved: saved) { return connect(target) }
+        return AsyncStream { continuation in
+            continuation.yield(
+                .failed(
+                    .luna(
+                        .other, "route.saved-record-missing",
+                        "This camera is already saved. Add the setup to its saved record.")))
+            continuation.finish()
+        }
+    }
+
     public func forget(_ camera: SavedCamera) async {
         if let id = UUID(uuidString: camera.id) { port.forget(cameraID: id) }
+    }
+
+    /// One try at asking `camera` back onto its own Wi-Fi over Bluetooth, as Multiview's close
+    /// does for every camera it moved onto a shared network (Kotlin twin, same name). One
+    /// backend, one link: an attempt in flight ends first. Nothing but the Wi-Fi role is asked, so
+    /// no recording is stopped, and the phone joins no network. A `.deferred` result may be tried
+    /// again (`LunaAccessPointReturn.retrying`); the caller keeps the camera in its cleanup record
+    /// until one returns. Throws only `CancellationError`. Hardware-untested.
+    public func returnToAccessPoint(_ camera: SavedCamera) async throws -> LunaAccessPointReturn {
+        guard let id = UUID(uuidString: camera.id) else { return .failed(LunaAccessPointReturn.unsupported) }
+        if let attempt = current {
+            attempt.continuation.finish()
+            cancel(attempt)
+        }
+        return try await port.returnToAccessPoint(cameraID: id)
     }
 
     /// The baseline grace for a saved camera: Bluetooth for a few seconds first, because an
@@ -419,7 +496,10 @@ public final class LunaIntegration: CameraIntegration {
             }
             for continuation in listeners.values { continuation.yield(sightings) }
         case .phase(let phase):
-            if let attempt = current, Self.apply(phase, to: attempt) { report(attempt) }
+            if let attempt = current {
+                if Self.moves(phase) { moved(attempt) }
+                if Self.apply(phase, to: attempt) { report(attempt) }
+            }
         case .note(let note):
             // A setup's live text (where the camera is going, the network search) is the card's
             // caption; camera Wi-Fi keeps its phase caption.
@@ -460,6 +540,22 @@ public final class LunaIntegration: CameraIntegration {
                     attempt: attempt.id, phase: attempt.phase, steps: attempt.steps, current: attempt.step,
                     note: attempt.note),
                 prompt: attempt.prompt))
+    }
+
+    /// Whether the backend reached the network step: past authorization, the camera is about to
+    /// be asked onto the setup's network (or is reached there).
+    private static func moves(_ phase: CameraConnectionPhase) -> Bool {
+        switch phase {
+        case .joiningWiFi, .openingVideo, .streaming: true
+        default: false
+        }
+    }
+
+    /// Stores a record made from a sighting once its camera starts to move.
+    private func moved(_ attempt: Attempt) {
+        guard attempt.moving, let record = attempt.saveOnMove else { return }
+        attempt.saveOnMove = nil
+        saveRecord(record)
     }
 
     /// The backend's link phase as the attempt's phase, step and prompt (the same phases
