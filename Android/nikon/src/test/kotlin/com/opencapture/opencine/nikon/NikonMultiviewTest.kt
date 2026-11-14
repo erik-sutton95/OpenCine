@@ -14,6 +14,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Swift suite `NikonMultiviewTests`: the Nikon operations a Pocket-standard Multiview tile needs.
@@ -316,6 +317,32 @@ class NikonMultiviewTest {
         repair.attemptFailed(at(3_000))
         assertEquals(NikonMemberRepair.Step.Wait(at(8_000)), repair.next(at(3_000), budget::begin))
         assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(8_000), budget::begin))
+    }
+
+    /**
+     * A step that never reports back (a dial into a vanished network can block past every
+     * cancellation) fails at the attempt deadline, so the tile falls back instead of hanging.
+     */
+    @Test
+    fun repairFailsAnAttemptThatOutlivesItsDeadline() {
+        val repair = NikonMemberRepair()
+        val budget = Budget(1)
+        repair.linkLost(at(0))
+        assertEquals(NikonMemberRepair.Step.Reopen, repair.next(at(1_200), budget::begin))
+        assertEquals(NikonMemberRepair.Step.None, repair.next(at(31_199), budget::begin), "still in flight")
+        assertEquals(NikonMemberRepair.Step.Wait(at(36_200)), repair.next(at(31_200), budget::begin))
+        repair.attemptSucceeded()
+        assertEquals(
+            NikonMemberRepair.Step.WaitForOperator(NikonMemberRepair.WaitReason.BUDGET_SPENT),
+            repair.next(at(36_200), budget::begin),
+            "a late report of the timed-out attempt changes nothing",
+        )
+
+        val restart = NikonMemberRepair(attemptDeadline = 10.seconds)
+        restart.streamStalled(at(0))
+        assertEquals(NikonMemberRepair.Step.RestartLiveView, restart.next(at(0)) { true })
+        assertEquals(NikonMemberRepair.Step.Wait(at(11_200)), restart.next(at(10_000)) { true })
+        assertEquals(NikonMemberRepair.Step.Reopen, restart.next(at(11_200)) { true })
     }
 
     /** The caller's budget decides every attempt; once it refuses, nothing asks again. */

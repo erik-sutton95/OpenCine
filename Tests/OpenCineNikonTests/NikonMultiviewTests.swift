@@ -412,6 +412,27 @@ import Testing
         #expect(repair.next(at: Self.at(8_000), beginAttempt: budget.begin) == .reopen)
     }
 
+    /// A step that never reports back (a dial into a vanished network can block past every
+    /// cancellation) fails at the attempt deadline, so the tile falls back instead of hanging.
+    @Test func repairFailsAnAttemptThatOutlivesItsDeadline() {
+        var repair = NikonMemberRepair()
+        let budget = Budget(limit: 1)
+        repair.linkLost(at: Self.at(0))
+        #expect(repair.next(at: Self.at(1_200), beginAttempt: budget.begin) == .reopen)
+        #expect(repair.next(at: Self.at(31_199), beginAttempt: budget.begin) == .none, "still in flight")
+        #expect(repair.next(at: Self.at(31_200), beginAttempt: budget.begin) == .wait(until: Self.at(36_200)))
+        repair.attemptSucceeded()
+        #expect(
+            repair.next(at: Self.at(36_200), beginAttempt: budget.begin) == .waitForOperator(.budgetSpent),
+            "a late report of the timed-out attempt changes nothing")
+
+        var restart = NikonMemberRepair(attemptDeadline: .seconds(10))
+        restart.streamStalled(at: Self.at(0))
+        #expect(restart.next(at: Self.at(0), beginAttempt: { true }) == .restartLiveView)
+        #expect(restart.next(at: Self.at(10_000), beginAttempt: { true }) == .wait(until: Self.at(11_200)))
+        #expect(restart.next(at: Self.at(11_200), beginAttempt: { true }) == .reopen)
+    }
+
     /// The caller's budget (the coordinator's `RecoveryBudget`) decides every attempt; once it
     /// refuses, the tile waits for the operator's Reconnect and nothing asks again.
     @Test func repairAsksTheBudgetBeforeEveryAttempt() {

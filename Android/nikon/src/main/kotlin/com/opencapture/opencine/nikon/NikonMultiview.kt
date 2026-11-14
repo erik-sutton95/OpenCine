@@ -255,16 +255,23 @@ public val CameraPropertySnapshot.recordingTone: NikonMovieTone?
  * 1. A stream that stops on a live link ([MISSED_FRAMES_FOR_STALL] frame deadlines missed, or a
  *    watchdog stall) restarts live view in place once per episode: no re-Init.
  * 2. A lost link, a failed restart, or a stall after the restart reopens the member: close the old
- *    link, then [NikonMemberOpener.open] with the member's serial expected. Not before the settle
- *    after the loss, and not before the reopen spacing after a failed reopen.
- * 3. The budget refusing, or another device holding the body ([takenOver], from
- *    [NikonDiscovery.currentHolder] before a reopen), waits for the operator.
+ *    link, then [NikonMemberOpener.reopen] of the member at its host. Not before the settle after
+ *    the loss (the opener's own settle counts from the close, so a reopen after a stall can wait
+ *    both), and not before the reopen spacing after a failed reopen.
+ * 3. The budget refusing, or another device holding the body ([takenOver], from the opener's
+ *    HELD_BY_ANOTHER_DEVICE or [NikonDiscovery.currentHolder]), waits for the operator. A take-over
+ *    during an in-flight reopen leaves that reopen's link to the caller to close.
+ *
+ * A step that has not reported back ([attemptSucceeded] / [attemptFailed]) by [attemptDeadline]
+ * failed: a dial into a vanished network can block past every cancellation, and the tile must still
+ * reach the next rung or the operator's Reconnect. A late report is then ignored.
  *
  * A picture ([frameArrived]) ends the episode.
  */
 public class NikonMemberRepair(
     private val settle: Duration = NikonMemberTiming.RECONNECT_SETTLE,
     private val reopenSpacing: Duration = NikonMemberTiming.REOPEN_SPACING,
+    private val attemptDeadline: Duration = NIKON_RECOVERY_ATTEMPT_DEADLINE.attemptMs.milliseconds,
 ) {
     public sealed interface Step {
         /** Nothing to do now (healthy, or an attempt is in flight). */
@@ -294,7 +301,7 @@ public class NikonMemberRepair(
         data object Streaming : Phase
         data object Stalled : Phase
         data class Lost(val since: MonotonicInstant, val reopenFailedAt: MonotonicInstant?) : Phase
-        data class Attempting(val step: Step) : Phase
+        data class Attempting(val step: Step, val since: MonotonicInstant) : Phase
         data class WaitingForOperator(val reason: WaitReason) : Phase
     }
 
@@ -319,7 +326,7 @@ public class NikonMemberRepair(
 
     /** The stream is judged stalled (the miss count, or a watchdog verdict). */
     public fun streamStalled(at: MonotonicInstant) {
-        if (phase == Phase.Streaming || phase == Phase.Attempting(Step.RestartLiveView)) {
+        if (phase == Phase.Streaming || (phase as? Phase.Attempting)?.step == Step.RestartLiveView) {
             misses = 0
             phase = if (restartedThisEpisode) Phase.Lost(at, null) else Phase.Stalled
         }
@@ -327,9 +334,10 @@ public class NikonMemberRepair(
 
     /** The link is gone: the camera closed it, the socket failed, or a command found it dead. */
     public fun linkLost(at: MonotonicInstant) {
-        when (phase) {
-            is Phase.WaitingForOperator, is Phase.Lost -> return
-            Phase.Attempting(Step.Reopen) -> attemptFailed(at)
+        val current = phase
+        when {
+            current is Phase.WaitingForOperator || current is Phase.Lost -> return
+            current is Phase.Attempting && current.step == Step.Reopen -> attemptFailed(at)
             else -> phase = Phase.Lost(at, null)
         }
     }
@@ -367,15 +375,16 @@ public class NikonMemberRepair(
      * The step to take [at] this instant. [beginAttempt] is asked once before every restart or
      * reopen and never for a wait; refusing it ends the automatic ladder.
      */
-    public fun next(at: MonotonicInstant, beginAttempt: () -> Boolean): Step =
-        when (val current = phase) {
+    public fun next(at: MonotonicInstant, beginAttempt: () -> Boolean): Step {
+        (phase as? Phase.Attempting)?.let { if (at >= it.since + attemptDeadline) attemptFailed(at) }
+        return when (val current = phase) {
             Phase.Streaming, is Phase.Attempting -> Step.None
             is Phase.WaitingForOperator -> Step.WaitForOperator(current.reason)
             Phase.Stalled -> if (!beginAttempt()) {
                 waitForOperator()
             } else {
                 restartedThisEpisode = true
-                phase = Phase.Attempting(Step.RestartLiveView)
+                phase = Phase.Attempting(Step.RestartLiveView, at)
                 Step.RestartLiveView
             }
             is Phase.Lost -> {
@@ -385,12 +394,13 @@ public class NikonMemberRepair(
                     at < earliest -> Step.Wait(earliest)
                     !beginAttempt() -> waitForOperator()
                     else -> {
-                        phase = Phase.Attempting(Step.Reopen)
+                        phase = Phase.Attempting(Step.Reopen, at)
                         Step.Reopen
                     }
                 }
             }
         }
+    }
 
     private fun waitForOperator(): Step {
         phase = Phase.WaitingForOperator(WaitReason.BUDGET_SPENT)

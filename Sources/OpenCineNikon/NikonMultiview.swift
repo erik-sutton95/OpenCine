@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCameraVocabulary
 import OpenCineCore
 import OpenCineMedia
 
@@ -228,13 +229,20 @@ public struct NikonRecordingTone: Hashable, Sendable {
 /// 1. A stream that stops on a live link (`missedFramesForStall` frame deadlines missed, or a
 ///    `LiveViewWatchdog` stall) restarts live view in place once per episode: no re-Init.
 /// 2. A lost link, a failed restart, or a stall after the restart reopens the member: close the
-///    old link, then `NikonMemberOpener.open` with the member's serial expected. Not before
-///    `NikonMemberTiming.reconnectSettle` after the loss, and not before `reopenSpacing` after a
-///    failed reopen; each reopen attempt keeps `NikonSessionRecovery.attemptDeadline` as its ceiling.
-/// 3. The budget refusing, or another device holding the body (`takenOver`, from
-///    `NikonDiscovery.currentHolder` before a reopen), waits for the operator.
+///    old link, then `NikonMemberOpener.reopen` of the member at its host. Not before
+///    `NikonMemberTiming.reconnectSettle` after the loss (the opener's own settle counts from the
+///    close, so a reopen after a stall can wait both), and not before `reopenSpacing` after a
+///    failed reopen.
+/// 3. The budget refusing, or another device holding the body (`takenOver`, from the opener's
+///    `.heldByAnotherDevice` or `NikonDiscovery.currentHolder`), waits for the operator. A
+///    take-over during an in-flight reopen leaves that reopen's link to the caller to close.
 ///
-/// A picture (`frameArrived`) ends the episode.
+/// A step that has not reported back (`attemptSucceeded` / `attemptFailed`) by `attemptDeadline`
+/// failed: a dial into a vanished network can block past every cancellation, and the tile must
+/// still reach the next rung or the operator's Reconnect. A late report is then ignored.
+///
+/// A picture (`frameArrived`) ends the episode. A value: the coordinator stores it back after
+/// every mutating call.
 public struct NikonMemberRepair: Hashable, Sendable {
     public enum Step: Hashable, Sendable {
         /// Nothing to do now (healthy, or an attempt is in flight).
@@ -261,22 +269,25 @@ public struct NikonMemberRepair: Hashable, Sendable {
         case streaming
         case stalled
         case lost(since: MonotonicInstant, reopenFailedAt: MonotonicInstant?)
-        case attempting(Step)
+        case attempting(Step, since: MonotonicInstant)
         case waitingForOperator(WaitReason)
     }
 
     private let settle: Duration
     private let reopenSpacing: Duration
+    private let attemptDeadline: Duration
     private var phase = Phase.streaming
     private var misses = 0
     private var restartedThisEpisode = false
 
     public init(
         settle: Duration = NikonMemberTiming.reconnectSettle,
-        reopenSpacing: Duration = NikonMemberTiming.reopenSpacing
+        reopenSpacing: Duration = NikonMemberTiming.reopenSpacing,
+        attemptDeadline: Duration = NikonSessionRecovery.attemptDeadline.attempt
     ) {
         self.settle = settle
         self.reopenSpacing = reopenSpacing
+        self.attemptDeadline = attemptDeadline
     }
 
     /// A picture arrived: the episode is over.
@@ -297,7 +308,7 @@ public struct NikonMemberRepair: Hashable, Sendable {
     /// The stream is judged stalled (the miss count, or a `LiveViewWatchdog` verdict).
     public mutating func streamStalled(at now: MonotonicInstant) {
         switch phase {
-        case .streaming, .attempting(.restartLiveView):
+        case .streaming, .attempting(.restartLiveView, _):
             misses = 0
             phase = restartedThisEpisode ? .lost(since: now, reopenFailedAt: nil) : .stalled
         default: break
@@ -308,7 +319,7 @@ public struct NikonMemberRepair: Hashable, Sendable {
     public mutating func linkLost(at now: MonotonicInstant) {
         switch phase {
         case .waitingForOperator, .lost: return
-        case .attempting(.reopen): attemptFailed(at: now)
+        case .attempting(.reopen, _): attemptFailed(at: now)
         default: phase = .lost(since: now, reopenFailedAt: nil)
         }
     }
@@ -319,7 +330,7 @@ public struct NikonMemberRepair: Hashable, Sendable {
     /// The step `next` returned has run and its link is up (live view restarted, or the member
     /// reopened and attached); a picture still has to arrive to end the episode.
     public mutating func attemptSucceeded() {
-        guard case .attempting(let step) = phase else { return }
+        guard case .attempting(let step, _) = phase else { return }
         if step == .reopen { restartedThisEpisode = false }
         phase = .streaming
         misses = 0
@@ -327,7 +338,7 @@ public struct NikonMemberRepair: Hashable, Sendable {
 
     /// The step `next` returned failed.
     public mutating func attemptFailed(at now: MonotonicInstant) {
-        guard case .attempting(let step) = phase else { return }
+        guard case .attempting(let step, _) = phase else { return }
         phase = .lost(since: now, reopenFailedAt: step == .reopen ? now : nil)
     }
 
@@ -341,6 +352,9 @@ public struct NikonMemberRepair: Hashable, Sendable {
     /// The step to take at `now`. `beginAttempt` is asked once before every restart or reopen and
     /// is never asked for a wait; refusing it ends the automatic ladder.
     public mutating func next(at now: MonotonicInstant, beginAttempt: () -> Bool) -> Step {
+        if case .attempting(_, let since) = phase, now >= since + attemptDeadline {
+            attemptFailed(at: now)
+        }
         switch phase {
         case .streaming, .attempting:
             return .none
@@ -349,14 +363,14 @@ public struct NikonMemberRepair: Hashable, Sendable {
         case .stalled:
             guard beginAttempt() else { return waitForOperator() }
             restartedThisEpisode = true
-            phase = .attempting(.restartLiveView)
+            phase = .attempting(.restartLiveView, since: now)
             return .restartLiveView
         case .lost(let since, let reopenFailedAt):
             var earliest = since + settle
             if let reopenFailedAt { earliest = max(earliest, reopenFailedAt + reopenSpacing) }
             if now < earliest { return .wait(until: earliest) }
             guard beginAttempt() else { return waitForOperator() }
-            phase = .attempting(.reopen)
+            phase = .attempting(.reopen, since: now)
             return .reopen
         }
     }
