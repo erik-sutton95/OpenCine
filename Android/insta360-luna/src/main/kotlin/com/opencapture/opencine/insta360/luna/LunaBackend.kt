@@ -245,9 +245,32 @@ class LunaBackend(
 
     /**
      * Camera Wi-Fi (Bluetooth first, saved Wi-Fi as the fallback), or a Wi-Fi or hotspot setup: the
-     * camera joins that network over Bluetooth and this phone finds it there.
+     * camera joins that network over Bluetooth and this phone finds it there. A camera last reached
+     * on that network is opened at its address there first, without Bluetooth (LAN first).
      */
-    override fun connect(id: String, route: LunaRoute) {
+    override fun connect(id: String, route: LunaRoute) = start(id, route, lanOnly = null)
+
+    /**
+     * Opens the camera at [at] on [on], LAN only (Swift `connect(to:at:on:)`): this phone joins the
+     * network, the address is probed, the control link opens there with [LunaStationHost.serial] as
+     * the expected serial, and live view starts, as this backend's connection ([attempt], [phase],
+     * [failureDetail]). No Bluetooth and no fallback: an address from another network, without a
+     * serial or held by another connection of this app ([stationHostsInUse]) is refused at once and
+     * returned, before this backend's connection or network changes; one that is silent or answers
+     * as another camera fails the connect, so the caller (a Multiview member link) decides when to
+     * move the camera again. Null once the connect started. Main thread. Hardware-untested.
+     */
+    fun connect(id: String, at: LunaStationHost, on: LunaStationNetwork): ConnectionFailure? {
+        LunaStationOpen.refusal(at, on, stationHostsHeld)?.let { return it }
+        start(id, LunaRoute.Station(on), lanOnly = at)
+        return null
+    }
+
+    /** Hosts other connections of this app hold on a setup's network ([stationHostsInUse]). */
+    private val stationHostsHeld: Set<String> get() = stationHostsInUse?.invoke().orEmpty()
+
+    /** The connect over [route]; [lanOnly] opens a Wi-Fi or hotspot setup's camera at that address only. */
+    private fun start(id: String, route: LunaRoute, lanOnly: LunaStationHost?) {
         connectedMedia?.retire()
         mediaConnectionGeneration += 1
         val frameGeneration = mediaConnectionGeneration
@@ -260,7 +283,7 @@ class LunaBackend(
             _failure.value = null; _failureDetail.value = null; _stationNote.value = null
             cameraHost = CAMERA_HOST
             _connected.value = _found.value.firstOrNull { it.id == id } ?: CameraIdentity(id, "Luna Ultra", "Insta360 Luna Ultra")
-            try { runCamera(id, frameGeneration, route) }
+            try { runCamera(id, frameGeneration, route, lanOnly) }
             catch (error: Exception) {
                 // A withTimeout inside (GATT, greeting) is a CancellationException too; only a real cancel propagates.
                 if (error is CancellationException && !isActive) throw error
@@ -269,7 +292,7 @@ class LunaBackend(
             } finally { cleanup() }
         }
     }
-    private suspend fun runCamera(id: String, frameGeneration: Long, route: LunaRoute): Unit = coroutineScope {
+    private suspend fun runCamera(id: String, frameGeneration: Long, route: LunaRoute, lanOnly: LunaStationHost?): Unit = coroutineScope {
         val identity = clientIdentity.toByteArray()
         // Initiator 1 follows the hardware-verified bootstrap; IDs are this installation's own.
         val authBody = LunaWire.blob(1, identity) + LunaWire.integer(2, 1) + LunaWire.blob(3, identity)
@@ -279,16 +302,20 @@ class LunaBackend(
         if (route is LunaRoute.Station) {
             stationConnect = true
             val network = route.network
-            // LAN first: a camera last reached on this network is opened at its address there,
-            // without Bluetooth; only when it does not answer as this camera is it moved again.
-            val known = stationHosts[id]
             var live = false
             val remember = { host: String, serial: String ->
                 live = true
                 stationHosts[id] = LunaStationHost(network.ssid, network.hotspot, host, serial)
             }
+            if (lanOnly != null) {
+                openAtKnownHost(authBody, frameGeneration, network, lanOnly) { remember(lanOnly.host, lanOnly.serial) }
+                return@coroutineScope
+            }
+            // LAN first: a camera last reached on this network is opened at its address there,
+            // without Bluetooth; only when it does not answer as this camera is it moved again.
+            val known = stationHosts[id]
             LunaStationReconnect.run(
-                known, network, stationHostsInUse?.invoke().orEmpty(), reached = { live },
+                known, network, stationHostsHeld, reached = { live },
                 log = { android.util.Log.i("LunaBackend", it) },
                 direct = { host -> openAtKnownHost(authBody, frameGeneration, network, host) { remember(host.host, host.serial) } },
                 move = {
@@ -356,38 +383,42 @@ class LunaBackend(
     private class StationSetup(val hosts: List<String>, val open: () -> Socket)
 
     /**
-     * The LAN-first step: this phone on the setup's network (no Bluetooth), the camera's known
-     * address probed, and the control link opened there with the serial its last connect proved
-     * ([runLive] refuses another camera before anything else is sent to it). [onLive] runs once the
-     * camera is live.
+     * The camera at [known] on the setup's network, LAN only ([LunaStationOpen]): this phone on the
+     * network (no Bluetooth), the address probed, and the control link opened there with the serial
+     * its last connect proved ([runLive] refuses another camera before anything else is sent to it).
+     * [onLive] runs once the camera is live.
      */
     private suspend fun openAtKnownHost(authBody: ByteArray, frameGeneration: Long, network: LunaStationNetwork, known: LunaStationHost, onLive: () -> Unit) {
-        setPhase(ConnectionPhase.JOINING_WIFI)
-        _stationNote.value = "Reconnecting to the camera on “${network.ssid}”…"
-        val setup = joinStationNetwork(network, listOf(known.host))
-        wifiLock.acquire()
-        val answered = withContext(Dispatchers.IO) { LunaStationSearch.probe(known.host, CONTROL_PORT, LunaWire.prefix, setup.open) }
-        if (!answered) throw LunaStationFailure(stationFailure(
-            ConnectionFailure.Reason.NotFound, "station.known-host-silent",
-            "The camera did not answer at its last address on “${network.ssid}”.",
-        ))
-        cameraHost = known.host
-        setPhase(ConnectionPhase.OPENING_DATALINK)
-        var live = false
-        try {
-            val cameraSocket = withContext(Dispatchers.IO) {
-                setup.open().also { socket = it; it.tcpNoDelay = true; it.soTimeout = 10_000; it.connect(InetSocketAddress(known.host, CONTROL_PORT), 8_000) }
-            }
-            runLive(cameraSocket, authBody, frameGeneration, known.serial) { live = true; onLive() }
-        } catch (error: Exception) {
-            if (!live) {
-                if ((error as? LunaStationFailure)?.failure?.reason == ConnectionFailure.Reason.WrongCamera) {
-                    android.util.Log.i("LunaBackend", "luna: another camera answered at the known address")
+        var setup: StationSetup? = null
+        LunaStationOpen.run(
+            known, network, stationHostsHeld,
+            join = {
+                setPhase(ConnectionPhase.JOINING_WIFI)
+                _stationNote.value = "Reconnecting to the camera on “${network.ssid}”…"
+                setup = joinStationNetwork(network, listOf(known.host))
+                wifiLock.acquire()
+            },
+            probe = { host -> withContext(Dispatchers.IO) { LunaStationSearch.probe(host, CONTROL_PORT, LunaWire.prefix, checkNotNull(setup).open) } },
+            open = { host, serial ->
+                cameraHost = host
+                setPhase(ConnectionPhase.OPENING_DATALINK)
+                var live = false
+                try {
+                    val cameraSocket = withContext(Dispatchers.IO) {
+                        checkNotNull(setup).open().also { socket = it; it.tcpNoDelay = true; it.soTimeout = 10_000; it.connect(InetSocketAddress(host, CONTROL_PORT), 8_000) }
+                    }
+                    runLive(cameraSocket, authBody, frameGeneration, serial) { live = true; onLive() }
+                } catch (error: Exception) {
+                    if (!live) {
+                        if ((error as? LunaStationFailure)?.failure?.reason == ConnectionFailure.Reason.WrongCamera) {
+                            android.util.Log.i("LunaBackend", "luna: another camera answered at the known address")
+                        }
+                        cameraHost = CAMERA_HOST
+                    }
+                    throw error
                 }
-                cameraHost = CAMERA_HOST
-            }
-            throw error
-        }
+            },
+        )
     }
 
     /**
@@ -408,7 +439,7 @@ class LunaBackend(
         // closed and skipped, and the search goes on (Swift `findRequestedCamera`).
         LunaStationSearch.findRequested(
             setup.hosts, CONTROL_PORT, LunaWire.prefix, budgetMs = 60_000,
-            excluding = stationHostsInUse?.invoke().orEmpty(), open = setup.open, isCurrent = current,
+            excluding = stationHostsHeld, open = setup.open, isCurrent = current,
         ) { host ->
             cameraHost = host
             android.util.Log.i("LunaBackend", "luna: camera found on the setup's network")

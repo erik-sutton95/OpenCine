@@ -20,8 +20,8 @@ data class LunaStationHost(val network: String, val hotspot: Boolean, val host: 
 /**
  * LAN-first reconnect for a Wi-Fi or hotspot setup (Swift `LunaStationReconnect`): a camera last
  * reached on this network is opened at its known address first, with the serial check and without
- * Bluetooth; only when that fails is it moved over Bluetooth again (which also finds it by
- * searching). A known address another connection of this app holds is never tried.
+ * Bluetooth ([LunaStationOpen]); only when that fails is it moved over Bluetooth again (which also
+ * finds it by searching). A known address another connection of this app holds is never tried.
  */
 internal object LunaStationReconnect {
     /** How the connect reached the camera. */
@@ -33,18 +33,20 @@ internal object LunaStationReconnect {
     }
 
     /**
-     * [direct] when [known] is on [network] and not in [inUse]; when it fails, [move]. Cancellation,
-     * Local Network permission denial (the move's search would be refused too) and a failure after
-     * [reached] (the camera was live; the link then dropped) end the connect instead of moving the
-     * camera. On Android the control link runs for the whole session, so [reached] is what tells a
-     * failed open from a session that ended.
+     * [direct] when [LunaStationOpen] may open [known] on [network] (not in [inUse]); when it fails,
+     * [move]. Cancellation, Local Network permission denial (the move's search would be refused too),
+     * this phone failing to join the network (the move would strand the camera there) and a failure
+     * after [reached] (the camera was live; the link then dropped) end the connect instead of moving
+     * the camera. [reached] is Android only: the control link runs for the whole session inside
+     * [direct], so it is what tells a failed open from a session that ended (on iOS `direct` ends once
+     * the control link is open).
      */
     suspend fun run(
         known: LunaStationHost?, network: LunaStationNetwork, inUse: Set<String>,
         reached: () -> Boolean = { false }, log: (String) -> Unit = {},
         direct: suspend (LunaStationHost) -> Unit, move: suspend () -> Unit,
     ): Path {
-        if (known != null && known.isOn(network) && known.serial.isNotEmpty() && known.host !in inUse) {
+        if (known != null && LunaStationOpen.refusal(known, network, inUse) == null) {
             try {
                 direct(known)
                 return Path.DIRECT
@@ -55,6 +57,7 @@ internal object LunaStationReconnect {
                 val failure = (error as? LunaStationFailure)?.failure
                 val reason = failure?.reason
                 if (reason is ConnectionFailure.Reason.Permission && reason.permission == ConnectionFailure.Permission.LOCAL_NETWORK) throw error
+                if (reason == ConnectionFailure.Reason.JoinFailed) throw error
                 log("luna: the camera's known address did not answer as it (${failure?.code ?: "unexpected"}); moving it over Bluetooth")
             }
         }

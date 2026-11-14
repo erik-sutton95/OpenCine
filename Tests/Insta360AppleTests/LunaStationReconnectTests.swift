@@ -15,7 +15,6 @@ import Testing
     /// What the connect did: the addresses opened directly, and how often the camera was moved.
     @MainActor private final class Connect {
         var directFailure: Error?
-        var reached = false
         private(set) var opened: [LunaStationHost] = []
         private(set) var moves = 0
 
@@ -24,7 +23,7 @@ import Testing
             inUse: Set<String> = []
         ) async throws -> LunaStationReconnect.Path {
             try await LunaStationReconnect.run(
-                known: known, network: network, inUse: inUse, reached: { self.reached },
+                known: known, network: network, inUse: inUse,
                 direct: { host in
                     self.opened.append(host)
                     if let failure = self.directFailure { throw failure }
@@ -81,11 +80,12 @@ import Testing
         #expect(connect.moves == 0)
     }
 
-    @Test func aDropAfterTheCameraWentLiveEndsTheConnect() async {
+    /// A phone that cannot join the setup's network would leave a moved camera stranded there.
+    @Test func aPhoneThatCannotJoinTheNetworkDoesNotMoveTheCamera() async {
         let connect = Connect()
-        connect.reached = true
-        connect.directFailure = ConnectionFailure.luna(.linkLost, "link.dropped", "dropped")
+        connect.directFailure = ConnectionFailure.luna(
+            .joinFailed, "station.phone-join", "could not join", phase: .joiningNetwork)
         await #expect(throws: ConnectionFailure.self) { try await connect.run(known: Self.known) }
-        #expect(connect.moves == 0, "a live camera that dropped is not moved over Bluetooth")
+        #expect(connect.moves == 0)
     }
 }

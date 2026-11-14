@@ -26,8 +26,8 @@ public struct LunaStationHost: Equatable, Sendable {
 
 /// LAN-first reconnect for a Wi-Fi or hotspot setup (Kotlin `LunaStationReconnect`): a camera last
 /// reached on this network is opened at its known address first, with the serial check and without
-/// Bluetooth; only when that fails is it moved over Bluetooth again (which also finds it by
-/// searching). A known address another connection of this app holds is never tried.
+/// Bluetooth (`LunaStationOpen`); only when that fails is it moved over Bluetooth again (which also
+/// finds it by searching). A known address another connection of this app holds is never tried.
 enum LunaStationReconnect {
     /// How the connect reached the camera.
     enum Path: Equatable, Sendable {
@@ -37,25 +37,30 @@ enum LunaStationReconnect {
         case bluetooth
     }
 
-    /// `direct(known)` when `known` is on `network` and not in `inUse`; when it fails, `move()`.
-    /// Cancellation, Local Network permission denial (the move's search would be refused too) and
-    /// a failure after `reached()` (the camera was live; the link then dropped) end the connect
-    /// instead of moving the camera.
+    /// `direct(known)` when `LunaStationOpen` may open `known` on `network` (not in `inUse`); when
+    /// it fails, `move()`. Cancellation, Local Network permission denial (the move's search would be
+    /// refused too) and this phone failing to join the network (the move would strand the camera
+    /// there) end the connect instead of moving the camera. The Kotlin twin also ends the connect
+    /// on a failure after the camera went live (`reached`): there the control link runs for the
+    /// whole session inside `direct`; here `direct` ends once the control link is open.
     @MainActor
     static func run(
         known: LunaStationHost?, network: LunaStationNetwork, inUse: Set<String>,
-        reached: () -> Bool = { false }, log: (String) -> Void = { _ in },
+        log: (String) -> Void = { _ in },
         direct: (LunaStationHost) async throws -> Void, move: () async throws -> Void
     ) async throws -> Path {
-        if let known, known.isOn(network), !known.serial.isEmpty, !inUse.contains(known.host) {
+        if let known, LunaStationOpen.refusal(known, on: network, inUse: inUse) == nil {
             do {
                 try await direct(known)
                 return .direct
             } catch {
                 try Task.checkCancellation()
-                if error is CancellationError || reached() { throw error }
-                if let failure = error as? ConnectionFailure, case .permission(.localNetwork) = failure.reason {
-                    throw failure
+                if error is CancellationError { throw error }
+                if let failure = error as? ConnectionFailure {
+                    switch failure.reason {
+                    case .permission(.localNetwork), .joinFailed: throw failure
+                    default: break
+                    }
                 }
                 let code = (error as? ConnectionFailure)?.code ?? "unexpected"
                 log("luna: the camera's known address did not answer as it (\(code)); moving it over Bluetooth")

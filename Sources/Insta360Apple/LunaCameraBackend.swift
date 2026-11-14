@@ -177,8 +177,31 @@ public final class LunaCameraBackend: CameraBackend {
     }
 
     /// Camera Wi-Fi (Bluetooth first, saved Wi-Fi as the fallback), or a Wi-Fi or hotspot setup:
-    /// the camera joins that network over Bluetooth and this phone finds it there.
+    /// the camera joins that network over Bluetooth and this phone finds it there. A camera last
+    /// reached on that network is opened at its address there first, without Bluetooth (LAN first).
     public func connect(to camera: MonitorCamera, route: LunaRoute) async throws {
+        try await connect(to: camera, route: route, at: nil)
+    }
+
+    /// Opens the camera at `host` on `network`, LAN only (Kotlin `connect(id, at, on)`): this phone
+    /// joins the network, the address is probed, the control link opens there with `host.serial`
+    /// as the expected serial, and live view starts. No Bluetooth and no fallback: an address from
+    /// another network, without a serial or held by another connection of this app
+    /// (`stationHostsInUse`) is refused before this backend's connection or network changes, and
+    /// one that is silent or answers as another camera fails the connect, so the caller (a
+    /// Multiview member link) decides when to move the camera again. Throws `ConnectionFailure`.
+    /// Hardware-untested.
+    public func connect(to camera: MonitorCamera, at host: LunaStationHost, on network: LunaStationNetwork)
+        async throws
+    {
+        try Task.checkCancellation()
+        if let refusal = LunaStationOpen.refusal(host, on: network, inUse: stationHostsHeld) { throw refusal }
+        try await connect(to: camera, route: .station(network), at: host)
+    }
+
+    /// The connect over `route`; `lanOnly` opens a Wi-Fi or hotspot setup's camera at that address
+    /// only.
+    private func connect(to camera: MonitorCamera, route: LunaRoute, at lanOnly: LunaStationHost?) async throws {
         try Task.checkCancellation()
         disconnect()
         generation += 1
@@ -221,20 +244,27 @@ public final class LunaCameraBackend: CameraBackend {
                         .unsupported, "station.existing-network",
                         "Wi-Fi and hotspot setups need Bluetooth on a phone.", phase: .link)
                 }
-                // LAN first: a camera last reached on this network is opened at its address there,
-                // without Bluetooth; only when it does not answer as this camera is it moved again.
-                let known = stationHosts[camera.id]
-                _ = try await LunaStationReconnect.run(
-                    known: known, network: network, inUse: stationHostsInUse?() ?? [],
-                    log: { [weak self] in self?.onLog?($0) },
-                    direct: { known in
-                        try await self.openAtKnownHost(known, on: network, identity: identity, token: token)
-                    },
-                    move: {
-                        try await self.moveAndFind(
-                            camera: camera, identity: identity, network: network, token: token,
-                            preferred: known.flatMap { $0.isOn(network) ? $0.host : nil })
-                    })
+                if let lanOnly {
+                    try await openAtStationHost(lanOnly, on: network, identity: identity, token: token)
+                } else {
+                    // LAN first: a camera last reached on this network is opened at its address
+                    // there, without Bluetooth; only when it does not answer as this camera is it
+                    // moved again.
+                    let known = stationHosts[camera.id]
+                    _ = try await LunaStationReconnect.run(
+                        known: known, network: network, inUse: stationHostsHeld,
+                        log: { [weak self] in self?.onLog?($0) },
+                        direct: { known in
+                            try await self.openAtStationHost(known, on: network, identity: identity, token: token)
+                        },
+                        move: {
+                            // The direct try's reachable time is no grace for the move's own link.
+                            self.reachableAt = nil
+                            try await self.moveAndFind(
+                                camera: camera, identity: identity, network: network, token: token,
+                                preferred: known.flatMap { $0.isOn(network) ? $0.host : nil })
+                        })
+                }
                 controlOpen = true
                 if let serial = deviceInformation?.serial, !serial.isEmpty {
                     stationHosts[camera.id] = LunaStationHost(
@@ -413,45 +443,44 @@ public final class LunaCameraBackend: CameraBackend {
         return (serial, result.address)
     }
 
-    /// The LAN-first step: this phone on the setup's network (no Bluetooth), the camera's known
-    /// address probed, and the control link opened there with the serial its last connect proved.
-    /// A host that is silent or answers as another camera throws, with its link closed before
-    /// anything else is sent to it.
-    private func openAtKnownHost(
+    /// The camera at `known` on the setup's network, LAN only (`LunaStationOpen`): this phone on
+    /// the network (no Bluetooth), the address probed, and the control link opened there with the
+    /// serial its last connect proved. A host that is silent or answers as another camera throws,
+    /// with its link closed before anything else is sent to it.
+    private func openAtStationHost(
         _ known: LunaStationHost, on network: LunaStationNetwork, identity: UUID, token: Int
     ) async throws {
-        emit(.joiningWiFi)
-        eventHandler?(.note("Reconnecting to the camera on “\(network.ssid)”…"))
-        let local = try await joinStation(network, token: token)
-        try validate(token)
-        switch await LunaStationPath.probe(known.host, local: local.address) {
-        case .camera: break
-        case .localNetworkDenied:
-            throw ConnectionFailure.luna(
-                .permission(.localNetwork), "local-network.denied",
-                "Local Network access is off. Enable it in Settings, then connect again.",
-                phase: .joiningNetwork, actions: [.openSettings, .retry])
-        case .absent:
-            throw ConnectionFailure.luna(
-                .notFound, "station.known-host-silent",
-                "The camera did not answer at its last address on “\(network.ssid)”.", phase: .joiningNetwork)
-        }
-        try validate(token)
-        cameraHost = known.host
-        noteReachable(token)
-        emit(.openingVideo)
-        do {
-            try await openControl(
-                token: token, identity: identity, expectedSerial: known.serial, localAddress: local.address)
-        } catch {
-            if (error as? ConnectionFailure)?.reason == .wrongCamera {
-                onLog?("luna: another camera answered at the known address")
-            }
-            closeControlLink()
-            cameraHost = LunaProtocol.defaultHost
-            throw error
-        }
+        try await LunaStationOpen.run(
+            known, on: network, inUse: stationHostsHeld,
+            join: {
+                emit(.joiningWiFi)
+                eventHandler?(.note("Reconnecting to the camera on “\(network.ssid)”…"))
+                let local = try await joinStation(network, token: token)
+                try validate(token)
+                return local.address
+            },
+            probe: { host, local in await LunaStationPath.probe(host, local: local) },
+            open: { host, serial, local in
+                try validate(token)
+                cameraHost = host
+                noteReachable(token)
+                emit(.openingVideo)
+                do {
+                    try await openControl(
+                        token: token, identity: identity, expectedSerial: serial, localAddress: local)
+                } catch {
+                    if (error as? ConnectionFailure)?.reason == .wrongCamera {
+                        onLog?("luna: another camera answered at the known address")
+                    }
+                    closeControlLink()
+                    cameraHost = LunaProtocol.defaultHost
+                    throw error
+                }
+            })
     }
+
+    /// Hosts other connections of this app hold on a setup's network (`stationHostsInUse`).
+    private var stationHostsHeld: Set<String> { stationHostsInUse?() ?? [] }
 
     /// The Bluetooth step: the camera moved onto the setup's network, this phone joined, and the
     /// camera searched for there (`preferred` first, after any address the camera reported). Ends
@@ -469,7 +498,7 @@ public final class LunaCameraBackend: CameraBackend {
         guard
             try await LunaStationPath.findRequestedCamera(
                 on: local, preferred: moved.address ?? preferred, budget: .seconds(60),
-                excluding: stationHostsInUse?() ?? [],
+                excluding: stationHostsHeld,
                 isCurrent: { [weak self] in self?.generation == token },
                 open: { host in
                     try validate(token)

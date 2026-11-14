@@ -15,7 +15,8 @@ import kotlin.test.assertTrue
 /**
  * LAN-first reconnect for a Wi-Fi or hotspot setup: a camera last reached on the network is opened at
  * its known address with the serial check, and moved over Bluetooth only when that fails. Swift
- * mirror: `LunaStationReconnectTests`, same method names.
+ * mirror: `LunaStationReconnectTests`, same method names; `aDropAfterTheCameraWentLiveEndsTheConnect`
+ * is Android only (`reached`: here the control link runs for the whole session).
  */
 class LunaStationReconnectTest {
     private val studio = LunaStationNetwork("Studio", "synthetic1", hotspot = false)
@@ -89,6 +90,16 @@ class LunaStationReconnectTest {
     @Test fun cancellationIsNotAFallback() = runTest {
         val connect = Connect().apply { directFailure = { throw CancellationException("connect replaced") } }
         assertFailsWith<CancellationException> { connect.run(known) }
+        assertEquals(0, connect.moves)
+    }
+
+    /** A phone that cannot join the setup's network would leave a moved camera stranded there. */
+    @Test fun aPhoneThatCannotJoinTheNetworkDoesNotMoveTheCamera() = runTest {
+        val notJoined = LunaStationFailure(LunaFailures.failure(
+            ConnectionFailure.Reason.JoinFailed, "station.phone-join", "could not join", CorePhase.JOINING_NETWORK,
+        ))
+        val connect = Connect().apply { directFailure = { throw notJoined } }
+        assertFailsWith<LunaStationFailure> { connect.run(known) }
         assertEquals(0, connect.moves)
     }
 
