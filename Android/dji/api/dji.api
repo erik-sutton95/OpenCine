@@ -969,6 +969,24 @@ public final class com/opencapture/opencine/dji/DjiScopeExposureCeiling$Companio
 	public final fun getUNOBSERVED ()Lcom/opencapture/opencine/dji/DjiScopeExposureCeiling;
 }
 
+public final class com/opencapture/opencine/dji/DjiStationCommissioner : com/opencapture/opencine/core/StationCommissioner {
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/core/StationHostPath;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/core/StationHostPath;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun closeCommissions ()V
+	public fun connect (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun connect (Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getScansNetworks ()Z
+	public fun hasPreview (Lcom/opencapture/opencine/vocabulary/FoundCamera;)Z
+	public synthetic fun hasPreview (Ljava/lang/Object;)Z
+	public fun qualification (Lcom/opencapture/opencine/vocabulary/FoundCamera;Z)Lcom/opencapture/opencine/core/MulticamQualification;
+	public synthetic fun qualification (Ljava/lang/Object;Z)Lcom/opencapture/opencine/core/MulticamQualification;
+	public fun record (Lcom/opencapture/opencine/vocabulary/FoundCamera;)Lcom/opencapture/opencine/core/StationCameraRecord;
+	public synthetic fun record (Ljava/lang/Object;)Lcom/opencapture/opencine/core/StationCameraRecord;
+	public fun restoreAccessPoint (Lcom/opencapture/opencine/core/StationCameraRecord;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun scanNetworks (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun scanNetworks (Ljava/lang/Object;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public final class com/opencapture/opencine/dji/DumlCodec {
 	public static final field INSTANCE Lcom/opencapture/opencine/dji/DumlCodec;
 	public final fun unpackFrames ([B)Ljava/util/List;
@@ -1627,6 +1645,7 @@ public final class com/opencapture/opencine/dji/MultiviewDiscovery {
 	public fun <init> (Lcom/opencapture/opencine/dji/SharedWiFi;)V
 	public final fun cancel ()V
 	public final fun candidates (Ljava/util/Set;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun probe (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class com/opencapture/opencine/dji/MultiviewDiscovery$UnsupportedSubnet : java/lang/Exception {

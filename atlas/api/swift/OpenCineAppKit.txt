@@ -1077,7 +1077,6 @@ init SavedCamerasStore.Legacy(data: StoredData, codec: any OpenCineCore.LegacySa
 init ShellActions(diagnostics: () -> Swift.Void, reportProblem: () -> Swift.Void, watchFeed: (() -> Swift.Void)?, multiview: (() -> Swift.Void)?, integrationAction: ((Swift.String, Swift.String) -> Swift.Void)?, pair: (() -> Swift.Void)?, media: (() -> Swift.Void)?, settings: (() -> Swift.Void)?, extraNearby: ((Swift.String) -> Swift.Void)?)
 init ShellBrand(name: Swift.String, nearbyNote: Swift.String)
 init ShellModel(cameras: CamerasModel, control: MonitorControlModel)
-init StationNetwork(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool)
 init StationNetworkBrand(appName: Swift.String, cameraFamily: Swift.String, cameraNetworkPrefix: Swift.String)
 init StationSetupRoute(_: OpenCineCore.RouteKind, actionTitle: Swift.String?, enabled: Swift.Bool)
 init StoredData(read: () -> Foundation.Data?, write: (Foundation.Data) -> Swift.Void)
@@ -1623,7 +1622,7 @@ static func StationNetworkSetupRules.isCameraNetwork(_: Swift.String, brand: Sta
 static func StationNetworkSetupRules.network(_: OpenCineCore.SavedCamera, _: OpenCineCore.RouteKind) -> Swift.String?
 static func StationNetworkSetupRules.passwordNote(_: Swift.String, secured: Swift.Bool?) -> Swift.String?
 static func StationNetworkSetupRules.phoneNetworks(_: [Swift.String]) -> [Swift.String]
-static func StationNetworkSetupRules.security(of: Swift.String, saved: [StationNetwork], current: Swift.Bool?) -> Swift.Bool?
+static func StationNetworkSetupRules.security(of: Swift.String, saved: [OpenCineCore.StationNetwork], current: Swift.Bool?) -> Swift.Bool?
 static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext, routes: [StationSetupRoute], notice: AddSetupNotice?) -> AddSetupChooser
 static func StoredData.userDefaults(_: Foundation.UserDefaults, key: Swift.String) -> StoredData
 static let DiagnosticsDevice.current: DiagnosticsDevice
@@ -1850,7 +1849,6 @@ struct SavedCamerasStore.Legacy
 struct ShellActions
 struct ShellBrand: Sendable
 struct ShellModel.Monitor: Identifiable
-struct StationNetwork: Equatable, Sendable
 struct StationNetworkBrand: Equatable, Sendable
 struct StationSetupRoute: Equatable, Sendable
 struct StoredData
@@ -2664,13 +2662,11 @@ var ShellModel.onSceneActivity: (Swift.Bool) -> Swift.Void
 var ShellModel.pairing: Swift.Bool
 var ShellModel.route: ShellModel.Route
 var ShellModel.sceneActive: Swift.Bool
-var StationNetwork.hotspot: Swift.Bool
-var StationNetwork.password: Swift.String
-var StationNetwork.ssid: Swift.String
 var StationNetworkBrand.appName: Swift.String
 var StationNetworkBrand.cameraFamily: Swift.String
 var StationNetworkBrand.cameraNetworkPrefix: Swift.String
 var StationNetworkSetupContext.camera: OpenCineCore.SavedCamera?
+var StationNetworkSetupContext.identifier: Swift.String
 var StationNetworkSetupContext.networkHint: Swift.String
 var StationNetworkSetupContext.prefix: Swift.String
 var StationNetworkSetupContext.title: Swift.String
