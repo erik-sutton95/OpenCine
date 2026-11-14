@@ -327,7 +327,9 @@ import Testing
             return data
         }
 
-        func writeCameraProperty(_ write: PTPCameraPropertyWrite) async throws { throw LinkDown() }
+        func writeCameraProperty(_ write: PTPCameraPropertyWrite) async throws {
+            lock.withLock { properties[write.property] = write.data }
+        }
         func startRecording() async throws { throw LinkDown() }
         func stopRecording() async throws { throw LinkDown() }
     }
@@ -354,6 +356,21 @@ import Testing
         let before = body.reads.count
         _ = await control.pollRecordingTone(on: body)
         #expect(body.reads.count == before, "a link lent to Live View is that view's to read")
+    }
+
+    /// The settings popup's codec or tone write goes through the member's queue: the Auto LUT
+    /// source follows its readback at once, not at the next tone poll.
+    @MainActor @Test func recordingToneFollowsAWriteTheControlSends() async throws {
+        let body = ToneBody()
+        body.properties = [.movieFileType: Self.fileType(Self.h265TenBit), .movieH265ToneMode: Data([0])]
+        let control = NikonMemberControl(serialNumber: Self.serial, isCameraRefusal: { _ in false })
+        #expect(await control.pollRecordingTone(on: body) == .sdr)
+        control.enqueue(try #require(NikonMovieToneCapability.write(.nLog, forFileType: Self.h265TenBit)))
+        _ = await control.service(body)
+        #expect(control.recordingTone.tone == .nLog)
+        control.enqueue(PTPCameraPropertyWrite(property: .movieFileType, data: Self.fileType(Self.r3d)))
+        _ = await control.service(body)
+        #expect(control.recordingTone.tone == .log3G10)
     }
 
     // MARK: Bounded member repair

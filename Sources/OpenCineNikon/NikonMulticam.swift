@@ -142,7 +142,8 @@ public final class NikonMemberControl: NikonControlDriver {
     /// link, so this one sends nothing (two pumps would interleave PTP transactions).
     public private(set) var isLent = false
     public var hasQueuedCommands: Bool { !writes.isEmpty || record != nil }
-    /// The recording tone `pollRecordingTone(on:)` last read: Multiview's Auto LUT source.
+    /// The recording tone `pollRecordingTone(on:)` or a sent write's readback last reported:
+    /// Multiview's Auto LUT source.
     public private(set) var recordingTone = NikonRecordingTone()
 
     private var writes: [(write: PTPCameraPropertyWrite, operation: OperationID?, admission: NikonCommandAdmission?)] = []
@@ -256,10 +257,7 @@ public final class NikonMemberControl: NikonControlDriver {
                 continue
             }
             let readback = try? await transport.readCameraProperty(write.property)
-            if let readback {
-                nikonControlFacts.reported = nikonControlFacts.reported.applying(
-                    property: write.property, data: readback)
-            }
+            if let readback { applyRead(write.property, readback) }
             if let operation { session.writeLanded(operation, write: write, readback: readback) }
             if admission != nil { session.refresh() }
             let outcome: WriteOutcome =
@@ -355,18 +353,19 @@ public final class NikonMemberControl: NikonControlDriver {
     public func pollRecordingTone(on transport: some NikonControlTransport) async -> NikonMovieTone? {
         guard !isLent else { return recordingTone.tone }
         if let data = try? await transport.readCameraProperty(.movieFileType), !isLent {
-            applyToneRead(.movieFileType, data)
+            applyRead(.movieFileType, data)
         }
         if let property = recordingTone.toneProperty, !isLent,
             let data = try? await transport.readCameraProperty(property), !isLent
         {
-            applyToneRead(property, data)
+            applyRead(property, data)
         }
         session.refresh()
         return recordingTone.tone
     }
 
-    private func applyToneRead(_ property: PTPPropertyCode, _ data: Data) {
+    /// Every property value the camera reported to this control: the facts and the tone together.
+    private func applyRead(_ property: PTPPropertyCode, _ data: Data) {
         recordingTone.apply(property, data: data)
         nikonControlFacts.reported = nikonControlFacts.reported.applying(property: property, data: data)
     }
@@ -375,7 +374,6 @@ public final class NikonMemberControl: NikonControlDriver {
     {
         // ponytail: best effort; the failure itself is already reported above.
         guard let actual = try? await transport.readCameraProperty(property) else { return }
-        nikonControlFacts.reported = nikonControlFacts.reported.applying(
-            property: property, data: actual)
+        applyRead(property, actual)
     }
 }
