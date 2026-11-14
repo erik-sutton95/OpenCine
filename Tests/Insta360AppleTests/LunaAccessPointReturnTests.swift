@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 @testable import Insta360Apple
 @testable import Insta360Protocol
@@ -9,51 +10,86 @@ import Testing
 /// closes. The phone joins nothing and no recording is stopped. Kotlin mirror:
 /// `LunaAccessPointReturnTest`, same method names.
 @MainActor @Suite struct LunaAccessPointReturnTests {
-    /// A scripted camera behind the Bluetooth link: what each step does, and what it was sent.
+    /// A camera behind the Bluetooth link: it answers the real authorization the backend runs
+    /// (identity, key exchange, approval, credential read) and records every request it receives.
     @MainActor private final class Camera {
         var link: Error?
-        var authorize: Error?
+        /// Each request of these commands is answered with the error instead.
+        var fails: [LunaCommand: Error] = [:]
         var switchMode: Error?
-        var reply = Camera.credentials(region: "DK")
+        var authorization = LunaAuthorizationStatus.authorized
+        /// What waiting for the operator's approval ends with (nil: approved).
+        var approval: Error?
+        var region: String? = "DK"
         private(set) var sent: [LunaRequest] = []
         private(set) var closes = 0
+        private let key = P256.KeyAgreement.PrivateKey()
 
         func restore() -> LunaAccessPointRestore {
             LunaAccessPointRestore(
                 link: { [self] in if let link { throw link } },
-                authorize: { [self] in
-                    if let authorize { throw authorize }
-                    return reply
-                },
-                send: { [self] request in
-                    sent.append(request)
-                    if let switchMode { throw switchMode }
-                },
-                close: { [self] in closes += 1 })
+                authorization: LunaBluetoothAuthorization(
+                    send: { [self] request in try answer(request) }, agreed: { _ in },
+                    awaitApproval: { [self] _ in if let approval { throw approval } }, appName: "Tests"),
+                identity: UUID(), close: { [self] in closes += 1 })
+        }
+
+        private func answer(_ request: LunaRequest) throws -> Data {
+            sent.append(request)
+            if let error = fails[request.command] { throw error }
+            switch request.command {
+            case .getOptions where request.body == LunaProtocol.wifiCredentialsRequest.body:
+                return Self.credentials(region: region)
+            case .getOptions:
+                return Self.options([48, 15, 30], [
+                    48: Data(LunaProtocol.model.utf8), 15: Data("SN-LUNA".utf8), 30: Data("1.1.15".utf8),
+                ])
+            case .encryptionCapabilities: return try ProtoMessage.integer(field: 1, value: 3)
+            case .keyExchange:
+                return try ProtoMessage.integer(field: 1, value: 1)
+                    + ProtoMessage.blob(field: 2, value: key.publicKey.x963Representation)
+            case .checkAuthorization: return try ProtoMessage.integer(field: 1, value: authorization.rawValue)
+            case .setWifiMode:
+                if let switchMode { throw switchMode }
+                return Data()
+            default: return Data()
+            }
+        }
+
+        private static func blob(_ field: Int, _ value: Data) -> Data { try! ProtoMessage.blob(field: field, value: value) }
+
+        /// A GET_OPTIONS reply: the option numbers, then the options.
+        private static func options(_ numbers: [UInt8], _ values: [Int: Data]) -> Data {
+            blob(1, Data(numbers)) + blob(2, values.sorted { $0.key < $1.key }.reduce(Data()) { $0 + blob($1.key, $1.value) })
         }
 
         /// The credential read's reply: the camera's own Wi-Fi and, when given, its region.
         static func credentials(region: String?) -> Data {
-            func blob(_ field: Int, _ value: Data) -> Data { try! ProtoMessage.blob(field: field, value: value) }
             let wifi = blob(36, blob(1, Data("LUNA-TEST".utf8)) + blob(2, Data("synthetic-password".utf8)))
             let channels = region.map { blob(37, blob(1, Data($0.utf8))) } ?? Data()
             return Data([0x0a, 0x03, 0x24, 0x25, 0x2b]) + blob(2, wifi + channels)
         }
     }
 
+    /// Commands that start or stop a recording, a photo or the live picture: a return sends none.
+    private static let capture: Set<LunaCommand> = [
+        .startCapture, .stopCapture, .takePicture, .startTimelapse, .stopTimelapse, .startLive, .stopLive,
+    ]
+
     @Test func theCameraIsAskedBackOntoItsAccessPointAndNothingElse() async throws {
         let camera = Camera()
         #expect(try await camera.restore().run() == .returned)
-        #expect(camera.sent == [try LunaProtocol.wifiModeRequest(.accessPoint, countryCode: "DK")])
-        #expect(camera.sent.allSatisfy { $0.command == .setWifiMode }, "never a capture, record or live command")
+        #expect(camera.sent.allSatisfy { !Self.capture.contains($0.command) }, "never a capture, record or live command")
+        #expect(camera.sent.filter { $0.command == .setWifiMode } == [try LunaProtocol.wifiModeRequest(.accessPoint, countryCode: "DK")])
+        #expect(camera.sent.last?.command == .setWifiMode, "the switch is the last request")
         #expect(camera.closes == 1)
     }
 
     @Test func aCameraWithoutARegionIsAskedWithoutOne() async throws {
         let camera = Camera()
-        camera.reply = Camera.credentials(region: nil)
+        camera.region = nil
         #expect(try await camera.restore().run() == .returned)
-        #expect(camera.sent == [try LunaProtocol.wifiModeRequest(.accessPoint, countryCode: nil)])
+        #expect(camera.sent.last == (try LunaProtocol.wifiModeRequest(.accessPoint, countryCode: nil)))
     }
 
     @Test func aCameraBluetoothCannotReachIsDeferred() async throws {
@@ -66,7 +102,7 @@ import Testing
 
     @Test func aCameraStillSwitchingItsWiFiIsDeferred() async throws {
         let authorizing = Camera()
-        authorizing.authorize = LunaProtocolError.cameraBusySwitchingWiFi
+        authorizing.fails[.getOptions] = LunaProtocolError.cameraBusySwitchingWiFi
         let switching = Camera()
         switching.switchMode = LunaProtocolError.cameraBusySwitchingWiFi
         for camera in [authorizing, switching] {
@@ -79,7 +115,7 @@ import Testing
     @Test func aCameraThatDoesNotAnswerIsDeferred() async throws {
         let timeout = ConnectionFailure.luna(.timedOut, "command.timeout", "no answer")
         let authorizing = Camera()
-        authorizing.authorize = timeout
+        authorizing.fails[.keyExchange] = timeout
         let switching = Camera()
         switching.switchMode = timeout
         for camera in [authorizing, switching] {
@@ -90,10 +126,11 @@ import Testing
 
     @Test func aCameraThatDoesNotAuthorizeThisPhoneFails() async throws {
         let camera = Camera()
-        camera.authorize = ConnectionFailure.lunaHeldElsewhere
+        camera.authorization = .approvalRequired
+        camera.approval = ConnectionFailure.luna(.notApproved, "approval.timeout", "Approval timed out.")
         let result = try await camera.restore().run()
         #expect(result.failure?.code == "com.opencapture.insta360.luna.return.not-authorized" && !result.isRetryable)
-        #expect(camera.sent.isEmpty, "nothing is asked of a camera that did not authorize this phone")
+        #expect(!camera.sent.contains { $0.command == .setWifiMode }, "nothing is asked of a camera that did not authorize this phone")
         #expect(camera.closes == 1)
     }
 
@@ -106,7 +143,7 @@ import Testing
 
     @Test func cancellationIsNeverAResult() async {
         let camera = Camera()
-        camera.authorize = CancellationError()
+        camera.fails[.encryptionCapabilities] = CancellationError()
         await #expect(throws: CancellationError.self) { try await camera.restore().run() }
         #expect(camera.closes == 1)
     }

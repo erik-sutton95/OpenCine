@@ -89,32 +89,30 @@ internal class LunaNotApproved(message: String) : IllegalStateException(message)
 
 /**
  * The camera's side of a return to its own Wi-Fi (Swift `LunaAccessPointRestore`): Bluetooth reaches
- * it, it authorizes this phone (the encrypted credential read, whose reply names the camera's
- * region), and one SET_WIFI_MODE 147 asks it onto its access point. The link always closes
- * afterwards. Nothing else is sent: no capture, record or live request, so a recording continues; and
- * the phone joins no network.
+ * it, it authorizes this phone ([LunaBluetoothAuthorization], whose credential read names the
+ * camera's region), and one SET_WIFI_MODE 147 on the same link asks it onto its access point. The
+ * link always closes afterwards. Nothing else is sent: no capture, record or live request, so a
+ * recording continues; and the phone joins no network.
  */
 internal class LunaAccessPointRestore(
-    /** Bluetooth reaches the camera. */
-    private val link: suspend () -> Unit,
-    /** Approval and the encrypted credential read; returns the read's reply. */
-    private val authorize: suspend () -> ByteArray,
-    /** One encrypted request on that link: its code and body. */
-    private val send: suspend (code: Int, body: ByteArray) -> Unit,
+    /** Bluetooth reaches the camera; the authorization runs on that link and also carries the switch. */
+    private val link: suspend () -> LunaBluetoothAuthorization,
+    /** This phone's approval identity, as the authorization check sends it. */
+    private val authBody: ByteArray,
     /** Ends the Bluetooth link; runs after every outcome. */
     private val close: () -> Unit,
 ) {
     /** The return's result. Throws only [CancellationException]. */
     suspend fun run(): LunaAccessPointReturn {
         try {
-            try {
+            val authorization = try {
                 link()
             } catch (error: Exception) {
                 rethrowCancellation(error)
                 return LunaAccessPointReturn.Deferred(LunaAccessPointReturn.notReachable)
             }
             val reply = try {
-                authorize()
+                authorization.run(authBody).second
             } catch (error: Exception) {
                 rethrowCancellation(error)
                 return when (error) {
@@ -125,7 +123,7 @@ internal class LunaAccessPointRestore(
             }
             try {
                 val region = runCatching { LunaStationWire.countryCode(reply) }.getOrNull()
-                send(LunaStationWire.SET_WIFI_MODE, LunaStationWire.wifiMode(LunaStationWire.Mode.ACCESS_POINT, region))
+                authorization.request(LunaStationWire.SET_WIFI_MODE, LunaStationWire.wifiMode(LunaStationWire.Mode.ACCESS_POINT, region), true)
             } catch (error: Exception) {
                 rethrowCancellation(error)
                 return when (error) {

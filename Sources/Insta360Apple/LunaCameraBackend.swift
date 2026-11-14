@@ -557,66 +557,31 @@ public final class LunaCameraBackend: CameraBackend {
     private func authorizeLink(identity: UUID, token: Int, reports: Bool = true)
         async throws -> (serial: String, credentials: Data)
     {
-        if reports { emit(.negotiating) }
-        let info = try LunaProtocol.deviceInformation(
-            response: await send(LunaProtocol.deviceInformationRequest(includeSerial: true)))
-        // BE80 is shared by more Insta360 cameras. Only apply the verified Luna profile.
-        guard info.model == LunaProtocol.model else {
-            throw ConnectionFailure.luna(
-                .unsupported, "model.unsupported",
-                "This camera is \(info.model). \(configuration.appName) currently supports the Insta360 Luna Ultra.",
-                phase: .negotiating)
-        }
-        guard let serial = info.serial, !serial.isEmpty else {
-            throw ConnectionFailure.luna(
-                .other, "serial.missing",
-                "The camera did not provide an identity to verify its Wi-Fi handoff.",
-                phase: .negotiating)
-        }
-        if reports {
-            deviceInformation = info
-            onDeviceInformation?(info)
-            eventHandler?(
-                .information(CameraInformation(model: info.model, firmware: info.firmware)))
-        }
-        let schemes = try LunaProtocol.encryptionSchemes(
-            response: await send(LunaProtocol.encryptionCapabilitiesRequest))
-        guard schemes.contains(3) else {
-            throw ConnectionFailure.luna(
-                .unsupported, "encryption.unsupported",
-                "The camera does not support the verified encrypted connection handshake.",
-                phase: .negotiating)
-        }
-        let privateKey = P256.KeyAgreement.PrivateKey()
-        let exchange = try LunaProtocol.keyExchangeRequest(
-            publicKey: privateKey.publicKey.x963Representation)
-        let cameraKey = try LunaProtocol.cameraPublicKey(response: await send(exchange))
-        let publicKey = try P256.KeyAgreement.PublicKey(x963Representation: cameraKey)
-        let secret = try privateKey.sharedSecretFromKeyAgreement(with: publicKey)
-        sessionKey = secret.hkdfDerivedSymmetricKey(
-            using: SHA256.self, salt: LunaProtocol.hkdfSalt, sharedInfo: LunaProtocol.hkdfInfo,
-            outputByteCount: LunaProtocol.sessionKeyByteCount)
-        let authenticated = try LunaProtocol.deviceInformation(
-            response: await send(LunaProtocol.deviceInformationRequest(encrypted: true)))
-        guard authenticated.model == info.model else {
-            throw ConnectionFailure.luna(
-                .wrongCamera, "identity.mismatch",
-                "The encrypted camera identity did not match the selected device.",
-                phase: .negotiating)
-        }
-        if reports { emit(.awaitingApproval) }
-        let authorization = try LunaProtocol.authorizationStatus(
-            response: await send(LunaProtocol.authorizationCheck(identity: identity)))
-        if authorization == .approvalRequired {
-            _ = try await send(LunaProtocol.requestAuthorization)
-            try await waitForApproval(identity: identity)
-        } else if authorization != .authorized {
-            throw ConnectionFailure.lunaHeldElsewhere
-        }
-        if reports { emit(.readingWiFi) }
-        let reply = try await send(LunaProtocol.wifiCredentialsRequest)
+        let result = try await bluetoothAuthorization(token: token, reports: reports).run(identity: identity)
         try validate(token)
-        return (serial, reply)
+        return result
+    }
+
+    /// The authorization over this backend's Bluetooth link (`authorizeLink`).
+    private func bluetoothAuthorization(token: Int, reports: Bool) -> LunaBluetoothAuthorization {
+        LunaBluetoothAuthorization(
+            send: { [weak self] request in
+                guard let self else { throw CancellationError() }
+                return try await self.send(request)
+            },
+            agreed: { [weak self] key in self?.sessionKey = key },
+            awaitApproval: { [weak self] identity in
+                guard let self else { throw CancellationError() }
+                try await self.waitForApproval(identity: identity)
+            },
+            appName: configuration.appName,
+            phase: { [weak self] phase in if reports { self?.emit(phase) } },
+            identified: { [weak self] info in
+                guard reports, let self else { return }
+                self.deviceInformation = info
+                self.onDeviceInformation?(info)
+                self.eventHandler?(.information(CameraInformation(model: info.model, firmware: info.firmware)))
+            })
     }
 
     /// Records when this connect first held its camera network address: the Local Network
@@ -783,22 +748,20 @@ public final class LunaCameraBackend: CameraBackend {
         guard let identity = try? store.identity() else {
             return .failed(LunaAccessPointReturn.notAuthorized)
         }
+        var authorization = bluetoothAuthorization(token: token, reports: false)
+        let send = authorization.send
+        authorization.send = { [weak self] request in
+            guard let self else { throw CancellationError() }
+            try self.validate(token)
+            return try await send(request)
+        }
         let restore = LunaAccessPointRestore(
             link: { [weak self] in
                 guard let self else { throw CancellationError() }
                 try await self.reachOverBluetooth(
                     cameraID: cameraID, name: cameraID.uuidString, token: token, reports: false)
             },
-            authorize: { [weak self] in
-                guard let self else { throw CancellationError() }
-                return try await self.authorizeLink(identity: identity, token: token, reports: false)
-                    .credentials
-            },
-            send: { [weak self] request in
-                guard let self else { throw CancellationError() }
-                try self.validate(token)
-                _ = try await self.send(request)
-            },
+            authorization: authorization, identity: identity,
             close: { [weak self] in
                 guard let self, self.generation == token else { return }
                 self.bluetooth.disconnect()

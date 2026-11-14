@@ -555,38 +555,18 @@ class LunaBackend(
      * of it. A camera that does not approve this phone throws [LunaNotApproved].
      */
     private suspend fun authorizeLink(link: LunaChannel, authBody: ByteArray, reports: Boolean = true): Authorized {
-        val initial = LunaWire.bytes(link.request(8, LunaDeviceIdentity.request), 2)
-        check(LunaWire.text(initial, 48) == "Insta360 Luna Ultra") { "Unexpected camera model" }
-        val serial = LunaDeviceIdentity.serial(initial) ?: throw LunaStationFailure(LunaDeviceIdentity.serialMissing)
-        if (reports) {
-            _snapshot.value = CameraSnapshot(firmware = LunaWire.text(initial, 30))
-            setPhase(ConnectionPhase.PAIRING)
-        }
-        val schemes = LunaWire.schemes(link.request(240))
-        check(3L in schemes) { "AES-GCM is not supported" }
-        val pair = LunaWire.keyPair()
-        link.key = LunaWire.exchange(pair, link.request(241, LunaWire.integer(1, 3) + LunaWire.blob(2, LunaWire.publicBytes(pair))))
-        val verified = LunaWire.bytes(link.request(8, LunaWire.options(48, 30), encrypted = true), 2)
-        check(LunaWire.text(verified, 48) == "Insta360 Luna Ultra")
-        when (LunaWire.number(link.request(39, authBody), 1)) {
-            0L -> Unit
-            1L -> {
-                if (reports) setPhase(ConnectionPhase.AWAITING_APPROVAL)
-                link.request(86, LunaWire.integer(1, 1))
-                var approved: Boolean? = null
-                withTimeoutOrNull(120_000) {
-                    while (approved == null) {
-                        val approval = link.approvals.receive()
-                        if (LunaWire.number(approval.body, 2) in 0L..1L) approved = LunaWire.number(approval.body, 1) == 0L
-                    }
-                }
-                if (approved != true) throw LunaNotApproved("Camera did not approve this client")
-            }
-            else -> throw LunaNotApproved("Unknown camera authorization result")
-        }
-        if (reports) setPhase(ConnectionPhase.READING_WIFI_CREDS)
-        return Authorized(link, serial, link.request(8, LunaWire.options(36, 37, 43), encrypted = true))
+        val (serial, credentials) = bluetoothAuthorization(link, reports).run(authBody)
+        return Authorized(link, serial, credentials)
     }
+
+    /** The authorization on [link] ([authorizeLink], a return to the access point). */
+    private fun bluetoothAuthorization(link: LunaChannel, reports: Boolean) = LunaBluetoothAuthorization(
+        request = { code, body, encrypted -> link.request(code, body, encrypted) },
+        agreed = { link.key = it },
+        approvals = { link.approvals.receive() },
+        phase = { if (reports) setPhase(it) },
+        identified = { if (reports) _snapshot.value = CameraSnapshot(firmware = it) },
+    )
 
     /**
      * The control link and live session on [cameraSocket]. A camera whose serial is not
@@ -764,11 +744,9 @@ class LunaBackend(
         val identity = clientIdentity.toByteArray()
         val authBody = LunaWire.blob(1, identity) + LunaWire.integer(2, 1) + LunaWire.blob(3, identity)
         val job = scope.async {
-            var link: LunaChannel? = null
             LunaAccessPointRestore(
-                link = { link = reachOverBluetooth(id, reports = false) },
-                authorize = { authorizeLink(checkNotNull(link), authBody, reports = false).credentials },
-                send = { code, body -> checkNotNull(link).request(code, body, encrypted = true) },
+                link = { bluetoothAuthorization(reachOverBluetooth(id, reports = false), reports = false) },
+                authBody = authBody,
                 close = { gatt?.close(); gatt = null },
             ).run()
         }

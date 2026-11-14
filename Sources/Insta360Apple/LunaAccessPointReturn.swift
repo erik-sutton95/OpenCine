@@ -73,18 +73,18 @@ public enum LunaAccessPointReturn: Equatable, Sendable {
 }
 
 /// The camera's side of a return to its own Wi-Fi: Bluetooth reaches it, it authorizes this
-/// phone (the encrypted credential read, whose reply names the camera's region), and one
-/// SET_WIFI_MODE 147 asks it onto its access point. The link always closes afterwards. Nothing
-/// else is sent: no capture, record or live request, so a recording continues; and the phone
-/// joins no network. Kotlin twin: `LunaAccessPointRestore`.
+/// phone (`LunaBluetoothAuthorization`, whose credential read names the camera's region), and one
+/// SET_WIFI_MODE 147 on the same link asks it onto its access point. The link always closes
+/// afterwards. Nothing else is sent: no capture, record or live request, so a recording continues;
+/// and the phone joins no network. Kotlin twin: `LunaAccessPointRestore`.
 @MainActor
 struct LunaAccessPointRestore {
     /// Bluetooth reaches the camera.
     var link: @MainActor () async throws -> Void
-    /// Approval and the encrypted credential read; returns the read's reply.
-    var authorize: @MainActor () async throws -> Data
-    /// One encrypted request on that link.
-    var send: @MainActor (LunaRequest) async throws -> Void
+    /// The authorization on that link; its `send` also carries the switch.
+    var authorization: LunaBluetoothAuthorization
+    /// This phone's approval identity.
+    var identity: UUID
     /// Ends the Bluetooth link; runs after every outcome.
     var close: @MainActor () -> Void
 
@@ -99,7 +99,7 @@ struct LunaAccessPointRestore {
         }
         let reply: Data
         do {
-            reply = try await authorize()
+            reply = try await authorization.run(identity: identity).credentials
         } catch {
             try Self.rethrowCancellation(error)
             if case LunaProtocolError.cameraBusySwitchingWiFi = error {
@@ -112,7 +112,7 @@ struct LunaAccessPointRestore {
         }
         do {
             let region = try? LunaProtocol.wifiCountryCode(response: reply)
-            try await send(LunaProtocol.wifiModeRequest(.accessPoint, countryCode: region))
+            _ = try await authorization.send(LunaProtocol.wifiModeRequest(.accessPoint, countryCode: region))
         } catch {
             try Self.rethrowCancellation(error)
             switch error {
