@@ -239,7 +239,7 @@ class NikonDiscovery(
         // Compared by host key: a caller's untrimmed address still keeps its host undialled.
         val excluded = (excludedHosts + shieldedHosts).mapNotNull(NikonHosts::normalizedHost).toSet()
         val directed = directedCandidates.map { it.trim() }.distinct()
-            .filter { it !in excluded && it !in locals && subnetBase(it) in subnets }
+            .filter { hostKey(it) !in excluded && it !in locals && subnetBase(it) in subnets }
         log("infra-search subnets=[${subnets.joinToString(" ")}] directed=[${directed.joinToString(" ")}]")
 
         // Directed first: the reconnect case answers in one round.
@@ -250,7 +250,7 @@ class NikonDiscovery(
         repeat(LOCAL_SWEEP_PASSES) { pass ->
             for (subnet in subnets) {
                 if (!currentCoroutineContext().isActive) break
-                val hosts = (1..254).map { "$subnet.$it" }.filterNot { it in excluded || it in locals }
+                val hosts = (1..254).map { "$subnet.$it" }.filterNot { hostKey(it) in excluded || it in locals }
                 val verdicts = muteScan(hosts)
                 val open = verdicts.filterValues { it == HostProbeVerdict.OPEN }.keys.sorted()
                 occupied += verdicts.filterValues { it.isOccupied }.keys
@@ -332,6 +332,8 @@ class NikonDiscovery(
     /** The `a.b.c` of a private (RFC 1918) IPv4 address, else `null`. */
     /** This device's interfaces discovery may scan from: never cellular or a tunnel. */
     private fun scanInterfaces(): List<NikonLocalInterface> = interfaces().filter { NikonHosts.isScanInterface(it.name, it.address) }
+
+    private fun hostKey(host: String): String = NikonHosts.normalizedHost(host) ?: host
 
     private fun subnetBase(host: String): String? = host.trim().takeIf(NikonHosts::isPrivateIPv4)?.let(NikonHosts::subnetBase)
 }

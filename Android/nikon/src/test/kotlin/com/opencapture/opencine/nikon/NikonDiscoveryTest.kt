@@ -120,6 +120,13 @@ class NikonDiscoveryTest {
     }
 
     @Test
+    fun activeDiscoveryComparesPriorityAndExcludedHostsByTheSameKey() = runTest {
+        val dialer = FakeDialer().apply { open = setOf("192.168.1.30", "192.168.1.31") }
+        discovery(dialer).search(DiscoveryMode.ACTIVE, listOf("192.168.1.30", " 192.168.1.31"), excludedHosts = setOf("192.168.1.31 "))
+        assertEquals(listOf("192.168.1.30"), dialer.controlDials.distinct())
+    }
+
+    @Test
     fun thePassiveDialerRefusesCameraControl() = runTest {
         val dialer = FakeDialer()
         assertEquals(HostProbeVerdict.DENIED, PassiveDialer(dialer).scanControlPort("192.168.1.30", 100))

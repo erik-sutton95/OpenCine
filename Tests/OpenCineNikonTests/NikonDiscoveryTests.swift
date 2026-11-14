@@ -141,6 +141,15 @@ struct FakeSources: NikonDiscoverySources {
         #expect(dialer.controlDials == ["192.168.1.30"])
     }
 
+    @Test func activeDiscoveryComparesMixedCaseHostsByTheirKeyOnBothSides() async throws {
+        let dialer = FakeDialer()
+        dialer.cameras = ["192.168.1.30": "Z_f", "192.168.1.31": "Z_5"]
+        _ = try await discovery(dialer).discover(
+            .active, guid: guid, priorityHosts: ["192.168.1.30", " 192.168.1.31"],
+            excludedHosts: { ["192.168.1.31 "] })
+        #expect(dialer.controlDials == ["192.168.1.30"])
+    }
+
     /// physical-C C9: the list's last sweep predated the phone that went live, so a saved connect
     /// asks with a fresh sweep, outside the list's rate window, and never dials the control port.
     @Test func currentHolderSweepsFreshAndNamesTheServingDevice() async throws {

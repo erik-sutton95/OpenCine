@@ -275,7 +275,7 @@ public final class NikonDiscovery: @unchecked Sendable {
     ) async -> [DiscoveredCamera] {
         let split = CameraDiscovery.prioritizedScanHosts(
             priorityHosts: priorityHosts, localAddresses: scanInterfaces().map(\.address))
-        let hosts = split.priority.filter { !excluded.contains($0) }
+        let hosts = split.priority.filter { !excluded.contains(Self.hostKey($0)) }
         if !hosts.isEmpty || !excluded.isEmpty {
             sources.log(
                 "discovery probe pass trusted=[\(hosts.joined(separator: " "))] "
@@ -304,11 +304,11 @@ public final class NikonDiscovery: @unchecked Sendable {
         let interfaces = scanInterfaces()
         let localAddresses = interfaces.map(\.address)
         let split = CameraDiscovery.prioritizedScanHosts(priorityHosts: priorityHosts, localAddresses: localAddresses)
-        let priorityChunk = split.priority.filter { !excluded.contains($0) }
+        let priorityChunk = split.priority.filter { !excluded.contains(Self.hostKey($0)) }
         let locals = Set(localAddresses.compactMap(PTPIPPairedHosts.normalizedHost))
         let subnets = Array(Set(interfaces.compactMap { CameraDiscovery.subnetBase(for: $0.address) })).sorted()
         let sweep = subnets.flatMap(CameraDiscovery.fastHosts(inSubnet:))
-            .filter { !excluded.contains($0) && !locals.contains($0) }
+            .filter { !excluded.contains(Self.hostKey($0)) && !locals.contains($0) }
         let chunks = [priorityChunk].filter { !$0.isEmpty }
             + stride(from: 0, to: sweep.count, by: 254).map { Array(sweep[$0..<min($0 + 254, sweep.count)]) }
         sources.log(
