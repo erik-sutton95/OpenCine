@@ -519,7 +519,7 @@ public final class com/opencapture/monitorui/MonitorCameraSection {
 
 public final class com/opencapture/monitorui/MonitorCaptureDrawerKt {
 	public static final fun MonitorCaptureReveal (Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
-	public static final fun MonitorDrawerTabs (Ljava/util/List;ILkotlin/jvm/functions/Function1;ZZLandroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorDrawerTabs (Ljava/util/List;ILkotlin/jvm/functions/Function1;ZZLandroidx/compose/ui/Modifier;Ljava/util/List;Ljava/util/List;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/opencapture/monitorui/MonitorCaptureReadoutGroup : java/lang/Enum {

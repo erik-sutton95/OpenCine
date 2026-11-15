@@ -2530,6 +2530,8 @@ public final class com/opencapture/opencine/core/StationCommissionOutcome : java
 public abstract interface class com/opencapture/opencine/core/StationCommissioner {
 	public abstract fun closeCommissions ()V
 	public abstract fun connect (Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getAsksApprovalOnCamera ()Z
+	public fun getJoinsExperimentally ()Z
 	public fun getScansNetworks ()Z
 	public abstract fun record (Ljava/lang/Object;)Lcom/opencapture/opencine/core/StationCameraRecord;
 	public abstract fun restoreAccessPoint (Lcom/opencapture/opencine/core/StationCameraRecord;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -2537,6 +2539,8 @@ public abstract interface class com/opencapture/opencine/core/StationCommissione
 }
 
 public final class com/opencapture/opencine/core/StationCommissioner$DefaultImpls {
+	public static fun getAsksApprovalOnCamera (Lcom/opencapture/opencine/core/StationCommissioner;)Z
+	public static fun getJoinsExperimentally (Lcom/opencapture/opencine/core/StationCommissioner;)Z
 	public static fun getScansNetworks (Lcom/opencapture/opencine/core/StationCommissioner;)Z
 	public static fun scanNetworks (Lcom/opencapture/opencine/core/StationCommissioner;Ljava/lang/Object;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }

@@ -141,7 +141,7 @@ func MonitorWatcherSource.toggleRecording()<Decoder where Decoder : OpenCineAppl
 func MultiviewScreenHost.backdrop(layout: MonitorPresentation.MultiviewPresentationLayout, geometry: MonitorUI.MultiviewStageGeometry, enabled: Swift.Bool) -> Self.Backdrop
 func MultiviewScreenHost.liveView(slot: Swift.Int, exit: () -> Swift.Void) -> Self.LiveView
 func MultiviewScreenHost.picture(slot: Swift.Int, fill: Swift.Bool) -> Self.Picture
-func MultiviewScreenHost.settingsAccessibilityValue(slot: Swift.Int) -> Swift.String
+func MultiviewScreenHost.settingsAccessibilityValue(slot: Swift.Int?) -> Swift.String?
 func MultiviewScreenHost.settingsControls(slot: Swift.Int, category: OpenCineAppKit.MultiviewSettingsCategory, enabled: Swift.Bool, presented: () -> Swift.Bool, close: () -> Swift.Void) -> Self.SettingsControls
 func MultiviewScreenHost.settingsPreview(slot: Swift.Int) -> Self.SettingsPreview
 func View.monitorAppStartup(_: OpenCineAppKit.MonitorAppStartup, splashVisible: SwiftUI.Binding<Swift.Bool>, consent: (@escaping (Swift.Bool) -> Swift.Void) -> Consent)<Self, Consent where Self : SwiftUI.View, Consent : SwiftUI.View> -> some SwiftUI.View

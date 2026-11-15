@@ -858,6 +858,8 @@ var StationCameraRecord.deviceAddress: Swift.String?
 var StationCameraRecord.id: Foundation.UUID
 var StationCameraRecord.modelId: Swift.Int?
 var StationCameraRecord.name: Swift.String
+var StationCommissioner.asksApprovalOnCamera: Swift.Bool
+var StationCommissioner.joinsExperimentally: Swift.Bool
 var StationCommissioner.scansNetworks: Swift.Bool
 var StationNetwork.hotspot: Swift.Bool
 var StationNetwork.password: Swift.String
