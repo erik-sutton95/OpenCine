@@ -298,12 +298,18 @@
         var cancel: () -> Void
         var complete: () -> Void
 
+        /// The scan through a camera, when the commissioner can scan.
+        private var scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)? {
+            guard coordinator.scansNetworks else { return nil }
+            let coordinator = coordinator
+            return { @MainActor onFound in try await coordinator.scanNetworks(onFound: onFound) }
+        }
+
         var body: some View {
             StationNetworkSetupView(
                 context: .multiview, brand: host.stationBrand, services: host.stationServices,
                 cameraSSIDs: host.cameraSSIDs,
-                scan: coordinator.scansNetworks
-                    ? { try await coordinator.scanNetworks(onFound: $0) } : nil,
+                scan: scan,
                 save: { network in
                     coordinator.selectNetworkSource(hotspot: network.hotspot)
                     coordinator.selectNetwork(network.ssid)
