@@ -46,16 +46,17 @@ public final class com/opencapture/opencine/insta360/luna/LunaAccessPointReturn$
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/opencapture/opencine/insta360/luna/LunaConnectPort, com/opencapture/opencine/insta360/luna/LunaMediaCatalogRecordSource, com/opencapture/opencine/insta360/shell/CameraBackend, com/opencapture/opencine/insta360/shell/CameraControls, com/opencapture/opencine/insta360/shell/CameraMediaStore, com/opencapture/opencine/insta360/shell/CoreSessionSource {
+public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/opencapture/opencine/insta360/luna/LunaConnectPort, com/opencapture/opencine/insta360/luna/LunaMediaCatalogRecordSource, com/opencapture/opencine/insta360/luna/LunaStationPort, com/opencapture/opencine/insta360/shell/CameraBackend, com/opencapture/opencine/insta360/shell/CameraControls, com/opencapture/opencine/insta360/shell/CameraMediaStore, com/opencapture/opencine/insta360/shell/CoreSessionSource {
 	public static final field CAMERA_HOST Ljava/lang/String;
 	public static final field Companion Lcom/opencapture/opencine/insta360/luna/LunaBackend$Companion;
 	public static final field DEFAULT_CLIENT_IDENTITY_PREFERENCES Ljava/lang/String;
 	public fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/insta360/shell/LunaMediaTransferPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/platform/SharedWiFiPath;)V
 	public synthetic fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/insta360/shell/LunaMediaTransferPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/platform/SharedWiFiPath;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun authorizeForStation (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun close ()V
 	public fun connect (Ljava/lang/String;)V
 	public fun connect (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaRoute;)V
-	public final fun connect (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaStationHost;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;)Lcom/opencapture/opencine/core/ConnectionFailure;
+	public fun connect (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaStationHost;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;)Lcom/opencapture/opencine/core/ConnectionFailure;
 	public fun deleteMedia (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun disconnect ()V
 	public fun forget (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -76,8 +77,9 @@ public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/open
 	public fun getRadioOn ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getReadout ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getScanBlocked ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getSecondsSinceVideo ()Ljava/lang/Double;
 	public fun getSnapshot ()Lkotlinx/coroutines/flow/StateFlow;
-	public final fun getStationHostsInUse ()Lkotlin/jvm/functions/Function0;
+	public fun getStationHostsInUse ()Lkotlin/jvm/functions/Function0;
 	public fun getStationNote ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun getTrackFrames ()Lkotlinx/coroutines/flow/Flow;
 	public fun getZoomRange ()Lkotlin/ranges/ClosedFloatingPointRange;
@@ -91,9 +93,11 @@ public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/open
 	public fun listMedia (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun mediaCatalogRecord-j2sKh3w (Ljava/lang/String;Lcom/opencapture/opencine/media/MediaBrowseBinding;)Lcom/opencapture/opencine/insta360/luna/LunaMediaCatalogRecord;
 	public fun mediaService-wUZJOdQ (Ljava/util/UUID;)Lcom/opencapture/opencine/media/CameraMediaService;
+	public fun moveOntoStation (Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public synthetic fun openSession ()Lcom/opencapture/opencine/core/CameraSession;
 	public fun openSession ()Lcom/opencapture/opencine/insta360/luna/LunaCameraSession;
 	public fun pauseLive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun probeStation (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun rememberStationHost (Lcom/opencapture/opencine/insta360/luna/LunaStationHost;Ljava/lang/String;)V
 	public fun requestSettingsRefresh ()V
 	public fun resumeLive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -109,7 +113,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaBackend : com/open
 	public final fun setPrepareMediaLiveReturn (Lkotlin/jvm/functions/Function2;)V
 	public fun setRecordFormat (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun setShootingMode (Lcom/opencapture/opencine/insta360/shell/CameraShootingMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun setStationHostsInUse (Lkotlin/jvm/functions/Function0;)V
+	public fun setStationHostsInUse (Lkotlin/jvm/functions/Function0;)V
 	public fun setZoom (DLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun startScan ()V
 	public fun startTracking (DDDDLkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -303,6 +307,28 @@ public abstract interface class com/opencapture/opencine/insta360/luna/LunaMedia
 	public abstract fun mediaCatalogRecord-j2sKh3w (Ljava/lang/String;Lcom/opencapture/opencine/media/MediaBrowseBinding;)Lcom/opencapture/opencine/insta360/luna/LunaMediaCatalogRecord;
 }
 
+public final class com/opencapture/opencine/insta360/luna/LunaMemberLink : com/opencapture/opencine/core/MultiviewMemberLink {
+	public fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public fun getAutoLUT ()Lcom/opencapture/opencine/core/MultiviewAutoLUT;
+	public final fun getLunaSession ()Lcom/opencapture/opencine/insta360/luna/LunaCameraSession;
+	public fun getOnStatus ()Lkotlin/jvm/functions/Function1;
+	public fun getPictureHealth ()Lcom/opencapture/opencine/core/PictureHealth;
+	public final fun getPort ()Lcom/opencapture/opencine/insta360/luna/LunaStationPort;
+	public fun getRecordReport ()Lcom/opencapture/opencine/core/MultiviewRecordReport;
+	public fun getRepairDeadline-UwyO8pc ()J
+	public fun getSession ()Lcom/opencapture/opencine/core/CameraSession;
+	public fun keepalive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun open (Lcom/opencapture/opencine/core/NearbyCamera;Ljava/lang/String;[BLcom/opencapture/opencine/core/StationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun open (Ljava/lang/Object;Ljava/lang/String;[BLcom/opencapture/opencine/core/StationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun probe (Ljava/lang/String;Lcom/opencapture/opencine/core/StationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun repair (Lcom/opencapture/opencine/core/MultiviewRepairContext;)Lcom/opencapture/opencine/core/MultiviewRepairStep;
+	public fun setOnStatus (Lkotlin/jvm/functions/Function1;)V
+	public fun startPreview (Lcom/opencapture/opencine/core/NearbyCamera;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun startPreview (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public final class com/opencapture/opencine/insta360/luna/LunaMotionService : com/opencapture/opencine/motion/MotionService {
 	public static final field Companion Lcom/opencapture/opencine/insta360/luna/LunaMotionService$Companion;
 	public static final field STICK_INTERVAL_MS J
@@ -333,6 +359,21 @@ public final class com/opencapture/opencine/insta360/luna/LunaMotionService$Comp
 public final class com/opencapture/opencine/insta360/luna/LunaMulticamPolicy {
 	public static final field INSTANCE Lcom/opencapture/opencine/insta360/luna/LunaMulticamPolicy;
 	public final fun qualification (Lcom/opencapture/opencine/core/SavedRoute;Lcom/opencapture/opencine/core/CameraDeviceID;Ljava/util/Set;)Lcom/opencapture/opencine/core/MulticamQualification;
+}
+
+public final class com/opencapture/opencine/insta360/luna/LunaMultiview {
+	public static final field INSTANCE Lcom/opencapture/opencine/insta360/luna/LunaMultiview;
+	public final fun getPolicy ()Lcom/opencapture/opencine/core/MultiviewCameraPolicy;
+	public final fun identity (Ljava/lang/String;)[B
+	public final fun record (Lcom/opencapture/opencine/core/NearbyCamera;)Lcom/opencapture/opencine/core/StationCameraRecord;
+	public final fun serial ([B)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/insta360/luna/LunaNearbyScanner : com/opencapture/opencine/core/NearbyCameraScanner {
+	public fun <init> (Lkotlin/jvm/functions/Function0;)V
+	public fun scan (Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun stop ()V
+	public fun waitUntilReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public abstract interface class com/opencapture/opencine/insta360/luna/LunaRoute {
@@ -366,6 +407,30 @@ public final class com/opencapture/opencine/insta360/luna/LunaSessionRecoveryKt 
 	public static final fun getLUNA_RECOVERY_ATTEMPT_DEADLINE ()Lcom/opencapture/opencine/vocabulary/SessionRecoveryEpisode$AttemptDeadline;
 }
 
+public final class com/opencapture/opencine/insta360/luna/LunaStationCommissioner : com/opencapture/opencine/core/StationCommissioner {
+	public static final field Companion Lcom/opencapture/opencine/insta360/luna/LunaStationCommissioner$Companion;
+	public static final field RETURN_ATTEMPTS I
+	public static final field RETURN_INTERVAL_MS J
+	public static final field VERIFY_BUDGET_MS J
+	public static final field VERIFY_INTERVAL_MS J
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun closeCommissions ()V
+	public fun connect (Lcom/opencapture/opencine/core/NearbyCamera;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun connect (Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getAsksApprovalOnCamera ()Z
+	public fun getJoinsExperimentally ()Z
+	public fun getScansNetworks ()Z
+	public fun record (Lcom/opencapture/opencine/core/NearbyCamera;)Lcom/opencapture/opencine/core/StationCameraRecord;
+	public synthetic fun record (Ljava/lang/Object;)Lcom/opencapture/opencine/core/StationCameraRecord;
+	public fun restoreAccessPoint (Lcom/opencapture/opencine/core/StationCameraRecord;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun scanNetworks (Lcom/opencapture/opencine/core/NearbyCamera;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun scanNetworks (Ljava/lang/Object;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/insta360/luna/LunaStationCommissioner$Companion {
+}
+
 public final class com/opencapture/opencine/insta360/luna/LunaStationHost {
 	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -397,6 +462,26 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationNetwork {
 	public final fun getSsid ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/insta360/luna/LunaStationPort {
+	public abstract fun authorizeForStation (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun connect (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaStationHost;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;)Lcom/opencapture/opencine/core/ConnectionFailure;
+	public abstract fun disconnect ()V
+	public abstract fun getFailureDetail ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getPhase ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getSecondsSinceVideo ()Ljava/lang/Double;
+	public abstract fun getStationHostsInUse ()Lkotlin/jvm/functions/Function0;
+	public abstract fun moveOntoStation (Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun openSession ()Lcom/opencapture/opencine/insta360/luna/LunaCameraSession;
+	public abstract fun probeStation (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun returnToAccessPoint (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setStationHostsInUse (Lkotlin/jvm/functions/Function0;)V
+}
+
+public final class com/opencapture/opencine/insta360/luna/LunaStationStepFailure : java/lang/Exception {
+	public fun <init> (Lcom/opencapture/opencine/core/ConnectionFailure;)V
+	public final fun getFailure ()Lcom/opencapture/opencine/core/ConnectionFailure;
 }
 
 public final class com/opencapture/opencine/insta360/luna/LunaStationWire {
