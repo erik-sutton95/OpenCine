@@ -268,6 +268,44 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func aStageOnThePhonesHotspotWatchesTheHotspot() async throws {
+        let stage = Fixture(commissioner: false, discoversByProbe: false, networkPath: .either)
+        stage.path.addresses = [true: "172.20.10.1"]
+        stage.path.netmasks = [true: "255.255.255.240"]
+        let c = stage.coordinator
+        _ = c.screenAppeared(startsSession: true)
+        let camera = FakeStationCamera(name: "Body A", sightedAt: "172.20.10.2")
+        stage.links[0].place(camera, at: "172.20.10.2")
+        await c.add(camera, slot: 0)
+        let member = c.members[0]
+        #expect(member.publishing)
+        try await stage.tick(.seconds(1))
+        await until { stage.links[0].repairTicks == 1 }
+        #expect(c.ready, "this phone is on its own hotspot")
+        #expect(c.usePhoneHotspot)
+        try await stage.tick(.seconds(46))
+        await until { stage.links[0].repairTicks == 2 }
+        #expect(member.failureMessage == nil, "the hotspot is the stage's network, not a lost one")
+        #expect(!member.budget.exhausted)
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aProbingStageOnThePhonesHotspotSearchesTheHotspotSubnet() async {
+        let stage = Fixture(commissioner: false, networkPath: .either)
+        stage.path.addresses = [true: "172.20.10.1"]
+        stage.path.netmasks = [true: "255.255.255.248"]
+        let c = stage.coordinator
+        _ = c.screenAppeared(startsSession: true)
+        let camera = FakeStationCamera(name: "Body A")
+        stage.links[0].place(camera, at: "172.20.10.3")
+        await c.add(camera, slot: 0)
+        #expect(c.members[0].failureMessage == nil, "not an unsupported subnet")
+        #expect(c.members[0].controlHost == "172.20.10.3")
+        c.stop()
+    }
+
+    @available(macOS 14, *)
     @Test func anUnsupportedSubnetFailsTheAddWithItsCopy() async {
         let stage = Fixture(netmask: "255.255.0.0")
         await stage.configure()
@@ -1022,11 +1060,64 @@ import Testing
         #expect(!c.screenAppeared(startsSession: true), "no network wizard")
         #expect(c.running && c.networkConfigured, "cameras already share this phone's network")
         #expect(c.pickerFooter == "Cameras on this phone\u{2019}s network appear here.")
+        let host = RecordingHost()
+        host.guidance = "On the camera: join this network."
+        c.host = host
+        #expect(
+            c.pickerFooter
+                == "Cameras on this phone\u{2019}s network appear here.\n\nOn the camera: join this network.",
+            "the app's setup steps follow the footer")
         let camera = FakeStationCamera(name: "Body A", sightedAt: "192.168.1.13")
         passive.links[0].place(camera, at: "192.168.1.13")
         await c.add(camera, slot: 0)
         #expect(c.members[0].controlHost == "192.168.1.13")
         #expect(passive.path.joins.isEmpty, "the phone stays on its own network")
+        #expect(passive.savedNetworks.isEmpty, "a network without a name is never saved")
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aLinkRefusalReachesTheTileInsteadOfNotFound() async {
+        let passive = Fixture(commissioner: false, discoversByProbe: false)
+        let c = passive.coordinator
+        _ = c.screenAppeared(startsSession: true)
+        let camera = FakeStationCamera(name: "Body A", sightedAt: "192.168.1.13")
+        let link = passive.links[0]
+        link.place(camera, at: "192.168.1.13")
+        link.openError = HeldElsewhere()
+        await c.add(camera, slot: 0)
+        #expect(c.members[0].failureMessage == HeldElsewhere.copy, "the link says what to do")
+
+        link.openError = nil
+        await c.reconnect(slot: 0)
+        #expect(c.members[0].failureMessage == nil)
+        link.openError = HeldElsewhere()
+        await c.reconnect(slot: 0)
+        #expect(c.members[0].failureMessage == HeldElsewhere.copy)
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func reconnectWithoutACommissionerKeepsTheIdentity() async {
+        let passive = Fixture(commissioner: false, discoversByProbe: false)
+        let c = passive.coordinator
+        _ = c.screenAppeared(startsSession: true)
+        let wide = FakeStationCamera(name: "Wide", sightedAt: "192.168.1.13")
+        let other = FakeStationCamera(name: "Other", sightedAt: "192.168.1.13")
+        let link = passive.links[0]
+        link.place(wide, at: "192.168.1.13")
+        await c.add(wide, slot: 0)
+        #expect(c.members[0].identity == wide.identity)
+        let opened = link.opens.count
+
+        link.place(other, at: "192.168.1.13")  // another body took the address
+        await c.reconnect(slot: 0)
+        #expect(c.members[0].identity == wide.identity, "the tile stays the camera it proved")
+        #expect(c.members[0].controlHost == nil, "the other body is not opened in its tile")
+        #expect(c.members[0].failureMessage != nil)
+        #expect(
+            link.opens.dropFirst(opened).allSatisfy { $0.expecting == wide.identity },
+            "every reopen checks the identity")
         c.stop()
     }
 
@@ -1195,7 +1286,9 @@ private final class RecordingHost: MultiviewHost {
     var autoLUT = false
     var edits = false
     var admits = true
+    var guidance: String?
 
+    var pickerGuidance: String? { guidance }
     var appliesAutoLUT: Bool { autoLUT }
     var editsCameraSettings: Bool { edits }
     func readings(slot: Int) -> MultiviewTileReadings? { readings[slot] }
@@ -1234,7 +1327,7 @@ private final class Fixture {
     init(
         saved: MultiviewStageJournal.Stage? = nil, netmask: String = "255.255.255.248",
         commissioner withCommissioner: Bool = true, discoversByProbe: Bool = true,
-        hostKey: Bool = false
+        hostKey: Bool = false, networkPath: MultiviewNetworkPath = .chosen
     ) {
         path = FakeStationHostPath(netmask: netmask)
         journal = saved
@@ -1267,7 +1360,7 @@ private final class Fixture {
                     return self.passwords["\(ssid)|\(hotspot)"]
                 },
                 save: { [unowned self] in self.savedNetworks.append($0) }),
-            sightingAddress: sighting, clock: clock.clock)
+            sightingAddress: sighting, networkPath: networkPath, clock: clock.clock)
         built.host = host
     }
 
@@ -1297,4 +1390,10 @@ private final class Fixture {
         #expect(coordinator.members[0].publishing)
         return (coordinator, links[0], coordinator.members[0])
     }
+}
+
+/// A link refusal with its own operator copy.
+private struct HeldElsewhere: MultiviewLinkRefusal {
+    static let copy = "In use on iPad. Release it there, then tap Reconnect."
+    var operatorMessage: String { Self.copy }
 }

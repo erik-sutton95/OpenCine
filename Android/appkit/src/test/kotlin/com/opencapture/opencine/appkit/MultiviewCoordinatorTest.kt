@@ -4,6 +4,7 @@ import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.MulticamQualification
 import com.opencapture.opencine.core.MulticamQualificationRefusal
 import com.opencapture.opencine.core.MultiviewCameraPolicy
+import com.opencapture.opencine.core.MultiviewLinkRefusal
 import com.opencapture.opencine.core.MultiviewLinkStatus
 import com.opencapture.opencine.core.MultiviewRecordReport
 import com.opencapture.opencine.core.MultiviewRepairResult
@@ -314,6 +315,47 @@ class MultiviewCoordinatorTest {
         assertEquals("192.168.1.13", stage.links[0].opens.first().first, "the known address first")
         assertEquals(pass + pass, stage.links[0].probes, "two passes without this phone or other members")
         assertEquals("192.168.1.14", c.members[0].controlHost)
+        c.stop()
+    }
+
+    @Test
+    fun aStageOnThePhonesHotspotWatchesTheHotspot() = runTest {
+        val stage = Fixture(this, commissioner = false, discoversByProbe = false, networkPath = MultiviewNetworkPath.EITHER)
+        stage.path.addresses.clear()
+        stage.path.netmasks.clear()
+        stage.path.addresses[true] = "172.20.10.1"
+        stage.path.netmasks[true] = "255.255.255.240"
+        val c = stage.coordinator
+        c.screenAppeared(startsSession = true)
+        val camera = FakeStationCamera("Body A", sightedAt = "172.20.10.2")
+        stage.links[0].place(camera, "172.20.10.2")
+        c.add(camera, 0)
+        val member = c.members[0]
+        assertTrue(member.publishing)
+        stage.tick()
+        assertEquals(1, stage.links[0].repairTicks)
+        assertTrue(c.ready, "this phone is on its own hotspot")
+        assertTrue(c.usePhoneHotspot)
+        stage.tick(46.seconds)
+        assertNull(member.failureMessage, "the hotspot is the stage's network, not a lost one")
+        assertFalse(member.budget.exhausted)
+        c.stop()
+    }
+
+    @Test
+    fun aProbingStageOnThePhonesHotspotSearchesTheHotspotSubnet() = runTest {
+        val stage = Fixture(this, commissioner = false, networkPath = MultiviewNetworkPath.EITHER)
+        stage.path.addresses.clear()
+        stage.path.netmasks.clear()
+        stage.path.addresses[true] = "172.20.10.1"
+        stage.path.netmasks[true] = "255.255.255.248"
+        val c = stage.coordinator
+        c.screenAppeared(startsSession = true)
+        val camera = FakeStationCamera("Body A")
+        stage.links[0].place(camera, "172.20.10.3")
+        c.add(camera, 0)
+        assertNull(c.members[0].failureMessage, "not an unsupported subnet")
+        assertEquals("172.20.10.3", c.members[0].controlHost)
         c.stop()
     }
 
@@ -1002,11 +1044,66 @@ class MultiviewCoordinatorTest {
         assertFalse(c.screenAppeared(startsSession = true), "no network wizard")
         assertTrue(c.running && c.networkConfigured, "cameras already share this phone's network")
         assertEquals("Cameras on this phone\u2019s network appear here.", c.pickerFooter)
+        val host = RecordingHost()
+        host.guidance = "On the camera: join this network."
+        c.host = host
+        assertEquals(
+            "Cameras on this phone\u2019s network appear here.\n\nOn the camera: join this network.",
+            c.pickerFooter,
+            "the app's setup steps follow the footer",
+        )
         val camera = FakeStationCamera("Body A", sightedAt = "192.168.1.13")
         passive.links[0].place(camera, "192.168.1.13")
         c.add(camera, 0)
         assertEquals("192.168.1.13", c.members[0].controlHost)
         assertTrue(passive.path.joins.isEmpty(), "the phone stays on its own network")
+        assertTrue(passive.savedNetworks.isEmpty(), "a network without a name is never saved")
+        c.stop()
+    }
+
+    @Test
+    fun aLinkRefusalReachesTheTileInsteadOfNotFound() = runTest {
+        val passive = Fixture(this, commissioner = false, discoversByProbe = false)
+        val c = passive.coordinator
+        c.screenAppeared(startsSession = true)
+        val camera = FakeStationCamera("Body A", sightedAt = "192.168.1.13")
+        val link = passive.links[0]
+        link.place(camera, "192.168.1.13")
+        link.openError = HeldElsewhere()
+        c.add(camera, 0)
+        assertEquals(HeldElsewhere.COPY, c.members[0].failureMessage, "the link says what to do")
+
+        link.openError = null
+        c.reconnect(0)
+        assertNull(c.members[0].failureMessage)
+        link.openError = HeldElsewhere()
+        c.reconnect(0)
+        assertEquals(HeldElsewhere.COPY, c.members[0].failureMessage)
+        c.stop()
+    }
+
+    @Test
+    fun reconnectWithoutACommissionerKeepsTheIdentity() = runTest {
+        val passive = Fixture(this, commissioner = false, discoversByProbe = false)
+        val c = passive.coordinator
+        c.screenAppeared(startsSession = true)
+        val wide = FakeStationCamera("Wide", sightedAt = "192.168.1.13")
+        val other = FakeStationCamera("Other", sightedAt = "192.168.1.13")
+        val link = passive.links[0]
+        link.place(wide, "192.168.1.13")
+        c.add(wide, 0)
+        assertContentEquals(wide.identity, c.members[0].identity)
+        val opened = link.opens.size
+
+        link.place(other, "192.168.1.13") // another body took the address
+        c.reconnect(0)
+        assertContentEquals(wide.identity, c.members[0].identity, "the tile stays the camera it proved")
+        assertNull(c.members[0].controlHost, "the other body is not opened in its tile")
+        assertNotNull(c.members[0].failureMessage)
+        assertTrue(
+            link.opens.drop(opened).all { it.second?.contentEquals(wide.identity) == true },
+            "every reopen checks the identity",
+        )
         c.stop()
     }
 
@@ -1250,7 +1347,9 @@ private class RecordingHost : MultiviewHost {
     var autoLUT = false
     var edits = false
     var admits = true
+    var guidance: String? = null
 
+    override val pickerGuidance: String? get() = guidance
     override val appliesAutoLUT: Boolean get() = autoLUT
     override val editsCameraSettings: Boolean get() = edits
 
@@ -1290,6 +1389,7 @@ private class Fixture(
     commissioner: Boolean = true,
     discoversByProbe: Boolean = true,
     hostKey: Boolean = false,
+    networkPath: MultiviewNetworkPath = MultiviewNetworkPath.CHOSEN,
 ) {
     val path = FakeStationHostPath(netmask = netmask)
     val commissioner = FakeStationCommissioner()
@@ -1340,6 +1440,7 @@ private class Fixture(
         sightingAddress = { it.sightedAt },
         clock = { test.testScheduler.currentTime },
         monotonic = { MonotonicInstant(test.testScheduler.currentTime.milliseconds) },
+        networkPath = networkPath,
     ).also { it.host = host }
 
     /** Starts the stage and connects it to "Test network" over Wi-Fi. */
@@ -1364,5 +1465,14 @@ private class Fixture(
     fun tick(by: kotlin.time.Duration = 1.seconds) {
         test.advanceTimeBy(by)
         test.runCurrent()
+    }
+}
+
+/** A link refusal with its own operator copy. */
+private class HeldElsewhere : Exception(COPY), MultiviewLinkRefusal {
+    override val operatorMessage: String get() = COPY
+
+    companion object {
+        const val COPY = "In use on iPad. Release it there, then tap Reconnect."
     }
 }

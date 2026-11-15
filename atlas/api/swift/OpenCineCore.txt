@@ -483,6 +483,7 @@ protocol CameraSession<Self : Swift.Sendable>: Sendable
 protocol ConfirmationPrompt<Self : IntegrationPrompt>: IntegrationPrompt, Sendable
 protocol IntegrationPrompt<Self : Swift.Sendable>: Sendable
 protocol LegacySavedCameraCodec<Self : Swift.Sendable>: Sendable
+protocol MultiviewLinkRefusal<Self : Swift.Error>: Error, Sendable
 protocol MultiviewMemberLink<Self : AnyObject>
 protocol NearbyCameraScanner<Self : AnyObject>
 protocol StationCommission<Self : AnyObject>
@@ -768,6 +769,7 @@ var MonitorLayoutCapabilities.zoom: Swift.Bool
 var MonotonicInstant.sinceReference: Swift.Duration
 var MultiviewAutoLUT.colorMode: Swift.String?
 var MultiviewAutoLUT.conversion: Swift.String?
+var MultiviewLinkRefusal.operatorMessage: Swift.String
 var MultiviewMemberLink.autoLUT: MultiviewAutoLUT
 var MultiviewMemberLink.onStatus: ((MultiviewLinkStatus) -> Swift.Void)?
 var MultiviewMemberLink.pictureHealth: PictureHealth

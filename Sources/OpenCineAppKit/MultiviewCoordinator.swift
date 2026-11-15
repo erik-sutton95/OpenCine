@@ -66,6 +66,9 @@ public protocol MultiviewHost: AnyObject {
     /// What only the app knows about whether `slot` takes a settings change now (its own link is
     /// open, no Live View borrows the member). `controlsAvailable(slot:)` asks it.
     func admitsControls(slot: Int) -> Bool
+    /// Steps the Add camera list shows under its footer: how a camera gets onto this phone's
+    /// network when the app cannot move it there itself (camera-menu steps, pairing). Nil for none.
+    var pickerGuidance: String? { get }
 }
 
 extension MultiviewHost {
@@ -85,6 +88,7 @@ extension MultiviewHost {
     public func openCameraSettings(slot: Int) {}
     public func cameraSettings(slot: Int) -> MultiviewCameraSettingsState? { nil }
     public func admitsControls(slot: Int) -> Bool { true }
+    public var pickerGuidance: String? { nil }
 }
 
 /// One slot's member as the coordinator owns it: its camera, its link's state on the stage, its
@@ -241,6 +245,24 @@ public enum MultiviewStageFailure: LocalizedError, Equatable, Sendable {
     }
 }
 
+/// A member link's own refusal (`MultiviewLinkRefusal`) as the add or reconnect that met it
+/// ends: its copy goes on the tile.
+struct MultiviewLinkRefused: LocalizedError, Equatable {
+    let message: String
+    var errorDescription: String? { message }
+}
+
+/// Which of this phone's networks a Multiview stage watches. Kotlin twin: `MultiviewNetworkPath`.
+public enum MultiviewNetworkPath: Hashable, Sendable {
+    /// The network the stage chose: this phone's hotspot when the hotspot source is picked, else
+    /// its Wi-Fi. A stage without a commissioner watches Wi-Fi. The default.
+    case chosen
+    /// Whichever network this phone is on: its Wi-Fi when it has an address there, else the
+    /// hotspot it hosts. For a stage without a commissioner whose cameras may share the phone's
+    /// own hotspot.
+    case either
+}
+
 /// The Bluetooth turns of member repairs: one holder at a time, in request order, never while an
 /// add commissions a camera or a network scan uses the radio.
 @MainActor
@@ -364,6 +386,8 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
     @ObservationIgnored let sightingAddress: (@MainActor (Camera) -> String?)?
     @ObservationIgnored let failureText: @MainActor (Error) -> String
     @ObservationIgnored let probeWidth: Int
+    /// Which of this phone's networks the stage watches.
+    @ObservationIgnored public let networkPath: MultiviewNetworkPath
     @ObservationIgnored let clock: HostClock
     @ObservationIgnored let bluetooth = MultiviewBluetoothQueue()
 
@@ -393,6 +417,8 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
     ///     camera at.
     ///   - failureMessage: the operator copy for a failed add (default: the error's description).
     ///   - probeWidth: probes per batch while searching the subnet.
+    ///   - networkPath: which of this phone's networks the stage watches (the chosen one by
+    ///     default).
     public init(
         links: [Link], members: [MultiviewMember<Camera>]? = nil,
         policy: MultiviewCameraPolicy<Camera>,
@@ -404,7 +430,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         budget: ResourceBudget? = nil,
         sightingAddress: (@MainActor (Camera) -> String?)? = nil,
         failureMessage: (@MainActor (Error) -> String)? = nil,
-        probeWidth: Int = 64, clock: HostClock = .live
+        probeWidth: Int = 64, networkPath: MultiviewNetworkPath = .chosen, clock: HostClock = .live
     ) {
         let members = members ?? links.map { _ in MultiviewMember<Camera>() }
         precondition(members.count == links.count && !links.isEmpty)
@@ -422,6 +448,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         failureText =
             failureMessage ?? { ($0 as? LocalizedError)?.errorDescription ?? $0.localizedDescription }
         self.probeWidth = max(1, probeWidth)
+        self.networkPath = networkPath
         self.clock = clock
         presentation = MultiviewStageState(slotCount: links.count)
         for slot in links.indices {
@@ -468,6 +495,18 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
     }
 
     func sameCamera(_ a: Camera, _ b: Camera) -> Bool { describe(a).id == describe(b).id }
+
+    /// Whether the stage watches this phone's hotspot now (`networkPath`): the chosen source, or,
+    /// under `.either`, the hotspot while this phone has no Wi-Fi address and hosts one.
+    var watchesHotspot: Bool {
+        switch networkPath {
+        case .chosen: usePhoneHotspot
+        case .either: hostPath.address(hotspot: false) == nil && hostPath.address(hotspot: true) != nil
+        }
+    }
+
+    /// This phone's address on the network the stage watches; nil when it is not on it.
+    func pathAddress() -> String? { hostPath.address(hotspot: watchesHotspot) }
 
     // MARK: Lifecycle
 
@@ -520,7 +559,11 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
     }
 
     func tick() async {
-        ready = hostPath.address(hotspot: usePhoneHotspot) != nil
+        if networkPath == .either {
+            let hotspot = watchesHotspot
+            if usePhoneHotspot != hotspot { usePhoneHotspot = hotspot }
+        }
+        ready = pathAddress() != nil
         for slot in links.indices {
             await links[slot].keepalive()
             let member = members[slot]
@@ -700,6 +743,13 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         ready = true
     }
 
+    /// Saves the stage's network for the next stage; a network without a name (this phone's own,
+    /// on a stage without a commissioner) is not one to save.
+    private func saveNetwork() {
+        guard !ssid.isEmpty else { return }
+        networks.save(stationNetwork)
+    }
+
     /// The wizard's Connect: checks the credentials a camera can carry, joins, saves the network.
     public func configureNetwork() async -> Bool {
         guard !busy, !configuringNetwork, !assigned else { return false }
@@ -800,7 +850,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             guard let commissioner else {
                 stage = "LAN discovery"
                 try await discoverPreview(slot, camera: camera, identity: nil)
-                networks.save(stationNetwork)
+                saveNetwork()
                 return
             }
             stage = "Bluetooth pairing"
@@ -822,7 +872,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
                     return true
                 })
             member.identity = identity
-            networks.save(stationNetwork)
+            saveNetwork()
             if outcome == .verified { return }
             link.close()
             client = nil
@@ -833,7 +883,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             let error = (error as? StationVerifyFinal)?.reason ?? error
             links[slot].close()
             member.status = MultiviewCopy.couldNotConnect
-            member.failureMessage = failureText(error)
+            member.failureMessage = (error as? MultiviewLinkRefused)?.message ?? failureText(error)
             host?.log(
                 "multiview: add failed stage=\(stage) error=\((error as NSError).domain)/\((error as NSError).code)"
             )
@@ -841,7 +891,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         }
     }
 
-    /// The operator's Reconnect: the known camera first, then its setup again.
+    /// The operator's Reconnect: the known camera first, then its setup again. Without a
+    /// commissioner the setup again would open whatever camera answers at the address with no
+    /// identity to check, so a proven camera is only ever reopened as itself.
     public func reconnect(slot: Int) async {
         let member = members[slot]
         guard !busy, !member.connecting, !member.recovering, let camera = member.camera else {
@@ -851,7 +903,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         member.budget.reset()
         if member.identity != nil {
             await connectPreview(slot: slot)
-            if running, !Task.isCancelled, member.failureMessage != nil { await readd(slot) }
+            if running, !Task.isCancelled, member.failureMessage != nil, commissioner != nil {
+                await readd(slot)
+            }
         } else {
             member.camera = nil
             await add(camera, slot: slot, experimental: member.experimental)
@@ -895,14 +949,17 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             member.controlHost = nil
             member.status = MultiviewCopy.couldNotConnectPreview
             member.failureMessage =
-                error as? MultiviewStageFailure == .duplicate
-                ? MultiviewCopy.duplicate : MultiviewCopy.couldNotRestore
+                (error as? MultiviewLinkRefused)?.message
+                ?? (error as? MultiviewStageFailure == .duplicate
+                    ? MultiviewCopy.duplicate : MultiviewCopy.couldNotRestore)
             member.budget.exhaust()
         }
     }
 
     /// The known address first, then the subnet in two passes (other members excluded), or only
-    /// the known address when the integration's cameras are never probed.
+    /// the known address when the integration's cameras are never probed. When nothing opened and
+    /// the link refused a camera with its own copy (`MultiviewLinkRefusal`), that copy is the
+    /// failure, not "not found".
     private func discoverPreview(_ slot: Int, camera: Camera, identity: [UInt8]?) async throws {
         let member = members[slot]
         let link = links[slot]
@@ -913,6 +970,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         member.recordingAvailable = false
         let excluded = Set(
             members.filter { $0 !== member }.compactMap(\.controlHost).map(policy.hostKey))
+        var refusal: MultiviewLinkRefused?
         func attempt() async throws -> Bool {
             do {
                 try await openPreview(slot, camera: camera, identity: identity)
@@ -920,6 +978,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             } catch {
                 if error is CancellationError || error as? MultiviewStageFailure == .duplicate {
                     throw error
+                }
+                if let refused = error as? any MultiviewLinkRefusal {
+                    refusal = MultiviewLinkRefused(message: refused.operatorMessage)
                 }
                 return false
             }
@@ -932,6 +993,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
                 member.address = sighted
                 if try await attempt() { return }
             }
+            if let refusal { throw refusal }
             throw MultiviewStageFailure.message(MultiviewCopy.notFound)
         }
         for pass in 1...2 {
@@ -947,6 +1009,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             }
             if pass == 1 { try await clock.sleep(.seconds(3)) }
         }
+        if let refusal { throw refusal }
         throw MultiviewStageFailure.message(MultiviewCopy.notFound)
     }
 
@@ -955,8 +1018,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
     private func probeCandidates(_ slot: Int, excluding excluded: Set<String>) async throws
         -> [String]
     {
-        guard let local = hostPath.address(hotspot: usePhoneHotspot),
-            let mask = hostPath.netmask(hotspot: usePhoneHotspot),
+        let hotspot = watchesHotspot
+        guard let local = hostPath.address(hotspot: hotspot),
+            let mask = hostPath.netmask(hotspot: hotspot),
             let all = StationSubnet.hosts(address: local, mask: mask)
         else { throw MultiviewStageFailure.message(MultiviewCopy.unsupportedSubnet) }
         let hosts = all.filter { !excluded.contains(policy.hostKey($0)) }
@@ -1074,7 +1138,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             !member.recovering, !member.budget.exhausted, member.publishing,
             member.camera != nil, host?.showsPicture(slot: slot) ?? true
         else { return }
-        let pathReady = hostPath.address(hotspot: usePhoneHotspot) != nil
+        let pathReady = pathAddress() != nil
         if pathReady {
             member.pathLostAt = nil
         } else if member.pathLostAt == nil {
@@ -1088,7 +1152,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             foregroundUnchanged: { [weak self] in self?.activityGeneration == generation },
             pathAvailable: { [weak self] in
                 guard let self else { return false }
-                return self.hostPath.address(hotspot: self.usePhoneHotspot) != nil
+                return self.pathAddress() != nil
             },
             beginAttempt: { [weak member] in member?.budget.beginAttempt() ?? false },
             observeHealth: { [weak self, weak member] healthy in

@@ -30,9 +30,13 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Cam
 
 /** The Add list's footer for this stage's network. */
 public val <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.pickerFooter: String
-    get() = MultiviewCopy.pickerFooter(
-        ssid, commissioned = commissioner != null, asksApproval = commissioner?.asksApprovalOnCamera ?: false,
-    )
+    get() {
+        val footer = MultiviewCopy.pickerFooter(
+            ssid, commissioned = commissioner != null, asksApproval = commissioner?.asksApprovalOnCamera ?: false,
+        )
+        val guidance = host?.pickerGuidance
+        return if (guidance.isNullOrEmpty()) footer else "$footer\n\n$guidance"
+    }
 
 /**
  * Adds the camera of the Add list's row [id] to [slot] (experimentally when it shows no picture and

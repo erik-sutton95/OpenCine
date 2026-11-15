@@ -28,9 +28,11 @@ extension MultiviewCoordinator {
 
     /// The Add list's footer for this stage's network.
     public var pickerFooter: String {
-        MultiviewCopy.pickerFooter(
+        let footer = MultiviewCopy.pickerFooter(
             network: ssid, commissioned: commissioner != nil,
             asksApproval: commissioner?.asksApprovalOnCamera ?? false)
+        guard let guidance = host?.pickerGuidance, !guidance.isEmpty else { return footer }
+        return footer + "\n\n" + guidance
     }
 
     /// Adds the camera of the Add list's row `id` to `slot` (experimentally when it shows no
