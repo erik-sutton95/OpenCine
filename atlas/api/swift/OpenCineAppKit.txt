@@ -133,6 +133,8 @@ case MultiviewCameraAction.Kind.record
 case MultiviewMemberChange.camera
 case MultiviewMemberChange.control
 case MultiviewMemberChange.removed
+case MultiviewNetworkPath.chosen
+case MultiviewNetworkPath.either
 case MultiviewNetworkRestore.cameraNetworks
 case MultiviewNetworkRestore.none
 case MultiviewRecordConfirmation.Outcome.confirmed
@@ -308,6 +310,7 @@ enum MonitorSettingsInternetCleanup: Equatable, Hashable, Sendable
 enum MultiviewCameraAction.Kind: Equatable, Hashable, Sendable
 enum MultiviewCopy
 enum MultiviewMemberChange: Equatable, Hashable, Sendable
+enum MultiviewNetworkPath: Equatable, Hashable, Sendable
 enum MultiviewNetworkRestore: Equatable, Hashable, Sendable
 enum MultiviewRecordConfirmation
 enum MultiviewRecordConfirmation.Outcome: Equatable, Hashable, Sendable
@@ -1119,7 +1122,7 @@ init MonitorTransferRates(clock: OpenCineCore.HostClock)<Key where Key : Swift.H
 init MultiviewCameraAction(_: Swift.String, _: Swift.String, kind: MultiviewCameraAction.Kind, enabled: Swift.Bool, closes: Swift.Bool)
 init MultiviewCameraPicker(rows: [MultiviewPickerRow], searching: Swift.String, empty: Swift.String?, footer: Swift.String?, cancel: () -> Swift.Void, pick: (Swift.String) -> Swift.Void)
 init MultiviewCameraSettingsState(categories: [MultiviewSettingsCategory], recording: Swift.Bool, note: Swift.String?)
-init MultiviewCoordinator(links: [Link], members: [MultiviewMember<MultiviewCoordinator<Link>.Camera>]?, policy: OpenCineCore.MultiviewCameraPolicy<MultiviewCoordinator<Link>.Camera>, commissioner: (any OpenCineCore.StationCommissioner<MultiviewCoordinator<Link>.Camera>)?, scanner: (any OpenCineCore.NearbyCameraScanner<MultiviewCoordinator<Link>.Camera>)?, hostPath: any OpenCineCore.StationHostPath, describe: (MultiviewCoordinator<Link>.Camera) -> OpenCineCore.StationCameraRecord, journal: MultiviewJournalStorage, networks: MultiviewNetworkStorage, budget: OpenCineMulticam.ResourceBudget?, sightingAddress: ((MultiviewCoordinator<Link>.Camera) -> Swift.String?)?, failureMessage: ((any Swift.Error) -> Swift.String)?, probeWidth: Swift.Int, clock: OpenCineCore.HostClock)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable>
+init MultiviewCoordinator(links: [Link], members: [MultiviewMember<MultiviewCoordinator<Link>.Camera>]?, policy: OpenCineCore.MultiviewCameraPolicy<MultiviewCoordinator<Link>.Camera>, commissioner: (any OpenCineCore.StationCommissioner<MultiviewCoordinator<Link>.Camera>)?, scanner: (any OpenCineCore.NearbyCameraScanner<MultiviewCoordinator<Link>.Camera>)?, hostPath: any OpenCineCore.StationHostPath, describe: (MultiviewCoordinator<Link>.Camera) -> OpenCineCore.StationCameraRecord, journal: MultiviewJournalStorage, networks: MultiviewNetworkStorage, budget: OpenCineMulticam.ResourceBudget?, sightingAddress: ((MultiviewCoordinator<Link>.Camera) -> Swift.String?)?, failureMessage: ((any Swift.Error) -> Swift.String)?, probeWidth: Swift.Int, networkPath: MultiviewNetworkPath, clock: OpenCineCore.HostClock)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable>
 init MultiviewJournalStorage(load: () -> MultiviewStageJournal.Stage?, save: (MultiviewStageJournal.Stage?) -> Swift.Bool)
 init MultiviewMember(id: Foundation.UUID, budget: OpenCineMulticam.RecoveryBudget)<Camera>
 init MultiviewNetworkStorage(password: (Swift.String, Swift.Bool) -> Swift.String?, save: (OpenCineCore.StationNetwork) -> Swift.Void)
@@ -1558,6 +1561,7 @@ let MonitorStartupReports.tick: () -> Swift.Void
 let MultiviewCoordinator.hostPath: any OpenCineCore.StationHostPath
 let MultiviewCoordinator.links: [Link]
 let MultiviewCoordinator.members: [MultiviewMember<MultiviewCoordinator<Link>.Camera>]
+let MultiviewCoordinator.networkPath: MultiviewNetworkPath
 let MultiviewCoordinator.presentation: MultiviewStageState
 let MultiviewMember.id: Foundation.UUID
 let MultiviewMember.stream: OpenCineCore.StreamID

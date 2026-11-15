@@ -2407,8 +2407,121 @@ public final class com/opencapture/opencine/nikon/NikonMulticamRefusal : java/la
 	public static fun values ()[Lcom/opencapture/opencine/nikon/NikonMulticamRefusal;
 }
 
+public final class com/opencapture/opencine/nikon/NikonMultiview {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMultiview;
+	public final fun addList (Ljava/util/List;Ljava/util/List;Ljava/util/Set;)Ljava/util/List;
+	public static synthetic fun addList$default (Lcom/opencapture/opencine/nikon/NikonMultiview;Ljava/util/List;Ljava/util/List;Ljava/util/Set;ILjava/lang/Object;)Ljava/util/List;
+	public final fun address (Ljava/lang/String;)Ljava/lang/String;
+	public final fun getPolicy ()Lcom/opencapture/opencine/core/MultiviewCameraPolicy;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewCamera {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeldByAnotherDevice ()Z
+	public final fun getHolder ()Ljava/lang/String;
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRecord ()Lcom/opencapture/opencine/core/StationCameraRecord;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewCopy {
+	public static final field COULD_NOT_RESTORE Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMultiviewCopy;
+	public final fun heldBy (Ljava/lang/String;)Ljava/lang/String;
+}
+
 public final class com/opencapture/opencine/nikon/NikonMultiviewKt {
 	public static final fun getRecordingTone (Lcom/opencapture/opencine/nikon/CameraPropertySnapshot;)Lcom/opencapture/opencine/nikon/NikonMovieTone;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewLink : com/opencapture/opencine/core/MultiviewMemberLink {
+	public synthetic fun <init> (Lcom/opencapture/opencine/nikon/NikonMemberOpener;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;JLkotlin/jvm/functions/Function0;JLcom/opencapture/opencine/nikon/NikonMemberRepair;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/nikon/NikonMemberOpener;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;JLkotlin/jvm/functions/Function0;JLcom/opencapture/opencine/nikon/NikonMemberRepair;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public fun getAutoLUT ()Lcom/opencapture/opencine/core/MultiviewAutoLUT;
+	public final fun getControl ()Lcom/opencapture/opencine/nikon/NikonOpenCineSession;
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getLent ()Z
+	public final fun getOnFrame ()Lkotlin/jvm/functions/Function1;
+	public fun getOnStatus ()Lkotlin/jvm/functions/Function1;
+	public fun getPictureHealth ()Lcom/opencapture/opencine/core/PictureHealth;
+	public fun getRecordReport ()Lcom/opencapture/opencine/core/MultiviewRecordReport;
+	public final fun getRecordingTone ()Lcom/opencapture/opencine/nikon/NikonMovieTone;
+	public fun getRepairDeadline-UwyO8pc ()J
+	public final fun getReported ()Lcom/opencapture/opencine/nikon/CameraPropertySnapshot;
+	public fun getSession ()Lcom/opencapture/opencine/core/CameraSession;
+	public final fun getSnapshot ()Lcom/opencapture/opencine/core/CameraSnapshot;
+	public final fun getTimecode ()Lcom/opencapture/opencine/nikon/LiveFrameTimecode;
+	public final fun getTransport ()Lcom/opencapture/opencine/nikon/NikonMultiviewTransport;
+	public fun keepalive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun lend ()Lcom/opencapture/opencine/nikon/NikonMultiviewTransport;
+	public fun open (Lcom/opencapture/opencine/nikon/NikonMultiviewCamera;Ljava/lang/String;[BLcom/opencapture/opencine/core/StationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun open (Ljava/lang/Object;Ljava/lang/String;[BLcom/opencapture/opencine/core/StationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun probe (Ljava/lang/String;Lcom/opencapture/opencine/core/StationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun reclaim (Lcom/opencapture/opencine/nikon/NikonMultiviewTransport;)V
+	public fun repair (Lcom/opencapture/opencine/core/MultiviewRepairContext;)Lcom/opencapture/opencine/core/MultiviewRepairStep;
+	public final fun setOnFrame (Lkotlin/jvm/functions/Function1;)V
+	public fun setOnStatus (Lkotlin/jvm/functions/Function1;)V
+	public fun startPreview (Lcom/opencapture/opencine/nikon/NikonMultiviewCamera;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun startPreview (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract class com/opencapture/opencine/nikon/NikonMultiviewLinkError : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewLinkError$NotOpen : com/opencapture/opencine/nikon/NikonMultiviewLinkError {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMultiviewLinkError$NotOpen;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewLinkError$Refused : com/opencapture/opencine/nikon/NikonMultiviewLinkError {
+	public fun <init> (Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;Ljava/lang/String;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonMultiviewLinkError$Refused;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikon/NikonMultiviewLinkError$Refused;Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/nikon/NikonMultiviewLinkError$Refused;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeldBy ()Ljava/lang/String;
+	public final fun getRefusal ()Lcom/opencapture/opencine/nikon/NikonMemberOpenRefusal;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewSavedSetup {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/nikon/NikonMultiviewSavedSetup;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/nikon/NikonMultiviewSavedSetup;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/nikon/NikonMultiviewSavedSetup;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewScanner : com/opencapture/opencine/core/NearbyCameraScanner {
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;JLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;JLkotlin/jvm/functions/Function2;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun scan (Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun stop ()V
+	public fun waitUntilReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class com/opencapture/opencine/nikon/NikonMultiviewTransport {
+	public abstract fun getFrames ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun getSerialNumber ()Ljava/lang/String;
+	public abstract fun getSession ()Lcom/opencapture/opencine/nikon/CameraSession;
+	public abstract fun shutdown (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class com/opencapture/opencine/nikon/NikonNative {
