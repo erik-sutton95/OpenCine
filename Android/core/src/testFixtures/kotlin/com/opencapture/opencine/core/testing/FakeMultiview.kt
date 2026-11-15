@@ -252,6 +252,9 @@ public class FakeMemberLink(public val fakeSession: FakeCameraSession = FakeCame
     /** [open] waits here when set. */
     public var openGate: FakeGate? = null
 
+    /** Thrown by [open] (after its gate) when set: the camera refused, for example. */
+    public var openError: Exception? = null
+
     /** Thrown by [keepalive] when set (Kotlin only: Swift's cannot throw). */
     public var keepaliveError: Exception? = null
 
@@ -291,6 +294,7 @@ public class FakeMemberLink(public val fakeSession: FakeCameraSession = FakeCame
         onStatus?.invoke(MultiviewLinkStatus.OPENING)
         openGate?.await()
         currentCoroutineContext().ensureActive()
+        openError?.let { throw it }
         val answer = answering[address] ?: throw FakeMultiviewFailure("Nothing answered at $address")
         if (expecting != null && !expecting.contentEquals(answer)) {
             throw FakeMultiviewFailure("This network connection did not identify the selected camera.")

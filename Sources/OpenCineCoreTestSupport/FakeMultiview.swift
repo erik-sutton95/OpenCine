@@ -235,6 +235,8 @@ public final class FakeMemberLink: MultiviewMemberLink {
     public var startError: Error?
     /// `open` waits here when set.
     public var openGate: FakeGate?
+    /// Thrown by `open` (after its gate) when set: the camera refused, for example.
+    public var openError: Error?
     /// The next repair tick's verdict.
     public var repairStep: (MultiviewRepairContext) -> MultiviewRepairStep = { _ in .healthy }
 
@@ -273,6 +275,7 @@ public final class FakeMemberLink: MultiviewMemberLink {
         onStatus?(.opening)
         if let openGate { await openGate.wait() }
         try Task.checkCancellation()
+        if let openError { throw openError }
         guard let answer = answering[address] else {
             throw FakeMultiviewFailure("Nothing answered at \(address)")
         }

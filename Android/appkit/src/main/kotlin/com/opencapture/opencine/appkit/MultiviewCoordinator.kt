@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import com.opencapture.opencine.core.MonitorEntryID
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.MultiviewCameraPolicy
+import com.opencapture.opencine.core.MultiviewLinkRefusal
 import com.opencapture.opencine.core.MultiviewMemberLink
 import com.opencapture.opencine.core.MultiviewRepairContext
 import com.opencapture.opencine.core.MultiviewRepairResult
@@ -139,6 +140,12 @@ public interface MultiviewHost {
      * no Live View borrows the member). [MultiviewCoordinator.controlsAvailable] asks it.
      */
     public fun admitsControls(slot: Int): Boolean = true
+
+    /**
+     * Steps the Add camera list shows under its footer: how a camera gets onto this phone's network
+     * when the app cannot move it there itself (camera-menu steps, pairing). Null for none.
+     */
+    public val pickerGuidance: String? get() = null
 }
 
 /**
@@ -308,6 +315,12 @@ public sealed class MultiviewStageFailure(message: String) : Exception(message) 
 
 /** The stage stopped under a step (Swift: `CancellationError`); the step ends without copy. */
 private class StageStopped : Exception("Multiview stage stopped")
+
+/**
+ * A member link's own refusal ([MultiviewLinkRefusal]) as the add or reconnect that met it ends: its
+ * copy goes on the tile. Swift twin: `MultiviewLinkRefused`.
+ */
+private class MultiviewLinkRefused(message: String) : Exception(message)
 
 /**
  * The Bluetooth turns of member repairs: one holder at a time, in request order, never while an
@@ -925,7 +938,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             if (!running || e is StageStopped) return
             links[slot].close()
             member.status = MultiviewCopy.COULD_NOT_CONNECT
-            member.failureMessage = failureText(e)
+            member.failureMessage = (e as? MultiviewLinkRefused)?.message ?: failureText(e)
             host?.log("multiview: add failed stage=$stage error=${e.javaClass.simpleName}")
             // Keep the member for a discovery retry after a successful join.
         } finally {
@@ -937,7 +950,11 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         }
     }
 
-    /** The operator's Reconnect: the known camera first, then its setup again. */
+    /**
+     * The operator's Reconnect: the known camera first, then its setup again. Without a commissioner
+     * the setup again would open whatever camera answers at the address with no identity to check,
+     * so a proven camera is only ever reopened as itself.
+     */
     public suspend fun reconnect(slot: Int) {
         val member = members[slot]
         val camera = member.camera
@@ -946,7 +963,9 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         member.budget.reset()
         if (member.identity != null) {
             connectPreview(slot)
-            if (running && currentCoroutineContext().isActive && member.failureMessage != null) readd(slot)
+            if (running && currentCoroutineContext().isActive && member.failureMessage != null && commissioner != null) {
+                readd(slot)
+            }
         } else {
             member.camera = null
             add(camera, slot, member.experimental)
@@ -988,8 +1007,11 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             member.publishing = false
             member.controlHost = null
             member.status = MultiviewCopy.COULD_NOT_CONNECT_PREVIEW
-            member.failureMessage =
-                if (e is MultiviewStageFailure.Duplicate) MultiviewCopy.DUPLICATE else MultiviewCopy.COULD_NOT_RESTORE
+            member.failureMessage = when (e) {
+                is MultiviewLinkRefused -> e.message
+                is MultiviewStageFailure.Duplicate -> MultiviewCopy.DUPLICATE
+                else -> MultiviewCopy.COULD_NOT_RESTORE
+            }
             member.budget.exhaust()
         } finally {
             member.connecting = false
@@ -1000,7 +1022,9 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
 
     /**
      * The known address first, then the subnet in two passes (other members excluded), or only the
-     * known address when the integration's cameras are never probed.
+     * known address when the integration's cameras are never probed. When nothing opened and the link
+     * refused a camera with its own copy ([MultiviewLinkRefusal]), that copy is the failure, not "not
+     * found".
      */
     private suspend fun discoverPreview(slot: Int, camera: Camera, identity: ByteArray?) {
         val member = members[slot]
@@ -1011,6 +1035,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         member.controlHost = null
         member.recordingAvailable = false
         val excluded = members.filter { it !== member }.mapNotNull { it.controlHost }.map(policy::hostKey).toSet()
+        var refusal: MultiviewLinkRefused? = null
         suspend fun attempt(): Boolean = try {
             openPreview(slot, camera, identity)
             true
@@ -1021,6 +1046,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         } catch (e: MultiviewStageFailure.Duplicate) {
             throw e
         } catch (e: Exception) {
+            if (e is MultiviewLinkRefusal) refusal = MultiviewLinkRefused(e.operatorMessage)
             false
         }
         if (StationSubnet.validAddress(member.address) && attempt()) return
@@ -1030,6 +1056,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                 member.address = sighted
                 if (attempt()) return
             }
+            refusal?.let { throw it }
             throw MultiviewStageFailure.Message(MultiviewCopy.NOT_FOUND)
         }
         for (pass in 1..2) {
@@ -1045,6 +1072,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             }
             if (pass == 1) delay(3.seconds)
         }
+        refusal?.let { throw it }
         throw MultiviewStageFailure.Message(MultiviewCopy.NOT_FOUND)
     }
 

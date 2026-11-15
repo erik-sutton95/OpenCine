@@ -134,6 +134,15 @@ public struct MultiviewRecordReport: Equatable, Sendable {
     }
 }
 
+/// An `open` refusal that already says what the operator should do (another device holds the
+/// camera, it is not paired with this phone, another camera answered at its address). The
+/// coordinator shows `operatorMessage` on the tile instead of its own "not found" copy. A link
+/// whose cameras never refuse that way does not adopt it. Kotlin twin: `MultiviewLinkRefusal`.
+public protocol MultiviewLinkRefusal: Error {
+    /// The tile's failure copy for this refusal.
+    var operatorMessage: String { get }
+}
+
 /// One Multiview member's link to its camera on the station network: its common session, its
 /// picture, and the steps the coordinator drives (probe, open with an identity check, preview,
 /// keepalive, repair, close). An integration or the app supplies it. The coordinator owns the

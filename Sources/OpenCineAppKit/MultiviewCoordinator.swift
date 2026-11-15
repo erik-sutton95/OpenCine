@@ -66,6 +66,9 @@ public protocol MultiviewHost: AnyObject {
     /// What only the app knows about whether `slot` takes a settings change now (its own link is
     /// open, no Live View borrows the member). `controlsAvailable(slot:)` asks it.
     func admitsControls(slot: Int) -> Bool
+    /// Steps the Add camera list shows under its footer: how a camera gets onto this phone's
+    /// network when the app cannot move it there itself (camera-menu steps, pairing). Nil for none.
+    var pickerGuidance: String? { get }
 }
 
 extension MultiviewHost {
@@ -85,6 +88,7 @@ extension MultiviewHost {
     public func openCameraSettings(slot: Int) {}
     public func cameraSettings(slot: Int) -> MultiviewCameraSettingsState? { nil }
     public func admitsControls(slot: Int) -> Bool { true }
+    public var pickerGuidance: String? { nil }
 }
 
 /// One slot's member as the coordinator owns it: its camera, its link's state on the stage, its
@@ -239,6 +243,13 @@ public enum MultiviewStageFailure: LocalizedError, Equatable, Sendable {
         case .message(let text): text
         }
     }
+}
+
+/// A member link's own refusal (`MultiviewLinkRefusal`) as the add or reconnect that met it
+/// ends: its copy goes on the tile.
+struct MultiviewLinkRefused: LocalizedError, Equatable {
+    let message: String
+    var errorDescription: String? { message }
 }
 
 /// Which of this phone's networks a Multiview stage watches. Kotlin twin: `MultiviewNetworkPath`.
@@ -872,7 +883,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             let error = (error as? StationVerifyFinal)?.reason ?? error
             links[slot].close()
             member.status = MultiviewCopy.couldNotConnect
-            member.failureMessage = failureText(error)
+            member.failureMessage = (error as? MultiviewLinkRefused)?.message ?? failureText(error)
             host?.log(
                 "multiview: add failed stage=\(stage) error=\((error as NSError).domain)/\((error as NSError).code)"
             )
@@ -880,7 +891,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         }
     }
 
-    /// The operator's Reconnect: the known camera first, then its setup again.
+    /// The operator's Reconnect: the known camera first, then its setup again. Without a
+    /// commissioner the setup again would open whatever camera answers at the address with no
+    /// identity to check, so a proven camera is only ever reopened as itself.
     public func reconnect(slot: Int) async {
         let member = members[slot]
         guard !busy, !member.connecting, !member.recovering, let camera = member.camera else {
@@ -890,7 +903,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         member.budget.reset()
         if member.identity != nil {
             await connectPreview(slot: slot)
-            if running, !Task.isCancelled, member.failureMessage != nil { await readd(slot) }
+            if running, !Task.isCancelled, member.failureMessage != nil, commissioner != nil {
+                await readd(slot)
+            }
         } else {
             member.camera = nil
             await add(camera, slot: slot, experimental: member.experimental)
@@ -934,14 +949,17 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             member.controlHost = nil
             member.status = MultiviewCopy.couldNotConnectPreview
             member.failureMessage =
-                error as? MultiviewStageFailure == .duplicate
-                ? MultiviewCopy.duplicate : MultiviewCopy.couldNotRestore
+                (error as? MultiviewLinkRefused)?.message
+                ?? (error as? MultiviewStageFailure == .duplicate
+                    ? MultiviewCopy.duplicate : MultiviewCopy.couldNotRestore)
             member.budget.exhaust()
         }
     }
 
     /// The known address first, then the subnet in two passes (other members excluded), or only
-    /// the known address when the integration's cameras are never probed.
+    /// the known address when the integration's cameras are never probed. When nothing opened and
+    /// the link refused a camera with its own copy (`MultiviewLinkRefusal`), that copy is the
+    /// failure, not "not found".
     private func discoverPreview(_ slot: Int, camera: Camera, identity: [UInt8]?) async throws {
         let member = members[slot]
         let link = links[slot]
@@ -952,6 +970,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         member.recordingAvailable = false
         let excluded = Set(
             members.filter { $0 !== member }.compactMap(\.controlHost).map(policy.hostKey))
+        var refusal: MultiviewLinkRefused?
         func attempt() async throws -> Bool {
             do {
                 try await openPreview(slot, camera: camera, identity: identity)
@@ -959,6 +978,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             } catch {
                 if error is CancellationError || error as? MultiviewStageFailure == .duplicate {
                     throw error
+                }
+                if let refused = error as? any MultiviewLinkRefusal {
+                    refusal = MultiviewLinkRefused(message: refused.operatorMessage)
                 }
                 return false
             }
@@ -971,6 +993,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
                 member.address = sighted
                 if try await attempt() { return }
             }
+            if let refusal { throw refusal }
             throw MultiviewStageFailure.message(MultiviewCopy.notFound)
         }
         for pass in 1...2 {
@@ -986,6 +1009,7 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
             }
             if pass == 1 { try await clock.sleep(.seconds(3)) }
         }
+        if let refusal { throw refusal }
         throw MultiviewStageFailure.message(MultiviewCopy.notFound)
     }
 
