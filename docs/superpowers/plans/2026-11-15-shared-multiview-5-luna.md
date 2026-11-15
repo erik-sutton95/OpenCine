@@ -174,9 +174,9 @@ Tests (`LunaMemberLinkTests`): `openChecksTheSerialAtTheAddress` (expecting iden
 the serial; returns the proven serial); `openWithoutAnIdentityIsRefused`;
 `aSilentAddressFails`; `probeAsksThePortOnly`; `startPreviewReportsControllingThenLive`;
 `theRecordReportFollowsTheCamera` (stamped on the link clock, fresh only while reports arrive);
-`aStallRestartsLiveInPlaceThenRejoins`; `aLostLinkMovesTheCameraUnderABluetoothTurn`;
+`aStallRestartsLiveInPlace` (reconnecting, then live again); `aLostLinkMovesTheCameraUnderABluetoothTurn`;
 `aLostLinkThatStillAnswersRejoinsWithoutBluetooth`; `closeSendsNoCameraCommand`;
-`theSessionIsOnePerMember`; `autoLUTFollowsTheColorProfile`.
+`theSessionIsOnePerMember`; `autoLUTFollowsTheColorProfile`; `autoLUTFollowsWhatThePictureCarries`.
 
 - [ ] Tests red, implement, green, commit `feat(insta360): Luna Multiview member link`.
 

@@ -490,9 +490,9 @@ Every part of the screen follows the camera and the app, never a brand:
 The adopters' answers today: Pocket (DJI) has a commissioner that scans networks and joins
 experimentally, and a host that edits settings and applies Auto LUT. Luna (OpenInstaCine,
 `LunaMultiview.policy` and `LunaStationCommissioner`) has a commissioner that asks for approval
-on the camera but neither scans networks nor joins experimentally; its iOS host edits settings,
-applies Auto LUT and lends Live View, its Android host does none of the three yet
-(`editsCameraSettings` and `appliesAutoLUT` false, `openLiveView` false). Luna is hardware-untested.
+on the camera but neither scans networks nor joins experimentally; its iOS and Android hosts both
+edit settings (under the editor lease, every write asked again), apply Auto LUT and lend Live
+View as a shell-borrowed monitor, as Pocket's do. Luna is hardware-untested.
 
 The popup's tabs show upper-cased on both platforms, as iOS draws them, and read mixed case to
 accessibility ("A · Name", "Iso", "Shutter"); Compose's `MonitorDrawerTabs` takes the labels and

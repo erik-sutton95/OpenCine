@@ -203,14 +203,22 @@ twins in `Insta360Apple` and `insta360-luna`, unit-tested against `FakeLunaStati
 OpenInstaCine renders the shared `MultiviewScreen` on iOS and Android. No AppKit or Core code
 changed in this plan. Everything is hardware-untested. For later work:
 
-- OpenInstaCine Android is a reduced host: pictures, record, add, remove, reconnect, wizard and
-  cleanup, but no Live View borrow, no settings popup and no Auto LUT (`openLiveView`,
-  `editsCameraSettings`, `appliesAutoLUT` keep their defaults). Its `AppModel` builds its own
-  session and backend, so lending a tile's backend and decoder to Live View needs an `AppModel`
-  over a borrowed session first (Pocket Android's `borrowing` shape). iOS has all three.
-- The Kotlin `LunaBackend` runs Luna's stall ladder inside its live link, so a Kotlin member link
-  sees a stall only as a lost link; the Swift link runs the ladder through the port
-  (`requestKeyframe`, `restartLive`). Both end in the same find-again repair.
+- OpenInstaCine Android is a full host, as iOS: pictures (decoder surface handed back at the
+  first picture size, so a tile mounted before its first keyframe shows a picture), Live View
+  borrowed from a tile through an `AppModel` over the tile's session (Pocket Android's `borrowing`
+  shape), the settings popup under the editor lease with every write admitted at dispatch, and
+  Auto LUT. Closing the stage releases the shared Wi-Fi; the monitor never re-dials under an open
+  stage; Multiview does not open during a connect attempt.
+- The shared Wi-Fi path (`SharedWiFiPath`, `OwnedStationJoin`) never drops a network another
+  owner holds: an owner whose phone cannot read the Wi-Fi name (Location off, permission denied)
+  shares the held network instead of asking the system again. Unit-tested; hardware-untested.
+- Auto LUT follows what the picture carries, not the recording profile (`LunaMemberLink`'s
+  `preview` rule). OpenInstaCine iOS's flat I-Log preview preference defaults on (firmware 1.1.15
+  measured the I-Log phone preview flat), so by default an I-Log tile is still graded, as Live
+  View is; Android has no Color Recovery preference and grades I-Log as flat, as its Live View.
+- Both member links report reconnecting when a stall reaches the live-restart point (the Kotlin
+  `LunaBackend` runs the ladder inside its live link, the Swift link through the port), then live
+  again when the picture returns; past the ladder both end in the same find-again repair.
 - Kotlin `restoreAccessPoint` propagates `CancellationException` (structured concurrency); Swift
   maps a cancellation to `.failed`. Both keep the camera journaled.
 - Before merging Luna: the Luna hardware pass on both platforms (the list is in the Plan 5

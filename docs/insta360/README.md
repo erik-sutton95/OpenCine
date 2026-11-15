@@ -220,14 +220,19 @@ a scripted `FakeLunaStationPort` in test support). Every behavior is **untested 
   report is the camera's own capture state, stamped on the coordinator's clock only when a new
   report arrives. `close` only disconnects: no camera command, never a record stop. Repair: a
   stalled picture follows `LunaFeedStall` in place (keyframe after 2 s, at most two live restarts
-  after 6 s; the Kotlin backend runs that ladder itself while live, so the link reports healthy
-  while the control link is open); past that, or with the control link lost while the phone is on
+  after 6 s; the Kotlin backend runs that ladder itself while live, so the link only reports
+  reconnecting once the stall passes the restart point, as the Swift link does when it restarts,
+  and live again when the picture returns); past that, or with the control link lost while the phone is on
   the shared network, the link probes the camera's address (answers: `.rejoin`, no Bluetooth),
   otherwise moves it onto the network again inside the coordinator's `bluetoothTurn` and asks for
   a rejoin. A camera that refuses this phone (`notApproved`, `heldElsewhere`) is
-  `.waitForOperator(copy)`; a stopped stage gets no Bluetooth turn. `autoLUT` follows the
-  reported color profile through the app's `conversion` (OpenInstaCine iOS: I-Log to its bundled
-  Rec.709 look).
+  `.waitForOperator(copy)`; a stopped stage gets no Bluetooth turn. `autoLUT` follows what the
+  picture carries: the reported color profile through the app's `preview` rule (Color Recovery can
+  bake Rec.709 into an I-Log recording's phone feed; OpenInstaCine passes Live View's rule), then
+  the app's `conversion` for that (OpenInstaCine: I-Log to its bundled Rec.709 look). Kotlin `open`
+  also ends when the connection returns to idle before it went live (a closed backend), so an open
+  never waits forever. Commission and return connections are closed (`LunaStationPort.close`), not
+  only disconnected.
 - **`LunaNearbyScanner`**: the Add list from the integration's passive discovery.
 
 ## Optional connected-camera media service
