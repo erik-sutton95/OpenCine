@@ -98,6 +98,66 @@ supplies.
   app decodes its own presence line. Tests: `NikonDiscoveryTests` / `NikonDiscoveryTest`, same
   method names (zero camera-control dials and zero PTP bytes in `.passive`).
 
+## Multiview prep (shared Multiview Plan 6)
+
+What a Pocket-standard Multiview needs from Nikon, as plain values and closures (Swift
+`NikonMultiview.swift`, Kotlin `NikonMultiview.kt`, same names). Plan 6 wraps them in the app
+shell's Multiview seams and adopts them in OpenZCine; nothing here names that shell, and no app
+uses them yet.
+
+- **Add camera lists, it does not probe.** `NikonDiscovery.multiviewSightings` is one passive pass
+  (Bonjour or the app's NSD listing, USB, the rate-limited presence sweep, liveness dials of saved
+  hosts): no control-port dial, no PTP byte. A host in `excludedHosts` (held by a member or the
+  app's own Live View) is neither dialled for liveness nor listed; a camera another device holds is
+  listed as `heldByAnotherDevice`, not to be picked. Rows are the existing twins (Swift
+  `DiscoveredCamera`, Kotlin `NikonSighting`) and carry no serial. A saved host lists only when its
+  liveness dial answers, so Plan 6 merges in the saved router and hotspot setups that do not. The
+  active search compares excluded hosts by their normalized key, so an untrimmed address still
+  keeps its host undialled (Swift `discover`'s `excludedHosts` applies to `.active` only).
+- **Only the picked body is opened.** `NikonMemberOpener.open` refuses without a dial a host in
+  use, a host whose open is already in flight (a double tap, or an Add racing a repair), and a
+  body another device holds now (it asks `currentHolder`, wired to `NikonDiscovery.currentHolder`,
+  like the saved connect and session recovery do; the refusal carries `heldBy`). It then opens
+  the picked host, reads the serial (GetDeviceInfo after OpenSession) and closes and refuses a
+  body already in the group, a different body than expected, or one without a serial (a
+  deliberate change from today's stage, which admits a path whose serial comes later). A repair
+  calls `reopen(member, host:, ...)` with the group's own sets: the member's own host is not in
+  use against itself and its serial is not "already in the group"; any other body is refused.
+  `alreadyMember` guards the group's identity, not a member's session: it runs after the Init, so
+  only `hostsInUse` protects a live member. Every close or failed dial starts that host's
+  `NikonMemberTiming.reconnectSettle` (1200 ms, the ZR's PTP slot release); an open inside it
+  waits out the rest. On Android a refused body's close runs to the end even if the caller is
+  cancelled.
+- **Auto LUT source.** `NikonRecordingTone` (from `MovFileType` and the per-codec tone properties)
+  and Kotlin `CameraPropertySnapshot.recordingTone` give the member's recording tone (SDR, HLG,
+  N-Log, Log3G10) and its neutral `MonitorTransfer`. Unknown is nil, never SDR. iOS members poll
+  it with `NikonMemberControl.pollRecordingTone(on:)` (the codec, then only its tone property),
+  every 5 s in OpenZCine's member poll, and a codec or tone write the member control sends updates
+  it from its readback at once; Android's Swift session already reads the tone properties in its
+  live-monitor round robin (about 20 s per cycle, so a slower Auto LUT switch there is expected),
+  and a tile reads `reportedCameraProperties.value.recordingTone`. The tone names the recording,
+  not the live-view pixels.
+- **Bounded repair.** `NikonMemberRepair` is the member's ladder a coordinator ticks: a stall on a
+  live link restarts live view in place once per episode; a lost link, a failed restart or a
+  second stall reopens (close, then `reopen(member, host:, ...)` on the `NikonMemberOpener`) no
+  sooner than the settle after the loss and `NikonMemberTiming.reopenSpacing` (5 s) after a failed
+  reopen; each attempt first asks the caller's budget (the coordinator's `RecoveryBudget`), and a
+  refusal or a take-over (the opener's `heldByAnotherDevice`) waits for the operator.
+  A step that has not reported back by `NikonSessionRecovery.attemptDeadline` (30 s) counts as
+  failed, so a hung dial still ends in the next rung or the operator's Reconnect. The ladder's
+  settle is measured from the loss and the opener's from the close, so a reopen after a stall
+  can wait both. A take-over during an in-flight reopen leaves that reopen's link to the caller to
+  close, and so does a link a timed-out attempt hands back late (`opener.close`; Kotlin's
+  `closeLink` must be bounded). A reopen's `hostInUse` can mean "still dialling" (a hung attempt
+  keeps its reservation past the deadline), not a failure to show. Filtering frames by link
+  identity is the coordinator's job: a stale frame after a stall-caused loss only delays
+  recovery until the next stall. A picture ends the episode. Swift `NikonMemberRepair` is a value: the coordinator writes
+  it back after every call (Kotlin's is a class).
+
+Tests: `NikonMultiviewTests` / `NikonMultiviewTest` and the `multiviewSightings` cases in
+`NikonDiscoveryTests` / `NikonDiscoveryTest`, scripted links and manual clocks. Physical Nikon
+behavior is untested. No JNI member changed.
+
 ## Integration and saved setups (SHELL-02)
 
 `NikonIntegration` (Swift and Kotlin) is the Nikon `CameraIntegration` over a `NikonConnectPort`
