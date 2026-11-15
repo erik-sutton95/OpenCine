@@ -217,3 +217,23 @@ OpenZCine runs the shared coordinator and screen on iOS and Android through its 
 - The OpenZCine journal is a no-op: `MultiviewStageJournal.Stage.validated` drops a stage without
   a network name, so a no-commissioner stage keeps its layout through `presentation` only.
 - Plan 5 and Plan 6 both touched AppKit from the same base; the coordinator reconciles them.
+
+Plan 6 review fixes (2026-11-15), carried to Plan 5 (#357) as shared AppKit and Core commits:
+`MultiviewLinkRefusal` (Core) puts a link's refusal copy on the tile instead of "not found";
+Reconnect without a commissioner keeps the proven identity (no re-add with none); the host's
+`pickerGuidance` adds setup steps under the Add list footer. Nikon-only: a restart counts only on
+a new frame (replays ignored), a dead link reopens at once (two reopens per budget), a lent
+session lost in Live View closes through the opener, the scanner does not report held bodies,
+`notPaired` copy, `awaitClosed()` for the app's settle after a stage closes. Still for later:
+
+- The network confirmation step the spec's Nikon column names ("confirms the phone's network")
+  is not built: without a commissioner there are no credentials to hand a camera, and `.either`
+  follows the network the phone is on. An owner call; a confirm-only wizard page would be a
+  shared screen change on both twins.
+- No video backdrop and a still settings preview on OpenZCine: a Z body's live view is PTP JPEG
+  stills, so there is no decoder sample bus for `monitorVideoBackdrop` or the assist inspector.
+- A Z body reports no take length: OpenZCine's tally reads REC without a time (Pocket shows the
+  camera's own), never a phone-derived count.
+- Kotlin `NikonMultiviewLink.closeLimit` bounds the wait for an earlier close (10 s), so a close
+  slower than that lets the next Init start before the opener records it. Whether a ZR's
+  CloseSession ever takes that long is a hardware question.
