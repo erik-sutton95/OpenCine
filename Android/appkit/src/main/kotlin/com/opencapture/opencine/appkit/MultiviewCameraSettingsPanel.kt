@@ -104,7 +104,7 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCameraSettingsP
         viewportWidth = width,
         viewportHeight = height,
         onDismiss = onDismiss,
-        modifier = Modifier.testTag("multiview.cameraSettings"),
+        modifier = Modifier.testTag("multiview.settings.panel"),
         trailing = true,
         hasNavigation = false,
         safeLeading = safe.leading,
@@ -115,7 +115,7 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCameraSettingsP
             // Inset from the panel corner; the 48dp target overflows the one-line header.
             Box(Modifier.padding(end = 8.dp).height(20.dp).wrapContentHeight(unbounded = true)) {
                 Box(
-                    Modifier.size(48.dp).monitorChromeClickable(onClick = onDismiss)
+                    Modifier.size(48.dp).testTag("monitor.capture.close").monitorChromeClickable(onClick = onDismiss)
                         .semantics {
                             contentDescription = "Close camera settings"
                             role = Role.Button
@@ -135,11 +135,14 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCameraSettingsP
                 Modifier.fillMaxWidth().monitorScrollFade(cameraTabScroll, vertical = false)
                     .horizontalScroll(cameraTabScroll),
             ) {
+                val names = cameras.map { "${MultiviewTile.letter(it)} · ${coordinator.cameraName(it) ?: "Camera"}" }
                 MonitorDrawerTabs(
-                    // The tabs read upper-cased, as on iOS.
-                    tabs = cameras.map { "${MultiviewTile.letter(it)} · ${coordinator.cameraName(it) ?: "Camera"}".uppercase() },
+                    // The tabs show upper-cased and read mixed case, as on iOS.
+                    tabs = names.map { it.uppercase() },
                     selected = cameras.indexOf(selected).coerceAtLeast(0),
                     onSelect = { index -> if (selectedId != members[cameras[index]].id) select(cameras[index]) },
+                    accessibilityLabels = names,
+                    testTags = cameras.map { "multiview.settings.camera.$it" },
                 )
             }
             val state = selected?.let { host.cameraSettings(it) }
@@ -185,7 +188,10 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCameraSettingsP
                                     Text(MultiviewCopy.LOCKED_WHILE_RECORDING, color = MonitorPalette.muted, style = MonitorTypography.text(11f))
                                 }
                                 state.note?.let {
-                                    Text(it, color = NoteAmber, style = MonitorTypography.text(11f), maxLines = 2)
+                                    Text(
+                                        it, color = NoteAmber, style = MonitorTypography.text(11f), maxLines = 2,
+                                        modifier = Modifier.testTag("multiview.settings.error"),
+                                    )
                                 }
                             }
                         }
@@ -199,6 +205,8 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCameraSettingsP
                                 categories.map { it.title.uppercase() }, categories.indexOf(sheet),
                                 onSelect = { category = categories[it] }, vertical = true,
                                 modifier = Modifier.heightIn(min = railHeight),
+                                accessibilityLabels = categories.map { it.title },
+                                testTags = categories.map { it.identifier },
                             )
                         }
                     }
