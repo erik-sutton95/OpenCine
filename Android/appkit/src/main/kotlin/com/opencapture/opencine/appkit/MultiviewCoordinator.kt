@@ -399,6 +399,7 @@ internal class MultiviewBluetoothQueue {
  * @param sightingAddress the address an integration that does not discover by probe saw the camera at.
  * @param failureMessage the operator copy for a failed add (default: the error's message).
  * @param probeWidth probes per batch while searching the subnet.
+ * @param networkPath which of this phone's networks the stage watches (the chosen one by default).
  * @param clock the coordinator's clock in milliseconds (record report freshness, path loss, grace):
  *   the clock the links stamp [MultiviewRecordReport.receivedAtMillis] on, so it has no default.
  * @param monotonic the host clock the sessions stamp on (record plans, recovery budgets).
@@ -420,6 +421,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     probeWidth: Int = 64,
     internal val clock: () -> Long,
     internal val monotonic: () -> MonotonicInstant = { MonotonicInstant.now() },
+    public val networkPath: MultiviewNetworkPath = MultiviewNetworkPath.CHOSEN,
 ) {
     public val members: List<MultiviewMember<Camera>> = members ?: links.map { MultiviewMember() }
     public var host: MultiviewHost? = null
@@ -519,6 +521,29 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
 
     internal fun sameCamera(a: Camera, b: Camera): Boolean = describe(a).id == describe(b).id
 
+    /**
+     * Whether the stage watches this phone's hotspot now ([networkPath]): the chosen source, or,
+     * under [MultiviewNetworkPath.EITHER], the hotspot while this phone has no Wi-Fi address and
+     * hosts one.
+     */
+    internal val watchesHotspot: Boolean
+        get() = when (networkPath) {
+            MultiviewNetworkPath.CHOSEN -> usePhoneHotspot
+            MultiviewNetworkPath.EITHER -> hostPath.address(false) == null && hostPath.address(true) != null
+        }
+
+    /** This phone's address on the network the stage watches; null when it is not on it. */
+    internal fun pathAddress(): String? = hostPath.address(watchesHotspot)
+
+    /**
+     * Saves the stage's network for the next stage; a network without a name (this phone's own, on
+     * a stage without a commissioner) is not one to save.
+     */
+    private fun saveNetwork() {
+        if (ssid.isEmpty()) return
+        networks.save(stationNetwork)
+    }
+
     // Lifecycle
 
     /**
@@ -571,7 +596,11 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     }
 
     internal suspend fun tick() {
-        ready = hostPath.address(usePhoneHotspot) != null
+        if (networkPath == MultiviewNetworkPath.EITHER) {
+            val hotspot = watchesHotspot
+            if (usePhoneHotspot != hotspot) usePhoneHotspot = hotspot
+        }
+        ready = pathAddress() != null
         for (slot in links.indices) {
             contained("keepalive") { links[slot].keepalive() }
             val member = members[slot]
@@ -860,7 +889,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             if (commissioner == null) {
                 stage = "LAN discovery"
                 discoverPreview(slot, camera, null)
-                networks.save(stationNetwork)
+                saveNetwork()
                 return
             }
             stage = "Bluetooth pairing"
@@ -883,7 +912,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                 },
             )
             member.identity = identity
-            networks.save(stationNetwork)
+            saveNetwork()
             if (outcome == StationCommissionOutcome.VERIFIED) return
             link.close()
             client = null
@@ -1021,8 +1050,9 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
 
     /** Hosts on this phone's subnet where a camera of the link's integration answers, [probeWidth] at a time, at most eight. */
     private suspend fun probeCandidates(link: Link, excluded: Set<String>): List<String> {
-        val local = hostPath.address(usePhoneHotspot)
-        val mask = hostPath.netmask(usePhoneHotspot)
+        val hotspot = watchesHotspot
+        val local = hostPath.address(hotspot)
+        val mask = hostPath.netmask(hotspot)
         val all = if (local != null && mask != null) StationSubnet.hosts(local, mask) else null
         all ?: throw MultiviewStageFailure.Message(MultiviewCopy.UNSUPPORTED_SUBNET)
         val hosts = all.filter { policy.hostKey(it) !in excluded }
@@ -1130,7 +1160,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         ) {
             return
         }
-        val pathReady = hostPath.address(usePhoneHotspot) != null
+        val pathReady = pathAddress() != null
         if (pathReady) {
             member.pathLostAtMillis = null
         } else if (member.pathLostAtMillis == null) {
@@ -1142,7 +1172,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             running = { running },
             applicationActive = { applicationActive },
             foregroundUnchanged = { activityGeneration == generation },
-            pathAvailable = { hostPath.address(usePhoneHotspot) != null },
+            pathAvailable = { pathAddress() != null },
             beginAttempt = { member.budget.beginAttempt() },
             observeHealth = { healthy -> member.budget.observe(healthy, monotonic()) },
             bluetoothTurn = { bluetooth.turn() },

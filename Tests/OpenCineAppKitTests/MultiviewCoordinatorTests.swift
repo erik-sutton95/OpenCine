@@ -268,6 +268,44 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func aStageOnThePhonesHotspotWatchesTheHotspot() async throws {
+        let stage = Fixture(commissioner: false, discoversByProbe: false, networkPath: .either)
+        stage.path.addresses = [true: "172.20.10.1"]
+        stage.path.netmasks = [true: "255.255.255.240"]
+        let c = stage.coordinator
+        _ = c.screenAppeared(startsSession: true)
+        let camera = FakeStationCamera(name: "Body A", sightedAt: "172.20.10.2")
+        stage.links[0].place(camera, at: "172.20.10.2")
+        await c.add(camera, slot: 0)
+        let member = c.members[0]
+        #expect(member.publishing)
+        try await stage.tick(.seconds(1))
+        await until { stage.links[0].repairTicks == 1 }
+        #expect(c.ready, "this phone is on its own hotspot")
+        #expect(c.usePhoneHotspot)
+        try await stage.tick(.seconds(46))
+        await until { stage.links[0].repairTicks == 2 }
+        #expect(member.failureMessage == nil, "the hotspot is the stage's network, not a lost one")
+        #expect(!member.budget.exhausted)
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aProbingStageOnThePhonesHotspotSearchesTheHotspotSubnet() async {
+        let stage = Fixture(commissioner: false, networkPath: .either)
+        stage.path.addresses = [true: "172.20.10.1"]
+        stage.path.netmasks = [true: "255.255.255.248"]
+        let c = stage.coordinator
+        _ = c.screenAppeared(startsSession: true)
+        let camera = FakeStationCamera(name: "Body A")
+        stage.links[0].place(camera, at: "172.20.10.3")
+        await c.add(camera, slot: 0)
+        #expect(c.members[0].failureMessage == nil, "not an unsupported subnet")
+        #expect(c.members[0].controlHost == "172.20.10.3")
+        c.stop()
+    }
+
+    @available(macOS 14, *)
     @Test func anUnsupportedSubnetFailsTheAddWithItsCopy() async {
         let stage = Fixture(netmask: "255.255.0.0")
         await stage.configure()
@@ -1027,6 +1065,7 @@ import Testing
         await c.add(camera, slot: 0)
         #expect(c.members[0].controlHost == "192.168.1.13")
         #expect(passive.path.joins.isEmpty, "the phone stays on its own network")
+        #expect(passive.savedNetworks.isEmpty, "a network without a name is never saved")
         c.stop()
     }
 
@@ -1234,7 +1273,7 @@ private final class Fixture {
     init(
         saved: MultiviewStageJournal.Stage? = nil, netmask: String = "255.255.255.248",
         commissioner withCommissioner: Bool = true, discoversByProbe: Bool = true,
-        hostKey: Bool = false
+        hostKey: Bool = false, networkPath: MultiviewNetworkPath = .chosen
     ) {
         path = FakeStationHostPath(netmask: netmask)
         journal = saved
@@ -1267,7 +1306,7 @@ private final class Fixture {
                     return self.passwords["\(ssid)|\(hotspot)"]
                 },
                 save: { [unowned self] in self.savedNetworks.append($0) }),
-            sightingAddress: sighting, clock: clock.clock)
+            sightingAddress: sighting, networkPath: networkPath, clock: clock.clock)
         built.host = host
     }
 

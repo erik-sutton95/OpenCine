@@ -318,6 +318,47 @@ class MultiviewCoordinatorTest {
     }
 
     @Test
+    fun aStageOnThePhonesHotspotWatchesTheHotspot() = runTest {
+        val stage = Fixture(this, commissioner = false, discoversByProbe = false, networkPath = MultiviewNetworkPath.EITHER)
+        stage.path.addresses.clear()
+        stage.path.netmasks.clear()
+        stage.path.addresses[true] = "172.20.10.1"
+        stage.path.netmasks[true] = "255.255.255.240"
+        val c = stage.coordinator
+        c.screenAppeared(startsSession = true)
+        val camera = FakeStationCamera("Body A", sightedAt = "172.20.10.2")
+        stage.links[0].place(camera, "172.20.10.2")
+        c.add(camera, 0)
+        val member = c.members[0]
+        assertTrue(member.publishing)
+        stage.tick()
+        assertEquals(1, stage.links[0].repairTicks)
+        assertTrue(c.ready, "this phone is on its own hotspot")
+        assertTrue(c.usePhoneHotspot)
+        stage.tick(46.seconds)
+        assertNull(member.failureMessage, "the hotspot is the stage's network, not a lost one")
+        assertFalse(member.budget.exhausted)
+        c.stop()
+    }
+
+    @Test
+    fun aProbingStageOnThePhonesHotspotSearchesTheHotspotSubnet() = runTest {
+        val stage = Fixture(this, commissioner = false, networkPath = MultiviewNetworkPath.EITHER)
+        stage.path.addresses.clear()
+        stage.path.netmasks.clear()
+        stage.path.addresses[true] = "172.20.10.1"
+        stage.path.netmasks[true] = "255.255.255.248"
+        val c = stage.coordinator
+        c.screenAppeared(startsSession = true)
+        val camera = FakeStationCamera("Body A")
+        stage.links[0].place(camera, "172.20.10.3")
+        c.add(camera, 0)
+        assertNull(c.members[0].failureMessage, "not an unsupported subnet")
+        assertEquals("172.20.10.3", c.members[0].controlHost)
+        c.stop()
+    }
+
+    @Test
     fun anUnsupportedSubnetFailsTheAddWithItsCopy() = runTest {
         val stage = Fixture(this, netmask = "255.255.0.0")
         stage.configure()
@@ -1007,6 +1048,7 @@ class MultiviewCoordinatorTest {
         c.add(camera, 0)
         assertEquals("192.168.1.13", c.members[0].controlHost)
         assertTrue(passive.path.joins.isEmpty(), "the phone stays on its own network")
+        assertTrue(passive.savedNetworks.isEmpty(), "a network without a name is never saved")
         c.stop()
     }
 
@@ -1290,6 +1332,7 @@ private class Fixture(
     commissioner: Boolean = true,
     discoversByProbe: Boolean = true,
     hostKey: Boolean = false,
+    networkPath: MultiviewNetworkPath = MultiviewNetworkPath.CHOSEN,
 ) {
     val path = FakeStationHostPath(netmask = netmask)
     val commissioner = FakeStationCommissioner()
@@ -1340,6 +1383,7 @@ private class Fixture(
         sightingAddress = { it.sightedAt },
         clock = { test.testScheduler.currentTime },
         monotonic = { MonotonicInstant(test.testScheduler.currentTime.milliseconds) },
+        networkPath = networkPath,
     ).also { it.host = host }
 
     /** Starts the stage and connects it to "Test network" over Wi-Fi. */
