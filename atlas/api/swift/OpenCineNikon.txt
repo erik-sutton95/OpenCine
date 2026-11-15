@@ -235,6 +235,7 @@ case NikonMulticamRefusal.hdmiCapture
 case NikonMulticamRefusal.notReachable
 case NikonMulticamRefusal.photographyMode
 case NikonMultiviewLinkError.notOpen
+case NikonMultiviewLinkError.notPaired
 case NikonMultiviewLinkError.refused(NikonMemberOpenRefusal, Swift.String?)
 case NikonPreviewDemand.Mode.controlOnly
 case NikonPreviewDemand.Mode.covered
@@ -691,7 +692,7 @@ enum NikonMulticamPolicy
 enum NikonMulticamRefusal: Equatable, Hashable, Sendable
 enum NikonMultiview
 enum NikonMultiviewCopy
-enum NikonMultiviewLinkError: Equatable, Error, LocalizedError, Sendable
+enum NikonMultiviewLinkError: Equatable, Error, LocalizedError, MultiviewLinkRefusal, Sendable
 enum NikonPreviewDemand.Mode: Equatable, Hashable, Sendable
 enum NikonRawPreviewLocator
 enum NikonSavedRecordsV0.Extra
@@ -1019,6 +1020,7 @@ func NikonMonitorRuntime.startKeepAlive(isBusy: () -> Swift.Bool, failures: (Swi
 func NikonMonitorRuntime.startPreview(bootstrap: () async -> Swift.Void, demand: () -> NikonPreviewDemand, consume: (PTPLiveViewFrame, NikonLiveViewPump.Delivery) async -> Swift.Bool, safePoint: (Swift.Int, Swift.Bool) async -> Swift.Void, applied: (NikonPreviewDemand) -> Swift.Void, resetCadence: () -> Swift.Void, health: (NikonLiveViewPump.Health) -> Swift.Void, event: (NikonMonitorRuntime.PreviewEvent) -> Swift.Void) -> ()
 func NikonMonitorRuntime.stopPreview() -> _Concurrency.Task<Swift.Void, Swift.Never>?
 func NikonMonitorRuntime.updateFacts(_: NikonControlFacts) -> ()
+func NikonMultiviewLink.awaitClosed()<Transport where Transport : NikonMultiviewTransport> async -> ()
 func NikonMultiviewLink.close()<Transport where Transport : NikonMultiviewTransport> -> ()
 func NikonMultiviewLink.keepalive()<Transport where Transport : NikonMultiviewTransport> async -> ()
 func NikonMultiviewLink.lend()<Transport where Transport : NikonMultiviewTransport> -> Transport?
@@ -1194,7 +1196,7 @@ init NikonMonitorRelayState(recordState: RecordState, resolutionFrameRate: Swift
 init NikonMonitorRelayState.Value(label: Swift.String, value: Swift.String)
 init NikonMonitorRuntime(link: any NikonMonitorLink, ownsLink: Swift.Bool, facts: NikonControlFacts, backgroundSleep: (Swift.Duration) async -> Swift.Void, now: () -> OpenCineCore.MonotonicInstant)
 init NikonMultiviewCamera(host: Swift.String, name: Swift.String, heldByAnotherDevice: Swift.Bool, holder: Swift.String?)
-init NikonMultiviewLink(opener: NikonMemberOpener<Transport>, conversion: (NikonMovieTone) -> Swift.String?, whiteBalancePresets: [Swift.String], isCameraRefusal: (any Swift.Error) -> Swift.Bool, clock: OpenCineCore.HostClock, frameDeadline: Swift.Duration, framePace: (() -> Swift.Duration)?, pollInterval: Swift.Duration, repair: NikonMemberRepair)<Transport where Transport : NikonMultiviewTransport>
+init NikonMultiviewLink(opener: NikonMemberOpener<Transport>, conversion: (NikonMovieTone) -> Swift.String?, whiteBalancePresets: [Swift.String], isCameraRefusal: (any Swift.Error) -> Swift.Bool, isLinkFailure: (any Swift.Error) -> Swift.Bool, clock: OpenCineCore.HostClock, frameDeadline: Swift.Duration, framePace: (() -> Swift.Duration)?, pollInterval: Swift.Duration, repair: NikonMemberRepair)<Transport where Transport : NikonMultiviewTransport>
 init NikonMultiviewSavedSetup(host: Swift.String, name: Swift.String)
 init NikonMultiviewScanner(sightings: ([Swift.String], Swift.Set<Swift.String>) async -> [DiscoveredCamera], saved: () -> [NikonMultiviewSavedSetup], excludedHosts: () -> Swift.Set<Swift.String>, interval: Swift.Duration, sleep: (Swift.Duration) async throws -> Swift.Void)
 init NikonPresence(deviceName: Swift.String, servedCamera: Swift.String?, line: Foundation.Data?)
@@ -1887,6 +1889,7 @@ static func NikonMulticamPolicy.refusal(path: CameraPath?, reachable: Swift.Bool
 static func NikonMultiview.addList(sightings: [DiscoveredCamera], saved: [NikonMultiviewSavedSetup], excludedHosts: Swift.Set<Swift.String>) -> [NikonMultiviewCamera]
 static func NikonMultiview.address(_: Swift.String) -> Swift.String?
 static func NikonMultiviewCopy.heldBy(_: Swift.String?) -> Swift.String
+static func NikonMultiviewLinkError.connectFailure(_: any Swift.Error) -> NikonMultiviewLinkError?
 static func NikonRawPreviewLocator.largestPreview(inHead: [Swift.UInt8], objectSize: Swift.UInt32?) -> NikonEmbeddedPreviewRange?
 static func NikonRawPreviewLocator.taggingOrientation(_: Foundation.Data, orientation: Swift.UInt16?) -> Foundation.Data
 static func NikonRelayPresence.decode(_: Foundation.Data) -> NikonRelayPresence?
@@ -2572,6 +2575,7 @@ var NikonMultiviewLink.storage: PTPStorageInfo?
 var NikonMultiviewLink.timecode: Timecode?
 var NikonMultiviewLink.transport: Transport?
 var NikonMultiviewLinkError.errorDescription: Swift.String?
+var NikonMultiviewLinkError.operatorMessage: Swift.String
 var NikonMultiviewSavedSetup.host: Swift.String
 var NikonMultiviewSavedSetup.name: Swift.String
 var NikonMultiviewTransport.serialNumber: Swift.String

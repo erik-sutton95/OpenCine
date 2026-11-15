@@ -2442,6 +2442,7 @@ public final class com/opencapture/opencine/nikon/NikonMultiviewKt {
 public final class com/opencapture/opencine/nikon/NikonMultiviewLink : com/opencapture/opencine/core/MultiviewMemberLink {
 	public synthetic fun <init> (Lcom/opencapture/opencine/nikon/NikonMemberOpener;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;JLkotlin/jvm/functions/Function0;JLcom/opencapture/opencine/nikon/NikonMemberRepair;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Lcom/opencapture/opencine/nikon/NikonMemberOpener;Lkotlinx/coroutines/CoroutineScope;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;JLkotlin/jvm/functions/Function0;JLcom/opencapture/opencine/nikon/NikonMemberRepair;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun awaitClosed (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun close ()V
 	public fun getAutoLUT ()Lcom/opencapture/opencine/core/MultiviewAutoLUT;
 	public final fun getControl ()Lcom/opencapture/opencine/nikon/NikonOpenCineSession;
@@ -2471,12 +2472,25 @@ public final class com/opencapture/opencine/nikon/NikonMultiviewLink : com/openc
 	public synthetic fun startPreview (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public abstract class com/opencapture/opencine/nikon/NikonMultiviewLinkError : java/lang/Exception {
+public abstract class com/opencapture/opencine/nikon/NikonMultiviewLinkError : java/lang/Exception, com/opencapture/opencine/core/MultiviewLinkRefusal {
+	public static final field Companion Lcom/opencapture/opencine/nikon/NikonMultiviewLinkError$Companion;
 	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getOperatorMessage ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewLinkError$Companion {
+	public final fun connectFailure (Lcom/opencapture/opencine/nikon/CameraConnectionFailure;)Lcom/opencapture/opencine/nikon/NikonMultiviewLinkError;
 }
 
 public final class com/opencapture/opencine/nikon/NikonMultiviewLinkError$NotOpen : com/opencapture/opencine/nikon/NikonMultiviewLinkError {
 	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMultiviewLinkError$NotOpen;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/nikon/NikonMultiviewLinkError$NotPaired : com/opencapture/opencine/nikon/NikonMultiviewLinkError {
+	public static final field INSTANCE Lcom/opencapture/opencine/nikon/NikonMultiviewLinkError$NotPaired;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
