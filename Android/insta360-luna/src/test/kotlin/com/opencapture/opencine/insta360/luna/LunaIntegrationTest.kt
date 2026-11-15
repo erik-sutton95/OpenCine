@@ -1,5 +1,6 @@
 package com.opencapture.opencine.insta360.luna
 
+import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.media.CameraMediaService
@@ -36,6 +37,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -104,6 +106,15 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     override fun openSession(): CameraSession = FakeCameraSession.lunaLike()
     override fun mediaService(session: CameraSessionID): CameraMediaService? = makeMediaService?.invoke(session)
     override suspend fun forget(id: String) { forgotten += id }
+    /** What the next returns to the access point answer, in order; returned once empty. */
+    val accessPointReturns = ArrayDeque<LunaAccessPointReturn>()
+    /** Every camera asked back onto its own access point, in order. */
+    val returns = mutableListOf<String>()
+    override suspend fun returnToAccessPoint(id: String): LunaAccessPointReturn {
+        disconnect()
+        returns += id
+        return accessPointReturns.removeFirstOrNull() ?: LunaAccessPointReturn.Returned
+    }
 }
 
 /** Swift suite `LunaIntegrationTests`, same method names. */
@@ -468,6 +479,126 @@ class LunaIntegrationTest {
         assertEquals(2, port.connects.size)
     }
 
+    /**
+     * Multiview's add: a camera seen over Bluetooth (not yet saved) goes straight onto the shared
+     * network. The setup's password is kept, the record is saved once the camera moves (so a later
+     * connect can ask it back), and the connected record has the camera's own Wi-Fi and the setup,
+     * the setup preferred.
+     */
+    @Test
+    fun aNearbyCameraConnectsStraightOntoAWiFiSetup() = runTest {
+        val (port, luna) = setup()
+        val stamped = mutableListOf<SavedCamera>()
+        luna.saveRecord = { stamped += it }
+        val events = collect(luna.connect(sighting, onto = LunaStationNetwork("Studio", "synthetic1", hotspot = false)))
+        runCurrent()
+        assertTrue(port.connects == listOf(camera) && port.routes == listOf(station("Studio", "synthetic1")))
+        assertEquals("synthetic1", port.stationPassword("Studio", hotspot = false))
+        port.phase.value = ConnectionPhase.CONNECTING_GATT
+        runCurrent()
+        port.phase.value = ConnectionPhase.AWAITING_APPROVAL
+        runCurrent()
+        assertTrue(stamped.isEmpty(), "nothing is saved before the camera moves")
+        port.phase.value = ConnectionPhase.JOINING_WIFI
+        runCurrent()
+        assertEquals(1, stamped.size)
+        val remembered = stamped.last()
+        val wifi = remembered.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        assertTrue(remembered.id == camera && remembered.preferredRoute == wifi.id, "remembered before the camera moves")
+        port.joinedSSID.value = "LUNA-1A2B"
+        port.goLive()
+        runCurrent()
+        val live = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+        assertEquals(listOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK), live.routes.map { it.kind })
+        assertTrue(live.preferredRoute == live.routes[1].id && live.routes[1].network == "Studio")
+        assertEquals("LUNA-1A2B", live.routes[0].network)
+        assertTrue(live.advertisedName == "Luna 1A2B" && live.model == "Insta360 Luna Ultra")
+    }
+
+    /**
+     * A sighting the operator cannot reach or does not approve never becomes a saved camera: the
+     * attempt failed before the camera moved, so there is nothing to ask back later.
+     */
+    @Test
+    fun aNearbyCameraThatFailsBeforeItMovesLeavesNoRecord() = runTest {
+        val (port, luna) = setup()
+        val stamped = mutableListOf<SavedCamera>()
+        luna.saveRecord = { stamped += it }
+        val events = collect(luna.connect(sighting, onto = LunaStationNetwork("Studio", "synthetic1", hotspot = false)))
+        runCurrent()
+        port.phase.value = ConnectionPhase.CONNECTING_GATT
+        runCurrent()
+        port.phase.value = ConnectionPhase.AWAITING_APPROVAL
+        runCurrent()
+        port.fail(LunaFailures.connect(ConnectionPhase.AWAITING_APPROVAL))
+        runCurrent()
+        assertEquals(ConnectionFailure.Reason.NotApproved, assertIs<ConnectionEvent.Failed>(events.last()).failure.reason)
+        assertTrue(stamped.isEmpty(), "no record for a camera that never moved")
+
+        // A network the camera cannot use fails on the network step, before Bluetooth starts.
+        val unusable = LunaStationNetwork("Studio", "short", hotspot = false)
+        val refused = assertFailsWith<LunaStationFailure> { LunaStationJoin.check(unusable) }.failure
+        val again = collect(luna.connect(sighting, onto = unusable))
+        runCurrent()
+        port.fail(refused)
+        runCurrent()
+        assertEquals(refused.code, assertIs<ConnectionEvent.Failed>(again.last()).failure.code)
+        assertTrue(stamped.isEmpty(), "no record for a camera the network step never moved")
+    }
+
+    /**
+     * A sighting that is already a saved camera goes onto the network as an added setup on its own
+     * record: its camera Wi-Fi, its other setups and its serial stay. Without that record the target
+     * is refused, since a record made from the sighting would replace the saved one.
+     */
+    @Test
+    fun aSavedNearbyCameraKeepsItsRecordOnANetwork() = runTest {
+        val (port, luna) = setup()
+        val stamped = mutableListOf<SavedCamera>()
+        luna.saveRecord = { stamped += it }
+        val saved = SavedCamera(
+            id = camera, integration = luna.id, device = CameraDeviceID.durable("SN-LUNA", luna.id),
+            advertisedName = "Luna 1A2B", model = "Insta360 Luna Ultra",
+            routes = listOf(ap, SavedRoute(key = "hotspot", kind = RouteKind.PHONE_HOTSPOT, network = "Rig phone", bluetooth = true)),
+        )
+        val nearby = sighting.copy(savedID = saved.id)
+        val studio = LunaStationNetwork("Studio", "synthetic1", hotspot = false)
+        assertNull(LunaIntegration.target(nearby, studio))
+        val refused = collect(luna.connect(nearby, onto = studio))
+        runCurrent()
+        assertIs<ConnectionEvent.Failed>(refused.single())
+        assertTrue(port.connects.isEmpty() && stamped.isEmpty(), "the saved camera is never replaced")
+
+        val events = collect(luna.connect(nearby, onto = studio, saved = saved))
+        runCurrent()
+        assertEquals(listOf(station("Studio", "synthetic1")), port.routes)
+        val remembered = stamped.last()
+        assertEquals(
+            listOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.PHONE_HOTSPOT, RouteKind.INFRASTRUCTURE_NETWORK),
+            remembered.routes.map { it.kind }, "a saved camera's record remembers the move at once, as Add setup does",
+        )
+        assertEquals(saved.device, remembered.device)
+        port.goLive()
+        runCurrent()
+        val live = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+        assertEquals(listOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.PHONE_HOTSPOT, RouteKind.INFRASTRUCTURE_NETWORK), live.routes.map { it.kind })
+        assertTrue(live.routes[0].network == "LUNA-1A2B" && live.device == saved.device)
+        assertEquals(live.routes[2].id, live.preferredRoute)
+    }
+
+    @Test
+    fun aNearbyCameraConnectsStraightOntoThisPhonesHotspot() = runTest {
+        val (port, luna) = setup()
+        val events = collect(luna.connect(sighting, onto = LunaStationNetwork("Rig iPhone", "synthetic2", hotspot = true)))
+        runCurrent()
+        assertEquals(listOf(station("Rig iPhone", "synthetic2", hotspot = true)), port.routes)
+        port.goLive()
+        runCurrent()
+        val record = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+        val hotspot = record.routes.first { it.kind == RouteKind.PHONE_HOTSPOT }
+        assertTrue(hotspot.network == "Rig iPhone" && record.preferredRoute == hotspot.id)
+    }
+
     /** An attempt starts when collected: the consumer replaces one that has not started by cancelling it. */
     @Test
     fun replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() = runTest {
@@ -493,6 +624,31 @@ class LunaIntegrationTest {
         job.cancel()
         runCurrent()
         assertEquals(before + 1, port.disconnects)
+    }
+
+    /**
+     * Multiview's close asks each camera back onto its own Wi-Fi. One backend, one link: an attempt
+     * in flight ends first, and the backend's answer (here: still switching) is the caller's to retry.
+     */
+    @Test
+    fun returningToTheAccessPointEndsAnAttemptAndAsksTheBackend() = runTest {
+        val (port, luna) = setup()
+        val events = collect(luna.connect(ConnectTarget.Nearby(sighting)))
+        runCurrent()
+        assertEquals(listOf(camera), port.connects)
+        val busy = LunaAccessPointReturn.Deferred(LunaAccessPointReturn.cameraBusy)
+        port.accessPointReturns += busy
+        val saved = SavedCamera(id = camera, integration = luna.id, advertisedName = "Luna 1A2B", model = "Insta360 Luna Ultra")
+        assertEquals(busy, luna.returnToAccessPoint(saved))
+        runCurrent()
+        assertTrue(port.returns == listOf(camera) && port.disconnects >= 1)
+        assertTrue(events.none { it is ConnectionEvent.Connected }, "the ended attempt must not connect")
+        val unknown = SavedCamera(id = "6F9619FF-8B86-D011-B42D-00C04FC964FF", integration = luna.id, advertisedName = "", model = "")
+        assertTrue(!luna.returnToAccessPoint(unknown).isRetryable)
+        // Android takes a Bluetooth address in uppercase only.
+        val lowercase = unknown.copy(id = camera.lowercase())
+        assertTrue(!luna.returnToAccessPoint(lowercase).isRetryable)
+        assertEquals(listOf(camera), port.returns, "a record that is no Luna camera id never reaches the backend")
     }
 
     @Test
