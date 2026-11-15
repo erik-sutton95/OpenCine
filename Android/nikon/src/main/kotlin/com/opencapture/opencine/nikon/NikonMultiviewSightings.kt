@@ -157,7 +157,11 @@ public class NikonMultiviewScanner(
             val keys = excluded.map(NikonMultiview::hostKey).toSet()
             val rows = sightings(setups.map { it.host }.filter { NikonMultiview.hostKey(it) !in keys }, excluded)
             if (!current()) return
-            for (camera in NikonMultiview.addList(rows, setups, excluded)) found(camera)
+            // A held body is not reported: the coordinator keeps a camera's first report, so a body
+            // released later appears as a new camera on the next pass.
+            for (camera in NikonMultiview.addList(rows, setups, excluded)) {
+                if (!camera.heldByAnotherDevice) found(camera)
+            }
             sleep(interval)
         }
     }

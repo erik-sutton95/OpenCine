@@ -117,7 +117,8 @@ public enum NikonMultiview {
 /// passes (`NikonDiscovery.multiviewSightings`: no control-port dial, no PTP byte) merged with the
 /// saved setups, reported as the shared `NearbyCameraScanner` reports cameras, until `stop()` or
 /// cancellation. Hosts in `excludedHosts` (members and this app's own Live View) are neither dialled
-/// nor listed.
+/// nor listed. A body another device holds is not reported: the coordinator keeps a camera's first
+/// report, so a body released later appears as a new camera on the next pass.
 public final class NikonMultiviewScanner: NearbyCameraScanner, @unchecked Sendable {
     public typealias Camera = NikonMultiviewCamera
     // SAFETY: `@unchecked Sendable`: the only mutable state is `generation`, guarded by `lock`.
@@ -160,7 +161,8 @@ public final class NikonMultiviewScanner: NearbyCameraScanner, @unchecked Sendab
             let rows = await sightings(
                 setups.map(\.host).filter { !keys.contains(NikonDiscovery.hostKey($0)) }, excluded)
             guard current() else { return }
-            for camera in NikonMultiview.addList(sightings: rows, saved: setups, excludedHosts: excluded) {
+            for camera in NikonMultiview.addList(sightings: rows, saved: setups, excludedHosts: excluded)
+            where !camera.heldByAnotherDevice {
                 await found(camera)
             }
             do { try await sleep(interval) } catch { return }

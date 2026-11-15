@@ -46,7 +46,15 @@ import Testing
         let scanner = NikonMultiviewScanner(
             sightings: { saved, excluded in
                 asked.append((saved, excluded))
-                return [DiscoveredCamera(ip: "192.168.1.20", name: "Z 8", source: .bonjour)]
+                // Another phone holds the body at .22 on the first pass and releases it.
+                let released = asked.values.count > 1
+                return [
+                    DiscoveredCamera(ip: "192.168.1.20", name: "Z 8", source: .bonjour),
+                    released
+                        ? DiscoveredCamera(ip: "192.168.1.22", name: "Z 6III", source: .bonjour)
+                        : DiscoveredCamera(
+                            ip: "192.168.1.22", source: .heldByAnotherDevice, heldByDeviceName: "iPad"),
+                ]
             },
             saved: {
                 [
@@ -63,7 +71,9 @@ import Testing
         #expect(asked.values.first?.1 == ["192.168.1.23"])
         clock.advance(by: .seconds(3))
         try await clock.waitForSleeps(1)
-        #expect(found.values == ["192.168.1.20", "192.168.1.21", "192.168.1.20", "192.168.1.21"])
+        #expect(
+            found.values == ["192.168.1.20", "192.168.1.21", "192.168.1.20", "192.168.1.22", "192.168.1.21"],
+            "a held body is not offered; once released it is")
         scanner.stop()
         clock.advance(by: .seconds(3))
         await scan.value
@@ -102,6 +112,10 @@ import Testing
 
         /// The next frame request times out.
         func miss() { deliver(.failure(Down())) }
+
+        /// The next frame request finds the socket closed (the transport closes it at a frame
+        /// deadline, or the body hung up).
+        func lose() { deliver(.failure(NativeCameraSessionError.connectionClosed)) }
 
         private func deliver(_ result: Result<PTPLiveViewFrame, Error>) {
             let waiting = lock.withLock { () -> CheckedContinuation<Result<PTPLiveViewFrame, Error>, Never>? in
@@ -163,6 +177,8 @@ import Testing
         let clock = ManualHostClock()
         var bodies: [String: Body] = [:]
         var holders: [String: String] = [:]
+        /// What a dial of a host throws (a body that does not know this phone, say).
+        var dialErrors: [String: Error] = [:]
         var connects: [String] = []
         var connectGate: FakeGate?
         var statuses: [MultiviewLinkStatus] = []
@@ -179,6 +195,7 @@ import Testing
         private func connect(_ host: String) async throws -> Body {
             connects.append(host)
             if let connectGate { await connectGate.wait() }
+            if let error = dialErrors[host] { throw error }
             guard let body = bodies[host] else { throw Down() }
             return body
         }
@@ -263,6 +280,19 @@ import Testing
         }
         #expect(!rig.connects.contains("192.168.1.21"), "a body another device holds is never dialled")
         #expect(await link.probe("192.168.1.22", on: Rig.network) == false)
+
+        rig.dialErrors["192.168.1.24"] = NativeCameraSessionError.savedProfileRequired
+        let unpaired = NikonMultiviewCamera(host: "192.168.1.24", name: "Z f")
+        await #expect(throws: NikonMultiviewLinkError.notPaired) {
+            try await link.open(unpaired, at: "192.168.1.24", expecting: nil, on: Rig.network)
+        }
+        #expect(
+            NikonMultiviewLinkError.notPaired.operatorMessage
+                == "This camera is not paired with this phone. Pair it in Your cameras, then tap Reconnect.")
+        #expect(
+            NikonMultiviewLinkError.connectFailure(NativeCameraSessionError.initFailed(.busy))
+                == .refused(.heldByAnotherDevice, heldBy: nil))
+        #expect(NikonMultiviewLinkError.connectFailure(Down()) == nil, "a silent dial is not found")
     }
 
     @MainActor @Test func thePumpPublishesFramesRecordStateAndTheToneLUT() async throws {
@@ -325,6 +355,71 @@ import Testing
         link.close()
     }
 
+    @MainActor @Test func aRestartWithoutANewFrameReopens() async throws {
+        let rig = Rig()
+        let body = Body(serial: "3001")
+        let link = try await rig.live(body)
+        let recordedAt = link.recordReport?.receivedAt
+        try await rig.stall(link, body)
+        let budget = Budget(2)
+        guard case .repair(let restart) = link.repair(budget.context) else {
+            Issue.record("a stall repairs")
+            return
+        }
+        #expect(await restart() == .done)
+        #expect(link.pictureHealth != .live, "a restart is not a picture")
+        let before = rig.statuses.count
+        try await rig.stall(link, body)
+        await until { rig.statuses.count > before && rig.statuses.last == .reconnecting }
+        #expect(link.recordReport?.receivedAt == recordedAt, "no fresh record state without a frame")
+        guard case .handled = link.repair(budget.context) else {
+            Issue.record("the ladder waits out the settle")
+            return
+        }
+        rig.clock.advance(by: .milliseconds(1_200))
+        guard case .repair(let reopen) = link.repair(budget.context) else {
+            Issue.record("the ladder escalates to a reopen")
+            return
+        }
+        let reopening = Task { await reopen() }
+        try await rig.clock.waitForSleeps(1)  // the opener's settle after it closed the old link
+        rig.clock.advance(by: .milliseconds(1_200))
+        #expect(await reopening.value == .done)
+        #expect(rig.connects.count == 2, "a reopen is a new Init")
+        #expect(budget.asked == 2)
+        body.frame()
+        await until { link.pictureHealth == .live }
+        link.close()
+    }
+
+    @MainActor @Test func aDeadLinkReopensWithoutARestart() async throws {
+        let rig = Rig()
+        let body = Body(serial: "3001")
+        let link = try await rig.live(body)
+        body.lose()
+        await until { link.pictureHealth == .stalled }
+        #expect(rig.statuses.last == .reconnecting)
+        await until { body.log.contains("shutdown") }
+        #expect(link.transport == nil, "the dead link is closed through the opener")
+        let budget = Budget(2)
+        guard case .handled = link.repair(budget.context) else {
+            Issue.record("the ladder waits out the settle")
+            return
+        }
+        rig.clock.advance(by: .milliseconds(1_200))
+        guard case .repair(let reopen) = link.repair(budget.context) else {
+            Issue.record("a dead link reopens, no restart on its socket")
+            return
+        }
+        #expect(await reopen() == .done)
+        #expect(rig.connects.count == 2)
+        #expect(budget.asked == 1, "both of the budget's attempts stay for reopens")
+        #expect(body.log.filter { $0 == "startLiveView" }.count == 2)
+        body.frame()
+        await until { link.pictureHealth == .live }
+        link.close()
+    }
+
     @MainActor @Test func aLostLinkReopensTheSameBodyAfterTheSettle() async throws {
         let rig = Rig()
         let body = Body(serial: "3001")
@@ -332,6 +427,7 @@ import Testing
         let first = link.session.id
         _ = link.lend()
         link.reclaim(nil)  // Live View lost the session
+        await until { body.log.contains("shutdown") }  // closed through the opener: its settle
         let budget = Budget(2)
         guard case .handled = link.repair(budget.context) else {
             Issue.record("the ladder waits out the settle")
@@ -354,6 +450,7 @@ import Testing
         rig.bodies["192.168.1.20"] = Body(serial: "4002")
         _ = link.lend()
         link.reclaim(nil)
+        await until { body.log.filter { $0 == "shutdown" }.count == 2 }
         rig.clock.advance(by: .milliseconds(1_200))
         guard case .repair(let other) = link.repair(budget.context) else {
             Issue.record("a lost link reopens")
@@ -371,9 +468,11 @@ import Testing
         try await rig.stall(link, body)
         #expect(verdict(link.repair(Budget(0).context)) == NikonMultiviewCopy.couldNotRestore)
 
-        let taken = try await rig.live(Body(serial: "3002"))
+        let held = Body(serial: "3002")
+        let taken = try await rig.live(held)
         _ = taken.lend()
         taken.reclaim(nil)
+        await until { held.log.contains("shutdown") }
         rig.holders["192.168.1.20"] = "iPad"
         rig.clock.advance(by: .milliseconds(1_200))
         let budget = Budget(3)
@@ -393,6 +492,7 @@ import Testing
         let link = try await rig.live(body)
         _ = link.lend()
         link.reclaim(nil)
+        await until { body.log.contains("shutdown") }
         rig.clock.advance(by: .milliseconds(1_200))
         let gate = FakeGate()
         rig.connectGate = gate
@@ -405,7 +505,7 @@ import Testing
         repair.cancel()  // the coordinator's repair deadline gave up on it
         gate.open()
         _ = await repair.value
-        await until { body.log.filter { $0 == "shutdown" }.count == 1 }
+        await until { body.log.filter { $0 == "shutdown" }.count == 2 }
         #expect(link.transport == nil, "the late link is not attached")
     }
 

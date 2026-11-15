@@ -77,8 +77,9 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
   `RecoveryLedger` (the tile repair ladder keeps its own budget) and
   `GroupSummary`.
 - Nikon (shared Multiview Plan 6): OpenZCine runs the shared `MultiviewCoordinator` over four
-  OpenCineNikon `NikonMultiviewLink`s, without a commissioner. Each member is keyed by its body
-  serial with a `NikonCameraSession` over a `NikonMemberControl` per opened link. Group record is
+  OpenCineNikon `NikonMultiviewLink`s, without a commissioner. A member's stage id is fixed by its
+  host; its body serial (GetDeviceInfo after OpenSession) is the identity every reopen checks, with
+  a `NikonCameraSession` over a `NikonMemberControl` per opened link. Group record is
   the coordinator's strict plan; members come from passive sightings (`NikonMultiviewScanner`,
   `NikonDiscovery.multiviewSightings`, member hosts excluded) and saved router and hotspot
   setups, only the picked body is opened (`NikonMemberOpener`: serial identity check, 1200 ms

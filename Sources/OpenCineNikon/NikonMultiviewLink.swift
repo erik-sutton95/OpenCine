@@ -28,13 +28,32 @@ public protocol NikonMultiviewTransport: NikonControlTransport {
     }
 #endif
 
-/// Why a Nikon member link did not open, with its operator copy. Kotlin twin:
-/// `NikonMultiviewLinkError`.
-public enum NikonMultiviewLinkError: LocalizedError, Equatable, Sendable {
+/// Why a Nikon member link did not open, with its operator copy (the shared coordinator shows it
+/// on the tile: `MultiviewLinkRefusal`). Kotlin twin: `NikonMultiviewLinkError`.
+public enum NikonMultiviewLinkError: LocalizedError, Equatable, Sendable, MultiviewLinkRefusal {
     /// `NikonMemberOpener` refused the body (`heldBy` for `.heldByAnotherDevice`).
     case refused(NikonMemberOpenRefusal, heldBy: String?)
     /// `startPreview` found no open link.
     case notOpen
+    /// The body does not know this phone: it is paired in the app's camera list first.
+    case notPaired
+
+    /// The refusal a failed connect means for the operator, nil for a dial that simply failed
+    /// (the coordinator then says it could not find the camera): a body that does not know this
+    /// phone, or one another device took between the holder check and the Init.
+    public static func connectFailure(_ error: any Error) -> NikonMultiviewLinkError? {
+        switch error {
+        case let refusal as NikonMultiviewLinkError: refusal
+        case NativeCameraSessionError.savedProfileRequired, NativeCameraSessionError.pairingRejected,
+            NativeCameraSessionError.pairingChallengeUnavailable,
+            NativeCameraSessionError.initFailed(.rejectedInitiator):
+            .notPaired
+        case NativeCameraSessionError.initFailed(.busy): .refused(.heldByAnotherDevice, heldBy: nil)
+        default: nil
+        }
+    }
+
+    public var operatorMessage: String { errorDescription ?? "" }
 
     public var errorDescription: String? {
         switch self {
@@ -47,6 +66,8 @@ public enum NikonMultiviewLinkError: LocalizedError, Equatable, Sendable {
         case .refused(.noIdentity, _):
             "This camera did not report its serial number, so Multiview cannot tell it from others."
         case .notOpen: "Could not connect preview."
+        case .notPaired:
+            "This camera is not paired with this phone. Pair it in Your cameras, then tap Reconnect."
         }
     }
 }
@@ -96,6 +117,7 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
     private let conversion: @Sendable (NikonMovieTone) -> String?
     private let whiteBalancePresets: [String]
     private let isCameraRefusal: @Sendable (any Error) -> Bool
+    private let isLinkFailure: @Sendable (any Error) -> Bool
     private let clock: HostClock
     private let frameDeadline: Duration
     private let framePace: @MainActor () -> Duration
@@ -134,11 +156,17 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
     /// - `opener`: the stage's one opener (every link of a stage shares it).
     /// - `conversion`: the app's look title for a recording tone, nil when none is needed.
     /// - `framePace`: the pause after each frame (the app sheds non-program cadence under load).
+    /// - `isLinkFailure`: a frame fetch that failed this way lost the link (the transport closed its
+    ///   socket at the frame deadline, or the body hung up): the ladder reopens at once instead of
+    ///   restarting live view on a dead socket.
     public init(
         opener: NikonMemberOpener<Transport>,
         conversion: @escaping @Sendable (NikonMovieTone) -> String?,
         whiteBalancePresets: [String] = [],
         isCameraRefusal: @escaping @Sendable (any Error) -> Bool,
+        isLinkFailure: @escaping @Sendable (any Error) -> Bool = {
+            NativeCameraSessionError.isLinkFailure($0)
+        },
         clock: HostClock = .live,
         frameDeadline: Duration = .seconds(10),
         framePace: (@MainActor () -> Duration)? = nil,
@@ -149,6 +177,7 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
         self.conversion = conversion
         self.whiteBalancePresets = whiteBalancePresets
         self.isCameraRefusal = isCameraRefusal
+        self.isLinkFailure = isLinkFailure
         self.clock = clock
         self.frameDeadline = frameDeadline
         self.framePace = framePace ?? { .milliseconds(41) }
@@ -189,8 +218,13 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
         let mine = generation
         onStatus?(.opening)
         let expected = identity.map { String(decoding: $0, as: UTF8.self) }
-        let result = try await opener.open(
-            host: address, expectedSerial: expected, members: [], hostsInUse: [])
+        let result: NikonMemberOpenResult<Transport>
+        do {
+            result = try await opener.open(
+                host: address, expectedSerial: expected, members: [], hostsInUse: [])
+        } catch {
+            throw NikonMultiviewLinkError.connectFailure(error) ?? error
+        }
         guard case .opened(let opened, let device) = result else {
             holder = result.heldBy
             throw NikonMultiviewLinkError.refused(result.refusal ?? .hostInUse, heldBy: result.heldBy)
@@ -240,6 +274,13 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
             await transport.stopLiveView()
             await opener.close(transport, host: host)
         }
+    }
+
+    /// Returns once every close this link started has reached the opener (CloseSession sent or
+    /// given up): the app's own single-camera connect waits for it, then the settle, before it
+    /// dials a body a member held.
+    public func awaitClosed() async {
+        await closing?.value
     }
 
     public func repair(_ context: MultiviewRepairContext) -> MultiviewRepairStep {
@@ -300,8 +341,12 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
         pump = nil
         control?.session.close(.linkLost)
         control = nil
+        let lost = transport
         transport = nil
         let now = clock.now()
+        // The Live View lost it: close it through the opener, so the reopen waits out the settle
+        // after this close, not one the opener never saw.
+        if returned == nil, let lost { drop(lost) }
         if let returned {
             let body = NikonMulticamPolicy.device(serialNumber: returned.serialNumber)
             if body == device, let device {
@@ -378,6 +423,10 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
             } catch {
                 guard current(mine) else { return }
                 control.update { $0.liveViewReady = false }
+                if isLinkFailure(error) {
+                    lost()
+                    return
+                }
                 missedFrames += 1
                 ladder.frameMissed(at: clock.now())
                 if missedFrames >= NikonMemberRepair.missedFramesForStall {
@@ -390,6 +439,18 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
             let pace = framePace()
             if pace > .zero { try? await clock.sleep(pace) }
         }
+    }
+
+    /// The pump found the link dead: it is closed through the opener now (its settle runs beside
+    /// the ladder's) and the coordinator's next repair tick reopens after the settle.
+    private func lost() {
+        if let transport {
+            self.transport = nil
+            drop(transport)
+        }
+        pictureHealth = .stalled
+        ladder.linkLost(at: clock.now())
+        onStatus?(.reconnecting)
     }
 
     /// The pump stopped on a stall: the coordinator's next repair tick runs the ladder.
@@ -443,8 +504,21 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
         }
     }
 
+    /// Closes a link that is no longer this member's through the opener, after any close before
+    /// it; the next open or reopen waits for it.
+    private func drop(_ link: Transport) {
+        let opener = opener
+        let host = host
+        let previous = closing
+        closing = Task {
+            await previous?.value
+            await opener.close(link, host: host)
+        }
+    }
+
     // MARK: Repair steps
 
+    /// Ends live view and starts it again on the same session: no new Init.
     private func restartLiveView() async {
         guard let transport, control != nil else {
             ladder.attemptFailed(at: clock.now())
@@ -457,7 +531,8 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
         do {
             try await transport.startLiveView()
             guard mine == generation, !Task.isCancelled else { return }
-            ladder.attemptSucceeded()
+            // The restart counts only when a new picture arrives (`frameArrived` ends the episode);
+            // without one the restarted pump stalls again and the ladder reopens.
             missedFrames = 0
             onStatus?(.awaitingPicture)
             startPump(restartingLiveView: false)
@@ -484,6 +559,9 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
             transport = nil
             await opener.close(old, host: host)
         }
+        // A link dropped earlier (lost, or lost in Live View) finishes closing first: the opener's
+        // settle starts at its close.
+        if let closing { await closing.value }
         do {
             let result = try await opener.reopen(device, host: host, members: [], hostsInUse: [])
             switch result {

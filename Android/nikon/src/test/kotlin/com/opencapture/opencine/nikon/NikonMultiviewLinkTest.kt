@@ -90,7 +90,16 @@ class NikonMultiviewLinkTest {
         val scanner = NikonMultiviewScanner(
             sightings = { saved, excluded ->
                 asked += saved to excluded
-                listOf(NikonSighting("192.168.1.20", "Z 8", NikonSighting.Source.NETWORK))
+                // Another phone holds the body at .22 on the first pass and releases it.
+                val released = asked.size > 1
+                listOf(
+                    NikonSighting("192.168.1.20", "Z 8", NikonSighting.Source.NETWORK),
+                    if (released) {
+                        NikonSighting("192.168.1.22", "Z 6III", NikonSighting.Source.NETWORK)
+                    } else {
+                        NikonSighting("192.168.1.22", null, NikonSighting.Source.HELD_BY_ANOTHER_DEVICE, heldBy = "iPad")
+                    },
+                )
             },
             saved = {
                 listOf(NikonMultiviewSavedSetup("192.168.1.21", "ZR"), NikonMultiviewSavedSetup("192.168.1.23", "Member"))
@@ -105,7 +114,11 @@ class NikonMultiviewLinkTest {
         assertEquals(setOf("192.168.1.23"), asked.first().second)
         advanceTimeBy(3.seconds)
         runCurrent()
-        assertEquals(listOf("192.168.1.20", "192.168.1.21", "192.168.1.20", "192.168.1.21"), found)
+        assertEquals(
+            listOf("192.168.1.20", "192.168.1.21", "192.168.1.20", "192.168.1.22", "192.168.1.21"),
+            found,
+            "a held body is not offered; once released it is",
+        )
         scanner.stop()
         advanceTimeBy(3.seconds)
         runCurrent()
@@ -115,17 +128,25 @@ class NikonMultiviewLinkTest {
 
     // Member link
 
-    /** One scripted Z body on its own PTP session. */
-    private class Body(override val serialNumber: String) : NikonMultiviewTransport {
+    /**
+     * One scripted Z body on its own PTP session. With [replays], a new collection first gets the last
+     * frame again, as the app's shared frame flow (`replay = 1`) does.
+     */
+    private class Body(override val serialNumber: String, val replays: Boolean = false) : NikonMultiviewTransport {
         val log = mutableListOf<String>()
         private val pending = Channel<LiveFrame>(Channel.UNLIMITED)
+        private var last: LiveFrame? = null
         val properties = MutableStateFlow(CameraPropertySnapshot())
         override val session: BodySession = BodySession(this)
 
         override val frames: Flow<LiveFrame> = flow {
             log += "startLiveView"
             try {
-                for (frame in pending) emit(frame)
+                if (replays) last?.let { emit(it) }
+                for (frame in pending) {
+                    last = frame
+                    emit(frame)
+                }
             } finally {
                 log += "stopLiveView"
             }
@@ -151,8 +172,10 @@ class NikonMultiviewLinkTest {
 
     /** The body's control session: the Swift core reports what the frame header says. */
     private class BodySession(private val body: Body) : CameraSession {
-        override val state: StateFlow<CameraSessionState> =
-            MutableStateFlow(CameraSessionState.Connected(CameraIdentity("ZR", "ZR", body.serialNumber.trim())))
+        val stateFlow = MutableStateFlow<CameraSessionState>(
+            CameraSessionState.Connected(CameraIdentity("ZR", "ZR", body.serialNumber.trim())),
+        )
+        override val state: StateFlow<CameraSessionState> = stateFlow
         override val recordingState: StateFlow<CameraRecordingState> = MutableStateFlow(CameraRecordingState.STANDBY)
         val reportedRecordingFlow = MutableStateFlow<Boolean?>(null)
         override val reportedRecording: StateFlow<Boolean?> = reportedRecordingFlow
@@ -171,6 +194,9 @@ class NikonMultiviewLinkTest {
     private class Rig(val test: TestScope) {
         val bodies = mutableMapOf<String, Body>()
         val holders = mutableMapOf<String, String>()
+
+        /** What a dial of a host throws (a body that does not know this phone, say). */
+        val dialErrors = mutableMapOf<String, Exception>()
         val connects = mutableListOf<String>()
         var connectGate: CompletableDeferred<Unit>? = null
         var gateWaiting = 0
@@ -189,6 +215,7 @@ class NikonMultiviewLinkTest {
                     // The dial itself does not stop for a cancelled repair: the link must close it.
                     withContext(NonCancellable) { gate.await() }
                 }
+                dialErrors[host]?.let { throw it }
                 bodies[host] ?: throw Down()
             },
             serialNumber = { it.serialNumber },
@@ -285,6 +312,20 @@ class NikonMultiviewLinkTest {
         assertEquals("In use on iPad. Release it there, then tap Reconnect.", error.message)
         assertFalse("192.168.1.21" in rig.connects, "a body another device holds is never dialled")
         assertFalse(link.probe("192.168.1.22", Rig.NETWORK))
+
+        rig.dialErrors["192.168.1.24"] = NikonMultiviewLinkError.connectFailure(CameraConnectionFailure.SAVED_PROFILE_REQUIRED)!!
+        val unpaired = NikonMultiviewCamera("192.168.1.24", "Z f")
+        val notPaired = runCatching { link.open(unpaired, "192.168.1.24", expecting = null, network = Rig.NETWORK) }
+        assertEquals(NikonMultiviewLinkError.NotPaired, notPaired.exceptionOrNull())
+        assertEquals(
+            "This camera is not paired with this phone. Pair it in Your cameras, then tap Reconnect.",
+            NikonMultiviewLinkError.NotPaired.operatorMessage,
+        )
+        assertEquals(
+            NikonMultiviewLinkError.Refused(NikonMemberOpenRefusal.HELD_BY_ANOTHER_DEVICE),
+            NikonMultiviewLinkError.connectFailure(CameraConnectionFailure.BUSY),
+        )
+        assertNull(NikonMultiviewLinkError.connectFailure(CameraConnectionFailure.TIMEOUT), "a silent dial is not found")
     }
 
     @Test
@@ -357,6 +398,67 @@ class NikonMultiviewLinkTest {
     }
 
     @Test
+    fun aRestartWithoutANewFrameReopens() = runTest {
+        val rig = Rig(this)
+        val body = Body("3001", replays = true)
+        val link = rig.live(body)
+        val recordedAt = link.recordReport?.receivedAtMillis
+        rig.stall(link)
+        val budget = Budget(2)
+        val restart = assertIs<MultiviewRepairStep.Repair>(link.repair(budget.context), "a stall repairs")
+        assertEquals(MultiviewRepairResult.Done, restart.run())
+        rig.until { body.log.count { it == "startLiveView" } == 2 }
+        runCurrent()
+        assertNotEquals(PictureHealth.LIVE, link.pictureHealth, "a replayed frame is not a picture")
+        assertEquals(recordedAt, link.recordReport?.receivedAtMillis, "nor a fresh record state")
+        assertEquals(1, rig.frames, "nor shown again")
+        val before = rig.statuses.size
+        repeat(NikonMemberRepair.MISSED_FRAMES_FOR_STALL) {
+            advanceTimeBy(Rig.FRAME_DEADLINE)
+            runCurrent()
+        }
+        rig.until { rig.statuses.size > before && rig.statuses.last() == MultiviewLinkStatus.RECONNECTING }
+        assertEquals(MultiviewRepairStep.Handled, link.repair(budget.context), "the ladder waits out the settle")
+        advanceTimeBy(1_200.milliseconds)
+        runCurrent()
+        val reopen = assertIs<MultiviewRepairStep.Repair>(link.repair(budget.context), "the ladder escalates to a reopen")
+        val reopening = async { reopen.run() }
+        runCurrent()
+        advanceTimeBy(1_200.milliseconds) // the opener's settle after it closed the old link
+        runCurrent()
+        assertEquals(MultiviewRepairResult.Done, reopening.await())
+        assertEquals(2, rig.connects.size, "a reopen is a new Init")
+        assertEquals(2, budget.asked)
+        body.frame()
+        rig.until { link.pictureHealth == PictureHealth.LIVE }
+        link.close()
+    }
+
+    @Test
+    fun aDeadLinkReopensWithoutARestart() = runTest {
+        val rig = Rig(this)
+        val body = Body("3001")
+        val link = rig.live(body)
+        body.session.stateFlow.value = CameraSessionState.Disconnected
+        rig.until { link.pictureHealth == PictureHealth.STALLED }
+        assertEquals(MultiviewLinkStatus.RECONNECTING, rig.statuses.last())
+        rig.until { "shutdown" in body.log }
+        assertNull(link.transport, "the dead link is closed through the opener")
+        val budget = Budget(2)
+        assertEquals(MultiviewRepairStep.Handled, link.repair(budget.context), "the ladder waits out the settle")
+        advanceTimeBy(1_200.milliseconds)
+        runCurrent()
+        val reopen = assertIs<MultiviewRepairStep.Repair>(link.repair(budget.context), "a dead link reopens, no restart on it")
+        body.session.stateFlow.value = CameraSessionState.Connected(CameraIdentity("ZR", "ZR", "3001"))
+        assertEquals(MultiviewRepairResult.Done, reopen.run())
+        assertEquals(2, rig.connects.size)
+        assertEquals(1, budget.asked, "both of the budget's attempts stay for reopens")
+        body.frame()
+        rig.until { link.pictureHealth == PictureHealth.LIVE }
+        link.close()
+    }
+
+    @Test
     fun aLostLinkReopensTheSameBodyAfterTheSettle() = runTest {
         val rig = Rig(this)
         val body = Body("3001")
@@ -364,6 +466,7 @@ class NikonMultiviewLinkTest {
         val first = link.session.id
         link.lend()
         link.reclaim(null) // Live View lost the session
+        rig.until { "shutdown" in body.log } // closed through the opener: its settle
         val budget = Budget(2)
         assertEquals(MultiviewRepairStep.Handled, link.repair(budget.context), "the ladder waits out the settle")
         assertEquals(0, budget.asked, "a wait spends nothing")
@@ -381,6 +484,7 @@ class NikonMultiviewLinkTest {
         rig.bodies["192.168.1.20"] = Body("4002")
         link.lend()
         link.reclaim(null)
+        rig.until { body.log.count { it == "shutdown" } == 2 }
         advanceTimeBy(1_200.milliseconds)
         runCurrent()
         val other = assertIs<MultiviewRepairStep.Repair>(link.repair(budget.context), "a lost link reopens")
@@ -397,9 +501,11 @@ class NikonMultiviewLinkTest {
         rig.stall(link)
         assertEquals(NikonMultiviewCopy.COULD_NOT_RESTORE, verdict(link.repair(Budget(0).context)))
 
-        val taken = rig.live(Body("3002"))
+        val held = Body("3002")
+        val taken = rig.live(held)
         taken.lend()
         taken.reclaim(null)
+        rig.until { "shutdown" in held.log }
         rig.holders["192.168.1.20"] = "iPad"
         advanceTimeBy(1_200.milliseconds)
         runCurrent()
@@ -419,6 +525,7 @@ class NikonMultiviewLinkTest {
         val link = rig.live(body)
         link.lend()
         link.reclaim(null)
+        rig.until { "shutdown" in body.log }
         advanceTimeBy(1_200.milliseconds)
         runCurrent()
         val gate = CompletableDeferred<Unit>()
@@ -429,7 +536,7 @@ class NikonMultiviewLinkTest {
         repair.cancel() // the coordinator's repair deadline gave up on it
         gate.complete(Unit)
         repair.join()
-        rig.until { body.log.count { it == "shutdown" } == 1 }
+        rig.until { body.log.count { it == "shutdown" } == 2 }
         assertNull(link.transport, "the late link is not attached")
     }
 

@@ -4,6 +4,7 @@ import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.MultiviewAutoLUT
+import com.opencapture.opencine.core.MultiviewLinkRefusal
 import com.opencapture.opencine.core.MultiviewLinkStatus
 import com.opencapture.opencine.core.MultiviewMemberLink
 import com.opencapture.opencine.core.MultiviewRecordReport
@@ -25,6 +26,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,15 +58,25 @@ public interface NikonMultiviewTransport {
      */
     public val session: CameraSession
 
-    /** Live-view frames: collecting starts live view on the body, ending the collection stops it. */
+    /**
+     * Live-view frames: collecting starts live view on the body, ending the collection stops it. A
+     * frame the flow replays to a new collector (the same instance it already delivered) is not a new
+     * picture; the link ignores it. Prefer a flow of the current stream only
+     * (`SwiftCoreLiveFrameSource.currentStreamFrames`).
+     */
     public val frames: Flow<LiveFrame>
 
     /** A graceful CloseSession, then the sockets. Never a record command. */
     public suspend fun shutdown()
 }
 
-/** Why a Nikon member link did not open, with its operator copy. Swift twin: `NikonMultiviewLinkError`. */
-public sealed class NikonMultiviewLinkError(message: String) : Exception(message) {
+/**
+ * Why a Nikon member link did not open, with its operator copy (the shared coordinator shows it on
+ * the tile: [MultiviewLinkRefusal]). Swift twin: `NikonMultiviewLinkError`.
+ */
+public sealed class NikonMultiviewLinkError(message: String) : Exception(message), MultiviewLinkRefusal {
+    override val operatorMessage: String get() = message.orEmpty()
+
     /** [NikonMemberOpener] refused the body ([heldBy] for `HELD_BY_ANOTHER_DEVICE`). */
     public data class Refused(public val refusal: NikonMemberOpenRefusal, public val heldBy: String? = null) :
         NikonMultiviewLinkError(copy(refusal, heldBy))
@@ -72,8 +84,28 @@ public sealed class NikonMultiviewLinkError(message: String) : Exception(message
     /** `startPreview` found no open link. */
     public data object NotOpen : NikonMultiviewLinkError("Could not connect preview.")
 
-    private companion object {
-        fun copy(refusal: NikonMemberOpenRefusal, heldBy: String?): String = when (refusal) {
+    /** The body does not know this phone: it is paired in the app's camera list first. */
+    public data object NotPaired : NikonMultiviewLinkError(
+        "This camera is not paired with this phone. Pair it in Your cameras, then tap Reconnect.",
+    )
+
+    public companion object {
+        /**
+         * The refusal a failed connect means for the operator, null for a dial that simply failed (the
+         * coordinator then says it could not find the camera): a body that does not know this phone,
+         * or one another device took between the holder check and the Init. The app's connect throws
+         * it (Swift's link maps the session error itself).
+         */
+        public fun connectFailure(failure: CameraConnectionFailure?): NikonMultiviewLinkError? = when (failure) {
+            CameraConnectionFailure.SAVED_PROFILE_REQUIRED,
+            CameraConnectionFailure.REJECTED_INITIATOR,
+            CameraConnectionFailure.PAIRING_CHALLENGE_UNAVAILABLE,
+            -> NotPaired
+            CameraConnectionFailure.BUSY -> Refused(NikonMemberOpenRefusal.HELD_BY_ANOTHER_DEVICE)
+            else -> null
+        }
+
+        private fun copy(refusal: NikonMemberOpenRefusal, heldBy: String?): String = when (refusal) {
             NikonMemberOpenRefusal.HOST_IN_USE -> "This camera is still connecting. Wait a moment, then tap Reconnect."
             NikonMemberOpenRefusal.HELD_BY_ANOTHER_DEVICE -> NikonMultiviewCopy.heldBy(heldBy)
             NikonMemberOpenRefusal.ALREADY_MEMBER -> "This camera is already in Multiview."
@@ -142,6 +174,9 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
     /** Bumps on every open, reopen and close: late work of an older link changes nothing. */
     private var generation = 0
     private var missedFrames = 0
+
+    /** The last frame this link counted: a flow replaying it to a new collector is not a new picture. */
+    private var lastFrame: LiveFrame? = null
     private var device: CameraDeviceID? = null
     private var holder: String? = null
     private var tone: NikonMovieTone? = null
@@ -276,6 +311,15 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
         }
     }
 
+    /**
+     * Returns once every close this link started has reached the opener (CloseSession sent or given
+     * up): the app's own single-camera connect waits for it, then the settle, before it dials a body
+     * a member held.
+     */
+    public suspend fun awaitClosed() {
+        closing?.join()
+    }
+
     override fun repair(context: MultiviewRepairContext): MultiviewRepairStep {
         if (device == null || lent) return MultiviewRepairStep.Healthy
         context.observeHealth(pictureHealth == PictureHealth.LIVE && missedFrames == 0)
@@ -348,8 +392,12 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
         pump = null
         control?.closeNow(SessionCloseReason.LINK_LOST)
         this.control = null
+        val lost = transport
         transport = null
         val at = now()
+        // The Live View lost it: close it through the opener, so the reopen waits out the settle
+        // after this close, not one the opener never saw.
+        if (returned == null && lost != null) drop(lost)
         if (returned != null) {
             val body = device
             if (body != null && NikonMulticamPolicy.device(returned.serialNumber) == body) {
@@ -375,6 +423,7 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
         this.device = device
         holder = null
         missedFrames = 0
+        lastFrame = null
         recordReport = null
         timecode = null
         pictureHealth = PictureHealth.STARTING
@@ -396,9 +445,14 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
     /**
      * Collects the body's frames and judges each frame deadline: a frame resets the misses; a
      * deadline without one, or a stream that ended, is a miss; [NikonMemberRepair.MISSED_FRAMES_FOR_STALL]
-     * misses stop the pump on a stall (and end live view: the collection ends with it).
+     * misses stop the pump on a stall (and end live view: the collection ends with it). A session
+     * that reports itself disconnected is a lost link: no restart on it, the ladder reopens.
      */
     private suspend fun runPump(transport: T, mine: Int): Unit = coroutineScope {
+        val watch = launch {
+            transport.session.state.first { it is CameraSessionState.Disconnected }
+            if (current(mine)) lost(transport)
+        }
         val arrivals = Channel<LiveFrame>(Channel.CONFLATED)
         val stream = launch {
             try {
@@ -416,6 +470,8 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
                 val result = withTimeoutOrNull(frameDeadline) { arrivals.receiveCatching() }
                 if (!current(mine)) return@coroutineScope
                 val frame = result?.getOrNull()
+                // A replay of the frame already counted is not a picture: keep waiting for one.
+                if (frame != null && frame === lastFrame) continue
                 if (frame == null) {
                     missedFrames += 1
                     ladder.frameMissed(now())
@@ -433,6 +489,36 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
             }
         } finally {
             stream.cancel()
+            watch.cancel()
+        }
+    }
+
+    /**
+     * The session reported the link dead: it is closed through the opener now (its settle runs beside
+     * the ladder's) and the coordinator's next repair tick reopens after the settle.
+     */
+    private fun lost(dead: T) {
+        generation += 1
+        pump?.cancel()
+        pump = null
+        if (transport === dead) {
+            transport = null
+            drop(dead)
+        }
+        pictureHealth = PictureHealth.STALLED
+        ladder.linkLost(now())
+        onStatus?.invoke(MultiviewLinkStatus.RECONNECTING)
+    }
+
+    /** Closes a link that is no longer this member's through the opener, after any close before it. */
+    private fun drop(link: T) {
+        val host = host
+        val previous = closing
+        closing = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            withContext(NonCancellable) {
+                withTimeoutOrNull(closeLimit) { previous?.join() }
+                opener.close(link, host)
+            }
         }
     }
 
@@ -444,6 +530,7 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
     }
 
     private fun arrived(frame: LiveFrame, transport: T) {
+        lastFrame = frame
         missedFrames = 0
         ladder.frameArrived()
         timecode = frame.timecode
@@ -471,7 +558,9 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
             it.join()
         }
         if (mine != generation || !currentCoroutineContext().isActive) return
-        ladder.attemptSucceeded()
+        // The restart counts only when a new picture arrives (`frameArrived` ends the episode); a
+        // replayed frame is not one, and without one the restarted pump stalls again and the ladder
+        // reopens.
         missedFrames = 0
         onStatus?.invoke(MultiviewLinkStatus.AWAITING_PICTURE)
         startPump()
@@ -496,6 +585,9 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
             transport = null
             opener.close(old, host)
         }
+        // A link dropped earlier (lost, or lost in Live View) finishes closing first: the opener's
+        // settle starts at its close.
+        closing?.let { withTimeoutOrNull(closeLimit) { it.join() } }
         val result = try {
             opener.reopen(member, host, members = emptySet(), hostsInUse = emptySet())
         } catch (error: CancellationException) {

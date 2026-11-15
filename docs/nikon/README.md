@@ -113,12 +113,20 @@ their own menus) and with `MultiviewNetworkPath.either` (a stage on the phone's 
   access-point keys or excluded hosts, and names a row by its saved setup. A camera has no serial
   until it is opened; its stage id is fixed by its host. `NikonMultiviewScanner` is the shared
   `NearbyCameraScanner`: a passive `multiviewSightings` pass every 3 s, with the member hosts the
-  app reports excluded from listing and from liveness dials.
+  app reports excluded from listing and from liveness dials. It does not report a body another
+  device holds: the coordinator keeps a camera's first report, so a body released later appears
+  as a new camera on the next pass (one taken after it was listed stays listed, and picking it is
+  refused without a dial, with the holder's name).
 - **Member link.** `NikonMultiviewLink` (a `MultiviewMemberLink` over a `NikonMultiviewTransport`;
   `NativeCameraSession` conforms on iOS) opens through the stage's one `NikonMemberOpener` with
   empty sets (the coordinator owns duplicate and host-in-use refusals before and after `open`; the
   opener owns the in-flight reservation, the holder check and the settle), maps a refusal to
-  operator copy (`NikonMultiviewLinkError`), and returns the trimmed serial's bytes as the identity.
+  operator copy (`NikonMultiviewLinkError`, a `MultiviewLinkRefusal`, so the tile shows it), and
+  returns the trimmed serial's bytes as the identity. A connect that fails because the body does
+  not know this phone (saved profile required, initiator rejected, no pairing code) is `notPaired`
+  ("pair it in Your cameras"), and an Init answered busy is held by another device
+  (`NikonMultiviewLinkError.connectFailure`; Swift's link maps the session error itself, Kotlin's
+  app throws it from its connect).
   Its pump takes a frame, then services the member control's queued writes and record at the safe
   point before the next, and polls the movie values, the tone (`pollRecordingTone`) and the card
   every 5 s outside a take (battery only during one). Each frame stamps `recordReport` and the
@@ -128,7 +136,16 @@ their own menus) and with `MultiviewNetworkPath.either` (a stage on the phone's 
   go stale.
 - **Repair.** Three missed frames end the pump; the coordinator's repair tick then runs
   `NikonMemberRepair` with its `beginAttempt` (restart live view in place, then reopen the same
-  body after the settle). The link never returns `.rejoin` (no second spend), declares a 45 s
+  body after the settle). A restart counts only when a new picture arrives: without one the
+  restarted pump stalls again and the ladder reopens. Kotlin's link ignores a frame its flow
+  replays to a new collector (the same instance it already counted), so a replay is neither a
+  picture nor fresh record state; the app passes `SwiftCoreLiveFrameSource.currentStreamFrames`.
+  A dead link skips the restart and reopens: on Swift a frame fetch that fails as a link failure
+  (`isLinkFailure`, default `NativeCameraSessionError.isLinkFailure`: the transport closes its
+  socket at the frame deadline), on Kotlin the session reporting `Disconnected`. The dead link is
+  closed through the opener at once, so its settle runs beside the ladder's, and a reopen waits
+  for every earlier close first. With the coordinator's budget of two, a dead link gets two
+  reopens, as Pocket gets two reconnects. The link never returns `.rejoin` (no second spend), declares a 45 s
   `repairDeadline` (above the 30 s attempt deadline), lets the coordinator's 45 s path-loss rule
   decide while the phone is off the network, closes a reopened link that arrives after its repair
   was cancelled, and waits for the operator when the budget is spent or another device took the
@@ -136,7 +153,10 @@ their own menus) and with `MultiviewNetworkPath.either` (a stage on the phone's 
 - **Live View loan.** `lend()` hands the open transport to the app's single-camera Live View (the
   pump stops, queued commands are reported not sent); `reclaim(_:)` takes back the same transport
   (live view restarts on it), a replacement of the same body (a new control) or nil (lost: the
-  ladder reopens after the settle). A replacement of another body is closed.
+  lent session is closed through the opener, and the ladder reopens after the settle). A
+  replacement of another body is closed. `awaitClosed()` returns once every close the link
+  started reached the opener: the app's own single-camera connect waits for it and the settle
+  after a stage closes.
 
 Tests: `NikonMultiviewLinkTests` / `NikonMultiviewLinkTest`. Physical Nikon behavior is untested.
 
