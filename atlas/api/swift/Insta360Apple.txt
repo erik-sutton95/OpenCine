@@ -228,7 +228,7 @@ init LunaHeadTrackSteering.Tuning(panDegPerSec: Swift.Double, tiltDegPerSec: Swi
 init LunaIntegration(port: any LunaConnectPort, now: () -> Foundation.Date, sleep: (Swift.Duration) async throws -> Swift.Void)
 init LunaIntegrationConfiguration(keychainService: Swift.String, appName: Swift.String, logPrefix: Swift.String)
 init LunaMediaCatalogRecord(asset: OpenCineMedia.MediaAssetID, file: Insta360Protocol.LunaMediaFile)
-init LunaMemberLink(port: any LunaStationPort, clock: OpenCineCore.HostClock, conversion: (Swift.String) -> Swift.String?)
+init LunaMemberLink(port: any LunaStationPort, clock: OpenCineCore.HostClock, conversion: (Swift.String) -> Swift.String?, preview: (Swift.String) -> Swift.String)
 init LunaMotionService(session: () -> LunaCameraSession?, sleep: (Swift.Duration) async throws -> Swift.Void, now: () -> OpenCineCore.MonotonicInstant)
 init LunaNearbyScanner(discover: () -> _Concurrency.AsyncStream<[OpenCineCore.NearbyCamera]>)
 init LunaNearbyScanner(integration: LunaIntegration)

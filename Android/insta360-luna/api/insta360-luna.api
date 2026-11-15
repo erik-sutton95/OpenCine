@@ -308,8 +308,8 @@ public abstract interface class com/opencapture/opencine/insta360/luna/LunaMedia
 }
 
 public final class com/opencapture/opencine/insta360/luna/LunaMemberLink : com/opencapture/opencine/core/MultiviewMemberLink {
-	public fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)V
-	public synthetic fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/insta360/luna/LunaStationPort;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
 	public fun getAutoLUT ()Lcom/opencapture/opencine/core/MultiviewAutoLUT;
 	public final fun getLunaSession ()Lcom/opencapture/opencine/insta360/luna/LunaCameraSession;
@@ -466,6 +466,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationNetwork {
 
 public abstract interface class com/opencapture/opencine/insta360/luna/LunaStationPort {
 	public abstract fun authorizeForStation (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun close ()V
 	public abstract fun connect (Ljava/lang/String;Lcom/opencapture/opencine/insta360/luna/LunaStationHost;Lcom/opencapture/opencine/insta360/luna/LunaStationNetwork;)Lcom/opencapture/opencine/core/ConnectionFailure;
 	public abstract fun disconnect ()V
 	public abstract fun getFailureDetail ()Lkotlinx/coroutines/flow/StateFlow;
