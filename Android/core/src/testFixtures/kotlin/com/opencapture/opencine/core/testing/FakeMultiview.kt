@@ -78,6 +78,9 @@ public class FakeStationHostPath(
     /** Thrown by [join] when set. */
     public var joinError: Exception? = null
 
+    /** [join] waits here before it answers, when set. */
+    public var joinGate: FakeGate? = null
+
     /** Every network [join] was asked for. */
     public val joins: MutableList<StationNetwork> = mutableListOf()
 
@@ -87,6 +90,7 @@ public class FakeStationHostPath(
 
     override suspend fun join(network: StationNetwork): String? {
         joins += network
+        joinGate?.await()
         joinError?.let { throw it }
         return addresses[network.hotspot]
     }
@@ -134,6 +138,8 @@ public class FakeStationCommissioner : StationCommissioner<FakeStationCamera> {
     /** Every return waits here when set. */
     public var restoreGate: FakeGate? = null
     override var scansNetworks: Boolean = false
+    override var joinsExperimentally: Boolean = true
+    override var asksApprovalOnCamera: Boolean = true
 
     /** Networks a scan reports. */
     public var scanFound: List<String> = emptyList()

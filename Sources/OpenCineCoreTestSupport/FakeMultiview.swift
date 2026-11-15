@@ -57,6 +57,8 @@ public final class FakeStationHostPath: StationHostPath {
     public var netmasks: [Bool: String]
     /// Thrown by `join` when set.
     public var joinError: Error?
+    /// `join` waits here before it answers, when set.
+    public var joinGate: FakeGate?
     /// Every network `join` was asked for.
     public private(set) var joins: [StationNetwork] = []
 
@@ -77,6 +79,7 @@ public final class FakeStationHostPath: StationHostPath {
 
     public func join(_ network: StationNetwork) async throws -> String? {
         joins.append(network)
+        if let joinGate { await joinGate.wait() }
         if let joinError { throw joinError }
         return network.hotspot ? addresses[true] : addresses[false]
     }
@@ -116,6 +119,8 @@ public final class FakeStationCommissioner: StationCommissioner {
     /// Every return waits here when set.
     public var restoreGate: FakeGate?
     public var scansNetworks = false
+    public var joinsExperimentally = true
+    public var asksApprovalOnCamera = true
     /// Networks a scan reports.
     public var scanFound: [String] = []
 
