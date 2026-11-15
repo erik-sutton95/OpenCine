@@ -193,3 +193,25 @@ starts no repair on the link it closed, N3 the older-repair test). For the later
   instrumentation tests, the SwiftUI screen by the hosted `MultiviewScreenTests`.
 - Before merging Pocket: a Multiview hardware pass on both platforms (the list is in the Plan 4
   report), untested in this plan.
+
+## Carried from Plan 5 (2026-11-15)
+
+Plan 5 landed on `feat/shared-multiview-5-luna` (OpenCine, stacked on Plan 4) and
+`feat/shared-multiview` (OpenInstaCine). Luna's Multiview seams (`LunaMultiview.policy`,
+`LunaStationCommissioner`, `LunaMemberLink`, `LunaNearbyScanner` over `LunaStationPort`) are
+twins in `Insta360Apple` and `insta360-luna`, unit-tested against `FakeLunaStationPort`;
+OpenInstaCine renders the shared `MultiviewScreen` on iOS and Android. No AppKit or Core code
+changed in this plan. Everything is hardware-untested. For later work:
+
+- OpenInstaCine Android is a reduced host: pictures, record, add, remove, reconnect, wizard and
+  cleanup, but no Live View borrow, no settings popup and no Auto LUT (`openLiveView`,
+  `editsCameraSettings`, `appliesAutoLUT` keep their defaults). Its `AppModel` builds its own
+  session and backend, so lending a tile's backend and decoder to Live View needs an `AppModel`
+  over a borrowed session first (Pocket Android's `borrowing` shape). iOS has all three.
+- The Kotlin `LunaBackend` runs Luna's stall ladder inside its live link, so a Kotlin member link
+  sees a stall only as a lost link; the Swift link runs the ladder through the port
+  (`requestKeyframe`, `restartLive`). Both end in the same find-again repair.
+- Kotlin `restoreAccessPoint` propagates `CancellationException` (structured concurrency); Swift
+  maps a cancellation to `.failed`. Both keep the camera journaled.
+- Before merging Luna: the Luna hardware pass on both platforms (the list is in the Plan 5
+  report). Whether a Luna keeps recording through a return to its access point is untested.
