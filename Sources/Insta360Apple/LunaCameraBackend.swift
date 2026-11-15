@@ -49,6 +49,9 @@ public final class LunaCameraBackend: CameraBackend {
     /// Where each camera was last reached on a Wi-Fi or hotspot setup's network, so its next
     /// connect over that setup opens it there first, without Bluetooth (LAN first).
     private var stationHosts: [UUID: LunaStationHost] = [:]
+    /// The Bluetooth authorization `authorizeForStation` left open for `moveOntoStation`: its
+    /// connect generation and the credential read's reply.
+    private var stationAuthorization: (token: Int, credentials: Data)?
     /// Where this connection reaches the camera: its own access point, or the address a Wi-Fi or
     /// hotspot setup found it at. Control and files use it.
     public private(set) var cameraHost = LunaProtocol.defaultHost
@@ -409,6 +412,17 @@ public final class LunaCameraBackend: CameraBackend {
         let (serial, reply) = try await authorizeOverBluetooth(
             camera: camera, identity: identity, token: token)
         _ = try saveCameraWiFi(reply, cameraID: camera.id)
+        let address = try await moveAuthorized(onto: network, credentials: reply, token: token)
+        return (serial, address)
+    }
+
+    /// The move itself, on the authorized Bluetooth session: SET_WIFI_MODE station, the phone's
+    /// details, the join (`LunaStationJoin`) and the camera's remembered network; Bluetooth then
+    /// closes. `credentials` is the credential read's reply (the camera's region). Returns any
+    /// address the camera reported.
+    private func moveAuthorized(onto network: LunaStationNetwork, credentials reply: Data, token: Int)
+        async throws -> String?
+    {
         emit(.joiningWiFi)
         eventHandler?(.note("Moving the camera to “\(network.ssid)”…"))
         let country = try? LunaProtocol.wifiCountryCode(response: reply)
@@ -440,7 +454,80 @@ public final class LunaCameraBackend: CameraBackend {
         sessionKey = nil
         receivedNonces.removeAll()
         try validate(token)
-        return (serial, result.address)
+        return result.address
+    }
+
+    // MARK: - Multiview station steps
+
+    /// A Multiview add's first step (`LunaStationCommissioner`): this backend's connection ends,
+    /// then Bluetooth reaches `camera`, the camera approves this phone (the operator may have to
+    /// tap Allow) and the encrypted credential read runs. Returns the serial Bluetooth read; the
+    /// authorized Bluetooth link stays open for `moveOntoStation(_:)` until `disconnect()`.
+    /// Throws `ConnectionFailure` (Bluetooth closed). Hardware-untested.
+    public func authorizeForStation(_ camera: MonitorCamera) async throws -> String {
+        try Task.checkCancellation()
+        guard !existingNetwork else {
+            throw ConnectionFailure.luna(
+                .unsupported, "station.existing-network",
+                "Wi-Fi and hotspot setups need Bluetooth on a phone.", phase: .link)
+        }
+        disconnect()
+        generation += 1
+        let token = generation
+        selected = camera
+        identity = try store.identity()
+        guard let identity else {
+            throw ConnectionFailure.luna(
+                .other, "identity.unavailable",
+                "A camera authorization identity could not be created.")
+        }
+        do {
+            let (serial, reply) = try await authorizeOverBluetooth(
+                camera: camera, identity: identity, token: token)
+            _ = try saveCameraWiFi(reply, cameraID: camera.id)
+            try validate(token)
+            stationAuthorization = (token, reply)
+            return serial
+        } catch {
+            if token == generation { disconnect() }
+            throw error
+        }
+    }
+
+    /// A Multiview add's second step: the camera `authorizeForStation(_:)` authorized leaves its
+    /// access point and joins `network` (the same requests, in the same order, as a Wi-Fi or
+    /// hotspot setup's connect sends), then Bluetooth closes. This phone joins nothing and opens no
+    /// control link: the caller finds the camera on the network. Returns any address the camera
+    /// reported. Throws `ConnectionFailure` (Bluetooth closed). Hardware-untested.
+    public func moveOntoStation(_ network: LunaStationNetwork) async throws -> String? {
+        try Task.checkCancellation()
+        guard let pending = stationAuthorization, pending.token == generation else {
+            throw ConnectionFailure.luna(
+                .other, "station.not-authorized",
+                "The camera is not connected over Bluetooth. Add it again.", phase: .link)
+        }
+        stationAuthorization = nil
+        do {
+            try LunaStationJoin.check(network)
+            return try await moveAuthorized(
+                onto: network, credentials: pending.credentials, token: pending.token)
+        } catch {
+            if pending.token == generation { disconnect() }
+            throw error
+        }
+    }
+
+    /// Whether a Luna answers its control port at `host` on `network` (a greeting probe, as the
+    /// station search sends): no session, no request. False when this phone is not on `network`.
+    public func probeStation(_ host: String, on network: LunaStationNetwork) async -> Bool {
+        guard let local = LunaStationPath.address(hotspot: network.hotspot) else { return false }
+        return await LunaStationPath.probe(host, local: local.address) == .camera
+    }
+
+    /// Asks the encoder for a keyframe on the open control link (a stalled picture's first step).
+    public func requestKeyframe() async {
+        guard isControlReady else { return }
+        _ = try? await send(LunaProtocol.keyframeRequest, timeout: .seconds(2))
     }
 
     /// The camera at `known` on the setup's network, LAN only (`LunaStationOpen`): this phone on
@@ -718,6 +805,7 @@ public final class LunaCameraBackend: CameraBackend {
         bleHasNotification = false
         bluetooth.disconnect()
         sessionKey = nil
+        stationAuthorization = nil
         receivedNonces.removeAll()
         bleParser = try! UCD2Reassembler(maximumFrameSize: 1024 * 1024)
         tcpParser = try! UCD2Reassembler()
