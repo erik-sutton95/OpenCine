@@ -98,12 +98,52 @@ supplies.
   app decodes its own presence line. Tests: `NikonDiscoveryTests` / `NikonDiscoveryTest`, same
   method names (zero camera-control dials and zero PTP bytes in `.passive`).
 
-## Multiview prep (shared Multiview Plan 6)
+## Multiview (shared Multiview Plan 6)
 
-What a Pocket-standard Multiview needs from Nikon, as plain values and closures (Swift
-`NikonMultiview.swift`, Kotlin `NikonMultiview.kt`, same names). Plan 6 wraps them in the app
-shell's Multiview seams and adopts them in OpenZCine; nothing here names that shell, and no app
-uses them yet.
+Nikon in the shared Multiview (Swift `NikonMultiviewSightings.swift` and `NikonMultiviewLink.swift`,
+Kotlin `NikonMultiviewSightings.kt` and `NikonMultiviewLink.kt`, same names). OpenZCine runs the
+AppKit `MultiviewCoordinator` over them without a commissioner (bodies join a network only from
+their own menus) and with `MultiviewNetworkPath.either` (a stage on the phone's own hotspot).
+
+- **Policy and Add list.** `NikonMultiview.policy` never discovers by probe, compares hosts by
+  `NikonDiscovery.hostKey`, refuses a body another device holds (`.notReachable`, so the shared
+  picker does not offer it; the holder stays on `NikonMultiviewCamera` for a later disabled row)
+  and shows every body's picture. `NikonMultiview.addList` merges passive sightings with the app's
+  saved router and hotspot setups by normalized dotted IPv4 host, never lists USB or
+  access-point keys or excluded hosts, and names a row by its saved setup. A camera has no serial
+  until it is opened; its stage id is fixed by its host. `NikonMultiviewScanner` is the shared
+  `NearbyCameraScanner`: a passive `multiviewSightings` pass every 3 s, with the member hosts the
+  app reports excluded from listing and from liveness dials.
+- **Member link.** `NikonMultiviewLink` (a `MultiviewMemberLink` over a `NikonMultiviewTransport`;
+  `NativeCameraSession` conforms on iOS) opens through the stage's one `NikonMemberOpener` with
+  empty sets (the coordinator owns duplicate and host-in-use refusals before and after `open`; the
+  opener owns the in-flight reservation, the holder check and the settle), maps a refusal to
+  operator copy (`NikonMultiviewLinkError`), and returns the trimmed serial's bytes as the identity.
+  Its pump takes a frame, then services the member control's queued writes and record at the safe
+  point before the next, and polls the movie values, the tone (`pollRecordingTone`) and the card
+  every 5 s outside a take (battery only during one). Each frame stamps `recordReport` and the
+  header timecode. `close()` stops live view and closes through the opener in the background
+  (never a record command); the next `open` waits for it. The common session is the open link's
+  `NikonMemberControl` session: a reopen makes a new one, so plans and editor leases made before it
+  go stale.
+- **Repair.** Three missed frames end the pump; the coordinator's repair tick then runs
+  `NikonMemberRepair` with its `beginAttempt` (restart live view in place, then reopen the same
+  body after the settle). The link never returns `.rejoin` (no second spend), declares a 45 s
+  `repairDeadline` (above the 30 s attempt deadline), lets the coordinator's 45 s path-loss rule
+  decide while the phone is off the network, closes a reopened link that arrives after its repair
+  was cancelled, and waits for the operator when the budget is spent or another device took the
+  body (copy naming the holder; nothing takes it back).
+- **Live View loan.** `lend()` hands the open transport to the app's single-camera Live View (the
+  pump stops, queued commands are reported not sent); `reclaim(_:)` takes back the same transport
+  (live view restarts on it), a replacement of the same body (a new control) or nil (lost: the
+  ladder reopens after the settle). A replacement of another body is closed.
+
+Tests: `NikonMultiviewLinkTests` / `NikonMultiviewLinkTest`. Physical Nikon behavior is untested.
+
+### The prep operations
+
+What the link is built on, as plain values and closures (Swift `NikonMultiview.swift`, Kotlin
+`NikonMultiview.kt`, same names); nothing here names the app shell.
 
 - **Add camera lists, it does not probe.** `NikonDiscovery.multiviewSightings` is one passive pass
   (Bonjour or the app's NSD listing, USB, the rate-limited presence sweep, liveness dials of saved

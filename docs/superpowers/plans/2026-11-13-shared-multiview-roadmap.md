@@ -193,3 +193,27 @@ starts no repair on the link it closed, N3 the older-repair test). For the later
   instrumentation tests, the SwiftUI screen by the hosted `MultiviewScreenTests`.
 - Before merging Pocket: a Multiview hardware pass on both platforms (the list is in the Plan 4
   report), untested in this plan.
+
+## Carried from Plan 6 (2026-11-15)
+
+Plan 6 is on `feat/shared-multiview-6-nikon` (OpenCine, stacked on Plan 4 with the Nikon prep #348)
+and `feat/shared-multiview` (OpenZCine). The Plan 4 re-review N1 (no unnamed network saved) and N2
+(`MultiviewNetworkPath`, a stage on the phone's own hotspot) are done in AppKit on both twins.
+OpenZCine runs the shared coordinator and screen on iOS and Android through its own host, over
+`NikonMultiviewLink`. For later:
+
+- Hardware: the Nikon pass on iOS and Android (the list is in the Plan 6 report) gates merging.
+  The 1200 ms settle, the 5 s reopen spacing and the 45 s repair deadline are untested on bodies.
+- Bodies another device holds are hidden from the Add list (Pocket lists only addable cameras).
+  `NikonMultiviewCamera` keeps the holder, so a disabled row with "In use on ..." is a small shared
+  change (`MultiviewPickerRow.enabled` from a policy reason) if the hardware pass wants it.
+- USB-C and camera access-point members left Multiview (the stage opens members at a network
+  address). A non-network member path would be a coordinator change.
+- Pairing a body happens in OpenZCine's camera list; Multiview opens paired bodies only and shows
+  no pairing code.
+- The Nikon link's common session is per opened link (`NikonCameraSession` fixes the serial at
+  init); the `MultiviewMemberLink.session` doc says "one for the member's lifetime". Either relax
+  the doc or let `NikonCameraSession` rebind its driver.
+- The OpenZCine journal is a no-op: `MultiviewStageJournal.Stage.validated` drops a stage without
+  a network name, so a no-commissioner stage keeps its layout through `presentation` only.
+- Plan 5 and Plan 6 both touched AppKit from the same base; the coordinator reconciles them.
