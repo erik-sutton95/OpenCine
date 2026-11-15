@@ -177,6 +177,7 @@ var FakeMemberLink.closes: Swift.Int
 var FakeMemberLink.keepalives: Swift.Int
 var FakeMemberLink.onStatus: ((OpenCineCore.MultiviewLinkStatus) -> Swift.Void)?
 var FakeMemberLink.openAddress: Swift.String?
+var FakeMemberLink.openError: (any Swift.Error)?
 var FakeMemberLink.openGate: FakeGate?
 var FakeMemberLink.opens: [(address: Swift.String, expecting: [Swift.UInt8]?)]
 var FakeMemberLink.pictureHealth: OpenCineCore.PictureHealth

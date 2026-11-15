@@ -4617,6 +4617,7 @@ public abstract interface class com/opencapture/opencine/appkit/MultiviewHost {
 	public fun getAppliesAutoLUT ()Z
 	public fun getConfirmsRecord ()Z
 	public fun getEditsCameraSettings ()Z
+	public fun getPickerGuidance ()Ljava/lang/String;
 	public fun log (Ljava/lang/String;)V
 	public fun lutChanged (I)V
 	public fun memberChanged (ILcom/opencapture/opencine/appkit/MultiviewMemberChange;)V
@@ -4636,6 +4637,7 @@ public final class com/opencapture/opencine/appkit/MultiviewHost$DefaultImpls {
 	public static fun getAppliesAutoLUT (Lcom/opencapture/opencine/appkit/MultiviewHost;)Z
 	public static fun getConfirmsRecord (Lcom/opencapture/opencine/appkit/MultiviewHost;)Z
 	public static fun getEditsCameraSettings (Lcom/opencapture/opencine/appkit/MultiviewHost;)Z
+	public static fun getPickerGuidance (Lcom/opencapture/opencine/appkit/MultiviewHost;)Ljava/lang/String;
 	public static fun log (Lcom/opencapture/opencine/appkit/MultiviewHost;Ljava/lang/String;)V
 	public static fun lutChanged (Lcom/opencapture/opencine/appkit/MultiviewHost;I)V
 	public static fun memberChanged (Lcom/opencapture/opencine/appkit/MultiviewHost;ILcom/opencapture/opencine/appkit/MultiviewMemberChange;)V
@@ -4840,6 +4842,7 @@ public final class com/opencapture/opencine/appkit/MultiviewScreenHost$DefaultIm
 	public static fun getAppliesAutoLUT (Lcom/opencapture/opencine/appkit/MultiviewScreenHost;)Z
 	public static fun getConfirmsRecord (Lcom/opencapture/opencine/appkit/MultiviewScreenHost;)Z
 	public static fun getEditsCameraSettings (Lcom/opencapture/opencine/appkit/MultiviewScreenHost;)Z
+	public static fun getPickerGuidance (Lcom/opencapture/opencine/appkit/MultiviewScreenHost;)Ljava/lang/String;
 	public static fun log (Lcom/opencapture/opencine/appkit/MultiviewScreenHost;Ljava/lang/String;)V
 	public static fun lutChanged (Lcom/opencapture/opencine/appkit/MultiviewScreenHost;I)V
 	public static fun memberChanged (Lcom/opencapture/opencine/appkit/MultiviewScreenHost;ILcom/opencapture/opencine/appkit/MultiviewMemberChange;)V

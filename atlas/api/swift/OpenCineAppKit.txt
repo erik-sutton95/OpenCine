@@ -2662,6 +2662,7 @@ var MultiviewCoordinator.usePhoneHotspot: Swift.Bool
 var MultiviewHost.appliesAutoLUT: Swift.Bool
 var MultiviewHost.confirmsRecord: Swift.Bool
 var MultiviewHost.editsCameraSettings: Swift.Bool
+var MultiviewHost.pickerGuidance: Swift.String?
 var MultiviewJournalStorage.load: () -> MultiviewStageJournal.Stage?
 var MultiviewJournalStorage.save: (MultiviewStageJournal.Stage?) -> Swift.Bool
 var MultiviewMember.address: Swift.String

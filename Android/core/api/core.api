@@ -1672,6 +1672,10 @@ public final class com/opencapture/opencine/core/MultiviewCameraPolicy {
 public final class com/opencapture/opencine/core/MultiviewCameraPolicy$Companion {
 }
 
+public abstract interface class com/opencapture/opencine/core/MultiviewLinkRefusal {
+	public abstract fun getOperatorMessage ()Ljava/lang/String;
+}
+
 public final class com/opencapture/opencine/core/MultiviewLinkStatus : java/lang/Enum {
 	public static final field AWAITING_PICTURE Lcom/opencapture/opencine/core/MultiviewLinkStatus;
 	public static final field CONTROLLING Lcom/opencapture/opencine/core/MultiviewLinkStatus;
