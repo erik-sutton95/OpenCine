@@ -33,13 +33,18 @@ import kotlin.time.Duration.Companion.seconds
  * Hardware-untested.
  *
  * @param clock the coordinator's clock in milliseconds: record reports are stamped on it.
- * @param conversion the app's monitoring conversion for a reported color profile (a LUT title),
- *   null when that profile needs none.
+ * @param conversion the app's monitoring conversion for the color profile the picture carries (a
+ *   LUT title), null when that profile needs none.
+ * @param preview the color profile the picture carries for a recorded one: Luna's Color Recovery
+ *   may grade an I-Log recording's feed before it reaches the phone, so the Auto LUT follows the
+ *   app's preview rule (the one its Live View uses), never the recording profile alone. By default
+ *   the recorded profile itself.
  */
 class LunaMemberLink(
     val port: LunaStationPort,
     private val clock: () -> Long,
     private val conversion: (colorProfile: String) -> String? = { null },
+    private val preview: (recordedProfile: String) -> String = { it },
 ) : MultiviewMemberLink<NearbyCamera> {
     private class Opened(val camera: NearbyCamera, val address: String, val network: StationNetwork, val serial: String)
 
@@ -58,6 +63,8 @@ class LunaMemberLink(
     private var opened: Opened? = null
     private var previewing = false
     private var reportedLive = false
+    /** The backend's own ladder is restarting live in place (silence past its restart point). */
+    private var restarting = false
     private var recordObservedAt: MonotonicInstant? = null
 
     override suspend fun probe(address: String, network: StationNetwork): Boolean =
@@ -78,12 +85,18 @@ class LunaMemberLink(
             throw LunaStationStepFailure(it)
         }
         val ended = try {
-            port.phase.first { it == ConnectionPhase.LIVE || it == ConnectionPhase.FAILED }
+            // A connect that ends without either (the backend closed, a stray disconnect) ends the
+            // open too: back to IDLE after it left IDLE.
+            var started = false
+            port.phase.first { phase ->
+                if (phase != ConnectionPhase.IDLE) started = true
+                phase == ConnectionPhase.LIVE || phase == ConnectionPhase.FAILED || (started && phase == ConnectionPhase.IDLE)
+            }
         } catch (cancelled: CancellationException) {
             port.disconnect()
             throw cancelled
         }
-        if (ended == ConnectionPhase.FAILED) {
+        if (ended != ConnectionPhase.LIVE) {
             throw LunaStationStepFailure(port.failureDetail.value ?: failure(
                 ConnectionFailure.Reason.NotFound, "station.known-host-silent", "The camera did not answer at its last address.",
             ))
@@ -99,6 +112,7 @@ class LunaMemberLink(
         onStatus?.invoke(MultiviewLinkStatus.CONTROLLING)
         previewing = true
         reportedLive = false
+        restarting = false
         pictureHealth = PictureHealth.STARTING
         onStatus?.invoke(MultiviewLinkStatus.AWAITING_PICTURE)
         observePicture()
@@ -115,6 +129,7 @@ class LunaMemberLink(
         opened = null
         previewing = false
         reportedLive = false
+        restarting = false
         recordReport = null
         recordObservedAt = null
         pictureHealth = PictureHealth.FAILED
@@ -122,7 +137,7 @@ class LunaMemberLink(
 
     /**
      * Luna's repair, once a second while the member publishes. The live link repairs a stall in
-     * place itself; a lost link is repaired by finding the camera again: a camera that does not
+     * place itself (the tile reads Reconnecting while it restarts live, as on iOS); a lost link is repaired by finding the camera again: a camera that does not
      * answer at its address is moved onto the network over Bluetooth (in the coordinator's turn),
      * then the coordinator rejoins it, LAN only.
      */
@@ -130,8 +145,15 @@ class LunaMemberLink(
         val opened = opened
         if (!previewing || opened == null) return MultiviewRepairStep.Healthy
         if (port.phase.value == ConnectionPhase.LIVE) {
-            val healthy = (port.secondsSinceVideo ?: 0.0) <= LunaFeedStall.KEYFRAME_AFTER
+            val silence = port.secondsSinceVideo ?: 0.0
+            val healthy = silence <= LunaFeedStall.KEYFRAME_AFTER
             context.observeHealth(healthy)
+            if (silence > LunaFeedStall.RESTART_AFTER && !restarting) {
+                restarting = true
+                // The picture reports Live again once it returns.
+                reportedLive = false
+                onStatus?.invoke(MultiviewLinkStatus.RECONNECTING)
+            }
             return if (healthy) MultiviewRepairStep.Healthy else MultiviewRepairStep.Handled
         }
         // This phone left the shared network: the coordinator's path rule decides.
@@ -171,10 +193,13 @@ class LunaMemberLink(
         }
     }
 
-    /** The Auto LUT follows the camera's reported color profile and the app's conversion for it. */
+    /**
+     * The Auto LUT follows what the picture carries: the camera's reported color profile through the
+     * app's [preview] rule, and the app's conversion for that.
+     */
     override val autoLUT: MultiviewAutoLUT
         get() {
-            val profile = lunaSession.snapshots.value.recordingFormat.profile.value
+            val profile = lunaSession.snapshots.value.recordingFormat.profile.value?.let(preview)
             return MultiviewAutoLUT(profile, profile?.let(conversion))
         }
 
@@ -186,6 +211,7 @@ class LunaMemberLink(
         }
         val silence = port.secondsSinceVideo ?: return
         if (silence <= LunaFeedStall.KEYFRAME_AFTER) {
+            restarting = false
             pictureHealth = PictureHealth.LIVE
             if (!reportedLive) {
                 reportedLive = true

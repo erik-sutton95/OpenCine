@@ -538,7 +538,13 @@ class LunaBackend(
             }
         }
         connectJob = job
-        val authorized = try { job.await() } catch (cancelled: CancellationException) { job.cancel(); throw cancelled }
+        val authorized = try { job.await() } catch (cancelled: CancellationException) {
+            job.cancel()
+            // The authorization finished as the caller was cancelled: its Bluetooth link was never
+            // handed over, so it closes here.
+            if (job.isCompleted && !job.isCancelled) { gatt?.close(); gatt = null }
+            throw cancelled
+        }
         stationAuthorization = authorized
         return authorized.serial
     }
@@ -618,6 +624,8 @@ class LunaBackend(
         fun usable(address: Pair<String, Int>?) = address?.takeIf { !it.first.startsWith("169.254.") && !it.first.startsWith("192.168.42.") }
         station.hotspot = network.hotspot
         if (network.hotspot) {
+            // Held like a join, so another member's cleanup never resets the shared hotspot flag.
+            station.hold(owner = this)
             val deadline = android.os.SystemClock.elapsedRealtime() + 5_000
             while (true) {
                 usable(station.addressWithPrefix(true))?.let { return it }

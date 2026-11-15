@@ -26,6 +26,7 @@ public final class LunaMemberLink: MultiviewMemberLink {
 
     private let clock: HostClock
     private let conversion: @MainActor (String) -> String?
+    private let preview: @MainActor (String) -> String
     /// What the last `open` reached: the camera, its address, the network and its serial.
     private var opened: (camera: NearbyCamera, address: String, network: StationNetwork, serial: String)?
     private var previewing = false
@@ -37,15 +38,21 @@ public final class LunaMemberLink: MultiviewMemberLink {
     /// - Parameters:
     ///   - port: the member's own connection.
     ///   - clock: the coordinator's clock (record reports are stamped on it).
-    ///   - conversion: the app's monitoring conversion for a reported color profile (a LUT title),
-    ///     nil when that profile needs none.
+    ///   - conversion: the app's monitoring conversion for the color profile the picture carries (a
+    ///     LUT title), nil when that profile needs none.
+    ///   - preview: the color profile the picture carries for a recorded one: Luna's Color Recovery
+    ///     may grade an I-Log recording's feed before it reaches the phone, so the Auto LUT follows
+    ///     the app's preview rule (the one its Live View uses), never the recording profile alone.
+    ///     By default the recorded profile itself.
     public init(
         port: any LunaStationPort, clock: HostClock = .live,
-        conversion: @escaping @MainActor (_ colorProfile: String) -> String? = LunaMemberLink.noConversion
+        conversion: @escaping @MainActor (_ colorProfile: String) -> String? = LunaMemberLink.noConversion,
+        preview: @escaping @MainActor (_ recordedProfile: String) -> String = { $0 }
     ) {
         self.port = port
         self.clock = clock
         self.conversion = conversion
+        self.preview = preview
         lunaSession = port.openSession()
     }
 
@@ -135,6 +142,8 @@ public final class LunaMemberLink: MultiviewMemberLink {
                 return .handled
             case .restartLive:
                 context.observeHealth(false)
+                // The picture reports Live again once it returns.
+                reportedLive = false
                 onStatus?(.reconnecting)
                 return .repair { [weak self] in
                     guard let self else { return .done }
@@ -186,9 +195,10 @@ public final class LunaMemberLink: MultiviewMemberLink {
         }
     }
 
-    /// The Auto LUT follows the camera's reported color profile and the app's conversion for it.
+    /// The Auto LUT follows what the picture carries: the camera's reported color profile through
+    /// the app's `preview` rule, and the app's conversion for that.
     public var autoLUT: MultiviewAutoLUT {
-        let profile = lunaSession.current.recordingFormat.profile.value
+        let profile = lunaSession.current.recordingFormat.profile.value.map(preview)
         return MultiviewAutoLUT(colorMode: profile, conversion: profile.flatMap(conversion))
     }
 

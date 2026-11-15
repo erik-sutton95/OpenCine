@@ -124,7 +124,7 @@ class LunaStationCommissioner(
         } catch (_: Exception) {
             return StationRestoreResult.Failed
         } finally {
-            port.disconnect()
+            port.close()
         }
     }
 
@@ -165,7 +165,7 @@ class LunaStationCommissioner(
         override fun close() {
             if (closed) return
             closed = true
-            port.disconnect()
+            port.close()
             onClose(this)
         }
     }

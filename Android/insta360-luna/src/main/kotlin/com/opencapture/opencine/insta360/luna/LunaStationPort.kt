@@ -33,6 +33,8 @@ interface LunaStationPort {
     val secondsSinceVideo: Double?
     /** Ends the connection (Bluetooth and control link). Never a camera command but stop-live. */
     fun disconnect()
+    /** Ends the connection for good and frees what it holds (a commission's or a return's own connection). */
+    fun close()
 }
 
 /** A station step that failed, with the operator copy the backend shows ([failure]). */

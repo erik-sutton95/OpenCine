@@ -139,6 +139,7 @@ class LunaMultiviewTest {
         commissioner.closeCommissions()
         assertFalse(port.bluetoothOpen)
         assertEquals(FakeLunaStationPort.Step.Disconnect, port.steps.last())
+        assertTrue(port.closed, "the commission's own connection is closed, not only disconnected")
     }
 
     @Test
@@ -158,6 +159,11 @@ class LunaMultiviewTest {
         repeat(3) { away.returns += LunaAccessPointReturn.Deferred(unreachable) }
         assertEquals(StationRestoreResult.Deferred(unreachable.message), commissioner(away).restoreAccessPoint(record))
         assertEquals(3, away.steps.count { it == FakeLunaStationPort.Step.ReturnToAccessPoint(sighting.id) })
+
+        val broken = FakeLunaStationPort(backgroundScope)
+        broken.returnFailure = IllegalStateException("Bluetooth stack error")
+        assertEquals(StationRestoreResult.Failed, commissioner(broken).restoreAccessPoint(record))
+        assertTrue(listOf(returned, declined, away, broken).all { it.closed }, "every return closes its own connection")
     }
 
     @Test
@@ -172,6 +178,9 @@ class LunaMultiviewTest {
         runCurrent()
         // Kotlin propagates the caller's cancellation; the coordinator keeps the camera journaled.
         assertTrue(pending.isCancelled)
+        // Nothing reported it returned, and its Bluetooth connection is closed.
+        assertTrue(port.closed)
+        assertFalse(port.bluetoothOpen)
     }
 
     @Test

@@ -35,6 +35,13 @@ internal class FakeLunaStationPort(scope: CoroutineScope) : LunaStationPort {
     var answering: Set<String> = emptySet()
     val cameras = HashMap<String, String>()
     val returns = ArrayDeque<LunaAccessPointReturn>()
+    /** Thrown by the next return to the access point, when set. */
+    var returnFailure: Exception? = null
+    /** A connect that neither goes live nor fails until the test moves the phase (a slow camera). */
+    var connectStaysPending = false
+    /** Whether [close] ended this connection for good. */
+    var closed = false
+        private set
     /** Runs inside each Bluetooth step and return before it answers (a test holds it). */
     var during: suspend (Step) -> Unit = {}
     override var secondsSinceVideo: Double? = null
@@ -73,6 +80,10 @@ internal class FakeLunaStationPort(scope: CoroutineScope) : LunaStationPort {
         if (at.host in stationHostsInUse?.invoke().orEmpty()) return failure(ConnectionFailure.Reason.Other, "station.host-in-use")
         steps += Step.Connect(id, at.host, at.serial)
         val found = cameras[at.host]
+        if (connectStaysPending) {
+            _phase.value = ConnectionPhase.OPENING_DATALINK
+            return null
+        }
         when {
             found == null -> fail(failure(ConnectionFailure.Reason.NotFound, "station.known-host-silent"))
             found != at.serial -> fail(failure(ConnectionFailure.Reason.WrongCamera, "wifi.serial-mismatch"))
@@ -94,6 +105,7 @@ internal class FakeLunaStationPort(scope: CoroutineScope) : LunaStationPort {
         disconnect()
         steps += Step.ReturnToAccessPoint(id)
         during(Step.ReturnToAccessPoint(id))
+        returnFailure?.let { throw it }
         return returns.removeFirstOrNull() ?: LunaAccessPointReturn.Returned
     }
 
@@ -110,6 +122,11 @@ internal class FakeLunaStationPort(scope: CoroutineScope) : LunaStationPort {
         _failure.value = null
         _phase.value = ConnectionPhase.IDLE
         session?.linkChanged(ConnectionPhase.IDLE)
+    }
+
+    override fun close() {
+        disconnect()
+        closed = true
     }
 
     /** The control link dropped (the camera left the network): nothing was asked of the port. */

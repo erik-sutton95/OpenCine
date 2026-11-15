@@ -125,6 +125,8 @@ import Testing
         let time = ManualHostClock()
         let port = FakeLunaStationPort()
         let link = try await Self.live(port, clock: time.clock)
+        var statuses: [MultiviewLinkStatus] = []
+        link.onStatus = { statuses.append($0) }
         port.secondsSinceVideo = 3
         guard case .handled = link.repair(MultiviewRepairContext()) else {
             Issue.record("a short stall asks for a keyframe")
@@ -138,6 +140,36 @@ import Testing
         #expect(await restart() == .done)
         #expect(port.steps.contains(.restartLive))
         #expect(!port.steps.contains { if case .authorize = $0 { true } else { false } })
+        // The tile reads Reconnecting while live restarts, then Live again once the picture returns.
+        #expect(statuses == [.reconnecting])
+        port.secondsSinceVideo = 0.2
+        await link.keepalive()
+        #expect(statuses == [.reconnecting, .live])
+        #expect(link.pictureHealth == .live)
+    }
+
+    @Test func aRepairCancelledInItsBluetoothTurnReleasesTheTurn() async throws {
+        let port = FakeLunaStationPort()
+        let link = try await Self.live(port)
+        port.dropLink()
+        port.answering = []
+        var released = false
+        let context = MultiviewRepairContext(bluetoothTurn: { { released = true } })
+        guard case .repair(let work) = link.repair(context) else {
+            Issue.record("a lost link repairs")
+            return
+        }
+        port.during = { step in
+            if case .authorize = step { try? await Task.sleep(for: .seconds(3600)) }
+        }
+        let running = Task { await work() }
+        while !port.steps.contains(where: { if case .authorize = $0 { true } else { false } }) {
+            await Task.yield()
+        }
+        running.cancel()
+        _ = await running.value
+        #expect(released, "the coordinator's Bluetooth turn is released")
+        #expect(!port.bluetoothOpen)
     }
 
     @Test func aLostLinkThatStillAnswersRejoinsWithoutBluetooth() async throws {
@@ -252,5 +284,20 @@ import Testing
         port.camera.reportSettings()
         #expect(link.autoLUT.colorMode == "I-Log")
         #expect(link.autoLUT.conversion == "I-Log to Rec.709")
+    }
+
+    @Test func autoLUTFollowsWhatThePictureCarries() async throws {
+        // Color Recovery grades the I-Log feed before it reaches the phone: the app's preview rule
+        // says the picture is Standard, so no conversion runs on top of it.
+        let port = FakeLunaStationPort()
+        port.cameras["192.168.1.31"] = "LUNA-A"
+        let link = LunaMemberLink(
+            port: port, conversion: { $0 == "I-Log" ? "I-Log to Rec.709" : nil },
+            preview: { $0 == "I-Log" ? "Standard" : $0 })
+        _ = try await link.open(Self.sighting, at: "192.168.1.31", expecting: Self.lunaA, on: Self.studio)
+        port.camera.colorMode = 2
+        port.camera.reportSettings()
+        #expect(link.autoLUT == MultiviewAutoLUT(colorMode: "Standard", conversion: nil))
+        #expect(link.autoLUT.caption(enabled: true, conversionLoaded: false) == "Auto · no conversion needed")
     }
 }
