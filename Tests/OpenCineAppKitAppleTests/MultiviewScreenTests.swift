@@ -42,6 +42,18 @@ import UIKit
         }
     }
 
+    @Test func aWizardWithoutAScanSaysTheCameraCannotListNetworks() {
+        let stage = ScreenFixture()
+        let sheet = MultiviewNetworkSheet(
+            coordinator: stage.coordinator, host: stage.screenHost, cancel: {}, complete: {})
+        #expect(sheet.wizard.scan == nil)
+        #expect(
+            !sheet.wizard.cameraScansNetworks,
+            "Nearby reads \u{201C}This camera can\u{2019}t list networks\u{201D}, never asks to turn it on")
+        stage.commissioner.scansNetworks = true
+        #expect(sheet.wizard.scan != nil && sheet.wizard.cameraScansNetworks)
+    }
+
     @Test func theSettingsPopupShowsTheCamerasAndTheirCategoriesInOrder() async throws {
         #expect(await HostedAccessibility.awaitRuntime())
         let stage = ScreenFixture()
@@ -116,6 +128,7 @@ private final class PlainScreenHost: MultiviewScreenHost {
 @MainActor
 private final class ScreenFixture {
     let links = (0..<4).map { _ in FakeMemberLink() }
+    let commissioner = FakeStationCommissioner()
     let screenHost = PlainScreenHost()
     let coordinator: MultiviewCoordinator<FakeMemberLink>
 
@@ -123,7 +136,7 @@ private final class ScreenFixture {
         let policy = MultiviewCameraPolicy<FakeStationCamera>(
             qualification: { _, _ in .qualified }, hasPreview: { !$0.name.hasPrefix("NoPreview") })
         coordinator = MultiviewCoordinator(
-            links: links, policy: policy, commissioner: FakeStationCommissioner(),
+            links: links, policy: policy, commissioner: commissioner,
             scanner: nil, hostPath: FakeStationHostPath(), describe: { $0.record },
             journal: MultiviewJournalStorage(load: { nil }, save: { _ in true }),
             networks: MultiviewNetworkStorage(password: { _, _ in nil }, save: { _ in }))

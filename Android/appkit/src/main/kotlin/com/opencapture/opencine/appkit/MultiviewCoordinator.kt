@@ -123,7 +123,15 @@ public interface MultiviewHost {
      */
     public fun openCameraSettings(slot: Int) {}
 
-    /** The open settings editor on [slot] as the popup shows it; null while none is open. */
+    /**
+     * The open settings editor on [slot] as the popup shows it; null while none is open. The popup
+     * opens the editor again only when the selected camera's controls become available
+     * ([MultiviewCoordinator.controlsAvailable] turns true) while this is null, so the host returns
+     * null once the editor it opened no longer reaches the camera: it drops the editor when the
+     * member's camera or control path changes ([memberChanged] with CAMERA or CONTROL) or its own
+     * link is replaced. An editor kept past that shows controls whose every change `editorAdmits`
+     * refuses.
+     */
     public fun cameraSettings(slot: Int): MultiviewCameraSettingsState? = null
 
     /**
@@ -265,10 +273,16 @@ public object MultiviewCopy {
     /** The search line while the stage looks for a member on the shared network. */
     public fun finding(attempt: Int, of: Int): String = "Finding camera on Wi-Fi · $attempt of $of"
 
-    /** The Add camera list's footer: cameras the app moves onto [network], or cameras already there. */
-    public fun pickerFooter(network: String, commissioned: Boolean): String =
-        if (commissioned) "Each camera will join $network. Approve on the camera if asked."
-        else "Cameras already on $network appear here."
+    /**
+     * The Add camera list's footer: cameras the app moves onto [network] (approved on the camera where
+     * [asksApproval]), or cameras already there (this phone's network when it has no name).
+     */
+    public fun pickerFooter(network: String, commissioned: Boolean, asksApproval: Boolean = true): String =
+        when {
+            commissioned -> "Each camera will join $network." + if (asksApproval) " Approve on the camera if asked." else ""
+            network.isEmpty() -> "Cameras on this phone\u2019s network appear here."
+            else -> "Cameras already on $network appear here."
+        }
 
     /** A listed camera that joins without its picture. */
     public const val PREVIEW_UNAVAILABLE: String = "Try experimental shared Wi-Fi · Preview unavailable"
@@ -508,15 +522,16 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     // Lifecycle
 
     /**
-     * Opens the stage: always asks for a network, starts with empty slots, takes presentation and
-     * cleanup from the journal, and runs the 1 s monitor.
+     * Opens the stage: asks for a network (where a commissioner moves cameras onto it; without one
+     * the cameras already share this phone's network), starts with empty slots, takes presentation
+     * and cleanup from the journal, and runs the 1 s monitor.
      */
     public fun start() {
         if (running) return
         running = true
         hostAddress = ""
         ready = false
-        networkConfigured = false
+        networkConfigured = commissioner == null
         ssid = ""
         password = ""
         usePhoneHotspot = false
@@ -739,6 +754,8 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     }
 
     private suspend fun performHostJoin() {
+        // Without a commissioner and a chosen network, the phone stays on the network it is on.
+        if (ssid.isEmpty() && commissioner == null) return
         if (ssid.isEmpty()) throw MultiviewStageFailure.Network()
         // The host phone must not try joining its own hotspot. Its local bridge may appear only
         // after the first camera associates.
@@ -832,7 +849,8 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         member.camera = camera
         member.experimental = experimental
         member.networkVerified = false
-        member.status = MultiviewCopy.APPROVE_ON_CAMERA
+        member.status =
+            if (commissioner?.asksApprovalOnCamera == true) MultiviewCopy.APPROVE_ON_CAMERA else MultiviewCopy.CONNECTING_PREVIEW
         refreshDiscovery()
         persistStage()
         var stage = "host Wi-Fi"
@@ -918,6 +936,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
 
     /** Sets the camera up again through the experimental shared Wi-Fi path. */
     public suspend fun tryExperimentalNetwork(slot: Int) {
+        if (!offersExperimentalJoin) return
         val camera = members[slot].camera ?: return
         if (!remove(slot)) return
         add(camera, slot, true)

@@ -72,17 +72,22 @@ public interface MultiviewScreenHost : MultiviewHost {
     /**
      * The network wizard over the stage ([MultiviewNetworkSetup] with the app's values). [lockedNetwork]
      * is the network cameras use (the wizard shows it locked); [cancel] closes Multiview when no
-     * network is confirmed; [complete] returns to the stage.
+     * network is confirmed; [complete] returns to the stage. Only a stage that chooses its network
+     * (a commissioner, [choosesNetwork]) shows it: a host without one keeps this default, which
+     * draws nothing.
      */
     @Composable
-    public fun NetworkSetup(lockedNetwork: StationNetwork?, cancel: () -> Unit, complete: () -> Unit)
+    public fun NetworkSetup(lockedNetwork: StationNetwork?, cancel: () -> Unit, complete: () -> Unit) {}
 }
 
 /**
  * The shared Multiview screen over a coordinator and its app's host: the stage with its tools, tiles
  * and record, the Add list, the network wizard (locked while cameras use the network), the camera
  * settings popup, Live View, the close and cleanup prompts, Back and the foreground rules. Draw it
- * over the app's shell; [onClose] runs when the stage closed. Swift twin: `MultiviewScreen`.
+ * over the app's shell; it starts the stage when it first appears (as the SwiftUI screen does; a
+ * stage the app already started stays as it is), and [onClose] runs when the stage closed.
+ * [startsSession] false is a review fixture: the stage is not started and the foreground does not
+ * reach it. Swift twin: `MultiviewScreen`.
  */
 @Composable
 public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewScreen(
@@ -90,6 +95,7 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewScreen(
     host: MultiviewScreenHost,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    startsSession: Boolean = true,
 ) {
     val scope = rememberCoroutineScope()
     val haptics = LocalOperatorHaptics.current
@@ -114,9 +120,10 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewScreen(
         if (coordinator.members.any { it.camera != null }) showLeave = true else closeStage()
     }
 
-    LaunchedEffect(coordinator) { showNetwork = !coordinator.networkConfigured }
+    LaunchedEffect(coordinator) { showNetwork = coordinator.screenAppeared(startsSession) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(lifecycle, coordinator) {
+    DisposableEffect(lifecycle, coordinator, startsSession) {
+        if (!startsSession) return@DisposableEffect onDispose {}
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> coordinator.setApplicationActive(true)
@@ -158,7 +165,9 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewScreen(
         ) { viewport ->
             MultiviewStageContent(
                 coordinator, host, viewport.layout, interactive = !overlayOpen,
-                onAdd = { slot -> if (coordinator.networkConfigured) adding = slot else showNetwork = true },
+                onAdd = { slot ->
+                    if (coordinator.networkConfigured) adding = slot else if (coordinator.choosesNetwork) showNetwork = true
+                },
                 onOpenLive = { slot -> liveSlot = slot },
                 onSettings = { slot -> settingsSlot = slot },
                 onNetwork = { showNetwork = true },
@@ -263,15 +272,17 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewStageContent(
 ) {
     val haptics = LocalOperatorHaptics.current
     val presentation = coordinator.presentation
+    val availability = coordinator.toolAvailability
+    val services = remember(availability) { MultiviewStageServices(availability, automaticLUT = true) }
     MultiviewStageStateProvider(presentation) {
-        MultiviewStageServicesProvider(MultiviewStageServices(coordinator.toolAvailability, automaticLUT = true)) {
+        MultiviewStageServicesProvider(services) {
             MultiviewStage(
                 tiles = coordinator.members.indices.map { coordinator.stageTile(it) },
                 layout = layout,
                 arrangement = presentation.layout.arrangement,
                 selected = presentation.selected,
                 fill = presentation.fill,
-                tools = listOf(MultiviewTool.LAYOUT, MultiviewTool.CAMERA, MultiviewTool.FIT, MultiviewTool.LUT),
+                tools = MultiviewTool.SCREEN,
                 readouts = coordinator.programReadouts,
                 recording = coordinator.anyRecording,
                 groupBusy = coordinator.groupRecordingBusy,
@@ -312,10 +323,16 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewStageContent(
                 busy = coordinator.busy,
                 closing = coordinator.closing,
                 interactive = interactive,
-                network = MultiviewStageButton(
-                    "Shared Wi-Fi", MonitorIcon.WIFI, enabled = !coordinator.busy && !coordinator.connectingCameras,
-                    identifier = "multiview.network", action = onNetwork,
-                ),
+                // Only a stage that chose its network offers the Shared Wi-Fi page.
+                network = if (coordinator.choosesNetwork) {
+                    MultiviewStageButton(
+                        "Shared Wi-Fi", MonitorIcon.WIFI,
+                        enabled = coordinator.running && !coordinator.busy && !coordinator.connectingCameras,
+                        identifier = "multiview.network", action = onNetwork,
+                    )
+                } else {
+                    null
+                },
                 picture = picture,
             )
         }
@@ -341,24 +358,21 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewNetworkSetup(
     cameraSsids: Set<String> = emptySet(),
     sourceChosen: (hotspot: Boolean) -> Unit = {},
 ) {
-    val scan: (suspend ((String) -> Unit) -> Unit)? =
-        if (coordinator.scansNetworks) {
-            { found -> coordinator.scanNetworks(found) }
-        } else {
-            null
-        }
+    val scan = coordinator.wizardScan
     StationNetworkSetup(
         brand = brand,
         wifiNameAccess = wifiNameAccess,
         savedNetworks = savedNetworks,
         currentSsid = currentSsid,
         hotspotActive = { coordinator.hostPath.address(true) != null },
-        scan = scan,
+        scan = scan.scan,
+        cameraScansNetworks = scan.cameraScansNetworks,
         connect = { network ->
             coordinator.selectNetworkSource(network.hotspot)
             sourceChosen(coordinator.usePhoneHotspot)
             coordinator.selectNetwork(network.ssid)
             coordinator.password = network.password
+            // Pocket Android's own fallback, kept (the SwiftUI wizard shows no line when none is set).
             if (coordinator.configureNetwork()) null else coordinator.networkSetupError ?: "Could not connect. Try again."
         },
         cancel = cancel,

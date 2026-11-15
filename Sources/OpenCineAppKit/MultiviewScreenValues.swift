@@ -1,7 +1,10 @@
 import Foundation
 
 /// One category of the Multiview camera settings popup's rail, in the order the popup offers them.
-/// The app maps each to its own controls. Kotlin twin: `MultiviewSettingsCategory`.
+/// The app maps each to its own controls. A later category is added on both twins; a host that
+/// maps categories by `rawValue` (an optional lookup, showing nothing for one it lacks) keeps
+/// compiling, while one with an exhaustive `switch` adds its case in the same change. Kotlin twin:
+/// `MultiviewSettingsCategory`.
 public enum MultiviewSettingsCategory: String, CaseIterable, Hashable, Sendable {
     case iso, shutter, exposure, wb, focus, aperture, mode, resolution, color, audio
 
@@ -46,18 +49,19 @@ public struct MultiviewCameraSettingsState: Hashable, Sendable {
     public var recording: Bool
     /// The editor's last command note (a refusal or error), nil when there is none.
     public var note: String?
-    /// The editor has described the camera once; the controls start again when it first does.
-    public var described: Bool
 
     public init(
-        categories: [MultiviewSettingsCategory], recording: Bool = false, note: String? = nil,
-        described: Bool = true
+        categories: [MultiviewSettingsCategory], recording: Bool = false, note: String? = nil
     ) {
         self.categories = categories
         self.recording = recording
         self.note = note
-        self.described = described
     }
+}
+
+extension MultiviewTool {
+    /// The shared screen's toolbar, in Pocket iOS order. Kotlin twin: `MultiviewTool.SCREEN`.
+    public static let screen: [MultiviewTool] = [.layout, .camera, .fit, .lut]
 }
 
 extension MultiviewNetworkRestore {
@@ -71,10 +75,17 @@ extension MultiviewNetworkRestore {
 }
 
 extension MultiviewCopy {
-    /// The Add camera list's footer: cameras the app moves onto `network`, or cameras already there.
-    public static func pickerFooter(network: String, commissioned: Bool) -> String {
-        commissioned
-            ? "Each camera will join \(network). Approve on the camera if asked."
+    /// The Add camera list's footer: cameras the app moves onto `network` (approved on the camera
+    /// where `asksApproval`), or cameras already there (this phone's network when it has no name).
+    public static func pickerFooter(
+        network: String, commissioned: Bool, asksApproval: Bool = true
+    ) -> String {
+        if commissioned {
+            return "Each camera will join \(network)."
+                + (asksApproval ? " Approve on the camera if asked." : "")
+        }
+        return network.isEmpty
+            ? "Cameras on this phone\u{2019}s network appear here."
             : "Cameras already on \(network) appear here."
     }
     /// A listed camera that joins without its picture.

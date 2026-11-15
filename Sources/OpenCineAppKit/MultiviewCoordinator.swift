@@ -56,7 +56,12 @@ public protocol MultiviewHost: AnyObject {
     /// coordinator's editor lease (`openEditorLease`) with it and asks `editorAdmits` before each
     /// change.
     func openCameraSettings(slot: Int)
-    /// The open settings editor on `slot` as the popup shows it; nil while none is open.
+    /// The open settings editor on `slot` as the popup shows it; nil while none is open. The
+    /// popup opens the editor again only when the selected camera's controls become available
+    /// (`controlsAvailable(slot:)` turns true) while this is nil, so the host returns nil once the
+    /// editor it opened no longer reaches the camera: it drops the editor when the member's camera
+    /// or control path changes (`memberChanged` with `.camera` or `.control`) or its own link is
+    /// replaced. An editor kept past that shows controls whose every change `editorAdmits` refuses.
     func cameraSettings(slot: Int) -> MultiviewCameraSettingsState?
     /// What only the app knows about whether `slot` takes a settings change now (its own link is
     /// open, no Live View borrows the member). `controlsAvailable(slot:)` asks it.
@@ -466,14 +471,15 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
 
     // MARK: Lifecycle
 
-    /// Opens the stage: always asks for a network, starts with empty slots, takes presentation and
-    /// cleanup from the journal, and runs the 1 s monitor.
+    /// Opens the stage: asks for a network (where a commissioner moves cameras onto it; without
+    /// one the cameras already share this phone's network), starts with empty slots, takes
+    /// presentation and cleanup from the journal, and runs the 1 s monitor.
     public func start() {
         guard !running else { return }
         running = true
         hostAddress = ""
         ready = false
-        networkConfigured = false
+        networkConfigured = commissioner == nil
         ssid = ""
         password = ""
         usePhoneHotspot = false
@@ -680,6 +686,8 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
     }
 
     private func performHostJoin() async throws {
+        // Without a commissioner and a chosen network, the phone stays on the network it is on.
+        if ssid.isEmpty, commissioner == nil { return }
         guard !ssid.isEmpty else { throw MultiviewStageFailure.network }
         // The host phone must not try joining its own hotspot. Its local bridge may appear only
         // after the first camera associates.
@@ -774,7 +782,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         member.camera = camera
         member.experimental = experimental
         member.networkVerified = false
-        member.status = MultiviewCopy.approveOnCamera
+        member.status =
+            commissioner?.asksApprovalOnCamera == true
+            ? MultiviewCopy.approveOnCamera : MultiviewCopy.connectingPreview
         refreshDiscovery()
         defer {
             member.connecting = false
@@ -860,7 +870,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
 
     /// Sets the camera up again through the experimental shared Wi-Fi path.
     public func tryExperimentalNetwork(slot: Int) async {
-        guard let camera = members[slot].camera, remove(slot: slot) else { return }
+        guard offersExperimentalJoin, let camera = members[slot].camera, remove(slot: slot) else {
+            return
+        }
         await add(camera, slot: slot, experimental: true)
     }
 
@@ -1228,8 +1240,9 @@ public final class MultiviewCoordinator<Link: MultiviewMemberLink> where Link.Ca
         restoreStage(journal.load().flatMap { $0.validated(tileCount: links.count) })
     }
 
-    /// A new stage always asks for a network and starts with empty slots. A saved stage supplies
-    /// presentation and cleanup obligations only; it never chooses a network or reconnects cameras.
+    /// A new stage asks for a network (with a commissioner) and starts with empty slots. A saved
+    /// stage supplies presentation and cleanup obligations only; it never chooses a network or
+    /// reconnects cameras.
     public func restoreStage(_ savedStage: MultiviewStageJournal.Stage?) {
         guard let stage = savedStage else { return }
         pendingReset = stage.pendingReset ?? []

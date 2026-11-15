@@ -2,7 +2,9 @@ package com.opencapture.opencine.appkit
 
 /**
  * One category of the Multiview camera settings popup's rail, in the order the popup offers them.
- * The app maps each to its own controls. Swift twin: `MultiviewSettingsCategory`.
+ * The app maps each to its own controls. A later category is added on both twins; a host that maps
+ * categories through a lookup (showing nothing for one it lacks) keeps compiling, while one with an
+ * exhaustive `when` adds its branch in the same change. Swift twin: `MultiviewSettingsCategory`.
  */
 public enum class MultiviewSettingsCategory(public val id: String) {
     ISO("iso"),
@@ -58,6 +60,4 @@ public data class MultiviewCameraSettingsState(
     val recording: Boolean = false,
     /** The editor's last command note (a refusal or error), null when there is none. */
     val note: String? = null,
-    /** The editor has described the camera once; the controls start again when it first does. */
-    val described: Boolean = true,
 )

@@ -900,6 +900,147 @@ class MultiviewCoordinatorTest {
     }
 
     @Test
+    fun theExperimentalJoinShowsOnlyWhereTheCommissionerOffersIt() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        val limited = FakeStationCamera("NoPreview B")
+        c.found = listOf(limited)
+        c.members[0].camera = FakeStationCamera("Camera A")
+        c.members[0].failureMessage = MultiviewCopy.NOT_FOUND
+        fun experimental(tile: MultiviewTile?) = tile?.actions?.any { it.id == MultiviewCameraAction.EXPERIMENTAL } == true
+        assertTrue(c.offersExperimentalJoin)
+        assertTrue(experimental(c.stageTile(0)), "a failed camera may try the experimental path")
+        stage.commissioner.joinsExperimentally = false
+        assertFalse(c.offersExperimentalJoin)
+        assertFalse(experimental(c.stageTile(0)), "a commissioner without it never offers it")
+        assertEquals(
+            listOf(MultiviewPickerRow(limited.record.id, "NoPreview B", limited = true)),
+            c.pickerRows(),
+            "a camera without a picture joins the normal way, without the experimental copy",
+        )
+        c.tryExperimentalNetwork(0)
+        assertTrue(c.members[0].camera != null && stage.commissioner.joins.isEmpty(), "nothing to try")
+        stage.links[1].place(limited, "192.168.1.13")
+        assertTrue(c.enqueueAdd(limited.record.id, 1))
+        runCurrent()
+        assertTrue(!c.members[1].connecting && c.members[1].camera != null)
+        assertFalse(c.members[1].experimental)
+        assertEquals(listOf(false), stage.commissioner.joins.map { it.third })
+        c.stop()
+
+        val passive = Fixture(this, commissioner = false, discoversByProbe = false)
+        passive.coordinator.members[0].camera = FakeStationCamera("Body A")
+        passive.coordinator.members[0].failureMessage = MultiviewCopy.NOT_FOUND
+        assertFalse(passive.coordinator.offersExperimentalJoin)
+        assertFalse(experimental(passive.coordinator.stageTile(0)), "nothing to join through")
+    }
+
+    @Test
+    fun anAddAsksForApprovalOnlyWhereTheCommissionerDoes() = runTest {
+        val stage = Fixture(this)
+        stage.configure()
+        val c = stage.coordinator
+        // The add's first status shows while this phone rejoins the network.
+        val gate = FakeGate()
+        stage.path.joinGate = gate
+        val a = FakeStationCamera("Camera A")
+        stage.links[0].place(a, "192.168.1.12")
+        val adding = launch { c.add(a, 0) }
+        runCurrent()
+        assertEquals(1, gate.waiting)
+        assertEquals(MultiviewCopy.APPROVE_ON_CAMERA, c.members[0].status)
+        assertEquals("Each camera will join Test network. Approve on the camera if asked.", c.pickerFooter)
+        gate.open()
+        adding.join()
+        stage.commissioner.asksApprovalOnCamera = false
+        val b = FakeStationCamera("Camera B")
+        stage.links[1].place(b, "192.168.1.13")
+        val gateB = FakeGate()
+        stage.path.joinGate = gateB
+        val addingB = launch { c.add(b, 1) }
+        runCurrent()
+        assertEquals(1, gateB.waiting)
+        assertEquals(MultiviewCopy.CONNECTING_PREVIEW, c.members[1].status, "nothing asks on the camera")
+        assertEquals("Each camera will join Test network.", c.pickerFooter)
+        gateB.open()
+        addingB.join()
+        c.stop()
+    }
+
+    @Test
+    fun aWizardWithoutAScanSaysTheCameraCannotListNetworks() = runTest {
+        val stage = Fixture(this)
+        assertNull(stage.coordinator.wizardScan.scan)
+        assertFalse(stage.coordinator.wizardScan.cameraScansNetworks, "Nearby says the camera can\u2019t list networks")
+        stage.commissioner.scansNetworks = true
+        assertNotNull(stage.coordinator.wizardScan.scan)
+        assertTrue(stage.coordinator.wizardScan.cameraScansNetworks)
+    }
+
+    @Test
+    fun theScreenStartsTheStageAndOpensTheWizardFirst() = runTest {
+        val stage = Fixture(this)
+        val c = stage.coordinator
+        assertTrue(c.choosesNetwork)
+        assertTrue(c.screenAppeared(startsSession = true), "a new stage asks for its network")
+        assertTrue(c.running && !c.networkConfigured)
+        assertTrue(c.screenAppeared(startsSession = true), "appearing again starts nothing new")
+        c.stop()
+
+        val review = Fixture(this)
+        review.coordinator.networkConfigured = true
+        assertFalse(review.coordinator.screenAppeared(startsSession = false))
+        assertFalse(review.coordinator.running, "a review fixture is never started")
+    }
+
+    @Test
+    fun withoutACommissionerTheStageUsesThePhonesNetworkWithoutTheWizard() = runTest {
+        val passive = Fixture(this, commissioner = false, discoversByProbe = false)
+        val c = passive.coordinator
+        assertFalse(c.choosesNetwork)
+        assertFalse(c.screenAppeared(startsSession = true), "no network wizard")
+        assertTrue(c.running && c.networkConfigured, "cameras already share this phone's network")
+        assertEquals("Cameras on this phone\u2019s network appear here.", c.pickerFooter)
+        val camera = FakeStationCamera("Body A", sightedAt = "192.168.1.13")
+        passive.links[0].place(camera, "192.168.1.13")
+        c.add(camera, 0)
+        assertEquals("192.168.1.13", c.members[0].controlHost)
+        assertTrue(passive.path.joins.isEmpty(), "the phone stays on its own network")
+        c.stop()
+    }
+
+    @Test
+    fun aRemoveQueuedBeforeTheVerdictLandsChangesNothing() = runTest {
+        val stage = Fixture(this)
+        val (c, link, member) = stage.liveMember()
+        val gate = FakeGate()
+        val test = this
+        // The operator's Remove reaches the main dispatcher before the repair's verdict does.
+        link.repairStep = {
+            MultiviewRepairStep.Repair {
+                withContext(NonCancellable) { gate.await() }
+                test.launch { c.remove(0) }
+                MultiviewRepairResult.WaitForOperator("Late verdict")
+            }
+        }
+        stage.tick()
+        assertEquals(1, gate.waiting)
+        assertTrue(member.recovering)
+        link.repairStep = { MultiviewRepairStep.Healthy }
+        gate.open()
+        runCurrent()
+        assertNull(member.camera)
+        val camera = FakeStationCamera("Camera A")
+        link.place(camera, "192.168.1.12")
+        c.add(camera, 0)
+        assertNull(member.failureMessage, "the removed member's verdict changes nothing")
+        assertFalse(member.budget.exhausted)
+        assertTrue(member.publishing)
+        c.stop()
+    }
+
+    @Test
     fun lutTogglesFollowTheMembersAndTheJournal() = runTest {
         val stage = Fixture(this)
         stage.configure()

@@ -213,7 +213,14 @@ public object MultiviewTally {
 }
 
 /** The stage's assist tools. Apps list the ones they offer, in their palette order. */
-public enum class MultiviewTool { LAYOUT, CAMERA, FIT, LUT }
+public enum class MultiviewTool {
+    LAYOUT, CAMERA, FIT, LUT;
+
+    public companion object {
+        /** The shared screen's toolbar, in Pocket iOS order. Swift twin: `MultiviewTool.screen`. */
+        public val SCREEN: List<MultiviewTool> = listOf(LAYOUT, CAMERA, FIT, LUT)
+    }
+}
 
 /** Working host adapters for occupied member slots. An empty value offers no executable tools. */
 public data class MultiviewToolAvailability(

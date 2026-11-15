@@ -13,8 +13,9 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Cam
     members[slot].camera?.let { describe(it).name }
 
 /**
- * Found cameras the Add list offers: those the policy lets join (experimentally if need be) and that
- * are not members. One without a picture says so and joins experimentally.
+ * Found cameras the Add list offers: those the policy lets join (experimentally if need be and the
+ * commissioner offers it) and that are not members. One without a picture says so and joins
+ * experimentally where it can.
  */
 public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.pickerRows(): List<MultiviewPickerRow> =
     addable().map { camera ->
@@ -22,33 +23,63 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Cam
         val preview = policy.hasPreview(camera)
         MultiviewPickerRow(
             record.id, record.name,
-            detail = if (preview) null else MultiviewCopy.PREVIEW_UNAVAILABLE,
+            detail = if (preview || !offersExperimentalJoin) null else MultiviewCopy.PREVIEW_UNAVAILABLE,
             limited = !preview,
         )
     }
 
 /** The Add list's footer for this stage's network. */
 public val <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.pickerFooter: String
-    get() = MultiviewCopy.pickerFooter(ssid, commissioned = commissioner != null)
+    get() = MultiviewCopy.pickerFooter(
+        ssid, commissioned = commissioner != null, asksApproval = commissioner?.asksApprovalOnCamera ?: false,
+    )
 
 /**
- * Adds the camera of the Add list's row [id] to [slot] (experimentally when it shows no picture);
- * false when the row is gone.
+ * Adds the camera of the Add list's row [id] to [slot] (experimentally when it shows no picture and
+ * the commissioner offers it); false when the row is gone.
  */
 public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.enqueueAdd(
     pickerRow: String,
     slot: Int,
 ): Boolean {
     val camera = addable().firstOrNull { describe(it).id == pickerRow } ?: return false
-    enqueueAdd(camera, slot, experimental = !policy.hasPreview(camera))
+    enqueueAdd(camera, slot, experimental = offersExperimentalJoin && !policy.hasPreview(camera))
     return true
 }
 
 private fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.addable(): List<Camera> {
     val joined = members.mapNotNull { member -> member.camera?.let { describe(it).id } }.toSet()
+    val experimental = offersExperimentalJoin
     return found.filter { camera ->
-        policy.qualification(camera, true) !is MulticamQualification.Refused && describe(camera).id !in joined
+        policy.qualification(camera, experimental) !is MulticamQualification.Refused && describe(camera).id !in joined
     }
+}
+
+/**
+ * The stage asks the operator for its shared network with the network wizard (and offers the Shared
+ * Wi-Fi button): only where a commissioner moves cameras onto it. Without one the cameras already
+ * share this phone's network.
+ */
+public val <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.choosesNetwork: Boolean
+    get() = commissioner != null
+
+/**
+ * The experimental shared Wi-Fi path: a failed camera may try it and a camera without a picture joins
+ * through it, only where the commissioner offers it.
+ */
+public val <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.offersExperimentalJoin: Boolean
+    get() = commissioner?.joinsExperimentally ?: false
+
+/**
+ * What the shared screen does when it appears: starts the stage (unless [startsSession] is false, a
+ * review fixture) and answers whether the network wizard opens first. Both screens call it, so an
+ * app presents the screen over a coordinator it has not started.
+ */
+public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.screenAppeared(
+    startsSession: Boolean,
+): Boolean {
+    if (startsSession) start()
+    return choosesNetwork && !networkConfigured
 }
 
 /** Whether closing returns cameras to their own networks: only an app that moved them there. */
@@ -58,6 +89,22 @@ public val <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Cam
 /** The network wizard may scan through a nearby camera. */
 public val <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.scansNetworks: Boolean
     get() = commissioner?.scansNetworks ?: false
+
+/**
+ * The network wizard's scan through a camera ([scan], null when the commissioner cannot scan) and
+ * whether the camera can list networks at all (the wizard's "can't list networks" copy otherwise).
+ */
+internal class MultiviewWizardScan(
+    val scan: (suspend ((String) -> Unit) -> Unit)?,
+    val cameraScansNetworks: Boolean,
+)
+
+internal val <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.wizardScan: MultiviewWizardScan
+    get() = if (scansNetworks) {
+        MultiviewWizardScan({ found -> scanNetworks(found) }, cameraScansNetworks = true)
+    } else {
+        MultiviewWizardScan(null, cameraScansNetworks = false)
+    }
 
 /** Toggles [slot]'s Auto LUT and saves the choice. */
 public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Camera, Link>.toggleLUT(slot: Int) {

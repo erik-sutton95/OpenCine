@@ -12,39 +12,64 @@ extension MultiviewCoordinator {
         members[slot].camera.map { describe($0).name }
     }
 
-    /// Found cameras the Add list offers: those the policy lets join (experimentally if need be)
-    /// and that are not members. One without a picture says so and joins experimentally.
+    /// Found cameras the Add list offers: those the policy lets join (experimentally if need be
+    /// and the commissioner offers it) and that are not members. One without a picture says so
+    /// and joins experimentally where it can.
     public func pickerRows() -> [MultiviewPickerRow] {
         addable.map { camera in
             let record = describe(camera)
             let preview = policy.hasPreview(camera)
             return MultiviewPickerRow(
                 id: record.id.uuidString, title: record.name,
-                detail: preview ? nil : MultiviewCopy.previewUnavailable, limited: !preview)
+                detail: preview || !offersExperimentalJoin ? nil : MultiviewCopy.previewUnavailable,
+                limited: !preview)
         }
     }
 
     /// The Add list's footer for this stage's network.
     public var pickerFooter: String {
-        MultiviewCopy.pickerFooter(network: ssid, commissioned: commissioner != nil)
+        MultiviewCopy.pickerFooter(
+            network: ssid, commissioned: commissioner != nil,
+            asksApproval: commissioner?.asksApprovalOnCamera ?? false)
     }
 
     /// Adds the camera of the Add list's row `id` to `slot` (experimentally when it shows no
-    /// picture); false when the row is gone.
+    /// picture and the commissioner offers it); false when the row is gone.
     @discardableResult public func enqueueAdd(pickerRow id: String, slot: Int) -> Bool {
         guard let camera = addable.first(where: { describe($0).id.uuidString == id }) else {
             return false
         }
-        enqueueAdd(camera, slot: slot, experimental: !policy.hasPreview(camera))
+        enqueueAdd(
+            camera, slot: slot, experimental: offersExperimentalJoin && !policy.hasPreview(camera))
         return true
     }
 
     private var addable: [Camera] {
         let members = Set(members.compactMap { $0.camera.map { describe($0).id } })
+        let experimental = offersExperimentalJoin
         return found.filter { camera in
-            if case .refused = policy.qualification(camera, experimental: true) { return false }
+            if case .refused = policy.qualification(camera, experimental: experimental) {
+                return false
+            }
             return !members.contains(describe(camera).id)
         }
+    }
+
+    /// The stage asks the operator for its shared network with the network wizard (and offers
+    /// the Shared Wi-Fi button): only where a commissioner moves cameras onto it. Without one the
+    /// cameras already share this phone's network.
+    public var choosesNetwork: Bool { commissioner != nil }
+
+    /// The experimental shared Wi-Fi path: a failed camera may try it and a camera without a
+    /// picture joins through it, only where the commissioner offers it.
+    public var offersExperimentalJoin: Bool { commissioner?.joinsExperimentally ?? false }
+
+    /// What the shared screen does when it appears: starts the stage (unless `startsSession` is
+    /// false, a review fixture) and answers whether the network wizard opens first. Both screens
+    /// call it, so an app presents the screen over a coordinator it has not started.
+    @discardableResult public func screenAppeared(startsSession: Bool) -> Bool {
+        if startsSession { start() }
+        return choosesNetwork && !networkConfigured
     }
 
     /// Whether closing returns cameras to their own networks: only an app that moved them there.

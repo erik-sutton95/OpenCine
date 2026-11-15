@@ -101,6 +101,21 @@ class MultiviewValuesTest {
             "Each camera will join Studio. Approve on the camera if asked.",
             MultiviewCopy.pickerFooter("Studio", commissioned = true),
         )
+        assertEquals(
+            "Each camera will join Studio.",
+            MultiviewCopy.pickerFooter("Studio", commissioned = true, asksApproval = false),
+        )
         assertEquals("Cameras already on Studio appear here.", MultiviewCopy.pickerFooter("Studio", commissioned = false))
+        assertEquals(
+            "Cameras on this phone\u2019s network appear here.",
+            MultiviewCopy.pickerFooter("", commissioned = false),
+        )
+    }
+
+    @Test fun theScreenToolbarKeepsIOSOrder() {
+        assertEquals(
+            listOf(MultiviewTool.LAYOUT, MultiviewTool.CAMERA, MultiviewTool.FIT, MultiviewTool.LUT),
+            MultiviewTool.SCREEN,
+        )
     }
 }

@@ -932,6 +932,134 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func theExperimentalJoinShowsOnlyWhereTheCommissionerOffersIt() async {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        let limited = FakeStationCamera(name: "NoPreview B")
+        c.found = [limited]
+        c.members[0].camera = FakeStationCamera(name: "Camera A")
+        c.members[0].failureMessage = MultiviewCopy.notFound
+        let experimental: (MultiviewTile?) -> Bool = {
+            $0?.actions.contains { $0.id == MultiviewCameraAction.experimental } == true
+        }
+        #expect(c.offersExperimentalJoin)
+        #expect(experimental(c.stageTile(0)), "a failed camera may try the experimental path")
+        stage.commissioner.joinsExperimentally = false
+        #expect(!c.offersExperimentalJoin)
+        #expect(!experimental(c.stageTile(0)), "a commissioner without it never offers it")
+        #expect(
+            c.pickerRows() == [
+                MultiviewPickerRow(id: limited.record.id.uuidString, title: "NoPreview B", limited: true)
+            ], "a camera without a picture joins the normal way, without the experimental copy")
+        await c.tryExperimentalNetwork(slot: 0)
+        #expect(c.members[0].camera != nil && stage.commissioner.joins.isEmpty, "nothing to try")
+        stage.links[1].place(limited, at: "192.168.1.13")
+        #expect(c.enqueueAdd(pickerRow: limited.record.id.uuidString, slot: 1))
+        await until { !c.members[1].connecting && c.members[1].camera != nil }
+        #expect(!c.members[1].experimental)
+        #expect(stage.commissioner.joins.map(\.experimental) == [false])
+        c.stop()
+
+        let passive = Fixture(commissioner: false, discoversByProbe: false)
+        passive.coordinator.members[0].camera = FakeStationCamera(name: "Body A")
+        passive.coordinator.members[0].failureMessage = MultiviewCopy.notFound
+        #expect(!passive.coordinator.offersExperimentalJoin)
+        #expect(!experimental(passive.coordinator.stageTile(0)), "nothing to join through")
+    }
+
+    @available(macOS 14, *)
+    @Test func anAddAsksForApprovalOnlyWhereTheCommissionerDoes() async {
+        let stage = Fixture()
+        await stage.configure()
+        let c = stage.coordinator
+        // The add's first status shows while this phone rejoins the network.
+        let gate = FakeGate()
+        stage.path.joinGate = gate
+        let a = FakeStationCamera(name: "Camera A")
+        stage.links[0].place(a, at: "192.168.1.12")
+        let adding = Task { await c.add(a, slot: 0) }
+        await until { gate.waiting == 1 }
+        #expect(c.members[0].status == MultiviewCopy.approveOnCamera)
+        #expect(c.pickerFooter == "Each camera will join Test network. Approve on the camera if asked.")
+        gate.open()
+        await adding.value
+        stage.commissioner.asksApprovalOnCamera = false
+        let b = FakeStationCamera(name: "Camera B")
+        stage.links[1].place(b, at: "192.168.1.13")
+        let gateB = FakeGate()
+        stage.path.joinGate = gateB
+        let addingB = Task { await c.add(b, slot: 1) }
+        await until { gateB.waiting == 1 }
+        #expect(c.members[1].status == MultiviewCopy.connectingPreview, "nothing asks on the camera")
+        #expect(c.pickerFooter == "Each camera will join Test network.")
+        gateB.open()
+        await addingB.value
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func theScreenStartsTheStageAndOpensTheWizardFirst() {
+        let stage = Fixture()
+        let c = stage.coordinator
+        #expect(c.choosesNetwork)
+        #expect(c.screenAppeared(startsSession: true), "a new stage asks for its network")
+        #expect(c.running && !c.networkConfigured)
+        #expect(c.screenAppeared(startsSession: true), "appearing again starts nothing new")
+        c.stop()
+
+        let review = Fixture()
+        review.coordinator.networkConfigured = true
+        #expect(!review.coordinator.screenAppeared(startsSession: false))
+        #expect(!review.coordinator.running, "a review fixture is never started")
+    }
+
+    @available(macOS 14, *)
+    @Test func withoutACommissionerTheStageUsesThePhonesNetworkWithoutTheWizard() async {
+        let passive = Fixture(commissioner: false, discoversByProbe: false)
+        let c = passive.coordinator
+        #expect(!c.choosesNetwork)
+        #expect(!c.screenAppeared(startsSession: true), "no network wizard")
+        #expect(c.running && c.networkConfigured, "cameras already share this phone's network")
+        #expect(c.pickerFooter == "Cameras on this phone\u{2019}s network appear here.")
+        let camera = FakeStationCamera(name: "Body A", sightedAt: "192.168.1.13")
+        passive.links[0].place(camera, at: "192.168.1.13")
+        await c.add(camera, slot: 0)
+        #expect(c.members[0].controlHost == "192.168.1.13")
+        #expect(passive.path.joins.isEmpty, "the phone stays on its own network")
+        c.stop()
+    }
+
+    @available(macOS 14, *)
+    @Test func aRemoveQueuedBeforeTheVerdictLandsChangesNothing() async throws {
+        let stage = Fixture()
+        let (c, link, member) = await stage.liveMember()
+        let gate = FakeGate()
+        var returned = false
+        // The operator's Remove reaches the main actor before the repair's verdict does.
+        link.repairStep = { _ in
+            .repair {
+                await gate.wait()
+                Task { @MainActor in _ = c.remove(slot: 0) }
+                returned = true
+                return .waitForOperator("Late verdict")
+            }
+        }
+        try await stage.tick(.seconds(1))
+        await until { gate.waiting == 1 && member.recovering }
+        link.repairStep = { _ in .healthy }
+        gate.open()
+        await until { returned && member.camera == nil }
+        let camera = FakeStationCamera(name: "Camera A")
+        link.place(camera, at: "192.168.1.12")
+        await c.add(camera, slot: 0)
+        #expect(member.failureMessage == nil, "the removed member's verdict changes nothing")
+        #expect(!member.budget.exhausted)
+        #expect(member.publishing)
+        c.stop()
+    }
+
+    @available(macOS 14, *)
     @Test func lutTogglesFollowTheMembersAndTheJournal() async {
         let stage = Fixture()
         await stage.configure()

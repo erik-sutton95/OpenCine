@@ -76,7 +76,17 @@ import Testing
             MultiviewCopy.pickerFooter(network: "Studio", commissioned: true)
                 == "Each camera will join Studio. Approve on the camera if asked.")
         #expect(
+            MultiviewCopy.pickerFooter(network: "Studio", commissioned: true, asksApproval: false)
+                == "Each camera will join Studio.")
+        #expect(
             MultiviewCopy.pickerFooter(network: "Studio", commissioned: false)
                 == "Cameras already on Studio appear here.")
+        #expect(
+            MultiviewCopy.pickerFooter(network: "", commissioned: false)
+                == "Cameras on this phone\u{2019}s network appear here.")
+    }
+
+    @Test func theScreenToolbarKeepsIOSOrder() {
+        #expect(MultiviewTool.screen == [.layout, .camera, .fit, .lut])
     }
 }

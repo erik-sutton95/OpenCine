@@ -135,7 +135,7 @@
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("multiview.settings.panel")
-            .accessibilityValue(selected.map { host.settingsAccessibilityValue(slot: $0) } ?? "")
+            .modifier(OptionalAccessibilityValue(value: host.settingsAccessibilityValue(slot: selected)))
             .onAppear { select(initialSlot) }
             .onDisappear { coordinator.closeEditors() }
             .onChange(of: cameras.map { coordinator.members[$0].id }) { _, _ in
@@ -202,6 +202,15 @@
                 Text(note).font(MonitorTheme.font(11)).foregroundStyle(.orange)
                     .accessibilityIdentifier("multiview.settings.error")
             }
+        }
+    }
+
+    /// An accessibility value only where the host gives one (none at all otherwise).
+    private struct OptionalAccessibilityValue: ViewModifier {
+        let value: String?
+
+        func body(content: Content) -> some View {
+            if let value { content.accessibilityValue(value) } else { content }
         }
     }
 #endif

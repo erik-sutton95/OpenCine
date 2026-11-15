@@ -42,13 +42,14 @@
         var stationServices: StationNetworkServices { get }
         /// Networks the app's saved cameras host (the wizard never offers them as shared).
         var cameraSSIDs: Set<String> { get }
-        /// The settings popup's accessibility value for `slot` (a test probe); empty by default.
-        func settingsAccessibilityValue(slot: Int) -> String
+        /// The settings popup's accessibility value while it shows `slot` (nil: no camera
+        /// selected yet), a test probe; nil (the default) sets none.
+        func settingsAccessibilityValue(slot: Int?) -> String?
     }
 
     extension MultiviewScreenHost {
         public var cameraSSIDs: Set<String> { [] }
-        public func settingsAccessibilityValue(slot: Int) -> String { "" }
+        public func settingsAccessibilityValue(slot: Int?) -> String? { nil }
     }
 
     /// The borrowed Live View's slot, identified by its member.
@@ -155,8 +156,7 @@
                             coordinator.persistStage()
                         }
                         .onAppear {
-                            if startsSession { coordinator.start() }
-                            showNetwork = !coordinator.networkConfigured
+                            showNetwork = coordinator.screenAppeared(startsSession: startsSession)
                         }
                 }
                 .ignoresSafeArea(.container)
@@ -194,17 +194,19 @@
                         presentation.fill = $0
                         coordinator.persistStage()
                     }),
-                tools: [.layout, .camera, .fit, .lut],
+                tools: MultiviewTool.screen,
                 readouts: coordinator.programReadouts,
                 lut: coordinator.lutOn,
                 recording: coordinator.anyRecording, busy: coordinator.busy,
                 groupBusy: coordinator.groupRecordingBusy,
                 confirmsRecord: host.confirmsRecord,
-                network: MultiviewStageButton(
-                    title: "Shared Wi-Fi", value: coordinator.ssid, icon: .wifi,
-                    enabled: !(coordinator.busy || coordinator.connectingCameras || !startsSession),
-                    identifier: "multiview.network"
-                ) { showNetwork = true },
+                // Only a stage that chose its network offers the Shared Wi-Fi page.
+                network: coordinator.choosesNetwork
+                    ? MultiviewStageButton(
+                        title: "Shared Wi-Fi", value: coordinator.ssid, icon: .wifi,
+                        enabled: !(coordinator.busy || coordinator.connectingCameras || !startsSession),
+                        identifier: "multiview.network", action: { showNetwork = true }
+                    ) : nil,
                 geometry: stageGeometry,
                 actions: MultiviewStageActions(
                     openLiveView: openLiveView, add: add, perform: perform,
@@ -246,7 +248,11 @@
         }
 
         private func add(_ slot: Int) {
-            if coordinator.networkConfigured { adding = slot } else { showNetwork = true }
+            if coordinator.networkConfigured {
+                adding = slot
+            } else if coordinator.choosesNetwork {
+                showNetwork = true
+            }
         }
 
         private func perform(_ action: String, _ slot: Int) {
@@ -291,7 +297,7 @@
     }
 
     /// The stage's network wizard: the shared one, locked while cameras use the network.
-    private struct MultiviewNetworkSheet<Link: MultiviewMemberLink, Host: MultiviewScreenHost>: View
+    struct MultiviewNetworkSheet<Link: MultiviewMemberLink, Host: MultiviewScreenHost>: View
     where Link.Camera: Sendable {
         let coordinator: MultiviewCoordinator<Link>
         let host: Host
@@ -306,10 +312,21 @@
         }
 
         var body: some View {
+            wizard
+                .font(MonitorTheme.font(15))
+                .foregroundStyle(MonitorTheme.text)
+                .tint(MonitorTheme.accent)
+                .preferredColorScheme(.dark)
+                .accessibilityIdentifier("multiview.networkSetup")
+        }
+
+        /// The shared wizard over the coordinator: its scan through a camera, and the "can't list
+        /// networks" copy for a commissioner that cannot scan.
+        var wizard: StationNetworkSetupView {
             StationNetworkSetupView(
                 context: .multiview, brand: host.stationBrand, services: host.stationServices,
                 cameraSSIDs: host.cameraSSIDs,
-                scan: scan,
+                scan: scan, cameraScansNetworks: coordinator.scansNetworks,
                 save: { network in
                     coordinator.selectNetworkSource(hotspot: network.hotspot)
                     coordinator.selectNetwork(network.ssid)
@@ -324,11 +341,6 @@
                     : nil,
                 complete: complete
             )
-            .font(MonitorTheme.font(15))
-            .foregroundStyle(MonitorTheme.text)
-            .tint(MonitorTheme.accent)
-            .preferredColorScheme(.dark)
-            .accessibilityIdentifier("multiview.networkSetup")
         }
     }
 #endif
