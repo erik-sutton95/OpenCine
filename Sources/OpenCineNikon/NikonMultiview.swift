@@ -94,7 +94,7 @@ public final class NikonMemberOpener<Link: Sendable>: @unchecked Sendable {
     public init(
         settle: Duration = NikonMemberTiming.reconnectSettle,
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        sleep: @escaping @Sendable (Duration) async throws -> Void = hostSleep(for:),
         currentHolder: @escaping @Sendable (String) async -> String?,
         connect: @escaping @Sendable (String) async throws -> Link,
         serialNumber: @escaping @Sendable (Link) -> String?,
