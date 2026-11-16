@@ -10,7 +10,7 @@ extension MultiviewRepairResult {
     @MainActor
     public static func race(
         deadline: Duration,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        sleep: @escaping @Sendable (Duration) async throws -> Void = hostSleep(for:),
         _ work: @escaping @MainActor () async -> MultiviewRepairResult
     ) async -> MultiviewRepairResult {
         let (results, report) = AsyncStream.makeStream(of: MultiviewRepairResult.self)
