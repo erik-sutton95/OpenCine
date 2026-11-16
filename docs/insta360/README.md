@@ -23,14 +23,16 @@ let session = backend.openSession()   // one OpenCineCore session per connection
 
 Every instance owns its own link, session, credentials store and callbacks; nothing is
 process-wide except the phone's single camera access point (192.168.42.x, `LunaWiFi`), a
-qualification limit: two simultaneous Luna connections are unsupported.
+qualification limit: two simultaneous Luna connections over camera Wi-Fi are unsupported. Several
+Lunas run at once only over Wi-Fi and hotspot setups (station mode); see
+[Multicam over station routes](#multicam-over-station-routes).
 
 `LunaIntegrationConfiguration.keychainService` defaults to `org.opencine.openinstacine.camera`
 so OpenInstaCine's saved authorization identity and camera Wi-Fi keep working. Another app must
 pass its own service.
 
 Known limits (keep them visible as capability results, not hidden): no live audio, Multi View
-unqualified, `LunaScreenRecovery` (Color Recovery over KCP) has no caller yet. iOS-only APIs
+not hardware-qualified (station routes only), `LunaScreenRecovery` (Color Recovery over KCP) has no caller yet. iOS-only APIs
 (NEHotspotConfiguration) compile only for iOS devices; macOS and the simulator ask the operator to
 join the camera Wi-Fi.
 
@@ -72,18 +74,48 @@ join the camera Wi-Fi.
   to check the Wi-Fi password. The phone
   joins the network (or hosts the hotspot) and searches its subnet for TCP 6666 answering the
   UCD2 magic (`LunaStationPath`); control and HTTP media then use that address
-  (`cameraHost`), with the Bluetooth serial checked as for camera Wi-Fi. On that address the
+  (`cameraHost`), with the Bluetooth serial checked as for camera Wi-Fi (both platforms read
+  option 15 over Bluetooth and on the control link). Another camera on the same network is not
+  the one asked for: its control link is closed after the identity read and the search goes on
+  without it within the same 60 s. On that address the
   preview is H.264, which the shared decoders detect. Camera Wi-Fi after a setup sends 147 AP
   first. Passwords stay in the Keychain (`savedStations()`), and the shared rules for routes,
   stamping and failure actions are Core's `StationRoutes`, shared with DJI. Evidence: router
   join, LAN control and H.264 preview with the lab tools on firmware 1.1.15 (2026-10-01); the
   app path and the hotspot route are untested on hardware. The Luna has no verified network
   scan, so the wizard runs with `cameraScansNetworks: false`.
+- Camera Wi-Fi checks the serial too: a link whose serial is not the one Bluetooth read fails
+  with `wifi.serial-mismatch` on both platforms (Kotlin used to skip the check). Saved Wi-Fi
+  without Bluetooth has no serial to check.
 - `forget` drops the camera's saved Wi-Fi (Swift: the Keychain entry; Kotlin: the host's
   `forgetWifi`), never the approval identity. Every backend event is also forwarded to
   `LunaIntegration.onEvent` (Swift) for the app's live view.
 - Tests: `LunaIntegrationTests` / `LunaIntegrationTest` against `FakeLunaPort` (Swift test support,
   Kotlin test source), same method names.
+
+## Multicam over station routes
+
+Several Lunas share one network only in station role: a router's Wi-Fi or this phone's hotspot.
+The phone holds one camera access point at a time, so that route never joins a group.
+
+- `LunaMulticamPolicy.qualification(route:device:members:)` (Swift `Insta360Apple`, Kotlin
+  `insta360-luna`, twins with the same test names): no saved route is `.notReachable`; router and
+  hotspot routes qualify, or are `.alreadyMember` when the camera is in the group; the camera
+  access point and every other route are `.unsupportedConfiguration`. The member limit is the
+  app's `ResourceBudget`.
+- Each member has its own backend. `stationHostsInUse` (both platforms) gives a backend the hosts
+  the app's other connections hold (their `cameraHost`); its search never probes them. The
+  connect then ends on the camera it asked for: a host whose serial is another camera's is closed
+  and skipped (`LunaStationPath.findRequestedCamera`, Kotlin `LunaStationSearch.findRequested`).
+- Android: members pass one shared `SharedWiFiPath` as `LunaBackend(stationPath:)`. The path's
+  join and process binding are held per backend and let go when the last one releases, so one
+  camera's cleanup never unbinds another's network. A station connect never releases the camera
+  access point joiner (that release unbinds the process).
+- Connect members one at a time: each connect commissions over Bluetooth.
+- Tests: `LunaStationPathTests` / `LunaStationSearchTest` (two cameras on one subnet, an in-use
+  host never probed, a wrong camera skipped within the budget), `LunaDeviceIdentityTest` (Kotlin
+  refuses a serial mismatch), `LunaMulticamPolicyTests` / `LunaMulticamPolicyTest`,
+  `PathHoldersTest` (`:platform`). Untested on hardware with two or more Lunas.
 
 ## Optional connected-camera media service
 
