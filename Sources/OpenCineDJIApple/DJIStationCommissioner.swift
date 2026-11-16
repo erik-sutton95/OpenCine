@@ -17,14 +17,15 @@ public final class DJIStationCommissioner: StationCommissioner {
     private let retryDelay: () async -> Void
     private var open: [ObjectIdentifier: DjiAppleMultiviewProvisioner] = [:]
 
-    /// `retryDelay` is the wait before another return attempt after a deferred pairing.
+    /// `retryDelay` is the wait before another return attempt after a deferred pairing (`nil`:
+    /// three seconds).
     public init(
         host: DjiAppleTransportHost, hostPath: any StationHostPath,
-        retryDelay: @escaping () async -> Void = { try? await Task.sleep(for: .seconds(3)) }
+        retryDelay: (() async -> Void)? = nil
     ) {
         self.host = host
         self.hostPath = hostPath
-        self.retryDelay = retryDelay
+        self.retryDelay = retryDelay ?? { await hostSleepUntilCancelled(for: .seconds(3)) }
     }
 
     public func record(_ camera: DjiAppleSighting) -> StationCameraRecord {
