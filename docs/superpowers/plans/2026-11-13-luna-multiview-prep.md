@@ -65,6 +65,7 @@ Luna column of "Per camera"); series: `docs/superpowers/plans/2026-11-13-shared-
 ### Task 1: Return to the camera's own Wi-Fi (standalone, retryable)
 
 **Files:**
+
 - Create: `Sources/Insta360Apple/LunaAccessPointReturn.swift`,
   `Android/insta360-luna/src/main/kotlin/com/opencapture/opencine/insta360/luna/LunaAccessPointReturn.kt`
 - Modify: `Sources/Insta360Apple/LunaCameraBackend.swift` (split `authorizeOverBluetooth` into the
@@ -79,6 +80,7 @@ Luna column of "Per camera"); series: `docs/superpowers/plans/2026-11-13-shared-
   `LunaIntegrationTests` / `LunaIntegrationTest`
 
 **Interfaces (Swift; Kotlin twin has the same names):**
+
 ```swift
 public enum LunaAccessPointReturn: Equatable, Sendable {
     case returned
@@ -100,6 +102,7 @@ struct LunaAccessPointRestore {          // internal
 // LunaIntegration: func returnToAccessPoint(_ camera: SavedCamera) async throws -> LunaAccessPointReturn
 // LunaCameraBackend: func returnToAccessPoint(cameraID: UUID) async throws -> LunaAccessPointReturn
 ```
+
 Kotlin: `sealed interface LunaAccessPointReturn { Returned; Deferred(failure); Failed(failure) }`
 with `companion suspend fun retrying(attempts = 3, waitBetween = { delay(3_000) }, attempt)`;
 `internal class LunaAccessPointRestore(link, authorize: suspend () -> ByteArray, send: suspend (Int, ByteArray) -> Unit, close)`.
@@ -123,6 +126,7 @@ failed (`return.refused`), anything else deferred (`return.no-answer`).
 ### Task 2: LAN-first reconnect for Wi-Fi and hotspot setups
 
 **Files:**
+
 - Create: `Sources/Insta360Apple/LunaStationReconnect.swift`,
   `Android/.../LunaStationReconnect.kt`
 - Modify: `Sources/Insta360Apple/LunaCameraBackend.swift` (station branch: known host first, then
@@ -134,6 +138,7 @@ failed (`return.refused`), anything else deferred (`return.no-answer`).
   `Android/.../LunaStationReconnectTest.kt`
 
 **Interfaces (Swift; Kotlin twin has the same names):**
+
 ```swift
 public struct LunaStationHost: Equatable, Sendable {   // where a camera was last reached
     public var network: String; public var hotspot: Bool; public var host: String; public var serial: String
@@ -148,6 +153,7 @@ enum LunaStationReconnect {   // internal
         direct: (LunaStationHost) async throws -> Void, move: () async throws -> Void) async throws -> Path
 }
 ```
+
 The direct step (backends): put the phone on the network (no Bluetooth), probe the known host,
 open the control link there with the known serial as the expected serial; a mismatch closes the
 link before anything else is sent. The Bluetooth move also prefers the known host in its search.
@@ -163,10 +169,12 @@ link before anything else is sent. The Bluetooth move also prefers the known hos
 ### Task 3: A nearby camera onto a Wi-Fi or hotspot setup as a connect target
 
 **Files:**
+
 - Modify: `Sources/Insta360Apple/LunaIntegration.swift`, `Android/.../LunaIntegration.kt`
 - Test: `LunaIntegrationTests` / `LunaIntegrationTest` (same method names)
 
 **Interfaces (Swift; Kotlin twin has the same names):**
+
 ```swift
 extension LunaIntegration {
     /// The target that moves a Bluetooth sighting onto `network` and finds it there: an Add setup
@@ -176,6 +184,7 @@ extension LunaIntegration {
     public func connect(_ nearby: NearbyCamera, onto network: LunaStationNetwork) -> AsyncStream<ConnectionEvent>
 }
 ```
+
 - [ ] Write the tests: a sighting connects with the station route and the given password, the
   password is kept, the record is saved before the move, the connected record has the access point
   and the station route with the station route preferred and the serial; a hotspot network gives a
