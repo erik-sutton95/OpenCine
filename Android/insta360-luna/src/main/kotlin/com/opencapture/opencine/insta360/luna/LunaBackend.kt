@@ -63,7 +63,8 @@ class LunaBackend(
      * backend and let go when the last one releases.
      */
     stationPath: SharedWiFiPath? = null,
-) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource, LunaConnectPort, LunaMediaCatalogRecordSource {
+) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource, LunaConnectPort, LunaMediaCatalogRecordSource,
+    LunaStationPort {
     companion object {
         /** OpenInstaCine's persisted name. Changing it orphans every saved camera approval. */
         const val DEFAULT_CLIENT_IDENTITY_PREFERENCES = "openinstacine.client-identity"
@@ -132,7 +133,7 @@ class LunaBackend(
      * [cameraHost]s); this backend's search never probes them. Null searches every host. Read on
      * the main thread.
      */
-    var stationHostsInUse: (() -> Set<String>)? = null
+    override var stationHostsInUse: (() -> Set<String>)? = null
     /**
      * Where each camera was last reached on a Wi-Fi or hotspot setup's network, so its next connect
      * over that setup opens it there first, without Bluetooth (LAN first). Main thread only.
@@ -260,7 +261,7 @@ class LunaBackend(
      * as another camera fails the connect, so the caller (a Multiview member link) decides when to
      * move the camera again. Null once the connect started. Main thread. Hardware-untested.
      */
-    fun connect(id: String, at: LunaStationHost, on: LunaStationNetwork): ConnectionFailure? {
+    override fun connect(id: String, at: LunaStationHost, on: LunaStationNetwork): ConnectionFailure? {
         LunaStationOpen.refusal(at, on, stationHostsHeld)?.let { return it }
         start(id, LunaRoute.Station(on), lanOnly = at)
         return null
@@ -471,8 +472,19 @@ class LunaBackend(
      */
     private suspend fun moveToStation(id: String, authBody: ByteArray, network: LunaStationNetwork, current: () -> Boolean): Pair<String, String?> {
         LunaStationJoin.check(network)
-        val (link, serial, reply) = authorizeOverBluetooth(id, authBody)
-        saveCameraWiFi(id, reply, current)
+        val authorized = authorizeOverBluetooth(id, authBody)
+        saveCameraWiFi(id, authorized.credentials, current)
+        return authorized.serial to moveAuthorized(authorized, network)
+    }
+
+    /**
+     * The move itself, on the authorized Bluetooth link: SET_WIFI_MODE station, the phone's details,
+     * the join ([LunaStationJoin]) and the camera's remembered network; Bluetooth then closes.
+     * Returns any address the camera reported.
+     */
+    private suspend fun moveAuthorized(authorized: Authorized, network: LunaStationNetwork): String? {
+        val link = authorized.link
+        val reply = authorized.credentials
         setPhase(ConnectionPhase.JOINING_WIFI)
         _stationNote.value = "Moving the camera to “${network.ssid}”…"
         val ssid = network.ssid
@@ -494,8 +506,95 @@ class LunaBackend(
         runCatching { link.request(LunaStationWire.SET_AVAILABLE_WIFI, LunaStationWire.remember(ssid, network.password), encrypted = true) }
             .onFailure { if (it is CancellationException && !currentCoroutineContext().isActive) throw it }
         gatt?.close(); gatt = null
-        return serial to result.address
+        return result.address
     }
+
+    /** The Bluetooth authorization [authorizeForStation] left open for [moveOntoStation]. */
+    private var stationAuthorization: Authorized? = null
+
+    /**
+     * A Multiview add's first step ([LunaStationCommissioner], Swift `authorizeForStation(_:)`): this
+     * backend's connection ends, then Bluetooth reaches the camera [id], the camera approves this
+     * phone (the operator may have to tap Allow) and the encrypted credential read runs. Returns the
+     * serial Bluetooth read; the authorized link stays open for [moveOntoStation] until
+     * [disconnect]. Fails with [LunaStationStepFailure] (Bluetooth closed); a cancelled caller ends
+     * it. Main thread. Hardware-untested.
+     */
+    override suspend fun authorizeForStation(id: String): String {
+        val identity = clientIdentity.toByteArray()
+        val authBody = LunaWire.blob(1, identity) + LunaWire.integer(2, 1) + LunaWire.blob(3, identity)
+        val previous = connectJob
+        disconnect()
+        val job = scope.async {
+            previous?.join()
+            try {
+                val authorized = authorizeOverBluetooth(id, authBody)
+                saveCameraWiFi(id, authorized.credentials) { true }
+                authorized
+            } catch (error: Exception) {
+                gatt?.close(); gatt = null
+                if (error is CancellationException && !isActive) throw error
+                throw LunaStationStepFailure(stationStepFailure(error, advertising = _found.value.any { it.id == id }))
+            }
+        }
+        connectJob = job
+        val authorized = try { job.await() } catch (cancelled: CancellationException) {
+            job.cancel()
+            // The authorization finished as the caller was cancelled: its Bluetooth link was never
+            // handed over, so it closes here.
+            if (job.isCompleted && !job.isCancelled) { gatt?.close(); gatt = null }
+            throw cancelled
+        }
+        stationAuthorization = authorized
+        return authorized.serial
+    }
+
+    /**
+     * A Multiview add's second step (Swift `moveOntoStation(_:)`): the camera [authorizeForStation]
+     * authorized leaves its access point and joins [network] (the same requests, in the same order,
+     * as a setup's connect sends), then Bluetooth closes. This phone joins nothing and opens no
+     * control link. Returns any address the camera reported. Main thread. Hardware-untested.
+     */
+    override suspend fun moveOntoStation(network: LunaStationNetwork): String? {
+        val authorized = stationAuthorization ?: throw LunaStationStepFailure(stationFailure(
+            ConnectionFailure.Reason.Other, "station.not-authorized", "The camera is not connected over Bluetooth. Add it again.",
+        ))
+        stationAuthorization = null
+        val job = scope.async {
+            try {
+                LunaStationJoin.check(network)
+                moveAuthorized(authorized, network)
+            } catch (error: Exception) {
+                gatt?.close(); gatt = null
+                if (error is CancellationException && !isActive) throw error
+                throw LunaStationStepFailure((error as? LunaStationFailure)?.failure ?: stationStepFailure(error, advertising = true))
+            } finally { _stationNote.value = null }
+        }
+        connectJob = job
+        return try { job.await() } catch (cancelled: CancellationException) { job.cancel(); throw cancelled }
+    }
+
+    /** A station step's failure with the copy the backend shows for its phase. */
+    private fun stationStepFailure(error: Exception, advertising: Boolean): ConnectionFailure =
+        (error as? LunaStationFailure)?.failure ?: LunaFailures.connect(_phase.value, advertising)
+
+    /**
+     * Whether a Luna answers its control port at [host] on [network] (the greeting probe the station
+     * search sends): no session, no request. False when this phone is not on [network].
+     */
+    override suspend fun probeStation(host: String, network: LunaStationNetwork): Boolean {
+        val local = station.addressWithPrefix(network.hotspot)?.first ?: return false
+        val factory = if (network.hotspot) null else station.network()?.socketFactory
+        val open: () -> Socket = {
+            (factory ?: SocketFactory.getDefault()).createSocket().also { if (factory == null) it.bind(InetSocketAddress(local, 0)) }
+        }
+        return withContext(Dispatchers.IO) { LunaStationSearch.probe(host, CONTROL_PORT, LunaWire.prefix, open) }
+    }
+
+    /** Seconds since the last video unit while the camera is live; null otherwise. */
+    override val secondsSinceVideo: Double?
+        get() = if (_phase.value != ConnectionPhase.LIVE) null
+        else (android.os.SystemClock.elapsedRealtime() - lastVideoAt.get()) / 1_000.0
 
     /**
      * This phone on [network] (or its own hotspot), the process bound to it for media, and the hosts
@@ -525,6 +624,8 @@ class LunaBackend(
         fun usable(address: Pair<String, Int>?) = address?.takeIf { !it.first.startsWith("169.254.") && !it.first.startsWith("192.168.42.") }
         station.hotspot = network.hotspot
         if (network.hotspot) {
+            // Held like a join, so another member's cleanup never resets the shared hotspot flag.
+            station.hold(owner = this)
             val deadline = android.os.SystemClock.elapsedRealtime() + 5_000
             while (true) {
                 usable(station.addressWithPrefix(true))?.let { return it }
@@ -737,6 +838,8 @@ class LunaBackend(
         _stationNote.value = null
     }
     override fun disconnect() {
+        // A station step's Bluetooth link is no connection job's: it closes here.
+        if (stationAuthorization != null) { stationAuthorization = null; gatt?.close(); gatt = null }
         connectedMedia?.retire(); mediaConnectionGeneration += 1
         stopScan(); connectJob?.cancel(); runCatching { socket?.close() }
         setPhase(ConnectionPhase.IDLE); _failure.value = null; _failureDetail.value = null
