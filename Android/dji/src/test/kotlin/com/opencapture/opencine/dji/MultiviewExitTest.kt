@@ -21,7 +21,7 @@ class MultiviewExitTest {
             attempts++
             try {
                 val payload = if (attempts == 1) byteArrayOf(0, 6) else byteArrayOf(0, 1)
-                check(acceptsMultiviewPairingReply(reply(payload), 1202))
+                check(MultiviewPairing.acceptsReply(reply(payload), 1202))
                 apCommands++
                 true
             } finally {
@@ -39,7 +39,7 @@ class MultiviewExitTest {
         var attempts = 0
         assertFalse(restoreCameraWiFiWithRetry(waitBetween = {}) {
             attempts++
-            acceptsMultiviewPairingReply(reply(byteArrayOf(0, 6)), 1202)
+            MultiviewPairing.acceptsReply(reply(byteArrayOf(0, 6)), 1202)
         })
         assertEquals(3, attempts)
     }
@@ -49,7 +49,7 @@ class MultiviewExitTest {
             var attempts = 0
             assertFalse(restoreCameraWiFiWithRetry(waitBetween = { fail("Unexpected retry") }) {
                 attempts++
-                if (pairingRejected) acceptsMultiviewPairingReply(reply(byteArrayOf(0, 3)), 1202)
+                if (pairingRejected) MultiviewPairing.acceptsReply(reply(byteArrayOf(0, 3)), 1202)
                 false
             })
             assertEquals(1, attempts)
@@ -57,10 +57,10 @@ class MultiviewExitTest {
     }
 
     @Test fun approvalRequiresMatchingOpcodeSequenceAndExactReply() {
-        assertTrue(acceptsMultiviewPairingReply(reply(byteArrayOf(0, 1)), 1202))
-        assertFalse(acceptsMultiviewPairingReply(reply(byteArrayOf(0, 1)), 1203))
-        assertFalse(acceptsMultiviewPairingReply(reply(byteArrayOf(0, 1), 0x39), 1202))
-        assertFalse(acceptsMultiviewPairingReply(reply(byteArrayOf(0, 2)), 1202))
+        assertTrue(MultiviewPairing.acceptsReply(reply(byteArrayOf(0, 1)), 1202))
+        assertFalse(MultiviewPairing.acceptsReply(reply(byteArrayOf(0, 1)), 1203))
+        assertFalse(MultiviewPairing.acceptsReply(reply(byteArrayOf(0, 1), 0x39), 1202))
+        assertFalse(MultiviewPairing.acceptsReply(reply(byteArrayOf(0, 2)), 1202))
     }
 
     @Test fun cancellationDoesNotBecomeAReportedSuccess() = runBlocking {

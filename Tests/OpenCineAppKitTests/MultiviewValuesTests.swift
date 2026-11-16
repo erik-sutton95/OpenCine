@@ -43,4 +43,50 @@ import Testing
                 plan: RecordPlan.make(.start, policy: .strict, entries: [entry.id], in: group, at: photo)
             ).refusal == "A camera is not in a video mode.")
     }
+    @Test func settingsCategoriesFollowTheCamerasCapabilitiesInIOSOrder() {
+        typealias C = MultiviewSettingsCategory
+        #expect(
+            C.offered(focus: true, aperture: false, photo: false, audio: true)
+                == [.iso, .shutter, .exposure, .wb, .focus, .mode, .resolution, .color, .audio])
+        #expect(
+            C.offered(focus: false, aperture: true, photo: false, audio: false)
+                == [.iso, .shutter, .exposure, .wb, .aperture, .mode, .resolution, .color])
+        #expect(
+            C.offered(focus: true, aperture: true, photo: true, audio: true)
+                == [.iso, .shutter, .exposure, .wb, .focus, .aperture, .mode],
+            "a photo mode offers no format, color or audio")
+        #expect(
+            C.allCases.map(\.title)
+                == ["Iso", "Shutter", "Exposure", "WB", "Focus", "Aperture", "Mode", "Format",
+                    "Color", "Audio"])
+        #expect(C.wb.identifier == "multiview.settings.control.wb")
+    }
+
+    @Test func recordingLocksModeFormatAndColor() {
+        for category in MultiviewSettingsCategory.allCases {
+            #expect(!category.locked(recording: false))
+            #expect(category.locked(recording: true) == [.mode, .resolution, .color].contains(category))
+        }
+    }
+
+    @Test func closeCopyFollowsWhetherCamerasReturn() {
+        #expect(MultiviewNetworkRestore.cameraNetworks.closingProgress == "Returning cameras to their Wi-Fi\u{2026}")
+        #expect(MultiviewNetworkRestore.none.closingProgress == "Closing Multiview\u{2026}")
+        #expect(
+            MultiviewCopy.pickerFooter(network: "Studio", commissioned: true)
+                == "Each camera will join Studio. Approve on the camera if asked.")
+        #expect(
+            MultiviewCopy.pickerFooter(network: "Studio", commissioned: true, asksApproval: false)
+                == "Each camera will join Studio.")
+        #expect(
+            MultiviewCopy.pickerFooter(network: "Studio", commissioned: false)
+                == "Cameras already on Studio appear here.")
+        #expect(
+            MultiviewCopy.pickerFooter(network: "", commissioned: false)
+                == "Cameras on this phone\u{2019}s network appear here.")
+    }
+
+    @Test func theScreenToolbarKeepsIOSOrder() {
+        #expect(MultiviewTool.screen == [.layout, .camera, .fit, .lut])
+    }
 }

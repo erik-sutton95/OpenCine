@@ -31,8 +31,9 @@ enum LunaJoinAttempts {
     /// - onCameraNetwork: true once the phone holds a camera address (auto-join, the operator
     ///   joined in Settings, or a late Join answer).
     /// - join: one attempt; it reports its system request through `prompt`.
+    /// - clock: the budget, the attempt timeout and the pause between attempts run on it.
     static func run(
-        budget: Duration, timing: Timing = .init(),
+        budget: Duration, timing: Timing = .init(), clock: HostClock = .live,
         onCameraNetwork: @escaping @MainActor () -> Bool,
         validate: @escaping @MainActor () throws -> Void,
         attemptStarts: @escaping @MainActor (Int) -> Void = { _ in },
@@ -40,7 +41,7 @@ enum LunaJoinAttempts {
         leave: @escaping @MainActor () -> Void,
         join: @escaping @MainActor (_ joinOnce: Bool, _ prompt: LunaJoinPrompt) async throws -> Void
     ) async throws {
-        let deadline = ContinuousClock.now.advanced(by: budget)
+        let deadline = clock.now() + budget
         var attempt = 0
         while true {
             attempt += 1
@@ -51,17 +52,17 @@ enum LunaJoinAttempts {
                 // (internal error 8) while a user-saved network of the same name exists.
                 let once = attempt % 2 == 0
                 let prompt = LunaJoinPrompt()
-                try await withTimeout(timing, prompt: prompt) { try await join(once, prompt) }
+                try await withTimeout(timing, prompt: prompt, clock: clock) { try await join(once, prompt) }
                 return
             } catch {
                 try validate()
                 if onCameraNetwork() { return }
                 log("luna: Wi-Fi join attempt \(attempt) failed: \(error.localizedDescription)")
-                guard ContinuousClock.now < deadline else { throw error }
+                guard clock.now() < deadline else { throw error }
                 // The AP may not beacon yet: drop the config so the next apply
                 // associates fresh instead of reusing a stale one (upstream WiFiJoiner).
                 leave()
-                try await Task.sleep(for: timing.pause)
+                try await clock.sleep(timing.pause)
             }
         }
     }
@@ -71,7 +72,8 @@ enum LunaJoinAttempts {
     /// in front of an operator who answered the first one late (device cell 7c). The UI stays
     /// live meanwhile and Cancel still ends the connect.
     static func withTimeout(
-        _ timing: Timing, prompt: LunaJoinPrompt, _ work: @escaping @MainActor () async throws -> Void
+        _ timing: Timing, prompt: LunaJoinPrompt, clock: HostClock = .live,
+        _ work: @escaping @MainActor () async throws -> Void
     ) async throws {
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask { try await work() }
@@ -79,7 +81,7 @@ enum LunaJoinAttempts {
                 var remaining = timing.attempt
                 while remaining > .zero {
                     let step = min(remaining, timing.tick)
-                    try await Task.sleep(for: step)
+                    try await clock.sleep(step)
                     if !prompt.isPending { remaining -= step }
                 }
                 throw timeoutFailure

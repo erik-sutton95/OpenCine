@@ -111,11 +111,129 @@ The phone holds one camera access point at a time, so that route never joins a g
   join and process binding are held per backend and let go when the last one releases, so one
   camera's cleanup never unbinds another's network. A station connect never releases the camera
   access point joiner (that release unbinds the process).
-- Connect members one at a time: each connect commissions over Bluetooth.
+- Connect members one at a time: a first connect commissions over Bluetooth (a reconnect goes
+  LAN first, see below).
 - Tests: `LunaStationPathTests` / `LunaStationSearchTest` (two cameras on one subnet, an in-use
   host never probed, a wrong camera skipped within the budget), `LunaDeviceIdentityTest` (Kotlin
   refuses a serial mismatch), `LunaMulticamPolicyTests` / `LunaMulticamPolicyTest`,
   `PathHoldersTest` (`:platform`). Untested on hardware with two or more Lunas.
+
+### Multiview operations (hardware-untested)
+
+What the shared Pocket-standard Multiview needs from the Luna (spec
+`docs/superpowers/specs/2026-11-13-shared-multiview-design.md`, plan
+`docs/superpowers/plans/2026-11-13-luna-multiview-prep.md`). Swift and Kotlin twins with the same
+names; every behavior below is unit-tested against scripted links and fakes and **untested on a
+camera**.
+
+- **Return to its own Wi-Fi**: `LunaIntegration.returnToAccessPoint(_:)` (port and backend:
+  `returnToAccessPoint(cameraID:)`, Kotlin `returnToAccessPoint(id)`) authorizes over Bluetooth,
+  sends SET_WIFI_MODE 147 for access point mode (the camera's region from the credential read)
+  and disconnects (`LunaAccessPointRestore`, over the same `LunaBluetoothAuthorization` a connect
+  runs). The phone joins no network; the backend's own link ends first and nothing else is sent:
+  no capture, record or live command (the tests record every request the camera receives). Pocket
+  says "No stop-recording command is sent. Recording continues."; for the Luna the second half is
+  an inference from sending only 147, not a hardware fact: whether a Luna keeps recording while it
+  switches its Wi-Fi role is untested. The result is `LunaAccessPointReturn`: `returned`;
+  `deferred` (Bluetooth could not reach the camera or dropped during authorization, reply 505 still
+  switching, no answer) which the caller may retry, `LunaAccessPointReturn.retrying` (3 tries, 3 s
+  apart on Android, like DJI's `restoreCameraWiFiWithRetry`); or `failed` (the camera declined this
+  phone, another phone holds it, it is no supported Luna, or it refused the switch). The caller
+  keeps the camera in its cleanup record until it returns. On Android the return runs as the
+  backend's connection job, so a connect started meanwhile cancels it, and a caller that stops
+  waiting cancels it too. Tests: `LunaAccessPointReturnTests` / `LunaAccessPointReturnTest`.
+- **Open at a station address, LAN only**: `LunaCameraBackend.connect(to:at:on:)` (Kotlin
+  `LunaBackend.connect(id, at, on)`) opens a camera at a `LunaStationHost` on a
+  `LunaStationNetwork` with the serial check and no Bluetooth fallback (`LunaStationOpen`): an
+  address from another network, without a proven serial or in `stationHostsInUse` is refused at
+  once (Swift throws, Kotlin returns the failure) before the backend's connection changes; a
+  silent address or another camera fails the connect. This is the shape Plan 5's
+  `MultiviewMemberLink` wraps ("open at an address with identity check"). Tests:
+  `LunaStationOpenTests` / `LunaStationOpenTest`.
+- **LAN-first reconnect**: a backend remembers where each camera was last reached on a Wi-Fi or
+  hotspot setup (`LunaStationHost`: network, address, the serial its control link proved;
+  `stationHost(for:)` / `rememberStationHost(_:for:)` to hand one back from a journal). The next
+  connect over that setup joins the phone, probes that address and opens the control link there
+  with the serial check, without Bluetooth (`LunaStationReconnect` over the LAN-only open above).
+  It falls back to the Bluetooth move (whose search tries the known address early) when the
+  address is silent or answers as another camera. It never tries an address in
+  `stationHostsInUse`, one on another network or one without a proven serial. Local Network
+  denial, this phone failing to join the network (the move would strand the camera there),
+  cancellation and (Android) a drop after the camera went live end the connect instead of moving
+  the camera. The memory is
+  per backend, in memory only, and is dropped by `forget`, a camera Wi-Fi connect and a return to
+  the access point. Tests: `LunaStationReconnectTests` / `LunaStationReconnectTest`.
+- **Nearby camera onto a network**: `LunaIntegration.target(_:onto:saved:)` (and
+  `connect(_:onto:saved:)`) makes a Bluetooth sighting a connect target onto a
+  `LunaStationNetwork` (the integration's twin of the app shell's `StationNetwork`). It is an Add
+  setup: the password is kept, and the connected event carries the session and the record with
+  the camera's own Wi-Fi and the setup, the setup preferred. A sighting that is not yet saved gets
+  a record made from it, which `saveRecord` stores only once the camera starts to move (the
+  backend reaches the network step), so an attempt that fails before then (not reachable, not
+  approved, a network name or password the camera cannot use) leaves no saved camera. A sighting that is already saved (`savedID`) needs its record
+  as `saved`: the setup is added to it, so its camera Wi-Fi, its other setups and its serial stay
+  (a Wi-Fi setup replaces its earlier Wi-Fi setup, a hotspot its hotspot, as Add setup does);
+  without it the target is nil and `connect` fails at once, since a record made from the sighting
+  would replace the saved one. Tests: `aNearbyCamera…` and `aSavedNearbyCameraKeepsItsRecordOnANetwork`
+  in `LunaIntegrationTests` / `LunaIntegrationTest`.
+- The Luna has no verified camera-driven network scan: the wizard keeps
+  `cameraScansNetworks: false`, and nothing here scans networks through the camera.
+- Bluetooth across backends: each iOS backend has its own `CBCentralManager`. A camera another
+  backend sighted is still reachable: `LunaBluetooth.connect(id:)` falls back to
+  `retrievePeripherals(withIdentifiers:)`, and peripheral identifiers are the same for every
+  central in the app. Only the timeout copy differs (a backend that never heard the advert says
+  the camera is missing rather than held). Android connects by address through the adapter
+  (`getRemoteDevice`), independent of which backend scanned.
+
+### Multiview stage seams (Plan 5, hardware-untested)
+
+The Luna's answers to the shared Multiview coordinator (`MultiviewCoordinator`, AppKit), Swift
+`Insta360Apple` and Kotlin `insta360-luna` twins with the same names and test names
+(`LunaMultiviewTests` / `LunaMultiviewTest`, `LunaMemberLinkTests` / `LunaMemberLinkTest`, against
+a scripted `FakeLunaStationPort` in test support). Every behavior is **untested on a camera**.
+
+- **`LunaStationPort`**: what the seams need from one connection, implemented by
+  `LunaCameraBackend` / `LunaBackend`: the station move split in two Bluetooth steps
+  (`authorizeForStation` reaches the camera, waits for its approval, reads its serial and Wi-Fi;
+  `moveOntoStation` sends the station move as `LunaStationJoin` does and closes Bluetooth), a
+  greeting probe that opens no session (`probeStation`), the prep's LAN-only open, the return to
+  the access point, the member's one session and the picture clock (`secondsSinceVideo`; Swift
+  also `requestKeyframe` / `restartLive` for the in-place repair).
+- **`LunaMultiview.policy`**: every available sighting qualifies with its picture; a sighting
+  another device holds is refused (`operationUnavailable`), and there is no experimental path.
+  `discoversByProbe` is true: the coordinator's subnet search probes with the link and opens only
+  with the serial checked. The identity a member proves is its serial's UTF-8 bytes; the journal
+  keeps the Bluetooth peripheral (iOS UUID, Android address) and name.
+- **`LunaStationCommissioner`**: each commission and return runs on a fresh port (`makePort`), so
+  members keep their connections. `connect` authorizes (the camera may ask the operator to allow
+  this phone: `asksApprovalOnCamera`), `identity` is the serial, `join` moves the camera and asks
+  the coordinator's `verifyOnNetwork` every 3 s for up to 60 s (DHCP time), then `.joined` leaves
+  one more search to the stage; a `StationVerifyFinal` ends it. `joinsExperimentally` and
+  `scansNetworks` are false. `restoreAccessPoint` runs `LunaAccessPointReturn.retrying` (3 tries,
+  3 s apart): only `returned` is `.restored`; deferred and failed answers (the camera's refusals
+  included) are `.deferred(copy)` so the cleanup journal keeps the camera; a thrown error is
+  `.failed`. Swift maps a cancellation to `.failed` too; Kotlin propagates `CancellationException`.
+- **`LunaMemberLink`**: one per member over the member's own port. `open` requires the serial
+  (no identity: refused, nothing sent), refuses a host in `stationHostsInUse` and opens LAN only
+  with the serial checked; `startPreview` reports controlling then awaiting picture (control and
+  live start are one step on Luna), and `keepalive` reports live once video flows. The record
+  report is the camera's own capture state, stamped on the coordinator's clock only when a new
+  report arrives. `close` only disconnects: no camera command, never a record stop. Repair: a
+  stalled picture follows `LunaFeedStall` in place (keyframe after 2 s, at most two live restarts
+  after 6 s; the Kotlin backend runs that ladder itself while live, so the link only reports
+  reconnecting once the stall passes the restart point, as the Swift link does when it restarts,
+  and live again when the picture returns); past that, or with the control link lost while the phone is on
+  the shared network, the link probes the camera's address (answers: `.rejoin`, no Bluetooth),
+  otherwise moves it onto the network again inside the coordinator's `bluetoothTurn` and asks for
+  a rejoin. A camera that refuses this phone (`notApproved`, `heldElsewhere`) is
+  `.waitForOperator(copy)`; a stopped stage gets no Bluetooth turn. `autoLUT` follows what the
+  picture carries: the reported color profile through the app's `preview` rule (Color Recovery can
+  bake Rec.709 into an I-Log recording's phone feed; OpenInstaCine passes Live View's rule), then
+  the app's `conversion` for that (OpenInstaCine: I-Log to its bundled Rec.709 look). Kotlin `open`
+  also ends when the connection returns to idle before it went live (a closed backend), so an open
+  never waits forever. Commission and return connections are closed (`LunaStationPort.close`), not
+  only disconnected.
+- **`LunaNearbyScanner`**: the Add list from the integration's passive discovery.
 
 ## Optional connected-camera media service
 

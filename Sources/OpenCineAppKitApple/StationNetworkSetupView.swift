@@ -2,6 +2,7 @@
     import MonitorUI
     import OpenCineAppKit
     import OpenCineApple
+    import OpenCineCore
     import SwiftUI
     import UIKit
 
@@ -59,6 +60,12 @@
         var save: @MainActor (StationNetwork) async -> Bool
         var errorMessage: String? = nil
         var close: () -> Void
+        /// The network cameras are using. When set, the view shows only the read-only Shared Wi-Fi
+        /// page and never scans.
+        var lockedNetwork: StationNetwork?
+        /// The locked page's Done: the network stays confirmed (never `close`, which may cancel).
+        /// Kotlin: the wizard's `complete`.
+        var complete: () -> Void
         @State var path: [Page] = []
 
         public init(
@@ -67,7 +74,8 @@
             scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?,
             cameraScansNetworks: Bool = true,
             save: @escaping @MainActor (StationNetwork) async -> Bool, errorMessage: String? = nil,
-            close: @escaping () -> Void, path: [Page] = []
+            close: @escaping () -> Void, path: [Page] = [], lockedNetwork: StationNetwork? = nil,
+            complete: @escaping () -> Void
         ) {
             self.context = context
             self.brand = brand
@@ -78,6 +86,8 @@
             self.save = save
             self.errorMessage = errorMessage
             self.close = close
+            self.lockedNetwork = lockedNetwork
+            self.complete = complete
             _path = State(initialValue: path)
         }
 
@@ -116,7 +126,56 @@
         private var warning: Color { MonitorTheme.linkHealthColor(.watch) }
         private var good: Color { MonitorTheme.linkHealthColor(.stable) }
 
+        /// What the locked page shows and does; nil when the wizard runs normally.
+        var lockedPage: LockedPage? { lockedNetwork.map(LockedPage.init) }
+
+        /// The decisions of the Shared Wi-Fi page, kept apart from its rendering.
+        struct LockedPage: Equatable {
+            let network: StationNetwork
+            var title: String { "Shared Wi-Fi" }
+            var ssid: String { network.ssid }
+            var message: String { "Cameras are using this network. Remove them before changing it." }
+            var allowsScan: Bool { false }
+        }
+
         public var body: some View {
+            if let page = lockedPage {
+                lockedView(page)
+            } else {
+                wizard
+            }
+        }
+
+        private func lockedView(_ page: LockedPage) -> some View {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 10) {
+                        MonitorIcon.wifi.frame(width: 20, height: 20)
+                        Text(page.ssid)
+                    }
+                    Text(page.message).foregroundStyle(MonitorTheme.muted)
+                    Spacer()
+                }
+                .padding(24)
+                .navigationTitle(page.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { complete() }
+                    }
+                }
+            }
+            .font(MonitorTheme.font(15))
+            .foregroundStyle(MonitorTheme.text)
+            .tint(MonitorTheme.accent)
+            .preferredColorScheme(.dark)
+            // A container of its own, so the sheet carries the wizard context's name while its
+            // rows stay separately reachable.
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(context.identifier)
+        }
+
+        private var wizard: some View {
             NavigationStack(path: $path) {
                 screen(.choose)
                     .toolbar {
@@ -302,7 +361,7 @@
         // MARK: Camera scan
 
         private func startScan() {
-            guard let scan, scanTask == nil, !scanFinished, !working else { return }
+            guard let scan, lockedPage?.allowsScan ?? true, scanTask == nil, !scanFinished, !working else { return }
             scanning = true
             scanFailed = false
             scanTask = Task {

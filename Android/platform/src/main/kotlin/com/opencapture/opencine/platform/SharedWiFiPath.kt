@@ -10,6 +10,8 @@ import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Handler
 import android.os.Looper
+import com.opencapture.opencine.core.StationHostPath
+import com.opencapture.opencine.core.StationNetwork
 import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -24,17 +26,20 @@ import kotlin.coroutines.resume
  * it; `com.opencapture.opencine.dji.SharedWiFi` keeps its API on top). iOS `SharedWiFiPath` plus the host join that
  * `NEHotspotConfiguration` performs there. Local Wi-Fi sockets are bound to the
  * Wi-Fi [Network]; Android otherwise routes LAN traffic over cellular when the
- * Wi-Fi has no internet. The phone's own hotspot uses its tethering interface.
+ * Wi-Fi has no internet. The phone's own hotspot uses its tethering interface. Core's
+ * [StationHostPath] for the Multiview coordinator and the integrations' station setups.
  *
  * Several connections may share one path (multicam over one network): each joins, binds and
  * releases as its own `owner`, and the join and process binding are let go only when the last
- * owner releases. The calls without an owner keep their single-user meaning.
+ * owner releases. The calls without an owner keep their single-user meaning. A join through the
+ * [StationHostPath] seam holds the path as the station's own owner, so a connection releasing
+ * its hold never lets go of the station the coordinator joined; only [release] does.
  */
 open class SharedWiFiPath(
     context: Context,
     /** Diagnostics: `(level, code, message)`; never a password. */
     private val log: (String, String, String) -> Unit = { _, _, _ -> },
-) {
+) : StationHostPath {
     private val app = context.applicationContext
     private val connectivity = app.getSystemService(ConnectivityManager::class.java)
     private val wifi = app.getSystemService(WifiManager::class.java)
@@ -43,7 +48,18 @@ open class SharedWiFiPath(
     private var requested: Network? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var processBound = false
-    private val holders = PathHolders()
+    private val owned = OwnedStationJoin(
+        object : StationRequestPort {
+            override fun currentSsid(): String? = this@SharedWiFiPath.currentSsid()
+            override fun hasAddress(): Boolean = address(false) != null
+            override suspend fun request(ssid: String, password: String): Boolean = requestNetwork(ssid, password)
+            override fun letGo() = this@SharedWiFiPath.letGo()
+        },
+        PathHolders(),
+    )
+
+    /** The owner a [StationHostPath.join] holds the path as. */
+    private val stationOwner = Any()
     @Volatile var hotspot = false
 
     /** Current station SSID, or null when unknown (location off or not on Wi-Fi). */
@@ -54,15 +70,62 @@ open class SharedWiFiPath(
         return name.takeIf { it.isNotEmpty() && it != "<unknown ssid>" }
     }
 
-    fun address(hotspot: Boolean = this.hotspot): String? = ipv4(hotspot)?.first
+    override fun address(hotspot: Boolean): String? = ipv4(hotspot)?.first
 
-    fun netmask(hotspot: Boolean = this.hotspot): String? = ipv4(hotspot)?.second?.let(::mask)
+    /** [address] on the path's current kind ([hotspot]). */
+    fun address(): String? = address(hotspot)
 
-    /** Local Wi-Fi only; the hosting phone never joins its own hotspot. */
+    override fun netmask(hotspot: Boolean): String? = ipv4(hotspot)?.second?.let(::mask)
+
+    /** [netmask] on the path's current kind ([hotspot]). */
+    fun netmask(): String? = netmask(hotspot)
+
+    /**
+     * [StationHostPath.join]: a hotspot is this phone's own, so its current address is returned
+     * without joining; a router's Wi-Fi is joined with [join] as the station's owner and this
+     * phone's address there returned, null when it did not join.
+     */
+    override suspend fun join(network: StationNetwork): String? {
+        if (network.hotspot) {
+            owned.hold(stationOwner)
+            return address(true)
+        }
+        if (!join(network.ssid, network.password, owner = stationOwner)) return null
+        return address(false)
+    }
+
+    /**
+     * Local Wi-Fi only; the hosting phone never joins its own hotspot. Without an owner this is the
+     * single-user join: it lets go of whatever the path held before asking for [ssid].
+     */
     suspend fun join(ssid: String, password: String): Boolean {
         if (hotspot) return true
         if (currentSsid() == ssid && address(false) != null) return true
         release()
+        return requestNetwork(ssid, password)
+    }
+
+    /**
+     * [join] for [owner], who then holds the path until [release] with the same owner. It never
+     * takes the path from another owner: while one holds it, a join for the same network shares it
+     * (even when this phone cannot read its Wi-Fi name) and a join for another network fails; a
+     * failed or cancelled join drops nothing another owner holds ([OwnedStationJoin]).
+     */
+    suspend fun join(ssid: String, password: String, owner: Any): Boolean {
+        if (hotspot) {
+            owned.hold(owner)
+            return true
+        }
+        return owned.join(ssid, password, owner)
+    }
+
+    /** [owner] holds the path without joining it (a member on this phone's own hotspot). */
+    fun hold(owner: Any) {
+        owned.hold(owner)
+    }
+
+    /** The system request for [ssid]: true once joined, else its own request is unregistered. */
+    private suspend fun requestNetwork(ssid: String, password: String): Boolean {
         val builder = WifiNetworkSpecifier.Builder().setSsid(ssid)
         if (password.isNotEmpty()) builder.setWpa2Passphrase(password)
         val request = NetworkRequest.Builder()
@@ -71,6 +134,7 @@ open class SharedWiFiPath(
             .setNetworkSpecifier(builder.build())
             .build()
         log("info", "wifi", "request shared Wi-Fi")
+        var registered: ConnectivityManager.NetworkCallback? = null
         val network = withTimeoutOrNull(JOIN_TIMEOUT_MS + 5_000L) {
             suspendCancellableCoroutine<Network?> { continuation ->
                 val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -87,15 +151,16 @@ open class SharedWiFiPath(
                         synchronized(lock) { if (requested == network) requested = null }
                     }
                 }
+                registered = networkCallback
                 synchronized(lock) { callback = networkCallback }
                 runCatching {
                     connectivity?.requestNetwork(request, networkCallback, main, JOIN_TIMEOUT_MS)
                 }.onFailure { if (continuation.isActive) continuation.resume(null) }
-                continuation.invokeOnCancellation { release() }
+                continuation.invokeOnCancellation { unregister(networkCallback) }
             }
         }
         if (network == null) {
-            release()
+            registered?.let(::unregister)
             return false
         }
         repeat(60) {
@@ -105,25 +170,24 @@ open class SharedWiFiPath(
         return address(false) != null
     }
 
-    /** [join] for [owner], who then holds the path until [release] with the same owner. */
-    suspend fun join(ssid: String, password: String, owner: Any): Boolean =
-        join(ssid, password).also { if (it) holders.hold(owner) }
+    /** Unregisters [own] if it is still the path's request; never another join's request. */
+    private fun unregister(own: ConnectivityManager.NetworkCallback) {
+        val mine = synchronized(lock) {
+            (callback === own).also { if (it) { callback = null; requested = null } }
+        }
+        if (mine) runCatching { connectivity?.unregisterNetworkCallback(own) }
+    }
 
     /** Lets go of the path: the join's request and the process binding, whoever holds them. */
     fun release() {
-        holders.clear()
-        letGo()
+        owned.releaseAll()
     }
 
     /**
      * Drops [owner]'s hold. True when no owner holds the path any more, which is then let go
      * (as [release]); false while another owner still uses it.
      */
-    fun release(owner: Any): Boolean {
-        if (!holders.release(owner)) return false
-        letGo()
-        return true
-    }
+    fun release(owner: Any): Boolean = owned.release(owner)
 
     private fun letGo() {
         val (registered, unbind) = synchronized(lock) {
@@ -147,7 +211,7 @@ open class SharedWiFiPath(
 
     /** [bindProcess] for [owner], who then holds the path until [release] with the same owner. */
     fun bindProcess(owner: Any): Boolean {
-        holders.hold(owner)
+        owned.hold(owner)
         return bind()
     }
 
