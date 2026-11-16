@@ -217,7 +217,7 @@ public enum class MultiviewTool {
     LAYOUT, CAMERA, FIT, LUT;
 
     public companion object {
-        /** The shared screen's toolbar, in Pocket iOS order. Swift twin: `MultiviewTool.screen`. */
+        /** The shared screen's toolbar, in its iOS order. Swift twin: `MultiviewTool.screen`. */
         public val SCREEN: List<MultiviewTool> = listOf(LAYOUT, CAMERA, FIT, LUT)
     }
 }
