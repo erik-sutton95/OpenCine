@@ -205,6 +205,7 @@ public class com/opencapture/opencine/platform/SharedWiFiPath : com/opencapture/
 	public fun cameraLocalIPv4 ()Ljava/lang/String;
 	public final fun currentSsid ()Ljava/lang/String;
 	public final fun getHotspot ()Z
+	public final fun hold (Ljava/lang/Object;)V
 	public fun isProcessBound ()Z
 	public fun join (Lcom/opencapture/opencine/core/StationNetwork;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun join (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;

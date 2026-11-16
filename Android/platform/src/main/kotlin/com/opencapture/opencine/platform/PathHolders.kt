@@ -21,6 +21,9 @@ internal class PathHolders {
         return owners.isEmpty()
     }
 
+    /** Whether anyone but [owner] holds the path. */
+    @Synchronized fun heldByOthersThan(owner: Any): Boolean = owners.any { it !== owner }
+
     @Synchronized fun clear() {
         owners.clear()
     }

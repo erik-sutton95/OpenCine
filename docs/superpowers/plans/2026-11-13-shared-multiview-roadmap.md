@@ -193,6 +193,36 @@ starts no repair on the link it closed, N3 the older-repair test). For the later
 - Before merging Pocket: a Multiview hardware pass on both platforms (the list is in the Plan 4
   report), untested in this plan.
 
+## Carried from Plan 5 (2026-11-15)
+
+Plan 5 landed on `feat/shared-multiview-5-luna` (OpenCine, stacked on Plan 4) and
+`feat/shared-multiview` (OpenInstaCine). Luna's Multiview seams (`LunaMultiview.policy`,
+`LunaStationCommissioner`, `LunaMemberLink`, `LunaNearbyScanner` over `LunaStationPort`) are
+twins in `Insta360Apple` and `insta360-luna`, unit-tested against `FakeLunaStationPort`;
+OpenInstaCine renders the shared `MultiviewScreen` on iOS and Android. No AppKit or Core code
+changed in this plan. Everything is hardware-untested. For later work:
+
+- OpenInstaCine Android is a full host, as iOS: pictures (decoder surface handed back at the
+  first picture size, so a tile mounted before its first keyframe shows a picture), Live View
+  borrowed from a tile through an `AppModel` over the tile's session (Pocket Android's `borrowing`
+  shape), the settings popup under the editor lease with every write admitted at dispatch, and
+  Auto LUT. Closing the stage releases the shared Wi-Fi; the monitor never re-dials under an open
+  stage; Multiview does not open during a connect attempt.
+- The shared Wi-Fi path (`SharedWiFiPath`, `OwnedStationJoin`) never drops a network another
+  owner holds: an owner whose phone cannot read the Wi-Fi name (Location off, permission denied)
+  shares the held network instead of asking the system again. Unit-tested; hardware-untested.
+- Auto LUT follows what the picture carries, not the recording profile (`LunaMemberLink`'s
+  `preview` rule). OpenInstaCine iOS's flat I-Log preview preference defaults on (firmware 1.1.15
+  measured the I-Log phone preview flat), so by default an I-Log tile is still graded, as Live
+  View is; Android has no Color Recovery preference and grades I-Log as flat, as its Live View.
+- Both member links report reconnecting when a stall reaches the live-restart point (the Kotlin
+  `LunaBackend` runs the ladder inside its live link, the Swift link through the port), then live
+  again when the picture returns; past the ladder both end in the same find-again repair.
+- Kotlin `restoreAccessPoint` propagates `CancellationException` (structured concurrency); Swift
+  maps a cancellation to `.failed`. Both keep the camera journaled.
+- Before merging Luna: the Luna hardware pass on both platforms (the list is in the Plan 5
+  report). Whether a Luna keeps recording through a return to its access point is untested.
+
 ## Carried from Plan 6 (2026-11-15)
 
 Plan 6 is on `feat/shared-multiview-6-nikon` (OpenCine, stacked on Plan 4 with the Nikon prep #348)
