@@ -145,4 +145,3 @@ already matched iOS, fakes, probe discovery, the real Bluetooth queue, `Recovery
 - Pocket Android keeps its `MultiviewMulticam` helper only for its engine tests of the record port.
 - Before merging Pocket: the on-device upgrade checklist and a Multiview hardware pass on both
   platforms (add, two cameras, record together, rejoin, close cleanup), untested in this plan.
-
