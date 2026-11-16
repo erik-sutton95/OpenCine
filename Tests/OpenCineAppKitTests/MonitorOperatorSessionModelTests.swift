@@ -25,6 +25,63 @@ import Testing
         try await body(model, shell, assist, display)
     }
 
+    @Test func lockingHookPrecedesAcceptedLockChanges() async throws {
+        guard #available(macOS 14, *) else { return }
+        try await withModel { model, _, _, _ in
+            var nextValues: [Bool] = []
+            var previousValues: [Bool] = []
+            model.onLockWillChange = { next in
+                nextValues.append(next)
+                previousValues.append(model.locked)
+            }
+            model.locked = false
+            #expect(nextValues.isEmpty)
+            model.locked = true
+            #expect(nextValues == [true] && previousValues == [false])
+            model.locked = true
+            #expect(nextValues == [true])
+            model.locked = false
+            #expect(nextValues == [true, false] && previousValues == [false, true])
+        }
+    }
+
+    @Test func interactionHooksPrecedeAcceptedModeAndEditorChanges() async throws {
+        guard #available(macOS 14, *) else { return }
+        try await withModel { model, shell, _, _ in
+            var modeChanges: [MonitorDisplayMode] = []
+            var previousModes: [MonitorDisplayMode] = []
+            model.onModeWillChange = { next in
+                modeChanges.append(next)
+                previousModes.append(model.mode)
+            }
+            #expect(!model.select(.command))
+            model.declare(modes: [.live, .clean, .command])
+            #expect(!model.select(.live))
+            #expect(model.select(.clean))
+            model.locked = true
+            #expect(!model.select(.command))
+            model.locked = false
+            #expect(model.select(.command))
+            #expect(modeChanges == [.clean, .command])
+            #expect(previousModes == [.live, .clean])
+
+            var editorsBeforeChange: [MonitorDisplayMode?] = []
+            var coveredBeforeChange: [Bool] = []
+            model.onEditingWillBegin = {
+                editorsBeforeChange.append(model.editingMode)
+                coveredBeforeChange.append(shell.cover == .settings)
+            }
+            shell.open(.settings)
+            model.beginEditing(.live)
+            model.beginEditing(.live)
+            model.editingMode = nil
+            model.editingMode = .command
+            model.editingMode = .command
+            #expect(editorsBeforeChange == [nil, nil])
+            #expect(coveredBeforeChange == [true, false])
+        }
+    }
+
     @Test func editedModePersistsWithoutChangingOtherMode() async throws {
         guard #available(macOS 14, *) else { return }
         try await withModel { model, _, _, display in

@@ -41,6 +41,7 @@
         public let host: String
         /// One actual established-link identity for supplied operation authority.
         public let commandOwner: NikonCommandOwner? = NikonCommandOwner()
+        private let focusRackRuns = NikonFocusRackRunRegistry()
         /// Nikon session identity.
         public let identity: NativeCameraIdentity
         /// Op selection driven by the body's advertised DeviceInfo operations.
@@ -251,6 +252,7 @@
 
         /// Nikon session close.
         public func close() {
+            focusRackRuns.requestStopCurrent()
             commandOwner?.retire()
             transport.close()
         }
@@ -272,6 +274,7 @@
         /// [verify-on-HW: confirm CloseSession-then-close makes the ZR release the slot and accept the
         /// next Init without the timeout→retry dance the logs show today.]
         public func shutdown() async {
+            focusRackRuns.requestStopCurrent()
             commandOwner?.retire()
             // Over USB, ImageCaptureCore owns the PTP session (it opened it - that's why OpenSession
             // tolerates Session_Already_Open). Closing it behind ICC's back leaves the parked warm
@@ -416,6 +419,9 @@
             try await stopRecording(suppliedAdmission: admission)
         }
         private func stopRecording(suppliedAdmission: NikonCommandAdmission?) async throws {
+            if suppliedAdmission?.admits(commandOwner) != false {
+                focusRackRuns.requestStopCurrent()
+            }
             let result = try await transact(
                 operationCode: .endMovieRec, admission: suppliedAdmission)
             guard result.operationResponse.responseCode == .ok else {
@@ -471,6 +477,12 @@
 
         /// Nikon session read camera property.
         public func readCameraProperty(_ property: PTPPropertyCode) async throws -> Data {
+            try await readCameraProperty(property, admission: nil)
+        }
+
+        private func readCameraProperty(
+            _ property: PTPPropertyCode, admission: NikonCommandAdmission?
+        ) async throws -> Data {
             // Mirror the write path: 2-byte `0xDxxx` / PIMA props use standard
             // GetDevicePropValue (0x1015); only 4-byte extended `0x0001_Dxxx` props
             // use GetDevicePropValueEx (0x943B). Ex-reading 2-byte command tiles
@@ -480,7 +492,7 @@
             let result = try await transact(
                 operationCode: op,
                 parameters: [property.rawValue],
-                dataPhase: .dataIn
+                dataPhase: .dataIn, admission: admission
             )
             guard result.operationResponse.responseCode == .ok else {
                 throw NativeCameraSessionError.operationRejected(
@@ -656,6 +668,122 @@
             // a half-press, release or zoom-ring nudge (ZT-02).
             await Task { await self.abortMFDrive() }.value
             return .refused(.deviceBusy)
+        }
+
+        /// Captures this established session with a thread-safe, revocable operator authority.
+        /// The caller revokes authority synchronously before enqueueing lifecycle invalidation.
+        public func focusRackAccess(
+            isAdmitted: @escaping @Sendable () -> Bool
+        ) -> NikonFocusRackAccess? {
+            focusRackAccess(cadence: .standard, isAdmitted: isAdmitted)
+        }
+
+        /// Captures an immutable, opt-in rack cadence without changing ordinary manual focus.
+        public func focusRackAccess(
+            cadence: NikonFocusRackCadence, isAdmitted: @escaping @Sendable () -> Bool
+        ) -> NikonFocusRackAccess? {
+            guard let owner = commandOwner, owner.isActive else { return nil }
+            let current: @Sendable () -> Bool = { owner.isActive && isAdmitted() }
+            let admission = NikonCommandAdmission(owner: owner, isCurrent: current)
+            return NikonFocusRackAccess(
+                isCurrent: current,
+                prepareRun: { current() && self.focusRackRuns.prepare(runID: $0) },
+                requestStop: { self.focusRackRuns.requestStop(runID: $0) },
+                driveChunk: { runID, towardNear, pulses in
+                    guard current(), let receipt = self.focusRackRuns.receipt(runID: runID) else {
+                        return .cancelledBeforeActivation
+                    }
+                    return await self.focusRackDrive(
+                        towardNear: towardNear, pulses: pulses, cancellation: receipt,
+                        suppliedAdmission: admission, cadence: cadence)
+                },
+                refreshSafety: { try await self.refreshFocusRackSafety(admission: admission) })
+        }
+
+        private func refreshFocusRackSafety(
+            admission: NikonCommandAdmission
+        ) async throws -> NikonFocusRackSafetySnapshot {
+            let startedAt = ProcessInfo.processInfo.systemUptime
+            var fresh = PTPCameraPropertySnapshot()
+            for (property, minimumBytes) in NikonFocusRackSafetySnapshot.properties {
+                guard supportsProperty(property) else {
+                    throw NikonFocusRackAccessError.safetyUnavailable
+                }
+                let data = try await readCameraProperty(property, admission: admission)
+                guard data.count >= minimumBytes,
+                    ProcessInfo.processInfo.systemUptime - startedAt <= 2
+                else { throw NikonFocusRackAccessError.safetyUnavailable }
+                fresh = fresh.applying(property: property, data: data)
+            }
+            let result = try await transact(operationCode: .deviceReady, admission: admission)
+            guard result.operationResponse.responseCode == .ok,
+                ProcessInfo.processInfo.systemUptime - startedAt <= 2, admission.isCurrent
+            else { throw NikonFocusRackAccessError.safetyUnavailable }
+            return try NikonFocusRackSafetySnapshot(reported: fresh)
+        }
+
+        private func focusRackDrive(
+            towardNear: Bool, pulses: UInt32, cancellation: NikonFocusRackCancellation,
+            suppliedAdmission: NikonCommandAdmission, cadence: NikonFocusRackCadence
+        ) async -> NikonFocusRackDriveOutcome {
+            await withTaskCancellationHandler {
+                // Transport gates reject cancelled tasks. Keep the admitted chunk's cleanup
+                // alive independently, while caller cancellation only publishes its stop receipt.
+                await Task.detached {
+                    await self.executeFocusRackDrive(
+                        towardNear: towardNear, pulses: pulses, cancellation: cancellation,
+                        suppliedAdmission: suppliedAdmission, cadence: cadence)
+                }.value
+            } onCancel: {
+                cancellation.requestStop()
+            }
+        }
+
+        private func executeFocusRackDrive(
+            towardNear: Bool, pulses: UInt32, cancellation: NikonFocusRackCancellation,
+            suppliedAdmission: NikonCommandAdmission, cadence: NikonFocusRackCadence
+        ) async -> NikonFocusRackDriveOutcome {
+            guard let owner = commandOwner, owner.isActive else { return .uncertain }
+            let admission = NikonCommandAdmission(owner: owner) {
+                !cancellation.isStopRequested && suppliedAdmission.admits(owner)
+            }
+            var machine = NikonFocusRackDriveMachine(cadence: cadence)
+            while true {
+                switch machine.next(
+                    stopRequested: cancellation.isStopRequested || !owner.isActive
+                        || !suppliedAdmission.admits(owner))
+                {
+                case .finished(let outcome): return outcome
+                case .wait(let seconds):
+                    try? await Task.sleep(for: .seconds(seconds))
+                case .activate:
+                    do {
+                        let response = try await transact(
+                            operationCode: .mfDrive,
+                            parameters: [towardNear ? 1 : 2, min(max(pulses, 1), 32767)],
+                            admission: admission)
+                        machine.received(
+                            response.operationResponse.responseCode,
+                            rawResponseCode: response.operationResponse.rawResponseCode)
+                    } catch NativeCameraSessionError.commandAuthorityExpired {
+                        return .cancelledBeforeActivation
+                    } catch { machine.transportFailed() }
+                case .poll:
+                    do {
+                        let response = try await transact(operationCode: .deviceReady)
+                        machine.received(
+                            response.operationResponse.responseCode,
+                            rawResponseCode: response.operationResponse.rawResponseCode)
+                    } catch { machine.transportFailed() }
+                case .cancel:
+                    do {
+                        let response = try await transact(operationCode: .afDriveCancel)
+                        machine.received(
+                            response.operationResponse.responseCode,
+                            rawResponseCode: response.operationResponse.rawResponseCode)
+                    } catch { machine.transportFailed() }
+                }
+            }
         }
 
         /// Ends a focus-by-wire drive that was not read to completion: `AfDriveCancel`, then

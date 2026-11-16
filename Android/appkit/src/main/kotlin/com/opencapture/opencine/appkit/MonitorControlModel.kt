@@ -136,6 +136,12 @@ public class MonitorControlModel(
     /** The reported state or a pending target changed: for projections that still copy it. */
     public var onChange: () -> Unit = {}
 
+    /** Called synchronously before an admitted setting edit becomes pending or is queued. */
+    public var onSettingQueued: (SettingKey) -> Unit = {}
+
+    /** Called before submitting recording Stop; explicit or already-known Stop is published synchronously. */
+    public var onRecordingStopRequested: () -> Unit = {}
+
     /** The bound session reported [ConnectionState.Disconnected]. Called once per binding. */
     internal var onEnded: () -> Unit = {}
 
@@ -389,6 +395,7 @@ public class MonitorControlModel(
     ) {
         if (state.value.session == null) return onNote(CONNECT_FIRST)
         val key = value.key
+        onSettingQueued(key)
         mutable.update { it.copy(pending = it.pending + (key to value)) }
         operations[key] = PendingEdit(OperationID(), label, editor, admission)
         onChange()
@@ -492,6 +499,8 @@ public class MonitorControlModel(
     ): Deferred<CommandReceipt?>? {
         if (state.value.recordPending) return null
         val session = state.value.session ?: run { onNote(CONNECT_FIRST); return null }
+        val stopPublished = start == false || (start == null && isRecording == true)
+        if (stopPublished) onRecordingStopRequested()
         val operation = OperationID()
         val current = binding
         recordOperation = operation
@@ -512,6 +521,9 @@ public class MonitorControlModel(
             if (intent == null) {
                 finishRecord(operation, current, RECORDING_UNKNOWN, null)
                 return@async null
+            }
+            if (intent == CameraCommandIntent.StopRecording && !stopPublished) {
+                onRecordingStopRequested()
             }
             val receipt = finished(session, CameraCommand(intent, CommandPreconditions(fresh), operation), admission)
             val label = if (intent == CameraCommandIntent.StartRecording) "Record" else "Stop"

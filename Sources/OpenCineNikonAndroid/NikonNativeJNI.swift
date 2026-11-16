@@ -212,6 +212,16 @@
     private let facadeSessions =
         AndroidSessionOwnerRegistry<PTPIPClientSession, AndroidUSBPTPTransport>()
 
+    func captureAndroidFocusRackAccess(
+        connectionOwner: Int64, cadence: NikonFocusRackCadence = .standard,
+        isAdmitted: @escaping @Sendable () -> Bool
+    ) -> NikonFocusRackAccess? {
+        guard let session = facadeSessions.session(for: connectionOwner) else { return nil }
+        return session.focusRackAccess(cadence: cadence) {
+            facadeSessions.session(for: connectionOwner) === session && isAdmitted()
+        }
+    }
+
     /// Decodes the stable Kotlin strategy ordinal at the JNI boundary.
     ///
     /// Kotlin never sends raw PTP operations here: this only chooses one of
@@ -926,6 +936,14 @@
         case .stepTooSmall: return 2
         case .refused(let code): return jint(0x10000 | Int32(code.rawValue))
         }
+    }
+
+    /// Publishes stop for a run prepared directly by a shared Swift controller.
+    @_cdecl("Java_com_opencapture_opencine_nikon_NikonNative_sessionRequestActiveFocusRackStop")
+    public func swiftCoreSessionRequestActiveFocusRackStop(
+        env _: UnsafeMutablePointer<JNIEnv?>, this _: jobject?, owner: jlong
+    ) {
+        facadeSessions.session(for: Int64(owner))?.requestActiveFocusRackStop()
     }
 
     /// `NikonNative.sessionChangeAfArea(x, y): Int`; passes semantic scalar

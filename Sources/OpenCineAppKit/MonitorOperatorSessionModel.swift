@@ -24,7 +24,10 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
     public var settingsScrollOffsets: [MonitorSettingsTab: Double] = [:]
     public var editingMode: MonitorDisplayMode? {
         get { displaySession.editingMode }
-        set { displaySession.editingMode = newValue }
+        set {
+            if let newValue, newValue != displaySession.editingMode { onEditingWillBegin() }
+            displaySession.editingMode = newValue
+        }
     }
     public var returnedMode: MonitorDisplayMode? {
         get { displaySession.returnedMode }
@@ -34,8 +37,16 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
     public private(set) var modes: [MonitorDisplayMode] = [.live, .clean]
     /// The interface lock. It refuses the DISP cycle here; the surface refuses every other
     /// operator input while it holds. It lasts one monitor lifetime.
-    public var locked = false
+    public var locked = false {
+        willSet { if newValue != locked { onLockWillChange(newValue) } }
+    }
     public private(set) var interactive = true
+    /// Called synchronously before the interface lock changes, including direct assignment.
+    @ObservationIgnored public var onLockWillChange: (Bool) -> Void = { _ in }
+    /// Called synchronously before an accepted display-mode change mutates presentation.
+    @ObservationIgnored public var onModeWillChange: (MonitorDisplayMode) -> Void = { _ in }
+    /// Called before a new chrome editor opens, including direct editing-mode assignment.
+    @ObservationIgnored public var onEditingWillBegin: () -> Void = {}
 
     private let shell: ShellModel
     public let assist: MonitorAssistState<Looks>
@@ -110,6 +121,7 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
     }
 
     public func beginEditing(_ mode: MonitorDisplayMode) {
+        if mode != editingMode { onEditingWillBegin() }
         shell.dismissCover()
         show(mode)
         displaySession.beginEditing(mode)
@@ -148,6 +160,7 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
     }
 
     private func show(_ next: MonitorDisplayMode) {
+        if next != mode { onModeWillChange(next) }
         if commandShown != (next == .command) { commandShown = next == .command }
         if assist.clean != (next == .clean) { assist.clean = next == .clean }
     }

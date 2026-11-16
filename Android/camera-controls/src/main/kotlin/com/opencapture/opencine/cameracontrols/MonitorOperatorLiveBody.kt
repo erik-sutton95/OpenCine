@@ -162,6 +162,13 @@ public class MonitorOperatorBodyViews(
      * [motion] has none; a source whose motion controls hold only a zoom says so here.
      */
     public val motionCluster: Boolean = motion != null,
+    public val focusAccessory: MonitorOperatorFocusAccessoryViews? = null,
+)
+/** Setup and safety transport share placement while retaining native controls. */
+public class MonitorOperatorFocusAccessoryViews(
+    public val isExpanded: Boolean, public val active: Boolean,
+    public val expanded: @Composable (Float) -> Unit, public val compact: @Composable () -> Unit,
+    public val position: com.opencapture.monitorui.MonitorScopePoint? = null,
 )
 public class MonitorOperatorMotionViews(
     public val controls: @Composable BoxScope.(Boolean) -> Unit,
@@ -244,6 +251,12 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val exposed = !covered && current(identity)
     val interactive = exposed && !locked && editing == null && interactionEnabled
     val admitted = interactive && !readOnly
+    val focusAccessoryLayout = cameraViews.focusAccessory?.takeIf {
+        exposed && !command && editing == null
+    }?.let {
+        MonitorFocusAccessoryLayout.resolve(layout, safeLeading, safeTrailing, safeBottom,
+            it.isExpanded && !clean && !locked, it.position)
+    }
     val linkMounted = status.fpsSection == null || status.fpsSection in mounted
     val hasOptions = { item: MonitorOperatorPaletteItem -> item.hasOptions || signalOptions.offers(item.tool) }
     val inspectorTools = palette.filter(hasOptions).mapNotNull { it.tool }
@@ -495,7 +508,9 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     if (!locked && editing == null && cameraViews.resetFocus != null) add(MonitorScopeChrome.FOCUS_RESET)
                     if (aspect != null) add(MonitorScopeChrome.ASPECT_TOGGLE)
                 }
-                CompositionLocalProvider(LocalScopeObstacles provides layout.scopeObstacles(scopeChrome, cameraViews.motionCluster)) {
+                val scopeObstacles = layout.scopeObstacles(scopeChrome, cameraViews.motionCluster) +
+                    listOfNotNull(focusAccessoryLayout?.frame)
+                CompositionLocalProvider(LocalScopeObstacles provides scopeObstacles) {
                     AssistOverlayLayer(assist, bundle, assistHost, locked = !interactive,
                         feedFrame = scopeFeed, framingFrame = framingFrame, placementFrame = scopePlacement ?: viewport,
                         audioPlacementFrame = (scopePlacement ?: viewport).copy(x = safeLeading,
@@ -547,7 +562,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             it.width.toDp().value, it.height.toDp().value) } })
                     }) }
                 // Hidden under the lock like focus reset (pre-shared Z Android hid the MF strip there).
-                if (!locked) cameraViews.focusDrive?.let { drive ->
+                if (!locked && cameraViews.focusAccessory == null) cameraViews.focusDrive?.let { drive ->
                     val height = minOf(280f, layout.viewport.height * .55f)
                     val center = max(layout.picture.x + 30f, layout.record.x - 34f)
                     Box(Modifier.descriptorFrame(MonitorRect(center - FOCUS_DRIVE_WIDTH / 2f, layout.picture.midY - height / 2f,
@@ -629,6 +644,15 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             cameraViews.motion?.editor?.invoke(this, accepts && interactive)
             cameraViews.feedback?.invoke(this)
         })
+    if (exposed && !command && editing == null) {
+        cameraViews.focusAccessory?.let { accessory -> focusAccessoryLayout?.let { placement ->
+            if (placement.frame.width > 0f && placement.frame.height > 0f) {
+                Box(Modifier.descriptorFrame(placement.frame)) {
+                    if (placement.compact) accessory.compact() else accessory.expanded(placement.frame.height)
+                }
+            }
+        } }
+    }
     editing?.let { mode ->
         Box(Modifier.fillMaxSize().pointerInput(Unit) { awaitPointerEventScope {
             while (true) awaitPointerEvent().changes.forEach { it.consume() }

@@ -181,6 +181,12 @@ final class FakeZRServer: @unchecked Sendable {
         /// at or above `MFDriveChannelBudget.readinessPollLimit` keeps the drive in
         /// flight for the whole poll ceiling so tests can assert the abort path.
         var mfDriveReadinessBusyPolls: Int = 0
+        /// Focus-rack tests distinguish an explicit activation refusal from a lost response.
+        var mfDriveResponseCode: UInt16 = 0x2001
+        var mfDriveReadinessResponseCode: UInt16 = 0x2001
+        var disconnectsOnMFDrive = false
+        /// Runs at the camera's activation boundary, before it replies.
+        var onMFDriveActivation: (@Sendable () -> Void)?
         /// Models the Z6III shape behind ZT-02: after `MfDrive` the body answers busy to
         /// `ChangeAfArea` until a `DeviceReady` poll has read the drive's end back.
         /// `AfDriveCancel` stops the move but does not count as that read.
@@ -747,13 +753,21 @@ final class FakeZRServer: @unchecked Sendable {
                 busyCode = nil
             }
             lock.unlock()
-            sendResponse(connection, code: busyCode ?? 0x2001, transactionID: transactionID)
+            sendResponse(
+                connection, code: busyCode ?? options.mfDriveReadinessResponseCode,
+                transactionID: transactionID)
         case .mfDrive:
+            if options.disconnectsOnMFDrive {
+                shutdown(connection, Int32(SHUT_RDWR))
+                return
+            }
             lock.lock()
             mfDriveBusyPollsRemaining = options.mfDriveReadinessBusyPolls
             mfDriveUnread = options.mfDriveHoldsBusyUntilReadBack
             lock.unlock()
-            sendResponse(connection, code: 0x2001, transactionID: transactionID)
+            options.onMFDriveActivation?()
+            sendResponse(
+                connection, code: options.mfDriveResponseCode, transactionID: transactionID)
         case .initiateCaptureRecInMedia:
             lock.lock()
             let captureResponse = options.stillCaptureResponseCode

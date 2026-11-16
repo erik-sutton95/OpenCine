@@ -39,6 +39,37 @@ import kotlinx.coroutines.test.advanceTimeBy
 @OptIn(ExperimentalCoroutinesApi::class)
 class SwiftCoreCameraSessionTest {
     @Test
+    fun `record stop publishes native current stop before waiting for command mutex`() = runTest {
+        val bridge = FakeBridge()
+        val session = quietSession(bridge)
+        assertNull(session.focusRackConnectionOwner)
+        val connecting = async { session.connect() }
+        runCurrent()
+        assertNull(session.focusRackConnectionOwner)
+        bridge.listeners.single().onConnected("ZR", "NIKON ZR", "fixture")
+        connecting.await()
+        assertEquals(session.connectionOwner, session.focusRackConnectionOwner)
+        session.setRecording(true)
+        val entered = CountDownLatch(1)
+        val stopped = CountDownLatch(1)
+        bridge.controlHandler = { _, _ ->
+            entered.countDown()
+            check(stopped.await(5, TimeUnit.SECONDS))
+            NikonNative.CONTROL_COMMAND_ACCEPTED
+        }
+        bridge.activeRackStopHandler = { stopped.countDown() }
+        val writing = async(Dispatchers.Default) { session.applyControl(CameraControl.ISO, "1600") }
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            session.setRecording(false)
+            writing.await()
+            assertTrue(bridge.activeRackStops > 0)
+        } finally { stopped.countDown() }
+        session.disconnect()
+        assertNull(session.focusRackConnectionOwner)
+    }
+
+    @Test
     fun `wire separates legacy aperture ladder from actual descriptor choices`() {
         val base = listOf("result\taccepted", "captureSelector\tvideo", "iris\tf/2.8",
             "options.iris\tf/2.8\u001Ff/4.0").joinToString("\n")
@@ -1785,7 +1816,14 @@ class SwiftCoreCameraSessionTest {
         var focusHandler: ((CameraFocusPoint) -> Int)? = null
         var roundTripMilliseconds: Double? = null
         var disconnects = 0
+        @Volatile var activeRackStopHandler: (() -> Unit)? = null
+        var activeRackStops = 0
 
+        override fun requestActiveFocusRackStop(connectionOwner: Long) {
+            owned("requestActiveFocusRackStop", connectionOwner)
+            activeRackStops += 1
+            activeRackStopHandler?.invoke()
+        }
         override fun connect(
             host: String,
             connectionOwner: Long,

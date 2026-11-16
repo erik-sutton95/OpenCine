@@ -23,8 +23,8 @@ class SingleSharedMonitorCompositionContractTest {
      */
     @Test fun theLockHidesTheFocusDriveAndTheDisplayTileTicks() {
         val source = File(directory, "MonitorOperatorLiveBody.kt").readText()
-        assertTrue(Regex("""if \(!locked\) cameraViews\.focusDrive""").containsMatchIn(source),
-            "The focus drive must not mount under the interface lock")
+        assertTrue(Regex("""if \(!locked && cameraViews\.focusAccessory == null\) cameraViews\.focusDrive""").containsMatchIn(source),
+            "The focus drive must not mount under the interface lock or an accessory")
         assertTrue("onClickFeedback = { displayHaptics.selection() }" in source,
             "The DISP tile must give the selection haptic")
         assertTrue("busy = !recordEnabled" in source,
