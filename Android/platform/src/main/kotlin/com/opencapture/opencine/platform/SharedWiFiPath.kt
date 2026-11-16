@@ -28,6 +28,12 @@ import kotlin.coroutines.resume
  * Wi-Fi [Network]; Android otherwise routes LAN traffic over cellular when the
  * Wi-Fi has no internet. The phone's own hotspot uses its tethering interface. Core's
  * [StationHostPath] for the Multiview coordinator and the integrations' station setups.
+ *
+ * Several connections may share one path (multicam over one network): each joins, binds and
+ * releases as its own `owner`, and the join and process binding are let go only when the last
+ * owner releases. The calls without an owner keep their single-user meaning. A join through the
+ * [StationHostPath] seam holds the path as the station's own owner, so a connection releasing
+ * its hold never lets go of the station the coordinator joined; only [release] does.
  */
 open class SharedWiFiPath(
     context: Context,
@@ -42,6 +48,10 @@ open class SharedWiFiPath(
     private var requested: Network? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var processBound = false
+    private val holders = PathHolders()
+
+    /** The owner a [StationHostPath.join] holds the path as. */
+    private val stationOwner = Any()
     @Volatile var hotspot = false
 
     /** Current station SSID, or null when unknown (location off or not on Wi-Fi). */
@@ -64,12 +74,12 @@ open class SharedWiFiPath(
 
     /**
      * [StationHostPath.join]: a hotspot is this phone's own, so its current address is returned
-     * without joining; a router's Wi-Fi is joined with [join] and this phone's address there
-     * returned, null when it did not join.
+     * without joining; a router's Wi-Fi is joined with [join] as the station's owner and this
+     * phone's address there returned, null when it did not join.
      */
     override suspend fun join(network: StationNetwork): String? {
         if (network.hotspot) return address(true)
-        if (!join(network.ssid, network.password)) return null
+        if (!join(network.ssid, network.password, owner = stationOwner)) return null
         return address(false)
     }
 
@@ -120,7 +130,27 @@ open class SharedWiFiPath(
         return address(false) != null
     }
 
+    /** [join] for [owner], who then holds the path until [release] with the same owner. */
+    suspend fun join(ssid: String, password: String, owner: Any): Boolean =
+        join(ssid, password).also { if (it) holders.hold(owner) }
+
+    /** Lets go of the path: the join's request and the process binding, whoever holds them. */
     fun release() {
+        holders.clear()
+        letGo()
+    }
+
+    /**
+     * Drops [owner]'s hold. True when no owner holds the path any more, which is then let go
+     * (as [release]); false while another owner still uses it.
+     */
+    fun release(owner: Any): Boolean {
+        if (!holders.release(owner)) return false
+        letGo()
+        return true
+    }
+
+    private fun letGo() {
         val (registered, unbind) = synchronized(lock) {
             val current = callback
             val bound = processBound
@@ -138,7 +168,15 @@ open class SharedWiFiPath(
      * its own sockets (an HTTP client) reaches hosts on it even when the Wi-Fi has no internet.
      * Never for a hotspot: its clients are reached through the local tethering route.
      */
-    fun bindProcess(): Boolean {
+    fun bindProcess(): Boolean = bind()
+
+    /** [bindProcess] for [owner], who then holds the path until [release] with the same owner. */
+    fun bindProcess(owner: Any): Boolean {
+        holders.hold(owner)
+        return bind()
+    }
+
+    private fun bind(): Boolean {
         if (hotspot) return false
         val network = wifiNetwork() ?: return false
         val bound = runCatching { connectivity?.bindProcessToNetwork(network) == true }.getOrDefault(false)
