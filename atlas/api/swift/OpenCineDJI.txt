@@ -93,6 +93,12 @@ case MulticamStationPolicy.Decision.alreadyStation
 case MulticamStationPolicy.Decision.reject
 case MulticamStationPolicy.Decision.setAndVerify
 case MulticamStationPolicy.Decision.setWithoutReadback
+case MultiviewFailure.message(Swift.String)
+case MultiviewFailure.network
+case MultiviewFailure.pairingDeferred
+case MultiviewFailure.rejected
+case MultiviewFailure.timeout
+case MultiviewFailure.unavailable
 case StationJoin.Failure.hotspotUnavailable
 case StationJoin.Failure.joinRejected
 case StationJoin.Failure.joinSilent
@@ -163,6 +169,8 @@ enum MulticamStationPolicy
 enum MulticamStationPolicy.Decision: Equatable, Hashable
 enum MulticamSupport
 enum MulticamWiFiScan
+enum MultiviewFailure: Equatable, Error, LocalizedError, Sendable
+enum MultiviewPairing
 enum StationJoin.Failure: Equatable, Error, Hashable, LocalizedError, Sendable
 enum StationJoin.Outcome: Equatable, Hashable, Sendable
 enum SubscribePush
@@ -345,6 +353,7 @@ func MultiviewRecovery.fail() -> ()
 func ShootingMode.wireByte(for: OpenCineCameraVocabulary.CameraModel?) -> Swift.UInt8
 func StationJoin.run(isolation: (any _Concurrency.Actor)?, identity: [Swift.UInt8], exchange: (Duml.Frame, Foundation.TimeInterval) async throws -> Duml.Frame, send: (Duml.Frame) -> Swift.Void, next: () -> Swift.UInt16, status: (Swift.String) -> Swift.Void, hotspotReady: () -> Swift.Bool, verifyOnNetwork: () async throws -> Swift.Bool, log: (Swift.String) -> Swift.Void, sleep: ((Foundation.TimeInterval) async throws -> Swift.Void)?) async throws -> StationJoin.Outcome
 func VideoFormat.setPayload(shootingMode: OpenCineCameraVocabulary.ShootingMode?) -> [Swift.UInt8]
+func restoreCameraWiFiWithRetry(isolation: (any _Concurrency.Actor)?, waitBetween: () async -> Swift.Void, attempt: () async throws -> Swift.Bool) async -> Swift.Bool
 init CameraAudioAdjustment(raw: Swift.UInt8)
 init CameraModel(name: Swift.String)
 init CameraPathRecovery()
@@ -652,6 +661,7 @@ static func MulticamSupport.hasPreview(_: OpenCineCameraVocabulary.CameraModel) 
 static func MulticamSupport.qualification(_: OpenCineCameraVocabulary.CameraModel?, experimental: Swift.Bool) -> OpenCineCore.MulticamQualification
 static func MulticamWiFiScan.names(_: [Swift.UInt8]) -> [Swift.String]
 static func MulticamWiFiScan.request(seq: Swift.UInt16) -> Duml.Frame
+static func MultiviewPairing.acceptsReply(_: Duml.Frame, sequence: Swift.UInt16) throws -> Swift.Bool
 static func OfficialDJILUT.auto(colorMode: OpenCineCameraVocabulary.ColorMode?, family: OpenCineCameraVocabulary.CameraBodyFamily, cameraName: Swift.String?) -> OpenCineCameraVocabulary.OfficialDJILUT?
 static func OfficialDJILUT.dLogM(cameraName: Swift.String?) -> OpenCineCameraVocabulary.OfficialDJILUT
 static func ShootingMode.photoWireByte(for: OpenCineCameraVocabulary.CameraModel?) -> Swift.UInt8
@@ -902,6 +912,7 @@ var MediaPageStep.fresh: [OpenCineCameraVocabulary.MediaFile]
 var MediaPageStep.internalCursor: Swift.UInt32
 var MediaPageStep.moreAvailable: Swift.Bool
 var MediaPageStep.sdCursor: Swift.UInt32
+var MultiviewFailure.errorDescription: Swift.String?
 var MultiviewRecovery.failed: Swift.Bool
 var MultiviewRecovery.rejoins: Swift.Int
 var MultiviewRecovery.watchdog: OpenCineCameraVocabulary.FeedWatchdog
