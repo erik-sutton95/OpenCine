@@ -29,6 +29,10 @@ public final class FakeLunaPort: LunaConnectPort {
     public private(set) var connectSawSighting: Bool?
     public private(set) var disconnects = 0
     public private(set) var forgotten: [UUID] = []
+    /// What the next returns to the access point answer, in order; `.returned` once empty.
+    public var accessPointReturns: [LunaAccessPointReturn] = []
+    /// Every camera asked back onto its own access point, in order.
+    public private(set) var returns: [UUID] = []
     /// The camera behind every session this port opens.
     public let camera = FakeLuna()
     private var pending: CheckedContinuation<Void, Error>?
@@ -82,6 +86,13 @@ public final class FakeLunaPort: LunaConnectPort {
     }
 
     public func forget(cameraID: UUID) { forgotten.append(cameraID) }
+
+    /// Like the backend, a return ends the connect in flight first.
+    public func returnToAccessPoint(cameraID: UUID) async throws -> LunaAccessPointReturn {
+        disconnect()
+        returns.append(cameraID)
+        return accessPointReturns.isEmpty ? .returned : accessPointReturns.removeFirst()
+    }
 
     public func stationPassword(for network: String, hotspot: Bool) -> String? {
         stations.last { $0.ssid == network && $0.hotspot == hotspot }?.password
