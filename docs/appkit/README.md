@@ -118,6 +118,12 @@ first frame and the app owns progress, render `PairCameraPage` / `MonitorPairCam
 and actions without starting `PairScreen` discovery. A shared connection attempt retains its own
 card or pair-page progress until picture readiness; it needs no additional preparing page.
 
+The station-network wizard (`StationNetworkSetupView` on iOS, `StationNetworkSetup` on Android)
+takes `lockedNetwork: StationNetwork? = nil` on both platforms. When set, it shows only the
+read-only "Shared Wi-Fi" page: the network name, "Cameras are using this network. Remove them
+before changing it.", and a Done action that closes the wizard. No scan starts. Multiview passes it
+while cameras use the shared network.
+
 ## Shell: root, monitor lifetime and common controls (SHELL-03)
 
 `ShellModel` is the app's root state over `CamerasModel`: the route (`cameras`, `pair`,
@@ -366,6 +372,14 @@ A camera action with `closes` closes the SwiftUI options before it runs, and the
 once their slot empties. A readout with `choices` opens them wherever it shows (the program row
 and Grid's inline values); `choose` gets the choice as shown, so the app writes only a value the
 camera still advertises. Qualified camera counts, routes and limits stay app parameters.
+
+`MultiviewStageJournal` is the saved stage: `Stage` (network name, layout, focus, assigned cameras,
+the camera-network cleanup ledger `pendingReset`, fit or fill) and `Camera`, with `validated(tileCount:)`
+(the app passes its own tile count; a stage with no network is valid only as a cleanup ledger),
+`cleanupTargets` (replace by id, append new) and, on Android, `encode`/`decode` (org.json). The JSON
+keys are the ones the apps already store (`deviceAddress` is written as `bleAddress`, Android's
+identity is hex, iOS's an array of bytes), so earlier saved stages decode unchanged. Storage (Keychain,
+SharedPreferences) stays in the app.
 
 Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
 ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come

@@ -59,6 +59,9 @@
         var save: @MainActor (StationNetwork) async -> Bool
         var errorMessage: String? = nil
         var close: () -> Void
+        /// The network cameras are using. When set, the view shows only the read-only Shared Wi-Fi
+        /// page and never scans.
+        var lockedNetwork: StationNetwork?
         @State var path: [Page] = []
 
         public init(
@@ -67,7 +70,7 @@
             scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?,
             cameraScansNetworks: Bool = true,
             save: @escaping @MainActor (StationNetwork) async -> Bool, errorMessage: String? = nil,
-            close: @escaping () -> Void, path: [Page] = []
+            close: @escaping () -> Void, path: [Page] = [], lockedNetwork: StationNetwork? = nil
         ) {
             self.context = context
             self.brand = brand
@@ -78,6 +81,7 @@
             self.save = save
             self.errorMessage = errorMessage
             self.close = close
+            self.lockedNetwork = lockedNetwork
             _path = State(initialValue: path)
         }
 
@@ -116,7 +120,54 @@
         private var warning: Color { MonitorTheme.linkHealthColor(.watch) }
         private var good: Color { MonitorTheme.linkHealthColor(.stable) }
 
+        /// What the locked page shows and does; nil when the wizard runs normally.
+        var lockedPage: LockedPage? { lockedNetwork.map(LockedPage.init) }
+
+        /// The decisions of the Shared Wi-Fi page, kept apart from its rendering.
+        struct LockedPage: Equatable {
+            let network: StationNetwork
+            var title: String { "Shared Wi-Fi" }
+            var ssid: String { network.ssid }
+            var message: String { "Cameras are using this network. Remove them before changing it." }
+            var allowsScan: Bool { false }
+            func done(close: () -> Void) { close() }
+        }
+
         public var body: some View {
+            if let page = lockedPage {
+                lockedView(page)
+            } else {
+                wizard
+            }
+        }
+
+        private func lockedView(_ page: LockedPage) -> some View {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 10) {
+                        MonitorIcon.wifi.frame(width: 20, height: 20)
+                        Text(page.ssid)
+                    }
+                    Text(page.message).foregroundStyle(MonitorTheme.muted)
+                    Spacer()
+                }
+                .padding(24)
+                .navigationTitle(page.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { page.done(close: close) }
+                    }
+                }
+            }
+            .font(MonitorTheme.font(15))
+            .foregroundStyle(MonitorTheme.text)
+            .tint(MonitorTheme.accent)
+            .preferredColorScheme(.dark)
+            .accessibilityIdentifier("multiview.networkSetup")
+        }
+
+        private var wizard: some View {
             NavigationStack(path: $path) {
                 screen(.choose)
                     .toolbar {
@@ -302,7 +353,7 @@
         // MARK: Camera scan
 
         private func startScan() {
-            guard let scan, scanTask == nil, !scanFinished, !working else { return }
+            guard let scan, lockedPage?.allowsScan ?? true, scanTask == nil, !scanFinished, !working else { return }
             scanning = true
             scanFailed = false
             scanTask = Task {

@@ -53,6 +53,7 @@ enum EditorLeaseRefusal: Equatable, Error, Hashable, Sendable
 enum ExclusionReason: Equatable, Hashable, Sendable
 enum IdentityKind.EditorLease
 enum MulticamGroupError: Equatable, Error, Hashable, Sendable
+enum RecordAll
 enum RecordDirection: Decodable, Encodable, Equatable, Hashable, Sendable
 enum RecordSubmissionError: Equatable, Error, Hashable, Sendable
 enum RecoveryBudget.Status: Equatable, Hashable, Sendable
@@ -118,10 +119,18 @@ let RecoveryBudget.limit: Swift.Int
 let RecoveryBudget.resetAfterHealthy: Swift.Duration
 let RecoveryLedger.limit: Swift.Int
 let RecoveryLedger.resetAfterHealthy: Swift.Duration
+static func RecordAll.note(_: TargetOutcome, direction: RecordDirection) -> Swift.String?
+static func RecordAll.plan(_: [OpenCineCore.MonitorEntryID], recording: (OpenCineCore.MonitorEntryID) -> Swift.Bool, in: MulticamGroup, at: MulticamSnapshot) -> RecordPlan
+static func RecordAll.progress(_: RecordDirection) -> Swift.String
+static func RecordAll.run(_: RecordPlan, in: MulticamGroup, at: MulticamSnapshot, sessions: [OpenCineCore.CameraSessionID : any OpenCineCore.CameraSession]) -> RecordResult?
+static func RecordAll.summary(_: RecordResult, allMatch: Swift.Bool) -> Swift.String
 static func RecordPlan.make(_: RecordDirection, policy: TargetPolicy, entries: [OpenCineCore.MonitorEntryID], in: MulticamGroup, at: MulticamSnapshot) -> RecordPlan
 static func ResourceAdmission.reasons(admitting: ResourceRequest, alongside: [ResourceRequest], budget: ResourceBudget) -> [AdmissionReason]
 static func ResourceAdmission.reasons(admitting: ResourceRequest, qualification: OpenCineCore.MulticamQualification, alongside: [ResourceRequest], budget: ResourceBudget) -> [AdmissionReason]
 static func ResourceClaim.claims(for: OpenCineCore.SavedRoute) -> [ResourceClaim]
+static let RecordAll.changed: Swift.String
+static let RecordAll.policy: TargetPolicy
+static let RecordAll.waiting: Swift.String
 struct AdmissionFingerprint: Equatable, Hashable, Sendable
 struct EditorLease: Equatable, Hashable, Sendable
 struct EditorLeases: Equatable, Hashable, Sendable
