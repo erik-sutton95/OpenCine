@@ -97,12 +97,14 @@ Plan 3 re-review `OpenCine-tasks/shared-multiview-3/REREVIEW.md` (N1 to N3).
 ### Task 1: Plan 3 re-review leftovers in the coordinator (N1, N2, N3)
 
 **Files:**
+
 - Modify: `Sources/OpenCineAppKit/MultiviewCoordinator.swift`,
   `Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/MultiviewCoordinator.kt`
 - Test: `Tests/OpenCineAppKitTests/MultiviewCoordinatorTests.swift`,
   `Android/appkit/src/test/kotlin/com/opencapture/opencine/appkit/MultiviewCoordinatorTest.kt`
 
 **Interfaces:** none public. Behavior:
+
 - N1: a repair's result is applied only while that repair is still the member's (Swift: Remove
   advances `repairGeneration`; the result switch checks it; Kotlin: the job identity check guards
   the result too).
@@ -123,6 +125,7 @@ Plan 3 re-review `OpenCine-tasks/shared-multiview-3/REREVIEW.md` (N1 to N3).
 ### Task 2: Shared settings categories and screen copy (values)
 
 **Files:**
+
 - Create: `Sources/OpenCineAppKit/MultiviewScreenValues.swift`,
   `Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/MultiviewScreenValues.kt`
 - Modify: `Sources/OpenCineAppKit/MultiviewStageState.swift` and the Kotlin twin
@@ -131,6 +134,7 @@ Plan 3 re-review `OpenCine-tasks/shared-multiview-3/REREVIEW.md` (N1 to N3).
 - Test: `Tests/OpenCineAppKitTests/MultiviewValuesTests.swift`, `MultiviewValuesTest.kt`
 
 **Interfaces (Swift; Kotlin twins have the same names, enum cases upper-cased):**
+
 ```swift
 public enum MultiviewSettingsCategory: String, CaseIterable, Hashable, Sendable {
     case iso, shutter, exposure, wb, focus, aperture, mode, resolution, color, audio
@@ -161,12 +165,14 @@ extension MultiviewCopy {
 ### Task 3: MultiviewHost grows; the coordinator's screen rules
 
 **Files:**
+
 - Modify: `Sources/OpenCineAppKit/MultiviewCoordinator.swift`,
   `Sources/OpenCineAppKit/MultiviewCoordinator+Record.swift`, Kotlin `MultiviewCoordinator.kt`,
   `MultiviewCoordinatorRecord.kt`
 - Test: `MultiviewCoordinatorTests.swift`, `MultiviewCoordinatorTest.kt`
 
 **Interfaces:**
+
 ```swift
 // MultiviewHost additions (defaults in the extension):
 func readings(slot: Int) -> MultiviewTileReadings?              // nil
@@ -202,6 +208,7 @@ public var cameraSettingsSlots: [Int]
 ### Task 4: The SwiftUI screen and settings popup
 
 **Files:**
+
 - Create: `Sources/OpenCineAppKitApple/MultiviewScreen.swift`,
   `Sources/OpenCineAppKitApple/MultiviewCameraSettingsPanel.swift`
 - Modify: `Package.swift` (AppKitApple names MonitorPresentation; its tests take
@@ -209,6 +216,7 @@ public var cameraSettingsSlots: [Int]
 - Test: `Tests/OpenCineAppKitAppleTests/MultiviewScreenTests.swift` (hosted, iOS)
 
 **Interfaces:**
+
 ```swift
 @MainActor public protocol MultiviewScreenHost: MultiviewHost {
     associatedtype Picture: View; associatedtype Backdrop: ViewModifier
@@ -242,10 +250,12 @@ public struct MultiviewCameraSettingsPanel<Link, Host>: View
 ### Task 5: The Compose screen and settings popup
 
 **Files:**
+
 - Create: `Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/MultiviewScreen.kt`,
   `MultiviewCameraSettingsPanel.kt`
 
 **Interfaces:**
+
 ```kotlin
 public interface MultiviewScreenHost : MultiviewHost {
     @Composable public fun Picture(slot: Int, fill: Boolean)
@@ -260,6 +270,7 @@ public interface MultiviewScreenHost : MultiviewHost {
     coordinator: MultiviewCoordinator<Camera, Link>, host: MultiviewScreenHost, onClose: () -> Unit)
 @Composable public fun MultiviewCameraSettingsPanel(...)
 ```
+
 (The Android wizard's app values are a permission gate and Android saved networks, so the host
 supplies the wizard call itself; its locked page and close rules come from the screen.)
 

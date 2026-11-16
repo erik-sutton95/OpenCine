@@ -471,7 +471,7 @@ func DjiAppleZoomGesture.slider(_: Swift.Double, admission: OpenCineDJI.DJIComma
 func DjiAppleZoomGesture.slider(_: Swift.Double, onStage: ((OpenCineDJI.ControlWireEvent) -> Swift.Void)?) -> ()
 func DjiAppleZoomGesture.stop() -> ()
 func DjiAppleZoomGesture.updatePinch(magnification: Swift.Double) -> ()
-init DJIStationCommissioner(host: DjiAppleTransportHost, hostPath: any OpenCineCore.StationHostPath, retryDelay: () async -> Swift.Void)
+init DJIStationCommissioner(host: DjiAppleTransportHost, hostPath: any OpenCineCore.StationHostPath, retryDelay: (() async -> Swift.Void)?)
 init DjiAppleAudioDSPFacts(blob: [Swift.UInt8]?, at2: OpenCineDJI.AudioDspAt2?, wind: OpenCineCameraVocabulary.WindNoiseReduction?, directional: OpenCineCameraVocabulary.DirectionalAudio?)
 init DjiAppleBluetoothLink()
 init DjiAppleBluetoothLink(allowsConcurrentCameras: Swift.Bool)

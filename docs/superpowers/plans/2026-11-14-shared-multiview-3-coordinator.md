@@ -101,6 +101,7 @@ coroutines, Compose runtime state in `:appkit`), XCTest and kotlin.test in Pocke
 ### Task 1: Core seam changes (Swift and Kotlin)
 
 **Files:**
+
 - Modify: `Sources/OpenCineCore/MultiviewMemberLink.swift`, `MultiviewCameraPolicy.swift`,
   `StationCommissioner.swift`; Kotlin twins in `Android/core/src/main/kotlin/com/opencapture/opencine/core/`
 - Create: `Sources/OpenCineCore/NearbyCameraScanner.swift`, `StationSubnet.swift`; Kotlin twins
@@ -111,6 +112,7 @@ coroutines, Compose runtime state in `:appkit`), XCTest and kotlin.test in Pocke
   update `MultiviewSeamTests` / `MultiviewSeamTest`
 
 **Interfaces:**
+
 ```swift
 public struct MultiviewRecordReport: Equatable, Sendable { public var recording: Bool; public var receivedAt: Date }
 // MultiviewMemberLink: + var recordReport: MultiviewRecordReport? { get }; + var snapshot: CameraSnapshot { get } (Swift only); - isPublishing
@@ -126,6 +128,7 @@ public enum StationRestoreResult: Equatable, Sendable { case restored, deferred(
 }
 public enum StationSubnet { static func hosts(address:mask:excluding:) -> [String]?; static func validAddress(_:) -> Bool }
 ```
+
 Kotlin: `MultiviewRecordReport(recording, receivedAtMillis)`, `StationRestoreResult` sealed,
 `NearbyCameraScanner` interface (`suspend fun waitUntilReady()`, `suspend fun scan(found)`,
 `fun stop()`), `object StationSubnet`.
@@ -142,6 +145,7 @@ Kotlin: `MultiviewRecordReport(recording, receivedAtMillis)`, `StationRestoreRes
 ### Task 2: `RecoveryBudget.exhaust()` and the seam fakes
 
 **Files:**
+
 - Modify: `Sources/OpenCineMulticam/Recovery.swift`, `Android/multicam/.../Recovery.kt`; tests in
   `Tests/OpenCineMulticamTests/EngineTests.swift`, `Android/multicam/src/test/.../EngineTests.kt`
 - Create: `Sources/OpenCineCoreTestSupport/FakeMultiview.swift`,
@@ -162,12 +166,14 @@ closes counted, status reports, scripted repair step, record report, snapshot), 
 ### Task 3: Swift `MultiviewCoordinator` (tests first)
 
 **Files:**
+
 - Create: `Sources/OpenCineAppKit/MultiviewCoordinator.swift` (coordinator, member, host,
   Bluetooth queue, copy), `Sources/OpenCineAppKit/MultiviewCoordinator+Record.swift` (record plan,
   confirmation window helper, tile values)
 - Create: `Tests/OpenCineAppKitTests/MultiviewCoordinatorTests.swift`
 
 **Interfaces:**
+
 ```swift
 public enum MultiviewMemberChange: Sendable { case camera, control, removed }
 @MainActor public protocol MultiviewHost: AnyObject {   // every requirement has a default
@@ -206,6 +212,7 @@ public struct MultiviewTileReadings { name, model, format, storage, timecode, re
 ```
 
 Tests (Swift Testing, `ManualHostClock`, fakes), each a behavior Pocket's session pins today:
+
 - `restoredStagesKeepPresentationButNeverNetworkOrCameras`
 - `credentialsLoadOnlyAfterAnExplicitNetworkChoice`
 - `anAssignedCameraLocksTheNetworkUntilRemoved`
@@ -248,6 +255,7 @@ Tests (Swift Testing, `ManualHostClock`, fakes), each a behavior Pocket's sessio
 ### Task 4: Kotlin `MultiviewCoordinator` (twin)
 
 **Files:**
+
 - Create: `Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/MultiviewCoordinator.kt`,
   `MultiviewCoordinatorRecord.kt`; `Android/appkit/src/test/.../MultiviewCoordinatorTest.kt`
 
@@ -261,6 +269,7 @@ coordinator on the test scheduler and `clock = { testScheduler.currentTime }`.
 ### Task 5: DJI pieces that follow the lift
 
 **Files:**
+
 - Move `testRecoveryDoesNotResetHealthyVideoForStalePresentation`,
   `testFirstPictureFailureEscalatesBeyondBaseCooldown` (they test `MultiviewRecovery`, a DJI type)
   to `Tests/OpenCineDJITests/MultiviewRecoveryTests.swift` as Swift Testing.

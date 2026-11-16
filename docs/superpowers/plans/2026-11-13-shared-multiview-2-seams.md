@@ -67,18 +67,22 @@ carry-overs).
 ### Task 1: `StationNetwork` in Core
 
 **Files:**
+
 - Create: `Sources/OpenCineCore/StationNetwork.swift`, `Android/core/src/main/kotlin/com/opencapture/opencine/core/StationNetwork.kt`
 - Modify: `Sources/OpenCineAppKit/StationNetworkSetup.swift` (remove the struct),
   `Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/StationNetworkSetup.kt` (remove
   the class, import it from core)
 
 **Interfaces:**
+
 ```swift
 public struct StationNetwork: Equatable, Sendable { public var ssid, password: String; public var hotspot: Bool }
 ```
+
 ```kotlin
 public data class StationNetwork(public val ssid: String, public val password: String, public val hotspot: Boolean)
 ```
+
 Kotlin keeps the `toString` redaction if the appkit class had one.
 
 - [ ] **Step 1:** Move both; `swift build` and `:appkit:compileDebugKotlin` pass (pure move, the
@@ -88,6 +92,7 @@ Kotlin keeps the `toString` redaction if the appkit class had one.
 ### Task 2: the seams in Core
 
 **Files:**
+
 - Create: `Sources/OpenCineCore/StationHostPath.swift`, `Sources/OpenCineCore/StationCommissioner.swift`,
   `Sources/OpenCineCore/MultiviewMemberLink.swift` and the Kotlin twins in
   `Android/core/src/main/kotlin/com/opencapture/opencine/core/`
@@ -97,6 +102,7 @@ Kotlin keeps the `toString` redaction if the appkit class had one.
 
 **Interfaces (Swift; Kotlin twins have the same names, `suspend` where Swift is `async`, `String`
 camera ids, `ByteArray` identity):**
+
 ```swift
 @MainActor public protocol StationHostPath: AnyObject {
     func address(hotspot: Bool) -> String?
@@ -166,6 +172,7 @@ public struct MultiviewRepairContext {             // what the repair may read o
     var autoLUT: MultiviewAutoLUT { get }
 }
 ```
+
 `caption` is Pocket's rule, identical on both platforms today: no color mode: "Waiting for camera
 color"; no conversion: "Auto · no conversion needed"; enabled and the conversion did not load:
 "LUT unavailable"; else "Auto · <conversion>".
@@ -182,15 +189,18 @@ color"; no conversion: "Auto · no conversion needed"; enabled and the conversio
 ### Task 3: DJI Multiview failure, pairing reply and Wi-Fi return retry (Swift twin)
 
 **Files:**
+
 - Create: `Sources/OpenCineDJI/MultiviewExit.swift`
 - Test: `Tests/OpenCineDJITests/MultiviewExitTests.swift` (names of Kotlin `MultiviewExitTest`)
 
 **Interfaces:**
+
 ```swift
 public enum MultiviewFailure: LocalizedError, Equatable { case timeout, unavailable, rejected, network, pairingDeferred; case message(String) }
 public enum MultiviewPairing { public static func acceptsReply(_ response: Duml.Frame, sequence: UInt16) throws -> Bool }
 public func restoreCameraWiFiWithRetry(waitBetween: () async -> Void, attempt: () async throws -> Bool) async -> Bool
 ```
+
 Copy is Pocket's `MultiviewSession.Failure` (same as Kotlin `MultiviewFailure`). Retry: three
 attempts; only `pairingDeferred` waits and retries; any other error, cancellation included,
 returns false (Pocket iOS behavior).
@@ -206,12 +216,14 @@ returns false (Pocket iOS behavior).
 ### Task 4: provisioner and `DJIStationCommissioner` in `OpenCineDJIApple`
 
 **Files:**
+
 - Create: `Sources/OpenCineDJIApple/DjiAppleMultiviewProvisioner.swift` (moved from Pocket
   `ios/OpenPocketCine/MultiviewProvisioner.swift`), `Sources/OpenCineDJIApple/DJIStationCommissioner.swift`
 - Modify: `Sources/OpenCineDJIApple/DjiAppleNetworkDiscovery.swift` (public `probe(_:hotspot:)`
   over the existing private probe), `docs/dji/README.md`
 
 **Interfaces:**
+
 - `DjiAppleMultiviewProvisioner(host: DjiAppleTransportHost)`: Pocket's class unchanged apart from
   its logger (`host.journal` in place of `ControlLiveLog`), `MultiviewFailure` in place of
   `MultiviewSession.Failure`, and `MultiviewPairing.acceptsReply`.
@@ -231,6 +243,7 @@ returns false (Pocket iOS behavior).
 ### Task 5: `StationHostPath` on both platforms
 
 **Files:**
+
 - Create: `Sources/OpenCineApple/SharedWiFiPath.swift` (iOS; `DjiAppleSharedWiFiPath`'s reader
   and join, generalised, conforming to `StationHostPath`)
 - Modify: `Android/platform/src/main/kotlin/com/opencapture/opencine/platform/SharedWiFiPath.kt`
@@ -246,6 +259,7 @@ returns false (Pocket iOS behavior).
 ### Task 6: Kotlin `DjiStationCommissioner`
 
 **Files:**
+
 - Create: `Android/dji/src/main/kotlin/com/opencapture/opencine/dji/DjiStationCommissioner.kt`
 
 **Interfaces:** `class DjiStationCommissioner(context: Context, log: (String) -> Unit) :
@@ -261,6 +275,7 @@ without a Bluetooth address); `scanNetworks` = `MultiviewProvisioner.scanNetwork
 ### Task 7: reconcile the saved shared networks
 
 **Files:**
+
 - Modify: `Sources/OpenCineApple/SharedNetworkStore.swift` (`SharedNetwork` becomes
   `SharedNetworkStore.Network`, `hotspot: Bool`, missing key decodes as `false`),
   `Tests/OpenCineAppleTests/SharedNetworkStoreTests.swift`,
@@ -280,6 +295,7 @@ without a Bluetooth address); `scanNetworks` = `MultiviewProvisioner.scanNetwork
 ### Task 8: locked Shared Wi-Fi page completes and names itself from the context
 
 **Files:**
+
 - Modify: `Sources/OpenCineAppKit/StationNetworkSetup.swift` (`StationNetworkSetupContext.identifier`),
   `Sources/OpenCineAppKitApple/StationNetworkSetupView.swift` (`complete` parameter; the locked
   page's Done calls it, else `close`; its identifier is `context.identifier`),
@@ -300,6 +316,7 @@ without a Bluetooth address); `scanNetworks` = `MultiviewProvisioner.scanNetwork
 ### Task 9: Pocket iOS calls through the seams
 
 **Files (OpenPocketCine):**
+
 - Delete: `ios/OpenPocketCine/MultiviewProvisioner.swift`
 - Create: `ios/OpenPocketCine/MultiviewTileLink.swift` (`MultiviewSession.Tile: MultiviewMemberLink`)
 - Modify: `ios/OpenPocketCine/MultiviewSession.swift`, `MultiviewNetworkSetup.swift` (`complete:`),
@@ -321,6 +338,7 @@ journal) and calls: `commissioner.qualification/hasPreview/record/connect/restor
 ### Task 10: Pocket Android calls through the seams
 
 **Files (OpenPocketCine):**
+
 - Modify: `Apps/Android/app/src/main/kotlin/com/opencapture/openpocketcine/multiview/MultiviewSession.kt`
   (Tile implements `MultiviewMemberLink<FoundCamera>`; the session uses `DjiStationCommissioner`
   and the path as `StationHostPath`), `MultiviewScreen.kt`, `pairing/PairingCallouts.kt` (Core
