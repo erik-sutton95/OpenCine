@@ -34,7 +34,10 @@ import OpenCineDJI
         return Array(found.prefix(8))
     }
 
-    private func probe(_ host: String, localAddress: String) async -> Bool {
+    /// Whether a DJI camera's control port answers at `host`, dialled from `localAddress` (this
+    /// phone's address on the shared network, from the caller's host path). Opens no session.
+    /// Kotlin twin: `MultiviewDiscovery.probe`.
+    public func probe(_ host: String, localAddress: String) async -> Bool {
         guard !cancelled, !Task.isCancelled else { return false }
         let params = NWParameters.tcp
         params.prohibitedInterfaceTypes = [.cellular]

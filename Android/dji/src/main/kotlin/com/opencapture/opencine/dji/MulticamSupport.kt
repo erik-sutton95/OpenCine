@@ -1,6 +1,7 @@
 package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.core.MulticamQualification
+import com.opencapture.opencine.core.MultiviewCameraPolicy
 import com.opencapture.opencine.core.MulticamQualificationRefusal
 import com.opencapture.opencine.vocabulary.FoundCamera
 import org.json.JSONObject
@@ -50,3 +51,15 @@ fun FoundCamera.multicamSupport(): MulticamSupportInfo {
 val FoundCamera.appearsInMultiview: Boolean get() = multicamSupport().appears
 
 val FoundCamera.hasMultiviewPreview: Boolean get() = multicamSupport().preview
+
+/**
+ * DJI's Multiview camera policy: the captured model support decides which bodies may join a stage,
+ * with the operator's experimental opt-in, and which show a picture. Members are found by probing
+ * the shared network. Swift twin: `MultiviewCameraPolicy.dji` in `OpenCineDJIApple`.
+ */
+val MultiviewCameraPolicy.Companion.dji: MultiviewCameraPolicy<FoundCamera> get() = djiMultiviewCameraPolicy
+
+private val djiMultiviewCameraPolicy = MultiviewCameraPolicy<FoundCamera>(
+    qualification = { camera, experimental -> camera.multicamSupport().qualification(experimental) },
+    hasPreview = { it.hasMultiviewPreview },
+)

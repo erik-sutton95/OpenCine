@@ -121,8 +121,10 @@ card or pair-page progress until picture readiness; it needs no additional prepa
 The station-network wizard (`StationNetworkSetupView` on iOS, `StationNetworkSetup` on Android)
 takes `lockedNetwork: StationNetwork? = nil` on both platforms. When set, it shows only the
 read-only "Shared Wi-Fi" page: the network name, "Cameras are using this network. Remove them
-before changing it.", and a Done action that closes the wizard. No scan starts. Multiview passes it
-while cameras use the shared network.
+before changing it.", and a Done action that completes the wizard (`complete`, required on both
+platforms, so Done never cancels through `close`). No scan starts. Its accessibility identifier comes from the wizard
+context (`StationNetworkSetupContext.identifier`: `multiview.networkSetup` or `addSetup`, Android's
+test tag). Multiview passes it while cameras use the shared network.
 
 ## Shell: root, monitor lifetime and common controls (SHELL-03)
 
@@ -380,6 +382,11 @@ the camera-network cleanup ledger `pendingReset`, fit or fill) and `Camera`, wit
 keys are the ones the apps already store (`deviceAddress` is written as `bleAddress`, Android's
 identity is hex, iOS's an array of bytes), so earlier saved stages decode unchanged. Storage (Keychain,
 SharedPreferences) stays in the app.
+
+`MultiviewRepairResult.race` (Swift extension, Kotlin extension on the companion) is the
+coordinator's deadline on a member link's repair (Core's `MultiviewMemberLink.repairDeadline`):
+the repair's own result when it ends first, `done` after cancelling it when the deadline passes
+first. It lives here because Core's Kotlin twin may not import coroutine builders.
 
 Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
 ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come

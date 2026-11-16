@@ -1,19 +1,5 @@
 import OpenCineCore
 
-/// A shared network the station-network wizard offers, prefills or joins: a router or venue
-/// Wi-Fi, or this phone's hotspot. The app keeps where it is stored.
-public struct StationNetwork: Equatable, Sendable {
-    public var ssid: String
-    public var password: String
-    public var hotspot: Bool
-
-    public init(ssid: String, password: String, hotspot: Bool) {
-        self.ssid = ssid
-        self.password = password
-        self.hotspot = hotspot
-    }
-}
-
 /// The brand words and camera-network naming the station-network wizard shows. Values only.
 public struct StationNetworkBrand: Equatable, Sendable {
     /// The app's name as Settings lists it ("Settings › <appName> › Location").
@@ -40,6 +26,8 @@ public enum StationNetworkSetupContext: Sendable {
         return nil
     }
     public var prefix: String { camera == nil ? "multiview.setup" : "addSetup" }
+    /// The sheet's accessibility identifier (Kotlin: the wizard's test tag).
+    public var identifier: String { camera == nil ? "multiview.networkSetup" : "addSetup" }
     public var title: String { camera == nil ? "Connect your cameras" : "Add setup" }
     public var networkHint: String {
         camera == nil

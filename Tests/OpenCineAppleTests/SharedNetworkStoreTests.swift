@@ -10,12 +10,13 @@ private final class MemoryStorage: SharedNetworkStorage, @unchecked Sendable {
     func delete(account: String) { lock.withLock { _ = items.removeValue(forKey: account) } }
 }
 
+/// Twin of Kotlin `SharedNetworkStoreTest`; the legacy `last-network` account is iOS only.
 @Suite struct SharedNetworkStoreTests {
     @Test func aLegacyLastNetworkIsListedWhenNoListExists() {
         let storage = MemoryStorage()
         storage.write(Data(#"{"ssid":"Old","password":"pw","hotspot":true}"#.utf8), account: "last-network")
         let store = SharedNetworkStore(storage: storage)
-        #expect(store.savedNetworks() == [SharedNetwork(ssid: "Old", password: "pw", hotspot: true)])
+        #expect(store.savedNetworks() == [SharedNetworkStore.Network(ssid: "Old", password: "pw", hotspot: true)])
         #expect(SharedNetworkStore(storage: MemoryStorage()).savedNetworks().isEmpty)
     }
 
@@ -38,8 +39,9 @@ private final class MemoryStorage: SharedNetworkStorage, @unchecked Sendable {
     }
 
     @Test func aMissingHotspotFlagReadsAsWiFi() throws {
-        let network = try JSONDecoder().decode(SharedNetwork.self, from: Data(#"{"ssid":"Set","password":"pw"}"#.utf8))
-        #expect(network.hotspot == nil)
+        let network = try JSONDecoder().decode(
+            SharedNetworkStore.Network.self, from: Data(#"{"ssid":"Set","password":"pw"}"#.utf8))
+        #expect(network.hotspot == false)
         let storage = MemoryStorage()
         storage.write(Data(#"[{"ssid":"Set","password":"pw"}]"#.utf8), account: "saved-networks")
         #expect(SharedNetworkStore(storage: storage).load(ssid: "Set", hotspot: false)?.password == "pw")
@@ -54,7 +56,7 @@ private final class MemoryStorage: SharedNetworkStorage, @unchecked Sendable {
         #expect(store.load(ssid: "B", hotspot: true)?.password == "2")
         #expect(store.load(ssid: "B", hotspot: false) == nil)
         #expect(store.load(ssid: "Missing", hotspot: false) == nil)
-        let last = try JSONDecoder().decode(SharedNetwork.self, from: try #require(storage.read(account: "last-network")))
+        let last = try JSONDecoder().decode(SharedNetworkStore.Network.self, from: try #require(storage.read(account: "last-network")))
         #expect(last.ssid == "B", "last-network holds the newest save")
     }
 }

@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appkit
 
+import com.opencapture.opencine.core.StationNetwork
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
