@@ -199,17 +199,20 @@ public class com/opencapture/opencine/platform/SharedWiFiPath {
 	public final fun addressWithPrefix (Z)Lkotlin/Pair;
 	public static synthetic fun addressWithPrefix$default (Lcom/opencapture/opencine/platform/SharedWiFiPath;ZILjava/lang/Object;)Lkotlin/Pair;
 	public final fun bindProcess ()Z
+	public final fun bindProcess (Ljava/lang/Object;)Z
 	public fun bindSocket (Ljava/net/DatagramSocket;)V
 	public fun bindSocket (Ljava/net/Socket;)V
 	public fun cameraLocalIPv4 ()Ljava/lang/String;
 	public final fun currentSsid ()Ljava/lang/String;
 	public final fun getHotspot ()Z
 	public fun isProcessBound ()Z
+	public final fun join (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun join (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun netmask (Z)Ljava/lang/String;
 	public static synthetic fun netmask$default (Lcom/opencapture/opencine/platform/SharedWiFiPath;ZILjava/lang/Object;)Ljava/lang/String;
 	public final fun network ()Landroid/net/Network;
 	public final fun release ()V
+	public final fun release (Ljava/lang/Object;)Z
 	public final fun setHotspot (Z)V
 }
 
