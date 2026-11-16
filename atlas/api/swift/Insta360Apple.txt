@@ -47,6 +47,7 @@ enum CameraMediaRepresentation: Equatable, Hashable, Sendable
 enum CameraPreviewTransfer: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum LunaCommandAdmissionError: Equatable, Error, Hashable, Sendable
 enum LunaFeedStall.Action: Equatable, Hashable, Sendable
+enum LunaMulticamPolicy
 enum LunaRoute: Equatable, Sendable
 enum LunaSessionRecovery
 extension Insta360Protocol.LunaColorMode
@@ -234,6 +235,7 @@ static func LunaIntegration.steps(_: OpenCineCore.SavedRoute?) -> [OpenCineCore.
 static func LunaIntegration.title(advertised: Swift.String) -> Swift.String
 static func LunaMotionService.hasReached(_: Insta360Protocol.LunaGimbalAngle, _: OpenCineMotion.GimbalWaypoint) -> Swift.Bool
 static func LunaMotionService.wireSpeed(_: Swift.Double) -> Swift.Int32
+static func LunaMulticamPolicy.qualification(route: OpenCineCore.SavedRoute?, device: OpenCineCore.CameraDeviceID?, members: Swift.Set<OpenCineCore.CameraDeviceID>) -> OpenCineCore.MulticamQualification
 static let CameraCapabilities.cameraMedia: CameraCapabilities
 static let CameraCapabilities.captureFormat: CameraCapabilities
 static let CameraCapabilities.exposure: CameraCapabilities
@@ -320,6 +322,7 @@ var LunaCameraBackend.onTrackFrame: ((Insta360Protocol.LunaTrackFrame) -> Swift.
 var LunaCameraBackend.prepareMediaLiveReturn: ((OpenCineMedia.MediaBrowseBinding) async -> Swift.Void)?
 var LunaCameraBackend.secondsSinceVideo: Foundation.TimeInterval?
 var LunaCameraBackend.session: LunaCameraSession?
+var LunaCameraBackend.stationHostsInUse: (() -> Swift.Set<Swift.String>)?
 var LunaCameraSession.Timing.readbackInterval: Swift.Duration
 var LunaCameraSession.Timing.settle: [OpenCineCore.SettingKey : Swift.Duration]
 var LunaCameraSession.admitsControl: Swift.Bool
