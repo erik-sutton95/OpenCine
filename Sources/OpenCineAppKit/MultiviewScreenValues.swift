@@ -60,7 +60,7 @@ public struct MultiviewCameraSettingsState: Hashable, Sendable {
 }
 
 extension MultiviewTool {
-    /// The shared screen's toolbar, in Pocket iOS order. Kotlin twin: `MultiviewTool.SCREEN`.
+    /// The shared screen's toolbar, in its iOS order. Kotlin twin: `MultiviewTool.SCREEN`.
     public static let screen: [MultiviewTool] = [.layout, .camera, .fit, .lut]
 }
 
