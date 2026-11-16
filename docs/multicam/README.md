@@ -86,6 +86,11 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
   A member borrowed into full Live View holds an `EditorLease`, is `busy` for
   group plans and keeps its session (no CloseSession).
   Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
+  Shared Multiview prep (Plan 6, not adopted yet): `NikonDiscovery.multiviewSightings`
+  (passive Add camera list, member hosts excluded), `NikonMemberOpener` (opens only the
+  picked host, serial identity check, 1200 ms reconnect settle), `NikonRecordingTone` /
+  `recordingTone` (Auto LUT source) and `NikonMemberRepair` (bounded repair ladder under the
+  coordinator's budget), Swift and Kotlin ([nikon](../nikon/README.md#multiview-prep-shared-multiview-plan-6)).
 - Insta360 Luna (OpenInstaCine, in progress): members join over saved Wi-Fi and hotspot
   (station) routes only; `LunaMulticamPolicy` (Swift `Insta360Apple`, Kotlin `insta360-luna`)
   refuses the camera access point as `.unsupportedConfiguration` and a camera already in the
