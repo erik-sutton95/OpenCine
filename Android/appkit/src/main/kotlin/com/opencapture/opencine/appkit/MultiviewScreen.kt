@@ -372,7 +372,7 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewNetworkSetup(
             sourceChosen(coordinator.usePhoneHotspot)
             coordinator.selectNetwork(network.ssid)
             coordinator.password = network.password
-            // Pocket Android's own fallback, kept (the SwiftUI wizard shows no line when none is set).
+            // The Android wizard's own fallback, kept (the SwiftUI wizard shows no line when none is set).
             if (coordinator.configureNetwork()) null else coordinator.networkSetupError ?: "Could not connect. Try again."
         },
         cancel = cancel,
