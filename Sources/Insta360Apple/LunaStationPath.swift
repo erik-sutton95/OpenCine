@@ -8,7 +8,8 @@ import OpenCineCore
 /// The phone's side of a Wi-Fi or hotspot setup: this phone on the network the camera joined, and
 /// the camera found there. A camera in station role has no fixed address (firmware 1.1.15 reports
 /// none over Bluetooth), so the phone's subnet is searched for the Luna control port answering the
-/// UCD2 greeting; the control link then checks the camera's serial against the one Bluetooth read.
+/// UCD2 greeting; the control link then checks the camera's serial against the one Bluetooth read,
+/// and another camera on the same network is skipped.
 @MainActor
 enum LunaStationPath {
     /// One IPv4 interface address with its netmask.
@@ -158,24 +159,28 @@ enum LunaStationPath {
 
     /// The first host answering the Luna control port with a UCD2 frame, searched in rounds until
     /// `budget` runs out (checked after every batch); `preferred` (an address the camera reported)
-    /// is tried first. Nil when no host answered. When the last round was held back by iOS's
-    /// Local Network permission, that is the failure instead: the search keeps going while the
-    /// first-run prompt is on screen, so allowing it there still finds the camera.
+    /// is tried first and hosts in `excluding` are never probed. Nil when no host answered. When
+    /// the last round was held back by iOS's Local Network permission, that is the failure
+    /// instead: the search keeps going while the first-run prompt is on screen, so allowing it
+    /// there still finds the camera.
     static func findCamera(
-        on local: Address, preferred: String?, budget: Duration, isCurrent: @escaping @MainActor () -> Bool
+        on local: Address, preferred: String?, budget: Duration, excluding: Set<String> = [],
+        isCurrent: @escaping @MainActor () -> Bool
     ) async throws -> String? {
         try await findCamera(
-            on: local, preferred: preferred, budget: budget, isCurrent: isCurrent, clock: .live,
-            probe: { host, local in await probe(host, local: local) })
+            on: local, preferred: preferred, budget: budget, excluding: excluding, isCurrent: isCurrent,
+            clock: .live, probe: { host, local in await probe(host, local: local) })
     }
 
-    /// ``findCamera(on:preferred:budget:isCurrent:)`` with `probe` answering for each host and
-    /// the search time and the pause between rounds on `clock`.
+    /// ``findCamera(on:preferred:budget:excluding:isCurrent:)`` with `probe` answering for each
+    /// host and the search time and the pause between rounds on `clock`.
     static func findCamera(
-        on local: Address, preferred: String?, budget: Duration, isCurrent: @escaping @MainActor () -> Bool,
+        on local: Address, preferred: String?, budget: Duration, excluding: Set<String> = [],
+        isCurrent: @escaping @MainActor () -> Bool,
         clock: HostClock, probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult
     ) async throws -> String? {
-        let hosts = (preferred.map { [$0] } ?? []) + candidates(around: local).filter { $0 != preferred }
+        let hosts = ((preferred.map { [$0] } ?? []) + candidates(around: local).filter { $0 != preferred })
+            .filter { !excluding.contains($0) }
         let batches = stride(from: 0, to: hosts.count, by: 32).map { Array(hosts[$0..<min($0 + 32, hosts.count)]) }
         let deadline = clock.now() + budget
         var denied = false
@@ -215,6 +220,47 @@ enum LunaStationPath {
                 "Local Network access is off. Enable it in Settings, then connect again.",
                 phase: .joiningNetwork, actions: [.openSettings, .retry])
         }
+        return nil
+    }
+
+    /// The camera this connect asked for on a network several cameras may share: ``findCamera``
+    /// until `open` takes a host. A host `open` turns down as another camera (a `.wrongCamera`
+    /// failure: its serial is not the one Bluetooth read) is left out from then on and the search
+    /// goes on within the same `budget`. Hosts in `excluding` (other connections of this app hold
+    /// them) are never probed. Nil when the budget ran out first; any other failure of `open` ends
+    /// the search.
+    static func findRequestedCamera(
+        on local: Address, preferred: String?, budget: Duration, excluding: Set<String>,
+        isCurrent: @escaping @MainActor () -> Bool, open: (_ host: String) async throws -> Void
+    ) async throws -> String? {
+        try await findRequestedCamera(
+            on: local, preferred: preferred, budget: budget, excluding: excluding, isCurrent: isCurrent,
+            clock: .live, probe: { host, local in await probe(host, local: local) }, open: open)
+    }
+
+    /// ``findRequestedCamera(on:preferred:budget:excluding:isCurrent:open:)`` with `probe`
+    /// answering for each host and the search time on `clock`.
+    static func findRequestedCamera(
+        on local: Address, preferred: String?, budget: Duration, excluding: Set<String>,
+        isCurrent: @escaping @MainActor () -> Bool, clock: HostClock,
+        probe: @escaping @Sendable (_ host: String, _ local: String) async -> ProbeResult,
+        open: (_ host: String) async throws -> Void
+    ) async throws -> String? {
+        let deadline = clock.now() + budget
+        var skipped = excluding
+        repeat {
+            guard
+                let host = try await findCamera(
+                    on: local, preferred: preferred, budget: deadline - clock.now(), excluding: skipped,
+                    isCurrent: isCurrent, clock: clock, probe: probe)
+            else { return nil }
+            do {
+                try await open(host)
+                return host
+            } catch let failure as ConnectionFailure where failure.reason == .wrongCamera {
+                skipped.insert(host)
+            }
+        } while clock.now() < deadline
         return nil
     }
 

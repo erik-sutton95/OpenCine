@@ -56,15 +56,18 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
 ### Task 1: Swift `RecordAll`
 
 **Files:**
+
 - Create: `Sources/OpenCineMulticam/RecordAll.swift`
 - Test: `Tests/OpenCineMulticamTests/RecordAllTests.swift` (reuse `Harness.swift`)
 - Modify: `docs/multicam/README.md` (Public types table: `RecordAll`, both platforms),
   `atlas/api/swift/OpenCineMulticam.txt` (regenerated)
 
 **Interfaces:**
+
 - Consumes: `RecordPlan.make(_:policy:entries:in:at:)`, `RecordPlan.submit(in:at:sessions:)`,
   `RecordSubmission.finished(sessions:)`, `TargetOutcome`, `RecordResult` (existing).
 - Produces (twin of Kotlin `RecordAll`, `Android/multicam/.../RecordAll.kt`):
+
   ```swift
   public enum RecordAll {
       public static let policy: TargetPolicy                       // .strict
@@ -79,6 +82,7 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
       public static func summary(_ result: RecordResult, allMatch: Bool) -> String
   }
   ```
+
   Copy is exactly Kotlin's (`progress`: "Starting cameras…" / "Stopping cameras…"; `note`:
   "Recording" / "Recording stopped", "Recording command rejected · check camera" for
   `.rejected(.cameraRefused)`, "Not sent · check camera" for other rejections and failures,
@@ -103,13 +107,16 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
 ### Task 2: Swift `SharedNetworkStore`
 
 **Files:**
+
 - Create: `Sources/OpenCineApple/SharedNetworkStore.swift`
 - Test: `Tests/OpenCineAppleTests/SharedNetworkStoreTests.swift` (create the folder and test
   target in `Package.swift` if `OpenCineApple` has none; follow the existing test target pattern)
 - Modify: `atlas/api/swift/OpenCineApple.txt`
 
 **Interfaces:**
+
 - Produces (iOS twin of Android `platform/SharedNetworkStore`):
+
   ```swift
   public struct SharedNetwork: Codable, Hashable, Sendable {
       public var ssid: String; public var password: String; public var hotspot: Bool?   // JSON keys ssid, password, hotspot
@@ -127,6 +134,7 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
       public func save(ssid: String, password: String, hotspot: Bool)   // writes "last-network" and the list
   }
   ```
+
   Behavior is exactly Pocket's `ios/OpenPocketCine/MultiviewNetworkStore.swift`: a missing
   `hotspot` reads as `false`; save replaces the entry with the same SSID and hotspot flag and
   appends; `last-network` always holds the newest save.
@@ -144,12 +152,14 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
 ### Task 3: iOS locked Shared Wi-Fi page in the wizard
 
 **Files:**
+
 - Modify: `Sources/OpenCineAppKitApple/StationNetworkSetupView.swift` (init ~:64 and body)
 - Test: `Tests/OpenCineAppKitAppleTests/` (extend the existing StationNetworkSetup test file if
   there is one, else follow that folder's hosted-view pattern)
 - Modify: `docs/appkit/README.md` (wizard section: `lockedNetwork` on both platforms)
 
 **Interfaces:**
+
 - Produces: a new trailing init parameter `lockedNetwork: StationNetwork? = nil` on
   `StationNetworkSetupView`, mirroring Kotlin `StationNetworkSetup(lockedNetwork:)`. When set the
   view shows only the locked page: navigation title "Shared Wi-Fi", a Wi-Fi icon with
@@ -170,6 +180,7 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
 ### Task 4: shared `MultiviewStageJournal`
 
 **Files:**
+
 - Create: `Sources/OpenCineAppKit/MultiviewStageJournal.swift`,
   `Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/MultiviewStageJournal.kt`
 - Test: `Tests/OpenCineAppKitTests/MultiviewStageJournalTests.swift`,
@@ -177,7 +188,9 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
 - Modify: `docs/appkit/README.md` (Multiview stage section), Swift and Kotlin API snapshots
 
 **Interfaces:**
+
 - Produces, Swift (Codable, keys as Pocket iOS writes them):
+
   ```swift
   public enum MultiviewStageJournal {
       public struct Camera: Codable, Equatable, Sendable {
@@ -197,6 +210,7 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
       public static func cleanupTargets(_ pending: [Camera], including cameras: [Camera]) -> [Camera]
   }
   ```
+
   Kotlin: same names; `Camera.id: String`, `identity: ByteArray?` (hex in JSON),
   `deviceAddress: String?` (key `bleAddress`, written only when non-null), equality by `id` as
   Pocket Android does; plus `fun encode(stage: Stage): String` and `fun decode(raw: String): Stage?`
@@ -224,6 +238,7 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
 ### Task 5: Pocket iOS adopts (no visible change)
 
 **Files (OpenPocketCine worktree):**
+
 - Delete: `ios/OpenPocketCine/MultiviewWiFiControl.swift` (no callers) and its Xcode project entries
 - Modify: `ios/OpenPocketCine/MultiviewTileControl.swift:150-234` (record through `RecordAll`)
 - Modify: `ios/OpenPocketCine/MultiviewNetworkStore.swift` (becomes a thin wrapper over
@@ -235,6 +250,7 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
   `.validated(tileCount: MultiviewQualificationPolicy.tileCount)`)
 
 **Interfaces:**
+
 - Consumes: Tasks 1 to 4.
 
 - [ ] **Step 1: Run Pocket's Multiview unit tests first** to record the baseline
@@ -251,6 +267,7 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
 ### Task 6: Pocket Android adopts and aligns to iOS
 
 **Files (OpenPocketCine worktree, `Apps/Android/app/src/main/kotlin/com/opencapture/openpocketcine/multiview/`):**
+
 - Modify: `MultiviewStores.kt:18-164` (types and codec from `MultiviewStageJournal`; prefs
   `openpocketcine.multiview-stage` / `stage` and `MultiviewQualificationPolicy` stay)
 - Modify: `MultiviewTileValues.kt:34-68` (tally and format line)
@@ -262,6 +279,7 @@ Kotlin 2.4 (JVM 17, explicit API mode), Compose, org.json on Android.
   of these three differences
 
 **Interfaces:**
+
 - Consumes: Task 4, Kotlin `MultiviewTally.text(recording, seconds, waiting, holding, failed)`.
 - Produces, matching iOS exactly:
   - toolbar `listOf(MultiviewTool.LAYOUT, MultiviewTool.CAMERA, MultiviewTool.FIT, MultiviewTool.LUT)`

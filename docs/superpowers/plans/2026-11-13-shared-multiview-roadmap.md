@@ -146,7 +146,6 @@ already matched iOS, fakes, probe discovery, the real Bluetooth queue, `Recovery
 - Before merging Pocket: the on-device upgrade checklist and a Multiview hardware pass on both
   platforms (add, two cameras, record together, rejoin, close cleanup), untested in this plan.
 
-
 ## Carried from Plan 4 (2026-11-14)
 
 Plan 4 landed on `feat/shared-multiview-4` (OpenCine and OpenPocketCine), stacked on Plan 3.
