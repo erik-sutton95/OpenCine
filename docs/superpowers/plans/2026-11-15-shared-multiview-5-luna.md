@@ -4,8 +4,8 @@
 > plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give the Luna integration the three Multiview seams (`MultiviewCameraPolicy`,
-`StationCommissioner`, `MultiviewMemberLink`) on Swift and Kotlin over the prep operations from
-#349, and put OpenInstaCine (iOS and Android) on OpenCine's shared `MultiviewScreen` with an app
+`StationCommissioner`, `MultiviewMemberLink`) on Swift and Kotlin over the prep operations
+from #349, and put OpenInstaCine (iOS and Android) on OpenCine's shared `MultiviewScreen` with an app
 `MultiviewScreenHost`, so the operator finds Pocket's Multiview with only Luna's capability
 differences. The earlier Z-style stage (OpenInstaCine `feat/multicam`, `feat/multicam-android`) is
 read for its Luna member code and not shipped.
@@ -96,6 +96,7 @@ handbook `guides/multiview-prototype.md`.
 ## File Structure
 
 OpenCine:
+
 - `Sources/Insta360Apple/LunaStationPort.swift` (new): the port protocol, `LunaCameraBackend`
   conformance.
 - `Sources/Insta360Apple/LunaCameraBackend.swift`: `authorizeForStation`, `moveOntoStation`,
@@ -111,6 +112,7 @@ OpenCine:
 - `docs/insta360/README.md`, `docs/appkit/README.md` capability table row, API snapshots.
 
 OpenInstaCine:
+
 - iOS: `ios/OpenInstaCine/MultiviewSession.swift`, `MultiviewView.swift`, `MultiviewStores.swift`
   (new); `CamerasExperience.swift` (entry), `AppRoot.swift` (presentation), `AddSetupView.swift`
   (N1), `AppModel+LiveChrome.swift` (`multiviewExit`); tests in `OpenInstaCineTests`.
