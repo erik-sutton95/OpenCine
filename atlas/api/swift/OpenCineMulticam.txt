@@ -81,6 +81,7 @@ func RecordResult.outcome(for: OpenCineCore.MonitorEntryID, in: MulticamGroup) -
 func RecordSubmission.current(sessions: [OpenCineCore.CameraSessionID : any OpenCineCore.CameraSession]) async -> RecordResult
 func RecordSubmission.finished(sessions: [OpenCineCore.CameraSessionID : any OpenCineCore.CameraSession]) async -> RecordResult
 func RecoveryBudget.beginAttempt() -> Swift.Bool
+func RecoveryBudget.exhaust() -> ()
 func RecoveryBudget.observe(healthy: Swift.Bool, at: OpenCineCore.MonotonicInstant) -> ()
 func RecoveryBudget.reset() -> ()
 func RecoveryLedger.prune(to: MulticamGroup) -> ()

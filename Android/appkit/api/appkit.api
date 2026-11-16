@@ -4397,7 +4397,12 @@ public final class com/opencapture/opencine/appkit/MotionProgramSession$State {
 public final class com/opencapture/opencine/appkit/MultiviewCameraAction {
 	public static final field $stable I
 	public static final field Companion Lcom/opencapture/opencine/appkit/MultiviewCameraAction$Companion;
+	public static final field EXPERIMENTAL Ljava/lang/String;
 	public static final field LIVE_VIEW Ljava/lang/String;
+	public static final field LUT Ljava/lang/String;
+	public static final field RECONNECT Ljava/lang/String;
+	public static final field RECORD Ljava/lang/String;
+	public static final field REMOVE Ljava/lang/String;
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/appkit/MultiviewCameraAction$Kind;ZZ)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/appkit/MultiviewCameraAction$Kind;ZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -4429,6 +4434,214 @@ public final class com/opencapture/opencine/appkit/MultiviewCameraAction$Kind : 
 	public static fun values ()[Lcom/opencapture/opencine/appkit/MultiviewCameraAction$Kind;
 }
 
+public final class com/opencapture/opencine/appkit/MultiviewCoordinator {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/opencine/appkit/MultiviewCoordinator$Companion;
+	public fun <init> (Ljava/util/List;Ljava/util/List;Lcom/opencapture/opencine/core/MultiviewCameraPolicy;Lcom/opencapture/opencine/core/StationCommissioner;Lcom/opencapture/opencine/core/NearbyCameraScanner;Lcom/opencapture/opencine/core/StationHostPath;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/appkit/MultiviewJournalStorage;Lcom/opencapture/opencine/appkit/MultiviewNetworkStorage;Lkotlinx/coroutines/CoroutineScope;Lcom/opencapture/opencine/multicam/ResourceBudget;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Lcom/opencapture/opencine/core/MultiviewCameraPolicy;Lcom/opencapture/opencine/core/StationCommissioner;Lcom/opencapture/opencine/core/NearbyCameraScanner;Lcom/opencapture/opencine/core/StationHostPath;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/appkit/MultiviewJournalStorage;Lcom/opencapture/opencine/appkit/MultiviewNetworkStorage;Lkotlinx/coroutines/CoroutineScope;Lcom/opencapture/opencine/multicam/ResourceBudget;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun add (Ljava/lang/Object;IZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun add$default (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Ljava/lang/Object;IZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun closeEditors ()V
+	public final fun closeLiveView ()V
+	public final fun closeStage (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun configureNetwork (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun connectPreview (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun controlsAvailable (I)Z
+	public final fun editorAdmits (Lcom/opencapture/opencine/multicam/EditorLease;I)Z
+	public final fun enqueueAdd (Ljava/lang/Object;IZ)V
+	public static synthetic fun enqueueAdd$default (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Ljava/lang/Object;IZILjava/lang/Object;)V
+	public final fun getApplicationActive ()Z
+	public final fun getBusy ()Z
+	public final fun getClosing ()Z
+	public final fun getConfiguringNetwork ()Z
+	public final fun getConnectingCameras ()Z
+	public final fun getEditorLeases ()Lcom/opencapture/opencine/multicam/EditorLeases;
+	public final fun getError ()Ljava/lang/String;
+	public final fun getFound ()Ljava/util/List;
+	public final fun getGroupRecordingBusy ()Z
+	public final fun getGroupRecordingNote ()Ljava/lang/String;
+	public final fun getHasPendingCleanup ()Z
+	public final fun getHost ()Lcom/opencapture/opencine/appkit/MultiviewHost;
+	public final fun getHostAddress ()Ljava/lang/String;
+	public final fun getHostPath ()Lcom/opencapture/opencine/core/StationHostPath;
+	public final fun getLinks ()Ljava/util/List;
+	public final fun getMembers ()Ljava/util/List;
+	public final fun getNetworkConfigured ()Z
+	public final fun getNetworkSetupError ()Ljava/lang/String;
+	public final fun getPassword ()Ljava/lang/String;
+	public final fun getPresentation ()Lcom/opencapture/opencine/appkit/MultiviewStageState;
+	public final fun getReady ()Z
+	public final fun getRunning ()Z
+	public final fun getSsid ()Ljava/lang/String;
+	public final fun getStationNetwork ()Lcom/opencapture/opencine/core/StationNetwork;
+	public final fun getUsePhoneHotspot ()Z
+	public final fun joinSharedNetwork (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun openEditorLease (I)Lcom/opencapture/opencine/multicam/EditorLease;
+	public final fun openLiveView (I)Z
+	public final fun persistStage ()Z
+	public final fun reconnect (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun recordStationChange (Ljava/lang/Object;)Z
+	public final fun remove (I)Z
+	public final fun resetStationOnce (Lcom/opencapture/opencine/appkit/MultiviewStageJournal$Camera;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun restartRepairGrace ()V
+	public final fun restoreStage ()V
+	public final fun restoreStage (Lcom/opencapture/opencine/appkit/MultiviewStageJournal$Stage;)V
+	public final fun scan ()V
+	public final fun scanNetworks (Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun selectNetwork (Ljava/lang/String;)V
+	public final fun selectNetworkSource (Z)V
+	public final fun setApplicationActive (Z)V
+	public final fun setBusy (Z)V
+	public final fun setClosing (Z)V
+	public final fun setConfiguringNetwork (Z)V
+	public final fun setError (Ljava/lang/String;)V
+	public final fun setFound (Ljava/util/List;)V
+	public final fun setGroupRecordingBusy (Z)V
+	public final fun setGroupRecordingNote (Ljava/lang/String;)V
+	public final fun setHost (Lcom/opencapture/opencine/appkit/MultiviewHost;)V
+	public final fun setHostAddress (Ljava/lang/String;)V
+	public final fun setNetworkConfigured (Z)V
+	public final fun setNetworkSetupError (Ljava/lang/String;)V
+	public final fun setPassword (Ljava/lang/String;)V
+	public final fun setReady (Z)V
+	public final fun setSsid (Ljava/lang/String;)V
+	public final fun setUsePhoneHotspot (Z)V
+	public final fun show (Lcom/opencapture/opencine/core/MultiviewLinkStatus;I)V
+	public final fun start ()V
+	public final fun stop ()V
+	public final fun tryExperimentalNetwork (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewCoordinator$Companion {
+	public final fun needsDiscovery (ZZZZ)Z
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewCoordinatorRecordKt {
+	public static final fun getAnyRecording (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;)Z
+	public static final fun getCanRecordTogether (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;)Z
+	public static final fun getMemberSlots (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;)Ljava/util/List;
+	public static final fun multicamGroup (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Ljava/util/List;)Lcom/opencapture/opencine/multicam/MulticamGroup;
+	public static synthetic fun multicamGroup$default (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Ljava/util/List;ILjava/lang/Object;)Lcom/opencapture/opencine/multicam/MulticamGroup;
+	public static final fun multicamSnapshot (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Ljava/util/List;)Lcom/opencapture/opencine/multicam/MulticamSnapshot;
+	public static synthetic fun multicamSnapshot$default (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Ljava/util/List;ILjava/lang/Object;)Lcom/opencapture/opencine/multicam/MulticamSnapshot;
+	public static final fun record (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Lcom/opencapture/opencine/multicam/RecordPlan;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun recordContext (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Ljava/lang/Integer;)Lcom/opencapture/opencine/appkit/MultiviewRecordContext;
+	public static final fun recordPlan (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;Ljava/lang/Integer;)Lcom/opencapture/opencine/multicam/RecordPlan;
+	public static final fun recordingActive (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;I)Ljava/lang/Boolean;
+	public static final fun tile (Lcom/opencapture/opencine/appkit/MultiviewCoordinator;ILcom/opencapture/opencine/appkit/MultiviewTileReadings;)Lcom/opencapture/opencine/appkit/MultiviewTile;
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewCopy {
+	public static final field $stable I
+	public static final field ADD_CAMERA Ljava/lang/String;
+	public static final field APPROVE_ON_CAMERA Ljava/lang/String;
+	public static final field CHECK_NETWORK Ljava/lang/String;
+	public static final field CLEANUP_NOT_SAVED Ljava/lang/String;
+	public static final field CLOSE_CLEANUP_FAILED Ljava/lang/String;
+	public static final field CONNECTING_PREVIEW Ljava/lang/String;
+	public static final field COULD_NOT_CONNECT Ljava/lang/String;
+	public static final field COULD_NOT_CONNECT_PREVIEW Ljava/lang/String;
+	public static final field COULD_NOT_RESTORE Ljava/lang/String;
+	public static final field DUPLICATE Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/MultiviewCopy;
+	public static final field JOIN_NETWORK_FIRST Ljava/lang/String;
+	public static final field LIVE Ljava/lang/String;
+	public static final field NOT_FOUND Ljava/lang/String;
+	public static final field NOT_NEARBY Ljava/lang/String;
+	public static final field NOT_QUALIFIED Ljava/lang/String;
+	public static final field RECONNECTING Ljava/lang/String;
+	public static final field SCAN_CLEANUP_FAILED Ljava/lang/String;
+	public static final field SHARED_NETWORK_LOST Ljava/lang/String;
+	public static final field UNAVAILABLE_ADDRESS Ljava/lang/String;
+	public static final field UNSUPPORTED_SUBNET Ljava/lang/String;
+	public static final field VERIFIED_WITHOUT_PREVIEW Ljava/lang/String;
+	public static final field WAITING_FOR_VIDEO Ljava/lang/String;
+	public final fun finding (II)Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/appkit/MultiviewHost {
+	public fun applicationActivityChanged (Z)V
+	public fun closeEditors ()V
+	public fun closeLiveView ()V
+	public fun getConfirmsRecord ()Z
+	public fun log (Ljava/lang/String;)V
+	public fun memberChanged (ILcom/opencapture/opencine/appkit/MultiviewMemberChange;)V
+	public fun openLiveView (I)Z
+	public fun showsPicture (I)Z
+	public fun stageStopped ()V
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewHost$DefaultImpls {
+	public static fun applicationActivityChanged (Lcom/opencapture/opencine/appkit/MultiviewHost;Z)V
+	public static fun closeEditors (Lcom/opencapture/opencine/appkit/MultiviewHost;)V
+	public static fun closeLiveView (Lcom/opencapture/opencine/appkit/MultiviewHost;)V
+	public static fun getConfirmsRecord (Lcom/opencapture/opencine/appkit/MultiviewHost;)Z
+	public static fun log (Lcom/opencapture/opencine/appkit/MultiviewHost;Ljava/lang/String;)V
+	public static fun memberChanged (Lcom/opencapture/opencine/appkit/MultiviewHost;ILcom/opencapture/opencine/appkit/MultiviewMemberChange;)V
+	public static fun openLiveView (Lcom/opencapture/opencine/appkit/MultiviewHost;I)Z
+	public static fun showsPicture (Lcom/opencapture/opencine/appkit/MultiviewHost;I)Z
+	public static fun stageStopped (Lcom/opencapture/opencine/appkit/MultiviewHost;)V
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewJournalStorage {
+	public static final field $stable I
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)V
+	public final fun getLoad ()Lkotlin/jvm/functions/Function0;
+	public final fun getSave ()Lkotlin/jvm/functions/Function1;
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewMember {
+	public static final field $stable I
+	public fun <init> ()V
+	public fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/multicam/RecoveryBudget;)V
+	public synthetic fun <init> (Ljava/util/UUID;Lcom/opencapture/opencine/multicam/RecoveryBudget;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAddress ()Ljava/lang/String;
+	public final fun getBudget ()Lcom/opencapture/opencine/multicam/RecoveryBudget;
+	public final fun getCamera ()Ljava/lang/Object;
+	public final fun getConnecting ()Z
+	public final fun getControlHost ()Ljava/lang/String;
+	public final fun getEntryID-AgVIDMY ()Ljava/util/UUID;
+	public final fun getExperimental ()Z
+	public final fun getFailureMessage ()Ljava/lang/String;
+	public final fun getId ()Ljava/util/UUID;
+	public final fun getIdentity ()[B
+	public final fun getLutEnabled ()Z
+	public final fun getNetworkVerified ()Z
+	public final fun getPathLostAtMillis ()Ljava/lang/Long;
+	public final fun getPublishing ()Z
+	public final fun getRecordingAvailable ()Z
+	public final fun getRecordingBusy ()Z
+	public final fun getRecordingNote ()Ljava/lang/String;
+	public final fun getRecovering ()Z
+	public final fun getStatus ()Ljava/lang/String;
+	public final fun getStream-wfDyAYw ()Ljava/util/UUID;
+	public final fun setAddress (Ljava/lang/String;)V
+	public final fun setCamera (Ljava/lang/Object;)V
+	public final fun setConnecting (Z)V
+	public final fun setControlHost (Ljava/lang/String;)V
+	public final fun setExperimental (Z)V
+	public final fun setFailureMessage (Ljava/lang/String;)V
+	public final fun setIdentity ([B)V
+	public final fun setLutEnabled (Z)V
+	public final fun setNetworkVerified (Z)V
+	public final fun setPathLostAtMillis (Ljava/lang/Long;)V
+	public final fun setPublishing (Z)V
+	public final fun setRecordingAvailable (Z)V
+	public final fun setRecordingBusy (Z)V
+	public final fun setRecordingNote (Ljava/lang/String;)V
+	public final fun setRecovering (Z)V
+	public final fun setStatus (Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewMemberChange : java/lang/Enum {
+	public static final field CAMERA Lcom/opencapture/opencine/appkit/MultiviewMemberChange;
+	public static final field CONTROL Lcom/opencapture/opencine/appkit/MultiviewMemberChange;
+	public static final field REMOVED Lcom/opencapture/opencine/appkit/MultiviewMemberChange;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/appkit/MultiviewMemberChange;
+	public static fun values ()[Lcom/opencapture/opencine/appkit/MultiviewMemberChange;
+}
+
 public final class com/opencapture/opencine/appkit/MultiviewNetworkRestore : java/lang/Enum {
 	public static final field CAMERA_NETWORKS Lcom/opencapture/opencine/appkit/MultiviewNetworkRestore;
 	public static final field CLOSE_ACTION Ljava/lang/String;
@@ -4441,6 +4654,13 @@ public final class com/opencapture/opencine/appkit/MultiviewNetworkRestore : jav
 }
 
 public final class com/opencapture/opencine/appkit/MultiviewNetworkRestore$Companion {
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewNetworkStorage {
+	public static final field $stable I
+	public fun <init> (Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;)V
+	public final fun getPassword ()Lkotlin/jvm/functions/Function2;
+	public final fun getSave ()Lkotlin/jvm/functions/Function1;
 }
 
 public final class com/opencapture/opencine/appkit/MultiviewPickerRow {
@@ -4479,6 +4699,23 @@ public final class com/opencapture/opencine/appkit/MultiviewReadout {
 	public final fun getValue ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewRecordConfirmation {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/MultiviewRecordConfirmation;
+	public final fun getWINDOW-UwyO8pc ()J
+	public final fun wait-G-WJXV0 (ZJLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun wait-G-WJXV0$default (Lcom/opencapture/opencine/appkit/MultiviewRecordConfirmation;ZJLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewRecordConfirmation$Outcome : java/lang/Enum {
+	public static final field CONFIRMED Lcom/opencapture/opencine/appkit/MultiviewRecordConfirmation$Outcome;
+	public static final field REFUSED Lcom/opencapture/opencine/appkit/MultiviewRecordConfirmation$Outcome;
+	public static final field UNCONFIRMED Lcom/opencapture/opencine/appkit/MultiviewRecordConfirmation$Outcome;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/appkit/MultiviewRecordConfirmation$Outcome;
+	public static fun values ()[Lcom/opencapture/opencine/appkit/MultiviewRecordConfirmation$Outcome;
 }
 
 public final class com/opencapture/opencine/appkit/MultiviewRecordContext {
@@ -4542,6 +4779,31 @@ public final class com/opencapture/opencine/appkit/MultiviewStageButton {
 	public final fun getIcon ()Lcom/opencapture/monitorui/MonitorIcon;
 	public final fun getIdentifier ()Ljava/lang/String;
 	public final fun getTitle ()Ljava/lang/String;
+}
+
+public abstract class com/opencapture/opencine/appkit/MultiviewStageFailure : java/lang/Exception {
+	public static final field $stable I
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewStageFailure$Duplicate : com/opencapture/opencine/appkit/MultiviewStageFailure {
+	public static final field $stable I
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewStageFailure$Message : com/opencapture/opencine/appkit/MultiviewStageFailure {
+	public static final field $stable I
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewStageFailure$Network : com/opencapture/opencine/appkit/MultiviewStageFailure {
+	public static final field $stable I
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewStageFailure$Unavailable : com/opencapture/opencine/appkit/MultiviewStageFailure {
+	public static final field $stable I
+	public fun <init> ()V
 }
 
 public final class com/opencapture/opencine/appkit/MultiviewStageJournal {
@@ -4787,6 +5049,38 @@ public final class com/opencapture/opencine/appkit/MultiviewTile$Companion {
 	public final fun invoke (Lcom/opencapture/opencine/core/MonitorEntryDescriptor;Lcom/opencapture/opencine/multicam/EntrySummary;Lcom/opencapture/opencine/core/CameraSnapshot;Z)Lcom/opencapture/opencine/appkit/MultiviewTile;
 	public static synthetic fun invoke$default (Lcom/opencapture/opencine/appkit/MultiviewTile$Companion;Lcom/opencapture/opencine/core/MonitorEntryDescriptor;Lcom/opencapture/opencine/multicam/EntrySummary;Lcom/opencapture/opencine/core/CameraSnapshot;ZILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MultiviewTile;
 	public final fun letter (I)Ljava/lang/String;
+	public final fun tileNote (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/MultiviewTileReadings {
+	public static final field $stable I
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/Integer;Lcom/opencapture/opencine/core/PowerStatus;ZLjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/Integer;Lcom/opencapture/opencine/core/PowerStatus;ZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/util/List;
+	public final fun component7 ()Ljava/lang/Integer;
+	public final fun component8 ()Lcom/opencapture/opencine/core/PowerStatus;
+	public final fun component9 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/Integer;Lcom/opencapture/opencine/core/PowerStatus;ZLjava/lang/String;)Lcom/opencapture/opencine/appkit/MultiviewTileReadings;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkit/MultiviewTileReadings;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/Integer;Lcom/opencapture/opencine/core/PowerStatus;ZLjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/appkit/MultiviewTileReadings;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccessibilityValue ()Ljava/lang/String;
+	public final fun getFormat ()Ljava/lang/String;
+	public final fun getHasPicture ()Z
+	public final fun getModel ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPower ()Lcom/opencapture/opencine/core/PowerStatus;
+	public final fun getReadouts ()Ljava/util/List;
+	public final fun getRecordingSeconds ()Ljava/lang/Integer;
+	public final fun getStorage ()Ljava/lang/String;
+	public final fun getTimecode ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class com/opencapture/opencine/appkit/MultiviewTileStatus {

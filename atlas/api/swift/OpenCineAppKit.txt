@@ -130,8 +130,18 @@ case MonitorSettingsInternetCleanup.onRetire
 case MultiviewCameraAction.Kind.action
 case MultiviewCameraAction.Kind.destructive
 case MultiviewCameraAction.Kind.record
+case MultiviewMemberChange.camera
+case MultiviewMemberChange.control
+case MultiviewMemberChange.removed
 case MultiviewNetworkRestore.cameraNetworks
 case MultiviewNetworkRestore.none
+case MultiviewRecordConfirmation.Outcome.confirmed
+case MultiviewRecordConfirmation.Outcome.refused
+case MultiviewRecordConfirmation.Outcome.unconfirmed
+case MultiviewStageFailure.duplicate
+case MultiviewStageFailure.message(Swift.String)
+case MultiviewStageFailure.network
+case MultiviewStageFailure.unavailable
 case MultiviewStageLayout.centerStage
 case MultiviewStageLayout.grid
 case MultiviewTool.camera
@@ -219,6 +229,8 @@ class MonitorSharingPreferences: Sendable
 class MonitorToolUsagePreferences: Sendable
 class MonitorTrafficLightsPreferenceStore: Observable, Sendable
 class MonitorTransferRates<Key where Key : Swift.Hashable, Key : Swift.Sendable>: Observable, Sendable
+class MultiviewCoordinator<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable>: Observable, Sendable
+class MultiviewMember<Camera>: Observable, Sendable
 class MultiviewStagePreferencesStore
 class MultiviewStageState: Observable, Sendable
 class OperatorConsent: Observable, Sendable
@@ -284,7 +296,12 @@ enum MonitorReviewDuration: CaseIterable, Decodable, Encodable, Equatable, Hasha
 enum MonitorScreenWakePolicy
 enum MonitorSettingsInternetCleanup: Equatable, Hashable, Sendable
 enum MultiviewCameraAction.Kind: Equatable, Hashable, Sendable
+enum MultiviewCopy
+enum MultiviewMemberChange: Equatable, Hashable, Sendable
 enum MultiviewNetworkRestore: Equatable, Hashable, Sendable
+enum MultiviewRecordConfirmation
+enum MultiviewRecordConfirmation.Outcome: Equatable, Hashable, Sendable
+enum MultiviewStageFailure: Equatable, Error, LocalizedError, Sendable
 enum MultiviewStageJournal
 enum MultiviewStageLayout: CaseIterable, Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum MultiviewTally
@@ -769,6 +786,50 @@ func MonitorTransferRates.end(_: Key)<Key where Key : Swift.Hashable, Key : Swif
 func MonitorTransferRates.rate(_: Key)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> OpenCineMedia.MediaTransferRate?
 func MonitorTransferRates.record(_: Key, totalBytes: Swift.UInt64)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
 func MonitorTransferRates.retain(_: Swift.Set<Key>)<Key where Key : Swift.Hashable, Key : Swift.Sendable> -> ()
+func MultiviewCoordinator.add(_: MultiviewCoordinator<Link>.Camera, slot: Swift.Int, experimental: Swift.Bool)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async -> ()
+func MultiviewCoordinator.closeEditors()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.closeLiveView()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.closeStage()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async -> Swift.Bool
+func MultiviewCoordinator.configureNetwork()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async -> Swift.Bool
+func MultiviewCoordinator.connectPreview(slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async -> ()
+func MultiviewCoordinator.controlsAvailable(slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> Swift.Bool
+func MultiviewCoordinator.editorAdmits(_: OpenCineMulticam.EditorLease, slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> Swift.Bool
+func MultiviewCoordinator.enqueueAdd(_: MultiviewCoordinator<Link>.Camera, slot: Swift.Int, experimental: Swift.Bool)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.joinSharedNetwork()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async throws -> ()
+func MultiviewCoordinator.multicamGroup(of: [Swift.Int]?)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> OpenCineMulticam.MulticamGroup
+func MultiviewCoordinator.multicamSnapshot(of: [Swift.Int]?)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> OpenCineMulticam.MulticamSnapshot
+func MultiviewCoordinator.openEditorLease(slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> OpenCineMulticam.EditorLease?
+func MultiviewCoordinator.openLiveView(slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> Swift.Bool
+func MultiviewCoordinator.persistStage()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> Swift.Bool
+func MultiviewCoordinator.reconnect(slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async -> ()
+func MultiviewCoordinator.record(_: OpenCineMulticam.RecordPlan, together: Swift.Bool)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async -> ()
+func MultiviewCoordinator.recordContext(slot: Swift.Int?)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> MultiviewRecordContext
+func MultiviewCoordinator.recordPlan(slot: Swift.Int?)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> OpenCineMulticam.RecordPlan
+func MultiviewCoordinator.recordStationChange(_: MultiviewCoordinator<Link>.Camera)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> Swift.Bool
+func MultiviewCoordinator.recordingActive(slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> Swift.Bool?
+func MultiviewCoordinator.remove(slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> Swift.Bool
+func MultiviewCoordinator.resetStationOnce(_: MultiviewStageJournal.Camera)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async -> Swift.Bool
+func MultiviewCoordinator.restartRepairGrace()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.restoreStage()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.restoreStage(_: MultiviewStageJournal.Stage?)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.scan()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.scanNetworks(onFound: (Swift.String) -> Swift.Void)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async throws -> ()
+func MultiviewCoordinator.selectNetwork(_: Swift.String)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.selectNetworkSource(hotspot: Swift.Bool)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.setApplicationActive(_: Swift.Bool)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.show(_: OpenCineCore.MultiviewLinkStatus, slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.start()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.stop()<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> ()
+func MultiviewCoordinator.tile(_: Swift.Int, _: MultiviewTileReadings)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> MultiviewTile?
+func MultiviewCoordinator.tryExperimentalNetwork(slot: Swift.Int)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> async -> ()
+func MultiviewHost.applicationActivityChanged(_: Swift.Bool) -> ()
+func MultiviewHost.closeEditors() -> ()
+func MultiviewHost.closeLiveView() -> ()
+func MultiviewHost.log(_: Swift.String) -> ()
+func MultiviewHost.memberChanged(slot: Swift.Int, _: MultiviewMemberChange) -> ()
+func MultiviewHost.openLiveView(slot: Swift.Int) -> Swift.Bool
+func MultiviewHost.showsPicture(slot: Swift.Int) -> Swift.Bool
+func MultiviewHost.stageStopped() -> ()
 func MultiviewRecordContext.question(single: Swift.Bool) -> Swift.String
 func MultiviewStageJournal.Stage.validated(tileCount: Swift.Int) -> MultiviewStageJournal.Stage?
 func MultiviewStagePreferencesStore.load() -> MultiviewStagePreferences?
@@ -1033,6 +1094,10 @@ init MonitorTrafficLightsPreferenceStore(storage: Foundation.UserDefaults, key: 
 init MonitorTransferRates(clock: OpenCineCore.HostClock)<Key where Key : Swift.Hashable, Key : Swift.Sendable>
 init MultiviewCameraAction(_: Swift.String, _: Swift.String, kind: MultiviewCameraAction.Kind, enabled: Swift.Bool, closes: Swift.Bool)
 init MultiviewCameraPicker(rows: [MultiviewPickerRow], searching: Swift.String, empty: Swift.String?, footer: Swift.String?, cancel: () -> Swift.Void, pick: (Swift.String) -> Swift.Void)
+init MultiviewCoordinator(links: [Link], members: [MultiviewMember<MultiviewCoordinator<Link>.Camera>]?, policy: OpenCineCore.MultiviewCameraPolicy<MultiviewCoordinator<Link>.Camera>, commissioner: (any OpenCineCore.StationCommissioner<MultiviewCoordinator<Link>.Camera>)?, scanner: (any OpenCineCore.NearbyCameraScanner<MultiviewCoordinator<Link>.Camera>)?, hostPath: any OpenCineCore.StationHostPath, describe: (MultiviewCoordinator<Link>.Camera) -> OpenCineCore.StationCameraRecord, journal: MultiviewJournalStorage, networks: MultiviewNetworkStorage, budget: OpenCineMulticam.ResourceBudget?, sightingAddress: ((MultiviewCoordinator<Link>.Camera) -> Swift.String?)?, failureMessage: ((any Swift.Error) -> Swift.String)?, probeWidth: Swift.Int, clock: OpenCineCore.HostClock)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable>
+init MultiviewJournalStorage(load: () -> MultiviewStageJournal.Stage?, save: (MultiviewStageJournal.Stage?) -> Swift.Bool)
+init MultiviewMember(id: Foundation.UUID, budget: OpenCineMulticam.RecoveryBudget)<Camera>
+init MultiviewNetworkStorage(password: (Swift.String, Swift.Bool) -> Swift.String?, save: (OpenCineCore.StationNetwork) -> Swift.Void)
 init MultiviewPickerRow(id: Swift.String, title: Swift.String, detail: Swift.String?, enabled: Swift.Bool, limited: Swift.Bool)
 init MultiviewReadout(title: Swift.String, value: Swift.String, choices: [Swift.String])
 init MultiviewRecordAction(confirmationEnabled: Swift.Bool, single: Swift.String?, context: () -> MultiviewRecordContext, record: (OpenCineMulticam.RecordPlan) async -> Swift.Void, label: () -> Label)<Label where Label : SwiftUI.View>
@@ -1052,6 +1117,7 @@ init MultiviewStageSurface(arrangement: MonitorPresentation.MultiviewPresentatio
 init MultiviewStageViewport(size: CoreFoundation.CGSize, reportedSafeArea: SwiftUI.EdgeInsets, window: MonitorUI.MonitorWindowGeometry, orientation: MonitorPresentation.MonitorDeviceOrientation, arrangement: MonitorPresentation.MultiviewPresentationLayout.Arrangement, selected: Swift.Int)
 init MultiviewTile(_: OpenCineCore.MonitorEntryDescriptor, summary: OpenCineMulticam.EntrySummary, snapshot: OpenCineCore.CameraSnapshot?, waiting: Swift.Bool)
 init MultiviewTile(name: Swift.String, model: Swift.String, format: Swift.String, battery: Swift.Int?, charging: Swift.Bool, batteryBars: Swift.Int?, batteryBarCount: Swift.Int, storage: Swift.String, timecode: Swift.String?, tally: Swift.String, recordingSince: Foundation.Date?, recording: Swift.Bool, lut: Swift.Bool, note: Swift.String?, tileNote: Swift.String?, readouts: [MultiviewReadout], status: MultiviewTileStatus?, detail: Swift.String, failure: Swift.String?, footnote: Swift.String?, actions: [MultiviewCameraAction], accessibilityValue: Swift.String)
+init MultiviewTileReadings(name: Swift.String, model: Swift.String, format: Swift.String, storage: Swift.String, timecode: Swift.String?, readouts: [MultiviewReadout], recordingSeconds: Swift.Int?, power: OpenCineCore.PowerStatus?, hasPicture: Swift.Bool, accessibilityValue: Swift.String)
 init MultiviewTileStatus(text: Swift.String, detail: Swift.String?, inProgress: Swift.Bool, actions: [MultiviewCameraAction])
 init MultiviewToolAvailability(cameraSettingsSlots: Swift.Set<Swift.Int>, pictureLUTSlots: Swift.Set<Swift.Int>)
 init NearbyCardCopy(name: Swift.String, subtitle: Swift.String, status: Swift.String)
@@ -1464,6 +1530,12 @@ let MonitorStartupReports.hasDecision: () -> Swift.Bool
 let MonitorStartupReports.isAvailable: () -> Swift.Bool
 let MonitorStartupReports.setConsent: (Swift.Bool) -> Swift.Void
 let MonitorStartupReports.tick: () -> Swift.Void
+let MultiviewCoordinator.hostPath: any OpenCineCore.StationHostPath
+let MultiviewCoordinator.links: [Link]
+let MultiviewCoordinator.members: [MultiviewMember<MultiviewCoordinator<Link>.Camera>]
+let MultiviewCoordinator.presentation: MultiviewStageState
+let MultiviewMember.id: Foundation.UUID
+let MultiviewMember.stream: OpenCineCore.StreamID
 let MultiviewRecordContext.busy: Swift.Bool
 let MultiviewRecordContext.closing: Swift.Bool
 let MultiviewRecordContext.plan: OpenCineMulticam.RecordPlan
@@ -1504,6 +1576,7 @@ protocol MonitorLookProvider<Self : AnyObject, Self.Selection : Swift.Equatable>
 protocol MonitorMediaCatalogByteStore<Self : Swift.Sendable>: Sendable
 protocol MonitorMediaCatalogCodec<Self : Swift.Sendable, Self.Payload : Swift.Sendable>: Sendable
 protocol MonitorMediaFavoritesStore<Self : AnyObject, Self : Swift.Sendable>: Sendable
+protocol MultiviewHost<Self : AnyObject>
 protocol ReliabilityReportingCancellable<Self : AnyObject>
 protocol ReliabilityReportingSink<Self : AnyObject, Self : Swift.Sendable>: Sendable
 static func CamerasMapping.action(_: Swift.String, of: Swift.String, in: CamerasModel) -> OpenCineCore.RecoveryAction?
@@ -1568,11 +1641,15 @@ static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraTimecode, precisio
 static func MonitorTimecodeFormat.label(_: OpenCineCore.CameraTimecodeReading, precision: OpenCineCore.TimecodePrecision?) -> Swift.String?
 static func MonitorTimecodeFormat.placeholder(_: OpenCineCore.TimecodePrecision?) -> Swift.String
 static func MonitorTimecodeFormat.widthTemplate(_: Swift.String) -> Swift.String
+static func MultiviewCoordinator.needsDiscovery(running: Swift.Bool, applicationActive: Swift.Bool, hasEmptySlot: Swift.Bool, connecting: Swift.Bool)<Link where Link : OpenCineCore.MultiviewMemberLink, Link.Camera : Swift.Sendable> -> Swift.Bool
+static func MultiviewCopy.finding(attempt: Swift.Int, of: Swift.Int) -> Swift.String
+static func MultiviewRecordConfirmation.wait(start: Swift.Bool, sentAt: Foundation.Date, window: Swift.Duration, clock: OpenCineCore.HostClock, current: () -> Swift.Bool, reply: () -> Swift.Bool?, report: () -> OpenCineCore.MultiviewRecordReport?, acknowledged: () -> Swift.Void) -> MultiviewRecordConfirmation.Outcome
 static func MultiviewRepairResult.race(deadline: Swift.Duration, sleep: (Swift.Duration) async throws -> Swift.Void, _: () async -> OpenCineCore.MultiviewRepairResult) -> OpenCineCore.MultiviewRepairResult
 static func MultiviewStageJournal.cleanupTargets(_: [MultiviewStageJournal.Camera], including: [MultiviewStageJournal.Camera]) -> [MultiviewStageJournal.Camera]
 static func MultiviewTally.running(_: Swift.Int) -> Swift.String
 static func MultiviewTally.text(recording: Swift.Bool?, seconds: Swift.Int?, waiting: Swift.Bool, holding: Swift.Bool, failed: Swift.Bool) -> Swift.String
 static func MultiviewTile.letter(_: Swift.Int) -> Swift.String
+static func MultiviewTile.tileNote(_: Swift.String?) -> Swift.String?
 static func ProblemReportImage.prepare(_: Foundation.Data) throws -> ProblemReportImage
 static func ProblemReporting.endpoint(dsn: Swift.String) -> Foundation.URL?
 static func ProblemReporting.envelope(host: DiagnosticsHost, id: Swift.String, message: Swift.String, email: Swift.String, diagnostics: Swift.String?, date: Foundation.Date, images: [ProblemReportImage]) throws -> Foundation.Data
@@ -1649,8 +1726,36 @@ static let MonitorRemoteShutterPolicy.debounceInterval: Foundation.TimeInterval
 static let MonitorRemoteShutterPolicy.railHeadroom: Swift.Float
 static let MonitorRemoteShutterPolicy.selfInflictedWindow: Foundation.TimeInterval
 static let MonitorRemoteShutterVolumeLease.hold: Foundation.TimeInterval
+static let MultiviewCameraAction.experimental: Swift.String
 static let MultiviewCameraAction.liveView: Swift.String
+static let MultiviewCameraAction.lut: Swift.String
+static let MultiviewCameraAction.reconnect: Swift.String
+static let MultiviewCameraAction.record: Swift.String
+static let MultiviewCameraAction.remove: Swift.String
+static let MultiviewCopy.addCamera: Swift.String
+static let MultiviewCopy.approveOnCamera: Swift.String
+static let MultiviewCopy.checkNetwork: Swift.String
+static let MultiviewCopy.cleanupNotSaved: Swift.String
+static let MultiviewCopy.closeCleanupFailed: Swift.String
+static let MultiviewCopy.connectingPreview: Swift.String
+static let MultiviewCopy.couldNotConnect: Swift.String
+static let MultiviewCopy.couldNotConnectPreview: Swift.String
+static let MultiviewCopy.couldNotRestore: Swift.String
+static let MultiviewCopy.duplicate: Swift.String
+static let MultiviewCopy.joinNetworkFirst: Swift.String
+static let MultiviewCopy.live: Swift.String
+static let MultiviewCopy.notFound: Swift.String
+static let MultiviewCopy.notNearby: Swift.String
+static let MultiviewCopy.notQualified: Swift.String
+static let MultiviewCopy.reconnecting: Swift.String
+static let MultiviewCopy.scanCleanupFailed: Swift.String
+static let MultiviewCopy.sharedNetworkLost: Swift.String
+static let MultiviewCopy.unavailableAddress: Swift.String
+static let MultiviewCopy.unsupportedSubnet: Swift.String
+static let MultiviewCopy.verifiedWithoutPreview: Swift.String
+static let MultiviewCopy.waitingForVideo: Swift.String
 static let MultiviewNetworkRestore.closeAction: Swift.String
+static let MultiviewRecordConfirmation.window: Swift.Duration
 static let MultiviewRecordContext.groupNote: Swift.String
 static let MultiviewTally.unavailable: Swift.String
 static let ProblemReportImage.maximumBytes: Swift.Int
@@ -1817,6 +1922,8 @@ struct MonitorStartupConsent: Identifiable, Sendable
 struct MonitorStartupReports: Sendable
 struct MultiviewCameraAction: Equatable, Hashable, Identifiable, Sendable
 struct MultiviewCameraPicker: Sendable, View
+struct MultiviewJournalStorage
+struct MultiviewNetworkStorage
 struct MultiviewPickerRow: Equatable, Hashable, Identifiable, Sendable
 struct MultiviewReadout: Equatable, Hashable, Sendable
 struct MultiviewRecordAction<Label where Label : SwiftUI.View>: Sendable, View
@@ -1831,6 +1938,7 @@ struct MultiviewStageServices: Sendable
 struct MultiviewStageSurface<Content where Content : SwiftUI.View>: Sendable, View
 struct MultiviewStageViewport
 struct MultiviewTile: Equatable, Hashable, Sendable
+struct MultiviewTileReadings
 struct MultiviewTileStatus: Equatable, Hashable, Sendable
 struct MultiviewToolAvailability: Equatable, Hashable, Sendable
 struct NearbyCardCopy: Equatable, Sendable
@@ -1856,6 +1964,7 @@ struct StationSetupRoute: Equatable, Sendable
 struct StoredData
 typealias MonitorDeliveryPreparationModel.Request = MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>
 typealias MonitorMediaPictureLoaders.Load = (MonitorMediaPictureRequest<Payload>) async -> Picture?
+typealias MultiviewCoordinator.Camera = Link.Camera
 var AddSetupChooser.detail: Swift.String
 var AddSetupChooser.footer: Swift.String?
 var AddSetupChooser.identifierPrefix: Swift.String
@@ -2475,7 +2584,54 @@ var MultiviewCameraAction.id: Swift.String
 var MultiviewCameraAction.kind: MultiviewCameraAction.Kind
 var MultiviewCameraAction.title: Swift.String
 var MultiviewCameraPicker.body: some SwiftUI.View
+var MultiviewCoordinator.anyRecording: Swift.Bool
+var MultiviewCoordinator.applicationActive: Swift.Bool
+var MultiviewCoordinator.busy: Swift.Bool
+var MultiviewCoordinator.canRecordTogether: Swift.Bool
+var MultiviewCoordinator.closing: Swift.Bool
+var MultiviewCoordinator.configuringNetwork: Swift.Bool
+var MultiviewCoordinator.connectingCameras: Swift.Bool
+var MultiviewCoordinator.editorLeases: OpenCineMulticam.EditorLeases
+var MultiviewCoordinator.error: Swift.String?
+var MultiviewCoordinator.found: [MultiviewCoordinator<Link>.Camera]
+var MultiviewCoordinator.groupRecordingBusy: Swift.Bool
+var MultiviewCoordinator.groupRecordingNote: Swift.String?
+var MultiviewCoordinator.hasPendingCleanup: Swift.Bool
+var MultiviewCoordinator.host: (any MultiviewHost)?
+var MultiviewCoordinator.hostAddress: Swift.String
+var MultiviewCoordinator.memberSlots: [Swift.Int]
+var MultiviewCoordinator.networkConfigured: Swift.Bool
+var MultiviewCoordinator.networkSetupError: Swift.String?
+var MultiviewCoordinator.password: Swift.String
+var MultiviewCoordinator.ready: Swift.Bool
+var MultiviewCoordinator.running: Swift.Bool
+var MultiviewCoordinator.ssid: Swift.String
+var MultiviewCoordinator.stationNetwork: OpenCineCore.StationNetwork
+var MultiviewCoordinator.usePhoneHotspot: Swift.Bool
+var MultiviewHost.confirmsRecord: Swift.Bool
+var MultiviewJournalStorage.load: () -> MultiviewStageJournal.Stage?
+var MultiviewJournalStorage.save: (MultiviewStageJournal.Stage?) -> Swift.Bool
+var MultiviewMember.address: Swift.String
+var MultiviewMember.budget: OpenCineMulticam.RecoveryBudget
+var MultiviewMember.camera: Camera?
+var MultiviewMember.connecting: Swift.Bool
+var MultiviewMember.controlHost: Swift.String?
+var MultiviewMember.entryID: OpenCineCore.MonitorEntryID
+var MultiviewMember.experimental: Swift.Bool
+var MultiviewMember.failureMessage: Swift.String?
+var MultiviewMember.identity: [Swift.UInt8]?
+var MultiviewMember.lutEnabled: Swift.Bool
+var MultiviewMember.networkVerified: Swift.Bool
+var MultiviewMember.pathLostAt: Foundation.Date?
+var MultiviewMember.publishing: Swift.Bool
+var MultiviewMember.recordingAvailable: Swift.Bool
+var MultiviewMember.recordingBusy: Swift.Bool
+var MultiviewMember.recordingNote: Swift.String?
+var MultiviewMember.recovering: Swift.Bool
+var MultiviewMember.status: Swift.String
 var MultiviewNetworkRestore.closeQuestion: Swift.String
+var MultiviewNetworkStorage.password: (Swift.String, Swift.Bool) -> Swift.String?
+var MultiviewNetworkStorage.save: (OpenCineCore.StationNetwork) -> Swift.Void
 var MultiviewPickerRow.detail: Swift.String?
 var MultiviewPickerRow.enabled: Swift.Bool
 var MultiviewPickerRow.id: Swift.String
@@ -2505,6 +2661,7 @@ var MultiviewStageButton.icon: MonitorUI.MonitorIcon
 var MultiviewStageButton.identifier: Swift.String
 var MultiviewStageButton.title: Swift.String
 var MultiviewStageButton.value: Swift.String
+var MultiviewStageFailure.errorDescription: Swift.String?
 var MultiviewStageJournal.Camera.address: Swift.String
 var MultiviewStageJournal.Camera.deviceAddress: Swift.String?
 var MultiviewStageJournal.Camera.experimental: Swift.Bool
@@ -2560,6 +2717,16 @@ var MultiviewTile.storage: Swift.String
 var MultiviewTile.tally: Swift.String
 var MultiviewTile.tileNote: Swift.String?
 var MultiviewTile.timecode: Swift.String?
+var MultiviewTileReadings.accessibilityValue: Swift.String
+var MultiviewTileReadings.format: Swift.String
+var MultiviewTileReadings.hasPicture: Swift.Bool
+var MultiviewTileReadings.model: Swift.String
+var MultiviewTileReadings.name: Swift.String
+var MultiviewTileReadings.power: OpenCineCore.PowerStatus?
+var MultiviewTileReadings.readouts: [MultiviewReadout]
+var MultiviewTileReadings.recordingSeconds: Swift.Int?
+var MultiviewTileReadings.storage: Swift.String
+var MultiviewTileReadings.timecode: Swift.String?
 var MultiviewTileStatus.actions: [MultiviewCameraAction]
 var MultiviewTileStatus.detail: Swift.String
 var MultiviewTileStatus.inProgress: Swift.Bool

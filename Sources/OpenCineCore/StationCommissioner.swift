@@ -29,6 +29,29 @@ public enum StationCommissionOutcome: Equatable, Sendable {
     case verified
 }
 
+/// How a camera's return to its own access point ended. The cleanup journal keeps every camera
+/// that was not `restored`. Kotlin twin: `StationRestoreResult`.
+public enum StationRestoreResult: Equatable, Sendable {
+    case restored
+    /// The camera answered but did not return now; `message` tells the operator what to do (for
+    /// example approve this phone on the camera). Close again to retry.
+    case deferred(String)
+    /// The camera did not confirm.
+    case failed
+}
+
+/// What a caller's `verifyOnNetwork` throws when the camera it found there can never join (for
+/// example it is already a member of the stage). A commissioner rethrows it at once instead of
+/// treating it as "not found yet" and joining again; the caller reports `reason`. Kotlin twin:
+/// `StationVerifyFinal`.
+public struct StationVerifyFinal: Error {
+    public var reason: any Error
+
+    public init(_ reason: any Error) {
+        self.reason = reason
+    }
+}
+
 /// One nearby camera's setup link (for example its Bluetooth link) while a commissioner moves it
 /// onto a station network. The caller closes it when the move ended either way.
 @MainActor
@@ -38,7 +61,7 @@ public protocol StationCommission: AnyObject {
     func identity() async throws -> [UInt8]
     /// Moves the camera onto `network`. `progress` reports operator-facing steps.
     /// `verifyOnNetwork` lets the caller find and open the camera on the network while this link
-    /// is still up; it returns true when it did.
+    /// is still up; it returns true when it did. A `StationVerifyFinal` it throws ends the join.
     func join(
         _ network: StationNetwork, identity: [UInt8], experimental: Bool,
         progress: @escaping @MainActor (String) -> Void,
@@ -67,9 +90,9 @@ public protocol StationCommissioner<Camera>: AnyObject {
     /// Closes every commission link still open, connecting or not (the stage stopped). A network
     /// scan's link is left to finish returning its camera.
     func closeCommissions()
-    /// Returns the camera to its own access point, with the integration's own bounded retry.
-    /// False when the camera did not confirm; never throws, cancellation included.
-    func restoreAccessPoint(_ record: StationCameraRecord) async -> Bool
+    /// Returns the camera to its own access point, with the integration's own bounded retry. Never
+    /// throws; a cancelled return is not `restored`.
+    func restoreAccessPoint(_ record: StationCameraRecord) async -> StationRestoreResult
     /// Whether this integration can list the networks a camera sees. Without it `scanNetworks`
     /// throws `StationScanUnsupported`.
     var scansNetworks: Bool { get }

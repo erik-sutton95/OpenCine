@@ -11,9 +11,11 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.multicam.EntrySummary
 import com.opencapture.opencine.multicam.ExclusionReason
+import com.opencapture.opencine.multicam.RecordAll
 import com.opencapture.opencine.multicam.RecordDirection
 import com.opencapture.opencine.multicam.RecordPlan
 import com.opencapture.opencine.multicam.RoleStatus
+import com.opencapture.opencine.multicam.TargetOutcome
 import java.util.Locale
 
 // Swift twin: Sources/OpenCineAppKit/MultiviewStage.swift (same types and copy).
@@ -61,6 +63,13 @@ public data class MultiviewCameraAction(
     public companion object {
         /** The id the stage's double tap and the Live View entry share. */
         public const val LIVE_VIEW: String = "liveView"
+
+        /** The stage's own camera options beside [LIVE_VIEW]. */
+        public const val RECORD: String = "record"
+        public const val LUT: String = "lut"
+        public const val RECONNECT: String = "reconnect"
+        public const val EXPERIMENTAL: String = "experimental"
+        public const val REMOVE: String = "remove"
     }
 }
 
@@ -107,6 +116,19 @@ public data class MultiviewTile(
     public companion object {
         /** The slot letter, A for the first. */
         public fun letter(slot: Int): String = ('A' + slot.coerceIn(0, 25)).toString()
+
+        /**
+         * The note on the tile itself: the plain record confirmations ([RecordAll]'s
+         * confirmed notes) stay in the options only.
+         */
+        public fun tileNote(note: String?): String? =
+            if (note == RecordAll.note(TargetOutcome.Confirmed, RecordDirection.START) ||
+                note == RecordAll.note(TargetOutcome.Confirmed, RecordDirection.STOP)
+            ) {
+                null
+            } else {
+                note
+            }
 
         /**
          * A tile from Core values alone, for an app whose cameras report only through their
