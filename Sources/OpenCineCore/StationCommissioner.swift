@@ -96,6 +96,12 @@ public protocol StationCommissioner<Camera>: AnyObject {
     /// Whether this integration can list the networks a camera sees. Without it `scanNetworks`
     /// throws `StationScanUnsupported`.
     var scansNetworks: Bool { get }
+    /// Whether `join` has an experimental path (`experimental: true`): a camera a stage shows no
+    /// picture of joins through it, and a camera whose setup failed may try it. True by default.
+    var joinsExperimentally: Bool { get }
+    /// Whether `connect` may ask the operator to approve this phone on the camera: an add then
+    /// says so while it connects. True by default.
+    var asksApprovalOnCamera: Bool { get }
     /// Networks `camera` can see, reported as they arrive. `beforeStationChange` runs before the
     /// camera leaves its access point (the caller journals the cleanup there and may refuse);
     /// `onRestored` reports whether it returned. The camera is always asked back, cancelled or not.
@@ -109,6 +115,8 @@ public protocol StationCommissioner<Camera>: AnyObject {
 
 extension StationCommissioner {
     public var scansNetworks: Bool { false }
+    public var joinsExperimentally: Bool { true }
+    public var asksApprovalOnCamera: Bool { true }
 
     public func scanNetworks(
         through camera: Camera,

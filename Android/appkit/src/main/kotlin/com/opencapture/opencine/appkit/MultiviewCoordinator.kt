@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import com.opencapture.opencine.core.MonitorEntryID
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.MultiviewCameraPolicy
+import com.opencapture.opencine.core.MultiviewLinkRefusal
 import com.opencapture.opencine.core.MultiviewMemberLink
 import com.opencapture.opencine.core.MultiviewRepairContext
 import com.opencapture.opencine.core.MultiviewRepairResult
@@ -65,9 +66,9 @@ public enum class MultiviewMemberChange {
 }
 
 /**
- * What only the app has, as the coordinator asks for it. Every member has a default, so an app
- * adopts only what it offers and the interface grows (Plan 4: the screen and the tile picture)
- * without breaking an adopter. Swift twin: `MultiviewHost`.
+ * What only the app has, as the coordinator and the shared screen ask for it. Every member has a
+ * default, so an app adopts only what it offers and the interface grows without breaking an adopter.
+ * The views the screen needs from the app are [MultiviewScreenHost]'s. Swift twin: `MultiviewHost`.
  */
 public interface MultiviewHost {
     /** The operator's record confirmation preference (Settings): the stage asks before a record press when true. */
@@ -96,6 +97,55 @@ public interface MultiviewHost {
 
     /** A diagnostic line (never a password). */
     public fun log(line: String) {}
+
+    // The screen's half (Plan 4): what the shared screen asks of the app.
+
+    /**
+     * [slot]'s camera readings for its tile (names, format, storage, timecode, readouts, power,
+     * whether a picture shows); null when the app has none, and the tile names its camera only.
+     */
+    public fun readings(slot: Int): MultiviewTileReadings? = null
+
+    /** The app edits camera settings: the stage offers the CAMERA tool and its settings popup. */
+    public val editsCameraSettings: Boolean get() = false
+
+    /**
+     * The app grades each member's picture with its Auto LUT: the stage offers the LUT tool and each
+     * camera's Auto LUT option.
+     */
+    public val appliesAutoLUT: Boolean get() = false
+
+    /** [slot]'s member changed its Auto LUT choice ([MultiviewMember.lutEnabled]): apply it. */
+    public fun lutChanged(slot: Int) {}
+
+    /**
+     * Opens the app's settings editor on [slot], closing any other. The app opens the coordinator's
+     * editor lease (`openEditorLease`) with it and asks `editorAdmits` before each change.
+     */
+    public fun openCameraSettings(slot: Int) {}
+
+    /**
+     * The open settings editor on [slot] as the popup shows it; null while none is open. The popup
+     * opens the editor again only when the selected camera's controls become available
+     * ([MultiviewCoordinator.controlsAvailable] turns true) while this is null, so the host returns
+     * null once the editor it opened no longer reaches the camera: it drops the editor when the
+     * member's camera or control path changes ([memberChanged] with CAMERA or CONTROL) or its own
+     * link is replaced. An editor kept past that shows controls whose every change `editorAdmits`
+     * refuses.
+     */
+    public fun cameraSettings(slot: Int): MultiviewCameraSettingsState? = null
+
+    /**
+     * What only the app knows about whether [slot] takes a settings change now (its own link is open,
+     * no Live View borrows the member). [MultiviewCoordinator.controlsAvailable] asks it.
+     */
+    public fun admitsControls(slot: Int): Boolean = true
+
+    /**
+     * Steps the Add camera list shows under its footer: how a camera gets onto this phone's network
+     * when the app cannot move it there itself (camera-menu steps, pairing). Null for none.
+     */
+    public val pickerGuidance: String? get() = null
 }
 
 /**
@@ -229,6 +279,25 @@ public object MultiviewCopy {
 
     /** The search line while the stage looks for a member on the shared network. */
     public fun finding(attempt: Int, of: Int): String = "Finding camera on Wi-Fi · $attempt of $of"
+
+    /**
+     * The Add camera list's footer: cameras the app moves onto [network] (approved on the camera where
+     * [asksApproval]), or cameras already there (this phone's network when it has no name).
+     */
+    public fun pickerFooter(network: String, commissioned: Boolean, asksApproval: Boolean = true): String =
+        when {
+            commissioned -> "Each camera will join $network." + if (asksApproval) " Approve on the camera if asked." else ""
+            network.isEmpty() -> "Cameras on this phone\u2019s network appear here."
+            else -> "Cameras already on $network appear here."
+        }
+
+    /** A listed camera that joins without its picture. */
+    public const val PREVIEW_UNAVAILABLE: String = "Try experimental shared Wi-Fi · Preview unavailable"
+    public const val RECONNECT_BEFORE_SETTINGS: String = "Reconnect this camera before changing settings."
+    public const val WAITING_FOR_CONTROLS: String = "Waiting for camera controls\u2026"
+    public const val CONTROLS_UNAVAILABLE: String = "Controls unavailable"
+    public const val LOCKED_WHILE_RECORDING: String = "Locked while recording"
+    public const val CAMERA_SETTINGS: String = "Camera settings"
 }
 
 /** Why a coordinator step failed, with its operator copy. Swift twin: `MultiviewStageFailure`. */
@@ -246,6 +315,12 @@ public sealed class MultiviewStageFailure(message: String) : Exception(message) 
 
 /** The stage stopped under a step (Swift: `CancellationError`); the step ends without copy. */
 private class StageStopped : Exception("Multiview stage stopped")
+
+/**
+ * A member link's own refusal ([MultiviewLinkRefusal]) as the add or reconnect that met it ends: its
+ * copy goes on the tile. Swift twin: `MultiviewLinkRefused`.
+ */
+private class MultiviewLinkRefused(message: String) : Exception(message)
 
 /**
  * The Bluetooth turns of member repairs: one holder at a time, in request order, never while an
@@ -337,6 +412,7 @@ internal class MultiviewBluetoothQueue {
  * @param sightingAddress the address an integration that does not discover by probe saw the camera at.
  * @param failureMessage the operator copy for a failed add (default: the error's message).
  * @param probeWidth probes per batch while searching the subnet.
+ * @param networkPath which of this phone's networks the stage watches (the chosen one by default).
  * @param clock the coordinator's clock in milliseconds (record report freshness, path loss, grace):
  *   the clock the links stamp [MultiviewRecordReport.receivedAtMillis] on, so it has no default.
  * @param monotonic the host clock the sessions stamp on (record plans, recovery budgets).
@@ -345,7 +421,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     public val links: List<Link>,
     members: List<MultiviewMember<Camera>>? = null,
     internal val policy: MultiviewCameraPolicy<Camera>,
-    private val commissioner: StationCommissioner<Camera>?,
+    internal val commissioner: StationCommissioner<Camera>?,
     private val scanner: NearbyCameraScanner<Camera>?,
     public val hostPath: StationHostPath,
     internal val describe: (Camera) -> StationCameraRecord,
@@ -358,6 +434,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     probeWidth: Int = 64,
     internal val clock: () -> Long,
     internal val monotonic: () -> MonotonicInstant = { MonotonicInstant.now() },
+    public val networkPath: MultiviewNetworkPath = MultiviewNetworkPath.CHOSEN,
 ) {
     public val members: List<MultiviewMember<Camera>> = members ?: links.map { MultiviewMember() }
     public var host: MultiviewHost? = null
@@ -457,18 +534,42 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
 
     internal fun sameCamera(a: Camera, b: Camera): Boolean = describe(a).id == describe(b).id
 
+    /**
+     * Whether the stage watches this phone's hotspot now ([networkPath]): the chosen source, or,
+     * under [MultiviewNetworkPath.EITHER], the hotspot while this phone has no Wi-Fi address and
+     * hosts one.
+     */
+    internal val watchesHotspot: Boolean
+        get() = when (networkPath) {
+            MultiviewNetworkPath.CHOSEN -> usePhoneHotspot
+            MultiviewNetworkPath.EITHER -> hostPath.address(false) == null && hostPath.address(true) != null
+        }
+
+    /** This phone's address on the network the stage watches; null when it is not on it. */
+    internal fun pathAddress(): String? = hostPath.address(watchesHotspot)
+
+    /**
+     * Saves the stage's network for the next stage; a network without a name (this phone's own, on
+     * a stage without a commissioner) is not one to save.
+     */
+    private fun saveNetwork() {
+        if (ssid.isEmpty()) return
+        networks.save(stationNetwork)
+    }
+
     // Lifecycle
 
     /**
-     * Opens the stage: always asks for a network, starts with empty slots, takes presentation and
-     * cleanup from the journal, and runs the 1 s monitor.
+     * Opens the stage: asks for a network (where a commissioner moves cameras onto it; without one
+     * the cameras already share this phone's network), starts with empty slots, takes presentation
+     * and cleanup from the journal, and runs the 1 s monitor.
      */
     public fun start() {
         if (running) return
         running = true
         hostAddress = ""
         ready = false
-        networkConfigured = false
+        networkConfigured = commissioner == null
         ssid = ""
         password = ""
         usePhoneHotspot = false
@@ -508,7 +609,11 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     }
 
     internal suspend fun tick() {
-        ready = hostPath.address(usePhoneHotspot) != null
+        if (networkPath == MultiviewNetworkPath.EITHER) {
+            val hotspot = watchesHotspot
+            if (usePhoneHotspot != hotspot) usePhoneHotspot = hotspot
+        }
+        ready = pathAddress() != null
         for (slot in links.indices) {
             contained("keepalive") { links[slot].keepalive() }
             val member = members[slot]
@@ -691,6 +796,8 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     }
 
     private suspend fun performHostJoin() {
+        // Without a commissioner and a chosen network, the phone stays on the network it is on.
+        if (ssid.isEmpty() && commissioner == null) return
         if (ssid.isEmpty()) throw MultiviewStageFailure.Network()
         // The host phone must not try joining its own hotspot. Its local bridge may appear only
         // after the first camera associates.
@@ -784,7 +891,8 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         member.camera = camera
         member.experimental = experimental
         member.networkVerified = false
-        member.status = MultiviewCopy.APPROVE_ON_CAMERA
+        member.status =
+            if (commissioner?.asksApprovalOnCamera == true) MultiviewCopy.APPROVE_ON_CAMERA else MultiviewCopy.CONNECTING_PREVIEW
         refreshDiscovery()
         persistStage()
         var stage = "host Wi-Fi"
@@ -794,7 +902,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             if (commissioner == null) {
                 stage = "LAN discovery"
                 discoverPreview(slot, camera, null)
-                networks.save(stationNetwork)
+                saveNetwork()
                 return
             }
             stage = "Bluetooth pairing"
@@ -817,7 +925,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                 },
             )
             member.identity = identity
-            networks.save(stationNetwork)
+            saveNetwork()
             if (outcome == StationCommissionOutcome.VERIFIED) return
             link.close()
             client = null
@@ -830,7 +938,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             if (!running || e is StageStopped) return
             links[slot].close()
             member.status = MultiviewCopy.COULD_NOT_CONNECT
-            member.failureMessage = failureText(e)
+            member.failureMessage = (e as? MultiviewLinkRefused)?.message ?: failureText(e)
             host?.log("multiview: add failed stage=$stage error=${e.javaClass.simpleName}")
             // Keep the member for a discovery retry after a successful join.
         } finally {
@@ -842,7 +950,11 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         }
     }
 
-    /** The operator's Reconnect: the known camera first, then its setup again. */
+    /**
+     * The operator's Reconnect: the known camera first, then its setup again. Without a commissioner
+     * the setup again would open whatever camera answers at the address with no identity to check,
+     * so a proven camera is only ever reopened as itself.
+     */
     public suspend fun reconnect(slot: Int) {
         val member = members[slot]
         val camera = member.camera
@@ -851,7 +963,9 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         member.budget.reset()
         if (member.identity != null) {
             connectPreview(slot)
-            if (running && currentCoroutineContext().isActive && member.failureMessage != null) readd(slot)
+            if (running && currentCoroutineContext().isActive && member.failureMessage != null && commissioner != null) {
+                readd(slot)
+            }
         } else {
             member.camera = null
             add(camera, slot, member.experimental)
@@ -870,6 +984,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
 
     /** Sets the camera up again through the experimental shared Wi-Fi path. */
     public suspend fun tryExperimentalNetwork(slot: Int) {
+        if (!offersExperimentalJoin) return
         val camera = members[slot].camera ?: return
         if (!remove(slot)) return
         add(camera, slot, true)
@@ -892,8 +1007,11 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             member.publishing = false
             member.controlHost = null
             member.status = MultiviewCopy.COULD_NOT_CONNECT_PREVIEW
-            member.failureMessage =
-                if (e is MultiviewStageFailure.Duplicate) MultiviewCopy.DUPLICATE else MultiviewCopy.COULD_NOT_RESTORE
+            member.failureMessage = when (e) {
+                is MultiviewLinkRefused -> e.message
+                is MultiviewStageFailure.Duplicate -> MultiviewCopy.DUPLICATE
+                else -> MultiviewCopy.COULD_NOT_RESTORE
+            }
             member.budget.exhaust()
         } finally {
             member.connecting = false
@@ -904,15 +1022,20 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
 
     /**
      * The known address first, then the subnet in two passes (other members excluded), or only the
-     * known address when the integration's cameras are never probed.
+     * known address when the integration's cameras are never probed. When nothing opened and the link
+     * refused a camera with its own copy ([MultiviewLinkRefusal]), that copy is the failure, not "not
+     * found".
      */
     private suspend fun discoverPreview(slot: Int, camera: Camera, identity: ByteArray?) {
         val member = members[slot]
         val link = links[slot]
         link.close()
+        // A closed link publishes nothing: no repair may start on it while the search runs.
+        member.publishing = false
         member.controlHost = null
         member.recordingAvailable = false
         val excluded = members.filter { it !== member }.mapNotNull { it.controlHost }.map(policy::hostKey).toSet()
+        var refusal: MultiviewLinkRefused? = null
         suspend fun attempt(): Boolean = try {
             openPreview(slot, camera, identity)
             true
@@ -923,6 +1046,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         } catch (e: MultiviewStageFailure.Duplicate) {
             throw e
         } catch (e: Exception) {
+            if (e is MultiviewLinkRefusal) refusal = MultiviewLinkRefused(e.operatorMessage)
             false
         }
         if (StationSubnet.validAddress(member.address) && attempt()) return
@@ -932,6 +1056,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                 member.address = sighted
                 if (attempt()) return
             }
+            refusal?.let { throw it }
             throw MultiviewStageFailure.Message(MultiviewCopy.NOT_FOUND)
         }
         for (pass in 1..2) {
@@ -947,13 +1072,15 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             }
             if (pass == 1) delay(3.seconds)
         }
+        refusal?.let { throw it }
         throw MultiviewStageFailure.Message(MultiviewCopy.NOT_FOUND)
     }
 
     /** Hosts on this phone's subnet where a camera of the link's integration answers, [probeWidth] at a time, at most eight. */
     private suspend fun probeCandidates(link: Link, excluded: Set<String>): List<String> {
-        val local = hostPath.address(usePhoneHotspot)
-        val mask = hostPath.netmask(usePhoneHotspot)
+        val hotspot = watchesHotspot
+        val local = hostPath.address(hotspot)
+        val mask = hostPath.netmask(hotspot)
         val all = if (local != null && mask != null) StationSubnet.hosts(local, mask) else null
         all ?: throw MultiviewStageFailure.Message(MultiviewCopy.UNSUPPORTED_SUBNET)
         val hosts = all.filter { policy.hostKey(it) !in excluded }
@@ -1061,7 +1188,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
         ) {
             return
         }
-        val pathReady = hostPath.address(usePhoneHotspot) != null
+        val pathReady = pathAddress() != null
         if (pathReady) {
             member.pathLostAtMillis = null
         } else if (member.pathLostAtMillis == null) {
@@ -1073,7 +1200,7 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
             running = { running },
             applicationActive = { applicationActive },
             foregroundUnchanged = { activityGeneration == generation },
-            pathAvailable = { hostPath.address(usePhoneHotspot) != null },
+            pathAvailable = { pathAddress() != null },
             beginAttempt = { member.budget.beginAttempt() },
             observeHealth = { healthy -> member.budget.observe(healthy, monotonic()) },
             bluetoothTurn = { bluetooth.turn() },
@@ -1103,10 +1230,13 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
                             host?.log("multiview: repair failed ${e.javaClass.simpleName}")
                             MultiviewRepairResult.WaitForOperator(MultiviewCopy.COULD_NOT_RESTORE)
                         }
-                        when (result) {
-                            MultiviewRepairResult.Done -> Unit
-                            MultiviewRepairResult.Rejoin -> rejoinWhenAvailable(slot)
-                            is MultiviewRepairResult.WaitForOperator -> waitForOperator(member, result.message)
+                        // Only the member's current repair acts: Remove or a newer repair replaced it.
+                        if (member.repairJob === coroutineContext[Job]) {
+                            when (result) {
+                                MultiviewRepairResult.Done -> Unit
+                                MultiviewRepairResult.Rejoin -> rejoinWhenAvailable(slot)
+                                is MultiviewRepairResult.WaitForOperator -> waitForOperator(member, result.message)
+                            }
                         }
                     } finally {
                         // An older repair never clears a newer one's state.
@@ -1155,14 +1285,14 @@ public class MultiviewCoordinator<Camera, Link : MultiviewMemberLink<Camera>>(
     }
 
     /**
-     * Whether the stage admits a settings change on [slot] now (the app adds what only it knows,
-     * such as its link and a borrowed Live View).
+     * Whether the stage admits a settings change on [slot] now, with what only the app knows
+     * ([MultiviewHost.admitsControls], such as its link and a borrowed Live View).
      */
     public fun controlsAvailable(slot: Int): Boolean {
         val member = members[slot]
         return member.camera != null && member.controlHost != null && !member.connecting && !member.recovering &&
             !busy && !closing && applicationActive && member.recordingAvailable && !groupRecordingBusy &&
-            !member.recordingBusy
+            !member.recordingBusy && host?.admitsControls(slot) != false
     }
 
     /**

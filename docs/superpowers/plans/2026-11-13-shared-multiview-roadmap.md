@@ -145,3 +145,50 @@ already matched iOS, fakes, probe discovery, the real Bluetooth queue, `Recovery
 - Pocket Android keeps its `MultiviewMulticam` helper only for its engine tests of the record port.
 - Before merging Pocket: the on-device upgrade checklist and a Multiview hardware pass on both
   platforms (add, two cameras, record together, rejoin, close cleanup), untested in this plan.
+
+## Carried from Plan 4 (2026-11-14)
+
+Plan 4 landed on `feat/shared-multiview-4` (OpenCine and OpenPocketCine), stacked on Plan 3.
+`MultiviewScreen` (SwiftUI in OpenCineAppKitApple, Compose in appkit) is the whole Multiview
+screen and its settings popup; `MultiviewScreenHost` refines `MultiviewHost` with the app's views
+(picture, settings preview and controls, Live View; SwiftUI also the backdrop and the wizard's
+brand and services, Compose the wizard). Pocket renders it on both platforms. The Plan 3
+carry-over for Plan 4 is done (the host answers the screen; the tile pictures, surfaces, backdrop
+and Live View borrow stay Pocket's, behind the host). The coordinator fixes from the Plan 3
+re-review are in (N1 a removed member's cancelled repair changes nothing, N2 a reconnect search
+starts no repair on the link it closed, N3 the older-repair test). For the later plans:
+
+- Plan 5 (OpenInstaCine) and Plan 6 (OpenZCine) adopt `MultiviewScreen` with their own host:
+  pictures, settings controls (or `editsCameraSettings = false`, which hides the CAMERA tool),
+  `appliesAutoLUT`, a commissioner or none (the close copy, the Add footer and the scan follow).
+  The screen starts the stage itself on both platforms (`screenAppeared(startsSession:)`).
+- Review fixes (capability, not brand; every default is Pocket's behavior): the wizard passes
+  `cameraScansNetworks` from the commissioner (a camera that cannot scan reads "This camera can't
+  list networks"); `StationCommissioner.joinsExperimentally` and `asksApprovalOnCamera` (both
+  default true, as Pocket's) gate "Try experimental shared Wi-Fi", the picker's experimental row
+  and "Connecting · approve on camera"; a stage without a commissioner starts on this phone's
+  network (no wizard, no Shared Wi-Fi button, no host join; Compose `NetworkSetup` has an empty
+  default).
+- Plan 5 (OpenInstaCine): Luna's commissioner sets `joinsExperimentally = false` (no experimental
+  path) and keeps `asksApprovalOnCamera` (its Bluetooth authorization); `scansNetworks` stays
+  false, so the wizard says the camera cannot list networks.
+- Plan 6 (OpenZCine): no commissioner, so no wizard. A stage on the phone's own hotspot needs the
+  coordinator to watch the hotspot path (`usePhoneHotspot` is reset to Wi-Fi by `start()` today:
+  add a host or coordinator value for it); a sighting another device holds can only be hidden or
+  pickable today (`MultiviewPickerRow.enabled` exists for listing it disabled with its reason).
+- The popup's categories come from `MultiviewSettingsCategory.offered`; an integration with other
+  controls maps each category to its own, or adds a category to the shared enum on both twins in
+  one change. Pocket maps them through an optional lookup on both platforms, so a new category does
+  not break it (it shows no controls there); a host with an exhaustive `switch` or `when` adds its
+  case in the same change.
+- The settings editor's reopen rule is a host contract (documented on `cameraSettings`): the host
+  drops its editor when the member's camera or control path changes or its link is replaced.
+- `MultiviewRepairResult.race` returns `done` at once when its task is cancelled (Swift's stream
+  ends; Kotlin's await throws in the cancelled job). Swift's N1 guard is pinned by
+  `aRemoveQueuedBeforeTheVerdictLandsChangesNothing` (a Remove that reaches the main actor before
+  the verdict; it fails without the guard). Kotlin's job check stays defensive (prompt
+  cancellation already ends the repair), as does N3's guard.
+- Compose has no host renderer here: the Compose screen is exercised by Pocket's
+  instrumentation tests, the SwiftUI screen by the hosted `MultiviewScreenTests`.
+- Before merging Pocket: a Multiview hardware pass on both platforms (the list is in the Plan 4
+  report), untested in this plan.

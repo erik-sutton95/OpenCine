@@ -78,6 +78,9 @@ public class FakeStationHostPath(
     /** Thrown by [join] when set. */
     public var joinError: Exception? = null
 
+    /** [join] waits here before it answers, when set. */
+    public var joinGate: FakeGate? = null
+
     /** Every network [join] was asked for. */
     public val joins: MutableList<StationNetwork> = mutableListOf()
 
@@ -87,6 +90,7 @@ public class FakeStationHostPath(
 
     override suspend fun join(network: StationNetwork): String? {
         joins += network
+        joinGate?.await()
         joinError?.let { throw it }
         return addresses[network.hotspot]
     }
@@ -134,6 +138,8 @@ public class FakeStationCommissioner : StationCommissioner<FakeStationCamera> {
     /** Every return waits here when set. */
     public var restoreGate: FakeGate? = null
     override var scansNetworks: Boolean = false
+    override var joinsExperimentally: Boolean = true
+    override var asksApprovalOnCamera: Boolean = true
 
     /** Networks a scan reports. */
     public var scanFound: List<String> = emptyList()
@@ -246,6 +252,9 @@ public class FakeMemberLink(public val fakeSession: FakeCameraSession = FakeCame
     /** [open] waits here when set. */
     public var openGate: FakeGate? = null
 
+    /** Thrown by [open] (after its gate) when set: the camera refused, for example. */
+    public var openError: Exception? = null
+
     /** Thrown by [keepalive] when set (Kotlin only: Swift's cannot throw). */
     public var keepaliveError: Exception? = null
 
@@ -285,6 +294,7 @@ public class FakeMemberLink(public val fakeSession: FakeCameraSession = FakeCame
         onStatus?.invoke(MultiviewLinkStatus.OPENING)
         openGate?.await()
         currentCoroutineContext().ensureActive()
+        openError?.let { throw it }
         val answer = answering[address] ?: throw FakeMultiviewFailure("Nothing answered at $address")
         if (expecting != null && !expecting.contentEquals(answer)) {
             throw FakeMultiviewFailure("This network connection did not identify the selected camera.")

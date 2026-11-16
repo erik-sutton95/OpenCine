@@ -177,6 +177,7 @@ var FakeMemberLink.closes: Swift.Int
 var FakeMemberLink.keepalives: Swift.Int
 var FakeMemberLink.onStatus: ((OpenCineCore.MultiviewLinkStatus) -> Swift.Void)?
 var FakeMemberLink.openAddress: Swift.String?
+var FakeMemberLink.openError: (any Swift.Error)?
 var FakeMemberLink.openGate: FakeGate?
 var FakeMemberLink.opens: [(address: Swift.String, expecting: [Swift.UInt8]?)]
 var FakeMemberLink.pictureHealth: OpenCineCore.PictureHealth
@@ -210,6 +211,7 @@ var FakeStationCamera.name: Swift.String
 var FakeStationCamera.record: OpenCineCore.StationCameraRecord
 var FakeStationCamera.sightedAt: Swift.String?
 var FakeStationCommissioner.afterVerifyGate: FakeGate?
+var FakeStationCommissioner.asksApprovalOnCamera: Swift.Bool
 var FakeStationCommissioner.commissionsClosed: Swift.Int
 var FakeStationCommissioner.connectError: (any Swift.Error)?
 var FakeStationCommissioner.connectGate: FakeGate?
@@ -217,6 +219,7 @@ var FakeStationCommissioner.connects: [Foundation.UUID]
 var FakeStationCommissioner.joinError: (any Swift.Error)?
 var FakeStationCommissioner.joinProgress: [Swift.String]
 var FakeStationCommissioner.joins: [(camera: Foundation.UUID, network: OpenCineCore.StationNetwork, experimental: Swift.Bool)]
+var FakeStationCommissioner.joinsExperimentally: Swift.Bool
 var FakeStationCommissioner.linksClosed: Swift.Int
 var FakeStationCommissioner.lostJoinReply: Swift.Bool
 var FakeStationCommissioner.restoreGate: FakeGate?
@@ -228,6 +231,7 @@ var FakeStationCommissioner.scansNetworks: Swift.Bool
 var FakeStationCommissioner.verifiesOnJoin: Swift.Bool
 var FakeStationHostPath.addresses: [Swift.Bool : Swift.String]
 var FakeStationHostPath.joinError: (any Swift.Error)?
+var FakeStationHostPath.joinGate: FakeGate?
 var FakeStationHostPath.joins: [OpenCineCore.StationNetwork]
 var FakeStationHostPath.netmasks: [Swift.Bool : Swift.String]
 var ManualHostClock.clock: OpenCineCore.HostClock

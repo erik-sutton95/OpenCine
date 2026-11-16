@@ -230,7 +230,9 @@ extension MultiviewCoordinator {
                 MultiviewCameraAction(
                     MultiviewCameraAction.reconnect, "Reconnect", enabled: settled, closes: true))
         }
-        if member.failureMessage != nil, !member.experimental, member.identity == nil {
+        if offersExperimentalJoin, member.failureMessage != nil, !member.experimental,
+            member.identity == nil
+        {
             actions.append(
                 MultiviewCameraAction(
                     MultiviewCameraAction.experimental, "Try experimental shared Wi-Fi",

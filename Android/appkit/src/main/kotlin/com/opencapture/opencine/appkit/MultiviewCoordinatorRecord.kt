@@ -237,7 +237,7 @@ public fun <Camera, Link : MultiviewMemberLink<Camera>> MultiviewCoordinator<Cam
     if (preview || member.failureMessage != null) {
         actions += MultiviewCameraAction(MultiviewCameraAction.RECONNECT, "Reconnect", enabled = settled, closes = true)
     }
-    if (member.failureMessage != null && !member.experimental && member.identity == null) {
+    if (offersExperimentalJoin && member.failureMessage != null && !member.experimental && member.identity == null) {
         actions += MultiviewCameraAction(
             MultiviewCameraAction.EXPERIMENTAL, "Try experimental shared Wi-Fi", enabled = settled, closes = true,
         )

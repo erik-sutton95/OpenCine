@@ -126,6 +126,13 @@ public enum class MultiviewNetworkRestore {
             NONE -> "Close Multiview? Recording continues."
             CAMERA_NETWORKS -> "Close Multiview and return cameras to their own Wi-Fi? Recording continues."
         }
+
+    /** What the stage shows while it closes. */
+    public val closingProgress: String
+        get() = when (this) {
+            NONE -> "Closing Multiview\u2026"
+            CAMERA_NETWORKS -> "Returning cameras to their Wi-Fi\u2026"
+        }
     public companion object {
         public const val CLOSE_ACTION: String = "Close monitoring"
     }

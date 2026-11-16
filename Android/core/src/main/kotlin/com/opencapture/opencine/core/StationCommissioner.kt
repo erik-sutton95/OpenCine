@@ -105,6 +105,19 @@ public interface StationCommissioner<Camera> {
     public val scansNetworks: Boolean get() = false
 
     /**
+     * Whether [StationCommission.join] has an experimental path (`experimental = true`): a camera a
+     * stage shows no picture of joins through it, and a camera whose setup failed may try it. True
+     * by default.
+     */
+    public val joinsExperimentally: Boolean get() = true
+
+    /**
+     * Whether [connect] may ask the operator to approve this phone on the camera: an add then says
+     * so while it connects. True by default.
+     */
+    public val asksApprovalOnCamera: Boolean get() = true
+
+    /**
      * Networks [camera] can see, reported as they arrive. [beforeStationChange] runs before the
      * camera leaves its access point (the caller journals the cleanup there and may refuse by
      * throwing); [onRestored] reports whether it returned. The camera is always asked back,
