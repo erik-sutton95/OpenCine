@@ -76,21 +76,18 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
   budget supplies the tile and saved-stage limits. Not adopted yet:
   `RecoveryLedger` (the tile repair ladder keeps its own budget) and
   `GroupSummary`.
-- Nikon (NIKON-01): each member is an entry keyed by its body serial with its
-  own `NikonCameraSession` over an OpenCineNikon `NikonMemberControl`. Group record
-  is an `.eligibleSubset` `RecordPlan` with per-member `RecordResult`s. Saved-path
-  admission uses `NikonMulticamPolicy` plus `ResourceAdmission` with
-  `ResourceBudget(qualifiedEntries: 4)`. Photography observation is optional
-  before connect: an eligible route may open while mode is unknown, and
-  camera-reported mode is checked after connect before any record operation.
-  A member borrowed into full Live View holds an `EditorLease`, is `busy` for
-  group plans and keeps its session (no CloseSession).
-  Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
-  Shared Multiview prep (Plan 6, not adopted yet): `NikonDiscovery.multiviewSightings`
-  (passive Add camera list, member hosts excluded), `NikonMemberOpener` (opens only the
-  picked host, serial identity check, 1200 ms reconnect settle), `NikonRecordingTone` /
-  `recordingTone` (Auto LUT source) and `NikonMemberRepair` (bounded repair ladder under the
-  coordinator's budget), Swift and Kotlin ([nikon](../nikon/README.md#multiview-prep-shared-multiview-plan-6)).
+- Nikon (shared Multiview Plan 6): OpenZCine runs the shared `MultiviewCoordinator` over four
+  OpenCineNikon `NikonMultiviewLink`s, without a commissioner. A member's stage id is fixed by its
+  host; its body serial (GetDeviceInfo after OpenSession) is the identity every reopen checks, with
+  a `NikonCameraSession` over a `NikonMemberControl` per opened link. Group record is
+  the coordinator's strict plan; members come from passive sightings (`NikonMultiviewScanner`,
+  `NikonDiscovery.multiviewSightings`, member hosts excluded) and saved router and hotspot
+  setups, only the picked body is opened (`NikonMemberOpener`: serial identity check, 1200 ms
+  reconnect settle), Auto LUT follows `NikonRecordingTone`, and `NikonMemberRepair` is the
+  member's bounded repair ladder under the coordinator's `RecoveryBudget`
+  ([nikon](../nikon/README.md#multiview-shared-multiview-plan-6)). `NikonMulticamPolicy` keeps the
+  saved-path rules for other callers. Tests: `NikonMultiviewLinkTests`, `NikonMultiviewTests`,
+  `NikonMulticamTests`.
 - Insta360 Luna (OpenInstaCine, in progress): members join over saved Wi-Fi and hotspot
   (station) routes only; `LunaMulticamPolicy` (Swift `Insta360Apple`, Kotlin `insta360-luna`)
   refuses the camera access point as `.unsupportedConfiguration` and a camera already in the
@@ -100,9 +97,8 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
   Not hardware-qualified. See [insta360](../insta360/README.md#multicam-over-station-routes).
 - Each app keeps its own qualified camera count, routes and policies. The stage UI is shared:
   OpenCineAppKit `MultiviewStage` takes `MultiviewTile` values and a `MultiviewRecordContext`
-  over the app's `RecordPlan` ([appkit](../appkit/README.md#multiview-stage)). Pocket maps its
-  session tiles (`MultiviewTileValues`); Nikon maps its members in `MulticamStage` and words the
-  eligible-subset confirmation with `MultiviewRecordContext.prompt`.
+  over the app's `RecordPlan` ([appkit](../appkit/README.md#multiview-stage)). Pocket and
+  OpenZCine render it through the shared `MultiviewScreen` and their `MultiviewScreenHost`.
 
 ## Build and test
 
