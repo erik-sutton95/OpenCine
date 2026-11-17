@@ -562,6 +562,7 @@ static func Duml.encode(_: Duml.Frame) -> [Swift.UInt8]
 static func Duml.hex(_: [Swift.UInt8], limit: Swift.Int) -> Swift.String
 static func Duml.isCommandReply(_: Swift.UInt8) -> Swift.Bool
 static func Duml.isLiveCameraControl(set: Swift.UInt8, cmd: Swift.UInt8) -> Swift.Bool
+static func Duml.isLiveCameraRead(_: Duml.Frame) -> Swift.Bool
 static func Duml.opcodeKey(set: Swift.UInt8, cmd: Swift.UInt8) -> Swift.UInt16
 static func Duml.packString(_: Swift.String) -> [Swift.UInt8]
 static func Duml.shouldHoldReply(set: Swift.UInt8, cmd: Swift.UInt8) -> Swift.Bool
