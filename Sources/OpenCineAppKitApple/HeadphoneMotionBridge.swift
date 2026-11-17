@@ -653,7 +653,7 @@
 
         /// The host cannot be driven until the operator changes something: end the run and the
         /// lock, say why once, and wait for Calibrate. Re-arming every sample re-sent the gimbal
-        /// setup about 10 times a second with no message (OpenPocketCine#638).
+        /// setup about 10 times a second with no message.
         private func stopForHost(_ stop: HeadTrackStop) {
             let wasTracking = calibratedByUser || pendingCalibrate
             calibratedByUser = false
