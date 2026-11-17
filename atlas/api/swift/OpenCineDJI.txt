@@ -212,6 +212,7 @@ extension OpenCineMotion.GimbalWaypoint
 extension OpenCineMotion.GimbalWaypointOverlay
 extension OpenCineMotion.HeadTrack
 extension OpenCineMotion.HeadTrackNative
+extension OpenCineMotion.HeadTrackStop
 extension OpenCineMotion.LevelReading
 extension OpenCineMotion.MotionCapabilities
 extension OpenCineMotion.NativeProgramZoomCommand
@@ -620,6 +621,7 @@ static func GimbalWaypointOverlay.project(waypoint: OpenCineMotion.GimbalWaypoin
 static func GlamourEffect.blob(fromGetReply: [Swift.UInt8]) -> [Swift.UInt8]?
 static func GlamourEffect.disabled(_: [Swift.UInt8]) -> [Swift.UInt8]?
 static func GlamourEffect.isEnabled(_: [Swift.UInt8]) -> Swift.Bool
+static func HeadTrackStop.gimbalMode(_: OpenCineCameraVocabulary.GimbalMode) -> OpenCineMotion.HeadTrackStop?
 static func Hevc.stripDjiMarker(_: [Swift.UInt8]) -> [Swift.UInt8]
 static func LinkDiagnoser.agrees(watchdog: OpenCineCameraVocabulary.FeedWatchdog.Action, repair: LinkRepair) -> Swift.Bool
 static func LinkDiagnoser.diagnose(_: OpenCineCameraVocabulary.FeedWatchdog.Snapshot) -> LinkFailure
@@ -739,6 +741,8 @@ static let GimbalWaypointOverlay.wideHFovDeg: Swift.Double
 static let GlamourEffect.blobLength: Swift.Int
 static let GlamourEffect.enableOffset: Swift.Int
 static let GlamourEffect.pid: Swift.UInt16
+static let HeadTrackStop.drivenModes: Swift.Set<OpenCineCameraVocabulary.GimbalMode>
+static let HeadTrackStop.pastReach: OpenCineMotion.HeadTrackStop
 static let Hevc.djiMarker: Swift.Int
 static let MediaListCommand.countMax: Swift.Int
 static let MediaListCommand.internalCounter: Swift.UInt8

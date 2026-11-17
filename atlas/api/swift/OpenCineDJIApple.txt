@@ -834,6 +834,7 @@ var DjiAppleFirstPictureFormat.snapshot: DjiAppleFirstPictureFormat.Snapshot
 var DjiAppleGimbalControl.canRunProgrammedMove: Swift.Bool
 var DjiAppleGimbalControl.canSetConfiguration: Swift.Bool
 var DjiAppleGimbalControl.freshWaypoint: OpenCineMotion.GimbalWaypoint?
+var DjiAppleGimbalControl.headTrackStop: OpenCineMotion.HeadTrackStop?
 var DjiAppleGimbalControl.lastAttitudeDump: Swift.String
 var DjiAppleGimbalControl.lastAttitudeHex: Swift.String
 var DjiAppleGimbalControl.lastStickAt: Foundation.Date?
