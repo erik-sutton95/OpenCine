@@ -4167,6 +4167,7 @@ public final class com/opencapture/opencine/media/ScopeDisplayScale {
 	public static final field CLIP_LEVEL D
 	public static final field CRUSH_LEVEL D
 	public static final field INSTANCE Lcom/opencapture/opencine/media/ScopeDisplayScale;
+	public static final field ZEBRA_HIGHLIGHT_CEILING_PERCENT D
 	public final fun level (D)D
 	public final fun monitorPercent (DLcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Lcom/opencapture/opencine/media/ScopeClipSource;)D
 	public static synthetic fun monitorPercent$default (Lcom/opencapture/opencine/media/ScopeDisplayScale;DLcom/opencapture/opencine/media/MonitorTransfer;Ljava/lang/Integer;Lcom/opencapture/opencine/media/ScopeClipSource;ILjava/lang/Object;)D

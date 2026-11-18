@@ -14,17 +14,26 @@ public class MultiviewCameraPolicy<Camera>(
      * integration then finds members from its own sightings.
      */
     public val discoversByProbe: Boolean = true,
+    hostKey: ((address: String) -> String)? = null,
     qualification: (camera: Camera, experimental: Boolean) -> MulticamQualification,
     hasPreview: (camera: Camera) -> Boolean,
 ) {
     private val qualify = qualification
     private val preview = hasPreview
+    private val key = hostKey
 
     /** Whether this camera, in this configuration, may join a stage. */
     public fun qualification(camera: Camera, experimental: Boolean): MulticamQualification = qualify(camera, experimental)
 
     /** Whether a stage shows this camera's picture; without it only the network join is checked. */
     public fun hasPreview(camera: Camera): Boolean = preview(camera)
+
+    /**
+     * The form two addresses of this integration's cameras compare in (an integration that
+     * normalizes hosts supplies its rule); the address itself by default. The coordinator compares
+     * reserved, excluded and controlled hosts by this key.
+     */
+    public fun hostKey(address: String): String = key?.invoke(address) ?: address
 
     /** Integrations add their own policy as an extension property on this companion. */
     public companion object

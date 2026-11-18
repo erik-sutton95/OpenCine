@@ -255,12 +255,22 @@ module. Swift and Kotlin twins, same names; Kotlin `suspend` where Swift is `asy
 - **`MultiviewCameraPolicy<Camera>`** (integration, always supplied): whether a camera may join a
   stage (`qualification`), whether the stage shows its picture (`hasPreview`), and whether the
   coordinator may find members by probing hosts (`discoversByProbe`; false for cameras that must
-  never be dialled unasked). An integration with no commissioner still answers. DJI:
+  never be dialled unasked). An integration with no commissioner still answers. `hostKey` is the
+  form two of its camera addresses compare in (the address itself unless the integration
+  normalizes hosts); the coordinator compares reserved, excluded and controlled hosts by it. DJI:
   `MultiviewCameraPolicy.dji` on both platforms.
+- **`NearbyCameraScanner<Camera>`** (integration, optional): nearby discovery for the Add list
+  (`waitUntilReady`, `scan` reporting each sighting until `stop` or cancellation).
+- **`StationSubnet`**: the hosts of this phone's IPv4 subnet the coordinator may probe (at most
+  1,022 addresses, this phone and the excluded hosts left out) and `validAddress` (a unicast IPv4
+  camera address).
 - **`StationCommissioner`** (integration, optional): connect, identity and join only. Its
   `StationCameraRecord` for the cleanup journal, `connect` (a per-camera `StationCommission`:
-  `identity()`, `join(...)` with the caller's `verifyOnNetwork`, `close()`), `closeCommissions()`
-  when the stage stops, `restoreAccessPoint` with the integration's own bounded retry, and an
+  `identity()`, `join(...)` with the caller's `verifyOnNetwork`, which ends the join at once with a
+  `StationVerifyFinal` when the camera it found can never join, `close()`), `closeCommissions()`
+  when the stage stops, `restoreAccessPoint` with the integration's own bounded retry (a
+  `StationRestoreResult`: `restored`, `deferred(message)` when the camera needs the operator first,
+  with the copy the stage shows, or `failed`), and an
   optional network scan through a camera (`scansNetworks`; without it `scanNetworks` throws
   `StationScanUnsupported`, never a cancellation). DJI: `DJIStationCommissioner`
   (`OpenCineDJIApple`), `DjiStationCommissioner` (`:dji`).
@@ -270,21 +280,32 @@ module. Swift and Kotlin twins, same names; Kotlin `suspend` where Swift is `asy
   the group and keeps what an unexpected open returns); `startPreview` uses the address `open`
   reached; `keepalive`, `close` (never a camera command). The link never writes tile state: it
   reports `MultiviewLinkStatus` through `onStatus` (`opening`, `controlling`, `awaitingPicture`,
-  `live`, `reconnecting`) and `isPublishing`; the coordinator owns the member's control host (set
-  on `controlling`) and maps each status to the tile's copy. `repair` returns a
+  `live`, `reconnecting`) and the camera's latest take report (`recordReport`: recording or not,
+  and when it arrived); the coordinator owns the member's control host (set on `controlling`),
+  whether it publishes a picture, the record state's 3 s freshness, and maps each status to the
+  tile's copy. Swift links also expose the session's `snapshot` (Swift's `CameraSession` has no
+  synchronous current value; Kotlin reads `session.snapshots.value`). `close` may finish a session
+  goodbye asynchronously; the link then serializes its next `open` behind it. A `rejoin` finds
+  the camera again as an add does: by probing when the policy `discoversByProbe`, otherwise only at
+  the member's last address. `repair` returns a
   `MultiviewRepairStep`: `healthy` (the coordinator applies its path-loss rule), `handled`,
   `waitForOperator(message)` (no automatic step remains), or `repair` (a closure the coordinator
   runs as the member's recovery, ending in a `MultiviewRepairResult`: `done`, `rejoin` within the
   coordinator's budget, or `waitForOperator`). Deadlines: the link declares `repairDeadline` and
   the coordinator races each repair against it (AppKit's `MultiviewRepairResult.race`: past the deadline
   the repair is cancelled, its late result dropped, and the member's next tick judges again). The
-  `MultiviewRepairContext` exposes the coordinator's budget (`beginAttempt`, one attempt per call)
-  and its Bluetooth queue (`bluetoothTurn`, for a repair that needs Bluetooth). Its `autoLUT`
+  `MultiviewRepairContext` exposes the coordinator's budget (`beginAttempt`, one attempt per call;
+  `observeHealth`, the link's judgement of its transport, which restores the budget after 30 s
+  healthy) and its Bluetooth queue (`bluetoothTurn`, for a repair that needs Bluetooth). Its `autoLUT`
   (`MultiviewAutoLUT`: the reported color mode and the look profile's conversion) gives every app
-  the same LUT caption. Pocket supplies DJI's link from its own tiles (spec's settled call).
+  the same LUT caption. Every context value has a default, so a link test builds one with only
+  what it needs and the context grows without breaking it. `keepalive` returns promptly (the
+  coordinator calls each member's in turn). Pocket supplies DJI's link from its own tiles (spec's
+  settled call).
 - Platform differences kept on purpose: `StationCameraRecord.id` is a `UUID` in Swift (Apple
-  Bluetooth peripheral ids) and a `String` in Kotlin; Swift `restoreAccessPoint` returns false on
-  cancellation, Kotlin propagates it.
+  Bluetooth peripheral ids) and a `String` in Kotlin; Swift `restoreAccessPoint` returns `failed`
+  on cancellation, Kotlin propagates it; `MultiviewRecordReport.receivedAt` is a `Date` in Swift
+  and `receivedAtMillis` (the coordinator's clock) in Kotlin.
 
 ## OpenCineFrameIO
 

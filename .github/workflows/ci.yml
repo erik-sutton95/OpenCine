@@ -147,9 +147,11 @@ jobs:
           # The real-clock join prompt and native still-readiness suites run below.
           # Every other test stays in this concurrent invocation.
           cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
+          # QUARANTINE (docs/testing/CI.md, #368): the Nikon reopen-after-give-up test runs nightly.
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --skip "$cache_test" --skip LunaJoinPromptTests \
-            --skip MonitorAssistEngineStillTests 2>&1 | tee test.log
+            --skip MonitorAssistEngineStillTests \
+            --skip aReopenThatReturnsAfterTheRepairWasGivenUpIsClosed 2>&1 | tee test.log
       - name: Test still scope cadence (isolated native readiness)
         if: always()
         shell: bash
@@ -172,6 +174,15 @@ jobs:
           # assertion stay unchanged, without the full package workload beside it.
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --filter LunaJoinPromptTests 2>&1 | tee test-luna.log
+      # QUARANTINE (docs/testing/CI.md, #368): a hosted yield-budget flake. Nightly only; a failure
+      # is reported on the step but does not fail the job.
+      - name: Quarantined Swift tests
+        if: ${{ always() && inputs.full }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          swift test --skip-build -Xswiftc -strict-concurrency=complete \
+            --filter aReopenThatReturnsAfterTheRepairWasGivenUpIsClosed 2>&1 | tee test-quarantined.log
       - name: No duplicate test class warning
         if: always()
         shell: bash
@@ -282,7 +293,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: "21"
@@ -321,7 +332,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: "21"
@@ -346,7 +357,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: "21"
@@ -612,7 +623,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: "21"

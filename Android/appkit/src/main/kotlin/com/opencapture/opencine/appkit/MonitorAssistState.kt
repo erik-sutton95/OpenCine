@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.opencapture.opencine.media.ScopeClipSource
+import com.opencapture.opencine.media.ScopeDisplayScale
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorAudioOrientation
 import com.opencapture.monitorui.MonitorGuideFamily
@@ -414,7 +415,8 @@ public class MonitorAssistState(
 
     public fun setZebraHighlight(enabled: Boolean = zebraHighlight, ire: Double = zebraHighlightIRE, color: MonitorZebraPaint = zebraHighlightColor): Unit {
         zebraHighlight = enabled
-        zebraHighlightIRE = ire.coerceIn(0.0, 100.0)
+        // Above 100 reaches the headroom over the source's ceiling (Swift `zebraHighlightNative`).
+        zebraHighlightIRE = ire.coerceIn(0.0, ScopeDisplayScale.ZEBRA_HIGHLIGHT_CEILING_PERCENT)
         zebraHighlightColor = color
         persist()
     }

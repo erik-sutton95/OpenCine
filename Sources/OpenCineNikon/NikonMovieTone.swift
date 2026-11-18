@@ -1,5 +1,6 @@
 import Foundation
 import OpenCineCameraVocabulary
+import OpenCineMedia
 
 /// A movie tone mode (colour and gamma) a Nikon Z body records in.
 public enum NikonMovieTone: String, CaseIterable, Hashable, Sendable {
@@ -10,6 +11,18 @@ public enum NikonMovieTone: String, CaseIterable, Hashable, Sendable {
     case log3G10 = "Log3G10"
 
     public var label: String { rawValue }
+
+    /// The neutral transfer this tone records in, the value an Auto LUT lookup keys on (SDR is
+    /// Rec.709, HLG is `.hdr`). It names the recording, not the live-view pixels: whether a body's
+    /// live-view JPEG carries the log curve is the monitor's to judge.
+    public var monitorTransfer: MonitorTransfer {
+        switch self {
+        case .sdr: .rec709
+        case .hlg: .hdr
+        case .nLog: .nlog
+        case .log3G10: .log3G10
+        }
+    }
 }
 
 /// Where a Z body keeps the movie tone for each recording codec, and which tones the body offers.

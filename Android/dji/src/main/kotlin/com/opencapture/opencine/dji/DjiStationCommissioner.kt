@@ -7,6 +7,7 @@ import com.opencapture.opencine.core.StationCommissionOutcome
 import com.opencapture.opencine.core.StationCommissioner
 import com.opencapture.opencine.core.StationHostPath
 import com.opencapture.opencine.core.StationNetwork
+import com.opencapture.opencine.core.StationRestoreResult
 import com.opencapture.opencine.vocabulary.CameraModel
 import com.opencapture.opencine.vocabulary.FoundCamera
 import kotlinx.coroutines.CancellationException
@@ -60,8 +61,8 @@ class DjiStationCommissioner(
         open.clear()
     }
 
-    override suspend fun restoreAccessPoint(record: StationCameraRecord): Boolean =
-        restoreCameraWiFiWithRetry { restoreOnce(record) }
+    override suspend fun restoreAccessPoint(record: StationCameraRecord): StationRestoreResult =
+        if (restoreCameraWiFiWithRetry { restoreOnce(record) }) StationRestoreResult.Restored else StationRestoreResult.Failed
 
     override val scansNetworks: Boolean get() = true
 

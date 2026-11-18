@@ -12,6 +12,16 @@ import Testing
                 through: "camera", beforeStationChange: {}, onRestored: { _ in }, onFound: { _ in })
         }
     }
+
+    @Test func aRepairContextBuildsFromDefaultsForLinkTests() async {
+        let context = MultiviewRepairContext(pathReady: false)
+        #expect(!context.pathReady)
+        #expect(context.running() && context.applicationActive() && context.foregroundUnchanged())
+        #expect(context.pathAvailable() && context.beginAttempt())
+        context.observeHealth(true)
+        let release = await context.bluetoothTurn()
+        #expect(release != nil, "a lone link always gets its Bluetooth turn")
+    }
 }
 
 /// A commissioner with no network scan of its own.
@@ -31,5 +41,5 @@ private final class MenuOnlyCommissioner: StationCommissioner {
 
     func closeCommissions() {}
 
-    func restoreAccessPoint(_ record: StationCameraRecord) async -> Bool { false }
+    func restoreAccessPoint(_ record: StationCameraRecord) async -> StationRestoreResult { .failed }
 }

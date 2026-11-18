@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Captured BLE sequence that moves an Osmo from its own access point onto another network:
 /// Video mode, station role, then `07/47` join with bounded retry. Shared by Multiview and
@@ -128,7 +129,10 @@ public struct StationJoin {
                 if !hotspot || hotspotReady() {
                     do {
                         if try await verifyOnNetwork() { return .verified }
-                    } catch { if error is CancellationError { throw error } }
+                    } catch {
+                        // Final: the camera answered but can never join (already a member).
+                        if error is CancellationError || error is StationVerifyFinal { throw error }
+                    }
                 }
                 if attempt < MulticamJoinPolicy.maximumAttempts {
                     try await sleep(TimeInterval(MulticamJoinPolicy.retryDelaySeconds))

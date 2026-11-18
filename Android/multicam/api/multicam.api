@@ -499,6 +499,7 @@ public final class com/opencapture/opencine/multicam/RecordTarget {
 public final class com/opencapture/opencine/multicam/RecoveryBudget {
 	public synthetic fun <init> (IJLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun beginAttempt ()Z
+	public final fun exhaust ()V
 	public final fun getExhausted ()Z
 	public final fun getLimit ()I
 	public final fun getResetAfterHealthy-UwyO8pc ()J

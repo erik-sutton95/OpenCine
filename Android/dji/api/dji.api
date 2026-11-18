@@ -975,6 +975,8 @@ public final class com/opencapture/opencine/dji/DjiStationCommissioner : com/ope
 	public fun closeCommissions ()V
 	public fun connect (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public synthetic fun connect (Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getAsksApprovalOnCamera ()Z
+	public fun getJoinsExperimentally ()Z
 	public fun getScansNetworks ()Z
 	public fun record (Lcom/opencapture/opencine/vocabulary/FoundCamera;)Lcom/opencapture/opencine/core/StationCameraRecord;
 	public synthetic fun record (Ljava/lang/Object;)Lcom/opencapture/opencine/core/StationCameraRecord;
