@@ -258,7 +258,7 @@ init LivePopupPlacement.Box(x: CoreGraphics.CGFloat, y: CoreGraphics.CGFloat, wi
 init LucideIconView(name: Swift.String, filled: Swift.Bool)
 init MonitorAccountSettings(title: Swift.String, help: Swift.String, state: MonitorAccountState, signIn: (() -> Swift.Void)?, signOut: (() -> Swift.Void)?, statusLabel: Swift.String?, signInTitle: Swift.String, signOutTitle: Swift.String, busyLabel: Swift.String?, errorMessage: Swift.String?, pillActions: Swift.Bool)
 init MonitorAppInformationSettings(theme: Swift.String, protocolName: Swift.String, version: Swift.String, themeHelp: Swift.String, protocolHelp: Swift.String, versionHelp: Swift.String)
-init MonitorAspectGuideFrames(selectedRatios: Swift.Set<MonitorGuideAspect>, maskEnabled: Swift.Bool, feed: CoreFoundation.CGRect, maskPolicy: MonitorGuideMaskPolicy)
+init MonitorAspectGuideFrames(selectedRatios: Swift.Set<MonitorGuideAspect>, maskEnabled: Swift.Bool, feed: CoreFoundation.CGRect, maskPolicy: MonitorGuideMaskPolicy, safeAreas: MonitorGuideSafeAreas)
 init MonitorAssistChip(id: Swift.String, isOn: Swift.Bool, compact: Swift.Bool, icon: () -> Icon)<Icon where Icon : SwiftUI.View>
 init MonitorAssistHelp(_: Swift.String, compact: Swift.Bool)
 init MonitorAssistPalette(tools: [MonitorToolItem], layout: MonitorPresentation.MonitorAssistPaletteLayout, usageSeed: [Swift.String : Swift.Int], usage: SwiftUI.Binding<MonitorPresentation.MonitorToolUsage>, expanded: SwiftUI.Binding<Swift.Bool>, onToggle: (Swift.String) -> Swift.Void, onOptions: (Swift.String) -> Swift.Void, onExpansionActivityChange: (Swift.Bool) -> Swift.Void, accessibilityName: Swift.String, accessibilityPrefix: Swift.String, icon: (Swift.String) -> Icon)<Icon where Icon : SwiftUI.View>
@@ -322,7 +322,7 @@ init MonitorGaugeBars(fraction: Swift.Double, count: Swift.Int, tint: SwiftUI.Co
 init MonitorGimbalSettings(sensitivity: MonitorMotionIntegerSetting, headTracking: MonitorMotionToggleSetting?)
 init MonitorGridMenu(selected: Swift.Set<MonitorGridOption>, feedback: () -> Swift.Void, onToggle: (MonitorGridOption) -> Swift.Void)
 init MonitorGridSegment(from: CoreFoundation.CGPoint, to: CoreFoundation.CGPoint)
-init MonitorGuidesMenu(family: SwiftUI.Binding<MonitorGuideFamily>, selected: Swift.Set<MonitorGuideAspect>, mask: SwiftUI.Binding<Swift.Bool>, feedback: () -> Swift.Void, onToggle: (MonitorGuideAspect) -> Swift.Void)
+init MonitorGuidesMenu(family: SwiftUI.Binding<MonitorGuideFamily>, selected: Swift.Set<MonitorGuideAspect>, mask: SwiftUI.Binding<Swift.Bool>, safeAreas: SwiftUI.Binding<MonitorGuideSafeAreas>?, feedback: () -> Swift.Void, onToggle: (MonitorGuideAspect) -> Swift.Void)
 init MonitorHistogramMenu(trafficLights: SwiftUI.Binding<Swift.Bool>, compensation: SwiftUI.Binding<OpenCineMedia.MonitorCrushClipCompensation>, trafficHelp: Swift.String, compensationHelp: Swift.String, compact: Swift.Bool, trafficFeedback: () -> Swift.Void)
 init MonitorHistogramScopePlot(display: OpenCineMedia.ScopeHistogramDisplay, traffic: OpenCineMedia.ScopeTrafficLightsReading, showTrafficLights: Swift.Bool)
 init MonitorIconButton(_: Swift.String, active: Swift.Bool, action: () -> Swift.Void, icon: () -> Icon)<Icon where Icon : SwiftUI.View>
@@ -631,6 +631,7 @@ static func MonitorAudioMetrics.panelSize(orientation: MonitorAudioOrientation) 
 static func MonitorGaugeBars.readoutWidth(filled: Swift.Int, count: Swift.Int, minimum: CoreGraphics.CGFloat, inset: CoreGraphics.CGFloat) -> CoreGraphics.CGFloat
 static func MonitorGridGeometry.segments(in: CoreFoundation.CGRect, thirds: Swift.Bool, phi: Swift.Bool, diagonal: Swift.Bool) -> [MonitorGridSegment]
 static func MonitorGuideGeometry.rectForRatio(_: CoreFoundation.CGRect, _: CoreGraphics.CGFloat) -> CoreFoundation.CGRect
+static func MonitorGuideGeometry.safeRect(_: CoreFoundation.CGRect, percent: Swift.Int) -> CoreFoundation.CGRect
 static func MonitorHistogramGeometry.ireX(_: Swift.Double, in: CoreFoundation.CGRect) -> CoreGraphics.CGFloat
 static func MonitorHistogramGeometry.plotRect(in: CoreFoundation.CGSize) -> CoreFoundation.CGRect
 static func MonitorHistogramGeometry.plotX(_: Swift.Double, in: CoreFoundation.CGRect) -> CoreGraphics.CGFloat
@@ -1140,6 +1141,8 @@ typealias MonitorGridOption = MonitorPresentation.MonitorGridOption
 typealias MonitorGuideAspect = MonitorPresentation.MonitorGuideAspect
 typealias MonitorGuideFamily = MonitorPresentation.MonitorGuideFamily
 typealias MonitorGuideMaskPolicy = MonitorPresentation.MonitorGuideMaskPolicy
+typealias MonitorGuideSafeAreaKind = MonitorPresentation.MonitorGuideSafeAreaKind
+typealias MonitorGuideSafeAreas = MonitorPresentation.MonitorGuideSafeAreas
 typealias MonitorParadeMode = MonitorPresentation.MonitorParadeMode
 typealias MonitorScopeCanvasSlot = MonitorPresentation.MonitorScopeCanvasSlot
 typealias MonitorScopeGuides = MonitorPresentation.MonitorScopeGuides

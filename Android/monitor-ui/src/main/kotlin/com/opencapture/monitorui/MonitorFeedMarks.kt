@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -26,10 +27,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
+/** [safeAreas] draws action safe (dashed) and title safe (dotted) inside every frame line. */
 @Composable
 fun MonitorAspectGuideFrames(
     selected: Set<MonitorGuideAspect>, feed: MonitorScopeRect, maskEnabled: Boolean = false,
     maskPolicy: MonitorGuideMaskPolicy = MonitorGuideMaskPolicy.UNION,
+    safeAreas: MonitorGuideSafeAreas = MonitorGuideSafeAreas.STANDARD,
 ) {
     val frames =
         selected.sortedBy { it.ratio }.map { it to MonitorGuideGeometry.rectForRatio(feed, it.ratio) }
@@ -51,6 +54,19 @@ fun MonitorAspectGuideFrames(
             val mask = Color.Black.copy(alpha = 0.6f)
             clipPath(maskPath, clipOp = ClipOp.Difference) {
                 drawRect(mask, Offset(feed.minX, feed.minY), Size(feed.width, feed.height))
+            }
+        }
+        for (area in safeAreas.drawn) {
+            val action = area.kind == MonitorGuideSafeAreaKind.ACTION
+            val dash = if (action) floatArrayOf(6.dp.toPx(), 4.dp.toPx()) else floatArrayOf(2.dp.toPx(), 3.dp.toPx())
+            for ((_, frame) in frames) {
+                val safe = MonitorGuideSafeAreas.inset(frame, area.percent)
+                drawRect(
+                    MonitorPalette.accent.copy(alpha = if (action) 0.7f else 0.55f),
+                    Offset(safe.minX, safe.minY),
+                    Size(safe.width, safe.height),
+                    style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(dash)),
+                )
             }
         }
         for ((aspect, frame) in frames) {
