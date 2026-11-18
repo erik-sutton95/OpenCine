@@ -116,7 +116,7 @@ Commit: `feat(streaming): keep stream keys in the keychain`.
 
 **Interfaces:**
 
-- Produces: `public protocol StreamConnection: Sendable { func open(onEvent: @escaping @Sendable (StreamConnectionEvent) -> Void); func write(_ bytes: [UInt8]); func close() }`; `public enum StreamConnectionEvent: Sendable { case opened, received([UInt8]), wrote(Int), lost }`; `public struct NetworkStreamConnection: StreamConnection` with `init(host: String, port: UInt16)` (TLS) and internal `init(plainHost:port:)` for the interop tier.
+- Produces: `public protocol StreamConnection: Sendable { func open(onEvent: @escaping @Sendable (StreamConnectionEvent) -> Void); func write(_ bytes: [UInt8]); func close() }`; `public enum StreamConnectionEvent: Sendable { case opened, received([UInt8]), wrote(Int), lost }`; `public final class NetworkStreamConnection: StreamConnection` with `init(host: String, port: UInt16)` (TLS) and internal `init(plainHost:port:)` for the interop tier.
 
 Tests (local plain listener on `NWListener`, deterministic by events): `deliversBytesBothWays`, `reportsWrittenCounts`, `reportsLostWhenPeerCloses`, `refusedConnectionIsLost`. TLS uses the system trust store and the host name for SNI; no certificate pinning.
 
