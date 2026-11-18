@@ -35,17 +35,20 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     private struct ReportShare: Identifiable { let id = UUID(); let url: URL }
     @State private var reportShare: ReportShare?
     @State private var preferenceRevision = 0
+    private var cameraPresets: CameraSettingsPresetsModel?
 
     /// The shared scene's form: settings over the shell, the common preference stores and the
-    /// media library. A passed `configuration` is used as given.
+    /// media library. A passed `configuration` is used as given, except that `cameraPresets` fills
+    /// in its camera presets card when it has none.
     public init(shell: ShellModel, brand: String, actions: ShellActions? = nil,
         preferences: MonitorOperatorPreferences, display: MonitorDisplayPreferences,
         assist: MonitorAssistState<Looks>, library: MonitorMediaLibraryModel<Payload>?,
         availableAssistTools: Set<MonitorAssistSelection> = [.lut, .peaking, .falseColor, .zebra, .guides, .grid, .crosshair, .desqueeze, .mirror],
         operatorSession: MonitorOperatorSessionModel<Looks>? = nil,
         assistPanels: AssistPanelStores? = nil, falseColorLooks: FalseColorLooks = .signal,
-        configuration: MonitorOperatorSettingsConfiguration<Looks>? = nil, safeArea: EdgeInsets? = nil) {
-        self.shell = shell; self.brand = brand; self.actions = actions
+        configuration: MonitorOperatorSettingsConfiguration<Looks>? = nil, safeArea: EdgeInsets? = nil,
+        cameraPresets: CameraSettingsPresetsModel? = nil) {
+        self.shell = shell; self.brand = brand; self.actions = actions; self.cameraPresets = cameraPresets
         self.preferences = preferences; self.assist = assist; self.library = library
         self.availableAssistTools = availableAssistTools
         self.configuration = configuration; self.coverSafeArea = safeArea
@@ -83,7 +86,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     public var body: some View {
         let _ = preferenceRevision
         Group {
-            if let configuration { page(configuration, safeArea: coverSafeArea ?? configuration.safeArea) }
+            if let configuration {
+                // A passed configuration keeps its own presets card, else takes this form's.
+                page(configuration.cameraPresets == nil ? configuration.withCameraPresets(cameraPresets) : configuration,
+                    safeArea: coverSafeArea ?? configuration.safeArea)
+            }
             else {
                 GeometryReader { proxy in
                     let safeArea = coverSafeArea ?? OperatorPanelMetrics.resolvedDeviceSafeArea(
@@ -122,6 +129,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         return MonitorOperatorSettingsConfiguration(safeArea: safeArea, phase: phase, isLive: live,
             close: { shell?.dismissCover() }, disconnect: { shell?.close() }, feedback: {}, link: link,
             assist: assistSource, controls: controls, display: display, cache: cache, support: support)
+            .withCameraPresets(cameraPresets)
     }
 
     /// The scene's option panels, when it has panel stores.
@@ -173,7 +181,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         case .sharingUnavailable, .sharing, .watchers, .watchFeed:
             if let sharing = source.sharing { sharingRow(row, sharing, feedback: source.feedback) }
         case .assistTools, .assistPanels, .exposureMeter, .look: assistRow(row, source)
-        case .gyro, .safety, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
+        case .cameraPresets, .gyro, .safety, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
         case .hdrPanel, .displaySections, .gyroLogs, .account, .cache: displayStorageRow(row, source)
         case .support, .diagnosticOptions, .projectLegal, .information: systemRow(row, source)
         }
@@ -221,6 +229,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     @ViewBuilder private func controlsRow(_ row: MonitorSettingsRow, _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
         let controls = source.controls
         switch row {
+        case .cameraPresets:
+            if let presets = source.cameraPresets { MonitorSettingsCameraPresetsCard(model: presets, feedback: source.feedback) }
         case .gyro:
             if let gyro = source.gyro { MonitorSettingsGyroCard(gyro: gyro, feedback: source.feedback) }
         case .safety:

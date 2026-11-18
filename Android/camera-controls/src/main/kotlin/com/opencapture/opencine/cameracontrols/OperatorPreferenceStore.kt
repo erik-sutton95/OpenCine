@@ -57,6 +57,7 @@ open class OperatorPreferenceStore @JvmOverloads constructor(
     private val ASSIST_V1 = key("Assist.v1")
     private val ASSIST_TOOL_USAGE = key("AssistToolUsage.v1")
     private val PLAYBACK_ASSISTS = key("PlaybackAssists.v1")
+    private val ZOOM_PRESETS = key("ZoomPresets")
 
     val DEFAULT_GIMBAL_SENSITIVITY = 4
     val DEFAULT_CLEAN_PINS = setOf("LUT", "PEAK", "MIRROR", "DESQ")
@@ -305,5 +306,13 @@ open class OperatorPreferenceStore @JvmOverloads constructor(
 
     fun setPlaybackVisibleAssistTools(context: Context, value: Set<String>) {
         prefs(context).edit { putStringSet(PLAYBACK_ASSISTS, value) }
+    }
+
+    /** The zoom dial's presets and ramp time. Reads never write. */
+    fun zoomPresets(context: Context): com.opencapture.monitorui.MonitorZoomPresets =
+        com.opencapture.monitorui.MonitorZoomPresets.fromStored(prefs(context).getString(ZOOM_PRESETS, null))
+
+    fun setZoomPresets(context: Context, value: com.opencapture.monitorui.MonitorZoomPresets) {
+        prefs(context).edit { putString(ZOOM_PRESETS, value.stored) }
     }
 }

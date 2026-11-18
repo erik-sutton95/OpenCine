@@ -225,7 +225,7 @@ struct DjiNativeWireTests {
     /// Zoom stops, with or without trailing `.0`, plus gimbal and zoom support
     /// (nil when this body's capabilities are not asserted).
     @Test(arguments: [
-        (0x0022, "[1.0,3.0,6.0,12.0]", "[1,3,6,12]", true as Bool?),
+        (0x0022, "[1.0,3.0,6.0,12.0,18.0]", "[1,3,6,12,18]", true as Bool?),
         (0x0021, "[1.0,2.0,4.0]", "[1,2,4]", nil),
         (0x0019, "[1.0]", "[1]", false),
     ])

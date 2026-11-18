@@ -86,7 +86,7 @@ import Testing
     /// Typed values ride with support: native ISO extensions, zoom stops and motion.
     @Test func offersCarryTheirValues() {
         let pro = Self.controls(0x0022, "Osmo Pocket 4 Pro")
-        #expect(pro.zoom.offer?.stops == [1, 3, 6, 12])
+        #expect(pro.zoom.offer?.stops == [1, 3, 6, 12, 18])
         #expect(pro.gimbal.offer == .pocketGimbal)
         #expect(pro.timecode.offer == .seconds)
         #expect(pro.iso.offer?.autoRangeFloor == 100)

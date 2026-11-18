@@ -79,6 +79,10 @@ public struct MonitorOperatorZoomDial<Host: LiveChromeHost>: View {
     private let source: MonitorOperatorZoomPresentation
     private let onClose: () -> Void
     @State private var gestureOrigin = 1.0
+    @State private var presets = MonitorZoomPresets()
+    @State private var ramp: Task<Void, Never>?
+    /// A preset ramp holds the host's continuous zoom edit until it ends or is overridden.
+    @State private var rampHoldsEdit = false
 
     public init(layout: LiveMonitorLayout, interaction: MonitorOperatorInteraction,
         source: MonitorOperatorZoomPresentation, onClose: @escaping () -> Void) {
@@ -96,11 +100,66 @@ public struct MonitorOperatorZoomDial<Host: LiveChromeHost>: View {
                 host.updateZoomPinch(magnification: $0 / max(1, gestureOrigin))
             }), label: source.label, onEditing: { editing in
                 if editing {
+                    stopRamp()
                     host.zoomPinchWillBegin()
                     gestureOrigin = source.readOrigin()
                 } else { host.endZoomPinch() }
-            }, onClose: onClose, haptics: host.hapticsEnabled)
+            }, onClose: onClose, haptics: host.hapticsEnabled,
+            presets: MonitorZoomPresetControls(presets: presets, onSelect: select, onSave: { index in
+                var next = presets
+                next.save(source.readValue(), at: index)
+                store(next)
+            }, onRamp: { seconds in
+                var next = presets
+                next.setRamp(seconds)
+                store(next)
+            }))
             .frame(width: layout.viewport.width, height: layout.viewport.height, alignment: .topLeading)
+            .onAppear { presets = host.zoomPresetStore.presets }
+            .onDisappear { stopRamp() }
+    }
+
+    private func store(_ next: MonitorZoomPresets) {
+        presets = next
+        host.zoomPresetStore.presets = next
+    }
+
+    /// Moves to a preset through the same continuous zoom edit as the dial, sampled from
+    /// Motion Control's linear ramp. Touching the dial or closing it stops the ramp there.
+    private func select(_ index: Int) {
+        guard let target = presets.target(at: index, maximum: source.maximum) else { return }
+        stopRamp()
+        let plan = MonitorZoomPresetRamp(from: source.readValue(), to: target, duration: presets.rampSeconds)
+        host.zoomPinchWillBegin()
+        let origin = max(1, source.readOrigin())
+        rampHoldsEdit = true
+        ramp = Task { @MainActor in
+            let clock = ContinuousClock()
+            let start = clock.now
+            while !Task.isCancelled {
+                let elapsed = clock.now - start
+                let seconds = Double(elapsed.components.seconds)
+                    + Double(elapsed.components.attoseconds) / 1e18
+                host.updateZoomPinch(magnification: plan.factor(at: seconds) / origin)
+                if plan.isFinished(at: seconds) { break }
+                try? await Task.sleep(for: .seconds(MonitorZoomPresetRamp.interval))
+            }
+            guard !Task.isCancelled else { return }
+            ramp = nil
+            releaseRampEdit()
+        }
+    }
+
+    private func stopRamp() {
+        ramp?.cancel()
+        ramp = nil
+        releaseRampEdit()
+    }
+
+    private func releaseRampEdit() {
+        guard rampHoldsEdit else { return }
+        rampHoldsEdit = false
+        host.endZoomPinch()
     }
 }
 #endif

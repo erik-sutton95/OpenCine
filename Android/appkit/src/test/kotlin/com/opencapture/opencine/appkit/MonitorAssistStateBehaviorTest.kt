@@ -3,6 +3,9 @@ package com.opencapture.opencine.appkit
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorFalseColorSelection
 import com.opencapture.monitorui.MonitorGuideAspect
+import com.opencapture.monitorui.MonitorGuideSafeArea
+import com.opencapture.monitorui.MonitorGuideSafeAreaKind
+import com.opencapture.monitorui.MonitorGuideSafeAreas
 import com.opencapture.monitorui.MonitorParadeMode
 import com.opencapture.monitorui.MonitorScopeGuides
 import com.opencapture.monitorui.MonitorScopeStoredCenter
@@ -13,6 +16,7 @@ import com.opencapture.opencine.media.MonitorCrushClipCompensation
 import com.opencapture.opencine.media.MonitorPeakingColor
 import com.opencapture.opencine.media.MonitorPeakingSense
 import com.opencapture.opencine.media.MonitorZebraPaint
+import com.opencapture.opencine.media.ScopeDisplayScale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -173,6 +177,25 @@ class MonitorAssistStateBehaviorTest {
         state.toggleGuide(MonitorGuideAspect.WIDE)
         assertTrue(state.selectedGuides.isEmpty())
         assertFalse(state.guides)
+    }
+
+    /** Swift mirror: MonitorAssistStateTests `guideSafeAreasPersistAndOlderSettingsStartOff`. */
+    @Test
+    fun guideSafeAreasPersistAndOlderSettingsStartOff() {
+        var saved: String? = null
+        val state = MonitorAssistState(onPersist = { saved = it })
+        assertEquals(MonitorGuideSafeAreas.STANDARD, state.guideSafeAreas)
+        state.updateGuideSafeAreas(
+            state.guideSafeAreas.withOn(MonitorGuideSafeAreaKind.ACTION, true)
+                .withPercent(MonitorGuideSafeAreaKind.ACTION, 85),
+        )
+        val restored = MonitorAssistState(encoded = saved)
+        assertEquals(listOf(MonitorGuideSafeArea(MonitorGuideSafeAreaKind.ACTION, 85)), restored.guideSafeAreas.drawn)
+
+        val older = org.json.JSONObject(saved!!).apply { remove("guideSafeAreas") }.toString()
+        assertEquals(MonitorGuideSafeAreas.STANDARD, MonitorAssistState(encoded = older).guideSafeAreas)
+        val outOfRange = """{"guideSafeAreas":{"titleSafe":true,"titlePercent":5}}"""
+        assertEquals(50, MonitorAssistState(encoded = outOfRange).guideSafeAreas.titlePercent)
     }
 
     @Test
@@ -353,6 +376,24 @@ class MonitorAssistStateBehaviorTest {
             setFalseColor(reference = true)
         }
         assertEquals(expected.encoded(), state.encoded())
+    }
+
+    /**
+     * OpenZCine #393: a highlight zebra set above the source's assumed white (N-Log code 245
+     * over a 234 ceiling) is kept above 100, up to code 255 in the headroom. Midtone is not.
+     */
+    @Test
+    fun highlightZebraReachesTheHeadroomAboveTheCeiling() {
+        val state = MonitorAssistState()
+        state.setZebraHighlight(ire = 103.0)
+        assertEquals(103.0, state.zebraHighlightIRE)
+        state.setZebraHighlight(ire = 500.0)
+        assertEquals(ScopeDisplayScale.ZEBRA_HIGHLIGHT_CEILING_PERCENT, state.zebraHighlightIRE)
+        state.setZebraHighlight(ire = -4.0)
+        assertEquals(0.0, state.zebraHighlightIRE)
+        state.setZebraMidtone(ire = 103.0)
+        assertEquals(100.0, state.zebraMidtoneIRE)
+        assertEquals(100.0 + 100.0 * 0.05 / 0.9, ScopeDisplayScale.ZEBRA_HIGHLIGHT_CEILING_PERCENT, 1e-9)
     }
 
     @Test

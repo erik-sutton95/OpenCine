@@ -5002,7 +5002,8 @@ class PocketCameraSession(
         if (!zoomStopTouched && factor != null) {
             zoomStop =
                 when {
-                    abs(factor - CamFov.MAX_FACTOR) < 0.15 -> 12.0
+                    abs(factor - 18) < 0.15 -> 18.0
+                    abs(factor - 12) < 0.15 -> 12.0
                     abs(factor - 6) < 0.2 -> 6.0
                     abs(factor - 3) < 0.2 -> 3.0
                     factor < 2.5 -> 1.0

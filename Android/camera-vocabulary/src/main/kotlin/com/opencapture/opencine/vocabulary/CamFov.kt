@@ -7,14 +7,19 @@ import kotlin.math.round
 import kotlin.math.roundToInt
 
 /**
- * iOS `CamFov`. Operator 1×…12× from `cam_fov` `@0` + lens `@14`.
+ * iOS `CamFov`. Operator 1×…18× from `cam_fov` `@0` + lens `@14`.
  *
  * `cam_fov / 1024` runs backwards and jumps at the 3× hop; never show that
  * as the chip number. Writes are slider `0A 4E` + lens (217 / 651 / 1302 / 2604).
  */
 object CamFov {
     const val MIN_FACTOR = 1.0
-    const val MAX_FACTOR = 12.0
+    /**
+     * The longest zoom the lens scale encodes: 18× digital on the Pocket 4 Pro after DJI's
+     * November 2026 firmware (12× before it). A body's own ceiling is its last zoom stop; a camera
+     * on older firmware clamps an over-ask and reports its real lens back.
+     */
+    const val MAX_FACTOR = 18.0
     val JUMPS: List<Double> = listOf(1.0, 3.0, 6.0, 12.0)
 
     const val RAW_AT_1X = 12_287
@@ -25,6 +30,8 @@ object CamFov {
     const val LENS_3X = 651
     const val LENS_6X = 1_302
     const val LENS_12X = 2_604
+    /** `@14` at operator 18×, the 3× → 12× line carried on (217 per ×). Not yet captured. */
+    const val LENS_18X = 3_906
 
     const val SLEW_TELE = 100
     const val SLEW_WIDE = 300
@@ -42,7 +49,8 @@ object CamFov {
     fun factor(raw: Int): Double {
         if (raw == 0) return MIN_FACTOR
         if (raw >= RAW_AT_1X) return MIN_FACTOR
-        if (raw <= RAW_AT_12X) return MAX_FACTOR
+        // No `cam_fov` was captured past 12×, so the fallback stops there; lens `@14` reads on.
+        if (raw <= RAW_AT_12X) return 12.0
         if (raw >= RAW_AT_3X) {
             val t = (RAW_AT_1X - raw).toDouble() / (RAW_AT_1X - RAW_AT_3X).toDouble()
             return clamp(MIN_FACTOR + t * 2)
@@ -54,7 +62,7 @@ object CamFov {
     fun factorFromLens(lens: Int): Double? {
         if (lens <= 0) return null
         if (lens <= LENS_1X) return MIN_FACTOR
-        if (lens >= LENS_12X) return MAX_FACTOR
+        if (lens >= LENS_18X) return MAX_FACTOR
         if (lens <= LENS_3X) {
             val t = (lens - LENS_1X).toDouble() / (LENS_3X - LENS_1X).toDouble()
             return clamp(MIN_FACTOR + t * 2)
@@ -93,18 +101,19 @@ object CamFov {
     fun lensPosition(factor: Double): Int {
         val f = clamp(factor)
         if (abs(f - MIN_FACTOR) < 0.001) return LENS_1X
-        if (abs(f - MAX_FACTOR) < 0.001) return LENS_12X
+        if (abs(f - 12.0) < 0.001) return LENS_12X
+        if (abs(f - MAX_FACTOR) < 0.001) return LENS_18X
         if (f <= 3) return lerpLens(LENS_1X, LENS_3X, (f - MIN_FACTOR) / 2)
-        return lerpLens(LENS_3X, LENS_12X, (f - 3) / 9)
+        if (f <= 12) return lerpLens(LENS_3X, LENS_12X, (f - 3) / 9)
+        return lerpLens(LENS_12X, LENS_18X, (f - 12) / 6)
     }
 
     fun displayLabel(raw: Int): String = displayLabel(factor(raw))
 
     fun displayLabel(factor: Double): String {
         val shown = displayTenths(factor)
-        if (abs(shown - MAX_FACTOR) < 0.05) return "12×"
         val nearest = shown.roundToInt()
-        if (abs(shown - nearest) < 0.05 && nearest in 1..12) return "${nearest}×"
+        if (abs(shown - nearest) < 0.05 && nearest in 1..MAX_FACTOR.toInt()) return "${nearest}×"
         return String.format(Locale.US, "%.1f×", shown)
     }
 
@@ -137,7 +146,8 @@ object CamFov {
             abs(forJump - 3) < 0.1 -> ChipWrite.Lens(LENS_3X)
             abs(forJump - 4) < 0.1 -> ChipWrite.Lens(lensPosition(4.0))
             abs(forJump - 6) < 0.1 -> ChipWrite.Lens(LENS_6X)
-            abs(forJump - MAX_FACTOR) < 0.1 -> ChipWrite.Lens(LENS_12X)
+            abs(forJump - 12) < 0.1 -> ChipWrite.Lens(LENS_12X)
+            abs(forJump - 18) < 0.1 -> ChipWrite.Lens(LENS_18X)
             else -> null
         }
 

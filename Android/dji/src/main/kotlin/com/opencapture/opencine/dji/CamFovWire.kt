@@ -13,7 +13,7 @@ fun CamFov.rawAt0(value: ByteArray): Int? {
 fun CamFov.lensAt14(value: ByteArray): Int? {
     if (value.size < 16) return null
     val lens = (value[14].toInt() and 0xFF) or ((value[15].toInt() and 0xFF) shl 8)
-    return lens.takeIf { it in 100..3_000 }
+    return lens.takeIf { it in 100..4_200 }
 }
 
 fun CamFov.factorFromValue(value: ByteArray): Double? = rawAt0(value)?.let { factor(it) }

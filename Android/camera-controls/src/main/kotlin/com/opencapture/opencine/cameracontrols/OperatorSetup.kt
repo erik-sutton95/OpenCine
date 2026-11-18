@@ -228,6 +228,8 @@ class OperatorSetupApp(
      * clears what the gallery writes.
      */
     val cacheSource: (@Composable (Context) -> com.opencapture.opencine.appkit.MonitorSettingsCacheSource)? = null,
+    /** The connected camera's exposure and white balance presets on the Controls tab; null leaves the card out. */
+    val cameraPresets: com.opencapture.opencine.appkit.CameraSettingsPresetsModel? = null,
 )
 
 fun toggledCleanPins(prefs: OperatorPreferenceStore, current: Set<String>, toolKey: String): Set<String> {
@@ -390,6 +392,7 @@ private fun operatorSetupConfiguration(
         legal = app.legal,
         information = MonitorSettingsInformationSource(information.theme, information.protocol, information.version,
             information.themeHelp, information.protocolHelp, information.versionHelp),
+        cameraPresets = app.cameraPresets,
     )
 }
 

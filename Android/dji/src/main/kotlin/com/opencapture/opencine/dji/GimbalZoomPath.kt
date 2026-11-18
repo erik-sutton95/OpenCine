@@ -1,5 +1,8 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.NativeProgramZoomCommand
+import com.opencapture.opencine.motion.NativeProgramZoomDemand
+import com.opencapture.opencine.motion.NativeProgramZoom
 import com.opencapture.opencine.motion.GimbalProgram
 import kotlin.math.ceil
 

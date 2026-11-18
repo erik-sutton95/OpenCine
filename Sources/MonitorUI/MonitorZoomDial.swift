@@ -18,6 +18,7 @@
         private let onEditing: (Bool) -> Void
         private let onClose: () -> Void
         private let haptics: Bool
+        private let presets: MonitorZoomPresetControls?
         @Binding private var value: Double
         @State private var drag = MonitorZoomDrag()
         @State private var radial: MonitorZoomRadialGesture?
@@ -36,7 +37,7 @@
             marks: [Double], opticalStops: [Double] = [1], caption: String = "",
             value: Binding<Double>, label: @escaping (Double) -> String,
             onEditing: @escaping (Bool) -> Void, onClose: @escaping () -> Void,
-            haptics: Bool = true
+            haptics: Bool = true, presets: MonitorZoomPresetControls? = nil
         ) {
             self.viewport = viewport
             self.safeArea = safeArea
@@ -52,6 +53,7 @@
             self.onEditing = onEditing
             self.onClose = onClose
             self.haptics = haptics
+            self.presets = presets
         }
 
         private var geometry: MonitorZoomGeometry {
@@ -173,6 +175,21 @@
                             )
                     }
                     .padding(.bottom, isBottom ? bottomClearance : 0)
+                if let presets {
+                    // Beside the disc's curved edge: a column in landscape, a row in portrait.
+                    Color.clear
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .overlay(alignment: isBottom ? .bottom : .trailing) {
+                            MonitorZoomPresetStrip(
+                                controls: presets, maximum: scale.maximum, vertical: !isBottom,
+                                label: label, haptics: haptics
+                            )
+                            .padding(.trailing, isBottom ? 0 : geometry.width + 12)
+                            .padding(.bottom, isBottom ? bottomClearance + geometry.height + 12 : 0)
+                        }
+                        .opacity(visible ? 1 : 0)
+                        .animation(MonitorMotion.dim(reduceMotion), value: visible)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .frame(width: viewport.width, height: viewport.height)
