@@ -148,6 +148,58 @@ final class HeadphoneMotionBridgeTests: XCTestCase {
         XCTAssertEqual(bridge.receivedHeadSampleAt, 109.95)
     }
 
+    /// OpenPocketCine#638: head tracking in FPV jumped the gimbal on its first targets. When the
+    /// host reports a lasting stop, Calibrate shows its note and never starts the gimbal.
+    func testCalibrateWithAHostStopShowsTheNoteAndNeverDrives() async throws {
+        let (bridge, motion, host) = try await calibratableBridge()
+        defer { bridge.detach() }
+        host.headTrackStop = HeadTrackStop(reason: "mode=FPV", note: "Not in this mode")
+        bridge.tapControl()
+        XCTAssertEqual(host.controlNote, "Not in this mode")
+        XCTAssertEqual(host.begins, 0)
+        XCTAssertEqual(host.headTrackControlTitle, HeadphoneMotionBridge.calibrateTitle)
+        await deliver(motion, at: 99.96)
+        XCTAssertEqual(host.begins, 0, "A refused calibration does not retry on every sample")
+
+        host.headTrackStop = nil
+        bridge.tapControl()
+        XCTAssertEqual(host.controlNote, "Head lock set. Gimbal follows")
+        XCTAssertEqual(host.begins, 1)
+        XCTAssertEqual(host.headTrackControlTitle, HeadphoneMotionBridge.stopTitle)
+    }
+
+    /// OpenPocketCine#638: past the reach every target was refused and the bridge re-armed the
+    /// gimbal about 10 times a second with no message. A host stop ends tracking once instead.
+    func testAHostStopWhileDrivingEndsTrackingOnceWithItsNote() async throws {
+        let (bridge, motion, host) = try await calibratableBridge()
+        defer { bridge.detach() }
+        bridge.tapControl()
+        XCTAssertEqual(host.begins, 1)
+        host.headTrackStop = HeadTrackStop(reason: "pastReach", note: "Past the range")
+        bridge.sync()
+        XCTAssertEqual(host.controlNote, "Past the range")
+        XCTAssertEqual(host.ends, [1])
+        XCTAssertEqual(host.headTrackControlTitle, HeadphoneMotionBridge.calibrateTitle)
+        XCTAssertTrue(host.log.contains("head-track: stopped reason=pastReach"), "\(host.log)")
+        for _ in 0..<5 { bridge.sync() }
+        await deliver(motion, at: 99.96)
+        XCTAssertEqual(host.begins, 1, "No re-arm after the stop")
+        XCTAssertEqual(host.ends, [1])
+    }
+
+    /// The refusal can come from the update itself, between two host checks.
+    func testARefusedUpdateWithAHostStopEndsTrackingInsteadOfRearming() async throws {
+        let (bridge, _, host) = try await calibratableBridge()
+        defer { bridge.detach() }
+        bridge.tapControl()
+        host.onUpdate = { host.headTrackStop = HeadTrackStop(reason: "pastReach", note: "Past the range") }
+        host.updateResult = false
+        bridge.sync()
+        XCTAssertEqual(host.controlNote, "Past the range")
+        bridge.sync()
+        XCTAssertEqual(host.begins, 1)
+    }
+
     func testStartupDiagnosticsAreBoundedAndDistinguishAcceptedFromRejectedSamples() {
         let motion = PendingHeadphoneMotionManager()
         let clock = OSAllocatedUnfairLock(initialState: 100.0)
@@ -183,6 +235,33 @@ final class HeadphoneMotionBridgeTests: XCTestCase {
 }
 
 @MainActor
+private func deliver(_ motion: PendingHeadphoneMotionManager, at timestamp: TimeInterval) async {
+    motion.starts.last?(HeadphoneMotionSample(timestamp: timestamp), nil)
+    // The sample pump pulls every `sampleInterval` (40 ms).
+    try? await Task.sleep(for: .milliseconds(150))
+}
+
+/// A bridge with a live, drivable host and a fresh head sample, ready for Calibrate.
+@MainActor
+private func calibratableBridge() async throws
+    -> (HeadphoneMotionBridge, PendingHeadphoneMotionManager, FakeHeadTrackHost)
+{
+    let motion = PendingHeadphoneMotionManager()
+    let host = FakeHeadTrackHost()
+    let bridge = HeadphoneMotionBridge(
+        appName: "TestApp", bounds: MotionBounds(pan: -48...225, tilt: -44...70), sampleInterval: 0.04,
+        hudInterval: 0.2, log: { [weak host] in host?.log.append($0) }, motion: motion,
+        authorizationStatus: { .authorized }, uptime: { 100 })
+    host.headTrackingEnabled = true
+    host.headTrackCanDrive = true
+    host.freshGimbalWaypoint = GimbalWaypoint(yawDeg: 0, pitchDeg: 5.6, zoom: 1, nativePitchDeg: 174.4)
+    bridge.attach(host: host)
+    await deliver(motion, at: 99.95)
+    XCTAssertEqual(bridge.receivedHeadSampleAt, 99.95)
+    return (bridge, motion, host)
+}
+
+@MainActor
 private func makeBridge(
     motion: CMHeadphoneMotionManager,
     authorizationStatus: @escaping () -> CMAuthorizationStatus,
@@ -210,9 +289,22 @@ private final class FakeHeadTrackHost: HeadTrackHost {
     var gimbalPitchTenthDeg: Int16?
     var gimbalAttitudeHex = ""
     var gimbalAttitudeDump = ""
-    func beginNativeHeadTrack() -> UInt64? { nil }
-    func updateNativeHeadTrack(target: GimbalWaypoint, token: UInt64, measuredAt: TimeInterval?) -> Bool { false }
-    func endNativeHeadTrack(token: UInt64) {}
+    var headTrackStop: HeadTrackStop?
+    var begins = 0
+    var ends: [UInt64] = []
+    var updateResult = true
+    var onUpdate: (() -> Void)?
+    var log: [String] = []
+    func beginNativeHeadTrack() -> UInt64? {
+        guard headTrackCanDrive, headTrackStop == nil else { return nil }
+        begins += 1
+        return UInt64(begins)
+    }
+    func updateNativeHeadTrack(target: GimbalWaypoint, token: UInt64, measuredAt: TimeInterval?) -> Bool {
+        onUpdate?()
+        return updateResult
+    }
+    func endNativeHeadTrack(token: UInt64) { ends.append(token) }
 }
 
 private final class PendingHeadphoneMotionManager: CMHeadphoneMotionManager {
