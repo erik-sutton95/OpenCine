@@ -75,6 +75,8 @@ case MonitorGuideFamily.film
 case MonitorGuideFamily.social
 case MonitorGuideMaskPolicy.envelope
 case MonitorGuideMaskPolicy.union
+case MonitorGuideSafeAreaKind.action
+case MonitorGuideSafeAreaKind.title
 case MonitorHorizontalLayoutDirection.mirrored
 case MonitorHorizontalLayoutDirection.standard
 case MonitorJoystickSize.large
@@ -241,6 +243,7 @@ enum MonitorGridOption: CaseIterable, Equatable, Hashable, Identifiable, RawRepr
 enum MonitorGuideAspect: CaseIterable, Decodable, Encodable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorGuideFamily: CaseIterable, Decodable, Encodable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorGuideMaskPolicy: Equatable, Hashable, Sendable
+enum MonitorGuideSafeAreaKind: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorHorizontalLayoutDirection: Equatable, Hashable, Sendable
 enum MonitorInspectorPreviewPolicy
 enum MonitorInstantReviewLayout
@@ -339,6 +342,10 @@ func MonitorFloatingDrag.cancel()<Position where Position : Swift.Equatable> -> 
 func MonitorFloatingDrag.end(store: (Position) -> Swift.Void)<Position where Position : Swift.Equatable> -> ()
 func MonitorFloatingDrag.move(to: Position)<Position where Position : Swift.Equatable> -> ()
 func MonitorFrameEffects.withInspectorDemand(_: MonitorAssistSelection?) -> OpenCineMedia.MonitorFrameEffects
+func MonitorGuideSafeAreas.isOn(_: MonitorGuideSafeAreaKind) -> Swift.Bool
+func MonitorGuideSafeAreas.percent(_: MonitorGuideSafeAreaKind) -> Swift.Int
+func MonitorGuideSafeAreas.set(_: MonitorGuideSafeAreaKind, on: Swift.Bool) -> ()
+func MonitorGuideSafeAreas.set(_: MonitorGuideSafeAreaKind, percent: Swift.Int) -> ()
 func MonitorLayoutRegion.inset(_: MonitorEdgeInsets) -> MonitorLayoutRegion
 func MonitorLayoutRegion.insetBy(dx: Swift.Double, dy: Swift.Double) -> MonitorLayoutRegion
 func MonitorLayoutRegion.intersects(_: MonitorLayoutRegion) -> Swift.Bool
@@ -406,6 +413,9 @@ func MonitorZoomDrag.end() -> Swift.Bool
 func MonitorZoomGeometry.angle(x: Swift.Double, y: Swift.Double) -> Swift.Double
 func MonitorZoomGeometry.canStartZoom(x: Swift.Double, y: Swift.Double) -> Swift.Bool
 func MonitorZoomGeometry.contains(x: Swift.Double, y: Swift.Double) -> Swift.Bool
+func MonitorZoomPresets.save(_: Swift.Double, at: Swift.Int) -> ()
+func MonitorZoomPresets.setRamp(_: Swift.Double) -> ()
+func MonitorZoomPresets.target(at: Swift.Int, maximum: Swift.Double) -> Swift.Double?
 func MonitorZoomRadialGesture.angleDelta(x: Swift.Double, y: Swift.Double) -> Swift.Double?
 func MonitorZoomRadialGesture.rebase(x: Swift.Double, y: Swift.Double) -> ()
 func MonitorZoomScale.dialLabel(_: Swift.Double) -> Swift.String
@@ -453,6 +463,9 @@ init MonitorFalseColorReferencePositions.Center(x: Swift.Double, y: Swift.Double
 init MonitorFalseColorReferenceSegment(id: Swift.Int, lowerFraction: Swift.Double, upperFraction: Swift.Double, red: Swift.Double, green: Swift.Double, blue: Swift.Double)
 init MonitorFalseColorReferenceValues(subtitle: Swift.String, segments: [MonitorFalseColorReferenceSegment], markers: [MonitorFalseColorReferenceMarker], axisLabels: [Swift.String])
 init MonitorFloatingDrag()<Position where Position : Swift.Equatable>
+init MonitorGuideSafeArea(kind: MonitorGuideSafeAreaKind, percent: Swift.Int)
+init MonitorGuideSafeAreas(actionSafe: Swift.Bool, actionPercent: Swift.Int, titleSafe: Swift.Bool, titlePercent: Swift.Int)
+init MonitorGuideSafeAreas(from: any Swift.Decoder) throws
 init MonitorHistogramOptions(from: any Swift.Decoder) throws
 init MonitorHistogramOptions(trafficLights: Swift.Bool, crushClipCompensation: OpenCineMedia.MonitorCrushClipCompensation, scale: Swift.Double, hasCustomScale: Swift.Bool, storedCenter: MonitorScopeStoredCenter?, storedCenterPortrait: MonitorScopeStoredCenter?)
 init MonitorLaunchLayout(width: Swift.Double, height: Swift.Double, compact: Swift.Bool)
@@ -522,6 +535,8 @@ init MonitorWaveformOptions(from: any Swift.Decoder) throws
 init MonitorWaveformOptions(mode: MonitorWaveformMode, brightness: Swift.Int, guides: MonitorScopeGuides, scale: Swift.Double, hasCustomScale: Swift.Bool, storedCenter: MonitorScopeStoredCenter?, storedCenterPortrait: MonitorScopeStoredCenter?)
 init MonitorZoomDrag()
 init MonitorZoomGeometry(width: Swift.Double, height: Swift.Double, trailingInset: Swift.Double, bottomInset: Swift.Double, attachment: MonitorZoomAttachment)
+init MonitorZoomPresets(slots: [Swift.Double?], rampSeconds: Swift.Double)
+init MonitorZoomPresets(stored: Swift.String?)
 init MonitorZoomRadialGesture(geometry: MonitorZoomGeometry, startX: Swift.Double, startY: Swift.Double)
 init MonitorZoomScale(minimum: Swift.Double, maximum: Swift.Double)
 init MonitorZoomTapStops(supported: [Swift.Double], extended: [Swift.Double])
@@ -619,6 +634,8 @@ let MonitorFalseColorReferenceValues.axisLabels: [Swift.String]
 let MonitorFalseColorReferenceValues.markers: [MonitorFalseColorReferenceMarker]
 let MonitorFalseColorReferenceValues.segments: [MonitorFalseColorReferenceSegment]
 let MonitorFalseColorReferenceValues.subtitle: Swift.String
+let MonitorGuideSafeArea.kind: MonitorGuideSafeAreaKind
+let MonitorGuideSafeArea.percent: Swift.Int
 let MonitorLaunchLayout.horizontalInset: Swift.Double
 let MonitorLaunchLayout.landscape: Swift.Bool
 let MonitorLaunchLayout.logoSize: Swift.Double
@@ -886,6 +903,9 @@ static func MonitorDrumSelection.settledIndex(origin: Swift.Int, translation: Sw
 static func MonitorEdgeInsets.chrome(for: MonitorEdgeInsets) -> MonitorEdgeInsets
 static func MonitorExposureReadout.autoEvCaption(shutterDenom: Swift.Int) -> Swift.String
 static func MonitorGuideAspect.ratios(for: MonitorGuideFamily) -> [MonitorGuideAspect]
+static func MonitorGuideSafeAreas.clamped(_: Swift.Int) -> Swift.Int
+static func MonitorGuideSafeAreas.inset(_: MonitorRect, percent: Swift.Int) -> MonitorRect
+static func MonitorGuideSafeAreas.label(_: Swift.Int) -> Swift.String
 static func MonitorHistogramOptions.clampedScale(_: Swift.Double) -> Swift.Double
 static func MonitorHorizontalLayoutDirection.resolve(deviceOrientation: MonitorDeviceOrientation, safeArea: MonitorEdgeInsets) -> MonitorHorizontalLayoutDirection
 static func MonitorHorizontalLayoutDirection.resolve(for: MonitorEdgeInsets) -> MonitorHorizontalLayoutDirection
@@ -961,6 +981,7 @@ static func MonitorWaveformOptions.clampedBrightness(_: Swift.Int) -> Swift.Int
 static func MonitorWaveformOptions.clampedScale(_: Swift.Double) -> Swift.Double
 static func MonitorZoomCaption.isDigital(factor: Swift.Double, opticalStops: [Swift.Double]) -> Swift.Bool
 static func MonitorZoomCaption.label(factor: Swift.Double, opticalStops: [Swift.Double]) -> Swift.String
+static func MonitorZoomPresets.rampLabel(_: Swift.Double) -> Swift.String
 static func MonitorZoomScale.minorTickPositions() -> [Swift.Double]
 static func StartupContentLayout.fit(viewportWidth: Swift.Double, viewportHeight: Swift.Double, safeArea: MonitorEdgeInsets) -> StartupContentLayout
 static func StartupDiscoveryPrimaryAction.resolve(hasSelectedCamera: Swift.Bool, isBusy: Swift.Bool, isKnownCamera: Swift.Bool) -> StartupDiscoveryPrimaryAction
@@ -1034,6 +1055,11 @@ static let MonitorDialHaptic.coarseLimit: Swift.Int
 static let MonitorDrumSelection.pointsPerValue: Swift.Double
 static let MonitorEdgeInsets.zero: MonitorEdgeInsets
 static let MonitorFeedLayout.aspectRatio: Swift.Double
+static let MonitorGuideSafeAreas.percentRange: Swift.ClosedRange<Swift.Int>
+static let MonitorGuideSafeAreas.sizeHelp: Swift.String
+static let MonitorGuideSafeAreas.standard: MonitorGuideSafeAreas
+static let MonitorGuideSafeAreas.standardActionPercent: Swift.Int
+static let MonitorGuideSafeAreas.standardTitlePercent: Swift.Int
 static let MonitorHistogramOptions.brightnessRange: Swift.ClosedRange<Swift.Int>
 static let MonitorHistogramOptions.default: MonitorHistogramOptions
 static let MonitorHistogramOptions.defaultBrightness: Swift.Int
@@ -1174,6 +1200,8 @@ static let MonitorWaveformOptions.default: MonitorWaveformOptions
 static let MonitorWaveformOptions.defaultBrightness: Swift.Int
 static let MonitorWaveformOptions.defaultScale: Swift.Double
 static let MonitorWaveformOptions.scaleRange: Swift.ClosedRange<Swift.Double>
+static let MonitorZoomPresets.rampChoices: [Swift.Double]
+static let MonitorZoomPresets.slotCount: Swift.Int
 static let MonitorZoomScale.angularSpan: Swift.Double
 static let MonitorZoomScale.minorTickCount: Swift.Int
 static let MonitorZoomScale.tickIncrement: Swift.Double
@@ -1240,6 +1268,8 @@ struct MonitorFalseColorReferencePositions: Decodable, Encodable, Equatable, Sen
 struct MonitorFalseColorReferenceSegment: Equatable, Identifiable, Sendable
 struct MonitorFalseColorReferenceValues: Equatable, Sendable
 struct MonitorFloatingDrag<Position where Position : Swift.Equatable>
+struct MonitorGuideSafeArea: Equatable, Identifiable, Sendable
+struct MonitorGuideSafeAreas: Decodable, Encodable, Equatable, Sendable
 struct MonitorHistogramOptions: Decodable, Encodable, Equatable, MonitorScopePanelOptions, Sendable
 struct MonitorLaunchLayout: Equatable, Sendable
 struct MonitorLayoutRegion: Equatable, Sendable
@@ -1304,6 +1334,7 @@ struct MonitorWatcherTapSource: Equatable, Hashable, Sendable
 struct MonitorWaveformOptions: Decodable, Encodable, Equatable, MonitorScopePanelOptions, Sendable
 struct MonitorZoomDrag: Equatable, Sendable
 struct MonitorZoomGeometry: Equatable, Sendable
+struct MonitorZoomPresets: Equatable, Sendable
 struct MonitorZoomRadialGesture
 struct MonitorZoomScale: Equatable, Sendable
 struct MonitorZoomTapStops: Equatable, Sendable
@@ -1445,6 +1476,15 @@ var MonitorGridOption.id: Swift.String
 var MonitorGuideAspect.aspectRatio: Swift.Double
 var MonitorGuideAspect.id: Swift.String
 var MonitorGuideFamily.id: Swift.String
+var MonitorGuideSafeArea.id: MonitorGuideSafeAreaKind
+var MonitorGuideSafeAreaKind.help: Swift.String
+var MonitorGuideSafeAreaKind.id: Swift.String
+var MonitorGuideSafeAreaKind.title: Swift.String
+var MonitorGuideSafeAreas.actionPercent: Swift.Int
+var MonitorGuideSafeAreas.actionSafe: Swift.Bool
+var MonitorGuideSafeAreas.drawn: [MonitorGuideSafeArea]
+var MonitorGuideSafeAreas.titlePercent: Swift.Int
+var MonitorGuideSafeAreas.titleSafe: Swift.Bool
 var MonitorHistogramOptions.crushClipCompensation: OpenCineMedia.MonitorCrushClipCompensation
 var MonitorHistogramOptions.hasCustomScale: Swift.Bool
 var MonitorHistogramOptions.scale: Swift.Double
@@ -1602,6 +1642,9 @@ var MonitorWaveformOptions.storedCenterPortrait: MonitorScopeStoredCenter?
 var MonitorZoomDrag.anchor: Swift.Double?
 var MonitorZoomGeometry.height: Swift.Double
 var MonitorZoomGeometry.width: Swift.Double
+var MonitorZoomPresets.rampSeconds: Swift.Double
+var MonitorZoomPresets.slots: [Swift.Double?]
+var MonitorZoomPresets.stored: Swift.String
 var ReviewLaunch.commonControls: Swift.Bool
 var ReviewLaunch.connected: Swift.Bool
 var ReviewLaunch.environment: [Swift.String : Swift.String]

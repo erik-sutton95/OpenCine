@@ -105,7 +105,8 @@ fun MonitorZoomDisc(initial: Double, maximum: Double, label: (Double) -> String,
     onChange: (Double) -> Unit, onDismiss: () -> Unit,
     opticalStops: List<Double> = listOf(1.0), caption: (Double) -> String = { "ZOOM" },
     trailingInset: Float = 0f, attachment: MonitorZoomAttachment = MonitorZoomAttachment.Trailing,
-    bottomClearance: Float = 0f, onDetent: () -> Unit = {}) {
+    bottomClearance: Float = 0f, onDetent: () -> Unit = {},
+    presets: MonitorZoomPresetControls? = null, driven: Double? = null) {
     val maxZoom = maximum.takeIf { it.isFinite() }?.coerceAtLeast(1.0) ?: 1.0
     val logMax = ln(maxZoom).coerceAtLeast(.001)
     val initialValue = initial.takeIf { it.isFinite() }?.coerceIn(1.0, maxZoom) ?: 1.0
@@ -157,6 +158,10 @@ fun MonitorZoomDisc(initial: Double, maximum: Double, label: (Double) -> String,
     val radius = disc.radius
     val pixelDisc = MonitorZoomGeometry(
         radius * density.density, disc.edgeExtension * density.density, disc.attachment)
+    // A host-driven move (a preset ramp) turns the scale without sending it back.
+    LaunchedEffect(driven) {
+        driven?.takeIf { it.isFinite() }?.let { position = MonitorZoomScale.position(it.coerceIn(1.0, maxZoom), 1.0, maxZoom) }
+    }
     val factor = exp(position * logMax).coerceIn(1.0, maxZoom)
     val optical = opticalStops.any { abs(it - factor) < .05 }
     val accent = if (optical) MonitorPalette.accent else MonitorPalette.digitalCrop
@@ -180,6 +185,15 @@ fun MonitorZoomDisc(initial: Double, maximum: Double, label: (Double) -> String,
         // A focused modal window owns input above every underlying control.
         Box(Modifier.size(configuration.screenWidthDp.dp, configuration.screenHeightDp.dp)
             .pointerInput(Unit) { detectTapGestures { closing = true } }) {
+            if (presets != null) {
+                // Beside the disc's curved edge: a column in landscape, a row in portrait.
+                val bottom = attachment == MonitorZoomAttachment.Bottom
+                MonitorZoomPresetStrip(presets, maxZoom, vertical = !bottom, label = label, onSaved = detent,
+                    modifier = Modifier.align(if (bottom) Alignment.BottomCenter else Alignment.CenterEnd)
+                        .padding(end = if (bottom) 0.dp else (disc.width + 12f).dp,
+                            bottom = if (bottom) (bottomClearance.coerceAtLeast(0f) + disc.height + 12f).dp else 0.dp)
+                        .graphicsLayer { alpha = motion })
+            }
             Box(Modifier.align(
                 if (attachment == MonitorZoomAttachment.Bottom) Alignment.BottomCenter
                 else Alignment.CenterEnd

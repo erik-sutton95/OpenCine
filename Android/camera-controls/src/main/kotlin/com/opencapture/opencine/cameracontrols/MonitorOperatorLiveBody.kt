@@ -332,6 +332,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         if (value.collapseAssists) paletteRevision++
         transitionChanged(value)
     }
+    // The interface lock also holds the screen's rotation (an inverted rig stays put).
+    MonitorRotationLockEffect(locked)
     // A quick preview hides its readouts in place inside the strip, preserving the held pointer.
     // A full bottom sheet still removes the capture slot from input and accessibility. The open
     // assist palette draws over the values it reaches and leaves them in place (owner 2026-10-30).

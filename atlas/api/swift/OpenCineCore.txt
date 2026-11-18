@@ -43,6 +43,14 @@ case CameraNetworkPermissionState.allowed
 case CameraNetworkPermissionState.denied
 case CameraNetworkPermissionState.requested
 case CameraNetworkPermissionState.unknown
+case CameraSettingsPresetRecall.Outcome.applied
+case CameraSettingsPresetRecall.Outcome.failed(CommandStage)
+case CameraSettingsPresetRecall.Outcome.skipped(CameraSettingsPresetSkip)
+case CameraSettingsPresetRecall.Outcome.unchanged
+case CameraSettingsPresetSkip.outOfDomain
+case CameraSettingsPresetSkip.readOnly
+case CameraSettingsPresetSkip.unavailable(UnavailableReason)
+case CameraSettingsPresetSkip.unsupported
 case CaptureMode.Role.other
 case CaptureMode.Role.photo
 case CaptureMode.Role.video
@@ -254,6 +262,9 @@ enum CameraHotspotJoinRefusal.Reason: Equatable, Hashable, Sendable
 enum CameraNetworkPermissionEvidence: Equatable, Hashable, Sendable
 enum CameraNetworkPermissionPolicy
 enum CameraNetworkPermissionState: Equatable, Hashable, RawRepresentable, Sendable
+enum CameraSettingsPresetCodec
+enum CameraSettingsPresetRecall.Outcome: Equatable, Hashable, Sendable
+enum CameraSettingsPresetSkip: Equatable, Hashable, Sendable
 enum CaptureMode.Role: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum CommandFailure: Decodable, Encodable, Equatable, Hashable, Sendable
 enum CommandRejection: Decodable, Encodable, Equatable, Hashable, Sendable
@@ -332,6 +343,7 @@ func CameraSession.outcome(of: OperationID) async -> CommandReceipt?
 func CameraSession.receipt(of: OperationID) async -> CommandReceipt?
 func CameraSession.snapshots() async -> _Concurrency.AsyncStream<CameraSnapshot>
 func CameraSession.submit(_: CameraCommand) async -> CommandReceipt
+func CameraSettingsPreset.value(of: SettingKey) -> SettingValue?
 func CameraSnapshot.encode(to: any Swift.Encoder) throws -> ()
 func CameraSnapshot.rejection(of: CameraCommand, at: MonotonicInstant) -> CommandRejection?
 func CameraSnapshot.value(of: SettingKey) -> ObservedValue<SettingValue>
@@ -396,6 +408,10 @@ init CameraRecordingFormat.Dimensions(width: Swift.Int, height: Swift.Int)
 init CameraRecordingObservations(dimensions: ObservedValue<CameraRecordingFormat.Dimensions>, profile: ObservedValue<Swift.String>, codec: ObservedValue<Swift.String>)
 init CameraRecordingObservations(from: any Swift.Decoder) throws
 init CameraServices()
+init CameraSettingsPreset(id: Swift.String, name: Swift.String, values: [SettingValue])
+init CameraSettingsPresetRecall(name: Swift.String, entries: [CameraSettingsPresetRecall.Entry])
+init CameraSettingsPresetRecall.Entry(value: SettingValue, outcome: CameraSettingsPresetRecall.Outcome)
+init CameraSettingsPresetSkip(_: CommandRejection)
 init CameraSnapshot(from: any Swift.Decoder) throws
 init CameraSnapshot(session: CameraSessionID, epoch: ControlEpoch, device: CameraDeviceID?, connection: ConnectionState, authority: ControlAuthority)
 init CameraTimecode(hours: Swift.Int, minutes: Swift.Int, seconds: Swift.Int, frames: Swift.Int, dropFrame: Swift.Bool?)
@@ -492,6 +508,9 @@ protocol StationHostPath<Self : AnyObject>
 static func CameraDeviceID.durable(_: Swift.String, integration: IntegrationID) -> CameraDeviceID
 static func CameraDeviceID.provisional(integration: IntegrationID) -> CameraDeviceID
 static func CameraNetworkPermissionPolicy.isLocalNetworkDenied(dnsErrorCode: Swift.Int32?, pathDenied: Swift.Bool) -> Swift.Bool
+static func CameraSettingsPreset.capture(name: Swift.String, id: Swift.String, from: CameraSnapshot) -> CameraSettingsPreset?
+static func CameraSettingsPresetCodec.decode(_: Swift.String) -> [CameraSettingsPreset]
+static func CameraSettingsPresetCodec.encode(_: [CameraSettingsPreset]) -> Swift.String
 static func CameraValuePin.reconcile(_: CameraValuePin<Value>?, reported: Value?, now: Foundation.TimeInterval, confirms: (Value, Value) -> Swift.Bool)<Value where Value : Swift.Equatable, Value : Swift.Sendable> -> Value?
 static func Counter.<(_: Counter<Kind>, _: Counter<Kind>)<Kind> -> Swift.Bool
 static func LegacyRecordHash.fnv1a(_: [Swift.String : Any]) -> Swift.String
@@ -518,6 +537,7 @@ static func StationSubnet.validAddress(_: Swift.String) -> Swift.Bool
 static func TimecodeCapability.supported(_: TimecodePrecision?) -> TimecodeCapability
 static let CameraHotspotJoinRefusal.platformErrorDomain: Swift.String
 static let CameraRecordingObservations.unknown: CameraRecordingObservations
+static let CameraSettingsPreset.keys: [SettingKey]
 static let HostClock.live: HostClock
 static let LocalVPNFilter.joinWifiPhoneStep: Swift.String
 static let LocalVPNFilter.liveHint: Swift.String
@@ -547,6 +567,9 @@ struct CameraRecordingFormat.Dimensions: Decodable, Encodable, Equatable, Hashab
 struct CameraRecordingFormat: Decodable, Encodable, Equatable, Hashable, Sendable
 struct CameraRecordingObservations: Decodable, Encodable, Equatable, Hashable, Sendable
 struct CameraServices: Sendable
+struct CameraSettingsPreset: Equatable, Hashable, Identifiable, Sendable
+struct CameraSettingsPresetRecall.Entry: Equatable, Hashable, Sendable
+struct CameraSettingsPresetRecall: Equatable, Hashable, Sendable
 struct CameraSnapshot: Decodable, Encodable, Equatable, Hashable, Sendable
 struct CameraTimecode: Decodable, Encodable, Equatable, Hashable, Sendable
 struct CameraTimecodeReading: Decodable, Encodable, Equatable, Hashable, Sendable
@@ -651,6 +674,16 @@ var CameraRecordingObservations.codec: ObservedValue<Swift.String>
 var CameraRecordingObservations.dimensions: ObservedValue<CameraRecordingFormat.Dimensions>
 var CameraRecordingObservations.profile: ObservedValue<Swift.String>
 var CameraSession.id: CameraSessionID
+var CameraSettingsPreset.id: Swift.String
+var CameraSettingsPreset.name: Swift.String
+var CameraSettingsPreset.values: [SettingValue]
+var CameraSettingsPresetRecall.Entry.outcome: CameraSettingsPresetRecall.Outcome
+var CameraSettingsPresetRecall.Entry.value: SettingValue
+var CameraSettingsPresetRecall.applied: [SettingKey]
+var CameraSettingsPresetRecall.entries: [CameraSettingsPresetRecall.Entry]
+var CameraSettingsPresetRecall.failed: [(key: SettingKey, stage: CommandStage)]
+var CameraSettingsPresetRecall.name: Swift.String
+var CameraSettingsPresetRecall.skipped: [(key: SettingKey, skip: CameraSettingsPresetSkip)]
 var CameraSnapshot.audioLevels: ObservedValue<AudioLevels>
 var CameraSnapshot.authority: ControlAuthority
 var CameraSnapshot.capabilities: CapabilitySnapshot

@@ -1231,7 +1231,7 @@ public final class com/opencapture/opencine/cameracontrols/LiveZoom {
 
 public final class com/opencapture/opencine/cameracontrols/LiveZoomChromeKt {
 	public static final fun LiveFeedGestureWell (ZLandroidx/compose/ui/Modifier;Lcom/opencapture/monitorui/MonitorRect;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/Pair;ZZLkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;III)V
-	public static final fun LiveZoomChip (DZLandroidx/compose/ui/Modifier;ZZLkotlin/jvm/functions/Function0;DLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function0;DLandroidx/compose/runtime/Composer;III)V
+	public static final fun LiveZoomChip (DZLandroidx/compose/ui/Modifier;ZZLkotlin/jvm/functions/Function0;DLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function0;DLcom/opencapture/monitorui/MonitorZoomPresets;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/opencapture/opencine/cameracontrols/LiveZoomLabelHold {
@@ -3028,14 +3028,14 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorSceneK
 	public static final fun MonitorOperatorScene (Lcom/opencapture/opencine/appkit/ShellModel;Lcom/opencapture/opencine/appkit/ShellBrand;Lcom/opencapture/opencine/appkit/ShellActions;Lcom/opencapture/opencine/appkit/MonitorOperatorPreferences;Lcom/opencapture/opencine/appkit/MonitorDisplayPreferences;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lcom/opencapture/opencine/appkit/MonitorOperatorMediaModel;FLjava/util/Set;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/AssistLutPicker;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 	public static final fun MonitorOperatorScene (Lcom/opencapture/opencine/appkit/ShellModel;Lcom/opencapture/opencine/appkit/ShellBrand;Lcom/opencapture/opencine/appkit/ShellActions;Lcom/opencapture/opencine/appkit/MonitorOperatorPreferences;Lcom/opencapture/opencine/appkit/MonitorDisplayPreferences;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lcom/opencapture/opencine/appkit/MonitorOperatorMediaModel;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;FLjava/util/Set;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/AssistLutPicker;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 	public static final fun MonitorOperatorScreen (Lcom/opencapture/opencine/appkit/ShellModel;Lcom/opencapture/opencine/appkit/MonitorOperatorPreferences;Lcom/opencapture/opencine/appkit/MonitorDisplayPreferences;Lcom/opencapture/opencine/appkit/MonitorAssistState;FLjava/util/Set;Lcom/opencapture/opencine/appkit/MonitorOperatorSessionModel;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/AssistLutPicker;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
-	public static final fun MonitorOperatorSettingsScreen (Lcom/opencapture/opencine/appkit/ShellModel;Ljava/lang/String;Lcom/opencapture/opencine/appkit/ShellActions;Lcom/opencapture/opencine/appkit/MonitorOperatorPreferences;Lcom/opencapture/opencine/appkit/MonitorDisplayPreferences;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lcom/opencapture/opencine/appkit/MonitorMediaLibraryModel;Ljava/util/Set;Lcom/opencapture/opencine/appkit/MonitorOperatorSessionModel;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/AssistLutPicker;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorOperatorSettingsScreen (Lcom/opencapture/opencine/appkit/ShellModel;Ljava/lang/String;Lcom/opencapture/opencine/appkit/ShellActions;Lcom/opencapture/opencine/appkit/MonitorOperatorPreferences;Lcom/opencapture/opencine/appkit/MonitorDisplayPreferences;Lcom/opencapture/opencine/appkit/MonitorAssistState;Lcom/opencapture/opencine/appkit/MonitorMediaLibraryModel;Ljava/util/Set;Lcom/opencapture/opencine/appkit/MonitorOperatorSessionModel;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/AssistLutPicker;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lcom/opencapture/opencine/appkit/CameraSettingsPresetsModel;Landroidx/compose/runtime/Composer;III)V
 	public static final fun getMonitorOperatorDefaultAssistTools ()Ljava/util/Set;
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsConfiguration {
 	public static final field $stable I
-	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsLinkSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSharingSource;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsControlsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsCachePresentation;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsAccountSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsReadoutSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSupportSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsDiagnosticsSource;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsInformationSource;Ljava/util/List;Ljava/util/List;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSettingsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsGyroSource;)V
-	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/String;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsLinkSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSharingSource;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsControlsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsCachePresentation;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsAccountSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsReadoutSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSupportSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsDiagnosticsSource;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsInformationSource;Ljava/util/List;Ljava/util/List;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSettingsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsGyroSource;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsLinkSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSharingSource;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsControlsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsCachePresentation;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsAccountSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsReadoutSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSupportSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsDiagnosticsSource;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsInformationSource;Ljava/util/List;Ljava/util/List;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSettingsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsGyroSource;Lcom/opencapture/opencine/appkit/CameraSettingsPresetsModel;)V
+	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/String;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsLinkSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSharingSource;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsControlsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsCachePresentation;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsAccountSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsReadoutSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSupportSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsDiagnosticsSource;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsInformationSource;Ljava/util/List;Ljava/util/List;Lcom/opencapture/opencine/cameracontrols/MonitorOperatorAssistSettingsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsGyroSource;Lcom/opencapture/opencine/appkit/CameraSettingsPresetsModel;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsLinkSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSharingSource;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsControlsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsCachePresentation;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsAccountSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSupportSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsInformationSource;)V
 	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/String;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsLinkSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSharingSource;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsControlsSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsCachePresentation;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsAccountSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsSupportSource;Lcom/opencapture/opencine/cameracontrols/MonitorSettingsInformationSource;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAccount ()Lcom/opencapture/opencine/cameracontrols/MonitorSettingsAccountSource;
@@ -3043,6 +3043,7 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorSettin
 	public final fun getAssistSections ()Ljava/util/List;
 	public final fun getBrand ()Ljava/lang/String;
 	public final fun getCache ()Lcom/opencapture/opencine/cameracontrols/MonitorSettingsCachePresentation;
+	public final fun getCameraPresets ()Lcom/opencapture/opencine/appkit/CameraSettingsPresetsModel;
 	public final fun getClose ()Lkotlin/jvm/functions/Function0;
 	public final fun getControls ()Lcom/opencapture/opencine/cameracontrols/MonitorSettingsControlsSource;
 	public final fun getDiagnostics ()Lcom/opencapture/opencine/cameracontrols/MonitorSettingsDiagnosticsSource;
@@ -3495,7 +3496,30 @@ public final class com/opencapture/opencine/cameracontrols/MonitorWatcherConnect
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorZoomDialKt {
-	public static final fun MonitorZoomDial (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorZoomDial (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Landroidx/compose/runtime/Composer;II)V
+}
+
+public final class com/opencapture/opencine/cameracontrols/MonitorZoomPresetRamp {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/opencine/cameracontrols/MonitorZoomPresetRamp$Companion;
+	public static final field INTERVAL_MS J
+	public fun <init> (DDD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun copy (DDD)Lcom/opencapture/opencine/cameracontrols/MonitorZoomPresetRamp;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/cameracontrols/MonitorZoomPresetRamp;DDDILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorZoomPresetRamp;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun factor (D)D
+	public final fun getDuration ()D
+	public final fun getFrom ()D
+	public final fun getTo ()D
+	public fun hashCode ()I
+	public final fun isFinished (D)Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/cameracontrols/MonitorZoomPresetRamp$Companion {
 }
 
 public final class com/opencapture/opencine/cameracontrols/MotionControlDragGesture {
@@ -3701,6 +3725,7 @@ public class com/opencapture/opencine/cameracontrols/OperatorPreferenceStore {
 	public final fun setVirtualJoystickInvertTilt (Landroid/content/Context;Z)V
 	public final fun setVirtualJoystickResponseCurve (Landroid/content/Context;Lcom/opencapture/opencine/vocabulary/CameraCommands$VirtualJoystickCurve;)V
 	public final fun setVirtualJoystickSize (Landroid/content/Context;Lcom/opencapture/monitorui/MonitorJoystickSize;)V
+	public final fun setZoomPresets (Landroid/content/Context;Lcom/opencapture/monitorui/MonitorZoomPresets;)V
 	public final fun shutterAngleDegrees (Landroid/content/Context;)D
 	public final fun shutterUsesAngle (Landroid/content/Context;)Z
 	public final fun virtualJoystickDeadzonePercent (Landroid/content/Context;)I
@@ -3709,14 +3734,16 @@ public class com/opencapture/opencine/cameracontrols/OperatorPreferenceStore {
 	public final fun virtualJoystickMapping (Landroid/content/Context;)Lcom/opencapture/opencine/vocabulary/CameraCommands$VirtualJoystickMapping;
 	public final fun virtualJoystickResponseCurve (Landroid/content/Context;)Lcom/opencapture/opencine/vocabulary/CameraCommands$VirtualJoystickCurve;
 	public final fun virtualJoystickSize (Landroid/content/Context;)Lcom/opencapture/monitorui/MonitorJoystickSize;
+	public final fun zoomPresets (Landroid/content/Context;)Lcom/opencapture/monitorui/MonitorZoomPresets;
 }
 
 public final class com/opencapture/opencine/cameracontrols/OperatorSetupApp {
 	public static final field $stable I
-	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/OperatorHelpCopy;Lcom/opencapture/opencine/cameracontrols/OperatorPreferenceStore;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/OperatorMediaCacheDirs;Lkotlin/jvm/functions/Function1;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/OperatorAppInformation;Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/OperatorDiagnostics;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;)V
-	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/OperatorHelpCopy;Lcom/opencapture/opencine/cameracontrols/OperatorPreferenceStore;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/OperatorMediaCacheDirs;Lkotlin/jvm/functions/Function1;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/OperatorAppInformation;Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/OperatorDiagnostics;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/OperatorHelpCopy;Lcom/opencapture/opencine/cameracontrols/OperatorPreferenceStore;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/OperatorMediaCacheDirs;Lkotlin/jvm/functions/Function1;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/OperatorAppInformation;Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/OperatorDiagnostics;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lcom/opencapture/opencine/appkit/CameraSettingsPresetsModel;)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/OperatorHelpCopy;Lcom/opencapture/opencine/cameracontrols/OperatorPreferenceStore;Lcom/opencapture/opencine/cameracontrols/AssistHost;Lcom/opencapture/opencine/cameracontrols/OperatorMediaCacheDirs;Lkotlin/jvm/functions/Function1;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/OperatorAppInformation;Ljava/lang/String;Lcom/opencapture/opencine/cameracontrols/OperatorDiagnostics;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/cameracontrols/MonitorLegalDocuments;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lcom/opencapture/opencine/appkit/CameraSettingsPresetsModel;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAssistHost ()Lcom/opencapture/opencine/cameracontrols/AssistHost;
 	public final fun getCacheSource ()Lkotlin/jvm/functions/Function3;
+	public final fun getCameraPresets ()Lcom/opencapture/opencine/appkit/CameraSettingsPresetsModel;
 	public final fun getClearMediaCache ()Lkotlin/jvm/functions/Function1;
 	public final fun getDiagnostics ()Lcom/opencapture/opencine/cameracontrols/OperatorDiagnostics;
 	public final fun getHelp ()Lcom/opencapture/opencine/cameracontrols/OperatorHelpCopy;

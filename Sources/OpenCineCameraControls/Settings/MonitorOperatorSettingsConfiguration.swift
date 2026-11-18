@@ -447,7 +447,7 @@ enum MonitorSettingsRow: String, Hashable, Sendable {
     case linkHealth, connection, processing, savedCameras, sourceGroups
     case sharingUnavailable, sharing, watchers, watchFeed
     case assistTools, assistPanels, exposureMeter, look
-    case gyro, safety, input, gimbal, joystick, controller
+    case cameraPresets, gyro, safety, input, gimbal, joystick, controller
     case hdrPanel, displaySections
     case gyroLogs, account, cache
     case support, diagnosticOptions, projectLegal, information
@@ -473,8 +473,17 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     let account: MonitorSettingsAccountSource?
     let support: MonitorSettingsSupportSource?
     let information: MonitorSettingsAppInformation?
+    /// The connected camera's exposure and white balance presets, first on the Controls tab.
+    private(set) var cameraPresets: CameraSettingsPresetsModel?
 
     var assist: MonitorAssistState<Looks> { assistSource.state }
+
+    /// This configuration with the Controls tab's camera presets card (`nil` leaves it out).
+    public func withCameraPresets(_ presets: CameraSettingsPresetsModel?) -> Self {
+        var copy = self
+        copy.cameraPresets = presets
+        return copy
+    }
 
     /// The one typed form: each optional domain is present or nil, never an empty flag.
     public init(safeArea: EdgeInsets, phase: String, isLive: Bool, sharingSubtitle: String? = nil,
@@ -589,7 +598,8 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         case .controls:
             let motion = controls.motion
             let input = controls.input.map { $0.remoteShutter != nil || $0.autoRotate != nil } ?? false
-            return (gyro == nil ? [] : [.gyro]) + [.safety] + (input ? [.input] : [])
+            return (cameraPresets == nil ? [] : [.cameraPresets]) + (gyro == nil ? [] : [.gyro]) + [.safety]
+                + (input ? [.input] : [])
                 + (motion?.sensitivity == nil ? [] : [.gimbal]) + (motion?.joystick == nil ? [] : [.joystick])
                 + (motion?.controller == nil ? [] : [.controller])
         case .display:

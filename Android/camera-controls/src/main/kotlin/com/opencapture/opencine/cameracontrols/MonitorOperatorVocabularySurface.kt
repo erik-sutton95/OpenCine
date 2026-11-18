@@ -266,6 +266,8 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
     val editing = source.session.isEditing
     val showGimbal = controls.gimbal.isOffered && source.session.mounts(MonitorDisplaySection.GIMBAL_STICK)
     val cluster = layout.gimbalCluster(showGimbal)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var zoomPresets by remember(source.preferences) { mutableStateOf(source.preferences.zoomPresets(context)) }
     Box(Modifier.fillMaxSize()) {
         source.zoom?.let { zoom ->
             if (!capturePresented && controls.zoom.isOffered && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP) && !cluster.zoom.isEmpty) {
@@ -278,7 +280,9 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
                     dialFactor = zoom.dialFactor,
                     onDigitalCycle = zoom.tapStops.secondary.takeIf { it.isNotEmpty() }?.let { stops ->
                         { zoom.commitCycle(LiveZoom.nextJump(zoom.cycleFrom(), stops)) }
-                    })
+                    },
+                    presets = zoomPresets,
+                    onPresetsChange = { zoomPresets = it; source.preferences.setZoomPresets(context, it) })
             }
         }
         if (!capturePresented && showGimbal && !cluster.controls.isEmpty) {
