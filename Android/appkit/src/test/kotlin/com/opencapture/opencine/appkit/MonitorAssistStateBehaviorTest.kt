@@ -3,6 +3,9 @@ package com.opencapture.opencine.appkit
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorFalseColorSelection
 import com.opencapture.monitorui.MonitorGuideAspect
+import com.opencapture.monitorui.MonitorGuideSafeArea
+import com.opencapture.monitorui.MonitorGuideSafeAreaKind
+import com.opencapture.monitorui.MonitorGuideSafeAreas
 import com.opencapture.monitorui.MonitorParadeMode
 import com.opencapture.monitorui.MonitorScopeGuides
 import com.opencapture.monitorui.MonitorScopeStoredCenter
@@ -173,6 +176,25 @@ class MonitorAssistStateBehaviorTest {
         state.toggleGuide(MonitorGuideAspect.WIDE)
         assertTrue(state.selectedGuides.isEmpty())
         assertFalse(state.guides)
+    }
+
+    /** Swift mirror: MonitorAssistStateTests `guideSafeAreasPersistAndOlderSettingsStartOff`. */
+    @Test
+    fun guideSafeAreasPersistAndOlderSettingsStartOff() {
+        var saved: String? = null
+        val state = MonitorAssistState(onPersist = { saved = it })
+        assertEquals(MonitorGuideSafeAreas.STANDARD, state.guideSafeAreas)
+        state.updateGuideSafeAreas(
+            state.guideSafeAreas.withOn(MonitorGuideSafeAreaKind.ACTION, true)
+                .withPercent(MonitorGuideSafeAreaKind.ACTION, 85),
+        )
+        val restored = MonitorAssistState(encoded = saved)
+        assertEquals(listOf(MonitorGuideSafeArea(MonitorGuideSafeAreaKind.ACTION, 85)), restored.guideSafeAreas.drawn)
+
+        val older = org.json.JSONObject(saved!!).apply { remove("guideSafeAreas") }.toString()
+        assertEquals(MonitorGuideSafeAreas.STANDARD, MonitorAssistState(encoded = older).guideSafeAreas)
+        val outOfRange = """{"guideSafeAreas":{"titleSafe":true,"titlePercent":5}}"""
+        assertEquals(50, MonitorAssistState(encoded = outOfRange).guideSafeAreas.titlePercent)
     }
 
     @Test

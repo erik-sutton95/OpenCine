@@ -592,6 +592,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun getGuideAspect ()Lcom/opencapture/monitorui/MonitorGuideAspect;
 	public final fun getGuideFamily ()Lcom/opencapture/monitorui/MonitorGuideFamily;
 	public final fun getGuideMask ()Z
+	public final fun getGuideSafeAreas ()Lcom/opencapture/monitorui/MonitorGuideSafeAreas;
 	public final fun getGuides ()Z
 	public final fun getHistoCenter ()Lcom/opencapture/monitorui/MonitorScopeStoredCenter;
 	public final fun getHistoCenterPortrait ()Lcom/opencapture/monitorui/MonitorScopeStoredCenter;
@@ -685,6 +686,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun setGuideAspect (Lcom/opencapture/monitorui/MonitorGuideAspect;)V
 	public final fun setGuideFamily (Lcom/opencapture/monitorui/MonitorGuideFamily;)V
 	public final fun setGuideMask (Z)V
+	public final fun setGuideSafeAreas (Lcom/opencapture/monitorui/MonitorGuideSafeAreas;)V
 	public final fun setHistoCenter (Lcom/opencapture/monitorui/MonitorScopeStoredCenter;)V
 	public final fun setHistoCenterPortrait (Lcom/opencapture/monitorui/MonitorScopeStoredCenter;)V
 	public final fun setHistoScale (D)V
@@ -761,6 +763,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun updateDesqueezeFactor (D)V
 	public final fun updateGuideFamily (Lcom/opencapture/monitorui/MonitorGuideFamily;)V
 	public final fun updateGuideMask (Z)V
+	public final fun updateGuideSafeAreas (Lcom/opencapture/monitorui/MonitorGuideSafeAreas;)V
 	public final fun updateLutExposure (D)V
 	public final fun updateZebraUnit (Lcom/opencapture/monitorui/MonitorZebraUnit;)V
 }
