@@ -82,6 +82,7 @@ class MonitorAudioPeakAccumulator: Sendable
 class MonitorAudioPeakLease: Sendable
 class MonitorAudioPeakWriter: Sendable
 class MonitorBackdropRasterRenderer
+class MonitorCleanPictureTap: Sendable
 class MonitorDecodeMetrics: Sendable
 class MonitorFalseColorMapper: Sendable
 class MonitorFrameBaker: Sendable
@@ -202,6 +203,7 @@ func MonitorAppleProgressiveAsset.update(readableBytes: Swift.Int64) -> ()
 func MonitorAssistEngine.adopt(exposureCeiling: OpenCineMedia.ScopeExposureCeiling) -> ()
 func MonitorAssistEngine.reset() -> ()
 func MonitorAssistEngine.sample(_: CoreGraphics.CGImage, effects: MonitorAssistPolicy, transfer: OpenCineMedia.MonitorTransfer, completion: (MonitorAssistEngine.Result) -> Swift.Void) -> ()
+func MonitorAssistEngine.setCleanPictureTap(_: MonitorCleanPictureTap?) -> ()
 func MonitorAssistEngine.submit(_: CoreVideo.CVPixelBuffer, effects: MonitorAssistPolicy?, transfer: OpenCineMedia.MonitorTransfer?, timeNs: Swift.Int64?, completion: (MonitorAssistEngine.Result) -> Swift.Void) -> ()
 func MonitorAssistEngine.updatePolicy(effects: MonitorAssistPolicy, transfer: OpenCineMedia.MonitorTransfer) -> ()
 func MonitorAssistPolicy.stamp(transfer: OpenCineMedia.MonitorTransfer, ceiling: OpenCineMedia.ScopeExposureCeiling) -> ()
@@ -220,6 +222,7 @@ func MonitorAudioPeakWriter.ingest(left: Swift.Float, right: Swift.Float) -> Swi
 func MonitorBackdropRasterRenderer.render(canvasSize: CoreFoundation.CGSize, layers: [MonitorBackdropRasterLayer], surroundRGB: Swift.UInt32) -> MonitorBackdropRasterSnapshot?
 func MonitorBackdropRasterRenderer.render(canvasSize: CoreFoundation.CGSize, look: CoreImage.CIImage, frame: CoreFoundation.CGRect, clip: CoreFoundation.CGRect, lookContext: CoreImage.CIContext, outputColorSpace: CoreGraphics.CGColorSpace?, surroundRGB: Swift.UInt32) -> MonitorBackdropRasterSnapshot?
 func MonitorBackdropRasterSnapshot.image(for: OpenCineMedia.MonitorBackdropBlurProduct) -> CoreGraphics.CGImage?
+func MonitorCleanPictureTap.submit(_: CoreVideo.CVPixelBuffer, effects: MonitorImageEffects, timeNs: Swift.Int64?) -> ()
 func MonitorDecodeMetrics.accepted() -> ()
 func MonitorDecodeMetrics.adopted(at: Foundation.TimeInterval, completedAt: Foundation.TimeInterval) -> ()
 func MonitorDecodeMetrics.assistInput() -> ()
@@ -287,6 +290,7 @@ func MonitorLiveVideoRuntime.preparePixelBufferSource(transfer: OpenCineMedia.Mo
 func MonitorLiveVideoRuntime.rebuildPresentation() -> Swift.Bool
 func MonitorLiveVideoRuntime.rebuildPresentationIfNeeded(referenceLossOnly: Swift.Bool) -> Swift.Bool
 func MonitorLiveVideoRuntime.reset() -> ()
+func MonitorLiveVideoRuntime.setCleanPictureTap(_: MonitorCleanPictureTap?) -> ()
 func MonitorLiveVideoRuntime.submitDecodedFrame(_: CoreVideo.CVPixelBuffer, policy: MonitorAssistPolicy?, transfer: OpenCineMedia.MonitorTransfer?, isNewSourceFrame: Swift.Bool, generation: Swift.Int?, timeNs: Swift.Int64, source: MonitorVideoSourceToken?) -> ()
 func MonitorLiveVideoRuntime.submitDecodedFrame(_: DecodedFrameLease, policy: MonitorAssistPolicy?, transfer: OpenCineMedia.MonitorTransfer?, isNewSourceFrame: Swift.Bool, source: MonitorVideoSourceToken?) -> ()
 func MonitorLiveVideoRuntime.syncPictureFlip() -> ()
@@ -421,6 +425,7 @@ init MonitorAudioPeakAccumulator()
 init MonitorBackdropRasterLayer(image: CoreGraphics.CGImage, frame: CoreFoundation.CGRect, clip: CoreFoundation.CGRect)
 init MonitorBackdropRasterRenderer(products: [OpenCineMedia.MonitorBackdropBlurProduct])
 init MonitorBackdropRasterSnapshot(canvasSize: CoreFoundation.CGSize, images: [OpenCineMedia.MonitorBackdropBlurProduct : CoreGraphics.CGImage])
+init MonitorCleanPictureTap(maxWidth: Swift.Int, deliver: (MonitorCleanFrame) -> Swift.Void)
 init MonitorCodeZebraSpec(_: MonitorZebraSpec, transfer: OpenCineMedia.MonitorTransfer, clipByte: Swift.Int)
 init MonitorCodeZebraSpec(thresholds: OpenCineMedia.MonitorZebraCodeThresholds, highlightColor: MonitorRGB, midtoneColor: MonitorRGB, maskPolicy: OpenCineMedia.MonitorZebraMaskPolicy)
 init MonitorDecodeMetrics()
@@ -515,6 +520,8 @@ let MonitorAudioPeakSample.preparationGeneration: Swift.UInt64
 let MonitorAudioPeakSample.right: Swift.Float
 let MonitorAudioPeakSample.sourceGeneration: Swift.UInt64
 let MonitorBackdropRasterSnapshot.canvasSize: CoreFoundation.CGSize
+let MonitorCleanFrame.pixelBuffer: CoreVideo.CVPixelBuffer
+let MonitorCleanFrame.timeNs: Swift.Int64?
 let MonitorFrameBaker.Frame.drawableSize: CoreFoundation.CGSize
 let MonitorFrameBaker.Frame.generation: Swift.Int
 let MonitorFrameBaker.Frame.id: Swift.UInt64
@@ -704,6 +711,7 @@ struct MonitorAsyncFrameState: Sendable
 struct MonitorAudioPeakSample: Sendable
 struct MonitorBackdropRasterLayer: Sendable
 struct MonitorBackdropRasterSnapshot: Sendable
+struct MonitorCleanFrame: Sendable
 struct MonitorCodeZebraSpec: Equatable, Sendable
 struct MonitorDecodeMetrics.Snapshot: Equatable, Sendable
 struct MonitorFalseColorMapper.OverlayMaps: Sendable

@@ -42,6 +42,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     /// False for a still a source presents itself: only its scope tap runs.
     private var pendingPresents = true
     private var busy = false
+    private var cleanTap: MonitorCleanPictureTap?
     private var nextScopeAt: CFAbsoluteTime = 0
     /// Rolling tap maximum for the 10 s `scope max:` journal cadence.
     private var ceilingLogMax: UInt8 = 0
@@ -135,6 +136,12 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         }
     }
 
+    /// Feeds each presented source frame, with the current image effects, to a clean-picture
+    /// tap (an outgoing stream). `nil` stops it; with no tap nothing extra runs.
+    public func setCleanPictureTap(_ tap: MonitorCleanPictureTap?) {
+        queue.async { [self] in cleanTap = tap }
+    }
+
     public func reset() {
         queue.async { [self] in
             pendingBuffer = nil
@@ -190,6 +197,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         let presents = pendingPresents
         fx.stamp(transfer: transfer, ceiling: exposureCeiling)
         busy = true
+        if presents, let cleanTap { cleanTap.submit(buffer, effects: fx.image, timeNs: timeNs) }
         var imageEffects = fx.image
         if fx.image.falseColor {
             imageEffects.falseColorMaps = falseColorMapper.overlayPairData(
