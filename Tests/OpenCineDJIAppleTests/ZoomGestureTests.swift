@@ -99,6 +99,24 @@ struct DJIAppleZoomGestureTests {
         p.gesture.observe(p.status)
         #expect(p.gesture.snapshot.stop == 12 && p.gesture.fallback == 3)
     }
+    /// OpenPocketCine#645: older firmware clamps the 18× ask at 12×. The pin lets go and the chip
+    /// shows the 12× the camera reports, not the 18× that was asked.
+    @Test func eighteenAskClampedAtTwelveReadsTwelve() {
+        let p = Peer()
+        p.stops = [1, 3, 6, 12, 18]
+        p.gesture.chip(18)
+        #expect(p.gesture.readout == 18)
+        p.status.zoomLens = CamFov.lens12x
+        p.gesture.observe(p.status)
+        #expect(p.gesture.readout == 18, "the pin holds the ask while the lens may still move")
+        p.time = 2
+        p.gesture.observe(p.status)
+        #expect(p.gesture.snapshot.optimistic == nil && p.gesture.readout == 12)
+        #expect(p.gesture.snapshot.stop == 18)
+        p.status.zoomLens = CamFov.lens18x
+        p.gesture.observe(p.status)
+        #expect(p.gesture.readout == 18)
+    }
     @Test func recordingColorRefusalKeepsUnknownFactsAndDoesNotPresentPinch() {
         let p = Peer()
         p.status.colorMode = .dLog2

@@ -58,6 +58,7 @@ public final class com/opencapture/opencine/vocabulary/AutoExposureLock {
 public final class com/opencapture/opencine/vocabulary/CamFov {
 	public static final field INSTANCE Lcom/opencapture/opencine/vocabulary/CamFov;
 	public static final field LENS_12X I
+	public static final field LENS_18X I
 	public static final field LENS_1X I
 	public static final field LENS_3X I
 	public static final field LENS_6X I
