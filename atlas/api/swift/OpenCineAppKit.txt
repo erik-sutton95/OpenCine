@@ -2153,6 +2153,7 @@ var MonitorAssistSnapshot.gridThirds: Swift.Bool
 var MonitorAssistSnapshot.guideAspect: Swift.String
 var MonitorAssistSnapshot.guideFamily: Swift.String
 var MonitorAssistSnapshot.guideMask: Swift.Bool
+var MonitorAssistSnapshot.guideSafeAreas: MonitorPresentation.MonitorGuideSafeAreas?
 var MonitorAssistSnapshot.lutArmed: Swift.Bool
 var MonitorAssistSnapshot.lutExposureStops: Swift.Double?
 var MonitorAssistSnapshot.mirrorHorizontal: Swift.Bool?
@@ -2198,6 +2199,7 @@ var MonitorAssistState.gridThirds: Swift.Bool
 var MonitorAssistState.guideAspect: MonitorPresentation.MonitorGuideAspect
 var MonitorAssistState.guideFamily: MonitorPresentation.MonitorGuideFamily
 var MonitorAssistState.guideMask: Swift.Bool
+var MonitorAssistState.guideSafeAreas: MonitorPresentation.MonitorGuideSafeAreas
 var MonitorAssistState.guides: Swift.Bool
 var MonitorAssistState.hasPreparedLUT: Swift.Bool
 var MonitorAssistState.histogram: Swift.Bool

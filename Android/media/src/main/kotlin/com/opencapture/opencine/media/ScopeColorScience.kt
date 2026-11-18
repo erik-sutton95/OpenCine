@@ -98,6 +98,14 @@ object ScopeDisplayScale {
     const val CRUSH_LEVEL = 0.05
     const val CLIP_LEVEL = 0.95
 
+    /**
+     * Swift `ScopeDisplayScale.zebraHighlightCeilingPercent`: code 255 on the plot's top edge.
+     * A highlight zebra threshold may sit between 100 and this, in the headroom above the
+     * live ceiling, so a camera's zebra set above the assumed white can be matched.
+     */
+    const val ZEBRA_HIGHLIGHT_CEILING_PERCENT: Double =
+        100.0 + 100.0 * (1.0 - CLIP_LEVEL) / (CLIP_LEVEL - CRUSH_LEVEL)
+
     fun waveformLevel(c: Double, transfer: MonitorTransfer, iso: Int? = null, ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED): Double {
         val a = ScopeAnchors.make(transfer, iso, ceiling)
         val v = minOf(1.0, maxOf(0.0, c))

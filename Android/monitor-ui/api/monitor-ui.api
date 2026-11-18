@@ -1014,7 +1014,7 @@ public final class com/opencapture/monitorui/MonitorFalseColorSelection$Companio
 }
 
 public final class com/opencapture/monitorui/MonitorFeedMarksKt {
-	public static final fun MonitorAspectGuideFrames (Ljava/util/Set;Lcom/opencapture/monitorui/MonitorScopeRect;ZLcom/opencapture/monitorui/MonitorGuideMaskPolicy;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorAspectGuideFrames (Ljava/util/Set;Lcom/opencapture/monitorui/MonitorScopeRect;ZLcom/opencapture/monitorui/MonitorGuideMaskPolicy;Lcom/opencapture/monitorui/MonitorGuideSafeAreas;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorFeedCrosshair (Lcom/opencapture/monitorui/MonitorScopeRect;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorFeedGrid (Lcom/opencapture/monitorui/MonitorScopeRect;ZZZLandroidx/compose/runtime/Composer;II)V
 }
@@ -1474,7 +1474,7 @@ public final class com/opencapture/monitorui/MonitorFramingMenusKt {
 	public static final fun MonitorAudioMenu (Lcom/opencapture/monitorui/MonitorAudioOrientation;Lkotlin/jvm/functions/Function1;ZLkotlin/jvm/functions/Function1;Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorDesqueezeMenu (Lcom/opencapture/opencine/media/MonitorDesqueezePreset;ZDLcom/opencapture/opencine/media/MonitorDesqueezeDirection;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorGridMenu (ZLkotlin/jvm/functions/Function1;ZLkotlin/jvm/functions/Function1;ZLkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;I)V
-	public static final fun MonitorGuidesMenu-88mDfTA (Lcom/opencapture/monitorui/MonitorGuideFamily;Ljava/util/Set;ZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;JLandroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorGuidesMenu-Ic2awPA (Lcom/opencapture/monitorui/MonitorGuideFamily;Ljava/util/Set;ZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;JLcom/opencapture/monitorui/MonitorGuideSafeAreas;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;II)V
 	public static final fun MonitorMirrorMenu (ZLkotlin/jvm/functions/Function1;ZLkotlin/jvm/functions/Function1;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V
 	public static final fun MonitorNDMenu (Lcom/opencapture/opencine/media/MonitorNDFilterNotation;Lkotlin/jvm/functions/Function1;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V
 }
@@ -1560,6 +1560,68 @@ public final class com/opencapture/monitorui/MonitorGuideMaskPolicy : java/lang/
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorGuideMaskPolicy;
 	public static fun values ()[Lcom/opencapture/monitorui/MonitorGuideMaskPolicy;
+}
+
+public final class com/opencapture/monitorui/MonitorGuideSafeArea {
+	public static final field $stable I
+	public fun <init> (Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;I)V
+	public final fun component1 ()Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;
+	public final fun component2 ()I
+	public final fun copy (Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;I)Lcom/opencapture/monitorui/MonitorGuideSafeArea;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorGuideSafeArea;Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;IILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorGuideSafeArea;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;
+	public final fun getPercent ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorGuideSafeAreaKind : java/lang/Enum {
+	public static final field ACTION Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;
+	public static final field TITLE Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getHelp ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;
+}
+
+public final class com/opencapture/monitorui/MonitorGuideSafeAreas {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/monitorui/MonitorGuideSafeAreas$Companion;
+	public static final field MAX_PERCENT I
+	public static final field MIN_PERCENT I
+	public static final field SIZE_HELP Ljava/lang/String;
+	public static final field STANDARD_ACTION_PERCENT I
+	public static final field STANDARD_TITLE_PERCENT I
+	public fun <init> ()V
+	public fun <init> (ZIZI)V
+	public synthetic fun <init> (ZIZIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()I
+	public final fun component3 ()Z
+	public final fun component4 ()I
+	public final fun copy (ZIZI)Lcom/opencapture/monitorui/MonitorGuideSafeAreas;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorGuideSafeAreas;ZIZIILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorGuideSafeAreas;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActionPercent ()I
+	public final fun getActionSafe ()Z
+	public final fun getDrawn ()Ljava/util/List;
+	public final fun getTitlePercent ()I
+	public final fun getTitleSafe ()Z
+	public fun hashCode ()I
+	public final fun isOn (Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;)Z
+	public final fun percent (Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;)I
+	public fun toString ()Ljava/lang/String;
+	public final fun withOn (Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;Z)Lcom/opencapture/monitorui/MonitorGuideSafeAreas;
+	public final fun withPercent (Lcom/opencapture/monitorui/MonitorGuideSafeAreaKind;I)Lcom/opencapture/monitorui/MonitorGuideSafeAreas;
+}
+
+public final class com/opencapture/monitorui/MonitorGuideSafeAreas$Companion {
+	public final fun clamped (I)I
+	public final fun getSTANDARD ()Lcom/opencapture/monitorui/MonitorGuideSafeAreas;
+	public final fun inset (Lcom/opencapture/monitorui/MonitorScopeRect;I)Lcom/opencapture/monitorui/MonitorScopeRect;
+	public final fun label (I)Ljava/lang/String;
 }
 
 public final class com/opencapture/monitorui/MonitorHistogramGeometry {

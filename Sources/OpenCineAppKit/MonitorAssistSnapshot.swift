@@ -8,6 +8,8 @@ public struct MonitorAssistSnapshot: Codable {
     public var guideFamily: String
     public var selectedGuides: [String]
     public var guideMask: Bool
+    /// Optional so settings saved before safe areas still decode (both off).
+    public var guideSafeAreas: MonitorGuideSafeAreas?
     public var gridThirds: Bool
     public var gridPhi: Bool
     public var gridDiagonal: Bool
@@ -42,6 +44,7 @@ public struct MonitorAssistSnapshot: Codable {
         guideFamily = s.guideFamily.rawValue
         selectedGuides = s.selectedGuides.map(\.rawValue)
         guideMask = s.guideMask
+        guideSafeAreas = s.guideSafeAreas
         gridThirds = s.gridThirds
         gridPhi = s.gridPhi
         gridDiagonal = s.gridDiagonal
@@ -95,6 +98,7 @@ public struct MonitorAssistSnapshot: Codable {
         let restored = Set(selectedGuides.compactMap(MonitorGuideAspect.init(rawValue:)))
         s.selectedGuides = restored.isEmpty ? [s.guideAspect] : restored
         s.guideMask = guideMask
+        s.guideSafeAreas = guideSafeAreas ?? .standard
         s.gridThirds = gridThirds
         s.gridPhi = gridPhi
         s.gridDiagonal = gridDiagonal
