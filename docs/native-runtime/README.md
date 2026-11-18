@@ -150,6 +150,19 @@ attachment/listener lifetimes in `:native-runtime`, without a Compose dependency
 program is either the existing GLES owner or a direct decoder surface. Old-window destroy and
 update callbacks cannot release a replacement surface or refresh its presentation clock.
 
+## Clean picture for live streaming (Apple)
+
+`MonitorLiveVideoRuntime.setCleanPictureTap(_:)` hands each presented source frame, with the
+monitor's current image effects, to a `MonitorCleanPictureTap`. The tap renders the clean picture
+an outgoing RTMPS stream carries: the LUT and desqueeze, through the same compositor inputs the
+assist engine uses, and never peaking, zebra, false colour or the split comparison. It renders on
+its own queue into its own BGRA pool tagged Rec.709, keeps only the newest waiting frame, and
+delivers `MonitorCleanFrame` (buffer and source time). With no tap set nothing extra runs. With a
+LUT on, the picture is at most the monitor's working width (`FeedPresentPolicy.maxWorkingWidth`).
+The stream side (`OpenCineStreamingApple`) takes the buffer from app composition; no streaming
+type enters this module. Android's twin is part 3 of the streaming series
+(`docs/streaming/README.md`).
+
 ## Native media streaming
 
 Apple `MonitorMediaHTTPStream` owns one bounded URLSession request and cancellation lifetime.

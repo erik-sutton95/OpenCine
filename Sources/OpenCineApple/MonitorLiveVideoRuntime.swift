@@ -145,6 +145,11 @@ open class MonitorLiveVideoRuntime {
     /// External preview. `source` is the VT identity buffer when a cube does not own
     /// the picture (`nil` for LUT replace). `unmanaged` is a cube product.
     public var onPreviewFrame: ((CIImage, CVPixelBuffer?, Bool) -> Void)?
+    /// Sends each presented source frame through `tap`, which renders the clean picture (LUT on,
+    /// assists off) for an outgoing stream on its own queue. `nil` stops it.
+    nonisolated public func setCleanPictureTap(_ tap: MonitorCleanPictureTap?) {
+        assistEngine.setCleanPictureTap(tap)
+    }
     /// Decoded identity buffer before LUT/PEAK. External identity encode tap.
     nonisolated(unsafe) public var onIdentityFrame: ((CVPixelBuffer) -> Void)?
     /// View-space X flip applied on the host view at present time (not SwiftUI).
