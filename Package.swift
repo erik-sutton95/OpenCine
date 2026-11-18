@@ -20,6 +20,8 @@ import PackageDescription
 //   OpenCineJNISupport only.
 // - OpenCineStreaming (the portable RTMPS publish engine) imports Foundation and OpenCineCore
 //   only, opens no socket and names no app or manufacturer; service names are preset content.
+//   OpenCineStreamingApple (its Apple shell: TLS socket, H.264 and AAC encoders, picture fitting,
+//   microphone and keychain) depends on OpenCineStreaming, OpenCineCore and Apple frameworks only.
 // - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app.
 //   Native views consume portable Media values; presentation policy stays Foundation-only.
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
@@ -50,6 +52,7 @@ let package = Package(
         .library(name: "OpenCineGyro", targets: ["OpenCineGyro"]),
         .library(name: "OpenCineGyroApple", targets: ["OpenCineGyroApple"]),
         .library(name: "OpenCineStreaming", targets: ["OpenCineStreaming"]),
+        .library(name: "OpenCineStreamingApple", targets: ["OpenCineStreamingApple"]),
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
         .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
         .library(name: "OpenCineRelayApple", targets: ["OpenCineRelayApple"]),
@@ -127,6 +130,12 @@ let package = Package(
         // Sans-I/O over Foundation and Core values; platform shells add the socket and encoders.
         .target(name: "OpenCineStreaming", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineStreamingTests", dependencies: ["OpenCineStreaming", "OpenCineCore"]),
+        // Streaming's Apple shell: TLS socket, H.264 and AAC encoders, picture fitting, microphone and
+        // keychain under the portable run controller. Files sit behind `#if canImport(VideoToolbox)`.
+        .target(name: "OpenCineStreamingApple", dependencies: ["OpenCineStreaming", "OpenCineCore"]),
+        .testTarget(
+            name: "OpenCineStreamingAppleTests",
+            dependencies: ["OpenCineStreamingApple", "OpenCineStreaming", "OpenCineCore"]),
         // Optional typed motion seam and trajectory math shared by gimbal integrations.
         .target(name: "OpenCineMotion", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMotionTests", dependencies: ["OpenCineMotion"]),

@@ -1,18 +1,21 @@
 # Live streaming (RTMPS)
 
 Going live from a camera app to Twitch, YouTube, Facebook, Instagram or any `rtmps://` server,
-without OBS. This guide covers the portable engine (part 1 of the series). The design is
+without OBS. This guide covers the portable engine (part 1 of the series) and the Apple shell
+(part 2, Tasks 1 to 7). The design is
 `docs/superpowers/specs/2026-11-05-rtmps-streaming-design.md`; the plans are
 `docs/superpowers/plans/2026-11-05-rtmps-*.md`.
 
-Status: implemented, automated checks passed. No app links this module yet. Nothing here has
-streamed to a real service; that waits for the Apple and Android shells (parts 2 and 3).
+Status: implemented, automated checks passed. No app links these modules yet. Nothing here has
+streamed to a real service: the Apple shell has streamed only to a local FFmpeg receiver. The
+clean-picture tap, shared UI and app adoption (part 2, Tasks 8 to 11) and Android (part 3) follow.
 
 ## Modules
 
 | Module | Layer | Depends on | Contents |
 |---|---|---|---|
 | `OpenCineStreaming` (Swift) | core | `OpenCineCore` | The engine, below |
+| `OpenCineStreamingApple` (Swift) | core | `OpenCineStreaming`, `OpenCineCore`, Apple frameworks | The Apple shell, below |
 
 `OpenCineStreaming` imports Foundation and Core only, opens no socket, runs no encoder and names
 no manufacturer or app (`StreamingSourceRulesTests`). Service names appear only as preset content.
@@ -31,6 +34,20 @@ It is sans-I/O, like Gyro: bytes and values in, bytes and decisions out, on inje
 | `StreamPolicies.swift` | Bitrate steps on queue delay; reconnect backoff from 1 to 15 s inside a 2 minute window; refusals never retry |
 | `StreamOutputFormat.swift` | The output rule (match the source, 720p from wireless feeds, 1080p only from a real 1080p source) and the connection routes that may stream |
 | `StreamServicePreset.swift` | The one service table; facts and sources in [services.md](services.md) |
+| `StreamRun.swift` | One stream from go-live to stop: connect, reconnect, bounded queue and in-flight bytes, bitrate, status. Media is dropped, not queued, while offline; the codec config is resent on each return |
+| `StreamFramePacer.swift` | Picks each output frame's picture: newest wins, repeats when the source is slow, a slate after 2 s without pictures |
+
+## The Apple shell (`OpenCineStreamingApple`)
+
+| File | Responsibility |
+|---|---|
+| `StreamPublisher.swift` | Applies `StreamRun`'s actions: socket, encoders, frame clock at the output rate, wake timers; reports status |
+| `StreamConnection.swift` | TLS on Network.framework (system trust, SNI); plain TCP only through the internal interop seam |
+| `H264StreamEncoder.swift` | VideoToolbox H.264 High, real time, no reordering, keyframe every 2 s, bitrate changes live |
+| `AACStreamEncoder.swift` | AAC-LC 48 kHz stereo 160 kbps from any PCM input; times follow the sample count |
+| `StreamPictureFitter.swift` | Any source into the fixed output frame: fit with black bars, or center crop for the vertical preset |
+| `StreamKeyStore.swift` | Keys, and entered servers, per preset in the keychain; the service is a host value |
+| `StreamMicrophone.swift` | iOS microphone at the input's format (iOS only, verified on device only) |
 
 ## What it does not do
 
@@ -50,6 +67,13 @@ It is sans-I/O, like Gyro: bytes and values in, bytes and decisions out, on inje
 - Regenerate the fixture with FFmpeg on the path: `python3 scripts/streaming-rtmp-capture.py`.
   It proxies one second of an FFmpeg publish between an FFmpeg sender and receiver and fails if
   the fixture passes 64 KB.
+- `swift test --filter OpenCineStreamingAppleTests`: encoders, fitter, key store, socket and publisher on
+  the macOS host. The socket tests use a local listener; the rest run without network.
+- Apple interop tier, off by default:
+  `OPENCINE_FFMPEG_INTEROP=1 swift test --filter StreamAppleInteropTests`. Synthetic pictures and a tone
+  go through the real fitter, VideoToolbox, the AAC encoder, the run controller and a plain local
+  socket to FFmpeg, in real time; `ffprobe` checks H.264 High 1280x720, AAC 48 kHz stereo and
+  timestamps that never go backward.
 - FFmpeg interop tier, off by default:
   `OPENCINE_FFMPEG_INTEROP=1 swift test --filter RTMPInteropTests`. FFmpeg encodes H.264 and AAC
   and listens as the receiver; the session publishes to it over local TCP, and `ffprobe` checks
