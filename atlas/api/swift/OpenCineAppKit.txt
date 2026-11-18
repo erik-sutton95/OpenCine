@@ -233,6 +233,7 @@ class MonitorOperatorMediaModel<Payload, Look where Payload : Swift.Sendable, Lo
 class MonitorOperatorPreferences: Observable, Sendable
 class MonitorOperatorSessionModel<Looks where Looks : MonitorLookProvider>: Observable, Sendable
 class MonitorPlaybackScopeSession<Configuration where Configuration : Swift.Equatable, Configuration : Swift.Sendable>: Observable, Sendable
+class MonitorRotationLock: Sendable
 class MonitorScopePanelStore<Options where Options : MonitorPresentation.MonitorScopePanelOptions>: Observable, Sendable
 class MonitorSettingsAccountModel: Observable, Sendable
 class MonitorSettingsCacheModel: Observable, Sendable
@@ -348,6 +349,7 @@ extension MonitorPresentation.MonitorRect
 extension MonitorPresentation.MonitorScopePoint
 extension OpenCineCore.MultiviewRepairResult
 extension OpenCineMedia.MonitorTimecodeFormat
+extension SwiftUICore.EnvironmentValues
 extension SwiftUICore.View
 func AddSetupChooser.select(_: Swift.String, onSelect: (AddSetupOption) -> Swift.Void) -> Swift.Bool
 func BodyRecordsV0.cameras(in: Foundation.Data) -> [OpenCineCore.LegacyCamera]?
@@ -756,6 +758,8 @@ func MonitorRemoteShutterVolumeLease.end() -> ()
 func MonitorRemoteShutterVolumeLease.needsView(at: Foundation.TimeInterval) -> Swift.Bool
 func MonitorRemoteShutterVolumeLease.request(volume: Swift.Float) -> ()
 func MonitorRemoteShutterVolumeLease.wrote(at: Foundation.TimeInterval) -> ()
+func MonitorRotationHold.update(locked: Swift.Bool, current: Value?)<Value where Value : Swift.Equatable, Value : Swift.Sendable> -> Swift.Bool
+func MonitorRotationLock.update(locked: Swift.Bool) -> ()
 func MonitorScopePanelStore.beginDrag(center: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
 func MonitorScopePanelStore.beginDrag(center: MonitorPresentation.MonitorScopePoint, slot: MonitorPresentation.MonitorScopeCanvasSlot)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
 func MonitorScopePanelStore.cancelDrag(bounds: CoreFoundation.CGRect)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
@@ -937,6 +941,8 @@ func ShellModel.present(_: OpenCineCore.ConnectedCamera) -> ()
 func ShellModel.setSceneActive(_: Swift.Bool) -> ()
 func ShellModel.showCameras() -> ()
 func View.monitorBrowserHandoffReturn(_: MonitorBrowserInternetHandoff<Route>)<Self, Route where Self : SwiftUI.View> -> some SwiftUI.View
+func View.monitorHoldsRotation(locked: Swift.Bool) -> some SwiftUI.View
+func View.monitorRotationLock(_: MonitorRotationLock) -> some SwiftUI.View
 func View.monitorShellSceneActivity(_: ShellModel) -> some SwiftUI.View
 func View.multiviewStageServices(_: MultiviewStageServices) -> some SwiftUI.View
 func View.multiviewStageState(_: MultiviewStageState) -> some SwiftUI.View
@@ -1095,6 +1101,8 @@ init MonitorRect(_: CoreFoundation.CGRect)
 init MonitorRemoteShutterPresses(volume: Swift.Float)
 init MonitorRemoteShutterVolumeLease()
 init MonitorReviewOptions(duration: MonitorReviewDuration, showsFocusPoint: Swift.Bool, showsCaptureInfo: Swift.Bool)
+init MonitorRotationHold()<Value where Value : Swift.Equatable, Value : Swift.Sendable>
+init MonitorRotationLock(released: UIKit.UIInterfaceOrientationMask?)
 init MonitorScopePanelStore(options: Options?, storage: Foundation.UserDefaults, key: Swift.String)<Options where Options : MonitorPresentation.MonitorScopePanelOptions>
 init MonitorScopePoint(_: CoreFoundation.CGPoint)
 init MonitorScopeStoredPanel(store: MonitorScopePanelStore<Options>, baseSize: CoreFoundation.CGSize, canvas: CoreFoundation.CGRect, chromeClearance: SwiftUI.EdgeInsets, resizeLabel: Swift.String, onOpenOptions: ((CoreFoundation.CGRect) -> Swift.Void)?, onConfirm: () -> Swift.Void, content: () -> Content)<Options, Content where Options : MonitorPresentation.MonitorScopePanelOptions, Content : SwiftUI.View>
@@ -1662,6 +1670,7 @@ static func MonitorRemoteShutterPolicy.decision(newVolume: Swift.Float, now: Fou
 static func MonitorRemoteShutterPolicy.needsWrite(from: Swift.Float, to: Swift.Float) -> Swift.Bool
 static func MonitorRemoteShutterPolicy.shouldRun(enabled: Swift.Bool, monitorPresented: Swift.Bool, liveViewFront: Swift.Bool, applicationIsActive: Swift.Bool, audioSessionAvailable: Swift.Bool) -> Swift.Bool
 static func MonitorReviewDuration.fromSeconds(_: Swift.Int) -> MonitorReviewDuration
+static func MonitorRotationLock.mask(for: UIKit.UIInterfaceOrientation) -> UIKit.UIInterfaceOrientationMask
 static func MonitorScopePanelStore.load(storage: Foundation.UserDefaults, key: Swift.String)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> Options
 static func MonitorScreenWakePolicy.keepAwake(enabled: Swift.Bool, sceneActive: Swift.Bool) -> Swift.Bool
 static func MonitorSettingsAccountActions.overInternetHop(identity: Swift.AnyHashable, isCurrent: () -> Swift.Bool, connect: () async throws -> Swift.Void, disconnect: () -> Swift.Void, hop: MonitorInternetHop<Route>, route: () -> Route?, internetFailure: Swift.String)<Route> -> MonitorSettingsAccountActions
@@ -1944,6 +1953,7 @@ struct MonitorPlaybackScopeFrame: Sendable
 struct MonitorRemoteShutterPresses: Equatable, Sendable
 struct MonitorRemoteShutterVolumeLease: Equatable, Sendable
 struct MonitorReviewOptions: Decodable, Encodable, Equatable, Hashable, Sendable
+struct MonitorRotationHold<Value where Value : Swift.Equatable, Value : Swift.Sendable>: Equatable, Sendable
 struct MonitorScopeStoredPanel<Options, Content where Options : MonitorPresentation.MonitorScopePanelOptions, Content : SwiftUI.View>: Sendable, View
 struct MonitorScreen<Picture, Assists, Signal, Status, Power, Capture, System, Tools, Panels, Cover, Recovery where Picture : SwiftUI.View, Assists : SwiftUI.View, Signal : SwiftUI.View, Status : SwiftUI.View, Power : SwiftUI.View, Capture : SwiftUI.View, System : SwiftUI.View, Tools : SwiftUI.View, Panels : SwiftUI.View, Cover : SwiftUI.View, Recovery : SwiftUI.View>: Sendable, View
 struct MonitorSettingsAccountActions: Sendable
@@ -2085,6 +2095,7 @@ var DiagnosticsHost.sourceRevision: Swift.String
 var DiagnosticsHost.supportEmail: Swift.String
 var DiagnosticsHost.tracksWatchdogTerminations: Swift.Bool
 var DiagnosticsHost.version: Swift.String
+var EnvironmentValues.monitorRotationLock: MonitorRotationLock?
 var FeedIncidentOrigin.overrideBuildIdentityForTests: Swift.String?
 var FeedIncidentOrigin.overrideTestSourceForTests: OpenCineMedia.FeedIncidentTestSource?
 var FeedIncidentSessionSource.isCurrent: Swift.Bool
@@ -2574,6 +2585,9 @@ var MonitorReviewDuration.label: Swift.String
 var MonitorReviewOptions.duration: MonitorReviewDuration
 var MonitorReviewOptions.showsCaptureInfo: Swift.Bool
 var MonitorReviewOptions.showsFocusPoint: Swift.Bool
+var MonitorRotationHold.held: Value?
+var MonitorRotationLock.heldOrientation: UIKit.UIInterfaceOrientation?
+var MonitorRotationLock.supportedOrientations: UIKit.UIInterfaceOrientationMask
 var MonitorScopePanelStore.options: Options
 var MonitorScopePanelStore.optionsBinding: SwiftUI.Binding<Options>
 var MonitorScopePanelStore.sessionCenter: CoreFoundation.CGPoint?

@@ -4060,6 +4060,17 @@ public final class com/opencapture/opencine/appkit/MonitorReviewOptions {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/opencine/appkit/MonitorRotationHold {
+	public static final field $stable I
+	public fun <init> ()V
+	public final fun getHeld ()Ljava/lang/Object;
+	public final fun update (ZLjava/lang/Object;)Z
+}
+
+public final class com/opencapture/opencine/appkit/MonitorRotationLockEffectKt {
+	public static final fun MonitorRotationLockEffect (ZLandroidx/compose/runtime/Composer;I)V
+}
+
 public final class com/opencapture/opencine/appkit/MonitorScreenKt {
 	public static final fun MonitorScreen (Lcom/opencapture/opencine/appkit/MonitorControlModel;Lcom/opencapture/monitorui/MonitorFieldLayout;Lcom/opencapture/opencine/appkit/MonitorScreenPresentation;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }

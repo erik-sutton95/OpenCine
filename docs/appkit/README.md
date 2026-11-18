@@ -180,7 +180,17 @@ monitor every app composes, on SwiftUI and Compose. It assembles the picture can
 telemetry, system rail, assists and palette, inspector, capture strip, header gestures and capture
 popup, and owns the policies a caller used to pass as flags: record confirmation, connect-tap
 arming, the interface lock and a borrowed multicam member. Display modes, chrome and the lock come
-from `MonitorOperatorSessionModel`. The composition behind it is internal. Entries:
+from `MonitorOperatorSessionModel`. The composition behind it is internal.
+
+The interface lock also holds the screen rotation (`MonitorRotationHold`, twins): the orientation
+the lock engaged in, upside-down landscape included, stays until unlock or until the surface
+leaves. Android needs nothing from the app (`MonitorRotationLockEffect` requests
+`SCREEN_ORIENTATION_LOCKED` and restores the previous request). iOS needs the app delegate: it
+owns one `MonitorRotationLock`, answers `application(_:supportedInterfaceOrientationsFor:)` with
+its `supportedOrientations` and passes it to the root view with `.monitorRotationLock(_:)`.
+Without that the lock still works and the screen keeps turning.
+
+Entries:
 
 | Entry | Source adapter |
 | --- | --- |
