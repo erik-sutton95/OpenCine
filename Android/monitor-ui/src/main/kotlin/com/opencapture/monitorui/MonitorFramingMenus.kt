@@ -68,12 +68,14 @@ fun MonitorGridMenu(thirds: Boolean, onThirds: (Boolean) -> Unit, phi: Boolean,
     MonitorSettingsSwitchInlineRow("Diagonal", isOn = diagonal, stacked = false) { onDiagonal(!diagonal) }
 }
 
+/** [safeAreas] adds the action safe and title safe rows; without it the menu has none. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MonitorGuidesMenu(family: MonitorGuideFamily, selected: Set<MonitorGuideAspect>, mask: Boolean,
     onFamily: (MonitorGuideFamily) -> Unit, onToggle: (MonitorGuideAspect) -> Unit,
     onMask: (Boolean) -> Unit, ratioFeedback: () -> Unit = {},
-    choiceBackground: Color = Color(94 / 255f, 98 / 255f, 98 / 255f, .18f)) {
+    choiceBackground: Color = Color(94 / 255f, 98 / 255f, 98 / 255f, .18f),
+    safeAreas: MonitorGuideSafeAreas? = null, onSafeAreas: (MonitorGuideSafeAreas) -> Unit = {}) {
     val shownSelection = selected.toSet()
     Row(Modifier.fillMaxWidth().monitorTabStrip()) {
         MonitorGuideFamily.entries.forEachIndexed { index, option ->
@@ -101,6 +103,34 @@ fun MonitorGuidesMenu(family: MonitorGuideFamily, selected: Set<MonitorGuideAspe
     Spacer(Modifier.height(10.dp))
     MonitorSettingsSwitchInlineRow("Mask outside frame", isOn = mask, showTopDivider = false,
         stacked = false) { onMask(!mask) }
+    if (safeAreas != null) {
+        MonitorGuideSafeAreaKind.entries.forEach { kind -> MonitorGuideSafeAreaRows(kind, safeAreas, onSafeAreas) }
+    }
+}
+
+/** One safe area's switch and, while it is on, its size. */
+@Composable
+private fun MonitorGuideSafeAreaRows(kind: MonitorGuideSafeAreaKind, areas: MonitorGuideSafeAreas,
+    onChange: (MonitorGuideSafeAreas) -> Unit) {
+    val on = areas.isOn(kind)
+    val label = MonitorGuideSafeAreas.label(areas.percent(kind))
+    MonitorSettingsSwitchInlineRow(kind.title, isOn = on, help = kind.help, stacked = false,
+        testTag = "guides.safeArea.${kind.name.lowercase()}") { onChange(areas.withOn(kind, !on)) }
+    if (on) {
+        MonitorSettingsInlineRow("${kind.title} size", help = MonitorGuideSafeAreas.SIZE_HELP, stacked = true) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Slider(value = areas.percent(kind).toFloat(),
+                    onValueChange = { onChange(areas.withPercent(kind, kotlin.math.round(it).toInt())) },
+                    valueRange = MonitorGuideSafeAreas.MIN_PERCENT.toFloat()..MonitorGuideSafeAreas.MAX_PERCENT.toFloat(),
+                    steps = MonitorGuideSafeAreas.MAX_PERCENT - MonitorGuideSafeAreas.MIN_PERCENT - 1,
+                    modifier = Modifier.weight(1f).semantics {
+                        contentDescription = "${kind.title} size"
+                        stateDescription = label
+                    })
+                Text(label, style = MonitorTypography.text(12f, FontWeight.Medium), color = MonitorPalette.text)
+            }
+        }
+    }
 }
 
 @Composable

@@ -104,12 +104,15 @@ public struct MonitorGridMenu: View {
 public struct MonitorGuidesMenu: View {
     @Binding private var family: MonitorGuideFamily
     @Binding private var mask: Bool
+    private let safeAreas: Binding<MonitorGuideSafeAreas>?
     private let selected: Set<MonitorGuideAspect>
     private let feedback: () -> Void
     private let onToggle: (MonitorGuideAspect) -> Void
+    /// `safeAreas` adds the action safe and title safe rows; without it the menu has none.
     public init(family: Binding<MonitorGuideFamily>, selected: Set<MonitorGuideAspect>, mask: Binding<Bool>,
+        safeAreas: Binding<MonitorGuideSafeAreas>? = nil,
         feedback: @escaping () -> Void = {}, onToggle: @escaping (MonitorGuideAspect) -> Void) {
-        self._family = family; self._mask = mask; self.selected = selected
+        self._family = family; self._mask = mask; self.safeAreas = safeAreas; self.selected = selected
         self.feedback = feedback; self.onToggle = onToggle
     }
     public var body: some View {
@@ -131,6 +134,38 @@ public struct MonitorGuidesMenu: View {
                 }
             }
             MonitorSettingsSwitchInlineRow(title: "Mask outside frame", isOn: mask, feedback: feedback) { mask.toggle() }
+            if let safeAreas {
+                MonitorSnapshotRows(MonitorGuideSafeAreaKind.allCases) { kind in
+                    MonitorGuideSafeAreaRows(kind: kind, areas: safeAreas, feedback: feedback)
+                }
+            }
+        }
+    }
+}
+
+/// One safe area's switch and, while it is on, its size.
+private struct MonitorGuideSafeAreaRows: View {
+    let kind: MonitorGuideSafeAreaKind
+    @Binding var areas: MonitorGuideSafeAreas
+    let feedback: () -> Void
+    var body: some View {
+        let isOn = areas.isOn(kind)
+        let label = MonitorGuideSafeAreas.label(areas.percent(kind))
+        MonitorSettingsSwitchInlineRow(title: kind.title, help: kind.help, isOn: isOn,
+            identifier: "guides.safeArea.\(kind.rawValue)", feedback: feedback) { areas.set(kind, on: !isOn) }
+        if isOn {
+            MonitorSettingsInlineRow(title: "\(kind.title) size", help: MonitorGuideSafeAreas.sizeHelp, stacked: true) {
+                VStack(alignment: .trailing, spacing: 6) {
+                    Text(label).font(MonitorTheme.font(13, weight: .semibold))
+                        .accessibilityIdentifier("guides.safeArea.\(kind.rawValue).percent")
+                    Slider(value: Binding(get: { Double(areas.percent(kind)) },
+                            set: { areas.set(kind, percent: Int($0.rounded())) }),
+                        in: Double(MonitorGuideSafeAreas.percentRange.lowerBound)...Double(MonitorGuideSafeAreas.percentRange.upperBound),
+                        step: 1)
+                        .tint(MonitorTheme.accent).accessibilityLabel("\(kind.title) size")
+                        .accessibilityValue(label)
+                }
+            }
         }
     }
 }

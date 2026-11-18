@@ -153,6 +153,21 @@ final class MonitorSettingsCompositionTests: XCTestCase {
         }
     }
 
+    /// Camera presets lead the Controls tab only where the host supplies them, in every call form.
+    func testCameraPresetsRowIsOptionalAndLeadsTheControlsTab() {
+        let presets = CameraSettingsPresetsModel(store: CameraSettingsPresetStore(storage: storage), shell: shell)
+        for configuration in [typed(support: nil, information: nil), published(borrowed: true), published(borrowed: false),
+            Screen(shell: shell, brand: "SIMULATED", preferences: preferences, display: display, assist: assist,
+                library: nil).sceneConfiguration(safeArea: EdgeInsets())] {
+            XCTAssertFalse(configuration.rows(.controls, library: false).contains(.cameraPresets))
+            XCTAssertEqual(configuration.withCameraPresets(presets).rows(.controls, library: false).first, .cameraPresets)
+        }
+        let scene = Screen(shell: shell, brand: "SIMULATED", preferences: preferences, display: display, assist: assist,
+            library: nil, cameraPresets: presets).sceneConfiguration(safeArea: EdgeInsets())
+        XCTAssertEqual(scene.rows(.controls, library: false), [.cameraPresets, .safety])
+        XCTAssertNil(presets.scope, "No camera connected: the card asks for one instead of listing presets")
+    }
+
     func testGyroCalibrateRowAppearsOnlyWhenProvided() {
         var started = 0
         let without = MonitorSettingsGyroSource(enabled: binding, status: "SIMULATED", openLogs: {})

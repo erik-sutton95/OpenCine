@@ -6,6 +6,9 @@ import androidx.compose.runtime.setValue
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraSettingsPreset
+import com.opencapture.opencine.core.CameraSettingsPresetRecall
+import com.opencapture.opencine.core.CameraSettingsPresetSkip
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CameraTimecode
@@ -28,6 +31,7 @@ import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.ObservationValidity
 import com.opencapture.opencine.core.OperationID
+import com.opencapture.opencine.core.rejection
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
@@ -426,6 +430,56 @@ public class MonitorControlModel(
         mutable.update { it.copy(pending = it.pending - key) }
         onChange()
         note?.let(onNote)
+    }
+
+    // Presets
+
+    /**
+     * Sends [preset]'s values one at a time, in its recall order, each against the session's current
+     * snapshot and through the shared admission rule, waiting for each outcome before the next (a
+     * white balance can change what its tint may take). A value the camera already reports is not
+     * sent; one it cannot take now (unsupported, read-only, unavailable, outside its domain) is
+     * skipped. Each value shows as pending while it is in flight; an operator edit of the same
+     * setting still replaces it. Nothing is sent without a bound session. Swift twin: `recall`.
+     */
+    public suspend fun recall(
+        preset: CameraSettingsPreset, admission: CommandDispatchAdmission? = null,
+    ): CameraSettingsPresetRecall {
+        val current = binding
+        val entries = preset.values.map { CameraSettingsPresetRecall.Entry(it, recall(it, admission, current)) }
+        return CameraSettingsPresetRecall(preset.name, entries)
+    }
+
+    private suspend fun recall(
+        value: SettingValue, admission: CommandDispatchAdmission?, current: Int,
+    ): CameraSettingsPresetRecall.Outcome {
+        val closed = CameraSettingsPresetRecall.Outcome.Failed(CommandStage.Rejected(CommandRejection.SessionClosed))
+        val session = state.value.session
+        if (binding != current || session == null) return closed
+        val fresh = session.snapshots.value
+        val key = value.key
+        val reported = fresh.value(key)
+        if (reported.value == value && reported.validity == ObservationValidity.Valid) {
+            return CameraSettingsPresetRecall.Outcome.Unchanged
+        }
+        val label = "${CameraSettingsPresetCopy.title(key)} ${CameraSettingsPresetCopy.value(value)}"
+        val operation = OperationID()
+        val command = CameraCommand(CameraCommandIntent.Set(value), CommandPreconditions(fresh), operation)
+        fresh.rejection(command, MonotonicInstant.now())?.let { rejection ->
+            return CameraSettingsPresetSkip.of(rejection)?.let { CameraSettingsPresetRecall.Outcome.Skipped(it) }
+                ?: CameraSettingsPresetRecall.Outcome.Failed(CommandStage.Rejected(rejection))
+        }
+        // A scheduled operator edit of this setting would otherwise go out after the preset's.
+        if (key in scheduled) cancelEdit(key)
+        mutable.update { it.copy(pending = it.pending + (key to value)) }
+        operations[key] = PendingEdit(operation, label, null, admission)
+        onChange()
+        val receipt = finished(session, command, admission)
+        onWriteFinished(label, receipt)
+        finish(key, operation, current, null)
+        return if (receipt.isFinished && (receipt.stage == CommandStage.Confirmed || receipt.stage == CommandStage.Accepted)) {
+            CameraSettingsPresetRecall.Outcome.Applied
+        } else CameraSettingsPresetRecall.Outcome.Failed(receipt.stage)
     }
 
     // Record

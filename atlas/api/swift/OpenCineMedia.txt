@@ -954,6 +954,8 @@ static func ScopeDisplayScale.signalNative(monitorPercent: Swift.Double, transfe
 static func ScopeDisplayScale.waveformLevel(_: Swift.Double, anchors: ScopeAnchors) -> Swift.Double
 static func ScopeDisplayScale.waveformLevel(_: Swift.Double, transfer: MonitorTransfer, clipByte: Swift.Int) -> Swift.Double
 static func ScopeDisplayScale.zebraHighlightNative(monitorPercent: Swift.Double, transfer: MonitorTransfer, clipByte: Swift.Int) -> Swift.Double
+static func ScopeDisplayScale.zebraHighlightPercent(_: Swift.Double, transfer: MonitorTransfer, clipByte: Swift.Int) -> Swift.Double
+static func ScopeDisplayScale.zebraHighlightSignal(monitorPercent: Swift.Double, transfer: MonitorTransfer, clipByte: Swift.Int) -> Swift.Double
 static func ScopeSampler.boxBlur(_: [Swift.Float], radius: Swift.Int) -> [Swift.Float]
 static func ScopeSampler.bundle(samples: ScopeSamples, transfer: MonitorTransfer, clipByte: Swift.Int, includePoints: Swift.Bool, includeVectorPoints: Swift.Bool, look: CubeLUT?, trafficThreshold: Swift.Double, previous: ScopeAssistBundle) -> ScopeAssistBundle
 static func ScopeSampler.displayChannel(_: [Swift.Int], previous: [Swift.Float], axis: ScopeLevelAxis) -> [Swift.Float]
@@ -1102,6 +1104,7 @@ static let ScopeAnchors.clipShelfCodes: Swift.Int
 static let ScopeAssistBundle.empty: ScopeAssistBundle
 static let ScopeDisplayScale.clipLevel: Swift.Double
 static let ScopeDisplayScale.crushLevel: Swift.Double
+static let ScopeDisplayScale.zebraHighlightCeilingPercent: Swift.Double
 static let ScopeExposureCeiling.clipShelfCodes: Swift.Int
 static let ScopeHistogramDisplay.empty: ScopeHistogramDisplay
 static let ScopeLevelAxis.rawCodes: ScopeLevelAxis

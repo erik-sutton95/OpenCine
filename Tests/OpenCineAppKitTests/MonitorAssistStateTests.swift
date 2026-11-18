@@ -86,6 +86,31 @@ import Testing
         #expect(!other.waveform && other.playbackVisibleTools.isEmpty)
     }
 
+    /// Kotlin mirror: MonitorAssistStateBehaviorTest `guideSafeAreasPersistAndOlderSettingsStartOff`.
+    @Test func guideSafeAreasPersistAndOlderSettingsStartOff() throws {
+        guard #available(macOS 14, *) else { return }
+        let (defaults, domain) = try storage()
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let state = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        #expect(state.guideSafeAreas == .standard)
+        state.guideSafeAreas.set(.action, on: true)
+        state.guideSafeAreas.set(.action, percent: 85)
+        state.persist()
+        let restored = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        #expect(restored.guideSafeAreas.drawn == [MonitorGuideSafeArea(kind: .action, percent: 85)])
+
+        // Settings saved before safe areas existed keep them off at the defaults.
+        let stored = try #require(defaults.data(forKey: "assist"))
+        var object = try #require(try JSONSerialization.jsonObject(with: stored) as? [String: Any])
+        object["guideSafeAreas"] = nil
+        defaults.set(try JSONSerialization.data(withJSONObject: object), forKey: "assist")
+        let older = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        #expect(older.guideSafeAreas == .standard)
+    }
+
     @Test func legacySelectionsDoNotExpandTheCurrentCatalog() throws {
         guard #available(macOS 14, *) else { return }
         #expect(MonitorAssistTool.allCases.count == 18)
