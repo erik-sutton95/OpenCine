@@ -27,6 +27,14 @@
         func beginNativeHeadTrack() -> UInt64?
         func updateNativeHeadTrack(target: GimbalWaypoint, token: UInt64, measuredAt: TimeInterval?) -> Bool
         func endNativeHeadTrack(token: UInt64)
+        /// A lasting reason the gimbal cannot follow the head (a mode it is not driven in, a pose
+        /// past the reach). The bridge stops tracking with its note instead of retrying each sample.
+        var headTrackStop: HeadTrackStop? { get }
+    }
+
+    extension HeadTrackHost {
+        /// A host without lasting stop reasons keeps retrying, as before.
+        public var headTrackStop: HeadTrackStop? { nil }
     }
 
     /// SET-relative yaw/pitch for the live debug rings (head + gimbal).
@@ -275,6 +283,10 @@
             guard let host, pendingCalibrate, haveHead, canDrive, !host.gimbalAnalogHeld,
                 HeadTrackNative.headSampleIsFresh(measuredAt: lastHeadMeasuredAt, now: uptime())
             else { return }
+            if let stop = host.headTrackStop {
+                stopForHost(stop)
+                return
+            }
             guard let pose = host.freshGimbalWaypoint else {
                 host.controlNote = "Head tracking waiting for gimbal"
                 return
@@ -619,6 +631,10 @@
                 stopDrive()
                 return
             }
+            if let stop = host.headTrackStop {
+                stopForHost(stop)
+                return
+            }
             let look = HeadTrack.look(current: lastQuat, origin: originQuat)
             guard let target = track.target(lookRightDeg: look.right, lookUpDeg: look.up) else {
                 stopDrive()
@@ -629,9 +645,24 @@
             guard host.updateNativeHeadTrack(
                 target: target, token: token, measuredAt: lastHeadMeasuredAt) else {
                 stopDrive()
+                if let stop = host.headTrackStop { stopForHost(stop) }
                 return
             }
             driving = true
+        }
+
+        /// The host cannot be driven until the operator changes something: end the run and the
+        /// lock, say why once, and wait for Calibrate. Re-arming every sample re-sent the gimbal
+        /// setup about 10 times a second with no message.
+        private func stopForHost(_ stop: HeadTrackStop) {
+            let wasTracking = calibratedByUser || pendingCalibrate
+            calibratedByUser = false
+            pendingCalibrate = false
+            track.reset()
+            stopDrive()
+            host?.controlNote = stop.note
+            if wasTracking { log("head-track: stopped reason=\(stop.reason)") }
+            publishTitle()
         }
 
         private func stopDrive() {

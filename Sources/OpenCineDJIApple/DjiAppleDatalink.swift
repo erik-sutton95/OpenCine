@@ -529,7 +529,7 @@
                 return 0
             }
             lastCommandWriteLanded = nil
-            lastCommandSendAt = Date()
+            noteCommandSent(frame)
             return sendDuml(frame, trackCommand: true)
         }
 
@@ -547,9 +547,15 @@
             }
             if case .queued = result {
                 lastCommandWriteLanded = nil
-                lastCommandSendAt = Date()
+                noteCommandSent(frame)
             }
             return result
+        }
+
+        /// Starts the post-SET watchdog grace for writes only. Reads such as the tracking poll
+        /// run constantly and would otherwise hold every stall repair (OpenPocketCine#639).
+        private func noteCommandSent(_ frame: Duml.Frame) {
+            if !Duml.isLiveCameraRead(frame) { lastCommandSendAt = Date() }
         }
 
         /// GET polls (Selfie Flip). Must not latch command-write health or SET timeouts.
