@@ -30,12 +30,12 @@ public final class NetworkStreamConnection: StreamConnection, @unchecked Sendabl
     private var finished = false
 
     public convenience init(host: String, port: UInt16) {
-        self.init(host: host, port: port, parameters: NWParameters(tls: NWProtocolTLS.Options(), tcp: Self.tcp))
+        self.init(host: host, port: port, parameters: NWParameters(tls: NWProtocolTLS.Options(), tcp: Self.tcpOptions()))
     }
 
     /// Plain TCP for the FFmpeg interop tier only.
     convenience init(plainHost: String, port: UInt16) {
-        self.init(host: plainHost, port: port, parameters: NWParameters(tls: nil, tcp: Self.tcp))
+        self.init(host: plainHost, port: port, parameters: NWParameters(tls: nil, tcp: Self.tcpOptions()))
     }
 
     private init(host: String, port: UInt16, parameters: NWParameters) {
@@ -43,7 +43,7 @@ public final class NetworkStreamConnection: StreamConnection, @unchecked Sendabl
             host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port) ?? .https, using: parameters)
     }
 
-    private static var tcp: NWProtocolTCP.Options {
+    private static func tcpOptions() -> NWProtocolTCP.Options {
         let options = NWProtocolTCP.Options()
         options.noDelay = true
         options.enableKeepalive = true
