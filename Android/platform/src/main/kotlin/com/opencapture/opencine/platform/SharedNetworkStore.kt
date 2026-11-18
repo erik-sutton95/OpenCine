@@ -9,17 +9,33 @@ import org.json.JSONObject
  * names in the caller's private preferences, passwords sealed with a device-only Keystore key under
  * the caller's alias. Never logs a password. The preferences name and alias are app values.
  */
-class SharedNetworkStore(context: Context, preferences: String, alias: String) {
+class SharedNetworkStore internal constructor(private val storage: Storage, private val seal: KeystoreSeal) {
+    constructor(context: Context, preferences: String, alias: String) : this(
+        PreferencesStorage(context.applicationContext.getSharedPreferences(preferences, Context.MODE_PRIVATE)),
+        KeystoreSeal(alias),
+    )
+
+    /** A saved network. Swift twin: `SharedNetworkStore.Network`. */
     data class Network(val ssid: String, val password: String, val hotspot: Boolean) {
         override fun toString(): String = "Network($ssid, hotspot: $hotspot, password: <redacted>)"
     }
 
-    private val prefs = context.applicationContext.getSharedPreferences(preferences, Context.MODE_PRIVATE)
-    private val seal = KeystoreSeal(alias)
+    /** Where the list lives: one JSON array of entries with sealed passwords. */
+    internal interface Storage {
+        fun read(): String?
+        fun write(value: String)
+    }
+
+    private class PreferencesStorage(private val prefs: android.content.SharedPreferences) : Storage {
+        override fun read(): String? = prefs.getString(KEY, null)
+        override fun write(value: String) {
+            prefs.edit().putString(KEY, value).apply()
+        }
+    }
 
     /** Oldest first. */
     fun savedNetworks(): List<Network> {
-        val raw = prefs.getString(KEY, null) ?: return emptyList()
+        val raw = storage.read() ?: return emptyList()
         val list = runCatching { JSONArray(raw) }.getOrNull() ?: return emptyList()
         return (0 until list.length()).mapNotNull { index ->
             val item = list.optJSONObject(index) ?: return@mapNotNull null
@@ -40,7 +56,7 @@ class SharedNetworkStore(context: Context, preferences: String, alias: String) {
             list.put(entry(network.ssid, network.password.let { if (it.isEmpty()) "" else seal.seal(it) ?: "" }, network.hotspot))
         }
         list.put(entry(ssid, sealed, hotspot))
-        prefs.edit().putString(KEY, list.toString()).apply()
+        storage.write(list.toString())
     }
 
     private fun entry(ssid: String, sealed: String, hotspot: Boolean) =

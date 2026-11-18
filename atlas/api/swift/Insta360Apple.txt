@@ -25,6 +25,9 @@ case CameraPreviewTransfer.dLog2
 case CameraPreviewTransfer.hlg
 case CameraPreviewTransfer.iLog
 case CameraPreviewTransfer.rec709
+case LunaAccessPointReturn.deferred(OpenCineCore.ConnectionFailure)
+case LunaAccessPointReturn.failed(OpenCineCore.ConnectionFailure)
+case LunaAccessPointReturn.returned
 case LunaCommandAdmissionError.expired
 case LunaFeedStall.Action.escalate
 case LunaFeedStall.Action.none
@@ -32,12 +35,15 @@ case LunaFeedStall.Action.requestKeyframe
 case LunaFeedStall.Action.restartLive
 case LunaRoute.cameraWiFi(Swift.Bool)
 case LunaRoute.station(LunaStationNetwork)
-class LunaCameraBackend: CameraBackend, LunaConnectPort, LunaMediaCatalogRecordSource, Sendable
+class LunaCameraBackend: CameraBackend, LunaConnectPort, LunaMediaCatalogRecordSource, LunaStationPort, Sendable
 class LunaCameraSession: CameraSession, Sendable
 class LunaCommandOwner: Sendable
 class LunaIntegration: CameraIntegration, Sendable
+class LunaMemberLink: MultiviewMemberLink, Sendable
 class LunaMotionService: MotionService, Sendable
+class LunaNearbyScanner: NearbyCameraScanner, Sendable
 class LunaReviewCamera: Sendable
+class LunaStationCommissioner: Sendable, StationCommissioner
 class LunaSubjectTracking: Sendable
 class UnavailableCameraBackend: CameraBackend, Sendable
 enum CameraBackendError: Error, LocalizedError, Sendable
@@ -45,8 +51,11 @@ enum CameraBackendEvent: Sendable
 enum CameraConnectionPhase: Equatable, Hashable, Sendable
 enum CameraMediaRepresentation: Equatable, Hashable, Sendable
 enum CameraPreviewTransfer: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
+enum LunaAccessPointReturn: Equatable, Sendable
 enum LunaCommandAdmissionError: Equatable, Error, Hashable, Sendable
 enum LunaFeedStall.Action: Equatable, Hashable, Sendable
+enum LunaMulticamPolicy
+enum LunaMultiview
 enum LunaRoute: Equatable, Sendable
 enum LunaSessionRecovery
 extension Insta360Protocol.LunaColorMode
@@ -60,8 +69,10 @@ func CameraBackend.listMedia() async throws -> [CameraMediaAsset]
 func CameraBackend.refreshStatus() async throws -> ()
 func CameraBackend.rejoinCameraNetwork() async throws -> ()
 func CameraBackend.startScan() async throws -> ()
+func LunaCameraBackend.authorizeForStation(_: MonitorCamera) async throws -> Swift.String
 func LunaCameraBackend.connect(review: LunaReviewCamera) -> ()
 func LunaCameraBackend.connect(to: MonitorCamera) async throws -> ()
+func LunaCameraBackend.connect(to: MonitorCamera, at: LunaStationHost, on: LunaStationNetwork) async throws -> ()
 func LunaCameraBackend.connect(to: MonitorCamera, route: LunaRoute) async throws -> ()
 func LunaCameraBackend.deleteFile(uri: Swift.String) async throws -> ()
 func LunaCameraBackend.disconnect() -> ()
@@ -73,19 +84,25 @@ func LunaCameraBackend.leaveNetwork(ssid: Swift.String, isCurrent: OpenCineCore.
 func LunaCameraBackend.listFiles() async throws -> [Insta360Protocol.LunaMediaFile]
 func LunaCameraBackend.mediaCatalogRecord(_: OpenCineMedia.MediaAssetID, binding: OpenCineMedia.MediaBrowseBinding) -> LunaMediaCatalogRecord?
 func LunaCameraBackend.mediaService(for: OpenCineCore.CameraSessionID) -> (any OpenCineMedia.CameraMediaService)?
+func LunaCameraBackend.moveOntoStation(_: LunaStationNetwork) async throws -> Swift.String?
 func LunaCameraBackend.openSession() -> LunaCameraSession
 func LunaCameraBackend.pauseLive() async -> ()
+func LunaCameraBackend.probeStation(_: Swift.String, on: LunaStationNetwork) async -> Swift.Bool
 func LunaCameraBackend.reconnectRoute(for: Foundation.UUID) -> LunaRoute
 func LunaCameraBackend.refreshCapture() async -> ()
 func LunaCameraBackend.refreshSettings() async -> ()
 func LunaCameraBackend.refreshShootingMode() async -> ()
 func LunaCameraBackend.refreshStatus() async -> ()
 func LunaCameraBackend.rejoinCameraNetwork() async throws -> ()
+func LunaCameraBackend.rememberStationHost(_: LunaStationHost?, for: Foundation.UUID) -> ()
+func LunaCameraBackend.requestKeyframe() async -> ()
 func LunaCameraBackend.restartLive() async throws -> ()
+func LunaCameraBackend.returnToAccessPoint(cameraID: Foundation.UUID) async throws -> LunaAccessPointReturn
 func LunaCameraBackend.saveStation(_: LunaStationNetwork) -> ()
 func LunaCameraBackend.savedStations() -> [LunaStationNetwork]
 func LunaCameraBackend.send(_: Insta360Protocol.LunaRequest, timeout: Swift.Duration) async throws -> Foundation.Data
 func LunaCameraBackend.startScan() async throws -> ()
+func LunaCameraBackend.stationHost(for: Foundation.UUID) -> LunaStationHost?
 func LunaCameraBackend.stationPassword(for: Swift.String, hotspot: Swift.Bool) -> Swift.String?
 func LunaCameraBackend.stopScan() -> ()
 func LunaCameraBackend.storedWiFi(cameraID: Foundation.UUID) -> LunaStoredWiFi?
@@ -122,6 +139,7 @@ func LunaConnectPort.hasSavedWiFi(cameraID: Foundation.UUID) -> Swift.Bool
 func LunaConnectPort.hasSeen(_: Foundation.UUID) -> Swift.Bool
 func LunaConnectPort.mediaService(for: OpenCineCore.CameraSessionID) -> (any OpenCineMedia.CameraMediaService)?
 func LunaConnectPort.openSession() -> LunaCameraSession
+func LunaConnectPort.returnToAccessPoint(cameraID: Foundation.UUID) async throws -> LunaAccessPointReturn
 func LunaConnectPort.saveStation(_: LunaStationNetwork) -> ()
 func LunaConnectPort.startScan() async throws -> ()
 func LunaConnectPort.stationPassword(for: Swift.String, hotspot: Swift.Bool) -> Swift.String?
@@ -134,13 +152,21 @@ func LunaFrameTimecode.reset() -> ()
 func LunaHeadTrackSteering.sent(pan: Swift.Int32, tilt: Swift.Int32, now: Foundation.TimeInterval, tuning: LunaHeadTrackSteering.Tuning) -> ()
 func LunaHeadTrackSteering.step(yaw: Swift.Double, pitch: Swift.Double, readAt: Foundation.TimeInterval, toward: OpenCineMotion.HeadTrack.Reference, now: Foundation.TimeInterval, tuning: LunaHeadTrackSteering.Tuning) -> LunaHeadTrackSteering.Step
 func LunaIntegration.connect(_: OpenCineCore.ConnectTarget) -> _Concurrency.AsyncStream<OpenCineCore.ConnectionEvent>
+func LunaIntegration.connect(_: OpenCineCore.NearbyCamera, onto: LunaStationNetwork, saved: OpenCineCore.SavedCamera?) -> _Concurrency.AsyncStream<OpenCineCore.ConnectionEvent>
 func LunaIntegration.discover(_: OpenCineCore.DiscoveryMode) -> _Concurrency.AsyncStream<[OpenCineCore.NearbyCamera]>
 func LunaIntegration.forget(_: OpenCineCore.SavedCamera) async -> ()
 func LunaIntegration.retryDiscovery() -> ()
+func LunaIntegration.returnToAccessPoint(_: OpenCineCore.SavedCamera) async throws -> LunaAccessPointReturn
 func LunaMediaCatalogRecordSource.mediaCatalogRecord(_: OpenCineMedia.MediaAssetID, binding: OpenCineMedia.MediaBrowseBinding) -> LunaMediaCatalogRecord?
 func LunaMediaIO.jpeg(_: Insta360Protocol.LunaThumbnail) async throws -> Foundation.Data
 func LunaMediaIO.transfer(from: Foundation.URL, expectedByteCount: Swift.UInt64?, into: any OpenCineMedia.MediaByteSink) async throws -> OpenCineMedia.MediaTransferReceipt
 func LunaMediaIO.transfer(from: Foundation.URL, into: any OpenCineMedia.MediaByteSink) async throws -> OpenCineMedia.MediaTransferReceipt
+func LunaMemberLink.close() -> ()
+func LunaMemberLink.keepalive() async -> ()
+func LunaMemberLink.open(_: OpenCineCore.NearbyCamera, at: Swift.String, expecting: [Swift.UInt8]?, on: OpenCineCore.StationNetwork) async throws -> [Swift.UInt8]
+func LunaMemberLink.probe(_: Swift.String, on: OpenCineCore.StationNetwork) async -> Swift.Bool
+func LunaMemberLink.repair(_: OpenCineCore.MultiviewRepairContext) -> OpenCineCore.MultiviewRepairStep
+func LunaMemberLink.startPreview(_: OpenCineCore.NearbyCamera) async throws -> ()
 func LunaMotionService.aim(at: OpenCineMotion.GimbalWaypoint) async -> Swift.Bool
 func LunaMotionService.endHold() -> ()
 func LunaMotionService.flip() async -> Swift.Bool
@@ -153,6 +179,23 @@ func LunaMotionService.release() async -> Swift.Bool
 func LunaMotionService.steer(pan: Swift.Int32, tilt: Swift.Int32) async -> Swift.Bool
 func LunaMotionService.stick(pan: Swift.Double, tilt: Swift.Double) async -> Swift.Bool
 func LunaMotionService.stop() async -> Swift.Bool
+func LunaNearbyScanner.scan(_: (OpenCineCore.NearbyCamera) -> Swift.Void) async -> ()
+func LunaNearbyScanner.stop() -> ()
+func LunaNearbyScanner.waitUntilReady() async -> Swift.Bool
+func LunaStationCommissioner.closeCommissions() -> ()
+func LunaStationCommissioner.connect(_: OpenCineCore.NearbyCamera, progress: (Swift.String) -> Swift.Void) async throws -> any OpenCineCore.StationCommission
+func LunaStationCommissioner.record(_: OpenCineCore.NearbyCamera) -> OpenCineCore.StationCameraRecord
+func LunaStationCommissioner.restoreAccessPoint(_: OpenCineCore.StationCameraRecord) async -> OpenCineCore.StationRestoreResult
+func LunaStationHost.isOn(_: LunaStationNetwork) -> Swift.Bool
+func LunaStationPort.authorizeForStation(_: MonitorCamera) async throws -> Swift.String
+func LunaStationPort.connect(to: MonitorCamera, at: LunaStationHost, on: LunaStationNetwork) async throws -> ()
+func LunaStationPort.disconnect() -> ()
+func LunaStationPort.moveOntoStation(_: LunaStationNetwork) async throws -> Swift.String?
+func LunaStationPort.openSession() -> LunaCameraSession
+func LunaStationPort.probeStation(_: Swift.String, on: LunaStationNetwork) async -> Swift.Bool
+func LunaStationPort.requestKeyframe() async -> ()
+func LunaStationPort.restartLive() async throws -> ()
+func LunaStationPort.returnToAccessPoint(cameraID: Foundation.UUID) async throws -> LunaAccessPointReturn
 func LunaSubjectTracking.Box.subject() -> LunaSubjectTracking.Box
 func LunaSubjectTracking.cancel(admission: LunaCommandAdmission, finished: ((any Swift.Error)?) -> Swift.Void) -> ()
 func LunaSubjectTracking.cancel(finished: ((any Swift.Error)?) -> Swift.Void) -> ()
@@ -185,9 +228,14 @@ init LunaHeadTrackSteering.Tuning(panDegPerSec: Swift.Double, tiltDegPerSec: Swi
 init LunaIntegration(port: any LunaConnectPort, now: () -> Foundation.Date, sleep: (Swift.Duration) async throws -> Swift.Void)
 init LunaIntegrationConfiguration(keychainService: Swift.String, appName: Swift.String, logPrefix: Swift.String)
 init LunaMediaCatalogRecord(asset: OpenCineMedia.MediaAssetID, file: Insta360Protocol.LunaMediaFile)
+init LunaMemberLink(port: any LunaStationPort, clock: OpenCineCore.HostClock, conversion: (Swift.String) -> Swift.String?, preview: (Swift.String) -> Swift.String)
 init LunaMotionService(session: () -> LunaCameraSession?, sleep: (Swift.Duration) async throws -> Swift.Void, now: () -> OpenCineCore.MonotonicInstant)
+init LunaNearbyScanner(discover: () -> _Concurrency.AsyncStream<[OpenCineCore.NearbyCamera]>)
+init LunaNearbyScanner(integration: LunaIntegration)
 init LunaReviewCamera(clips: [LunaReviewCamera.Clip])
 init LunaReviewCamera.Clip(uri: Swift.String, byteCount: Swift.UInt64, milliseconds: Swift.UInt64, width: Swift.Int, height: Swift.Int, fps: Swift.UInt64, stamp: Swift.UInt64?)
+init LunaStationCommissioner(makePort: () -> any LunaStationPort, clock: OpenCineCore.HostClock)
+init LunaStationHost(network: Swift.String, hotspot: Swift.Bool, host: Swift.String, serial: Swift.String)
 init LunaStationNetwork(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool)
 init LunaSubjectTracking(session: () -> LunaCameraSession?, changed: (LunaSubjectTracking.Snapshot) -> Swift.Void)
 init LunaSubjectTracking.Box(x: Swift.Double, y: Swift.Double, width: Swift.Double, height: Swift.Double)
@@ -214,6 +262,8 @@ let LunaIntegration.discoveryModes: Swift.Set<OpenCineCore.DiscoveryMode>
 let LunaIntegration.profiles: [OpenCineCore.CameraProfile]
 let LunaMediaCatalogRecord.asset: OpenCineMedia.MediaAssetID
 let LunaMediaCatalogRecord.file: Insta360Protocol.LunaMediaFile
+let LunaMemberLink.lunaSession: LunaCameraSession
+let LunaMemberLink.port: any LunaStationPort
 let LunaReviewCamera.card: OpenCineMedia.ReviewCard<LunaReviewCamera.Clip>
 let LunaStoredWiFi.password: Swift.String
 let LunaStoredWiFi.ssid: Swift.String
@@ -226,14 +276,23 @@ protocol CameraBackend<Self : AnyObject>
 protocol LunaConnectPort<Self : AnyObject>
 protocol LunaMediaCatalogRecordSource<Self : AnyObject, Self : Swift.Sendable>: Sendable
 protocol LunaMediaIO<Self : AnyObject, Self : Swift.Sendable>: Sendable
+protocol LunaStationPort<Self : AnyObject>
+static func LunaAccessPointReturn.retrying(attempts: Swift.Int, waitBetween: () async throws -> Swift.Void, _: () async throws -> LunaAccessPointReturn) throws -> LunaAccessPointReturn
 static func LunaCameraBackend.phoneWiFiName() -> Swift.String?
 static func LunaCameraSession.controlCapabilities(snapshot: OpenCineCore.CapabilitySnapshot, backendCapabilities: CameraCapabilities?, codecColor: OpenCineCameraVocabulary.CaptureCodecColorChoices?) -> OpenCineCameraVocabulary.ControlCapabilities
 static func LunaFrameTimecode.timecode(unixSeconds: Swift.Double, timeZoneSeconds: Swift.Int) -> OpenCineCore.CameraTimecodeReading
 static func LunaFrameTimecode.timecode(unixSeconds: Swift.Double, timeZoneSeconds: Swift.Int, fps: Swift.Int) -> OpenCineCore.CameraTimecode
 static func LunaIntegration.steps(_: OpenCineCore.SavedRoute?) -> [OpenCineCore.ConnectionStep]
+static func LunaIntegration.target(_: OpenCineCore.NearbyCamera, onto: LunaStationNetwork, saved: OpenCineCore.SavedCamera?) -> OpenCineCore.ConnectTarget?
 static func LunaIntegration.title(advertised: Swift.String) -> Swift.String
+static func LunaMemberLink.noConversion(_: Swift.String) -> Swift.String?
 static func LunaMotionService.hasReached(_: Insta360Protocol.LunaGimbalAngle, _: OpenCineMotion.GimbalWaypoint) -> Swift.Bool
 static func LunaMotionService.wireSpeed(_: Swift.Double) -> Swift.Int32
+static func LunaMulticamPolicy.qualification(route: OpenCineCore.SavedRoute?, device: OpenCineCore.CameraDeviceID?, members: Swift.Set<OpenCineCore.CameraDeviceID>) -> OpenCineCore.MulticamQualification
+static func LunaMultiview.identity(serial: Swift.String) -> [Swift.UInt8]
+static func LunaMultiview.monitorCamera(_: OpenCineCore.NearbyCamera) -> MonitorCamera
+static func LunaMultiview.record(_: OpenCineCore.NearbyCamera) -> OpenCineCore.StationCameraRecord
+static func LunaMultiview.serial(identity: [Swift.UInt8]) -> Swift.String?
 static let CameraCapabilities.cameraMedia: CameraCapabilities
 static let CameraCapabilities.captureFormat: CameraCapabilities
 static let CameraCapabilities.exposure: CameraCapabilities
@@ -266,7 +325,12 @@ static let LunaMotionService.poseInterval: Swift.Duration
 static let LunaMotionService.programTiming: OpenCineMotion.MotionProgramTiming
 static let LunaMotionService.stickFullScale: Swift.Double
 static let LunaMotionService.stickInterval: Swift.Duration
+static let LunaMultiview.policy: OpenCineCore.MultiviewCameraPolicy<OpenCineCore.NearbyCamera>
 static let LunaSessionRecovery.attemptDeadline: OpenCineCameraVocabulary.SessionRecoveryEpisode.AttemptDeadline
+static let LunaStationCommissioner.returnAttempts: Swift.Int
+static let LunaStationCommissioner.returnInterval: Swift.Duration
+static let LunaStationCommissioner.verifyBudget: Swift.Duration
+static let LunaStationCommissioner.verifyInterval: Swift.Duration
 static var LunaCameraBackend.phoneHotspotActive: Swift.Bool
 struct CameraCapabilities: Equatable, ExpressibleByArrayLiteral, OptionSet, RawRepresentable, Sendable, SetAlgebra
 struct CameraInformation: Equatable, Sendable
@@ -281,6 +345,7 @@ struct LunaHeadTrackSteering: Sendable
 struct LunaIntegrationConfiguration: Equatable, Sendable
 struct LunaMediaCatalogRecord: Sendable
 struct LunaReviewCamera.Clip: Equatable, Sendable
+struct LunaStationHost: Equatable, Sendable
 struct LunaStationNetwork: CustomDebugStringConvertible, CustomStringConvertible, Equatable, Sendable
 struct LunaStoredWiFi: Decodable, Encodable, Sendable
 struct LunaSubjectTracking.Box: Equatable, Sendable
@@ -290,6 +355,9 @@ typealias LunaAdmittedCommandSend = (@escaping LunaCommandRequestBuilder, LunaCo
 typealias LunaAdmittedCommandSendWithin = (@escaping LunaCommandRequestBuilder, LunaCommandAdmission, Swift.Duration, @escaping LunaCommandDidDispatch) async throws -> Foundation.Data
 typealias LunaCommandDidDispatch = () -> Swift.Void
 typealias LunaCommandRequestBuilder = () throws -> Insta360Protocol.LunaRequest
+typealias LunaMemberLink.Camera = OpenCineCore.NearbyCamera
+typealias LunaNearbyScanner.Camera = OpenCineCore.NearbyCamera
+typealias LunaStationCommissioner.Camera = OpenCineCore.NearbyCamera
 var CameraBackend.capabilities: CameraCapabilities
 var CameraBackend.eventHandler: ((CameraBackendEvent) -> Swift.Void)?
 var CameraBackend.isOnCameraNetwork: Swift.Bool
@@ -298,6 +366,8 @@ var CameraInformation.firmware: Swift.String?
 var CameraInformation.model: Swift.String
 var CameraInformation.previewTransfer: CameraPreviewTransfer?
 var CameraInformation.sourceLabel: Swift.String?
+var LunaAccessPointReturn.failure: OpenCineCore.ConnectionFailure?
+var LunaAccessPointReturn.isRetryable: Swift.Bool
 var LunaCameraBackend.cameraHost: Swift.String
 var LunaCameraBackend.connectedSerial: Swift.String?
 var LunaCameraBackend.credentials: LunaStoredWiFi?
@@ -320,6 +390,7 @@ var LunaCameraBackend.onTrackFrame: ((Insta360Protocol.LunaTrackFrame) -> Swift.
 var LunaCameraBackend.prepareMediaLiveReturn: ((OpenCineMedia.MediaBrowseBinding) async -> Swift.Void)?
 var LunaCameraBackend.secondsSinceVideo: Foundation.TimeInterval?
 var LunaCameraBackend.session: LunaCameraSession?
+var LunaCameraBackend.stationHostsInUse: (() -> Swift.Set<Swift.String>)?
 var LunaCameraSession.Timing.readbackInterval: Swift.Duration
 var LunaCameraSession.Timing.settle: [OpenCineCore.SettingKey : Swift.Duration]
 var LunaCameraSession.admitsControl: Swift.Bool
@@ -351,6 +422,13 @@ var LunaIntegration.saveRecord: (OpenCineCore.SavedCamera) -> Swift.Void
 var LunaIntegrationConfiguration.appName: Swift.String
 var LunaIntegrationConfiguration.keychainService: Swift.String
 var LunaIntegrationConfiguration.logPrefix: Swift.String
+var LunaMemberLink.autoLUT: OpenCineCore.MultiviewAutoLUT
+var LunaMemberLink.onStatus: ((OpenCineCore.MultiviewLinkStatus) -> Swift.Void)?
+var LunaMemberLink.pictureHealth: OpenCineCore.PictureHealth
+var LunaMemberLink.recordReport: OpenCineCore.MultiviewRecordReport?
+var LunaMemberLink.repairDeadline: Swift.Duration
+var LunaMemberLink.session: any OpenCineCore.CameraSession
+var LunaMemberLink.snapshot: OpenCineCore.CameraSnapshot
 var LunaMotionService.capabilities: OpenCineMotion.MotionCapabilities
 var LunaMotionService.isHeld: Swift.Bool
 var LunaMotionService.latestPose: OpenCineCore.ObservedValue<OpenCineMotion.GimbalWaypoint>
@@ -363,11 +441,21 @@ var LunaReviewCamera.Clip.uri: Swift.String
 var LunaReviewCamera.Clip.width: Swift.Int
 var LunaReviewCamera.clips: [LunaReviewCamera.Clip]
 var LunaReviewCamera.received: [Insta360Protocol.LunaRequest]
+var LunaStationCommissioner.asksApprovalOnCamera: Swift.Bool
+var LunaStationCommissioner.joinsExperimentally: Swift.Bool
+var LunaStationHost.host: Swift.String
+var LunaStationHost.hotspot: Swift.Bool
+var LunaStationHost.network: Swift.String
+var LunaStationHost.serial: Swift.String
 var LunaStationNetwork.debugDescription: Swift.String
 var LunaStationNetwork.description: Swift.String
 var LunaStationNetwork.hotspot: Swift.Bool
 var LunaStationNetwork.password: Swift.String
 var LunaStationNetwork.ssid: Swift.String
+var LunaStationPort.connectedSerial: Swift.String?
+var LunaStationPort.isControlReady: Swift.Bool
+var LunaStationPort.secondsSinceVideo: Foundation.TimeInterval?
+var LunaStationPort.stationHostsInUse: (() -> Swift.Set<Swift.String>)?
 var LunaSubjectTracking.Box.height: Swift.Double
 var LunaSubjectTracking.Box.width: Swift.Double
 var LunaSubjectTracking.Box.x: Swift.Double

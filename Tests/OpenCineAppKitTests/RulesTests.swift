@@ -44,8 +44,8 @@ struct AppKitRules {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let package: Set<String> = [
-            "OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
-            "OpenCineRelay", "OpenCineRelayApple",
+            "OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineCore", "OpenCineMedia",
+            "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple",
         ]
         let system: Set<String> = [
             "Foundation", "Observation", "Network", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",

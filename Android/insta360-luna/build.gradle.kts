@@ -21,8 +21,9 @@ android {
 dependencies {
     api(project(":insta360-shell"))
     api(project(":camera-vocabulary"))
-    // The shared camera access-point join and Wi-Fi low-latency lock.
-    implementation(project(":platform"))
+    // The shared camera access-point join and Wi-Fi low-latency lock; api because hosts pass one
+    // shared `SharedWiFiPath` to several backends (multicam over one network).
+    api(project(":platform"))
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 
 /** Scale-Y morph from the well the control lives on. Compact and details share it. */
@@ -36,15 +37,22 @@ fun MonitorCaptureReveal(modifier: Modifier = Modifier, fromTop: Boolean = false
     }, content = content)
 }
 
-/** Horizontal strips keep the bottom baseline; vertical rails keep it on their left edge. */
+/**
+ * Horizontal strips keep the bottom baseline; vertical rails keep it on their left edge. Each tab
+ * reads its visible text unless [accessibilityLabels] names it otherwise (iOS `MonitorCaptureTabs`
+ * shows a title upper-cased and reads it mixed case); [testTags] are each tab's test tag (iOS
+ * accessibility identifier), where given.
+ */
 @Composable
 fun MonitorDrawerTabs(tabs: List<String>, selected: Int, onSelect: (Int) -> Unit,
-    enabled: Boolean = true, vertical: Boolean = false, modifier: Modifier = Modifier) {
+    enabled: Boolean = true, vertical: Boolean = false, modifier: Modifier = Modifier,
+    accessibilityLabels: List<String>? = null, testTags: List<String>? = null) {
     val items: @Composable (Modifier) -> Unit = { tabModifier ->
         tabs.forEachIndexed { index, label ->
             val active = index == selected
-            MonitorTab(active, { onSelect(index) }, tabModifier, enabled = enabled, vertical = vertical,
-                separator = index > 0, accessibilityLabel = label) {
+            val tag = testTags?.getOrNull(index)
+            MonitorTab(active, { onSelect(index) }, if (tag != null) tabModifier.testTag(tag) else tabModifier, enabled = enabled, vertical = vertical,
+                separator = index > 0, accessibilityLabel = accessibilityLabels?.getOrNull(index) ?: label) {
                 Text(label,
                     style = MonitorTypography.text(11f, if (active) FontWeight.SemiBold else FontWeight.Medium),
                     color = if (active) MonitorPalette.accent else MonitorPalette.muted,

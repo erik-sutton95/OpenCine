@@ -118,6 +118,14 @@ first frame and the app owns progress, render `PairCameraPage` / `MonitorPairCam
 and actions without starting `PairScreen` discovery. A shared connection attempt retains its own
 card or pair-page progress until picture readiness; it needs no additional preparing page.
 
+The station-network wizard (`StationNetworkSetupView` on iOS, `StationNetworkSetup` on Android)
+takes `lockedNetwork: StationNetwork? = nil` on both platforms. When set, it shows only the
+read-only "Shared Wi-Fi" page: the network name, "Cameras are using this network. Remove them
+before changing it.", and a Done action that completes the wizard (`complete`, required on both
+platforms, so Done never cancels through `close`). No scan starts. Its accessibility identifier comes from the wizard
+context (`StationNetworkSetupContext.identifier`: `multiview.networkSetup` or `addSetup`, Android's
+test tag). Multiview passes it while cameras use the shared network.
+
 ## Shell: root, monitor lifetime and common controls (SHELL-03)
 
 `ShellModel` is the app's root state over `CamerasModel`: the route (`cameras`, `pair`,
@@ -367,6 +375,63 @@ once their slot empties. A readout with `choices` opens them wherever it shows (
 and Grid's inline values); `choose` gets the choice as shown, so the app writes only a value the
 camera still advertises. Qualified camera counts, routes and limits stay app parameters.
 
+`MultiviewStageJournal` is the saved stage: `Stage` (network name, layout, focus, assigned cameras,
+the camera-network cleanup ledger `pendingReset`, fit or fill) and `Camera`, with `validated(tileCount:)`
+(the app passes its own tile count; a stage with no network is valid only as a cleanup ledger),
+`cleanupTargets` (replace by id, append new) and, on Android, `encode`/`decode` (org.json). The JSON
+keys are the ones the apps already store (`deviceAddress` is written as `bleAddress`, Android's
+identity is hex, iOS's an array of bytes), so earlier saved stages decode unchanged. Storage (Keychain,
+SharedPreferences) stays in the app.
+
+`MultiviewRepairResult.race` (Swift extension, Kotlin extension on the companion) is the
+coordinator's deadline on a member link's repair (Core's `MultiviewMemberLink.repairDeadline`):
+the repair's own result when it ends first, `done` after cancelling it when the deadline passes
+first. It lives here because Core's Kotlin twin may not import coroutine builders.
+
+### Multiview coordinator
+
+`MultiviewCoordinator` (Swift `@Observable`, generic over its `MultiviewMemberLink`; Kotlin
+`MultiviewCoordinator<Camera, Link>` on Compose state, main-thread confined, running its work in
+the app's scope) is one stage's rules, the same in every app (lifted from OpenPocketCine's iOS
+session, the reference): it drives cameras only through Core's Multiview seams and asks the app
+for what only the app has through a small `MultiviewHost` (every requirement has a default, so
+Plan 4's screen and tile picture can grow it without breaking an adopter).
+
+- Lifecycle: `start` always asks for a network and starts with empty slots, takes presentation and
+  cleanup from the journal and runs the 1 s monitor (keepalive, record freshness, repair);
+  `stop` closes every link, task and scan; `closeStage` closes the links first, then returns each
+  camera to its own access point in parallel, also for a cancelled caller. Unfinished returns
+  (failed, deferred, cancelled or thrown) stay in the journal for the next close; nothing gives
+  them up but the operator (the app's "Close anyway" leaves them journaled). A deferred return
+  shows the integration's copy, others the shared one.
+- Network: an explicit source and name before any credential loads; an assigned camera locks the
+  network; Connect checks a name of 1 to 32 bytes and a password of at most 63 and joins (never
+  this phone's own hotspot). Network scans through a nearby camera journal their cleanup first.
+- Members (`MultiviewMember`: camera, copy, control host, failure, record state, recovery budget;
+  an app whose own link objects present tile state creates them and forwards): `add` admits to the
+  app's budget, commissions over Bluetooth (or, without a commissioner, opens the camera where it
+  was seen and keeps the proof it gives), joins, and finds the camera on the network: the known
+  address first, then two passes over the subnet (`probeWidth` probes at a time, at most eight
+  candidates, other members' hosts excluded by their host key, each address reserved while it is
+  tried) when the policy discovers by probe. A camera already in the stage is refused, finally,
+  also when the commissioner's join found it (`StationVerifyFinal`). `reconnect` tries the known
+  camera, then sets it up again; `remove` sends no camera command and forgets the member's address
+  except for the same camera added again.
+- Recovery: each member's link judges its picture once a second; the coordinator owns when it may
+  (foreground, 3 s after a return, no network scan, the app shows the picture), the 45 s
+  path-loss rule, the race against the link's deadline, and a bounded rejoin (`RecoveryBudget`:
+  two, restored after 30 s healthy, attempts or not) before waiting for the operator. Repairs that
+  need Bluetooth take turns behind adds, reconnects and scans (`bluetoothTurn`); the queue moves on
+  when any of them ends. Kotlin seams may throw: a keepalive, probe or scan that throws is logged,
+  a repair that throws fails its member, and the monitor keeps running.
+- Record: the camera's record state counts only within 3 s of its last report; plans are strict
+  (`RecordAll`), each outcome lands on its member, the group note summarizes;
+  `MultiviewRecordConfirmation` is one command's 8 s confirmation window. `tile(_:_:)` turns the
+  app's `MultiviewTileReadings` into the stage's `MultiviewTile` (tally, notes, status, options:
+  the plain record confirmations stay off the tile).
+- Live View and editors: Live View needs a controlled member and closes any editor first; editor
+  leases name the member's session and control epoch (`openEditorLease`, `editorAdmits`).
+
 Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
 ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come
 from `MultiviewTileStatus.actions`. Kotlin differences: `recordingSince` is epoch milliseconds
@@ -374,6 +439,83 @@ from `MultiviewTileStatus.actions`. Kotlin differences: `recordingSince` is epoc
 where SwiftUI takes bindings; `record` returns at once where Swift is `async`, and the app launches
 the plan in a scope that outlives the stage (Live View can replace it mid-command); the SwiftUI stage takes
 a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` and `interactive`.
+
+### Multiview screen
+
+`MultiviewScreen` (SwiftUI in OpenCineAppKitApple, `MultiviewScreen.swift`; Compose in appkit,
+`MultiviewScreen.kt`) is the whole Multiview screen over a coordinator, lifted from
+OpenPocketCine's iOS `MultiviewView`, the reference: the stage with its tools in iOS order (Layout,
+Camera, Fit, LUT), tally and format, tile status and failures, Add with the camera list, the
+network wizard (`StationNetworkSetupView` / `StationNetworkSetup`, locked while cameras use the
+network), the camera settings popup (`MultiviewCameraSettingsPanel`), Live View, record all and per
+tile, the close prompt and the cleanup error with "Close anyway", the closing progress, Back and
+the foreground rules. Both screens start the stage when they appear
+(`MultiviewCoordinator.screenAppeared(startsSession:)`; `startsSession: false` is a review fixture
+that neither starts the stage nor passes the foreground to it), so an app presents the screen over
+a coordinator it has not started; a stage the app already started stays as it is.
+`MultiviewStageContent` (Compose only) is the stage alone, for an app or a test that draws its own
+overlays.
+
+The app's half is `MultiviewScreenHost`, which refines `MultiviewHost` with the views only the
+app has: each member's picture (Fit or Fill), the settings popup's live preview and controls, and
+the borrowed Live View. SwiftUI adds the stage backdrop and the wizard's brand and services;
+Compose's host composes the wizard itself (`NetworkSetup`) through the shared
+`MultiviewNetworkSetup`, because Android's Wi-Fi name permission, saved networks and network
+path binding are the app's. `MultiviewHost` grew without breaking an adopter (every new
+requirement has a default): `readings(slot)` (the tile's `MultiviewTileReadings`; the stage
+falls back to the camera's name), `editsCameraSettings`, `appliesAutoLUT`, `lutChanged(slot)`,
+`openCameraSettings(slot)`, `cameraSettings(slot)` (the open editor as
+`MultiviewCameraSettingsState`: categories, recording, note) and `admitsControls(slot)` (what only
+the app knows before a settings change; `controlsAvailable` asks it). The popup opens the editor
+again only when the selected camera's controls become available while `cameraSettings` is nil, so
+the host drops its editor (and answers nil) once the member's camera or control path changes
+(`memberChanged` with `.camera` or `.control`) or its own link is replaced; an editor kept past
+that would show controls whose every change `editorAdmits` refuses.
+
+Every part of the screen follows the camera and the app, never a brand:
+
+| Capability | What it shows or hides |
+|---|---|
+| Commissioner present (`StationCommissioner`, `choosesNetwork`) | The network wizard before the first Add and the toolbar's Shared Wi-Fi button (the locked page while cameras use the network). Without one the stage starts on this phone's network (`networkConfigured` at `start()`, no host join), never opens the wizard and shows no Shared Wi-Fi button; Compose's `MultiviewScreenHost.NetworkSetup` keeps its empty default. Also the close question and progress (`networkRestore`: "Close Multiview and return cameras to their own Wi-Fi?" and "Returning cameras to their Wi-Fi..." with one, "Close Multiview?" and "Closing Multiview..." without) and the Add list footer ("Each camera will join ..." with one; "Cameras already on ... appear here." or, with no network name, "Cameras on this phone's network appear here." without) |
+| Commissioner scans networks (`scansNetworks`) | The wizard's network scan through a camera; without it the wizard's Nearby section says "This camera can't list networks" and lists saved and typed networks only |
+| Commissioner `joinsExperimentally` (default true) | The experimental shared Wi-Fi path (`offersExperimentalJoin`): a failed camera's "Try experimental shared Wi-Fi" option, and a found camera without preview listed as "Try experimental shared Wi-Fi · Preview unavailable" that joins experimentally. Without it (or without a commissioner) such a camera is listed plainly and joins the normal way, if the policy lets it |
+| Commissioner `asksApprovalOnCamera` (default true) | An add's first status "Connecting · approve on camera" and the footer's "Approve on the camera if asked."; otherwise "Connecting normal preview" and the footer without that sentence |
+| `MultiviewCameraPolicy` | The Add list: found cameras that may join (not refused, not members) |
+| Link refusal (`MultiviewLinkRefusal` on an `open` error) | The tile's failure copy after a failed Add or Reconnect: the link's own `operatorMessage` ("In use on ...", "not paired", "Another camera answered ...") instead of "Could not find this camera on the shared Wi-Fi...". A link that never refuses that way (DJI) keeps the coordinator's copy |
+| Commissioner absent, on Reconnect | A proven camera is only reopened as itself: a failed reconnect does not set the camera up again without its identity (that would open whatever answers at the address). With a commissioner, Reconnect still sets it up again |
+| Host `pickerGuidance` (default nil) | Setup steps under the Add list's footer, for an app whose cameras join the network from their own menus (OpenZCine: the camera-menu steps and where to pair) |
+| Coordinator `networkPath` (`MultiviewNetworkPath`, default `.chosen`) | Which of the phone's networks the stage watches for readiness, the 45 s path-loss rule and the probe subnet: the chosen source (Wi-Fi without a commissioner), or under `.either` the phone's Wi-Fi when it has an address there, else the hotspot it hosts (a stage without a commissioner whose cameras share the phone's hotspot; an Android phone on Wi-Fi and hosting a hotspot at once watches Wi-Fi, so a lost hotspot is not reported as path loss). A stage saves only a named network, so a stage on this phone's own network saves none |
+| Host `editsCameraSettings` | The CAMERA tool for every slot with a camera |
+| Host `appliesAutoLUT` | The LUT tool and each tile's Auto LUT option |
+| Host `cameraSettings(slot)` categories | The popup's rail (`MultiviewSettingsCategory.offered`: focus mode and aperture where the camera has them; format, color and audio only in a video mode); recording locks mode, format and color |
+| Host `admitsControls(slot)` | Whether a settings change may reach the camera now (the popup says "Controls unavailable") |
+| Host `confirmsRecord` | The record confirmation |
+
+The adopters' answers today: Pocket (DJI) has a commissioner that scans networks and joins
+experimentally, and a host that edits settings and applies Auto LUT. Luna (OpenInstaCine,
+`LunaMultiview.policy` and `LunaStationCommissioner`) has a commissioner that asks for approval
+on the camera but neither scans networks nor joins experimentally; its iOS and Android hosts both
+edit settings (under the editor lease, every write asked again), apply Auto LUT and lend Live
+View as a shell-borrowed monitor, as Pocket's do. Luna is hardware-untested.
+
+The popup's tabs show upper-cased on both platforms, as iOS draws them, and read mixed case to
+accessibility ("A · Name", "Iso", "Shutter"); Compose's `MonitorDrawerTabs` takes the labels and
+test tags beside the visible text. Both popups carry the same identifiers (Compose test tags):
+`multiview.settings.panel`, `multiview.settings.camera.N`, each rail tab's
+`MultiviewSettingsCategory.identifier`, `multiview.settings.error` and the close button's
+`monitor.capture.close`; the SwiftUI camera tabs also carry Ready, Reconnecting or Unavailable as
+their accessibility value, and the panel the host's optional `settingsAccessibilityValue` (none
+by default). The shared toolbar order is `MultiviewTool.screen` (Kotlin `SCREEN`).
+
+`MultiviewSettingsCategory` is a closed enum on both twins. A category added later lands on both
+twins in one change; a host that maps categories through a lookup (Pocket: iOS
+`CaptureSheet(rawValue:)`, Android a map) keeps compiling and shows no controls for one it lacks,
+while a host with an exhaustive `switch` or `when` adds its case in the same change.
+
+Kotlin differences: the host's composables are `Picture`, `SettingsPreview`, `SettingsControls`
+(with `locked` and the drum's `maxHeight`), `LiveView` and `NetworkSetup` (default: nothing, for a
+stage without a commissioner); the Shared Wi-Fi button is enabled only on a running stage (SwiftUI:
+unless `startsSession` is false).
 
 ## Tests
 
@@ -390,6 +532,9 @@ a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` 
 | `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
 | `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
 | `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
+| `MultiviewCoordinatorTests` (SIMULATED over Core's Multiview fakes on a manual clock: network choice and lock, journal and cleanup, deferred returns, discovery demand, status copy and control host, add by probe and by sighting, known address then two passes, duplicate refusal is final, reconnect, rejoin budget, healthy transport, 45 s path loss, foreground grace, Bluetooth turns, record freshness and outcomes, confirmation window, Live View, remove, tile values, host keys, a closed link and a replaced repair change nothing, the Add list, the experimental join and the approval copy follow the commissioner, the screen starts the stage and opens the wizard first, a stage without a commissioner uses this phone's network without the wizard, the wizard's scan follows the commissioner, a Remove queued before a repair's verdict, LUT toggles, stage tiles from the host's readings, controls the app admits) | `MultiviewCoordinatorTest`, same names (virtual time) |
+| `MultiviewValuesTests` screen values (settings categories in iOS order from capabilities, the recording lock, close copy) | `MultiviewValuesTest`, same names |
+| `MultiviewScreenTests` in `OpenCineAppKitAppleTests` (iOS simulator, hosted: Add opens the camera list; the popup shows a tab per camera with its state and opens the chosen camera's editor; the list's rows and footer, the rail in order and the unavailable note are checked where the runner has an application scene, because scroll views vend their content only there) | not ported (no Compose host renderer here; Pocket's instrumentation tests drive the Compose screen) |
 | `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, camera path lease fenced per owner, host isolation, backoff, receipts refuse IDs that leave their directory) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `cameraPathLeaseIsFencedPerOwner`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`, `receiptsRefuseIdsThatLeaveTheReceiptsDirectory`; the envelope cases are Swift only |
 | `SentryReliabilitySinkTests` in `OpenCineSentryAppleTests` (iOS simulator: crash capture installs on camera Wi-Fi, scrub never stamps current origin on fatal events, breadcrumb allowlist, user/request/path removal, original release after upgrade, queued origin survives the SDK scope merge, options privacy flags) | `appkit-sentry`: `SentryReliabilitySinkTest`, `ReliabilityTransportCacheFailureTest` (A6-01), `ReliabilityTransportRetryTest`, `OkHttpManualReportUploadTest`, `AdapterIsolationTest` |
 | `FeedSessionSummaryStoreTests` (healthy sessions survive later sessions and an interrupted process, retention and invalid identity cannot escape the spool) | `FeedSessionSummaryStoreTest` (same cases, Kotlin names) |

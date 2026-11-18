@@ -121,8 +121,34 @@ struct DJIAppleGimbalControlTests {
                 payload[offset] = UInt8(bits & 0xFF)
                 payload[offset + 1] = UInt8(bits >> 8)
             }
-            gimbal.ingest(frame(0x05, Array(payload.prefix(count))), status: status)
+            ingestAttitude(Array(payload.prefix(count)))
         }
+
+        /// SYNTHETIC push: the captured 50-byte frame with the mode family byte `@6` replaced
+        /// (`0x46` FPV and `0x86` Follow as in the OpenPocketCine#638 export, `0x06` Direction Lock).
+        func attitude(modeByte: UInt8) {
+            let hex = "0807000000008600000000020219CD05B3C5000000000200AA10D73532D7763F15BB873E1FB8B43600000000010000000000"
+            var payload = stride(from: 0, to: hex.count, by: 2).map { i -> UInt8 in
+                let start = hex.index(hex.startIndex, offsetBy: i)
+                return UInt8(hex[start..<hex.index(start, offsetBy: 2)], radix: 16)!
+            }
+            payload[6] = modeByte
+            ingestAttitude(payload)
+        }
+
+        /// Projects the push into the status first, as the session does.
+        func ingestAttitude(_ payload: [UInt8]) {
+            if payload.count == 50 { status.gimbalModeFamily = GimbalModeFamily.parse(payload) }
+            gimbal.ingest(frame(0x05, payload), status: status)
+        }
+
+        /// Head tracking setup frames (Fast, tilt unlocked) went out.
+        var sentHeadTrackPrep: Bool {
+            untrackedPayloads.contains(Commands.setGimbalSpeed(.fast).payload)
+                || untrackedPayloads.contains(Commands.setGimbalTiltLock(.unlocked).payload)
+        }
+
+        var untrackedPayloads: [[UInt8]] { link.untracked.map(\.payload) }
 
         func frame(_ cmdId: UInt8, _ payload: [UInt8]) -> Duml.Frame {
             .init(sender: 0, receiver: 0, seq: 0, flags: 0, cmdSet: 0x04, cmdId: cmdId, payload: payload)
@@ -365,6 +391,102 @@ struct DJIAppleGimbalControlTests {
         #expect(!host.gimbal.updateNativeHeadTrack(target: target, token: token))
         #expect(host.link.nativeTargets.isEmpty)
         #expect(host.link.endedTokens == [token])
+    }
+
+    /// OpenPocketCine#638: in FPV every head tracking run jumped the gimbal 73 to 124 degrees on
+    /// its first targets, while the Follow run tracked. Head tracking drives Follow and Tilt locked
+    /// only, says why, and sends no setup frames in any other mode.
+    @Test func headTrackRefusesFPVAndDirectionLockWithoutSendingSetup() throws {
+        for (byte, mode) in [(UInt8(0x46), GimbalMode.fpv), (0x06, .directionLock)] {
+            let host = Host()
+            host.attitude(modeByte: byte)
+            #expect(host.gimbalMode == mode)
+            let stop = try #require(host.gimbal.headTrackStop)
+            #expect(stop.reason == "mode=\(mode.label)")
+            #expect(stop.note == "Head tracking is off in \(mode.label). Switch to Follow or Tilt locked, then calibrate")
+            #expect(host.gimbal.beginNativeHeadTrack() == nil)
+            #expect(host.link.targetTokens.isEmpty && !host.sentHeadTrackPrep)
+        }
+        for mode in [GimbalMode.follow, .tiltLocked] {
+            let host = Host()
+            host.gimbalMode = mode
+            host.attitude(modeByte: 0x86)
+            #expect(host.gimbalMode == mode)
+            #expect(host.gimbal.headTrackStop == nil)
+            #expect(host.gimbal.beginNativeHeadTrack() != nil)
+        }
+    }
+
+    @Test func headTrackEndsItsRunWhenTheGimbalSwitchesToFPV() throws {
+        let host = Host()
+        host.attitude()
+        let live = try #require(host.gimbal.freshWaypoint)
+        let token = try #require(host.gimbal.beginNativeHeadTrack())
+        host.attitude(modeByte: 0x46)
+        #expect(!host.gimbal.updateNativeHeadTrack(target: live, token: token))
+        #expect(host.link.nativeTargets.isEmpty)
+        #expect(host.link.endedTokens == [token])
+    }
+
+    /// OpenPocketCine#638: the gimbal sat at 75.1 degrees, past the 70 degree reach. Every target
+    /// was refused and head tracking re-armed about 10 times a second, re-sending its setup frames,
+    /// with no message. Past the reach it now says so and sends nothing; the stick still works.
+    @Test func headTrackPastTheReachSaysSoAndLeavesTheStickWorking() throws {
+        let host = Host()
+        host.attitude(nativeTenth: 1049, pitchTenth: 751, count: 50)
+        let stop = try #require(host.gimbal.headTrackStop)
+        #expect(stop.reason == "pastReach")
+        #expect(stop.note == "Gimbal past its head tracking range. Recenter, then calibrate")
+        #expect(host.gimbal.beginNativeHeadTrack() == nil)
+        #expect(host.link.targetTokens.isEmpty && !host.sentHeadTrackPrep)
+        host.gimbal.updateStick(x: 0, y: -1)
+        #expect(!host.link.sticks.isEmpty)
+        host.gimbal.endStick()
+        host.attitude(nativeTenth: 1200, pitchTenth: 600, count: 50)
+        #expect(host.gimbal.headTrackStop == nil)
+    }
+
+    /// Native pitch near level is unverified on hardware (OpenPocketCine#621, #646, #667). Each run
+    /// logs its first target, every target on the other side of the 180 degree wrap, and one every
+    /// half second, with what went on the wire, the mode and the attitude layout.
+    @Test func headTrackLogsTheTargetsItSends() throws {
+        let host = Host()
+        host.cameraModel = CameraModel(name: "Pocket Test")
+        host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 50)
+        let calibration = try #require(host.gimbal.freshWaypoint)
+        var track = HeadTrackNative()
+        #expect(track.center(pose: calibration) == .centered)
+        let token = try #require(host.gimbal.beginNativeHeadTrack())
+        func send(lookUp: Double) throws {
+            let look = track.target(lookRightDeg: 0, lookUpDeg: lookUp)
+            let target = try #require(look)
+            #expect(host.gimbal.updateNativeHeadTrack(target: target, token: token))
+        }
+        try send(lookUp: -9)
+        try send(lookUp: -8)
+        try send(lookUp: 5)
+        try send(lookUp: 4)
+        host.uptime += 0.5
+        host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 50)
+        try send(lookUp: 3)
+        let lines = host.log.filter { $0.hasPrefix("head-track: target") }
+        #expect(
+            lines == [
+                "head-track: target yaw=0.0 pitch=-3.4 native=183.4 wire=-176.6 live=5.6/174.4 mode=Follow modeFrom=attitude layout=50 model=Pocket Test",
+                "head-track: target yaw=0.0 pitch=10.6 native=169.4 wire=169.4 live=5.6/174.4 mode=Follow modeFrom=attitude layout=50 model=Pocket Test",
+                "head-track: target yaw=0.0 pitch=8.6 native=171.4 wire=171.4 live=5.6/174.4 mode=Follow modeFrom=attitude layout=50 model=Pocket Test",
+            ])
+    }
+
+    /// The 49-byte layout carries no known mode field, so the mode is the app's last choice.
+    @Test func compactAttitudeLogsTheModeAsTheAppsChoice() throws {
+        let host = Host()
+        host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 49)
+        let live = try #require(host.gimbal.freshWaypoint)
+        let token = try #require(host.gimbal.beginNativeHeadTrack())
+        #expect(host.gimbal.updateNativeHeadTrack(target: live, token: token))
+        let line = try #require(host.log.first { $0.hasPrefix("head-track: target") })
+        #expect(line.hasSuffix("mode=Follow modeFrom=app layout=49 model=-"))
     }
 
     @Test func levelWithoutAttitudeSaysSoAndSendsNothing() {

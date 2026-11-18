@@ -13,6 +13,7 @@ import com.opencapture.opencine.media.MonitorCrushClipCompensation
 import com.opencapture.opencine.media.MonitorPeakingColor
 import com.opencapture.opencine.media.MonitorPeakingSense
 import com.opencapture.opencine.media.MonitorZebraPaint
+import com.opencapture.opencine.media.ScopeDisplayScale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -353,6 +354,24 @@ class MonitorAssistStateBehaviorTest {
             setFalseColor(reference = true)
         }
         assertEquals(expected.encoded(), state.encoded())
+    }
+
+    /**
+     * OpenZCine #393: a highlight zebra set above the source's assumed white (N-Log code 245
+     * over a 234 ceiling) is kept above 100, up to code 255 in the headroom. Midtone is not.
+     */
+    @Test
+    fun highlightZebraReachesTheHeadroomAboveTheCeiling() {
+        val state = MonitorAssistState()
+        state.setZebraHighlight(ire = 103.0)
+        assertEquals(103.0, state.zebraHighlightIRE)
+        state.setZebraHighlight(ire = 500.0)
+        assertEquals(ScopeDisplayScale.ZEBRA_HIGHLIGHT_CEILING_PERCENT, state.zebraHighlightIRE)
+        state.setZebraHighlight(ire = -4.0)
+        assertEquals(0.0, state.zebraHighlightIRE)
+        state.setZebraMidtone(ire = 103.0)
+        assertEquals(100.0, state.zebraMidtoneIRE)
+        assertEquals(100.0 + 100.0 * 0.05 / 0.9, ScopeDisplayScale.ZEBRA_HIGHLIGHT_CEILING_PERCENT, 1e-9)
     }
 
     @Test

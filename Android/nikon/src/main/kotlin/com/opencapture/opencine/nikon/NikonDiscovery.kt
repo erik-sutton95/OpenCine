@@ -161,6 +161,9 @@ class NikonDiscovery(
     private var lastSweepNanos: Long? = null
     private var shield: Set<String> = emptySet()
 
+    /** Served camera host key to the device holding it, from the last presence sweep. */
+    private var held: Map<String, String> = emptyMap()
+
     /** Hosts the last presence sweep found serving or answering (never dialled on the control port). */
     val shieldedHosts: Set<String> get() = synchronized(this) { shield }
 
@@ -184,6 +187,9 @@ class NikonDiscovery(
         }
         synchronized(this) {
             shield = found.keys + found.values.mapNotNull { it.servedCamera?.takeIf(String::isNotBlank) }
+            held = found.values.mapNotNull { presence ->
+                presence.servedCamera?.let(NikonHosts::normalizedHost)?.let { it to presence.deviceName }
+            }.toMap()
         }
         log("presence sweep hits=${found.size}")
         return found
@@ -230,9 +236,10 @@ class NikonDiscovery(
         val subnets = local.mapNotNull { subnetBase(it.address) }.distinct().sorted()
         if (subnets.isEmpty()) return NikonSearchResult(emptyList(), emptyList())
         val locals = local.map { it.address }.toSet()
-        val excluded = excludedHosts + shieldedHosts
+        // Compared by host key: a caller's untrimmed address still keeps its host undialled.
+        val excluded = (excludedHosts + shieldedHosts).mapNotNull(NikonHosts::normalizedHost).toSet()
         val directed = directedCandidates.map { it.trim() }.distinct()
-            .filter { it !in excluded && it !in locals && subnetBase(it) in subnets }
+            .filter { hostKey(it) !in excluded && it !in locals && subnetBase(it) in subnets }
         log("infra-search subnets=[${subnets.joinToString(" ")}] directed=[${directed.joinToString(" ")}]")
 
         // Directed first: the reconnect case answers in one round.
@@ -243,7 +250,7 @@ class NikonDiscovery(
         repeat(LOCAL_SWEEP_PASSES) { pass ->
             for (subnet in subnets) {
                 if (!currentCoroutineContext().isActive) break
-                val hosts = (1..254).map { "$subnet.$it" }.filterNot { it in excluded || it in locals }
+                val hosts = (1..254).map { "$subnet.$it" }.filterNot { hostKey(it) in excluded || it in locals }
                 val verdicts = muteScan(hosts)
                 val open = verdicts.filterValues { it == HostProbeVerdict.OPEN }.keys.sorted()
                 occupied += verdicts.filterValues { it.isOccupied }.keys
@@ -252,6 +259,48 @@ class NikonDiscovery(
             }
         }
         return NikonSearchResult(emptyList(), occupied.toList())
+    }
+
+    /**
+     * Multiview's Add camera list (Plan 6, Swift `multiviewSightings`): the app's [listened] NSD and
+     * USB rows (the app lists them; this class only dials), the rate-limited presence sweep and liveness dials of [savedHosts], so no
+     * camera-control dial at all. A host in [excludedHosts] (held by a Multiview member or this
+     * app's own Live View) is neither dialled for liveness nor listed. Cameras another device holds
+     * are listed, not pickable. Only the body the operator picks is opened, through
+     * [NikonMemberOpener]. A saved host is listed only when its liveness dial answers: the picker
+     * merges in saved setups that do not.
+     */
+    suspend fun multiviewSightings(
+        listened: List<NikonSighting>,
+        savedHosts: Collection<String>,
+        excludedHosts: Set<String>,
+    ): List<NikonSighting> {
+        val excluded = excludedHosts.mapNotNull(NikonHosts::normalizedHost).toSet()
+        fun key(host: String) = NikonHosts.normalizedHost(host) ?: host
+        presenceSweep()
+        val heldNow = synchronized(this) { held }
+        val listenedKeys = listened.map { key(it.host) }.toSet()
+        val alive = liveness(
+            savedHosts.filter { NikonHosts.isDialableHost(it) && key(it) !in excluded && key(it) !in listenedKeys }
+                .map(::key).distinct(),
+        )
+        val seen = mutableSetOf<String>()
+        val sightings = mutableListOf<NikonSighting>()
+        for (row in listened + alive.map { NikonSighting(it, null, NikonSighting.Source.LIVENESS) }) {
+            val host = key(row.host)
+            if (host in excluded || !seen.add(host)) continue
+            val holder = heldNow[host]
+            sightings += if (holder != null) {
+                NikonSighting(row.host, null, NikonSighting.Source.HELD_BY_ANOTHER_DEVICE, heldBy = holder)
+            } else {
+                row
+            }
+        }
+        for ((host, holder) in heldNow.toSortedMap()) {
+            if (host in excluded || !seen.add(host)) continue
+            sightings += NikonSighting(host, null, NikonSighting.Source.HELD_BY_ANOTHER_DEVICE, heldBy = holder)
+        }
+        return sightings
     }
 
     /** Attempts, not one long wait: a radio asleep for the first dial is awake for the second. */
@@ -283,6 +332,8 @@ class NikonDiscovery(
     /** The `a.b.c` of a private (RFC 1918) IPv4 address, else `null`. */
     /** This device's interfaces discovery may scan from: never cellular or a tunnel. */
     private fun scanInterfaces(): List<NikonLocalInterface> = interfaces().filter { NikonHosts.isScanInterface(it.name, it.address) }
+
+    private fun hostKey(host: String): String = NikonHosts.normalizedHost(host) ?: host
 
     private fun subnetBase(host: String): String? = host.trim().takeIf(NikonHosts::isPrivateIPv4)?.let(NikonHosts::subnetBase)
 }

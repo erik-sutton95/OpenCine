@@ -180,6 +180,25 @@ stays with the app comes in through `DjiSessionHost`: operator preferences, the 
 recorder and reliability reporting, build identity, and the face detector (`FaceDetectorPort`; the
 app keeps ML Kit). The app keeps all UI.
 
+## Multiview station commissioning
+
+DJI implements Core's `StationCommissioner` ([core](../core/README.md#multiview-seams)):
+`DJIStationCommissioner` (`OpenCineDJIApple`, over `DjiAppleMultiviewProvisioner`, moved from
+OpenPocketCine) and `DjiStationCommissioner` (`:dji`, over `MultiviewProvisioner`). Each camera
+gets its own Bluetooth link, sequence space, reply router and keepalive; `connect` pairs and wakes
+a Nano's Wi-Fi, `identity()` reads `07/07` (Android adds one Wi-Fi wake when the reply is missing),
+`join` runs `StationJoin`, `restoreAccessPoint` sends `07/48 00` under
+`restoreCameraWiFiWithRetry` (three attempts across a deferred `00 06` pairing reply; Swift
+returns false on cancellation, Kotlin propagates it), and `scanNetworks` lists `07/AC` reports
+and always returns the camera to its own access point. `MultiviewFailure` and
+`MultiviewPairing.acceptsReply` are the shared copy and reply rule on both platforms;
+`MultiviewExitTests` / `MultiviewExitTest` are twins. Which bodies may join a stage and show a
+picture is `MultiviewCameraPolicy.dji` (an extension on Core's policy, both platforms), so the
+commissioner keeps only commissioning. `DjiAppleNetworkDiscovery.probe(_:localAddress:)` and
+`MultiviewDiscovery.probe(host, localAddress)` dial from the address the caller's host path gives.
+The DJI member link itself is Pocket's (its tiles), per the shared Multiview spec. Kotlin
+`DjiStationCommissioner` is called from one thread (its open-link record is not synchronized).
+
 ## Integration contract (SHELL-02)
 
 `DJIIntegration` (Swift, over a `DJIConnectPort` the app's DJI connect pipeline implements in
@@ -351,3 +370,14 @@ point on every camera; the 50-byte wire folds them back to ±180°. Three real 4
 (`Fixtures/dji-attitude-pocket3-49.tsv`) confirm the offsets: the quaternion sits at the 50-byte
 `@24...@39`, bytes 40-48 are zero and unread. Its world tilt reads about 2° below the display
 pitch on that capture. Sending continuous targets is untested on hardware.
+
+Head tracking drives the gimbal in Follow and Tilt locked only (`HeadTrackStop.drivenModes`). In
+FPV the first absolute targets jumped the gimbal 73 to 124 degrees (OpenPocketCine#638);
+Direction Lock has never been checked with absolute targets. `DjiAppleGimbalControl.headTrackStop`
+reports that mode, or a live pose past `GimbalReach`, as a lasting stop: no setup frames go out
+and the shared bridge ends tracking with the note instead of re-arming every sample. The mode
+comes from the 50-byte push. The 49-byte push has no known mode field (the three captured frames
+all read `0x80` at `@6`, Follow), so on current Pocket 3 firmware a mode changed on the camera
+itself is not seen and the app's last choice stands. Each run journals its sent targets
+(`head-track: target`, with the wire native pitch, mode, mode source, layout and model): the first,
+every one on another side of the ±180° wrap, and one per half second.

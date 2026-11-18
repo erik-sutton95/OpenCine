@@ -2,8 +2,14 @@
 
 `Android/platform` (`com.opencapture.opencine:platform`, package
 `com.opencapture.opencine.platform`) contains Android system adapters. It imports Android and
-JVM frameworks only and depends on no integration, UI or app. Portable policy belongs in
+JVM frameworks and Core values only and depends on no integration, UI or app. Portable policy belongs in
 Core or Media; this target parallels the platform-specific role of `OpenCineApple`.
+
+It depends on `:core` for values and seams only (the twin of `OpenCineApple` over
+`OpenCineCore`). `SharedWiFiPath` is Core's `StationHostPath`: this phone's address and netmask on
+the shared Wi-Fi or its own hotspot, and joining a router's Wi-Fi. `SharedNetworkStore` keeps the
+saved shared networks (`SharedNetworkStore.Network`, a missing `hotspot` reads as Wi-Fi), the twin
+of the iOS store in `OpenCineApple` with the same test names.
 
 `KeystoreSeal(alias)` seals UTF-8 values with a device-only Android Keystore AES key and
 opens the existing Base64-IV, colon, Base64-payload envelope (AES/GCM/NoPadding, 128-bit tag,

@@ -231,4 +231,25 @@ struct MulticamSupportTests {
                 sleep: { _ in })
         }
     }
+
+    @MainActor @Test func aFinalVerifyEndsTheJoinWhenItsReplyIsLost() async {
+        struct AlreadyMember: Error {}
+        let lost = StationScript([0x39: [[0, 1]]])
+        var verifies = 0
+        var thrown: Error?
+        do {
+            _ = try await StationJoin(
+                model: pocket4(), ssid: "Rig Phone", password: "p", hotspot: false
+            ).run(
+                identity: [0, 4, 0x41, 0x42], exchange: lost.exchange, send: { _ in },
+                next: { 1 }, status: { _ in }, hotspotReady: { false },
+                verifyOnNetwork: {
+                    verifies += 1
+                    throw StationVerifyFinal(AlreadyMember())
+                }, sleep: { _ in })
+        } catch { thrown = error }
+        #expect(thrown is StationVerifyFinal)
+        #expect(verifies == 1, "the camera is not joined again")
+        #expect(lost.sent.filter { $0 == 0x47 }.count == 1)
+    }
 }
