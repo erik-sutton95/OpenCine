@@ -105,6 +105,11 @@ import OpenCineMotion
     private var wasRecording = false
     private var nativeTargetGeneration: UInt64 = 0
     private var nativeHeadToken: UInt64?
+    private var lastAttitudeLayout: GimbalStick.AttitudeLayout?
+    /// The last attitude frame carried the mode family. The 49-byte layout has no known mode
+    /// field, so there the mode is the app's own last choice.
+    private var modeFromAttitude = false
+    private var headTargetLog = HeadTargetLog()
     private var nativeMoveToken: UInt64?
 
     public init(
@@ -140,11 +145,22 @@ import OpenCineMotion
         return pose
     }
 
+    /// A lasting reason head tracking cannot drive the gimbal: a mode it does not drive, or a live
+    /// pose past the reach. The bridge stops tracking with the note instead of re-arming.
+    /// The mode comes from the 50-byte attitude push; the 49-byte layout has no known mode field,
+    /// so on that layout a mode changed on the camera itself is not seen here.
+    public var headTrackStop: HeadTrackStop? {
+        guard let host else { return nil }
+        if let stop = HeadTrackStop.gimbalMode(host.gimbalMode) { return stop }
+        if let live = freshWaypoint, live != live.clamped() { return .pastReach }
+        return nil
+    }
+
     public func beginNativeHeadTrack() -> UInt64? {
         guard let host, host.isLivePhase, !host.sessionRecovery.isRecovering,
             host.gimbalControlSceneActive, !host.isFeedWarming, host.hasGimbal, !host.isLocked,
             !host.gimbalMoveRunning, !stickHeld, !host.isBrowsingMedia, !host.isLiveVideoStale,
-            freshWaypoint != nil, let link = host.gimbalLink
+            freshWaypoint != nil, headTrackStop == nil, let link = host.gimbalLink
         else { return nil }
         cancelNativeHeadTrack()
         restStickWire()
@@ -152,6 +168,7 @@ import OpenCineMotion
         noteAppMotion()
         nativeTargetGeneration &+= 1
         nativeHeadToken = nativeTargetGeneration
+        headTargetLog = HeadTargetLog()
         link.beginNativeTargets(token: nativeTargetGeneration)
         return nativeTargetGeneration
     }
@@ -160,6 +177,7 @@ import OpenCineMotion
         guard let host, host.isLivePhase, !host.sessionRecovery.isRecovering,
             host.gimbalControlSceneActive, nativeHeadToken == token, !host.gimbalMoveRunning,
             !stickHeld, !host.isLocked, !host.isBrowsingMedia, !host.isLiveVideoStale,
+            HeadTrackStop.gimbalMode(host.gimbalMode) == nil,
             let live = freshWaypoint, let wire = lastNativePitchWire,
             GimbalMoveEngine.canSendNativeTarget(from: live, to: target),
             let frame = Commands.gimbalTimedTarget(
@@ -170,7 +188,22 @@ import OpenCineMotion
             endNativeHeadTrack(token: token)
             return false
         }
-        return link.noteNativeTarget(frame, token: token)
+        guard link.noteNativeTarget(frame, token: token) else { return false }
+        logHeadTarget(target, frame: frame, live: live)
+        return true
+    }
+
+    /// One line per sent target that matters for the native pitch wrap near level, which is not
+    /// verified on hardware: the first of a run, each one on the other side of the wrap, and one
+    /// every half second, so the bounded diagnostics journal keeps the rest of the session.
+    private func logHeadTarget(_ target: GimbalWaypoint, frame: Duml.Frame, live: GimbalWaypoint) {
+        guard let host, let wireTenth = GimbalStick.i16LE(frame.payload, at: 4) else { return }
+        let wire = Double(wireTenth) / 10
+        guard headTargetLog.shouldLog(wireDeg: wire, now: uptime()) else { return }
+        func deg(_ value: Double?) -> String { value.map { String(format: "%.1f", $0) } ?? "-" }
+        host.gimbalLog(
+            "head-track: target yaw=\(deg(target.yawDeg)) pitch=\(deg(target.pitchDeg)) native=\(deg(target.nativePitchDeg)) wire=\(deg(wire)) live=\(deg(live.pitchDeg))/\(deg(live.nativePitchDeg)) mode=\(host.gimbalMode.label) modeFrom=\(modeFromAttitude ? "attitude" : "app") layout=\(lastAttitudeLayout.map { String($0.rawValue) } ?? "-") model=\(host.cameraModel?.name ?? "-")"
+        )
     }
 
     public func endNativeHeadTrack(token: UInt64) {
@@ -686,6 +719,8 @@ import OpenCineMotion
         lastMoveAttitudeAt = nil
         lastNativeWaypoint = nil
         lastNativePitchWire = nil
+        lastAttitudeLayout = nil
+        modeFromAttitude = false
         overlayMotion.reset()
         movePoseStableSince = nil
         lastMoveObservedPose = nil
@@ -705,6 +740,8 @@ import OpenCineMotion
         lastMoveAttitudeAt = nil
         lastNativeWaypoint = nil
         lastNativePitchWire = nil
+        lastAttitudeLayout = nil
+        modeFromAttitude = false
         overlayMotion.reset()
         movePoseStableSince = nil
         lastMoveObservedPose = nil
@@ -741,6 +778,7 @@ import OpenCineMotion
             if host.hasGimbal, host.gimbalLink != nil, paramPoll.shouldRequest(at: uptime()) {
                 _ = host.gimbalLink?.sendUntracked(Commands.gimbalParamsGet())
             }
+            modeFromAttitude = frame.payload.count == 50 && s.gimbalModeFamily != nil
             if frame.payload.count == 50, let family = s.gimbalModeFamily {
                 followFamilyConfirmed = family == .follow
                 let resolved = GimbalControl.modeFromFamily(family, current: host.gimbalMode)
@@ -770,6 +808,7 @@ import OpenCineMotion
                     nativePitchTenth: GimbalStick.nativePitchTenthDeg(frame.payload))
                 lastNativePitchWire = layout.nativePitch
             }
+            lastAttitudeLayout = layout
             if attitude, let pose = liveWaypoint {
                 let now = uptime()
                 overlayMotion.observe(pose, at: now)
@@ -870,3 +909,22 @@ import OpenCineMotion
 #if os(iOS)
     extension DjiAppleDatalink: DjiAppleGimbalLink {}
 #endif
+
+/// Paces the head-track target log: the first target of a run, each one whose wire native pitch
+/// lands on another side of the 180 degree wrap, else one per `interval`.
+struct HeadTargetLog {
+    static let interval: TimeInterval = 0.5
+    private var lastSide: Int?
+    private var lastAt: TimeInterval?
+
+    mutating func shouldLog(wireDeg: Double, now: TimeInterval) -> Bool {
+        let side =
+            wireDeg < -180 ? 0 : wireDeg < 0 ? 1 : wireDeg <= 180 ? 2 : 3
+        defer { lastSide = side }
+        if side != lastSide || lastAt.map({ now - $0 >= Self.interval }) ?? true {
+            lastAt = now
+            return true
+        }
+        return false
+    }
+}

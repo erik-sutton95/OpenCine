@@ -68,6 +68,21 @@ public struct HeadTrackNative: Equatable, Sendable {
     }
 }
 
+/// A lasting reason the gimbal cannot follow the head, such as a gimbal mode head tracking does
+/// not drive or a pose past the reach. The head-track bridge stops tracking and shows `note` once
+/// instead of retrying every sample.
+public struct HeadTrackStop: Equatable, Sendable {
+    /// Short diagnostics token, for example `mode=FPV` or `pastReach`.
+    public var reason: String
+    /// What the operator sees.
+    public var note: String
+
+    public init(reason: String, note: String) {
+        self.reason = reason
+        self.note = note
+    }
+}
+
 /// Fences queued motion callbacks across stop/start and rejects old measurements.
 public struct HeadTrackNativeSampleGate: Equatable, Sendable {
     private var generation: UInt64 = 0
