@@ -95,7 +95,7 @@
                 MonitorIcon.lock.frame(width: side * 26 / 54, height: side * 26 / 54)
             }
             .sensoryFeedback(.impact(weight: .medium), trigger: locked)
-            .accessibilityHint("Prevents accidental camera and View Assist changes")
+            .accessibilityHint("Prevents accidental camera and View Assist changes and holds the screen rotation")
             .accessibilityIdentifier("monitor.system.lock")
         }
     }
