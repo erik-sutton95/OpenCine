@@ -7,10 +7,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.opencapture.opencine.media.ScopeClipSource
+import com.opencapture.opencine.media.ScopeDisplayScale
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorAudioOrientation
 import com.opencapture.monitorui.MonitorGuideFamily
 import com.opencapture.monitorui.MonitorGuideAspect
+import com.opencapture.monitorui.MonitorGuideSafeAreas
 import com.opencapture.monitorui.MonitorFalseColorSelection
 import com.opencapture.monitorui.MonitorZebraUnit
 import com.opencapture.monitorui.MonitorWaveformMode
@@ -169,6 +171,8 @@ public class MonitorAssistState(
     public var guideAspect: MonitorGuideAspect by mutableStateOf(MonitorGuideAspect.CINEMA)
     public var selectedGuides: Set<MonitorGuideAspect> by mutableStateOf(setOf(MonitorGuideAspect.CINEMA))
     public var guideMask: Boolean by mutableStateOf(false)
+    /** Action safe and title safe lines inside each frame line (GUIDES options). */
+    public var guideSafeAreas: MonitorGuideSafeAreas by mutableStateOf(MonitorGuideSafeAreas.STANDARD)
 
     public var gridThirds: Boolean by mutableStateOf(true)
     public var gridPhi: Boolean by mutableStateOf(false)
@@ -387,6 +391,11 @@ public class MonitorAssistState(
         persist()
     }
 
+    public fun updateGuideSafeAreas(value: MonitorGuideSafeAreas): Unit {
+        guideSafeAreas = value
+        persist()
+    }
+
     public fun setGridOption(thirds: Boolean = gridThirds, phi: Boolean = gridPhi, diagonal: Boolean = gridDiagonal): Unit {
         gridThirds = thirds
         gridPhi = phi
@@ -414,7 +423,8 @@ public class MonitorAssistState(
 
     public fun setZebraHighlight(enabled: Boolean = zebraHighlight, ire: Double = zebraHighlightIRE, color: MonitorZebraPaint = zebraHighlightColor): Unit {
         zebraHighlight = enabled
-        zebraHighlightIRE = ire.coerceIn(0.0, 100.0)
+        // Above 100 reaches the headroom over the source's ceiling (Swift `zebraHighlightNative`).
+        zebraHighlightIRE = ire.coerceIn(0.0, ScopeDisplayScale.ZEBRA_HIGHLIGHT_CEILING_PERCENT)
         zebraHighlightColor = color
         persist()
     }
@@ -601,6 +611,11 @@ public class MonitorAssistState(
             .put("guideFamily", guideFamily.label)
             .put("selectedGuides", guidesJson)
             .put("guideMask", guideMask)
+            .put("guideSafeAreas", JSONObject()
+                .put("actionSafe", guideSafeAreas.actionSafe)
+                .put("actionPercent", guideSafeAreas.actionPercent)
+                .put("titleSafe", guideSafeAreas.titleSafe)
+                .put("titlePercent", guideSafeAreas.titlePercent))
             .put("gridThirds", gridThirds)
             .put("gridPhi", gridPhi)
             .put("gridDiagonal", gridDiagonal)
@@ -708,6 +723,17 @@ public class MonitorAssistState(
         }
         selectedGuides = restored.ifEmpty { setOf(guideAspect) }
         guideMask = obj.optBoolean("guideMask", false)
+        // Settings saved before safe areas keep both off at the defaults; saved sizes clamp.
+        guideSafeAreas = obj.optJSONObject("guideSafeAreas")?.let {
+            MonitorGuideSafeAreas(
+                actionSafe = it.optBoolean("actionSafe", false),
+                actionPercent = MonitorGuideSafeAreas.clamped(
+                    it.optInt("actionPercent", MonitorGuideSafeAreas.STANDARD_ACTION_PERCENT)),
+                titleSafe = it.optBoolean("titleSafe", false),
+                titlePercent = MonitorGuideSafeAreas.clamped(
+                    it.optInt("titlePercent", MonitorGuideSafeAreas.STANDARD_TITLE_PERCENT)),
+            )
+        } ?: MonitorGuideSafeAreas.STANDARD
         gridThirds = obj.optBoolean("gridThirds", true)
         gridPhi = obj.optBoolean("gridPhi", false)
         gridDiagonal = obj.optBoolean("gridDiagonal", false)

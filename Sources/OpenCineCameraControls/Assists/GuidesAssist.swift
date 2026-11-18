@@ -9,10 +9,11 @@
 
     /// Reference monitor `AssistPanel` `.guides` body + `AspectGuideFrameView`.
     ///
-    /// Long-press options (no title-safe / action-safe - the reference monitor does not offer those):
+    /// Long-press options:
     /// - Film / Social family tabs
     /// - Multi-select aspect chips for the active tab
     /// - "Mask outside frame" (darkens the inverse of the union)
+    /// - Action safe and title safe, each with its own size, inside every frame line
     public enum GuidesAssist {
         @MainActor
         @ViewBuilder
@@ -38,7 +39,8 @@
             MonitorAspectGuideFrames(
                 selectedRatios: assist.selectedGuides.isEmpty ? [fallback] : assist.selectedGuides,
                 maskEnabled: assist.guideMask,
-                feed: feed
+                feed: feed,
+                safeAreas: assist.guideSafeAreas
             )
         }
 
@@ -79,6 +81,12 @@
                     set: {
                         haptics.selection()
                         assist.guideMask = $0
+                        assist.persist()
+                    }),
+                safeAreas: Binding(
+                    get: { assist.guideSafeAreas },
+                    set: {
+                        assist.guideSafeAreas = $0
                         assist.persist()
                     }),
                 feedback: {

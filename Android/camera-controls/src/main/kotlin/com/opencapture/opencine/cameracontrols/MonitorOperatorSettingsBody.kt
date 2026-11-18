@@ -154,6 +154,7 @@ private fun MonitorOperatorSettingsRows(
             is MonitorOperatorPictureSettings.Session -> SessionAssistSettings(picture)
         }
         MonitorSettingsTab.CONTROLS -> {
+            SettingsCameraPresets(configuration.cameraPresets, configuration.feedback)
             SettingsGyro(configuration.gyro, configuration.feedback)
             SettingsControls(configuration.controls, configuration.feedback)
         }
