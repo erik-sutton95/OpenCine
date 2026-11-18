@@ -115,6 +115,10 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
 - `OpenCineGyroApple` (gyro capture's iOS shell: CoreMotion driver, UserDefaults store and the
   capture coordinator) depends on `OpenCineGyro` and Apple frameworks only, never on UI, an
   integration or an app.
+- `OpenCineStreaming` (the portable RTMPS publish engine: destination, AMF0, chunking, FLV,
+  the publish session, send queue, network policies, output rules and service presets) imports
+  Foundation and Core only, opens no socket and names no manufacturer or app. Service names
+  appear only as preset content. Platform shells add the TLS socket and encoders.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.

@@ -24,7 +24,7 @@ Parts 2 to 5 are planned when the part before lands, because their interfaces de
 
 ## Global Constraints
 
-- Work only in `/Users/eriksutton/orca/workspaces/OpenCine/rtmps-streaming-design`, branch `erik-sutton95/rtmps-streaming-design`. Stage files explicitly with `git add <path>`.
+- Work only in a task-owned worktree on a feature branch from `main`. Stage files explicitly with `git add <path>`.
 - Conventional Commits. No co-author trailers. Never the em dash character anywhere.
 - Pushing, opening a PR and merging need the owner's explicit go-ahead.
 - `Sources/OpenCineStreaming` imports only `Foundation` and `OpenCineCore`, and names no camera manufacturer or app. Service names may appear only as preset content.
