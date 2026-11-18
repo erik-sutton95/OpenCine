@@ -98,6 +98,8 @@ public final class AACStreamEncoder: @unchecked Sendable {
         guard buffer.format != pcmFormat else { return buffer }
         if resamplerInput != buffer.format {
             resampler = AVAudioConverter(from: buffer.format, to: pcmFormat)
+            // A mono microphone plays on both sides, not the left only.
+            if buffer.format.channelCount == 1, channels == 2 { resampler?.channelMap = [0, 0] }
             resamplerInput = buffer.format
         }
         guard let resampler else { return nil }
