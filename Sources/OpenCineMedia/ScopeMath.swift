@@ -150,12 +150,52 @@ public enum ScopeDisplayScale {
         return a.mid + t * (a.clip - a.mid)
     }
 
+    /// Highest zebra highlight percentage: code 255 on the plot's top edge. Between 100 and
+    /// this, a highlight threshold reaches into the headroom above the live ceiling, the same
+    /// margin ``waveformLevel(_:transfer:clipByte:)`` draws those codes in. A camera's own
+    /// zebra can be set above the white an app assumes (N-Log white is code 234; an operator
+    /// sets 245), so the highlight threshold must be able to name those codes.
+    public static let zebraHighlightCeilingPercent =
+        100 + 100 * (1 - clipLevel) / (clipLevel - crushLevel)
+
+    /// Normalized tap code a highlight zebra percentage names: ``signalNative(monitorPercent:transfer:clipByte:)``
+    /// up to 100, then linear through the headroom to code 255 at
+    /// ``zebraHighlightCeilingPercent``. A source whose ceiling is 255 has no headroom.
+    public static func zebraHighlightSignal(
+        monitorPercent percent: Double, transfer: MonitorTransfer, clipByte: Int
+    ) -> Double {
+        let a = ScopeAnchors.make(transfer: transfer, clipByte: clipByte)
+        guard percent > 100, a.clip < 1 else {
+            return signalNative(monitorPercent: percent, transfer: transfer, clipByte: clipByte)
+        }
+        let p = min(percent, zebraHighlightCeilingPercent)
+        let level = crushLevel + p / 100 * (clipLevel - crushLevel)
+        return min(1, a.clip + (level - clipLevel) / (1 - clipLevel) * (1 - a.clip))
+    }
+
+    /// Inverse of ``zebraHighlightSignal(monitorPercent:transfer:clipByte:)``: the monitor
+    /// percentage of a code, keeping codes above the ceiling above 100.
+    public static func zebraHighlightPercent(
+        _ c: Double, transfer: MonitorTransfer, clipByte: Int
+    ) -> Double {
+        let level = waveformLevel(c, transfer: transfer, clipByte: clipByte)
+        return min(
+            zebraHighlightCeilingPercent,
+            max(0, (level - crushLevel) / (clipLevel - crushLevel) * 100))
+    }
+
     /// Zebra highlight threshold: the monitor percentage, but never above the clip
     /// shelf, so 100% paints clipped detail (which sits a few codes under the ceiling).
+    /// Above 100 the operator named a code in the headroom over the ceiling, and the zebra
+    /// paints from exactly that code.
     public static func zebraHighlightNative(
         monitorPercent percent: Double, transfer: MonitorTransfer, clipByte: Int
     ) -> Double {
-        min(
+        if percent > 100, clipByte < 255 {
+            return zebraHighlightSignal(
+                monitorPercent: percent, transfer: transfer, clipByte: clipByte)
+        }
+        return min(
             signalNative(monitorPercent: percent, transfer: transfer, clipByte: clipByte),
             Double(ScopeAnchors.clipShelfByte(clipByte: clipByte)) / 255)
     }

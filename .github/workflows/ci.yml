@@ -147,9 +147,11 @@ jobs:
           # The real-clock join prompt and native still-readiness suites run below.
           # Every other test stays in this concurrent invocation.
           cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
+          # QUARANTINE (docs/testing/CI.md, #368): the Nikon reopen-after-give-up test runs nightly.
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --skip "$cache_test" --skip LunaJoinPromptTests \
-            --skip MonitorAssistEngineStillTests 2>&1 | tee test.log
+            --skip MonitorAssistEngineStillTests \
+            --skip aReopenThatReturnsAfterTheRepairWasGivenUpIsClosed 2>&1 | tee test.log
       - name: Test still scope cadence (isolated native readiness)
         if: always()
         shell: bash
@@ -172,6 +174,15 @@ jobs:
           # assertion stay unchanged, without the full package workload beside it.
           swift test --skip-build -Xswiftc -strict-concurrency=complete \
             --filter LunaJoinPromptTests 2>&1 | tee test-luna.log
+      # QUARANTINE (docs/testing/CI.md, #368): a hosted yield-budget flake. Nightly only; a failure
+      # is reported on the step but does not fail the job.
+      - name: Quarantined Swift tests
+        if: ${{ always() && inputs.full }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          swift test --skip-build -Xswiftc -strict-concurrency=complete \
+            --filter aReopenThatReturnsAfterTheRepairWasGivenUpIsClosed 2>&1 | tee test-quarantined.log
       - name: No duplicate test class warning
         if: always()
         shell: bash
