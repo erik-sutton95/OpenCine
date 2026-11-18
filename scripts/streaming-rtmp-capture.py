@@ -47,10 +47,10 @@ def main():
     receiver_port = free_port()
     proxy_port = free_port()
     deadline = time.monotonic() + TIMEOUT_SECONDS
-    receiver = subprocess.Popen(
-        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-listen", "1", "-f", "flv",
-         "-i", f"rtmp://127.0.0.1:{receiver_port}/live/fixturekey", "-c", "copy", "-f", "null", "-"],
-        stdin=subprocess.DEVNULL)
+    receiver = subprocess.Popen([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-listen", "1", "-f", "flv",
+        "-i", f"rtmp://127.0.0.1:{receiver_port}/live/fixturekey", "-c", "copy", "-f", "null", "-",
+    ], stdin=subprocess.DEVNULL)
     sender = None
     try:
         # FFmpeg's listener accepts one connection, so the readiness probe would use it up.
@@ -61,14 +61,14 @@ def main():
         proxy.bind(("127.0.0.1", proxy_port))
         proxy.listen(1)
         proxy.settimeout(TIMEOUT_SECONDS)
-        sender = subprocess.Popen(
-            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-re",
-             "-f", "lavfi", "-i", "testsrc=s=64x36:r=10:d=1",
-             "-f", "lavfi", "-i", "sine=d=1:sample_rate=48000",
-             "-c:v", "libx264", "-g", "10", "-bf", "0",
-             "-c:a", "aac", "-b:a", "32k", "-ac", "2",
-             "-f", "flv", f"rtmp://127.0.0.1:{proxy_port}/live/fixturekey"],
-            stdin=subprocess.DEVNULL)
+        sender = subprocess.Popen([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-re",
+            "-f", "lavfi", "-i", "testsrc=s=64x36:r=10:d=1",
+            "-f", "lavfi", "-i", "sine=d=1:sample_rate=48000",
+            "-c:v", "libx264", "-g", "10", "-bf", "0",
+            "-c:a", "aac", "-b:a", "32k", "-ac", "2",
+            "-f", "flv", f"rtmp://127.0.0.1:{proxy_port}/live/fixturekey",
+        ], stdin=subprocess.DEVNULL)
         client, _ = proxy.accept()
         upstream = socket.create_connection(("127.0.0.1", receiver_port), timeout=TIMEOUT_SECONDS)
         recorded = bytearray()
@@ -107,8 +107,8 @@ def main():
     if len(text) > MAX_FIXTURE_BYTES:
         raise SystemExit(f"fixture is {len(text)} bytes, over the {MAX_FIXTURE_BYTES} byte limit")
     args.output.write_text(text)
-    print(f"wrote {args.output.relative_to(ROOT) if args.output.is_relative_to(ROOT) else args.output}: "
-          f"{len(payload)} bytes after the handshake, {len(text)} bytes of hex")
+    shown = args.output.relative_to(ROOT) if args.output.is_relative_to(ROOT) else args.output
+    print(f"wrote {shown}: {len(payload)} bytes after the handshake, {len(text)} bytes of hex")
 
 
 if __name__ == "__main__":

@@ -71,18 +71,21 @@ No product code. This needs the owner's hands and one of each brand, and it does
 **Method:** the screen recording of an app's monitor holds both the picture and the timecode readout in the same frame. Aim every camera at one screen showing a millisecond clock. Each recording then gives pairs of (clock shown in the picture, timecode shown in the readout), and `timecode minus clock` is that camera's offset against a shared reference. Recording one camera at a time is fine because the reference is absolute.
 
 **Files:**
+
 - Create: `docs/streaming/timecode-measurements.md`
 
 **Interfaces:**
+
 - Produces: for each brand, whether timecode advances while idle, whether it follows the camera clock, its offset, its drift over 30 minutes; for each cross-brand pairing, pass or fail. Part 4 reads this.
 
 - [ ] **Step 1: Publish the clock and checklist page**
 
 Publish one live hands-on page (the owner's rule for checklists: each item can be passed, skipped or noted, and the state is readable back). It shows a full-screen millisecond clock with a large readout, and these items for each of Nikon Z, Pocket and Luna:
-  1. Timecode mode noted as the camera reports it (free run, record run or time of day), and set to time of day if the camera offers it.
-  2. A 60 second screen recording of the monitor with the camera aimed at the clock and not recording. Readout visible.
-  3. App's clock setting done where it exists (Nikon: on connect, Luna: `LunaCameraSession.syncClock`; Pocket: note whether any exists), then a second 60 second recording.
-  4. After 30 minutes of running, a third 60 second recording.
+
+1. Timecode mode noted as the camera reports it (free run, record run or time of day), and set to time of day if the camera offers it.
+2. A 60 second screen recording of the monitor with the camera aimed at the clock and not recording. Readout visible.
+3. App's clock setting done where it exists (Nikon: on connect, Luna: `LunaCameraSession.syncClock`; Pocket: note whether any exists), then a second 60 second recording.
+4. After 30 minutes of running, a third 60 second recording.
 
 - [ ] **Step 2: Owner runs the checklist**
 
@@ -108,16 +111,18 @@ git commit -m "docs(streaming): record camera timecode measurements"
 ### Task 2: `OpenCineStreaming` module and `StreamDestination`
 
 **Files:**
+
 - Create: `Sources/OpenCineStreaming/StreamDestination.swift`, `Tests/OpenCineStreamingTests/StreamDestinationTests.swift`, `Tests/OpenCineStreamingTests/StreamingSourceRulesTests.swift`
 - Modify: `Package.swift` (product, `.target(name: "OpenCineStreaming", dependencies: ["OpenCineCore"])`, test target, a dependency-rules comment line near the Gyro one), `atlas/repos/opencine/meta.json` (`products` entry shaped like `OpenCineGyro`; `layers.core` gains `OpenCineStreaming`, `OpenCineStreamingTests`)
 
 **Interfaces:**
+
 - Produces:
-  - `public struct StreamDestination: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable`
-  - `public init(serverURL: String, streamKey: String) throws`
-  - `public let host: String`, `port: UInt16`, `app: String`, `tcURL: String`; `public let streamKey: String` (the only way to read it)
-  - `public enum StreamDestinationError: Error, Equatable, Sendable { case notRTMPS, invalidServerURL, emptyKey, keyLooksLikeURL }`
-  - `init(testOnlyPlainServerURL:streamKey:)` is `internal`, for Task 9's FFmpeg tier.
+- `public struct StreamDestination: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable`
+- `public init(serverURL: String, streamKey: String) throws`
+- `public let host: String`, `port: UInt16`, `app: String`, `tcURL: String`; `public let streamKey: String` (the only way to read it)
+- `public enum StreamDestinationError: Error, Equatable, Sendable { case notRTMPS, invalidServerURL, emptyKey, keyLooksLikeURL }`
+- `init(testOnlyPlainServerURL:streamKey:)` is `internal`, for Task 9's FFmpeg tier.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -182,14 +187,16 @@ git commit -m "feat(streaming): add the portable module and stream destination"
 ### Task 3: AMF0
 
 **Files:**
+
 - Create: `Sources/OpenCineStreaming/AMF0.swift`, `Tests/OpenCineStreamingTests/AMF0Tests.swift`
 
 **Interfaces:**
+
 - Produces (all `internal`):
-  - `enum AMF0Value: Equatable, Sendable { case number(Double), boolean(Bool), string(String), object([AMF0Property]), ecmaArray([AMF0Property]), null, undefined }`
-  - `struct AMF0Property: Equatable, Sendable { let name: String; let value: AMF0Value }`
-  - `enum AMF0 { static func encode(_ values: [AMF0Value]) -> [UInt8]; static func decode(_ bytes: [UInt8]) throws -> [AMF0Value] }`
-  - `enum AMF0Error: Error, Equatable { case truncated, unsupportedMarker(UInt8), nestedTooDeep }`
+- `enum AMF0Value: Equatable, Sendable { case number(Double), boolean(Bool), string(String), object([AMF0Property]), ecmaArray([AMF0Property]), null, undefined }`
+- `struct AMF0Property: Equatable, Sendable { let name: String; let value: AMF0Value }`
+- `enum AMF0 { static func encode(_ values: [AMF0Value]) -> [UInt8]; static func decode(_ bytes: [UInt8]) throws -> [AMF0Value] }`
+- `enum AMF0Error: Error, Equatable { case truncated, unsupportedMarker(UInt8), nestedTooDeep }`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -239,14 +246,16 @@ git commit -m "feat(streaming): encode and decode AMF0"
 ### Task 4: RTMP chunk stream
 
 **Files:**
+
 - Create: `Sources/OpenCineStreaming/RTMPChunkStream.swift`, `Tests/OpenCineStreamingTests/RTMPChunkStreamTests.swift`
 
 **Interfaces:**
+
 - Produces (all `internal`):
-  - `struct RTMPMessage: Equatable, Sendable { var chunkStreamID: UInt32; var typeID: UInt8; var messageStreamID: UInt32; var timestamp: UInt32; var payload: [UInt8] }`
-  - `struct RTMPChunkWriter { var chunkSize: Int /* default 128 */; mutating func encode(_ message: RTMPMessage) -> [UInt8] }`
-  - `struct RTMPChunkReader { var chunkSize: Int; init(maxMessageBytes: Int = 16 * 1024 * 1024); mutating func push(_ bytes: [UInt8]) throws -> [RTMPMessage] }`
-  - `enum RTMPChunkError: Error, Equatable { case messageTooLarge, invalidChunkSize, missingPriorHeader }`
+- `struct RTMPMessage: Equatable, Sendable { var chunkStreamID: UInt32; var typeID: UInt8; var messageStreamID: UInt32; var timestamp: UInt32; var payload: [UInt8] }`
+- `struct RTMPChunkWriter { var chunkSize: Int /* default 128 */; mutating func encode(_ message: RTMPMessage) -> [UInt8] }`
+- `struct RTMPChunkReader { var chunkSize: Int; init(maxMessageBytes: Int = 16 * 1024 * 1024); mutating func push(_ bytes: [UInt8]) throws -> [RTMPMessage] }`
+- `enum RTMPChunkError: Error, Equatable { case messageTooLarge, invalidChunkSize, missingPriorHeader }`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -307,12 +316,14 @@ git commit -m "feat(streaming): write and read the RTMP chunk stream"
 ### Task 5: Media packets and FLV payloads
 
 **Files:**
+
 - Create: `Sources/OpenCineStreaming/StreamMediaPacket.swift`, `Tests/OpenCineStreamingTests/StreamMediaPacketTests.swift`
 
 **Interfaces:**
+
 - Produces:
-  - `public enum StreamMediaPacket: Equatable, Sendable`, cases: `videoConfig(sps: [UInt8], pps: [UInt8])`, `video(annexB: [UInt8], isKeyframe: Bool, decodeMs: UInt32, presentMs: UInt32)`, `audioConfig(audioSpecificConfig: [UInt8])`, `audio(raw: [UInt8], presentMs: UInt32)`
-  - `enum FLVPayload` (`internal`): `static func videoConfig(sps:pps:) -> [UInt8]?`, `static func video(annexB:isKeyframe:compositionMs:) -> [UInt8]?`, `static func audioConfig(_:) -> [UInt8]`, `static func audio(_:) -> [UInt8]`. A `nil` means the input held nothing valid.
+- `public enum StreamMediaPacket: Equatable, Sendable`, cases: `videoConfig(sps: [UInt8], pps: [UInt8])`, `video(annexB: [UInt8], isKeyframe: Bool, decodeMs: UInt32, presentMs: UInt32)`, `audioConfig(audioSpecificConfig: [UInt8])`, `audio(raw: [UInt8], presentMs: UInt32)`
+- `enum FLVPayload` (`internal`): `static func videoConfig(sps:pps:) -> [UInt8]?`, `static func video(annexB:isKeyframe:compositionMs:) -> [UInt8]?`, `static func audioConfig(_:) -> [UInt8]`, `static func audio(_:) -> [UInt8]`. A `nil` means the input held nothing valid.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -362,22 +373,24 @@ git commit -m "feat(streaming): package H.264 and AAC for RTMP"
 ### Task 6: `RTMPPublishSession`
 
 **Files:**
+
 - Create: `Sources/OpenCineStreaming/RTMPPublishSession.swift`, `Tests/OpenCineStreamingTests/RTMPPublishSessionTests.swift`, `Tests/OpenCineStreamingTests/SimulatedRTMPServer.swift` (test support, labeled SIMULATED in its doc comment)
 
 **Interfaces:**
+
 - Consumes: `StreamDestination`, `AMF0`, `RTMPChunkWriter`, `RTMPChunkReader`, `FLVPayload`, `StreamMediaPacket`.
 - Produces:
-  - `public struct RTMPPublishSession: Sendable`
-  - `public init(destination: StreamDestination)`, plus `internal init(destination:, random: @Sendable (Int) -> [UInt8])`
-  - `public enum State: Equatable, Sendable { case idle, handshaking, connecting, publishing, live, closed }`
-  - `public private(set) var state: State`
-  - `public mutating func start() -> [UInt8]` (C0 and C1)
-  - `public mutating func receive(_ bytes: [UInt8]) -> Output`
-  - `public struct Output: Equatable, Sendable { public var outbound: [UInt8]; public var events: [StreamSessionEvent] }`
-  - `public mutating func send(_ packet: StreamMediaPacket) -> [UInt8]`
-  - `public mutating func close() -> [UInt8]`
-  - `public enum StreamSessionEvent: Equatable, Sendable { case live, failed(StreamFailure) }`
-  - `public enum StreamFailure: Error, Equatable, Sendable { case refused(reason: String), protocolError, closedByServer }`. `refused` never triggers a reconnect (Task 7 relies on this).
+- `public struct RTMPPublishSession: Sendable`
+- `public init(destination: StreamDestination)`, plus `internal init(destination:, random: @Sendable (Int) -> [UInt8])`
+- `public enum State: Equatable, Sendable { case idle, handshaking, connecting, publishing, live, closed }`
+- `public private(set) var state: State`
+- `public mutating func start() -> [UInt8]` (C0 and C1)
+- `public mutating func receive(_ bytes: [UInt8]) -> Output`
+- `public struct Output: Equatable, Sendable { public var outbound: [UInt8]; public var events: [StreamSessionEvent] }`
+- `public mutating func send(_ packet: StreamMediaPacket) -> [UInt8]`
+- `public mutating func close() -> [UInt8]`
+- `public enum StreamSessionEvent: Equatable, Sendable { case live, failed(StreamFailure) }`
+- `public enum StreamFailure: Error, Equatable, Sendable { case refused(reason: String), protocolError, closedByServer }`. `refused` never triggers a reconnect (Task 7 relies on this).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -443,14 +456,16 @@ git commit -m "feat(streaming): run the RTMP publish session"
 ### Task 7: Send queue, bitrate and reconnect policy
 
 **Files:**
+
 - Create: `Sources/OpenCineStreaming/StreamSendQueue.swift`, `Sources/OpenCineStreaming/StreamPolicies.swift`, `Tests/OpenCineStreamingTests/StreamSendQueueTests.swift`, `Tests/OpenCineStreamingTests/StreamPoliciesTests.swift`
 
 **Interfaces:**
+
 - Consumes: `StreamMediaPacket`, `StreamFailure`, `MonotonicInstant` (Core).
 - Produces:
-  - `public struct StreamSendQueue: Sendable`: `init(maxBytes: Int)`, `mutating func enqueue(_ packet: StreamMediaPacket)`, `mutating func next() -> StreamMediaPacket?`, `var queuedBytes: Int`, `private(set) var droppedVideoGroups: Int`, `private(set) var droppedAudioPackets: Int`
-  - `public struct StreamBitratePolicy: Sendable`: `init(targetBps: Int, floorBps: Int)`, `mutating func observe(queuedDuration: Duration, at: MonotonicInstant) -> Int` (the bitrate to use)
-  - `public struct StreamReconnectPolicy: Sendable`: `init(startedAt: MonotonicInstant)`, `mutating func decide(after failure: StreamFailure?, at: MonotonicInstant) -> Decision`, `mutating func wentLive()`, `enum Decision: Equatable { case retry(after: Duration), giveUp }`
+- `public struct StreamSendQueue: Sendable`: `init(maxBytes: Int)`, `mutating func enqueue(_ packet: StreamMediaPacket)`, `mutating func next() -> StreamMediaPacket?`, `var queuedBytes: Int`, `private(set) var droppedVideoGroups: Int`, `private(set) var droppedAudioPackets: Int`
+- `public struct StreamBitratePolicy: Sendable`: `init(targetBps: Int, floorBps: Int)`, `mutating func observe(queuedDuration: Duration, at: MonotonicInstant) -> Int` (the bitrate to use)
+- `public struct StreamReconnectPolicy: Sendable`: `init(startedAt: MonotonicInstant)`, `mutating func decide(after failure: StreamFailure?, at: MonotonicInstant) -> Decision`, `mutating func wentLive()`, `enum Decision: Equatable { case retry(after: Duration), giveUp }`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -508,19 +523,21 @@ git commit -m "feat(streaming): bound the send queue and add network policies"
 ### Task 8: Output format, connection route and service presets
 
 **Files:**
+
 - Create: `Sources/OpenCineStreaming/StreamOutputFormat.swift`, `Sources/OpenCineStreaming/StreamServicePreset.swift`, `Tests/OpenCineStreamingTests/StreamOutputFormatTests.swift`, `Tests/OpenCineStreamingTests/StreamServicePresetTests.swift`
 - Create: `docs/streaming/services.md`
 
 **Interfaces:**
+
 - Consumes: `Rational` (Core), `StreamDestination`.
 - Produces:
-  - `public struct StreamSourceFormat: Hashable, Sendable { width: Int, height: Int, frameRate: Rational? }`
-  - `public struct StreamOutputFormat: Hashable, Sendable { width, height: Int; frameRate: Rational; videoBitrateBps: Int; keyframeIntervalSeconds: Int; audioBitrateBps: Int; audioSampleRate: Int; audioChannels: Int }`
-  - `public extension StreamOutputFormat { static func resolve(selected: StreamSourceFormat, connected: [StreamSourceFormat], preset: StreamServicePreset) -> StreamOutputFormat }`
-  - `public enum StreamConnectionRoute: Hashable, Sendable { case usbCable, captureCard, sharedWiFi, deviceHotspot, cameraWiFi }`
-  - `public extension StreamConnectionRoute { static func canStream(_ route: StreamConnectionRoute?) -> Bool }`
-  - `public struct StreamServicePreset: Hashable, Sendable, Identifiable { id: String; displayName: String; serverURL: String?; requiresServerEntry: Bool; maxVideoBitrateBps: Int?; aspect: Aspect; keyHint: String; enum Aspect { case landscape16x9, portrait9x16 } }`
-  - `public extension StreamServicePreset { static let all: [StreamServicePreset]; static let custom: StreamServicePreset }`
+- `public struct StreamSourceFormat: Hashable, Sendable { width: Int, height: Int, frameRate: Rational? }`
+- `public struct StreamOutputFormat: Hashable, Sendable { width, height: Int; frameRate: Rational; videoBitrateBps: Int; keyframeIntervalSeconds: Int; audioBitrateBps: Int; audioSampleRate: Int; audioChannels: Int }`
+- `public extension StreamOutputFormat { static func resolve(selected: StreamSourceFormat, connected: [StreamSourceFormat], preset: StreamServicePreset) -> StreamOutputFormat }`
+- `public enum StreamConnectionRoute: Hashable, Sendable { case usbCable, captureCard, sharedWiFi, deviceHotspot, cameraWiFi }`
+- `public extension StreamConnectionRoute { static func canStream(_ route: StreamConnectionRoute?) -> Bool }`
+- `public struct StreamServicePreset: Hashable, Sendable, Identifiable { id: String; displayName: String; serverURL: String?; requiresServerEntry: Bool; maxVideoBitrateBps: Int?; aspect: Aspect; keyHint: String; enum Aspect { case landscape16x9, portrait9x16 } }`
+- `public extension StreamServicePreset { static let all: [StreamServicePreset]; static let custom: StreamServicePreset }`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -576,10 +593,11 @@ Expected: FAIL, missing types.
 - [ ] **Step 3: Confirm each service's current requirements**
 
 From each service's own documentation, record in `docs/streaming/services.md`, with the page link and today's date: server address, maximum bitrate, required codecs, keyframe interval, framing, and where the user finds a key. Starting points to confirm, not to trust:
-  - Twitch: `rtmps://ingest.global-contribute.live-video.net/app`, 6 Mbps
-  - YouTube: `rtmps://a.rtmps.youtube.com/live2`
-  - Facebook: `rtmps://live-api-s.facebook.com:443/rtmp/`
-  - Instagram: server issued with the key, vertical
+
+- Twitch: `rtmps://ingest.global-contribute.live-video.net/app`, 6 Mbps
+- YouTube: `rtmps://a.rtmps.youtube.com/live2`
+- Facebook: `rtmps://live-api-s.facebook.com:443/rtmp/`
+- Instagram: server issued with the key, vertical
 
 If a service contradicts the spec's defaults, stop and tell the owner before implementing Step 4.
 
@@ -604,10 +622,12 @@ git commit -m "feat(streaming): add output format rules and service presets"
 ### Task 9: Prove it against FFmpeg, then land the module's docs
 
 **Files:**
+
 - Create: `scripts/streaming-rtmp-capture.py`, `Fixtures/rtmp-ffmpeg-publish.hex`, `Tests/OpenCineStreamingTests/RTMPGoldenTests.swift`, `Tests/OpenCineStreamingTests/RTMPInteropTests.swift`, `docs/streaming/README.md`, `atlas/api/swift/OpenCineStreaming.txt` (generated)
 - Modify: `AGENTS.md` (a boundary bullet beside Gyro), `README.md` (area guide table row)
 
 **Interfaces:**
+
 - Consumes: everything above, and `StreamDestination.init(testOnlyPlainServerURL:streamKey:)`.
 - Produces: the public engine that Parts 2 and 3 build on.
 
