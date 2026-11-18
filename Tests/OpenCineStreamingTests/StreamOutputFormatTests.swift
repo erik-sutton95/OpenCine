@@ -1,0 +1,80 @@
+import Foundation
+import OpenCineCore
+import Testing
+
+import OpenCineStreaming
+
+@Suite struct StreamOutputFormatTests {
+    private let p720 = StreamSourceFormat(width: 1280, height: 720, frameRate: Rational(25, 1))
+    private let p1080 = StreamSourceFormat(width: 1920, height: 1080, frameRate: Rational(30, 1))
+    private let uhd = StreamSourceFormat(width: 3840, height: 2160, frameRate: Rational(24, 1))
+    private let fourByThree = StreamSourceFormat(width: 1024, height: 768, frameRate: nil)
+    private func capped(_ bps: Int?, aspect: StreamServicePreset.Aspect = .landscape16x9) -> StreamServicePreset {
+        StreamServicePreset(
+            id: "test", displayName: "Test", serverURL: nil, requiresServerEntry: true, maxVideoBitrateBps: bps,
+            aspect: aspect, keyHint: "Test hint.")
+    }
+
+    @Test func wirelessSourceStaysAt720() {
+        let f = StreamOutputFormat.resolve(selected: p720, connected: [p720], preset: .custom)
+        #expect(f.width == 1280 && f.height == 720)
+        #expect(f.frameRate == Rational(25, 1))
+        #expect(f.videoBitrateBps == 3_000_000)
+        #expect(f.keyframeIntervalSeconds == 2)
+        #expect(f.audioBitrateBps == 160_000 && f.audioSampleRate == 48_000 && f.audioChannels == 2)
+    }
+
+    @Test func captureSourceEarns1080() {
+        let f = StreamOutputFormat.resolve(selected: p1080, connected: [p1080], preset: .custom)
+        #expect(f.width == 1920 && f.height == 1080)
+        #expect(f.videoBitrateBps == 6_000_000)
+    }
+
+    @Test func aboveSourceIsNeverOffered() {
+        let f = StreamOutputFormat.resolve(selected: uhd, connected: [uhd], preset: .custom)
+        #expect(f.width == 1920 && f.height == 1080)
+        #expect(f.frameRate == Rational(24, 1))
+    }
+
+    @Test func fourByThreeSourceGivesA720Frame() {
+        // The output stays 16:9; the shell keeps the source's shape inside it with side bars.
+        let f = StreamOutputFormat.resolve(selected: fourByThree, connected: [fourByThree], preset: .custom)
+        #expect(f.width == 1280 && f.height == 720)
+    }
+
+    @Test func smallSourceKeepsItsOwnHeight() {
+        let small = StreamSourceFormat(width: 640, height: 480, frameRate: Rational(30, 1))
+        let f = StreamOutputFormat.resolve(selected: small, connected: [small], preset: .custom)
+        #expect(f.width == 854 && f.height == 480)
+        #expect(f.videoBitrateBps == 2_000_000)
+    }
+
+    @Test func bestConnectedSourceSetsSizeSelectedSetsRate() {
+        let f = StreamOutputFormat.resolve(selected: p720, connected: [p720, p1080], preset: .custom)
+        #expect(f.width == 1920 && f.height == 1080)
+        #expect(f.frameRate == Rational(25, 1))
+    }
+
+    @Test func unknownFrameRateFallsBackTo30() {
+        #expect(StreamOutputFormat.resolve(selected: fourByThree, connected: [], preset: .custom).frameRate == Rational(30, 1))
+    }
+
+    @Test func presetCapsBitrate() {
+        #expect(StreamOutputFormat.resolve(selected: p720, connected: [p720], preset: capped(2_000_000)).videoBitrateBps == 2_000_000)
+        #expect(StreamOutputFormat.resolve(selected: p720, connected: [p720], preset: capped(9_000_000)).videoBitrateBps == 3_000_000)
+    }
+
+    @Test func portraitPresetSwapsToVertical() {
+        let f = StreamOutputFormat.resolve(selected: p720, connected: [p720], preset: capped(nil, aspect: .portrait9x16))
+        #expect(f.width == 720 && f.height == 1280)
+    }
+
+    @Test func routesThatMayStream() {
+        #expect(StreamConnectionRoute.canStream(.usbCable))
+        #expect(StreamConnectionRoute.canStream(.captureCard))
+        #expect(StreamConnectionRoute.canStream(.sharedWiFi))
+        #expect(StreamConnectionRoute.canStream(.deviceHotspot))
+        #expect(!StreamConnectionRoute.canStream(.cameraWiFi))
+        #expect(!StreamConnectionRoute.canStream(nil))
+    }
+}
