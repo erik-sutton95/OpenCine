@@ -87,6 +87,7 @@ their target dependencies and the area guides define the precise allowed edges.
 | Monitor presentation and native runtime | [UI](docs/ui/README.md), [native runtime](docs/native-runtime/README.md) |
 | App composition and shared controls | [AppKit](docs/appkit/README.md) |
 | Multicam | [Multicam](docs/multicam/README.md) |
+| Live streaming (RTMPS) | [Streaming](docs/streaming/README.md) |
 | Camera integrations | [DJI](docs/dji/README.md), [Nikon](docs/nikon/README.md), [Insta360](docs/insta360/README.md) |
 | SIMULATED developer harness | [Harness](docs/harness/README.md) |
 | Repository routing and compatibility | [Atlas](atlas/README.md) |
