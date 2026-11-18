@@ -261,7 +261,7 @@ init MonitorAppInformationSettings(theme: Swift.String, protocolName: Swift.Stri
 init MonitorAspectGuideFrames(selectedRatios: Swift.Set<MonitorGuideAspect>, maskEnabled: Swift.Bool, feed: CoreFoundation.CGRect, maskPolicy: MonitorGuideMaskPolicy)
 init MonitorAssistChip(id: Swift.String, isOn: Swift.Bool, compact: Swift.Bool, icon: () -> Icon)<Icon where Icon : SwiftUI.View>
 init MonitorAssistHelp(_: Swift.String, compact: Swift.Bool)
-init MonitorAssistPalette(tools: [MonitorToolItem], layout: MonitorPresentation.MonitorAssistPaletteLayout, usageSeed: [Swift.String : Swift.Int], usage: SwiftUI.Binding<MonitorPresentation.MonitorToolUsage>, expanded: SwiftUI.Binding<Swift.Bool>, onToggle: (Swift.String) -> Swift.Void, onOptions: (Swift.String) -> Swift.Void, onExpansionActivityChange: (Swift.Bool) -> Swift.Void, accessibilityName: Swift.String, accessibilityPrefix: Swift.String, icon: (Swift.String) -> Icon)<Icon where Icon : SwiftUI.View>
+init MonitorAssistPalette(tools: [MonitorToolItem], layout: MonitorPresentation.MonitorAssistPaletteLayout, usageSeed: [Swift.String : Swift.Int], usage: SwiftUI.Binding<MonitorPresentation.MonitorToolUsage>, expanded: SwiftUI.Binding<Swift.Bool>, onToggle: (Swift.String) -> Swift.Void, onOptions: (Swift.String) -> Swift.Void, onExpansionActivityChange: (Swift.Bool) -> Swift.Void, accessibilityName: Swift.String, accessibilityPrefix: Swift.String, priorityIDs: [Swift.String], trailingIDs: [Swift.String], icon: (Swift.String) -> Icon)<Icon where Icon : SwiftUI.View>
 init MonitorAssistToolGlyph(tool: MonitorAssistTool, size: CoreGraphics.CGFloat?)
 init MonitorAudioMenu(orientation: SwiftUI.Binding<MonitorAudioOrientation>, showsDB: SwiftUI.Binding<Swift.Bool>, help: Swift.String, compact: Swift.Bool, orientationFeedback: () -> Swift.Void)
 init MonitorAudioMeter(left: Swift.Double, leftPeak: Swift.Double, right: Swift.Double, rightPeak: Swift.Double, orientation: MonitorAudioOrientation, showDB: Swift.Bool, sensitivityLabel: Swift.String?)
@@ -480,6 +480,7 @@ init MultiviewStageCanvas(slots: Swift.Int, layout: MonitorPresentation.Multivie
 init MultiviewStageGeometry()
 init PairCameraPage(presentation: MonitorPresentation.CameraPairingPresentation, safeArea: SwiftUI.EdgeInsets, onSelect: (Swift.String) -> Swift.Void, onPrimary: () -> Swift.Void, onBack: () -> Swift.Void, onDiagnostics: () -> Swift.Void, onReportProblem: () -> Swift.Void, onWatchFeed: (() -> Swift.Void)?)<Extra where Extra == SwiftUI.EmptyView>
 init PairCameraPage(presentation: MonitorPresentation.CameraPairingPresentation, safeArea: SwiftUI.EdgeInsets, onSelect: (Swift.String) -> Swift.Void, onPrimary: () -> Swift.Void, onBack: () -> Swift.Void, onDiagnostics: () -> Swift.Void, onReportProblem: () -> Swift.Void, onWatchFeed: (() -> Swift.Void)?, extra: () -> Extra)<Extra where Extra : SwiftUI.View>
+init TeleprompterReader(text: Swift.String, fontSize: Swift.Double, speed: Swift.Double, mirrored: Swift.Bool, backgroundOpacity: Swift.Double, playing: SwiftUI.Binding<Swift.Bool>, position: SwiftUI.Binding<Swift.Double>, resetID: Swift.Int, interactive: Swift.Bool, onSettings: (() -> Swift.Void)?)
 let MonitorAssistSettingsSection.tool: MonitorAssistTool
 let MonitorAssistToolGlyph.size: CoreGraphics.CGFloat?
 let MonitorAssistToolGlyph.tool: MonitorAssistTool
@@ -1129,6 +1130,7 @@ struct MonitorZebraZone<Paint where Paint : Swift.Hashable>
 struct MonitorZoomDial: Sendable, View
 struct MultiviewStageCanvas<Content where Content : SwiftUI.View>: Sendable, UIViewControllerRepresentable, View
 struct PairCameraPage<Extra where Extra : SwiftUI.View>: Sendable, View
+struct TeleprompterReader: Sendable, View
 typealias MonitorAssistTool = MonitorPresentation.MonitorAssistTool
 typealias MonitorAudioOrientation = MonitorPresentation.MonitorAudioOrientation
 typealias MonitorAudioReadout = MonitorPresentation.MonitorAudioReadout
@@ -1520,3 +1522,4 @@ var PairCameraPage.onSelect: (Swift.String) -> Swift.Void
 var PairCameraPage.onWatchFeed: (() -> Swift.Void)?
 var PairCameraPage.presentation: MonitorPresentation.CameraPairingPresentation
 var PairCameraPage.safeArea: SwiftUI.EdgeInsets
+var TeleprompterReader.body: some SwiftUI.View

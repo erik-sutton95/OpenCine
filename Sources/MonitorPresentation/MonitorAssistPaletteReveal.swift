@@ -83,6 +83,27 @@ public enum MonitorAssistPaletteReveal: Sendable {
         portrait ? 1 : 2
     }
 
+    /// Reserve declared quick tools while retaining usage order for every other entry.
+    public static func prioritizedOrder(ranked: [String], priorityIDs: [String]) -> [String] {
+        var seen: Set<String> = []
+        let first = priorityIDs.filter { ranked.contains($0) && seen.insert($0).inserted }
+        return first + ranked.filter { seen.insert($0).inserted }
+    }
+
+    /// Place trailing tools at the catalog end while retaining reserved slots in the compact plate.
+    public static func displayOrder(
+        ranked: [String], priorityIDs: [String], trailingIDs: [String], compactToolCount: Int? = nil
+    ) -> [String] {
+        let prioritized = prioritizedOrder(ranked: ranked, priorityIDs: priorityIDs)
+        let trailing = Set(trailingIDs)
+        let catalog =
+            prioritized.filter { !trailing.contains($0) } + prioritized.filter { trailing.contains($0) }
+        guard let compactToolCount else { return catalog }
+        let visible = Set(
+            prioritizedOrder(ranked: catalog, priorityIDs: priorityIDs).prefix(max(0, compactToolCount)))
+        return catalog.filter { visible.contains($0) } + catalog.filter { !visible.contains($0) }
+    }
+
     /// Keep the open plate still. Ranking updates apply only after collapse.
     public static func pinnedOrder(ranked: [String], pinned: [String], frozen: Bool) -> [String] {
         guard frozen, !pinned.isEmpty else { return ranked }

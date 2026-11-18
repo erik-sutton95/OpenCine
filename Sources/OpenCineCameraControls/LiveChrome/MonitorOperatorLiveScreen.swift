@@ -87,7 +87,13 @@
         func liveLevelDisplay(_ mode: LevelReading.Mode) -> MonitorLevelDisplay
         /// The picture exposure readout, when the app meters one.
         var livePictureEV: (() -> EvComp?)? { get }
+        /// Optional local script shared with Operator Setup.
+        var liveTeleprompter: MonitorTeleprompterModel? { get }
         @ViewBuilder func lutPicker() -> LUTSheet
+    }
+
+    extension MonitorLiveScreenHost {
+        public var liveTeleprompter: MonitorTeleprompterModel? { nil }
     }
 
     /// The complete live operator screen over the app's camera session and native picture.
@@ -213,7 +219,7 @@
                 readLevel: { now, viewFlip in
                     model.liveLevelDisplay(model.session.liveLevelReading.mode(now: now, viewFlip: viewFlip))
                 },
-                pictureEV: model.livePictureEV
+                pictureEV: model.livePictureEV, teleprompter: model.liveTeleprompter
             ) { MonitorOperatorLiveFeedPane<Host>()
             } preview: { model.inspectorPreview(tool: $0)
             } lookMenu: { model.lookMenu() }

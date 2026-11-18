@@ -15,6 +15,52 @@ The Compose implementation of the same design lives under `Android/` (`monitor-u
 Module names are the donor's (`MonitorPresentation`, `MonitorUI`) so the first adoption is a
 dependency swap, not an import rename.
 
+## Teleprompter
+
+Apps retain one `MonitorTeleprompterModel` (`OpenCineAppKit`) and pass it to
+`MonitorTeleprompterScreen` (`OpenCineCameraControls`) and `MonitorOperatorLiveAssists`.
+The generic live host supplies it through `liveTeleprompter`; apps without this optional domain
+keep their existing catalog. The shared live surface admits PROMPT automatically. A tap toggles
+the reader; with no script it opens Add script. A hold opens the normal inspector. A saved script
+reserves the last visible collapsed quick slot while other tools keep their usage order.
+PROMPT stays last in the expanded catalog, including before a script is loaded.
+Reader Play, Reset and Settings controls sit on the right; Settings pauses and
+opens the existing inspector without resetting position. Clean-view pins
+remain a visibility filter; PROMPT is never a clip/photo playback or image-processing tool.
+
+Add script offers explicit Paste, native TXT/Markdown selection and a direct HTTPS text link.
+Imports are bounded to 1 MiB, cancellable and previewed before Use script replaces the saved
+script. Large previews show a labelled first 4,000 characters; the accepted offline text remains
+complete. A failed or cancelled import leaves the accepted script unchanged. Name and original
+source URL are saved locally; Refresh fetches a new preview only when requested. Corrections are
+validated on Done. There are no external document handlers, speech recognition or microphone use.
+
+The bounded reader sits over the retained native picture beneath the camera controls. Its black
+plate defaults to 40 percent opacity; text stays opaque. Live preview is the default; text-only
+covers the picture without replacing its owner. Font, speed, mirror and backing choices are saved
+in each application's preferences. Playback and scroll position are transient; hiding, editing,
+backgrounding or leaving the live view pauses and retains position. Showing it again stays paused.
+Opening, importing, playing and closing the prompter send no camera commands.
+On iOS an opaque Settings cover can fill the retained sample-buffer display queue.
+Returning to the monitor flushes an unready decoded-picture queue without removing
+its last image, replacing the decoder or requesting another camera stream. Compressed
+reference recovery remains under the existing runtime policy.
+
+The script manager uses a full-window presentation with one scrollable controls
+column. Edit is separate. Read is the actual-size check for font and speed;
+there is no miniature animated settings preview or preview-only playback state.
+Scroll speed spans 10-300 logical display points per second, preserving saved rates.
+Standalone Read fills the physical safe screen with a black backing, starts
+paused, and uses the same retained playback owner. Its Settings button returns
+to the manager. The camera overlay retains bounded placement in either live
+preview setting, keeping camera controls available.
+
+`TeleprompterReader` in `MonitorUI` receives values and bindings, keeping the UI independent of
+AppKit. The native reader updates position without invalidating the whole monitor each frame.
+`MonitorPresentation.TeleprompterPlayback` owns elapsed-time movement, while
+`TeleprompterOverlayLayout` avoids the existing picture chrome. SwiftUI and Compose share the
+same operator behavior and stable `teleprompter.*` accessibility identifiers.
+
 ## Provenance
 
 Extracted from OpenPocketCine `origin/main`
@@ -507,3 +553,13 @@ and vertically in portrait; the collapsed favorites keep the common system-butto
 Expanded cells keep the collapsed square size (48 points in SwiftUI; 48 dp on phones
 and 52 dp on tablets in Compose), with the same palette-sized icons and single-line
 captions through the reveal.
+
+The live teleprompter uses the largest free rectangle of the safe monitor canvas,
+including letterbox space. Visible chrome and supplied native accessory bounds
+keep their touch targets; feed geometry and ownership stay with the monitor.
+An app can draw its floating status badge above the reading plate without
+reserving another reader inset. The format/status row and camera controls stay clear.
+
+The retained AppKit script model coordinates candidates and playback. Native file
+and HTTPS loading stays in the camera-controls import adapters on both platforms;
+it uses the current network route without camera Wi-Fi handover.

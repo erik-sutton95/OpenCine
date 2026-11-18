@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# editorconfig-checker-disable: preserve literal command help indentation.
 """Summarize test logs per suite and per test, and optionally fail on unexpected skips.
 
 Reads `swift test` and `xcodebuild test` console logs (XCTest case lines and Swift Testing
@@ -16,6 +17,7 @@ sum of their serial case times.
 
 `--summary` appends the report to $GITHUB_STEP_SUMMARY when it is set (stdout otherwise).
 """
+# editorconfig-checker-enable
 import argparse
 from collections import defaultdict
 import json
@@ -47,10 +49,10 @@ XCTEST_TOTAL = re.compile(PREFIX + r"Test Suite '(?P<bundle>[^']+)\.xctest' (?:p
 def parse(text):
     """Every XCTest case, Swift Testing test and suite result in one console log."""
     cases = [dict(m.groupdict(), framework="XCTest", seconds=float(m["seconds"]))
-             for m in XCTEST_CASE.finditer(text)]
+            for m in XCTEST_CASE.finditer(text)]
     tests, suites = [], []
     found = [(m.start(), m["kind"], m["name"], m["result"], float(m["seconds"]))
-             for m in SWIFT_TESTING_DONE.finditer(text)]
+            for m in SWIFT_TESTING_DONE.finditer(text)]
     found += [(m.start(), m["kind"], m["name"], "skipped", 0.0) for m in SWIFT_TESTING_SKIPPED.finditer(text)]
     for _, kind, name, result, seconds in sorted(found):
         if name.startswith("run with "):
@@ -97,7 +99,7 @@ def guard(parsed_logs, no_skips, allow_skip, require_modules):
                                 + (" ..." if len(unexpected) > 20 else ""))
     for module in require_modules:
         executed = sum(1 for parsed in parsed_logs.values() for c in parsed["cases"]
-                       if c["module"] == module and c["result"] != "skipped")
+                        if c["module"] == module and c["result"] != "skipped")
         if not executed:
             problems.append(f"{module}: no test case executed")
     return problems
@@ -115,31 +117,31 @@ def report(parsed_logs, title, top):
     for label, parsed in parsed_logs.items():
         x, s = counts(parsed["cases"]), counts(parsed["tests"])
         rows.append([label, f"{x['passed']}/{x['failed']}/{x['skipped']}", f"{s['passed']}/{s['failed']}/{s['skipped']}",
-                     "<br>".join(parsed["runs"]) or "-"])
+                    "<br>".join(parsed["runs"]) or "-"])
     out += [table(["Log", "XCTest passed/failed/skipped", "Swift Testing passed/failed/skipped", "Swift Testing run"],
-                  rows), ""]
+                    rows), ""]
     xsuites = [dict(s, log=label) for label, p in parsed_logs.items() for s in xctest_suites(p["cases"])]
     if xsuites:
         xsuites.sort(key=lambda s: -s["seconds"])
         out += [f"### Slowest XCTest suites (serial sum of case times; top {top} of {len(xsuites)})", "",
                 table(["Suite", "Log", "Seconds", "Passed", "Failed", "Skipped"],
-                      [[s["name"], s["log"], f"{s['seconds']:.3f}", s["passed"], s["failed"], s["skipped"]]
-                       for s in xsuites[:top]]), ""]
+                        [[s["name"], s["log"], f"{s['seconds']:.3f}", s["passed"], s["failed"], s["skipped"]]
+                        for s in xsuites[:top]]), ""]
     ssuites = [dict(s, log=label) for label, p in parsed_logs.items() for s in p["suites"]]
     if ssuites:
         ssuites.sort(key=lambda s: -s["seconds"])
         out += [f"### Slowest Swift Testing suites (elapsed in a concurrent run, not additive; top {top} of "
                 f"{len(ssuites)})", "",
                 table(["Suite", "Log", "Elapsed seconds", "Result"],
-                      [[s["name"], s["log"], f"{s['seconds']:.3f}", s["result"]] for s in ssuites[:top]]), ""]
+                        [[s["name"], s["log"], f"{s['seconds']:.3f}", s["result"]] for s in ssuites[:top]]), ""]
     tests = [dict(t, log=label, name=f"{t['module']}.{t['suite']}/{t['name']}") for label, p in parsed_logs.items()
-             for t in p["cases"]] + [dict(t, log=label) for label, p in parsed_logs.items() for t in p["tests"]]
+            for t in p["cases"]] + [dict(t, log=label) for label, p in parsed_logs.items() for t in p["tests"]]
     if tests:
         tests.sort(key=lambda t: -t["seconds"])
         out += [f"### Slowest tests (top {top} of {len(tests)})", "",
                 table(["Test", "Framework", "Log", "Seconds", "Result"],
-                      [[t["name"].replace("|", "\\|"), t["framework"], t["log"], f"{t['seconds']:.3f}", t["result"]]
-                       for t in tests[:top]]), ""]
+                        [[t["name"].replace("|", "\\|"), t["framework"], t["log"], f"{t['seconds']:.3f}", t["result"]]
+                        for t in tests[:top]]), ""]
     return "\n".join(out) + "\n"
 
 

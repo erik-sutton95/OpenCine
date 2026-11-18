@@ -374,10 +374,13 @@ public struct MonitorSettingsControlsSource {
     let keepAwake: MonitorSettingsToggle
     let input: MonitorSettingsInputSource?
     let motion: MonitorSettingsMotionSource?
+    let teleprompter: (() -> Void)?
     public init(recordConfirmation: Binding<Bool>, haptics: MonitorSettingsToggle, keepAwake: MonitorSettingsToggle,
-        input: MonitorSettingsInputSource? = nil, motion: MonitorSettingsMotionSource? = nil) {
+        input: MonitorSettingsInputSource? = nil, motion: MonitorSettingsMotionSource? = nil,
+        teleprompter: (() -> Void)? = nil) {
         self.recordConfirmation = recordConfirmation; self.haptics = haptics; self.keepAwake = keepAwake
         self.input = input; self.motion = motion
+        self.teleprompter = teleprompter
     }
 }
 
@@ -447,7 +450,7 @@ enum MonitorSettingsRow: String, Hashable, Sendable {
     case linkHealth, connection, processing, savedCameras, sourceGroups
     case sharingUnavailable, sharing, watchers, watchFeed
     case assistTools, assistPanels, exposureMeter, look
-    case gyro, safety, input, gimbal, joystick, controller
+    case gyro, safety, teleprompter, input, gimbal, joystick, controller
     case hdrPanel, displaySections
     case gyroLogs, account, cache
     case support, diagnosticOptions, projectLegal, information
@@ -589,7 +592,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         case .controls:
             let motion = controls.motion
             let input = controls.input.map { $0.remoteShutter != nil || $0.autoRotate != nil } ?? false
-            return (gyro == nil ? [] : [.gyro]) + [.safety] + (input ? [.input] : [])
+            return (gyro == nil ? [] : [.gyro]) + [.safety] + (controls.teleprompter == nil ? [] : [.teleprompter]) + (input ? [.input] : [])
                 + (motion?.sensitivity == nil ? [] : [.gimbal]) + (motion?.joystick == nil ? [] : [.joystick])
                 + (motion?.controller == nil ? [] : [.controller])
         case .display:

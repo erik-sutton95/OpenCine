@@ -889,7 +889,10 @@ open class MonitorLiveVideoRuntime {
     /// last picture. Do **not** begin an IDR hold here  -  that dropped every
     /// P-frame after Control Center when random-access request was then skipped.
     public func prepareAfterForeground() {
-        if displayLayer.status == .failed || displayLayer.requiresFlushToResumeDecoding {
+        // A covered decoded-picture layer can fill its queue without requesting a flush.
+        // Compressed backpressure retains the reference-chain recovery policy in decode().
+        if displayLayer.status == .failed || displayLayer.requiresFlushToResumeDecoding
+            || (usesPixelBufferDisplay && !displayLayer.isReadyForMoreMediaData) {
             displayLayer.flush()
         }
         if displayLayer.status == .failed { displayedImageRemoved = true }

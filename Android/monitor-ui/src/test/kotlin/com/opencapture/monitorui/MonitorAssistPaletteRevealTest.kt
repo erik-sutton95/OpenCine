@@ -8,6 +8,35 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MonitorAssistPaletteRevealTest {
+    @Test fun promptStaysLastEvenWhenItRanksFirst() {
+        val ranked = listOf("PROMPT", "PEAK", "FALSE", "LUT")
+        assertEquals(listOf("PEAK", "FALSE", "LUT", "PROMPT"),
+            MonitorAssistPaletteReveal.displayOrder(ranked, listOf("PROMPT"), listOf("PROMPT")))
+        assertEquals(listOf("PEAK", "FALSE", "LUT", "PROMPT"),
+            MonitorAssistPaletteReveal.displayOrder(ranked, emptyList(), listOf("PROMPT"), 2))
+    }
+
+    @Test fun loadedPromptOccupiesTheLastVisibleCompactSlot() {
+        val ranked = listOf("PEAK", "FALSE", "PROMPT", "LUT")
+        val landscape = MonitorAssistPaletteReveal.displayOrder(ranked,
+            listOf("PROMPT", "PROMPT", "missing"), listOf("PROMPT", "PROMPT", "missing"), 2)
+        assertEquals(listOf("PEAK", "PROMPT"), landscape.take(2))
+        assertEquals(listOf("PEAK", "FALSE", "LUT"), landscape.filterNot { it == "PROMPT" })
+        assertEquals("PROMPT", MonitorAssistPaletteReveal.displayOrder(ranked,
+            listOf("PROMPT"), listOf("PROMPT"), 1).first())
+    }
+
+    @Test fun collapseRestoresTheReservedSlotFromTheFrozenCatalog() {
+        val frozen = MonitorAssistPaletteReveal.pinnedOrder(listOf("FALSE", "PROMPT", "PEAK", "LUT"),
+            listOf("PEAK", "LUT", "PROMPT", "FALSE"), true)
+        assertEquals(listOf("PEAK", "LUT", "FALSE", "PROMPT"),
+            MonitorAssistPaletteReveal.displayOrder(frozen, listOf("PROMPT"), listOf("PROMPT")))
+        assertEquals(listOf("PEAK", "PROMPT"),
+            MonitorAssistPaletteReveal.displayOrder(frozen, listOf("PROMPT"), listOf("PROMPT"), 2).take(2))
+        assertEquals(listOf("PEAK", "LUT"),
+            MonitorAssistPaletteReveal.displayOrder(listOf("PEAK", "LUT"), listOf("missing"), listOf("PROMPT")))
+    }
+
     @Test fun obstructionUsesFullBoundsUntilCollapseHasActuallySettled() {
         val compact = IntSize(62, 89)
         val full = IntSize(62, 420)

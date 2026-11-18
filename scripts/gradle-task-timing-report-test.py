@@ -44,7 +44,7 @@ class GradleTaskTimingReportTests(unittest.TestCase):
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(REPORT.main([str(path), "--tasks", str(tasks)]), 0)
             self.assertEqual(tasks.read_text().splitlines(), sorted({line.split("\t")[0] for line in
-                                                                     TIMING.splitlines() if "\t" in line}))
+                                                                    TIMING.splitlines() if "\t" in line}))
 
     def test_a_missing_timing_file_reports_no_tasks(self):
         output = io.StringIO()

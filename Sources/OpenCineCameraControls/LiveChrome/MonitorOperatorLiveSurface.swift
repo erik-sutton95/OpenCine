@@ -262,12 +262,16 @@ public struct MonitorOperatorLiveAudio {
     public let usage: Binding<MonitorToolUsage>
     public let usageSeed: [String: Int]
     public let toggle: (MonitorAssistSelection) -> Void
+    /// Optional local script domain; a supplied model admits the shared PROMPT tool.
+    public let teleprompter: MonitorTeleprompterModel?
     public init(scopes: MonitorOperatorLiveAssistSource?, tools: @escaping () -> [MonitorAssistSelection],
         rendered: @escaping () -> Set<MonitorAssistSelection>?,
         signalOptions: MonitorOperatorSignalOptions, usage: Binding<MonitorToolUsage>,
-        usageSeed: [String: Int], toggle: @escaping (MonitorAssistSelection) -> Void) {
+        usageSeed: [String: Int], toggle: @escaping (MonitorAssistSelection) -> Void,
+        teleprompter: MonitorTeleprompterModel? = nil) {
         self.scopes = scopes; self.tools = tools; self.rendered = rendered
         self.signalOptions = signalOptions; self.usage = usage; self.usageSeed = usageSeed; self.toggle = toggle
+        self.teleprompter = teleprompter
     }
 }
 
@@ -286,14 +290,18 @@ public struct MonitorOperatorLiveAudio {
     /// Why the picture is missing and how to recover it (a relay's refusal and retry), under
     /// the shared waiting plate while the first frame is awaited.
     public let waiting: AnyView?
+    /// Visible native accessory bounds the teleprompter must keep clear.
+    public let teleprompterObstacles: @MainActor () -> [MonitorRect]
     public init(focusDrive: AnyView? = nil, dashboard: AnyView? = nil, connection: AnyView? = nil,
         comparison: AnyView? = nil, resetFocus: (() -> Void)? = nil,
         feedMarks: AnyView? = nil, feedGestures: AnyView? = nil, focusControls: AnyView? = nil,
-        motion: MonitorOperatorMotionViews? = nil, waiting: AnyView? = nil) {
+        motion: MonitorOperatorMotionViews? = nil, waiting: AnyView? = nil,
+        teleprompterObstacles: @escaping @MainActor () -> [MonitorRect] = { [] }) {
         self.focusDrive = focusDrive; self.dashboard = dashboard; self.connection = connection
         self.comparison = comparison; self.resetFocus = resetFocus
         self.feedMarks = feedMarks; self.feedGestures = feedGestures; self.focusControls = focusControls
         self.motion = motion; self.waiting = waiting
+        self.teleprompterObstacles = teleprompterObstacles
     }
 }
 
@@ -355,7 +363,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     public var body: some View {
         // A curve-reading tool waits for a known source curve (product ruling 2026-10-16).
         let assist = session.assist
-        let tools = assists.tools().filter(assist.offers)
+        let offered = assists.tools().filter { $0 != .teleprompter }
+        let tools = (offered + (assists.teleprompter == nil ? [] : [.teleprompter])).filter(assist.offers)
         MonitorOperatorLiveBody(host: host, control: control, session: session, live: layout, source: source,
             facts: .init(identity: source.identity(), available: source.available(), picture: source.picture(), status: source.status(),
                 cameraBattery: source.cameraBattery(), capture: source.capture(), record: source.record(),
@@ -490,7 +499,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var admitted: Bool { presentationAdmitted && !readOnly }
     private var transient: Bool { panel != nil || captureState.preview != nil || assist.configureTool != nil }
     private var assistInspectorPresented: Bool {
-        assist.configureTool != nil && presentationAdmitted && assistSource != nil && stores != nil
+        assist.configureTool != nil && presentationAdmitted
+            && ((assist.configureTool == .teleprompter && assists.teleprompter != nil) || (assistSource != nil && stores != nil))
     }
     private var context: MonitorInteractionContext {
         .init(locked: locked, covered: covered, editing: editing != nil, clean: session.mode == .clean,
@@ -567,7 +577,15 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .onChange(of: assist.sourceCurveKnown) { _, _ in
                 if let tool = assist.configureTool, !assist.offers(tool) { assist.configureTool = nil }
             }
-            .onDisappear { apply(lifecycle.close()); assist.liveCovered = false }
+            .onChange(of: teleprompterVisible, initial: true) { _, visible in if !visible { assists.teleprompter?.pause() } }
+            .onDisappear { apply(lifecycle.close()); assist.liveCovered = false; assists.teleprompter?.pause() }
+            .fullScreenCover(isPresented: Binding(get: { assists.teleprompter?.editorRequested == true },
+                set: { assists.teleprompter?.editorRequested = $0 })) {
+                if let prompter = assists.teleprompter {
+                    MonitorTeleprompterScreen(model: prompter, onClose: { prompter.editorRequested = false },
+                        onUseScript: { assist.teleprompterEnabled = true; assist.persist(); prompter.editorRequested = false })
+                }
+            }
     }
 
     private func apply(_ transition: MonitorInteractionTransition) {
@@ -862,9 +880,39 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 Button(source.confirmation == true ? "Start" : "Stop") { if admitted && recordEnabled { source.confirm() } }
             }
     }
+    private var teleprompterVisible: Bool {
+        assists.teleprompter?.script != nil && assist.isVisible(.teleprompter) && !covered
+            && editing == nil && !command && assists.teleprompter?.editorRequested != true
+    }
+
+    private var teleprompterObstacles: [MonitorRect] {
+        var result = cameraViews.teleprompterObstacles()
+        if !locked, editing == nil {
+            if cameraViews.comparison != nil {
+                result.append(.init(x: focusResetFrame.midX - 22, y: focusResetFrame.midY - 65, width: 44, height: 30))
+            }
+            if cameraViews.focusDrive != nil {
+                let height = min(280, layout.viewport.height * 0.55)
+                result.append(.init(x: max(layout.picture.x + 30, layout.record.x - 34) - 22,
+                    y: layout.picture.midY - height / 2, width: 44, height: height))
+            }
+        }
+        return result
+    }
+
+    @ViewBuilder private var teleprompterOverlay: some View {
+        if teleprompterVisible, let prompter = assists.teleprompter {
+            MonitorTeleprompterOverlay(model: prompter, layout: layout, safeArea: safeArea,
+                shown: scopeChrome, motionCluster: cameraViews.motion != nil,
+                extraObstacles: { teleprompterObstacles }, interactive: presentationAdmitted && !assistInspectorPresented,
+                onSettings: { openOptions(MonitorAssistSelection.teleprompter.rawValue) })
+        }
+    }
+
     @ViewBuilder private var toolsChrome: some View {
         ZStack(alignment: .topLeading) {
             if let gestures = cameraViews.feedGestures { gestures.allowsHitTesting(presentationAdmitted) }
+            if !command { teleprompterOverlay }
             if !command { scopes }
             if let focus = cameraViews.focusControls { focus.allowsHitTesting(admitted).zIndex(4) }
             if !command { instruments }
@@ -908,9 +956,16 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 onToggle: { id in
                     if presentationAdmitted, let tool = tools.first(where: { $0.rawValue == id }) {
                         assistSource?.haptics.selection()
-                        if presentationAdmitted { assists.toggle(tool) }
+                        if presentationAdmitted {
+                            if tool == .teleprompter, let prompter = assists.teleprompter {
+                                if prompter.script == nil { prompter.requestEditor() }
+                                else { assist.toggle(.teleprompter) }
+                            } else { assists.toggle(tool) }
+                        }
                     }
-                }, onOptions: openOptions) { id in
+                }, onOptions: openOptions,
+                priorityIDs: assists.teleprompter?.script == nil ? [] : [MonitorAssistSelection.teleprompter.rawValue],
+                trailingIDs: assists.teleprompter == nil ? [] : [MonitorAssistSelection.teleprompter.rawValue]) { id in
                     if let tool = tools.first(where: { $0.rawValue == id })?.sharedTool { MonitorAssistToolGlyph(tool: tool, size: nil) }
                     else { MonitorIcon.image }
                 }.modifier(ChromeEditableModifier<Host>(section: .toolBar, mode: editing))
@@ -919,7 +974,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
     private func openOptions(_ id: String) {
         guard presentationAdmitted, let tool = tools.first(where: { $0.rawValue == id }) else { return }
-        if let permitted = assistSource?.configurableTools, !permitted.contains(tool) {
+        if tool != .teleprompter, let permitted = assistSource?.configurableTools, !permitted.contains(tool) {
             if let note = assistSource?.optionsUnavailableNotice { control.onNote(note) }
             return
         }
@@ -1009,7 +1064,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         }
     }
     @ViewBuilder private var panelsChrome: some View {
-        if let tool = assist.configureTool, assistInspectorPresented, let assistSource, let stores {
+        if assist.configureTool == .teleprompter, assistInspectorPresented, let prompter = assists.teleprompter {
+            MonitorTeleprompterInspector(model: prompter, assist: assist, viewport: live.viewport, safeArea: safeArea,
+                tools: tools, onDismiss: { assist.configureTool = nil })
+        } else if let tool = assist.configureTool, assistInspectorPresented, let assistSource, let stores {
             let transfer = assistSource.readTransfer()
             MonitorOperatorAssistInspector(tool: tool, assist: assist, stores: stores, looks: assistSource.looks,
                 palette: Host.Palette.self, haptics: assistSource.haptics,

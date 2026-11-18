@@ -20,6 +20,7 @@ enum class MonitorAssistTool {
     LEVEL,
     DESQ,
     MIRROR,
+    PROMPT,
     ;
 
     val chipLabel: String
@@ -57,6 +58,7 @@ enum class MonitorAssistTool {
                 LEVEL -> "Level"
                 DESQ -> "Anamorphic Desqueeze"
                 MIRROR -> "Mirror"
+                PROMPT -> "Teleprompter"
             }
 
     /** The fixed camera EV meter and LEVEL are tap-only toggles. */
@@ -97,7 +99,7 @@ enum class MonitorAssistTool {
 
         val settingsCases: List<MonitorAssistTool> get() = toolbarCases + AUDIO
 
-        val cleanPinCases: List<MonitorAssistTool> get() = settingsCases.filter { it != EV }
+        val cleanPinCases: List<MonitorAssistTool> get() = (settingsCases + PROMPT).filter { it != EV }
 
         fun fromPersisted(raw: String): MonitorAssistTool? =
             entries.firstOrNull { it.name == raw || it.chipLabel == raw }

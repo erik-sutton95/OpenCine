@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -162,6 +164,8 @@ public class MonitorOperatorBodyViews(
      * [motion] has none; a source whose motion controls hold only a zoom says so here.
      */
     public val motionCluster: Boolean = motion != null,
+    /** Visible native accessory bounds the teleprompter must keep clear. */
+    public val teleprompterObstacles: List<MonitorRect> = emptyList(),
 )
 public class MonitorOperatorMotionViews(
     public val controls: @Composable BoxScope.(Boolean) -> Unit,
@@ -211,8 +215,17 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     picture: @Composable BoxScope.() -> Unit,
     cameraPanel: @Composable (K, MonitorRect, Boolean, MonitorOperatorCaptureState<K, N>) -> Unit,
     photoRelease: (@Composable (Boolean, Modifier) -> Unit)? = null,
+    teleprompter: MonitorTeleprompterModel? = null,
 ): Unit {
     val density = LocalDensity.current
+    var managesTeleprompter by remember(teleprompter) { mutableStateOf(false) }
+    val offeredPalette = palette.filter { it.tool != MonitorAssistTool.PROMPT } +
+        if (teleprompter == null) emptyList() else listOf(MonitorOperatorPaletteItem(
+            "PROMPT", "Teleprompter", "PROMPT", MonitorAssistTool.PROMPT, assist.teleprompterEnabled,
+            { if (teleprompter.hasScript) assist.toggle(MonitorAssistTool.PROMPT) else managesTeleprompter = true }, true))
+    val promptVisible = teleprompter?.hasScript == true && assist.isVisible(MonitorAssistTool.PROMPT) &&
+        !covered && !command && editing == null
+    if (teleprompter != null) MonitorTeleprompterLifetime(teleprompter)
     val usesCompactTelemetry = layout.portrait && !layout.tablet
     // Command mode keeps no header, or storage and the link alone: the dashboard's hero and tiles
     // carry the record state, timecode and format (hardware pass 1.3; Swift `commandHeader`).
@@ -246,15 +259,19 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val admitted = interactive && !readOnly
     val linkMounted = status.fpsSection == null || status.fpsSection in mounted
     val hasOptions = { item: MonitorOperatorPaletteItem -> item.hasOptions || signalOptions.offers(item.tool) }
-    val inspectorTools = palette.filter(hasOptions).mapNotNull { it.tool }
+    val inspectorTools = offeredPalette.filter(hasOptions).mapNotNull { it.tool }
     // The source's toolless item (PLAY) opens its instant review menu as one more inspector tab.
-    val reviewItem = signalOptions.reviewItem(palette)
+    val reviewItem = signalOptions.reviewItem(offeredPalette)
     var reviewing by remember { mutableStateOf(false) }
     val inspecting = assist.configureTool != null || reviewing
+    LaunchedEffect(teleprompter, promptVisible, inspecting, managesTeleprompter) {
+        if (!promptVisible || inspecting || managesTeleprompter) teleprompter?.pause()
+    }
     val closeInspector = { assist.configureTool = null; reviewing = false }
     val assistInspectorPresented = interactive && (assist.configureTool?.let { it in inspectorTools } ?: (reviewing && reviewItem != null))
-    LaunchedEffect(assist.configureTool, reviewing, clean, command, locked, inspectorTools, reviewItem != null, mounted) {
-        val closes = clean || command || locked || sections.assists !in mounted
+    LaunchedEffect(assist.configureTool, reviewing, clean, command, locked, inspectorTools, reviewItem != null, mounted, promptVisible, interactive) {
+        val promptInspector = assist.configureTool == MonitorAssistTool.PROMPT && promptVisible && interactive
+        val closes = command || locked || ((clean || sections.assists !in mounted) && !promptInspector)
         if (closes || assist.configureTool !in inspectorTools) assist.configureTool = null
         if (closes || reviewItem == null || assist.configureTool != null) reviewing = false
     }
@@ -495,6 +512,20 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     if (!locked && editing == null && cameraViews.resetFocus != null) add(MonitorScopeChrome.FOCUS_RESET)
                     if (aspect != null) add(MonitorScopeChrome.ASPECT_TOGGLE)
                 }
+                val promptObstacles = buildList {
+                    addAll(cameraViews.teleprompterObstacles)
+                    if (!locked && editing == null) {
+                        if (cameraViews.comparison != null) add(MonitorRect(
+                            focusResetFrame.midX - 22f, focusResetFrame.midY - 65f, 44f, 30f))
+                        if (cameraViews.focusDrive != null) {
+                            val height = minOf(280f, layout.viewport.height * .55f)
+                            add(MonitorRect(max(layout.picture.x + 30f, layout.record.x - 34f) - FOCUS_DRIVE_WIDTH / 2f,
+                                layout.picture.midY - height / 2f, FOCUS_DRIVE_WIDTH, height))
+                        }
+                    }
+                }
+                val promptFrame = TeleprompterOverlayLayout.frame(layout, safeLeading, safeTop, safeBottom, safeTrailing,
+                    scopeChrome, cameraViews.motionCluster, promptObstacles)
                 CompositionLocalProvider(LocalScopeObstacles provides layout.scopeObstacles(scopeChrome, cameraViews.motionCluster)) {
                     AssistOverlayLayer(assist, bundle, assistHost, locked = !interactive,
                         feedFrame = scopeFeed, framingFrame = framingFrame, placementFrame = scopePlacement ?: viewport,
@@ -522,8 +553,15 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                         }
                     }
                 }
+                if (promptVisible && teleprompter != null) {
+                    Box(Modifier.descriptorFrame(promptFrame).refusingInput(!(accepts && interactive && !inspecting))) {
+                        MonitorTeleprompterOverlay(teleprompter, Modifier.fillMaxSize(), accepts && interactive && !inspecting) {
+                            if (interactive && currentSource()) { teleprompter.pause(); assist.configureTool = MonitorAssistTool.PROMPT }
+                        }
+                    }
+                }
                 if (sections.assists in mounted && !inspecting) CompositionLocalProvider(
-                    LocalMonitorAssistExpansion provides paletteExpansion) { MonitorAssistPalette(palette,
+                    LocalMonitorAssistExpansion provides paletteExpansion) { MonitorAssistPalette(offeredPalette,
                     layout.portrait, !interactive, { it.isOn }, { it.tool?.title ?: it.title },
                     { it.tool?.chipLabel ?: it.label }, hasOptions,
                     onToggle = { if (interactive && currentSource()) it.toggle() },
@@ -539,6 +577,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     modifier = Modifier.descriptorFrame(layout.assists).then(edit(sections.assists)),
                     usageSeed = usageSeed, idOf = { it.id }, usage = usage, onUsageChange = setUsage,
                     collapseRevision = paletteRevision, accessibilityIdentifier = { it.accessibilityIdentifier },
+                    priorityIds = if (teleprompter?.hasScript == true) listOf("PROMPT") else emptyList(),
+                    trailingIds = if (teleprompter != null) listOf("PROMPT") else emptyList(),
                     // A value the open plate does not cover takes a touch, as on iOS; Back closes the plate.
                     passesOutsideTouches = true,
                     onBoundsInRootChanged = { bounds ->
@@ -615,13 +655,30 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             if (assistInspectorPresented) {
                 val configured = assist.configureTool
                 val preview: (@Composable () -> Unit)? =
-                    if (configured == null) null else assists?.preview?.let { render -> { render(configured) } }
+                    if (configured == null || configured == MonitorAssistTool.PROMPT) null else assists?.preview?.let { render -> { render(configured) } }
                 AssistInspectorFrame(configured, assist, layout.viewport.width, layout.viewport.height,
-                    safeLeading, safeTop, safeBottom, closeInspector, safeTrailing = safeTrailing,
+                    safeLeading, safeTop, safeBottom, closeInspector,
+                    // Leave the landscape system-button rail outside the inspector's touch targets.
+                    safeTrailing = if (layout.portrait) safeTrailing else max(safeTrailing, layout.viewport.width - layout.record.x + 8f),
                     trailing = true, tabs = inspectorTools, review = reviewItem,
                     onSelect = { assist.configureTool = it; reviewing = it == null }) { maximum ->
                     if (configured == null) signalOptions.instantReview?.let { menu -> MonitorOptionGroup { menu() } }
-                    else AssistOptionsPanel(configured, assist, closeInspector, assistHost, lookOptions,
+                    else if (configured == MonitorAssistTool.PROMPT && teleprompter != null) {
+                        MonitorOptionGroup {
+                            MonitorTeleprompterOptions(teleprompter) {
+                                closeInspector()
+                                managesTeleprompter = true
+                            }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Keep in clean view", color = Color.White, modifier = Modifier.weight(1f))
+                                Switch(MonitorAssistTool.PROMPT in assist.pinned,
+                                    { assist.togglePin(MonitorAssistTool.PROMPT) },
+                                    modifier = Modifier.testTag("teleprompter.clean").semantics {
+                                        contentDescription = "Keep in clean view"
+                                    })
+                            }
+                        }
+                    } else AssistOptionsPanel(configured, assist, closeInspector, assistHost, lookOptions,
                         maxHeightDp = maximum, transfer = if (assist.scopeBundle.levelAxis?.supportsCalibratedReferences == false) null else scopeTransfer ?: assist.scopeBundle.transfer,
                         embedded = true, isPhoto = photo, imagePreview = preview, lookMenu = assists?.lookMenu, signalOptions = signalOptions)
                 }
@@ -629,6 +686,13 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             cameraViews.motion?.editor?.invoke(this, accepts && interactive)
             cameraViews.feedback?.invoke(this)
         })
+    if (managesTeleprompter && teleprompter != null) {
+        MonitorTeleprompterDialog(teleprompter, onClose = { managesTeleprompter = false }, onUseScript = {
+            assist.teleprompterEnabled = true
+            assist.persist()
+            managesTeleprompter = false
+        })
+    }
     editing?.let { mode ->
         Box(Modifier.fillMaxSize().pointerInput(Unit) { awaitPointerEventScope {
             while (true) awaitPointerEvent().changes.forEach { it.consume() }

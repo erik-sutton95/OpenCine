@@ -33,6 +33,8 @@
         private let tools: [MonitorToolItem]
         private let layout: MonitorAssistPaletteLayout
         private let usageSeed: [String: Int]
+        private let priorityIDs: [String]
+        private let trailingIDs: [String]
         private let onToggle: (String) -> Void
         private let onOptions: (String) -> Void
         private let onExpansionActivityChange: (Bool) -> Void
@@ -58,11 +60,14 @@
             onExpansionActivityChange: @escaping (Bool) -> Void = { _ in },
             accessibilityName: String = "View Assist tools",
             accessibilityPrefix: String = "monitor.assists",
+            priorityIDs: [String] = [], trailingIDs: [String] = [],
             @ViewBuilder icon: @escaping (String) -> Icon
         ) {
             self.tools = tools
             self.layout = layout
             self.usageSeed = usageSeed
+            self.priorityIDs = priorityIDs
+            self.trailingIDs = trailingIDs
             _usage = usage
             _expanded = expanded
             self.onToggle = onToggle
@@ -121,7 +126,7 @@
             }
             .onChange(of: expanded) { _, open in
                 guard !dragging, progress != (open ? 1 : 0) else { return }
-                if open, pinnedIDs.isEmpty { pinnedIDs = rankedIDs }
+                if open, progress <= 0.02 { pinnedIDs = rankedIDs }
                 settle(to: open, animation: MonitorMotion.drawerSpring(reduceMotion))
             }
             .onChange(of: progress) { _, value in
@@ -155,10 +160,13 @@
 
         private var displayTools: [MonitorToolItem] {
             let frozen = expanded || dragging || progress > 0.02
-            return MonitorAssistPaletteReveal.pinnedOrder(
-                ranked: rankedIDs, pinned: pinnedIDs, frozen: frozen
-            )
-            .compactMap { id in tools.first { $0.id == id } }
+            let pinned = MonitorAssistPaletteReveal.pinnedOrder(
+                ranked: rankedIDs, pinned: pinnedIDs, frozen: frozen)
+            return MonitorAssistPaletteReveal.displayOrder(
+                ranked: pinned, priorityIDs: priorityIDs, trailingIDs: trailingIDs,
+                compactToolCount: frozen
+                    ? nil : MonitorAssistPaletteReveal.compactToolCount(portrait: layout.portrait)
+            ).compactMap { id in tools.first { $0.id == id } }
         }
 
         /// The landscape columns to lay out. Fully collapsed, only the compact cells: the lazy
@@ -295,6 +303,7 @@
                     let finger = full.portrait ? Double(value.location.y) : Double(value.location.x)
                     if !dragging {
                         guard distance >= MonitorAssistPaletteReveal.slop else { return }
+                        if !expanded, progress <= 0.02 { pinnedIDs = rankedIDs }
                         dragging = true
                         settleGeneration += 1
                         onExpansionActivityChange(true)

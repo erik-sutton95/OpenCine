@@ -79,6 +79,7 @@ class GyroWireTest {
     @Test
     fun armingEffectsDecodeInOrder() {
         val reply = decodeArmingReply(
+            // editorconfig-checker-disable: preserve literal JSON fixture indentation.
             """
             {"effects":[
             {"kind":"writeStabilization","purpose":"turnOff",
@@ -94,6 +95,7 @@ class GyroWireTest {
             {"kind":"notice","notice":"turnOffFailed"}],
             "isArmed":true,"stabilizationWarning":false}
             """.trimIndent(),
+            // editorconfig-checker-enable
         )
         assertEquals(6, reply.effects.size)
         assertTrue(reply.isArmed)
@@ -198,6 +200,7 @@ class GyroWireTest {
     @Test
     fun logReplyDecodesMountMoved() {
         val reply = decodeLogReply(
+            // editorconfig-checker-disable: preserve literal JSON fixture indentation.
             """
             {"updates":[
             {"kind":"opened","id":"11111111-1111-1111-1111-111111111111",
@@ -211,6 +214,7 @@ class GyroWireTest {
             "active":true,"gapWarning":false,"finished":false,"termination":null,
             "hasSamples":true}
             """.trimIndent(),
+            // editorconfig-checker-enable
         )
         assertTrue(reply.active)
         assertEquals(false, reply.gapWarning)

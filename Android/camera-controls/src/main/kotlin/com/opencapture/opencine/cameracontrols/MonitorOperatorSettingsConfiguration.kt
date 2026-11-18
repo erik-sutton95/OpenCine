@@ -185,6 +185,8 @@ public class MonitorSettingsControlsSource(
     public val motion: MonitorSettingsMotionSource? = null,
     public val shutter: MonitorSettingsRemoteShutter? = null,
     public val autoRotate: MonitorSettingsAutoRotate? = null,
+    /** Opens the standalone script reader without changing camera recording. */
+    public val teleprompter: (() -> Unit)? = null,
 ) {
     /** The declared auto-rotate, else the flat pair, else none. */
     public val autoRotateRow: MonitorSettingsAutoRotate?
@@ -581,6 +583,13 @@ internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: (
             keepScreenAwakeHelp = source.keepAwakeHelp, feedback = feedback)
     }
     val shutter = source.shutter
+    source.teleprompter?.let { open ->
+        MonitorSettingsRowCard("Teleprompter") {
+            MonitorSettingsInlineRow("Read a script", "Read a saved script with adjustable scrolling.", showTopDivider = false) {
+                MonitorSettingsActionPill("Open", onClick = open, modifier = Modifier.testTag("settings.controls.teleprompter"))
+            }
+        }
+    }
     val rotation = source.autoRotateRow
     MonitorInputOrientationSettings(shutter?.enabled, shutter?.setEnabled,
         remoteTitle = shutter?.title ?: "Remote shutter", remoteCaption = shutter?.caption,

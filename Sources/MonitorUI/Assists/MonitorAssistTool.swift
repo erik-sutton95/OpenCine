@@ -46,6 +46,7 @@ extension MonitorAssistTool {
         case .level: .circle
         case .desqueeze: .chevronsUpDown
         case .mirror: .flipHorizontal2
+        case .teleprompter: .layoutList
         }
     }
 }

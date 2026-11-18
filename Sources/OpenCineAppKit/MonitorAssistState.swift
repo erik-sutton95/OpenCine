@@ -87,6 +87,8 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     public var level = false
     public var desqueeze = false
     public var mirror = false
+    /// Local script visibility; independent of camera recording and reader playback.
+    public var teleprompterEnabled = false
     /// MIRROR axes. Tap toggles the tool; the options pick which axes it flips.
     public var mirrorHorizontal = true
     public var mirrorVertical = false
@@ -334,6 +336,7 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
         case .level: level
         case .desqueeze: desqueeze
         case .mirror: mirror
+        case .teleprompter: teleprompterEnabled
         case .instantReview: instantReview
         case .magnification: false
         default: false
@@ -363,11 +366,11 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     }
 
     public func isPlaybackVisible(_ tool: MonitorAssistSelection) -> Bool {
-        tool != .evMeter && playbackVisibleTools.contains(tool)
+        tool != .evMeter && tool != .teleprompter && playbackVisibleTools.contains(tool)
     }
 
     public func togglePlayback(_ tool: MonitorAssistSelection) {
-        guard tool != .evMeter else { return }
+        guard tool != .evMeter && tool != .teleprompter else { return }
         if playbackVisibleTools.contains(tool) {
             playbackVisibleTools.remove(tool)
         } else {
@@ -408,11 +411,12 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
         case .level: level.toggle()
         case .desqueeze: desqueeze.toggle()
         case .mirror: mirror.toggle()
+        case .teleprompter: teleprompterEnabled.toggle()
         case .instantReview: instantReview.toggle()
         case .magnification: break
         default: break
         }
-        onToggle?(tool, isOn(tool))
+        if tool != .teleprompter { onToggle?(tool, isOn(tool)) }
         persist()
     }
 

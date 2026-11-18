@@ -173,7 +173,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         case .sharingUnavailable, .sharing, .watchers, .watchFeed:
             if let sharing = source.sharing { sharingRow(row, sharing, feedback: source.feedback) }
         case .assistTools, .assistPanels, .exposureMeter, .look: assistRow(row, source)
-        case .gyro, .safety, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
+        case .gyro, .safety, .teleprompter, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
         case .hdrPanel, .displaySections, .gyroLogs, .account, .cache: displayStorageRow(row, source)
         case .support, .diagnosticOptions, .projectLegal, .information: systemRow(row, source)
         }
@@ -221,6 +221,16 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     @ViewBuilder private func controlsRow(_ row: MonitorSettingsRow, _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
         let controls = source.controls
         switch row {
+        case .teleprompter:
+            if let open = controls.teleprompter {
+                MonitorSettingsRowCard(title: "Teleprompter") {
+                    MonitorSettingsInlineRow(title: "Read a script", help: "Read a saved script with adjustable scrolling.",
+                        showTopDivider: false) {
+                        MonitorSettingsActionPill(title: "Open", action: open)
+                            .accessibilityIdentifier("settings.controls.teleprompter")
+                    }
+                }
+            }
         case .gyro:
             if let gyro = source.gyro { MonitorSettingsGyroCard(gyro: gyro, feedback: source.feedback) }
         case .safety:
@@ -259,7 +269,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             }
         case .displaySections:
             MonitorOperatorDisplaySections(modes: operatorSession.modes, chrome: displayValue, assist: assist,
-                available: source.display.sections, edit: editChrome(source), feedback: source.feedback)
+                available: source.display.sections, edit: editChrome(source), feedback: source.feedback,
+                teleprompterAvailable: source.controls.teleprompter != nil)
                 .onAppear { operatorSession.returnedMode = nil }
         case .gyroLogs:
             if let gyro = source.gyro {

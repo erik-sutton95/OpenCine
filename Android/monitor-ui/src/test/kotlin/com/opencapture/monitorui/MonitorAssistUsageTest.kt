@@ -4,6 +4,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class MonitorAssistUsageTest {
+    @Test fun aLoadedScriptReservesOneQuickSlotAndKeepsOtherUsageOrder() {
+        val catalog = listOf("PEAK", "FALSE", "PROMPT", "ZEBRA")
+        val seed = mapOf("PEAK" to 8, "FALSE" to 6, "PROMPT" to 4, "ZEBRA" to 2)
+        val ranked = MonitorAssistUsage.ranked(catalog, { it }, MonitorToolUsageState(), seed, now = 100.0,
+            priorityIds = listOf("PROMPT", "PROMPT", "missing"))
+        assertEquals(listOf("PROMPT", "PEAK", "FALSE", "ZEBRA"), ranked)
+        assertEquals(catalog, MonitorAssistUsage.ranked(catalog, { it }, MonitorToolUsageState(), seed, now = 100.0))
+    }
+
     @Test
     fun seedOrderBeforeAnyUse() {
         val usage = MonitorToolUsageState()

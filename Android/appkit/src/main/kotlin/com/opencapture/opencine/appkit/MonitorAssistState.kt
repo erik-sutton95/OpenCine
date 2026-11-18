@@ -87,6 +87,8 @@ public class MonitorAssistState(
         private set
     public var crosshair: Boolean by mutableStateOf(false)
         private set
+    /** The live-only script overlay follows the same clean-view pin policy as other assists. */
+    public var teleprompterEnabled: Boolean by mutableStateOf(false)
 
     /**
      * MIRROR tool on. Overlay chrome does not apply this; the video surface owner must.
@@ -288,6 +290,7 @@ public class MonitorAssistState(
             MonitorAssistTool.CROSS -> crosshair
             MonitorAssistTool.MIRROR -> mirror
             MonitorAssistTool.DESQ -> desqueeze
+            MonitorAssistTool.PROMPT -> teleprompterEnabled
         }
 
     /** Pins filter DISP 2; they never flip [isOn]. */
@@ -341,8 +344,9 @@ public class MonitorAssistState(
             MonitorAssistTool.CROSS -> crosshair = !crosshair
             MonitorAssistTool.MIRROR -> mirror = !mirror
             MonitorAssistTool.DESQ -> desqueeze = !desqueeze
+            MonitorAssistTool.PROMPT -> teleprompterEnabled = !teleprompterEnabled
         }
-        onToggle?.invoke(tool, isOn(tool))
+        if (tool != MonitorAssistTool.PROMPT) onToggle?.invoke(tool, isOn(tool))
         if (tool in stackableScopeTools && isOn(tool)) bringToFront(tool)
         persist()
     }
@@ -354,7 +358,7 @@ public class MonitorAssistState(
         persist()
     }
 
-    public fun isPlaybackVisible(tool: MonitorAssistTool): Boolean = tool in playbackVisibleTools
+    public fun isPlaybackVisible(tool: MonitorAssistTool): Boolean = tool != MonitorAssistTool.PROMPT && tool in playbackVisibleTools
 
     public fun togglePlayback(tool: MonitorAssistTool): Unit {
         if (tool !in MonitorAssistTool.playbackToolbarCases) return
@@ -576,6 +580,7 @@ public class MonitorAssistState(
         crosshair = MonitorAssistTool.CROSS in tools
         mirror = MonitorAssistTool.MIRROR in tools
         desqueeze = MonitorAssistTool.DESQ in tools
+        teleprompterEnabled = MonitorAssistTool.PROMPT in tools
         if (guideRatio != null && guideRatio > 0f) {
             guideAspect = MonitorGuideAspect.entries.minBy { kotlin.math.abs(it.ratio - guideRatio) }
             selectedGuides = setOf(guideAspect)
@@ -690,6 +695,7 @@ public class MonitorAssistState(
         crosshair = MonitorAssistTool.CROSS in on
         mirror = MonitorAssistTool.MIRROR in on
         desqueeze = MonitorAssistTool.DESQ in on
+        teleprompterEnabled = MonitorAssistTool.PROMPT in on
         desqueezePreset = MonitorDesqueezePreset.entries.firstOrNull { it.name == obj.optString("desqueezePreset") }
             ?: MonitorDesqueezePreset.X133
         desqueezeCustom = obj.optBoolean("desqueezeCustom", false)

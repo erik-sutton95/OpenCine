@@ -72,6 +72,7 @@ public struct MonitorAssistSnapshot: Codable {
     @available(macOS 14, *) @MainActor
     public func apply<Looks>(to s: MonitorAssistState<Looks>) {
         let on = Set(tools)
+        s.teleprompterEnabled = on.contains(MonitorAssistSelection.teleprompter.rawValue)
         s.peaking = on.contains(MonitorAssistSelection.peaking.rawValue)
         s.zebra = on.contains(MonitorAssistSelection.zebra.rawValue)
         s.falseColor = on.contains(MonitorAssistSelection.falseColor.rawValue)

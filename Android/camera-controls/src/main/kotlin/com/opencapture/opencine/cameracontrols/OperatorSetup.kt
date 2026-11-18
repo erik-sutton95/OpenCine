@@ -228,6 +228,8 @@ class OperatorSetupApp(
      * clears what the gallery writes.
      */
     val cacheSource: (@Composable (Context) -> com.opencapture.opencine.appkit.MonitorSettingsCacheSource)? = null,
+    /** Opens the shared script reader; camera recording remains with the monitor. */
+    val teleprompter: (() -> Unit)? = null,
 )
 
 fun toggledCleanPins(prefs: OperatorPreferenceStore, current: Set<String>, toolKey: String): Set<String> {
@@ -337,6 +339,7 @@ private fun operatorSetupConfiguration(
             model.recordConfirmationEnabled, model::updateRecordConfirmationEnabled,
             model.hapticsEnabled, model::updateHapticsEnabled, model.keepScreenAwake, model::updateKeepScreenAwake,
             keepAwakeHelp = app.help.KEEP_SCREEN_AWAKE, hapticsHelp = app.help.HAPTICS,
+            teleprompter = app.teleprompter,
             shutter = model.remoteShutterEnabled?.let { MonitorSettingsRemoteShutter.mediaButtons(it, model::updateRemoteShutterEnabled) },
             motion = MonitorSettingsMotionSource(
                 sensitivity = if (!gimbal) null else MonitorMotionIntegerSetting(model.gimbalStickSensitivity, 1..5,
@@ -772,7 +775,9 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
                 else -> true
             }
         }.toSet(),
-        pinnable = MonitorAssistTool.cleanPinCases.filter { it != MonitorAssistTool.AUDIO || state.layout.audio }.toSet(),
+        pinnable = MonitorAssistTool.cleanPinCases.filter {
+            (it != MonitorAssistTool.AUDIO || state.layout.audio) && (it != MonitorAssistTool.PROMPT || app.teleprompter != null)
+        }.toSet(),
         onPinsChanged = { pins ->
             val next = app.prefs.resolvedCleanPins(pins.map { it.name }.toSet())
             model.assist.pinned = next.mapNotNull(MonitorAssistTool::fromPersisted).toSet()

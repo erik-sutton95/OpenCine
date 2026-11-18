@@ -74,6 +74,18 @@ object MonitorAssistPaletteReveal {
 
     fun compactToolCount(portrait: Boolean): Int = if (portrait) 1 else 2
 
+    /** Keep trailing tools at the catalog end and reserved tools inside the compact plate. */
+    fun displayOrder(ranked: List<String>, priorityIds: List<String>, trailingIds: List<String>,
+        compactToolCount: Int? = null): List<String> {
+        val prioritized = (priorityIds + ranked).distinct().filter { it in ranked }
+        val trailing = trailingIds.toSet()
+        val catalog = prioritized.filterNot { it in trailing } + prioritized.filter { it in trailing }
+        if (compactToolCount == null) return catalog
+        val visible = (priorityIds + catalog).distinct().filter { it in catalog }
+            .take(compactToolCount.coerceAtLeast(0)).toSet()
+        return catalog.filter { it in visible } + catalog.filterNot { it in visible }
+    }
+
     /** Keep the open plate still. Ranking updates apply only after collapse. */
     fun pinnedOrder(ranked: List<String>, pinned: List<String>, frozen: Boolean): List<String> {
         if (!frozen || pinned.isEmpty()) return ranked

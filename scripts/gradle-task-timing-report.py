@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# editorconfig-checker-disable: preserve literal command help indentation.
 """Summarize the per-task timing that scripts/gradle-task-timing.init.gradle records.
 
   gradle-task-timing-report.py TIMING.tsv [--title T] [--top N] [--summary] [--tasks PATH]
@@ -10,6 +11,7 @@ not the critical path. `--tasks` also writes the sorted task paths, so two runs 
 several) can be compared for the same executed inventory. `--summary` appends the report to
 $GITHUB_STEP_SUMMARY when it is set (stdout otherwise). A missing file reports no tasks.
 """
+# editorconfig-checker-enable
 import argparse
 from collections import defaultdict
 import os
@@ -53,18 +55,18 @@ def report(rows, title, top):
     summary = summarize(rows)
     outcomes = ", ".join(f"{count} {name}" for name, count in sorted(summary["outcomes"].items())) or "no tasks"
     out = [f"## {title}", "",
-           f"{len(rows)} tasks ({outcomes}); wall span {summary['spanMs'] / 1000:.1f} s, "
-           f"summed execution {summary['workedMs'] / 1000:.1f} s (parallel tasks overlap).", ""]
+            f"{len(rows)} tasks ({outcomes}); wall span {summary['spanMs'] / 1000:.1f} s, "
+            f"summed execution {summary['workedMs'] / 1000:.1f} s (parallel tasks overlap).", ""]
     kinds = sorted(summary["byType"].items(), key=lambda item: -item[1]["ms"])
     if kinds:
         out += [f"### Executed time by task type (top {top} of {len(kinds)})", "",
                 table(["Task type", "Tasks", "Summed seconds"],
-                      [[name, kind["count"], f"{kind['ms'] / 1000:.1f}"] for name, kind in kinds[:top]]), ""]
+                        [[name, kind["count"], f"{kind['ms'] / 1000:.1f}"] for name, kind in kinds[:top]]), ""]
     slowest = sorted((r for r in rows if r["outcome"] in ("executed", "failed")), key=lambda r: -r["ms"])
     if slowest:
         out += [f"### Slowest tasks (top {top})", "",
                 table(["Task", "Seconds", "Outcome"],
-                      [[r["task"], f"{r['ms'] / 1000:.1f}", r["outcome"]] for r in slowest[:top]]), ""]
+                        [[r["task"], f"{r['ms'] / 1000:.1f}", r["outcome"]] for r in slowest[:top]]), ""]
     return "\n".join(out) + "\n"
 
 
