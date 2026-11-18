@@ -328,6 +328,8 @@ public class MonitorOperatorSettingsConfiguration(
     public val assistSections: List<MonitorAssistSettingsSection> = emptyList(),
     public val assist: MonitorOperatorAssistSettingsSource? = null,
     public val gyro: MonitorSettingsGyroSource? = null,
+    /** The connected camera's exposure and white balance presets, first on the Controls tab. */
+    public val cameraPresets: com.opencapture.opencine.appkit.CameraSettingsPresetsModel? = null,
 ) {
     /** Explicit tab lists keep their order; the default includes each supplied optional domain. */
     public val tabs: List<MonitorSettingsTab> = tabs ?: monitorSettingsTabs(sharing, cache, account, unconfiguredAccount, gyro)

@@ -378,7 +378,13 @@ private fun GuidesOptions(state: MonitorAssistState) {
         { haptics.selection(); state.updateGuideFamily(it) },
         { haptics.selection(); state.toggleGuide(it) },
         { haptics.selection(); state.updateGuideMask(it) }, ratioFeedback = { haptics.selection() },
-        choiceBackground = LiveDesign.glassBright)
+        choiceBackground = LiveDesign.glassBright, safeAreas = state.guideSafeAreas,
+        onSafeAreas = {
+            if (it.actionSafe != state.guideSafeAreas.actionSafe || it.titleSafe != state.guideSafeAreas.titleSafe) {
+                haptics.selection()
+            }
+            state.updateGuideSafeAreas(it)
+        })
 }
 
 @Composable
@@ -586,7 +592,7 @@ fun AssistOverlayLayer(
         if (shown(MonitorAssistTool.GUIDES)) {
             com.opencapture.monitorui.MonitorAspectGuideFrames(
                 state.selectedGuides.ifEmpty { setOf(state.guideAspect) }, framingFeed, state.guideMask,
-                maskPolicy = host.guideMaskPolicy,
+                maskPolicy = host.guideMaskPolicy, safeAreas = state.guideSafeAreas,
             )
         }
         if (shown(MonitorAssistTool.GRID)) {

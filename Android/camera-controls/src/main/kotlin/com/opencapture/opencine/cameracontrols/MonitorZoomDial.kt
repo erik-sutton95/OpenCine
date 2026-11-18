@@ -16,7 +16,8 @@ import com.opencapture.opencine.appkit.LocalOperatorHaptics
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MonitorZoomDial(initial: Double, maximum: Double, onChange: (Double) -> Unit, onDismiss: () -> Unit,
-    opticalStops: List<Double> = listOf(1.0)) {
+    opticalStops: List<Double> = listOf(1.0), presets: com.opencapture.monitorui.MonitorZoomPresetControls? = null,
+    driven: Double? = null) {
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val layoutDirection = LocalLayoutDirection.current
@@ -30,5 +31,5 @@ fun MonitorZoomDial(initial: Double, maximum: Double, onChange: (Double) -> Unit
         trailingInset = if (inset > 0f) inset + 6f else 0f,
         attachment = if (portrait) MonitorZoomAttachment.Bottom else MonitorZoomAttachment.Trailing,
         bottomClearance = 0f,
-        onDetent = { haptics.confirm() })
+        onDetent = { haptics.confirm() }, presets = presets, driven = driven)
 }

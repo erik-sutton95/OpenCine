@@ -60,6 +60,9 @@
         func zoomPinchWillBegin()
         func updateZoomPinch(magnification: Double)
         func endZoomPinch()
+        /// Where the zoom dial's presets are kept. The default is the app's standard defaults
+        /// under the `MonitorOperator` prefix; a host may name its own prefix.
+        var zoomPresetStore: MonitorZoomPresetStore { get }
 
         /// DISP 2 (clean) or DISP 1 (live), from a vertical swipe on the feed.
         func setDisplayMode(clean: Bool)
@@ -105,6 +108,10 @@
     }
 
     extension LiveChromeHost {
+        public var zoomPresetStore: MonitorZoomPresetStore {
+            MonitorZoomPresetStore(storage: .standard, prefix: "MonitorOperator")
+        }
+
         public func isChromeVisible(
             _ section: MonitorDisplayChrome.Section, in mode: MonitorDisplayMode
         ) -> Bool {

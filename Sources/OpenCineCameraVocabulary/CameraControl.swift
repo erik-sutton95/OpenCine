@@ -1651,7 +1651,10 @@ public struct GimbalLimitWatch: Equatable, Sendable {
 public enum CamFov {
     public static let unit: UInt32 = 1024
     public static let minFactor = 1.0
-    public static let maxFactor = 12.0
+    /// The longest zoom the lens scale encodes: 18× digital on the Pocket 4 Pro after DJI's
+    /// November 2026 firmware (12× before it). A body's own ceiling is its last zoom stop;
+    /// a camera on older firmware clamps an over-ask and reports its real lens back.
+    public static let maxFactor = 18.0
     /// Operator jump stops. Mimo chips 1× / 3×; 6× and 12× are pinch detents.
     public static let jumps: [Double] = [1, 3, 6, 12]
     /// `cam_fov` `@0` at operator 1× (Mimo 1× → 12× take, start).
@@ -1670,9 +1673,11 @@ public enum CamFov {
     public static let lens6x: UInt16 = 1302
     /// `@14` at operator 12×. SET `0A 4E 2C 0A`.
     public static let lens12x: UInt16 = 2604
+    /// `@14` at operator 18×, the 3× → 12× line carried on (217 per ×). Not yet captured.
+    public static let lens18x: UInt16 = 3906
     public static let lensSlewDetent: UInt16 = lens3x
     public static let lensWide: UInt16 = lens12x
-    public static let lensMax: UInt16 = lens12x
+    public static let lensMax: UInt16 = lens18x
     public static let lensTele: UInt16 = lens1x
     /// `0x02/0xb8` `03 00 64 00` — older takes, toward 1× / lens 217.
     public static let slewTele: UInt16 = 100
@@ -1707,7 +1712,8 @@ public enum CamFov {
     public static func factor(raw: UInt32) -> Double {
         if raw == 0 { return minFactor }
         if raw >= rawAt1x { return minFactor }
-        if raw <= rawAt12x { return maxFactor }
+        // No `cam_fov` was captured past 12×, so the fallback stops there; lens `@14` reads on.
+        if raw <= rawAt12x { return 12 }
         if raw >= rawAt3x {
             let t = Double(rawAt1x - raw) / Double(rawAt1x - rawAt3x)
             return clamp(minFactor + t * 2)
@@ -1716,11 +1722,11 @@ public enum CamFov {
         return clamp(3 + t * 9)
     }
 
-    /// Operator factor from lens `@14` (217 = 1×, 651 = 3×, 2604 = 12×).
+    /// Operator factor from lens `@14` (217 = 1×, 651 = 3×, 2604 = 12×, 3906 = 18×).
     public static func factor(lens: UInt16) -> Double? {
         guard lens > 0 else { return nil }
         if lens <= lens1x { return minFactor }
-        if lens >= lens12x { return maxFactor }
+        if lens >= lens18x { return maxFactor }
         if lens <= lens3x {
             let t = Double(lens - lens1x) / Double(lens3x - lens1x)
             return clamp(minFactor + t * 2)
@@ -1760,29 +1766,31 @@ public enum CamFov {
         return UInt16((Double(a) + t * (Double(b) - Double(a))).rounded())
     }
 
-    /// Slider SET unit: piecewise through the 1× / 3× / 12× lens stops.
+    /// Slider SET unit: piecewise through the 1× / 3× / 12× lens stops, on to 18×.
     /// No 0.1× snap — pinch writes every distinct lens tick. Chips still land
-    /// on `chipWrite` (217 / 651 / 1302 / 2604).
+    /// on `chipWrite` (217 / 651 / 1302 / 2604 / 3906).
     public static func lensPosition(for factor: Double) -> UInt16 {
         let f = clamp(factor)
         if abs(f - minFactor) < 0.001 { return lens1x }
-        if abs(f - maxFactor) < 0.001 { return lens12x }
+        if abs(f - 12) < 0.001 { return lens12x }
+        if abs(f - maxFactor) < 0.001 { return lens18x }
         if f <= 3 {
             return lerpLens(lens1x, lens3x, (f - minFactor) / 2)
         }
-        return lerpLens(lens3x, lens12x, (f - 3) / 9)
+        if f <= 12 { return lerpLens(lens3x, lens12x, (f - 3) / 9) }
+        return lerpLens(lens12x, lens18x, (f - 12) / 6)
     }
 
     public static func displayLabel(raw: UInt32) -> String {
         displayLabel(factor: factor(raw: raw))
     }
 
-    /// `ceiling` is the body's longest zoom (default the 12× lens).
+    /// `ceiling` is the body's longest zoom (default the 18× lens scale).
     public static func displayLabel(factor: Double, ceiling: Double = maxFactor) -> String {
         let shown = displayTenths(factor, ceiling: ceiling)
         if abs(shown - ceiling) < 0.05 { return "\(Int(ceiling.rounded()))×" }
         let nearest = shown.rounded()
-        if abs(shown - nearest) < 0.05, (1...12).contains(Int(nearest)) {
+        if abs(shown - nearest) < 0.05, (1...Int(max(ceiling, maxFactor))).contains(Int(nearest)) {
             return "\(Int(nearest))×"
         }
         return String(format: "%.1f×", shown)
@@ -1823,13 +1831,14 @@ public enum CamFov {
         if abs(factor - 4) < 0.1 { return .lens(lensPosition(for: 4)) }
         if abs(factor - 6) < 0.1 { return .lens(lens6x) }
         if abs(factor - 12) < 0.1 { return .lens(lens12x) }
+        if abs(factor - 18) < 0.1 { return .lens(lens18x) }
         return nil
     }
 
     /// Telephoto engages at 3.0×. 1.0…2.9 stays on the wide sensor.
     public static let teleEngage = 3.0
 
-    /// Mimo-style 0.1× steps (1.0, 1.1, … 3.0, 3.1, … 12.0).
+    /// Mimo-style 0.1× steps (1.0, 1.1, … 3.0, 3.1, … 18.0).
     public static func displayTenths(_ factor: Double, ceiling: Double = maxFactor) -> Double {
         (clamp(factor, max: ceiling) * 10).rounded() / 10
     }

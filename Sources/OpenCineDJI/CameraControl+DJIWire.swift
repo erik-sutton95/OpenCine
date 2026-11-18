@@ -866,11 +866,11 @@ extension CamFov {
             | (UInt32(value[3]) << 24)
     }
 
-    /// u16-LE `@14` when the blob is long enough and in the zoom range.
+    /// u16-LE `@14` when the blob is long enough and in the zoom range (to past 18×, 3906).
     public static func lensAt14(_ value: [UInt8]) -> UInt16? {
         guard value.count >= 16 else { return nil }
         let lens = UInt16(value[14]) | (UInt16(value[15]) << 8)
-        guard (100...3_000).contains(lens) else { return nil }
+        guard (100...4_200).contains(lens) else { return nil }
         return lens
     }
 

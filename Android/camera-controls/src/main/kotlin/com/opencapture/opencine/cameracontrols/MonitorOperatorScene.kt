@@ -248,7 +248,8 @@ public fun <P> MonitorOperatorSettingsScreen(shell: ShellModel, brand: String, a
     preferences: MonitorOperatorPreferences, display: MonitorDisplayPreferences, assist: MonitorAssistState,
     library: MonitorMediaLibraryModel<P>?, availableAssistTools: Set<MonitorAssistTool> = MonitorOperatorDefaultAssistTools,
     operatorSession: MonitorOperatorSessionModel? = null, assistHost: AssistHost = MonitorDefaultAssistHost,
-    lookOptions: AssistLutPicker? = null, legal: MonitorLegalDocuments? = null) {
+    lookOptions: AssistLutPicker? = null, legal: MonitorLegalDocuments? = null,
+    cameraPresets: com.opencapture.opencine.appkit.CameraSettingsPresetsModel? = null) {
     val state by shell.state.collectAsState()
     val scope = rememberCoroutineScope()
     val session = operatorSession ?: remember(shell, assist, display) { MonitorOperatorSessionModel(shell, assist, display, scope) }
@@ -279,6 +280,7 @@ public fun <P> MonitorOperatorSettingsScreen(shell: ShellModel, brand: String, a
             MonitorSupportAction("support.diagnostics", "Diagnostics", actionTitle = "Share",
                 accessibilityLabel = "Share Diagnostics", action = actions.diagnostics))),
         legal = legal,
+        cameraPresets = cameraPresets,
     )
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, session.settingsTab,
         { session.settingsTab = it }, MonitorOperatorPictureSettings.Session(preferences, session, assist,

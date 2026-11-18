@@ -556,6 +556,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 }
             }
             .onChange(of: context, initial: true) { _, value in apply(lifecycle.update(value)) }
+            // The interface lock also holds the screen's rotation (an inverted rig stays put).
+            .monitorHoldsRotation(locked: locked)
             .onChange(of: identity) { _, _ in
                 captureState.retire(); captureState.frames = [:]; dismiss(); session.finishEditing()
             }

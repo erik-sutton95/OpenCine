@@ -194,6 +194,8 @@ case ShellModel.Route.monitor
 case ShellModel.Route.pair
 case StationNetworkSetupContext.camera(OpenCineCore.SavedCamera)
 case StationNetworkSetupContext.multiview
+class CameraSettingsPresetStore: Observable, Sendable
+class CameraSettingsPresetsModel: Observable, Sendable
 class CamerasModel: Observable, Sendable
 class DiagnosticJournal: Sendable
 class FeedIncidentOrigin: Sendable
@@ -233,6 +235,7 @@ class MonitorOperatorMediaModel<Payload, Look where Payload : Swift.Sendable, Lo
 class MonitorOperatorPreferences: Observable, Sendable
 class MonitorOperatorSessionModel<Looks where Looks : MonitorLookProvider>: Observable, Sendable
 class MonitorPlaybackScopeSession<Configuration where Configuration : Swift.Equatable, Configuration : Swift.Sendable>: Observable, Sendable
+class MonitorRotationLock: Sendable
 class MonitorScopePanelStore<Options where Options : MonitorPresentation.MonitorScopePanelOptions>: Observable, Sendable
 class MonitorSettingsAccountModel: Observable, Sendable
 class MonitorSettingsCacheModel: Observable, Sendable
@@ -257,6 +260,8 @@ class ReliabilityReportingURLProtocol: Foundation.URLProtocol, CVarArg, CustomDe
 class SavedCamerasStore: Sendable
 class ShellModel: Observable, Sendable
 enum BodyRecordsV0.Dates: Equatable, Hashable, Sendable
+enum CameraSettingsPresetCopy
+enum CameraSettingsPresetScope
 enum CamerasMapping: Sendable
 enum CamerasModel.Request: Equatable
 enum CamerasModel.RoutePolicy: Equatable, Hashable, Sendable
@@ -348,10 +353,17 @@ extension MonitorPresentation.MonitorRect
 extension MonitorPresentation.MonitorScopePoint
 extension OpenCineCore.MultiviewRepairResult
 extension OpenCineMedia.MonitorTimecodeFormat
+extension SwiftUICore.EnvironmentValues
 extension SwiftUICore.View
 func AddSetupChooser.select(_: Swift.String, onSelect: (AddSetupOption) -> Swift.Void) -> Swift.Bool
 func BodyRecordsV0.cameras(in: Foundation.Data) -> [OpenCineCore.LegacyCamera]?
 func BodyRecordsV0.patched(_: Foundation.Data?, to: [OpenCineCore.SavedCamera]) -> Foundation.Data?
+func CameraSettingsPresetStore.delete(id: Swift.String, scope: Swift.String) -> ()
+func CameraSettingsPresetStore.presets(scope: Swift.String) -> [OpenCineCore.CameraSettingsPreset]
+func CameraSettingsPresetStore.save(_: OpenCineCore.CameraSettingsPreset, scope: Swift.String) -> ()
+func CameraSettingsPresetsModel.delete(_: OpenCineCore.CameraSettingsPreset) -> ()
+func CameraSettingsPresetsModel.recall(_: OpenCineCore.CameraSettingsPreset) async -> OpenCineCore.CameraSettingsPresetRecall?
+func CameraSettingsPresetsModel.save(name: Swift.String) -> OpenCineCore.CameraSettingsPreset?
 func CamerasModel.addRoute(_: OpenCineCore.RouteDraft, to: OpenCineCore.SavedCamera) -> ()
 func CamerasModel.beginPairing() -> ()
 func CamerasModel.cancel(_: Swift.String) -> ()
@@ -462,6 +474,7 @@ func MonitorControlModel.commitRecord(from: MonitorControlModel.RecordEditor, ad
 func MonitorControlModel.edit(_: OpenCineCore.SettingKey) -> MonitorControlModel.Editor?
 func MonitorControlModel.isCurrent(_: MonitorControlModel.Editor) -> Swift.Bool
 func MonitorControlModel.liveStatusPresentation(elapsedSeconds: Swift.Int?) -> (status: MonitorPresentation.MonitorStatusPresentation, clock: () -> Swift.String?)
+func MonitorControlModel.recall(_: OpenCineCore.CameraSettingsPreset, admission: OpenCineCore.CommandDispatchAdmission?) async -> OpenCineCore.CameraSettingsPresetRecall
 func MonitorControlModel.record(start: Swift.Bool?) -> ()
 func MonitorControlModel.record(start: Swift.Bool?, admission: OpenCineCore.CommandDispatchAdmission) -> ()
 func MonitorControlModel.recordAndWait(start: Swift.Bool?) async -> OpenCineCore.CommandReceipt?
@@ -756,6 +769,8 @@ func MonitorRemoteShutterVolumeLease.end() -> ()
 func MonitorRemoteShutterVolumeLease.needsView(at: Foundation.TimeInterval) -> Swift.Bool
 func MonitorRemoteShutterVolumeLease.request(volume: Swift.Float) -> ()
 func MonitorRemoteShutterVolumeLease.wrote(at: Foundation.TimeInterval) -> ()
+func MonitorRotationHold.update(locked: Swift.Bool, current: Value?)<Value where Value : Swift.Equatable, Value : Swift.Sendable> -> Swift.Bool
+func MonitorRotationLock.update(locked: Swift.Bool) -> ()
 func MonitorScopePanelStore.beginDrag(center: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
 func MonitorScopePanelStore.beginDrag(center: MonitorPresentation.MonitorScopePoint, slot: MonitorPresentation.MonitorScopeCanvasSlot)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
 func MonitorScopePanelStore.cancelDrag(bounds: CoreFoundation.CGRect)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> ()
@@ -937,6 +952,8 @@ func ShellModel.present(_: OpenCineCore.ConnectedCamera) -> ()
 func ShellModel.setSceneActive(_: Swift.Bool) -> ()
 func ShellModel.showCameras() -> ()
 func View.monitorBrowserHandoffReturn(_: MonitorBrowserInternetHandoff<Route>)<Self, Route where Self : SwiftUI.View> -> some SwiftUI.View
+func View.monitorHoldsRotation(locked: Swift.Bool) -> some SwiftUI.View
+func View.monitorRotationLock(_: MonitorRotationLock) -> some SwiftUI.View
 func View.monitorShellSceneActivity(_: ShellModel) -> some SwiftUI.View
 func View.multiviewStageServices(_: MultiviewStageServices) -> some SwiftUI.View
 func View.multiviewStageState(_: MultiviewStageState) -> some SwiftUI.View
@@ -952,6 +969,8 @@ init AppIntegration(_: any OpenCineCore.CameraIntegration, slots: IntegrationSlo
 init AppShell(model: ShellModel, brand: ShellBrand, actions: ShellActions, safeArea: ((SwiftUI.GeometryProxy) -> SwiftUI.EdgeInsets)?, extraNearby: [MonitorPresentation.CameraListItem], pairingFlow: IntegrationPairingFlow?, coverPresentation: ShellCoverPresentation, prePage: (SwiftUI.EdgeInsets) -> PrePage?, monitor: (ShellModel.Monitor) -> Monitor, page: (ShellModel.Cover) -> Page)<Monitor, Page, PrePage where Monitor : SwiftUI.View, Page : SwiftUI.View, PrePage : SwiftUI.View>
 init AppShell(model: ShellModel, brand: ShellBrand, actions: ShellActions, safeArea: ((SwiftUI.GeometryProxy) -> SwiftUI.EdgeInsets)?, pairingFlow: IntegrationPairingFlow?, coverPresentation: ShellCoverPresentation, monitor: (ShellModel.Monitor) -> Monitor, page: (ShellModel.Cover) -> Page)<Monitor, Page, PrePage where Monitor : SwiftUI.View, Page : SwiftUI.View, PrePage == SwiftUI.EmptyView>
 init BodyRecordsV0(integration: OpenCineCore.IntegrationID, dates: BodyRecordsV0.Dates)
+init CameraSettingsPresetStore(storage: Foundation.UserDefaults, prefix: Swift.String)
+init CameraSettingsPresetsModel(store: CameraSettingsPresetStore, shell: ShellModel, admission: () -> OpenCineCore.CommandDispatchAdmission?)
 init CamerasModel(integrations: [AppIntegration], store: SavedCamerasStore, routePolicy: CamerasModel.RoutePolicy)
 init CamerasScreen(model: CamerasModel, brandName: Swift.String, nearbyNote: Swift.String, safeArea: SwiftUI.EdgeInsets, onPair: () -> Swift.Void, onMedia: () -> Swift.Void, onSettings: () -> Swift.Void, onMultiview: (() -> Swift.Void)?, onWatchFeed: (() -> Swift.Void)?, onIntegrationAction: ((Swift.String, Swift.String) -> Swift.Void)?, extraNearby: [MonitorPresentation.CameraListItem], onExtraNearby: (Swift.String) -> Swift.Void)
 init Center(_: CoreFoundation.CGPoint, in: CoreFoundation.CGRect)
@@ -1095,6 +1114,8 @@ init MonitorRect(_: CoreFoundation.CGRect)
 init MonitorRemoteShutterPresses(volume: Swift.Float)
 init MonitorRemoteShutterVolumeLease()
 init MonitorReviewOptions(duration: MonitorReviewDuration, showsFocusPoint: Swift.Bool, showsCaptureInfo: Swift.Bool)
+init MonitorRotationHold()<Value where Value : Swift.Equatable, Value : Swift.Sendable>
+init MonitorRotationLock(released: UIKit.UIInterfaceOrientationMask?)
 init MonitorScopePanelStore(options: Options?, storage: Foundation.UserDefaults, key: Swift.String)<Options where Options : MonitorPresentation.MonitorScopePanelOptions>
 init MonitorScopePoint(_: CoreFoundation.CGPoint)
 init MonitorScopeStoredPanel(store: MonitorScopePanelStore<Options>, baseSize: CoreFoundation.CGSize, canvas: CoreFoundation.CGRect, chromeClearance: SwiftUI.EdgeInsets, resizeLabel: Swift.String, onOpenOptions: ((CoreFoundation.CGRect) -> Swift.Void)?, onConfirm: () -> Swift.Void, content: () -> Content)<Options, Content where Options : MonitorPresentation.MonitorScopePanelOptions, Content : SwiftUI.View>
@@ -1176,6 +1197,7 @@ init StationNetworkBrand(appName: Swift.String, cameraFamily: Swift.String, came
 init StationSetupRoute(_: OpenCineCore.RouteKind, actionTitle: Swift.String?, enabled: Swift.Bool)
 init StoredData(read: () -> Foundation.Data?, write: (Foundation.Data) -> Swift.Void)
 let AddSetupFlow.initialSelection: Swift.String?
+let CameraSettingsPresetsModel.store: CameraSettingsPresetStore
 let CamerasModel.consent: OperatorConsent
 let CamerasModel.entries: [AppIntegration]
 let FeedIncidentSessionSource.sessionID: Swift.String
@@ -1608,6 +1630,13 @@ protocol MonitorMediaFavoritesStore<Self : AnyObject, Self : Swift.Sendable>: Se
 protocol MultiviewHost<Self : AnyObject>
 protocol ReliabilityReportingCancellable<Self : AnyObject>
 protocol ReliabilityReportingSink<Self : AnyObject, Self : Swift.Sendable>: Sendable
+static func CameraSettingsPresetCopy.failure(_: OpenCineCore.CommandStage) -> Swift.String
+static func CameraSettingsPresetCopy.result(_: OpenCineCore.CameraSettingsPresetRecall) -> Swift.String
+static func CameraSettingsPresetCopy.skip(_: OpenCineCore.CameraSettingsPresetSkip) -> Swift.String
+static func CameraSettingsPresetCopy.summary(_: OpenCineCore.CameraSettingsPreset) -> Swift.String
+static func CameraSettingsPresetCopy.title(_: OpenCineCore.SettingKey) -> Swift.String
+static func CameraSettingsPresetCopy.value(_: OpenCineCore.SettingValue) -> Swift.String
+static func CameraSettingsPresetScope.key(_: OpenCineCore.SavedCamera) -> Swift.String?
 static func CamerasMapping.action(_: Swift.String, of: Swift.String, in: CamerasModel) -> OpenCineCore.RecoveryAction?
 static func CamerasMapping.addSetupSelection(_: CamerasModel, camera: OpenCineCore.SavedCamera, chooser: AddSetupChooser) -> Swift.String?
 static func CamerasMapping.failure(_: OpenCineCore.ConnectionFailure, camera: OpenCineCore.SavedCamera?) -> MonitorPresentation.CameraConnectFailure
@@ -1662,6 +1691,7 @@ static func MonitorRemoteShutterPolicy.decision(newVolume: Swift.Float, now: Fou
 static func MonitorRemoteShutterPolicy.needsWrite(from: Swift.Float, to: Swift.Float) -> Swift.Bool
 static func MonitorRemoteShutterPolicy.shouldRun(enabled: Swift.Bool, monitorPresented: Swift.Bool, liveViewFront: Swift.Bool, applicationIsActive: Swift.Bool, audioSessionAvailable: Swift.Bool) -> Swift.Bool
 static func MonitorReviewDuration.fromSeconds(_: Swift.Int) -> MonitorReviewDuration
+static func MonitorRotationLock.mask(for: UIKit.UIInterfaceOrientation) -> UIKit.UIInterfaceOrientationMask
 static func MonitorScopePanelStore.load(storage: Foundation.UserDefaults, key: Swift.String)<Options where Options : MonitorPresentation.MonitorScopePanelOptions> -> Options
 static func MonitorScreenWakePolicy.keepAwake(enabled: Swift.Bool, sceneActive: Swift.Bool) -> Swift.Bool
 static func MonitorSettingsAccountActions.overInternetHop(identity: Swift.AnyHashable, isCurrent: () -> Swift.Bool, connect: () async throws -> Swift.Void, disconnect: () -> Swift.Void, hop: MonitorInternetHop<Route>, route: () -> Route?, internetFailure: Swift.String)<Route> -> MonitorSettingsAccountActions
@@ -1735,6 +1765,11 @@ static func StationNetworkSetupRules.phoneNetworks(_: [Swift.String]) -> [Swift.
 static func StationNetworkSetupRules.security(of: Swift.String, saved: [OpenCineCore.StationNetwork], current: Swift.Bool?) -> Swift.Bool?
 static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext, routes: [StationSetupRoute], notice: AddSetupNotice?) -> AddSetupChooser
 static func StoredData.userDefaults(_: Foundation.UserDefaults, key: Swift.String) -> StoredData
+static let CameraSettingsPresetCopy.connectFirst: Swift.String
+static let CameraSettingsPresetCopy.empty: Swift.String
+static let CameraSettingsPresetCopy.help: Swift.String
+static let CameraSettingsPresetCopy.nothingToSave: Swift.String
+static let CameraSettingsPresetCopy.title: Swift.String
 static let DiagnosticsDevice.current: DiagnosticsDevice
 static let MonitorAssistDefaults.standard: MonitorAssistDefaults
 static let MonitorAssistSelection.readsSourceCurve: Swift.Set<MonitorPresentation.MonitorAssistSelection>
@@ -1944,6 +1979,7 @@ struct MonitorPlaybackScopeFrame: Sendable
 struct MonitorRemoteShutterPresses: Equatable, Sendable
 struct MonitorRemoteShutterVolumeLease: Equatable, Sendable
 struct MonitorReviewOptions: Decodable, Encodable, Equatable, Hashable, Sendable
+struct MonitorRotationHold<Value where Value : Swift.Equatable, Value : Swift.Sendable>: Equatable, Sendable
 struct MonitorScopeStoredPanel<Options, Content where Options : MonitorPresentation.MonitorScopePanelOptions, Content : SwiftUI.View>: Sendable, View
 struct MonitorScreen<Picture, Assists, Signal, Status, Power, Capture, System, Tools, Panels, Cover, Recovery where Picture : SwiftUI.View, Assists : SwiftUI.View, Signal : SwiftUI.View, Status : SwiftUI.View, Power : SwiftUI.View, Capture : SwiftUI.View, System : SwiftUI.View, Tools : SwiftUI.View, Panels : SwiftUI.View, Cover : SwiftUI.View, Recovery : SwiftUI.View>: Sendable, View
 struct MonitorSettingsAccountActions: Sendable
@@ -2039,6 +2075,14 @@ var AppShell.body: some SwiftUI.View
 var BodyRecordsV0.dates: BodyRecordsV0.Dates
 var BodyRecordsV0.heldExtras: Swift.Set<Swift.String>
 var BodyRecordsV0.integration: OpenCineCore.IntegrationID
+var CameraSettingsPresetStore.revision: Swift.Int
+var CameraSettingsPresetsModel.canRecall: Swift.Bool
+var CameraSettingsPresetsModel.canSave: Swift.Bool
+var CameraSettingsPresetsModel.message: Swift.String?
+var CameraSettingsPresetsModel.presets: [OpenCineCore.CameraSettingsPreset]
+var CameraSettingsPresetsModel.recalling: Swift.Bool
+var CameraSettingsPresetsModel.scope: Swift.String?
+var CameraSettingsPresetsModel.suggestedName: Swift.String
 var CamerasModel.Attempt.integration: OpenCineCore.IntegrationID
 var CamerasModel.Attempt.progress: OpenCineCore.ConnectionProgress?
 var CamerasModel.Attempt.prompt: OpenCineCore.ConnectionPrompt?
@@ -2085,6 +2129,7 @@ var DiagnosticsHost.sourceRevision: Swift.String
 var DiagnosticsHost.supportEmail: Swift.String
 var DiagnosticsHost.tracksWatchdogTerminations: Swift.Bool
 var DiagnosticsHost.version: Swift.String
+var EnvironmentValues.monitorRotationLock: MonitorRotationLock?
 var FeedIncidentOrigin.overrideBuildIdentityForTests: Swift.String?
 var FeedIncidentOrigin.overrideTestSourceForTests: OpenCineMedia.FeedIncidentTestSource?
 var FeedIncidentSessionSource.isCurrent: Swift.Bool
@@ -2119,6 +2164,7 @@ var MonitorAssistSnapshot.gridThirds: Swift.Bool
 var MonitorAssistSnapshot.guideAspect: Swift.String
 var MonitorAssistSnapshot.guideFamily: Swift.String
 var MonitorAssistSnapshot.guideMask: Swift.Bool
+var MonitorAssistSnapshot.guideSafeAreas: MonitorPresentation.MonitorGuideSafeAreas?
 var MonitorAssistSnapshot.lutArmed: Swift.Bool
 var MonitorAssistSnapshot.lutExposureStops: Swift.Double?
 var MonitorAssistSnapshot.mirrorHorizontal: Swift.Bool?
@@ -2164,6 +2210,7 @@ var MonitorAssistState.gridThirds: Swift.Bool
 var MonitorAssistState.guideAspect: MonitorPresentation.MonitorGuideAspect
 var MonitorAssistState.guideFamily: MonitorPresentation.MonitorGuideFamily
 var MonitorAssistState.guideMask: Swift.Bool
+var MonitorAssistState.guideSafeAreas: MonitorPresentation.MonitorGuideSafeAreas
 var MonitorAssistState.guides: Swift.Bool
 var MonitorAssistState.hasPreparedLUT: Swift.Bool
 var MonitorAssistState.histogram: Swift.Bool
@@ -2574,6 +2621,9 @@ var MonitorReviewDuration.label: Swift.String
 var MonitorReviewOptions.duration: MonitorReviewDuration
 var MonitorReviewOptions.showsCaptureInfo: Swift.Bool
 var MonitorReviewOptions.showsFocusPoint: Swift.Bool
+var MonitorRotationHold.held: Value?
+var MonitorRotationLock.heldOrientation: UIKit.UIInterfaceOrientation?
+var MonitorRotationLock.supportedOrientations: UIKit.UIInterfaceOrientationMask
 var MonitorScopePanelStore.options: Options
 var MonitorScopePanelStore.optionsBinding: SwiftUI.Binding<Options>
 var MonitorScopePanelStore.sessionCenter: CoreFoundation.CGPoint?

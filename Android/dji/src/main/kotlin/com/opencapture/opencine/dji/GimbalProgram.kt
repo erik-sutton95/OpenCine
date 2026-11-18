@@ -1,5 +1,7 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.NativeProgramZoomCommand
+import com.opencapture.opencine.motion.NativeProgramZoomDemand
 import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.motion.GimbalPath
 import com.opencapture.opencine.motion.GimbalProgram

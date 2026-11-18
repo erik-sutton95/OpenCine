@@ -95,6 +95,8 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     public var guideFamily: MonitorGuideFamily = .film
     public var selectedGuides: Set<MonitorGuideAspect> = [.cinema]
     public var guideMask = false
+    /// Action safe and title safe lines inside each frame line (GUIDES options).
+    public var guideSafeAreas = MonitorGuideSafeAreas.standard
     public var gridThirds = true
     public var gridPhi = false
     public var gridDiagonal = false

@@ -2,6 +2,7 @@ package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.vocabulary.CamFov
 import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
 import com.opencapture.opencine.vocabulary.CameraStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -160,5 +161,31 @@ class CamFovTest {
         val at3 = StatusExtras.applyLens(lensBlob, fromFov)
         assertEquals(651, at3.zoomLens)
         assertEquals(3.0, at3.zoomFactor ?: 0.0, 0.02)
+    }
+
+    /**
+     * OpenPocketCine#645 (Swift `pocket4ProAsksEighteenAndReadsTheReportedLensBack`): the Pocket 4
+     * Pro asks up to 18× and shows whatever lens the camera reports back, so a body on older
+     * firmware that clamps the ask at 12× reads 12×.
+     */
+    @Test
+    fun pocket4ProAsksEighteenAndReadsTheReportedLensBack() {
+        val pro = CameraModel(name = "Osmo Pocket 4 Pro", family = "pocket", supportsZoom = true)
+        val stops = pro.copy(captureProfile = DjiCaptureCapabilityProfile.make(pro))
+            .activeZoomStops(CameraCommands.RES_1080, CameraCommands.SHOOT_VIDEO)
+        assertEquals(18.0, stops.last())
+        assertTrue(CameraCommands.zoomLens(CamFov.lensPosition(18.0))
+            .contentEquals(byteArrayOf(0x0A, 0x4E, 0x42, 0x0F)))
+        val lensBlob = ByteArray(16)
+        lensBlob[14] = 0x42
+        lensBlob[15] = 0x0F
+        val at18 = StatusExtras.applyLens(lensBlob, CameraStatus())
+        assertEquals(3_906, at18.zoomLens)
+        assertEquals("18×", CamFov.displayLabel(at18.zoomFactor ?: 0.0))
+        lensBlob[14] = 0x2C
+        lensBlob[15] = 0x0A
+        val clamped = StatusExtras.applyLens(lensBlob, at18)
+        assertEquals(2_604, clamped.zoomLens)
+        assertEquals("12×", CamFov.displayLabel(clamped.zoomFactor ?: 0.0))
     }
 }

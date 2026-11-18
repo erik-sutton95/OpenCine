@@ -42,7 +42,7 @@ class DjiCaptureCapabilityProfileTest {
         }
         assertEquals(listOf(1.0, 2.0, 4.0), stops("Osmo Pocket 3", listOf(1.0, 2.0)))
         assertEquals(listOf(1.0, 2.0, 4.0), stops("Osmo Pocket 4", listOf(1.0, 3.0)))
-        assertEquals(listOf(1.0, 3.0, 6.0, 12.0), stops("Osmo Pocket 4 Pro", listOf(1.0, 2.0)))
+        assertEquals(listOf(1.0, 3.0, 6.0, 12.0, 18.0), stops("Osmo Pocket 4 Pro", listOf(1.0, 2.0)))
         assertEquals(listOf(1.0, 3.0), stops("Osmo Pocket 4 Pro", listOf(1.0, 2.0), CameraCommands.SHOOT_SLOWMO))
         assertEquals(listOf(1.0, 2.0), stops("DJI Osmo camera", listOf(1.0, 2.0)))
     }

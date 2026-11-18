@@ -85,7 +85,8 @@ fun CameraModel.Companion.zoomStopsFor(name: String, family: String): List<Doubl
  */
 internal fun namedZoomStops(name: String): List<Double>? {
     val n = name.lowercase().replace(" ", "")
-    if (n.contains("pocket4p") || n.contains("4pro")) return listOf(1.0, 3.0, 6.0, 12.0)
+    // 18× since DJI's November 2026 firmware; older firmware clamps the ask to 12× and reports it.
+    if (n.contains("pocket4p") || n.contains("4pro")) return listOf(1.0, 3.0, 6.0, 12.0, 18.0)
     if (n.contains("pocket4") || n.contains("pocket3") || n.contains("muse")) return listOf(1.0, 2.0, 4.0)
     return null
 }

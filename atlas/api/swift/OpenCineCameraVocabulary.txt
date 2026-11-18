@@ -977,6 +977,7 @@ static func WhiteBalance.snappedKelvin(_: Swift.Int) -> Swift.Int
 static let CamCapShutter.emptyCapVideoDenoms: [Swift.Int]
 static let CamFov.jumps: [Swift.Double]
 static let CamFov.lens12x: Swift.UInt16
+static let CamFov.lens18x: Swift.UInt16
 static let CamFov.lens1x: Swift.UInt16
 static let CamFov.lens3x: Swift.UInt16
 static let CamFov.lens6x: Swift.UInt16
