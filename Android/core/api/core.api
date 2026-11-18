@@ -3147,6 +3147,62 @@ public final class com/opencapture/opencine/motion/MotionTarget {
 	public fun hashCode ()I
 }
 
+public final class com/opencapture/opencine/motion/NativeProgramZoom {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/NativeProgramZoom;
+	public static final field INTERVAL D
+	public final fun demand (DDDD)Lcom/opencapture/opencine/motion/NativeProgramZoomDemand;
+}
+
+public abstract interface class com/opencapture/opencine/motion/NativeProgramZoomCommand {
+}
+
+public final class com/opencapture/opencine/motion/NativeProgramZoomCommand$Position : com/opencapture/opencine/motion/NativeProgramZoomCommand {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/motion/NativeProgramZoomCommand$Position;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/NativeProgramZoomCommand$Position;DILjava/lang/Object;)Lcom/opencapture/opencine/motion/NativeProgramZoomCommand$Position;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFactor ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/NativeProgramZoomCommand$Stop : com/opencapture/opencine/motion/NativeProgramZoomCommand {
+	public static final field INSTANCE Lcom/opencapture/opencine/motion/NativeProgramZoomCommand$Stop;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/NativeProgramZoomCommand$Track : com/opencapture/opencine/motion/NativeProgramZoomCommand {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lcom/opencapture/opencine/motion/NativeProgramZoomCommand$Track;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/NativeProgramZoomCommand$Track;DILjava/lang/Object;)Lcom/opencapture/opencine/motion/NativeProgramZoomCommand$Track;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFactor ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/motion/NativeProgramZoomDemand {
+	public fun <init> (Lcom/opencapture/opencine/motion/NativeProgramZoomCommand;DLjava/lang/String;D)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/motion/NativeProgramZoomCommand;DLjava/lang/String;DILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/opencapture/opencine/motion/NativeProgramZoomCommand;
+	public final fun component2 ()D
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()D
+	public final fun copy (Lcom/opencapture/opencine/motion/NativeProgramZoomCommand;DLjava/lang/String;D)Lcom/opencapture/opencine/motion/NativeProgramZoomDemand;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/motion/NativeProgramZoomDemand;Lcom/opencapture/opencine/motion/NativeProgramZoomCommand;DLjava/lang/String;DILjava/lang/Object;)Lcom/opencapture/opencine/motion/NativeProgramZoomDemand;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCommand ()Lcom/opencapture/opencine/motion/NativeProgramZoomCommand;
+	public final fun getDestination ()D
+	public final fun getFailureReason ()Ljava/lang/String;
+	public final fun getNextChange ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class com/opencapture/opencine/motion/SnapOutcome {
 }
 
