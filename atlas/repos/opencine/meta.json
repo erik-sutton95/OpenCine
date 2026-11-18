@@ -48,6 +48,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineStreamingApple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineMotion",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -348,6 +353,8 @@
       "OpenCineGyroAppleTests",
       "OpenCineStreaming",
       "OpenCineStreamingTests",
+      "OpenCineStreamingApple",
+      "OpenCineStreamingAppleTests",
       "OpenCineMotion",
       "OpenCineMotionTests",
       "OpenCineRelay",
