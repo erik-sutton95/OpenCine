@@ -61,7 +61,7 @@
   - `public struct StreamRun: Sendable`, `init(destination: StreamDestination, format: StreamOutputFormat, now: MonotonicInstant, maxQueueBytes: Int = 4 * 1024 * 1024, maxInFlightBytes: Int = 256 * 1024)`
   - `public enum Action: Equatable, Sendable { case connect(host: String, port: UInt16), write([UInt8]), disconnect, setVideoBitrate(Int), requestKeyframe, wake(at: MonotonicInstant) }`
   - Inputs, each returning `[Action]`: `start()`, `connected(at:)`, `received(_ bytes: [UInt8], at:)`, `connectionLost(at:)`, `publish(_ packet: StreamMediaPacket, at:)`, `wrote(_ count: Int, at:)`, `tick(at:)`, `stop(at:)`
-  - `public private(set) var status: Status`, with `Status { phase: Phase; liveSince: MonotonicInstant?; sentBitrateBps: Int; videoBitrateBps: Int; droppedVideoGroups: Int; droppedAudioPackets: Int; health: Health }`, `Phase { connecting, live, reconnecting(attempt: Int), ended(End) }`, `End { stopped, refused(reason: String), gaveUp, protocolError }`, `Health { good, congested, offline }`
+  - `public private(set) var status: Status`, with `Status { phase: Phase; liveSince: MonotonicInstant?; sentBitrateBps: Int; videoBitrateBps: Int; droppedVideoGroups: Int; droppedAudioPackets: Int; health: Health }`, `Phase { connecting, live, reconnecting(attempt: Int), ended(End) }`, `End { stopped, refused(reason: String), gaveUp }` (a protocol error reconnects like a drop), `Health { good, congested, offline }`
 
 - [ ] **Step 1: Write the failing tests** (a fake server built from part 1's `SimulatedRTMPServer` answers through `received`)
 
