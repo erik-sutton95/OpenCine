@@ -14,7 +14,7 @@
 # compared with a 1e-4 tolerance, not as text.
 #
 #   factorRaw        raw               -> factor           cam_fov @0
-#   factorLens       lens              -> factor           cam_fov @14
+#   factorLens       lens              -> factor           cam_lens_state @14
 #   lensPosition     factor            -> lens             the SET unit
 #   displayLabel     factor            -> chip text
 #   displayTenths    factor            -> factor
@@ -45,7 +45,10 @@ factorLens	900	4.1475
 factorLens	1302	6.0000
 factorLens	2000	9.2166
 factorLens	2604	12.0000
-factorLens	3000	12.0000
+factorLens	3000	13.8249
+factorLens	3255	15.0000
+factorLens	3906	18.0000
+factorLens	4500	18.0000
 lensPosition	0.5000	217
 lensPosition	1.0000	217
 lensPosition	1.5000	326
@@ -56,7 +59,9 @@ lensPosition	4.0000	868
 lensPosition	6.0000	1302
 lensPosition	9.0000	1953
 lensPosition	12.0000	2604
-lensPosition	20.0000	2604
+lensPosition	15.0000	3255
+lensPosition	18.0000	3906
+lensPosition	20.0000	3906
 displayLabel	1.0000	1×
 displayTenths	1.0000	1.0000
 displayLabel	1.0400	1×
@@ -75,11 +80,21 @@ displayLabel	11.9900	12×
 displayTenths	11.9900	12.0000
 displayLabel	12.0000	12×
 displayTenths	12.0000	12.0000
+displayLabel	15.0000	15×
+displayTenths	15.0000	15.0000
+displayLabel	17.9900	18×
+displayTenths	17.9900	18.0000
+displayLabel	18.0000	18×
+displayTenths	18.0000	18.0000
+displayLabel	25.0000	18×
+displayTenths	25.0000	18.0000
 matches	1.0000	1.0000	true
 matches	2.9700	3.0000	true
 matches	2.8000	3.0000	false
 matches	3.0000	1.0000	false
 matches	12.0000	12.0000	true
+matches	18.0000	18.0000	true
+matches	12.0000	18.0000	false
 nextJump	1.0000	1.0000,2.0000,4.0000	2.0000
 previousJump	1.0000	1.0000,2.0000,4.0000	1.0000
 stopWithinCycle	1.0000	1.0000,2.0000,4.0000	1.0000
@@ -152,6 +167,10 @@ stopWithinCycle	6.0000	1.0000,3.0000,6.0000,12.0000	6.0000
 nextJump	12.0000	1.0000,3.0000,6.0000,12.0000	1.0000
 previousJump	12.0000	1.0000,3.0000,6.0000,12.0000	6.0000
 stopWithinCycle	12.0000	1.0000,3.0000,6.0000,12.0000	12.0000
+nextJump	12.0000	1.0000,3.0000,6.0000,12.0000,18.0000	18.0000
+previousJump	18.0000	1.0000,3.0000,6.0000,12.0000,18.0000	12.0000
+nextJump	18.0000	1.0000,3.0000,6.0000,12.0000,18.0000	1.0000
+stopWithinCycle	18.0000	1.0000,3.0000,6.0000,12.0000	12.0000
 nextJump	1.0000	1.0000	1.0000
 previousJump	1.0000	1.0000	1.0000
 stopWithinCycle	1.0000	1.0000	1.0000
@@ -260,37 +279,37 @@ activeZoomStops	Osmo Pocket 4	pocket	FE	2	1.0000
 activeZoomStops	Osmo Pocket 4	pocket	FE	40	1.0000
 activeZoomStops	Osmo Pocket 4	pocket	FE	-1	1.0000,2.0000,4.0000
 activeZoomStops	Osmo Pocket 4	pocket	-	1	1.0000,2.0000,4.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	0A	1	1.0000,3.0000,6.0000,12.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	0A	1	1.0000,3.0000,6.0000,12.0000,18.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	0A	0	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	0A	2	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	0A	40	1.0000,3.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	0A	-1	1.0000,3.0000,6.0000,12.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	2D	1	1.0000,3.0000,6.0000,12.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	0A	-1	1.0000,3.0000,6.0000,12.0000,18.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	2D	1	1.0000,3.0000,6.0000,12.0000,18.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	2D	0	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	2D	2	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	2D	40	1.0000,3.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	2D	-1	1.0000,3.0000,6.0000,12.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	6A	1	1.0000,3.0000,6.0000,12.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	2D	-1	1.0000,3.0000,6.0000,12.0000,18.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	6A	1	1.0000,3.0000,6.0000,12.0000,18.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	6A	0	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	6A	2	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	6A	40	1.0000,3.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	6A	-1	1.0000,3.0000,6.0000,12.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	10	1	1.0000,3.0000,6.0000,12.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	6A	-1	1.0000,3.0000,6.0000,12.0000,18.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	10	1	1.0000,3.0000,6.0000,12.0000,18.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	10	0	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	10	2	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	10	40	1.0000,3.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	10	-1	1.0000,3.0000,6.0000,12.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	6B	1	1.0000,3.0000,6.0000,12.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	10	-1	1.0000,3.0000,6.0000,12.0000,18.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	6B	1	1.0000,3.0000,6.0000,12.0000,18.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	6B	0	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	6B	2	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	6B	40	1.0000,3.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	6B	-1	1.0000,3.0000,6.0000,12.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	FE	1	1.0000,3.0000,6.0000,12.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	6B	-1	1.0000,3.0000,6.0000,12.0000,18.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	FE	1	1.0000,3.0000,6.0000,12.0000,18.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	FE	0	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	FE	2	1.0000,3.0000
 activeZoomStops	Osmo Pocket 4 Pro	pocket	FE	40	1.0000,3.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	FE	-1	1.0000,3.0000,6.0000,12.0000
-activeZoomStops	Osmo Pocket 4 Pro	pocket	-	1	1.0000,3.0000,6.0000,12.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	FE	-1	1.0000,3.0000,6.0000,12.0000,18.0000
+activeZoomStops	Osmo Pocket 4 Pro	pocket	-	1	1.0000,3.0000,6.0000,12.0000,18.0000
 activeZoomStops	Osmo Nano	nano	0A	1	1.0000
 activeZoomStops	Osmo Nano	nano	0A	0	1.0000
 activeZoomStops	Osmo Nano	nano	0A	2	1.0000

@@ -1104,6 +1104,32 @@ import Testing
         #expect(abs((s.zoomFactor ?? 0) - 1) < 0.01)
     }
 
+    /// OpenPocketCine#645: the Pocket 4 Pro asks up to 18× and shows whatever lens the camera
+    /// reports back, so a body on older firmware that clamps the ask at 12× reads 12×.
+    @Test func pocket4ProAsksEighteenAndReadsTheReportedLensBack() {
+        let pro = CameraModel.resolve(modelId: nil, name: "Osmo Pocket 4 Pro")
+        #expect(pro.activeZoomStops(resolution: nil, shootingMode: 1).last == 18)
+        #expect(Commands.setZoom(factor: 18).payload == [0x0A, 0x4E, 0x42, 0x0F])
+
+        var s = CameraStatus()
+        var lensBlob = [UInt8](repeating: 0, count: 16)
+        lensBlob[14] = 0x42
+        lensBlob[15] = 0x0F
+        #expect(
+            CameraStatusDecoder.applySubscribePush(
+                SubscribePush.pack(name: "cam_lens_state", value: lensBlob), to: &s))
+        #expect(s.zoomLens == 3906)
+        #expect(CamFov.displayLabel(factor: s.zoomFactor ?? 0) == "18×")
+
+        lensBlob[14] = 0x2C
+        lensBlob[15] = 0x0A
+        #expect(
+            CameraStatusDecoder.applySubscribePush(
+                SubscribePush.pack(name: "cam_lens_state", value: lensBlob), to: &s))
+        #expect(s.zoomLens == 2604)
+        #expect(CamFov.displayLabel(factor: s.zoomFactor ?? 0) == "12×")
+    }
+
     @Test func camFovHybridReadoutSnapsTeleAndTicksTenths() {
         #expect(CamFov.displayTenths(2.286) == 2.3)
         #expect(CamFov.displayTenths(2.9) == 2.9)

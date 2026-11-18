@@ -108,7 +108,9 @@ public final class DjiAppleZoomGesture {
             }
         }
         if !next.touched, let factor = status.zoomFactor {
-            if abs(factor - CamFov.maxFactor) < 0.15 {
+            if abs(factor - 18) < 0.15 {
+                next.stop = 18
+            } else if abs(factor - 12) < 0.15 {
                 next.stop = 12
             } else if abs(factor - 6) < 0.2 {
                 next.stop = 6

@@ -6,6 +6,8 @@ public typealias MonitorGuideFamily = MonitorPresentation.MonitorGuideFamily
 public typealias MonitorGuideAspect = MonitorPresentation.MonitorGuideAspect
 public typealias MonitorGuideMaskPolicy = MonitorPresentation.MonitorGuideMaskPolicy
 public typealias MonitorGridOption = MonitorPresentation.MonitorGridOption
+public typealias MonitorGuideSafeAreas = MonitorPresentation.MonitorGuideSafeAreas
+public typealias MonitorGuideSafeAreaKind = MonitorPresentation.MonitorGuideSafeAreaKind
 
 extension MonitorGuideAspect {
     public var ratio: CGFloat { CGFloat(aspectRatio) }
@@ -84,6 +86,13 @@ public enum MonitorGuideGeometry {
             width: width,
             height: height
         )
+    }
+
+    /// The centred `percent` share of a frame line (`MonitorGuideSafeAreas.inset`).
+    public static func safeRect(_ frame: CGRect, percent: Int) -> CGRect {
+        let rect = MonitorGuideSafeAreas.inset(
+            MonitorRect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height), percent: percent)
+        return CGRect(x: rect.x, y: rect.y, width: rect.width, height: rect.height)
     }
 }
 
@@ -168,13 +177,15 @@ public struct MonitorAspectGuideFrames: View {
     var maskEnabled = false
     let feed: CGRect
     let maskPolicy: MonitorGuideMaskPolicy
+    let safeAreas: MonitorGuideSafeAreas
 
+    /// `safeAreas` draws action safe (dashed) and title safe (dotted) inside every frame line.
     public init(
         selectedRatios: Set<MonitorGuideAspect>, maskEnabled: Bool = false, feed: CGRect,
-        maskPolicy: MonitorGuideMaskPolicy = .union
+        maskPolicy: MonitorGuideMaskPolicy = .union, safeAreas: MonitorGuideSafeAreas = .standard
     ) {
         self.selectedRatios = selectedRatios; self.maskEnabled = maskEnabled; self.feed = feed
-        self.maskPolicy = maskPolicy
+        self.maskPolicy = maskPolicy; self.safeAreas = safeAreas
     }
     public var body: some View {
         let frames =
@@ -196,6 +207,13 @@ public struct MonitorAspectGuideFrames: View {
                         context.fill(Path(envelope), with: .color(.black))
                     }
                 }
+            }
+            MonitorSnapshotRows(safeAreas.drawn) { area in
+                Path { path in
+                    for frame in frames { path.addRect(MonitorGuideGeometry.safeRect(frame.rect, percent: area.percent)) }
+                }
+                .stroke(MonitorTheme.accent.opacity(area.kind == .action ? 0.7 : 0.55),
+                    style: StrokeStyle(lineWidth: 1, dash: area.kind == .action ? [6, 4] : [2, 3]))
             }
             MonitorSnapshotRows(frames) { frame in
                 Rectangle()

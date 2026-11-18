@@ -427,6 +427,54 @@ public final class MonitorControlModel {
         if let note { onNote(note) }
     }
 
+    // MARK: Presets
+
+    /// Sends `preset`'s values one at a time, in its recall order, each against a fresh snapshot
+    /// and through the shared admission rule, waiting for each outcome before the next (a white
+    /// balance can change what its tint may take). A value the camera already reports is not sent;
+    /// one it cannot take now (unsupported, read-only, unavailable, outside its domain) is skipped.
+    /// Each value shows as pending while it is in flight; an operator edit of the same setting
+    /// still replaces it. Nothing is sent without a bound session.
+    public func recall(
+        _ preset: CameraSettingsPreset, admission: CommandDispatchAdmission? = nil
+    ) async -> CameraSettingsPresetRecall {
+        let current = binding
+        var entries: [CameraSettingsPresetRecall.Entry] = []
+        for value in preset.values {
+            entries.append(.init(value: value, outcome: await recall(value, admission: admission, binding: current)))
+        }
+        return CameraSettingsPresetRecall(name: preset.name, entries: entries)
+    }
+
+    private func recall(
+        _ value: SettingValue, admission: CommandDispatchAdmission?, binding current: Int
+    ) async -> CameraSettingsPresetRecall.Outcome {
+        guard binding == current, let session else { return .failed(.rejected(.sessionClosed)) }
+        guard let fresh = await session.currentSnapshot(), binding == current else {
+            return .failed(.rejected(.sessionClosed))
+        }
+        let key = value.key
+        if fresh.value(of: key).value == value, fresh.value(of: key).validity == .valid { return .unchanged }
+        let label = "\(CameraSettingsPresetCopy.title(key)) \(CameraSettingsPresetCopy.value(value))"
+        let operation = OperationID()
+        let command = CameraCommand(
+            .set(value), preconditions: CommandPreconditions(fresh), operation: operation)
+        if let rejection = fresh.rejection(of: command, at: .now()) {
+            if let skip = CameraSettingsPresetSkip(rejection) { return .skipped(skip) }
+            return .failed(.rejected(rejection))
+        }
+        // A scheduled operator edit of this setting would otherwise go out after the preset's.
+        if scheduled.contains(key) { cancelEdit(key) }
+        pending[key] = value
+        operations[key] = (operation, label, nil, admission)
+        onChange()
+        let receipt = await Self.finished(command, on: session, admission: admission)
+        onWriteFinished(label, receipt)
+        finish(key, operation, current, note: nil)
+        return receipt.isFinished && (receipt.stage == .confirmed || receipt.stage == .accepted)
+            ? .applied : .failed(receipt.stage)
+    }
+
     // MARK: Record
 
     /// Unknown recording, mode, access or control readiness cannot be confirmed.

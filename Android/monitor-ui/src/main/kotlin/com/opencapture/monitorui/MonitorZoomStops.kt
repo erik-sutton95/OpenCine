@@ -25,7 +25,7 @@ data class MonitorZoomTapStops(val singleTap: List<Double>, val doubleTap: List<
         }
 
         fun from(supported: List<Double>, separateDigital: Boolean): MonitorZoomTapStops =
-            from(supported, if (separateDigital) listOf(6.0, 12.0) else emptyList())
+            from(supported, if (separateDigital) listOf(6.0, 12.0, 18.0) else emptyList())
     }
 }
 

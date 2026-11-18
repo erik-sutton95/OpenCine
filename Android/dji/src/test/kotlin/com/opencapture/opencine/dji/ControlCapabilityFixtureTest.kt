@@ -23,7 +23,7 @@ import kotlinx.coroutines.test.runTest
 class ControlCapabilityFixtureTest {
     /** The facade fields of each body, in the Swift export order (Swift catalogue facts). */
     private val bodies = listOf(
-        wire("Osmo Pocket 4 Pro", "pocket", gimbal = true, captured = true, zoom = "1,3,6,12"),
+        wire("Osmo Pocket 4 Pro", "pocket", gimbal = true, captured = true, zoom = "1,3,6,12,18"),
         wire("Osmo Pocket 4", "pocket", gimbal = true, captured = true, zoom = "1,2,4"),
         wire("Osmo Pocket 3", "pocket", gimbal = true, captured = true, zoom = "1,2,4"),
         wire("Osmo Nano", "nano", captured = true),

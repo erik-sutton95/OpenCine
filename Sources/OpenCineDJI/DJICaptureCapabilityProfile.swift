@@ -20,7 +20,10 @@ public enum DJICaptureCapabilityProfile {
                 .superNight: pocket3LowLightFormats]
         }
         let restricted: Set<ShootingMode> = [.slowMo, .timeLapse, .superNight]
-        let stops: [Double] = pro ? [1, 3, 6, 12] : pocket ? [1, 2, 4] : [1]
+        // 18× is the Pocket 4 Pro's digital ceiling since DJI's November 2026 firmware. The
+        // firmware version is not known to be decodable, so older firmware is left to clamp the
+        // ask to 12×; the lens it reports back is what the readout shows.
+        let stops: [Double] = pro ? [1, 3, 6, 12, 18] : pocket ? [1, 2, 4] : [1]
         let ceilings: [VideoResolution: Double] = model.isPocket3
             ? Dictionary(uniqueKeysWithValues:
                 [UInt8(0x2D), 0x43, 0x5F, 0x6A].map { (VideoResolution(rawValue: $0), 3.0) }

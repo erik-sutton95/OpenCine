@@ -32,7 +32,10 @@
             ZStack {
                 if visible.contains(.guides) {
                     if let guideFallback { GuidesAssist.overlay(feed: feed, assist: assist, fallback: guideFallback) }
-                    else { MonitorAspectGuideFrames(selectedRatios: assist.selectedGuides, maskEnabled: assist.guideMask, feed: feed) }
+                    else {
+                        MonitorAspectGuideFrames(selectedRatios: assist.selectedGuides, maskEnabled: assist.guideMask,
+                            feed: feed, safeAreas: assist.guideSafeAreas)
+                    }
                 }
                 if visible.contains(.grid) {
                     MonitorFeedGrid(feed: feed, thirds: assist.gridThirds, phi: assist.gridPhi, diagonal: assist.gridDiagonal)

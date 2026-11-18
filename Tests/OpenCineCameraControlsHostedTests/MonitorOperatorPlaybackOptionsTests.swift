@@ -165,6 +165,9 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
         XCTAssertFalse(assist.guideMask)
         try await fixture.activate(label: "Mask outside frame")
         XCTAssertTrue(assist.guideMask)
+        XCTAssertFalse(assist.guideSafeAreas.isOn(.action))
+        try await fixture.activate(label: "Action safe")
+        XCTAssertEqual(assist.guideSafeAreas.drawn, [MonitorGuideSafeArea(kind: .action, percent: 90)])
         try await fixture.dismissOptions()
 
         try await fixture.openOptions(.desqueeze)

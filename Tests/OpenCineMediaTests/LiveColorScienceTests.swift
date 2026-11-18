@@ -488,6 +488,55 @@ import Testing
                 .label == "clip", "CineStop paints the clip shelf red")
     }
 
+    /// OpenZCine #393: N-Log's assumed white is code 234, yet an operator sets the highlight
+    /// zebra at 245 to match the camera. Above 100% the highlight threshold reaches into the
+    /// headroom between the live ceiling and code 255, the margin the waveform already draws.
+    @Test func zebraHighlightReachesThroughTheHeadroomAboveTheCeiling() {
+        let clip = 234
+        let ceiling = ScopeDisplayScale.zebraHighlightCeilingPercent
+        func signal(_ percent: Double, clipByte: Int = clip) -> Double {
+            ScopeDisplayScale.zebraHighlightSignal(
+                monitorPercent: percent, transfer: .nlog, clipByte: clipByte)
+        }
+        func percent(_ code: Double) -> Double {
+            ScopeDisplayScale.zebraHighlightPercent(code / 255, transfer: .nlog, clipByte: clip)
+        }
+        func zebra(_ percent: Double, _ transfer: MonitorTransfer = .nlog, clipByte: Int = clip)
+            -> Double
+        {
+            ScopeDisplayScale.zebraHighlightNative(
+                monitorPercent: percent, transfer: transfer, clipByte: clipByte)
+        }
+
+        #expect(abs(ceiling - (100 + 100 * 0.05 / 0.9)) < 1e-9, "code 255 on the plot's top")
+        #expect(abs(signal(ceiling) - 1) < 1e-9)
+        #expect(abs(signal(100) * 255 - 234) < 1e-9)
+        #expect(signal(200) == 1, "never past code 255")
+
+        for code in [235.0, 240, 245, 250, 255] {
+            let p = percent(code)
+            #expect(p > 100, "code \(code) is above the ceiling")
+            #expect(abs(signal(p) * 255 - code) < 1e-6, "code \(code) round-trips")
+            #expect(abs(zebra(p) * 255 - code) < 1e-6, "zebra at \(code) paints from \(code)")
+        }
+        for code in [40.0, 120, 200, 230, 234] {
+            let before = ScopeDisplayScale.monitorPercent(
+                code / 255, transfer: .nlog, clipByte: clip)
+            #expect(percent(code) == before, "code \(code) reads as before")
+        }
+        for p in [0.0, 55, 90, 100] {
+            let before = ScopeDisplayScale.signalNative(
+                monitorPercent: p, transfer: .nlog, clipByte: clip)
+            #expect(signal(p) == before)
+        }
+        #expect(zebra(100) * 255 <= 227.0001, "100% still fires on the clip shelf")
+
+        // A source whose ceiling is code 255 has no headroom: nothing changes there.
+        let shelf = Double(ScopeAnchors.clipShelfByte(clipByte: 255)) / 255
+        #expect(ScopeDisplayScale.zebraHighlightPercent(1, transfer: .rec709, clipByte: 255) == 100)
+        #expect(zebra(ceiling, .rec709, clipByte: 255) == shelf)
+    }
+
     // MARK: - False colour
 
     @Test func falseColorIREIsSixZoneVideoScale() {

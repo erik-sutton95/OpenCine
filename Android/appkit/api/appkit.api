@@ -151,6 +151,56 @@ public final class com/opencapture/opencine/appkit/CameraItem {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/opencine/appkit/CameraSettingsPresetCopy {
+	public static final field $stable I
+	public static final field CONNECT_FIRST Ljava/lang/String;
+	public static final field EMPTY Ljava/lang/String;
+	public static final field HELP Ljava/lang/String;
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/CameraSettingsPresetCopy;
+	public static final field NOTHING_TO_SAVE Ljava/lang/String;
+	public static final field TITLE Ljava/lang/String;
+	public final fun failure (Lcom/opencapture/opencine/core/CommandStage;)Ljava/lang/String;
+	public final fun result (Lcom/opencapture/opencine/core/CameraSettingsPresetRecall;)Ljava/lang/String;
+	public final fun skip (Lcom/opencapture/opencine/core/CameraSettingsPresetSkip;)Ljava/lang/String;
+	public final fun summary (Lcom/opencapture/opencine/core/CameraSettingsPreset;)Ljava/lang/String;
+	public final fun title (Lcom/opencapture/opencine/core/SettingKey;)Ljava/lang/String;
+	public final fun value (Lcom/opencapture/opencine/core/SettingValue;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/CameraSettingsPresetScope {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/opencine/appkit/CameraSettingsPresetScope;
+	public final fun key (Lcom/opencapture/opencine/core/SavedCamera;)Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/CameraSettingsPresetStore {
+	public static final field $stable I
+	public fun <init> (Landroid/content/SharedPreferences;Ljava/lang/String;)V
+	public synthetic fun <init> (Landroid/content/SharedPreferences;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun delete (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun getRevision ()I
+	public final fun presets (Ljava/lang/String;)Ljava/util/List;
+	public final fun save (Lcom/opencapture/opencine/core/CameraSettingsPreset;Ljava/lang/String;)V
+}
+
+public final class com/opencapture/opencine/appkit/CameraSettingsPresetsModel {
+	public static final field $stable I
+	public fun <init> (Lcom/opencapture/opencine/appkit/CameraSettingsPresetStore;Lcom/opencapture/opencine/appkit/ShellModel;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/appkit/CameraSettingsPresetStore;Lcom/opencapture/opencine/appkit/ShellModel;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun delete (Lcom/opencapture/opencine/core/CameraSettingsPreset;)V
+	public final fun getCanRecall ()Z
+	public final fun getCanSave ()Z
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getPresets ()Ljava/util/List;
+	public final fun getRecalling ()Z
+	public final fun getScope ()Ljava/lang/String;
+	public final fun getShell ()Lcom/opencapture/opencine/appkit/ShellModel;
+	public final fun getStore ()Lcom/opencapture/opencine/appkit/CameraSettingsPresetStore;
+	public final fun getSuggestedName ()Ljava/lang/String;
+	public final fun recall (Lcom/opencapture/opencine/core/CameraSettingsPreset;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun save (Ljava/lang/String;)Lcom/opencapture/opencine/core/CameraSettingsPreset;
+}
+
 public final class com/opencapture/opencine/appkit/CamerasMapping {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/opencapture/opencine/appkit/CamerasMapping;
@@ -592,6 +642,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun getGuideAspect ()Lcom/opencapture/monitorui/MonitorGuideAspect;
 	public final fun getGuideFamily ()Lcom/opencapture/monitorui/MonitorGuideFamily;
 	public final fun getGuideMask ()Z
+	public final fun getGuideSafeAreas ()Lcom/opencapture/monitorui/MonitorGuideSafeAreas;
 	public final fun getGuides ()Z
 	public final fun getHistoCenter ()Lcom/opencapture/monitorui/MonitorScopeStoredCenter;
 	public final fun getHistoCenterPortrait ()Lcom/opencapture/monitorui/MonitorScopeStoredCenter;
@@ -685,6 +736,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun setGuideAspect (Lcom/opencapture/monitorui/MonitorGuideAspect;)V
 	public final fun setGuideFamily (Lcom/opencapture/monitorui/MonitorGuideFamily;)V
 	public final fun setGuideMask (Z)V
+	public final fun setGuideSafeAreas (Lcom/opencapture/monitorui/MonitorGuideSafeAreas;)V
 	public final fun setHistoCenter (Lcom/opencapture/monitorui/MonitorScopeStoredCenter;)V
 	public final fun setHistoCenterPortrait (Lcom/opencapture/monitorui/MonitorScopeStoredCenter;)V
 	public final fun setHistoScale (D)V
@@ -761,6 +813,7 @@ public final class com/opencapture/opencine/appkit/MonitorAssistState {
 	public final fun updateDesqueezeFactor (D)V
 	public final fun updateGuideFamily (Lcom/opencapture/monitorui/MonitorGuideFamily;)V
 	public final fun updateGuideMask (Z)V
+	public final fun updateGuideSafeAreas (Lcom/opencapture/monitorui/MonitorGuideSafeAreas;)V
 	public final fun updateLutExposure (D)V
 	public final fun updateZebraUnit (Lcom/opencapture/monitorui/MonitorZebraUnit;)V
 }
@@ -1022,6 +1075,8 @@ public final class com/opencapture/opencine/appkit/MonitorControlModel {
 	public final fun getTimecodeReading ()Lcom/opencapture/opencine/core/ObservedValue;
 	public final fun isCurrent (Lcom/opencapture/opencine/appkit/MonitorControlModel$Editor;)Z
 	public final fun isRecording ()Ljava/lang/Boolean;
+	public final fun recall (Lcom/opencapture/opencine/core/CameraSettingsPreset;Lcom/opencapture/opencine/core/CommandDispatchAdmission;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun recall$default (Lcom/opencapture/opencine/appkit/MonitorControlModel;Lcom/opencapture/opencine/core/CameraSettingsPreset;Lcom/opencapture/opencine/core/CommandDispatchAdmission;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun record (Ljava/lang/Boolean;)V
 	public final fun record (Ljava/lang/Boolean;Lcom/opencapture/opencine/core/CommandDispatchAdmission;)V
 	public final fun recordAndWait (Ljava/lang/Boolean;Lcom/opencapture/opencine/core/CommandDispatchAdmission;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -4058,6 +4113,17 @@ public final class com/opencapture/opencine/appkit/MonitorReviewOptions {
 	public final fun getShowsFocusPoint ()Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkit/MonitorRotationHold {
+	public static final field $stable I
+	public fun <init> ()V
+	public final fun getHeld ()Ljava/lang/Object;
+	public final fun update (ZLjava/lang/Object;)Z
+}
+
+public final class com/opencapture/opencine/appkit/MonitorRotationLockEffectKt {
+	public static final fun MonitorRotationLockEffect (ZLandroidx/compose/runtime/Composer;I)V
 }
 
 public final class com/opencapture/opencine/appkit/MonitorScreenKt {
