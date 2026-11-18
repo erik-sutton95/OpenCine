@@ -315,6 +315,7 @@ var HeadTrackHost.headTrackAxisPose: HeadTrackAxisPose?
 var HeadTrackHost.headTrackCanDrive: Swift.Bool
 var HeadTrackHost.headTrackControlTitle: Swift.String
 var HeadTrackHost.headTrackImuReadout: Swift.String
+var HeadTrackHost.headTrackStop: OpenCineMotion.HeadTrackStop?
 var HeadTrackHost.headTrackingEnabled: Swift.Bool
 var HeadTrackHost.isLiveVideoStale: Swift.Bool
 var HeadphoneMotionBridge.receivedHeadSampleAt: Foundation.TimeInterval?

@@ -370,3 +370,14 @@ point on every camera; the 50-byte wire folds them back to ±180°. Three real 4
 (`Fixtures/dji-attitude-pocket3-49.tsv`) confirm the offsets: the quaternion sits at the 50-byte
 `@24...@39`, bytes 40-48 are zero and unread. Its world tilt reads about 2° below the display
 pitch on that capture. Sending continuous targets is untested on hardware.
+
+Head tracking drives the gimbal in Follow and Tilt locked only (`HeadTrackStop.drivenModes`). In
+FPV the first absolute targets jumped the gimbal 73 to 124 degrees (OpenPocketCine#638);
+Direction Lock has never been checked with absolute targets. `DjiAppleGimbalControl.headTrackStop`
+reports that mode, or a live pose past `GimbalReach`, as a lasting stop: no setup frames go out
+and the shared bridge ends tracking with the note instead of re-arming every sample. The mode
+comes from the 50-byte push. The 49-byte push has no known mode field (the three captured frames
+all read `0x80` at `@6`, Follow), so on current Pocket 3 firmware a mode changed on the camera
+itself is not seen and the app's last choice stands. Each run journals its sent targets
+(`head-track: target`, with the wire native pitch, mode, mode source, layout and model): the first,
+every one on another side of the ±180° wrap, and one per half second.

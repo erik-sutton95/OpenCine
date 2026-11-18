@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 import OpenCineMotion
 
 extension HeadTrack {
@@ -27,6 +28,27 @@ extension GimbalWaypoint {
 
 extension HeadTrackNative {
     public init() { self.init(bounds: HeadTrack.Reach.bounds) }
+}
+
+extension HeadTrackStop {
+    /// Gimbal modes head tracking drives. OpenPocketCine#638: in FPV the first absolute targets
+    /// jumped the gimbal 73 to 124 degrees while Follow tracked. Direction Lock has never been
+    /// checked with absolute targets, so it is refused too.
+    public static let drivenModes: Set<GimbalMode> = [.follow, .tiltLocked]
+
+    /// Why head tracking cannot drive the gimbal in `mode`, or `nil` when it can.
+    public static func gimbalMode(_ mode: GimbalMode) -> HeadTrackStop? {
+        guard !drivenModes.contains(mode) else { return nil }
+        return HeadTrackStop(
+            reason: "mode=\(mode.label)",
+            note:
+                "Head tracking is off in \(mode.label). Switch to \(GimbalMode.follow.label) or \(GimbalMode.tiltLocked.label), then calibrate"
+        )
+    }
+
+    /// The live pose is outside the reach, so every target would be refused (OpenPocketCine#638).
+    public static let pastReach = HeadTrackStop(
+        reason: "pastReach", note: "Gimbal past its head tracking range. Recenter, then calibrate")
 }
 
 // The shared move engine bound to the Pocket gimbal.
