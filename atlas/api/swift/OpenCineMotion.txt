@@ -115,6 +115,7 @@ init HeadTrack.Reference(yaw: Swift.Double, pitch: Swift.Double, yawRate: Swift.
 init HeadTrack.Sample(t: Swift.Double, yaw: Swift.Double, pitch: Swift.Double)
 init HeadTrackNative(bounds: MotionBounds)
 init HeadTrackNativeSampleGate()
+init HeadTrackStop(reason: Swift.String, note: Swift.String)
 init LevelReading()
 init MonitorLayoutCapabilities(_: OpenCineCore.CapabilitySnapshot, motion: MotionCapabilities?, base: OpenCineCore.MonitorLayoutCapabilities)
 init MotionBounds(pan: Swift.ClosedRange<Swift.Double>, tilt: Swift.ClosedRange<Swift.Double>)
@@ -221,6 +222,7 @@ struct HeadTrack.Reference: Equatable, Sendable
 struct HeadTrack.Sample: Equatable, Sendable
 struct HeadTrackNative: Equatable, Sendable
 struct HeadTrackNativeSampleGate: Equatable, Sendable
+struct HeadTrackStop: Equatable, Sendable
 struct LevelReading: Equatable, Sendable
 struct MotionBounds: Equatable, Sendable
 struct MotionCapabilities: Equatable, Sendable
@@ -301,6 +303,8 @@ var HeadTrack.Sample.yaw: Swift.Double
 var HeadTrackNative.isCentered: Swift.Bool
 var HeadTrackNative.lastTarget: GimbalWaypoint?
 var HeadTrackNative.origin: GimbalWaypoint?
+var HeadTrackStop.note: Swift.String
+var HeadTrackStop.reason: Swift.String
 var MotionBounds.gapMidDeg: Swift.Double
 var MotionBounds.pan: Swift.ClosedRange<Swift.Double>
 var MotionBounds.tilt: Swift.ClosedRange<Swift.Double>
