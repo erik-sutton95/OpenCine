@@ -475,7 +475,8 @@ init MonitorZebraMenu(units: [Unit], unit: SwiftUI.Binding<Unit>, title: (Unit) 
 init MonitorZebraNumberEntry(value: SwiftUI.Binding<Swift.Int>, maximum: Swift.Int, identifier: Swift.String)
 init MonitorZebraNumberZone(enabled: SwiftUI.Binding<Swift.Bool>, entry: MonitorZebraNumberEntry?, colors: [MonitorSettingsColorDot<Paint>], paint: SwiftUI.Binding<Paint>)<Paint where Paint : Swift.Hashable>
 init MonitorZebraZone(enabled: SwiftUI.Binding<Swift.Bool>, threshold: SwiftUI.Binding<Swift.Double>, displayValue: Swift.Int, colors: [MonitorSettingsColorDot<Paint>], paint: SwiftUI.Binding<Paint>)<Paint where Paint : Swift.Hashable>
-init MonitorZoomDial(viewport: CoreFoundation.CGSize, safeArea: SwiftUI.EdgeInsets, attachment: MonitorPresentation.MonitorZoomAttachment, bottomClearance: CoreGraphics.CGFloat, isPresented: Swift.Bool, scale: MonitorPresentation.MonitorZoomScale, marks: [Swift.Double], opticalStops: [Swift.Double], caption: Swift.String, value: SwiftUI.Binding<Swift.Double>, label: (Swift.Double) -> Swift.String, onEditing: (Swift.Bool) -> Swift.Void, onClose: () -> Swift.Void, haptics: Swift.Bool)
+init MonitorZoomDial(viewport: CoreFoundation.CGSize, safeArea: SwiftUI.EdgeInsets, attachment: MonitorPresentation.MonitorZoomAttachment, bottomClearance: CoreGraphics.CGFloat, isPresented: Swift.Bool, scale: MonitorPresentation.MonitorZoomScale, marks: [Swift.Double], opticalStops: [Swift.Double], caption: Swift.String, value: SwiftUI.Binding<Swift.Double>, label: (Swift.Double) -> Swift.String, onEditing: (Swift.Bool) -> Swift.Void, onClose: () -> Swift.Void, haptics: Swift.Bool, presets: MonitorZoomPresetControls?)
+init MonitorZoomPresetControls(presets: MonitorPresentation.MonitorZoomPresets, onSelect: (Swift.Int) -> Swift.Void, onSave: (Swift.Int) -> Swift.Void, onRamp: (Swift.Double) -> Swift.Void)
 init MultiviewStageCanvas(slots: Swift.Int, layout: MonitorPresentation.MultiviewPresentationLayout, geometry: MultiviewStageGeometry, content: (Swift.Int) -> Content)<Content where Content : SwiftUI.View>
 init MultiviewStageGeometry()
 init PairCameraPage(presentation: MonitorPresentation.CameraPairingPresentation, safeArea: SwiftUI.EdgeInsets, onSelect: (Swift.String) -> Swift.Void, onPrimary: () -> Swift.Void, onBack: () -> Swift.Void, onDiagnostics: () -> Swift.Void, onReportProblem: () -> Swift.Void, onWatchFeed: (() -> Swift.Void)?)<Extra where Extra == SwiftUI.EmptyView>
@@ -1128,6 +1129,7 @@ struct MonitorZebraNumberEntry
 struct MonitorZebraNumberZone<Paint where Paint : Swift.Hashable>
 struct MonitorZebraZone<Paint where Paint : Swift.Hashable>
 struct MonitorZoomDial: Sendable, View
+struct MonitorZoomPresetControls
 struct MultiviewStageCanvas<Content where Content : SwiftUI.View>: Sendable, UIViewControllerRepresentable, View
 struct PairCameraPage<Extra where Extra : SwiftUI.View>: Sendable, View
 typealias MonitorAssistTool = MonitorPresentation.MonitorAssistTool
@@ -1513,6 +1515,10 @@ var MonitorWindowGeometry.topControlInset: CoreGraphics.CGFloat
 var MonitorWindowGeometry.validSize: CoreFoundation.CGSize?
 var MonitorZebraMenu.body: some SwiftUI.View
 var MonitorZoomDial.body: some SwiftUI.View
+var MonitorZoomPresetControls.onRamp: (Swift.Double) -> Swift.Void
+var MonitorZoomPresetControls.onSave: (Swift.Int) -> Swift.Void
+var MonitorZoomPresetControls.onSelect: (Swift.Int) -> Swift.Void
+var MonitorZoomPresetControls.presets: MonitorPresentation.MonitorZoomPresets
 var PairCameraPage.body: some SwiftUI.View
 var PairCameraPage.extra: Extra
 var PairCameraPage.onBack: () -> Swift.Void

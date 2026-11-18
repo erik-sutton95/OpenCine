@@ -413,6 +413,9 @@ func MonitorZoomDrag.end() -> Swift.Bool
 func MonitorZoomGeometry.angle(x: Swift.Double, y: Swift.Double) -> Swift.Double
 func MonitorZoomGeometry.canStartZoom(x: Swift.Double, y: Swift.Double) -> Swift.Bool
 func MonitorZoomGeometry.contains(x: Swift.Double, y: Swift.Double) -> Swift.Bool
+func MonitorZoomPresets.save(_: Swift.Double, at: Swift.Int) -> ()
+func MonitorZoomPresets.setRamp(_: Swift.Double) -> ()
+func MonitorZoomPresets.target(at: Swift.Int, maximum: Swift.Double) -> Swift.Double?
 func MonitorZoomRadialGesture.angleDelta(x: Swift.Double, y: Swift.Double) -> Swift.Double?
 func MonitorZoomRadialGesture.rebase(x: Swift.Double, y: Swift.Double) -> ()
 func MonitorZoomScale.dialLabel(_: Swift.Double) -> Swift.String
@@ -532,6 +535,8 @@ init MonitorWaveformOptions(from: any Swift.Decoder) throws
 init MonitorWaveformOptions(mode: MonitorWaveformMode, brightness: Swift.Int, guides: MonitorScopeGuides, scale: Swift.Double, hasCustomScale: Swift.Bool, storedCenter: MonitorScopeStoredCenter?, storedCenterPortrait: MonitorScopeStoredCenter?)
 init MonitorZoomDrag()
 init MonitorZoomGeometry(width: Swift.Double, height: Swift.Double, trailingInset: Swift.Double, bottomInset: Swift.Double, attachment: MonitorZoomAttachment)
+init MonitorZoomPresets(slots: [Swift.Double?], rampSeconds: Swift.Double)
+init MonitorZoomPresets(stored: Swift.String?)
 init MonitorZoomRadialGesture(geometry: MonitorZoomGeometry, startX: Swift.Double, startY: Swift.Double)
 init MonitorZoomScale(minimum: Swift.Double, maximum: Swift.Double)
 init MonitorZoomTapStops(supported: [Swift.Double], extended: [Swift.Double])
@@ -976,6 +981,7 @@ static func MonitorWaveformOptions.clampedBrightness(_: Swift.Int) -> Swift.Int
 static func MonitorWaveformOptions.clampedScale(_: Swift.Double) -> Swift.Double
 static func MonitorZoomCaption.isDigital(factor: Swift.Double, opticalStops: [Swift.Double]) -> Swift.Bool
 static func MonitorZoomCaption.label(factor: Swift.Double, opticalStops: [Swift.Double]) -> Swift.String
+static func MonitorZoomPresets.rampLabel(_: Swift.Double) -> Swift.String
 static func MonitorZoomScale.minorTickPositions() -> [Swift.Double]
 static func StartupContentLayout.fit(viewportWidth: Swift.Double, viewportHeight: Swift.Double, safeArea: MonitorEdgeInsets) -> StartupContentLayout
 static func StartupDiscoveryPrimaryAction.resolve(hasSelectedCamera: Swift.Bool, isBusy: Swift.Bool, isKnownCamera: Swift.Bool) -> StartupDiscoveryPrimaryAction
@@ -1194,6 +1200,8 @@ static let MonitorWaveformOptions.default: MonitorWaveformOptions
 static let MonitorWaveformOptions.defaultBrightness: Swift.Int
 static let MonitorWaveformOptions.defaultScale: Swift.Double
 static let MonitorWaveformOptions.scaleRange: Swift.ClosedRange<Swift.Double>
+static let MonitorZoomPresets.rampChoices: [Swift.Double]
+static let MonitorZoomPresets.slotCount: Swift.Int
 static let MonitorZoomScale.angularSpan: Swift.Double
 static let MonitorZoomScale.minorTickCount: Swift.Int
 static let MonitorZoomScale.tickIncrement: Swift.Double
@@ -1326,6 +1334,7 @@ struct MonitorWatcherTapSource: Equatable, Hashable, Sendable
 struct MonitorWaveformOptions: Decodable, Encodable, Equatable, MonitorScopePanelOptions, Sendable
 struct MonitorZoomDrag: Equatable, Sendable
 struct MonitorZoomGeometry: Equatable, Sendable
+struct MonitorZoomPresets: Equatable, Sendable
 struct MonitorZoomRadialGesture
 struct MonitorZoomScale: Equatable, Sendable
 struct MonitorZoomTapStops: Equatable, Sendable
@@ -1633,6 +1642,9 @@ var MonitorWaveformOptions.storedCenterPortrait: MonitorScopeStoredCenter?
 var MonitorZoomDrag.anchor: Swift.Double?
 var MonitorZoomGeometry.height: Swift.Double
 var MonitorZoomGeometry.width: Swift.Double
+var MonitorZoomPresets.rampSeconds: Swift.Double
+var MonitorZoomPresets.slots: [Swift.Double?]
+var MonitorZoomPresets.stored: Swift.String
 var ReviewLaunch.commonControls: Swift.Bool
 var ReviewLaunch.connected: Swift.Bool
 var ReviewLaunch.environment: [Swift.String : Swift.String]

@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorZoomCaption
+import com.opencapture.monitorui.MonitorZoomPresetControls
+import com.opencapture.monitorui.MonitorZoomPresets
 import com.opencapture.monitorui.monitorReadoutShadow
 import com.opencapture.opencine.vocabulary.CamFov
 import com.opencapture.opencine.vocabulary.CameraStatus
@@ -91,17 +93,49 @@ fun LiveZoomChip(
     opticalStops: List<Double> = listOf(1.0),
     onDigitalCycle: (() -> Unit)? = null,
     dialFactor: Double = factor,
+    presets: MonitorZoomPresets? = null,
+    onPresetsChange: (MonitorZoomPresets) -> Unit = {},
 ) {
     val haptics = LocalOperatorHaptics.current
     val interaction = remember { MutableInteractionSource() }
     var dialOpen by remember { mutableStateOf(false) }
     var dialBase by remember { mutableDoubleStateOf(factor) }
+    val scope = rememberCoroutineScope()
+    var ramp by remember { mutableStateOf<Job?>(null) }
+    var driven by remember { mutableStateOf<Double?>(null) }
+    val current by rememberUpdatedState(dialFactor)
     if (dialOpen && !locked && onDial != null) {
         val end by rememberUpdatedState(onDialEnd)
-        DisposableEffect(Unit) { onDispose { end() } }
+        val drag by rememberUpdatedState(onDial)
+        DisposableEffect(Unit) { onDispose { ramp?.cancel(); ramp = null; end() } }
         MonitorZoomDial(dialBase, maximum,
-            onChange = { onDial(it / dialBase.coerceAtLeast(1.0)) },
-            onDismiss = { dialOpen = false }, opticalStops = opticalStops)
+            // Turning the dial overrides a running preset ramp where it is.
+            onChange = { ramp?.cancel(); ramp = null; onDial(it / dialBase.coerceAtLeast(1.0)) },
+            onDismiss = { dialOpen = false }, opticalStops = opticalStops,
+            presets = presets?.let { saved ->
+                MonitorZoomPresetControls(saved,
+                    onSelect = { index ->
+                        saved.target(index, maximum)?.let { target ->
+                            ramp?.cancel()
+                            val plan = MonitorZoomPresetRamp(current, target, saved.rampSeconds)
+                            ramp = scope.launch {
+                                // The dial's own continuous edit, sampled from Motion Control's ramp.
+                                val start = System.nanoTime()
+                                while (true) {
+                                    val elapsed = (System.nanoTime() - start) / 1e9
+                                    val next = plan.factor(elapsed)
+                                    driven = next
+                                    drag(next / dialBase.coerceAtLeast(1.0))
+                                    if (plan.isFinished(elapsed)) break
+                                    delay(MonitorZoomPresetRamp.INTERVAL_MS)
+                                }
+                            }
+                        }
+                    },
+                    onSave = { index -> onPresetsChange(saved.save(current, index)) },
+                    onRamp = { seconds -> onPresetsChange(saved.withRamp(seconds)) })
+            },
+            driven = driven)
     }
     val orientation = LocalConfiguration.current.orientation
     LaunchedEffect(locked, orientation) { dialOpen = false }
@@ -120,7 +154,7 @@ fun LiveZoomChip(
                 onClick = { haptics.selection(); onCycle() },
                 onDoubleClick = onDigitalCycle?.let { action -> { haptics.selection(); action() } },
                 onLongClick = if (!dimmed && onDial != null && maximum > 1.0) {
-                    { haptics.longPress(); dialBase = dialFactor; dialOpen = true }
+                    { haptics.longPress(); dialBase = dialFactor; driven = null; dialOpen = true }
                 } else null)
             .semantics {
                 val crop = if (digital) ", digital crop" else ""

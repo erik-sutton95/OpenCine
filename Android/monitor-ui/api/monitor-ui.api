@@ -4983,7 +4983,7 @@ public final class com/opencapture/monitorui/MonitorZoomCaption {
 }
 
 public final class com/opencapture/monitorui/MonitorZoomDiscKt {
-	public static final fun MonitorZoomDisc (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function1;FLcom/opencapture/monitorui/MonitorZoomAttachment;FLkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorZoomDisc (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function1;FLcom/opencapture/monitorui/MonitorZoomAttachment;FLkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/opencapture/monitorui/MonitorZoomGeometry {
@@ -5012,6 +5012,39 @@ public final class com/opencapture/monitorui/MonitorZoomGeometry {
 public final class com/opencapture/monitorui/MonitorZoomGeometry$Companion {
 	public final fun layout (FFFFLcom/opencapture/monitorui/MonitorZoomAttachment;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
 	public static synthetic fun layout$default (Lcom/opencapture/monitorui/MonitorZoomGeometry$Companion;FFFFLcom/opencapture/monitorui/MonitorZoomAttachment;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
+}
+
+public final class com/opencapture/monitorui/MonitorZoomPresetControls {
+	public static final field $stable I
+	public fun <init> (Lcom/opencapture/monitorui/MonitorZoomPresets;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public final fun getOnRamp ()Lkotlin/jvm/functions/Function1;
+	public final fun getOnSave ()Lkotlin/jvm/functions/Function1;
+	public final fun getOnSelect ()Lkotlin/jvm/functions/Function1;
+	public final fun getPresets ()Lcom/opencapture/monitorui/MonitorZoomPresets;
+}
+
+public final class com/opencapture/monitorui/MonitorZoomPresets {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomPresets$Companion;
+	public static final field SLOT_COUNT I
+	public fun <init> ()V
+	public fun <init> (Ljava/util/List;D)V
+	public synthetic fun <init> (Ljava/util/List;DILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRampSeconds ()D
+	public final fun getSlots ()Ljava/util/List;
+	public final fun getStored ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun save (DI)Lcom/opencapture/monitorui/MonitorZoomPresets;
+	public final fun target (ID)Ljava/lang/Double;
+	public fun toString ()Ljava/lang/String;
+	public final fun withRamp (D)Lcom/opencapture/monitorui/MonitorZoomPresets;
+}
+
+public final class com/opencapture/monitorui/MonitorZoomPresets$Companion {
+	public final fun fromStored (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorZoomPresets;
+	public final fun getRAMP_CHOICES ()Ljava/util/List;
+	public final fun rampLabel (D)Ljava/lang/String;
 }
 
 public final class com/opencapture/monitorui/MonitorZoomRadialGesture {

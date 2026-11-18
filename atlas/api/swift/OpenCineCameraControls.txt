@@ -116,6 +116,7 @@ class LiveFaceDetector: Sendable
 class MonitorCaptureOperatorPreferences: Sendable
 class MonitorLUTLooks: MonitorLookProvider, Observable, Sendable
 class MonitorOperatorInteraction: Observable, Sendable
+class MonitorZoomPresetStore: Sendable
 enum AudioAssist
 enum CaptureAudioCommitResult: Equatable, Hashable, Sendable
 enum CaptureAudioControl: Equatable, Hashable, RawRepresentable, Sendable
@@ -340,6 +341,8 @@ func MonitorPlaybackPresentationSource.makeOwner() -> OpenCineAppKit.MonitorOper
 func MonitorPlaybackPresentationSource.operations(owner: OpenCineAppKit.MonitorOperatorMediaModel<Self.Payload, Self.Look>) -> OpenCineAppKit.MonitorOperatorPlaybackOperations<Self.Payload, Self.Look>
 func MonitorPlaybackPresentationSource.values(record: OpenCineAppKit.MonitorMediaRecord<Self.Payload>, owner: OpenCineAppKit.MonitorOperatorMediaModel<Self.Payload, Self.Look>) -> OpenCineMedia.MonitorPlaybackSourceValues
 func MonitorZebraPaint.swatch(_: Palette.Type)<Palette where Palette : LiveChromePalette> -> SwiftUI.Color
+func MonitorZoomPresetRamp.factor(at: Foundation.TimeInterval) -> Swift.Double
+func MonitorZoomPresetRamp.isFinished(at: Foundation.TimeInterval) -> Swift.Bool
 func MotionControlInteraction.allowsInteraction(at: Foundation.TimeInterval) -> Swift.Bool
 func MotionControlInteraction.callAsFunction() -> Swift.Bool
 func OperatorHaptics.confirm() -> ()
@@ -587,6 +590,8 @@ init MonitorWatcherChrome(value: MonitorPresentation.MonitorWatcherPresentation,
 init MonitorWatcherControlKey(title: SwiftUI.LocalizedStringKey, accented: Swift.Bool, holderName: Swift.String?, prominent: Swift.Bool, palette: Palette.Type, action: () -> Swift.Void)<Palette where Palette : LiveChromePalette>
 init MonitorWatcherLiveBrand(zoomLabelCeiling: ([Swift.Int]) -> Swift.Double?)
 init MonitorWatcherToolStrip(assist: OpenCineAppKit.MonitorAssistState<Looks>, palette: Palette.Type, haptics: OperatorHaptics, isLocked: Swift.Bool, showsAudio: Swift.Bool)<Looks, Palette where Looks : OpenCineAppKit.MonitorLookProvider, Palette : LiveChromePalette>
+init MonitorZoomPresetRamp(from: Swift.Double, to: Swift.Double, duration: Foundation.TimeInterval)
+init MonitorZoomPresetStore(storage: Foundation.UserDefaults, prefix: Swift.String)
 init MotionControlInteraction(isDragging: Swift.Bool, blockedUntil: Foundation.TimeInterval)
 init NDLongPressMenu(stores: AssistPanelStores, haptics: OperatorHaptics, compact: Swift.Bool)
 init NDMeterChip(reading: OpenCineMedia.MonitorNDFilterSuggestion?, notation: OpenCineMedia.MonitorNDFilterNotation)
@@ -990,6 +995,9 @@ let MonitorOperatorZoomPresentation.maximum: Swift.Double
 let MonitorOperatorZoomPresentation.opticalStops: [Swift.Double]
 let MonitorOperatorZoomPresentation.readOrigin: () -> Swift.Double
 let MonitorOperatorZoomPresentation.readValue: () -> Swift.Double
+let MonitorZoomPresetRamp.duration: Foundation.TimeInterval
+let MonitorZoomPresetRamp.from: Swift.Double
+let MonitorZoomPresetRamp.to: Swift.Double
 let NDMovablePanel.bounds: CoreFoundation.CGRect
 let NDMovablePanel.defaultCenter: CoreFoundation.CGPoint
 let NDMovablePanel.size: CoreFoundation.CGSize
@@ -1401,6 +1409,7 @@ static let MonitorSettingsCopy.virtualJoystickResponse: Swift.String
 static let MonitorSettingsCopy.virtualJoystickSize: Swift.String
 static let MonitorSettingsCopy.watcherPasscode: Swift.String
 static let MonitorSettingsDisplaySource.commonSections: Swift.Set<OpenCineAppKit.MonitorDisplayChrome.Section>
+static let MonitorZoomPresetRamp.interval: Foundation.TimeInterval
 static let NDAssist.accessibilityTitle: Swift.String
 static let NDAssist.baseSize: CoreFoundation.CGSize
 static let NDAssist.defaultNotation: OpenCineMedia.MonitorNDFilterNotation
@@ -1731,6 +1740,7 @@ struct MonitorWatcherChrome<Palette, Tools where Palette : LiveChromePalette, To
 struct MonitorWatcherControlKey<Palette where Palette : LiveChromePalette>: Sendable, View
 struct MonitorWatcherLiveBrand: Sendable
 struct MonitorWatcherToolStrip<Looks, Palette where Looks : OpenCineAppKit.MonitorLookProvider, Palette : LiveChromePalette>: Sendable, View
+struct MonitorZoomPresetRamp: Equatable, Sendable
 struct MotionControlInteraction: Equatable, Sendable
 struct NDLongPressMenu: Sendable, View
 struct NDMeterChip: Sendable, View
@@ -2078,6 +2088,7 @@ var LiveChromeHost.zoomCeiling: Swift.Double
 var LiveChromeHost.zoomCycleOrigin: Swift.Double
 var LiveChromeHost.zoomFactor: Swift.Double
 var LiveChromeHost.zoomPinchPreview: Swift.Double?
+var LiveChromeHost.zoomPresetStore: MonitorZoomPresetStore
 var LiveChromeHost.zoomStops: [Swift.Double]
 var LiveChromeHost.zoomTapStops: MonitorPresentation.MonitorZoomTapStops
 var LiveCloseButton.body: some SwiftUI.View
@@ -2270,6 +2281,7 @@ var MonitorWatcherLiveHost.watcherLookProfile: OpenCineCameraVocabulary.CameraLU
 var MonitorWatcherSource.colorMode: OpenCineCameraVocabulary.ColorMode?
 var MonitorWatcherSource.transfer: OpenCineMedia.MonitorTransfer?
 var MonitorWatcherToolStrip.body: some SwiftUI.View
+var MonitorZoomPresetStore.presets: MonitorPresentation.MonitorZoomPresets
 var MotionControlInteraction.blockedUntil: Foundation.TimeInterval
 var MotionControlInteraction.isDragging: Swift.Bool
 var NDLongPressMenu.body: some SwiftUI.View
