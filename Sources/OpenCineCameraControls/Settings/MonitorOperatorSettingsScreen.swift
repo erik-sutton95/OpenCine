@@ -38,7 +38,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     private var cameraPresets: CameraSettingsPresetsModel?
 
     /// The shared scene's form: settings over the shell, the common preference stores and the
-    /// media library. A passed `configuration` is used as given.
+    /// media library. A passed `configuration` is used as given, except that `cameraPresets` fills
+    /// in its camera presets card when it has none.
     public init(shell: ShellModel, brand: String, actions: ShellActions? = nil,
         preferences: MonitorOperatorPreferences, display: MonitorDisplayPreferences,
         assist: MonitorAssistState<Looks>, library: MonitorMediaLibraryModel<Payload>?,
@@ -85,7 +86,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     public var body: some View {
         let _ = preferenceRevision
         Group {
-            if let configuration { page(configuration, safeArea: coverSafeArea ?? configuration.safeArea) }
+            if let configuration {
+                // A passed configuration keeps its own presets card, else takes this form's.
+                page(configuration.cameraPresets == nil ? configuration.withCameraPresets(cameraPresets) : configuration,
+                    safeArea: coverSafeArea ?? configuration.safeArea)
+            }
             else {
                 GeometryReader { proxy in
                     let safeArea = coverSafeArea ?? OperatorPanelMetrics.resolvedDeviceSafeArea(
