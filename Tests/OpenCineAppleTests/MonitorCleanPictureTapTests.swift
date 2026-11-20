@@ -1,6 +1,8 @@
 #if canImport(CoreImage) && canImport(CoreVideo) && canImport(Metal)
+import CoreGraphics
 import CoreVideo
 import Foundation
+import VideoToolbox
 import OpenCineMedia
 import Testing
 
@@ -83,6 +85,20 @@ import Testing
         #expect(CVPixelBufferGetWidth(graded) == Self.width && CVPixelBufferGetHeight(graded) == Self.height)
         let red = Self.pixel(plain, x: 10, y: 45)
         #expect(red.r > 200 && red.g < 40 && red.b < 40)
+        let inverted = Self.pixel(graded, x: 10, y: 45)
+        #expect(inverted.r < 60 && inverted.g > 200 && inverted.b > 200)
+    }
+
+    /// A source that decodes to still images (a JPEG live view, a capture card's frames once drawn)
+    /// gets the same clean look as a decoded buffer.
+    @Test func aStillImageSourceGetsTheSameLook() throws {
+        let tap = MonitorCleanPictureTap { _ in }
+        let source = try Self.buffer()
+        var cgImage: CGImage?
+        VTCreateCGImageFromCVPixelBuffer(source, options: nil, imageOut: &cgImage)
+        let still = try #require(cgImage)
+        let graded = try #require(tap.render(still, effects: Self.withAssists(Self.inverting())))
+        #expect(CVPixelBufferGetWidth(graded) == Self.width && CVPixelBufferGetHeight(graded) == Self.height)
         let inverted = Self.pixel(graded, x: 10, y: 45)
         #expect(inverted.r < 60 && inverted.g > 200 && inverted.b > 200)
     }

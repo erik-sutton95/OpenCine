@@ -36,14 +36,23 @@ public final class MonitorCleanPictureTap: @unchecked Sendable {
 
     /// Queues one decoded source frame with the monitor's current image effects.
     public func submit(_ buffer: CVPixelBuffer, effects: MonitorImageEffects, timeNs: Int64?) {
-        let input = Input(buffer: buffer)
+        enqueue(.buffer(buffer), effects: effects, timeNs: timeNs)
+    }
+
+    /// Queues one source frame that arrives as a decoded still image (a JPEG live view, say), with
+    /// the monitor's current image effects.
+    public func submit(_ image: CGImage, effects: MonitorImageEffects, timeNs: Int64?) {
+        enqueue(.image(image), effects: effects, timeNs: timeNs)
+    }
+
+    private func enqueue(_ input: Input, effects: MonitorImageEffects, timeNs: Int64?) {
         queue.async { [self] in
             waiting = (input, effects, timeNs)
             guard !busy else { return }
             busy = true
             while let next = waiting {
                 waiting = nil
-                if let picture = render(next.input.buffer, effects: next.effects) {
+                if let picture = render(next.input, effects: next.effects) {
                     deliver(MonitorCleanFrame(pixelBuffer: picture, timeNs: next.timeNs))
                 }
             }
@@ -54,6 +63,14 @@ public final class MonitorCleanPictureTap: @unchecked Sendable {
     /// The clean picture of one frame, at the source size capped to `maxWidth` (and the monitor's
     /// working width when a LUT is on), BGRA tagged Rec.709.
     func render(_ buffer: CVPixelBuffer, effects: MonitorImageEffects) -> CVPixelBuffer? {
+        render(.buffer(buffer), effects: effects)
+    }
+
+    func render(_ image: CGImage, effects: MonitorImageEffects) -> CVPixelBuffer? {
+        render(.image(image), effects: effects)
+    }
+
+    private func render(_ input: Input, effects: MonitorImageEffects) -> CVPixelBuffer? {
         var look = MonitorImageEffects()
         look.lutDimension = effects.lutDimension
         look.lutRGBA = effects.lutRGBA
@@ -63,9 +80,17 @@ public final class MonitorCleanPictureTap: @unchecked Sendable {
         look.desqueezeHorizontal = effects.desqueezeHorizontal
         // The same inputs the assist engine gives the compositor: the LUT reads encoded camera
         // codes, the identity keeps the buffer's colour attachments.
-        let identity = CIImage(cvPixelBuffer: buffer)
         let hasLUT = look.lutDimension >= 2 && !look.lutRGBA.isEmpty
-        let measure = hasLUT ? CIImage(cvPixelBuffer: buffer, options: MonitorWorkingSpace.imageOptions) : identity
+        let identity: CIImage
+        let measure: CIImage
+        switch input {
+        case .buffer(let buffer):
+            identity = CIImage(cvPixelBuffer: buffer)
+            measure = hasLUT ? CIImage(cvPixelBuffer: buffer, options: MonitorWorkingSpace.imageOptions) : identity
+        case .image(let image):
+            identity = CIImage(cgImage: image)
+            measure = hasLUT ? CIImage(cgImage: image, options: MonitorWorkingSpace.imageOptions) : identity
+        }
         let product = MonitorImageCompositor.applyProduct(to: measure, effects: look, display: identity)
         var image = product.image
         let extent = image.extent
@@ -108,9 +133,10 @@ public final class MonitorCleanPictureTap: @unchecked Sendable {
         return output
     }
 
-    /// Carries a read-only decoded buffer across the queue hop; the decoder keeps ownership.
-    private struct Input: @unchecked Sendable {
-        let buffer: CVPixelBuffer
+    /// Carries a read-only decoded frame across the queue hop; the source keeps ownership.
+    private enum Input: @unchecked Sendable {
+        case buffer(CVPixelBuffer)
+        case image(CGImage)
     }
 }
 #endif
