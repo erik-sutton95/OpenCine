@@ -42,10 +42,11 @@ import Testing
         try await Task.sleep(for: .milliseconds(500))  // FFmpeg's one-shot listener; the tier may wait
 
         let statuses = AsyncStream.makeStream(of: StreamRun.Status.self)
+        // The public path: a plain rtmp:// Custom server gets a plain TCP connection.
         let publisher = StreamPublisher(
-            destination: try StreamDestination(testOnlyPlainServerURL: "rtmp://127.0.0.1:\(port)/live", streamKey: "interopkey"),
-            format: MediaFixtures.format720, fitting: .fit,
-            connection: { NetworkStreamConnection(plainHost: $0, port: $1) }, now: { .now() }, drivesTimers: true)
+            destination: try StreamDestination(
+                serverURL: "rtmp://127.0.0.1:\(port)/live", streamKey: "interopkey", allowsPlainRTMP: true),
+            format: MediaFixtures.format720)
         publisher.onStatus { statuses.continuation.yield($0) }
         publisher.start()
         for await status in statuses.stream {

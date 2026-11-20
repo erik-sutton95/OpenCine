@@ -30,6 +30,11 @@ import OpenCineStreaming
         #expect(!StreamServicePreset.all.contains(p))
     }
 
+    @Test func onlyCustomAcceptsPlainRTMP() {
+        #expect(StreamServicePreset.custom.allowsPlainRTMP)
+        #expect(StreamServicePreset.all.allSatisfy { !$0.allowsPlainRTMP })
+    }
+
     @Test func everyPresetHasAKeyHint() {
         for p in StreamServicePreset.all + [.custom] {
             #expect(!p.keyHint.isEmpty, "\(p.id)")
