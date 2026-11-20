@@ -10,6 +10,7 @@ public final class com/opencapture/opencine/appkitnative/LiveStreamCompositionKt
 	public static final fun LiveStreamOverlay (Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
 	public static final fun LiveStreamOverlay (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedScope;Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/runtime/Composer;I)V
 	public static final fun LiveStreamRootIndicator (Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+	public static final fun liveStreamSettingsSource (Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/runtime/Composer;I)Lcom/opencapture/opencine/cameracontrols/MonitorSettingsLiveStreamSource;
 }
 
 public final class com/opencapture/opencine/appkitnative/LiveStreamCoordinator : com/opencapture/monitorui/LiveStreamActions {

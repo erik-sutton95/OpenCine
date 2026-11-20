@@ -26,6 +26,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.isRunning
+import com.opencapture.opencine.cameracontrols.MonitorSettingsLiveStreamSource
 import com.opencapture.monitorui.livestream.LiveStreamMonitorControls
 import com.opencapture.monitorui.livestream.LiveStreamRootPill
 import com.opencapture.opencine.appkit.rememberPermissionGate
@@ -218,4 +219,16 @@ fun LiveStreamRootIndicator(coordinator: LiveStreamCoordinator, modifier: Modifi
     val state by coordinator.state.collectAsState()
     val shows by coordinator.showsRootPill.collectAsState()
     if (shows) LiveStreamRootPill(state, coordinator, modifier)
+}
+
+/**
+ * The Sharing tab's live stream card source over [coordinator], following its state; null
+ * without a coordinator. Apps pass `{ liveStreamSettingsSource(coordinator) }` as
+ * `OperatorSetupApp.liveStream`.
+ */
+@Composable
+fun liveStreamSettingsSource(coordinator: LiveStreamCoordinator?): MonitorSettingsLiveStreamSource? {
+    if (coordinator == null) return null
+    val state by coordinator.state.collectAsState()
+    return MonitorSettingsLiveStreamSource(state, coordinator)
 }
