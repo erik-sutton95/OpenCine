@@ -27,6 +27,7 @@ class DiagnosticCenterRuntime: ObjectiveC.NSObject, CVarArg, CustomDebugStringCo
 class HDRChromeHost.Probe: UIKit.UIView, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class HeadphoneMotionBridge: ObjectiveC.NSObject, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable, Sendable
 class LiveHDRDisplay: Sendable
+class LiveStreamCoordinator: Observable, Sendable
 class MonitorApplePlaybackPresentation<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>: Observable, Sendable
 class MonitorBackdropRenderer
 class MonitorDeliveryCoordinator: Observable, Sendable
@@ -49,6 +50,8 @@ enum WatcherJoinStatus: Equatable, Sendable
 extension Foundation.Name
 extension MonitorUI.MonitorSettingsRemoteShutter
 extension OpenCineApple.MonitorVideoBackdropSource
+extension OpenCineStreamingApple.StreamKeyStore
+extension OpenCineStreamingApple.StreamPublisher
 extension SwiftUICore.View
 func DiagnosticCenterRuntime.beginInterval(_: Swift.StaticString) -> os.OSSignpostIntervalState
 func DiagnosticCenterRuntime.beginShare(camera: DiagnosticCamera) -> DiagnosticCenterRuntime.ShareOutcome
@@ -85,6 +88,17 @@ func LiveHDRDisplay.refreshGain(screen: UIKit.UIScreen?) -> ()
 func LiveHDRDisplay.setChromeActive(_: Swift.Bool) -> ()
 func LiveHDRDisplay.setEnabled(_: Swift.Bool, screen: UIKit.UIScreen?) -> ()
 func LiveHDRDisplay.setScreenCaptured(_: Swift.Bool, screen: UIKit.UIScreen?) -> ()
+func LiveStreamCoordinator.dismissNotice() -> ()
+func LiveStreamCoordinator.removeKey() -> ()
+func LiveStreamCoordinator.restart() -> ()
+func LiveStreamCoordinator.saveKey(_: Swift.String) -> ()
+func LiveStreamCoordinator.sceneDidEnterBackground() -> ()
+func LiveStreamCoordinator.selectService(_: Swift.String) -> ()
+func LiveStreamCoordinator.setServer(_: Swift.String) -> ()
+func LiveStreamCoordinator.setShowOnMonitor(_: Swift.Bool) -> ()
+func LiveStreamCoordinator.start() -> ()
+func LiveStreamCoordinator.stop() -> ()
+func LiveStreamCoordinator.updateDeviceConditions(hot: Swift.Bool, lowBattery: Swift.Bool) -> ()
 func MonitorApplePlaybackPresentation.bufferedThroughSeconds(record: OpenCineAppKit.MonitorMediaRecord<Payload>, owner: OpenCineAppKit.MonitorOperatorMediaModel<Payload, Look>)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> Swift.Double?
 func MonitorApplePlaybackPresentation.makeOwner(library: OpenCineAppKit.MonitorMediaLibraryModel<Payload>, recordAdmission: (OpenCineAppKit.MonitorMediaRecord<Payload>) -> OpenCineAppKit.MonitorPlaybackAdmission, makeNative: (OpenCineApple.MonitorPlaybackFeedSession) -> Native, makePlayback: (Native) -> OpenCineAppKit.MonitorMediaPlaybackModel<Payload, Look>)<Payload, Look, Native where Payload : Swift.Sendable, Look : Swift.Sendable, Native : OpenCineApple.MonitorPlaybackFrameSource> -> OpenCineAppKit.MonitorOperatorMediaModel<Payload, Look>
 func MonitorApplePlaybackPresentation.makeOwner(library: OpenCineAppKit.MonitorMediaLibraryModel<Payload>, recordAdmission: (OpenCineAppKit.MonitorMediaRecord<Payload>) -> OpenCineAppKit.MonitorPlaybackAdmission, makePlayback: (OpenCineApple.MonitorApplePlaybackOwner) -> OpenCineAppKit.MonitorMediaPlaybackModel<Payload, Look>)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable> -> OpenCineAppKit.MonitorOperatorMediaModel<Payload, Look>
@@ -144,6 +158,7 @@ func MultiviewScreenHost.picture(slot: Swift.Int, fill: Swift.Bool) -> Self.Pict
 func MultiviewScreenHost.settingsAccessibilityValue(slot: Swift.Int?) -> Swift.String?
 func MultiviewScreenHost.settingsControls(slot: Swift.Int, category: OpenCineAppKit.MultiviewSettingsCategory, enabled: Swift.Bool, presented: () -> Swift.Bool, close: () -> Swift.Void) -> Self.SettingsControls
 func MultiviewScreenHost.settingsPreview(slot: Swift.Int) -> Self.SettingsPreview
+func View.liveStreamLifecycle(_: LiveStreamCoordinator?) -> some SwiftUI.View
 func View.monitorAppStartup(_: OpenCineAppKit.MonitorAppStartup, splashVisible: SwiftUI.Binding<Swift.Bool>, consent: (@escaping (Swift.Bool) -> Swift.Void) -> Consent)<Self, Consent where Self : SwiftUI.View, Consent : SwiftUI.View> -> some SwiftUI.View
 func View.monitorDeliverySharePresenter(_: OpenCineAppKit.MonitorDeliveryModel<Progress, Outcome, OpenCineAppKit.MonitorDeliveryShareFiles<Foundation.URL>>)<Self, Progress, Outcome where Self : SwiftUI.View, Progress : Swift.Sendable, Outcome : Swift.Sendable> -> some SwiftUI.View
 func View.monitorHDRDisplay(_: LiveHDRDisplay, active: Swift.Bool, screenCaptured: SwiftUI.Binding<Swift.Bool>) -> some SwiftUI.View
@@ -165,6 +180,10 @@ init HDRChromeHost(display: LiveHDRDisplay, enabled: Swift.Bool)
 init HeadTrackAxisPose(yawDeg: Swift.Double, pitchDeg: Swift.Double, gimbalYawDeg: Swift.Double?, gimbalPitchDeg: Swift.Double?, locked: Swift.Bool)
 init HeadphoneMotionBridge(appName: Swift.String, bounds: OpenCineMotion.MotionBounds, sampleInterval: Foundation.TimeInterval, hudInterval: Foundation.TimeInterval, log: (Swift.String) -> Swift.Void, motion: CoreMotion.CMHeadphoneMotionManager, authorizationStatus: () -> CoreMotion.CMAuthorizationStatus, uptime: () -> Foundation.TimeInterval, startupLog: ((Swift.String) -> Swift.Void)?)
 init LiveHDRDisplay()
+init LiveStreamCoordinator(host: LiveStreamHost)
+init LiveStreamHost(keychainService: Swift.String, defaults: Foundation.UserDefaults, route: () -> OpenCineStreaming.StreamConnectionRoute?, source: () -> OpenCineStreaming.StreamSourceFormat?, attachPicture: (OpenCineApple.MonitorCleanPictureTap?) -> Swift.Void)
+init LiveStreamMonitorOverlay(coordinator: LiveStreamCoordinator)
+init LiveStreamSettingsSection(coordinator: LiveStreamCoordinator, feedback: () -> Swift.Void)
 init MonitorApplePlaybackPresentation(makeFeed: () -> OpenCineApple.MonitorPlaybackFeedSession, audioSession: OpenCineApple.MonitorPlaybackAudioSession, samples: () -> OpenCineApple.LiveFrameSampleBus, projectEffects: (OpenCineMedia.MonitorFrameEffects) -> OpenCineMedia.MonitorFrameEffects, onTapFailure: (Swift.Int32) -> Swift.Void, onAudioFailure: (Swift.String) -> Swift.Void, audioOwnership: ((Swift.Bool) -> Swift.Void)?)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>
 init MonitorBackdropRenderer()
 init MonitorDeliveryCoordinator(exports: OpenCineMedia.MonitorDeliveryExportStore, sleep: ((Swift.Duration) async throws -> Swift.Void)?)
@@ -260,6 +279,9 @@ struct DiagnosticCamera: Equatable, Sendable
 struct DiagnosticCenterRuntime.Host
 struct HDRChromeHost: Sendable, UIViewRepresentable, View
 struct HeadTrackAxisPose: Equatable, Sendable
+struct LiveStreamHost
+struct LiveStreamMonitorOverlay: Sendable, View
+struct LiveStreamSettingsSection: Sendable, View
 struct MonitorDeliveryRemoteRun<Record where Record : Swift.Sendable>: Sendable
 struct MonitorDeliverySource<Record where Record : Swift.Sendable>: Sendable
 struct MonitorInspectorImageFrame: Sendable
@@ -325,6 +347,18 @@ var LiveHDRDisplay.isEnabled: Swift.Bool
 var LiveHDRDisplay.preferredEnabled: Swift.Bool
 var LiveHDRDisplay.presentGain: Swift.Float
 var LiveHDRDisplay.screenCaptured: Swift.Bool
+var LiveStreamCoordinator.isRunning: Swift.Bool
+var LiveStreamCoordinator.monitorActions: MonitorUI.LiveStreamMonitorActions
+var LiveStreamCoordinator.monitorState: MonitorPresentation.LiveStreamMonitorState?
+var LiveStreamCoordinator.settingsActions: MonitorUI.LiveStreamSettingsActions
+var LiveStreamCoordinator.settingsState: MonitorPresentation.LiveStreamSettingsState
+var LiveStreamHost.attachPicture: (OpenCineApple.MonitorCleanPictureTap?) -> Swift.Void
+var LiveStreamHost.defaults: Foundation.UserDefaults
+var LiveStreamHost.keychainService: Swift.String
+var LiveStreamHost.route: () -> OpenCineStreaming.StreamConnectionRoute?
+var LiveStreamHost.source: () -> OpenCineStreaming.StreamSourceFormat?
+var LiveStreamMonitorOverlay.body: some SwiftUI.View
+var LiveStreamSettingsSection.body: some SwiftUI.View
 var MonitorApplePlaybackPresentation.assists: MonitorPlaybackAssistSession?
 var MonitorApplePlaybackPresentation.native: (any OpenCineApple.MonitorPlaybackFrameSource)?
 var MonitorDeliveryCoordinator.capturedRun: OpenCineAppKit.MonitorDeliveryRunHandle?

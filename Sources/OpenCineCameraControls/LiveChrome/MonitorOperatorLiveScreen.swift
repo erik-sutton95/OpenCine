@@ -88,6 +88,12 @@
         /// The picture exposure readout, when the app meters one.
         var livePictureEV: (() -> EvComp?)? { get }
         @ViewBuilder func lutPicker() -> LUTSheet
+        /// Live streaming, when the app composes it: the Go live control over the picture.
+        var liveStream: LiveStreamCoordinator? { get }
+    }
+
+    extension MonitorLiveScreenHost {
+        public var liveStream: LiveStreamCoordinator? { nil }
     }
 
     /// The complete live operator screen over the app's camera session and native picture.
@@ -217,6 +223,14 @@
             ) { MonitorOperatorLiveFeedPane<Host>()
             } preview: { model.inspectorPreview(tool: $0)
             } lookMenu: { model.lookMenu() }
+            .overlay(alignment: .topLeading) {
+                if let stream = model.liveStream {
+                    LiveStreamMonitorOverlay(coordinator: stream)
+                        .frame(width: layout.onFeed.width)
+                        .offset(x: layout.onFeed.minX, y: layout.onFeed.minY)
+                        .disabled(interfaceLocked)
+                }
+            }
             .overlay {
                 if model.session.sessionRecovery.isRecovering {
                     SessionRecoveryOverlay<Host>().frame(width: layout.viewport.width, height: layout.viewport.height)

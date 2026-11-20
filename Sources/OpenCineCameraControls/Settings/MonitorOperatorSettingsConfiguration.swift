@@ -3,6 +3,7 @@ import Foundation
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineAppKitApple
 import OpenCineApple
 import OpenCineMedia
 import SwiftUI
@@ -445,7 +446,7 @@ public struct MonitorSettingsAssistSource<Looks: MonitorLookProvider> {
 /// domains, so every call form and the shared scene render the same rows for the same values.
 enum MonitorSettingsRow: String, Hashable, Sendable {
     case linkHealth, connection, processing, savedCameras, sourceGroups
-    case sharingUnavailable, sharing, watchers, watchFeed
+    case sharingUnavailable, sharing, watchers, watchFeed, liveStream
     case assistTools, assistPanels, exposureMeter, look
     case cameraPresets, gyro, safety, input, gimbal, joystick, controller
     case hdrPanel, displaySections
@@ -475,6 +476,8 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     let information: MonitorSettingsAppInformation?
     /// The connected camera's exposure and white balance presets, first on the Controls tab.
     private(set) var cameraPresets: CameraSettingsPresetsModel?
+    /// Live streaming, last on the Sharing tab.
+    private(set) var liveStream: LiveStreamCoordinator?
 
     var assist: MonitorAssistState<Looks> { assistSource.state }
 
@@ -482,6 +485,13 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     public func withCameraPresets(_ presets: CameraSettingsPresetsModel?) -> Self {
         var copy = self
         copy.cameraPresets = presets
+        return copy
+    }
+
+    /// This configuration with the Sharing tab's live stream card (`nil` leaves it out).
+    public func withLiveStream(_ coordinator: LiveStreamCoordinator?) -> Self {
+        var copy = self
+        copy.liveStream = coordinator
         return copy
     }
 
@@ -589,9 +599,10 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
             return [.linkHealth, .connection] + (link.processing?.group == nil ? [] : [.processing])
                 + (link.saved == nil ? [] : [.savedCameras]) + (link.sourceGroups.isEmpty ? [] : [.sourceGroups])
         case .sharing:
-            guard let sharing else { return [] }
-            if !sharing.enabled { return [.sharingUnavailable] }
-            return isLive ? [.sharing] + (sharing.watchers == nil ? [] : [.watchers]) : [.watchFeed]
+            let stream: [MonitorSettingsRow] = liveStream == nil ? [] : [.liveStream]
+            guard let sharing else { return stream }
+            if !sharing.enabled { return [.sharingUnavailable] + stream }
+            return (isLive ? [.sharing] + (sharing.watchers == nil ? [] : [.watchers]) : [.watchFeed]) + stream
         case .assist:
             return (assistSource.switches.isEmpty ? [] : [.assistTools]) + (assistSource.panels == nil ? [] : [.assistPanels])
                 + (assistSource.exposureHelp == nil ? [] : [.exposureMeter]) + (assistSource.lookCatalog == nil ? [] : [.look])

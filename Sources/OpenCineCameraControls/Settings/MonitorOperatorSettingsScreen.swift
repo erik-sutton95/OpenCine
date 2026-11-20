@@ -2,6 +2,7 @@
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineAppKitApple
 import OpenCineCameraVocabulary
 import OpenCineMedia
 import SwiftUI
@@ -180,6 +181,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         case .linkHealth, .connection, .processing, .savedCameras, .sourceGroups: linkRow(row, source)
         case .sharingUnavailable, .sharing, .watchers, .watchFeed:
             if let sharing = source.sharing { sharingRow(row, sharing, feedback: source.feedback) }
+        case .liveStream:
+            if let stream = source.liveStream { LiveStreamSettingsSection(coordinator: stream, feedback: source.feedback) }
         case .assistTools, .assistPanels, .exposureMeter, .look: assistRow(row, source)
         case .cameraPresets, .gyro, .safety, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
         case .hdrPanel, .displaySections, .gyroLogs, .account, .cache: displayStorageRow(row, source)
