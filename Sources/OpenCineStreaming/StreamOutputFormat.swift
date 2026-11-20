@@ -48,7 +48,8 @@ public extension StreamOutputFormat {
     static func resolve(
         selected: StreamSourceFormat, connected: [StreamSourceFormat], preset: StreamServicePreset
     ) -> StreamOutputFormat {
-        let bestHeight = ([selected] + connected).map(\.height).max() ?? selected.height
+        // A source's lines are its short side, so an upright picture is not mistaken for a larger one.
+        let bestHeight = ([selected] + connected).map { min($0.width, $0.height) }.max() ?? selected.height
         var width: Int
         var height: Int
         var bitrate: Int
@@ -86,6 +87,18 @@ public enum StreamConnectionRoute: Hashable, Sendable {
 }
 
 public extension StreamConnectionRoute {
+    /// The streaming route for the shared connection vocabulary, so an app that states its route as
+    /// a `RouteKind` needs no mapping of its own.
+    init(_ kind: RouteKind) {
+        switch kind {
+        case .cameraAccessPoint: self = .cameraWiFi
+        case .infrastructureNetwork: self = .sharedWiFi
+        case .phoneHotspot: self = .deviceHotspot
+        case .usb: self = .usbCable
+        case .captureDevice: self = .captureCard
+        }
+    }
+
     /// Whether a stream may start on this route. An unknown route (`nil`) may not.
     static func canStream(_ route: StreamConnectionRoute?) -> Bool {
         switch route {
