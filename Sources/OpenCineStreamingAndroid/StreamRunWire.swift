@@ -32,12 +32,16 @@ public final class StreamRunWire: @unchecked Sendable {
 
     // MARK: Runs
 
-    /// Parses the destination and format and allocates a run. JSON: `{"owner": id, "tls": bool}`,
-    /// or `{"error": name}` with a `StreamDestinationError` case name or `invalidFormat`.
-    public func create(serverURL: String, streamKey: String, formatJSON: String, nowNs: Int64) -> String {
+    /// Parses the destination for a preset (its fixed server, or `enteredServerURL` when it asks
+    /// for one, with its rule on plain `rtmp://`) and the format, and allocates a run. JSON:
+    /// `{"owner": id, "tls": bool}`, or `{"error": name}` with a `StreamDestinationError` case name,
+    /// `unknownPreset` or `invalidFormat`.
+    public func create(
+        presetID: String, enteredServerURL: String, streamKey: String, formatJSON: String, nowNs: Int64
+    ) -> String {
         let destination: StreamDestination
         do {
-            destination = try StreamDestination(serverURL: serverURL, streamKey: streamKey)
+            destination = try Self.destination(presetID, enteredServerURL, streamKey)
         } catch {
             return Self.json(["error": Self.name(of: error)])
         }
@@ -46,7 +50,7 @@ public final class StreamRunWire: @unchecked Sendable {
         lock.withLock {
             runs[owner] = StreamRun(destination: destination, format: format, now: Self.instant(nowNs))
         }
-        return Self.json(["owner": owner, "tls": Self.usesTLS(destination)])
+        return Self.json(["owner": owner, "tls": destination.isEncrypted])
     }
 
     public func start(owner: String) -> [UInt8] { update(owner) { $0.start() } }
@@ -107,6 +111,7 @@ public final class StreamRunWire: @unchecked Sendable {
                 "requiresServerEntry": preset.requiresServerEntry,
                 "maxVideoBitrateBps": preset.maxVideoBitrateBps.map { $0 as Any } ?? NSNull(),
                 "portrait": preset.aspect == .portrait9x16, "keyHint": preset.keyHint,
+                "allowsPlainRTMP": preset.allowsPlainRTMP,
             ]
         }
         return Self.json(presets)
@@ -131,12 +136,12 @@ public final class StreamRunWire: @unchecked Sendable {
         return Self.encodeFormat(format)
     }
 
-    /// Checks a server address and key without starting anything. JSON `{"ok": true, "tls": bool}`
-    /// or `{"error": name}`.
-    public func checkDestination(serverURL: String, streamKey: String) -> String {
+    /// Checks a preset's server and key without starting anything. JSON `{"ok": true, "tls": bool}`
+    /// (`tls` false: plain `rtmp://`, unencrypted) or `{"error": name}`.
+    public func checkDestination(presetID: String, enteredServerURL: String, streamKey: String) -> String {
         do {
-            let destination = try StreamDestination(serverURL: serverURL, streamKey: streamKey)
-            return Self.json(["ok": true, "tls": Self.usesTLS(destination)])
+            let destination = try Self.destination(presetID, enteredServerURL, streamKey)
+            return Self.json(["ok": true, "tls": destination.isEncrypted])
         } catch {
             return Self.json(["error": Self.name(of: error)])
         }
@@ -261,12 +266,18 @@ public final class StreamRunWire: @unchecked Sendable {
         return seconds &* 1_000_000_000 &+ attoseconds / 1_000_000_000
     }
 
-    private static func usesTLS(_ destination: StreamDestination) -> Bool {
-        destination.tcURL.lowercased().hasPrefix("rtmps://")
+    private struct UnknownPreset: Error {}
+
+    private static func destination(_ presetID: String, _ entered: String, _ key: String) throws -> StreamDestination {
+        guard let preset = (StreamServicePreset.all + [.custom]).first(where: { $0.id == presetID }) else {
+            throw UnknownPreset()
+        }
+        return try StreamDestination(preset: preset, enteredServerURL: entered, streamKey: key)
     }
 
     /// The error's case name, never its payload (a destination error carries none today).
     private static func name(of error: Error) -> String {
+        if error is UnknownPreset { return "unknownPreset" }
         guard let error = error as? StreamDestinationError else { return "invalidServerURL" }
         let text = String(describing: error)
         return String(text.prefix { $0 != "(" })

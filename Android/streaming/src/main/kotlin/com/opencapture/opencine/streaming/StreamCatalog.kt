@@ -15,6 +15,8 @@ data class StreamServicePreset(
     val portrait: Boolean,
     /** One plain sentence on where to find the stream key. */
     val keyHint: String,
+    /** The entered server may be plain `rtmp://` (the custom server only). */
+    val allowsPlainRtmp: Boolean = false,
 )
 
 /** The fixed encoder settings of one stream, set at go-live. */
@@ -58,6 +60,7 @@ enum class StreamDestinationProblem {
     /** A whole URL was pasted into the key field. */
     KEY_LOOKS_LIKE_URL,
     INVALID_FORMAT,
+    UNKNOWN_PRESET,
     ;
 
     companion object {
@@ -66,6 +69,7 @@ enum class StreamDestinationProblem {
             "emptyKey" -> EMPTY_KEY
             "keyLooksLikeURL" -> KEY_LOOKS_LIKE_URL
             "invalidFormat" -> INVALID_FORMAT
+            "unknownPreset" -> UNKNOWN_PRESET
             else -> INVALID_SERVER_URL
         }
     }
@@ -102,6 +106,7 @@ class StreamCatalog(private val native: StreamingNativeApi) {
                 maxVideoBitrateBps = if (o.isNull("maxVideoBitrateBps")) null else o.getInt("maxVideoBitrateBps"),
                 portrait = o.getBoolean("portrait"),
                 keyHint = o.getString("keyHint"),
+                allowsPlainRtmp = o.optBoolean("allowsPlainRTMP", false),
             )
         }
     }
@@ -123,8 +128,9 @@ class StreamCatalog(private val native: StreamingNativeApi) {
         return StreamOutputFormat.fromJson(json)
     }
 
-    fun check(serverUrl: String, streamKey: String): StreamDestinationCheck =
-        parseCheck(native.checkDestination(serverUrl, streamKey))
+    /** Checks [presetId]'s server ([enteredServerUrl] when it asks for one) and key. */
+    fun check(presetId: String, enteredServerUrl: String, streamKey: String): StreamDestinationCheck =
+        parseCheck(native.checkDestination(presetId, enteredServerUrl, streamKey))
 
     /** Whether a stream may start on [route]; an unknown route (null) may not. */
     fun canStream(route: StreamConnectionRoute?): Boolean = route != null && native.canStream(route.wireName)

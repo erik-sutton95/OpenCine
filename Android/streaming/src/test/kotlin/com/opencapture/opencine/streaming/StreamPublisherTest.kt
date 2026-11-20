@@ -91,7 +91,7 @@ class StreamPublisherTest {
     private val format = StreamOutputFormat.fromJson(FakeStreamingNative.FORMAT_720P)!!
 
     private fun publisher(withPicture: Boolean = true) = StreamPublisher(
-        native, format, "rtmps://live.example.com/app", "SECRETKEY", crop = false,
+        native, format, "custom", "rtmps://live.example.com/app", "SECRETKEY", crop = false,
         picture = picture.takeIf { withPicture }, video = video, audio = null,
         connect = { host, port, tls -> FakeConnection(host, port, tls).also { connections += it } },
         clock = { scheduler.nowNs }, scheduler = scheduler,
@@ -218,7 +218,7 @@ class StreamPublisherTest {
             override fun tick(owner: String, nowNs: Long): ByteArray = reply
         }
         val stream = StreamPublisher(
-            scripted, format, "rtmps://live.example.com/app", "k", false, null, video, null,
+            scripted, format, "custom", "rtmps://live.example.com/app", "k", false, null, video, null,
             connect = { h, p, t -> FakeConnection(h, p, t).also { connections += it } },
             clock = { scheduler.nowNs }, scheduler = scheduler,
         )

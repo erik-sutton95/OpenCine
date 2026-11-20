@@ -19,6 +19,8 @@ class StreamCatalogTest {
         assertTrue(presets[1].portrait && presets[1].requiresServerEntry)
         assertNull(presets[2].serverUrl)
         assertNull(presets[2].maxVideoBitrateBps)
+        assertTrue(presets[2].allowsPlainRtmp)
+        assertTrue(presets.dropLast(1).none { it.allowsPlainRtmp })
     }
 
     @Test
@@ -32,10 +34,10 @@ class StreamCatalogTest {
 
     @Test
     fun destinationProblemsMapFromTheWire() {
-        assertEquals(StreamDestinationCheck.Ok(encrypted = true), catalog.check("rtmps://h/a", "k"))
-        assertEquals(StreamDestinationCheck.Ok(encrypted = false), catalog.check("rtmp://h/a", "k"))
+        assertEquals(StreamDestinationCheck.Ok(encrypted = true), catalog.check("custom", "rtmps://h/a", "k"))
+        assertEquals(StreamDestinationCheck.Ok(encrypted = false), catalog.check("custom", "rtmp://h/a", "k"))
         assertEquals(
-            StreamDestinationCheck.Invalid(StreamDestinationProblem.EMPTY_KEY), catalog.check("rtmps://h/a", " "),
+            StreamDestinationCheck.Invalid(StreamDestinationProblem.EMPTY_KEY), catalog.check("custom", "rtmps://h/a", " "),
         )
         val wire = mapOf(
             "notRTMPS" to StreamDestinationProblem.NOT_RTMPS,
@@ -43,6 +45,7 @@ class StreamCatalogTest {
             "emptyKey" to StreamDestinationProblem.EMPTY_KEY,
             "keyLooksLikeURL" to StreamDestinationProblem.KEY_LOOKS_LIKE_URL,
             "invalidFormat" to StreamDestinationProblem.INVALID_FORMAT,
+            "unknownPreset" to StreamDestinationProblem.UNKNOWN_PRESET,
             "somethingNew" to StreamDestinationProblem.INVALID_SERVER_URL,
         )
         for ((name, problem) in wire) {

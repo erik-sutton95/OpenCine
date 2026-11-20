@@ -17,7 +17,8 @@ import Testing
     private func owner(_ wire: StreamRunWire, key: String = "SECRETKEY") throws -> String {
         let reply = try json(
             wire.create(
-                serverURL: "rtmps://live.example.com/app", streamKey: key, formatJSON: Self.format, nowNs: 0))
+                presetID: "custom", enteredServerURL: "rtmps://live.example.com/app", streamKey: key,
+                formatJSON: Self.format, nowNs: 0))
         return try #require(reply["owner"] as? String)
     }
 
@@ -107,27 +108,48 @@ import Testing
 
     @Test func badDestinationNamesTheError() throws {
         let wire = StreamRunWire()
-        let cases: [(String, String, String)] = [
-            ("https://live.example.com/app", "k", "notRTMPS"),
-            ("rtmps://live.example.com", "k", "invalidServerURL"),
-            ("rtmps://live.example.com/app", "  ", "emptyKey"),
-            ("rtmps://live.example.com/app", "rtmps://x/y", "keyLooksLikeURL"),
+        let cases: [(String, String, String, String)] = [
+            ("custom", "https://live.example.com/app", "k", "notRTMPS"),
+            ("custom", "rtmps://live.example.com", "k", "invalidServerURL"),
+            ("custom", "rtmps://live.example.com/app", "  ", "emptyKey"),
+            ("custom", "rtmps://live.example.com/app", "rtmps://x/y", "keyLooksLikeURL"),
+            ("instagram", "rtmp://live.example.com/app", "k", "notRTMPS"),
+            ("nope", "rtmps://live.example.com/app", "k", "unknownPreset"),
         ]
-        for (server, key, error) in cases {
-            #expect(try json(wire.create(serverURL: server, streamKey: key, formatJSON: Self.format, nowNs: 0))["error"] as? String == error)
-            #expect(try json(wire.checkDestination(serverURL: server, streamKey: key))["error"] as? String == error)
+        for (preset, server, key, error) in cases {
+            let created = try json(
+                wire.create(
+                    presetID: preset, enteredServerURL: server, streamKey: key, formatJSON: Self.format, nowNs: 0))
+            #expect(created["error"] as? String == error)
+            let checked = try json(wire.checkDestination(presetID: preset, enteredServerURL: server, streamKey: key))
+            #expect(checked["error"] as? String == error)
         }
-        #expect(try json(wire.create(serverURL: "rtmps://h/a", streamKey: "k", formatJSON: "{}", nowNs: 0))["error"] as? String == "invalidFormat")
+        let badFormat = try json(
+            wire.create(presetID: "twitch", enteredServerURL: "", streamKey: "k", formatJSON: "{}", nowNs: 0))
+        #expect(badFormat["error"] as? String == "invalidFormat")
     }
 
     @Test func tlsFollowsTheScheme() throws {
         let wire = StreamRunWire()
-        let created = try json(
-            wire.create(serverURL: "rtmps://live.example.com/app", streamKey: "k", formatJSON: Self.format, nowNs: 0))
-        #expect(created["tls"] as? Bool == true)
-        let checked = try json(wire.checkDestination(serverURL: "rtmps://live.example.com/app", streamKey: "k"))
+        let preset = try json(
+            wire.create(presetID: "twitch", enteredServerURL: "", streamKey: "k", formatJSON: Self.format, nowNs: 0))
+        #expect(preset["tls"] as? Bool == true)
+        let checked = try json(
+            wire.checkDestination(presetID: "custom", enteredServerURL: "rtmps://live.example.com/app", streamKey: "k"))
         #expect(checked["ok"] as? Bool == true)
         #expect(checked["tls"] as? Bool == true)
+        let plain = try json(
+            wire.checkDestination(presetID: "custom", enteredServerURL: "rtmp://live.example.com/app", streamKey: "k"))
+        #expect(plain["ok"] as? Bool == true)
+        #expect(plain["tls"] as? Bool == false)
+        let plainRun = try json(
+            wire.create(
+                presetID: "custom", enteredServerURL: "RTMP://live.example.com/app", streamKey: "k",
+                formatJSON: Self.format, nowNs: 0))
+        #expect(plainRun["tls"] as? Bool == false)
+        let id = try #require(plainRun["owner"] as? String)
+        let connect: [UInt8] = [1, 0x07, 0x8F, 0, 16] + Array("live.example.com".utf8)
+        #expect(Array(wire.start(owner: id).prefix(connect.count)) == connect)
     }
 
     @Test func presetsEndWithCustom() throws {
@@ -140,6 +162,8 @@ import Testing
         #expect(instagram["serverURL"] is NSNull)
         let twitch = try #require(presets.first)
         #expect(twitch["maxVideoBitrateBps"] as? Int == 6_000_000)
+        #expect(twitch["allowsPlainRTMP"] as? Bool == false)
+        #expect(presets.last?["allowsPlainRTMP"] as? Bool == true)
         #expect((twitch["keyHint"] as? String)?.isEmpty == false)
     }
 
@@ -164,7 +188,7 @@ import Testing
         #expect(wire.formatJSON(presetID: "nope", selectedWidth: 1, selectedHeight: 1, fpsNum: 0, fpsDen: 0, connected: []) == nil)
         let created = try json(
             wire.create(
-                serverURL: "rtmps://h/a", streamKey: "k",
+                presetID: "custom", enteredServerURL: "rtmps://h/a", streamKey: "k",
                 formatJSON: try #require(
                     wire.formatJSON(
                         presetID: "twitch", selectedWidth: 1280, selectedHeight: 720, fpsNum: 30, fpsDen: 1,
@@ -183,7 +207,8 @@ import Testing
         let wire = StreamRunWire()
         let key = "SECRETKEY"
         let created = wire.create(
-            serverURL: "rtmps://live.example.com/app", streamKey: key, formatJSON: Self.format, nowNs: 0)
+            presetID: "custom", enteredServerURL: "rtmps://live.example.com/app", streamKey: key,
+            formatJSON: Self.format, nowNs: 0)
         #expect(!created.contains(key))
         let id = try owner(wire, key: key)
         var replies = [wire.start(owner: id), wire.connected(owner: id, nowNs: 0)]
@@ -191,6 +216,6 @@ import Testing
         for reply in replies {
             #expect(reply.firstRange(of: Array(key.utf8)) == nil)
         }
-        #expect(!wire.checkDestination(serverURL: "rtmps://h/a", streamKey: key).contains(key))
+        #expect(!wire.checkDestination(presetID: "custom", enteredServerURL: "rtmps://h/a", streamKey: key).contains(key))
     }
 }

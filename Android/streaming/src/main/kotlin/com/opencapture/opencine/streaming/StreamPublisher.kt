@@ -20,7 +20,8 @@ import org.json.JSONObject
 class StreamPublisher(
     private val native: StreamingNativeApi,
     private val format: StreamOutputFormat,
-    serverUrl: String,
+    presetId: String,
+    enteredServerUrl: String,
     streamKey: String,
     private val crop: Boolean,
     private val picture: StreamPictureSource?,
@@ -40,7 +41,7 @@ class StreamPublisher(
     @Volatile var encrypted: Boolean = true
         private set
 
-    private var created: Pair<String, String>? = serverUrl to streamKey
+    private var created: Triple<String, String, String>? = Triple(presetId, enteredServerUrl, streamKey)
 
     // Confined to the scheduler thread.
     private var owner: String? = null
@@ -58,9 +59,10 @@ class StreamPublisher(
      * ends the status at once. Call once.
      */
     fun start(): StreamDestinationCheck {
-        val (server, key) = created ?: return StreamDestinationCheck.Invalid(StreamDestinationProblem.INVALID_SERVER_URL)
+        val (preset, server, key) = created
+            ?: return StreamDestinationCheck.Invalid(StreamDestinationProblem.INVALID_SERVER_URL)
         created = null
-        val reply = runCatching { JSONObject(native.create(server, key, format.toJson(), clock())) }.getOrNull()
+        val reply = runCatching { JSONObject(native.create(preset, server, key, format.toJson(), clock())) }.getOrNull()
         val id = reply?.optString("owner")?.takeIf { it.isNotEmpty() }
         if (reply == null || id == null) {
             mutableStatus.value = StreamStatus.ENDED

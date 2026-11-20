@@ -19,17 +19,20 @@
         javaByteArray(env, StreamRunWire.shared.stop(owner: "", nowNs: 0))
     }
 
-    /// `StreamingNative.create(serverUrl, streamKey, formatJson, nowNs): String`.
+    /// `StreamingNative.create(presetId, enteredServerUrl, streamKey, formatJson, nowNs): String`.
     @_cdecl("Java_com_opencapture_opencine_streaming_StreamingNative_create")
     public func streamingNativeCreate(
-        _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, serverURL: jstring?, streamKey: jstring?,
-        formatJSON: jstring?, nowNs: jlong
+        _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, presetID: jstring?, enteredServerURL: jstring?,
+        streamKey: jstring?, formatJSON: jstring?, nowNs: jlong
     ) -> jstring? {
-        guard let server = swiftString(env, serverURL), let key = swiftString(env, streamKey),
+        guard let preset = swiftString(env, presetID), let key = swiftString(env, streamKey),
             let format = swiftString(env, formatJSON)
         else { return javaString(env, #"{"error":"invalidServerURL"}"#) }
+        let server = swiftString(env, enteredServerURL) ?? ""
         return javaString(
-            env, StreamRunWire.shared.create(serverURL: server, streamKey: key, formatJSON: format, nowNs: nowNs))
+            env,
+            StreamRunWire.shared.create(
+                presetID: preset, enteredServerURL: server, streamKey: key, formatJSON: format, nowNs: nowNs))
     }
 
     /// `StreamingNative.start(owner): ByteArray`.
@@ -191,14 +194,18 @@
         return javaString(env, json)
     }
 
-    /// `StreamingNative.checkDestination(serverUrl, streamKey): String` (JSON).
+    /// `StreamingNative.checkDestination(presetId, enteredServerUrl, streamKey): String` (JSON).
     @_cdecl("Java_com_opencapture_opencine_streaming_StreamingNative_checkDestination")
     public func streamingNativeCheckDestination(
-        _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, serverURL: jstring?, streamKey: jstring?
+        _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, presetID: jstring?, enteredServerURL: jstring?,
+        streamKey: jstring?
     ) -> jstring? {
-        let server = swiftString(env, serverURL) ?? ""
+        let preset = swiftString(env, presetID) ?? ""
+        let server = swiftString(env, enteredServerURL) ?? ""
         let key = swiftString(env, streamKey) ?? ""
-        return javaString(env, StreamRunWire.shared.checkDestination(serverURL: server, streamKey: key))
+        return javaString(
+            env,
+            StreamRunWire.shared.checkDestination(presetID: preset, enteredServerURL: server, streamKey: key))
     }
 
     /// `StreamingNative.canStream(route): Boolean`.

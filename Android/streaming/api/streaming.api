@@ -99,7 +99,7 @@ public abstract interface class com/opencapture/opencine/streaming/StreamAudioEn
 public final class com/opencapture/opencine/streaming/StreamCatalog {
 	public fun <init> (Lcom/opencapture/opencine/streaming/StreamingNativeApi;)V
 	public final fun canStream (Lcom/opencapture/opencine/streaming/StreamConnectionRoute;)Z
-	public final fun check (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamDestinationCheck;
+	public final fun check (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamDestinationCheck;
 	public final fun format (Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
 	public static synthetic fun format$default (Lcom/opencapture/opencine/streaming/StreamCatalog;Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
 	public final fun presets ()Ljava/util/List;
@@ -189,6 +189,7 @@ public final class com/opencapture/opencine/streaming/StreamDestinationProblem :
 	public static final field INVALID_SERVER_URL Lcom/opencapture/opencine/streaming/StreamDestinationProblem;
 	public static final field KEY_LOOKS_LIKE_URL Lcom/opencapture/opencine/streaming/StreamDestinationProblem;
 	public static final field NOT_RTMPS Lcom/opencapture/opencine/streaming/StreamDestinationProblem;
+	public static final field UNKNOWN_PRESET Lcom/opencapture/opencine/streaming/StreamDestinationProblem;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamDestinationProblem;
 	public static fun values ()[Lcom/opencapture/opencine/streaming/StreamDestinationProblem;
@@ -443,8 +444,8 @@ public abstract interface class com/opencapture/opencine/streaming/StreamPicture
 }
 
 public final class com/opencapture/opencine/streaming/StreamPublisher {
-	public fun <init> (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Lcom/opencapture/opencine/streaming/StreamOutputFormat;Ljava/lang/String;Ljava/lang/String;ZLcom/opencapture/opencine/streaming/StreamPictureSource;Lcom/opencapture/opencine/streaming/StreamVideoEncoder;Lcom/opencapture/opencine/streaming/StreamAudioEncoder;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/streaming/StreamScheduler;)V
-	public synthetic fun <init> (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Lcom/opencapture/opencine/streaming/StreamOutputFormat;Ljava/lang/String;Ljava/lang/String;ZLcom/opencapture/opencine/streaming/StreamPictureSource;Lcom/opencapture/opencine/streaming/StreamVideoEncoder;Lcom/opencapture/opencine/streaming/StreamAudioEncoder;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/streaming/StreamScheduler;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Lcom/opencapture/opencine/streaming/StreamOutputFormat;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLcom/opencapture/opencine/streaming/StreamPictureSource;Lcom/opencapture/opencine/streaming/StreamVideoEncoder;Lcom/opencapture/opencine/streaming/StreamAudioEncoder;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/streaming/StreamScheduler;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Lcom/opencapture/opencine/streaming/StreamOutputFormat;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLcom/opencapture/opencine/streaming/StreamPictureSource;Lcom/opencapture/opencine/streaming/StreamVideoEncoder;Lcom/opencapture/opencine/streaming/StreamAudioEncoder;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Lcom/opencapture/opencine/streaming/StreamScheduler;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getEncrypted ()Z
 	public final fun getStatus ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun start ()Lcom/opencapture/opencine/streaming/StreamDestinationCheck;
@@ -509,7 +510,8 @@ public final class com/opencapture/opencine/streaming/StreamSecretSeal$Opened$Se
 }
 
 public final class com/opencapture/opencine/streaming/StreamServicePreset {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Integer;ZLjava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Integer;ZLjava/lang/String;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Integer;ZLjava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
@@ -517,9 +519,11 @@ public final class com/opencapture/opencine/streaming/StreamServicePreset {
 	public final fun component5 ()Ljava/lang/Integer;
 	public final fun component6 ()Z
 	public final fun component7 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Integer;ZLjava/lang/String;)Lcom/opencapture/opencine/streaming/StreamServicePreset;
-	public static synthetic fun copy$default (Lcom/opencapture/opencine/streaming/StreamServicePreset;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Integer;ZLjava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/StreamServicePreset;
+	public final fun component8 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Integer;ZLjava/lang/String;Z)Lcom/opencapture/opencine/streaming/StreamServicePreset;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/streaming/StreamServicePreset;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/Integer;ZLjava/lang/String;ZILjava/lang/Object;)Lcom/opencapture/opencine/streaming/StreamServicePreset;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAllowsPlainRtmp ()Z
 	public final fun getDisplayName ()Ljava/lang/String;
 	public final fun getId ()Ljava/lang/String;
 	public final fun getKeyHint ()Ljava/lang/String;
@@ -571,11 +575,11 @@ public abstract interface class com/opencapture/opencine/streaming/StreamVideoEn
 public final class com/opencapture/opencine/streaming/StreamingNative : com/opencapture/opencine/streaming/StreamingNativeApi {
 	public static final field INSTANCE Lcom/opencapture/opencine/streaming/StreamingNative;
 	public fun canStream (Ljava/lang/String;)Z
-	public fun checkDestination (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public fun checkDestination (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public fun close (Ljava/lang/String;)V
 	public fun connected (Ljava/lang/String;J)[B
 	public fun connectionLost (Ljava/lang/String;J)[B
-	public fun create (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
+	public fun create (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
 	public fun format (Ljava/lang/String;IIII[I)Ljava/lang/String;
 	public final fun isAvailable ()Z
 	public final fun load (Ljava/lang/String;)Z
@@ -593,11 +597,11 @@ public final class com/opencapture/opencine/streaming/StreamingNative : com/open
 
 public abstract interface class com/opencapture/opencine/streaming/StreamingNativeApi {
 	public abstract fun canStream (Ljava/lang/String;)Z
-	public abstract fun checkDestination (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun checkDestination (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public abstract fun close (Ljava/lang/String;)V
 	public abstract fun connected (Ljava/lang/String;J)[B
 	public abstract fun connectionLost (Ljava/lang/String;J)[B
-	public abstract fun create (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
+	public abstract fun create (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
 	public abstract fun format (Ljava/lang/String;IIII[I)Ljava/lang/String;
 	public abstract fun presets ()Ljava/lang/String;
 	public abstract fun publishAudio (Ljava/lang/String;[BIJ)[B

@@ -10,8 +10,12 @@ import android.util.Log
  * the actions to apply in order, then the status. Times are nanoseconds on one monotonic clock.
  */
 interface StreamingNativeApi {
-    /** JSON `{"owner":id,"tls":bool}` or `{"error":name}`. The key is never in the reply. */
-    fun create(serverUrl: String, streamKey: String, formatJson: String, nowNs: Long): String
+    /**
+     * A run for [presetId]: its fixed server, or [enteredServerUrl] when it asks for one, with its
+     * rule on plain `rtmp://`. JSON `{"owner":id,"tls":bool}` or `{"error":name}`. The key is never
+     * in the reply.
+     */
+    fun create(presetId: String, enteredServerUrl: String, streamKey: String, formatJson: String, nowNs: Long): String
 
     fun start(owner: String): ByteArray
 
@@ -58,8 +62,8 @@ interface StreamingNativeApi {
         connected: IntArray,
     ): String?
 
-    /** JSON `{"ok":true,"tls":bool}` or `{"error":name}`. */
-    fun checkDestination(serverUrl: String, streamKey: String): String
+    /** JSON `{"ok":true,"tls":bool}` or `{"error":name}`, for a preset as in [create]. */
+    fun checkDestination(presetId: String, enteredServerUrl: String, streamKey: String): String
 
     /** Whether a stream may start on a `StreamConnectionRoute` named by its case name. */
     fun canStream(route: String): Boolean
@@ -94,7 +98,13 @@ object StreamingNative : StreamingNativeApi {
         return isAvailable
     }
 
-    external override fun create(serverUrl: String, streamKey: String, formatJson: String, nowNs: Long): String
+    external override fun create(
+        presetId: String,
+        enteredServerUrl: String,
+        streamKey: String,
+        formatJson: String,
+        nowNs: Long,
+    ): String
 
     external override fun start(owner: String): ByteArray
 
@@ -138,7 +148,7 @@ object StreamingNative : StreamingNativeApi {
         connected: IntArray,
     ): String?
 
-    external override fun checkDestination(serverUrl: String, streamKey: String): String
+    external override fun checkDestination(presetId: String, enteredServerUrl: String, streamKey: String): String
 
     external override fun canStream(route: String): Boolean
 }

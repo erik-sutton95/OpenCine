@@ -27,7 +27,13 @@ class FakeStreamingNative(
     /** When set, `create` answers with this wire error name. */
     var createError: String? = null
 
-    override fun create(serverUrl: String, streamKey: String, formatJson: String, nowNs: Long): String {
+    override fun create(
+        presetId: String,
+        enteredServerUrl: String,
+        streamKey: String,
+        formatJson: String,
+        nowNs: Long,
+    ): String {
         calls += "create"
         createError?.let { return """{"error":"$it"}""" }
         return """{"owner":"owner-1","tls":$tls}"""
@@ -110,11 +116,14 @@ class FakeStreamingNative(
         connected: IntArray,
     ): String? = if (presetId == "unknown") null else FORMAT_720P
 
-    override fun checkDestination(serverUrl: String, streamKey: String): String = when {
+    /** Presets other than `custom` and `instagram` have a fixed `rtmps://` server; `custom` takes `rtmp://`. */
+    override fun checkDestination(presetId: String, enteredServerUrl: String, streamKey: String): String = when {
         streamKey.isBlank() -> """{"error":"emptyKey"}"""
-        serverUrl.startsWith("rtmps://") -> """{"ok":true,"tls":true}"""
-        serverUrl.startsWith("rtmp://") -> """{"ok":true,"tls":false}"""
-        else -> """{"error":"notRTMPS"}"""
+        presetId != "custom" && presetId != "instagram" -> """{"ok":true,"tls":true}"""
+        enteredServerUrl.startsWith("rtmps://") -> """{"ok":true,"tls":true}"""
+        presetId == "custom" && enteredServerUrl.startsWith("rtmp://") -> """{"ok":true,"tls":false}"""
+        enteredServerUrl.contains("://") -> """{"error":"notRTMPS"}"""
+        else -> """{"error":"invalidServerURL"}"""
     }
 
     override fun canStream(route: String): Boolean = route != "cameraWiFi"
@@ -140,7 +149,7 @@ class FakeStreamingNative(
                 """{"id":"instagram","displayName":"Instagram","serverURL":null,"requiresServerEntry":true,""" +
                 """"maxVideoBitrateBps":6000000,"portrait":true,"keyHint":"Copy both."},""" +
                 """{"id":"custom","displayName":"Custom server","serverURL":null,"requiresServerEntry":true,""" +
-                """"maxVideoBitrateBps":null,"portrait":false,"keyHint":"Paste both."}]"""
+                """"maxVideoBitrateBps":null,"portrait":false,"keyHint":"Paste both.","allowsPlainRTMP":true}]"""
 
         /** The binary reply `StreamRunWire` documents, built in Kotlin for tests. */
         fun encodeReply(actions: List<StreamAction>, status: StreamStatus): ByteArray {
