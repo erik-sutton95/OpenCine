@@ -184,6 +184,11 @@ fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = M
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
+    // While this overlay is on screen the root pill stays hidden: the monitor shows the stream.
+    DisposableEffect(coordinator) {
+        coordinator.monitorControlsAppeared()
+        onDispose { coordinator.monitorControlsGone() }
+    }
     Box(modifier) {
         LiveStreamMonitorControls(state, coordinator, Modifier.align(Alignment.TopCenter).padding(top = 10.dp)) {
             if (microphone.granted) {
@@ -205,10 +210,12 @@ fun MonitorLiveFeedScope.LiveStreamOverlay(coordinator: LiveStreamCoordinator) {
 
 /**
  * The root-level Live pill (elapsed time and Stop) for wherever a running stream outlives the
- * monitor screen. Draws nothing while no stream runs.
+ * monitor screen. Place it once at the app root, above every stage: it draws only while a stream
+ * runs and no [LiveStreamOverlay] is on screen.
  */
 @Composable
 fun LiveStreamRootIndicator(coordinator: LiveStreamCoordinator, modifier: Modifier = Modifier) {
     val state by coordinator.state.collectAsState()
-    LiveStreamRootPill(state, coordinator, modifier)
+    val shows by coordinator.showsRootPill.collectAsState()
+    if (shows) LiveStreamRootPill(state, coordinator, modifier)
 }

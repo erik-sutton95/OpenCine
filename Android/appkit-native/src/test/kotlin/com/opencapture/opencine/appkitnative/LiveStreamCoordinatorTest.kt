@@ -117,6 +117,23 @@ class LiveStreamCoordinatorTest {
     }
 
     @Test
+    fun rootPillShowsOnlyWhileARunningStreamHasNoMonitorControl() = runTest(UnconfinedTestDispatcher()) {
+        val idle = coordinator()
+        assertFalse(idle.showsRootPill.value)
+        val stream = liveCoordinator()
+        assertTrue(stream.showsRootPill.value)
+        stream.monitorControlsAppeared()
+        assertFalse(stream.showsRootPill.value)
+        stream.monitorControlsAppeared()
+        stream.monitorControlsGone()
+        assertFalse(stream.showsRootPill.value)
+        stream.monitorControlsGone()
+        assertTrue(stream.showsRootPill.value)
+        stream.stop()
+        assertFalse(stream.showsRootPill.value)
+    }
+
+    @Test
     fun savedKeyShowsTheControl() = runTest(UnconfinedTestDispatcher()) {
         val stream = coordinator()
         assertEquals(LiveStreamKeyState.ABSENT, stream.state.value.keyState)

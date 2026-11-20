@@ -18,8 +18,11 @@ public final class com/opencapture/opencine/appkitnative/LiveStreamCoordinator :
 	public synthetic fun <init> (Lcom/opencapture/opencine/streaming/StreamCatalog;Lcom/opencapture/opencine/streaming/StreamKeyStore;Lcom/opencapture/opencine/appkitnative/LiveStreamSettings;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlinx/coroutines/CoroutineScope;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun dismissNotice ()V
 	public final fun getPermissionPreferences ()Ljava/lang/String;
+	public final fun getShowsRootPill ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun goLive ()V
+	public final fun monitorControlsAppeared ()V
+	public final fun monitorControlsGone ()V
 	public final fun onBackground ()V
 	public final fun refresh ()V
 	public fun removeKey ()V

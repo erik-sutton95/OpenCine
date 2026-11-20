@@ -30,8 +30,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -98,6 +101,22 @@ class LiveStreamCoordinator(
     private val presets: List<StreamServicePreset> = catalog.presets()
     private val mutableState = MutableStateFlow(LiveStreamState())
     val state: StateFlow<LiveStreamState> = mutableState.asStateFlow()
+
+    private val monitorControls = MutableStateFlow(0)
+
+    /**
+     * The root Live pill is due: a stream runs and no monitor shows its Go live control (the
+     * monitor closed, another stage covers it).
+     */
+    val showsRootPill: StateFlow<Boolean> = combine(mutableState, monitorControls) { state, controls ->
+        state.phase.isRunning && controls == 0
+    }.stateIn(scope, SharingStarted.Eagerly, false)
+
+    /** A monitor overlay with the Go live control came on screen; pair with [monitorControlsGone]. */
+    fun monitorControlsAppeared() = monitorControls.update { it + 1 }
+
+    /** A monitor overlay from [monitorControlsAppeared] left the screen. */
+    fun monitorControlsGone() = monitorControls.update { (it - 1).coerceAtLeast(0) }
 
     private var publisher: StreamPublisher? = null
     private var activeMicrophone: LiveStreamMicrophone? = null
