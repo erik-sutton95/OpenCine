@@ -19,7 +19,9 @@ import Testing
     }
 
     @Test func defaultPortIs443() throws {
-        #expect(try StreamDestination(serverURL: "rtmps://a.example.com/live2", streamKey: "k").port == 443)
+        let d = try StreamDestination(serverURL: "rtmps://a.example.com/live2", streamKey: "k")
+        #expect(d.port == 443)
+        #expect(d.isEncrypted)
     }
 
     @Test func plainRTMPIsRefused() {
@@ -63,9 +65,43 @@ import Testing
         }
     }
 
-    @Test func testSeamAllowsPlainRTMPForTheLocalReceiver() throws {
-        let d = try StreamDestination(testOnlyPlainServerURL: "rtmp://127.0.0.1:1935/live", streamKey: "k")
+    @Test func plainRTMPIsAcceptedOnlyWhereAllowed() throws {
+        let d = try StreamDestination(serverURL: "rtmp://a.example.com/live2", streamKey: "k", allowsPlainRTMP: true)
+        #expect(d.isEncrypted == false)
         #expect(d.port == 1935)
-        #expect(d.tcURL == "rtmp://127.0.0.1:1935/live")
+        #expect(d.tcURL == "rtmp://a.example.com:1935/live2")
+        #expect(try StreamDestination(serverURL: "rtmps://a.example.com/live2", streamKey: "k", allowsPlainRTMP: true)
+            .isEncrypted)
+        #expect(try StreamDestination(serverURL: "RTMP://a.example.com:8080/live", streamKey: "k", allowsPlainRTMP: true)
+            .port == 8080)
+    }
+
+    @Test func otherSchemesStayRefusedWhenPlainIsAllowed() {
+        #expect(throws: StreamDestinationError.notRTMPS) {
+            try StreamDestination(serverURL: "http://a.example.com/live2", streamKey: "k", allowsPlainRTMP: true)
+        }
+    }
+
+    @Test func plainKeyIsInNoDescription() throws {
+        let d = try StreamDestination(serverURL: "rtmp://a.example.com/app", streamKey: "SECRETKEY", allowsPlainRTMP: true)
+        #expect(!"\(d)".contains("SECRETKEY"))
+        #expect(!String(reflecting: d).contains("SECRETKEY"))
+    }
+
+    @Test func presetPicksItsServerAndItsSchemeRule() throws {
+        let youtube = try #require(StreamServicePreset.all.first { $0.id == "youtube" })
+        let fixed = try StreamDestination(preset: youtube, enteredServerURL: "rtmp://ignored.example.com/x", streamKey: "k")
+        #expect(fixed.host == "a.rtmps.youtube.com")
+        #expect(fixed.isEncrypted)
+        let instagram = try #require(StreamServicePreset.all.first { $0.id == "instagram" })
+        #expect(throws: StreamDestinationError.notRTMPS) {
+            try StreamDestination(preset: instagram, enteredServerURL: "rtmp://edge.example.com/rtmp", streamKey: "k")
+        }
+        #expect(throws: StreamDestinationError.invalidServerURL) {
+            try StreamDestination(preset: .custom, enteredServerURL: nil, streamKey: "k")
+        }
+        let custom = try StreamDestination(
+            preset: .custom, enteredServerURL: "rtmp://push.example.com/live", streamKey: "k")
+        #expect(!custom.isEncrypted)
     }
 }

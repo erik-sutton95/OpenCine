@@ -1,6 +1,7 @@
 #if canImport(Network)
 import Foundation
 import Network
+import OpenCineStreaming
 import Testing
 
 @testable import OpenCineStreamingApple
@@ -10,8 +11,10 @@ final class LocalPeer: @unchecked Sendable {
     let listener: NWListener
     private let queue = DispatchQueue(label: "opencine.streaming.test-peer")
     private var peer: NWConnection?
+    private let onRead: (@Sendable ([UInt8]) -> Void)?
 
-    init(echo: Bool, closeAfterFirstRead: Bool = false) throws {
+    init(echo: Bool, closeAfterFirstRead: Bool = false, onRead: (@Sendable ([UInt8]) -> Void)? = nil) throws {
+        self.onRead = onRead
         listener = try NWListener(using: .tcp, on: .any)
         listener.newConnectionHandler = { [unowned self] connection in
             peer = connection
@@ -49,6 +52,7 @@ final class LocalPeer: @unchecked Sendable {
 
     private func read(_ connection: NWConnection, echo: Bool, closeAfterFirstRead: Bool) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, complete, _ in
+            if let data { self?.onRead?(Array(data)) }
             if let data, echo { connection.send(content: data, completion: .idempotent) }
             if closeAfterFirstRead || complete {
                 connection.cancel()
@@ -85,7 +89,7 @@ final class EventLog: @unchecked Sendable {
         let port = await peer.start()
         defer { peer.stop() }
         let log = EventLog()
-        let connection = NetworkStreamConnection(plainHost: "127.0.0.1", port: port)
+        let connection = NetworkStreamConnection(host: "127.0.0.1", port: port, encrypted: false)
         connection.open(onEvent: log.sink)
         let opening = await log.until { $0 == .opened }
         #expect(opening == [.opened])
@@ -101,7 +105,7 @@ final class EventLog: @unchecked Sendable {
         let port = await peer.start()
         defer { peer.stop() }
         let log = EventLog()
-        let connection = NetworkStreamConnection(plainHost: "127.0.0.1", port: port)
+        let connection = NetworkStreamConnection(host: "127.0.0.1", port: port, encrypted: false)
         connection.open(onEvent: log.sink)
         _ = await log.until { $0 == .opened }
         connection.write([9])
@@ -115,10 +119,34 @@ final class EventLog: @unchecked Sendable {
         let port = await peer.start()
         await peer.stopListening()
         let log = EventLog()
-        let connection = NetworkStreamConnection(plainHost: "127.0.0.1", port: port)
+        let connection = NetworkStreamConnection(host: "127.0.0.1", port: port, encrypted: false)
         connection.open(onEvent: log.sink)
         let events = await log.until { $0 == .lost }
         #expect(events == [.lost])
+    }
+}
+
+@Suite(.timeLimit(.minutes(1))) struct StreamTransportTests {
+    /// A plain `rtmp://` Custom server gets the RTMP handshake in the clear (C0 is version 3); an
+    /// `rtmps://` address opens TLS first (a handshake record, 0x16), whoever answers.
+    @Test(arguments: [false, true]) func publisherPicksTheTransportFromTheAddress(encrypted: Bool) async throws {
+        let reads = AsyncStream.makeStream(of: [UInt8].self)
+        let peer = try LocalPeer(echo: false, onRead: { reads.continuation.yield($0) })
+        let port = await peer.start()
+        defer { peer.stop() }
+        let scheme = encrypted ? "rtmps" : "rtmp"
+        let publisher = StreamPublisher(
+            destination: try StreamDestination(
+                serverURL: "\(scheme)://127.0.0.1:\(port)/live", streamKey: "k", allowsPlainRTMP: true),
+            format: MediaFixtures.format720)
+        publisher.start()
+        defer { publisher.stop() }
+        var first: [UInt8] = []
+        for await bytes in reads.stream {
+            first = bytes
+            break
+        }
+        #expect(first.first == (encrypted ? 0x16 : 0x03))
     }
 }
 #endif

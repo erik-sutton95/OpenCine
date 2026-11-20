@@ -22,10 +22,13 @@ public struct StreamServicePreset: Hashable, Sendable, Identifiable {
     public var aspect: Aspect
     /// One plain sentence on where to find the stream key.
     public var keyHint: String
+    /// The entered server may be plain `rtmp://` (unencrypted). Only the Custom server allows it;
+    /// every service preset is `rtmps://`.
+    public var allowsPlainRTMP: Bool
 
     public init(
         id: String, displayName: String, serverURL: String?, requiresServerEntry: Bool,
-        maxVideoBitrateBps: Int?, aspect: Aspect, keyHint: String
+        maxVideoBitrateBps: Int?, aspect: Aspect, keyHint: String, allowsPlainRTMP: Bool = false
     ) {
         self.id = id
         self.displayName = displayName
@@ -34,6 +37,7 @@ public struct StreamServicePreset: Hashable, Sendable, Identifiable {
         self.maxVideoBitrateBps = maxVideoBitrateBps
         self.aspect = aspect
         self.keyHint = keyHint
+        self.allowsPlainRTMP = allowsPlainRTMP
     }
 }
 
@@ -62,10 +66,13 @@ public extension StreamServicePreset {
             keyHint: "On instagram.com, choose Create, then Live, and copy both the stream URL and the stream key; they change every time."),
     ]
 
-    /// Any other `rtmps://` server: the user enters the address and the key.
+    /// Any other server: the user enters the address and the key. It may be plain `rtmp://`
+    /// (owner, 2026-11-20), which the setup page and the go-live confirmation flag as unencrypted.
     static let custom = StreamServicePreset(
         id: "custom", displayName: "Custom server",
         serverURL: nil, requiresServerEntry: true,
         maxVideoBitrateBps: nil, aspect: .landscape16x9,
-        keyHint: "Your streaming service shows the server address and stream key together; paste both.")
+        keyHint: "Your streaming service shows the server address and stream key together; paste both. "
+            + "For TikTok LIVE, copy the server URL and stream key TikTok shows for streaming software.",
+        allowsPlainRTMP: true)
 }

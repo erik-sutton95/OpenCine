@@ -73,7 +73,7 @@ enum Interop {
 
         let link = try await TCPLink.connect(port: port)
         let destination = try StreamDestination(
-            testOnlyPlainServerURL: "rtmp://127.0.0.1:\(port)/live", streamKey: "interopkey")
+            serverURL: "rtmp://127.0.0.1:\(port)/live", streamKey: "interopkey", allowsPlainRTMP: true)
         var session = RTMPPublishSession(destination: destination)
         try await link.send(session.start())
         while session.state != .live {

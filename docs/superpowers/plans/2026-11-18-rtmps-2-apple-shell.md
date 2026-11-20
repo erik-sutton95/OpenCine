@@ -15,7 +15,7 @@
 - `OpenCineStreaming` stays Foundation and Core only, opens no socket and names no manufacturer or app.
 - `OpenCineStreamingApple` depends on `OpenCineStreaming`, `OpenCineCore` and Apple frameworks only: never UI, an integration, an app or a third-party package. No `static var`, no `nonisolated(unsafe)`.
 - No third-party package. FFmpeg only in scripts and the opt-in test tier.
-- Only `rtmps://`. TLS cannot be disabled through public API; the interop tier uses an internal seam.
+- Only `rtmps://`. TLS cannot be disabled through public API; the interop tier uses an internal seam. (Superseded 2026-11-20: a Custom server may be plain `rtmp://`, see the spec.)
 - A stream key never appears in a log, description, error, status value or failure text.
 - Output values from the spec: H.264, 2 second keyframe interval, AAC-LC stereo at 48 kHz and 160 kbps, about 3 Mbps at 720p and 6 Mbps at 1080p, reconnect for up to 2 minutes, output does not queue while offline.
 - What goes out: the clean camera picture with the monitor LUT when one is on, never assists or app controls.
