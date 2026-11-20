@@ -92,6 +92,8 @@ class LiveStreamCoordinator(
     private val deviceWatch: () -> LiveStreamDeviceWatch?,
     private val clock: () -> Long,
     private val scope: CoroutineScope,
+    /** The app's preferences file where the microphone ask remembers a refusal. */
+    val permissionPreferences: String = "opencine.live-stream.permissions",
 ) : LiveStreamActions {
     private val presets: List<StreamServicePreset> = catalog.presets()
     private val mutableState = MutableStateFlow(LiveStreamState())

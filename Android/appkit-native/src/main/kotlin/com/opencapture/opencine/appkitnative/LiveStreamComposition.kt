@@ -5,8 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import android.view.Surface
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -15,7 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -26,6 +27,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.isRunning
 import com.opencapture.monitorui.livestream.LiveStreamMonitorControls
+import com.opencapture.monitorui.livestream.LiveStreamRootPill
+import com.opencapture.opencine.appkit.rememberPermissionGate
 import com.opencapture.opencine.runtime.MonitorCleanPictureFill
 import com.opencapture.opencine.runtime.MonitorCleanPictureTap
 import com.opencapture.opencine.streaming.AacStreamEncoder
@@ -121,6 +124,7 @@ object LiveStreamComposition {
             },
             clock = System::nanoTime,
             scope = scope,
+            permissionPreferences = "$preferencesFile.permissions",
         )
     }
 }
@@ -148,23 +152,63 @@ fun LiveStreamHostEffects(coordinator: LiveStreamCoordinator) {
 }
 
 /**
- * The Go live control, status, notice and warnings at the top center of the live picture.
- * Confirming a start asks for the microphone first when the app does not hold it yet; a refusal
- * ends with the microphone notice.
+ * The Go live control, status, notice and warnings, aligned to the top center of [modifier]'s box
+ * (an app places that box over its monitor picture). Confirming a start asks for the microphone
+ * through the shared permission gate when the app does not hold it yet: the start runs once it is
+ * granted; a refusal still goes through the coordinator, which ends with the microphone notice.
  */
 @Composable
-fun MonitorLiveFeedScope.LiveStreamOverlay(coordinator: LiveStreamCoordinator) {
+fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = Modifier) {
     val state by coordinator.state.collectAsState()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        coordinator.goLive()
-    }
-    val feed = geometry.layout.onFeed
-    Box(Modifier.offset(feed.x.dp, feed.y.dp).size(feed.width.dp, feed.height.dp)) {
-        LiveStreamMonitorControls(state, coordinator, Modifier.align(Alignment.TopCenter).padding(top = 10.dp)) {
-            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                PackageManager.PERMISSION_GRANTED
-            if (granted) coordinator.goLive() else permission.launch(Manifest.permission.RECORD_AUDIO)
+    var startWhenGranted by remember { mutableStateOf(false) }
+    val microphone = rememberPermissionGate(
+        label = "livestream.microphone",
+        needed = listOf(Manifest.permission.RECORD_AUDIO),
+        preferencesName = coordinator.permissionPreferences,
+        log = { line -> Log.i("OpenCineStream", line) },
+    ) {
+        if (startWhenGranted) {
+            startWhenGranted = false
+            coordinator.goLive()
         }
     }
+    // The system dialog returns on resume, after the gate's own observer (registered first). A
+    // start still waiting then was refused: the coordinator shows the microphone notice.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, coordinator) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event != Lifecycle.Event.ON_RESUME || !startWhenGranted) return@LifecycleEventObserver
+            startWhenGranted = false
+            coordinator.goLive()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    Box(modifier) {
+        LiveStreamMonitorControls(state, coordinator, Modifier.align(Alignment.TopCenter).padding(top = 10.dp)) {
+            if (microphone.granted) {
+                coordinator.goLive()
+            } else {
+                startWhenGranted = true
+                microphone.request()
+            }
+        }
+    }
+}
+
+/** [LiveStreamOverlay] over the shared live host's picture. */
+@Composable
+fun MonitorLiveFeedScope.LiveStreamOverlay(coordinator: LiveStreamCoordinator) {
+    val feed = geometry.layout.onFeed
+    LiveStreamOverlay(coordinator, Modifier.offset(feed.x.dp, feed.y.dp).size(feed.width.dp, feed.height.dp))
+}
+
+/**
+ * The root-level Live pill (elapsed time and Stop) for wherever a running stream outlives the
+ * monitor screen. Draws nothing while no stream runs.
+ */
+@Composable
+fun LiveStreamRootIndicator(coordinator: LiveStreamCoordinator, modifier: Modifier = Modifier) {
+    val state by coordinator.state.collectAsState()
+    LiveStreamRootPill(state, coordinator, modifier)
 }

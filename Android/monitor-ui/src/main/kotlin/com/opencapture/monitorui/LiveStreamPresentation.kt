@@ -120,6 +120,9 @@ object LiveStreamCopy {
     const val END_STREAM = "End stream"
     const val KEEP_STREAMING = "Keep streaming"
 
+    /** The root pill's stop button, shown wherever the stream outlives the monitor screen. */
+    const val STOP = "Stop"
+
     const val DISMISS = "Dismiss"
     const val RESTART = "Restart stream"
 

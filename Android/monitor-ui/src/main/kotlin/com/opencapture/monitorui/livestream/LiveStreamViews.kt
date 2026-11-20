@@ -89,6 +89,8 @@ object LiveStreamIds {
     const val NOTICE_DISMISS = "monitor.livestream.notice.dismiss"
     const val RESTART = "monitor.livestream.restart"
     const val WARNING = "monitor.livestream.warning"
+    const val ROOT_PILL = "monitor.livestream.rootPill"
+    const val ROOT_PILL_STOP = "monitor.livestream.rootPill.stop"
 }
 
 private val noteStyle get() = MonitorTypography.text(12f, FontWeight.Normal)
@@ -390,4 +392,44 @@ private fun Bubble(modifier: Modifier, content: @Composable () -> Unit) {
     Column(modifier.fillMaxWidth().background(MonitorPalette.background.copy(alpha = 0.82f), RoundedCornerShape(12.dp))
         .border(1.dp, MonitorPalette.border, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 9.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+}
+
+/**
+ * A small pill for the app root while a stream runs and the monitor's Go live control is not on
+ * screen (the camera was lost and the monitor closed, another stage opened): the control's title
+ * (`LIVE 12:34`, `Connecting`, `Reconnecting`) and Stop, which asks the same stop confirmation.
+ * Draws nothing when no stream runs.
+ */
+@Composable
+fun LiveStreamRootPill(state: LiveStreamState, actions: LiveStreamActions, modifier: Modifier = Modifier) {
+    if (!state.phase.isRunning) return
+    var confirmingStop by remember { mutableStateOf(false) }
+    val look = liveStreamControlLook(state)
+    Row(
+        modifier
+            .testTag(LiveStreamIds.ROOT_PILL)
+            .background(MonitorPalette.background.copy(alpha = 0.86f), CircleShape)
+            .border(1.dp, if (look.live) MonitorPalette.recording else MonitorPalette.border, CircleShape)
+            .padding(start = 12.dp, end = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(look.title, style = MonitorTypography.readout(12f, FontWeight.SemiBold),
+            color = if (look.live) MonitorPalette.recording else MonitorPalette.text,
+            modifier = Modifier.clearAndSetSemantics { contentDescription = look.label })
+        MonitorSettingsActionPill(LiveStreamCopy.STOP, tint = MonitorPalette.recording,
+            background = MonitorPalette.recording.copy(alpha = 0.16f),
+            modifier = Modifier.testTag(LiveStreamIds.ROOT_PILL_STOP)) { confirmingStop = true }
+    }
+    if (confirmingStop) {
+        AlertDialog(onDismissRequest = { confirmingStop = false },
+            title = { Text(LiveStreamCopy.STOP_TITLE) },
+            text = { Text(LiveStreamCopy.STOP_MESSAGE) },
+            confirmButton = {
+                TextButton(onClick = { confirmingStop = false; actions.stop() }) {
+                    Text(LiveStreamCopy.END_STREAM, color = MonitorPalette.recording)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmingStop = false }) { Text(LiveStreamCopy.KEEP_STREAMING) } })
+    }
 }
