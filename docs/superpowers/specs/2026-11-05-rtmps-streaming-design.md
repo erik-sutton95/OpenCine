@@ -33,7 +33,8 @@ OBS remains the tool for anything richer. It gets each camera as its own video i
 
 - **[Owner]** Signing in to service accounts from the app. Stream keys only.
 - **[Call]** Fades, picture-in-picture, titles, graphics, scenes or several simultaneous destinations.
-- **[Call]** Plain unencrypted `rtmp://`. Custom servers must be `rtmps://`.
+- **[Owner, 2026-11-20]** Plain unencrypted `rtmp://` for the service presets. Presets stay `rtmps://`;
+  only a Custom server may be plain `rtmp://` (see Setup).
 - **[Call]** Recording the stream locally. Cameras already record their own footage.
 - **[Call]** Jam sync, genlock or any automatic camera change. Clocks change only through the operator's
   **Line up cameras** step below.
@@ -71,6 +72,11 @@ Each app has one **Live stream** settings page, the same shared component everyw
 - **Service:** Twitch, YouTube, Facebook, Instagram or Custom. A preset fills in the server
   address and output defaults. Custom and Instagram ask for the server address too, because
   Instagram issues the address together with the key.
+- **Plain `rtmp://` [Owner, 2026-11-20]:** a Custom server may be `rtmp://` (TikTok LIVE often
+  issues one; port 1935 when none is given), with a clear warning on the setup page and in the
+  go-live confirmation that the stream and its key are not encrypted. The key still never appears
+  in a log. Presets, Instagram's entered address included, stay `rtmps://`. TikTok has no preset;
+  the Custom hint says where TikTok shows its server and key.
 - **Stream key:** masked, pasted, stored in secure storage per service, and removable. Each preset
   shows one line on where to find the key in that service.
 - **Quality [Owner]:** the stream matches the source and never pretends to more. Wireless feeds
