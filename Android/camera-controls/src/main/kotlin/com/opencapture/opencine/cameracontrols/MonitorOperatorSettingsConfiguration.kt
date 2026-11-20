@@ -121,6 +121,11 @@ public class MonitorSettingsLinkSource(
     public val savedCameras: List<MonitorSavedCameraSummary>? = null,
     public val savedCamerasHelp: String = "",
 )
+/** The Live stream card's values and actions, shown on the Sharing tab after feed sharing. */
+public class MonitorSettingsLiveStreamSource(
+    public val state: com.opencapture.monitorui.LiveStreamState,
+    public val actions: com.opencapture.monitorui.LiveStreamActions,
+)
 public class MonitorSettingsSharingSource(
     public val watching: MonitorSettingsReadoutSource? = null,
     public val sharingTitle: String, public val sharingHelp: String,
@@ -330,9 +335,12 @@ public class MonitorOperatorSettingsConfiguration(
     public val gyro: MonitorSettingsGyroSource? = null,
     /** The connected camera's exposure and white balance presets, first on the Controls tab. */
     public val cameraPresets: com.opencapture.opencine.appkit.CameraSettingsPresetsModel? = null,
+    /** Live streaming, when the app composes it: the card follows feed sharing on the Sharing tab. */
+    public val liveStream: MonitorSettingsLiveStreamSource? = null,
 ) {
     /** Explicit tab lists keep their order; the default includes each supplied optional domain. */
-    public val tabs: List<MonitorSettingsTab> = tabs ?: monitorSettingsTabs(sharing, cache, account, unconfiguredAccount, gyro)
+    public val tabs: List<MonitorSettingsTab> =
+        tabs ?: monitorSettingsTabs(sharing, cache, account, unconfiguredAccount, gyro, liveStream)
     /** Published positional list constructor; every current capability field keeps its default. */
     @Deprecated("Compose an explicit typed assist source when migrating the shared settings.")
     public constructor(
@@ -348,14 +356,18 @@ public class MonitorOperatorSettingsConfiguration(
         assistSections = assistSections)
 }
 
-/** Stable tab order with Sharing only for a sharing domain and Storage only for a cache or account. */
+/**
+ * Stable tab order with Sharing only for feed sharing or live streaming and Storage only for a
+ * cache or account.
+ */
 public fun monitorSettingsTabs(
     sharing: MonitorSettingsSharingSource?, cache: MonitorSettingsCachePresentation?,
     account: MonitorSettingsAccountSource?, unconfiguredAccount: MonitorSettingsReadoutSource? = null,
     gyro: MonitorSettingsGyroSource? = null,
+    liveStream: MonitorSettingsLiveStreamSource? = null,
 ): List<MonitorSettingsTab> = MonitorSettingsTab.entries.filter {
     when (it) {
-        MonitorSettingsTab.SHARING -> sharing != null
+        MonitorSettingsTab.SHARING -> sharing != null || liveStream != null
         MonitorSettingsTab.STORAGE -> gyro != null || cache != null || account != null || unconfiguredAccount != null
         else -> true
     }
@@ -486,14 +498,25 @@ internal fun SettingsLink(source: MonitorSettingsLinkSource) {
     source.savedCameras?.let { MonitorSavedCameraSettings(it, source.savedCamerasHelp) }
 }
 @Composable
-internal fun SettingsSharing(source: MonitorSettingsSharingSource?, feedback: () -> Unit) {
-    if (source == null) {
+internal fun SettingsSharing(
+    source: MonitorSettingsSharingSource?,
+    feedback: () -> Unit,
+    liveStream: MonitorSettingsLiveStreamSource? = null,
+) {
+    if (source != null) SettingsFeedSharing(source, feedback)
+    if (liveStream != null) {
+        com.opencapture.monitorui.livestream.LiveStreamSettingsCard(liveStream.state, liveStream.actions)
+    }
+    if (source == null && liveStream == null) {
         MonitorSettingsRowCard {
             Text("Coming soon...", style = LiveType.ui(15f, FontWeight.Medium), color = LiveDesign.muted,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 2.dp))
         }
-        return
     }
+}
+
+@Composable
+private fun SettingsFeedSharing(source: MonitorSettingsSharingSource, feedback: () -> Unit) {
     val watching = source.watching
     if (watching != null) { MonitorSettingsRowCard { SettingsReadout(watching, true) }; return }
     var draft by remember { mutableStateOf(source.passcode) }

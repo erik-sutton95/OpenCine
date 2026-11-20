@@ -61,6 +61,9 @@ include(
     // Gyro: motion capture take policy, ring calibration, drift and arming over the shared Swift
     // wire (JNI facade GyroNative).
     ":gyro",
+    // Live streaming: socket, MediaCodec encoders, microphone and Keystore keys over the shared
+    // Swift run controller (JNI facade StreamingNative).
+    ":streaming",
     // Media3 playback shared by the apps: player recipe, port, audio meter tap and playback owner.
     ":media3",
 )

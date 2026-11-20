@@ -122,6 +122,11 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
 - `OpenCineStreamingApple` (streaming's Apple shell: TLS socket, H.264 and AAC encoders, picture
   fitting, microphone, keychain and the publisher that drives the run controller) depends on
   `OpenCineStreaming`, `OpenCineCore` and Apple frameworks only, never on UI, an integration or an app.
+- `OpenCineStreamingAndroid` (the JNI facade: the run controller's owner registry and binary
+  replies) depends on `OpenCineStreaming`, `OpenCineCore` and `OpenCineJNISupport` only. Android
+  `:streaming` (socket, MediaCodec encoders, microphone, Keystore keys, device warnings and the
+  publisher) depends on `:platform` and the Android framework only, never on UI, the native
+  runtime, an integration or an app (`StreamingRulesTest`); pictures reach it as a surface source.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.
@@ -155,7 +160,8 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   delivery remote services) builds on `OpenCineFrameIO`, `OpenCineAppKit` and
   `OpenCineAppKitApple` only. The keychain service, defaults keys and bundle are app values.
 - Android `appkit-native` is optional native app composition above `camera-controls`,
-  `decoder` and `native-runtime`, its only project dependencies. It composes retained picture
+  `decoder`, `native-runtime` and `streaming`, its only project dependencies (live streaming's
+  composition, `LiveStreamCoordinator`, lives here). It composes retained picture
   hosts and face readback using host values and callbacks, never an integration or an app.
   Portable appkit, camera controls and monitor UI keep their existing import boundaries;
   native-runtime remains UI-free. Native cache proof helpers belong to androidTest only.
@@ -232,6 +238,10 @@ Never grow the common command interface into an enum of vendor features.
   exports `Java_com_opencapture_opencine_gyro_GyroNative_*`, so change both sides in step. Every
   wire call names its owner (owner-keyed registry). `Fixtures/gyro-take-status-vectors.tsv` is
   shared by the Swift and Kotlin status tests; change it with both.
+- Streaming Android (`Android/streaming`, Swift `OpenCineStreamingAndroid`): keep the JNI class
+  `com.opencapture.opencine.streaming.StreamingNative` and its member names;
+  `Sources/OpenCineStreamingAndroid` exports `Java_com_opencapture_opencine_streaming_StreamingNative_*`,
+  so change both sides in step (`StreamingNativeExportNamesTests`). Every run call names its owner.
 - DJI, Nikon: behavior changes need the consumer checks (the app's `swift test`, iOS
   build-for-testing and Android with Swift core staging). Nikon passive discovery and the
   per-operation admission rules change only with a hardware-qualified reason.

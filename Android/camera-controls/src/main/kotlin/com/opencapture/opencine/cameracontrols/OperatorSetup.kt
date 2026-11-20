@@ -230,6 +230,11 @@ class OperatorSetupApp(
     val cacheSource: (@Composable (Context) -> com.opencapture.opencine.appkit.MonitorSettingsCacheSource)? = null,
     /** The connected camera's exposure and white balance presets on the Controls tab; null leaves the card out. */
     val cameraPresets: com.opencapture.opencine.appkit.CameraSettingsPresetsModel? = null,
+    /**
+     * Live streaming's card for the Sharing tab, read each composition (it follows the stream's
+     * state); null, or a slot returning null, leaves it out.
+     */
+    val liveStream: (@Composable () -> MonitorSettingsLiveStreamSource?)? = null,
 )
 
 fun toggledCleanPins(prefs: OperatorPreferenceStore, current: Set<String>, toolKey: String): Set<String> {
@@ -320,6 +325,7 @@ private fun operatorSetupConfiguration(
     }
     val gimbal = state.layout.gimbal
     val information = app.information
+    val liveStream = app.liveStream?.invoke()
     return MonitorOperatorSettingsConfiguration(
         brand = app.wordmark, isLive = isLive, phase = phaseLabel, close = onClose, disconnect = model::disconnect,
         feedback = feedback,
@@ -334,7 +340,10 @@ private fun operatorSetupConfiguration(
             network = state.network, networkHelp = app.help.CAMERA_WIFI,
             savedCameras = monitorSavedCameraSummaries(saved), savedCamerasHelp = app.help.SAVED_CAMERAS,
         ),
-        sharing = null, sharingSubtitle = null, sharingRail = null,
+        sharing = null,
+        sharingSubtitle = liveStream?.let { "Live streaming to a service." },
+        sharingRail = liveStream?.let { "Live stream" },
+        liveStream = liveStream,
         controls = MonitorSettingsControlsSource(
             model.recordConfirmationEnabled, model::updateRecordConfirmationEnabled,
             model.hapticsEnabled, model::updateHapticsEnabled, model.keepScreenAwake, model::updateKeepScreenAwake,

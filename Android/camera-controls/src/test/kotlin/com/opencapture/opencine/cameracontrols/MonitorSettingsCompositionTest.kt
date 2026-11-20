@@ -17,6 +17,25 @@ class MonitorSettingsCompositionTest {
     }
 
     @Test
+    fun `live streaming alone shows the Sharing tab`() {
+        val actions = object : com.opencapture.monitorui.LiveStreamActions {
+            override fun selectService(id: String) = Unit
+            override fun setServer(text: String) = Unit
+            override fun saveKey(key: String) = Unit
+            override fun removeKey() = Unit
+            override fun setShowOnMonitor(show: Boolean) = Unit
+            override fun goLive() = Unit
+            override fun stop() = Unit
+            override fun restart() = Unit
+            override fun dismissNotice() = Unit
+        }
+        val live = MonitorSettingsLiveStreamSource(com.opencapture.monitorui.LiveStreamState(), actions)
+        assertEquals(listOf(MonitorSettingsTab.LINK, MonitorSettingsTab.SHARING, MonitorSettingsTab.ASSIST,
+            MonitorSettingsTab.CONTROLS, MonitorSettingsTab.DISPLAY, MonitorSettingsTab.SYSTEM),
+            monitorSettingsTabs(null, null, null, liveStream = live))
+    }
+
+    @Test
     fun `an account the app names but cannot configure keeps the Storage tab`() {
         val account = MonitorSettingsReadoutSource("Frame.io", "SIMULATED", "Not configured")
         assertEquals(listOf(MonitorSettingsTab.LINK, MonitorSettingsTab.ASSIST, MonitorSettingsTab.CONTROLS,

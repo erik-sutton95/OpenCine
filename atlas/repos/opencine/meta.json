@@ -173,6 +173,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineStreamingAndroid",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "Insta360Protocol",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -296,6 +301,12 @@
       "coordinates": "com.opencapture.opencine:gyro"
     },
     {
+      "name": ":streaming",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:streaming"
+    },
+    {
       "name": ":relay",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -373,6 +384,7 @@
       ":vulkan",
       ":native-runtime",
       ":gyro",
+      ":streaming",
       ":relay",
       ":relay-runtime",
       ":watch-runtime"
@@ -424,6 +436,8 @@
       "OpenCineFrameIOAndroidTests",
       "OpenCineGyroAndroid",
       "OpenCineGyroAndroidTests",
+      "OpenCineStreamingAndroid",
+      "OpenCineStreamingAndroidTests",
       "OpenCineDJIAndroid",
       "OpenCineDJIAndroidTests",
       "OpenCineNikon",

@@ -143,7 +143,7 @@ private fun MonitorOperatorSettingsRows(
     val picture = inputs.picture
     when (tab) {
         MonitorSettingsTab.LINK -> SettingsLink(configuration.link)
-        MonitorSettingsTab.SHARING -> SettingsSharing(configuration.sharing, configuration.feedback)
+        MonitorSettingsTab.SHARING -> SettingsSharing(configuration.sharing, configuration.feedback, configuration.liveStream)
         MonitorSettingsTab.ASSIST -> when (picture) {
             is MonitorOperatorPictureSettings.Deployed -> AssistRows(picture.model, picture.state, picture.app, onOpenLut)
             is MonitorOperatorPictureSettings.Configured -> {

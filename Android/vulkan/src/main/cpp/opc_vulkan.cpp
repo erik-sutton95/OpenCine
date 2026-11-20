@@ -220,6 +220,8 @@ struct OpcVk {
     BufferMem ire{};
     BufferMem staging{};
     BufferMem faceStaging{};
+    // Full 1280x720 identity RGBA for a clean-picture consumer; allocated on first request.
+    BufferMem cleanStaging{};
     BufferMem cubeStaging{};
 
     VkSampler linearSampler = VK_NULL_HANDLE;
@@ -295,6 +297,7 @@ struct OpcVk {
     int stackCount = 3;
     int needTap = 0;
     int needFace = 0;
+    int needClean = 0;
     Plate plates[kMaxPlates]{};
     uint32_t plateCount = 0;
     float uiScale = 1.f;
@@ -1742,7 +1745,8 @@ static int pointCount(int w, int h, int stride) {
 // Downsample unmanaged 720p RGB for CPU readers. Face AF matches iOS Vision
 // on the identity VT buffer, not a PixelCopy of the (possibly mirrored) swapchain.
 static void recordCpuTaps(OpcVk* r) {
-    if ((!r->needTap && !r->needFace) || !r->source.image) return;
+    const bool clean = r->needClean && r->cleanStaging.buffer;
+    if ((!r->needTap && !r->needFace && !clean) || !r->source.image) return;
     imageBarrier(r->cmd, r->source.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
                  VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
@@ -1775,6 +1779,21 @@ static void recordCpuTaps(OpcVk* r) {
     };
     if (r->needTap) downsample(&r->tap, &r->staging, kTapW, kTapH);
     if (r->needFace) downsample(&r->face, &r->faceStaging, kFaceW, kFaceH);
+    if (clean) {
+        // The bake is already identity RGBA at 1280x720: copy it whole, no blit.
+        VkBufferImageCopy bic{};
+        bic.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        bic.imageExtent = {kSourceW, kSourceH, 1};
+        vkCmdCopyImageToBuffer(r->cmd, r->source.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                               r->cleanStaging.buffer, 1, &bic);
+        VkBufferMemoryBarrier bb{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+        bb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        bb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        bb.buffer = r->cleanStaging.buffer;
+        bb.size = (VkDeviceSize)kSourceW * kSourceH * 4;
+        vkCmdPipelineBarrier(r->cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 0, nullptr, 1,
+                             &bb, 0, nullptr);
+    }
 }
 
 static bool submitAndPresentFrame(OpcVk* r, uint32_t idx, bool cpuReadback) {
@@ -1903,7 +1922,7 @@ static bool renderFrame(OpcVk* r) {
     if (!grade && !tap) {
         blitBakeToSwap(r->blitSets[5], presentW, presentH);
         recordCpuTaps(r);
-        const bool ok = submitAndPresentFrame(r, idx, r->needFace != 0);
+        const bool ok = submitAndPresentFrame(r, idx, r->needFace != 0 || r->needClean != 0);
         if (ok && firstPicture) LOGI("first picture identity blit (LUT bake follows)");
         return ok;
     }
@@ -2268,7 +2287,7 @@ static bool renderFrame(OpcVk* r) {
 
     recordCpuTaps(r);
 
-    return submitAndPresentFrame(r, idx, tap || r->needFace != 0);
+    return submitAndPresentFrame(r, idx, tap || r->needFace != 0 || r->needClean != 0);
 }
 
 // Teardown retains the existing blocking idle contract. A WSI acquisition is
@@ -2363,6 +2382,7 @@ static void destroyAll(OpcVk* r) {
     destroyBuffer(r->device, &r->ire);
     destroyBuffer(r->device, &r->staging);
     destroyBuffer(r->device, &r->faceStaging);
+    destroyBuffer(r->device, &r->cleanStaging);
     destroyBuffer(r->device, &r->cubeStaging);
     if (r->cache) vkDestroyPipelineCache(r->device, r->cache, nullptr);
     if (r->fence) vkDestroyFence(r->device, r->fence, nullptr);
@@ -2702,6 +2722,35 @@ Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeCopyFace(JNIEnv* env, j
         }
     }
     env->ReleaseByteArrayElements(out, nv, 0);
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeSetNeedClean(JNIEnv*, jclass, jlong h, jboolean on) {
+    auto* r = fromHandle(h);
+    if (!r) return;
+    std::lock_guard<std::mutex> g(r->lock);
+    if (on && !r->cleanStaging.buffer && r->ready && !r->bitmapInput) {
+        if (makeBuffer(r, (VkDeviceSize)kSourceW * kSourceH * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                       &r->cleanStaging) != VK_SUCCESS || !r->cleanStaging.mapped) {
+            LOGE("clean picture staging allocation failed");
+            destroyBuffer(r->device, &r->cleanStaging);
+        }
+    }
+    r->needClean = on && r->cleanStaging.buffer ? 1 : 0;
+}
+
+// 1280x720 identity RGBA, top row first, of the last submit that asked for it.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeCopyClean(JNIEnv* env, jclass, jlong h,
+                                                                 jbyteArray out) {
+    auto* r = fromHandle(h);
+    const jint need = (jint)(kSourceW * kSourceH * 4);
+    if (!r || !out || !r->cleanStaging.mapped) return JNI_FALSE;
+    std::lock_guard<std::mutex> g(r->lock);
+    if (env->GetArrayLength(out) < need || !waitFence(r, "clean copy")) return JNI_FALSE;
+    env->SetByteArrayRegion(out, 0, need, reinterpret_cast<jbyte*>(r->cleanStaging.mapped));
     return JNI_TRUE;
 }
 
