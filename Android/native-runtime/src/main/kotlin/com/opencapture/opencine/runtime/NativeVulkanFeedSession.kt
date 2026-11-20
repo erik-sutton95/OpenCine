@@ -48,6 +48,8 @@ class NativeVulkanFeedSession(
     private val onFailed: () -> Unit,
     private val onFramePresented: (Long?) -> Unit = {},
     private val backdrop: NativeBackdropFeed? = null,
+    /** Optional stream consumer of the full identity picture; it reads back only while it wants frames. */
+    private val cleanPicture: MonitorCleanPictureTap? = null,
 ) {
     /**
      * This feed's clip ceiling; never shared with another feed or playback. The Vulkan path does
@@ -103,6 +105,8 @@ class NativeVulkanFeedSession(
     private val faceLock = Any()
     private val faceBytes = ByteArray(FACE_TAP_WIDTH * FACE_TAP_HEIGHT * 3 / 2)
     @Volatile private var faceValid = false
+    /** Image thread only: the native clean readback is armed. */
+    private var cleanArmed = false
     private var lastSampleNs = 0L
     private var lastScopeWorkNs = 0L
     private var attachedSurface: Surface? = null
@@ -602,8 +606,13 @@ class NativeVulkanFeedSession(
         // 1280→213 blit is per-submit. Arm it only on the sample tick;
         // leaving needTap on made WAVE/PARADE/VECTOR stall every frame.
         val takeFace = faceWanted.compareAndSet(true, false)
+        val takeClean = cleanPicture?.frameDue(now) == true
         OpcVulkan.nativeSetNeedTap(native, takeTap)
         OpcVulkan.nativeSetNeedFace(native, takeFace)
+        if (takeClean || cleanArmed) {
+            OpcVulkan.nativeSetNeedClean(native, takeClean)
+            cleanArmed = takeClean
+        }
         if (readerFrames == 0) beforeFirstImport()
         val ok = OpcVulkan.nativeSubmit(native, hb)
         hb.close()
@@ -623,6 +632,9 @@ class NativeVulkanFeedSession(
         if (!started.get()) main.post {
             if (readerLifetime.isCurrent(readerTicket) && !presentGate.isReleased &&
                 started.compareAndSet(false, true)) onFirstFrame()
+        }
+        if (takeClean && readerLifetime.isCurrent(readerTicket)) {
+            submitCleanPicture(native, image.timestamp, currentPlan)
         }
         if (takeFace) {
             synchronized(faceLock) {
@@ -740,6 +752,26 @@ class NativeVulkanFeedSession(
                 if (!backdropSubmitted) backdrop?.cancel(backdropTicket)
                 sampleBusy.set(false)
             }
+        }
+    }
+
+    /**
+     * Image thread, right after the submit that armed it (the fence is already waited): copies the
+     * 1280x720 identity bake and hands it to the clean tap, which renders on its own thread.
+     */
+    private fun submitCleanPicture(native: Long, timeNs: Long, plan: FeedEffectsRenderPlan) {
+        val tap = cleanPicture ?: return
+        try {
+            val bytes = tap.frameBuffer(SOURCE_W * SOURCE_H * 4)
+            if (!OpcVulkan.nativeCopyClean(native, bytes)) return
+            // A vertical raster is squeezed into the landscape bake and shown at its own shape;
+            // any other raster is cover-cropped to the 16:9 bake.
+            val vertical = sourceH > sourceW
+            tap.submit(MonitorCleanPictureFrame(SOURCE_W, SOURCE_H, bytes, bottomUp = false,
+                displayWidth = if (vertical) sourceW else SOURCE_W,
+                displayHeight = if (vertical) sourceH else SOURCE_H), timeNs.coerceAtLeast(0), plan)
+        } catch (error: Exception) {
+            Log.w(logTag, "clean picture readback failed", error)
         }
     }
 

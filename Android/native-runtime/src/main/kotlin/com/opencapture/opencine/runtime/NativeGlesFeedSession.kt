@@ -60,6 +60,8 @@ class NativeGlesFeedSession(
     private val onFramePresented: (Long?) -> Unit = {},
     private val playback: Boolean = false,
     private val backdrop: NativeBackdropFeed? = null,
+    /** Optional stream consumer of the identity picture; it reads back only while it wants frames. */
+    private val cleanPicture: MonitorCleanPictureTap? = null,
 ) {
     /** This feed's clip ceiling; never shared with another feed or playback. */
     private class Samples(val source: ScopeSampleBus.Source?, profile: ScopeClipProfile) {
@@ -353,6 +355,67 @@ class NativeGlesFeedSession(
         }
     }
 
+    /**
+     * After present, on a new source picture only, while [cleanPicture] wants frames (30 Hz cap):
+     * copies the OES picture into a working raster of at most the tap's width and reads it back for
+     * the tap, which grades and encodes on its own thread. A failure here disables only this readback.
+     */
+    private fun maybeTapClean(
+        currentPlan: FeedEffectsRenderPlan,
+        oesCopy: OesCopyGlProgram,
+        oesTexture: Int,
+        texMatrix: FloatArray,
+        gl: NativeGlBackend,
+        srcW: Int,
+        srcH: Int,
+        timeNs: Long,
+    ) {
+        val tap = cleanPicture ?: return
+        if (cleanFailed) return
+        if (!tap.wantsFrames) {
+            cleanTarget?.release()
+            cleanTarget = null
+            cleanPixels = null
+            return
+        }
+        if (!tap.frameDue(System.nanoTime())) return
+        try {
+            val (width, height) = FeedPresentPolicy.workingSize(srcW, srcH, tap.maxWidth)
+            val target = cleanTarget?.takeIf { it.width == width && it.height == height } ?: run {
+                cleanTarget?.release()
+                cleanTarget = null
+                SourceTarget.create(gl, width, height).also { cleanTarget = it }
+            }
+            val bytes = width * height * 4
+            val pixels = cleanPixels?.takeIf { it.capacity() == bytes }
+                ?: ByteBuffer.allocateDirect(bytes).order(ByteOrder.nativeOrder()).also { cleanPixels = it }
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, target.framebufferId)
+            GLES20.glViewport(0, 0, width, height)
+            oesCopy.draw(oesTexture, texMatrix, FeedPresentPolicy.downsampleSpread(srcW, width) / width,
+                FeedPresentPolicy.downsampleSpread(srcW, width) / height)
+            pixels.clear()
+            GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+            gl.checkError()
+            val frame = tap.frameBuffer(bytes)
+            pixels.rewind()
+            pixels.get(frame)
+            tap.submit(MonitorCleanPictureFrame(width, height, frame, bottomUp = true), timeNs, currentPlan)
+        } catch (error: Exception) {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+            cleanFailed = true
+            runCatching { cleanTarget?.release() }
+            cleanTarget = null
+            cleanPixels = null
+            Log.w(logTag, "clean picture readback failed; the monitor is unaffected", error)
+        }
+    }
+
+    // GL thread only.
+    private var cleanTarget: SourceTarget? = null
+    private var cleanPixels: ByteBuffer? = null
+    private var cleanFailed = false
+
     private fun runGl(generation: Long) {
         val window = displayTexture ?: return
         var eglDisplay: EGLDisplay? = null
@@ -468,6 +531,7 @@ class NativeGlesFeedSession(
                     tapScratch = ByteArray(tapBytes)
                 }
                 var skipDuplicate = false
+                var newPicture = false
                 if (pullOes) {
                     val previewLatch = previewSource.beginLatch()
                     oesSurfaceTexture.updateTexImage()
@@ -480,6 +544,7 @@ class NativeGlesFeedSession(
                         oesSurfaceTexture.getTransformMatrix(texMatrix)
                         hasOesFrame = true
                         needsPresent = true
+                        newPicture = true
                         previewSource.didLatch(previewLatch)
                     }
                 }
@@ -610,6 +675,9 @@ class NativeGlesFeedSession(
                     tapPixels = tapPixels,
                     tapScratch = tapScratch,
                 )
+                if (newPicture) {
+                    maybeTapClean(nextPlan, copy, oesTexture, texMatrix, gl, srcW, srcH, lastOesTimestampNs)
+                }
             }
         } catch (error: Exception) {
             Log.e(logTag, "live GPU feed failed; falling back to the identity surface", error)
@@ -620,6 +688,9 @@ class NativeGlesFeedSession(
             sourceTarget?.release()
             gradedTarget?.release()
             tapTarget?.release()
+            runCatching { cleanTarget?.release() }
+            cleanTarget = null
+            cleanPixels = null
             decoderSurface?.release()
             oesSurfaceTexture?.release()
             if (oesTexture != 0) {
