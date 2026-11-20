@@ -87,6 +87,7 @@ import com.opencapture.opencine.media.MonitorTransfer
 import com.opencapture.opencine.media.ScopeClipProfile
 import com.opencapture.opencine.runtime.GlesPresentationOptions
 import com.opencapture.opencine.runtime.InspectorPreviewPipeline
+import com.opencapture.opencine.runtime.MonitorCleanPictureTap
 import com.opencapture.opencine.runtime.MonitorDecoderTextureProgram
 import com.opencapture.opencine.runtime.MonitorHDRDisplay
 import com.opencapture.opencine.runtime.MonitorSurfacePictureHost
@@ -121,6 +122,11 @@ class MonitorLiveFeedIntegration(
     private val inferTransfer: ((Int, Int, MonitorTransfer) -> MonitorTransfer)? = null,
     /** The GL helpers of the GLES feed; tests substitute a failing one. */
     private val glBackend: (Context) -> NativeGlBackend = NativeGlBackend::create,
+    /**
+     * The clean picture an outgoing stream carries, fed by the live host's session (never playback
+     * or multiview). App composition owns it and hands the same tap to its stream; null feeds nothing.
+     */
+    val cleanPicture: MonitorCleanPictureTap? = null,
 ) {
     /** Main-thread delivery after native copying ends; retained per integration for controlled native fixtures. */
     internal var faceReadbackDelivery: (Bitmap, Int, () -> Unit) -> Unit = { _, _, deliver -> deliver() }
@@ -140,11 +146,13 @@ class MonitorLiveFeedIntegration(
         onFramePresented: (Long) -> Unit = {},
         playback: Boolean = false,
         backdrop: MonitorBackdropFeed? = null,
+        cleanPicture: MonitorCleanPictureTap? = null,
     ): NativeGlesFeedSession = NativeGlesFeedSession(context, scopeBus, preview, glBackend, clipProfile,
         inferTransfer, options = { presentation(context) }, logTag = "OpcFeedFx",
         onDecoderSurface = onDecoderSurface, onGpuFailed = onGpuFailed, onFirstFrame = onFirstFrame,
         letterboxSource = letterboxSource, notifySurfaceOnMain = notifySurfaceOnMain,
-        onFramePresented = { onFramePresented(it ?: 0) }, playback = playback, backdrop = backdrop?.native)
+        onFramePresented = { onFramePresented(it ?: 0) }, playback = playback, backdrop = backdrop?.native,
+        cleanPicture = cleanPicture)
 
     fun vulkanFeed(
         context: Context,
@@ -155,6 +163,7 @@ class MonitorLiveFeedIntegration(
         onFailed: () -> Unit,
         onFramePresented: (Long) -> Unit = {},
         backdrop: MonitorBackdropFeed? = null,
+        cleanPicture: MonitorCleanPictureTap? = null,
     ): NativeVulkanFeedSession {
         val app = context.applicationContext
         return NativeVulkanFeedSession(context, scopeBus, clipProfile,
@@ -163,7 +172,8 @@ class MonitorLiveFeedIntegration(
             journal = { level, event, message -> journal(level, "feed", event, message) },
             logTag = "OpcVulkan", preview = preview, onDecoderSurface = onDecoderSurface,
             onFirstFrame = onFirstFrame, onFailed = onFailed,
-            onFramePresented = { onFramePresented(it ?: 0) }, backdrop = backdrop?.native)
+            onFramePresented = { onFramePresented(it ?: 0) }, backdrop = backdrop?.native,
+            cleanPicture = cleanPicture)
     }
 }
 
@@ -319,7 +329,7 @@ private fun <F : Any> MonitorLiveFeedBody(
                     onFirstFrame = { source.noteLiveFrame() },
                     onFailed = { vulkanFailed = true },
                     onFramePresented = { decoder.notePresented(it) },
-                    backdrop = backdrop)
+                    backdrop = backdrop, cleanPicture = feed.cleanPicture)
             } else {
                 null
             }
@@ -378,6 +388,11 @@ private fun <F : Any> MonitorLiveFeedBody(
             label = "safeLeading")
         val safeTrailing = with(density) { cutout.getRight(this, layoutDir).toDp().value }
         val desqueezeVisible = assist.isVisible(MonitorAssistTool.DESQ)
+        // The stream shows the desqueezed shape the monitor shows.
+        feed.cleanPicture?.let { clean ->
+            val cleanAspect = if (desqueezeVisible) assist.presentedAspect(decoder.pictureAspect.toFloat()) else null
+            LaunchedEffect(clean, cleanAspect) { clean.setPictureAspect(cleanAspect) }
+        }
         val geometry = monitorOperatorLiveLayout(
             MonitorOperatorViewport(maxWidth.value, maxHeight.value, safeLeading, safeTrailing, safeTop, safeBottom,
                 chromeScale, with(density) { cutout.getTop(this) > 0 || cutout.getBottom(this) > 0 ||
@@ -511,7 +526,7 @@ private fun GlesPicture(
                 onGpuFailed = { gpuFailed = true },
                 onFirstFrame = { current.noteLiveFrame() },
                 onFramePresented = { current.decoder.notePresented(it) },
-                backdrop = backdrop)
+                backdrop = backdrop, cleanPicture = feed.cleanPicture)
         }
     DisposableEffect(session) {
         onDispose {
