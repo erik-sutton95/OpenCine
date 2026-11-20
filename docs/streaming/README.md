@@ -1,14 +1,15 @@
 # Live streaming (RTMPS)
 
-Going live from a camera app to Twitch, YouTube, Facebook, Instagram or any `rtmps://` server,
-without OBS. This guide covers the portable engine (part 1 of the series) and the Apple shell
-(part 2, Tasks 1 to 7). The design is
-`docs/superpowers/specs/2026-11-05-rtmps-streaming-design.md`; the plans are
-`docs/superpowers/plans/2026-11-05-rtmps-*.md`.
+Going live from a camera app to Twitch, YouTube, Facebook, Instagram or any `rtmps://` server (or
+a plain `rtmp://` Custom server, with a warning), without OBS. This guide covers the portable
+engine (part 1 of the series), the Apple shell and the shared iOS surfaces (part 2). The design
+is `docs/superpowers/specs/2026-11-05-rtmps-streaming-design.md`; the plans are
+`docs/superpowers/plans/2026-11-05-rtmps-1-*.md` and `2026-11-18-rtmps-2-*.md`. The surfaces
+follow [the UI contract](ui-contract.md), which the Compose twins mirror.
 
-Status: implemented, automated checks passed. No app links these modules yet. Nothing here has
-streamed to a real service: the Apple shell has streamed only to a local FFmpeg receiver. The
-clean-picture tap, shared UI and app adoption (part 2, Tasks 8 to 11) and Android (part 3) follow.
+Status: implemented, automated checks passed. Nothing here has streamed to a real service: the
+Apple shell has streamed only to a local FFmpeg receiver. Android (part 3), program switching and
+timecode alignment (part 4) follow.
 
 ## Modules
 
@@ -83,6 +84,44 @@ Tests: `swift test --filter OpenCineStreamingAndroidTests` (the wire and the exp
 `cd Android && ./gradlew :streaming:testDebugUnitTest` (replies, catalog, a local socket, encoded
 media helpers, keys, warnings and the publisher on a manual scheduler with `FakeStreamingNative`).
 The MediaCodec encoders, the microphone and TLS to a real service run on a device only.
+
+## The shared surfaces and their composition (iOS)
+
+| File | Responsibility |
+|---|---|
+| `MonitorPresentation/LiveStreamPresentation.swift` | The values and every string: settings card, Go live control, status readout, notices, warnings, eligibility |
+| `MonitorUI/LiveStream/LiveStreamSettingsCard.swift` | The Sharing tab card: service, server, masked key with paste, save and remove, quality, the monitor switch, why going live is blocked |
+| `MonitorUI/LiveStream/LiveStreamMonitorControls.swift` | The Go live control with one confirmation to start and one to stop, the status readout, notice and warning, and the app-level Live pill |
+| `OpenCineAppKitApple/LiveStreamCoordinator.swift` | One app's streaming: keys in the keychain, validation, go-live from the host's route and source, the clean picture tap and microphone, status from the run, background ends the stream |
+| `OpenCineAppKitApple/LiveStreamMonitorOverlay.swift` | The overlay and settings section over the coordinator, and `liveStreamLifecycle` (background, heat, battery, the Live pill while no monitor overlay is on screen) |
+
+An app gives a `LiveStreamHost`: its keychain service, its connection route as a
+`StreamConnectionRoute` (Core's `RouteKind` maps with `StreamConnectionRoute(_:)`), its source
+format, a closure that sets the clean picture tap on its live runtime, and `microphoneAccess`,
+its own microphone permission path, asked only after the operator confirms (shared code never
+raises the prompt; `LiveStreamHost.systemMicrophoneAccess` is the plain system request). It passes the
+coordinator to `withLiveStream(_:)` on its settings configuration and as `liveStream` on its live
+screen host, installs `liveStreamLifecycle` at its root, keeps the screen awake while
+`isRunning`, and declares `NSMicrophoneUsageDescription`. No brand or app branch exists in
+shared code: eligibility is the route value.
+
+## The shared surfaces and their composition (Android)
+
+The Compose twin follows `docs/streaming/ui-contract.md` with the same value names.
+
+| File | Responsibility |
+|---|---|
+| `monitor-ui/.../LiveStreamPresentation.kt` | The values and every string, `LiveStreamPillState` |
+| `monitor-ui/.../livestream/LiveStreamViews.kt` | `LiveStreamSettingsCard`, `LiveStreamMonitorControls` (Go live, confirmations, status, notice, warning) and `LiveStreamRootPill` |
+| `camera-controls` | `MonitorSettingsLiveStreamSource` on the Sharing tab and the `OperatorSetupApp.liveStream` slot |
+| `appkit-native/.../LiveStreamCoordinator.kt` | One app's streaming: Keystore keys, validation, route and source, publisher, microphone, warnings, background ends the stream, `showsRootPill` |
+| `appkit-native/.../LiveStreamComposition.kt` | `LiveStreamComposition.coordinator`, `LiveStreamHostEffects` (screen awake, end on stop), `LiveStreamOverlay(coordinator, modifier)` (microphone through the shared permission gate), `LiveStreamRootIndicator`, `liveStreamSettingsSource` |
+
+An app passes its route and source closures to `LiveStreamComposition.coordinator`, gives the
+feed integration the clean picture tap (or calls `MonitorCleanPictureTap.submitBitmap` when it
+draws its own bitmaps), places `LiveStreamOverlay` over its picture, `LiveStreamHostEffects` and
+`LiveStreamRootIndicator` at its root and `liveStreamSettingsSource` in its settings, and declares
+`RECORD_AUDIO`.
 
 ## What it does not do
 

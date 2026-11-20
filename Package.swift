@@ -29,8 +29,9 @@ import PackageDescription
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
 //   app.
 // - OpenCineAppKitApple (the Apple composition layer of the app shell) builds on OpenCineAppKit,
-//   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMedia, OpenCineMotion, OpenCineRelay and
-//   OpenCineRelayApple only: never an integration, an app or a third-party package.
+//   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMedia, OpenCineMotion, OpenCineRelay,
+//   OpenCineRelayApple, OpenCineStreaming and OpenCineStreamingApple only: never an integration, an
+//   app or a third-party package.
 // - OpenCineFrameIOApple (Frame.io's Apple host: keychain token, Info.plist configuration, web
 //   sign-in, saved destination, upload history and the delivery services every app composes)
 //   builds on OpenCineFrameIO, OpenCineAppKit and OpenCineAppKitApple only. Keychain service,
@@ -219,8 +220,8 @@ let package = Package(
         // The Apple side of the app shell both camera apps share (head tracking, the watcher's
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and
         // protocols; iOS only, empty elsewhere.
-        .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineCore", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
-        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMotion", "OpenCineApple", "OpenCineMedia", "MonitorUI", "MonitorPresentation", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
+        .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineCore", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple", "OpenCineStreaming", "OpenCineStreamingApple"]),
+        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMotion", "OpenCineApple", "OpenCineMedia", "MonitorUI", "MonitorPresentation", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport", "OpenCineStreaming", "OpenCineStreamingApple"]),
         .target(name: "OpenCineFrameIOApple", dependencies: ["OpenCineFrameIO", "OpenCineAppKit", "OpenCineAppKitApple"]),
         .testTarget(
             name: "OpenCineFrameIOAppleTests",

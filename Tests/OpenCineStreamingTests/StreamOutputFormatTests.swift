@@ -36,6 +36,14 @@ import OpenCineStreaming
         #expect(f.frameRate == Rational(24, 1))
     }
 
+    @Test func verticalSourceIsMeasuredByItsShortSide() {
+        // A phone held upright sends 720x1280: still a 720p picture, never 1080p.
+        let upright = StreamSourceFormat(width: 720, height: 1280, frameRate: Rational(30, 1))
+        let f = StreamOutputFormat.resolve(selected: upright, connected: [], preset: .custom)
+        #expect(f.width == 1280 && f.height == 720)
+        #expect(f.videoBitrateBps == 3_000_000)
+    }
+
     @Test func fourByThreeSourceGivesA720Frame() {
         // The output stays 16:9; the shell keeps the source's shape inside it with side bars.
         let f = StreamOutputFormat.resolve(selected: fourByThree, connected: [fourByThree], preset: .custom)
@@ -76,5 +84,15 @@ import OpenCineStreaming
         #expect(StreamConnectionRoute.canStream(.deviceHotspot))
         #expect(!StreamConnectionRoute.canStream(.cameraWiFi))
         #expect(!StreamConnectionRoute.canStream(nil))
+    }
+
+    @Test func everyCoreRouteMapsToAStreamingRoute() {
+        // Only the camera's own access point blocks streaming; the app's route vocabulary decides.
+        #expect(StreamConnectionRoute(.cameraAccessPoint) == .cameraWiFi)
+        #expect(StreamConnectionRoute(.infrastructureNetwork) == .sharedWiFi)
+        #expect(StreamConnectionRoute(.phoneHotspot) == .deviceHotspot)
+        #expect(StreamConnectionRoute(.usb) == .usbCable)
+        #expect(StreamConnectionRoute(.captureDevice) == .captureCard)
+        #expect(RouteKind.allCases.filter { StreamConnectionRoute.canStream(StreamConnectionRoute($0)) }.count == 4)
     }
 }

@@ -150,10 +150,10 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
 - The app shell (`OpenCineAppKit`, `appkit`) builds on Core, Media, Multicam and UI, never on an
   integration or an app: apps list their integrations and fill its typed slots.
 - `OpenCineAppKitApple` (the Apple composition layer of the app shell: code the camera apps share
-  on iOS, such as head tracking, the delivery coordinator and the share presenter) builds on
-  `OpenCineAppKit`, `MonitorUI`, `MonitorPresentation`, `OpenCineApple`, `OpenCineMotion`,
-  `OpenCineRelay` and `OpenCineRelayApple` only: never an integration, an app or a third-party
-  package. Same no-brand and no-mutable-global rules as the app shell; app differences arrive as
+  on iOS, such as head tracking, the delivery coordinator, the share presenter and the live stream
+  coordinator) builds on `OpenCineAppKit`, `MonitorUI`, `MonitorPresentation`, `OpenCineApple`,
+  `OpenCineMotion`, `OpenCineRelay`, `OpenCineRelayApple`, `OpenCineStreaming` and
+  `OpenCineStreamingApple` only: never an integration, an app or a third-party package. Same no-brand and no-mutable-global rules as the app shell; app differences arrive as
   host values and protocols.
 - `OpenCineFrameIOApple` (Frame.io's Apple host every app composes: keychain token, Info.plist
   configuration, web sign-in, saved destination, upload history, the Frame.io mark and the

@@ -46,6 +46,8 @@ struct AppKitRules {
         let package: Set<String> = [
             "OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineCore", "OpenCineMedia",
             "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple",
+            // Live streaming's composition: the portable engine and its Apple shell.
+            "OpenCineStreaming", "OpenCineStreamingApple",
         ]
         let system: Set<String> = [
             "Foundation", "Observation", "Network", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
