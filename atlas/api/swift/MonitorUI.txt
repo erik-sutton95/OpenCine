@@ -255,6 +255,12 @@ init CameraPairingCheckRow(_: MonitorPresentation.CameraPairingCheck)
 init CamerasPage(brandName: Swift.String, paired: [MonitorPresentation.CameraListItem], nearby: [MonitorPresentation.CameraListItem], nearbyNote: Swift.String, scanning: Swift.Bool, busy: Swift.Bool, safeArea: SwiftUI.EdgeInsets, onConnect: (Swift.String) -> Swift.Void, onPair: (Swift.String?) -> Swift.Void, onCancel: () -> Swift.Void, onMedia: () -> Swift.Void, onSettings: () -> Swift.Void, onMultiview: (() -> Swift.Void)?, onWatchFeed: (() -> Swift.Void)?, onRename: ((Swift.String, Swift.String) -> Swift.Void)?, onForget: ((Swift.String) -> Swift.Void)?, onConnectSetup: ((Swift.String, Swift.String) -> Swift.Void)?, onAddSetup: ((Swift.String) -> Swift.Void)?, onForgetSetup: ((Swift.String, Swift.String) -> Swift.Void)?, onFailureAction: ((Swift.String, Swift.String) -> Swift.Void)?)
 init InterfaceOrientationObserver(notificationCenter: Foundation.NotificationCenter)
 init LivePopupPlacement.Box(x: CoreGraphics.CGFloat, y: CoreGraphics.CGFloat, width: CoreGraphics.CGFloat, maxHeight: CoreGraphics.CGFloat)
+init LiveStreamGoLiveButton(control: MonitorPresentation.LiveStreamControlState, onTap: () -> Swift.Void)
+init LiveStreamMonitorActions(start: () -> Swift.Void, stop: () -> Swift.Void, restart: () -> Swift.Void, dismissNotice: () -> Swift.Void)
+init LiveStreamMonitorControls(state: MonitorPresentation.LiveStreamMonitorState, actions: LiveStreamMonitorActions)
+init LiveStreamSettingsActions(selectService: (Swift.String) -> Swift.Void, setServer: (Swift.String) -> Swift.Void, saveKey: (Swift.String) -> Swift.Void, removeKey: () -> Swift.Void, setShowOnMonitor: (Swift.Bool) -> Swift.Void)
+init LiveStreamSettingsCard(state: MonitorPresentation.LiveStreamSettingsState, actions: LiveStreamSettingsActions, feedback: () -> Swift.Void)
+init LiveStreamStatusReadout(status: MonitorPresentation.LiveStreamStatusState)
 init LucideIconView(name: Swift.String, filled: Swift.Bool)
 init MonitorAccountSettings(title: Swift.String, help: Swift.String, state: MonitorAccountState, signIn: (() -> Swift.Void)?, signOut: (() -> Swift.Void)?, statusLabel: Swift.String?, signInTitle: Swift.String, signOutTitle: Swift.String, busyLabel: Swift.String?, errorMessage: Swift.String?, pillActions: Swift.Bool)
 init MonitorAppInformationSettings(theme: Swift.String, protocolName: Swift.String, version: Swift.String, themeHelp: Swift.String, protocolHelp: Swift.String, versionHelp: Swift.String)
@@ -921,6 +927,12 @@ struct CameraPairingCheckRow: Sendable, View
 struct CamerasPage: Sendable, View
 struct LiveMonitorLayout: Equatable
 struct LivePopupPlacement.Box: Equatable
+struct LiveStreamGoLiveButton: Sendable, View
+struct LiveStreamMonitorActions
+struct LiveStreamMonitorControls: Sendable, View
+struct LiveStreamSettingsActions
+struct LiveStreamSettingsCard: Sendable, View
+struct LiveStreamStatusReadout: Sendable, View
 struct LucideIconView: Sendable, View
 struct MonitorAccountSettings: Sendable, View
 struct MonitorAppInformationSettings: Sendable, View
@@ -1213,6 +1225,19 @@ var LivePopupPlacement.Box.origin: CoreFoundation.CGPoint
 var LivePopupPlacement.Box.width: CoreGraphics.CGFloat
 var LivePopupPlacement.Box.x: CoreGraphics.CGFloat
 var LivePopupPlacement.Box.y: CoreGraphics.CGFloat
+var LiveStreamGoLiveButton.body: some SwiftUI.View
+var LiveStreamMonitorActions.dismissNotice: () -> Swift.Void
+var LiveStreamMonitorActions.restart: () -> Swift.Void
+var LiveStreamMonitorActions.start: () -> Swift.Void
+var LiveStreamMonitorActions.stop: () -> Swift.Void
+var LiveStreamMonitorControls.body: some SwiftUI.View
+var LiveStreamSettingsActions.removeKey: () -> Swift.Void
+var LiveStreamSettingsActions.saveKey: (Swift.String) -> Swift.Void
+var LiveStreamSettingsActions.selectService: (Swift.String) -> Swift.Void
+var LiveStreamSettingsActions.setServer: (Swift.String) -> Swift.Void
+var LiveStreamSettingsActions.setShowOnMonitor: (Swift.Bool) -> Swift.Void
+var LiveStreamSettingsCard.body: some SwiftUI.View
+var LiveStreamStatusReadout.body: some SwiftUI.View
 var LucideIconView.body: some SwiftUI.View
 var MonitorAccountSettings.body: some SwiftUI.View
 var MonitorAppInformationSettings.body: some SwiftUI.View

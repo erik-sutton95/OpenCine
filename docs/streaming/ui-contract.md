@@ -32,6 +32,9 @@ The Sharing tab appears when either feed sharing or live streaming is composed.
 - `LiveStreamEligibility`: `allowed`, `cameraWiFi`, `noCamera`. From the host's connection route:
   USB-C cable, HDMI capture card, shared Wi-Fi network and the device's own hotspot are
   `allowed`; the camera's own Wi-Fi is `cameraWiFi`; no camera or an unknown route is `noCamera`.
+  An app that states its route as Core's `RouteKind` maps it with the engine's
+  `StreamConnectionRoute(_ kind: RouteKind)` (camera access point is the one blocked route).
+- `LiveStreamMonitorState`: the control, service name, quality, `encrypted`, status, end and warning.
 - `LiveStreamQuality`: `width`, `height`, `framesPerSecond`, `videoBitrateBps`.
 - `LiveStreamPhase`: `idle`, `connecting`, `live`, `reconnecting(attempt)`, `ended(LiveStreamEnd)`.
 - `LiveStreamEnd`: `stopped`, `refused(reason)`, `gaveUp`, `unreachable`, `background`,
@@ -57,6 +60,15 @@ Card title: `Live stream`. Rows in order:
 | Go live button on the monitor | Switch, default on | `monitor.livestream.showOnMonitor` | |
 | Eligibility | Note, only when not `allowed` | `monitor.livestream.eligibility` | The long reason |
 | Locked | Note, only while connecting, live or reconnecting | `monitor.livestream.lockedWhileLive` | Service, server and key are disabled while a stream runs |
+
+The key hint under the service picker is the preset's own sentence (engine content); the Custom
+hint also says where TikTok LIVE shows its server URL and key.
+
+Card copy: row titles `Service`, `Server`, `Stream key`, `Quality`, `Go live button on the monitor`;
+saved key value `Saved`; locked keychain note `Unlock this phone to read the saved key.`; locked
+note `Settings are locked while a stream runs.`; buttons `Paste`, `Save`, `Remove`. Plain warning:
+`Not encrypted. rtmp:// sends the picture and the stream key in the clear, so anyone on the network path can read the key. Use rtmps:// when the service offers it.`
+The server field is locked once a key is saved (remove the key to change it).
 
 Remove confirmation: title `Remove the stream key?`, message
 `The key for <service> is deleted from this phone. You can paste it again later.`, buttons
