@@ -365,6 +365,7 @@ public final class com/opencapture/opencine/runtime/MonitorCleanPictureTap : jav
 	public final fun getWantsFrames ()Z
 	public final fun setPictureAspect (Ljava/lang/Float;)V
 	public final fun submit (Lcom/opencapture/opencine/runtime/MonitorCleanPictureFrame;JLcom/opencapture/opencine/media/FeedEffectsRenderPlan;)V
+	public final fun submitBitmap (Landroid/graphics/Bitmap;JLcom/opencapture/opencine/media/FeedEffectsRenderPlan;)Z
 }
 
 public final class com/opencapture/opencine/runtime/MonitorCleanPictureTap$Companion {

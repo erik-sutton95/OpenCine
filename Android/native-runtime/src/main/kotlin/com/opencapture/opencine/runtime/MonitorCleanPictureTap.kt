@@ -1,6 +1,10 @@
 package com.opencapture.opencine.runtime
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.EGLContext
@@ -128,6 +132,46 @@ class MonitorCleanPictureTap(
     }
 
     /**
+     * For a producer that already holds the raw identity picture as a bitmap (a feed the app draws
+     * itself): copies an ARGB_8888 [bitmap], scaled down to [maxWidth] when wider, and submits it
+     * when a frame is due. Returns false when nothing was submitted (no output, not due, or another
+     * config). Call from one producer thread.
+     */
+    fun submitBitmap(bitmap: Bitmap, timeNs: Long, plan: FeedEffectsRenderPlan): Boolean {
+        if (bitmap.config != Bitmap.Config.ARGB_8888 || !frameDue(System.nanoTime())) return false
+        val frame = try {
+            synchronized(bitmapLock) {
+                val source = if (bitmap.width <= maxWidth && bitmap.rowBytes == bitmap.width * 4) bitmap else scaled(bitmap)
+                val rgba = frameBuffer(source.width * source.height * 4)
+                // ARGB_8888 is RGBA in memory, the order the tap uploads.
+                source.copyPixelsToBuffer(ByteBuffer.wrap(rgba))
+                MonitorCleanPictureFrame(source.width, source.height, rgba)
+            }
+        } catch (error: RuntimeException) {
+            Log.w(logTag, "clean picture copy failed; the stream keeps its last picture", error)
+            return false
+        }
+        submit(frame, timeNs, plan)
+        return true
+    }
+
+    private val bitmapLock = Any()
+    private var scaledBitmap: Bitmap? = null
+    private val scalePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+    private fun scaled(bitmap: Bitmap): Bitmap {
+        val width = minOf(bitmap.width, maxWidth)
+        val height = (bitmap.height.toLong() * width / bitmap.width).toInt().coerceAtLeast(1)
+        val target = scaledBitmap?.takeIf { it.width == width && it.height == height }
+            ?: Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
+                scaledBitmap?.recycle()
+                scaledBitmap = it
+            }
+        Canvas(target).drawBitmap(bitmap, null, Rect(0, 0, width, height), scalePaint)
+        return target
+    }
+
+    /**
      * Desqueeze: the shape the picture is shown at, overriding the frame's own (null keeps it).
      * The monitor passes its presented aspect while its desqueeze is on.
      */
@@ -201,6 +245,10 @@ class MonitorCleanPictureTap(
         detach()
         closed = true
         executor.shutdown()
+        synchronized(bitmapLock) {
+            scaledBitmap?.recycle()
+            scaledBitmap = null
+        }
     }
 
     private fun runOnTap(work: () -> Unit): Future<*>? =
