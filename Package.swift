@@ -22,6 +22,8 @@ import PackageDescription
 //   only, opens no socket and names no app or manufacturer; service names are preset content.
 //   OpenCineStreamingApple (its Apple shell: TLS socket, H.264 and AAC encoders, picture fitting,
 //   microphone and keychain) depends on OpenCineStreaming, OpenCineCore and Apple frameworks only.
+//   OpenCineStreamingAndroid (its JNI facade for the Android shell) depends on OpenCineStreaming,
+//   OpenCineCore and OpenCineJNISupport only.
 // - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app.
 //   Native views consume portable Media values; presentation policy stays Foundation-only.
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
@@ -96,6 +98,7 @@ let package = Package(
         // The Swift side of the Android `GyroNative` JNI facade (`:gyro`): an app links it into
         // its Swift Android library. Its wire helpers also build and test on Darwin.
         .library(name: "OpenCineGyroAndroid", targets: ["OpenCineGyroAndroid"]),
+        .library(name: "OpenCineStreamingAndroid", targets: ["OpenCineStreamingAndroid"]),
         .library(name: "Insta360Protocol", targets: ["Insta360Protocol"]),
         .library(name: "Insta360Apple", targets: ["Insta360Apple"]),
         // A scripted Luna for consumers' test targets only; never link it into an app.
@@ -312,6 +315,15 @@ let package = Package(
         // but the JNI exports also builds and tests on Darwin.
         .target(name: "OpenCineGyroAndroid", dependencies: ["OpenCineGyro", "OpenCineJNISupport"]),
         .testTarget(name: "OpenCineGyroAndroidTests", dependencies: ["OpenCineGyroAndroid", "OpenCineGyro"]),
+        // The RTMPS run controller for every app's Android shell and the JNI exports of the Kotlin
+        // class com.opencapture.opencine.streaming.StreamingNative. Everything but the JNI exports
+        // also builds and tests on Darwin.
+        .target(
+            name: "OpenCineStreamingAndroid",
+            dependencies: ["OpenCineStreaming", "OpenCineCore", "OpenCineJNISupport"]),
+        .testTarget(
+            name: "OpenCineStreamingAndroidTests",
+            dependencies: ["OpenCineStreamingAndroid", "OpenCineStreaming", "OpenCineCore"]),
 
         // MARK: Insta360
         // Luna wire protocol (Foundation and portable Media) and the Apple I/O adapter with its KCP C code.
