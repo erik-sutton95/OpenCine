@@ -20,8 +20,9 @@ public protocol StreamConnection: Sendable {
     func close()
 }
 
-/// A TLS connection on Network.framework. The system trust store checks the server, with the host
-/// name for SNI. There is no public way to turn TLS off.
+/// A connection on Network.framework: TLS for `rtmps://`, where the system trust store checks the
+/// server with the host name for SNI, or plain TCP for a plain `rtmp://` destination the operator
+/// chose (a Custom server only; `StreamDestination.isEncrypted` is `false`).
 public final class NetworkStreamConnection: StreamConnection, @unchecked Sendable {
     private let connection: NWConnection
     private let queue = DispatchQueue(label: "opencine.streaming.connection", qos: .userInitiated)
@@ -29,13 +30,10 @@ public final class NetworkStreamConnection: StreamConnection, @unchecked Sendabl
     private var onEvent: (@Sendable (StreamConnectionEvent) -> Void)?
     private var finished = false
 
-    public convenience init(host: String, port: UInt16) {
-        self.init(host: host, port: port, parameters: NWParameters(tls: NWProtocolTLS.Options(), tcp: Self.tcpOptions()))
-    }
-
-    /// Plain TCP for the FFmpeg interop tier only.
-    convenience init(plainHost: String, port: UInt16) {
-        self.init(host: plainHost, port: port, parameters: NWParameters(tls: nil, tcp: Self.tcpOptions()))
+    /// TLS when `encrypted`, else plain TCP. Pass the destination's `isEncrypted`.
+    public convenience init(host: String, port: UInt16, encrypted: Bool = true) {
+        let tls = encrypted ? NWProtocolTLS.Options() : nil
+        self.init(host: host, port: port, parameters: NWParameters(tls: tls, tcp: Self.tcpOptions()))
     }
 
     private init(host: String, port: UInt16, parameters: NWParameters) {

@@ -27,7 +27,7 @@ It is sans-I/O, like Gyro: bytes and values in, bytes and decisions out, on inje
 
 | File | Responsibility |
 |---|---|
-| `StreamDestination.swift` | Parses a pasted server address and key. Only `rtmps://`; the key is trimmed, refused if it is a URL, and appears in no description or mirror |
+| `StreamDestination.swift` | Parses a pasted server address and key. `rtmps://` (port 443), or plain `rtmp://` (port 1935) only where the preset allows it (Custom); the key is trimmed, refused if it is a URL, and appears in no description or mirror |
 | `AMF0.swift` | AMF0 values, encoding, and bounds-checked decoding with a nesting limit |
 | `RTMPChunkStream.swift` | Message to chunk writer and incremental chunk to message reader, extended timestamps, Set Chunk Size and Abort |
 | `StreamMediaPacket.swift` | The public media input (H.264 Annex-B, AAC) and the FLV tag bodies |
@@ -44,7 +44,7 @@ It is sans-I/O, like Gyro: bytes and values in, bytes and decisions out, on inje
 | File | Responsibility |
 |---|---|
 | `StreamPublisher.swift` | Applies `StreamRun`'s actions: socket, encoders, frame clock at the output rate, wake timers; reports status |
-| `StreamConnection.swift` | TLS on Network.framework (system trust, SNI); plain TCP only through the internal interop seam |
+| `StreamConnection.swift` | TLS on Network.framework (system trust, SNI), or plain TCP for an allowed `rtmp://` destination; the publisher picks from `StreamDestination.isEncrypted` |
 | `H264StreamEncoder.swift` | VideoToolbox H.264 High, real time, no reordering, keyframe every 2 s, bitrate changes live |
 | `AACStreamEncoder.swift` | AAC-LC 48 kHz stereo 160 kbps from any PCM input; times follow the sample count |
 | `StreamPictureFitter.swift` | Any source into the fixed output frame: fit with black bars, or center crop for the vertical preset |
@@ -88,8 +88,8 @@ The MediaCodec encoders, the microphone and TLS to a real service run on a devic
 
 - Open a socket, speak TLS, encode, capture audio or store keys. The platform shells do
   (part 2 Apple, part 3 Android).
-- Plain `rtmp://`. The FFmpeg tier reaches a local plain receiver through an internal test seam,
-  `StreamDestination(testOnlyPlainServerURL:streamKey:)`; there is no public way to disable TLS.
+- Plain `rtmp://` for a service preset. Only a Custom server may be plain `rtmp://`
+  (`StreamServicePreset.allowsPlainRTMP`); the UI warns that the stream and key are unencrypted.
 - Program switching and timecode alignment (part 4). Camera timecode behavior is still to be
   measured on hardware; see [timecode-measurements.md](timecode-measurements.md).
 
