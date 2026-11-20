@@ -89,6 +89,8 @@ func LiveHDRDisplay.setChromeActive(_: Swift.Bool) -> ()
 func LiveHDRDisplay.setEnabled(_: Swift.Bool, screen: UIKit.UIScreen?) -> ()
 func LiveHDRDisplay.setScreenCaptured(_: Swift.Bool, screen: UIKit.UIScreen?) -> ()
 func LiveStreamCoordinator.dismissNotice() -> ()
+func LiveStreamCoordinator.monitorControlsAppeared() -> ()
+func LiveStreamCoordinator.monitorControlsDisappeared() -> ()
 func LiveStreamCoordinator.removeKey() -> ()
 func LiveStreamCoordinator.restart() -> ()
 func LiveStreamCoordinator.saveKey(_: Swift.String) -> ()
@@ -181,7 +183,7 @@ init HeadTrackAxisPose(yawDeg: Swift.Double, pitchDeg: Swift.Double, gimbalYawDe
 init HeadphoneMotionBridge(appName: Swift.String, bounds: OpenCineMotion.MotionBounds, sampleInterval: Foundation.TimeInterval, hudInterval: Foundation.TimeInterval, log: (Swift.String) -> Swift.Void, motion: CoreMotion.CMHeadphoneMotionManager, authorizationStatus: () -> CoreMotion.CMAuthorizationStatus, uptime: () -> Foundation.TimeInterval, startupLog: ((Swift.String) -> Swift.Void)?)
 init LiveHDRDisplay()
 init LiveStreamCoordinator(host: LiveStreamHost)
-init LiveStreamHost(keychainService: Swift.String, defaults: Foundation.UserDefaults, route: () -> OpenCineStreaming.StreamConnectionRoute?, source: () -> OpenCineStreaming.StreamSourceFormat?, attachPicture: (OpenCineApple.MonitorCleanPictureTap?) -> Swift.Void)
+init LiveStreamHost(keychainService: Swift.String, defaults: Foundation.UserDefaults, route: () -> OpenCineStreaming.StreamConnectionRoute?, source: () -> OpenCineStreaming.StreamSourceFormat?, attachPicture: (OpenCineApple.MonitorCleanPictureTap?) -> Swift.Void, microphoneAccess: () async -> Swift.Bool)
 init LiveStreamMonitorOverlay(coordinator: LiveStreamCoordinator)
 init LiveStreamSettingsSection(coordinator: LiveStreamCoordinator, feedback: () -> Swift.Void)
 init MonitorApplePlaybackPresentation(makeFeed: () -> OpenCineApple.MonitorPlaybackFeedSession, audioSession: OpenCineApple.MonitorPlaybackAudioSession, samples: () -> OpenCineApple.LiveFrameSampleBus, projectEffects: (OpenCineMedia.MonitorFrameEffects) -> OpenCineMedia.MonitorFrameEffects, onTapFailure: (Swift.Int32) -> Swift.Void, onAudioFailure: (Swift.String) -> Swift.Void, audioOwnership: ((Swift.Bool) -> Swift.Void)?)<Payload, Look where Payload : Swift.Sendable, Look : Swift.Sendable>
@@ -252,6 +254,7 @@ static func DiagnosticCenterRuntime.readLines(_: Foundation.URL?) -> [Swift.Stri
 static func LiveHDRDisplay.displayGain(enabled: Swift.Bool, potentialHeadroom: CoreGraphics.CGFloat) -> Swift.Float
 static func LiveHDRDisplay.drawablePixelFormat(enabled: Swift.Bool) -> Metal.MTLPixelFormat
 static func LiveHDRDisplay.isEffective(preferred: Swift.Bool, screenCaptured: Swift.Bool) -> Swift.Bool
+static func LiveStreamHost.systemMicrophoneAccess() -> Swift.Bool
 static func MonitorDeliveryPhotosSaver.save(at: [Foundation.URL], ifCurrent: () -> Swift.Bool) throws -> Swift.Int
 static func MonitorLivePictureApp.presentationOptions(screen: UIKit.UIScreen?) -> OpenCineApple.MonitorPresentationOptions
 static func MonitorPlaybackLayerView.dismantleUIView(_: OpenCineApple.MonitorPlaybackFeedHost, coordinator: MonitorPlaybackLayerView.Coordinator) -> ()
@@ -350,11 +353,13 @@ var LiveHDRDisplay.screenCaptured: Swift.Bool
 var LiveStreamCoordinator.isRunning: Swift.Bool
 var LiveStreamCoordinator.monitorActions: MonitorUI.LiveStreamMonitorActions
 var LiveStreamCoordinator.monitorState: MonitorPresentation.LiveStreamMonitorState?
+var LiveStreamCoordinator.pillState: MonitorPresentation.LiveStreamPillState?
 var LiveStreamCoordinator.settingsActions: MonitorUI.LiveStreamSettingsActions
 var LiveStreamCoordinator.settingsState: MonitorPresentation.LiveStreamSettingsState
 var LiveStreamHost.attachPicture: (OpenCineApple.MonitorCleanPictureTap?) -> Swift.Void
 var LiveStreamHost.defaults: Foundation.UserDefaults
 var LiveStreamHost.keychainService: Swift.String
+var LiveStreamHost.microphoneAccess: () async -> Swift.Bool
 var LiveStreamHost.route: () -> OpenCineStreaming.StreamConnectionRoute?
 var LiveStreamHost.source: () -> OpenCineStreaming.StreamSourceFormat?
 var LiveStreamMonitorOverlay.body: some SwiftUI.View

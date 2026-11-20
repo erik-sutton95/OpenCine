@@ -211,6 +211,10 @@ Per app: move the OpenCine pin to the commit with Tasks 1 to 10; add `NSMicropho
 - A source's size class is its short side, so an upright 720x1280 picture streams at 720p.
 - Screen wake stays with each app's existing wake owner (`keepScreenAwake || isRunning`), so two
   owners never fight over the idle timer.
+- (2026-11-20, from the Android adoption) The microphone is asked through the host's
+  `microphoneAccess`, the app's own permission path, never from shared code. A stream that
+  outlives the monitor overlay (camera lost and monitor closed, Multiview opened) shows the shared
+  Live pill at the app root with elapsed time and Stop behind one confirmation.
 
 ## Not in this part
 

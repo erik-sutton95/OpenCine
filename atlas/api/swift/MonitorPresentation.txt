@@ -481,6 +481,7 @@ init CameraSetupChip(id: Swift.String, title: Swift.String, isActive: Swift.Bool
 init FieldMonitorLayout(width: Swift.Double, height: Swift.Double, safeArea: MonitorSafeArea, sourceAspect: Swift.Double, fill: Swift.Bool, showsValues: Swift.Bool, topControlInset: Swift.Double, joystick: MonitorJoystickSize, valueCount: Swift.Int?)
 init LiveStreamControlState(phase: LiveStreamPhase, eligibility: LiveStreamEligibility, serviceName: Swift.String, elapsedSeconds: Swift.Int)
 init LiveStreamMonitorState(control: LiveStreamControlState, serviceName: Swift.String, quality: LiveStreamQuality?, encrypted: Swift.Bool, status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?)
+init LiveStreamPillState(phase: LiveStreamPhase, serviceName: Swift.String, elapsedSeconds: Swift.Int)
 init LiveStreamQuality(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double, videoBitrateBps: Swift.Int)
 init LiveStreamServiceOption(id: Swift.String, name: Swift.String, keyHint: Swift.String, needsServer: Swift.Bool, acceptsPlainServer: Swift.Bool, vertical: Swift.Bool)
 init LiveStreamSettingsState(services: [LiveStreamServiceOption], selectedID: Swift.String, server: Swift.String, key: LiveStreamKeyState, quality: LiveStreamQuality?, sourceHeight: Swift.Int?, eligibility: LiveStreamEligibility, showOnMonitor: Swift.Bool, phase: LiveStreamPhase, problem: LiveStreamProblem?)
@@ -1060,6 +1061,7 @@ static let LiveStreamCopy.keyPlaceholder: Swift.String
 static let LiveStreamCopy.keyTitle: Swift.String
 static let LiveStreamCopy.lockedWhileLive: Swift.String
 static let LiveStreamCopy.paste: Swift.String
+static let LiveStreamCopy.pillStop: Swift.String
 static let LiveStreamCopy.plainWarning: Swift.String
 static let LiveStreamCopy.qualityTitle: Swift.String
 static let LiveStreamCopy.remove: Swift.String
@@ -1321,6 +1323,7 @@ struct FieldMonitorLayout: Equatable, Sendable
 struct GimbalCluster: Equatable, Sendable
 struct LiveStreamControlState: Equatable, Hashable, Sendable
 struct LiveStreamMonitorState: Equatable, Hashable, Sendable
+struct LiveStreamPillState: Equatable, Hashable, Sendable
 struct LiveStreamQuality: Equatable, Hashable, Sendable
 struct LiveStreamServiceOption: Equatable, Hashable, Identifiable, Sendable
 struct LiveStreamSettingsState: Equatable, Hashable, Sendable
@@ -1519,6 +1522,12 @@ var LiveStreamMonitorState.serviceName: Swift.String
 var LiveStreamMonitorState.status: LiveStreamStatusState?
 var LiveStreamMonitorState.warning: LiveStreamWarning?
 var LiveStreamPhase.isRunning: Swift.Bool
+var LiveStreamPillState.accessibilityLabel: Swift.String
+var LiveStreamPillState.serviceName: Swift.String
+var LiveStreamPillState.stopAccessibilityLabel: Swift.String
+var LiveStreamPillState.stopTitle: Swift.String
+var LiveStreamPillState.title: Swift.String
+var LiveStreamPillState.tone: LiveStreamControlState.Tone
 var LiveStreamProblem.text: Swift.String
 var LiveStreamQuality.framesPerSecond: Swift.Double
 var LiveStreamQuality.height: Swift.Int

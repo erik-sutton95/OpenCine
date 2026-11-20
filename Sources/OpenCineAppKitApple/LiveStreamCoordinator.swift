@@ -21,18 +21,34 @@ public struct LiveStreamHost {
     public var source: @MainActor () -> StreamSourceFormat?
     /// Sets (or, with `nil`, removes) the clean picture tap on the app's live picture runtime.
     public var attachPicture: @MainActor (MonitorCleanPictureTap?) -> Void
+    /// The app's own microphone permission path, asked once the operator confirms Go live; `true`
+    /// when the stream may use the microphone. Shared code never raises the system prompt itself.
+    /// `LiveStreamHost.systemMicrophoneAccess` is the plain system request for an app with no
+    /// gate of its own.
+    public var microphoneAccess: @MainActor () async -> Bool
 
     public init(
         keychainService: String, defaults: UserDefaults = .standard,
         route: @escaping @MainActor () -> StreamConnectionRoute?,
         source: @escaping @MainActor () -> StreamSourceFormat?,
-        attachPicture: @escaping @MainActor (MonitorCleanPictureTap?) -> Void
+        attachPicture: @escaping @MainActor (MonitorCleanPictureTap?) -> Void,
+        microphoneAccess: @escaping @MainActor () async -> Bool
     ) {
         self.keychainService = keychainService
         self.defaults = defaults
         self.route = route
         self.source = source
         self.attachPicture = attachPicture
+        self.microphoneAccess = microphoneAccess
+    }
+
+    /// The system microphone request (asked once; later calls return the saved answer).
+    @MainActor public static func systemMicrophoneAccess() async -> Bool {
+        #if os(iOS)
+            await StreamMicrophone.requestPermission()
+        #else
+            false
+        #endif
     }
 }
 
@@ -59,7 +75,6 @@ extension StreamPublisher: LiveStreamPublishing {}
 
 /// The stream's sound (the device microphone in production).
 @MainActor protocol LiveStreamAudioCapture: AnyObject {
-    func requestPermission() async -> Bool
     func start(onBuffer: @escaping @Sendable (AVAudioPCMBuffer) -> Void) throws
     func stop()
 }
@@ -96,6 +111,8 @@ extension StreamPublisher: LiveStreamPublishing {}
     private var lowBattery = false
     private var running: Running?
     @ObservationIgnored private var starting = false
+    /// Monitor overlays on screen now; with none, a running stream shows the app-level pill.
+    private(set) var monitorControlsOnScreen = 0
 
     private static let presets = StreamServicePreset.all + [.custom]
     private static let serviceKey = "opencine.livestream.service"
@@ -187,6 +204,19 @@ extension StreamPublisher: LiveStreamPublishing {}
             serviceName: preset.displayName, quality: quality, encrypted: encrypted, status: status, end: end,
             warning: phase.isRunning ? (hot ? .hot : lowBattery ? .lowBattery : nil) : nil)
     }
+
+    /// The app-level pill: a running stream with no monitor showing its control, so the operator
+    /// can always see and stop it.
+    public var pillState: LiveStreamPillState? {
+        guard phase.isRunning, monitorControlsOnScreen == 0 else { return nil }
+        return LiveStreamPillState(phase: phase, serviceName: preset.displayName,
+            elapsedSeconds: status?.elapsedSeconds ?? 0)
+    }
+
+    /// A monitor overlay came on screen (`LiveStreamMonitorOverlay` reports this itself).
+    public func monitorControlsAppeared() { monitorControlsOnScreen += 1 }
+
+    public func monitorControlsDisappeared() { monitorControlsOnScreen = max(0, monitorControlsOnScreen - 1) }
 
     // MARK: Settings actions
 
@@ -290,7 +320,7 @@ extension StreamPublisher: LiveStreamPublishing {}
         }
         let format = StreamOutputFormat.resolve(
             selected: host.source() ?? Self.fallbackSource, connected: [], preset: preset)
-        if let audio, await !audio.requestPermission() {
+        if audio != nil, await !host.microphoneAccess() {
             phase = .ended(.microphoneDenied)
             end = .microphoneDenied
             return
@@ -416,7 +446,6 @@ final class StatusRelay: @unchecked Sendable {
     /// The device microphone behind the coordinator's audio seam.
     @MainActor final class MicrophoneCapture: LiveStreamAudioCapture {
         private let microphone = StreamMicrophone()
-        func requestPermission() async -> Bool { await StreamMicrophone.requestPermission() }
         func start(onBuffer: @escaping @Sendable (AVAudioPCMBuffer) -> Void) throws {
             try microphone.start(onBuffer: onBuffer)
         }

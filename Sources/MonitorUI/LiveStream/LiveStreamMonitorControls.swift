@@ -140,6 +140,53 @@ public struct LiveStreamGoLiveButton: View {
     }
 }
 
+/// The small app-level pill while a stream runs and no monitor shows its control: the running
+/// title and a Stop button behind the same one stop confirmation. Place it at the app root, top
+/// center. Kotlin twin: `LiveStreamPill`.
+public struct LiveStreamPill: View {
+    let state: LiveStreamPillState
+    let stop: () -> Void
+    @State private var confirming = false
+
+    public init(state: LiveStreamPillState, stop: @escaping () -> Void) {
+        self.state = state
+        self.stop = stop
+    }
+
+    public var body: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Circle().fill(state.tone == .live ? MonitorTheme.recording : MonitorTheme.linkHealthColor(.watch))
+                    .frame(width: 8, height: 8)
+                Text(state.title.uppercased()).font(MonitorTheme.font(12, weight: .bold)).monospacedDigit()
+                    .kerning(0.6).lineLimit(1).foregroundStyle(MonitorTheme.text)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(state.accessibilityLabel)
+            .accessibilityIdentifier("monitor.livestream.pill")
+            Button { confirming = true } label: {
+                Text(state.stopTitle).font(MonitorTheme.font(12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(state.stopAccessibilityLabel)
+            .accessibilityIdentifier("monitor.livestream.pill.stop")
+        }
+        .padding(.leading, 12)
+        .background(.black.opacity(0.78), in: Capsule())
+        .overlay(Capsule().stroke(MonitorTheme.border))
+        .alert(LiveStreamCopy.stopTitle, isPresented: $confirming) {
+            Button(LiveStreamCopy.stopConfirm, role: .destructive) { stop() }
+            Button(LiveStreamCopy.stopCancel, role: .cancel) {}
+        } message: {
+            Text(LiveStreamCopy.stopMessage)
+        }
+    }
+}
+
 /// Elapsed time, sent bitrate, dropped groups and connection health, read as one element.
 public struct LiveStreamStatusReadout: View {
     let status: LiveStreamStatusState

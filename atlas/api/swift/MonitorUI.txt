@@ -258,6 +258,7 @@ init LivePopupPlacement.Box(x: CoreGraphics.CGFloat, y: CoreGraphics.CGFloat, wi
 init LiveStreamGoLiveButton(control: MonitorPresentation.LiveStreamControlState, onTap: () -> Swift.Void)
 init LiveStreamMonitorActions(start: () -> Swift.Void, stop: () -> Swift.Void, restart: () -> Swift.Void, dismissNotice: () -> Swift.Void)
 init LiveStreamMonitorControls(state: MonitorPresentation.LiveStreamMonitorState, actions: LiveStreamMonitorActions)
+init LiveStreamPill(state: MonitorPresentation.LiveStreamPillState, stop: () -> Swift.Void)
 init LiveStreamSettingsActions(selectService: (Swift.String) -> Swift.Void, setServer: (Swift.String) -> Swift.Void, saveKey: (Swift.String) -> Swift.Void, removeKey: () -> Swift.Void, setShowOnMonitor: (Swift.Bool) -> Swift.Void)
 init LiveStreamSettingsCard(state: MonitorPresentation.LiveStreamSettingsState, actions: LiveStreamSettingsActions, feedback: () -> Swift.Void)
 init LiveStreamStatusReadout(status: MonitorPresentation.LiveStreamStatusState)
@@ -930,6 +931,7 @@ struct LivePopupPlacement.Box: Equatable
 struct LiveStreamGoLiveButton: Sendable, View
 struct LiveStreamMonitorActions
 struct LiveStreamMonitorControls: Sendable, View
+struct LiveStreamPill: Sendable, View
 struct LiveStreamSettingsActions
 struct LiveStreamSettingsCard: Sendable, View
 struct LiveStreamStatusReadout: Sendable, View
@@ -1231,6 +1233,7 @@ var LiveStreamMonitorActions.restart: () -> Swift.Void
 var LiveStreamMonitorActions.start: () -> Swift.Void
 var LiveStreamMonitorActions.stop: () -> Swift.Void
 var LiveStreamMonitorControls.body: some SwiftUI.View
+var LiveStreamPill.body: some SwiftUI.View
 var LiveStreamSettingsActions.removeKey: () -> Swift.Void
 var LiveStreamSettingsActions.saveKey: (Swift.String) -> Swift.Void
 var LiveStreamSettingsActions.selectService: (Swift.String) -> Swift.Void

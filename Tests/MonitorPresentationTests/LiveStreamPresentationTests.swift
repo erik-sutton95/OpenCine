@@ -170,4 +170,18 @@ struct LiveStreamPresentationTests {
         #expect(!LiveStreamEnd.gaveUp.offersRestart)
         #expect(LiveStreamWarning.hot.text == "The phone is hot. The stream continues; give it air or shade.")
     }
+
+    @Test func appPillReadsLikeTheRunningControlAndOnlyStops() {
+        let live = LiveStreamPillState(phase: .live, serviceName: "Service A", elapsedSeconds: 754)
+        #expect(live.title == "LIVE 12:34")
+        #expect(live.accessibilityLabel == "Live on Service A for 12 minutes 34 seconds")
+        #expect(live.stopTitle == "Stop")
+        #expect(live.stopAccessibilityLabel == "Stop the stream to Service A")
+        #expect(live.tone == .live)
+        let connecting = LiveStreamPillState(phase: .connecting, serviceName: "Service A", elapsedSeconds: 0)
+        #expect(connecting.title == "Connecting" && connecting.tone == .warning)
+        #expect(connecting.accessibilityLabel == "Connecting to Service A")
+        let retry = LiveStreamPillState(phase: .reconnecting(attempt: 2), serviceName: "Service A", elapsedSeconds: 9)
+        #expect(retry.title == "Reconnecting" && retry.accessibilityLabel == "Reconnecting to Service A, attempt 2")
+    }
 }

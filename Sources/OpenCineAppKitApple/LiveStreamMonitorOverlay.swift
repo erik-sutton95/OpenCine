@@ -25,18 +25,26 @@ extension LiveStreamCoordinator {
     }
 }
 
-/// The Go live control, status, notice and warning over the monitor picture. Place it top center
-/// over the picture; it draws nothing while the control is hidden.
+/// The Go live control, status, notice and warning over the monitor picture. A plain view over
+/// the coordinator: place it top center over whatever draws the picture (the shared monitor feed
+/// or an app's own); it draws nothing while the control is hidden. While it is on screen the
+/// app-level pill stays hidden.
 public struct LiveStreamMonitorOverlay: View {
     let coordinator: LiveStreamCoordinator
 
     public init(coordinator: LiveStreamCoordinator) { self.coordinator = coordinator }
 
     public var body: some View {
-        if let state = coordinator.monitorState {
-            LiveStreamMonitorControls(state: state, actions: coordinator.monitorActions)
-                .padding(.top, 10).padding(.horizontal, 16)
+        ZStack {
+            // Keeps the overlay on screen (so appear and disappear report) while the control hides.
+            Color.clear.frame(width: 0, height: 0)
+            if let state = coordinator.monitorState {
+                LiveStreamMonitorControls(state: state, actions: coordinator.monitorActions)
+                    .padding(.top, 10).padding(.horizontal, 16)
+            }
         }
+        .onAppear { coordinator.monitorControlsAppeared() }
+        .onDisappear { coordinator.monitorControlsDisappeared() }
     }
 }
 
@@ -58,7 +66,8 @@ public struct LiveStreamSettingsSection: View {
 
 extension View {
     /// Install once at the app root: leaving the app ends the stream (streaming is foreground only),
-    /// and heat or a low battery warn while live without stopping it.
+    /// heat or a low battery warn while live without stopping it, and while a stream runs with no
+    /// monitor overlay on screen the shared Live pill shows top center with Stop.
     @MainActor @ViewBuilder public func liveStreamLifecycle(_ coordinator: LiveStreamCoordinator?) -> some View {
         if let coordinator {
             modifier(LiveStreamLifecycleModifier(coordinator: coordinator))
@@ -74,6 +83,11 @@ extension View {
 
     func body(content: Content) -> some View {
         content
+            .overlay(alignment: .top) {
+                if let pill = coordinator.pillState {
+                    LiveStreamPill(state: pill) { coordinator.stop() }.padding(.top, 4)
+                }
+            }
             .onChange(of: phase) { _, value in
                 guard value == .background, coordinator.isRunning else { return }
                 // A short task lets the polite goodbye reach the server before suspension.

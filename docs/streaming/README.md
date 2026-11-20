@@ -56,13 +56,15 @@ It is sans-I/O, like Gyro: bytes and values in, bytes and decisions out, on inje
 |---|---|
 | `MonitorPresentation/LiveStreamPresentation.swift` | The values and every string: settings card, Go live control, status readout, notices, warnings, eligibility |
 | `MonitorUI/LiveStream/LiveStreamSettingsCard.swift` | The Sharing tab card: service, server, masked key with paste, save and remove, quality, the monitor switch, why going live is blocked |
-| `MonitorUI/LiveStream/LiveStreamMonitorControls.swift` | The Go live control with one confirmation to start and one to stop, the status readout, notice and warning |
+| `MonitorUI/LiveStream/LiveStreamMonitorControls.swift` | The Go live control with one confirmation to start and one to stop, the status readout, notice and warning, and the app-level Live pill |
 | `OpenCineAppKitApple/LiveStreamCoordinator.swift` | One app's streaming: keys in the keychain, validation, go-live from the host's route and source, the clean picture tap and microphone, status from the run, background ends the stream |
-| `OpenCineAppKitApple/LiveStreamMonitorOverlay.swift` | The overlay and settings section over the coordinator, and `liveStreamLifecycle` (background, heat, battery) |
+| `OpenCineAppKitApple/LiveStreamMonitorOverlay.swift` | The overlay and settings section over the coordinator, and `liveStreamLifecycle` (background, heat, battery, the Live pill while no monitor overlay is on screen) |
 
 An app gives a `LiveStreamHost`: its keychain service, its connection route as a
 `StreamConnectionRoute` (Core's `RouteKind` maps with `StreamConnectionRoute(_:)`), its source
-format and a closure that sets the clean picture tap on its live runtime. It passes the
+format, a closure that sets the clean picture tap on its live runtime, and `microphoneAccess`,
+its own microphone permission path, asked only after the operator confirms (shared code never
+raises the prompt; `LiveStreamHost.systemMicrophoneAccess` is the plain system request). It passes the
 coordinator to `withLiveStream(_:)` on its settings configuration and as `liveStream` on its live
 screen host, installs `liveStreamLifecycle` at its root, keeps the screen awake while
 `isRunning`, and declares `NSMicrophoneUsageDescription`. No brand or app branch exists in

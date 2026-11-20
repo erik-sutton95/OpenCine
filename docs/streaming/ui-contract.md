@@ -19,8 +19,33 @@ Swift source of truth for every string below: `Sources/MonitorPresentation/LiveS
 | Status readout | Under the Go live control | Connecting, live or reconnecting |
 | Notice | Under the Go live control | After a stream ends for a reason other than the operator's stop, or start fails |
 | Warning | Under the status readout | While live and the phone is hot or its battery is low |
+| Live pill | App root, top center, inside the safe area | A stream runs and no monitor overlay is on screen (the monitor closed after the camera was lost, or a Multiview stage opened) |
 
 The Sharing tab appears when either feed sharing or live streaming is composed.
+
+## Host slots (how an app composes the surfaces)
+
+The shared screens own placement; an app only hands over its coordinator.
+
+| Surface | SwiftUI | Compose |
+|---|---|---|
+| Live stream card | `MonitorOperatorSettingsConfiguration.withLiveStream(coordinator)`: the shared settings screen renders the card as the Sharing tab's `liveStream` row. `nil` (or not calling it) leaves the row out | The shared operator setup or settings screen takes the same optional slot; an app passes its coordinator or nothing |
+| Monitor controls | `LiveStreamMonitorOverlay(coordinator:)`, a plain view. The shared live screen places it from `MonitorOperatorLiveScreen.liveStream`; an app that draws its own picture (OpenZCine) places the same view over that picture, top center | A plain composable over the coordinator's state, with no dependency on the monitor feed host's scope, so an app that draws its own picture can place it |
+| Lifecycle and Live pill | `.liveStreamLifecycle(coordinator)` once at the app root: background end, heat and battery warnings, and the Live pill | The same once at the app root |
+
+The monitor overlay reports when it is on screen and off screen (SwiftUI: on appear and on
+disappear; Compose: entering and leaving composition). The coordinator counts those; the Live
+pill shows only while a stream runs and the count is zero, so the operator can always see and
+stop a running stream.
+
+## Microphone permission
+
+The stream asks for the microphone only after the operator confirms Go live, and only through
+the app's own permission path: the host value `microphoneAccess` (SwiftUI `LiveStreamHost`,
+an async closure that returns whether the microphone may be used). Shared views and the overlay
+never raise the system prompt themselves. An app with no gate of its own passes
+`LiveStreamHost.systemMicrophoneAccess` (SwiftUI); on Android the app routes it through its
+permission gate (activity result). A `false` answer ends the start with `microphoneDenied`.
 
 ## Values (portable, `MonitorPresentation`; Kotlin same names in `monitor-ui`)
 
@@ -96,6 +121,22 @@ Stop confirmation: title `End the stream?`, message
 (destructive) and `Keep streaming` (cancel).
 
 Starting or stopping never sends a camera command.
+
+## Live pill (app root)
+
+Identifier `monitor.livestream.pill` for the status (one accessibility element) and
+`monitor.livestream.pill.stop` for the Stop button. Minimum touch target 44 points (48 dp) for
+Stop. Value `LiveStreamPillState(phase, serviceName, elapsedSeconds)`.
+
+| Phase | Title | Dot | Accessibility label |
+|---|---|---|---|
+| connecting | `Connecting` | warning color | `Connecting to <service>` |
+| live | `LIVE <elapsed>` | recording red | `Live on <service> for <spoken elapsed>` |
+| reconnecting | `Reconnecting` | warning color | `Reconnecting to <service>, attempt <n>` |
+
+Stop button: title `Stop`, accessibility label `Stop the stream to <service>`. It opens the same
+stop confirmation as the monitor control (`End the stream?`, `End stream`, `Keep streaming`).
+The pill has no start action and never shows when idle or ended; notices stay on the monitor.
 
 ## Status readout
 

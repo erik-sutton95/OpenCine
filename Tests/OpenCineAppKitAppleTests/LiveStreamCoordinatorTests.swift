@@ -20,13 +20,15 @@ import Testing
         var source: StreamSourceFormat? = StreamSourceFormat(width: 1280, height: 720, frameRate: Rational(30, 1))
         var calls: [String] = []
         var tap: MonitorCleanPictureTap?
+        var microphoneAllowed = true
 
         var value: LiveStreamHost {
             LiveStreamHost(
                 keychainService: "test.live-stream", defaults: UserDefaults(suiteName: "live-stream-\(UUID())")!,
                 route: { [self] in calls.append("route"); return route },
                 source: { [self] in calls.append("source"); return source },
-                attachPicture: { [self] in calls.append($0 == nil ? "detach" : "attach"); tap = $0 })
+                attachPicture: { [self] in calls.append($0 == nil ? "detach" : "attach"); tap = $0 },
+                microphoneAccess: { [self] in calls.append("microphone"); return microphoneAllowed })
         }
     }
 
@@ -69,9 +71,7 @@ import Testing
     }
 
     final class Audio: LiveStreamAudioCapture {
-        var allowed = true
         var running = false
-        func requestPermission() async -> Bool { allowed }
         func start(onBuffer: @escaping @Sendable (AVAudioPCMBuffer) -> Void) throws { running = true }
         func stop() { running = false }
     }
@@ -166,12 +166,12 @@ import Testing
     @Test func startNeverSendsACameraCommand() async {
         guard #available(macOS 14.0, *) else { return }
         // The host's closures are the coordinator's only way into the app: it reads the route and the
-        // source and attaches the picture tap. Nothing else reaches the camera.
+        // source, attaches the picture tap and asks the app for the microphone. Nothing reaches the camera.
         let r = rig()
         await r.coordinator.begin()
         r.coordinator.receive(Self.status(.live, liveSince: Self.start), at: Self.start)
         r.coordinator.stop()
-        #expect(Set(r.host.calls).isSubset(of: ["route", "source", "attach", "detach"]))
+        #expect(Set(r.host.calls).isSubset(of: ["route", "source", "attach", "detach", "microphone"]))
         #expect(r.host.calls.filter { $0 == "attach" }.count == 1)
         #expect(r.host.calls.last == "detach")
     }
@@ -215,7 +215,7 @@ import Testing
     @Test func deniedMicrophoneBlocksGoLive() async {
         guard #available(macOS 14.0, *) else { return }
         let r = rig()
-        r.audio.allowed = false
+        r.host.microphoneAllowed = false
         await r.coordinator.begin()
         #expect(r.publishers().isEmpty && r.host.tap == nil)
         #expect(r.coordinator.monitorState?.end == .microphoneDenied)
@@ -281,6 +281,36 @@ import Testing
         let ids = r.coordinator.settingsState.services.map(\.id)
         #expect(ids == StreamServicePreset.all.map(\.id) + ["custom"])
         #expect(r.coordinator.settingsState.services.last?.acceptsPlainServer == true)
+    }
+
+    @Test func theMicrophoneIsAskedThroughTheAppsGateAfterTheConfirmation() async {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        #expect(!r.host.calls.contains("microphone"), "Nothing asks before the operator confirms")
+        await r.coordinator.begin()
+        #expect(r.host.calls.filter { $0 == "microphone" }.count == 1)
+        #expect(r.publishers().count == 1)
+    }
+
+    @Test func theAppPillShowsOnlyWhileRunningWithNoMonitorControls() async {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        r.coordinator.monitorControlsAppeared()
+        #expect(r.coordinator.pillState == nil, "Idle: no pill")
+        await r.coordinator.begin()
+        #expect(r.coordinator.pillState == nil, "The monitor shows the control")
+        r.coordinator.monitorControlsDisappeared()
+        #expect(r.coordinator.pillState?.title == "Connecting")
+        r.coordinator.receive(Self.status(.live, liveSince: Self.start), at: Self.start + .seconds(65))
+        #expect(r.coordinator.pillState?.title == "LIVE 1:05")
+        r.coordinator.monitorControlsAppeared()
+        #expect(r.coordinator.pillState == nil)
+        r.coordinator.monitorControlsDisappeared()
+        r.coordinator.stop()
+        #expect(r.coordinator.pillState == nil, "Stopped: no pill")
+        r.coordinator.monitorControlsDisappeared()
+        r.coordinator.monitorControlsAppeared()
+        #expect(r.coordinator.monitorControlsOnScreen == 1, "Never counts below zero")
     }
 }
 #endif

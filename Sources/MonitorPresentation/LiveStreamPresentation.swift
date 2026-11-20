@@ -295,6 +295,32 @@ public struct LiveStreamMonitorState: Hashable, Sendable {
     }
 }
 
+/// The small app-level pill while a stream runs and no monitor shows the Go live control (the
+/// monitor closed after the camera was lost, or a Multiview stage opened). It reads like the
+/// running control and offers only Stop, behind the same one stop confirmation.
+public struct LiveStreamPillState: Hashable, Sendable {
+    public var title: String
+    public var tone: LiveStreamControlState.Tone
+    public var accessibilityLabel: String
+    public var serviceName: String
+
+    public init(phase: LiveStreamPhase, serviceName: String, elapsedSeconds: Int) {
+        let control = LiveStreamControlState(phase: phase, eligibility: .allowed, serviceName: serviceName,
+            elapsedSeconds: elapsedSeconds)
+        title = control.title
+        tone = control.tone
+        self.serviceName = serviceName
+        accessibilityLabel = switch phase {
+        case .live: "Live on \(serviceName) for \(LiveStreamCopy.spokenElapsed(elapsedSeconds))"
+        case .reconnecting(let attempt): "Reconnecting to \(serviceName), attempt \(attempt)"
+        case .connecting, .idle, .ended: "Connecting to \(serviceName)"
+        }
+    }
+
+    public var stopTitle: String { LiveStreamCopy.pillStop }
+    public var stopAccessibilityLabel: String { "Stop the stream to \(serviceName)" }
+}
+
 /// The settings card's values.
 public struct LiveStreamSettingsState: Hashable, Sendable {
     public var services: [LiveStreamServiceOption]
@@ -392,6 +418,8 @@ public enum LiveStreamCopy {
     public static let stopMessage = "Viewers see the stream end. Camera recording is not affected."
     public static let stopConfirm = "End stream"
     public static let stopCancel = "Keep streaming"
+    /// The app-level pill's one action.
+    public static let pillStop = "Stop"
     public static let restart = "Restart stream"
     public static let dismiss = "Dismiss"
 

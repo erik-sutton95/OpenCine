@@ -61,6 +61,17 @@ final class LiveStreamHostedTests: XCTestCase {
         XCTAssertTrue(leaves.contains { $0.accessibilityLabel == "Saved" })
     }
 
+    func testAppPillReadsTheStreamAndOffersStop() async throws {
+        let pill = LiveStreamPillState(phase: .live, serviceName: "Service A", elapsedSeconds: 65)
+        let (view, window) = mount(LiveStreamPill(state: pill, stop: {}))
+        defer { window.isHidden = true }
+        let label = try await element("monitor.livestream.pill", in: view)
+        XCTAssertEqual(label.accessibilityLabel, "Live on Service A for 1 minute 5 seconds")
+        let stop = try await element("monitor.livestream.pill.stop", in: view)
+        XCTAssertEqual(stop.accessibilityLabel, "Stop the stream to Service A")
+        XCTAssertGreaterThanOrEqual(stop.accessibilityFrame.height, 44)
+    }
+
     private static let noActions = LiveStreamMonitorActions(start: {}, stop: {}, restart: {}, dismissNotice: {})
 
     private func mount(_ content: some View) -> (UIView, UIWindow) {
