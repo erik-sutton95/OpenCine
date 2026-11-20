@@ -113,6 +113,23 @@ object LiveStreamCopy {
     fun liveLabel(elapsedSeconds: Int) = "Live for ${spokenElapsed(elapsedSeconds)}"
     fun reconnectingLabel(attempt: Int) = "Reconnecting, attempt $attempt"
 
+    /** The root Live pill's accessibility label. */
+    fun pillLabel(pill: LiveStreamPillState): String = when (val phase = pill.phase) {
+        LiveStreamPhase.Live -> "Live on ${pill.serviceName} for ${spokenElapsed(pill.elapsedSeconds)}"
+        is LiveStreamPhase.Reconnecting -> "Reconnecting to ${pill.serviceName}, attempt ${phase.attempt}"
+        else -> connectingLabel(pill.serviceName)
+    }
+
+    /** The root Live pill's title. */
+    fun pillTitle(pill: LiveStreamPillState): String = when (pill.phase) {
+        LiveStreamPhase.Live -> liveTitle(pill.elapsedSeconds)
+        is LiveStreamPhase.Reconnecting -> RECONNECTING
+        else -> CONNECTING
+    }
+
+    /** The root Live pill's Stop button label. */
+    fun pillStopLabel(service: String) = "Stop the stream to $service"
+
     fun startTitle(service: String) = "Go live on $service?"
     fun startMessage(quality: String, plain: Boolean): String {
         val first = "$quality. The camera picture goes out with the monitor LUT; assists and controls do not. " +
@@ -243,6 +260,17 @@ object LiveStreamCopy {
 }
 
 /** Everything the live stream card, the Go live control, the status readout and notices show. */
+/**
+ * The root Live pill (contract "Live pill"): a running stream's phase, service and elapsed time.
+ * [phase] is connecting, live or reconnecting.
+ */
+data class LiveStreamPillState(val phase: LiveStreamPhase, val serviceName: String, val elapsedSeconds: Int)
+
+/** The pill for [state], or null while no stream runs (idle or ended: the pill never shows). */
+fun liveStreamPillState(state: LiveStreamState): LiveStreamPillState? =
+    if (!state.phase.isRunning) null
+    else LiveStreamPillState(state.phase, state.selected?.name.orEmpty(), state.status?.elapsedSeconds ?: 0)
+
 data class LiveStreamState(
     val services: List<LiveStreamServiceOption> = emptyList(),
     val selectedServiceId: String? = null,

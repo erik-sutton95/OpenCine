@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,6 +58,7 @@ import com.opencapture.monitorui.LiveStreamStatusState
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.isRunning
+import com.opencapture.monitorui.liveStreamPillState
 import com.opencapture.monitorui.settings.MonitorSettingsActionPill
 import com.opencapture.monitorui.settings.MonitorSettingsChoices
 import com.opencapture.monitorui.settings.MonitorSettingsInlineRow
@@ -89,8 +91,8 @@ object LiveStreamIds {
     const val NOTICE_DISMISS = "monitor.livestream.notice.dismiss"
     const val RESTART = "monitor.livestream.restart"
     const val WARNING = "monitor.livestream.warning"
-    const val ROOT_PILL = "monitor.livestream.rootPill"
-    const val ROOT_PILL_STOP = "monitor.livestream.rootPill.stop"
+    const val PILL = "monitor.livestream.pill"
+    const val PILL_STOP = "monitor.livestream.pill.stop"
 }
 
 private val noteStyle get() = MonitorTypography.text(12f, FontWeight.Normal)
@@ -395,31 +397,38 @@ private fun Bubble(modifier: Modifier, content: @Composable () -> Unit) {
 }
 
 /**
- * A small pill for the app root while a stream runs and the monitor's Go live control is not on
- * screen (the camera was lost and the monitor closed, another stage opened): the control's title
- * (`LIVE 12:34`, `Connecting`, `Reconnecting`) and Stop, which asks the same stop confirmation.
- * Draws nothing when no stream runs.
+ * The Live pill for the app root (contract "Live pill"): while a stream runs and no monitor shows
+ * its Go live control, the phase with a dot (red live, amber otherwise) and Stop, which asks the
+ * same stop confirmation. Draws nothing when no stream runs.
  */
 @Composable
 fun LiveStreamRootPill(state: LiveStreamState, actions: LiveStreamActions, modifier: Modifier = Modifier) {
-    if (!state.phase.isRunning) return
+    val pill = liveStreamPillState(state) ?: return
     var confirmingStop by remember { mutableStateOf(false) }
-    val look = liveStreamControlLook(state)
+    val live = pill.phase == LiveStreamPhase.Live
+    val dot = if (live) MonitorPalette.recording else warningColor
     Row(
         modifier
-            .testTag(LiveStreamIds.ROOT_PILL)
             .background(MonitorPalette.background.copy(alpha = 0.86f), CircleShape)
-            .border(1.dp, if (look.live) MonitorPalette.recording else MonitorPalette.border, CircleShape)
+            .border(1.dp, if (live) MonitorPalette.recording else MonitorPalette.border, CircleShape)
             .padding(start = 12.dp, end = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(look.title, style = MonitorTypography.readout(12f, FontWeight.SemiBold),
-            color = if (look.live) MonitorPalette.recording else MonitorPalette.text,
-            modifier = Modifier.clearAndSetSemantics { contentDescription = look.label })
+        Row(
+            Modifier.testTag(LiveStreamIds.PILL)
+                .clearAndSetSemantics { contentDescription = LiveStreamCopy.pillLabel(pill) },
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(8.dp).background(dot, CircleShape))
+            Text(LiveStreamCopy.pillTitle(pill), style = MonitorTypography.readout(12f, FontWeight.SemiBold),
+                color = if (live) MonitorPalette.recording else MonitorPalette.text)
+        }
         MonitorSettingsActionPill(LiveStreamCopy.STOP, tint = MonitorPalette.recording,
             background = MonitorPalette.recording.copy(alpha = 0.16f),
-            modifier = Modifier.testTag(LiveStreamIds.ROOT_PILL_STOP)) { confirmingStop = true }
+            modifier = Modifier.testTag(LiveStreamIds.PILL_STOP)
+                .semantics { contentDescription = LiveStreamCopy.pillStopLabel(pill.serviceName) }) { confirmingStop = true }
     }
     if (confirmingStop) {
         AlertDialog(onDismissRequest = { confirmingStop = false },

@@ -86,4 +86,24 @@ class LiveStreamCopyTest {
         assertEquals("Not encrypted. rtmp:// sends the picture and the stream key in the clear, so anyone on " +
             "the network path can read the key. Use rtmps:// when the service offers it.", LiveStreamCopy.PLAIN_SERVER_WARNING)
     }
+
+    @Test
+    fun livePillFollowsTheContract() {
+        val service = LiveStreamServiceOption("twitch", "Twitch", "hint", false, false, false)
+        val idle = LiveStreamState(services = listOf(service), selectedServiceId = "twitch")
+        assertNull(liveStreamPillState(idle))
+        assertNull(liveStreamPillState(idle.copy(phase = LiveStreamPhase.Ended(LiveStreamEnd.Stopped))))
+        val live = LiveStreamPillState(LiveStreamPhase.Live, "Twitch", 754)
+        assertEquals("LIVE 12:34", LiveStreamCopy.pillTitle(live))
+        assertEquals("Live on Twitch for 12 minutes 34 seconds", LiveStreamCopy.pillLabel(live))
+        val connecting = LiveStreamPillState(LiveStreamPhase.Connecting, "Twitch", 0)
+        assertEquals("Connecting", LiveStreamCopy.pillTitle(connecting))
+        assertEquals("Connecting to Twitch", LiveStreamCopy.pillLabel(connecting))
+        val reconnecting = LiveStreamPillState(LiveStreamPhase.Reconnecting(2), "Twitch", 90)
+        assertEquals("Reconnecting", LiveStreamCopy.pillTitle(reconnecting))
+        assertEquals("Reconnecting to Twitch, attempt 2", LiveStreamCopy.pillLabel(reconnecting))
+        assertEquals("Stop the stream to Twitch", LiveStreamCopy.pillStopLabel("Twitch"))
+        assertEquals(LiveStreamPillState(LiveStreamPhase.Connecting, "Twitch", 0),
+            liveStreamPillState(idle.copy(phase = LiveStreamPhase.Connecting)))
+    }
 }

@@ -295,6 +295,9 @@ public final class com/opencapture/monitorui/LiveStreamCopy {
 	public final fun liveLabel (I)Ljava/lang/String;
 	public final fun liveTitle (I)Ljava/lang/String;
 	public final fun notice (Lcom/opencapture/monitorui/LiveStreamEnd;)Ljava/lang/String;
+	public final fun pillLabel (Lcom/opencapture/monitorui/LiveStreamPillState;)Ljava/lang/String;
+	public final fun pillStopLabel (Ljava/lang/String;)Ljava/lang/String;
+	public final fun pillTitle (Lcom/opencapture/monitorui/LiveStreamPillState;)Ljava/lang/String;
 	public final fun problem (Ljava/lang/String;Z)Ljava/lang/String;
 	public final fun quality (Lcom/opencapture/monitorui/LiveStreamQuality;)Ljava/lang/String;
 	public final fun reconnectingLabel (I)Ljava/lang/String;
@@ -441,8 +444,25 @@ public final class com/opencapture/monitorui/LiveStreamPhase$Reconnecting : com/
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/monitorui/LiveStreamPillState {
+	public static final field $stable I
+	public fun <init> (Lcom/opencapture/monitorui/LiveStreamPhase;Ljava/lang/String;I)V
+	public final fun component1 ()Lcom/opencapture/monitorui/LiveStreamPhase;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun copy (Lcom/opencapture/monitorui/LiveStreamPhase;Ljava/lang/String;I)Lcom/opencapture/monitorui/LiveStreamPillState;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamPillState;Lcom/opencapture/monitorui/LiveStreamPhase;Ljava/lang/String;IILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamPillState;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getElapsedSeconds ()I
+	public final fun getPhase ()Lcom/opencapture/monitorui/LiveStreamPhase;
+	public final fun getServiceName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/opencapture/monitorui/LiveStreamPresentationKt {
 	public static final fun isRunning (Lcom/opencapture/monitorui/LiveStreamPhase;)Z
+	public static final fun liveStreamPillState (Lcom/opencapture/monitorui/LiveStreamState;)Lcom/opencapture/monitorui/LiveStreamPillState;
 }
 
 public final class com/opencapture/monitorui/LiveStreamQuality {
@@ -5666,11 +5686,11 @@ public final class com/opencapture/monitorui/livestream/LiveStreamIds {
 	public static final field LOCKED_WHILE_LIVE Ljava/lang/String;
 	public static final field NOTICE Ljava/lang/String;
 	public static final field NOTICE_DISMISS Ljava/lang/String;
+	public static final field PILL Ljava/lang/String;
+	public static final field PILL_STOP Ljava/lang/String;
 	public static final field PLAIN_WARNING Ljava/lang/String;
 	public static final field QUALITY Ljava/lang/String;
 	public static final field RESTART Ljava/lang/String;
-	public static final field ROOT_PILL Ljava/lang/String;
-	public static final field ROOT_PILL_STOP Ljava/lang/String;
 	public static final field SERVER Ljava/lang/String;
 	public static final field SERVER_PROBLEM Ljava/lang/String;
 	public static final field SERVICE Ljava/lang/String;
