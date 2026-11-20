@@ -122,4 +122,10 @@ object OpcVulkan {
 
     /** 320×180 identity NV21 (2×2 box of the 640×360 readback) for FaceDetector, not a mirrored swapchain copy. */
     @JvmStatic external fun nativeCopyFace(handle: Long, out: ByteArray): Boolean
+
+    /** Arms (or disarms) the full identity readback below; the staging buffer is allocated on first arm. */
+    @JvmStatic external fun nativeSetNeedClean(handle: Long, on: Boolean)
+
+    /** 1280×720 identity RGBA8, top row first, of the last submit armed by [nativeSetNeedClean]. */
+    @JvmStatic external fun nativeCopyClean(handle: Long, out: ByteArray): Boolean
 }
