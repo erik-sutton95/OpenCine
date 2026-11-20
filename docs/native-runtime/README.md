@@ -160,8 +160,41 @@ its own queue into its own BGRA pool tagged Rec.709, keeps only the newest waiti
 delivers `MonitorCleanFrame` (buffer and source time). With no tap set nothing extra runs. With a
 LUT on, the picture is at most the monitor's working width (`FeedPresentPolicy.maxWorkingWidth`).
 The stream side (`OpenCineStreamingApple`) takes the buffer from app composition; no streaming
-type enters this module. Android's twin is part 3 of the streaming series
-(`docs/streaming/README.md`).
+type enters this module. Android's twin follows.
+
+## Clean picture for live streaming (Android)
+
+`MonitorCleanPictureTap` (native-runtime) renders the same clean picture straight into an encoder
+input surface: the monitor's LUT, and never peaking, zebra, false colour, the split comparison or
+app controls (`monitorCleanPictureLook` keeps only the plan's LUT cube). The stream shell calls
+`attach(surface, width, height, fill, onPicture, onFailed)` with its encoder surface (an EGL window
+surface on a `EGL_RECORDABLE_ANDROID` config), then `draw(presentationTimeNs, slate)` at its frame
+clock; `detach()` releases the EGL surface before it returns (bounded wait) so the encoder can be
+released next. `FIT` keeps the picture's shape with black bars; `CROP` fills from the center, for a
+vertical output. Each draw grades the newest picture at its own raster, fits it, stamps
+`eglPresentationTimeANDROID` and swaps; a slate, or no picture yet, is black.
+
+Streaming is a passenger. Producers read back only while `wantsFrames` (an output is attached and
+the tap has not failed) and `frameDue(nowNs)` (at most 30 times a second); without a tap, or with
+none attached, nothing extra runs. `submit` never blocks: it keeps the newest waiting picture and
+recycles the one it replaces (`frameBuffer` hands producers a recycled array). Upload, grade, fit,
+present and the `onPicture` callback run on the tap's own thread and EGL context, so a stalled
+encoder holds only that thread. Any failure in the tap logs, stops the tap and calls `onFailed`
+once; the monitor keeps presenting.
+
+| Producer | Readback |
+|---|---|
+| `NativeVulkanFeedSession` | `nativeSetNeedClean` arms a whole copy of the 1280x720 identity bake into its own host-visible staging buffer (allocated on first use) in `recordCpuTaps`; after that submit the image thread copies it out with `nativeCopyClean`, like the face tap, and submits it top row first. A vertical raster keeps its own shape (`displayWidth`/`displayHeight`); other rasters are the cover-cropped 16:9 bake |
+| `NativeGlesFeedSession` | After present, on a new source picture only, an OES copy at `FeedPresentPolicy.workingSize(source, maxWidth)` and one `glReadPixels` on the monitor's GL thread (the scope tap's pattern), submitted bottom row first. A failure disables only this readback |
+
+The bitmap sessions (`MonitorBitmapGlesSession`, `MonitorBitmapVulkanSession`) and playback do not
+feed the tap. Vulkan delivers pictures only while the monitor window presents (`nativeSubmit` needs
+the swapchain). The operator's view flips are not applied: the stream gets the camera's orientation.
+
+App composition: `MonitorLiveFeedIntegration(cleanPicture = tap)` (default null) hands the tap to
+the live host's Vulkan or GLES session only, never playback or multiview, and keeps
+`setPictureAspect` on the monitor's desqueeze. The app owns and closes the tap and gives the same
+instance to its stream shell. Device behavior is untested.
 
 ## Native media streaming
 
