@@ -16,7 +16,8 @@ class AppKitNativeRulesTest {
             "import com.opencapture.opencine.appkit.", "import com.opencapture.opencine.media.",
             "import com.opencapture.opencine.core.",
             "import com.opencapture.opencine.vocabulary.", "import com.opencapture.opencine.decoder.",
-            "import com.opencapture.opencine.runtime.", "import com.opencapture.opencine.cameracontrols.")
+            "import com.opencapture.opencine.runtime.", "import com.opencapture.opencine.cameracontrols.",
+            "import com.opencapture.opencine.streaming.")
         for (file in files) {
             for (line in file.readLines().filter { it.startsWith("import ") }) {
                 assertTrue(allowed.any(line::startsWith), "${file.name}: $line")
@@ -27,7 +28,7 @@ class AppKitNativeRulesTest {
         }
         val dependencies = Regex("""project\("(:[\w-]+)"\)""")
             .findAll(File("build.gradle.kts").readText()).map { it.groupValues[1] }.toSet()
-        assertEquals(setOf(":camera-controls", ":decoder", ":native-runtime"), dependencies)
+        assertEquals(setOf(":camera-controls", ":decoder", ":native-runtime", ":streaming"), dependencies)
     }
 
     @Test fun cameraControlsKeepTheirOriginalNativeImportGuard() {

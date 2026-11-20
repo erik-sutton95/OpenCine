@@ -160,7 +160,8 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   delivery remote services) builds on `OpenCineFrameIO`, `OpenCineAppKit` and
   `OpenCineAppKitApple` only. The keychain service, defaults keys and bundle are app values.
 - Android `appkit-native` is optional native app composition above `camera-controls`,
-  `decoder` and `native-runtime`, its only project dependencies. It composes retained picture
+  `decoder`, `native-runtime` and `streaming`, its only project dependencies (live streaming's
+  composition, `LiveStreamCoordinator`, lives here). It composes retained picture
   hosts and face readback using host values and callbacks, never an integration or an app.
   Portable appkit, camera controls and monitor UI keep their existing import boundaries;
   native-runtime remains UI-free. Native cache proof helpers belong to androidTest only.
