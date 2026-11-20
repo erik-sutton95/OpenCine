@@ -265,6 +265,7 @@ public final class com/opencapture/monitorui/LiveStreamCopy {
 	public static final field KEY_UNAVAILABLE Ljava/lang/String;
 	public static final field LOCKED_WHILE_LIVE Ljava/lang/String;
 	public static final field PASTE Ljava/lang/String;
+	public static final field PLAIN_SERVER_WARNING Ljava/lang/String;
 	public static final field PLAIN_WARNING Ljava/lang/String;
 	public static final field QUALITY Ljava/lang/String;
 	public static final field QUALITY_UNKNOWN Ljava/lang/String;

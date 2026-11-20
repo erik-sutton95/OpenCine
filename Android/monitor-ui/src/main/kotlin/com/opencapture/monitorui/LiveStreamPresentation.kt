@@ -88,10 +88,14 @@ object LiveStreamCopy {
     const val REMOVE = "Remove"
     const val QUALITY = "Quality"
     const val SHOW_ON_MONITOR = "Go live button on the monitor"
+    /** The start confirmation's second paragraph for a plain rtmp:// server. */
     const val PLAIN_WARNING = "Not encrypted: the stream and its key travel in the clear."
-    const val KEY_UNAVAILABLE =
-        "The saved stream key cannot be read until this phone is unlocked. Unlock it, then come back."
-    const val LOCKED_WHILE_LIVE = "Service, server and key are locked while a stream runs."
+
+    /** The card's note under a plain rtmp:// server. */
+    const val PLAIN_SERVER_WARNING = "Not encrypted. rtmp:// sends the picture and the stream key in the clear, " +
+        "so anyone on the network path can read the key. Use rtmps:// when the service offers it."
+    const val KEY_UNAVAILABLE = "Unlock this phone to read the saved key."
+    const val LOCKED_WHILE_LIVE = "Settings are locked while a stream runs."
 
     const val REMOVE_TITLE = "Remove the stream key?"
     fun removeMessage(service: String) =

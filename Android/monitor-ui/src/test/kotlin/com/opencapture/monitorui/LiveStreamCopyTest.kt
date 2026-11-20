@@ -78,4 +78,12 @@ class LiveStreamCopyTest {
         assertEquals("Use the rtmps:// address the service gave you.", LiveStreamCopy.problem("notRTMPS", custom = false))
         assertEquals("Paste the stream key.", LiveStreamCopy.problem("emptyKey", custom = false))
     }
+
+    @Test
+    fun cardNotesFollowTheContract() {
+        assertEquals("Unlock this phone to read the saved key.", LiveStreamCopy.KEY_UNAVAILABLE)
+        assertEquals("Settings are locked while a stream runs.", LiveStreamCopy.LOCKED_WHILE_LIVE)
+        assertEquals("Not encrypted. rtmp:// sends the picture and the stream key in the clear, so anyone on " +
+            "the network path can read the key. Use rtmps:// when the service offers it.", LiveStreamCopy.PLAIN_SERVER_WARNING)
+    }
 }

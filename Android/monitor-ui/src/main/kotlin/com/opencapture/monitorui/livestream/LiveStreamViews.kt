@@ -122,7 +122,7 @@ fun LiveStreamSettingsCard(state: LiveStreamState, actions: LiveStreamActions) {
                     onValueChange = actions::setServer,
                 )
             }
-            if (state.plainServer) Note(LiveStreamCopy.PLAIN_WARNING, LiveStreamIds.PLAIN_WARNING, warningColor)
+            if (state.plainServer) Note(LiveStreamCopy.PLAIN_SERVER_WARNING, LiveStreamIds.PLAIN_WARNING, warningColor)
         }
         state.problem?.let { Note(it, LiveStreamIds.SERVER_PROBLEM, MonitorPalette.recording) }
         KeyRow(state, running, actions, onRemove = { removing = true })
