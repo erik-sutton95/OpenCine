@@ -332,6 +332,7 @@ func MonitorOperatorInteraction.select(_: MonitorOperatorInteraction.Panel, host
 func MonitorOperatorLiveScreenDecoder.attach(sampleBus: OpenCineApple.LiveFrameSampleBus, effects: () -> OpenCineMedia.MonitorFrameEffects, transfer: () -> OpenCineMedia.MonitorTransfer?) -> ()
 func MonitorOperatorLiveScreenDecoder.stopSimulatorSample() -> ()
 func MonitorOperatorSettingsConfiguration.withCameraPresets(_: OpenCineAppKit.CameraSettingsPresetsModel?)<Looks where Looks : OpenCineAppKit.MonitorLookProvider> -> MonitorOperatorSettingsConfiguration<Looks>
+func MonitorOperatorSettingsConfiguration.withLiveStream(_: OpenCineAppKitApple.LiveStreamCoordinator?)<Looks where Looks : OpenCineAppKit.MonitorLookProvider> -> MonitorOperatorSettingsConfiguration<Looks>
 func MonitorOperatorSignalOptions.offers(_: MonitorPresentation.MonitorAssistSelection) -> Swift.Bool
 func MonitorPeakingColor.swatch(_: Palette.Type)<Palette where Palette : LiveChromePalette> -> SwiftUI.Color
 func MonitorPlaybackPresentationSource.captureClose(owner: OpenCineAppKit.MonitorOperatorMediaModel<Self.Payload, Self.Look>) -> (() async -> Swift.Bool)?
@@ -2166,6 +2167,7 @@ var MonitorLiveOperatorHost.recordConfirmationEnabled: Swift.Bool
 var MonitorLiveScreenHost.frameSamples: OpenCineApple.LiveFrameSampleBus
 var MonitorLiveScreenHost.liveCapabilities: OpenCineCore.MonitorLayoutCapabilities
 var MonitorLiveScreenHost.livePictureEV: (() -> OpenCineCameraVocabulary.EvComp?)?
+var MonitorLiveScreenHost.liveStream: OpenCineAppKitApple.LiveStreamCoordinator?
 var MonitorLiveScreenHost.liveZoomCaption: Swift.String
 var MonitorLiveScreenHost.portraitFeedAspect: OpenCineMedia.PortraitFeedAspect
 var MonitorLiveScreenHost.session: Self.Session

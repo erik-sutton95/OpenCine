@@ -197,6 +197,25 @@ Commit: `feat(appkit): compose live streaming on iOS`.
 
 Per app: move the OpenCine pin to the commit with Tasks 1 to 10; add `NSMicrophoneUsageDescription`; pass `LiveStreamHost` with the app's keychain service (`<bundle id>.live-stream`) and its connection route mapping: OpenZCine (camera access point gives `.cameraWiFi`, phone hotspot `.deviceHotspot`, Wi-Fi network `.sharedWiFi`, USB-C `.usbCable`, HDMI capture `.captureCard`); OpenPocketCine and OpenInstaCine (camera access point `.cameraWiFi`, station mode on a shared network `.sharedWiFi`, hotspot `.deviceHotspot`). The route mapping reads only the app's existing connection mode, never a camera command. Each app runs its own checks; hardware stays untested until the owner's pass.
 
+## Adaptations made while building Tasks 9 to 11 (2026-11-20)
+
+- The values live in `MonitorPresentation/LiveStreamPresentation.swift` under the names in
+  `docs/streaming/ui-contract.md` (the Compose twin's contract); the settings view is
+  `LiveStreamSettingsCard` and the monitor view `LiveStreamMonitorControls` (Go live control,
+  status readout, notice and warning in one).
+- `LiveStreamHost` carries closures for the route, the source format and attaching the clean
+  picture tap, so the coordinator never holds a camera, a decoder or a brand. Core's `RouteKind`
+  maps to `StreamConnectionRoute` in the engine, so apps on that vocabulary map nothing.
+- The coordinator is testable on the macOS host (fake publisher, key store and microphone);
+  hosted SwiftUI tests cover the controls' accessibility on a simulator.
+- A source's size class is its short side, so an upright 720x1280 picture streams at 720p.
+- Screen wake stays with each app's existing wake owner (`keepScreenAwake || isRunning`), so two
+  owners never fight over the idle timer.
+- (2026-11-20, from the Android adoption) The microphone is asked through the host's
+  `microphoneAccess`, the app's own permission path, never from shared code. A stream that
+  outlives the monitor overlay (camera lost and monitor closed, Multiview opened) shows the shared
+  Live pill at the app root with elapsed time and Stop behind one confirmation.
+
 ## Not in this part
 
 Program strip and cuts, timecode alignment and grades (part 4, after the timecode measurements), the cable route for Pocket and Insta (part 5), Android (part 3), desktop (project 2).

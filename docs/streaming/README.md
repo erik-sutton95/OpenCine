@@ -1,14 +1,15 @@
 # Live streaming (RTMPS)
 
-Going live from a camera app to Twitch, YouTube, Facebook, Instagram or any `rtmps://` server,
-without OBS. This guide covers the portable engine (part 1 of the series) and the Apple shell
-(part 2, Tasks 1 to 7). The design is
-`docs/superpowers/specs/2026-11-05-rtmps-streaming-design.md`; the plans are
-`docs/superpowers/plans/2026-11-05-rtmps-*.md`.
+Going live from a camera app to Twitch, YouTube, Facebook, Instagram or any `rtmps://` server (or
+a plain `rtmp://` Custom server, with a warning), without OBS. This guide covers the portable
+engine (part 1 of the series), the Apple shell and the shared iOS surfaces (part 2). The design
+is `docs/superpowers/specs/2026-11-05-rtmps-streaming-design.md`; the plans are
+`docs/superpowers/plans/2026-11-05-rtmps-1-*.md` and `2026-11-18-rtmps-2-*.md`. The surfaces
+follow [the UI contract](ui-contract.md), which the Compose twins mirror.
 
-Status: implemented, automated checks passed. No app links these modules yet. Nothing here has
-streamed to a real service: the Apple shell has streamed only to a local FFmpeg receiver. The
-clean-picture tap, shared UI and app adoption (part 2, Tasks 8 to 11) and Android (part 3) follow.
+Status: implemented, automated checks passed. Nothing here has streamed to a real service: the
+Apple shell has streamed only to a local FFmpeg receiver. Android (part 3), program switching and
+timecode alignment (part 4) follow.
 
 ## Modules
 
@@ -48,6 +49,26 @@ It is sans-I/O, like Gyro: bytes and values in, bytes and decisions out, on inje
 | `StreamPictureFitter.swift` | Any source into the fixed output frame: fit with black bars, or center crop for the vertical preset |
 | `StreamKeyStore.swift` | Keys, and entered servers, per preset in the keychain; the service is a host value |
 | `StreamMicrophone.swift` | iOS microphone at the input's format (iOS only, verified on device only) |
+
+## The shared surfaces and their composition (iOS)
+
+| File | Responsibility |
+|---|---|
+| `MonitorPresentation/LiveStreamPresentation.swift` | The values and every string: settings card, Go live control, status readout, notices, warnings, eligibility |
+| `MonitorUI/LiveStream/LiveStreamSettingsCard.swift` | The Sharing tab card: service, server, masked key with paste, save and remove, quality, the monitor switch, why going live is blocked |
+| `MonitorUI/LiveStream/LiveStreamMonitorControls.swift` | The Go live control with one confirmation to start and one to stop, the status readout, notice and warning, and the app-level Live pill |
+| `OpenCineAppKitApple/LiveStreamCoordinator.swift` | One app's streaming: keys in the keychain, validation, go-live from the host's route and source, the clean picture tap and microphone, status from the run, background ends the stream |
+| `OpenCineAppKitApple/LiveStreamMonitorOverlay.swift` | The overlay and settings section over the coordinator, and `liveStreamLifecycle` (background, heat, battery, the Live pill while no monitor overlay is on screen) |
+
+An app gives a `LiveStreamHost`: its keychain service, its connection route as a
+`StreamConnectionRoute` (Core's `RouteKind` maps with `StreamConnectionRoute(_:)`), its source
+format, a closure that sets the clean picture tap on its live runtime, and `microphoneAccess`,
+its own microphone permission path, asked only after the operator confirms (shared code never
+raises the prompt; `LiveStreamHost.systemMicrophoneAccess` is the plain system request). It passes the
+coordinator to `withLiveStream(_:)` on its settings configuration and as `liveStream` on its live
+screen host, installs `liveStreamLifecycle` at its root, keeps the screen awake while
+`isRunning`, and declares `NSMicrophoneUsageDescription`. No brand or app branch exists in
+shared code: eligibility is the route value.
 
 ## What it does not do
 

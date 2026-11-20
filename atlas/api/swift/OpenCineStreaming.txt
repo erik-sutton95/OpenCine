@@ -81,6 +81,7 @@ func StreamSendQueue.next() -> StreamMediaPacket?
 init RTMPPublishSession(destination: StreamDestination)
 init RTMPPublishSession.Output(outbound: [Swift.UInt8], events: [StreamSessionEvent])
 init StreamBitratePolicy(targetBps: Swift.Int, floorBps: Swift.Int)
+init StreamConnectionRoute(_: OpenCineCore.RouteKind)
 init StreamDestination(preset: StreamServicePreset, enteredServerURL: Swift.String?, streamKey: Swift.String) throws
 init StreamDestination(serverURL: Swift.String, streamKey: Swift.String, allowsPlainRTMP: Swift.Bool) throws
 init StreamFramePacer(slateAfter: Swift.Duration)<Picture>

@@ -222,6 +222,7 @@ func MonitorAudioPeakWriter.ingest(left: Swift.Float, right: Swift.Float) -> Swi
 func MonitorBackdropRasterRenderer.render(canvasSize: CoreFoundation.CGSize, layers: [MonitorBackdropRasterLayer], surroundRGB: Swift.UInt32) -> MonitorBackdropRasterSnapshot?
 func MonitorBackdropRasterRenderer.render(canvasSize: CoreFoundation.CGSize, look: CoreImage.CIImage, frame: CoreFoundation.CGRect, clip: CoreFoundation.CGRect, lookContext: CoreImage.CIContext, outputColorSpace: CoreGraphics.CGColorSpace?, surroundRGB: Swift.UInt32) -> MonitorBackdropRasterSnapshot?
 func MonitorBackdropRasterSnapshot.image(for: OpenCineMedia.MonitorBackdropBlurProduct) -> CoreGraphics.CGImage?
+func MonitorCleanPictureTap.submit(_: CoreGraphics.CGImage, effects: MonitorImageEffects, timeNs: Swift.Int64?) -> ()
 func MonitorCleanPictureTap.submit(_: CoreVideo.CVPixelBuffer, effects: MonitorImageEffects, timeNs: Swift.Int64?) -> ()
 func MonitorDecodeMetrics.accepted() -> ()
 func MonitorDecodeMetrics.adopted(at: Foundation.TimeInterval, completedAt: Foundation.TimeInterval) -> ()
