@@ -81,6 +81,15 @@ class StreamConnectionTest {
     }
 
     @Test
+    fun closeFlushesQueuedWritesFirst() {
+        val peer = openAndAccept()
+        connection.write(byteArrayOf(4, 5, 6))
+        connection.close()
+        assertContentEquals(byteArrayOf(4, 5, 6), peer.getInputStream().readAllBytes())
+        peer.close()
+    }
+
+    @Test
     fun closeReportsNothing() {
         val peer = openAndAccept()
         connection.close()

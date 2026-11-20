@@ -32,6 +32,7 @@ interface StreamConnection {
     /** Queues [bytes]; a `Wrote` follows once they are written. Ignored once lost or closed. */
     fun write(bytes: ByteArray)
 
+    /** Closes after the writes already queued; reports nothing more. */
     fun close()
 }
 
@@ -47,7 +48,10 @@ class SocketStreamConnection(
     private val connectTimeoutMs: Int = 10_000,
 ) : StreamConnection {
     private val writer = Executors.newSingleThreadExecutor { Thread(it, "opc.stream.write").apply { isDaemon = true } }
+    /** Set once the connection failed: `Lost` is reported at most once. */
     private val ended = AtomicBoolean(false)
+    /** Set by `close`: nothing is reported after it. */
+    private val silenced = AtomicBoolean(false)
     @Volatile private var socket: Socket? = null
     @Volatile private var onEvent: (StreamConnectionEvent) -> Unit = {}
 
@@ -57,14 +61,14 @@ class SocketStreamConnection(
     }
 
     override fun write(bytes: ByteArray) {
-        if (ended.get()) return
+        if (ended.get() || silenced.get()) return
         runCatching {
             writer.execute {
                 val output = socket?.takeUnless { ended.get() }?.getOutputStream() ?: return@execute
                 try {
                     output.write(bytes)
                     output.flush()
-                    if (!ended.get()) onEvent(StreamConnectionEvent.Wrote(bytes.size))
+                    report(StreamConnectionEvent.Wrote(bytes.size))
                 } catch (_: IOException) {
                     lose()
                 }
@@ -73,12 +77,16 @@ class SocketStreamConnection(
     }
 
     override fun close() {
-        if (!ended.compareAndSet(false, true)) {
-            writer.shutdownNow()
-            return
+        if (!silenced.compareAndSet(false, true)) return
+        // Queued writes (a polite goodbye) go out first, then the socket closes.
+        val closed = runCatching {
+            writer.execute { ended.set(true); runCatching { socket?.close() } }
+            writer.shutdown()
         }
-        runCatching { socket?.close() }
-        writer.shutdownNow()
+        if (closed.isFailure) {
+            ended.set(true)
+            runCatching { socket?.close() }
+        }
     }
 
     private fun connectAndRead() {
@@ -89,18 +97,19 @@ class SocketStreamConnection(
             return
         }
         socket = opened
-        if (ended.get()) {
+        if (ended.get() || silenced.get()) {
+            ended.set(true)
             runCatching { opened.close() }
             return
         }
-        onEvent(StreamConnectionEvent.Opened)
+        report(StreamConnectionEvent.Opened)
         val buffer = ByteArray(64 * 1024)
         try {
             val input = opened.getInputStream()
             while (!ended.get()) {
                 val count = input.read(buffer)
                 if (count < 0) break
-                if (count > 0 && !ended.get()) onEvent(StreamConnectionEvent.Received(buffer.copyOf(count)))
+                if (count > 0 && !ended.get()) report(StreamConnectionEvent.Received(buffer.copyOf(count)))
             }
         } catch (_: IOException) {
             // Lost below.
@@ -134,7 +143,11 @@ class SocketStreamConnection(
     private fun lose() {
         if (!ended.compareAndSet(false, true)) return
         runCatching { socket?.close() }
-        onEvent(StreamConnectionEvent.Lost)
+        report(StreamConnectionEvent.Lost)
         writer.shutdown()
+    }
+
+    private fun report(event: StreamConnectionEvent) {
+        if (!silenced.get()) onEvent(event)
     }
 }
