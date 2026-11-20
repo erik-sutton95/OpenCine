@@ -48,11 +48,11 @@ func StreamPublisher.submitAudio(_: AVFAudio.AVAudioPCMBuffer) -> ()
 func StreamPublisher.submitVideo(_: CoreVideo.CVPixelBuffer) -> ()
 init AACStreamEncoder(format: OpenCineStreaming.StreamOutputFormat) throws
 init H264StreamEncoder(format: OpenCineStreaming.StreamOutputFormat)
-init NetworkStreamConnection(host: Swift.String, port: Swift.UInt16)
+init NetworkStreamConnection(host: Swift.String, port: Swift.UInt16, encrypted: Swift.Bool)
 init StreamKeyStore(service: Swift.String)
 init StreamMicrophone()
 init StreamPictureFitter(width: Swift.Int, height: Swift.Int, mode: StreamPictureFitter.Mode)
-init StreamPublisher(destination: OpenCineStreaming.StreamDestination, format: OpenCineStreaming.StreamOutputFormat, fitting: StreamPictureFitter.Mode, connection: (Swift.String, Swift.UInt16) -> any StreamConnection, now: () -> OpenCineCore.MonotonicInstant)
+init StreamPublisher(destination: OpenCineStreaming.StreamDestination, format: OpenCineStreaming.StreamOutputFormat, fitting: StreamPictureFitter.Mode, connection: ((Swift.String, Swift.UInt16) -> any StreamConnection)?, now: () -> OpenCineCore.MonotonicInstant)
 let StreamKeyStore.service: Swift.String
 let StreamPictureFitter.height: Swift.Int
 let StreamPictureFitter.mode: StreamPictureFitter.Mode

@@ -6,7 +6,8 @@ starting point or a secondary source and must be proven by the hardware pass (a 
 each service) before an external build.
 
 Engine defaults from the spec: H.264, 2 second keyframe interval, AAC-LC stereo at 48 kHz and
-160 kbps, about 3 Mbps at 720p and 6 Mbps at 1080p, `rtmps://` only.
+160 kbps, about 3 Mbps at 720p and 6 Mbps at 1080p. Presets are `rtmps://` only; a Custom server may
+be plain `rtmp://` with a warning (owner, 2026-11-20).
 
 ## Twitch
 
@@ -54,8 +55,9 @@ What is known: LIVE needs an account aged 18 or over with 1,000 followers, varyi
 ([TikTok FAQ](https://www.tiktok.com/support/faq_detail?id=7543604790438451768)); TikTok LIVE Studio
 gives a "Server URL and Stream Key" to accounts with access
 ([TikTok blog](https://www.tiktok.com/live/creator-networks/en/blog/how-to-go-live-on-tiktok)).
-Unconfirmed: whether ordinary accounts get keys, and whether the server URL is `rtmps://`. If it is
-plain `rtmp://`, Custom refuses it, per the spec's non-goal.
+Unconfirmed: whether ordinary accounts get keys, and whether the server URL is `rtmps://`. TikTok
+often issues plain `rtmp://`, which Custom accepts with the unencrypted warning (owner,
+2026-11-20). The Custom key hint says where TikTok shows its server and key.
 
 ## Where the services differ from the spec's defaults
 
@@ -64,5 +66,6 @@ None refuses the defaults, so the presets keep them. For the owner's review:
 - YouTube recommends 44.1 kHz audio at 128 kbps for stereo; the engine sends 48 kHz at 160 kbps,
   which Facebook documents as accepted. 3 Mbps at 720p is YouTube's minimum, not its recommendation.
 - Facebook caps 720p30 at 4 Mbps and 1080p30 at 6 Mbps; the defaults sit inside both.
-- Instagram documents 44.1 kHz audio and does not say its server is `rtmps://`.
-- TikTok may issue plain `rtmp://` addresses, which the spec refuses.
+- Instagram documents 44.1 kHz audio and does not say its server is `rtmps://`. Its preset accepts
+  only `rtmps://`; an `rtmp://` Instagram address would have to go through Custom.
+- TikTok may issue plain `rtmp://` addresses; Custom accepts them with the unencrypted warning.

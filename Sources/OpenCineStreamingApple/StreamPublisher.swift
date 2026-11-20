@@ -5,7 +5,8 @@ import Foundation
 import OpenCineCore
 import OpenCineStreaming
 
-/// One live stream on Apple platforms: it drives the portable `StreamRun` with a TLS connection,
+/// One live stream on Apple platforms: it drives the portable `StreamRun` with a TLS connection
+/// (plain TCP only for a plain `rtmp://` destination),
 /// the H.264 and AAC encoders and a frame clock at the output rate.
 ///
 /// Hosts submit clean pictures of any size and PCM audio from any thread; the publisher fits each
@@ -38,14 +39,14 @@ public final class StreamPublisher: @unchecked Sendable {
 
     public convenience init(
         destination: StreamDestination, format: StreamOutputFormat, fitting: StreamPictureFitter.Mode = .fit,
-        connection: @escaping @Sendable (String, UInt16) -> any StreamConnection = {
-            NetworkStreamConnection(host: $0, port: $1)
-        },
+        connection: (@Sendable (String, UInt16) -> any StreamConnection)? = nil,
         now: @escaping @Sendable () -> MonotonicInstant = { MonotonicInstant.now() }
     ) {
+        let encrypted = destination.isEncrypted
         self.init(
-            destination: destination, format: format, fitting: fitting, connection: connection, now: now,
-            drivesTimers: true)
+            destination: destination, format: format, fitting: fitting,
+            connection: connection ?? { NetworkStreamConnection(host: $0, port: $1, encrypted: encrypted) },
+            now: now, drivesTimers: true)
     }
 
     init(
