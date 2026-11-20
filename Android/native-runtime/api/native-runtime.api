@@ -330,6 +330,46 @@ public final class com/opencapture/opencine/runtime/MonitorBitmapVulkanSessionKt
 	public static synthetic fun bitmapVulkanUniforms$default (Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZZILjava/lang/Object;)[F
 }
 
+public final class com/opencapture/opencine/runtime/MonitorCleanPictureFill : java/lang/Enum {
+	public static final field CROP Lcom/opencapture/opencine/runtime/MonitorCleanPictureFill;
+	public static final field FIT Lcom/opencapture/opencine/runtime/MonitorCleanPictureFill;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/runtime/MonitorCleanPictureFill;
+	public static fun values ()[Lcom/opencapture/opencine/runtime/MonitorCleanPictureFill;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorCleanPictureFrame {
+	public fun <init> (II[BZII)V
+	public synthetic fun <init> (II[BZIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getBottomUp ()Z
+	public final fun getDisplayHeight ()I
+	public final fun getDisplayWidth ()I
+	public final fun getHeight ()I
+	public final fun getRgba ()[B
+	public final fun getWidth ()I
+}
+
+public final class com/opencapture/opencine/runtime/MonitorCleanPictureTap : java/lang/AutoCloseable {
+	public static final field Companion Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap$Companion;
+	public static final field MIN_INTERVAL_NS J
+	public fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;ILjava/lang/String;)V
+	public synthetic fun <init> (Landroid/content/Context;Lkotlin/jvm/functions/Function1;ILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attach (Landroid/view/Surface;IILcom/opencapture/opencine/runtime/MonitorCleanPictureFill;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun attach$default (Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Landroid/view/Surface;IILcom/opencapture/opencine/runtime/MonitorCleanPictureFill;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public fun close ()V
+	public final fun detach ()V
+	public final fun draw (JZ)V
+	public final fun frameBuffer (I)[B
+	public final fun frameDue (J)Z
+	public final fun getMaxWidth ()I
+	public final fun getWantsFrames ()Z
+	public final fun setPictureAspect (Ljava/lang/Float;)V
+	public final fun submit (Lcom/opencapture/opencine/runtime/MonitorCleanPictureFrame;JLcom/opencapture/opencine/media/FeedEffectsRenderPlan;)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorCleanPictureTap$Companion {
+}
+
 public final class com/opencapture/opencine/runtime/MonitorDecodedFramePumpKt {
 	public static final fun monitorPumpFramesWithSourceFrame (Lkotlinx/coroutines/flow/Flow;Lcom/opencapture/opencine/runtime/MonitorFramePacingStats;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function3;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun monitorPumpFramesWithSourceFrame (Lkotlinx/coroutines/flow/Flow;Lcom/opencapture/opencine/runtime/MonitorFramePacingStats;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlinx/coroutines/CoroutineDispatcher;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
