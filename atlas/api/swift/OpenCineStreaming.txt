@@ -81,18 +81,20 @@ func StreamSendQueue.next() -> StreamMediaPacket?
 init RTMPPublishSession(destination: StreamDestination)
 init RTMPPublishSession.Output(outbound: [Swift.UInt8], events: [StreamSessionEvent])
 init StreamBitratePolicy(targetBps: Swift.Int, floorBps: Swift.Int)
-init StreamDestination(serverURL: Swift.String, streamKey: Swift.String) throws
+init StreamDestination(preset: StreamServicePreset, enteredServerURL: Swift.String?, streamKey: Swift.String) throws
+init StreamDestination(serverURL: Swift.String, streamKey: Swift.String, allowsPlainRTMP: Swift.Bool) throws
 init StreamFramePacer(slateAfter: Swift.Duration)<Picture>
 init StreamOutputFormat(width: Swift.Int, height: Swift.Int, frameRate: OpenCineCore.Rational, videoBitrateBps: Swift.Int, keyframeIntervalSeconds: Swift.Int, audioBitrateBps: Swift.Int, audioSampleRate: Swift.Int, audioChannels: Swift.Int)
 init StreamReconnectPolicy(startedAt: OpenCineCore.MonotonicInstant)
 init StreamRun(destination: StreamDestination, format: StreamOutputFormat, now: OpenCineCore.MonotonicInstant, maxQueueBytes: Swift.Int, maxInFlightBytes: Swift.Int)
 init StreamSendQueue(maxBytes: Swift.Int)
-init StreamServicePreset(id: Swift.String, displayName: Swift.String, serverURL: Swift.String?, requiresServerEntry: Swift.Bool, maxVideoBitrateBps: Swift.Int?, aspect: StreamServicePreset.Aspect, keyHint: Swift.String)
+init StreamServicePreset(id: Swift.String, displayName: Swift.String, serverURL: Swift.String?, requiresServerEntry: Swift.Bool, maxVideoBitrateBps: Swift.Int?, aspect: StreamServicePreset.Aspect, keyHint: Swift.String, allowsPlainRTMP: Swift.Bool)
 init StreamSourceFormat(width: Swift.Int, height: Swift.Int, frameRate: OpenCineCore.Rational?)
 let StreamBitratePolicy.floorBps: Swift.Int
 let StreamBitratePolicy.targetBps: Swift.Int
 let StreamDestination.app: Swift.String
 let StreamDestination.host: Swift.String
+let StreamDestination.isEncrypted: Swift.Bool
 let StreamDestination.port: Swift.UInt16
 let StreamDestination.streamKey: Swift.String
 let StreamDestination.tcURL: Swift.String
@@ -142,6 +144,7 @@ var StreamSendQueue.droppedVideoGroups: Swift.Int
 var StreamSendQueue.isEmpty: Swift.Bool
 var StreamSendQueue.queuedBytes: Swift.Int
 var StreamSendQueue.queuedDuration: Swift.Duration
+var StreamServicePreset.allowsPlainRTMP: Swift.Bool
 var StreamServicePreset.aspect: StreamServicePreset.Aspect
 var StreamServicePreset.displayName: Swift.String
 var StreamServicePreset.id: Swift.String
