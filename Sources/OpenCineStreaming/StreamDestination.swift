@@ -2,7 +2,8 @@ import Foundation
 
 /// Why a server address or stream key cannot be used.
 public enum StreamDestinationError: Error, Equatable, Sendable {
-    /// The server address is not `rtmps://`. Plain `rtmp://` is refused.
+    /// The server address is not `rtmps://`. Plain `rtmp://` is refused unless the caller allows it
+    /// (a Custom server); any other scheme is always refused.
     case notRTMPS
     /// The server address has no host, an invalid port or no application path.
     case invalidServerURL
@@ -12,7 +13,8 @@ public enum StreamDestinationError: Error, Equatable, Sendable {
     case keyLooksLikeURL
 }
 
-/// Where a stream goes: an `rtmps://` server and the stream key that names the stream there.
+/// Where a stream goes: an `rtmps://` server (or, for a Custom server only, a plain `rtmp://` one)
+/// and the stream key that names the stream there.
 ///
 /// The key is a secret. It is readable only through `streamKey`, and appears in no description,
 /// debug description or mirror. It is deliberately not `Codable`: hosts keep it in secure storage.
@@ -27,15 +29,29 @@ public struct StreamDestination: Hashable, Sendable, CustomStringConvertible,
     public let tcURL: String
     /// The secret stream key. The only way to read it.
     public let streamKey: String
+    /// `true` for `rtmps://` (TLS). `false` only for a plain `rtmp://` address the caller allowed:
+    /// the stream and its key then travel unencrypted, and the operator must be told so.
+    public let isEncrypted: Bool
 
     /// Parses a pasted server address and key. Surrounding whitespace is trimmed from both.
-    public init(serverURL: String, streamKey: String) throws {
-        try self.init(serverURL: serverURL, streamKey: streamKey, scheme: "rtmps", defaultPort: 443)
+    /// `rtmps://` defaults to port 443. With `allowsPlainRTMP`, a plain `rtmp://` address is also
+    /// accepted (port 1935 by default); only a Custom server allows it, never a service preset.
+    public init(serverURL: String, streamKey: String, allowsPlainRTMP: Bool = false) throws {
+        let lowered = serverURL.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if allowsPlainRTMP, lowered.hasPrefix("rtmp://") {
+            try self.init(serverURL: serverURL, streamKey: streamKey, scheme: "rtmp", defaultPort: 1935)
+        } else {
+            try self.init(serverURL: serverURL, streamKey: streamKey, scheme: "rtmps", defaultPort: 443)
+        }
     }
 
-    /// The FFmpeg interop tier's seam to a local plain `rtmp://` receiver. Never public.
-    init(testOnlyPlainServerURL serverURL: String, streamKey: String) throws {
-        try self.init(serverURL: serverURL, streamKey: streamKey, scheme: "rtmp", defaultPort: 1935)
+    /// The destination for a preset: its fixed server, or the entered one when the preset asks
+    /// for entry, with the preset's rule on plain `rtmp://`. A missing entry is `invalidServerURL`.
+    public init(preset: StreamServicePreset, enteredServerURL: String?, streamKey: String) throws {
+        guard let server = preset.requiresServerEntry ? enteredServerURL : preset.serverURL else {
+            throw StreamDestinationError.invalidServerURL
+        }
+        try self.init(serverURL: server, streamKey: streamKey, allowsPlainRTMP: preset.allowsPlainRTMP)
     }
 
     private init(serverURL: String, streamKey: String, scheme: String, defaultPort: UInt16) throws {
@@ -65,6 +81,7 @@ public struct StreamDestination: Hashable, Sendable, CustomStringConvertible,
         let hostPart = host.contains(":") ? "[\(host)]" : host
         self.tcURL = "\(scheme)://\(hostPart):\(port)/\(path)"
         self.streamKey = key
+        self.isEncrypted = scheme == "rtmps"
     }
 
     private static func parseAuthority(_ authority: Substring, defaultPort: UInt16) throws -> (String, UInt16) {
