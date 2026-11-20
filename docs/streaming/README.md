@@ -16,6 +16,8 @@ clean-picture tap, shared UI and app adoption (part 2, Tasks 8 to 11) and Androi
 |---|---|---|---|
 | `OpenCineStreaming` (Swift) | core | `OpenCineCore` | The engine, below |
 | `OpenCineStreamingApple` (Swift) | core | `OpenCineStreaming`, `OpenCineCore`, Apple frameworks | The Apple shell, below |
+| `OpenCineStreamingAndroid` (Swift) | vendor | `OpenCineStreaming`, `OpenCineCore`, `OpenCineJNISupport` | The run controller over JNI, below |
+| `:streaming` (Android) | core | `:platform`, Android framework | The Android shell, below |
 
 `OpenCineStreaming` imports Foundation and Core only, opens no socket, runs no encoder and names
 no manufacturer or app (`StreamingSourceRulesTests`). Service names appear only as preset content.
@@ -48,6 +50,39 @@ It is sans-I/O, like Gyro: bytes and values in, bytes and decisions out, on inje
 | `StreamPictureFitter.swift` | Any source into the fixed output frame: fit with black bars, or center crop for the vertical preset |
 | `StreamKeyStore.swift` | Keys, and entered servers, per preset in the keychain; the service is a host value |
 | `StreamMicrophone.swift` | iOS microphone at the input's format (iOS only, verified on device only) |
+
+## The Android shell (part 3)
+
+The run logic is not written twice: `OpenCineStreamingAndroid` keeps `StreamRun`s in an
+owner-keyed registry (`StreamRunWire`) and exports them as the Kotlin class
+`com.opencapture.opencine.streaming.StreamingNative`. Each run call returns one binary reply, the
+actions in order and then the status (format in `StreamRunWire.swift`), so media bytes never pass
+through JSON. Presets, the output format and the destination check cross as JSON. An app links the
+target into its own Swift Android library and calls `StreamingNative.load` with that library.
+
+| File (`Android/streaming`) | Responsibility |
+|---|---|
+| `StreamingNative.kt` | The JNI facade and `StreamingNativeApi` (`FakeStreamingNative` in test fixtures) |
+| `StreamRunReply.kt` | Decodes a reply into `StreamAction`s and `StreamStatus`; a damaged reply reads as ended |
+| `StreamCatalog.kt` | Presets, the output format, the destination check (encrypted or not) and the routes that may stream |
+| `StreamConnection.kt` | TCP with TLS for `rtmps://` (system trust, SNI, host name check); plain only when the engine accepted `rtmp://`. Close flushes queued writes first |
+| `H264StreamEncoder.kt` | MediaCodec H.264 with surface input: High when offered, no B-frames, keyframe every 2 s, CBR when supported, live bitrate and keyframe requests |
+| `AacStreamEncoder.kt` | MediaCodec AAC-LC; times follow the sample count |
+| `StreamEncodedMedia.kt` | Splits the codec config into SPS and PPS, finds IDR slices, maps times |
+| `StreamPictureSource.kt` | The surface source contract and `StreamFramePacer` (Kotlin twin of the Swift pacer) |
+| `StreamPublisher.kt` | Applies the replies: socket, encoders, frame clock, wakes; status as a `StateFlow` |
+| `StreamKeyStore.kt` | Keys and entered servers per preset, sealed by `KeystoreSeal`; a lost device key reads as unavailable |
+| `StreamMicrophone.kt` | `AudioRecord` at 48 kHz stereo (device only) |
+| `StreamDeviceWarnings.kt` | Heat and low battery warnings; never stops a stream |
+
+Pictures never cross JNI or enter this module as pixels: the native runtime's clean-picture tap
+(`MonitorCleanPictureTap`, see `docs/native-runtime/README.md`) renders into the encoder's input
+surface, and app composition adapts it to `StreamPictureSource`.
+
+Tests: `swift test --filter OpenCineStreamingAndroidTests` (the wire and the export names) and
+`cd Android && ./gradlew :streaming:testDebugUnitTest` (replies, catalog, a local socket, encoded
+media helpers, keys, warnings and the publisher on a manual scheduler with `FakeStreamingNative`).
+The MediaCodec encoders, the microphone and TLS to a real service run on a device only.
 
 ## What it does not do
 
