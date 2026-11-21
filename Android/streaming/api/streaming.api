@@ -454,6 +454,7 @@ public final class com/opencapture/opencine/streaming/StreamPublisher {
 }
 
 public final class com/opencapture/opencine/streaming/StreamQualityChoice : java/lang/Enum {
+	public static final field CAMERA_1080P Lcom/opencapture/opencine/streaming/StreamQualityChoice;
 	public static final field CAMERA_FEED Lcom/opencapture/opencine/streaming/StreamQualityChoice;
 	public static final field Companion Lcom/opencapture/opencine/streaming/StreamQualityChoice$Companion;
 	public static final field UPSCALED_1080P Lcom/opencapture/opencine/streaming/StreamQualityChoice;

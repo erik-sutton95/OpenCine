@@ -22,12 +22,14 @@ public final class com/opencapture/opencine/appkitnative/LiveStreamCoordinator :
 	public final fun getShowsRootPill ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun goLive ()V
+	public fun goLive (Ljava/lang/String;)V
 	public final fun monitorControlsAppeared ()V
 	public final fun monitorControlsGone ()V
 	public final fun onBackground ()V
 	public final fun refresh ()V
 	public fun removeKey ()V
 	public fun restart ()V
+	public fun retryCamera ()V
 	public fun saveKey (Ljava/lang/String;)V
 	public fun selectQuality (Ljava/lang/String;)V
 	public fun selectService (Ljava/lang/String;)V
