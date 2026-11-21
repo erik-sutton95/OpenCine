@@ -5494,7 +5494,7 @@ public final class com/opencapture/monitorui/MonitorZoomPresets$Companion {
 }
 
 public final class com/opencapture/monitorui/MonitorZoomRulerKt {
-	public static final fun MonitorZoomRuler (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorZoomClearance;Lkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorZoomRuler (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorZoomClearance;Lkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/opencapture/monitorui/MonitorZoomRulerScale {
@@ -5504,6 +5504,7 @@ public final class com/opencapture/monitorui/MonitorZoomRulerScale {
 	public static final field STEP D
 	public static final field WHOLE_SNAP D
 	public fun <init> (DD)V
+	public final fun clamped (D)D
 	public final fun dragged (DD)D
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getMaximum ()D
@@ -5519,6 +5520,7 @@ public final class com/opencapture/monitorui/MonitorZoomRulerScale {
 
 public final class com/opencapture/monitorui/MonitorZoomRulerScale$Companion {
 	public final fun readout (D)Ljava/lang/String;
+	public final fun tick (D)I
 }
 
 public final class com/opencapture/monitorui/MonitorZoomRulerTick {

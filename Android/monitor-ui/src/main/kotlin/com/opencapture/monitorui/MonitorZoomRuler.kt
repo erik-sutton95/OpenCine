@@ -1,6 +1,18 @@
 package com.opencapture.monitorui
 
 import androidx.compose.animation.core.animateFloatAsState
+import kotlin.math.hypot
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -52,7 +64,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -88,21 +99,26 @@ data class MonitorZoomClearance(val top: Float = 0f, val bottom: Float = 0f) {
     }
 }
 
-/** Ruler sizes in dp (Swift `MonitorZoomDial` uses the same values in points). */
+/** Zoom panel sizes in dp (Swift `MonitorZoomDial` uses the same values in points). */
 internal object MonitorZoomRulerMetrics {
-    const val WIDTH = 44f
+    /** The ticks' strip inside the ruler. */
+    const val RULER_WIDTH = 40f
     const val EDGE = 12f
-    /** Ticks fade out this far inside the capsule's ends. */
+    /** Room left of the ticks for the whole-step labels. */
+    const val LABEL_GUTTER = 30f
+    /** Keeps the end ticks off the ruler's ends. */
     const val INSET = 14f
-    /** Room left of the ruler for the whole-step labels. */
-    const val LABEL_GUTTER = 28f
-    /** Extra touch width on the picture side of the ruler. */
-    const val TOUCH_MARGIN = 12f
-    const val GAP = 8f
+    /** The column holding the readout, presets and ramp key. */
+    const val COLUMN_WIDTH = 56f
+    const val PADDING = 8f
+    const val GAP = 6f
+    const val PANEL_CORNER = 14f
+    const val RULER_CORNER = 9f
     /** A press that travels less than this is a tap. */
     const val TAP_TRAVEL = 10f
-    /** Ticks fade over this share of the half height toward the capsule's ends. */
-    const val FADE = .35f
+    /** Ticks fade over this distance before the ruler's ends. */
+    const val FADE = 40f
+    const val PANEL_WIDTH = PADDING + COLUMN_WIDTH + GAP + LABEL_GUTTER + RULER_WIDTH + PADDING / 2
 }
 
 private data class ZoomRulerGeometry(
@@ -134,13 +150,14 @@ private fun physicalZoomInsets(view: android.view.View, observed: IntRect): IntR
 }
 
 /**
- * The vertical zoom ruler on the trailing edge. It behaves like the other setting dials
- * (`MonitorDurationDial`, `MonitorValueDrum`), only vertical: a fixed center line shows the value
- * and the scale slides under it, higher values above. A drag moves the scale with the finger
- * (down zooms in) from where it started, sending every new 0.1x step live with an [onStep]
- * haptic; a tap goes to the step under the finger (a whole step when close to one). Presets sit
- * in a column beside it and the value readout beside its top. Tapping outside closes it. Camera
- * limits, captions and writes belong to the adapter. Swift twin: `MonitorZoomDial`.
+ * The zoom control: one panel on the trailing edge holding the current zoom, the presets, the
+ * ramp key and a vertical ruler. The ruler behaves like the other setting dials
+ * (`MonitorDurationDial`, `MonitorValueDrum`), only vertical: the scale slides under a fixed
+ * center line, higher values above. A drag moves it from the current zoom smoothly (down zooms
+ * in), sending every move live with an [onStep] haptic at each 0.1x tick; a tap goes to the step
+ * under the finger (a whole step when close to one). The ramp key opens [rampPanel], the host's
+ * camera value popup (a plain drum panel when null). Tapping outside closes it. Camera limits,
+ * captions and writes belong to the adapter. Swift twin: `MonitorZoomDial`.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -148,12 +165,14 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
     opticalStops: List<Double> = listOf(1.0), caption: (Double) -> String = { "ZOOM" },
     clearance: MonitorZoomClearance = MonitorZoomClearance(), onStep: () -> Unit = {},
     presets: MonitorZoomPresetControls? = null, driven: Double? = null,
-    label: (Double) -> String = { MonitorZoomRulerScale.readout(it) }) {
+    label: (Double) -> String = { MonitorZoomRulerScale.readout(it) },
+    rampPanel: (@Composable (close: () -> Unit) -> Unit)? = null) {
     val maxZoom = maximum.takeIf { it.isFinite() }?.coerceAtLeast(1.0) ?: 1.0
-    // The reported value (the opening reading, then what was sent or driven) and, while a finger
-    // drags, the scrub value drawn instead.
+    // The reported zoom (the opening reading, then what was sent or driven) and, while a finger is
+    // down, the scrub value drawn under the center line.
     var value by remember { mutableDoubleStateOf(initial.takeIf { it.isFinite() }?.coerceIn(1.0, maxZoom) ?: 1.0) }
     var scrub by remember { mutableStateOf<Double?>(null) }
+    var rampOpen by remember { mutableStateOf(false) }
     var entering by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf(false) }
     val motion by animateFloatAsState(if (entering && !closing) 1f else 0f,
@@ -163,7 +182,9 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
     val dismiss by rememberUpdatedState(onDismiss)
     val step by rememberUpdatedState(onStep)
     LaunchedEffect(Unit) { entering = true }
-    LaunchedEffect(closing) { if (closing) { delay(MonitorMotion.ZOOM_HOST_MS.toLong()); dismiss() } }
+    LaunchedEffect(closing) {
+        if (closing) { rampOpen = false; delay(MonitorMotion.ZOOM_HOST_MS.toLong()); dismiss() }
+    }
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
@@ -187,40 +208,45 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
     val m = MonitorZoomRulerMetrics
     val screenWidth = configuration.screenWidthDp.toFloat()
     val screenHeight = configuration.screenHeightDp.toFloat()
-    val trailingInset = geometry.safeInsets.right / density.density
-    val rulerRight = screenWidth - trailingInset - m.EDGE
-    val rulerLeft = rulerRight - m.WIDTH
-    val top = clearance.top.takeIf { it.isFinite() }?.coerceIn(0f, screenHeight) ?: 0f
-    val bottom = (screenHeight - (clearance.bottom.takeIf { it.isFinite() } ?: 0f)).coerceIn(top, screenHeight)
-    val rulerHeight = bottom - top
+    val safeTop = geometry.safeInsets.top / density.density
+    val safeBottom = geometry.safeInsets.bottom / density.density
+    val panelRight = screenWidth - geometry.safeInsets.right / density.density - m.EDGE
+    val panelLeft = panelRight - m.PANEL_WIDTH
+    fun finite(v: Float) = v.takeIf { it.isFinite() } ?: 0f
+    val top = maxOf(finite(clearance.top), safeTop + m.EDGE).coerceIn(0f, screenHeight)
+    val bottom = (screenHeight - maxOf(finite(clearance.bottom), safeBottom + m.EDGE)).coerceIn(top, screenHeight)
+    val panelHeight = bottom - top
+    val rulerHeight = (panelHeight - m.PADDING * 2).coerceAtLeast(0f)
     val center = rulerHeight / 2f
     val halfSpan = (center - m.INSET).coerceAtLeast(0f)
     val scale = MonitorZoomRulerScale(1.0, maxZoom)
     // A host-driven move (a preset ramp) moves the scale without sending it back.
     LaunchedEffect(driven) { driven?.takeIf { it.isFinite() }?.let { value = it.coerceIn(1.0, maxZoom) } }
     val shown = scrub ?: value
-    val optical = opticalStops.any { abs(it - shown) < .05 }
-    val accent = if (optical) MonitorPalette.accent else MonitorPalette.digitalCrop
+    val ink = if (opticalStops.any { abs(it - value) < .05 }) MonitorPalette.accent else MonitorPalette.digitalCrop
     val opticalMax = opticalStops.filter { it.isFinite() && it > 0.0 }.maxOrNull() ?: 1.0
     val ticks = scale.ticks(shown, halfSpan.toDouble())
     fun fade(offset: Double): Float = if (halfSpan <= 0f) 1f else
-        ((halfSpan - abs(offset.toFloat())) / (halfSpan * m.FADE)).coerceIn(0f, 1f)
+        ((halfSpan - abs(offset.toFloat())) / m.FADE).coerceIn(0f, 1f)
     val textMeasurer = rememberTextMeasurer()
-    /** A tap or an accessibility set: one move from the reported value. */
-    fun update(next: Double) {
-        if (!next.isFinite() || closing) return
+    /** Shows [next] under the center line and sends it live, with a tick per new 0.1x step. */
+    fun move(next: Double) {
+        // Read the state now: the gesture keeps this function from an earlier composition.
+        val current = scrub ?: value
+        if (closing || !next.isFinite() || (next == current && scrub != null)) return
+        if (MonitorZoomRulerScale.tick(next) != MonitorZoomRulerScale.tick(current)) step()
+        scrub = next
+        value = next
+        send(next)
+    }
+    /** Accessibility steps 0.1x from the reported zoom. */
+    fun stepTo(next: Double) {
+        if (closing || !next.isFinite()) return
         val stepped = scale.quantized(next)
         if (stepped == value) return
         step()
         value = stepped
         send(stepped)
-    }
-    /** A drag sends every new tenth live. */
-    fun scrubTo(next: Double) {
-        if (closing || next == (scrub ?: value)) return
-        scrub = next
-        step()
-        send(next)
     }
     val provider = remember { object : PopupPositionProvider {
         override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
@@ -229,117 +255,151 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
     Popup(popupPositionProvider = provider, onDismissRequest = { closing = true },
         properties = PopupProperties(focusable = true, dismissOnClickOutside = true, clippingEnabled = false)) {
         // A focused modal window owns input above every underlying control (the picture's
-        // SurfaceView included); a tap anywhere off the ruler closes it.
+        // SurfaceView included); a tap anywhere off the panel closes it.
         Box(Modifier.size(screenWidth.dp, screenHeight.dp)
             .pointerInput(Unit) { detectTapGestures { closing = true } }) {
-            val slide = Modifier.graphicsLayer {
-                alpha = motion
-                translationX = 24.dp.toPx() * (1f - motion)
-            }
-            val besideRight = rulerLeft - m.LABEL_GUTTER - m.GAP
-            val presetHeight = (MonitorZoomPresets.SLOT_COUNT + 1) * 44f + MonitorZoomPresets.SLOT_COUNT * 10f
-            val readoutTop = top + rulerHeight * .08f
-            // The readout moves past the preset column when a short ruler would stack them.
-            val readoutRight = if (presets != null && top + (rulerHeight - presetHeight) / 2f < readoutTop + 48f)
-                besideRight - 44f - 12f else besideRight
-            if (presets != null) {
-                Box(Modifier.offset(0.dp, top.dp).size(besideRight.coerceAtLeast(0f).dp, rulerHeight.dp)
-                    .then(slide), contentAlignment = Alignment.CenterEnd) {
-                    MonitorZoomPresetStrip(presets, maxZoom, vertical = true, label = label, onSaved = step)
+            Row(Modifier.offset(panelLeft.dp, top.dp).size(m.PANEL_WIDTH.dp, panelHeight.dp)
+                .graphicsLayer {
+                    alpha = motion
+                    translationX = 24.dp.toPx() * (1f - motion)
                 }
-            }
-            Column(Modifier.offset(0.dp, readoutTop.dp).width(readoutRight.coerceAtLeast(0f).dp).then(slide),
-                horizontalAlignment = Alignment.End) {
-                Text(MonitorZoomRulerScale.readout(shown), style = MonitorTypography.readout(22f, FontWeight.Bold),
-                    textAlign = TextAlign.End, maxLines = 1)
-                Text(caption(shown), style = MonitorTypography.text(10f, FontWeight.Medium), color = accent,
-                    textAlign = TextAlign.End, maxLines = 1)
-            }
-            // Whole-step labels left of the ruler, sliding with the ticks.
-            Canvas(Modifier.offset((rulerLeft - m.LABEL_GUTTER).dp, top.dp)
-                .size(m.LABEL_GUTTER.dp, rulerHeight.dp).then(slide)) {
-                for (tick in ticks) {
-                    if (tick.kind != MonitorZoomRulerTick.Kind.MAJOR) continue
-                    val whole = Math.round(tick.value).toInt()
-                    val digital = tick.value > opticalMax + .02
-                    val measured = textMeasurer.measure("$whole×", MonitorTypography.readout(12f, FontWeight.SemiBold))
-                    val y = (center + tick.offset.toFloat()).dp.toPx()
-                    drawText(measured, (if (digital) MonitorPalette.digitalCrop else Color.White)
-                        .copy(alpha = .78f * fade(tick.offset)),
-                        topLeft = Offset(size.width - 4.dp.toPx() - measured.size.width, y - measured.size.height / 2f))
-                }
-            }
-            Box(Modifier.offset((rulerLeft - m.TOUCH_MARGIN).dp, top.dp)
-                .size((m.WIDTH + m.TOUCH_MARGIN).dp, rulerHeight.dp)
-                .then(slide)
-                .testTag("monitor.zoom.dial")
-                .semantics {
-                    contentDescription = "Zoom"
-                    stateDescription = "${MonitorZoomRulerScale.readout(shown)}, ${caption(shown)}"
-                    val steps = ((scale.maximum - scale.minimum) / MonitorZoomRulerScale.STEP).let {
-                        Math.round(it).toInt() - 1 }.coerceAtLeast(0)
-                    progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat(),
-                        scale.minimum.toFloat()..scale.maximum.toFloat(), steps)
-                    setProgress { update(it.toDouble()); true }
-                    customActions = listOf(CustomAccessibilityAction("Close zoom") { closing = true; true })
-                }
-                .pointerInput(geometry, closing) {
-                    if (closing) return@pointerInput
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        down.consume()
-                        val start = down.position.y
-                        val origin = value
-                        var dragging = false
-                        var pressed = true
-                        try {
-                            while (pressed) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                pressed = change.pressed
-                                change.consume()
-                                val travel = (change.position.y - start).toDp().value
-                                if (!dragging && abs(travel) >= m.TAP_TRAVEL) dragging = true
-                                if (dragging) scrubTo(scale.dragged(origin, travel.toDouble()))
-                            }
-                            if (!pressed && !dragging) {
-                                // A tap: the step under the finger, measured from the center line.
-                                update(scale.tapped((start.toDp().value - center).toDouble(), value))
-                            }
-                        } finally {
-                            scrub?.let { value = it }
-                            scrub = null
-                            // Disposal or a geometry change can interrupt a held finger. Close
-                            // exactly this ruler so its adapter releases the zoom transaction.
-                            if (pressed) dismiss()
-                        }
+                .monitorMaterial(MonitorMaterial.Zoom, RoundedCornerShape(m.PANEL_CORNER.dp))
+                // The panel's own background never closes it.
+                .pointerInput(Unit) { detectTapGestures { } }
+                .padding(start = m.PADDING.dp, end = (m.PADDING / 2).dp, top = m.PADDING.dp, bottom = m.PADDING.dp),
+                horizontalArrangement = Arrangement.spacedBy(m.GAP.dp)) {
+                Column(Modifier.width(m.COLUMN_WIDTH.dp).fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    val readout = MonitorZoomRulerScale.readout(shown)
+                    val words = caption(shown)
+                    Column(Modifier.padding(top = 4.dp).clearAndSetSemantics { },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(readout, style = MonitorTypography.readout(fitted(readout, 17f, m.COLUMN_WIDTH, .62f),
+                            FontWeight.Bold), maxLines = 1, softWrap = false)
+                        if (words.isNotEmpty()) Text(words, color = ink, maxLines = 1, softWrap = false,
+                            style = MonitorTypography.text(fitted(words, 9f, m.COLUMN_WIDTH, .72f), FontWeight.SemiBold)
+                                .copy(letterSpacing = 1.sp))
                     }
-                }) {
-                Canvas(Modifier.padding(start = m.TOUCH_MARGIN.dp).fillMaxSize()
-                    .monitorMaterial(MonitorMaterial.Zoom, RoundedCornerShape(50))) {
-                    val w = size.width
-                    val middle = center.dp.toPx()
-                    for (tick in ticks) {
-                        val y = middle + tick.offset.toFloat().dp.toPx()
-                        val digital = tick.value > opticalMax + .02
-                        val stop = opticalStops.any { abs(it - tick.value) < .01 }
-                        val (from, alpha, stroke) = when (tick.kind) {
-                            MonitorZoomRulerTick.Kind.MAJOR -> Triple(.12f, .8f, 2f)
-                            MonitorZoomRulerTick.Kind.MID -> Triple(.60f, .55f, 1.5f)
-                            MonitorZoomRulerTick.Kind.MINOR -> Triple(.72f, .32f, 1f)
-                        }
-                        val faded = alpha * fade(tick.offset)
-                        val color = when {
-                            digital -> MonitorPalette.digitalCrop.copy(alpha = faded)
-                            stop -> MonitorPalette.accent.copy(alpha = fade(tick.offset))
-                            else -> Color.White.copy(alpha = faded)
-                        }
-                        drawLine(color, Offset(w * from, y), Offset(w * .88f, y), stroke.dp.toPx(), StrokeCap.Round)
+                    Spacer(Modifier.weight(1f))
+                    if (presets != null) MonitorZoomPresetStrip(presets, maxZoom, vertical = true, label = label,
+                        onSaved = step, onRampTap = { rampOpen = true })
+                    Spacer(Modifier.weight(1f))
+                }
+                Box(Modifier.width((m.LABEL_GUTTER + m.RULER_WIDTH).dp).height(rulerHeight.dp)
+                    .testTag("monitor.zoom.dial")
+                    .semantics {
+                        contentDescription = "Zoom"
+                        stateDescription = listOf(MonitorZoomRulerScale.readout(shown), caption(shown))
+                            .filter { it.isNotEmpty() }.joinToString(", ")
+                        val steps = ((scale.maximum - scale.minimum) / MonitorZoomRulerScale.STEP).let {
+                            Math.round(it).toInt() - 1 }.coerceAtLeast(0)
+                        progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat(),
+                            scale.minimum.toFloat()..scale.maximum.toFloat(), steps)
+                        setProgress { stepTo(it.toDouble()); true }
+                        customActions = listOf(CustomAccessibilityAction("Close zoom") { closing = true; true })
                     }
-                    // The fixed center line the scale slides under.
-                    drawLine(accent, Offset(w * .06f, middle), Offset(w * .94f, middle), 3.dp.toPx(), StrokeCap.Round)
+                    .pointerInput(geometry, closing) {
+                        if (closing) return@pointerInput
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            val start = down.position
+                            val origin = value
+                            var dragging = false
+                            var pressed = true
+                            try {
+                                while (pressed) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    pressed = change.pressed
+                                    change.consume()
+                                    val dx = (change.position.x - start.x).toDp().value
+                                    val dy = (change.position.y - start.y).toDp().value
+                                    // Below the tap threshold the scale stays put, as on the other dials.
+                                    if (!dragging && hypot(dx, dy) >= m.TAP_TRAVEL) dragging = true
+                                    if (dragging) move(scale.dragged(origin, dy.toDouble()))
+                                }
+                                if (!pressed && !dragging) {
+                                    // A tap: the step under the finger, measured from the center line.
+                                    move(scale.tapped((start.y.toDp().value - center).toDouble(), scrub ?: value))
+                                }
+                            } finally {
+                                scrub = null
+                                // Disposal or a geometry change can interrupt a held finger. Close
+                                // exactly this ruler so its adapter releases the zoom transaction.
+                                if (pressed) dismiss()
+                            }
+                        }
+                    }) {
+                    Box(Modifier.align(Alignment.CenterEnd).width(m.RULER_WIDTH.dp).fillMaxHeight()
+                        .background(Color.White.copy(alpha = .06f), RoundedCornerShape(m.RULER_CORNER.dp)))
+                    Canvas(Modifier.fillMaxSize()) {
+                        val strip = m.RULER_WIDTH.dp.toPx()
+                        val left = size.width - strip
+                        val middle = size.height / 2f
+                        for (tick in ticks) {
+                            val y = middle + tick.offset.toFloat().dp.toPx()
+                            val (from, stroke, alpha) = when (tick.kind) {
+                                MonitorZoomRulerTick.Kind.MAJOR -> Triple(.30f, 2f, .9f)
+                                MonitorZoomRulerTick.Kind.MID -> Triple(.45f, 1.5f, .6f)
+                                MonitorZoomRulerTick.Kind.MINOR -> Triple(.62f, 1f, .32f)
+                            }
+                            val optical = opticalStops.any { abs(it - tick.value) < .001 }
+                            val digital = tick.value > opticalMax + .02
+                            val color = if (optical) ink else if (digital) MonitorPalette.digitalCrop else Color.White
+                            drawLine(color.copy(alpha = (if (optical) 1f else alpha) * fade(tick.offset)),
+                                Offset(left + strip * from, y), Offset(left + strip * .88f, y), stroke.dp.toPx())
+                            if (tick.kind == MonitorZoomRulerTick.Kind.MAJOR) {
+                                val measured = textMeasurer.measure(label(tick.value),
+                                    MonitorTypography.readout(12f, FontWeight.SemiBold))
+                                drawText(measured, (if (digital) MonitorPalette.digitalCrop else MonitorPalette.secondary)
+                                    .copy(alpha = fade(tick.offset)),
+                                    topLeft = Offset(left - 6.dp.toPx() - measured.size.width, y - measured.size.height / 2f))
+                            }
+                        }
+                        // The fixed center line the scale slides under.
+                        drawLine(ink, Offset(left + 4.dp.toPx(), middle), Offset(left + strip - 4.dp.toPx(), middle),
+                            3.dp.toPx(), StrokeCap.Round)
+                    }
                 }
             }
+            if (rampOpen && presets != null) {
+                val close = { rampOpen = false }
+                Box(Modifier.fillMaxSize()) {
+                    // A transparent backdrop over the viewport closes the ramp popup, not the ruler.
+                    Box(Modifier.fillMaxSize().clearAndSetSemantics { }
+                        .pointerInput(Unit) { detectTapGestures { close() } })
+                    if (rampPanel != null) rampPanel(close)
+                    else MonitorZoomRampFallback(presets, safeBottom, step, close)
+                }
+            }
+        }
+    }
+}
+
+/** Scales a one-line label down so it fits [width] dp, from [size] sp at most. */
+private fun fitted(text: String, size: Float, width: Float, em: Float): Float =
+    if (text.isEmpty()) size else minOf(size, width / (text.length * em)).coerceAtLeast(6f)
+
+/**
+ * The ramp choices on a drum, for a host that passes no camera popup ([MonitorZoomRuler]'s
+ * `rampPanel`): the drum in a plain glass panel at the bottom.
+ */
+@Composable
+private fun BoxScope.MonitorZoomRampFallback(presets: MonitorZoomPresetControls, safeBottom: Float,
+    onDetent: () -> Unit, close: () -> Unit) {
+    val options = MonitorZoomPresets.RAMP_CHOICES.map(MonitorZoomPresets::rampLabel)
+    val current = MonitorZoomPresets.rampLabel(presets.presets.rampSeconds)
+    Column(Modifier.align(Alignment.BottomCenter).padding(bottom = (safeBottom + 12f).dp, start = 12.dp, end = 12.dp)
+        .widthIn(max = 420.dp).fillMaxWidth()
+        .monitorMaterial(MonitorMaterial.Expanded, RoundedCornerShape(16.dp))
+        .pointerInput(Unit) { detectTapGestures { } }
+        .testTag("monitor.zoom.ramp.panel")
+        .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("PRESET RAMP  $current", style = MonitorTypography.text(9f, FontWeight.SemiBold), maxLines = 1)
+        MonitorValueDrum(options, current, onDetent = onDetent) { label ->
+            options.indexOf(label).takeIf { it >= 0 }?.let { presets.onRamp(MonitorZoomPresets.RAMP_CHOICES[it]) }
         }
     }
 }

@@ -12,22 +12,28 @@ class MonitorZoomRulerScaleTest {
     private val major = MonitorZoomRulerTick.Kind.MAJOR
     private val mid = MonitorZoomRulerTick.Kind.MID
 
-    @Test fun dragMovesFromTheOriginByTenPointsPerStep() {
+    @Test fun dragMovesSmoothlyFromTheOrigin() {
         val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0)
         // The scale follows the finger: higher values sit above, so dragging down brings them in.
         assertEquals(2.0, scale.dragged(origin = 2.0, translation = 0.0))
-        assertEquals(2.1, scale.dragged(origin = 2.0, translation = 10.0))
-        assertEquals(1.8, scale.dragged(origin = 2.0, translation = -25.0))
-        assertEquals(2.0, scale.dragged(origin = 2.0, translation = 4.0))
-        assertEquals(2.1, scale.dragged(origin = 2.0, translation = 6.0))
+        assertEquals(2.1, scale.dragged(origin = 2.0, translation = 10.0), 1e-9)
+        assertEquals(1.75, scale.dragged(origin = 2.0, translation = -25.0), 1e-9)
+        // Between ticks the zoom keeps float precision.
+        assertEquals(2.04, scale.dragged(origin = 2.0, translation = 4.0), 1e-9)
     }
 
     @Test fun dragStopsAtTheEndsAndComesBack() {
         val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0)
         assertEquals(4.0, scale.dragged(origin = 3.5, translation = 900.0))
         assertEquals(1.0, scale.dragged(origin = 1.2, translation = -900.0))
-        // A reading between tenths starts from that reading, then rounds.
-        assertEquals(2.6, scale.dragged(origin = 2.537, translation = 10.0))
+        assertEquals(2.637, scale.dragged(origin = 2.537, translation = 10.0), 1e-9)
+    }
+
+    @Test fun hapticStepsCountTenths() {
+        assertEquals(20, MonitorZoomRulerScale.tick(2.0))
+        assertEquals(20, MonitorZoomRulerScale.tick(2.09))
+        assertEquals(21, MonitorZoomRulerScale.tick(2.1))
+        assertEquals(9, MonitorZoomRulerScale.tick(0.3 * 3))
     }
 
     @Test fun offsetsAreRelativeToTheCenterLine() {
@@ -62,6 +68,7 @@ class MonitorZoomRulerScaleTest {
         assertEquals(1.0, ticks.first().value)
         assertEquals(2.3, ticks.last().value)
         assertEquals(2.35, scale.dragged(origin = 2.2, translation = 50.0))
+        assertEquals(2.35, scale.clamped(9.0))
     }
 
     @Test fun noZoomRangeIsSafe() {
@@ -73,9 +80,9 @@ class MonitorZoomRulerScaleTest {
         assertTrue(broken.offsetOf(Double.NaN, center = 1.0).isFinite())
     }
 
-    @Test fun readoutHasOneDecimal() {
-        assertEquals("2.5×", MonitorZoomRulerScale.readout(2.5))
-        assertEquals("1.0×", MonitorZoomRulerScale.readout(1.0))
-        assertEquals("2.5×", MonitorZoomRulerScale.readout(2.549))
+    @Test fun readoutHasTwoDecimals() {
+        assertEquals("2.50×", MonitorZoomRulerScale.readout(2.5))
+        assertEquals("1.00×", MonitorZoomRulerScale.readout(1.0))
+        assertEquals("2.53×", MonitorZoomRulerScale.readout(2.534))
     }
 }
