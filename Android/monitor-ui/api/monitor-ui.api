@@ -454,6 +454,26 @@ public final class com/opencapture/monitorui/LiveStreamNetworkChoice {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/monitorui/LiveStreamOverlayPlacement {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/monitorui/LiveStreamOverlayPlacement;
+	public final fun anchor (Lcom/opencapture/monitorui/MonitorRect;FFF)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+}
+
+public final class com/opencapture/monitorui/LiveStreamOverlayPlacement$Point {
+	public static final field $stable I
+	public fun <init> (FF)V
+	public final fun component1 ()F
+	public final fun component2 ()F
+	public final fun copy (FF)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;FFILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getX ()F
+	public final fun getY ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class com/opencapture/monitorui/LiveStreamPhase {
 }
 
@@ -652,6 +672,7 @@ public final class com/opencapture/monitorui/LiveStreamState {
 public final class com/opencapture/monitorui/LiveStreamStatusState {
 	public static final field $stable I
 	public fun <init> (Lcom/opencapture/monitorui/LiveStreamPhase;IIILcom/opencapture/monitorui/LiveStreamHealth;)V
+	public final fun compactLine (Lcom/opencapture/monitorui/LiveStreamQuality;)Ljava/lang/String;
 	public final fun component1 ()Lcom/opencapture/monitorui/LiveStreamPhase;
 	public final fun component2 ()I
 	public final fun component3 ()I
