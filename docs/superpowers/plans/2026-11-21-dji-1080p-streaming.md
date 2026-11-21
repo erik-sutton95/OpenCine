@@ -43,12 +43,14 @@ Branch `feat/stream-1080p-upscaled` from `origin/main`.
 ### Task 1.1: The engine's quality choice (Swift engine, JNI, Kotlin catalog)
 
 **Files:**
+
 - Modify: `Sources/OpenCineStreaming/StreamOutputFormat.swift`
 - Modify: `Sources/OpenCineStreamingAndroid/StreamRunWire.swift`, `Sources/OpenCineStreamingAndroid/StreamingNativeJNI.swift`
 - Modify: `Android/streaming/src/main/kotlin/com/opencapture/opencine/streaming/StreamCatalog.kt`, `StreamingNative.kt`, testFixtures `FakeStreamingNative.kt`
 - Test: `Tests/OpenCineStreamingTests/StreamOutputFormatTests.swift` (extend), `Tests/OpenCineStreamingAndroidTests/` (export names), `Android/streaming/src/test/.../StreamCatalogTest.kt`
 
 **Interfaces:**
+
 - Produces (Swift): `public enum StreamQualityChoice: String, CaseIterable, Hashable, Sendable { case cameraFeed, upscaled1080p }` with `static func offered(for source: StreamSourceFormat?) -> [StreamQualityChoice]` (`cameraFeed` always; `upscaled1080p` when the source is known and its short side is below 1080). `StreamOutputFormat.resolve(selected:connected:preset:choice: StreamQualityChoice = .cameraFeed)`: `upscaled1080p` gives the 1080 tier (1920x1080, 6 Mbps before the preset cap, swapped for 9:16).
 - Produces (JNI): `StreamingNative.formatFor(presetId, width, height, fpsNum, fpsDen, connected, choice: String): String?`; Kotlin interface member with a default that calls `format` when the choice is `cameraFeed` and returns null otherwise.
 - Produces (Kotlin): `enum class StreamQualityChoice(val wireName: String) { CAMERA_FEED("cameraFeed"), UPSCALED_1080P("upscaled1080p") }` with `companion fun offered(width: Int?, height: Int?): List<StreamQualityChoice>`; `StreamCatalog.format(..., choice: StreamQualityChoice = CAMERA_FEED)`.
@@ -59,10 +61,12 @@ Branch `feat/stream-1080p-upscaled` from `origin/main`.
 ### Task 1.2: Quality choices in the presentation values and both settings cards
 
 **Files:**
+
 - Modify: `Sources/MonitorPresentation/LiveStreamPresentation.swift`, `Sources/MonitorUI/LiveStream/LiveStreamSettingsCard.swift`, `Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/LiveStreamPresentation.kt`, `Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/livestream/LiveStreamViews.kt`, `docs/streaming/ui-contract.md`
 - Test: `Tests/MonitorPresentationTests/LiveStreamPresentationTests.swift`, `Android/monitor-ui/src/test/kotlin/com/opencapture/monitorui/LiveStreamCopyTest.kt`, `Tests/MonitorUITests/LiveStreamHostedTests.swift`
 
 **Interfaces:**
+
 - Produces: `public enum LiveStreamQualityKind { case source, upscaled }` on `LiveStreamQuality.kind` (default `.source`); `line` reads `1080p upscaled, 30 fps, 6 Mbps` for `.upscaled`.
 - `public struct LiveStreamQualityOption: Hashable, Sendable, Identifiable { id, title, detail: String?, unavailableReason: String? }`.
 - `LiveStreamSettingsState.qualityOptions: [LiveStreamQualityOption]` (default `[]`), `selectedQualityID: String` (default `"cameraFeed"`), `showsQualityPicker` (more than one option), `qualityDetail` (the selected option's detail).
@@ -76,10 +80,12 @@ Branch `feat/stream-1080p-upscaled` from `origin/main`.
 ### Task 1.3: Coordinators offer, remember and use the choice; LUT keeps its width
 
 **Files:**
+
 - Modify: `Sources/OpenCineAppKitApple/LiveStreamCoordinator.swift`, `Android/appkit-native/src/main/kotlin/com/opencapture/opencine/appkitnative/LiveStreamCoordinator.kt`, `LiveStreamComposition.kt` (preferences), `Sources/OpenCineApple/MonitorCleanPictureTap.swift`, `Sources/OpenCineApple/MonitorImageCompositor.swift`
 - Test: `Tests/OpenCineAppKitAppleTests/LiveStreamCoordinatorTests.swift`, `Android/appkit-native/src/test/.../LiveStreamCoordinatorTest.kt`
 
 **Interfaces:**
+
 - Swift `LiveStreamCoordinator.selectQuality(_ id: String)` (ignored while running or for an unknown id), remembered under `opencine.livestream.quality`. Kotlin `selectQuality(id)`, `LiveStreamSettings.selectedQualityId: String?` with a default getter (null) and setter (no-op) so other implementors still compile.
 - Effective choice: the remembered one when offered for the current source, else `cameraFeed`.
 - `MonitorImageCompositor.applyProduct(to:effects:display:workingWidth: CGFloat? = nil)`; the clean picture tap passes its own `maxWidth`, so a 1080p source keeps 1920 wide with a LUT on.
@@ -105,6 +111,7 @@ Branch `feat/camera-stream-receiver` from `origin/main` after PR 1.
 **Files:** Create `Sources/OpenCineDJI/LivestreamCommands.swift`, `Sources/OpenCineDJI/DJIStreamPublishing.swift`; modify `Sources/OpenCineDJIAndroid/DjiNativeWire.swift`, `Android/dji/src/main/kotlin/com/opencapture/opencine/dji/DjiNative.kt`; create `Android/dji/src/main/kotlin/com/opencapture/opencine/dji/DjiStreamPublishing.kt`; create `Fixtures/dji-livestream-frames.tsv`; tests `Tests/OpenCineDJITests/LivestreamCommandsTests.swift`, `Tests/OpenCineDJIAndroidTests/DjiNativeWireTests.swift`, `Android/dji/src/test/.../DjiStreamPublishingTest.kt`.
 
 **Interfaces:**
+
 - `LivestreamCommands.prepare(seq:)` (= `02/E1 1A` to receiver 08), `start(seq:)` (`02/8E 01 01 1A 00 01 01`), `end(seq:)` (`... 01 02`), `preset(frameRate:bitrateKbps:modeBytes:)` (1080p `0A`, bitrate u16le, two mode bytes default `02 01`, fps code 25 is 2 and 30 is 3, three zeros), `configureDirectURL(url:preset:seq:)` (version 00), `configureJSON(url:preset:codec:seq:)` (version 01; JSON keys `rtmpAddress`, `codec` `AVC|HEVC`, `EnhancedRTMP` true for HEVC, `supportStopLive` false, `watermark` 0, `orientation` `landscape`; slashes escaped). Moblin (MIT) credited as wire reference.
 - `DJIStreamPublishing.capability(for: CameraModel) -> CameraStreamPublishing?`: Pocket 4 Pro `[.hevc, .h264]`, 25 and 30, `experimental: false`; Pocket 4 the same with `experimental: true`; Pocket 3 `[.h264]`, `experimental: true`; else nil. `takesLUT: false`, 1920x1080. Kotlin `DjiStreamPublishing.capability(model: CameraModel)` twin by model name.
 - JNI command kinds 68 `livestreamPrepare`, 69 `livestreamConfigure` (extra `version\u{1f}url\u{1f}codec\u{1f}fps\u{1f}kbps`), 70 `livestreamStart`, 71 `livestreamEnd`; Kotlin `DjiNative.CMD_LIVESTREAM_*` and `waitKey` entries.
@@ -140,6 +147,7 @@ Branch `feat/camera-1080p-relay-ios`.
 **Files:** `Sources/MonitorPresentation/LiveStreamPresentation.swift`, `Sources/MonitorUI/LiveStream/LiveStreamMonitorControls.swift`, `LiveStreamSettingsCard.swift`, Kotlin `LiveStreamPresentation.kt`, `livestream/LiveStreamViews.kt`, `docs/streaming/ui-contract.md`; tests as in 1.2.
 
 **Interfaces:**
+
 - `LiveStreamQualityKind.camera`; line `1080p from camera, 30 fps, 6 Mbps`.
 - Copy: `qualityCamera = "1080p from camera"`, `qualityCameraDetail = "Sharper picture, encoded by the camera, standard color, no LUT."`, `qualityCameraNeedsNetwork = "Save a shared network in the camera's Wi-Fi setup to use this."`; start message for the camera kind: `<quality>. The camera's own picture goes out in standard color, without the monitor LUT, with the camera's sound. Camera recording is separate.`
 - `LiveStreamNetworkChoice { id, name }`; `LiveStreamMonitorState.networkChoices` (default `[]`): with two or more, the start confirmation offers one button per network, `Go live over <name>`, hotspot first.
@@ -154,7 +162,9 @@ Branch `feat/camera-1080p-relay-ios`.
 **Files:** Create `Sources/OpenCineAppKitApple/LiveStreamCameraSource.swift`, `LiveStreamCameraRelay.swift`, `LiveStreamCameraMonitor.swift`; modify `LiveStreamCoordinator.swift`, `Sources/OpenCineStreaming/StreamOutputFormat.swift` (`camera1080p` choice); tests `Tests/OpenCineAppKitAppleTests/LiveStreamCameraRelayTests.swift`.
 
 **Interfaces:**
+
 - Host protocol (app implements):
+
   ```swift
   @MainActor public protocol LiveStreamCameraSource: AnyObject {
       var publishing: CameraStreamPublishing? { get }
@@ -167,6 +177,7 @@ Branch `feat/camera-1080p-relay-ios`.
   public struct LiveStreamNetwork: Hashable, Sendable { id: String; name: String; isHotspot: Bool }
   public enum LiveStreamCameraError: Error { case notResponding; case refused(String) }
   ```
+
   `LiveStreamHost.camera: (any LiveStreamCameraSource)?` (init parameter defaulted to nil).
 - `StreamQualityChoice.camera1080p`, offered when `publishing != nil` (listed disabled with `qualityCameraNeedsNetwork` when there is no network); its output is `1920x1080` at `publishing.frameRate(near: 30)`.
 - Relay seam: `LiveStreamCameraRelaying` (open with token and sinks for picture and PCM, events `listenFailed`, `connected`, `firstPicture`, `lost`; close), production `CameraStreamRelay` over `RTMPLocalReceiver` and the decoders; it also feeds `LiveStreamCameraMonitor`'s display layer.

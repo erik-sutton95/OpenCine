@@ -154,6 +154,7 @@ With one saved network it is used; with several, Go Live asks once, the phone ho
 none, the native choice still shows, disabled, with one line pointing to the camera's Wi-Fi setup.
 
 **Start sequence (shared, DJI side).**
+
 1. The camera must be idle (not connected for monitoring) or the app first releases it, the same
    way Multiview takes the radio.
 2. Join the chosen network on the phone if needed (not for the hotspot).
@@ -162,6 +163,7 @@ none, the native choice still shows, disabled, with one line pointing to the cam
 4. Go live outward only after the first decoded picture, so the stream never starts black.
 
 **Picture and sound.**
+
 - The decoded picture goes to the clean picture tap without a LUT, then through the fitter and the
   existing encoder (H.264 out, so Pocket 4 HEVC reaches every service).
 - Sound [Call]: native mode sends the camera's own sound (decoded from its AAC) and does not ask
@@ -174,6 +176,7 @@ the usual stream status. Assists, scopes and camera controls are not available i
 the first release and the screen says so in one line.
 
 **Stop and failure.**
+
 - Stop always sends `02/8E` end and waits for its reply (bounded), then closes BLE and the
   receiver. The camera then returns to normal use.
 - If the camera's stream drops while live [Call], the outgoing stream stays up with today's
