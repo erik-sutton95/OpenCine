@@ -468,11 +468,39 @@ public enum DjiNativeWire {
         case multicamWiFiScan = 66
         /// Action 6 `0x02/0x8E` pid `0x0044`. Extra is the `ApertureStrategy` byte.
         case setApertureStrategy = 67
+        /// Livestream (`LivestreamCommands`): `02/E1 1A`.
+        case livestreamPrepare = 68
+        /// `08/78`. Extra is `version\u{1f}url\u{1f}codec\u{1f}fps\u{1f}kbps`: version `0` (Pocket 3) or
+        /// `1`, codec `h264` or `hevc`.
+        case livestreamConfigure = 69
+        case livestreamStart = 70
+        case livestreamEnd = 71
     }
 
     public static func encodeCommand(kind: CommandKind, seq: UInt16, extra: String?) -> Duml.Frame?
     {
         switch kind {
+        case .livestreamPrepare:
+            return LivestreamCommands.prepare(seq: seq)
+        case .livestreamStart:
+            return LivestreamCommands.start(seq: seq)
+        case .livestreamEnd:
+            return LivestreamCommands.end(seq: seq)
+        case .livestreamConfigure:
+            let parts = (extra ?? "").components(separatedBy: "\u{1f}")
+            guard parts.count == 5, let fps = Int(parts[3]), let kbps = UInt16(parts[4]) else { return nil }
+            let codec: LivestreamCommands.Codec
+            switch parts[2] {
+            case "h264": codec = .h264
+            case "hevc": codec = .hevc
+            default: return nil
+            }
+            let preset = LivestreamCommands.preset(frameRate: fps, bitrateKbps: kbps)
+            switch parts[0] {
+            case "0": return try? LivestreamCommands.configureDirectURL(url: parts[1], preset: preset, seq: seq)
+            case "1": return try? LivestreamCommands.configureJSON(url: parts[1], preset: preset, codec: codec, seq: seq)
+            default: return nil
+            }
         case .sessionWake:
             return Commands.sessionWake(id: seq)
         case .sessionKeepalive:

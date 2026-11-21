@@ -116,6 +116,12 @@ object DjiNative {
     const val CMD_MULTICAM_WIFI_SCAN = 66
     /** Action 6 `0x8E` pid `0x0044`. Extra is the [ApertureStrategy] byte. */
     const val CMD_SET_APERTURE_STRATEGY = 67
+    /** Livestream (`LivestreamCommands`), sent over the Bluetooth setup link: `02/E1 1A`. */
+    const val CMD_LIVESTREAM_PREPARE = 68
+    /** `08/78`. Extra is `version\u001furl\u001fcodec\u001ffps\u001fkbps`: version `0` (Pocket 3) or `1`, codec `h264` or `hevc`. */
+    const val CMD_LIVESTREAM_CONFIGURE = 69
+    const val CMD_LIVESTREAM_START = 70
+    const val CMD_LIVESTREAM_END = 71
 
     /** DUML set/cmd key the camera ACKs for [kind]. */
     fun waitKey(kind: Int): Int =
