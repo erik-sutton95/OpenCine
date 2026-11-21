@@ -125,6 +125,10 @@ extension StreamPublisher: LiveStreamPublishing {}
     private var cameraStatus: LiveStreamCameraStatus?
     /// Ending the camera's stream (`endPublishing` then `finished`), awaited at termination.
     @ObservationIgnored private var cameraEnding: Task<Void, Never>?
+    /// Camera ends still running: the camera is not back with the app yet.
+    private var cameraEndsRunning = 0
+    /// The network of the last "1080p from camera" start, for Restart.
+    @ObservationIgnored private var lastNetworkID: String?
     @ObservationIgnored private var starting = false
     /// Monitor overlays on screen now; with none, a running stream shows the app-level pill.
     private(set) var monitorControlsOnScreen = 0
@@ -292,7 +296,7 @@ extension StreamPublisher: LiveStreamPublishing {}
 
     /// The camera's own stream is running or being started: the app hands the camera to the
     /// stream (no monitoring, no camera controls) until `LiveStreamCameraSource.finished()`.
-    public var cameraStreamActive: Bool { cameraRun != nil }
+    public var cameraStreamActive: Bool { cameraRun != nil || cameraEndsRunning > 0 }
 
     /// The relayed picture for the app's full-screen camera monitor while the camera streams.
     public var cameraDisplay: LiveStreamCameraDisplay? { cameraRun?.feed.display }
@@ -377,7 +381,8 @@ extension StreamPublisher: LiveStreamPublishing {}
     /// Starts "1080p from camera" over the saved network with this id (the start buttons).
     public func start(network id: String) { Task { await begin(networkID: id) } }
 
-    public func restart() { start() }
+    /// Starts again after a notice, over the same network as before.
+    public func restart() { Task { await begin(networkID: lastNetworkID) } }
 
     public func stop() {
         guard running != nil || cameraRun != nil else { return }
@@ -442,6 +447,9 @@ extension StreamPublisher: LiveStreamPublishing {}
         }
         let choice = effectiveQuality
         if choice == .camera1080p {
+            // A camera still ending its last stream gets it ended before the next start.
+            await cameraStreamEnded()
+            guard !phase.isRunning, cameraRun == nil else { return }
             return beginCamera(destination: destination, networkID: networkID)
         }
         let format = StreamOutputFormat.resolve(
@@ -528,6 +536,7 @@ extension StreamPublisher: LiveStreamPublishing {}
         else { return }
         let source = cameraSource(publishing)
         let format = StreamOutputFormat.resolve(selected: source, connected: [], preset: preset, choice: .camera1080p)
+        lastNetworkID = network.id
         let run = CameraRun(camera: camera, network: network, destination: destination, format: format,
             frameRate: source.frameRate.map { Int($0.doubleValue.rounded()) } ?? 30)
         cameraRun = run
@@ -645,7 +654,9 @@ extension StreamPublisher: LiveStreamPublishing {}
         run.relay = nil
         if run.cameraPublishing {
             run.cameraPublishing = false
-            await run.camera.endPublishing()
+            // Its own task, so a Stop that cancels this try cannot cancel the camera's end.
+            let camera = run.camera
+            await Task { await camera.endPublishing() }.value
         }
     }
 
@@ -686,6 +697,7 @@ extension StreamPublisher: LiveStreamPublishing {}
         run.relay = nil
         run.feed.publisher = nil
         let previous = cameraEnding
+        cameraEndsRunning += 1
         cameraEnding = Task {
             await previous?.value
             await task?.value
@@ -694,6 +706,7 @@ extension StreamPublisher: LiveStreamPublishing {}
                 await run.camera.endPublishing()
             }
             run.camera.finished()
+            cameraEndsRunning -= 1
         }
     }
 

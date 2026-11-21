@@ -58,7 +58,22 @@ import Testing
             if !startErrors.isEmpty { throw startErrors.removeFirst() }
         }
 
-        func endPublishing() async { log.add("endPublishing") }
+        /// Holds each `endPublishing` until `releaseEnd()` (a slow camera end).
+        var holdsEnd = false
+        private var heldEnds: [CheckedContinuation<Void, Never>] = []
+
+        func endPublishing() async {
+            log.add("endPublishing")
+            guard holdsEnd else { return }
+            await withCheckedContinuation { heldEnds.append($0) }
+            log.add("end sent\(Task.isCancelled ? " (cancelled)" : "")")
+        }
+
+        func releaseEnd() {
+            let held = heldEnds
+            heldEnds = []
+            for end in held { end.resume() }
+        }
         func finished() { log.add("finished") }
     }
 
@@ -354,18 +369,66 @@ import Testing
         #expect(r.log.calls.last == "finished")
     }
 
-    @Test func severalNetworksAreOfferedHotspotFirst() async {
+    @Test func goLiveWhileTheCameraIsStillEndingWaitsForTheEnd() async {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        await live(r)
+        r.camera.holdsEnd = true
+        r.coordinator.stop()
+        await r.log.wait(for: "endPublishing")
+        #expect(r.coordinator.cameraStreamActive, "The camera is not back yet")
+        r.coordinator.start()
+        r.camera.releaseEnd()
+        await r.log.wait(for: "prepare", count: 2)
+        let finished = r.log.calls.firstIndex(of: "finished")
+        let prepared = r.log.calls.lastIndex { $0.hasPrefix("prepare") }
+        #expect(finished != nil && prepared != nil && finished! < prepared!)
+    }
+
+    @Test func stopDuringCleanupStillSendsTheEnd() async {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        await live(r)
+        r.camera.holdsEnd = true
+        r.relay.events?(.lost)
+        await r.log.wait(for: "endPublishing")
+        r.coordinator.stop()
+        r.camera.releaseEnd()
+        await r.log.wait(for: "finished")
+        #expect(r.log.calls.contains("end sent"))
+        #expect(!r.log.calls.contains("end sent (cancelled)"))
+    }
+
+    @Test func restartKeepsTheChosenNetwork() async {
         guard #available(macOS 14.0, *) else { return }
         let r = rig()
         r.camera.networks = [
             LiveStreamNetwork(id: "hotspot", name: "es_iphone16", isHotspot: true),
             LiveStreamNetwork(id: "home", name: "Mouse House", isHotspot: false),
         ]
+        r.coordinator.start(network: "home")
+        await r.log.wait(for: "startPublishing")
+        r.relay.events?(.firstPicture)
+        await r.log.wait(for: "publisher")
+        r.coordinator.sceneDidEnterBackground()
+        await r.coordinator.cameraStreamEnded()
+        r.coordinator.restart()
+        await r.log.wait(for: "prepare", count: 2)
+        #expect(r.log.calls.filter { $0.hasPrefix("prepare") } == ["prepare home", "prepare home"])
+    }
+
+    @Test func severalNetworksAreOfferedHotspotFirst() async {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        r.camera.networks = [
+            LiveStreamNetwork(id: "home", name: "Mouse House", isHotspot: false),
+            LiveStreamNetwork(id: "hotspot", name: "es_iphone16", isHotspot: true),
+        ]
         #expect(r.coordinator.monitorState?.networkChoices.map(\.name) == ["es_iphone16", "Mouse House"])
         r.coordinator.start(network: "home")
         await r.log.wait(for: "prepare")
         #expect(r.log.calls.first == "prepare home")
-        r.camera.networks = [r.camera.networks[0]]
+        r.camera.networks = [r.camera.networks[1]]
         #expect(r.coordinator.monitorState?.networkChoices.isEmpty == true)
     }
 }

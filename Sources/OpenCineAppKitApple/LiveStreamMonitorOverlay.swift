@@ -84,6 +84,17 @@ extension View {
     var done = false
 }
 
+/// One background task, ended once (by the work finishing or by its expiration).
+@MainActor private final class BackgroundTask {
+    var id: UIBackgroundTaskIdentifier = .invalid
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
+    }
+}
+
 @MainActor private struct LiveStreamLifecycleModifier: ViewModifier {
     let coordinator: LiveStreamCoordinator
     @Environment(\.scenePhase) private var phase
@@ -98,18 +109,21 @@ extension View {
             .onChange(of: phase) { _, value in
                 guard value == .background, coordinator.isRunning else { return }
                 // A short task lets the polite goodbye reach the server before suspension.
-                let task = UIApplication.shared.beginBackgroundTask(withName: "live-stream-end", expirationHandler: nil)
+                let task = BackgroundTask()
+                task.id = UIApplication.shared.beginBackgroundTask(withName: "live-stream-end") {
+                    MainActor.assumeIsolated { task.end() }
+                }
                 coordinator.sceneDidEnterBackground()
                 // A camera streaming on its own is also told to end (a bounded camera command).
                 Task {
                     async let goodbye: Void = Task.sleep(for: .seconds(2))
                     await coordinator.cameraStreamEnded()
                     try? await goodbye
-                    if task != .invalid { UIApplication.shared.endBackgroundTask(task) }
+                    task.end()
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-                guard coordinator.isRunning || coordinator.cameraStreamActive else { return }
+                // No guard: a camera end still running after the background must go out too.
                 // Best effort before the process ends: keep the main run loop turning (the camera's
                 // end command runs on the main actor) for at most 4 seconds.
                 let ending = TerminationFlag()
