@@ -355,5 +355,19 @@ import Testing
         #expect(r.coordinator.settingsState.selectedQualityID == "cameraFeed")
         #expect(r.coordinator.settingsState.quality?.width == 1280)
     }
+
+    @Test func aRunningStreamKeepsItsQualityUntilItStops() async throws {
+        guard #available(macOS 14.0, *) else { return }
+        let host = Host()
+        let r = rig(host: host)
+        r.coordinator.selectQuality("upscaled1080p")
+        await r.coordinator.begin()
+        host.source = StreamSourceFormat(width: 1920, height: 1080, frameRate: Rational(30, 1))
+        #expect(r.coordinator.monitorState?.quality?.line == "1080p upscaled, 30 fps, 6 Mbps")
+        #expect(r.coordinator.settingsState.selectedQualityID == "upscaled1080p")
+        r.coordinator.stop()
+        #expect(r.coordinator.settingsState.quality?.line == "1080p, 30 fps, 6 Mbps")
+        #expect(r.coordinator.settingsState.selectedQualityID == "cameraFeed")
+    }
 }
 #endif

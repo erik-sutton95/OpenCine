@@ -283,4 +283,21 @@ class LiveStreamCoordinatorTest {
         assertEquals("cameraFeed", stream.state.value.selectedQualityId)
         assertEquals(1280, stream.state.value.quality?.width)
     }
+
+    @Test
+    fun aRunningStreamKeepsItsQualityUntilItStops() = runTest(UnconfinedTestDispatcher()) {
+        keys.save("live_key", null, "twitch")
+        val stream = coordinator()
+        stream.selectQuality("upscaled1080p")
+        stream.goLive()
+        connections.last().onEvent(StreamConnectionEvent.Opened)
+        runCurrent()
+        source = LiveStreamSource(1920, 1080, 30, 1)
+        stream.refresh()
+        assertEquals(LiveStreamQualityKind.UPSCALED, stream.state.value.quality?.kind)
+        assertEquals("upscaled1080p", stream.state.value.selectedQualityId)
+        stream.stop()
+        assertEquals(LiveStreamQualityKind.SOURCE, stream.state.value.quality?.kind)
+        assertEquals("cameraFeed", stream.state.value.selectedQualityId)
+    }
 }

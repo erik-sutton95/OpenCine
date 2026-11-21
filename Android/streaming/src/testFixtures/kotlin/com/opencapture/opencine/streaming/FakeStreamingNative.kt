@@ -116,7 +116,7 @@ class FakeStreamingNative(
         connected: IntArray,
     ): String? = formatFor(presetId, width, height, fpsNum, fpsDen, connected, "cameraFeed")
 
-    /** The last quality choice asked for; the upscaled one answers [FORMAT_1080P]. */
+    /** The last quality choice asked for; the upscaled one answers [FORMAT_1080P], every other [FORMAT_720P]. */
     var lastChoice: String? = null
 
     override fun formatFor(
@@ -131,7 +131,7 @@ class FakeStreamingNative(
         lastChoice = choice
         return when {
             presetId == "unknown" -> null
-            choice == "upscaled1080p" || choice == "camera1080p" || minOf(width, height) >= 1080 -> FORMAT_1080P
+            choice == "upscaled1080p" -> FORMAT_1080P
             else -> FORMAT_720P
         }
     }

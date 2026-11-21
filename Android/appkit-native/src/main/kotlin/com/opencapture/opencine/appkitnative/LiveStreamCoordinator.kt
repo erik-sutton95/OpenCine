@@ -166,7 +166,14 @@ class LiveStreamCoordinator(
                     is StreamKeyStore.Lookup.Stored -> LiveStreamKeyState.SAVED
                     StreamKeyStore.Lookup.Unavailable -> LiveStreamKeyState.UNAVAILABLE
                 },
-                quality = if (state.phase.isRunning) state.quality else camera?.let { format(preset, it) }?.quality(),
+                quality = if (state.phase.isRunning) {
+                    state.quality
+                } else {
+                    camera?.let { source ->
+                        val choice = effectiveQuality(source)
+                        format(preset, source, choice)?.quality(choice)
+                    }
+                },
                 sourceHeight = camera?.height,
                 eligibility = eligibility(),
                 qualityOptions = offeredQualities(camera).map { it.option() },
@@ -358,6 +365,8 @@ class LiveStreamCoordinator(
                 warnings = emptySet(),
             )
         }
+        // The camera may have changed while live: the card shows what the next stream would use.
+        refresh()
         job?.cancel()
     }
 
@@ -387,7 +396,7 @@ class LiveStreamCoordinator(
     ): StreamOutputFormat? =
         catalog.format(preset.id, camera.width, camera.height, camera.fpsNum, camera.fpsDen, choice = choice)
 
-    private fun StreamOutputFormat.quality(choice: StreamQualityChoice = effectiveQuality(source())) =
+    private fun StreamOutputFormat.quality(choice: StreamQualityChoice) =
         LiveStreamQuality(
             width, height, framesPerSecond, videoBitrateBps,
             if (choice == StreamQualityChoice.UPSCALED_1080P) LiveStreamQualityKind.UPSCALED else LiveStreamQualityKind.SOURCE,
