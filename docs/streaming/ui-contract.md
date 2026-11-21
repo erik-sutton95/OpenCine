@@ -15,7 +15,7 @@ Swift source of truth for every string below: `Sources/MonitorPresentation/LiveS
 | Surface | Where | Shown when |
 |---|---|---|
 | Live stream card | Settings, Sharing tab, after the feed sharing rows | The app composes streaming (always, in the three camera apps) |
-| Go live control | Over the monitor picture, top center, inside the picture | A stream key is saved for the selected service and "Go live button on the monitor" is on, or a stream is running |
+| Go live control | Top right, hanging under the status row (the timecode block) at its trailing edge (`LiveStreamOverlayPlacement.anchor`); with the status row off, the same top trailing corner. Hidden, still mounted, while the zoom ruler is open | A stream key is saved for the selected service and "Go live button on the monitor" is on, or a stream is running |
 | Status readout | Under the Go live control | Connecting, live or reconnecting |
 | Notice | Under the Go live control | After a stream ends for a reason other than the operator's stop, or start fails |
 | Warning | Under the status readout | While live and the phone is hot or its battery is low |
@@ -30,7 +30,7 @@ The shared screens own placement; an app only hands over its coordinator.
 | Surface | SwiftUI | Compose |
 |---|---|---|
 | Live stream card | `MonitorOperatorSettingsConfiguration.withLiveStream(coordinator)`: the shared settings screen renders the card as the Sharing tab's `liveStream` row. `nil` (or not calling it) leaves the row out | The shared operator setup or settings screen takes the same optional slot; an app passes its coordinator or nothing |
-| Monitor controls | `LiveStreamMonitorOverlay(coordinator:)`, a plain view. The shared live screen places it from `MonitorOperatorLiveScreen.liveStream`; an app that draws its own picture (OpenZCine) places the same view over that picture, top center | A plain composable over the coordinator's state, with no dependency on the monitor feed host's scope, so an app that draws its own picture can place it |
+| Monitor controls | `LiveStreamMonitorOverlay(coordinator:)`, a plain view. The shared live screen places it from `MonitorOperatorLiveScreen.liveStream`; an app that draws its own picture (OpenZCine) places the same view at `LiveStreamOverlayPlacement.anchor` and passes `hidden` while its zoom ruler is open | A plain composable over the coordinator's state, with no dependency on the monitor feed host's scope, so an app that draws its own picture can place it |
 | Lifecycle and Live pill | `.liveStreamLifecycle(coordinator)` once at the app root: background end, heat and battery warnings, and the Live pill | The same once at the app root |
 
 The monitor overlay reports when it is on screen and off screen (SwiftUI: on appear and on

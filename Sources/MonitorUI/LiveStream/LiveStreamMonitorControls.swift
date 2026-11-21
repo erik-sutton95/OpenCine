@@ -24,8 +24,9 @@ public struct LiveStreamMonitorActions {
     }
 }
 
-/// The Go live control with its two confirmations, the status readout, the notice and the warning,
-/// stacked top center over the monitor picture. Kotlin twin: `LiveStreamMonitorControls` (part 3).
+/// The Go live control with its two confirmations, the one-line status, the notice and the
+/// warning, stacked trailing-aligned under the monitor's timecode block (top right). Kotlin twin:
+/// `LiveStreamMonitorControls`.
 public struct LiveStreamMonitorControls: View {
     let state: LiveStreamMonitorState
     let actions: LiveStreamMonitorActions
@@ -37,9 +38,9 @@ public struct LiveStreamMonitorControls: View {
     }
 
     public var body: some View {
-        VStack(spacing: 6) {
+        VStack(alignment: .trailing, spacing: 6) {
             LiveStreamGoLiveButton(control: state.control) { confirming = state.control.tap }
-            if let status = state.status { LiveStreamStatusReadout(status: status) }
+            if let status = state.status { LiveStreamStatusLine(status: status, quality: state.quality) }
             if let camera = state.cameraStatus { cameraStatusView(camera) }
             if let warning = state.warning {
                 capsuleText(warning.text, color: MonitorTheme.linkHealthColor(.watch))
@@ -47,7 +48,7 @@ public struct LiveStreamMonitorControls: View {
             }
             if let end = state.end, let notice = end.notice { noticeView(notice, restart: end.offersRestart) }
         }
-        .frame(maxWidth: 340)
+        .frame(maxWidth: 260, alignment: .trailing)
         .alert(LiveStreamCopy.startTitle(service: state.serviceName),
             isPresented: binding(.confirmStart)) {
             if state.networkChoices.count > 1 {
@@ -95,9 +96,9 @@ public struct LiveStreamMonitorControls: View {
     }
 
     private func cameraStatusView(_ camera: LiveStreamCameraStatus) -> some View {
-        VStack(spacing: 6) {
+        VStack(alignment: .trailing, spacing: 6) {
             Text(camera.text).font(MonitorTheme.font(11, weight: .semibold)).foregroundStyle(MonitorTheme.text)
-                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("monitor.livestream.cameraStatus")
             if camera.offersRetry {
                 MonitorSettingsActionPill(title: LiveStreamCopy.cameraRetry) { actions.retryCamera() }
@@ -105,14 +106,14 @@ public struct LiveStreamMonitorControls: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 10))
+        .monitorGlass(in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func capsuleText(_ text: String, color: Color) -> some View {
         Text(text).font(MonitorTheme.font(11, weight: .semibold)).foregroundStyle(color)
-            .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 10).padding(.vertical, 6)
-            .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 10))
+            .monitorGlass(in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -135,22 +136,29 @@ public struct LiveStreamGoLiveButton: View {
         }
     }
 
+    private var live: Bool { control.tone == .live }
+
     public var body: some View {
-        VStack(spacing: 3) {
+        VStack(alignment: .trailing, spacing: 3) {
             Button(action: onTap) {
-                HStack(spacing: 6) {
-                    MonitorIcon.radio.frame(width: 14, height: 14)
+                HStack(spacing: 7) {
+                    if live {
+                        Circle().fill(.white).frame(width: 7, height: 7)
+                    } else {
+                        MonitorIcon.radio.frame(width: 14, height: 14)
+                    }
                     Text(control.title.uppercased()).font(MonitorTheme.font(12, weight: .bold))
                         .monospacedDigit().kerning(0.6).lineLimit(1)
+                    if live {
+                        // The stop glyph: tapping the live control asks to stop.
+                        RoundedRectangle(cornerRadius: 2).fill(.white).frame(width: 9, height: 9)
+                            .padding(6).background(.white.opacity(0.22), in: Circle())
+                    }
                 }
                 .foregroundStyle(tint)
-                .padding(.horizontal, 14)
-                .frame(minWidth: 44, minHeight: 44)
-                .background {
-                    Capsule().fill(control.tone == .live ? AnyShapeStyle(MonitorTheme.recording)
-                        : AnyShapeStyle(.black.opacity(0.62)))
-                }
-                .overlay(Capsule().stroke(tint.opacity(control.tone == .live ? 0 : 0.5), lineWidth: 1))
+                .padding(.leading, 14).padding(.trailing, live ? 6 : 14)
+                .frame(minWidth: 44, minHeight: 40)
+                .modifier(LiveStreamGoLiveSurface(live: live))
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -161,9 +169,22 @@ public struct LiveStreamGoLiveButton: View {
             if let caption = control.caption {
                 Text(caption).font(MonitorTheme.font(10.5, weight: .semibold)).foregroundStyle(MonitorTheme.muted)
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(.black.opacity(0.55), in: Capsule())
+                    .monitorGlass(in: Capsule())
                     .accessibilityHidden(true)
             }
+        }
+    }
+}
+
+/// Live: the recording red capsule. Otherwise the monitor chrome's glass.
+private struct LiveStreamGoLiveSurface: ViewModifier {
+    let live: Bool
+
+    func body(content: Content) -> some View {
+        if live {
+            content.background(MonitorTheme.recording, in: Capsule())
+        } else {
+            content.monitorGlass(in: Capsule())
         }
     }
 }
@@ -212,6 +233,40 @@ public struct LiveStreamPill: View {
         } message: {
             Text(LiveStreamCopy.stopMessage)
         }
+    }
+}
+
+/// The one line under the live control: quality, sent bitrate, dropped groups (only when some)
+/// and connection health, read as one element. `1080p · 6 Mbps · good`.
+public struct LiveStreamStatusLine: View {
+    let status: LiveStreamStatusState
+    let quality: LiveStreamQuality?
+
+    public init(status: LiveStreamStatusState, quality: LiveStreamQuality?) {
+        self.status = status
+        self.quality = quality
+    }
+
+    private var healthColor: Color {
+        switch status.health {
+        case .good: MonitorTheme.linkHealthColor(.stable)
+        case .congested: MonitorTheme.linkHealthColor(.watch)
+        case .offline: MonitorTheme.linkHealthColor(.poor)
+        }
+    }
+
+    public var body: some View {
+        HStack(spacing: 5) {
+            Circle().fill(healthColor).frame(width: 6, height: 6)
+            Text(status.compactLine(quality: quality))
+        }
+        .font(MonitorTheme.font(10.5, weight: .semibold)).monospacedDigit()
+        .foregroundStyle(MonitorTheme.secondary).lineLimit(1).minimumScaleFactor(0.7)
+        .monitorReadoutShadow()
+        .padding(.trailing, 6)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(status.accessibilityLabel)
+        .accessibilityIdentifier("monitor.livestream.status")
     }
 }
 

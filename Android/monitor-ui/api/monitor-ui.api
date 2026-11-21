@@ -454,6 +454,26 @@ public final class com/opencapture/monitorui/LiveStreamNetworkChoice {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/monitorui/LiveStreamOverlayPlacement {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/monitorui/LiveStreamOverlayPlacement;
+	public final fun anchor (Lcom/opencapture/monitorui/MonitorRect;FFF)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+}
+
+public final class com/opencapture/monitorui/LiveStreamOverlayPlacement$Point {
+	public static final field $stable I
+	public fun <init> (FF)V
+	public final fun component1 ()F
+	public final fun component2 ()F
+	public final fun copy (FF)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;FFILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getX ()F
+	public final fun getY ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class com/opencapture/monitorui/LiveStreamPhase {
 }
 
@@ -652,6 +672,7 @@ public final class com/opencapture/monitorui/LiveStreamState {
 public final class com/opencapture/monitorui/LiveStreamStatusState {
 	public static final field $stable I
 	public fun <init> (Lcom/opencapture/monitorui/LiveStreamPhase;IIILcom/opencapture/monitorui/LiveStreamHealth;)V
+	public final fun compactLine (Lcom/opencapture/monitorui/LiveStreamQuality;)Ljava/lang/String;
 	public final fun component1 ()Lcom/opencapture/monitorui/LiveStreamPhase;
 	public final fun component2 ()I
 	public final fun component3 ()I
@@ -973,6 +994,10 @@ public final class com/opencapture/monitorui/MonitorCaptureReadoutGroup : java/l
 public final class com/opencapture/monitorui/MonitorCardColumnsKt {
 	public static final fun MonitorCardColumns-djqs-MU (Landroidx/compose/ui/Modifier;FFLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 	public static final fun monitorFullWidthCard (Landroidx/compose/ui/Modifier;)Landroidx/compose/ui/Modifier;
+}
+
+public final class com/opencapture/monitorui/MonitorChromeHiddenKt {
+	public static final fun monitorChromeHidden (Landroidx/compose/ui/Modifier;ZLandroidx/compose/runtime/Composer;I)Landroidx/compose/ui/Modifier;
 }
 
 public final class com/opencapture/monitorui/MonitorChromeInputKt {
@@ -5407,14 +5432,6 @@ public final class com/opencapture/monitorui/MonitorZebraZone {
 	public final fun getThreshold ()I
 }
 
-public final class com/opencapture/monitorui/MonitorZoomAttachment : java/lang/Enum {
-	public static final field Bottom Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public static final field Trailing Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public static fun values ()[Lcom/opencapture/monitorui/MonitorZoomAttachment;
-}
-
 public final class com/opencapture/monitorui/MonitorZoomCaption {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorZoomCaption;
@@ -5422,36 +5439,25 @@ public final class com/opencapture/monitorui/MonitorZoomCaption {
 	public final fun label (DLjava/util/List;)Ljava/lang/String;
 }
 
-public final class com/opencapture/monitorui/MonitorZoomDiscKt {
-	public static final fun MonitorZoomDisc (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function1;FLcom/opencapture/monitorui/MonitorZoomAttachment;FLkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Landroidx/compose/runtime/Composer;III)V
-}
-
-public final class com/opencapture/monitorui/MonitorZoomGeometry {
+public final class com/opencapture/monitorui/MonitorZoomClearance {
 	public static final field $stable I
-	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomGeometry$Companion;
-	public fun <init> (FFLcom/opencapture/monitorui/MonitorZoomAttachment;)V
-	public synthetic fun <init> (FFLcom/opencapture/monitorui/MonitorZoomAttachment;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun angle (FF)D
-	public final fun canStartZoom (FF)Z
+	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomClearance$Companion;
+	public fun <init> ()V
+	public fun <init> (FF)V
+	public synthetic fun <init> (FFILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()F
 	public final fun component2 ()F
-	public final fun component3 ()Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public final fun contains (FF)Z
-	public final fun copy (FFLcom/opencapture/monitorui/MonitorZoomAttachment;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
-	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorZoomGeometry;FFLcom/opencapture/monitorui/MonitorZoomAttachment;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
+	public final fun copy (FF)Lcom/opencapture/monitorui/MonitorZoomClearance;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorZoomClearance;FFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomClearance;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAttachment ()Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public final fun getEdgeExtension ()F
-	public final fun getHeight ()F
-	public final fun getRadius ()F
-	public final fun getWidth ()F
+	public final fun getBottom ()F
+	public final fun getTop ()F
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class com/opencapture/monitorui/MonitorZoomGeometry$Companion {
-	public final fun layout (FFFFLcom/opencapture/monitorui/MonitorZoomAttachment;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
-	public static synthetic fun layout$default (Lcom/opencapture/monitorui/MonitorZoomGeometry$Companion;FFFFLcom/opencapture/monitorui/MonitorZoomAttachment;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
+public final class com/opencapture/monitorui/MonitorZoomClearance$Companion {
+	public final fun forLayout (Lcom/opencapture/monitorui/LiveMonitorLayout;)Lcom/opencapture/monitorui/MonitorZoomClearance;
 }
 
 public final class com/opencapture/monitorui/MonitorZoomPresetControls {
@@ -5487,12 +5493,57 @@ public final class com/opencapture/monitorui/MonitorZoomPresets$Companion {
 	public final fun rampLabel (D)Ljava/lang/String;
 }
 
-public final class com/opencapture/monitorui/MonitorZoomRadialGesture {
+public final class com/opencapture/monitorui/MonitorZoomRulerKt {
+	public static final fun MonitorZoomRuler (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorZoomClearance;Lkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerScale {
 	public static final field $stable I
-	public fun <init> (Lcom/opencapture/monitorui/MonitorZoomGeometry;FF)V
-	public final fun angleDelta (FF)Ljava/lang/Double;
-	public final fun isArmed ()Z
-	public final fun rebase (FF)V
+	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomRulerScale$Companion;
+	public static final field POINTS_PER_STEP D
+	public static final field STEP D
+	public static final field WHOLE_SNAP D
+	public fun <init> (DD)V
+	public final fun dragged (DD)D
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMaximum ()D
+	public final fun getMinimum ()D
+	public fun hashCode ()I
+	public final fun offsetOf (DD)D
+	public final fun quantized (D)D
+	public final fun tapped (DD)D
+	public final fun ticks (DD)Ljava/util/List;
+	public fun toString ()Ljava/lang/String;
+	public final fun valueAtOffset (DD)D
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerScale$Companion {
+	public final fun readout (D)Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerTick {
+	public static final field $stable I
+	public fun <init> (DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public final fun copy (DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;)Lcom/opencapture/monitorui/MonitorZoomRulerTick;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorZoomRulerTick;DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomRulerTick;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public final fun getOffset ()D
+	public final fun getValue ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerTick$Kind : java/lang/Enum {
+	public static final field MAJOR Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static final field MID Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static final field MINOR Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
 }
 
 public final class com/opencapture/monitorui/MonitorZoomScale {

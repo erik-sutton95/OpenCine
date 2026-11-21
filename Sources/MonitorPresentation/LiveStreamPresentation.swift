@@ -187,6 +187,16 @@ public struct LiveStreamStatusState: Hashable, Sendable {
     public var elapsedText: String { LiveStreamCopy.elapsed(elapsedSeconds) }
     public var bitrateText: String { LiveStreamCopy.bitrate(sentBitrateBps) }
     public var droppedText: String { "Dropped \(droppedGroups)" }
+    /// One short line under the live control: `1080p · 6.0 Mbps · good`. The quality is left out
+    /// when unknown; dropped groups show only when there are some.
+    public func compactLine(quality: LiveStreamQuality?) -> String {
+        var parts: [String] = []
+        if let quality { parts.append("\(min(quality.width, quality.height))p") }
+        parts.append(bitrateText)
+        if droppedGroups > 0 { parts.append("\(droppedGroups) dropped") }
+        parts.append(healthText.lowercased())
+        return parts.joined(separator: " · ")
+    }
     public var healthText: String {
         switch health {
         case .good: "Good"
