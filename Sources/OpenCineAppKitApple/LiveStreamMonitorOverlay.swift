@@ -22,7 +22,9 @@ extension LiveStreamCoordinator {
             start: { [weak self] in self?.start() },
             stop: { [weak self] in self?.stop() },
             restart: { [weak self] in self?.restart() },
-            dismissNotice: { [weak self] in self?.dismissNotice() })
+            dismissNotice: { [weak self] in self?.dismissNotice() },
+            startOnNetwork: { [weak self] in self?.start(network: $0) },
+            retryCamera: { [weak self] in self?.retryCamera() })
     }
 }
 
