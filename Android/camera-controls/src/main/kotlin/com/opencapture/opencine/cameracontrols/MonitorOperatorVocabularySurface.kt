@@ -1,5 +1,7 @@
 package com.opencapture.opencine.cameracontrols
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -26,6 +29,8 @@ import androidx.compose.ui.zIndex
 import com.opencapture.monitorui.LiveMonitorLayout
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorIcon
+import com.opencapture.monitorui.MonitorMotion
+import com.opencapture.monitorui.monitorChromeHidden
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorStorageReadoutFormat
 import com.opencapture.monitorui.PortraitZones
@@ -226,8 +231,10 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
         }, editor = { enabled ->
             if (enabled && controls.gimbal.isOffered && session.mounts(MonitorDisplaySection.GIMBAL_STICK) &&
                 chrome.host.liveGimbalPanel == LiveGimbalPanel.SHEET && !locked)
-                LiveGimbalSheetHost(chrome.host, layout, layout.gimbalCluster(true), layout.safeLeading, layout.safeTrailing,
-                    layout.safeTop, layout.safeBottom)
+                Box(Modifier.fillMaxSize().monitorChromeHidden(session.zoomDialOpen)) {
+                    LiveGimbalSheetHost(chrome.host, layout, layout.gimbalCluster(true), layout.safeLeading, layout.safeTrailing,
+                        layout.safeTop, layout.safeBottom)
+                }
         }), resetFocus = if (focus.resetAvailable) MonitorOperatorFocusReset("Recenter focus", true, false, focusActions.reset) else null,
         motionCluster = motionCluster)
     MonitorOperatorLiveSurface(chrome.capture.control, session, geometry, source,
@@ -268,11 +275,16 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
     val cluster = layout.gimbalCluster(showGimbal)
     val context = androidx.compose.ui.platform.LocalContext.current
     var zoomPresets by remember(source.preferences) { mutableStateOf(source.preferences.zoomPresets(context)) }
+    // The open zoom ruler replaces the joystick cluster; it comes back unchanged on close.
+    val zoomOpen = source.session.zoomDialOpen
+    val zoomFade by animateFloatAsState(if (zoomOpen) 0f else 1f, tween(MonitorMotion.OPACITY_MS), label = "zoom-chip")
     Box(Modifier.fillMaxSize()) {
         source.zoom?.let { zoom ->
             if (!capturePresented && controls.zoom.isOffered && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP) && !cluster.zoom.isEmpty) {
+                // Alpha only: the chip hosts the ruler's popup, so it stays composed while open.
                 LiveZoomChip(zoom.factor, locked,
                     Modifier.operatorFrame(cluster.zoom).alpha(if (locked || zoom.dimmed) .4f else 1f)
+                        .graphicsLayer { alpha = zoomFade }
                         .monitorChromeEditStroke(editing, true), zoom.pinching, zoom.dimmed,
                     onCycle = { zoom.commitCycle(LiveZoom.nextJump(zoom.cycleFrom(), zoom.tapStops.primary)) },
                     maximum = zoom.maximum, opticalStops = zoom.opticalStops,
@@ -283,27 +295,30 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
                     },
                     presets = zoomPresets,
                     onPresetsChange = { zoomPresets = it; source.preferences.setZoomPresets(context, it) },
-                    clearance = com.opencapture.monitorui.MonitorZoomClearance.forLayout(layout))
+                    clearance = com.opencapture.monitorui.MonitorZoomClearance.forLayout(layout),
+                    onDialOpenChange = { source.session.zoomDialOpen = it })
             }
         }
         if (!capturePresented && showGimbal && !cluster.controls.isEmpty) {
             LiveGimbalButton(locked, {
                 source.host.liveGimbalPanel = if (source.host.liveGimbalPanel == LiveGimbalPanel.SHEET)
                     LiveGimbalPanel.NONE else LiveGimbalPanel.SHEET
-            }, Modifier.operatorFrame(cluster.controls).alpha(if (locked) .4f else 1f))
+            }, Modifier.operatorFrame(cluster.controls).alpha(if (locked) .4f else 1f).monitorChromeHidden(zoomOpen))
         }
         if (showGimbal && !cluster.stick.isEmpty) {
             Box(Modifier.operatorFrame(cluster.stick).alpha(if (capturePresented) 0f else 1f)
-                .monitorChromeEditStroke(editing, true)) {
+                .monitorChromeHidden(zoomOpen).monitorChromeEditStroke(editing, true)) {
                 LiveGimbalStick(enabled = !capturePresented && !locked && shell.cover == null && interactive,
                     onMove = source.stick.move, onRelease = source.stick.release,
                     onRecenter = source.stick.recenter, onFlip = source.stick.flip)
             }
         }
         if (!capturePresented && showGimbal && interactive && !locked && shell.cover == null) {
-            LiveGimbalOverlay(source.host, layout, layout.onFeed, locked, cluster.stick,
-                if (controls.zoom.isOffered && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP)) cluster.zoom
-                else MonitorRect(0f, 0f, 0f, 0f))
+            Box(Modifier.fillMaxSize().monitorChromeHidden(zoomOpen)) {
+                LiveGimbalOverlay(source.host, layout, layout.onFeed, locked, cluster.stick,
+                    if (controls.zoom.isOffered && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP)) cluster.zoom
+                    else MonitorRect(0f, 0f, 0f, 0f))
+            }
         }
     }
 }

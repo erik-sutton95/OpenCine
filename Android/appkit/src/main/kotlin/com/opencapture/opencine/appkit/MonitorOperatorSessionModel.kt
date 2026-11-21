@@ -64,7 +64,15 @@ public class MonitorOperatorSessionModel(
         set(value) {
             if (displaySession.locked != value) commandRevision.set(Any())
             displaySession.locked = value
+            if (value) zoomDialOpen = false
         }
+
+    /**
+     * The zoom ruler is open. The joystick cluster, the status block and Go Live hide while it
+     * is (they stay composed, so nothing they hold is lost). The zoom chip reports it; the lock
+     * and a retired monitor clear it. Swift: `MonitorOperatorInteraction.zoomVisible`.
+     */
+    public var zoomDialOpen: Boolean by mutableStateOf(false)
 
     /** Captures this owner's local command lifetime without making an eligibility decision. */
     public fun captureCommandRevision(): () -> Boolean {
@@ -177,6 +185,7 @@ public class MonitorOperatorSessionModel(
         armJob?.cancel(); armJob = null
         interactive = true
         locked = false
+        zoomDialOpen = false
         displaySession.retireEditor()
     }
 }

@@ -258,6 +258,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         safeBottom = layout.safeBottom, scopeFeed = feed, framingFrame = framing,
         scopePlacement = geometry.scopePlacement, scopeTransfer = assists.transfer,
         paletteFrameChanged = { paletteBounds = it }, transitionChanged = transitionChanged,
+        statusHidden = session.zoomDialOpen,
         picture = {
             CompositionLocalProvider(LocalMonitorOperatorChromeEdit provides chromeEdit) {
                 Box(Modifier.matchParentSize().then(if (command) Modifier.alpha(0f) else Modifier)) { picture() }

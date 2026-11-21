@@ -975,6 +975,10 @@ public final class com/opencapture/monitorui/MonitorCardColumnsKt {
 	public static final fun monitorFullWidthCard (Landroidx/compose/ui/Modifier;)Landroidx/compose/ui/Modifier;
 }
 
+public final class com/opencapture/monitorui/MonitorChromeHiddenKt {
+	public static final fun monitorChromeHidden (Landroidx/compose/ui/Modifier;ZLandroidx/compose/runtime/Composer;I)Landroidx/compose/ui/Modifier;
+}
+
 public final class com/opencapture/monitorui/MonitorChromeInputKt {
 	public static final field MONITOR_MIN_TAP_TARGET_DP F
 	public static final fun monitorChromeClickable (Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;FLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)Landroidx/compose/ui/Modifier;

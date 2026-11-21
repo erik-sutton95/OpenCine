@@ -26,6 +26,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.isRunning
+import com.opencapture.monitorui.monitorChromeHidden
 import com.opencapture.opencine.cameracontrols.MonitorSettingsLiveStreamSource
 import com.opencapture.monitorui.livestream.LiveStreamMonitorControls
 import com.opencapture.monitorui.livestream.LiveStreamRootPill
@@ -160,9 +161,12 @@ fun LiveStreamHostEffects(coordinator: LiveStreamCoordinator) {
  * (an app places that box over its monitor picture). Confirming a start asks for the microphone
  * through the shared permission gate when the app does not hold it yet: the start runs once it is
  * granted; a refusal still goes through the coordinator, which ends with the microphone notice.
+ * [hidden] fades the control out while another control replaces it (the open zoom ruler, pass
+ * `session.zoomDialOpen`); it stays on screen for the coordinator, so the root pill stays away
+ * and a running stream is untouched.
  */
 @Composable
-fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = Modifier) {
+fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = Modifier, hidden: Boolean = false) {
     val state by coordinator.state.collectAsState()
     var startWhenGranted by remember { mutableStateOf(false) }
     val microphone = rememberPermissionGate(
@@ -194,7 +198,8 @@ fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = M
         onDispose { coordinator.monitorControlsGone() }
     }
     Box(modifier) {
-        LiveStreamMonitorControls(state, coordinator, Modifier.align(Alignment.TopCenter).padding(top = 10.dp)) {
+        LiveStreamMonitorControls(state, coordinator,
+            Modifier.align(Alignment.TopCenter).padding(top = 10.dp).monitorChromeHidden(hidden)) {
             if (microphone.granted) {
                 coordinator.goLive()
             } else {
@@ -207,9 +212,9 @@ fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = M
 
 /** [LiveStreamOverlay] over the shared live host's picture. */
 @Composable
-fun MonitorLiveFeedScope.LiveStreamOverlay(coordinator: LiveStreamCoordinator) {
+fun MonitorLiveFeedScope.LiveStreamOverlay(coordinator: LiveStreamCoordinator, hidden: Boolean = false) {
     val feed = geometry.layout.onFeed
-    LiveStreamOverlay(coordinator, Modifier.offset(feed.x.dp, feed.y.dp).size(feed.width.dp, feed.height.dp))
+    LiveStreamOverlay(coordinator, Modifier.offset(feed.x.dp, feed.y.dp).size(feed.width.dp, feed.height.dp), hidden)
 }
 
 /**
