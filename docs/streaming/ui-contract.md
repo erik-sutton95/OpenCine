@@ -60,7 +60,12 @@ permission gate (activity result). A `false` answer ends the start with `microph
   An app that states its route as Core's `RouteKind` maps it with the engine's
   `StreamConnectionRoute(_ kind: RouteKind)` (camera access point is the one blocked route).
 - `LiveStreamMonitorState`: the control, service name, quality, `encrypted`, status, end and warning.
-- `LiveStreamQuality`: `width`, `height`, `framesPerSecond`, `videoBitrateBps`.
+- `LiveStreamQuality`: `width`, `height`, `framesPerSecond`, `videoBitrateBps`, `kind`
+  (`LiveStreamQualityKind`: `source`, `upscaled`).
+- `LiveStreamQualityOption`: `id`, `title`, `detail`, `unavailableReason` (an option with a reason is
+  listed but cannot be chosen). The settings state carries `qualityOptions` and `selectedQualityID`
+  (Kotlin `selectedQualityId`); the ids are the engine's `StreamQualityChoice` raw values
+  (`cameraFeed`, `upscaled1080p`).
 - `LiveStreamPhase`: `idle`, `connecting`, `live`, `reconnecting(attempt)`, `ended(LiveStreamEnd)`.
 - `LiveStreamEnd`: `stopped`, `refused(reason)`, `gaveUp`, `unreachable`, `background`,
   `microphoneDenied`.
@@ -82,6 +87,7 @@ Card title: `Live stream`. Rows in order:
 | | saved: value `Saved` and a `Remove` pill | `monitor.livestream.key.saved`, `monitor.livestream.key.remove` | Remove asks once (below) |
 | | unavailable: note | `monitor.livestream.key.unavailable` | No Save, no Remove |
 | Quality | Value | `monitor.livestream.quality` | Vertical services add the vertical note (`monitor.livestream.verticalNote`) |
+| | With two or more choices: a picker of the choice titles, then the value, then the selected choice's detail or unavailable reason as a note | `monitor.livestream.qualityChoice`, `monitor.livestream.qualityDetail` | Locked while a stream runs |
 | Go live button on the monitor | Switch, default on | `monitor.livestream.showOnMonitor` | |
 | Eligibility | Note, only when not `allowed` | `monitor.livestream.eligibility` | The long reason |
 | Locked | Note, only while connecting, live or reconnecting | `monitor.livestream.lockedWhileLive` | Service, server and key are disabled while a stream runs |
@@ -188,6 +194,17 @@ Identifier `monitor.livestream.warning`. The stream never stops for these.
 `<height>p, <fps> fps, <bitrate>`; fps is a whole number unless fractional (`29.97`); bitrate as in
 the status readout. Example: `720p, 30 fps, 3 Mbps`. A vertical output names its short side:
 `720p vertical, 30 fps, 3 Mbps`. Before a camera is connected: `Set from the camera when you go live.`
+
+Quality choices, offered for the connected source (the remembered choice applies only while it is
+offered; otherwise the stream uses Camera feed):
+
+| Choice id | Title | Detail | Offered when |
+|---|---|---|---|
+| `cameraFeed` | `Camera feed` | none | always |
+| `upscaled1080p` | `1080p upscaled` | `The camera feed scaled up to 1080p, with your LUT.` | the source's short side is below 1080 |
+
+An upscaled output always says so in its line: `1080p upscaled, 30 fps, 6 Mbps` (vertical:
+`1080p vertical upscaled, ...`); the start confirmation uses the same line.
 
 Vertical note: `This service takes a vertical picture: the stream is a 9:16 center crop of the camera picture, about <w> pixels wide from a <h>p feed before scaling.`
 (`<w>` is the source height times 9 / 16, rounded down; `405` from 720p.)

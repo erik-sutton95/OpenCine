@@ -65,25 +65,38 @@ public enum LiveStreamEligibility: Hashable, Sendable {
     }
 }
 
+/// Where the stream's picture size comes from.
+public enum LiveStreamQualityKind: Hashable, Sendable {
+    /// The camera picture at its own size.
+    case source
+    /// The camera picture scaled up: always named as upscaled.
+    case upscaled
+}
+
 /// The stream's fixed output, set at go-live.
 public struct LiveStreamQuality: Hashable, Sendable {
     public var width: Int
     public var height: Int
     public var framesPerSecond: Double
     public var videoBitrateBps: Int
+    public var kind: LiveStreamQualityKind
 
-    public init(width: Int, height: Int, framesPerSecond: Double, videoBitrateBps: Int) {
+    public init(
+        width: Int, height: Int, framesPerSecond: Double, videoBitrateBps: Int, kind: LiveStreamQualityKind = .source
+    ) {
         self.width = width
         self.height = height
         self.framesPerSecond = framesPerSecond
         self.videoBitrateBps = videoBitrateBps
+        self.kind = kind
     }
 
     public var isVertical: Bool { height > width }
 
-    /// `720p, 30 fps, 3 Mbps`; a vertical output names its short side: `720p vertical, ...`.
+    /// `720p, 30 fps, 3 Mbps`; a vertical output names its short side: `720p vertical, ...`; an
+    /// upscaled output says so: `1080p upscaled, ...`.
     public var line: String {
-        let size = "\(min(width, height))p" + (isVertical ? " vertical" : "")
+        let size = "\(min(width, height))p" + (isVertical ? " vertical" : "") + (kind == .upscaled ? " upscaled" : "")
         return "\(size), \(LiveStreamCopy.number(framesPerSecond, decimals: 2)) fps, "
             + LiveStreamCopy.bitrate(videoBitrateBps)
     }
@@ -321,6 +334,25 @@ public struct LiveStreamPillState: Hashable, Sendable {
     public var stopAccessibilityLabel: String { "Stop the stream to \(serviceName)" }
 }
 
+/// One Quality choice on the settings card. An unavailable choice is listed but cannot be chosen;
+/// its reason shows under the row.
+public struct LiveStreamQualityOption: Hashable, Sendable, Identifiable {
+    public var id: String
+    public var title: String
+    /// One line under the row while this choice is selected.
+    public var detail: String?
+    public var unavailableReason: String?
+
+    public init(id: String, title: String, detail: String? = nil, unavailableReason: String? = nil) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.unavailableReason = unavailableReason
+    }
+
+    public var isEnabled: Bool { unavailableReason == nil }
+}
+
 /// The settings card's values.
 public struct LiveStreamSettingsState: Hashable, Sendable {
     public var services: [LiveStreamServiceOption]
@@ -337,12 +369,18 @@ public struct LiveStreamSettingsState: Hashable, Sendable {
     public var phase: LiveStreamPhase
     /// The last Save's refusal.
     public var problem: LiveStreamProblem?
+    /// The Quality choices for the connected source; a picker shows with two or more.
+    public var qualityOptions: [LiveStreamQualityOption]
+    public var selectedQualityID: String
 
     public init(
         services: [LiveStreamServiceOption], selectedID: String, server: String, key: LiveStreamKeyState,
         quality: LiveStreamQuality?, sourceHeight: Int?, eligibility: LiveStreamEligibility, showOnMonitor: Bool,
-        phase: LiveStreamPhase, problem: LiveStreamProblem? = nil
+        phase: LiveStreamPhase, problem: LiveStreamProblem? = nil, qualityOptions: [LiveStreamQualityOption] = [],
+        selectedQualityID: String = "cameraFeed"
     ) {
+        self.qualityOptions = qualityOptions
+        self.selectedQualityID = selectedQualityID
         self.services = services
         self.selectedID = selectedID
         self.server = server
@@ -372,6 +410,10 @@ public struct LiveStreamSettingsState: Hashable, Sendable {
     public var keyValueText: String? { key == .saved ? "Saved" : nil }
     public var keyUnavailableNote: String? { key == .unavailable ? "Unlock this phone to read the saved key." : nil }
     public var qualityLine: String { quality?.line ?? "Set from the camera when you go live." }
+    public var showsQualityPicker: Bool { qualityOptions.count > 1 }
+    public var selectedQuality: LiveStreamQualityOption? { qualityOptions.first { $0.id == selectedQualityID } }
+    /// Under the Quality row: why the selected choice is unavailable, or its one-line detail.
+    public var qualityDetail: String? { selectedQuality.flatMap { $0.unavailableReason ?? $0.detail } }
     public var verticalNote: String? {
         guard selected?.vertical == true else { return nil }
         let height = sourceHeight ?? 720
@@ -392,6 +434,9 @@ public enum LiveStreamCopy {
     public static let keyTitle = "Stream key"
     public static let keyPlaceholder = "Paste stream key"
     public static let qualityTitle = "Quality"
+    public static let qualityCameraFeed = "Camera feed"
+    public static let qualityUpscaled = "1080p upscaled"
+    public static let qualityUpscaledDetail = "The camera feed scaled up to 1080p, with your LUT."
     public static let showOnMonitorTitle = "Go live button on the monitor"
     public static let lockedWhileLive = "Settings are locked while a stream runs."
     public static let save = "Save"

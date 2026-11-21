@@ -184,4 +184,37 @@ struct LiveStreamPresentationTests {
         let retry = LiveStreamPillState(phase: .reconnecting(attempt: 2), serviceName: "Service A", elapsedSeconds: 9)
         #expect(retry.title == "Reconnecting" && retry.accessibilityLabel == "Reconnecting to Service A, attempt 2")
     }
+
+    @Test func upscaledQualityLineSaysUpscaled() {
+        let upscaled = LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000,
+            kind: .upscaled)
+        #expect(upscaled.line == "1080p upscaled, 30 fps, 6 Mbps")
+        let vertical = LiveStreamQuality(width: 1080, height: 1920, framesPerSecond: 30, videoBitrateBps: 6_000_000,
+            kind: .upscaled)
+        #expect(vertical.line == "1080p vertical upscaled, 30 fps, 6 Mbps")
+        #expect(LiveStreamCopy.startMessage(quality: upscaled, encrypted: true).hasPrefix("1080p upscaled, 30 fps"))
+        let source = LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000)
+        #expect(source.line == "1080p, 30 fps, 6 Mbps")
+    }
+
+    @Test func qualityPickerShowsOnlyWithChoices() {
+        let feed = LiveStreamQualityOption(id: "cameraFeed", title: LiveStreamCopy.qualityCameraFeed)
+        let upscaled = LiveStreamQualityOption(id: "upscaled1080p", title: LiveStreamCopy.qualityUpscaled,
+            detail: LiveStreamCopy.qualityUpscaledDetail)
+        var state = Self.settings()
+        #expect(!state.showsQualityPicker)
+        state.qualityOptions = [feed]
+        #expect(!state.showsQualityPicker)
+        state.qualityOptions = [feed, upscaled]
+        #expect(state.showsQualityPicker)
+        #expect(state.qualityDetail == nil)
+        state.selectedQualityID = "upscaled1080p"
+        #expect(state.selectedQuality?.title == "1080p upscaled")
+        #expect(state.qualityDetail == "The camera feed scaled up to 1080p, with your LUT.")
+        let unavailable = LiveStreamQualityOption(id: "x", title: "X", unavailableReason: "Not now.")
+        #expect(!unavailable.isEnabled && feed.isEnabled)
+        state.qualityOptions = [feed, unavailable]
+        state.selectedQualityID = "x"
+        #expect(state.qualityDetail == "Not now.")
+    }
 }

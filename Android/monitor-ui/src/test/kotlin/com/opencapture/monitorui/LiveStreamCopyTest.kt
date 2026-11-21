@@ -2,6 +2,7 @@ package com.opencapture.monitorui
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -26,6 +27,34 @@ class LiveStreamCopyTest {
         assertEquals("850 kbps", LiveStreamCopy.bitrate(850_000))
         assertEquals("3.1 megabits per second", LiveStreamCopy.spokenBitrate(3_100_000))
         assertEquals("850 kilobits per second", LiveStreamCopy.spokenBitrate(850_000))
+    }
+
+    @Test
+    fun upscaledQualityLineSaysUpscaled() {
+        val upscaled = LiveStreamQuality(1920, 1080, 30.0, 6_000_000, LiveStreamQualityKind.UPSCALED)
+        assertEquals("1080p upscaled, 30 fps, 6 Mbps", LiveStreamCopy.quality(upscaled))
+        assertEquals(
+            "1080p vertical upscaled, 30 fps, 6 Mbps",
+            LiveStreamCopy.quality(LiveStreamQuality(1080, 1920, 30.0, 6_000_000, LiveStreamQualityKind.UPSCALED)),
+        )
+        assertTrue(LiveStreamCopy.startMessage(LiveStreamCopy.quality(upscaled), plain = false).startsWith("1080p upscaled, 30 fps"))
+    }
+
+    @Test
+    fun qualityPickerShowsOnlyWithChoices() {
+        val feed = LiveStreamQualityOption("cameraFeed", LiveStreamCopy.QUALITY_CAMERA_FEED)
+        val upscaled = LiveStreamQualityOption("upscaled1080p", LiveStreamCopy.QUALITY_UPSCALED, LiveStreamCopy.QUALITY_UPSCALED_DETAIL)
+        assertFalse(LiveStreamState().showsQualityPicker)
+        assertFalse(LiveStreamState(qualityOptions = listOf(feed)).showsQualityPicker)
+        val both = LiveStreamState(qualityOptions = listOf(feed, upscaled))
+        assertTrue(both.showsQualityPicker)
+        assertNull(both.qualityDetail)
+        val chosen = both.copy(selectedQualityId = "upscaled1080p")
+        assertEquals("1080p upscaled", chosen.selectedQuality?.title)
+        assertEquals("The camera feed scaled up to 1080p, with your LUT.", chosen.qualityDetail)
+        val unavailable = LiveStreamQualityOption("x", "X", unavailableReason = "Not now.")
+        assertFalse(unavailable.enabled)
+        assertEquals("Not now.", LiveStreamState(qualityOptions = listOf(feed, unavailable), selectedQualityId = "x").qualityDetail)
     }
 
     @Test

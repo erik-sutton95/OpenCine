@@ -24,12 +24,36 @@ enum class LiveStreamKeyState { ABSENT, SAVED, UNAVAILABLE }
 /** Whether the connection route can reach the internet besides the camera link. */
 enum class LiveStreamEligibility { ALLOWED, CAMERA_WIFI, NO_CAMERA }
 
+/** Where the stream's picture size comes from. */
+enum class LiveStreamQualityKind {
+    /** The camera picture at its own size. */
+    SOURCE,
+
+    /** The camera picture scaled up: always named as upscaled. */
+    UPSCALED,
+}
+
 data class LiveStreamQuality(
     val width: Int,
     val height: Int,
     val framesPerSecond: Double,
     val videoBitrateBps: Int,
+    val kind: LiveStreamQualityKind = LiveStreamQualityKind.SOURCE,
 )
+
+/**
+ * One Quality choice on the settings card. An unavailable choice is listed but cannot be chosen;
+ * its reason shows under the row.
+ */
+data class LiveStreamQualityOption(
+    val id: String,
+    val title: String,
+    /** One line under the row while this choice is selected. */
+    val detail: String? = null,
+    val unavailableReason: String? = null,
+) {
+    val enabled: Boolean get() = unavailableReason == null
+}
 
 sealed interface LiveStreamEnd {
     data object Stopped : LiveStreamEnd
@@ -178,12 +202,16 @@ object LiveStreamCopy {
     }
 
     const val QUALITY_UNKNOWN = "Set from the camera when you go live."
+    const val QUALITY_CAMERA_FEED = "Camera feed"
+    const val QUALITY_UPSCALED = "1080p upscaled"
+    const val QUALITY_UPSCALED_DETAIL = "The camera feed scaled up to 1080p, with your LUT."
 
     fun quality(quality: LiveStreamQuality?): String {
         quality ?: return QUALITY_UNKNOWN
         val vertical = quality.height > quality.width
         val short = minOf(quality.width, quality.height)
-        val shape = if (vertical) "${short}p vertical" else "${short}p"
+        val upscaled = if (quality.kind == LiveStreamQualityKind.UPSCALED) " upscaled" else ""
+        val shape = (if (vertical) "${short}p vertical" else "${short}p") + upscaled
         return "$shape, ${framesPerSecond(quality.framesPerSecond)} fps, ${bitrate(quality.videoBitrateBps)}"
     }
 
@@ -288,7 +316,16 @@ data class LiveStreamState(
     val phase: LiveStreamPhase = LiveStreamPhase.Idle,
     val status: LiveStreamStatusState? = null,
     val warnings: Set<LiveStreamWarning> = emptySet(),
+    /** The Quality choices for the connected source; a picker shows with two or more. */
+    val qualityOptions: List<LiveStreamQualityOption> = emptyList(),
+    val selectedQualityId: String = "cameraFeed",
 ) {
+    val showsQualityPicker: Boolean get() = qualityOptions.size > 1
+    val selectedQuality: LiveStreamQualityOption? get() = qualityOptions.firstOrNull { it.id == selectedQualityId }
+
+    /** Under the Quality row: why the selected choice is unavailable, or its one-line detail. */
+    val qualityDetail: String? get() = selectedQuality?.let { it.unavailableReason ?: it.detail }
+
     val selected: LiveStreamServiceOption? get() = services.firstOrNull { it.id == selectedServiceId } ?: services.firstOrNull()
 
     /** The server is plain `rtmp://` on a service that accepts it: the stream travels unencrypted. */
@@ -316,6 +353,9 @@ interface LiveStreamActions {
     fun removeKey()
 
     fun setShowOnMonitor(show: Boolean)
+
+    /** Chooses a Quality option by id; ignored while a stream runs or for an unavailable one. */
+    fun selectQuality(id: String) {}
 
     /** Starts after the operator confirmed. */
     fun goLive()
