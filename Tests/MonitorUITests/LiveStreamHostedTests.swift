@@ -87,6 +87,28 @@ final class LiveStreamHostedTests: XCTestCase {
         XCTAssertEqual(detail.accessibilityLabel, "The camera feed scaled up to 1080p, with your LUT.")
     }
 
+    func testCameraStatusReadsOneLineAndOffersRetryWhenLost() async throws {
+        var retried = 0
+        let state = LiveStreamMonitorState(
+            control: LiveStreamControlState(phase: .live, eligibility: .allowed, serviceName: "Service A",
+                elapsedSeconds: 60),
+            serviceName: "Service A",
+            quality: LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000,
+                kind: .camera),
+            encrypted: true, status: nil, end: nil, warning: nil, cameraStatus: .lost)
+        let actions = LiveStreamMonitorActions(start: {}, stop: {}, restart: {}, dismissNotice: {},
+            retryCamera: { retried += 1 })
+        let (view, window) = mount(LiveStreamMonitorControls(state: state, actions: actions))
+        defer { window.isHidden = true }
+        let line = try await element("monitor.livestream.cameraStatus", in: view)
+        XCTAssertEqual(line.accessibilityLabel, "The camera's stream did not come back.")
+        let retry = try await element("monitor.livestream.cameraRetry", in: view)
+        // The shared action pill shows its title in capitals.
+        XCTAssertEqual(retry.accessibilityLabel?.lowercased(), "retry")
+        XCTAssertTrue(retry.accessibilityActivate())
+        XCTAssertEqual(retried, 1)
+    }
+
     func testAppPillReadsTheStreamAndOffersStop() async throws {
         let pill = LiveStreamPillState(phase: .live, serviceName: "Service A", elapsedSeconds: 65)
         let (view, window) = mount(LiveStreamPill(state: pill, stop: {}))

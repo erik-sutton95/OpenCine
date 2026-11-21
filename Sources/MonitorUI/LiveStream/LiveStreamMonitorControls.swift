@@ -7,9 +7,16 @@ public struct LiveStreamMonitorActions {
     public var stop: () -> Void
     public var restart: () -> Void
     public var dismissNotice: () -> Void
+    /// Starts over one of the offered networks (by `LiveStreamNetworkChoice.id`) after the confirmation.
+    public var startOnNetwork: (String) -> Void
+    /// Asks the camera to start its own stream again while the outgoing stream stays up.
+    public var retryCamera: () -> Void
 
     public init(start: @escaping () -> Void, stop: @escaping () -> Void, restart: @escaping () -> Void,
-        dismissNotice: @escaping () -> Void) {
+        dismissNotice: @escaping () -> Void, startOnNetwork: @escaping (String) -> Void = { _ in },
+        retryCamera: @escaping () -> Void = {}) {
+        self.startOnNetwork = startOnNetwork
+        self.retryCamera = retryCamera
         self.start = start
         self.stop = stop
         self.restart = restart
@@ -33,6 +40,7 @@ public struct LiveStreamMonitorControls: View {
         VStack(spacing: 6) {
             LiveStreamGoLiveButton(control: state.control) { confirming = state.control.tap }
             if let status = state.status { LiveStreamStatusReadout(status: status) }
+            if let camera = state.cameraStatus { cameraStatusView(camera) }
             if let warning = state.warning {
                 capsuleText(warning.text, color: MonitorTheme.linkHealthColor(.watch))
                     .accessibilityIdentifier("monitor.livestream.warning")
@@ -42,7 +50,13 @@ public struct LiveStreamMonitorControls: View {
         .frame(maxWidth: 340)
         .alert(LiveStreamCopy.startTitle(service: state.serviceName),
             isPresented: binding(.confirmStart)) {
-            Button(LiveStreamCopy.startConfirm) { actions.start() }
+            if state.networkChoices.count > 1 {
+                ForEach(state.networkChoices) { network in
+                    Button(LiveStreamCopy.startOnNetwork(network.name)) { actions.startOnNetwork(network.id) }
+                }
+            } else {
+                Button(LiveStreamCopy.startConfirm) { actions.start() }
+            }
             Button(LiveStreamCopy.cancel, role: .cancel) {}
         } message: {
             Text(LiveStreamCopy.startMessage(quality: state.quality, encrypted: state.encrypted))
@@ -78,6 +92,20 @@ public struct LiveStreamMonitorControls: View {
         .padding(12)
         .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: MonitorTheme.radius))
         .overlay(RoundedRectangle(cornerRadius: MonitorTheme.radius).stroke(MonitorTheme.border))
+    }
+
+    private func cameraStatusView(_ camera: LiveStreamCameraStatus) -> some View {
+        VStack(spacing: 6) {
+            Text(camera.text).font(MonitorTheme.font(11, weight: .semibold)).foregroundStyle(MonitorTheme.text)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("monitor.livestream.cameraStatus")
+            if camera.offersRetry {
+                MonitorSettingsActionPill(title: LiveStreamCopy.cameraRetry) { actions.retryCamera() }
+                    .accessibilityIdentifier("monitor.livestream.cameraRetry")
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func capsuleText(_ text: String, color: Color) -> some View {

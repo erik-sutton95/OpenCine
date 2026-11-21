@@ -46,6 +46,7 @@ case StreamMediaPacket.audio([Swift.UInt8], Swift.UInt32)
 case StreamMediaPacket.audioConfig([Swift.UInt8])
 case StreamMediaPacket.video([Swift.UInt8], Swift.Bool, Swift.UInt32, Swift.UInt32)
 case StreamMediaPacket.videoConfig([Swift.UInt8], [Swift.UInt8])
+case StreamQualityChoice.camera1080p
 case StreamQualityChoice.cameraFeed
 case StreamQualityChoice.upscaled1080p
 case StreamReconnectPolicy.Decision.giveUp

@@ -48,6 +48,9 @@ public enum StreamQualityChoice: String, CaseIterable, Hashable, Sendable {
     case cameraFeed
     /// The camera picture scaled up to a 1080p output, named as upscaled wherever it is shown.
     case upscaled1080p
+    /// The camera's own 1080p encoding, published to this device and relayed. Offered by the host
+    /// for a camera that declares `CameraStreamPublishing`, never from the source size alone.
+    case camera1080p
 
     /// The choices that apply to a source: the camera feed always, the upscaled output only for a
     /// known source whose short side is below 1080 lines.
@@ -71,7 +74,7 @@ public extension StreamOutputFormat {
         var width: Int
         var height: Int
         var bitrate: Int
-        if bestHeight >= 1080 || choice == .upscaled1080p {
+        if bestHeight >= 1080 || choice != .cameraFeed {
             (width, height, bitrate) = (1920, 1080, 6_000_000)
         } else if bestHeight >= 720 {
             (width, height, bitrate) = (1280, 720, 3_000_000)

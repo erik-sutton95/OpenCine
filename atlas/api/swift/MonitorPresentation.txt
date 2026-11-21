@@ -8,6 +8,11 @@ case CameraPairingCheck.State.complete
 case CameraPairingCheck.State.waiting
 case CameraPairingInstruction.Icon.camera
 case CameraPairingInstruction.Icon.phone
+case LiveStreamCameraStatus.live
+case LiveStreamCameraStatus.lost
+case LiveStreamCameraStatus.notResponding
+case LiveStreamCameraStatus.recovering
+case LiveStreamCameraStatus.starting
 case LiveStreamControlState.Tap.confirmStart
 case LiveStreamControlState.Tap.confirmStop
 case LiveStreamControlState.Tone.live
@@ -18,6 +23,8 @@ case LiveStreamEligibility.allowed
 case LiveStreamEligibility.cameraWiFi
 case LiveStreamEligibility.noCamera
 case LiveStreamEnd.background
+case LiveStreamEnd.cameraDidNotStart
+case LiveStreamEnd.cameraNotResponding
 case LiveStreamEnd.gaveUp
 case LiveStreamEnd.microphoneDenied
 case LiveStreamEnd.refused(Swift.String)
@@ -38,6 +45,7 @@ case LiveStreamProblem.emptyKey
 case LiveStreamProblem.invalidServer
 case LiveStreamProblem.keyLooksLikeURL
 case LiveStreamProblem.notRTMPS(Swift.Bool)
+case LiveStreamQualityKind.camera
 case LiveStreamQualityKind.source
 case LiveStreamQualityKind.upscaled
 case LiveStreamWarning.hot
@@ -253,6 +261,7 @@ case StartupLayoutProfile.wideLandscape
 enum CameraConnectStep.State: Equatable, Hashable, Sendable
 enum CameraPairingCheck.State: Equatable, Hashable, Sendable
 enum CameraPairingInstruction.Icon: Equatable, Hashable, Sendable
+enum LiveStreamCameraStatus: CaseIterable, Equatable, Hashable, Sendable
 enum LiveStreamControlState.Tap: Equatable, Hashable, Sendable
 enum LiveStreamControlState.Tone: Equatable, Hashable, Sendable
 enum LiveStreamCopy
@@ -483,7 +492,8 @@ init CameraPresentationDetail(_: Swift.String, _: Swift.String)
 init CameraSetupChip(id: Swift.String, title: Swift.String, isActive: Swift.Bool, canForget: Swift.Bool, kind: Swift.String?)
 init FieldMonitorLayout(width: Swift.Double, height: Swift.Double, safeArea: MonitorSafeArea, sourceAspect: Swift.Double, fill: Swift.Bool, showsValues: Swift.Bool, topControlInset: Swift.Double, joystick: MonitorJoystickSize, valueCount: Swift.Int?)
 init LiveStreamControlState(phase: LiveStreamPhase, eligibility: LiveStreamEligibility, serviceName: Swift.String, elapsedSeconds: Swift.Int)
-init LiveStreamMonitorState(control: LiveStreamControlState, serviceName: Swift.String, quality: LiveStreamQuality?, encrypted: Swift.Bool, status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?)
+init LiveStreamMonitorState(control: LiveStreamControlState, serviceName: Swift.String, quality: LiveStreamQuality?, encrypted: Swift.Bool, status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?, cameraStatus: LiveStreamCameraStatus?, networkChoices: [LiveStreamNetworkChoice])
+init LiveStreamNetworkChoice(id: Swift.String, name: Swift.String)
 init LiveStreamPillState(phase: LiveStreamPhase, serviceName: Swift.String, elapsedSeconds: Swift.Int)
 init LiveStreamQuality(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double, videoBitrateBps: Swift.Int, kind: LiveStreamQualityKind)
 init LiveStreamQualityOption(id: Swift.String, title: Swift.String, detail: Swift.String?, unavailableReason: Swift.String?)
@@ -914,6 +924,7 @@ static func LiveStreamCopy.removeMessage(service: Swift.String) -> Swift.String
 static func LiveStreamCopy.spokenBitrate(_: Swift.Int) -> Swift.String
 static func LiveStreamCopy.spokenElapsed(_: Swift.Int) -> Swift.String
 static func LiveStreamCopy.startMessage(quality: LiveStreamQuality?, encrypted: Swift.Bool) -> Swift.String
+static func LiveStreamCopy.startOnNetwork(_: Swift.String) -> Swift.String
 static func LiveStreamCopy.startTitle(service: Swift.String) -> Swift.String
 static func MonitorAssistPaletteLayout.fieldMonitor(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double) -> (layout: MonitorAssistPaletteLayout, frame: MonitorRect)
 static func MonitorAssistPaletteLayout.fieldMonitorFootprint(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double, expanded: Swift.Bool) -> MonitorRect
@@ -1058,6 +1069,7 @@ static let GimbalCluster.gap: Swift.Double
 static let GimbalCluster.inset: Swift.Double
 static let GimbalCluster.stickSize: Swift.Double
 static let GimbalCluster.zoomSize: Swift.Double
+static let LiveStreamCopy.cameraRetry: Swift.String
 static let LiveStreamCopy.cancel: Swift.String
 static let LiveStreamCopy.cardTitle: Swift.String
 static let LiveStreamCopy.dismiss: Swift.String
@@ -1067,7 +1079,10 @@ static let LiveStreamCopy.lockedWhileLive: Swift.String
 static let LiveStreamCopy.paste: Swift.String
 static let LiveStreamCopy.pillStop: Swift.String
 static let LiveStreamCopy.plainWarning: Swift.String
+static let LiveStreamCopy.qualityCamera: Swift.String
+static let LiveStreamCopy.qualityCameraDetail: Swift.String
 static let LiveStreamCopy.qualityCameraFeed: Swift.String
+static let LiveStreamCopy.qualityCameraNeedsNetwork: Swift.String
 static let LiveStreamCopy.qualityTitle: Swift.String
 static let LiveStreamCopy.qualityUpscaled: Swift.String
 static let LiveStreamCopy.qualityUpscaledDetail: Swift.String
@@ -1330,6 +1345,7 @@ struct FieldMonitorLayout: Equatable, Sendable
 struct GimbalCluster: Equatable, Sendable
 struct LiveStreamControlState: Equatable, Hashable, Sendable
 struct LiveStreamMonitorState: Equatable, Hashable, Sendable
+struct LiveStreamNetworkChoice: Equatable, Hashable, Identifiable, Sendable
 struct LiveStreamPillState: Equatable, Hashable, Sendable
 struct LiveStreamQuality: Equatable, Hashable, Sendable
 struct LiveStreamQualityOption: Equatable, Hashable, Identifiable, Sendable
@@ -1510,6 +1526,8 @@ var GimbalCluster.controls: MonitorLayoutRegion
 var GimbalCluster.headTrack: MonitorLayoutRegion
 var GimbalCluster.stick: MonitorLayoutRegion
 var GimbalCluster.zoom: MonitorLayoutRegion
+var LiveStreamCameraStatus.offersRetry: Swift.Bool
+var LiveStreamCameraStatus.text: Swift.String
 var LiveStreamControlState.accessibilityHint: Swift.String
 var LiveStreamControlState.accessibilityLabel: Swift.String
 var LiveStreamControlState.caption: Swift.String?
@@ -1522,13 +1540,17 @@ var LiveStreamEligibility.reason: Swift.String?
 var LiveStreamEligibility.shortReason: Swift.String?
 var LiveStreamEnd.notice: Swift.String?
 var LiveStreamEnd.offersRestart: Swift.Bool
+var LiveStreamMonitorState.cameraStatus: LiveStreamCameraStatus?
 var LiveStreamMonitorState.control: LiveStreamControlState
 var LiveStreamMonitorState.encrypted: Swift.Bool
 var LiveStreamMonitorState.end: LiveStreamEnd?
+var LiveStreamMonitorState.networkChoices: [LiveStreamNetworkChoice]
 var LiveStreamMonitorState.quality: LiveStreamQuality?
 var LiveStreamMonitorState.serviceName: Swift.String
 var LiveStreamMonitorState.status: LiveStreamStatusState?
 var LiveStreamMonitorState.warning: LiveStreamWarning?
+var LiveStreamNetworkChoice.id: Swift.String
+var LiveStreamNetworkChoice.name: Swift.String
 var LiveStreamPhase.isRunning: Swift.Bool
 var LiveStreamPillState.accessibilityLabel: Swift.String
 var LiveStreamPillState.serviceName: Swift.String

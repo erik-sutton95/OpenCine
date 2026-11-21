@@ -71,6 +71,8 @@ public enum LiveStreamQualityKind: Hashable, Sendable {
     case source
     /// The camera picture scaled up: always named as upscaled.
     case upscaled
+    /// The camera's own encoded picture, relayed: standard color, no LUT.
+    case camera
 }
 
 /// The stream's fixed output, set at go-live.
@@ -96,7 +98,12 @@ public struct LiveStreamQuality: Hashable, Sendable {
     /// `720p, 30 fps, 3 Mbps`; a vertical output names its short side: `720p vertical, ...`; an
     /// upscaled output says so: `1080p upscaled, ...`.
     public var line: String {
-        let size = "\(min(width, height))p" + (isVertical ? " vertical" : "") + (kind == .upscaled ? " upscaled" : "")
+        let suffix = switch kind {
+        case .source: ""
+        case .upscaled: " upscaled"
+        case .camera: " from camera"
+        }
+        let size = "\(min(width, height))p" + (isVertical ? " vertical" : "") + suffix
         return "\(size), \(LiveStreamCopy.number(framesPerSecond, decimals: 2)) fps, "
             + LiveStreamCopy.bitrate(videoBitrateBps)
     }
@@ -116,6 +123,10 @@ public enum LiveStreamEnd: Hashable, Sendable {
     case background
     /// Microphone access is off.
     case microphoneDenied
+    /// The camera did not start publishing its own stream, after one retry.
+    case cameraDidNotStart
+    /// The camera stopped answering while it was asked to start or end its own stream.
+    case cameraNotResponding
 
     public var notice: String? {
         switch self {
@@ -126,6 +137,10 @@ public enum LiveStreamEnd: Hashable, Sendable {
             "Could not reach the streaming server. Check this phone's internet connection, then go live again."
         case .background: "The stream ended when the app left the screen."
         case .microphoneDenied: "Allow microphone access in Settings to go live."
+        case .cameraDidNotStart:
+            "The camera did not start its stream. Try again, or choose Camera feed in the live stream settings."
+        case .cameraNotResponding:
+            "The camera stopped responding. Hold its power button about 10 seconds to restart it, then go live again."
         }
     }
 
@@ -189,6 +204,35 @@ public struct LiveStreamStatusState: Hashable, Sendable {
         return "Streaming for \(LiveStreamCopy.spokenElapsed(elapsedSeconds)). "
             + "Sending \(LiveStreamCopy.spokenBitrate(sentBitrateBps)). \(droppedGroups) dropped. "
             + "Connection \(connection)."
+    }
+}
+
+/// While the stream carries the camera's own picture: one line under the Go live control.
+public enum LiveStreamCameraStatus: Hashable, Sendable, CaseIterable {
+    case starting, live, recovering, lost, notResponding
+
+    public var text: String {
+        switch self {
+        case .starting: "Starting the camera's stream."
+        case .live: "1080p from camera. Assists, scopes and camera controls are off in this mode."
+        case .recovering: "The camera's stream stopped. Trying again."
+        case .lost: "The camera's stream did not come back."
+        case .notResponding: "The camera is not responding. Hold its power button about 10 seconds to restart it."
+        }
+    }
+
+    /// The operator may ask the camera to start again (the outgoing stream stays up meanwhile).
+    public var offersRetry: Bool { self == .lost || self == .notResponding }
+}
+
+/// A shared network the camera can join for its own stream, offered when there are several.
+public struct LiveStreamNetworkChoice: Hashable, Sendable, Identifiable {
+    public var id: String
+    public var name: String
+
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
     }
 }
 
@@ -295,9 +339,16 @@ public struct LiveStreamMonitorState: Hashable, Sendable {
     /// Why the last stream ended, when it ended for a reason other than the operator's stop.
     public var end: LiveStreamEnd?
     public var warning: LiveStreamWarning?
+    /// While the stream carries the camera's own picture.
+    public var cameraStatus: LiveStreamCameraStatus?
+    /// With two or more, the start confirmation offers one button per network, hotspot first.
+    public var networkChoices: [LiveStreamNetworkChoice]
 
     public init(control: LiveStreamControlState, serviceName: String, quality: LiveStreamQuality?, encrypted: Bool,
-        status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?) {
+        status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?,
+        cameraStatus: LiveStreamCameraStatus? = nil, networkChoices: [LiveStreamNetworkChoice] = []) {
+        self.cameraStatus = cameraStatus
+        self.networkChoices = networkChoices
         self.control = control
         self.serviceName = serviceName
         self.quality = quality
@@ -437,6 +488,11 @@ public enum LiveStreamCopy {
     public static let qualityCameraFeed = "Camera feed"
     public static let qualityUpscaled = "1080p upscaled"
     public static let qualityUpscaledDetail = "The camera feed scaled up to 1080p, with your LUT."
+    public static let qualityCamera = "1080p from camera"
+    public static let qualityCameraDetail = "Sharper picture, encoded by the camera, standard color, no LUT."
+    public static let qualityCameraNeedsNetwork = "Save a shared network in the camera's Wi-Fi setup to use this."
+    public static let cameraRetry = "Retry"
+    public static func startOnNetwork(_ name: String) -> String { "Go live over \(name)" }
     public static let showOnMonitorTitle = "Go live button on the monitor"
     public static let lockedWhileLive = "Settings are locked while a stream runs."
     public static let save = "Save"
@@ -453,8 +509,10 @@ public enum LiveStreamCopy {
     public static func startTitle(service: String) -> String { "Go live on \(service)?" }
     public static func startMessage(quality: LiveStreamQuality?, encrypted: Bool) -> String {
         let lead = quality.map { "\($0.line). " } ?? ""
-        let message = lead + "The camera picture goes out with the monitor LUT; assists and controls do not. "
-            + "Camera recording is separate."
+        let body = quality?.kind == .camera
+            ? "The camera's own picture goes out in standard color, without the monitor LUT, with the camera's sound. "
+            : "The camera picture goes out with the monitor LUT; assists and controls do not. "
+        let message = lead + body + "Camera recording is separate."
         return encrypted ? message : message + "\n\nNot encrypted: the stream and its key travel in the clear."
     }
     public static let startConfirm = "Go live"

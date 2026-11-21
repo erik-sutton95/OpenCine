@@ -22,7 +22,9 @@ extension LiveStreamCoordinator {
             start: { [weak self] in self?.start() },
             stop: { [weak self] in self?.stop() },
             restart: { [weak self] in self?.restart() },
-            dismissNotice: { [weak self] in self?.dismissNotice() })
+            dismissNotice: { [weak self] in self?.dismissNotice() },
+            startOnNetwork: { [weak self] in self?.start(network: $0) },
+            retryCamera: { [weak self] in self?.retryCamera() })
     }
 }
 
@@ -78,6 +80,21 @@ extension View {
     }
 }
 
+@MainActor private final class TerminationFlag {
+    var done = false
+}
+
+/// One background task, ended once (by the work finishing or by its expiration).
+@MainActor private final class BackgroundTask {
+    var id: UIBackgroundTaskIdentifier = .invalid
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
+    }
+}
+
 @MainActor private struct LiveStreamLifecycleModifier: ViewModifier {
     let coordinator: LiveStreamCoordinator
     @Environment(\.scenePhase) private var phase
@@ -92,11 +109,30 @@ extension View {
             .onChange(of: phase) { _, value in
                 guard value == .background, coordinator.isRunning else { return }
                 // A short task lets the polite goodbye reach the server before suspension.
-                let task = UIApplication.shared.beginBackgroundTask(withName: "live-stream-end", expirationHandler: nil)
-                coordinator.sceneDidEnterBackground()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    if task != .invalid { UIApplication.shared.endBackgroundTask(task) }
+                let task = BackgroundTask()
+                task.id = UIApplication.shared.beginBackgroundTask(withName: "live-stream-end") {
+                    MainActor.assumeIsolated { task.end() }
                 }
+                coordinator.sceneDidEnterBackground()
+                // A camera streaming on its own is also told to end (a bounded camera command).
+                Task {
+                    async let goodbye: Void = Task.sleep(for: .seconds(2))
+                    await coordinator.cameraStreamEnded()
+                    try? await goodbye
+                    task.end()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+                // No guard: a camera end still running after the background must go out too.
+                // Best effort before the process ends: keep the main run loop turning (the camera's
+                // end command runs on the main actor) for at most 4 seconds.
+                let ending = TerminationFlag()
+                Task { @MainActor in
+                    await coordinator.prepareForTermination()
+                    ending.done = true
+                }
+                let deadline = Date().addingTimeInterval(4)
+                while !ending.done, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
             }
             .onChange(of: coordinator.isRunning) { _, running in
                 if running { UIDevice.current.isBatteryMonitoringEnabled = true }

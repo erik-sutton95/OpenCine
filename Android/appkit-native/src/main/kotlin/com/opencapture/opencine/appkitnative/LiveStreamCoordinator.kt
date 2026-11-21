@@ -399,13 +399,20 @@ class LiveStreamCoordinator(
     private fun StreamOutputFormat.quality(choice: StreamQualityChoice) =
         LiveStreamQuality(
             width, height, framesPerSecond, videoBitrateBps,
-            if (choice == StreamQualityChoice.UPSCALED_1080P) LiveStreamQualityKind.UPSCALED else LiveStreamQualityKind.SOURCE,
+            when (choice) {
+                StreamQualityChoice.CAMERA_FEED -> LiveStreamQualityKind.SOURCE
+                StreamQualityChoice.UPSCALED_1080P -> LiveStreamQualityKind.UPSCALED
+                StreamQualityChoice.CAMERA_1080P -> LiveStreamQualityKind.CAMERA
+            },
         )
 
     private fun StreamQualityChoice.option() = when (this) {
         StreamQualityChoice.CAMERA_FEED -> LiveStreamQualityOption(wireName, LiveStreamCopy.QUALITY_CAMERA_FEED)
         StreamQualityChoice.UPSCALED_1080P ->
             LiveStreamQualityOption(wireName, LiveStreamCopy.QUALITY_UPSCALED, LiveStreamCopy.QUALITY_UPSCALED_DETAIL)
+        // Never offered here until the Android relay's hardware pass.
+        StreamQualityChoice.CAMERA_1080P ->
+            LiveStreamQualityOption(wireName, LiveStreamCopy.QUALITY_CAMERA, LiveStreamCopy.QUALITY_CAMERA_DETAIL)
     }
 
     private fun StreamServicePreset.option() = LiveStreamServiceOption(

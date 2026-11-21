@@ -84,6 +84,8 @@ object LiveStreamIds {
     const val QUALITY = "monitor.livestream.quality"
     const val QUALITY_CHOICE = "monitor.livestream.qualityChoice"
     const val QUALITY_DETAIL = "monitor.livestream.qualityDetail"
+    const val CAMERA_STATUS = "monitor.livestream.cameraStatus"
+    const val CAMERA_RETRY = "monitor.livestream.cameraRetry"
     const val VERTICAL_NOTE = "monitor.livestream.verticalNote"
     const val SHOW_ON_MONITOR = "monitor.livestream.showOnMonitor"
     const val ELIGIBILITY = "monitor.livestream.eligibility"
@@ -314,6 +316,15 @@ fun LiveStreamMonitorControls(
             }
         }
         if (state.phase.isRunning) state.status?.let { StatusReadout(it) }
+        state.cameraStatus?.let { camera ->
+            Bubble(Modifier.testTag(LiveStreamIds.CAMERA_STATUS)) {
+                Text(LiveStreamCopy.cameraStatus(camera), style = noteStyle, color = MonitorPalette.text)
+                if (camera.offersRetry) {
+                    MonitorSettingsActionPill(LiveStreamCopy.CAMERA_RETRY,
+                        modifier = Modifier.testTag(LiveStreamIds.CAMERA_RETRY), onClick = actions::retryCamera)
+                }
+            }
+        }
         val ended = state.phase as? LiveStreamPhase.Ended
         state.notice?.let { notice ->
             Bubble(Modifier.testTag(LiveStreamIds.NOTICE)) {
@@ -341,8 +352,20 @@ fun LiveStreamMonitorControls(
     if (confirmingStart) {
         AlertDialog(onDismissRequest = { confirmingStart = false },
             title = { Text(LiveStreamCopy.startTitle(service)) },
-            text = { Text(LiveStreamCopy.startMessage(LiveStreamCopy.quality(state.quality), state.plainServer)) },
-            confirmButton = { TextButton(onClick = { confirmingStart = false; onStart() }) { Text(LiveStreamCopy.GO_LIVE) } },
+            text = { Text(LiveStreamCopy.startMessage(state.quality, state.plainServer)) },
+            confirmButton = {
+                if (state.networkChoices.size > 1) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        for (network in state.networkChoices) {
+                            TextButton(onClick = { confirmingStart = false; actions.goLive(network.id) }) {
+                                Text(LiveStreamCopy.startOnNetwork(network.name))
+                            }
+                        }
+                    }
+                } else {
+                    TextButton(onClick = { confirmingStart = false; onStart() }) { Text(LiveStreamCopy.GO_LIVE) }
+                }
+            },
             dismissButton = { TextButton(onClick = { confirmingStart = false }) { Text(LiveStreamCopy.CANCEL) } })
     }
     if (confirmingStop) {
