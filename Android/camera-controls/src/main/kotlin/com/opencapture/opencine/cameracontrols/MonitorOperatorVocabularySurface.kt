@@ -282,7 +282,8 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
                         { zoom.commitCycle(LiveZoom.nextJump(zoom.cycleFrom(), stops)) }
                     },
                     presets = zoomPresets,
-                    onPresetsChange = { zoomPresets = it; source.preferences.setZoomPresets(context, it) })
+                    onPresetsChange = { zoomPresets = it; source.preferences.setZoomPresets(context, it) },
+                    clearance = com.opencapture.monitorui.MonitorZoomClearance.forLayout(layout))
             }
         }
         if (!capturePresented && showGimbal && !cluster.controls.isEmpty) {
