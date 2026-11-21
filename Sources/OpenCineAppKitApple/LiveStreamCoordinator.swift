@@ -396,8 +396,12 @@ extension StreamPublisher: LiveStreamPublishing {}
     /// camera does not stay live with nothing to receive it.
     public func prepareForTermination() async {
         if running != nil || cameraRun != nil { finish(.stopped, stopPublisher: true) }
-        await cameraEnding?.value
+        await cameraStreamEnded()
     }
+
+    /// Returns once the camera's stream has been ended and the camera handed back (at once when
+    /// none is ending), so a background task can cover the camera's end command.
+    public func cameraStreamEnded() async { await cameraEnding?.value }
 
     public func dismissNotice() {
         end = nil

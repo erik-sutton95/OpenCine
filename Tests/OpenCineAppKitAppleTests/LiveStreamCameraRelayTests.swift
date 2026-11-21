@@ -336,6 +336,24 @@ import Testing
         #expect(r.coordinator.settingsState.phase == .ended(.background))
     }
 
+    @Test func terminationEndsTheCameraStreamBeforeReturning() async {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        await live(r)
+        await r.coordinator.prepareForTermination()
+        #expect(Array(r.log.calls.suffix(2)) == ["endPublishing", "finished"])
+        #expect(!r.coordinator.cameraStreamActive)
+    }
+
+    @Test func theBackgroundWaitCoversTheCamerasEnd() async {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        await live(r)
+        r.coordinator.sceneDidEnterBackground()
+        await r.coordinator.cameraStreamEnded()
+        #expect(r.log.calls.last == "finished")
+    }
+
     @Test func severalNetworksAreOfferedHotspotFirst() async {
         guard #available(macOS 14.0, *) else { return }
         let r = rig()

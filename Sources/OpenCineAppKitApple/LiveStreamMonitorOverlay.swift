@@ -80,6 +80,10 @@ extension View {
     }
 }
 
+@MainActor private final class TerminationFlag {
+    var done = false
+}
+
 @MainActor private struct LiveStreamLifecycleModifier: ViewModifier {
     let coordinator: LiveStreamCoordinator
     @Environment(\.scenePhase) private var phase
@@ -96,9 +100,25 @@ extension View {
                 // A short task lets the polite goodbye reach the server before suspension.
                 let task = UIApplication.shared.beginBackgroundTask(withName: "live-stream-end", expirationHandler: nil)
                 coordinator.sceneDidEnterBackground()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                // A camera streaming on its own is also told to end (a bounded camera command).
+                Task {
+                    async let goodbye: Void = Task.sleep(for: .seconds(2))
+                    await coordinator.cameraStreamEnded()
+                    try? await goodbye
                     if task != .invalid { UIApplication.shared.endBackgroundTask(task) }
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+                guard coordinator.isRunning || coordinator.cameraStreamActive else { return }
+                // Best effort before the process ends: keep the main run loop turning (the camera's
+                // end command runs on the main actor) for at most 4 seconds.
+                let ending = TerminationFlag()
+                Task { @MainActor in
+                    await coordinator.prepareForTermination()
+                    ending.done = true
+                }
+                let deadline = Date().addingTimeInterval(4)
+                while !ending.done, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
             }
             .onChange(of: coordinator.isRunning) { _, running in
                 if running { UIDevice.current.isBatteryMonitoringEnabled = true }
