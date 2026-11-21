@@ -83,7 +83,11 @@ public struct StationJoin {
             allowMissingQuery: experimental
                 || MulticamSupport.acceptsMissingRoleQuery(model, reply: role))
         let missingRoleQuery = decision == .setWithoutReadback
-        log("station experimental=\(experimental) decision=\(decision)")
+        log(
+            "station role \(Duml.hex(role)) experimental=\(experimental) decision=\(decision)")
+        if MulticamStationPolicy.isUnrecognizedRole(role) {
+            log("station role \(Duml.hex(role)) (unrecognized), trying STA switch")
+        }
         if decision == .alreadyStation, probeExistingStation, !hotspot || hotspotReady() {
             status("Finding camera on Wi-Fi")
             if try await verifyOnNetwork() { return .verified }
@@ -93,6 +97,7 @@ public struct StationJoin {
             let switched = try await exchange(
                 MulticamCommands.stationMode(true, seq: next()), 12
             ).payload
+            log("station switch reply \(Duml.hex(switched))")
             guard MulticamStationPolicy.acceptsSetter(switched, missingQuery: missingRoleQuery)
             else { throw Failure.roleRefused }
             // The missing-getter shape has no readback; its join result and LAN identity
@@ -107,7 +112,10 @@ public struct StationJoin {
                         stationReady = true
                         break
                     }
-                    guard reported == [0, 0] else { throw Failure.rejected }
+                    log("station role readback \(Duml.hex(reported))")
+                    // The starting role may repeat while the camera switches; anything
+                    // else is not a move toward station role.
+                    guard reported == [0, 0] || reported == role else { throw Failure.rejected }
                     try await sleep(2)
                 }
                 guard stationReady else { throw Failure.roleStarting }

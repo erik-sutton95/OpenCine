@@ -73,7 +73,14 @@ public enum MulticamStationPolicy {
         if reply == [0, 1] { return .alreadyStation }
         if reply == [0, 0] { return .setAndVerify }
         if reply == [0xe0], allowMissingQuery { return .setWithoutReadback }
+        // Pocket 4 Pro answered `00 08` on 2026-11-21. An unrecognized two-byte role tries
+        // the STA switch once, like AP; the `00 01` readback still decides.
+        if isUnrecognizedRole(reply) { return .setAndVerify }
         return .reject
+    }
+    /// A two-byte `00 xx` role other than the captured AP (`00 00`) and STA (`00 01`).
+    static func isUnrecognizedRole(_ reply: [UInt8]) -> Bool {
+        reply.count == 2 && reply[0] == 0 && reply[1] > 1
     }
     public static func acceptsSetter(_ reply: [UInt8], missingQuery: Bool) -> Bool {
         reply == [0, 0] || (missingQuery && reply == [0])
