@@ -2,68 +2,75 @@ package com.opencapture.monitorui
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Twin of `MonitorZoomRulerScaleTests.swift`. */
+/**
+ * Twin of `MonitorZoomRulerScaleTests.swift`. The ruler behaves like the other setting dials: the
+ * scale slides under a fixed center line and a drag moves it relative to where it started.
+ */
 class MonitorZoomRulerScaleTest {
-    @Test fun endsMapToMinimumAndMaximum() {
-        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0, length = 300.0)
-        assertEquals(0.0, scale.offsetFor(4.0))
-        assertEquals(300.0, scale.offsetFor(1.0))
-        assertEquals(4.0, scale.valueAtOffset(-20.0))
-        assertEquals(1.0, scale.valueAtOffset(999.0))
+    private val major = MonitorZoomRulerTick.Kind.MAJOR
+    private val mid = MonitorZoomRulerTick.Kind.MID
+
+    @Test fun dragMovesFromTheOriginByTenPointsPerStep() {
+        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0)
+        // The scale follows the finger: higher values sit above, so dragging down brings them in.
+        assertEquals(2.0, scale.dragged(origin = 2.0, translation = 0.0))
+        assertEquals(2.1, scale.dragged(origin = 2.0, translation = 10.0))
+        assertEquals(1.8, scale.dragged(origin = 2.0, translation = -25.0))
+        assertEquals(2.0, scale.dragged(origin = 2.0, translation = 4.0))
+        assertEquals(2.1, scale.dragged(origin = 2.0, translation = 6.0))
     }
 
-    @Test fun dragRoundsToTenths() {
-        // 10 dp per 0.1x.
-        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0, length = 300.0)
-        assertEquals(2.5, scale.valueAtOffset(150.0))
-        assertEquals(2.5, scale.valueAtOffset(146.0))
-        assertEquals(2.6, scale.valueAtOffset(144.0))
-        assertEquals(2.5, scale.quantized(2.549_999))
-        assertEquals(4.0, scale.quantized(9.0))
+    @Test fun dragStopsAtTheEndsAndComesBack() {
+        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0)
+        assertEquals(4.0, scale.dragged(origin = 3.5, translation = 900.0))
+        assertEquals(1.0, scale.dragged(origin = 1.2, translation = -900.0))
+        // A reading between tenths starts from that reading, then rounds.
+        assertEquals(2.6, scale.dragged(origin = 2.537, translation = 10.0))
     }
 
-    @Test fun tickKinds() {
-        val ticks = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0, length = 300.0).ticks
-        assertEquals(31, ticks.size)
-        assertEquals(
-            listOf(1.0, 2.0, 3.0, 4.0),
-            ticks.filter { it.kind == MonitorZoomRulerTick.Kind.MAJOR }.map { it.value },
-        )
-        assertEquals(
-            listOf(1.5, 2.5, 3.5),
-            ticks.filter { it.kind == MonitorZoomRulerTick.Kind.MID }.map { it.value },
-        )
-        assertEquals(150.0, ticks.first { it.value == 2.5 }.offset)
+    @Test fun offsetsAreRelativeToTheCenterLine() {
+        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0)
+        assertEquals(0.0, scale.offsetOf(2.0, center = 2.0))
+        assertEquals(-50.0, scale.offsetOf(2.5, center = 2.0))
+        assertEquals(50.0, scale.offsetOf(1.5, center = 2.0))
+        assertEquals(2.5, scale.valueAtOffset(-50.0, center = 2.0))
+        assertEquals(1.0, scale.valueAtOffset(999.0, center = 2.0))
     }
 
-    @Test fun denseRangeDropsTenthTicks() {
-        // 12x on a short landscape ruler: about 2.7 dp per 0.1x.
-        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 12.0, length = 300.0)
-        assertFalse(scale.ticks.any { it.kind == MonitorZoomRulerTick.Kind.MINOR })
-        assertEquals(11, scale.ticks.count { it.kind == MonitorZoomRulerTick.Kind.MID })
-        assertEquals(12, scale.ticks.count { it.kind == MonitorZoomRulerTick.Kind.MAJOR })
-        assertEquals(6.5, scale.valueAtOffset(150.0))
+    @Test fun tapSnapsToANearbyWholeStep() {
+        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0)
+        assertEquals(3.0, scale.tapped(-95.0, center = 2.0)) // 2.95, 5 dp from the 3x label
+        assertEquals(2.6, scale.tapped(-60.0, center = 2.0)) // far from a label: the tenth under the finger
+    }
+
+    @Test fun ticksCoverOnlyTheVisibleWindow() {
+        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 12.0)
+        val ticks = scale.ticks(center = 6.0, halfSpan = 100.0) // 5.0 ... 7.0
+        assertEquals(5.0, ticks.first().value)
+        assertEquals(7.0, ticks.last().value)
+        assertEquals(21, ticks.size)
+        assertEquals(listOf(5.0, 6.0, 7.0), ticks.filter { it.kind == major }.map { it.value })
+        assertEquals(listOf(5.5, 6.5), ticks.filter { it.kind == mid }.map { it.value })
+        assertEquals(-50.0, ticks.first { it.value == 6.5 }.offset)
+    }
+
+    @Test fun ticksStopAtTheRange() {
+        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 2.35)
+        val ticks = scale.ticks(center = 1.2, halfSpan = 300.0)
+        assertEquals(1.0, ticks.first().value)
+        assertEquals(2.3, ticks.last().value)
+        assertEquals(2.35, scale.dragged(origin = 2.2, translation = 50.0))
     }
 
     @Test fun noZoomRangeIsSafe() {
-        val flat = MonitorZoomRulerScale(minimum = 1.0, maximum = 1.0, length = 300.0)
-        assertEquals(1.0, flat.valueAtOffset(10.0))
-        assertTrue(flat.offsetFor(1.0).isFinite())
-        assertEquals(listOf(1.0), flat.ticks.map { it.value })
-        val broken = MonitorZoomRulerScale(minimum = 1.0, maximum = Double.NaN, length = 300.0)
-        assertEquals(1.0, broken.valueAtOffset(0.0))
-        val empty = MonitorZoomRulerScale(minimum = 1.0, maximum = 4.0, length = 0.0)
-        assertEquals(1.0, empty.valueAtOffset(0.0))
-        assertTrue(empty.offsetFor(2.0).isFinite())
-    }
-
-    @Test fun fractionalMaximumKeepsItsTop() {
-        val scale = MonitorZoomRulerScale(minimum = 1.0, maximum = 2.35, length = 270.0)
-        assertEquals(2.35, scale.valueAtOffset(0.0))
-        assertEquals(2.3, scale.ticks.last().value)
+        val flat = MonitorZoomRulerScale(minimum = 1.0, maximum = 1.0)
+        assertEquals(1.0, flat.dragged(origin = 1.0, translation = 40.0))
+        assertEquals(listOf(1.0), flat.ticks(center = 1.0, halfSpan = 100.0).map { it.value })
+        val broken = MonitorZoomRulerScale(minimum = 1.0, maximum = Double.NaN)
+        assertEquals(1.0, broken.dragged(origin = Double.NaN, translation = Double.POSITIVE_INFINITY))
+        assertTrue(broken.offsetOf(Double.NaN, center = 1.0).isFinite())
     }
 
     @Test fun readoutHasOneDecimal() {

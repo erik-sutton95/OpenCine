@@ -6,69 +6,83 @@ import kotlin.math.floor
 import kotlin.math.sign
 
 /**
- * The vertical zoom ruler's linear scale: the top is the camera's maximum, the bottom its
- * minimum, and every 0.1x step is the same drag distance. Offsets are dp from the top.
+ * The vertical zoom ruler's scale. It behaves like the other setting dials: the scale slides under
+ * a fixed center line, higher values above, and a drag moves it relative to where it started (the
+ * scale follows the finger, so dragging down zooms in). Every 0.1x step is the same drag distance.
+ * Offsets are dp from the center line, positive downward.
  * Swift twin: `MonitorZoomRulerScale` (MonitorPresentation).
  */
-class MonitorZoomRulerScale(minimum: Double, maximum: Double, length: Double) {
+class MonitorZoomRulerScale(minimum: Double, maximum: Double) {
     val minimum: Double = if (minimum.isFinite() && minimum > 0) minimum else 1.0
     val maximum: Double = if (maximum.isFinite()) maxOf(this.minimum, maximum) else this.minimum
-    val length: Double = if (length.isFinite()) maxOf(0.0, length) else 0.0
-
-    private val span: Double get() = maximum - minimum
 
     /** Clamped to the range and rounded to 0.1x; a maximum between tenths stays reachable. */
     fun quantized(value: Double): Double {
         if (!value.isFinite()) return minimum
-        val rounded = roundHalfAway(value * 10) / 10
-        return rounded.coerceIn(minimum, maximum)
+        return (roundHalfAway(value * 10) / 10).coerceIn(minimum, maximum)
     }
 
-    fun offsetFor(value: Double): Double {
-        if (span <= 0 || length <= 0 || !value.isFinite()) return length
-        val clamped = value.coerceIn(minimum, maximum)
-        return (maximum - clamped) / span * length
+    /** The value after a drag of [translation] dp (positive downward) that began at [origin]. */
+    fun dragged(origin: Double, translation: Double): Double {
+        val start = if (origin.isFinite()) origin else minimum
+        if (!translation.isFinite()) return quantized(start)
+        return quantized(start + translation / POINTS_PER_STEP * STEP)
     }
 
-    fun valueAtOffset(offset: Double): Double {
-        if (span <= 0 || length <= 0 || !offset.isFinite()) return minimum
-        val fraction = (offset / length).coerceIn(0.0, 1.0)
-        return quantized(maximum - fraction * span)
+    /** Where [value] sits relative to the center line showing [center] (negative is above). */
+    fun offsetOf(value: Double, center: Double): Double {
+        if (!value.isFinite() || !center.isFinite()) return 0.0
+        return (center - value) / STEP * POINTS_PER_STEP
     }
 
-    val ticks: List<MonitorZoomRulerTick>
-        get() {
-            val first = ceil(minimum * 10).toInt()
-            val last = floor(maximum * 10 + 1e-9).toInt()
-            if (first > last) return emptyList()
-            val tenthSpacing = if (span > 0) length / (span / STEP) else Double.POSITIVE_INFINITY
-            val showsTenths = tenthSpacing >= MINIMUM_TENTH_SPACING
-            return (first..last).mapNotNull { tenth ->
-                val kind = when {
-                    tenth % 10 == 0 -> MonitorZoomRulerTick.Kind.MAJOR
-                    tenth % 5 == 0 -> MonitorZoomRulerTick.Kind.MID
-                    else -> MonitorZoomRulerTick.Kind.MINOR
-                }
-                if (kind == MonitorZoomRulerTick.Kind.MINOR && !showsTenths) return@mapNotNull null
-                val value = tenth / 10.0
-                MonitorZoomRulerTick(value, offsetFor(value), kind)
+    /** The value under a point [offset] from the center line. */
+    fun valueAtOffset(offset: Double, center: Double): Double {
+        if (!offset.isFinite() || !center.isFinite()) return quantized(center)
+        return quantized(center - offset / POINTS_PER_STEP * STEP)
+    }
+
+    /** A tap goes to the whole step under the finger when it is close to one, else the tenth. */
+    fun tapped(offset: Double, center: Double): Double {
+        if (!offset.isFinite() || !center.isFinite()) return quantized(center)
+        val raw = center - offset / POINTS_PER_STEP * STEP
+        val whole = roundHalfAway(raw)
+        if (abs(offsetOf(whole, center) - offset) <= WHOLE_SNAP && whole >= minimum && whole <= maximum) return whole
+        return quantized(raw)
+    }
+
+    /** The ticks within [halfSpan] dp of the center line, inside the range. */
+    fun ticks(center: Double, halfSpan: Double): List<MonitorZoomRulerTick> {
+        if (!center.isFinite() || !halfSpan.isFinite() || halfSpan < 0) return emptyList()
+        val reach = halfSpan / POINTS_PER_STEP * STEP
+        val low = maxOf(minimum, center - reach)
+        val high = minOf(maximum, center + reach)
+        val first = ceil(low * 10 - 1e-9).toInt()
+        val last = floor(high * 10 + 1e-9).toInt()
+        if (first > last) return emptyList()
+        return (first..last).map { tenth ->
+            val kind = when {
+                tenth % 10 == 0 -> MonitorZoomRulerTick.Kind.MAJOR
+                tenth % 5 == 0 -> MonitorZoomRulerTick.Kind.MID
+                else -> MonitorZoomRulerTick.Kind.MINOR
             }
+            val value = tenth / 10.0
+            MonitorZoomRulerTick(value, offsetOf(value, center), kind)
         }
+    }
 
     override fun equals(other: Any?): Boolean =
-        other is MonitorZoomRulerScale &&
-            other.minimum == minimum && other.maximum == maximum && other.length == length
+        other is MonitorZoomRulerScale && other.minimum == minimum && other.maximum == maximum
 
-    override fun hashCode(): Int = (minimum.hashCode() * 31 + maximum.hashCode()) * 31 + length.hashCode()
+    override fun hashCode(): Int = minimum.hashCode() * 31 + maximum.hashCode()
 
-    override fun toString(): String =
-        "MonitorZoomRulerScale(minimum=$minimum, maximum=$maximum, length=$length)"
+    override fun toString(): String = "MonitorZoomRulerScale(minimum=$minimum, maximum=$maximum)"
 
     companion object {
         const val STEP = 0.1
-
-        /** Below this spacing per 0.1x the tenth ticks are left out (the drag still uses tenths). */
-        const val MINIMUM_TENTH_SPACING = 4.0
+        /** Drag distance per 0.1x in dp, like `MonitorDurationDial`'s 12 dp per step. */
+        const val POINTS_PER_STEP = 10.0
+        /** A tap this close (dp) to a whole-step tick goes to that whole step. */
+        const val WHOLE_SNAP = 12.0
 
         fun readout(value: Double): String {
             val shown = if (value.isFinite()) roundHalfAway(value * 10) / 10 else 1.0
@@ -80,6 +94,11 @@ class MonitorZoomRulerScale(minimum: Double, maximum: Double, length: Double) {
     }
 }
 
-data class MonitorZoomRulerTick(val value: Double, val offset: Double, val kind: Kind) {
+data class MonitorZoomRulerTick(
+    val value: Double,
+    /** dp from the center line, positive downward. */
+    val offset: Double,
+    val kind: Kind,
+) {
     enum class Kind { MINOR, MID, MAJOR }
 }

@@ -5500,19 +5500,21 @@ public final class com/opencapture/monitorui/MonitorZoomRulerKt {
 public final class com/opencapture/monitorui/MonitorZoomRulerScale {
 	public static final field $stable I
 	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomRulerScale$Companion;
-	public static final field MINIMUM_TENTH_SPACING D
+	public static final field POINTS_PER_STEP D
 	public static final field STEP D
-	public fun <init> (DDD)V
+	public static final field WHOLE_SNAP D
+	public fun <init> (DD)V
+	public final fun dragged (DD)D
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getLength ()D
 	public final fun getMaximum ()D
 	public final fun getMinimum ()D
-	public final fun getTicks ()Ljava/util/List;
 	public fun hashCode ()I
-	public final fun offsetFor (D)D
+	public final fun offsetOf (DD)D
 	public final fun quantized (D)D
+	public final fun tapped (DD)D
+	public final fun ticks (DD)Ljava/util/List;
 	public fun toString ()Ljava/lang/String;
-	public final fun valueAtOffset (D)D
+	public final fun valueAtOffset (DD)D
 }
 
 public final class com/opencapture/monitorui/MonitorZoomRulerScale$Companion {
