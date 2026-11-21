@@ -112,7 +112,7 @@ public struct MonitorOperatorZoomDial<Host: LiveChromeHost>: View {
                 var next = presets
                 next.setRamp(seconds)
                 store(next)
-            }))
+            }), rampPlacement: rampPlacement)
             .frame(width: layout.viewport.width, height: layout.viewport.height, alignment: .topLeading)
             .onAppear { presets = host.zoomPresetStore.presets }
             .onDisappear { stopRamp() }
@@ -131,6 +131,18 @@ public struct MonitorOperatorZoomDial<Host: LiveChromeHost>: View {
         let bottom = layout.showsBottomBars && !floors.isEmpty
             ? layout.viewport.height - (floors.min()! - edge) : layout.safeArea.bottom + edge
         return (top, bottom)
+    }
+
+    /// The camera value popups' own placement (`MonitorCapturePopupContainer`), from the bottom.
+    private var rampPlacement: MonitorCapturePopupLayout? {
+        guard let field = layout.presentation else { return nil }
+        let safe = MonitorSafeArea(top: layout.safeArea.top, leading: layout.safeArea.leading,
+            bottom: layout.safeArea.bottom, trailing: layout.safeArea.trailing)
+        return MonitorCapturePopupLayout(viewportWidth: field.viewport.width,
+            viewportHeight: field.viewport.height, tablet: field.tablet, safeArea: safe,
+            bottomBoundary: field.portrait ? field.system.y - 12 : field.viewport.height,
+            ceiling: max(8, safe.top + 4), edge: .bottom,
+            topBoundary: field.portrait ? field.status.maxY + 6 : 0)
     }
 
     private func store(_ next: MonitorZoomPresets) {

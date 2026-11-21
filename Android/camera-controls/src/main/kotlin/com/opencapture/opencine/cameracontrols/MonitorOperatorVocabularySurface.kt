@@ -296,7 +296,7 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
                     presets = zoomPresets,
                     onPresetsChange = { zoomPresets = it; source.preferences.setZoomPresets(context, it) },
                     clearance = com.opencapture.monitorui.MonitorZoomClearance.forLayout(layout),
-                    onDialOpenChange = { source.session.zoomDialOpen = it })
+                    onDialOpenChange = { source.session.zoomDialOpen = it }, layout = layout)
             }
         }
         if (!capturePresented && showGimbal && !cluster.controls.isEmpty) {

@@ -103,6 +103,8 @@ fun LiveZoomChip(
      * disposal), so the host can hide the chrome the ruler replaces.
      */
     onDialOpenChange: (Boolean) -> Unit = {},
+    /** The live layout: the zoom panel's ramp key opens the camera value popup at its place. */
+    layout: com.opencapture.monitorui.LiveMonitorLayout? = null,
 ) {
     val haptics = LocalOperatorHaptics.current
     val interaction = remember { MutableInteractionSource() }
@@ -148,7 +150,7 @@ fun LiveZoomChip(
                     onSave = { index -> onPresetsChange(saved.save(current, index)) },
                     onRamp = { seconds -> onPresetsChange(saved.withRamp(seconds)) })
             },
-            driven = driven, clearance = clearance)
+            driven = driven, clearance = clearance, layout = layout)
     }
     val orientation = LocalConfiguration.current.orientation
     LaunchedEffect(locked, orientation) { dialOpen = false }

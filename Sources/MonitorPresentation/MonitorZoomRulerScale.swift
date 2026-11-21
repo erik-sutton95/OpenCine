@@ -3,7 +3,8 @@ import Foundation
 /// The vertical zoom ruler's scale. It behaves like the other setting dials: the scale slides
 /// under a fixed center line, higher values above, and a drag moves it relative to where it
 /// started (the scale follows the finger, so dragging down zooms in). Every 0.1x step is the same
-/// drag distance. Offsets are points from the center line, positive downward.
+/// drag distance; the zoom itself moves smoothly between the 0.1x ticks. Offsets are points from
+/// the center line, positive downward.
 /// Kotlin twin: `MonitorZoomRulerScale` (monitor-ui).
 public struct MonitorZoomRulerScale: Equatable, Sendable {
     public static let step = 0.1
@@ -28,11 +29,24 @@ public struct MonitorZoomRulerScale: Equatable, Sendable {
         return min(maximum, max(minimum, rounded))
     }
 
+    /// Clamped to the range, not rounded.
+    public func clamped(_ value: Double) -> Double {
+        guard value.isFinite else { return minimum }
+        return min(maximum, max(minimum, value))
+    }
+
     /// The value after a drag of `translation` points (positive downward) that began at `origin`.
+    /// Smooth: it is not rounded to the ticks.
     public func dragged(from origin: Double, translation: Double) -> Double {
-        let start = origin.isFinite ? origin : minimum
-        guard translation.isFinite else { return quantized(start) }
-        return quantized(start + translation / Self.pointsPerStep * Self.step)
+        let start = clamped(origin)
+        guard translation.isFinite else { return start }
+        return clamped(start + translation / Self.pointsPerStep * Self.step)
+    }
+
+    /// The 0.1x tick at or below `value`: a change of it is one haptic step.
+    public static func tick(_ value: Double) -> Int {
+        guard value.isFinite else { return 0 }
+        return Int((value * 10 + 1e-9).rounded(.down))
     }
 
     /// Where `value` sits relative to the center line showing `center` (negative is above).
@@ -77,9 +91,9 @@ public struct MonitorZoomRulerScale: Equatable, Sendable {
         }
     }
 
+    /// The current zoom with two decimals, as smooth as the zoom moves: `2.53×`.
     public static func readout(_ value: Double) -> String {
-        let shown = value.isFinite ? (value * 10).rounded() / 10 : 1
-        return String(format: "%.1f×", shown)
+        String(format: "%.2f×", value.isFinite ? value : 1)
     }
 }
 

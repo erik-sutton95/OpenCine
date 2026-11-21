@@ -118,3 +118,14 @@ and match the glass chrome.
   (`OpenPocketCineUIReview`) and Android, compared against the mockup.
 - On device: drag steps and haptics feel right; chrome returns when the ruler closes; Go
   Live under the timecode while live.
+
+## Iteration 2 (owner, 2026-11-22, after trying it on the iPhone)
+
+- One element: the current zoom, the three presets, the ramp key and the ruler sit in a single
+  panel (RoundedRectangle, corner 14), more squared off than the first capsule. Preset slots and
+  the ramp key are 44 pt rounded squares (corner 10).
+- Smooth zoom: a drag moves the zoom with float precision; the 0.1x ticks and a light haptic per
+  0.1x crossing stay. The readout shows two decimals (`2.53×`). Taps still go to a tick.
+- The ramp key opens the same popup as the camera values (`MonitorCapturePanel` with a
+  `MonitorValueDrum` of the ramp choices, placed like `MonitorCapturePopupContainer`), not a
+  system menu.

@@ -22,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.round
@@ -36,7 +37,7 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class MonitorZoomInputTest {
-    @Test fun rulerScrollsUnderTheCenterLineInTenthsWhilePopupOwnsPointer() {
+    @Test fun rulerScrollsSmoothlyUnderTheCenterLineWhilePopupOwnsPointer() {
         ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
             val probe = ZoomNativeProbe()
             scenario.moveToState(Lifecycle.State.RESUMED)
@@ -72,35 +73,39 @@ class MonitorZoomInputTest {
             awaitPopup(scenario, probe)
             val ruler = checkNotNull(findZoomBounds())
             val dp = probe.density
-            val x = ruler.right - MonitorZoomRulerMetrics.WIDTH * dp / 2f
+            val x = ruler.right - MonitorZoomRulerMetrics.RULER_WIDTH * dp / 2f
             // The fixed center line sits at the ruler's middle; the scale slides under it.
             val center = Offset(x, ruler.exactCenterY())
+            fun ticks(values: List<Double>) = (listOf(2.0) + values).zipWithNext()
+                .count { (a, b) -> MonitorZoomRulerScale.tick(a) != MonitorZoomRulerScale.tick(b) }
 
-            // Like the other dials the scale follows the finger: 50 dp down from 2.0x is 2.5x.
+            // Past the 10 dp tap threshold the scale follows the finger smoothly: down 14 dp, then
+            // back up to 4 dp below the start, leaves 2.0x at about 2.04x.
+            play(listOf(center, Offset(x, center.y + 14f * dp), Offset(x, center.y + 4f * dp)),
+                probe.touchSlop, lift = true)
+            settle()
+            val smooth = snapshot(probe)
+            assertEquals(2.04, smooth.values.last(), 0.01, "A drag moves with float precision: ${smooth.values}")
+            assertTrue(smooth.values.any { abs(it * 10.0 - round(it * 10.0)) > 1e-3 },
+                "Values between the 0.1x ticks are sent: ${smooth.values}")
+            assertEquals(ticks(smooth.values), probe.steps.get(), "One haptic per 0.1x tick crossed")
+
+            // The next drag starts from where the scale was left: 50 dp down adds 0.5x.
+            val before = smooth.values.last()
             play(listOf(center, Offset(x, center.y + 50f * dp)), probe.touchSlop, lift = true)
             settle()
             val down = snapshot(probe)
-            assertEquals(listOf(2.1, 2.2, 2.3, 2.4, 2.5), down.values.map { round(it * 10.0) / 10.0 },
-                "A drag sends every tenth live: ${down.values}")
-            assertEquals(2.5, down.values.last(), 1e-9)
-            assertEquals(down.values.size, probe.steps.get(), "One step tick per new value")
+            assertEquals(before + 0.5, down.values.last(), 0.01, "Dragging down zooms in: ${down.values}")
 
-            // The drag starts again from where the scale was left: 50 dp up returns to 2.0x.
-            play(listOf(center, Offset(x, center.y - 50f * dp)), probe.touchSlop, lift = true)
-            settle()
-            val back = snapshot(probe)
-            assertEquals(2.0, back.values.last(), 1e-9, "Dragging up zooms out: ${back.values}")
-
-            // A tap 100 dp above the center line at 2.0x goes to the 3x step there.
-            play(listOf(Offset(x, center.y - 100f * dp), Offset(x, center.y - 100f * dp + 1f)),
-                probe.touchSlop, lift = true)
+            // A tap near the 3x tick goes to exactly 3x.
+            val shown = down.values.last()
+            val y = center.y + ((shown - 3.0) * 100.0).toFloat() * dp
+            play(listOf(Offset(x, y), Offset(x, y + 1f)), probe.touchSlop, lift = true)
             settle()
             val tapped = snapshot(probe)
             assertEquals(3.0, tapped.values.last(), 1e-9, "A tap goes to the whole step under it: ${tapped.values}")
-            assertEquals(back.values.size + 1, tapped.values.size, "A tap sends one value")
-            tapped.values.forEach { value ->
-                assertEquals(value, round(value * 10.0) / 10.0, 1e-9, "Every sent value is a tenth: ${tapped.values}")
-            }
+            assertEquals(down.values.size + 1, tapped.values.size, "A tap sends one value")
+            assertEquals(ticks(tapped.values), probe.steps.get(), "One haptic per 0.1x tick crossed")
             assertEquals(0, tapped.downs, "Popup must own the ruler pointer")
             assertEquals(0, tapped.events)
             assertEquals(0, tapped.clicks)
