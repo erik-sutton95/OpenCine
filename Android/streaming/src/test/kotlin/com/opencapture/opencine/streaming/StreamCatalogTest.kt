@@ -33,6 +33,27 @@ class StreamCatalogTest {
     }
 
     @Test
+    fun formatPassesTheQualityChoiceToTheEngine() {
+        val upscaled = catalog.format("twitch", 1280, 720, 30, 1, choice = StreamQualityChoice.UPSCALED_1080P)!!
+        assertEquals(1920, upscaled.width)
+        assertEquals("upscaled1080p", native.lastChoice)
+        catalog.format("twitch", 1280, 720, 30, 1)
+        assertEquals("cameraFeed", native.lastChoice)
+    }
+
+    @Test
+    fun upscaledIsOfferedOnlyBelow1080() {
+        val both = listOf(StreamQualityChoice.CAMERA_FEED, StreamQualityChoice.UPSCALED_1080P)
+        assertEquals(both, StreamQualityChoice.offered(1280, 720))
+        assertEquals(both, StreamQualityChoice.offered(1024, 768))
+        assertEquals(both, StreamQualityChoice.offered(720, 1280))
+        assertEquals(listOf(StreamQualityChoice.CAMERA_FEED), StreamQualityChoice.offered(1920, 1080))
+        assertEquals(listOf(StreamQualityChoice.CAMERA_FEED), StreamQualityChoice.offered(null, null))
+        assertEquals(StreamQualityChoice.UPSCALED_1080P, StreamQualityChoice.fromWire("upscaled1080p"))
+        assertNull(StreamQualityChoice.fromWire("nope"))
+    }
+
+    @Test
     fun destinationProblemsMapFromTheWire() {
         assertEquals(StreamDestinationCheck.Ok(encrypted = true), catalog.check("custom", "rtmps://h/a", "k"))
         assertEquals(StreamDestinationCheck.Ok(encrypted = false), catalog.check("custom", "rtmp://h/a", "k"))

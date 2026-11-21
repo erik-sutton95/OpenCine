@@ -51,6 +51,34 @@ data class StreamOutputFormat(
     }
 }
 
+/**
+ * The operator's Quality choice: the twin of Swift `StreamQualityChoice`. [wireName] is stored in
+ * app preferences and crosses the bridge, so it never changes.
+ */
+enum class StreamQualityChoice(val wireName: String) {
+    /** The camera picture at its own size (the default): the stream never pretends to more. */
+    CAMERA_FEED("cameraFeed"),
+
+    /** The camera picture scaled up to a 1080p output, named as upscaled wherever it is shown. */
+    UPSCALED_1080P("upscaled1080p"),
+    ;
+
+    companion object {
+        /**
+         * The choices that apply to a source: the camera feed always, the upscaled output only for
+         * a known source whose short side is below 1080 lines.
+         */
+        fun offered(width: Int?, height: Int?): List<StreamQualityChoice> =
+            if (width == null || height == null || minOf(width, height) >= 1080) {
+                listOf(CAMERA_FEED)
+            } else {
+                listOf(CAMERA_FEED, UPSCALED_1080P)
+            }
+
+        fun fromWire(name: String?): StreamQualityChoice? = entries.firstOrNull { it.wireName == name }
+    }
+}
+
 /** Why a server address or key cannot be used: the twin of Swift `StreamDestinationError`. */
 enum class StreamDestinationProblem {
     /** Not an address scheme the engine accepts. */
@@ -113,7 +141,7 @@ class StreamCatalog(private val native: StreamingNativeApi) {
 
     /**
      * The output for a go-live from the selected camera's real size and rate (null rate when the
-     * source does not state it) and any other connected sources' sizes.
+     * source does not state it), any other connected sources' sizes and the operator's [choice].
      */
     fun format(
         presetId: String,
@@ -122,9 +150,11 @@ class StreamCatalog(private val native: StreamingNativeApi) {
         fpsNum: Int?,
         fpsDen: Int?,
         connected: List<Pair<Int, Int>> = emptyList(),
+        choice: StreamQualityChoice = StreamQualityChoice.CAMERA_FEED,
     ): StreamOutputFormat? {
         val sizes = connected.flatMap { listOf(it.first, it.second) }.toIntArray()
-        val json = native.format(presetId, width, height, fpsNum ?: 0, fpsDen ?: 0, sizes) ?: return null
+        val json = native.formatFor(presetId, width, height, fpsNum ?: 0, fpsDen ?: 0, sizes, choice.wireName)
+            ?: return null
         return StreamOutputFormat.fromJson(json)
     }
 

@@ -114,7 +114,27 @@ class FakeStreamingNative(
         fpsNum: Int,
         fpsDen: Int,
         connected: IntArray,
-    ): String? = if (presetId == "unknown") null else FORMAT_720P
+    ): String? = formatFor(presetId, width, height, fpsNum, fpsDen, connected, "cameraFeed")
+
+    /** The last quality choice asked for; the upscaled one answers [FORMAT_1080P]. */
+    var lastChoice: String? = null
+
+    override fun formatFor(
+        presetId: String,
+        width: Int,
+        height: Int,
+        fpsNum: Int,
+        fpsDen: Int,
+        connected: IntArray,
+        choice: String,
+    ): String? {
+        lastChoice = choice
+        return when {
+            presetId == "unknown" -> null
+            choice == "upscaled1080p" || choice == "camera1080p" || minOf(width, height) >= 1080 -> FORMAT_1080P
+            else -> FORMAT_720P
+        }
+    }
 
     /** Presets other than `custom` and `instagram` have a fixed `rtmps://` server; `custom` takes `rtmp://`. */
     override fun checkDestination(presetId: String, enteredServerUrl: String, streamKey: String): String = when {
@@ -142,6 +162,9 @@ class FakeStreamingNative(
         val GOODBYE = byteArrayOf(9, 9)
         const val FORMAT_720P =
             """{"width":1280,"height":720,"fpsNum":30,"fpsDen":1,"videoBitrateBps":3000000,""" +
+                """"keyframeIntervalSeconds":2,"audioBitrateBps":160000,"audioSampleRate":48000,"audioChannels":2}"""
+        const val FORMAT_1080P =
+            """{"width":1920,"height":1080,"fpsNum":30,"fpsDen":1,"videoBitrateBps":6000000,""" +
                 """"keyframeIntervalSeconds":2,"audioBitrateBps":160000,"audioSampleRate":48000,"audioChannels":2}"""
         const val DEFAULT_PRESETS =
             """[{"id":"twitch","displayName":"Twitch","serverURL":"rtmps://ingest.example/app",""" +
