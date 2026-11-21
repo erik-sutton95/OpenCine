@@ -233,4 +233,31 @@
         return StreamRunWire.shared.canStream(route: route) ? 1 : 0
     }
 
+    // MARK: Receiver (a camera publishing its own stream to this device)
+
+    /// `StreamingNative.receiverCreate(token): String`, the owner id.
+    @_cdecl("Java_com_opencapture_opencine_streaming_StreamingNative_receiverCreate")
+    public func streamingNativeReceiverCreate(
+        _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, token: jstring?
+    ) -> jstring? {
+        javaString(env, StreamReceiveWire.shared.create(token: swiftString(env, token) ?? ""))
+    }
+
+    /// `StreamingNative.receiverFeed(owner, bytes): ByteArray`, the reply `StreamReceiveWire` documents.
+    @_cdecl("Java_com_opencapture_opencine_streaming_StreamingNative_receiverFeed")
+    public func streamingNativeReceiverFeed(
+        _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, owner: jstring?, bytes: jbyteArray?
+    ) -> jbyteArray? {
+        guard let owner = swiftString(env, owner),
+            let bytes = swiftBytes(env, bytes, maximumCount: maximumMediaBytes)
+        else { return javaByteArray(env, StreamReceiveWire.shared.feed(owner: "", bytes: [])) }
+        return javaByteArray(env, StreamReceiveWire.shared.feed(owner: owner, bytes: bytes))
+    }
+
+    /// `StreamingNative.receiverClose(owner)`.
+    @_cdecl("Java_com_opencapture_opencine_streaming_StreamingNative_receiverClose")
+    public func streamingNativeReceiverClose(_ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, owner: jstring?) {
+        if let owner = swiftString(env, owner) { StreamReceiveWire.shared.close(owner: owner) }
+    }
+
 #endif

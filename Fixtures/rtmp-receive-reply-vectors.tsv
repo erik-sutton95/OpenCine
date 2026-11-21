@@ -1,0 +1,11 @@
+# Receiver replies the Swift StreamReceiveWire encodes and Kotlin RtmpReceiveReply decodes.
+# Big-endian: u32 outbound length, outbound, u16 event count, events [u8 kind, u32 length, body].
+# Kinds: 1 publish, 2 videoConfig [codec, enhanced, record], 3 videoFrame [codec, key, u32 dts,
+# i32 cts, data], 4 audioConfig, 5 audioFrame [u32 ts, data], 6 unpublished, 7 failed [reason],
+# 9 videoEnd, 10 closed. Codec 0 AVC, 1 HEVC. Hand-built; never rewritten by a test.
+publish	00000002aabb00010100000000
+videoConfigHEVC	00000000000102000000050101010203
+videoFrameAVC	000000000001030000000f000101020304ffffffd80000000165
+audio	00000000000204000000021190050000000700000015010203
+endings	000000000004060000000009000000000700000013756e657870656374656453747265616d4b65790a00000000
+empty	000000000000
