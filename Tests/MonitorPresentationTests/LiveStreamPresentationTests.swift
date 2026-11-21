@@ -248,4 +248,17 @@ struct LiveStreamPresentationTests {
             == "The camera stopped responding. Hold its power button about 10 seconds to restart it, then go live again.")
         #expect(!LiveStreamEnd.cameraDidNotStart.offersRestart)
     }
+
+    @Test func compactStatusLine() {
+        let live = LiveStreamStatusState(phase: .live, elapsedSeconds: 724, sentBitrateBps: 6_000_000,
+            droppedGroups: 0, health: .good)
+        let hd = LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000)
+        #expect(live.compactLine(quality: hd) == "1080p · 6 Mbps · good")
+        var slow = live
+        slow.droppedGroups = 3
+        slow.health = .congested
+        #expect(slow.compactLine(quality: nil) == "6 Mbps · 3 dropped · slow network")
+        let vertical = LiveStreamQuality(width: 720, height: 1280, framesPerSecond: 30, videoBitrateBps: 3_000_000)
+        #expect(live.compactLine(quality: vertical) == "720p · 6 Mbps · good")
+    }
 }

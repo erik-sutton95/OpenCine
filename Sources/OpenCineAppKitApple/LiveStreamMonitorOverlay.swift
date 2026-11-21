@@ -29,9 +29,9 @@ extension LiveStreamCoordinator {
 }
 
 /// The Go live control, status, notice and warning over the monitor picture. A plain view over
-/// the coordinator: place it top center over whatever draws the picture (the shared monitor feed
-/// or an app's own); it draws nothing while the control is hidden. While it is on screen the
-/// app-level pill stays hidden.
+/// the coordinator: hang its top trailing corner at `LiveStreamOverlayPlacement.anchor` (under the
+/// timecode block, top right); it draws nothing while the control is hidden. While it is on
+/// screen the app-level pill stays hidden.
 public struct LiveStreamMonitorOverlay: View {
     let coordinator: LiveStreamCoordinator
     let hidden: Bool
@@ -49,7 +49,6 @@ public struct LiveStreamMonitorOverlay: View {
             Color.clear.frame(width: 0, height: 0)
             if let state = coordinator.monitorState {
                 LiveStreamMonitorControls(state: state, actions: coordinator.monitorActions)
-                    .padding(.top, 10).padding(.horizontal, 16)
             }
         }
         .monitorHiddenWhileZoom(hidden)
