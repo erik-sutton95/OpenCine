@@ -100,7 +100,8 @@ class StationJoin(
             JSONObject().put("reply", hex(role)).put("allowMissingQuery", allowMissing).toString(),
         ) ?: "reject"
         val missingRoleQuery = decision == "setWithoutReadback"
-        log("station experimental=$experimental decision=$decision")
+        log("station role ${spaced(role)} experimental=$experimental decision=$decision")
+        if (isUnrecognizedRole(role)) log("station role ${spaced(role)} (unrecognized), trying STA switch")
         if (decision == "alreadyStation" && probeExistingStation && (!hotspot || hotspotReady())) {
             status("Finding camera on Wi-Fi")
             if (verifyOnNetwork()) return Outcome.VERIFIED
@@ -108,6 +109,7 @@ class StationJoin(
         if (decision != "alreadyStation") {
             if (decision == "reject") throw Failure.UnsupportedRole()
             val switched = exchange(DjiNative.CMD_MULTICAM_STATION_MODE, "1", ROLE_TIMEOUT_MS)
+            log("station switch reply ${spaced(switched)}")
             val accepted = decide(
                 "acceptsSetter",
                 JSONObject().put("reply", hex(switched)).put("missingQuery", missingRoleQuery).toString(),
@@ -118,12 +120,16 @@ class StationJoin(
             if (!missingRoleQuery) {
                 var stationReady = false
                 for (poll in 0 until 6) {
-                    val reported = hex(exchange(DjiNative.CMD_MULTICAM_WIFI_WORK_MODE, null, ROLE_TIMEOUT_MS))
+                    val readback = exchange(DjiNative.CMD_MULTICAM_WIFI_WORK_MODE, null, ROLE_TIMEOUT_MS)
+                    val reported = hex(readback)
                     if (reported == "0001") {
                         stationReady = true
                         break
                     }
-                    if (reported != "0000") throw Failure.Rejected()
+                    log("station role readback ${spaced(readback)}")
+                    // The starting role may repeat while the camera switches; anything
+                    // else is not a move toward station role.
+                    if (reported != "0000" && reported != hex(role)) throw Failure.Rejected()
                     sleep(2_000)
                 }
                 if (!stationReady) throw Failure.RoleStarting()
@@ -195,5 +201,14 @@ class StationJoin(
     private companion object {
         const val ROLE_TIMEOUT_MS = 12_000L
         const val HOTSPOT_WAIT_MS = 15_000L
+
+        /**
+         * Core `MulticamStationPolicy.isUnrecognizedRole`: a two-byte `00 xx` role other than
+         * the captured AP (`00 00`) and STA (`00 01`). Pocket 4 Pro answered `00 08`.
+         */
+        fun isUnrecognizedRole(role: ByteArray) =
+            role.size == 2 && role[0].toInt() == 0 && (role[1].toInt() and 0xFF) > 1
+
+        fun spaced(bytes: ByteArray) = if (bytes.isEmpty()) "-" else hex(bytes).chunked(2).joinToString(" ")
     }
 }

@@ -457,6 +457,9 @@ struct MulticamWireTests {
             decide("stationDecision", #"{"reply":"0000","allowMissingQuery":false}"#)
                 == "setAndVerify")
         #expect(
+            decide("stationDecision", #"{"reply":"0008","allowMissingQuery":false}"#)
+                == "setAndVerify")
+        #expect(
             decide("stationDecision", #"{"reply":"e0","allowMissingQuery":true}"#)
                 == "setWithoutReadback")
         #expect(decide("stationDecision", #"{"reply":"e0","allowMissingQuery":false}"#) == "reject")
