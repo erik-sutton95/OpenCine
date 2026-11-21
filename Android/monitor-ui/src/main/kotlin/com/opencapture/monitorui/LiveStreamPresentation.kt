@@ -113,7 +113,18 @@ data class LiveStreamStatusState(
     val sentBitrateBps: Int,
     val droppedGroups: Int,
     val health: LiveStreamHealth,
-)
+) {
+    /**
+     * The one caption under the live Go live control: quality, bitrate, drops when there are any,
+     * and link health, as `1080p · 6 Mbps · good`. The quality's number is its short side.
+     */
+    fun compactLine(quality: LiveStreamQuality?): String = listOfNotNull(
+        quality?.let { "${minOf(it.width, it.height)}p" },
+        LiveStreamCopy.bitrate(sentBitrateBps),
+        "$droppedGroups dropped".takeIf { droppedGroups > 0 },
+        LiveStreamCopy.health(health).lowercase(),
+    ).joinToString(" · ")
+}
 
 enum class LiveStreamWarning { HOT, LOW_BATTERY }
 

@@ -1231,7 +1231,7 @@ public final class com/opencapture/opencine/cameracontrols/LiveZoom {
 
 public final class com/opencapture/opencine/cameracontrols/LiveZoomChromeKt {
 	public static final fun LiveFeedGestureWell (ZLandroidx/compose/ui/Modifier;Lcom/opencapture/monitorui/MonitorRect;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/Pair;ZZLkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;III)V
-	public static final fun LiveZoomChip (DZLandroidx/compose/ui/Modifier;ZZLkotlin/jvm/functions/Function0;DLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function0;DLcom/opencapture/monitorui/MonitorZoomPresets;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
+	public static final fun LiveZoomChip (DZLandroidx/compose/ui/Modifier;ZZLkotlin/jvm/functions/Function0;DLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function0;DLcom/opencapture/monitorui/MonitorZoomPresets;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorZoomClearance;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/opencapture/opencine/cameracontrols/LiveZoomLabelHold {
@@ -3504,7 +3504,7 @@ public final class com/opencapture/opencine/cameracontrols/MonitorWatcherConnect
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorZoomDialKt {
-	public static final fun MonitorZoomDial (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorZoomDial (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Lcom/opencapture/monitorui/MonitorZoomClearance;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorZoomPresetRamp {
