@@ -62,7 +62,6 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import kotlin.math.abs
-import kotlin.math.ceil
 import kotlinx.coroutines.delay
 
 /**
@@ -93,15 +92,17 @@ data class MonitorZoomClearance(val top: Float = 0f, val bottom: Float = 0f) {
 internal object MonitorZoomRulerMetrics {
     const val WIDTH = 44f
     const val EDGE = 12f
-    /** The scale's ends sit this far inside the capsule so the end ticks stay on the glass. */
+    /** Ticks fade out this far inside the capsule's ends. */
     const val INSET = 14f
     /** Room left of the ruler for the whole-step labels. */
     const val LABEL_GUTTER = 28f
     /** Extra touch width on the picture side of the ruler. */
     const val TOUCH_MARGIN = 12f
     const val GAP = 8f
-    /** Labels closer than this are thinned so they never collide. */
-    const val LABEL_SPACING = 18f
+    /** A press that travels less than this is a tap. */
+    const val TAP_TRAVEL = 10f
+    /** Ticks fade over this share of the half height toward the capsule's ends. */
+    const val FADE = .35f
 }
 
 private data class ZoomRulerGeometry(
@@ -133,10 +134,13 @@ private fun physicalZoomInsets(view: android.view.View, observed: IntRect): IntR
 }
 
 /**
- * The vertical zoom ruler on the trailing edge: linear in zoom factor, the camera's maximum at the
- * top, dragged anywhere in 0.1x steps ([onStep] fires on each new step). Presets sit in a column
- * beside it and the value readout beside its top. Tapping outside closes it. Camera limits,
- * captions and writes belong to the adapter. Swift twin: `MonitorZoomDial`.
+ * The vertical zoom ruler on the trailing edge. It behaves like the other setting dials
+ * (`MonitorDurationDial`, `MonitorValueDrum`), only vertical: a fixed center line shows the value
+ * and the scale slides under it, higher values above. A drag moves the scale with the finger
+ * (down zooms in) from where it started, sending every new 0.1x step live with an [onStep]
+ * haptic; a tap goes to the step under the finger (a whole step when close to one). Presets sit
+ * in a column beside it and the value readout beside its top. Tapping outside closes it. Camera
+ * limits, captions and writes belong to the adapter. Swift twin: `MonitorZoomDial`.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -146,7 +150,10 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
     presets: MonitorZoomPresetControls? = null, driven: Double? = null,
     label: (Double) -> String = { MonitorZoomRulerScale.readout(it) }) {
     val maxZoom = maximum.takeIf { it.isFinite() }?.coerceAtLeast(1.0) ?: 1.0
+    // The reported value (the opening reading, then what was sent or driven) and, while a finger
+    // drags, the scrub value drawn instead.
     var value by remember { mutableDoubleStateOf(initial.takeIf { it.isFinite() }?.coerceIn(1.0, maxZoom) ?: 1.0) }
+    var scrub by remember { mutableStateOf<Double?>(null) }
     var entering by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf(false) }
     val motion by animateFloatAsState(if (entering && !closing) 1f else 0f,
@@ -186,13 +193,20 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
     val top = clearance.top.takeIf { it.isFinite() }?.coerceIn(0f, screenHeight) ?: 0f
     val bottom = (screenHeight - (clearance.bottom.takeIf { it.isFinite() } ?: 0f)).coerceIn(top, screenHeight)
     val rulerHeight = bottom - top
-    val scale = MonitorZoomRulerScale(1.0, maxZoom, (rulerHeight - 2 * m.INSET).toDouble())
-    // A host-driven move (a preset ramp) moves the marker without sending it back.
+    val center = rulerHeight / 2f
+    val halfSpan = (center - m.INSET).coerceAtLeast(0f)
+    val scale = MonitorZoomRulerScale(1.0, maxZoom)
+    // A host-driven move (a preset ramp) moves the scale without sending it back.
     LaunchedEffect(driven) { driven?.takeIf { it.isFinite() }?.let { value = it.coerceIn(1.0, maxZoom) } }
-    val optical = opticalStops.any { abs(it - value) < .05 }
+    val shown = scrub ?: value
+    val optical = opticalStops.any { abs(it - shown) < .05 }
     val accent = if (optical) MonitorPalette.accent else MonitorPalette.digitalCrop
     val opticalMax = opticalStops.filter { it.isFinite() && it > 0.0 }.maxOrNull() ?: 1.0
+    val ticks = scale.ticks(shown, halfSpan.toDouble())
+    fun fade(offset: Double): Float = if (halfSpan <= 0f) 1f else
+        ((halfSpan - abs(offset.toFloat())) / (halfSpan * m.FADE)).coerceIn(0f, 1f)
     val textMeasurer = rememberTextMeasurer()
+    /** A tap or an accessibility set: one move from the reported value. */
     fun update(next: Double) {
         if (!next.isFinite() || closing) return
         val stepped = scale.quantized(next)
@@ -200,6 +214,13 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
         step()
         value = stepped
         send(stepped)
+    }
+    /** A drag sends every new tenth live. */
+    fun scrubTo(next: Double) {
+        if (closing || next == (scrub ?: value)) return
+        scrub = next
+        step()
+        send(next)
     }
     val provider = remember { object : PopupPositionProvider {
         override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
@@ -229,24 +250,22 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
             }
             Column(Modifier.offset(0.dp, readoutTop.dp).width(readoutRight.coerceAtLeast(0f).dp).then(slide),
                 horizontalAlignment = Alignment.End) {
-                Text(MonitorZoomRulerScale.readout(value), style = MonitorTypography.readout(22f, FontWeight.Bold),
+                Text(MonitorZoomRulerScale.readout(shown), style = MonitorTypography.readout(22f, FontWeight.Bold),
                     textAlign = TextAlign.End, maxLines = 1)
-                Text(caption(value), style = MonitorTypography.text(10f, FontWeight.Medium), color = accent,
+                Text(caption(shown), style = MonitorTypography.text(10f, FontWeight.Medium), color = accent,
                     textAlign = TextAlign.End, maxLines = 1)
             }
-            // Whole-step labels left of the ruler, thinned where they would collide.
+            // Whole-step labels left of the ruler, sliding with the ticks.
             Canvas(Modifier.offset((rulerLeft - m.LABEL_GUTTER).dp, top.dp)
                 .size(m.LABEL_GUTTER.dp, rulerHeight.dp).then(slide)) {
-                val majors = scale.ticks.filter { it.kind == MonitorZoomRulerTick.Kind.MAJOR }
-                val spacing = if (scale.maximum > scale.minimum) scale.length / (scale.maximum - scale.minimum) else 0.0
-                val every = if (spacing > 0) ceil(m.LABEL_SPACING / spacing).toInt().coerceAtLeast(1) else 1
-                for (tick in majors) {
+                for (tick in ticks) {
+                    if (tick.kind != MonitorZoomRulerTick.Kind.MAJOR) continue
                     val whole = Math.round(tick.value).toInt()
-                    if ((whole - 1) % every != 0) continue
                     val digital = tick.value > opticalMax + .02
                     val measured = textMeasurer.measure("$whole×", MonitorTypography.readout(12f, FontWeight.SemiBold))
-                    val y = (m.INSET + tick.offset.toFloat()).dp.toPx()
-                    drawText(measured, (if (digital) MonitorPalette.digitalCrop else Color.White).copy(alpha = .78f),
+                    val y = (center + tick.offset.toFloat()).dp.toPx()
+                    drawText(measured, (if (digital) MonitorPalette.digitalCrop else Color.White)
+                        .copy(alpha = .78f * fade(tick.offset)),
                         topLeft = Offset(size.width - 4.dp.toPx() - measured.size.width, y - measured.size.height / 2f))
                 }
             }
@@ -256,32 +275,40 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
                 .testTag("monitor.zoom.dial")
                 .semantics {
                     contentDescription = "Zoom"
-                    stateDescription = "${MonitorZoomRulerScale.readout(value)}, ${caption(value)}"
+                    stateDescription = "${MonitorZoomRulerScale.readout(shown)}, ${caption(shown)}"
                     val steps = ((scale.maximum - scale.minimum) / MonitorZoomRulerScale.STEP).let {
                         Math.round(it).toInt() - 1 }.coerceAtLeast(0)
-                    progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(),
+                    progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat(),
                         scale.minimum.toFloat()..scale.maximum.toFloat(), steps)
                     setProgress { update(it.toDouble()); true }
                     customActions = listOf(CustomAccessibilityAction("Close zoom") { closing = true; true })
                 }
                 .pointerInput(geometry, closing) {
                     if (closing) return@pointerInput
-                    fun valueAt(y: Float) = scale.valueAtOffset((y.toDp().value - m.INSET).toDouble())
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
+                        val start = down.position.y
+                        val origin = value
+                        var dragging = false
                         var pressed = true
                         try {
-                            update(valueAt(down.position.y))
                             while (pressed) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                 pressed = change.pressed
                                 change.consume()
-                                if (pressed) update(valueAt(change.position.y))
+                                val travel = (change.position.y - start).toDp().value
+                                if (!dragging && abs(travel) >= m.TAP_TRAVEL) dragging = true
+                                if (dragging) scrubTo(scale.dragged(origin, travel.toDouble()))
                             }
-                            pressed = false
+                            if (!pressed && !dragging) {
+                                // A tap: the step under the finger, measured from the center line.
+                                update(scale.tapped((start.toDp().value - center).toDouble(), value))
+                            }
                         } finally {
+                            scrub?.let { value = it }
+                            scrub = null
                             // Disposal or a geometry change can interrupt a held finger. Close
                             // exactly this ruler so its adapter releases the zoom transaction.
                             if (pressed) dismiss()
@@ -290,10 +317,10 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
                 }) {
                 Canvas(Modifier.padding(start = m.TOUCH_MARGIN.dp).fillMaxSize()
                     .monitorMaterial(MonitorMaterial.Zoom, RoundedCornerShape(50))) {
-                    val inset = m.INSET.dp.toPx()
                     val w = size.width
-                    for (tick in scale.ticks) {
-                        val y = inset + tick.offset.toFloat().dp.toPx()
+                    val middle = center.dp.toPx()
+                    for (tick in ticks) {
+                        val y = middle + tick.offset.toFloat().dp.toPx()
                         val digital = tick.value > opticalMax + .02
                         val stop = opticalStops.any { abs(it - tick.value) < .01 }
                         val (from, alpha, stroke) = when (tick.kind) {
@@ -301,15 +328,16 @@ fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Uni
                             MonitorZoomRulerTick.Kind.MID -> Triple(.60f, .55f, 1.5f)
                             MonitorZoomRulerTick.Kind.MINOR -> Triple(.72f, .32f, 1f)
                         }
+                        val faded = alpha * fade(tick.offset)
                         val color = when {
-                            digital -> MonitorPalette.digitalCrop.copy(alpha = alpha)
-                            stop -> MonitorPalette.accent
-                            else -> Color.White.copy(alpha = alpha)
+                            digital -> MonitorPalette.digitalCrop.copy(alpha = faded)
+                            stop -> MonitorPalette.accent.copy(alpha = fade(tick.offset))
+                            else -> Color.White.copy(alpha = faded)
                         }
                         drawLine(color, Offset(w * from, y), Offset(w * .88f, y), stroke.dp.toPx(), StrokeCap.Round)
                     }
-                    val marker = inset + scale.offsetFor(value).toFloat().dp.toPx()
-                    drawLine(accent, Offset(w * .06f, marker), Offset(w * .94f, marker), 3.dp.toPx(), StrokeCap.Round)
+                    // The fixed center line the scale slides under.
+                    drawLine(accent, Offset(w * .06f, middle), Offset(w * .94f, middle), 3.dp.toPx(), StrokeCap.Round)
                 }
             }
         }

@@ -36,7 +36,7 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class MonitorZoomInputTest {
-    @Test fun rulerDragStepsInTenthsWhilePopupOwnsPointer() {
+    @Test fun rulerScrollsUnderTheCenterLineInTenthsWhilePopupOwnsPointer() {
         ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
             val probe = ZoomNativeProbe()
             scenario.moveToState(Lifecycle.State.RESUMED)
@@ -71,28 +71,40 @@ class MonitorZoomInputTest {
             }
             awaitPopup(scenario, probe)
             val ruler = checkNotNull(findZoomBounds())
-            val inset = MonitorZoomRulerMetrics.INSET * probe.density
-            val x = ruler.right - MonitorZoomRulerMetrics.WIDTH * probe.density / 2f
-            // The scale's bottom end is the minimum, its middle half way to the maximum.
-            val bottom = Offset(x, ruler.bottom - inset)
-            val middle = Offset(x, ruler.exactCenterY())
-            play(listOf(bottom, middle), probe.touchSlop, lift = true)
+            val dp = probe.density
+            val x = ruler.right - MonitorZoomRulerMetrics.WIDTH * dp / 2f
+            // The fixed center line sits at the ruler's middle; the scale slides under it.
+            val center = Offset(x, ruler.exactCenterY())
+
+            // Like the other dials the scale follows the finger: 50 dp down from 2.0x is 2.5x.
+            play(listOf(center, Offset(x, center.y + 50f * dp)), probe.touchSlop, lift = true)
             settle()
-            val after = snapshot(probe)
-            assertTrue(after.values.isNotEmpty(), "Dragging the ruler must change zoom")
-            assertEquals(1.0, after.values.first(), 1e-9, "Touching the bottom selects the minimum: ${after.values}")
-            assertEquals(2.5, after.values.last(), 1e-9, "The middle of a 1x to 4x ruler is 2.5x: ${after.values}")
-            after.values.forEach { value ->
-                assertEquals(value, round(value * 10.0) / 10.0, 1e-9, "Every sent value is a tenth: ${after.values}")
+            val down = snapshot(probe)
+            assertEquals(listOf(2.1, 2.2, 2.3, 2.4, 2.5), down.values.map { round(it * 10.0) / 10.0 },
+                "A drag sends every tenth live: ${down.values}")
+            assertEquals(2.5, down.values.last(), 1e-9)
+            assertEquals(down.values.size, probe.steps.get(), "One step tick per new value")
+
+            // The drag starts again from where the scale was left: 50 dp up returns to 2.0x.
+            play(listOf(center, Offset(x, center.y - 50f * dp)), probe.touchSlop, lift = true)
+            settle()
+            val back = snapshot(probe)
+            assertEquals(2.0, back.values.last(), 1e-9, "Dragging up zooms out: ${back.values}")
+
+            // A tap 100 dp above the center line at 2.0x goes to the 3x step there.
+            play(listOf(Offset(x, center.y - 100f * dp), Offset(x, center.y - 100f * dp + 1f)),
+                probe.touchSlop, lift = true)
+            settle()
+            val tapped = snapshot(probe)
+            assertEquals(3.0, tapped.values.last(), 1e-9, "A tap goes to the whole step under it: ${tapped.values}")
+            assertEquals(back.values.size + 1, tapped.values.size, "A tap sends one value")
+            tapped.values.forEach { value ->
+                assertEquals(value, round(value * 10.0) / 10.0, 1e-9, "Every sent value is a tenth: ${tapped.values}")
             }
-            after.values.zipWithNext().forEach { (a, b) ->
-                assertTrue(a != b, "A value is sent once per step: ${after.values}")
-            }
-            assertEquals(after.values.size, probe.steps.get(), "One step tick per new value")
-            assertEquals(0, after.downs, "Popup must own the ruler pointer")
-            assertEquals(0, after.events)
-            assertEquals(0, after.clicks)
-            scenario.onActivity { assertEquals(0, probe.dismissals, "A drag on the ruler keeps it open") }
+            assertEquals(0, tapped.downs, "Popup must own the ruler pointer")
+            assertEquals(0, tapped.events)
+            assertEquals(0, tapped.clicks)
+            scenario.onActivity { assertEquals(0, probe.dismissals, "Using the ruler keeps it open") }
         }
     }
 
