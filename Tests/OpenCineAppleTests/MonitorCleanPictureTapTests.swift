@@ -109,6 +109,17 @@ import Testing
         #expect(CVPixelBufferGetWidth(out) == 80 && CVPixelBufferGetHeight(out) == 44)  // even sizes for the encoder
     }
 
+    /// A 1080p source keeps its full width with a LUT on: the monitor's narrower working width is
+    /// for the screen, not for the outgoing picture.
+    @Test func aFullHDSourceKeepsItsWidthWithALUT() throws {
+        var created: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, 1920, 1080, kCVPixelFormatType_32BGRA, nil, &created)
+        let source = try #require(created)
+        let tap = MonitorCleanPictureTap { _ in }
+        let graded = try #require(tap.render(source, effects: Self.inverting()))
+        #expect(CVPixelBufferGetWidth(graded) == 1920 && CVPixelBufferGetHeight(graded) == 1080)
+    }
+
     @Test func submittedFramesArriveWithTheirTime() async throws {
         let frames = AsyncStream<MonitorCleanFrame>.makeStream()
         let tap = MonitorCleanPictureTap { frames.continuation.yield($0) }

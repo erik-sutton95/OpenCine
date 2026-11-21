@@ -69,6 +69,9 @@ private class PreferencesLiveStreamSettings(context: Context, file: String) : Li
     override var showOnMonitor: Boolean
         get() = preferences.getBoolean("live-stream.show-on-monitor", true)
         set(value) { preferences.edit().putBoolean("live-stream.show-on-monitor", value).apply() }
+    override var selectedQualityId: String?
+        get() = preferences.getString("live-stream.quality", null)
+        set(value) { preferences.edit().putString("live-stream.quality", value).apply() }
 }
 
 /** Builds an app's live stream coordinator. Every argument but the context is a host value. */
