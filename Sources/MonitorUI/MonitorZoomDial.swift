@@ -2,19 +2,27 @@
     import MonitorPresentation
     import SwiftUI
 
-    /// The zoom control: a slim vertical ruler on the trailing edge with the presets beside it.
-    /// It behaves like the other setting dials: the scale slides under a fixed center line, a
-    /// drag moves it from the current zoom in 0.1x steps (the camera zooms live), and a tap goes
-    /// to the step under the finger. Camera adapters own continuous write coalescing and final
+    /// The zoom control: one panel on the trailing edge holding the current zoom, the presets, the
+    /// ramp key and a vertical ruler. The ruler behaves like the other setting dials: the scale
+    /// slides under a fixed center line, a drag moves it from the current zoom smoothly (ticks and
+    /// a light haptic every 0.1x; the camera zooms live), and a tap goes to the step under the
+    /// finger. The ramp key opens a popup styled like the camera value popups. Camera adapters own continuous write coalescing and final
     /// settlement; opening the ruler and drawing it never issue commands.
     /// Kotlin twin: `MonitorZoomRuler` (monitor-ui).
     public struct MonitorZoomDial: View {
-        static let rulerWidth: CGFloat = 44
+        /// The ticks' strip inside the ruler.
+        static let rulerWidth: CGFloat = 40
         static let edgeMargin: CGFloat = 12
-        /// Room left of the ruler for the whole-step labels.
-        static let labelGutter: CGFloat = 34
-        /// Keeps the end ticks off the capsule's rounded ends.
-        static let endInset: CGFloat = 16
+        /// Room left of the ticks for the whole-step labels.
+        static let labelGutter: CGFloat = 30
+        /// Keeps the end ticks off the ruler's ends.
+        static let endInset: CGFloat = 14
+        /// The column holding the readout, presets and ramp key.
+        static let columnWidth: CGFloat = 56
+        static let panelPadding: CGFloat = 8
+        static let panelGap: CGFloat = 6
+        static let panelShape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        static let rulerShape = RoundedRectangle(cornerRadius: 9, style: .continuous)
         /// A press that moves less than this is a tap.
         static let tapTravel: CGFloat = 10
 
@@ -32,7 +40,9 @@
         private let onClose: () -> Void
         private let haptics: Bool
         private let presets: MonitorZoomPresetControls?
+        private let rampPlacement: MonitorCapturePopupLayout?
         @Binding private var value: Double
+        @State private var rampOpen = false
         @State private var drag = MonitorZoomDrag()
         @GestureState private var pointerActive = false
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -55,7 +65,8 @@
             marks: [Double] = [], opticalStops: [Double] = [1], caption: String = "",
             value: Binding<Double>, label: @escaping (Double) -> String,
             onEditing: @escaping (Bool) -> Void, onClose: @escaping () -> Void,
-            haptics: Bool = true, presets: MonitorZoomPresetControls? = nil
+            haptics: Bool = true, presets: MonitorZoomPresetControls? = nil,
+            rampPlacement: MonitorCapturePopupLayout? = nil
         ) {
             _ = marks
             self.viewport = viewport
@@ -73,16 +84,33 @@
             self.onClose = onClose
             self.haptics = haptics
             self.presets = presets
+            self.rampPlacement = rampPlacement
         }
 
-        /// The ruler's capsule in viewport coordinates.
-        var rulerFrame: CGRect {
+        static var panelWidth: CGFloat {
+            panelPadding + columnWidth + panelGap + labelGutter + rulerWidth + panelPadding / 2
+        }
+
+        /// The whole zoom panel in viewport coordinates.
+        var panelFrame: CGRect {
             let trailing = viewport.width - max(0, safeArea.trailing) - Self.edgeMargin
             let top = max(topClearance, safeArea.top + Self.edgeMargin)
             let bottom = viewport.height - max(bottomClearance, safeArea.bottom + Self.edgeMargin)
             return CGRect(
-                x: trailing - Self.rulerWidth, y: top,
-                width: Self.rulerWidth, height: max(0, bottom - top))
+                x: trailing - Self.panelWidth, y: top,
+                width: Self.panelWidth, height: max(0, bottom - top))
+        }
+
+        /// The ruler's height inside the panel.
+        var rulerHeight: CGFloat { max(0, panelFrame.height - Self.panelPadding * 2) }
+
+        /// The ramp popup's place: the caller's (the camera popups' own), else a bottom sheet.
+        private var rampPlace: MonitorCapturePopupLayout {
+            rampPlacement ?? MonitorCapturePopupLayout(
+                viewportWidth: viewport.width, viewportHeight: viewport.height,
+                tablet: min(viewport.width, viewport.height) >= 600,
+                safeArea: MonitorSafeArea(top: safeArea.top, leading: safeArea.leading,
+                    bottom: safeArea.bottom, trailing: safeArea.trailing))
         }
 
         var ruler: MonitorZoomRulerScale {
@@ -101,7 +129,7 @@
         private var acceptsInput: Bool { visible && scenePhase == .active }
 
         public var body: some View {
-            let frame = rulerFrame
+            let frame = panelFrame
             ZStack(alignment: .topLeading) {
                 Button(action: onClose) {
                     Color.clear.contentShape(Rectangle())
@@ -110,20 +138,17 @@
                 .accessibilityLabel("Close zoom")
                 .frame(width: viewport.width, height: viewport.height)
 
-                rulerBody
-                    .frame(width: frame.width + Self.labelGutter, height: frame.height)
-                    .offset(x: frame.minX - Self.labelGutter, y: frame.minY)
+                panel
+                    .frame(width: frame.width, height: frame.height)
+                    .monitorGlass(in: Self.panelShape, density: .zoom)
+                    .offset(x: frame.minX, y: frame.minY)
                     .offset(x: visible || reduceMotion ? 0 : 24)
                     .opacity(visible ? 1 : 0)
                     .animation(
                         visible ? MonitorMotion.discIn(reduceMotion) : MonitorMotion.discOut(reduceMotion),
                         value: visible)
 
-                side
-                    .frame(width: max(0, frame.minX - Self.labelGutter - 10), height: frame.height, alignment: .trailing)
-                    .offset(y: frame.minY)
-                    .opacity(visible ? 1 : 0)
-                    .animation(MonitorMotion.dim(reduceMotion), value: visible)
+                if rampOpen, let presets { rampPopup(presets) }
             }
             .frame(width: viewport.width, height: viewport.height, alignment: .topLeading)
             .allowsHitTesting(acceptsInput)
@@ -136,6 +161,7 @@
             .onChange(of: safeArea) { _, _ in cancelPointer() }
             .onChange(of: scale) { _, _ in cancelPointer() }
             .onChange(of: pointerActive) { _, active in if !active { finishEditing() } }
+            .onChange(of: isPresented) { _, presented in if !presented { rampOpen = false } }
             .sensoryFeedback(.impact(weight: .light), trigger: stepTick) { _, _ in
                 haptics && acceptsInput && stepTick > 0
             }
@@ -145,34 +171,80 @@
             }
         }
 
-        /// The value readout over the preset column, both left of the ruler and centered on it.
-        private var side: some View {
-            VStack(alignment: .trailing, spacing: 14) {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(MonitorZoomRulerScale.readout(shown))
-                        .font(MonitorTheme.font(22, weight: .bold)).monospacedDigit()
-                        .foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
-                    if !caption.isEmpty {
-                        Text(caption).font(MonitorTheme.font(10, weight: .semibold)).tracking(1.2)
-                            .foregroundStyle(ink)
+        /// The current zoom over the presets and the ramp key, beside the ruler, in one panel.
+        private var panel: some View {
+            HStack(spacing: Self.panelGap) {
+                VStack(spacing: 12) {
+                    VStack(spacing: 2) {
+                        Text(MonitorZoomRulerScale.readout(shown))
+                            .font(MonitorTheme.font(17, weight: .bold)).monospacedDigit()
+                            .foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
+                        if !caption.isEmpty {
+                            Text(caption).font(MonitorTheme.font(9, weight: .semibold)).tracking(1)
+                                .foregroundStyle(ink)
+                        }
                     }
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                    .padding(.top, 4)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                    if let presets {
+                        MonitorZoomPresetStrip(
+                            controls: presets, maximum: scale.maximum, vertical: true,
+                            label: label, haptics: haptics, onRampTap: { rampOpen = true })
+                    }
+                    Spacer(minLength: 0)
                 }
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-                if let presets {
-                    MonitorZoomPresetStrip(
-                        controls: presets, maximum: scale.maximum, vertical: true,
-                        label: label, haptics: haptics)
-                }
+                .frame(width: Self.columnWidth)
+                rulerBody
+                    .frame(width: Self.labelGutter + Self.rulerWidth, height: rulerHeight)
             }
+            .padding(.leading, Self.panelPadding)
+            .padding(.trailing, Self.panelPadding / 2)
+            .padding(.vertical, Self.panelPadding)
+        }
+
+        /// The ramp choices on a drum inside the camera popups' own panel.
+        private func rampPopup(_ presets: MonitorZoomPresetControls) -> some View {
+            let place = rampPlace
+            let current = MonitorZoomPresets.rampLabel(presets.presets.rampSeconds)
+            let options = MonitorZoomPresets.rampChoices.map(MonitorZoomPresets.rampLabel)
+            return ZStack(alignment: .topLeading) {
+                Color.black.opacity(0.001)
+                    .frame(width: viewport.width, height: viewport.height)
+                    .onTapGesture { rampOpen = false }
+                    .accessibilityHidden(true)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    MonitorCapturePanel(
+                        title: "Preset ramp", subtitle: current,
+                        maximumHeight: CGFloat(place.maximumHeight),
+                        bottomPadding: CGFloat(place.bottomPadding), topPadding: CGFloat(place.topPadding),
+                        topCornerRadius: CGFloat(place.topCornerRadius),
+                        bottomCornerRadius: CGFloat(place.bottomCornerRadius),
+                        edge: .bottom, close: { rampOpen = false }
+                    ) {
+                        MonitorValueDrum(
+                            options: options,
+                            selection: Binding(get: { current }, set: { label in
+                                guard let index = options.firstIndex(of: label) else { return }
+                                presets.onRamp(MonitorZoomPresets.rampChoices[index])
+                            }), haptics: haptics)
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("monitor.zoom.ramp.panel")
+                }
+                .frame(width: CGFloat(place.width), height: CGFloat(place.bottom), alignment: .bottom)
+                .offset(x: CGFloat(place.centerX - place.width / 2))
+            }
+            .frame(width: viewport.width, height: viewport.height, alignment: .topLeading)
         }
 
         private var rulerBody: some View {
             ZStack(alignment: .topTrailing) {
-                Color.clear
+                Self.rulerShape.fill(.white.opacity(0.06))
                     .frame(width: Self.rulerWidth)
-                    .monitorGlass(in: Capsule(), density: .zoom)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                 Self.canvas(canvasSnapshot)
             }
@@ -200,7 +272,7 @@
                         if acceptsInput, drag.anchor != nil, scrub == nil,
                             hypot(gesture.translation.width, gesture.translation.height) < Self.tapTravel
                         {
-                            let center = rulerFrame.height / 2
+                            let center = rulerHeight / 2
                             move(to: ruler.tapped(
                                 atOffset: Double(gesture.startLocation.y - center), center: shown))
                         }
@@ -216,7 +288,7 @@
                 guard acceptsInput else { return }
                 let step = direction == .increment ? MonitorZoomRulerScale.step : -MonitorZoomRulerScale.step
                 onEditing(true)
-                value = ruler.quantized(ruler.quantized(value) + step)
+                value = ruler.quantized(value + step)
                 onEditing(false)
             }
             .accessibilityIdentifier("monitor.zoom.dial")
@@ -225,7 +297,7 @@
         /// Shows `next` under the center line and sends it live, with a tick per new step.
         private func move(to next: Double) {
             guard next != shown || scrub == nil else { return }
-            if ruler.quantized(next) != ruler.quantized(shown) { stepTick += 1 }
+            if MonitorZoomRulerScale.tick(next) != MonitorZoomRulerScale.tick(shown) { stepTick += 1 }
             scrub = next
             value = next
         }
@@ -247,7 +319,7 @@
         /// renderer. The drawing snapshot contains no session callbacks.
         var canvasSnapshot: MonitorZoomCanvasSnapshot {
             let center = shown
-            let halfSpan = max(0, Double(rulerFrame.height / 2 - Self.endInset))
+            let halfSpan = max(0, Double(rulerHeight / 2 - Self.endInset))
             let ticks = ruler.ticks(center: center, halfSpan: halfSpan)
             let opticalMaximum = opticalStops.max() ?? scale.minimum
             return MonitorZoomCanvasSnapshot(
