@@ -29,7 +29,9 @@
 
     extension View {
         /// Fades the view out and ignores touches while the zoom ruler is open; it stays mounted,
-        /// so its state comes back unchanged when the ruler closes.
+        /// so its state comes back unchanged when the ruler closes. It sets `accessibilityHidden`,
+        /// so apply it before (inside) any other `accessibilityHidden` on the same view: the
+        /// outer one wins.
         public func monitorHiddenWhileZoom(_ hidden: Bool) -> some View {
             modifier(MonitorHiddenWhileZoom(hidden: hidden))
         }

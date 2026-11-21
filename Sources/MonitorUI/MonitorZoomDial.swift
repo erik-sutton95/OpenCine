@@ -135,7 +135,7 @@
                     Color.clear.contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Close zoom")
+                .accessibilityLabel("Close zoom dial")
                 .frame(width: viewport.width, height: viewport.height)
 
                 panel
