@@ -54,6 +54,14 @@ class StreamCatalogTest {
     }
 
     @Test
+    fun cameraChoiceComesFromTheHostNeverFromTheSourceSize() {
+        assertEquals(StreamQualityChoice.CAMERA_1080P, StreamQualityChoice.fromWire("camera1080p"))
+        for (size in listOf(1280 to 720, 1920 to 1080)) {
+            assertFalse(StreamQualityChoice.CAMERA_1080P in StreamQualityChoice.offered(size.first, size.second))
+        }
+    }
+
+    @Test
     fun destinationProblemsMapFromTheWire() {
         assertEquals(StreamDestinationCheck.Ok(encrypted = true), catalog.check("custom", "rtmps://h/a", "k"))
         assertEquals(StreamDestinationCheck.Ok(encrypted = false), catalog.check("custom", "rtmp://h/a", "k"))

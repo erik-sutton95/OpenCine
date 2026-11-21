@@ -22,6 +22,7 @@ import Testing
         var tap: MonitorCleanPictureTap?
         var microphoneAllowed = true
         var defaults = UserDefaults(suiteName: "live-stream-\(UUID())")!
+        var camera: (any LiveStreamCameraSource)?
 
         var value: LiveStreamHost {
             LiveStreamHost(
@@ -29,7 +30,8 @@ import Testing
                 route: { [self] in calls.append("route"); return route },
                 source: { [self] in calls.append("source"); return source },
                 attachPicture: { [self] in calls.append($0 == nil ? "detach" : "attach"); tap = $0 },
-                microphoneAccess: { [self] in calls.append("microphone"); return microphoneAllowed })
+                microphoneAccess: { [self] in calls.append("microphone"); return microphoneAllowed },
+                camera: camera)
         }
     }
 
@@ -60,6 +62,7 @@ import Testing
         let format: StreamOutputFormat
         var started = false
         var stopped = false
+        var videoFrames = 0
         init(destination: StreamDestination, format: StreamOutputFormat) {
             self.destination = destination
             self.format = format
@@ -67,7 +70,7 @@ import Testing
         func onStatus(_ handler: @escaping @Sendable (StreamRun.Status) -> Void) {}
         func start() { started = true }
         func stop() { stopped = true }
-        func submitVideo(_ buffer: CVPixelBuffer) {}
+        func submitVideo(_ buffer: CVPixelBuffer) { videoFrames += 1 }
         func submitAudio(_ buffer: AVAudioPCMBuffer) {}
     }
 

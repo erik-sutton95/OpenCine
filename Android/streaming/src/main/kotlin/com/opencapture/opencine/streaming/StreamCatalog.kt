@@ -61,6 +61,12 @@ enum class StreamQualityChoice(val wireName: String) {
 
     /** The camera picture scaled up to a 1080p output, named as upscaled wherever it is shown. */
     UPSCALED_1080P("upscaled1080p"),
+
+    /**
+     * The camera's own 1080p encoding, published to this device and relayed. Offered by the host
+     * for a camera that declares stream publishing, never from the source size alone.
+     */
+    CAMERA_1080P("camera1080p"),
     ;
 
     companion object {

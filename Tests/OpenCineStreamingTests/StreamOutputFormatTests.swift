@@ -119,4 +119,15 @@ import OpenCineStreaming
         #expect(StreamQualityChoice.offered(for: p1080) == [.cameraFeed])
         #expect(StreamQualityChoice.offered(for: nil) == [.cameraFeed])
     }
+
+    /// The host offers the camera's own stream; the source size never does, and it is a 1080 output.
+    @Test func cameraChoiceComesFromTheHostAndIs1080() {
+        #expect(StreamQualityChoice(rawValue: "camera1080p") == .camera1080p)
+        #expect(!StreamQualityChoice.offered(for: p720).contains(.camera1080p))
+        #expect(!StreamQualityChoice.offered(for: p1080).contains(.camera1080p))
+        let camera = StreamOutputFormat.resolve(
+            selected: StreamSourceFormat(width: 1920, height: 1080, frameRate: Rational(25, 1)), connected: [],
+            preset: .custom, choice: .camera1080p)
+        #expect(camera.width == 1920 && camera.height == 1080 && camera.videoBitrateBps == 6_000_000)
+    }
 }
