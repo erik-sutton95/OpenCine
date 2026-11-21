@@ -7,7 +7,7 @@ func StreamRunWire.close(owner: Swift.String) -> ()
 func StreamRunWire.connected(owner: Swift.String, nowNs: Swift.Int64) -> [Swift.UInt8]
 func StreamRunWire.connectionLost(owner: Swift.String, nowNs: Swift.Int64) -> [Swift.UInt8]
 func StreamRunWire.create(presetID: Swift.String, enteredServerURL: Swift.String, streamKey: Swift.String, formatJSON: Swift.String, nowNs: Swift.Int64) -> Swift.String
-func StreamRunWire.formatJSON(presetID: Swift.String, selectedWidth: Swift.Int, selectedHeight: Swift.Int, fpsNum: Swift.Int, fpsDen: Swift.Int, connected: [Swift.Int32]) -> Swift.String?
+func StreamRunWire.formatJSON(presetID: Swift.String, selectedWidth: Swift.Int, selectedHeight: Swift.Int, fpsNum: Swift.Int, fpsDen: Swift.Int, connected: [Swift.Int32], choice: Swift.String) -> Swift.String?
 func StreamRunWire.presetsJSON() -> Swift.String
 func StreamRunWire.publishAudio(owner: Swift.String, raw: [Swift.UInt8], presentMs: Swift.UInt32, nowNs: Swift.Int64) -> [Swift.UInt8]
 func StreamRunWire.publishAudioConfig(owner: Swift.String, audioSpecificConfig: [Swift.UInt8], nowNs: Swift.Int64) -> [Swift.UInt8]

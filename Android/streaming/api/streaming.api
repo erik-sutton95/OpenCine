@@ -100,8 +100,8 @@ public final class com/opencapture/opencine/streaming/StreamCatalog {
 	public fun <init> (Lcom/opencapture/opencine/streaming/StreamingNativeApi;)V
 	public final fun canStream (Lcom/opencapture/opencine/streaming/StreamConnectionRoute;)Z
 	public final fun check (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamDestinationCheck;
-	public final fun format (Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
-	public static synthetic fun format$default (Lcom/opencapture/opencine/streaming/StreamCatalog;Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
+	public final fun format (Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/streaming/StreamQualityChoice;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
+	public static synthetic fun format$default (Lcom/opencapture/opencine/streaming/StreamCatalog;Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/streaming/StreamQualityChoice;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
 	public final fun presets ()Ljava/util/List;
 }
 
@@ -453,6 +453,21 @@ public final class com/opencapture/opencine/streaming/StreamPublisher {
 	public final fun submitAudio ([SI)V
 }
 
+public final class com/opencapture/opencine/streaming/StreamQualityChoice : java/lang/Enum {
+	public static final field CAMERA_FEED Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public static final field Companion Lcom/opencapture/opencine/streaming/StreamQualityChoice$Companion;
+	public static final field UPSCALED_1080P Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWireName ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public static fun values ()[Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+}
+
+public final class com/opencapture/opencine/streaming/StreamQualityChoice$Companion {
+	public final fun fromWire (Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public final fun offered (Ljava/lang/Integer;Ljava/lang/Integer;)Ljava/util/List;
+}
+
 public final class com/opencapture/opencine/streaming/StreamRunReply {
 	public static final field Companion Lcom/opencapture/opencine/streaming/StreamRunReply$Companion;
 	public fun <init> (Ljava/util/List;Lcom/opencapture/opencine/streaming/StreamStatus;)V
@@ -581,6 +596,7 @@ public final class com/opencapture/opencine/streaming/StreamingNative : com/open
 	public fun connectionLost (Ljava/lang/String;J)[B
 	public fun create (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
 	public fun format (Ljava/lang/String;IIII[I)Ljava/lang/String;
+	public fun formatFor (Ljava/lang/String;IIII[ILjava/lang/String;)Ljava/lang/String;
 	public final fun isAvailable ()Z
 	public final fun load (Ljava/lang/String;)Z
 	public fun presets ()Ljava/lang/String;
@@ -603,6 +619,7 @@ public abstract interface class com/opencapture/opencine/streaming/StreamingNati
 	public abstract fun connectionLost (Ljava/lang/String;J)[B
 	public abstract fun create (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
 	public abstract fun format (Ljava/lang/String;IIII[I)Ljava/lang/String;
+	public fun formatFor (Ljava/lang/String;IIII[ILjava/lang/String;)Ljava/lang/String;
 	public abstract fun presets ()Ljava/lang/String;
 	public abstract fun publishAudio (Ljava/lang/String;[BIJ)[B
 	public abstract fun publishAudioConfig (Ljava/lang/String;[BJ)[B
@@ -613,5 +630,9 @@ public abstract interface class com/opencapture/opencine/streaming/StreamingNati
 	public abstract fun stop (Ljava/lang/String;J)[B
 	public abstract fun tick (Ljava/lang/String;J)[B
 	public abstract fun wrote (Ljava/lang/String;IJ)[B
+}
+
+public final class com/opencapture/opencine/streaming/StreamingNativeApi$DefaultImpls {
+	public static fun formatFor (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Ljava/lang/String;IIII[ILjava/lang/String;)Ljava/lang/String;
 }
 

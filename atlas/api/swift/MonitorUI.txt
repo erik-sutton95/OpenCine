@@ -259,7 +259,7 @@ init LiveStreamGoLiveButton(control: MonitorPresentation.LiveStreamControlState,
 init LiveStreamMonitorActions(start: () -> Swift.Void, stop: () -> Swift.Void, restart: () -> Swift.Void, dismissNotice: () -> Swift.Void)
 init LiveStreamMonitorControls(state: MonitorPresentation.LiveStreamMonitorState, actions: LiveStreamMonitorActions)
 init LiveStreamPill(state: MonitorPresentation.LiveStreamPillState, stop: () -> Swift.Void)
-init LiveStreamSettingsActions(selectService: (Swift.String) -> Swift.Void, setServer: (Swift.String) -> Swift.Void, saveKey: (Swift.String) -> Swift.Void, removeKey: () -> Swift.Void, setShowOnMonitor: (Swift.Bool) -> Swift.Void)
+init LiveStreamSettingsActions(selectService: (Swift.String) -> Swift.Void, setServer: (Swift.String) -> Swift.Void, saveKey: (Swift.String) -> Swift.Void, removeKey: () -> Swift.Void, setShowOnMonitor: (Swift.Bool) -> Swift.Void, selectQuality: (Swift.String) -> Swift.Void)
 init LiveStreamSettingsCard(state: MonitorPresentation.LiveStreamSettingsState, actions: LiveStreamSettingsActions, feedback: () -> Swift.Void)
 init LiveStreamStatusReadout(status: MonitorPresentation.LiveStreamStatusState)
 init LucideIconView(name: Swift.String, filled: Swift.Bool)
@@ -1236,6 +1236,7 @@ var LiveStreamMonitorControls.body: some SwiftUI.View
 var LiveStreamPill.body: some SwiftUI.View
 var LiveStreamSettingsActions.removeKey: () -> Swift.Void
 var LiveStreamSettingsActions.saveKey: (Swift.String) -> Swift.Void
+var LiveStreamSettingsActions.selectQuality: (Swift.String) -> Swift.Void
 var LiveStreamSettingsActions.selectService: (Swift.String) -> Swift.Void
 var LiveStreamSettingsActions.setServer: (Swift.String) -> Swift.Void
 var LiveStreamSettingsActions.setShowOnMonitor: (Swift.Bool) -> Swift.Void
