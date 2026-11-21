@@ -156,7 +156,7 @@ extension StreamPublisher: LiveStreamPublishing {}
         host: LiveStreamHost, keys: any LiveStreamKeyStoring, audio: (any LiveStreamAudioCapture)?,
         makePublisher: @escaping (StreamDestination, StreamOutputFormat, StreamPictureFitter.Mode) -> any LiveStreamPublishing,
         makeCameraRelay: @escaping () -> any LiveStreamCameraRelaying = { CameraStreamRelayAdapter() },
-        sleep: @escaping (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        sleep: @escaping (Duration) async -> Void = liveStreamPause,
         now: @escaping @Sendable () -> MonotonicInstant
     ) {
         self.host = host
@@ -728,6 +728,10 @@ extension StreamPublisher: LiveStreamPublishing {}
         }
     }
 }
+
+/// The coordinator's real pause (a named function: async closure literals as default arguments
+/// trip swiftlang/swift#92017).
+func liveStreamPause(_ duration: Duration) async { try? await Task.sleep(for: duration) }
 
 /// One "1080p from camera" stream from Go live until the camera is returned.
 @MainActor final class CameraRun {

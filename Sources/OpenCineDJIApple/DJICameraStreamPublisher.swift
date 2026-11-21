@@ -29,6 +29,12 @@ public enum DJICameraStreamError: Error, Equatable, Sendable {
 /// otherwise) and start (`02/8E`). The log holds no password and only the stream key's first 4
 /// characters.
 @MainActor public final class DJICameraStreamPublisher {
+    /// The real pause (a named function: async closure literals as default arguments trip
+    /// swiftlang/swift#92017).
+    @usableFromInline nonisolated static func pause(_ duration: Duration) async throws {
+        try await Task.sleep(for: duration)
+    }
+
     /// About 6 Mbps: the camera's own 1080p encode.
     public static let bitrateKbps: UInt16 = 6000
 
@@ -39,7 +45,7 @@ public enum DJICameraStreamError: Error, Equatable, Sendable {
 
     public init(
         link: any DJILivestreamLink, model: CameraModel, log: @escaping (String) -> Void = { _ in },
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping (Duration) async throws -> Void = DJICameraStreamPublisher.pause
     ) {
         self.link = link
         self.model = model
