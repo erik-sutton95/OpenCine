@@ -16,7 +16,8 @@ and match the glass chrome.
 - When the ruler is open it runs nearly the full height of the screen, and the joystick
   cluster (zoom chip, gimbal button, gimbal stick, head tracking calibrate), the timecode and
   status block, and the Go Live control are hidden until it closes.
-- Drag anywhere on the ruler to zoom in 0.1x steps, with a light haptic at each step.
+- The ruler works like the other setting dials, vertically: drag to slide the scale under a
+  fixed center line in 0.1x steps, with a light haptic at each step; tap a step to go there.
 - Ticks: short every 0.1x, longer every 0.5x, longest with a label every 1x.
 - Presets sit in a column beside the ruler, on the picture side, vertically centered.
 - A readout beside the top of the ruler shows the value with one decimal ("2.5x") and the
@@ -63,14 +64,16 @@ and match the glass chrome.
 - Height: portrait from below the top status row to just above the capture bar (mockup:
   13.5% to 77% of the screen); landscape from the top safe area to the bottom safe area
   (mockup: 4% to 96%). Width about 44 pt; the touch target is the full ruler plus a margin.
-- Spacing is **linear in zoom factor**, so each 0.1x step is the same drag distance (my
-  call, matching the approved mockup; the disc used `MonitorZoomScale`'s log mapping). The
-  bottom is the minimum, the top the camera's maximum.
-- Drag maps finger position to a value, rounded to 0.1x, sent through the existing
-  `value` binding and `onEditing` begin and end. A haptic fires on each new 0.1x value when
-  haptics are enabled.
-- Very long ranges: if a 0.1x step would be under 4 pt, minor ticks are drawn every 0.5x
-  instead, and the drag still rounds to 0.1x (builder's call on the exact threshold).
+- It behaves like the other setting dials (`MonitorDurationDial`, `MonitorValueDrum`), just
+  vertical (owner, 2026-11-21, after the first build): the scale slides under a fixed center
+  line, higher values above. Spacing is linear, 10 pt per 0.1x, so the visible window
+  depends on the ruler's height and long ranges scroll; tenth ticks are always drawn.
+- A drag moves the scale from the current zoom, relative to where the finger started (the
+  scale follows the finger, so dragging down zooms in). Touching never jumps the value. The
+  value rounds to 0.1x and goes through the `value` binding live (unlike the drum, which
+  commits on lift), inside `onEditing` begin and end. A light haptic fires on each new 0.1x.
+- A tap (under 10 pt of travel) goes to the step under the finger, snapping to a whole step
+  within 12 pt of its tick, like tapping a value on the drum.
 - Optical stops keep a highlight tick (brighter) as today.
 - Preset column: the existing `MonitorZoomPresetControls` content (select, save by long
   press, ramp setting), laid out vertically beside the ruler.
@@ -110,7 +113,7 @@ and match the glass chrome.
 
 ## Verification
 
-- Unit tests for the linear value mapping and 0.1x rounding (both twins).
+- Unit tests for the relative drag, tap snapping, visible ticks and 0.1x rounding (both twins).
 - Snapshot or UI review screenshots, portrait and landscape, open and closed, on iOS
   (`OpenPocketCineUIReview`) and Android, compared against the mockup.
 - On device: drag steps and haptics feel right; chrome returns when the ruler closes; Go
