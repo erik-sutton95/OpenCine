@@ -68,6 +68,27 @@ import Testing
         #expect(receiver.receive([1, 2, 3]).events.isEmpty)
     }
 
+    /// Media and data from a peer that never published under the key are dropped, never decoded.
+    @Test func mediaBeforePublishIsIgnored() throws {
+        var receiver = RTMPReceiveSession(expectedStreamKey: Self.key, random: { Array(repeating: 0, count: $0) })
+        _ = receiver.receive([0x03] + Array(repeating: 0, count: 1536))
+        _ = receiver.receive(Array(repeating: 0, count: 1536))
+        var writer = RTMPChunkWriter()
+        var bytes = writer.encode(Self.video([0x17, 0, 0, 0, 0, 1, 2, 3], at: 0))
+        bytes += writer.encode(RTMPMessage(chunkStreamID: 4, typeID: 8, messageStreamID: 1, timestamp: 0, payload: [0xAF, 0, 0x11, 0x90]))
+        let events = receiver.receive(bytes).events
+        #expect(!events.contains { if case .videoConfig = $0 { true } else { false } })
+        #expect(!events.contains { if case .audioConfig = $0 { true } else { false } })
+    }
+
+    @Test func anEmptyExpectedKeyAcceptsNoPublisher() throws {
+        var publisher = try Self.publisher(key: "x")
+        var receiver = RTMPReceiveSession(expectedStreamKey: "")
+        let (events, live) = Self.goLive(&publisher, &receiver)
+        #expect(!live)
+        #expect(events.contains(.failed(.unexpectedStreamKey)))
+    }
+
     @Test func enhancedAndLegacyHEVCTagsParse() {
         var receiver = Self.connected()
         var writer = RTMPChunkWriter()
@@ -95,16 +116,23 @@ import Testing
         #expect(events == [.unsupported("audio format 2")])
     }
 
-    @Test func acknowledgesAfterThePublishersWindow() {
-        var receiver = Self.connected()
+    @Test func acknowledgesAfterThePublishersWindow() throws {
+        var receiver = RTMPReceiveSession(expectedStreamKey: Self.key, random: { Array(repeating: 0, count: $0) })
+        var replies = receiver.receive([0x03] + Array(repeating: 0, count: 1536)).outbound
+        _ = receiver.receive(Array(repeating: 0, count: 1536))
         var writer = RTMPChunkWriter()
+        let publish = AMF0.encode([.string("publish"), .number(5), .null, .string(Self.key), .string("live")])
+        var reader = RTMPChunkReader()
+        let afterPublish = receiver.receive(writer.encode(
+            RTMPMessage(chunkStreamID: 8, typeID: 20, messageStreamID: 1, timestamp: 0, payload: publish))).outbound
+        _ = try reader.push(afterPublish)
+        replies = []
         // The publisher announces a 1000-byte window, then sends more than that.
         let ack = writer.encode(RTMPMessage(chunkStreamID: 2, typeID: 5, messageStreamID: 0, timestamp: 0, payload: [0, 0, 3, 0xE8]))
-        _ = receiver.receive(ack)
+        replies += receiver.receive(ack).outbound
         let big = writer.encode(Self.video([0x17, 1, 0, 0, 0] + Array(repeating: 0, count: 1200), at: 0))
-        let reply = receiver.receive(big).outbound
-        var reader = RTMPChunkReader()
-        let messages = (try? reader.push(reply)) ?? []
+        replies += receiver.receive(big).outbound
+        let messages = try reader.push(replies)
         #expect(messages.contains { $0.typeID == 3 })
     }
 
@@ -121,10 +149,15 @@ import Testing
 
     // MARK: Helpers
 
+    /// A receiver whose publisher has published under the expected key.
     static func connected() -> RTMPReceiveSession {
         var receiver = RTMPReceiveSession(expectedStreamKey: key, random: { Array(repeating: 0, count: $0) })
         _ = receiver.receive([0x03] + Array(repeating: 0, count: 1536))
         _ = receiver.receive(Array(repeating: 0, count: 1536))
+        var writer = RTMPChunkWriter()
+        let publish = AMF0.encode([.string("publish"), .number(5), .null, .string(key), .string("live")])
+        _ = receiver.receive(writer.encode(
+            RTMPMessage(chunkStreamID: 8, typeID: 20, messageStreamID: 1, timestamp: 0, payload: publish)))
         return receiver
     }
 

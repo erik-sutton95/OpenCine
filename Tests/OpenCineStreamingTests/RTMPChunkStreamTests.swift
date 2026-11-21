@@ -164,6 +164,34 @@ import Testing
         #expect(throws: RTMPChunkError.messageTooLarge) { try r.push(wire) }
     }
 
+    /// A new header on a stream with a half message, arriving a byte at a time, must not unlock the
+    /// bound: the abandoned bytes are given back once, when the new chunk is taken.
+    @Test func aHeaderArrivingInPiecesKeepsTheBound() throws {
+        var r = RTMPChunkReader(maxMessageBytes: 1024)
+        // Half of a 900-byte message on stream 3 (one 128-byte chunk).
+        _ = try r.push([0x03, 0, 0, 0, 0, 0x03, 0x84, 8, 0, 0, 0, 0] + Array(repeating: 0, count: 128))
+        // A new type 1 header on stream 3 for 900 bytes, its payload not here yet, read 1 byte at a time.
+        for byte: UInt8 in [0x43, 0, 0, 0, 0, 0x03, 0x84, 8] { _ = try r.push([byte]) }
+        for _ in 0..<5 { _ = try r.push([]) }
+        #expect(r.partialBytes == 128)
+        // So 7 more half messages of 128 bytes still pass the 1024 bound, and the 8th does not.
+        var wire: [UInt8] = []
+        for csid in 4..<12 { wire += [UInt8(csid), 0, 0, 0, 0, 0x03, 0xFF, 8, 0, 0, 0, 0] + Array(repeating: 0, count: 128) }
+        #expect(throws: RTMPChunkError.messageTooLarge) { try r.push(wire) }
+    }
+
+    /// Reassembly appends in place: a 4 MiB message in 128-byte chunks stays fast.
+    @Test(.timeLimit(.minutes(1))) func aLargeMessageReassemblesInLinearTime() throws {
+        var w = RTMPChunkWriter()
+        let payload = [UInt8](repeating: 7, count: 4 * 1024 * 1024)
+        let wire = w.encode(RTMPMessage(chunkStreamID: 6, typeID: 9, messageStreamID: 1, timestamp: 0, payload: payload))
+        var r = RTMPChunkReader()
+        let start = ContinuousClock.now
+        let messages = try r.push(wire)
+        #expect(messages.first?.payload.count == payload.count)
+        #expect(ContinuousClock.now - start < .seconds(2))
+    }
+
     @Test func type3WithoutPriorHeaderThrows() {
         var r = RTMPChunkReader()
         #expect(throws: RTMPChunkError.missingPriorHeader) { try r.push([0xC3, 1]) }

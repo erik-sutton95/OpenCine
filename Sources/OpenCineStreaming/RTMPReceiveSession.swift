@@ -83,6 +83,8 @@ public struct RTMPReceiveSession: Sendable {
     private var reported: Set<String> = []
     private let random: @Sendable (Int) -> [UInt8]
     private let expectedStreamKey: String
+    /// The peer published under the expected key; media and data before that are dropped.
+    private var published = false
 
     public init(expectedStreamKey: String) {
         self.init(expectedStreamKey: expectedStreamKey, random: { count in
@@ -160,6 +162,9 @@ public struct RTMPReceiveSession: Sendable {
     }
 
     private mutating func handle(_ message: RTMPMessage, into output: inout Output) {
+        if !published, [8, 9, 15, 18].contains(message.typeID) {
+            return report("media before publish", into: &output)
+        }
         switch message.typeID {
         case 1, 2, 3, 6:
             break  // chunk size and abort are the reader's; acks and bandwidth need nothing
@@ -237,11 +242,12 @@ public struct RTMPReceiveSession: Sendable {
         case "publish":
             let key: String = if values.count > 3, case .string(let value) = values[3] { value } else { "" }
             let type: String? = if values.count > 4, case .string(let value) = values[4] { value } else { nil }
-            guard key == expectedStreamKey else {
+            guard !expectedStreamKey.isEmpty, key == expectedStreamKey else {
                 state = .closed
                 output.events.append(.failed(.unexpectedStreamKey))
                 return
             }
+            published = true
             output.events.append(.publish(type: type))
             let id = stream == 0 ? 1 : stream
             output.outbound += control(4, [0, 0] + bigEndian(id))
