@@ -1,6 +1,6 @@
 # Zoom ruler and Go Live placement
 
-Approved mockup: https://claude.ai/artifact/QdGja1g4PzSWry6ChdN2HS (version 3, owner approved 2026-11-21).
+Approved mockup: <https://claude.ai/artifact/QdGja1g4PzSWry6ChdN2HS> (version 3, owner approved 2026-11-21).
 
 ## Why
 

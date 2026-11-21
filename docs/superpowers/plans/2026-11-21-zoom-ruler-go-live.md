@@ -8,7 +8,7 @@
 
 **Tech Stack:** SwiftUI (iOS 17+), Jetpack Compose, XCTest / Swift Testing as used by neighbors, JUnit.
 
-**Spec:** `docs/superpowers/specs/2026-11-21-zoom-ruler-go-live-design.md`. Mockup: https://claude.ai/artifact/QdGja1g4PzSWry6ChdN2HS
+**Spec:** `docs/superpowers/specs/2026-11-21-zoom-ruler-go-live-design.md`. Mockup: <https://claude.ai/artifact/QdGja1g4PzSWry6ChdN2HS>
 
 ## Global Constraints
 
@@ -35,12 +35,14 @@
 ### Task 1: Ruler scale model (Swift and Kotlin twins)
 
 **Files:**
+
 - Create: `Sources/MonitorPresentation/MonitorZoomRulerScale.swift`
 - Create: `Tests/MonitorPresentationTests/MonitorZoomRulerScaleTests.swift`
 - Create: `Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorZoomRulerScale.kt`
 - Create: `Android/monitor-ui/src/test/kotlin/com/opencapture/monitorui/MonitorZoomRulerScaleTest.kt`
 
 **Interfaces (Swift; Kotlin mirrors names in camelCase, `Double`/`Float` for pt/dp):**
+
 - Produces:
   - `public struct MonitorZoomRulerScale: Equatable, Sendable { init(minimum: Double, maximum: Double, length: Double) }`
   - `static let step = 0.1`
@@ -103,6 +105,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 ### Task 2: iOS ruler view
 
 **Files:**
+
 - Modify: `Sources/MonitorUI/MonitorZoomDial.swift` (replace disc drawing, radial gesture, half disc shape, canvas snapshot)
 - Modify: `Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorCaptureOverlays.swift:91-122` (`MonitorOperatorZoomDial` passes clearances)
 - Modify: `Tests/MonitorUITests/CameraDeferredRenderingTests.swift` (drop references to the removed canvas snapshot, keep the dial construction test)
@@ -110,6 +113,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 - Update: `atlas/api/swift` snapshot.
 
 **Interfaces:**
+
 - Consumes: `MonitorZoomRulerScale` (Task 1).
 - Produces: `MonitorZoomDial.init(...)` gains `topClearance: CGFloat = 0` after `bottomClearance`; all other parameters unchanged. Accessibility identifier stays `monitor.zoom.dial`; label becomes "Zoom".
 
@@ -131,6 +135,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 ### Task 3: Android ruler view
 
 **Files:**
+
 - Create: `Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorZoomRuler.kt`
 - Delete: `Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorZoomDisc.kt`; `MonitorZoomGeometry.kt` and its test if nothing else uses them (`MonitorZoomAttachment` stays if referenced by API, else removed).
 - Modify: `Android/monitor-ui/src/androidTest/kotlin/com/opencapture/monitorui/MonitorZoomInputTest.kt` (drive the ruler: drag from bottom to middle of a 1..4 ruler lands on 2.5 within the callback values)
@@ -140,6 +145,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 - Update: `Android/*/api/*.api`
 
 **Interfaces:**
+
 - Consumes: Kotlin `MonitorZoomRulerScale` (Task 1).
 - Produces:
   - `@Composable fun MonitorZoomRuler(initial: Double, maximum: Double, onChange: (Double) -> Unit, onDismiss: () -> Unit, opticalStops: List<Double> = listOf(1.0), caption: (Double) -> String = { "ZOOM" }, clearance: MonitorZoomClearance = MonitorZoomClearance(), onStep: () -> Unit = {}, presets: MonitorZoomPresetControls? = null, driven: Double? = null)`
@@ -156,6 +162,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 ### Task 4: Hide chrome while the ruler is open (iOS)
 
 **Files:**
+
 - Modify: `Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorVocabularySurface.swift` (`MonitorOperatorMotionContent.controls`, `.feedback`)
 - Modify: `Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorLiveSurface.swift` (status block near line 627)
 - Modify: `Sources/OpenCineAppKitApple/LiveStreamMonitorOverlay.swift` (`LiveStreamMonitorOverlay`)
@@ -163,6 +170,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 - Test: `Tests/OpenCineCameraControlsTests/` (or the module's existing live chrome test file) for the visibility rule
 
 **Interfaces:**
+
 - Produces:
   - `MonitorOperatorInteraction.chromeHiddenForZoom: Bool { zoomVisible }` (single name used by all callers)
   - `LiveStreamMonitorOverlay.init(coordinator:, hidden: Bool = false)`; when hidden: opacity 0, no hit testing, accessibility hidden, but still mounted (so `monitorControlsAppeared` does not flip and the app pill stays hidden).
@@ -175,6 +183,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 ### Task 5: Hide chrome while the ruler is open (Android)
 
 **Files:**
+
 - Modify: `Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/MonitorOperatorSessionModel.kt`
 - Test: `Android/appkit/src/test/kotlin/com/opencapture/opencine/appkit/MonitorOperatorSessionModelTest.kt`
 - Modify: `Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorVocabularySurface.kt` (`MonitorOperatorNativeControls`)
@@ -182,6 +191,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 - Modify: `Android/appkit-native/src/main/kotlin/com/opencapture/opencine/appkitnative/LiveStreamComposition.kt` (`LiveStreamOverlay`, scoped overload)
 
 **Interfaces:**
+
 - Consumes: `LiveZoomChip(onDialOpenChange:)` (Task 3).
 - Produces:
   - `MonitorOperatorSessionModel.zoomDialOpen: Boolean` (Compose `mutableStateOf`, public get, public set); reset to false by the session's lock transition.
@@ -195,6 +205,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 ### Task 6: Go Live under the timecode, restyled (both platforms)
 
 **Files:**
+
 - Create: `Sources/MonitorPresentation/LiveStreamOverlayPlacement.swift`, test `Tests/MonitorPresentationTests/LiveStreamOverlayPlacementTests.swift`
 - Modify: `Sources/MonitorPresentation/LiveStreamPresentation.swift` (`LiveStreamStatusState.compactLine(quality:)`), tests in the existing `LiveStreamPresentationTests`
 - Modify: `Sources/MonitorUI/LiveStream/LiveStreamMonitorControls.swift`
@@ -202,6 +213,7 @@ Expected: FAIL, `MonitorZoomRulerScale` not found. Kotlin: `cd Android && ./grad
 - Kotlin twins: `Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/LiveStreamOverlayPlacement.kt` (+ test), `LiveStreamPresentation.kt` (`compactLine`), `livestream/LiveStreamViews.kt`, `appkit-native/.../LiveStreamComposition.kt`
 
 **Interfaces:**
+
 - Produces:
   - `public enum LiveStreamOverlayPlacement { public static func anchor(status: CGRect, viewport: CGSize, safeArea: EdgeInsets) -> CGPoint }` returning the top trailing point the control hangs from: `x = min(status.maxX, viewport.width - safeArea.trailing) - 8`, `y = status.maxY + 6`; when `status.height <= 1` (status row off), `x = viewport.width - safeArea.trailing - 8` and `y = max(safeArea.top, 8) + 8`. Kotlin: `object LiveStreamOverlayPlacement { fun anchor(status: MonitorRect, viewportWidth: Float, safeTop: Float, safeTrailing: Float): MonitorPoint` (use the existing point type if `monitor-ui` has one, else a small `data class`) }`.
   - `LiveStreamStatusState.compactLine(quality: LiveStreamQuality?) -> String`: `"\(quality.height)p · \(bitrate) · \(healthText.lowercased())"`, quality part omitted when nil, `"N dropped"` inserted before health only when `droppedGroups > 0`. Bitrate uses `LiveStreamCopy.bitrate`.
