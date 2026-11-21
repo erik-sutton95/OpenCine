@@ -1,6 +1,6 @@
 # 1080p streaming for Osmo cameras: design
 
-Date: 2026-11-21. Status: draft for owner approval.
+Date: 2026-11-21. Status: approved by the owner on 2026-11-21. Plan: `docs/superpowers/plans/2026-11-21-dji-1080p-streaming.md`.
 
 ## Intent
 
