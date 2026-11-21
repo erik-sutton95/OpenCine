@@ -61,14 +61,17 @@ permission gate (activity result). A `false` answer ends the start with `microph
   `StreamConnectionRoute(_ kind: RouteKind)` (camera access point is the one blocked route).
 - `LiveStreamMonitorState`: the control, service name, quality, `encrypted`, status, end and warning.
 - `LiveStreamQuality`: `width`, `height`, `framesPerSecond`, `videoBitrateBps`, `kind`
-  (`LiveStreamQualityKind`: `source`, `upscaled`).
+  (`LiveStreamQualityKind`: `source`, `upscaled`, `camera`).
 - `LiveStreamQualityOption`: `id`, `title`, `detail`, `unavailableReason` (an option with a reason is
   listed but cannot be chosen). The settings state carries `qualityOptions` and `selectedQualityID`
   (Kotlin `selectedQualityId`); the ids are the engine's `StreamQualityChoice` raw values
-  (`cameraFeed`, `upscaled1080p`).
+  (`cameraFeed`, `upscaled1080p`, `camera1080p`).
+- `LiveStreamCameraStatus`: `starting`, `live`, `recovering`, `lost`, `notResponding` (while the
+  stream carries the camera's own picture); `LiveStreamNetworkChoice`: `id`, `name`. The monitor
+  state carries `cameraStatus` and `networkChoices`.
 - `LiveStreamPhase`: `idle`, `connecting`, `live`, `reconnecting(attempt)`, `ended(LiveStreamEnd)`.
 - `LiveStreamEnd`: `stopped`, `refused(reason)`, `gaveUp`, `unreachable`, `background`,
-  `microphoneDenied`.
+  `microphoneDenied`, `cameraDidNotStart`, `cameraNotResponding`.
 - `LiveStreamHealth`: `good`, `congested`, `offline`.
 - `LiveStreamStatusState`: `phase`, `elapsedSeconds`, `sentBitrateBps`, `droppedGroups`, `health`.
 - `LiveStreamWarning`: `hot`, `lowBattery`.
@@ -126,7 +129,28 @@ Stop confirmation: title `End the stream?`, message
 `Viewers see the stream end. Camera recording is not affected.`, buttons `End stream`
 (destructive) and `Keep streaming` (cancel).
 
-Starting or stopping never sends a camera command.
+With the `1080p from camera` choice the start message is
+`<quality>. The camera's own picture goes out in standard color, without the monitor LUT, with the camera's sound. Camera recording is separate.`
+When two or more shared networks are saved, the confirmation offers one button per network instead
+of `Go live`: `Go live over <network>`, the phone's hotspot first.
+
+Starting or stopping never sends a camera command, except with `1080p from camera`: the camera is
+told to publish its own stream on start, and to end it on stop, on every failure and when the app
+leaves the screen.
+
+## Camera stream status (`1080p from camera`)
+
+Under the status readout, identifier `monitor.livestream.cameraStatus`, while the stream carries the
+camera's own picture. `Retry` (`monitor.livestream.cameraRetry`) asks the camera to start again; the
+outgoing stream stays up on the slate meanwhile, and ending it stays the operator's action.
+
+| Status | Copy | Retry |
+|---|---|---|
+| `starting` | `Starting the camera's stream.` | |
+| `live` | `1080p from camera. Assists, scopes and camera controls are off in this mode.` | |
+| `recovering` | `The camera's stream stopped. Trying again.` | |
+| `lost` | `The camera's stream did not come back.` | yes |
+| `notResponding` | `The camera is not responding. Hold its power button about 10 seconds to restart it.` | yes |
 
 ## Live pill (app root)
 
@@ -171,6 +195,8 @@ Identifier `monitor.livestream.notice`, dismiss button `Dismiss` (`monitor.lives
 | `unreachable` | `Could not reach the streaming server. Check this phone's internet connection, then go live again.` | |
 | `background` | `The stream ended when the app left the screen.` | `Restart stream` (`monitor.livestream.restart`), starts at once with the same settings, no confirmation |
 | `microphoneDenied` | `Allow microphone access in Settings to go live.` | |
+| `cameraDidNotStart` | `The camera did not start its stream. Try again, or choose Camera feed in the live stream settings.` | |
+| `cameraNotResponding` | `The camera stopped responding. Hold its power button about 10 seconds to restart it, then go live again.` | |
 | `stopped` | no notice | |
 
 ## Warnings (while live)
@@ -202,9 +228,11 @@ offered; otherwise the stream uses Camera feed):
 |---|---|---|---|
 | `cameraFeed` | `Camera feed` | none | always |
 | `upscaled1080p` | `1080p upscaled` | `The camera feed scaled up to 1080p, with your LUT.` | the source's short side is below 1080 |
+| `camera1080p` | `1080p from camera` | `Sharper picture, encoded by the camera, standard color, no LUT.` | the host declares that the selected camera can publish its own stream; listed unavailable, with `Save a shared network in the camera's Wi-Fi setup to use this.`, while no shared network is saved |
 
 An upscaled output always says so in its line: `1080p upscaled, 30 fps, 6 Mbps` (vertical:
-`1080p vertical upscaled, ...`); the start confirmation uses the same line.
+`1080p vertical upscaled, ...`); the start confirmation uses the same line. The camera's own
+picture reads `1080p from camera, 30 fps, 6 Mbps`.
 
 Vertical note: `This service takes a vertical picture: the stream is a 9:16 center crop of the camera picture, about <w> pixels wide from a <h>p feed before scaling.`
 (`<w>` is the source height times 9 / 16, rounded down; `405` from 720p.)

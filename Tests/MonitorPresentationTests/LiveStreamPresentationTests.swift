@@ -217,4 +217,35 @@ struct LiveStreamPresentationTests {
         state.selectedQualityID = "x"
         #expect(state.qualityDetail == "Not now.")
     }
+
+    @Test func cameraQualityLineAndStartMessageSayWhatGoesOut() {
+        let camera = LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000,
+            kind: .camera)
+        #expect(camera.line == "1080p from camera, 30 fps, 6 Mbps")
+        #expect(LiveStreamCopy.startMessage(quality: camera, encrypted: true)
+            == "1080p from camera, 30 fps, 6 Mbps. The camera's own picture goes out in standard color, without the "
+            + "monitor LUT, with the camera's sound. Camera recording is separate.")
+        #expect(LiveStreamCopy.qualityCamera == "1080p from camera")
+        #expect(LiveStreamCopy.qualityCameraDetail == "Sharper picture, encoded by the camera, standard color, no LUT.")
+        #expect(LiveStreamCopy.qualityCameraNeedsNetwork
+            == "Save a shared network in the camera's Wi-Fi setup to use this.")
+        #expect(LiveStreamCopy.startOnNetwork("es_iphone16") == "Go live over es_iphone16")
+    }
+
+    @Test func cameraStatusLinesAndRetry() {
+        #expect(LiveStreamCameraStatus.starting.text == "Starting the camera's stream.")
+        #expect(LiveStreamCameraStatus.live.text
+            == "1080p from camera. Assists, scopes and camera controls are off in this mode.")
+        #expect(LiveStreamCameraStatus.recovering.text == "The camera's stream stopped. Trying again.")
+        #expect(LiveStreamCameraStatus.lost.text == "The camera's stream did not come back.")
+        #expect(LiveStreamCameraStatus.notResponding.text
+            == "The camera is not responding. Hold its power button about 10 seconds to restart it.")
+        #expect(LiveStreamCameraStatus.allCases.filter(\.offersRetry) == [.lost, .notResponding])
+        #expect(LiveStreamCopy.cameraRetry == "Retry")
+        #expect(LiveStreamEnd.cameraDidNotStart.notice
+            == "The camera did not start its stream. Try again, or choose Camera feed in the live stream settings.")
+        #expect(LiveStreamEnd.cameraNotResponding.notice
+            == "The camera stopped responding. Hold its power button about 10 seconds to restart it, then go live again.")
+        #expect(!LiveStreamEnd.cameraDidNotStart.offersRestart)
+    }
 }
