@@ -78,18 +78,19 @@ final class CameraDeferredRenderingTests: XCTestCase {
             }, onEditing: { _ in XCTFail("Drawing cannot start an edit") }, onClose: {})
         let snapshot = dial.canvasSnapshot
         let reads = probe.valueReads
-        XCTAssertEqual(probe.labelCalls, 4)
+        XCTAssertEqual(probe.labelCalls, 3)
         probe.prefix = "New "
         probe.zoom = 4
         let result = await Task.detached {
             precondition(!Thread.isMainThread)
             _ = MonitorZoomDial.canvas(snapshot)
-            return (snapshot.labels.map(\.label), snapshot.current)
+            return (snapshot.labels.map(\.label), snapshot.center)
         }.value
-        XCTAssertEqual(result.0, ["1.0", "2.0", "3.0", "4.0"])
-        XCTAssertEqual(result.1, dial.ruler.offset(for: 2))
+        // The scale is centered on 2x and shows 1.73x either side on this 378 pt ruler.
+        XCTAssertEqual(result.0, ["1.0", "2.0", "3.0"])
+        XCTAssertEqual(result.1, 2)
         XCTAssertEqual(probe.valueReads, reads)
-        XCTAssertEqual(probe.labelCalls, 4)
+        XCTAssertEqual(probe.labelCalls, 3)
     }
 }
 

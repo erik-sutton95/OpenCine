@@ -3,8 +3,10 @@
     import SwiftUI
 
     /// The zoom control: a slim vertical ruler on the trailing edge with the presets beside it.
-    /// Drag anywhere on the ruler to move in 0.1x steps. Camera adapters own continuous write
-    /// coalescing and final settlement; opening the ruler and drawing it never issue commands.
+    /// It behaves like the other setting dials: the scale slides under a fixed center line, a
+    /// drag moves it from the current zoom in 0.1x steps (the camera zooms live), and a tap goes
+    /// to the step under the finger. Camera adapters own continuous write coalescing and final
+    /// settlement; opening the ruler and drawing it never issue commands.
     /// Kotlin twin: `MonitorZoomRuler` (monitor-ui).
     public struct MonitorZoomDial: View {
         static let rulerWidth: CGFloat = 44
@@ -13,6 +15,8 @@
         static let labelGutter: CGFloat = 34
         /// Keeps the end ticks off the capsule's rounded ends.
         static let endInset: CGFloat = 16
+        /// A press that moves less than this is a tap.
+        static let tapTravel: CGFloat = 10
 
         private let viewport: CGSize
         private let safeArea: EdgeInsets
@@ -36,6 +40,9 @@
         @Environment(\.monitorHDRChromeGain) private var hdrGain
         @State private var appeared = false
         @State private var stepTick = 0
+        /// The value the scale shows while a finger is down; the reported zoom otherwise.
+        @State private var scrub: Double?
+        @State private var origin: Double?
 
         /// `attachment` and `marks` are kept for source compatibility: the ruler always sits on
         /// the trailing edge and draws its own 0.1x, 0.5x and 1x ticks.
@@ -79,10 +86,11 @@
         }
 
         var ruler: MonitorZoomRulerScale {
-            MonitorZoomRulerScale(
-                minimum: scale.minimum, maximum: scale.maximum,
-                length: Double(max(0, rulerFrame.height - Self.endInset * 2)))
+            MonitorZoomRulerScale(minimum: scale.minimum, maximum: scale.maximum)
         }
+
+        /// The value under the center line.
+        private var shown: Double { scrub ?? value }
 
         private var ink: Color {
             opticalStops.contains { abs($0 - value) < 0.05 }
@@ -141,7 +149,7 @@
         private var side: some View {
             VStack(alignment: .trailing, spacing: 14) {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(MonitorZoomRulerScale.readout(value))
+                    Text(MonitorZoomRulerScale.readout(shown))
                         .font(MonitorTheme.font(22, weight: .bold)).monospacedDigit()
                         .foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
                     if !caption.isEmpty {
@@ -177,19 +185,32 @@
                             cancelPointer()
                             return
                         }
-                        if drag.begin(at: value) { onEditing(true) }
-                        guard drag.anchor != nil else { return }
-                        let next = ruler.value(atOffset: Double(gesture.location.y - Self.endInset))
-                        guard next != value else { return }
-                        if ruler.quantized(next) != ruler.quantized(value) { stepTick += 1 }
-                        value = next
+                        if drag.begin(at: value) {
+                            origin = value
+                            onEditing(true)
+                        }
+                        guard drag.anchor != nil, let origin else { return }
+                        // Below the tap threshold the scale stays put, as on the other dials.
+                        guard hypot(gesture.translation.width, gesture.translation.height) >= Self.tapTravel
+                            || scrub != nil
+                        else { return }
+                        move(to: ruler.dragged(from: origin, translation: Double(gesture.translation.height)))
                     }
-                    .onEnded { _ in finishEditing() }
+                    .onEnded { gesture in
+                        if acceptsInput, drag.anchor != nil, scrub == nil,
+                            hypot(gesture.translation.width, gesture.translation.height) < Self.tapTravel
+                        {
+                            let center = rulerFrame.height / 2
+                            move(to: ruler.tapped(
+                                atOffset: Double(gesture.startLocation.y - center), center: shown))
+                        }
+                        finishEditing()
+                    }
             )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Zoom")
             .accessibilityValue(
-                [MonitorZoomRulerScale.readout(value), caption].filter { !$0.isEmpty }
+                [MonitorZoomRulerScale.readout(shown), caption].filter { !$0.isEmpty }
                     .joined(separator: ", "))
             .accessibilityAdjustableAction { direction in
                 guard acceptsInput else { return }
@@ -201,20 +222,33 @@
             .accessibilityIdentifier("monitor.zoom.dial")
         }
 
+        /// Shows `next` under the center line and sends it live, with a tick per new step.
+        private func move(to next: Double) {
+            guard next != shown || scrub == nil else { return }
+            if ruler.quantized(next) != ruler.quantized(shown) { stepTick += 1 }
+            scrub = next
+            value = next
+        }
+
         private func finishEditing() {
+            scrub = nil
+            origin = nil
             if drag.end() { onEditing(false) }
         }
 
         private func cancelPointer() {
             guard pointerActive || drag.anchor != nil else { return }
+            scrub = nil
+            origin = nil
             if drag.cancel() { onEditing(false) }
         }
 
         /// Freeze native value and label projections before SwiftUI dispatches the Canvas
         /// renderer. The drawing snapshot contains no session callbacks.
         var canvasSnapshot: MonitorZoomCanvasSnapshot {
-            let ruler = ruler
-            let ticks = ruler.ticks
+            let center = shown
+            let halfSpan = max(0, Double(rulerFrame.height / 2 - Self.endInset))
+            let ticks = ruler.ticks(center: center, halfSpan: halfSpan)
             let opticalMaximum = opticalStops.max() ?? scale.minimum
             return MonitorZoomCanvasSnapshot(
                 width: Self.rulerWidth, gutter: Self.labelGutter, inset: Self.endInset,
@@ -222,7 +256,7 @@
                 labels: ticks.filter { $0.kind == .major }.map {
                     MonitorZoomCanvasMark(value: $0.value, offset: $0.offset, label: label($0.value))
                 },
-                current: ruler.offset(for: value), opticalMaximum: opticalMaximum,
+                center: center, halfSpan: halfSpan, opticalMaximum: opticalMaximum,
                 opticalStops: opticalStops, ink: ink, digitalInk: MonitorTheme.digitalCrop,
                 secondaryInk: MonitorTheme.secondary,
                 labelFont: MonitorTheme.font(12, weight: .semibold))
@@ -231,7 +265,13 @@
         nonisolated static func canvas(_ snapshot: MonitorZoomCanvasSnapshot) -> Canvas<EmptyView> {
             Canvas { context, size in
                 let left = size.width - snapshot.width
-                func y(_ offset: Double) -> CGFloat { snapshot.inset + CGFloat(offset) }
+                let mid = size.height / 2
+                func y(_ offset: Double) -> CGFloat { mid + CGFloat(offset) }
+                /// Ticks fade over the last 40 pt before the capsule's ends.
+                func fade(_ offset: Double) -> Double {
+                    guard snapshot.halfSpan > 0 else { return 1 }
+                    return min(1, max(0, (snapshot.halfSpan - abs(offset)) / 40))
+                }
                 for tick in snapshot.ticks {
                     let (from, to, weight, alpha): (CGFloat, CGFloat, CGFloat, Double) =
                         switch tick.kind {
@@ -246,19 +286,22 @@
                     path.move(to: CGPoint(x: left + snapshot.width * from, y: y(tick.offset)))
                     path.addLine(to: CGPoint(x: left + snapshot.width * to, y: y(tick.offset)))
                     context.stroke(
-                        path, with: .color(color.opacity(optical ? 1 : alpha)), lineWidth: weight)
+                        path, with: .color(color.opacity((optical ? 1 : alpha) * fade(tick.offset))),
+                        lineWidth: weight)
                 }
                 for mark in snapshot.labels {
                     let color =
                         mark.value > snapshot.opticalMaximum + 0.02
                         ? snapshot.digitalInk : snapshot.secondaryInk
                     context.draw(
-                        Text(mark.label).font(snapshot.labelFont).foregroundStyle(color),
+                        Text(mark.label).font(snapshot.labelFont)
+                            .foregroundStyle(color.opacity(fade(mark.offset))),
                         at: CGPoint(x: left - 6, y: y(mark.offset)), anchor: .trailing)
                 }
+                // The fixed center line the scale slides under.
                 var marker = Path()
-                marker.move(to: CGPoint(x: left + 6, y: y(snapshot.current)))
-                marker.addLine(to: CGPoint(x: left + snapshot.width - 6, y: y(snapshot.current)))
+                marker.move(to: CGPoint(x: left + 4, y: mid))
+                marker.addLine(to: CGPoint(x: left + snapshot.width - 4, y: mid))
                 context.stroke(
                     marker, with: .color(snapshot.ink),
                     style: StrokeStyle(lineWidth: 3, lineCap: .round))
@@ -278,7 +321,10 @@
         let inset: CGFloat
         let ticks: [MonitorZoomRulerTick]
         let labels: [MonitorZoomCanvasMark]
-        let current: Double
+        /// The value under the center line.
+        let center: Double
+        /// Points from the center line to the last drawn tick.
+        let halfSpan: Double
         let opticalMaximum: Double
         let opticalStops: [Double]
         let ink: Color
