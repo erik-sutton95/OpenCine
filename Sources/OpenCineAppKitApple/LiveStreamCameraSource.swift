@@ -1,6 +1,5 @@
 #if canImport(VideoToolbox) && canImport(Network)
 import AVFoundation
-import CoreVideo
 import Foundation
 import OpenCineCore
 import OpenCineStreaming
