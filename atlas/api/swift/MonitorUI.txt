@@ -244,6 +244,7 @@ func View.monitorCapturePanelHeader(title: Swift.String, subtitle: Swift.String)
 func View.monitorCardSurface(radius: CoreGraphics.CGFloat) -> some SwiftUI.View
 func View.monitorFullWidthCard() -> some SwiftUI.View
 func View.monitorGlass(in: some SwiftUI.Shape, density: MonitorGlassDensity) -> some SwiftUI.View
+func View.monitorHiddenWhileZoom(_: Swift.Bool) -> some SwiftUI.View
 func View.monitorPresentationVisibility(_: Swift.Bool) -> some SwiftUI.View
 func View.monitorPulse(period: Foundation.TimeInterval) -> some SwiftUI.View
 func View.monitorReadoutShadow() -> some SwiftUI.View
@@ -261,6 +262,7 @@ init LiveStreamMonitorControls(state: MonitorPresentation.LiveStreamMonitorState
 init LiveStreamPill(state: MonitorPresentation.LiveStreamPillState, stop: () -> Swift.Void)
 init LiveStreamSettingsActions(selectService: (Swift.String) -> Swift.Void, setServer: (Swift.String) -> Swift.Void, saveKey: (Swift.String) -> Swift.Void, removeKey: () -> Swift.Void, setShowOnMonitor: (Swift.Bool) -> Swift.Void, selectQuality: (Swift.String) -> Swift.Void)
 init LiveStreamSettingsCard(state: MonitorPresentation.LiveStreamSettingsState, actions: LiveStreamSettingsActions, feedback: () -> Swift.Void)
+init LiveStreamStatusLine(status: MonitorPresentation.LiveStreamStatusState, quality: MonitorPresentation.LiveStreamQuality?)
 init LiveStreamStatusReadout(status: MonitorPresentation.LiveStreamStatusState)
 init LucideIconView(name: Swift.String, filled: Swift.Bool)
 init MonitorAccountSettings(title: Swift.String, help: Swift.String, state: MonitorAccountState, signIn: (() -> Swift.Void)?, signOut: (() -> Swift.Void)?, statusLabel: Swift.String?, signInTitle: Swift.String, signOutTitle: Swift.String, busyLabel: Swift.String?, errorMessage: Swift.String?, pillActions: Swift.Bool)
@@ -482,7 +484,7 @@ init MonitorZebraMenu(units: [Unit], unit: SwiftUI.Binding<Unit>, title: (Unit) 
 init MonitorZebraNumberEntry(value: SwiftUI.Binding<Swift.Int>, maximum: Swift.Int, identifier: Swift.String)
 init MonitorZebraNumberZone(enabled: SwiftUI.Binding<Swift.Bool>, entry: MonitorZebraNumberEntry?, colors: [MonitorSettingsColorDot<Paint>], paint: SwiftUI.Binding<Paint>)<Paint where Paint : Swift.Hashable>
 init MonitorZebraZone(enabled: SwiftUI.Binding<Swift.Bool>, threshold: SwiftUI.Binding<Swift.Double>, displayValue: Swift.Int, colors: [MonitorSettingsColorDot<Paint>], paint: SwiftUI.Binding<Paint>)<Paint where Paint : Swift.Hashable>
-init MonitorZoomDial(viewport: CoreFoundation.CGSize, safeArea: SwiftUI.EdgeInsets, attachment: MonitorPresentation.MonitorZoomAttachment, bottomClearance: CoreGraphics.CGFloat, isPresented: Swift.Bool, scale: MonitorPresentation.MonitorZoomScale, marks: [Swift.Double], opticalStops: [Swift.Double], caption: Swift.String, value: SwiftUI.Binding<Swift.Double>, label: (Swift.Double) -> Swift.String, onEditing: (Swift.Bool) -> Swift.Void, onClose: () -> Swift.Void, haptics: Swift.Bool, presets: MonitorZoomPresetControls?)
+init MonitorZoomDial(viewport: CoreFoundation.CGSize, safeArea: SwiftUI.EdgeInsets, attachment: MonitorPresentation.MonitorZoomAttachment, bottomClearance: CoreGraphics.CGFloat, topClearance: CoreGraphics.CGFloat, isPresented: Swift.Bool, scale: MonitorPresentation.MonitorZoomScale, marks: [Swift.Double], opticalStops: [Swift.Double], caption: Swift.String, value: SwiftUI.Binding<Swift.Double>, label: (Swift.Double) -> Swift.String, onEditing: (Swift.Bool) -> Swift.Void, onClose: () -> Swift.Void, haptics: Swift.Bool, presets: MonitorZoomPresetControls?)
 init MonitorZoomPresetControls(presets: MonitorPresentation.MonitorZoomPresets, onSelect: (Swift.Int) -> Swift.Void, onSave: (Swift.Int) -> Swift.Void, onRamp: (Swift.Double) -> Swift.Void)
 init MultiviewStageCanvas(slots: Swift.Int, layout: MonitorPresentation.MultiviewPresentationLayout, geometry: MultiviewStageGeometry, content: (Swift.Int) -> Content)<Content where Content : SwiftUI.View>
 init MultiviewStageGeometry()
@@ -934,6 +936,7 @@ struct LiveStreamMonitorControls: Sendable, View
 struct LiveStreamPill: Sendable, View
 struct LiveStreamSettingsActions
 struct LiveStreamSettingsCard: Sendable, View
+struct LiveStreamStatusLine: Sendable, View
 struct LiveStreamStatusReadout: Sendable, View
 struct LucideIconView: Sendable, View
 struct MonitorAccountSettings: Sendable, View
@@ -1197,6 +1200,7 @@ var EnvironmentValues.monitorPresentationIsVisible: Swift.Bool
 var EnvironmentValues.monitorScopeObstacles: [CoreFoundation.CGRect]
 var EnvironmentValues.monitorSegmentedAppearance: MonitorSegmentedAppearance
 var EnvironmentValues.monitorWindowGeometry: MonitorWindowGeometry
+var EnvironmentValues.monitorZoomRulerOpen: Swift.Bool
 var InterfaceOrientationObserver.orientation: MonitorPresentation.MonitorDeviceOrientation
 var LiveMonitorLayout.aeUnlock: CoreFoundation.CGRect
 var LiveMonitorLayout.assist: CoreFoundation.CGRect
@@ -1243,6 +1247,7 @@ var LiveStreamSettingsActions.selectService: (Swift.String) -> Swift.Void
 var LiveStreamSettingsActions.setServer: (Swift.String) -> Swift.Void
 var LiveStreamSettingsActions.setShowOnMonitor: (Swift.Bool) -> Swift.Void
 var LiveStreamSettingsCard.body: some SwiftUI.View
+var LiveStreamStatusLine.body: some SwiftUI.View
 var LiveStreamStatusReadout.body: some SwiftUI.View
 var LucideIconView.body: some SwiftUI.View
 var MonitorAccountSettings.body: some SwiftUI.View
