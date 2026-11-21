@@ -276,6 +276,18 @@ class LiveStreamCoordinatorTest {
         assertEquals("upscaled1080p", again.state.value.selectedQualityId)
     }
 
+    /** Android keeps 1080p from camera hidden until its hardware pass: never listed, never streamed. */
+    @Test
+    fun cameraChoiceIsNeverOfferedOnAndroidYet() = runTest(UnconfinedTestDispatcher()) {
+        keys.save("live_key", null, "twitch")
+        val stream = coordinator()
+        stream.selectQuality("camera1080p")
+        assertEquals(listOf("cameraFeed", "upscaled1080p"), stream.state.value.qualityOptions.map { it.id })
+        assertEquals("cameraFeed", stream.state.value.selectedQualityId)
+        stream.goLive()
+        assertEquals("cameraFeed", native.lastChoice)
+    }
+
     @Test
     fun qualityIsLockedWhileLive() = runTest(UnconfinedTestDispatcher()) {
         val stream = liveCoordinator()
