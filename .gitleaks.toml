@@ -42,5 +42,5 @@ regexes = [
   '''^0123456789abcdef0123456789abcdef$''',
 ]
 paths = [
-  '''^Tests/OpenCineStreaming(Apple)?Tests/[A-Za-z]+\.swift$''',
+  '''^Tests/OpenCineStreaming(Apple|Android)?Tests/[A-Za-z]+\.swift$''',
 ]

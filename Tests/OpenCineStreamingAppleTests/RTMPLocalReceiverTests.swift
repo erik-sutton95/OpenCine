@@ -15,6 +15,7 @@ import Testing
         let listening = DispatchSemaphore(value: 0)
         let published = DispatchSemaphore(value: 0)
         let gone = DispatchSemaphore(value: 0)
+        let frame = DispatchSemaphore(value: 0)
 
         func add(_ event: RTMPLocalReceiver.Event) {
             lock.withLock {
@@ -23,7 +24,7 @@ import Testing
                 case .publisherConnected: events.append("connected")
                 case .publisherDisconnected: events.append("disconnected"); gone.signal()
                 case .session(.publish): events.append("publish"); published.signal()
-                case .session(.videoFrame): frames += 1
+                case .session(.videoFrame): frames += 1; frame.signal()
                 case .session(.failed): events.append("failed")
                 default: break
                 }
@@ -60,10 +61,20 @@ import Testing
         let wrongKey = RTMPReceiveFixtures.key.replacingOccurrences(of: "0123", with: "9999")
         let strangerBytes = Self.replacing(camera, RTMPReceiveFixtures.key, with: wrongKey)
         stranger.send(content: Data(strangerBytes), completion: .idempotent)
-        Thread.sleep(forTimeInterval: 0.5)
+        // The stranger is closed for its wrong key.
+        let refused = DispatchSemaphore(value: 0)
+        @Sendable func read() {
+            stranger.receive(minimumIncompleteLength: 1, maximumLength: 1 << 20) { _, _, complete, error in
+                if complete || error != nil { refused.signal() } else { read() }
+            }
+        }
+        read()
+        #expect(refused.wait(timeout: .now() + 10) == .success)
 
+        // The camera's second half still arrives as frames.
+        while box.frame.wait(timeout: .now()) == .success {}
         publisher.send(content: Data(camera[half...]), completion: .idempotent)
-        Thread.sleep(forTimeInterval: 0.5)
+        #expect(box.frame.wait(timeout: .now() + 10) == .success)
         box.lock.lock()
         let events = box.events
         let framesAfter = box.frames

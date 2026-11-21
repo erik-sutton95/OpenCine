@@ -15,6 +15,7 @@ struct StreamingNativeExportNamesTests {
         "create", "start", "connected", "received", "connectionLost", "wrote", "tick", "stop",
         "publishVideoConfig", "publishVideo", "publishAudioConfig", "publishAudio", "close",
         "presets", "format", "formatFor", "checkDestination", "canStream",
+        "receiverCreate", "receiverFeed", "receiverClose",
     ]
 
     @Test func everyExportMatchesTheKotlinNativeContract() throws {
