@@ -473,6 +473,7 @@ func MonitorZoomDrag.end() -> Swift.Bool
 func MonitorZoomPresets.save(_: Swift.Double, at: Swift.Int) -> ()
 func MonitorZoomPresets.setRamp(_: Swift.Double) -> ()
 func MonitorZoomPresets.target(at: Swift.Int, maximum: Swift.Double) -> Swift.Double?
+func MonitorZoomRulerScale.clamped(_: Swift.Double) -> Swift.Double
 func MonitorZoomRulerScale.dragged(from: Swift.Double, translation: Swift.Double) -> Swift.Double
 func MonitorZoomRulerScale.offset(of: Swift.Double, center: Swift.Double) -> Swift.Double
 func MonitorZoomRulerScale.quantized(_: Swift.Double) -> Swift.Double
@@ -1064,6 +1065,7 @@ static func MonitorZoomCaption.isDigital(factor: Swift.Double, opticalStops: [Sw
 static func MonitorZoomCaption.label(factor: Swift.Double, opticalStops: [Swift.Double]) -> Swift.String
 static func MonitorZoomPresets.rampLabel(_: Swift.Double) -> Swift.String
 static func MonitorZoomRulerScale.readout(_: Swift.Double) -> Swift.String
+static func MonitorZoomRulerScale.tick(_: Swift.Double) -> Swift.Int
 static func MonitorZoomScale.minorTickPositions() -> [Swift.Double]
 static func StartupContentLayout.fit(viewportWidth: Swift.Double, viewportHeight: Swift.Double, safeArea: MonitorEdgeInsets) -> StartupContentLayout
 static func StartupDiscoveryPrimaryAction.resolve(hasSelectedCamera: Swift.Bool, isBusy: Swift.Bool, isKnownCamera: Swift.Bool) -> StartupDiscoveryPrimaryAction
