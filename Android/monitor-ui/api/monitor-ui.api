@@ -5495,6 +5495,53 @@ public final class com/opencapture/monitorui/MonitorZoomRadialGesture {
 	public final fun rebase (FF)V
 }
 
+public final class com/opencapture/monitorui/MonitorZoomRulerScale {
+	public static final field $stable I
+	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomRulerScale$Companion;
+	public static final field MINIMUM_TENTH_SPACING D
+	public static final field STEP D
+	public fun <init> (DDD)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLength ()D
+	public final fun getMaximum ()D
+	public final fun getMinimum ()D
+	public final fun getTicks ()Ljava/util/List;
+	public fun hashCode ()I
+	public final fun offsetFor (D)D
+	public final fun quantized (D)D
+	public fun toString ()Ljava/lang/String;
+	public final fun valueAtOffset (D)D
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerScale$Companion {
+	public final fun readout (D)Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerTick {
+	public static final field $stable I
+	public fun <init> (DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public final fun copy (DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;)Lcom/opencapture/monitorui/MonitorZoomRulerTick;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorZoomRulerTick;DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomRulerTick;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public final fun getOffset ()D
+	public final fun getValue ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerTick$Kind : java/lang/Enum {
+	public static final field MAJOR Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static final field MID Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static final field MINOR Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+}
+
 public final class com/opencapture/monitorui/MonitorZoomScale {
 	public static final field $stable I
 	public static final field ANGULAR_SPAN D
