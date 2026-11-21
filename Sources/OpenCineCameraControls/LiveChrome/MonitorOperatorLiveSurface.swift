@@ -407,6 +407,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private let preview: (MonitorAssistSelection) -> Preview
     private let lookMenu: () -> LookMenu
     @Environment(\.dynamicTypeSize) private var primaryTypeSize
+    @Environment(\.monitorZoomRulerOpen) private var zoomRulerOpen
     @Environment(\.displayScale) private var primaryDisplayScale
     @State private var primarySizer = MonitorPortraitPrimarySizer()
     @State private var storageForm = 0
@@ -529,12 +530,12 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                     }
                 }
             },
-            status: { statusChrome }, power: { powerChrome }, capture: { captureChrome },
+            status: { statusChrome.monitorHiddenWhileZoom(zoomRulerOpen) }, power: { powerChrome }, capture: { captureChrome },
             system: { systemChrome }, tools: {
                 // Keep the palette's zIndex in the screen's chrome stack, above capture values.
                 // A layout container here would trap it below the later capture slot.
                 toolsChrome
-                if usesCompactTelemetry { compactTelemetry }
+                if usesCompactTelemetry { compactTelemetry.monitorHiddenWhileZoom(zoomRulerOpen) }
             }, panels: { panelsChrome },
             cover: { EmptyView() }, recovery: { EmptyView() })
             .environment(host).environment(\.interfaceLocked, locked)

@@ -34,8 +34,14 @@ extension LiveStreamCoordinator {
 /// app-level pill stays hidden.
 public struct LiveStreamMonitorOverlay: View {
     let coordinator: LiveStreamCoordinator
+    let hidden: Bool
 
-    public init(coordinator: LiveStreamCoordinator) { self.coordinator = coordinator }
+    /// `hidden` steps the control aside (while the zoom ruler is open) without unmounting it, so
+    /// the app-level pill stays hidden and nothing about the stream changes.
+    public init(coordinator: LiveStreamCoordinator, hidden: Bool = false) {
+        self.coordinator = coordinator
+        self.hidden = hidden
+    }
 
     public var body: some View {
         ZStack {
@@ -46,6 +52,7 @@ public struct LiveStreamMonitorOverlay: View {
                     .padding(.top, 10).padding(.horizontal, 16)
             }
         }
+        .monitorHiddenWhileZoom(hidden)
         .onAppear { coordinator.monitorControlsAppeared() }
         .onDisappear { coordinator.monitorControlsDisappeared() }
     }

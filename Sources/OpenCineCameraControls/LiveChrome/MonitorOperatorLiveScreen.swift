@@ -223,9 +223,10 @@
             ) { MonitorOperatorLiveFeedPane<Host>()
             } preview: { model.inspectorPreview(tool: $0)
             } lookMenu: { model.lookMenu() }
+            .environment(\.monitorZoomRulerOpen, interaction.zoomVisible)
             .overlay(alignment: .topLeading) {
                 if let stream = model.liveStream {
-                    LiveStreamMonitorOverlay(coordinator: stream)
+                    LiveStreamMonitorOverlay(coordinator: stream, hidden: interaction.zoomVisible)
                         .frame(width: layout.onFeed.width)
                         .offset(x: layout.onFeed.minX, y: layout.onFeed.minY)
                         .disabled(interfaceLocked)
