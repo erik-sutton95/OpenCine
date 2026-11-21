@@ -43,6 +43,7 @@ class RtmpLocalReceiverTest {
     private val events = CopyOnWriteArrayList<RtmpLocalReceiver.Event>()
     private val published = CountDownLatch(1)
     private val gone = CountDownLatch(1)
+    private val videoEnds = CountDownLatch(2)
 
     private fun receiver(windowMs: Long = 10_000): RtmpLocalReceiver {
         val port = (50_000..60_000).random()
@@ -50,6 +51,7 @@ class RtmpLocalReceiverTest {
             events += event
             if (event is RtmpLocalReceiver.Event.PublisherConnected) published.countDown()
             if (event is RtmpLocalReceiver.Event.PublisherDisconnected) gone.countDown()
+            if (event == RtmpLocalReceiver.Event.Session(RtmpReceiveEvent.VideoEnd)) videoEnds.countDown()
         }.also { it.start() }
     }
 
@@ -65,7 +67,7 @@ class RtmpLocalReceiverTest {
             val stranger = Socket("127.0.0.1", port()).apply { getOutputStream().write("bad".toByteArray()) }
             assertEquals(-1, stranger.getInputStream().read(), "The wrong key is closed")
             camera.getOutputStream().write("frame".toByteArray())
-            Thread.sleep(300)
+            assertTrue(videoEnds.await(5, TimeUnit.SECONDS))
             assertEquals(1, events.count { it is RtmpLocalReceiver.Event.PublisherConnected })
             assertTrue(events.none { it is RtmpLocalReceiver.Event.PublisherDisconnected })
             assertEquals(2, events.count { it == RtmpLocalReceiver.Event.Session(RtmpReceiveEvent.VideoEnd) })

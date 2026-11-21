@@ -43,7 +43,9 @@ class DjiCameraStreamPublisherTest {
     private val pauses = mutableListOf<Long>()
 
     private fun publisher(link: Link, pocket3: Boolean = false) =
-        DjiCameraStreamPublisher(link, pocket3, log = { log += it }, sleep = { pauses += it })
+        DjiCameraStreamPublisher(
+            link, pocket3, log = { log += it }, sleep = { pauses += it }, joinPolicy = StationJoin.Policy(),
+        )
 
     private suspend fun DjiCameraStreamPublisher.start(codec: String = "hevc") =
         start(url, "es_iphone16", password, 30, codec)

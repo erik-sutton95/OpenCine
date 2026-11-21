@@ -37,6 +37,8 @@ class DjiCameraStreamPublisher(
     private val pocket3: Boolean,
     private val log: (String) -> Unit = {},
     private val sleep: suspend (Long) -> Unit = { delay(it) },
+    /** Attempts, reply timeout and retry pause from core `MulticamJoinPolicy` (through JNI on a phone). */
+    private val joinPolicy: StationJoin.Policy = StationJoin.Policy.fromCore(),
 ) {
     /** [codec] is `hevc` or `h264`. Throws [DjiCameraStreamError]; the caller ends with [end] either way. */
     suspend fun start(url: String, ssid: String, password: String, frameRate: Int, codec: String) {
@@ -77,10 +79,11 @@ class DjiCameraStreamPublisher(
 
     private suspend fun join(ssid: String, password: String) {
         var last: ByteArray? = null
-        for (attempt in 1..JOIN_ATTEMPTS) {
+        val attempts = joinPolicy.maximumAttempts
+        for (attempt in 1..attempts) {
             // The request carries the password; only the reply is logged.
             val reply = try {
-                exchange("join attempt $attempt", DjiNative.CMD_MULTICAM_JOIN, "$ssid\u001f$password", 45_000)
+                exchange("join attempt $attempt", DjiNative.CMD_MULTICAM_JOIN, "$ssid\u001f$password", joinPolicy.replyTimeoutMs)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -89,7 +92,7 @@ class DjiCameraStreamPublisher(
             last = reply
             when {
                 reply.contentEquals(byteArrayOf(0, 0)) || reply.contentEquals(byteArrayOf(0, 0, 0)) -> return
-                reply.contentEquals(byteArrayOf(1, 0xFF.toByte())) && attempt < JOIN_ATTEMPTS -> sleep(5_000)
+                reply.contentEquals(byteArrayOf(1, 0xFF.toByte())) && attempt < attempts -> sleep(joinPolicy.retryDelayMs)
                 else -> throw DjiCameraStreamError.JoinRefused(hex(reply))
             }
         }
@@ -119,7 +122,6 @@ class DjiCameraStreamPublisher(
     companion object {
         /** About 6 Mbps: the camera's own 1080p encode. */
         const val BITRATE_KBPS = 6000
-        private const val JOIN_ATTEMPTS = 3
 
         private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
 

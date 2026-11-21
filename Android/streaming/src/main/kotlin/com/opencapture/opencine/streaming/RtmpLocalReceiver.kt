@@ -39,7 +39,7 @@ class RtmpLocalReceiver(
     private var server: ServerSocket? = null
     private var publisher: Peer? = null
     private val candidates = mutableListOf<Peer>()
-    private var timers: ScheduledExecutorService? = null
+    @Volatile private var timers: ScheduledExecutorService? = null
 
     fun start() {
         synchronized(lock) {
@@ -50,14 +50,13 @@ class RtmpLocalReceiver(
                     bind(InetSocketAddress(port))
                 }
             } catch (error: IOException) {
-                onEvent(Event.ListenFailed(error.message ?: "bind failed"))
-                return
-            }
+                null
+            } ?: return onEvent(Event.ListenFailed("bind failed"))
             server = socket
             timers = Executors.newSingleThreadScheduledExecutor()
             Thread({ acceptLoop(socket) }, "rtmp-receiver-accept").apply { isDaemon = true }.start()
-            onEvent(Event.Listening(socket.localPort))
         }
+        server?.let { onEvent(Event.Listening(it.localPort)) }
     }
 
     /** Closes every connection and the listener. */
@@ -82,16 +81,22 @@ class RtmpLocalReceiver(
             } catch (_: IOException) {
                 return
             }
-            val peer = synchronized(lock) {
-                if (candidates.size >= MAX_CANDIDATES || server !== socket) null else Peer(next).also { candidates += it }
+            runCatching { next.tcpNoDelay = true }
+            // Registered, timed and started under the lock, so a concurrent stop() either sees the
+            // peer (and closes it) or the peer is never admitted.
+            val admitted = try {
+                synchronized(lock) {
+                    if (candidates.size >= MAX_CANDIDATES || server !== socket) return@synchronized false
+                    val peer = Peer(next)
+                    candidates += peer
+                    timers?.schedule({ expire(peer) }, publishWindowMs, TimeUnit.MILLISECONDS)
+                    Thread({ read(peer) }, "rtmp-receiver-peer").apply { isDaemon = true }.start()
+                    true
+                }
+            } catch (_: Exception) {
+                false
             }
-            if (peer == null) {
-                runCatching { next.close() }
-                continue
-            }
-            next.tcpNoDelay = true
-            timers?.schedule({ expire(peer) }, publishWindowMs, TimeUnit.MILLISECONDS)
-            Thread({ read(peer) }, "rtmp-receiver-peer").apply { isDaemon = true }.start()
+            if (!admitted) runCatching { next.close() }
         }
     }
 
@@ -137,8 +142,8 @@ class RtmpLocalReceiver(
     /** A candidate published under the key: it becomes the publisher, replacing any earlier one. */
     private fun promote(peer: Peer) {
         val old = synchronized(lock) {
-            if (publisher === peer) return
-            candidates.remove(peer)
+            // Already the publisher, or dropped meanwhile (expired, or the receiver stopped).
+            if (publisher === peer || !candidates.remove(peer)) return
             publisher.also { publisher = peer }
         }
         if (old != null) {
