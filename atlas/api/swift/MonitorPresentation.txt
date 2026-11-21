@@ -473,9 +473,12 @@ func MonitorZoomDrag.end() -> Swift.Bool
 func MonitorZoomPresets.save(_: Swift.Double, at: Swift.Int) -> ()
 func MonitorZoomPresets.setRamp(_: Swift.Double) -> ()
 func MonitorZoomPresets.target(at: Swift.Int, maximum: Swift.Double) -> Swift.Double?
-func MonitorZoomRulerScale.offset(for: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.dragged(from: Swift.Double, translation: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.offset(of: Swift.Double, center: Swift.Double) -> Swift.Double
 func MonitorZoomRulerScale.quantized(_: Swift.Double) -> Swift.Double
-func MonitorZoomRulerScale.value(atOffset: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.tapped(atOffset: Swift.Double, center: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.ticks(center: Swift.Double, halfSpan: Swift.Double) -> [MonitorZoomRulerTick]
+func MonitorZoomRulerScale.value(atOffset: Swift.Double, center: Swift.Double) -> Swift.Double
 func MonitorZoomScale.dialLabel(_: Swift.Double) -> Swift.String
 func MonitorZoomScale.dragged(from: Swift.Double, angleDelta: Swift.Double, current: Swift.Double?) -> Swift.Double
 func MonitorZoomScale.position(_: Swift.Double) -> Swift.Double
@@ -604,7 +607,7 @@ init MonitorWaveformOptions(mode: MonitorWaveformMode, brightness: Swift.Int, gu
 init MonitorZoomDrag()
 init MonitorZoomPresets(slots: [Swift.Double?], rampSeconds: Swift.Double)
 init MonitorZoomPresets(stored: Swift.String?)
-init MonitorZoomRulerScale(minimum: Swift.Double, maximum: Swift.Double, length: Swift.Double)
+init MonitorZoomRulerScale(minimum: Swift.Double, maximum: Swift.Double)
 init MonitorZoomRulerTick(value: Swift.Double, offset: Swift.Double, kind: MonitorZoomRulerTick.Kind)
 init MonitorZoomScale(minimum: Swift.Double, maximum: Swift.Double)
 init MonitorZoomTapStops(supported: [Swift.Double], extended: [Swift.Double])
@@ -877,7 +880,6 @@ let MonitorWatcherSettingValue.title: Swift.String
 let MonitorWatcherTapSource.canControl: Swift.Bool
 let MonitorWatcherTapSource.revision: Swift.UInt64
 let MonitorWatcherTapSource.source: Swift.String
-let MonitorZoomRulerScale.length: Swift.Double
 let MonitorZoomRulerScale.maximum: Swift.Double
 let MonitorZoomRulerScale.minimum: Swift.Double
 let MonitorZoomRulerTick.kind: MonitorZoomRulerTick.Kind
@@ -1311,8 +1313,9 @@ static let MonitorWaveformOptions.defaultScale: Swift.Double
 static let MonitorWaveformOptions.scaleRange: Swift.ClosedRange<Swift.Double>
 static let MonitorZoomPresets.rampChoices: [Swift.Double]
 static let MonitorZoomPresets.slotCount: Swift.Int
-static let MonitorZoomRulerScale.minimumTenthSpacing: Swift.Double
+static let MonitorZoomRulerScale.pointsPerStep: Swift.Double
 static let MonitorZoomRulerScale.step: Swift.Double
+static let MonitorZoomRulerScale.wholeSnap: Swift.Double
 static let MonitorZoomScale.angularSpan: Swift.Double
 static let MonitorZoomScale.minorTickCount: Swift.Int
 static let MonitorZoomScale.tickIncrement: Swift.Double
@@ -1857,7 +1860,6 @@ var MonitorZoomDrag.anchor: Swift.Double?
 var MonitorZoomPresets.rampSeconds: Swift.Double
 var MonitorZoomPresets.slots: [Swift.Double?]
 var MonitorZoomPresets.stored: Swift.String
-var MonitorZoomRulerScale.ticks: [MonitorZoomRulerTick]
 var ReviewLaunch.commonControls: Swift.Bool
 var ReviewLaunch.connected: Swift.Bool
 var ReviewLaunch.environment: [Swift.String : Swift.String]
