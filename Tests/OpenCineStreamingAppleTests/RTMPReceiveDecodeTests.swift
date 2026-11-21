@@ -47,6 +47,32 @@ import Testing
         #expect(pictures.sizes == [[320, 180]])
     }
 
+    /// The camera restarts its stream on the same connection: its clock starts over, and every
+    /// picture of the second run still arrives (none is dropped as late).
+    @Test(arguments: ["h264-aac", "h264-bframes-aac"])
+    func aRestartedClockKeepsThePicturesComing(name: String) throws {
+        let events = try RTMPReceiveFixtures.events(name, chunk: 4096)
+        let frames = events.compactMap { if case .videoFrame(let frame) = $0 { frame } else { nil } }
+        let pictures = Pictures()
+        let decoder = RTMPVideoDecoder(
+            onPicture: { picture in pictures.lock.withLock { pictures.times.append(picture.presentationMs) } },
+            onError: { _ in })
+        for _ in 0..<2 {
+            for event in events {
+                switch event {
+                case .videoConfig(let codec, let record, _): decoder.configure(codec: codec, record: record)
+                case .videoFrame(let frame): decoder.decode(frame)
+                default: break
+                }
+            }
+        }
+        decoder.flush()
+        pictures.lock.lock()
+        defer { pictures.lock.unlock() }
+        #expect(pictures.times.count == 2 * frames.count)
+        #expect(decoder.reorder.late == 0)
+    }
+
     @Test func aacFixtureDecodesToPCM() throws {
         let events = try RTMPReceiveFixtures.events("h264-aac", chunk: 4096)
         final class Sink: @unchecked Sendable {

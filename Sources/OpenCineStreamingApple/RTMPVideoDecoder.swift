@@ -112,9 +112,18 @@ public final class RTMPVideoDecoder: @unchecked Sendable {
         if status != noErr { failed(status) }
     }
 
+    /// A jump back further than this is a new clock (the camera restarted its stream), not a late picture.
+    static let clockBreakMs: Int64 = 500
+
     private func ordered(_ picture: Picture) {
         var ready: [Picture] = []
         reorderLock.lock()
+        if lastEmitted != .min, picture.presentationMs < lastEmitted - Self.clockBreakMs {
+            // Hand out what the old clock still holds, then start over on the new one.
+            ready = pending
+            pending = []
+            lastEmitted = .min
+        }
         if picture.presentationMs < lastEmitted {
             late += 1
             depth = min(depth + 1, 8)
@@ -136,6 +145,8 @@ public final class RTMPVideoDecoder: @unchecked Sendable {
         reorderLock.lock()
         pending = []
         lastEmitted = .min
+        depth = 0
+        late = 0
         reorderLock.unlock()
     }
 
