@@ -21,10 +21,11 @@ import Testing
         var calls: [String] = []
         var tap: MonitorCleanPictureTap?
         var microphoneAllowed = true
+        var defaults = UserDefaults(suiteName: "live-stream-\(UUID())")!
 
         var value: LiveStreamHost {
             LiveStreamHost(
-                keychainService: "test.live-stream", defaults: UserDefaults(suiteName: "live-stream-\(UUID())")!,
+                keychainService: "test.live-stream", defaults: defaults,
                 route: { [self] in calls.append("route"); return route },
                 source: { [self] in calls.append("source"); return source },
                 attachPicture: { [self] in calls.append($0 == nil ? "detach" : "attach"); tap = $0 },
@@ -88,8 +89,7 @@ import Testing
     nonisolated static let start = MonotonicInstant(.seconds(1))
 
     @available(macOS 14.0, *)
-    func rig(savedKey: Bool = true) -> Rig {
-        let host = Host()
+    func rig(savedKey: Bool = true, host: Host = Host()) -> Rig {
         let keys = Keys()
         if savedKey { keys.keys["twitch"] = "live_SECRET" }
         let audio = Audio()
@@ -311,6 +311,63 @@ import Testing
         r.coordinator.monitorControlsDisappeared()
         r.coordinator.monitorControlsAppeared()
         #expect(r.coordinator.monitorControlsOnScreen == 1, "Never counts below zero")
+    }
+
+    @Test func upscaledChoiceStreams1920x1080() async throws {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        #expect(r.coordinator.settingsState.qualityOptions.map(\.id) == ["cameraFeed", "upscaled1080p"])
+        #expect(r.coordinator.settingsState.selectedQualityID == "cameraFeed")
+        r.coordinator.selectQuality("upscaled1080p")
+        let quality = try #require(r.coordinator.settingsState.quality)
+        #expect(quality.kind == .upscaled && quality.width == 1920 && quality.height == 1080)
+        #expect(r.coordinator.monitorState?.quality?.line.hasPrefix("1080p upscaled") == true)
+        await r.coordinator.begin()
+        let publisher = try #require(r.publishers().first)
+        #expect(publisher.format.width == 1920 && publisher.format.height == 1080)
+        #expect(publisher.format.videoBitrateBps == 6_000_000)
+    }
+
+    @Test func rememberedChoiceFallsBackWhenNotOffered() async throws {
+        guard #available(macOS 14.0, *) else { return }
+        let host = Host()
+        let r = rig(host: host)
+        r.coordinator.selectQuality("upscaled1080p")
+        host.source = StreamSourceFormat(width: 1920, height: 1080, frameRate: Rational(30, 1))
+        #expect(r.coordinator.settingsState.qualityOptions.map(\.id) == ["cameraFeed"])
+        #expect(r.coordinator.settingsState.selectedQualityID == "cameraFeed")
+        #expect(r.coordinator.settingsState.quality?.kind == .source)
+        await r.coordinator.begin()
+        #expect(r.publishers().first?.format.width == 1920)
+        r.coordinator.stop()
+        host.source = StreamSourceFormat(width: 1280, height: 720, frameRate: nil)
+        let again = rig(host: host)
+        #expect(again.coordinator.settingsState.selectedQualityID == "upscaled1080p")
+        again.coordinator.selectQuality("nope")
+        #expect(again.coordinator.settingsState.selectedQualityID == "upscaled1080p")
+    }
+
+    @Test func qualityIsLockedWhileLive() async throws {
+        guard #available(macOS 14.0, *) else { return }
+        let r = rig()
+        await r.coordinator.begin()
+        r.coordinator.selectQuality("upscaled1080p")
+        #expect(r.coordinator.settingsState.selectedQualityID == "cameraFeed")
+        #expect(r.coordinator.settingsState.quality?.width == 1280)
+    }
+
+    @Test func aRunningStreamKeepsItsQualityUntilItStops() async throws {
+        guard #available(macOS 14.0, *) else { return }
+        let host = Host()
+        let r = rig(host: host)
+        r.coordinator.selectQuality("upscaled1080p")
+        await r.coordinator.begin()
+        host.source = StreamSourceFormat(width: 1920, height: 1080, frameRate: Rational(30, 1))
+        #expect(r.coordinator.monitorState?.quality?.line == "1080p upscaled, 30 fps, 6 Mbps")
+        #expect(r.coordinator.settingsState.selectedQualityID == "upscaled1080p")
+        r.coordinator.stop()
+        #expect(r.coordinator.settingsState.quality?.line == "1080p, 30 fps, 6 Mbps")
+        #expect(r.coordinator.settingsState.selectedQualityID == "cameraFeed")
     }
 }
 #endif

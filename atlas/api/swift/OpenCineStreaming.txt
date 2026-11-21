@@ -24,6 +24,8 @@ case StreamMediaPacket.audio([Swift.UInt8], Swift.UInt32)
 case StreamMediaPacket.audioConfig([Swift.UInt8])
 case StreamMediaPacket.video([Swift.UInt8], Swift.Bool, Swift.UInt32, Swift.UInt32)
 case StreamMediaPacket.videoConfig([Swift.UInt8], [Swift.UInt8])
+case StreamQualityChoice.cameraFeed
+case StreamQualityChoice.upscaled1080p
 case StreamReconnectPolicy.Decision.giveUp
 case StreamReconnectPolicy.Decision.retry(Swift.Duration)
 case StreamRun.Action.connect(Swift.String, Swift.UInt16)
@@ -52,6 +54,7 @@ enum StreamDestinationError: Equatable, Error, Hashable, Sendable
 enum StreamFailure: Equatable, Error, Sendable
 enum StreamFramePacer.Frame<Picture>: Equatable, Sendable
 enum StreamMediaPacket: Equatable, Sendable
+enum StreamQualityChoice: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
 enum StreamReconnectPolicy.Decision: Equatable, Sendable
 enum StreamRun.Action: Equatable, Sendable
 enum StreamRun.End: Equatable, Sendable
@@ -102,7 +105,8 @@ let StreamDestination.tcURL: Swift.String
 let StreamFramePacer.slateAfter: Swift.Duration
 let StreamSendQueue.maxBytes: Swift.Int
 static func StreamConnectionRoute.canStream(_: StreamConnectionRoute?) -> Swift.Bool
-static func StreamOutputFormat.resolve(selected: StreamSourceFormat, connected: [StreamSourceFormat], preset: StreamServicePreset) -> StreamOutputFormat
+static func StreamOutputFormat.resolve(selected: StreamSourceFormat, connected: [StreamSourceFormat], preset: StreamServicePreset, choice: StreamQualityChoice) -> StreamOutputFormat
+static func StreamQualityChoice.offered(for: StreamSourceFormat?) -> [StreamQualityChoice]
 static let StreamServicePreset.all: [StreamServicePreset]
 static let StreamServicePreset.custom: StreamServicePreset
 struct RTMPPublishSession.Output: Equatable, Sendable

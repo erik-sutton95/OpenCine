@@ -88,6 +88,7 @@ extension StreamPublisher: LiveStreamPublishing {}
     private struct Running {
         let publisher: any LiveStreamPublishing
         let format: StreamOutputFormat
+        let choice: StreamQualityChoice
         let encrypted: Bool
         let relay: StatusRelay
     }
@@ -100,6 +101,8 @@ extension StreamPublisher: LiveStreamPublishing {}
     @ObservationIgnored private let now: @Sendable () -> MonotonicInstant
 
     private var selectedID: String
+    /// The operator's remembered Quality choice; it applies only while offered for the source.
+    private var rememberedQuality: StreamQualityChoice
     private var serverDraft = ""
     private var keyState: LiveStreamKeyState = .absent
     private var problem: LiveStreamProblem?
@@ -117,6 +120,7 @@ extension StreamPublisher: LiveStreamPublishing {}
     private static let presets = StreamServicePreset.all + [.custom]
     private static let serviceKey = "opencine.livestream.service"
     private static let monitorKey = "opencine.livestream.showOnMonitor"
+    private static let qualityKey = "opencine.livestream.quality"
     /// The output before a camera states its feed: the spec's wireless default.
     private static let fallbackSource = StreamSourceFormat(width: 1280, height: 720, frameRate: Rational(30, 1))
 
@@ -145,6 +149,7 @@ extension StreamPublisher: LiveStreamPublishing {}
         let saved = host.defaults.string(forKey: Self.serviceKey)
         selectedID = Self.presets.contains { $0.id == saved } ? saved ?? "" : Self.presets[0].id
         showOnMonitor = host.defaults.object(forKey: Self.monitorKey) as? Bool ?? true
+        rememberedQuality = host.defaults.string(forKey: Self.qualityKey).flatMap(StreamQualityChoice.init) ?? .cameraFeed
         reloadKey()
     }
 
@@ -162,16 +167,37 @@ extension StreamPublisher: LiveStreamPublishing {}
         }
     }
 
+    /// The choices offered for the current source.
+    private var offeredQualities: [StreamQualityChoice] { StreamQualityChoice.offered(for: host.source()) }
+
+    /// The remembered choice while it is offered, else the camera feed.
+    private var effectiveQuality: StreamQualityChoice {
+        if let running { return running.choice }
+        return offeredQualities.contains(rememberedQuality) ? rememberedQuality : .cameraFeed
+    }
+
     private var format: StreamOutputFormat? {
         if let running { return running.format }
         guard let source = host.source() else { return nil }
-        return StreamOutputFormat.resolve(selected: source, connected: [], preset: preset)
+        return StreamOutputFormat.resolve(selected: source, connected: [], preset: preset, choice: effectiveQuality)
     }
 
     private var quality: LiveStreamQuality? {
-        format.map {
+        let kind: LiveStreamQualityKind = effectiveQuality == .upscaled1080p ? .upscaled : .source
+        return format.map {
             LiveStreamQuality(width: $0.width, height: $0.height, framesPerSecond: $0.frameRate.doubleValue,
-                videoBitrateBps: $0.videoBitrateBps)
+                videoBitrateBps: $0.videoBitrateBps, kind: kind)
+        }
+    }
+
+    private var qualityOptions: [LiveStreamQualityOption] {
+        offeredQualities.map { choice in
+            switch choice {
+            case .cameraFeed: LiveStreamQualityOption(id: choice.rawValue, title: LiveStreamCopy.qualityCameraFeed)
+            case .upscaled1080p:
+                LiveStreamQualityOption(id: choice.rawValue, title: LiveStreamCopy.qualityUpscaled,
+                    detail: LiveStreamCopy.qualityUpscaledDetail)
+            }
         }
     }
 
@@ -191,7 +217,8 @@ extension StreamPublisher: LiveStreamPublishing {}
             },
             selectedID: selectedID, server: serverDraft, key: keyState, quality: quality,
             sourceHeight: host.source().map { min($0.width, $0.height) }, eligibility: eligibility,
-            showOnMonitor: showOnMonitor, phase: phase, problem: problem)
+            showOnMonitor: showOnMonitor, phase: phase, problem: problem, qualityOptions: qualityOptions,
+            selectedQualityID: effectiveQuality.rawValue)
     }
 
     /// What the monitor shows, or `nil` when the Go live control is hidden (no saved key, or the
@@ -264,6 +291,14 @@ extension StreamPublisher: LiveStreamPublishing {}
         reloadKey()
     }
 
+    /// Chooses a Quality option by its id; remembered for the next stream. Ignored while a stream
+    /// runs or for an unknown id.
+    public func selectQuality(_ id: String) {
+        guard !phase.isRunning, let choice = StreamQualityChoice(rawValue: id) else { return }
+        rememberedQuality = choice
+        host.defaults.set(id, forKey: Self.qualityKey)
+    }
+
     public func setShowOnMonitor(_ value: Bool) {
         showOnMonitor = value
         host.defaults.set(value, forKey: Self.monitorKey)
@@ -318,8 +353,9 @@ extension StreamPublisher: LiveStreamPublishing {}
         } catch {
             return
         }
+        let choice = effectiveQuality
         let format = StreamOutputFormat.resolve(
-            selected: host.source() ?? Self.fallbackSource, connected: [], preset: preset)
+            selected: host.source() ?? Self.fallbackSource, connected: [], preset: preset, choice: choice)
         if audio != nil, await !host.microphoneAccess() {
             phase = .ended(.microphoneDenied)
             end = .microphoneDenied
@@ -335,7 +371,7 @@ extension StreamPublisher: LiveStreamPublishing {}
             }
         }
         publisher.onStatus { relay.offer($0) }
-        running = Running(publisher: publisher, format: format, encrypted: destination.isEncrypted, relay: relay)
+        running = Running(publisher: publisher, format: format, choice: choice, encrypted: destination.isEncrypted, relay: relay)
         phase = .connecting
         status = LiveStreamStatusState(phase: .connecting, elapsedSeconds: 0, sentBitrateBps: 0, droppedGroups: 0,
             health: .offline)

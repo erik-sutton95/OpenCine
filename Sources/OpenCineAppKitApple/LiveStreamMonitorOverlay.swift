@@ -12,7 +12,8 @@ extension LiveStreamCoordinator {
             setServer: { [weak self] in self?.setServer($0) },
             saveKey: { [weak self] in self?.saveKey($0) },
             removeKey: { [weak self] in self?.removeKey() },
-            setShowOnMonitor: { [weak self] in self?.setShowOnMonitor($0) })
+            setShowOnMonitor: { [weak self] in self?.setShowOnMonitor($0) },
+            selectQuality: { [weak self] in self?.selectQuality($0) })
     }
 
     /// The monitor controls' actions.

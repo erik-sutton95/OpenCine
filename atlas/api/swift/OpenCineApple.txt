@@ -610,7 +610,7 @@ static func MonitorHDRDisplay.configure(_: QuartzCore.CAMetalLayer, enabled: Swi
 static func MonitorImageCompositor.apply(to: CoreImage.CIImage, effects: MonitorImageEffects, display: CoreImage.CIImage?) -> CoreImage.CIImage
 static func MonitorImageCompositor.applyPeaking(over: CoreImage.CIImage, source: CoreImage.CIImage, extent: CoreFoundation.CGRect, color: MonitorRGB, sense: MonitorPeakingSensitivity, gateScale: Swift.Double, fusedWindowPolicy: MonitorPeakingFusedWindowPolicy) -> CoreImage.CIImage
 static func MonitorImageCompositor.applyPeakingFilterChain(over: CoreImage.CIImage, source: CoreImage.CIImage, extent: CoreFoundation.CGRect, color: MonitorRGB, sense: MonitorPeakingSensitivity, gateScale: Swift.Double) -> CoreImage.CIImage
-static func MonitorImageCompositor.applyProduct(to: CoreImage.CIImage, effects: MonitorImageEffects, display: CoreImage.CIImage?) -> (image: CoreImage.CIImage, unmanagedBake: Swift.Bool)
+static func MonitorImageCompositor.applyProduct(to: CoreImage.CIImage, effects: MonitorImageEffects, display: CoreImage.CIImage?, workingWidth: CoreGraphics.CGFloat?) -> (image: CoreImage.CIImage, unmanagedBake: Swift.Bool)
 static func MonitorImageCompositor.applyResolvedZebra(over: CoreImage.CIImage, source: CoreImage.CIImage, extent: CoreFoundation.CGRect, zebra: MonitorCodeZebraSpec) -> CoreImage.CIImage
 static func MonitorImageCompositor.applyZebra(over: CoreImage.CIImage, source: CoreImage.CIImage, extent: CoreFoundation.CGRect, zebra: MonitorZebraSpec, transfer: OpenCineMedia.MonitorTransfer, clipByte: Swift.Int) -> CoreImage.CIImage
 static func MonitorImageCompositor.assistOverlay(from: CoreImage.CIImage, effects: MonitorImageEffects) -> CoreImage.CIImage

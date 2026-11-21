@@ -38,6 +38,8 @@ case LiveStreamProblem.emptyKey
 case LiveStreamProblem.invalidServer
 case LiveStreamProblem.keyLooksLikeURL
 case LiveStreamProblem.notRTMPS(Swift.Bool)
+case LiveStreamQualityKind.source
+case LiveStreamQualityKind.upscaled
 case LiveStreamWarning.hot
 case LiveStreamWarning.lowBattery
 case MonitorAssistTool.audioMeters
@@ -260,6 +262,7 @@ enum LiveStreamHealth: Equatable, Hashable, Sendable
 enum LiveStreamKeyState: Equatable, Hashable, Sendable
 enum LiveStreamPhase: Equatable, Hashable, Sendable
 enum LiveStreamProblem: Equatable, Hashable, Sendable
+enum LiveStreamQualityKind: Equatable, Hashable, Sendable
 enum LiveStreamWarning: Equatable, Hashable, Sendable
 enum MonitorAssistPaletteReveal: Sendable
 enum MonitorAssistTool: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
@@ -482,9 +485,10 @@ init FieldMonitorLayout(width: Swift.Double, height: Swift.Double, safeArea: Mon
 init LiveStreamControlState(phase: LiveStreamPhase, eligibility: LiveStreamEligibility, serviceName: Swift.String, elapsedSeconds: Swift.Int)
 init LiveStreamMonitorState(control: LiveStreamControlState, serviceName: Swift.String, quality: LiveStreamQuality?, encrypted: Swift.Bool, status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?)
 init LiveStreamPillState(phase: LiveStreamPhase, serviceName: Swift.String, elapsedSeconds: Swift.Int)
-init LiveStreamQuality(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double, videoBitrateBps: Swift.Int)
+init LiveStreamQuality(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double, videoBitrateBps: Swift.Int, kind: LiveStreamQualityKind)
+init LiveStreamQualityOption(id: Swift.String, title: Swift.String, detail: Swift.String?, unavailableReason: Swift.String?)
 init LiveStreamServiceOption(id: Swift.String, name: Swift.String, keyHint: Swift.String, needsServer: Swift.Bool, acceptsPlainServer: Swift.Bool, vertical: Swift.Bool)
-init LiveStreamSettingsState(services: [LiveStreamServiceOption], selectedID: Swift.String, server: Swift.String, key: LiveStreamKeyState, quality: LiveStreamQuality?, sourceHeight: Swift.Int?, eligibility: LiveStreamEligibility, showOnMonitor: Swift.Bool, phase: LiveStreamPhase, problem: LiveStreamProblem?)
+init LiveStreamSettingsState(services: [LiveStreamServiceOption], selectedID: Swift.String, server: Swift.String, key: LiveStreamKeyState, quality: LiveStreamQuality?, sourceHeight: Swift.Int?, eligibility: LiveStreamEligibility, showOnMonitor: Swift.Bool, phase: LiveStreamPhase, problem: LiveStreamProblem?, qualityOptions: [LiveStreamQualityOption], selectedQualityID: Swift.String)
 init LiveStreamStatusState(phase: LiveStreamPhase, elapsedSeconds: Swift.Int, sentBitrateBps: Swift.Int, droppedGroups: Swift.Int, health: LiveStreamHealth)
 init MonitorAssistCapabilities(photographyOnly: Swift.Set<MonitorAssistSelection>, levelStyles: [MonitorLevelStyle], unavailable: Swift.Set<MonitorAssistSelection>, videoOnly: Swift.Set<MonitorAssistSelection>)
 init MonitorAssistPaletteLayout(portrait: Swift.Bool, tablet: Swift.Bool, expanded: Swift.Bool, toolCount: Swift.Int, maximumWidth: Swift.Double, maximumHeight: Swift.Double)
@@ -1063,7 +1067,10 @@ static let LiveStreamCopy.lockedWhileLive: Swift.String
 static let LiveStreamCopy.paste: Swift.String
 static let LiveStreamCopy.pillStop: Swift.String
 static let LiveStreamCopy.plainWarning: Swift.String
+static let LiveStreamCopy.qualityCameraFeed: Swift.String
 static let LiveStreamCopy.qualityTitle: Swift.String
+static let LiveStreamCopy.qualityUpscaled: Swift.String
+static let LiveStreamCopy.qualityUpscaledDetail: Swift.String
 static let LiveStreamCopy.remove: Swift.String
 static let LiveStreamCopy.removeTitle: Swift.String
 static let LiveStreamCopy.restart: Swift.String
@@ -1325,6 +1332,7 @@ struct LiveStreamControlState: Equatable, Hashable, Sendable
 struct LiveStreamMonitorState: Equatable, Hashable, Sendable
 struct LiveStreamPillState: Equatable, Hashable, Sendable
 struct LiveStreamQuality: Equatable, Hashable, Sendable
+struct LiveStreamQualityOption: Equatable, Hashable, Identifiable, Sendable
 struct LiveStreamServiceOption: Equatable, Hashable, Identifiable, Sendable
 struct LiveStreamSettingsState: Equatable, Hashable, Sendable
 struct LiveStreamStatusState: Equatable, Hashable, Sendable
@@ -1532,9 +1540,15 @@ var LiveStreamProblem.text: Swift.String
 var LiveStreamQuality.framesPerSecond: Swift.Double
 var LiveStreamQuality.height: Swift.Int
 var LiveStreamQuality.isVertical: Swift.Bool
+var LiveStreamQuality.kind: LiveStreamQualityKind
 var LiveStreamQuality.line: Swift.String
 var LiveStreamQuality.videoBitrateBps: Swift.Int
 var LiveStreamQuality.width: Swift.Int
+var LiveStreamQualityOption.detail: Swift.String?
+var LiveStreamQualityOption.id: Swift.String
+var LiveStreamQualityOption.isEnabled: Swift.Bool
+var LiveStreamQualityOption.title: Swift.String
+var LiveStreamQualityOption.unavailableReason: Swift.String?
 var LiveStreamServiceOption.acceptsPlainServer: Swift.Bool
 var LiveStreamServiceOption.id: Swift.String
 var LiveStreamServiceOption.keyHint: Swift.String
@@ -1553,15 +1567,20 @@ var LiveStreamSettingsState.phase: LiveStreamPhase
 var LiveStreamSettingsState.plainWarning: Swift.String
 var LiveStreamSettingsState.problem: LiveStreamProblem?
 var LiveStreamSettingsState.quality: LiveStreamQuality?
+var LiveStreamSettingsState.qualityDetail: Swift.String?
 var LiveStreamSettingsState.qualityLine: Swift.String
+var LiveStreamSettingsState.qualityOptions: [LiveStreamQualityOption]
 var LiveStreamSettingsState.selected: LiveStreamServiceOption?
 var LiveStreamSettingsState.selectedID: Swift.String
+var LiveStreamSettingsState.selectedQuality: LiveStreamQualityOption?
+var LiveStreamSettingsState.selectedQualityID: Swift.String
 var LiveStreamSettingsState.server: Swift.String
 var LiveStreamSettingsState.serverPlaceholder: Swift.String
 var LiveStreamSettingsState.services: [LiveStreamServiceOption]
 var LiveStreamSettingsState.showOnMonitor: Swift.Bool
 var LiveStreamSettingsState.showsMonitorControl: Swift.Bool
 var LiveStreamSettingsState.showsPlainWarning: Swift.Bool
+var LiveStreamSettingsState.showsQualityPicker: Swift.Bool
 var LiveStreamSettingsState.showsServer: Swift.Bool
 var LiveStreamSettingsState.sourceHeight: Swift.Int?
 var LiveStreamSettingsState.verticalNote: Swift.String?

@@ -61,6 +61,32 @@ final class LiveStreamHostedTests: XCTestCase {
         XCTAssertTrue(leaves.contains { $0.accessibilityLabel == "Saved" })
     }
 
+    func testQualityChoicesShowAsAPickerWithTheUpscaledDetail() async throws {
+        let state = LiveStreamSettingsState(
+            services: [LiveStreamServiceOption(id: "a", name: "Service A", keyHint: "Find it in A.", needsServer: false,
+                acceptsPlainServer: false, vertical: false)],
+            selectedID: "a", server: "", key: .saved,
+            quality: LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000,
+                kind: .upscaled),
+            sourceHeight: 720, eligibility: .allowed, showOnMonitor: true, phase: .idle,
+            qualityOptions: [
+                LiveStreamQualityOption(id: "cameraFeed", title: LiveStreamCopy.qualityCameraFeed),
+                LiveStreamQualityOption(id: "upscaled1080p", title: LiveStreamCopy.qualityUpscaled,
+                    detail: LiveStreamCopy.qualityUpscaledDetail),
+            ],
+            selectedQualityID: "upscaled1080p")
+        let actions = LiveStreamSettingsActions(selectService: { _ in }, setServer: { _ in }, saveKey: { _ in },
+            removeKey: {}, setShowOnMonitor: { _ in }, selectQuality: { _ in })
+        let (view, window) = mount(LiveStreamSettingsCard(state: state, actions: actions))
+        defer { window.isHidden = true }
+        let picker = try await element("monitor.livestream.qualityChoice", in: view)
+        XCTAssertEqual(picker.accessibilityValue, "1080p upscaled")
+        let line = try await element("monitor.livestream.quality", in: view)
+        XCTAssertEqual(line.accessibilityLabel, "1080p upscaled, 30 fps, 6 Mbps")
+        let detail = try await element("monitor.livestream.qualityDetail", in: view)
+        XCTAssertEqual(detail.accessibilityLabel, "The camera feed scaled up to 1080p, with your LUT.")
+    }
+
     func testAppPillReadsTheStreamAndOffersStop() async throws {
         let pill = LiveStreamPillState(phase: .live, serviceName: "Service A", elapsedSeconds: 65)
         let (view, window) = mount(LiveStreamPill(state: pill, stop: {}))

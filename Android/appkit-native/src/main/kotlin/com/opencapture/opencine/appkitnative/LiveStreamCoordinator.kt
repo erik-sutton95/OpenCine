@@ -8,6 +8,8 @@ import com.opencapture.monitorui.LiveStreamHealth
 import com.opencapture.monitorui.LiveStreamKeyState
 import com.opencapture.monitorui.LiveStreamPhase
 import com.opencapture.monitorui.LiveStreamQuality
+import com.opencapture.monitorui.LiveStreamQualityKind
+import com.opencapture.monitorui.LiveStreamQualityOption
 import com.opencapture.monitorui.LiveStreamServiceOption
 import com.opencapture.monitorui.LiveStreamState
 import com.opencapture.monitorui.LiveStreamStatusState
@@ -24,6 +26,7 @@ import com.opencapture.opencine.streaming.StreamKeyStore
 import com.opencapture.opencine.streaming.StreamOutputFormat
 import com.opencapture.opencine.streaming.StreamPhase
 import com.opencapture.opencine.streaming.StreamPublisher
+import com.opencapture.opencine.streaming.StreamQualityChoice
 import com.opencapture.opencine.streaming.StreamServicePreset
 import com.opencapture.opencine.streaming.StreamStatus
 import kotlinx.coroutines.CoroutineScope
@@ -58,6 +61,11 @@ class LiveStreamRequest(
 interface LiveStreamSettings {
     var selectedServiceId: String?
     var showOnMonitor: Boolean
+
+    /** The remembered Quality choice ([StreamQualityChoice.wireName]); null for the default. */
+    var selectedQualityId: String?
+        get() = null
+        set(_) {}
 }
 
 /** The microphone while live. [start] throws when it cannot capture (permission denied). */
@@ -124,6 +132,10 @@ class LiveStreamCoordinator(
     private var statusJob: Job? = null
     private var endedByBackground = false
     private var latestStatus: StreamStatus? = null
+    private var rememberedQuality: StreamQualityChoice =
+        StreamQualityChoice.fromWire(settings.selectedQualityId) ?: StreamQualityChoice.CAMERA_FEED
+    /** The choice of the running stream, fixed from go-live to stop. */
+    private var runningQuality: StreamQualityChoice? = null
 
     init {
         val services = presets.map { it.option() }
@@ -154,9 +166,18 @@ class LiveStreamCoordinator(
                     is StreamKeyStore.Lookup.Stored -> LiveStreamKeyState.SAVED
                     StreamKeyStore.Lookup.Unavailable -> LiveStreamKeyState.UNAVAILABLE
                 },
-                quality = camera?.let { format(preset, it) }?.quality(),
+                quality = if (state.phase.isRunning) {
+                    state.quality
+                } else {
+                    camera?.let { source ->
+                        val choice = effectiveQuality(source)
+                        format(preset, source, choice)?.quality(choice)
+                    }
+                },
                 sourceHeight = camera?.height,
                 eligibility = eligibility(),
+                qualityOptions = offeredQualities(camera).map { it.option() },
+                selectedQualityId = effectiveQuality(camera).wireName,
             )
         }
     }
@@ -199,6 +220,14 @@ class LiveStreamCoordinator(
         refresh()
     }
 
+    override fun selectQuality(id: String) {
+        if (state.value.phase.isRunning) return
+        val choice = StreamQualityChoice.fromWire(id) ?: return
+        rememberedQuality = choice
+        settings.selectedQualityId = choice.wireName
+        refresh()
+    }
+
     override fun setShowOnMonitor(show: Boolean) {
         settings.showOnMonitor = show
         mutableState.update { it.copy(showOnMonitor = show) }
@@ -218,7 +247,8 @@ class LiveStreamCoordinator(
             ""
         }
         val camera = source() ?: LiveStreamSource(1280, 720, null, null)
-        val output = format(preset, camera) ?: return
+        val choice = effectiveQuality(source())
+        val output = format(preset, camera, choice) ?: return
         endedByBackground = false
         latestStatus = null
         val mic = microphone()
@@ -245,7 +275,11 @@ class LiveStreamCoordinator(
             return
         }
         publisher = stream
-        mutableState.update { it.copy(phase = LiveStreamPhase.Connecting, status = null, warnings = emptySet()) }
+        runningQuality = choice
+        mutableState.update {
+            it.copy(phase = LiveStreamPhase.Connecting, status = null, warnings = emptySet(),
+                quality = output.quality(choice))
+        }
         activeWatch = deviceWatch()?.also { watch ->
             watch.start { warnings -> scope.launch { mutableState.update { it.copy(warnings = warnings.ui()) } } }
         }
@@ -319,6 +353,7 @@ class LiveStreamCoordinator(
         statusJob = null
         publisher = null
         latestStatus = null
+        runningQuality = null
         activeMicrophone?.stop()
         activeMicrophone = null
         activeWatch?.stop()
@@ -330,6 +365,8 @@ class LiveStreamCoordinator(
                 warnings = emptySet(),
             )
         }
+        // The camera may have changed while live: the card shows what the next stream would use.
+        refresh()
         job?.cancel()
     }
 
@@ -345,11 +382,31 @@ class LiveStreamCoordinator(
         }
     }
 
-    private fun format(preset: StreamServicePreset, camera: LiveStreamSource): StreamOutputFormat? =
-        catalog.format(preset.id, camera.width, camera.height, camera.fpsNum, camera.fpsDen)
+    private fun offeredQualities(camera: LiveStreamSource?): List<StreamQualityChoice> =
+        StreamQualityChoice.offered(camera?.width, camera?.height)
 
-    private fun StreamOutputFormat.quality() =
-        LiveStreamQuality(width, height, framesPerSecond, videoBitrateBps)
+    /** The running stream's choice; otherwise the remembered one while offered, else the camera feed. */
+    private fun effectiveQuality(camera: LiveStreamSource?): StreamQualityChoice =
+        runningQuality ?: rememberedQuality.takeIf { it in offeredQualities(camera) } ?: StreamQualityChoice.CAMERA_FEED
+
+    private fun format(
+        preset: StreamServicePreset,
+        camera: LiveStreamSource,
+        choice: StreamQualityChoice = effectiveQuality(camera),
+    ): StreamOutputFormat? =
+        catalog.format(preset.id, camera.width, camera.height, camera.fpsNum, camera.fpsDen, choice = choice)
+
+    private fun StreamOutputFormat.quality(choice: StreamQualityChoice) =
+        LiveStreamQuality(
+            width, height, framesPerSecond, videoBitrateBps,
+            if (choice == StreamQualityChoice.UPSCALED_1080P) LiveStreamQualityKind.UPSCALED else LiveStreamQualityKind.SOURCE,
+        )
+
+    private fun StreamQualityChoice.option() = when (this) {
+        StreamQualityChoice.CAMERA_FEED -> LiveStreamQualityOption(wireName, LiveStreamCopy.QUALITY_CAMERA_FEED)
+        StreamQualityChoice.UPSCALED_1080P ->
+            LiveStreamQualityOption(wireName, LiveStreamCopy.QUALITY_UPSCALED, LiveStreamCopy.QUALITY_UPSCALED_DETAIL)
+    }
 
     private fun StreamServicePreset.option() = LiveStreamServiceOption(
         id = id, name = displayName, keyHint = keyHint, needsServer = requiresServerEntry,

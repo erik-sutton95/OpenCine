@@ -52,6 +52,7 @@ import com.opencapture.monitorui.LiveStreamEligibility
 import com.opencapture.monitorui.LiveStreamEnd
 import com.opencapture.monitorui.LiveStreamKeyState
 import com.opencapture.monitorui.LiveStreamPhase
+import com.opencapture.monitorui.LiveStreamQualityOption
 import com.opencapture.monitorui.LiveStreamServiceOption
 import com.opencapture.monitorui.LiveStreamState
 import com.opencapture.monitorui.LiveStreamStatusState
@@ -81,6 +82,8 @@ object LiveStreamIds {
     const val KEY_REMOVE = "monitor.livestream.key.remove"
     const val KEY_UNAVAILABLE = "monitor.livestream.key.unavailable"
     const val QUALITY = "monitor.livestream.quality"
+    const val QUALITY_CHOICE = "monitor.livestream.qualityChoice"
+    const val QUALITY_DETAIL = "monitor.livestream.qualityDetail"
     const val VERTICAL_NOTE = "monitor.livestream.verticalNote"
     const val SHOW_ON_MONITOR = "monitor.livestream.showOnMonitor"
     const val ELIGIBILITY = "monitor.livestream.eligibility"
@@ -128,8 +131,22 @@ fun LiveStreamSettingsCard(state: LiveStreamState, actions: LiveStreamActions) {
         }
         state.problem?.let { Note(it, LiveStreamIds.SERVER_PROBLEM, MonitorPalette.recording) }
         KeyRow(state, running, actions, onRemove = { removing = true })
-        MonitorSettingsInlineRow(LiveStreamCopy.QUALITY) {
+        val chosenQuality = state.selectedQuality
+        if (state.showsQualityPicker && chosenQuality != null) {
+            MonitorSettingsInlineRow(LiveStreamCopy.QUALITY, stacked = true) {
+                Box(Modifier.alpha(if (running) 0.45f else 1f)) {
+                    MonitorSettingsChoices(state.qualityOptions, chosenQuality, compact = true, fillWidth = true,
+                        testTag = LiveStreamIds.QUALITY_CHOICE, title = LiveStreamQualityOption::title) {
+                        if (!running && it.enabled) actions.selectQuality(it.id)
+                    }
+                }
+            }
             Box(Modifier.testTag(LiveStreamIds.QUALITY)) { MonitorSettingsValueText(LiveStreamCopy.quality(state.quality)) }
+            state.qualityDetail?.let { Note(it, LiveStreamIds.QUALITY_DETAIL, MonitorPalette.muted) }
+        } else {
+            MonitorSettingsInlineRow(LiveStreamCopy.QUALITY) {
+                Box(Modifier.testTag(LiveStreamIds.QUALITY)) { MonitorSettingsValueText(LiveStreamCopy.quality(state.quality)) }
+            }
         }
         if (selected.vertical) {
             Note(LiveStreamCopy.verticalNote(state.sourceHeight ?: 720), LiveStreamIds.VERTICAL_NOTE, MonitorPalette.muted)

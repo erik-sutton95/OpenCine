@@ -173,6 +173,22 @@
         _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, presetID: jstring?, width: jint, height: jint,
         fpsNum: jint, fpsDen: jint, connected: jintArray?
     ) -> jstring? {
+        outputFormat(env, presetID, width, height, fpsNum, fpsDen, connected, choice: nil)
+    }
+
+    /// `StreamingNative.formatFor(presetId, width, height, fpsNum, fpsDen, connected, choice): String?`.
+    @_cdecl("Java_com_opencapture_opencine_streaming_StreamingNative_formatFor")
+    public func streamingNativeFormatFor(
+        _ env: UnsafeMutablePointer<JNIEnv?>, _: jobject?, presetID: jstring?, width: jint, height: jint,
+        fpsNum: jint, fpsDen: jint, connected: jintArray?, choice: jstring?
+    ) -> jstring? {
+        outputFormat(env, presetID, width, height, fpsNum, fpsDen, connected, choice: swiftString(env, choice) ?? "")
+    }
+
+    private func outputFormat(
+        _ env: UnsafeMutablePointer<JNIEnv?>, _ presetID: jstring?, _ width: jint, _ height: jint,
+        _ fpsNum: jint, _ fpsDen: jint, _ connected: jintArray?, choice: String?
+    ) -> jstring? {
         guard let preset = swiftString(env, presetID) else { return nil }
         var sizes: [Int32] = []
         if let connected {
@@ -189,7 +205,7 @@
         guard
             let json = StreamRunWire.shared.formatJSON(
                 presetID: preset, selectedWidth: Int(width), selectedHeight: Int(height), fpsNum: Int(fpsNum),
-                fpsDen: Int(fpsDen), connected: sizes)
+                fpsDen: Int(fpsDen), connected: sizes, choice: choice ?? "cameraFeed")
         else { return nil }
         return javaString(env, json)
     }

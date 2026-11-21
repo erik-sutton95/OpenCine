@@ -29,6 +29,7 @@ public final class com/opencapture/opencine/appkitnative/LiveStreamCoordinator :
 	public fun removeKey ()V
 	public fun restart ()V
 	public fun saveKey (Ljava/lang/String;)V
+	public fun selectQuality (Ljava/lang/String;)V
 	public fun selectService (Ljava/lang/String;)V
 	public fun setServer (Ljava/lang/String;)V
 	public fun setShowOnMonitor (Z)V
@@ -57,10 +58,17 @@ public final class com/opencapture/opencine/appkitnative/LiveStreamRequest {
 }
 
 public abstract interface class com/opencapture/opencine/appkitnative/LiveStreamSettings {
+	public fun getSelectedQualityId ()Ljava/lang/String;
 	public abstract fun getSelectedServiceId ()Ljava/lang/String;
 	public abstract fun getShowOnMonitor ()Z
+	public fun setSelectedQualityId (Ljava/lang/String;)V
 	public abstract fun setSelectedServiceId (Ljava/lang/String;)V
 	public abstract fun setShowOnMonitor (Z)V
+}
+
+public final class com/opencapture/opencine/appkitnative/LiveStreamSettings$DefaultImpls {
+	public static fun getSelectedQualityId (Lcom/opencapture/opencine/appkitnative/LiveStreamSettings;)Ljava/lang/String;
+	public static fun setSelectedQualityId (Lcom/opencapture/opencine/appkitnative/LiveStreamSettings;Ljava/lang/String;)V
 }
 
 public final class com/opencapture/opencine/appkitnative/LiveStreamSource {

@@ -62,6 +62,25 @@ interface StreamingNativeApi {
         connected: IntArray,
     ): String?
 
+    /**
+     * The output format JSON for a go-live with the operator's quality choice (a
+     * [StreamQualityChoice.wireName]), or null for an unknown preset or choice. The default
+     * answers the camera feed choice only, for an implementation that predates the choice.
+     */
+    fun formatFor(
+        presetId: String,
+        width: Int,
+        height: Int,
+        fpsNum: Int,
+        fpsDen: Int,
+        connected: IntArray,
+        choice: String,
+    ): String? = if (choice == StreamQualityChoice.CAMERA_FEED.wireName) {
+        format(presetId, width, height, fpsNum, fpsDen, connected)
+    } else {
+        null
+    }
+
     /** JSON `{"ok":true,"tls":bool}` or `{"error":name}`, for a preset as in [create]. */
     fun checkDestination(presetId: String, enteredServerUrl: String, streamKey: String): String
 
@@ -146,6 +165,16 @@ object StreamingNative : StreamingNativeApi {
         fpsNum: Int,
         fpsDen: Int,
         connected: IntArray,
+    ): String?
+
+    external override fun formatFor(
+        presetId: String,
+        width: Int,
+        height: Int,
+        fpsNum: Int,
+        fpsDen: Int,
+        connected: IntArray,
+        choice: String,
     ): String?
 
     external override fun checkDestination(presetId: String, enteredServerUrl: String, streamKey: String): String
