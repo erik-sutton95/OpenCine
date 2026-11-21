@@ -80,6 +80,9 @@ case LinkRepair.rebindUDP
 case LinkRepair.rehandshake
 case LinkRepair.rejoinSoftAP
 case LinkRepair.resendEnable
+case LivestreamCommands.Codec.h264
+case LivestreamCommands.Codec.hevc
+case LivestreamCommands.Failure.urlTooLong
 case MediaLiveResume.Action.done
 case MediaLiveResume.Action.enableLiveView
 case MediaLiveResume.Action.exhausted
@@ -144,6 +147,7 @@ enum DJILook
 enum DJIMediaHTTPError: Error, Sendable
 enum DJIMonitorColorProfile
 enum DJISetup: Equatable, Sendable
+enum DJIStreamPublishing
 enum Duml
 enum DumlTransport
 enum DumlTransport.PktType: Equatable, Hashable, RawRepresentable
@@ -157,6 +161,9 @@ enum GlamourEffect
 enum LinkDiagnoser
 enum LinkFailure: Equatable, Hashable, Sendable
 enum LinkRepair: Equatable, Hashable, Sendable
+enum LivestreamCommands
+enum LivestreamCommands.Codec: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
+enum LivestreamCommands.Failure: Equatable, Error, Hashable, Sendable
 enum MediaLiveResume.Action: Equatable, Hashable, Sendable
 enum MediaLiveResume: Sendable
 enum MediaManifest
@@ -554,6 +561,7 @@ static func DJILook.rec709LookCurve(_: OpenCineMedia.MonitorTransfer) -> [Swift.
 static func DJILook.rec709LookIRE(encoded: Swift.Double, transfer: OpenCineMedia.MonitorTransfer) -> Swift.Double?
 static func DJIMonitorColorProfile.inferredTransfer(minByte: Swift.UInt8, maxByte: Swift.UInt8, fallback: OpenCineMedia.MonitorTransfer) -> OpenCineMedia.MonitorTransfer
 static func DJIScopeExposureCeiling.referenceClipByte(transfer: OpenCineMedia.MonitorTransfer) -> Swift.Int
+static func DJIStreamPublishing.capability(for: OpenCineCameraVocabulary.CameraModel) -> OpenCineCore.CameraStreamPublishing?
 static func Duml.crc16(_: Swift.ArraySlice<Swift.UInt8>) -> Swift.UInt16
 static func Duml.crc16(_: [Swift.UInt8]) -> Swift.UInt16
 static func Duml.crc8(_: Swift.ArraySlice<Swift.UInt8>) -> Swift.UInt8
@@ -629,6 +637,12 @@ static func LinkDiagnoser.diagnose(_: OpenCineCameraVocabulary.FeedWatchdog.Snap
 static func LinkDiagnoser.diagnose(pathReady: Swift.Bool, bleNotifyAge: Foundation.TimeInterval?, videoAge: Foundation.TimeInterval?, statusAge: Foundation.TimeInterval?, flowHealthy: Swift.Bool, decoderFailed: Swift.Bool, udpReceiveAlive: Swift.Bool, hadVideo: Swift.Bool, secondsSinceLastEnable: Foundation.TimeInterval?, secondsSinceFocusTrackSet: Foundation.TimeInterval?, secondsSinceZoomSet: Foundation.TimeInterval?, zoomPinchActive: Swift.Bool, secondsSinceGimbalThrow: Foundation.TimeInterval?, gimbalStickHeld: Swift.Bool, presentAge: Foundation.TimeInterval?, secondsSinceCameraSet: Foundation.TimeInterval?) -> LinkFailure
 static func LinkDiagnoser.observeLine(snap: OpenCineCameraVocabulary.FeedWatchdog.Snapshot, watchdog: OpenCineCameraVocabulary.FeedWatchdog.Action) -> Swift.String
 static func LinkDiagnoser.repair(for: LinkFailure) -> LinkRepair
+static func LivestreamCommands.configureDirectURL(url: Swift.String, preset: [Swift.UInt8], seq: Swift.UInt16) throws -> Duml.Frame
+static func LivestreamCommands.configureJSON(url: Swift.String, preset: [Swift.UInt8], codec: LivestreamCommands.Codec, seq: Swift.UInt16) throws -> Duml.Frame
+static func LivestreamCommands.end(seq: Swift.UInt16) -> Duml.Frame
+static func LivestreamCommands.prepare(seq: Swift.UInt16) -> Duml.Frame
+static func LivestreamCommands.preset(frameRate: Swift.Int, bitrateKbps: Swift.UInt16, modeBytes: (Swift.UInt8, Swift.UInt8)) -> [Swift.UInt8]
+static func LivestreamCommands.start(seq: Swift.UInt16) -> Duml.Frame
 static func MediaBrowsePolicy.afterEnterPlayback(_: Swift.Bool) -> MediaBrowsePolicy
 static func MediaListCommand.hasOlderPage(recordCount: Swift.Int, cursor: Swift.UInt32?) -> Swift.Bool
 static func MediaListCommand.listPayload(counter: Swift.UInt8, cursor: Swift.UInt32) -> [Swift.UInt8]

@@ -6,6 +6,28 @@ case RTMPPublishSession.State.handshaking
 case RTMPPublishSession.State.idle
 case RTMPPublishSession.State.live
 case RTMPPublishSession.State.publishing
+case RTMPReceiveEvent.audioConfig([Swift.UInt8])
+case RTMPReceiveEvent.audioFrame(Swift.UInt32, [Swift.UInt8])
+case RTMPReceiveEvent.command(Swift.String)
+case RTMPReceiveEvent.connect(Swift.String)
+case RTMPReceiveEvent.failed(RTMPReceiveFailure)
+case RTMPReceiveEvent.handshakeDone
+case RTMPReceiveEvent.metadata([Swift.String : Swift.String])
+case RTMPReceiveEvent.publish(Swift.String?)
+case RTMPReceiveEvent.unpublished(Swift.String)
+case RTMPReceiveEvent.unsupported(Swift.String)
+case RTMPReceiveEvent.videoConfig(RTMPReceivedCodec, [Swift.UInt8], Swift.Bool)
+case RTMPReceiveEvent.videoEnd
+case RTMPReceiveEvent.videoFrame(RTMPReceivedVideoFrame)
+case RTMPReceiveFailure.chunkStream(Swift.String)
+case RTMPReceiveFailure.handshakeVersion(Swift.UInt8)
+case RTMPReceiveFailure.unexpectedStreamKey
+case RTMPReceiveSession.State.closed
+case RTMPReceiveSession.State.connected
+case RTMPReceiveSession.State.waitingC0C1
+case RTMPReceiveSession.State.waitingC2
+case RTMPReceivedCodec.avc
+case RTMPReceivedCodec.hevc
 case StreamConnectionRoute.cameraWiFi
 case StreamConnectionRoute.captureCard
 case StreamConnectionRoute.deviceHotspot
@@ -49,6 +71,10 @@ case StreamServicePreset.Aspect.portrait9x16
 case StreamSessionEvent.failed(StreamFailure)
 case StreamSessionEvent.live
 enum RTMPPublishSession.State: Equatable, Hashable, Sendable
+enum RTMPReceiveEvent: Equatable, Sendable
+enum RTMPReceiveFailure: Equatable, Sendable
+enum RTMPReceiveSession.State: Equatable, Hashable, Sendable
+enum RTMPReceivedCodec: Equatable, Hashable, RawRepresentable, Sendable
 enum StreamConnectionRoute: Equatable, Hashable, Sendable
 enum StreamDestinationError: Equatable, Error, Hashable, Sendable
 enum StreamFailure: Equatable, Error, Sendable
@@ -66,9 +92,11 @@ func RTMPPublishSession.close() -> [Swift.UInt8]
 func RTMPPublishSession.receive(_: [Swift.UInt8]) -> RTMPPublishSession.Output
 func RTMPPublishSession.send(_: StreamMediaPacket) -> [Swift.UInt8]
 func RTMPPublishSession.start() -> [Swift.UInt8]
+func RTMPReceiveSession.receive(_: [Swift.UInt8]) -> RTMPReceiveSession.Output
 func StreamBitratePolicy.observe(queuedDuration: Swift.Duration, at: OpenCineCore.MonotonicInstant) -> Swift.Int
 func StreamFramePacer.frame(at: OpenCineCore.MonotonicInstant)<Picture> -> StreamFramePacer<Picture>.Frame
 func StreamFramePacer.submit(_: Picture, at: OpenCineCore.MonotonicInstant)<Picture> -> ()
+func StreamReceiverToken.publishURL(host: Swift.String, port: Swift.UInt16) -> Swift.String
 func StreamReconnectPolicy.decide(after: StreamFailure?, at: OpenCineCore.MonotonicInstant) -> StreamReconnectPolicy.Decision
 func StreamReconnectPolicy.wentLive() -> ()
 func StreamRun.connected(at: OpenCineCore.MonotonicInstant) -> [StreamRun.Action]
@@ -83,12 +111,15 @@ func StreamSendQueue.enqueue(_: StreamMediaPacket) -> ()
 func StreamSendQueue.next() -> StreamMediaPacket?
 init RTMPPublishSession(destination: StreamDestination)
 init RTMPPublishSession.Output(outbound: [Swift.UInt8], events: [StreamSessionEvent])
+init RTMPReceiveSession(expectedStreamKey: Swift.String)
+init RTMPReceiveSession.Output()
 init StreamBitratePolicy(targetBps: Swift.Int, floorBps: Swift.Int)
 init StreamConnectionRoute(_: OpenCineCore.RouteKind)
 init StreamDestination(preset: StreamServicePreset, enteredServerURL: Swift.String?, streamKey: Swift.String) throws
 init StreamDestination(serverURL: Swift.String, streamKey: Swift.String, allowsPlainRTMP: Swift.Bool) throws
 init StreamFramePacer(slateAfter: Swift.Duration)<Picture>
 init StreamOutputFormat(width: Swift.Int, height: Swift.Int, frameRate: OpenCineCore.Rational, videoBitrateBps: Swift.Int, keyframeIntervalSeconds: Swift.Int, audioBitrateBps: Swift.Int, audioSampleRate: Swift.Int, audioChannels: Swift.Int)
+init StreamReceiverToken(value: Swift.String)
 init StreamReconnectPolicy(startedAt: OpenCineCore.MonotonicInstant)
 init StreamRun(destination: StreamDestination, format: StreamOutputFormat, now: OpenCineCore.MonotonicInstant, maxQueueBytes: Swift.Int, maxInFlightBytes: Swift.Int)
 init StreamSendQueue(maxBytes: Swift.Int)
@@ -103,18 +134,24 @@ let StreamDestination.port: Swift.UInt16
 let StreamDestination.streamKey: Swift.String
 let StreamDestination.tcURL: Swift.String
 let StreamFramePacer.slateAfter: Swift.Duration
+let StreamReceiverToken.value: Swift.String
 let StreamSendQueue.maxBytes: Swift.Int
 static func StreamConnectionRoute.canStream(_: StreamConnectionRoute?) -> Swift.Bool
 static func StreamOutputFormat.resolve(selected: StreamSourceFormat, connected: [StreamSourceFormat], preset: StreamServicePreset, choice: StreamQualityChoice) -> StreamOutputFormat
 static func StreamQualityChoice.offered(for: StreamSourceFormat?) -> [StreamQualityChoice]
+static func StreamReceiverToken.random() -> StreamReceiverToken
 static let StreamServicePreset.all: [StreamServicePreset]
 static let StreamServicePreset.custom: StreamServicePreset
 struct RTMPPublishSession.Output: Equatable, Sendable
 struct RTMPPublishSession: Sendable
+struct RTMPReceiveSession.Output: Equatable, Sendable
+struct RTMPReceiveSession: Sendable
+struct RTMPReceivedVideoFrame: Equatable, Sendable
 struct StreamBitratePolicy: Sendable
 struct StreamDestination: CustomDebugStringConvertible, CustomReflectable, CustomStringConvertible, Equatable, Hashable, Sendable
 struct StreamFramePacer<Picture>: Sendable
 struct StreamOutputFormat: Equatable, Hashable, Sendable
+struct StreamReceiverToken: CustomStringConvertible, Equatable, Hashable, Sendable
 struct StreamReconnectPolicy: Sendable
 struct StreamRun.Status: Equatable, Sendable
 struct StreamRun: Sendable
@@ -124,6 +161,14 @@ struct StreamSourceFormat: Equatable, Hashable, Sendable
 var RTMPPublishSession.Output.events: [StreamSessionEvent]
 var RTMPPublishSession.Output.outbound: [Swift.UInt8]
 var RTMPPublishSession.state: RTMPPublishSession.State
+var RTMPReceiveSession.Output.events: [RTMPReceiveEvent]
+var RTMPReceiveSession.Output.outbound: [Swift.UInt8]
+var RTMPReceiveSession.state: RTMPReceiveSession.State
+var RTMPReceivedVideoFrame.codec: RTMPReceivedCodec
+var RTMPReceivedVideoFrame.compositionMs: Swift.Int32
+var RTMPReceivedVideoFrame.data: [Swift.UInt8]
+var RTMPReceivedVideoFrame.decodeMs: Swift.UInt32
+var RTMPReceivedVideoFrame.keyframe: Swift.Bool
 var StreamBitratePolicy.currentBps: Swift.Int
 var StreamDestination.customMirror: Swift.Mirror
 var StreamDestination.debugDescription: Swift.String
@@ -136,6 +181,8 @@ var StreamOutputFormat.height: Swift.Int
 var StreamOutputFormat.keyframeIntervalSeconds: Swift.Int
 var StreamOutputFormat.videoBitrateBps: Swift.Int
 var StreamOutputFormat.width: Swift.Int
+var StreamReceiverToken.description: Swift.String
+var StreamReceiverToken.logLabel: Swift.String
 var StreamRun.Status.droppedAudioPackets: Swift.Int
 var StreamRun.Status.droppedVideoGroups: Swift.Int
 var StreamRun.Status.health: StreamRun.Health

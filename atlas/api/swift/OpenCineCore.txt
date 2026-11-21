@@ -51,6 +51,8 @@ case CameraSettingsPresetSkip.outOfDomain
 case CameraSettingsPresetSkip.readOnly
 case CameraSettingsPresetSkip.unavailable(UnavailableReason)
 case CameraSettingsPresetSkip.unsupported
+case CameraStreamPublishing.Codec.h264
+case CameraStreamPublishing.Codec.hevc
 case CaptureMode.Role.other
 case CaptureMode.Role.photo
 case CaptureMode.Role.video
@@ -265,6 +267,7 @@ enum CameraNetworkPermissionState: Equatable, Hashable, RawRepresentable, Sendab
 enum CameraSettingsPresetCodec
 enum CameraSettingsPresetRecall.Outcome: Equatable, Hashable, Sendable
 enum CameraSettingsPresetSkip: Equatable, Hashable, Sendable
+enum CameraStreamPublishing.Codec: Equatable, Hashable, RawRepresentable, Sendable
 enum CaptureMode.Role: Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum CommandFailure: Decodable, Encodable, Equatable, Hashable, Sendable
 enum CommandRejection: Decodable, Encodable, Equatable, Hashable, Sendable
@@ -347,6 +350,7 @@ func CameraSettingsPreset.value(of: SettingKey) -> SettingValue?
 func CameraSnapshot.encode(to: any Swift.Encoder) throws -> ()
 func CameraSnapshot.rejection(of: CameraCommand, at: MonotonicInstant) -> CommandRejection?
 func CameraSnapshot.value(of: SettingKey) -> ObservedValue<SettingValue>
+func CameraStreamPublishing.frameRate(near: Swift.Int?) -> Swift.Int
 func CapabilitySnapshot.encode(to: any Swift.Encoder) throws -> ()
 func CapabilitySnapshot.support(of: SettingKey) -> SupportStatus
 func CommandDispatchAdmission.dispatch(_: CameraCommand, on: CameraSessionID) async -> CommandReceipt
@@ -414,6 +418,7 @@ init CameraSettingsPresetRecall.Entry(value: SettingValue, outcome: CameraSettin
 init CameraSettingsPresetSkip(_: CommandRejection)
 init CameraSnapshot(from: any Swift.Decoder) throws
 init CameraSnapshot(session: CameraSessionID, epoch: ControlEpoch, device: CameraDeviceID?, connection: ConnectionState, authority: ControlAuthority)
+init CameraStreamPublishing(width: Swift.Int, height: Swift.Int, frameRates: [Swift.Int], codecs: [CameraStreamPublishing.Codec], takesLUT: Swift.Bool, experimental: Swift.Bool)
 init CameraTimecode(hours: Swift.Int, minutes: Swift.Int, seconds: Swift.Int, frames: Swift.Int, dropFrame: Swift.Bool?)
 init CameraTimecodeReading(_: CameraTimecode)
 init CameraTimecodeReading(hours: Swift.Int, minutes: Swift.Int, seconds: Swift.Int, frames: Swift.Int?, dropFrame: Swift.Bool?)
@@ -571,6 +576,7 @@ struct CameraSettingsPreset: Equatable, Hashable, Identifiable, Sendable
 struct CameraSettingsPresetRecall.Entry: Equatable, Hashable, Sendable
 struct CameraSettingsPresetRecall: Equatable, Hashable, Sendable
 struct CameraSnapshot: Decodable, Encodable, Equatable, Hashable, Sendable
+struct CameraStreamPublishing: Equatable, Hashable, Sendable
 struct CameraTimecode: Decodable, Encodable, Equatable, Hashable, Sendable
 struct CameraTimecodeReading: Decodable, Encodable, Equatable, Hashable, Sendable
 struct CameraValuePin<Value where Value : Swift.Equatable, Value : Swift.Sendable>: Sendable
@@ -701,6 +707,13 @@ var CameraSnapshot.settings: [SettingKey : ObservedValue<SettingValue>]
 var CameraSnapshot.storage: StorageStatus
 var CameraSnapshot.timecode: ObservedValue<CameraTimecode>
 var CameraSnapshot.timecodeReading: ObservedValue<CameraTimecodeReading>
+var CameraStreamPublishing.codecs: [CameraStreamPublishing.Codec]
+var CameraStreamPublishing.experimental: Swift.Bool
+var CameraStreamPublishing.frameRates: [Swift.Int]
+var CameraStreamPublishing.height: Swift.Int
+var CameraStreamPublishing.preferredCodec: CameraStreamPublishing.Codec?
+var CameraStreamPublishing.takesLUT: Swift.Bool
+var CameraStreamPublishing.width: Swift.Int
 var CameraTimecode.dropFrame: Swift.Bool?
 var CameraTimecode.frames: Swift.Int
 var CameraTimecode.hours: Swift.Int

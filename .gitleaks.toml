@@ -33,3 +33,14 @@ regexes = [
 paths = [
   '''^Fixtures/nikon-network-vectors\.tsv$''',
 ]
+
+[[rules.allowlists]]
+description = "Exact synthetic RTMP stream key the receiver fixtures were recorded under"
+condition = "AND"
+regexTarget = "secret"
+regexes = [
+  '''^0123456789abcdef0123456789abcdef$''',
+]
+paths = [
+  '''^Tests/OpenCineStreaming(Apple)?Tests/[A-Za-z]+\.swift$''',
+]

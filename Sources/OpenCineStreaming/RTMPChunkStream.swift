@@ -113,13 +113,15 @@ struct RTMPChunkReader {
         var typeID: UInt8 = 0
         var messageStreamID: UInt32 = 0
         var hasExtendedTimestamp = false
-        var partial: [UInt8]?
     }
 
     private var buffer: [UInt8] = []
     private var start = 0
     private var streams: [UInt32: StreamState] = [:]
-    private var partialBytes = 0
+    /// Half-received messages per chunk stream, kept apart from the headers so they grow in place.
+    private var partials: [UInt32: [UInt8]] = [:]
+    /// Bytes held in half-received messages across all chunk streams (bounded by `maxMessageBytes`).
+    private(set) var partialBytes = 0
 
     init(maxMessageBytes: Int = 16 * 1024 * 1024) {
         self.maxMessageBytes = maxMessageBytes
@@ -184,10 +186,13 @@ struct RTMPChunkReader {
             if format != 3 { field = value }
         }
 
-        let continuing = format == 3 && state.partial != nil
+        let continuing = format == 3 && partials[csid] != nil
+        // A new header abandons a half message on this stream; its bytes are given back only when
+        // the new chunk is taken, so a header split across reads is not counted twice.
+        var abandoned = 0
         if !continuing {
             guard state.length <= maxMessageBytes else { throw RTMPChunkError.messageTooLarge }
-            if let dropped = state.partial { partialBytes -= dropped.count }
+            abandoned = partials[csid]?.count ?? 0
             switch format {
             case 0: state.timestamp = field
             case 1, 2: state.timestamp = state.timestamp &+ field
@@ -197,25 +202,27 @@ struct RTMPChunkReader {
                 state.timestampField = field
                 state.hasExtendedTimestamp = extended
             }
-            state.partial = []
         }
-        let have = state.partial?.count ?? 0
+        let have = continuing ? partials[csid]?.count ?? 0 : 0
         let take = min(max(chunkSize, 1), state.length - have)
         guard need(take) else { return nil }
-        guard partialBytes + take <= maxMessageBytes else { throw RTMPChunkError.messageTooLarge }
+        guard partialBytes - abandoned + take <= maxMessageBytes else { throw RTMPChunkError.messageTooLarge }
 
-        state.partial?.append(contentsOf: buffer[at..<at + take])
+        partialBytes -= abandoned
+        if continuing {
+            partials[csid]?.append(contentsOf: buffer[at..<at + take])
+        } else {
+            partials[csid] = Array(buffer[at..<at + take])
+        }
         at += take
         partialBytes += take
         start = at
+        streams[csid] = state
 
-        guard let payload = state.partial, payload.count == state.length else {
-            streams[csid] = state
+        guard partials[csid]?.count == state.length, let payload = partials.removeValue(forKey: csid) else {
             return .some(nil)
         }
-        state.partial = nil
         partialBytes -= payload.count
-        streams[csid] = state
         let message = RTMPMessage(
             chunkStreamID: csid, typeID: state.typeID, messageStreamID: state.messageStreamID,
             timestamp: state.timestamp, payload: payload)
@@ -231,10 +238,7 @@ struct RTMPChunkReader {
             guard value > 0, value & 0x8000_0000 == 0 else { throw RTMPChunkError.invalidChunkSize }
             chunkSize = Int(value)
         case 2:
-            if let dropped = streams[value]?.partial {
-                partialBytes -= dropped.count
-                streams[value]?.partial = nil
-            }
+            if let dropped = partials.removeValue(forKey: value) { partialBytes -= dropped.count }
         default:
             break
         }

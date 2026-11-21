@@ -862,6 +862,10 @@ public final class com/opencapture/opencine/dji/DjiNative {
 	public static final field CMD_GIMBAL_INIT I
 	public static final field CMD_GIMBAL_RECENTER I
 	public static final field CMD_GIMBAL_STICK I
+	public static final field CMD_LIVESTREAM_CONFIGURE I
+	public static final field CMD_LIVESTREAM_END I
+	public static final field CMD_LIVESTREAM_PREPARE I
+	public static final field CMD_LIVESTREAM_START I
 	public static final field CMD_LIVE_VIEW_ENABLE I
 	public static final field CMD_MEDIA_LIST I
 	public static final field CMD_MEDIA_LIST_TRIGGER I
@@ -983,6 +987,11 @@ public final class com/opencapture/opencine/dji/DjiStationCommissioner : com/ope
 	public fun restoreAccessPoint (Lcom/opencapture/opencine/core/StationCameraRecord;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun scanNetworks (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public synthetic fun scanNetworks (Ljava/lang/Object;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/DjiStreamPublishing {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiStreamPublishing;
+	public final fun capability (Lcom/opencapture/opencine/vocabulary/CameraModel;)Lcom/opencapture/opencine/core/CameraStreamPublishing;
 }
 
 public final class com/opencapture/opencine/dji/DumlCodec {
