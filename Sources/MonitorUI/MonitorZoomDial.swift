@@ -2,16 +2,25 @@
     import MonitorPresentation
     import SwiftUI
 
-    /// Camera adapters own continuous write coalescing and final settlement.
-    /// Opening the dial and rendering its lens annotations never issue commands.
+    /// The zoom control: a slim vertical ruler on the trailing edge with the presets beside it.
+    /// Drag anywhere on the ruler to move in 0.1x steps. Camera adapters own continuous write
+    /// coalescing and final settlement; opening the ruler and drawing it never issue commands.
+    /// Kotlin twin: `MonitorZoomRuler` (monitor-ui).
     public struct MonitorZoomDial: View {
+        static let rulerWidth: CGFloat = 44
+        static let edgeMargin: CGFloat = 12
+        /// Room left of the ruler for the whole-step labels.
+        static let labelGutter: CGFloat = 34
+        /// Keeps the end ticks off the capsule's rounded ends.
+        static let endInset: CGFloat = 16
+
         private let viewport: CGSize
         private let safeArea: EdgeInsets
         private let attachment: MonitorZoomAttachment
+        private let topClearance: CGFloat
         private let bottomClearance: CGFloat
         private let isPresented: Bool
         private let scale: MonitorZoomScale
-        private let marks: [Double]
         private let opticalStops: [Double]
         private let caption: String
         private let label: (Double) -> String
@@ -21,31 +30,34 @@
         private let presets: MonitorZoomPresetControls?
         @Binding private var value: Double
         @State private var drag = MonitorZoomDrag()
-        @State private var radial: MonitorZoomRadialGesture?
         @GestureState private var pointerActive = false
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.monitorHDRChromeGain) private var hdrGain
         @State private var appeared = false
-        @State private var detentTick = 0
+        @State private var stepTick = 0
 
+        /// `attachment` and `marks` are kept for source compatibility: the ruler always sits on
+        /// the trailing edge and draws its own 0.1x, 0.5x and 1x ticks.
         public init(
             viewport: CGSize, safeArea: EdgeInsets = EdgeInsets(),
             attachment: MonitorZoomAttachment = .trailing, bottomClearance: CGFloat = 0,
+            topClearance: CGFloat = 0,
             isPresented: Bool = true,
             scale: MonitorZoomScale,
-            marks: [Double], opticalStops: [Double] = [1], caption: String = "",
+            marks: [Double] = [], opticalStops: [Double] = [1], caption: String = "",
             value: Binding<Double>, label: @escaping (Double) -> String,
             onEditing: @escaping (Bool) -> Void, onClose: @escaping () -> Void,
             haptics: Bool = true, presets: MonitorZoomPresetControls? = nil
         ) {
+            _ = marks
             self.viewport = viewport
             self.safeArea = safeArea
             self.attachment = attachment
+            self.topClearance = max(0, topClearance)
             self.bottomClearance = max(0, bottomClearance)
             self.isPresented = isPresented
             self.scale = scale
-            self.marks = marks
             self.opticalStops = opticalStops
             self.caption = caption
             self._value = value
@@ -56,23 +68,21 @@
             self.presets = presets
         }
 
-        private var geometry: MonitorZoomGeometry {
-            switch attachment {
-            case .trailing:
-                return MonitorZoomGeometry(
-                    width: viewport.width, height: viewport.height,
-                    trailingInset: safeArea.trailing > 0 ? safeArea.trailing + 6 : 0)
-            case .bottom:
-                return MonitorZoomGeometry(
-                    width: viewport.width, height: viewport.height,
-                    bottomInset: safeArea.bottom > 0 ? safeArea.bottom : 0,
-                    attachment: .bottom)
-            }
+        /// The ruler's capsule in viewport coordinates.
+        var rulerFrame: CGRect {
+            let trailing = viewport.width - max(0, safeArea.trailing) - Self.edgeMargin
+            let top = max(topClearance, safeArea.top + Self.edgeMargin)
+            let bottom = viewport.height - max(bottomClearance, safeArea.bottom + Self.edgeMargin)
+            return CGRect(
+                x: trailing - Self.rulerWidth, y: top,
+                width: Self.rulerWidth, height: max(0, bottom - top))
         }
 
-        private var isBottom: Bool { attachment == .bottom }
-
-        private var radius: CGFloat { geometry.radius }
+        var ruler: MonitorZoomRulerScale {
+            MonitorZoomRulerScale(
+                minimum: scale.minimum, maximum: scale.maximum,
+                length: Double(max(0, rulerFrame.height - Self.endInset * 2)))
+        }
 
         private var ink: Color {
             opticalStops.contains { abs($0 - value) < 0.05 }
@@ -83,136 +93,43 @@
         private var acceptsInput: Bool { visible && scenePhase == .active }
 
         public var body: some View {
-            ZStack {
+            let frame = rulerFrame
+            ZStack(alignment: .topLeading) {
                 Button(action: onClose) {
                     Color.clear.contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Close zoom dial")
-                .opacity(visible ? 1 : 0)
-                .animation(MonitorMotion.dim(reduceMotion), value: visible)
+                .accessibilityLabel("Close zoom")
+                .frame(width: viewport.width, height: viewport.height)
 
-                Color.clear
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(alignment: isBottom ? .bottom : .trailing) {
-                        dial
-                            .frame(
-                                width: isBottom ? radius * 2 : radius,
-                                height: isBottom ? radius : radius * 2)
-                            .frame(
-                                width: geometry.width, height: geometry.height,
-                                alignment: isBottom ? .top : .leading)
-                            .monitorGlass(
-                                in: MonitorZoomHalfDisc(attachment: attachment), density: .zoom)
-                            .clipShape(MonitorZoomHalfDisc(attachment: attachment))
-                            .contentShape(MonitorZoomHalfDisc(attachment: attachment))
-                            .shadow(color: .black.opacity(0.5), radius: 22, y: 10)
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .updating($pointerActive) { _, active, _ in active = true }
-                                    .onChanged { gesture in
-                                        guard acceptsInput else {
-                                            cancelPointer()
-                                            return
-                                        }
-                                        guard
-                                            geometry.canStartZoom(
-                                                x: gesture.startLocation.x, y: gesture.startLocation.y)
-                                        else { return }
-                                        if drag.begin(at: value) {
-                                            radial = MonitorZoomRadialGesture(
-                                                geometry: geometry,
-                                                startX: gesture.startLocation.x,
-                                                startY: gesture.startLocation.y)
-                                            onEditing(true)
-                                        }
-                                        guard let origin = drag.anchor else { return }
-                                        guard
-                                            let delta = radial?.angleDelta(
-                                                x: gesture.location.x, y: gesture.location.y)
-                                        else { return }
-                                        value = scale.dragged(
-                                            from: origin, angleDelta: delta, current: value)
-                                    }
-                                    .onEnded { _ in finishEditing() }
-                            )
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("Zoom dial")
-                            .accessibilityValue(
-                                [scale.dialLabel(value), caption].filter { !$0.isEmpty }.joined(
-                                    separator: ", ")
-                            )
-                            .accessibilityAdjustableAction { direction in
-                                guard acceptsInput else { return }
-                                onEditing(true)
-                                let step =
-                                    direction == .increment
-                                    ? MonitorZoomScale.tickIncrement : -MonitorZoomScale.tickIncrement
-                                value = scale.quantized(value + step)
-                                onEditing(false)
-                            }
-                            .accessibilityIdentifier("monitor.zoom.dial")
-                            .scaleEffect(
-                                visible || reduceMotion
-                                    ? 1
-                                    : (isPresented
-                                        ? MonitorMotion.zoomDiscInScale
-                                        : MonitorMotion.zoomDiscOutScale),
-                                anchor: isBottom ? .bottom : .trailing
-                            )
-                            .offset(
-                                x: isBottom || visible || reduceMotion
-                                    ? 0 : radius * MonitorMotion.zoomDiscSlide,
-                                y: !isBottom || visible || reduceMotion
-                                    ? 0 : radius * MonitorMotion.zoomDiscSlide
-                            )
-                            .opacity(visible ? 1 : 0)
-                            .animation(
-                                visible
-                                    ? MonitorMotion.discIn(reduceMotion)
-                                    : MonitorMotion.discOut(reduceMotion),
-                                value: visible
-                            )
-                    }
-                    .padding(.bottom, isBottom ? bottomClearance : 0)
-                if let presets {
-                    // Beside the disc's curved edge: a column in landscape, a row in portrait.
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .overlay(alignment: isBottom ? .bottom : .trailing) {
-                            MonitorZoomPresetStrip(
-                                controls: presets, maximum: scale.maximum, vertical: !isBottom,
-                                label: label, haptics: haptics
-                            )
-                            .padding(.trailing, isBottom ? 0 : geometry.width + 12)
-                            .padding(.bottom, isBottom ? bottomClearance + geometry.height + 12 : 0)
-                        }
-                        .opacity(visible ? 1 : 0)
-                        .animation(MonitorMotion.dim(reduceMotion), value: visible)
-                }
+                rulerBody
+                    .frame(width: frame.width + Self.labelGutter, height: frame.height)
+                    .offset(x: frame.minX - Self.labelGutter, y: frame.minY)
+                    .offset(x: visible || reduceMotion ? 0 : 24)
+                    .opacity(visible ? 1 : 0)
+                    .animation(
+                        visible ? MonitorMotion.discIn(reduceMotion) : MonitorMotion.discOut(reduceMotion),
+                        value: visible)
+
+                side
+                    .frame(width: max(0, frame.minX - Self.labelGutter - 10), height: frame.height, alignment: .trailing)
+                    .offset(y: frame.minY)
+                    .opacity(visible ? 1 : 0)
+                    .animation(MonitorMotion.dim(reduceMotion), value: visible)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(width: viewport.width, height: viewport.height)
+            .frame(width: viewport.width, height: viewport.height, alignment: .topLeading)
             .allowsHitTesting(acceptsInput)
             .accessibilityHidden(!acceptsInput)
             .onAppear { appeared = true }
             .onChange(of: acceptsInput) { _, active in if !active { cancelPointer() } }
             .onChange(of: viewport) { _, _ in cancelPointer() }
-            .onChange(of: attachment) { _, _ in cancelPointer() }
+            .onChange(of: topClearance) { _, _ in cancelPointer() }
             .onChange(of: bottomClearance) { _, _ in cancelPointer() }
             .onChange(of: safeArea) { _, _ in cancelPointer() }
             .onChange(of: scale) { _, _ in cancelPointer() }
             .onChange(of: pointerActive) { _, active in if !active { finishEditing() } }
-            .onChange(of: value) { old, new in
-                guard pointerActive || drag.anchor != nil else { return }
-                if MonitorDialHaptic.shouldTick(
-                    previous: old, next: new, majors: MonitorZoomScale.wholeStops)
-                {
-                    detentTick += 1
-                }
-            }
-            .sensoryFeedback(.impact(weight: .medium), trigger: detentTick) { _, _ in
-                haptics && acceptsInput && detentTick > 0
+            .sensoryFeedback(.impact(weight: .light), trigger: stepTick) { _, _ in
+                haptics && acceptsInput && stepTick > 0
             }
             .onDisappear {
                 cancelPointer()
@@ -220,193 +137,153 @@
             }
         }
 
+        /// The value readout over the preset column, both left of the ruler and centered on it.
+        private var side: some View {
+            VStack(alignment: .trailing, spacing: 14) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(MonitorZoomRulerScale.readout(value))
+                        .font(MonitorTheme.font(22, weight: .bold)).monospacedDigit()
+                        .foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
+                    if !caption.isEmpty {
+                        Text(caption).font(MonitorTheme.font(10, weight: .semibold)).tracking(1.2)
+                            .foregroundStyle(ink)
+                    }
+                }
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                if let presets {
+                    MonitorZoomPresetStrip(
+                        controls: presets, maximum: scale.maximum, vertical: true,
+                        label: label, haptics: haptics)
+                }
+            }
+        }
+
+        private var rulerBody: some View {
+            ZStack(alignment: .topTrailing) {
+                Color.clear
+                    .frame(width: Self.rulerWidth)
+                    .monitorGlass(in: Capsule(), density: .zoom)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                Self.canvas(canvasSnapshot)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($pointerActive) { _, active, _ in active = true }
+                    .onChanged { gesture in
+                        guard acceptsInput else {
+                            cancelPointer()
+                            return
+                        }
+                        if drag.begin(at: value) { onEditing(true) }
+                        guard drag.anchor != nil else { return }
+                        let next = ruler.value(atOffset: Double(gesture.location.y - Self.endInset))
+                        guard next != value else { return }
+                        if ruler.quantized(next) != ruler.quantized(value) { stepTick += 1 }
+                        value = next
+                    }
+                    .onEnded { _ in finishEditing() }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Zoom")
+            .accessibilityValue(
+                [MonitorZoomRulerScale.readout(value), caption].filter { !$0.isEmpty }
+                    .joined(separator: ", "))
+            .accessibilityAdjustableAction { direction in
+                guard acceptsInput else { return }
+                let step = direction == .increment ? MonitorZoomRulerScale.step : -MonitorZoomRulerScale.step
+                onEditing(true)
+                value = ruler.quantized(ruler.quantized(value) + step)
+                onEditing(false)
+            }
+            .accessibilityIdentifier("monitor.zoom.dial")
+        }
+
         private func finishEditing() {
-            radial = nil
             if drag.end() { onEditing(false) }
         }
 
         private func cancelPointer() {
             guard pointerActive || drag.anchor != nil else { return }
-            radial = nil
             if drag.cancel() { onEditing(false) }
         }
 
-        /// Freeze native value/label projections before SwiftUI dispatches the
-        /// Canvas renderer. The drawing snapshot contains no session callbacks.
+        /// Freeze native value and label projections before SwiftUI dispatches the Canvas
+        /// renderer. The drawing snapshot contains no session callbacks.
         var canvasSnapshot: MonitorZoomCanvasSnapshot {
-            let zoom = value
+            let ruler = ruler
+            let ticks = ruler.ticks
+            let opticalMaximum = opticalStops.max() ?? scale.minimum
             return MonitorZoomCanvasSnapshot(
-                radius: radius, attachment: attachment, scale: scale,
-                position: scale.position(zoom),
-                opticalMaximum: opticalStops.max() ?? scale.minimum,
-                marks: marks.filter { $0 >= scale.minimum && $0 <= scale.maximum }.map {
-                    MonitorZoomCanvasMark(value: $0, fraction: scale.position($0), label: label($0))
-                }, ink: ink, digitalInk: MonitorTheme.digitalCrop,
+                width: Self.rulerWidth, gutter: Self.labelGutter, inset: Self.endInset,
+                ticks: ticks,
+                labels: ticks.filter { $0.kind == .major }.map {
+                    MonitorZoomCanvasMark(value: $0.value, offset: $0.offset, label: label($0.value))
+                },
+                current: ruler.offset(for: value), opticalMaximum: opticalMaximum,
+                opticalStops: opticalStops, ink: ink, digitalInk: MonitorTheme.digitalCrop,
                 secondaryInk: MonitorTheme.secondary,
                 labelFont: MonitorTheme.font(12, weight: .semibold))
         }
 
         nonisolated static func canvas(_ snapshot: MonitorZoomCanvasSnapshot) -> Canvas<EmptyView> {
-            Canvas { context, _ in
-                let radius = snapshot.radius
-                let scale = snapshot.scale
-                let unit = radius / 190
-                let position = snapshot.position
-                let center = CGPoint(x: radius, y: radius)
-                let window = Double.pi * 0.36
-                let opticalMaximum = snapshot.opticalMaximum
-                let bottom = snapshot.attachment == .bottom
-                func point(_ angle: Double, _ distance: CGFloat) -> CGPoint {
-                    if bottom {
-                        return CGPoint(
-                            x: center.x - sin(angle) * distance,
-                            y: center.y + cos(angle) * distance)
-                    }
-                    return CGPoint(
-                        x: center.x + cos(angle) * distance,
-                        y: center.y + sin(angle) * distance)
-                }
-                func fade(_ delta: Double) -> Double {
-                    min(1, max(0, (window - abs(delta)) / (0.3 * window)))
-                }
-                func stroke(_ fraction: Double, major: Bool) {
-                    let delta = (fraction - position) * MonitorZoomScale.angularSpan
-                    guard abs(delta) <= window else { return }
-                    let angle = .pi + delta
-                    let digital = scale.value(at: fraction) > opticalMaximum + 0.02
-                    let color = digital ? snapshot.digitalInk : Color.white
+            Canvas { context, size in
+                let left = size.width - snapshot.width
+                func y(_ offset: Double) -> CGFloat { snapshot.inset + CGFloat(offset) }
+                for tick in snapshot.ticks {
+                    let (from, to, weight, alpha): (CGFloat, CGFloat, CGFloat, Double) =
+                        switch tick.kind {
+                        case .major: (0.30, 0.88, 2, 0.9)
+                        case .mid: (0.45, 0.88, 1.5, 0.6)
+                        case .minor: (0.62, 0.88, 1, 0.32)
+                        }
+                    let optical = snapshot.opticalStops.contains { abs($0 - tick.value) < 0.001 }
+                    let digital = tick.value > snapshot.opticalMaximum + 0.02
+                    let color: Color = optical ? snapshot.ink : digital ? snapshot.digitalInk : .white
                     var path = Path()
-                    path.move(to: point(angle, 164 * unit))
-                    path.addLine(to: point(angle, (major ? 143 : 155) * unit))
+                    path.move(to: CGPoint(x: left + snapshot.width * from, y: y(tick.offset)))
+                    path.addLine(to: CGPoint(x: left + snapshot.width * to, y: y(tick.offset)))
                     context.stroke(
-                        path, with: .color(color.opacity((major ? 0.7 : 0.3) * fade(delta))),
-                        lineWidth: (major ? 2.2 : 1.2) * unit)
+                        path, with: .color(color.opacity(optical ? 1 : alpha)), lineWidth: weight)
                 }
-                var rim = Path()
-                rim.addArc(
-                    center: center, radius: 186 * unit,
-                    startAngle: bottom ? .degrees(180) : .degrees(90),
-                    endAngle: bottom ? .degrees(360) : .degrees(270), clockwise: false)
-                context.stroke(rim, with: .color(.white.opacity(0.07)), lineWidth: 1.5 * unit)
-                for fraction in MonitorZoomScale.minorTickPositions() {
-                    let nearMajor = snapshot.marks.contains {
-                        abs($0.fraction - fraction) < 0.012
-                    }
-                    if !nearMajor { stroke(fraction, major: false) }
-                }
-                for mark in snapshot.marks {
-                    stroke(mark.fraction, major: true)
-                    let delta = (mark.fraction - position) * MonitorZoomScale.angularSpan
-                    guard abs(delta) <= window else { continue }
-                    let opacity = fade(delta) * min(1, max(0, (abs(delta) - 0.035) / 0.075))
+                for mark in snapshot.labels {
                     let color =
-                        mark.value > opticalMaximum + 0.02
+                        mark.value > snapshot.opticalMaximum + 0.02
                         ? snapshot.digitalInk : snapshot.secondaryInk
                     context.draw(
-                        Text(mark.label).font(snapshot.labelFont)
-                            .foregroundStyle(color.opacity(opacity)),
-                        at: point(.pi + delta, 124 * unit))
+                        Text(mark.label).font(snapshot.labelFont).foregroundStyle(color),
+                        at: CGPoint(x: left - 6, y: y(mark.offset)), anchor: .trailing)
                 }
                 var marker = Path()
-                if bottom {
-                    marker.move(to: CGPoint(x: radius, y: 14 * unit))
-                    marker.addLine(to: CGPoint(x: radius, y: 46 * unit))
-                } else {
-                    marker.move(to: CGPoint(x: 14 * unit, y: radius))
-                    marker.addLine(to: CGPoint(x: 46 * unit, y: radius))
-                }
+                marker.move(to: CGPoint(x: left + 6, y: y(snapshot.current)))
+                marker.addLine(to: CGPoint(x: left + snapshot.width - 6, y: y(snapshot.current)))
                 context.stroke(
                     marker, with: .color(snapshot.ink),
-                    style: StrokeStyle(lineWidth: 3 * unit, lineCap: .round))
-                let dot = bottom
-                    ? CGRect(
-                        x: radius - 3.5 * unit, y: 48.5 * unit, width: 7 * unit, height: 7 * unit)
-                    : CGRect(
-                        x: 48.5 * unit, y: radius - 3.5 * unit, width: 7 * unit, height: 7 * unit)
-                context.fill(Path(ellipseIn: dot), with: .color(snapshot.ink))
-            }
-        }
-
-        private var dial: some View {
-            ZStack(alignment: isBottom ? .top : .leading) {
-                Self.canvas(canvasSnapshot)
-                VStack(spacing: 5) {
-                    Text(scale.dialLabel(value)).font(
-                        MonitorTheme.font(radius * 0.19, weight: .bold))
-                        .monospacedDigit().foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                    if !caption.isEmpty {
-                        Text(caption).font(MonitorTheme.font(10)).tracking(1)
-                            .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.75)
-                    }
-                }
-                .frame(width: radius * 0.54)
-                .offset(
-                    x: isBottom ? 0 : radius * 0.42,
-                    y: isBottom ? radius * 0.42 : 0)
-                .allowsHitTesting(false)
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round))
             }
         }
     }
 
     struct MonitorZoomCanvasMark: Sendable {
         let value: Double
-        let fraction: Double
+        let offset: Double
         let label: String
     }
 
     struct MonitorZoomCanvasSnapshot: Sendable {
-        let radius: CGFloat
-        let attachment: MonitorZoomAttachment
-        let scale: MonitorZoomScale
-        let position: Double
+        let width: CGFloat
+        let gutter: CGFloat
+        let inset: CGFloat
+        let ticks: [MonitorZoomRulerTick]
+        let labels: [MonitorZoomCanvasMark]
+        let current: Double
         let opticalMaximum: Double
-        let marks: [MonitorZoomCanvasMark]
+        let opticalStops: [Double]
         let ink: Color
         let digitalInk: Color
         let secondaryInk: Color
         let labelFont: Font
-    }
-
-    private struct MonitorZoomHalfDisc: Shape {
-        var attachment: MonitorZoomAttachment = .trailing
-        func path(in rect: CGRect) -> Path {
-            let controlFactor = 0.5522847498
-            var path = Path()
-            if attachment == .bottom {
-                let radius = rect.width / 2
-                let control = radius * controlFactor
-                let flat = rect.minY + radius
-                path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-                path.addLine(to: CGPoint(x: rect.minX, y: flat))
-                path.addCurve(
-                    to: CGPoint(x: rect.midX, y: rect.minY),
-                    control1: CGPoint(x: rect.minX, y: flat - control),
-                    control2: CGPoint(x: rect.midX - control, y: rect.minY))
-                path.addCurve(
-                    to: CGPoint(x: rect.maxX, y: flat),
-                    control1: CGPoint(x: rect.midX + control, y: rect.minY),
-                    control2: CGPoint(x: rect.maxX, y: flat - control))
-                path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-                path.closeSubpath()
-                return path
-            }
-            let radius = rect.height / 2
-            let flatEdge = rect.minX + radius
-            let control = radius * controlFactor
-            path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
-            path.addLine(to: CGPoint(x: flatEdge, y: rect.minY))
-            path.addCurve(
-                to: CGPoint(x: rect.minX, y: rect.midY),
-                control1: CGPoint(x: flatEdge - control, y: rect.minY),
-                control2: CGPoint(x: rect.minX, y: rect.midY - control))
-            path.addCurve(
-                to: CGPoint(x: flatEdge, y: rect.maxY),
-                control1: CGPoint(x: rect.minX, y: rect.midY + control),
-                control2: CGPoint(x: flatEdge - control, y: rect.maxY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-            path.closeSubpath()
-            return path
-        }
     }
 #endif
