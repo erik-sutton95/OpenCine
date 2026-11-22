@@ -82,6 +82,14 @@ public enum MulticamStationPolicy {
     static func isUnrecognizedRole(_ reply: [UInt8]) -> Bool {
         reply.count == 2 && reply[0] == 0 && reply[1] > 1
     }
+    /// After `07/48 00`, whether the `07/39` role shows the access point up: `00 00`, or an
+    /// unrecognized `00 xx` role read twice in a row (newer Pocket 4 / 4 Pro firmware reports
+    /// `00 08` with its access point up and never `00 00`). Station `00 01` or no reply is not.
+    public static func accessPointRestored(previous: [UInt8]?, current: [UInt8]?) -> Bool {
+        guard let current else { return false }
+        if current == [0, 0] { return true }
+        return isUnrecognizedRole(current) && previous == current
+    }
     public static func acceptsSetter(_ reply: [UInt8], missingQuery: Bool) -> Bool {
         reply == [0, 0] || (missingQuery && reply == [0])
     }
