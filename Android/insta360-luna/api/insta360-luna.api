@@ -227,13 +227,16 @@ public final class com/opencapture/opencine/insta360/luna/LunaFeedStall {
 	public static final field ESCALATE_AFTER D
 	public static final field KEYFRAME_AFTER D
 	public static final field MAXIMUM_RESTARTS I
+	public static final field RECORDING_ESCALATE_AFTER D
+	public static final field RECORDING_RESTART_AFTER D
 	public static final field RESTART_AFTER D
 	public static final field RESTART_SPACING D
 	public fun <init> ()V
 	public final fun getRestartInFlight ()Z
 	public final fun getRestarts ()I
 	public final fun restartFinished ()V
-	public final fun tick (DD)Lcom/opencapture/opencine/insta360/luna/LunaFeedStall$Action;
+	public final fun tick (DDZ)Lcom/opencapture/opencine/insta360/luna/LunaFeedStall$Action;
+	public static synthetic fun tick$default (Lcom/opencapture/opencine/insta360/luna/LunaFeedStall;DDZILjava/lang/Object;)Lcom/opencapture/opencine/insta360/luna/LunaFeedStall$Action;
 }
 
 public final class com/opencapture/opencine/insta360/luna/LunaFeedStall$Action : java/lang/Enum {

@@ -145,7 +145,7 @@ func LunaConnectPort.startScan() async throws -> ()
 func LunaConnectPort.stationPassword(for: Swift.String, hotspot: Swift.Bool) -> Swift.String?
 func LunaConnectPort.stopScan() -> ()
 func LunaFeedStall.restartFinished() -> ()
-func LunaFeedStall.tick(silence: Foundation.TimeInterval, now: Foundation.TimeInterval) -> LunaFeedStall.Action
+func LunaFeedStall.tick(silence: Foundation.TimeInterval, now: Foundation.TimeInterval, recording: Swift.Bool) -> LunaFeedStall.Action
 func LunaFrameTimecode.note(frameClock: Swift.UInt64, arrival: Swift.Double, timeZoneSeconds: Swift.Int) -> OpenCineCore.CameraTimecodeReading?
 func LunaFrameTimecode.note(frameClock: Swift.UInt64, arrival: Swift.Double, timeZoneSeconds: Swift.Int, fps: Swift.Int) -> OpenCineCore.CameraTimecode?
 func LunaFrameTimecode.reset() -> ()
@@ -315,6 +315,8 @@ static let LunaCameraSession.unsupported: Swift.Set<OpenCineCore.SettingKey>
 static let LunaFeedStall.escalateAfter: Foundation.TimeInterval
 static let LunaFeedStall.keyframeAfter: Foundation.TimeInterval
 static let LunaFeedStall.maximumRestarts: Swift.Int
+static let LunaFeedStall.recordingEscalateAfter: Foundation.TimeInterval
+static let LunaFeedStall.recordingRestartAfter: Foundation.TimeInterval
 static let LunaFeedStall.restartAfter: Foundation.TimeInterval
 static let LunaFeedStall.restartSpacing: Foundation.TimeInterval
 static let LunaFrameTimecode.frameLatencySeconds: Swift.Double

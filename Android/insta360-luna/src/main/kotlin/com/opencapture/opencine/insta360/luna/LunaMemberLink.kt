@@ -148,7 +148,10 @@ class LunaMemberLink(
             val silence = port.secondsSinceVideo ?: 0.0
             val healthy = silence <= LunaFeedStall.KEYFRAME_AFTER
             context.observeHealth(healthy)
-            if (silence > LunaFeedStall.RESTART_AFTER && !restarting) {
+            // The live link restarts a recording camera only past the long recording bound.
+            val recording = lunaSession.snapshots.value.recording.value == RecordingState.RECORDING
+            val restartAfter = if (recording) LunaFeedStall.RECORDING_RESTART_AFTER else LunaFeedStall.RESTART_AFTER
+            if (silence > restartAfter && !restarting) {
                 restarting = true
                 // The picture reports Live again once it returns.
                 reportedLive = false

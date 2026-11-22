@@ -762,13 +762,15 @@ class LunaBackend(
             lastVideoAt.set(android.os.SystemClock.elapsedRealtime())
             launch { syncClock() }
             // Keyframes, bounded single-flight live restarts, then session recovery (`LunaFeedStall`).
+            // While the camera records, only keyframes until the long recording bound: a restart
+            // or session recovery mid-take can end it (OPENINSTACINE-IOS-S).
             watchdog = launch {
                 val stall = LunaFeedStall()
                 while (isActive) {
                     delay(1_000)
                     val now = android.os.SystemClock.elapsedRealtime()
                     val silence = if (livePaused) 0.0 else (now - lastVideoAt.get()) / 1_000.0
-                    when (stall.tick(silence, now / 1_000.0)) {
+                    when (stall.tick(silence, now / 1_000.0, recording = capture?.isRecording == true)) {
                         LunaFeedStall.Action.NONE -> {}
                         LunaFeedStall.Action.REQUEST_KEYFRAME ->
                             launch { runCatching { channel.request(LunaControl.keyframe.code, LunaControl.keyframe.body) } }
