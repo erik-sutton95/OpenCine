@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkitnative
 
 import com.opencapture.opencine.cameracontrols.FaceDetectionPump
 import com.opencapture.opencine.cameracontrols.LocalLiveCanvasOrigin
+import com.opencapture.opencine.cameracontrols.LocalMonitorOperatorPaletteAction
 import com.opencapture.opencine.cameracontrols.MonitorLinkMeter
 import com.opencapture.opencine.cameracontrols.MonitorLinkObservation
 import com.opencapture.opencine.cameracontrols.MonitorOperatorLiveLayout
@@ -31,7 +32,6 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -47,7 +47,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -491,7 +490,8 @@ private fun <F : Any> MonitorLiveFeedBody(
                             else if (useVulkan) monitorReferenceRect(well, rawReferenceAspect, fill = true)
                             else monitorReferenceRect(size, rawReferenceAspect, fill = false)?.translate(x, y)
                         }, mirrorX = liveViewFlip, mirrorY = flipV,
-                        modifier = Modifier.frame(layout.onFeed).clipToBounds(), interactive = referenceActionsEnabled)
+                        modifier = Modifier.frame(layout.onFeed).clipToBounds(), interactive = referenceActionsEnabled,
+                        splitSide = referenceStore.splitSide)
                 }
                 // Passive source geometry; this box draws and captures nothing.
                 Box(Modifier.frame(layout.onFeed).monitorBackdropSource(backdrop.source,
@@ -505,28 +505,29 @@ private fun <F : Any> MonitorLiveFeedBody(
                     vulkan = if (useVulkan) vulkanSession else null, feedRect = layout.onFeed,
                     enabled = wantsFaceDetect && hasPicture)
             }
-            MonitorLiveFeedScope(geometry, link, hasPicture, verticalPicture, liveViewFlip, recovery.isRecovering,
-                Modifier.onGloballyPositioned { if (!useVulkan) canvasOrigin = it.positionInRoot() }, picture).content()
-            if (referenceStore != null && referenceSource != null && cover == null) {
-                Box(Modifier.frame(layout.onFeed).padding(8.dp), contentAlignment = Alignment.BottomStart) {
-                    MonitorReferenceControls(referenceStore, referenceReady, capture = capture@{
-                        val snapshot = identity
-                        if (!readyNow || identityNow != snapshot) return@capture null
-                        val direct = directPictureAt.get().let { it > 0 && SystemClock.elapsedRealtime() - it <= 600 }
-                        val frame = if (!useVulkan && direct) {
-                            glesTextureView?.let { view ->
-                                if (!view.isAvailable || view.width < 2 || view.height < 2) null
-                                else view.getBitmap(960, maxOf(1, (960 / rawReferenceAspect).roundToInt()))
-                                    ?.let { MonitorReferenceFrame(it, referenceAspect) }
-                            }
-                        } else {
-                            referenceSource.capture()?.let { raw ->
-                                withContext(Dispatchers.Default) { raw.referenceFrame(referenceAspect) }
-                            }
+            val referenceAction = if (referenceStore != null && referenceSource != null && cover == null) {
+                rememberMonitorReferencePaletteAction(referenceStore, referenceReady && referenceActionsEnabled,
+                    referenceAspect, capture = capture@{
+                    val snapshot = identity
+                    if (!readyNow || identityNow != snapshot) return@capture null
+                    val direct = directPictureAt.get().let { it > 0 && SystemClock.elapsedRealtime() - it <= 600 }
+                    val frame = if (!useVulkan && direct) {
+                        glesTextureView?.let { view ->
+                            if (!view.isAvailable || view.width < 2 || view.height < 2) null
+                            else view.getBitmap(960, maxOf(1, (960 / rawReferenceAspect).roundToInt()))
+                                ?.let { MonitorReferenceFrame(it, referenceAspect) }
                         }
-                        frame?.takeIf { readyNow && identityNow == snapshot }
-                    }, live = true, liveAspect = referenceAspect, enabled = referenceActionsEnabled)
-                }
+                    } else {
+                        referenceSource.capture()?.let { raw ->
+                            withContext(Dispatchers.Default) { raw.referenceFrame(referenceAspect) }
+                        }
+                    }
+                    frame?.takeIf { readyNow && identityNow == snapshot }
+                })
+            } else null
+            CompositionLocalProvider(LocalMonitorOperatorPaletteAction provides referenceAction) {
+                MonitorLiveFeedScope(geometry, link, hasPicture, verticalPicture, liveViewFlip, recovery.isRecovering,
+                    Modifier.onGloballyPositioned { if (!useVulkan) canvasOrigin = it.positionInRoot() }, picture).content()
             }
             LaunchedEffect(cover) {
                 assist.configureTool = null

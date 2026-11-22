@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.opencapture.monitorui.MonitorReferenceMode
+import com.opencapture.monitorui.MonitorReferenceSide
 import com.opencapture.opencine.runtime.MonitorReferenceFrame
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -36,6 +37,7 @@ class MonitorReferenceStore(context: Context) {
     var mode: MonitorReferenceMode by mutableStateOf(MonitorReferenceMode.BLEND)
     var opacity: Float by mutableStateOf(0.5f)
     var split: Float by mutableStateOf(0.5f)
+    var splitSide: MonitorReferenceSide by mutableStateOf(MonitorReferenceSide.LEFT)
     var isBusy: Boolean by mutableStateOf(false)
         private set
 

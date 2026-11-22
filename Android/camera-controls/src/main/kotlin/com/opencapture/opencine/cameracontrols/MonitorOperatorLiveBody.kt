@@ -130,6 +130,16 @@ public class MonitorOperatorPaletteItem(
     public val glyph: (@Composable (Color, Modifier) -> Unit)? = null,
     public val accessibilityIdentifier: String? = null,
 )
+
+/** Optional local comparison or analysis action with its own inspector contents. */
+public class MonitorOperatorPaletteAction(
+    public val item: MonitorOperatorPaletteItem,
+    public val opensOptionsOnTap: Boolean,
+    public val options: @Composable () -> Unit,
+)
+
+public val LocalMonitorOperatorPaletteAction = compositionLocalOf<MonitorOperatorPaletteAction?> { null }
+
 /** The portrait fit/fill key, placed and admitted by the surface. */
 internal class MonitorOperatorAspectControl(val frame: MonitorRect, val fills: Boolean, val change: () -> Unit)
 /** The source's focus recenter. The surface places it and admits the action. */
@@ -247,20 +257,33 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val interactive = exposed && !locked && editing == null && interactionEnabled
     val admitted = interactive && !readOnly
     val linkMounted = status.fpsSection == null || status.fpsSection in mounted
-    val hasOptions = { item: MonitorOperatorPaletteItem -> item.hasOptions || signalOptions.offers(item.tool) }
+    val action = LocalMonitorOperatorPaletteAction.current
+    val tools = if (action == null) palette else palette + action.item
+    val hasOptions = { item: MonitorOperatorPaletteItem ->
+        item === action?.item || item.hasOptions || signalOptions.offers(item.tool)
+    }
     val inspectorTools = palette.filter(hasOptions).mapNotNull { it.tool }
     // The source's toolless item (PLAY) opens its instant review menu as one more inspector tab.
     val reviewItem = signalOptions.reviewItem(palette)
     var reviewing by remember { mutableStateOf(false) }
-    val inspecting = assist.configureTool != null || reviewing
-    val closeInspector = { assist.configureTool = null; reviewing = false }
-    val assistInspectorPresented = interactive && (assist.configureTool?.let { it in inspectorTools } ?: (reviewing && reviewItem != null))
-    LaunchedEffect(assist.configureTool, reviewing, clean, command, locked, inspectorTools, reviewItem != null, mounted) {
+    var inspectingAction by remember { mutableStateOf(false) }
+    val inspecting = assist.configureTool != null || reviewing || inspectingAction
+    val closeInspector = { assist.configureTool = null; reviewing = false; inspectingAction = false }
+    fun openAction() {
+        closeInspector()
+        paletteExpansion.value = false
+        inspectingAction = true
+    }
+    val assistInspectorPresented = interactive && ((inspectingAction && action != null) ||
+        (assist.configureTool?.let { it in inspectorTools } ?: (reviewing && reviewItem != null)))
+    LaunchedEffect(assist.configureTool, reviewing, clean, command, locked, inspectorTools, reviewItem != null, mounted,
+        action?.item?.id, interactive) {
         val closes = clean || command || locked || sections.assists !in mounted
         if (closes || assist.configureTool !in inspectorTools) assist.configureTool = null
         if (closes || reviewItem == null || assist.configureTool != null) reviewing = false
+        if (closes || !interactive || action == null || assist.configureTool != null) inspectingAction = false
     }
-    LaunchedEffect(assist.configureTool, reviewing) { if (inspecting) dismiss() }
+    LaunchedEffect(assist.configureTool, reviewing, inspectingAction) { if (inspecting) dismiss() }
     BackHandler(enabled = interactive && panel != null && !inspecting, onBack = dismiss)
     BackHandler(enabled = interactive && inspecting, onBack = closeInspector)
     BackHandler(enabled = paletteExpansion.value && !inspecting && panel == null) { paletteExpansion.value = false }
@@ -527,11 +550,16 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     }
                 }
                 if (sections.assists in mounted && !inspecting) CompositionLocalProvider(
-                    LocalMonitorAssistExpansion provides paletteExpansion) { MonitorAssistPalette(palette,
+                    LocalMonitorAssistExpansion provides paletteExpansion) { MonitorAssistPalette(tools,
                     layout.portrait, !interactive, { it.isOn }, { it.tool?.title ?: it.title },
                     { it.tool?.chipLabel ?: it.label }, hasOptions,
-                    onToggle = { if (interactive && currentSource()) it.toggle() },
-                    onOptions = { if (interactive && currentSource()) { assist.configureTool = it.tool; reviewing = it.tool == null } },
+                    onToggle = { if (interactive && currentSource()) {
+                        if (action != null && it === action.item && action.opensOptionsOnTap) openAction() else it.toggle()
+                    } },
+                    onOptions = { if (interactive && currentSource()) {
+                        if (it === action?.item) openAction()
+                        else { assist.configureTool = it.tool; reviewing = it.tool == null }
+                    } },
                     glyph = { item, tint, decoration ->
                         val custom = item.glyph
                         if (custom != null) custom(tint, decoration)
@@ -616,7 +644,11 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 safeLeading = safeLeading, safeTrailing = safeTrailing, safeTop = safeTop, safeBottom = safeBottom) { key, frame, top ->
                 cameraPanel(key, frame, top, state)
             }
-            if (assistInspectorPresented) {
+            if (assistInspectorPresented && inspectingAction && action != null) {
+                MonitorInspector(action.item.title, layout.viewport.width, layout.viewport.height, closeInspector,
+                    trailing = true, safeLeading = safeLeading, safeTrailing = safeTrailing,
+                    safeTop = safeTop, safeBottom = safeBottom, hasNavigation = false, content = action.options)
+            } else if (assistInspectorPresented) {
                 val configured = assist.configureTool
                 val preview: (@Composable () -> Unit)? =
                     if (configured == null) null else assists?.preview?.let { render -> { render(configured) } }

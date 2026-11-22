@@ -202,7 +202,7 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
                             let effects = presentation.projectEffects(host.assist.playbackEffects)
                             return .init(image: frame, displayAspect: referenceAspect(
                                 Double(frame.width) / Double(frame.height), effects: effects))
-                        }.buttonStyle(.bordered))
+                        }.buttonStyle(.bordered).tint(MonitorTheme.accent))
                 }
             },
             picture: { playback, effects in

@@ -107,7 +107,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
         orientation: MonitorDeviceOrientation, controlNote: Binding<String?>,
         headTracking: MonitorOperatorHeadTrackingSource? = nil,
         readLevel: ((TimeInterval, Bool) -> MonitorLevelDisplay)? = nil,
-        pictureEV: (() -> EvComp?)? = nil, reference: AnyView? = nil,
+        pictureEV: (() -> EvComp?)? = nil, reference: MonitorReferenceControls? = nil,
         @ViewBuilder picture: @escaping () -> Picture,
         @ViewBuilder preview: @escaping (MonitorAssistSelection) -> Preview,
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
@@ -228,7 +228,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
     let headTracking: MonitorOperatorHeadTrackingSource?
     let orientation: MonitorDeviceOrientation
 
-    let reference: AnyView?
+    let reference: MonitorReferenceControls?
 
     var views: MonitorOperatorBodyViews {
         .init(reference: reference, feedMarks: AnyView(MonitorOperatorLiveMarks(host: host, focus: focus, aspect: source.pictureAspect)),

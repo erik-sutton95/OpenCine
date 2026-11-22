@@ -299,17 +299,17 @@
             }
         }
 
-        private var referenceControl: AnyView? {
+        private var referenceControl: MonitorReferenceControls? {
             guard let source = model.liveReference else { return nil }
             let effects = model.assist.effects
-            return AnyView(MonitorReferenceControls(store: source.store,
+            return MonitorReferenceControls(store: source.store,
                 canCapture: !model.session.isFeedWarming && !model.session.feedRecovering,
                 displayAspect: referenceAspect(Double(model.session.pictureAspect), effects: effects)) {
                     guard !model.session.isFeedWarming, !model.session.feedRecovering,
                         model.shell.cover == nil, let image = await source.capture() else { return nil }
                     return .init(image: image, displayAspect: referenceAspect(
                         Double(image.width) / Double(image.height), effects: effects))
-                })
+                }
         }
 
         private var zoomSource: MonitorOperatorZoomPresentation {

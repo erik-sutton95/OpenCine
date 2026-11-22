@@ -1,5 +1,6 @@
 #if os(iOS)
     import MonitorPresentation
+    import MonitorUI
     import OpenCineAppKitApple
     import OpenCineMedia
     import SwiftUI
@@ -15,7 +16,7 @@
         private let canCapture: Bool
         private let displayAspect: Double?
         private let capture: @MainActor () async -> MonitorReferenceStill?
-        @State private var opened = false
+        static let toolID = "REF"
 
         public init(
             store: MonitorReferenceStore, canCapture: Bool, displayAspect: Double?,
@@ -32,51 +33,62 @@
             return MonitorReferenceLayout.matches(saved: saved.displayAspect, live: displayAspect)
         }
 
+        var isActive: Bool { store.visible && matches }
+
+        /// A configured reference toggles from the tray. First use and mismatched framing open its options.
+        func toggleIfReady() -> Bool {
+            guard matches else { return false }
+            store.visible.toggle()
+            return true
+        }
+
         public var body: some View {
-            Button {
-                opened.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    if let saved = store.saved {
-                        Image(decorative: saved.image, scale: 1)
-                            .resizable().aspectRatio(contentMode: .fill)
-                            .frame(width: 32, height: 22).clipped()
-                            .clipShape(.rect(cornerRadius: 3))
-                    }
-                    Text("Reference")
-                        .font(.caption.weight(.semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 44)
-                .background(.black.opacity(0.72), in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("monitor.reference")
-            .popover(isPresented: $opened) {
-                VStack(alignment: .leading, spacing: 14) {
+            MonitorInspectorCard {
+                VStack(alignment: .leading, spacing: 0) {
                     if let saved = store.saved {
                         Image(decorative: saved.image, scale: 1)
                             .resizable().aspectRatio(saved.displayAspect, contentMode: .fit)
-                            .frame(maxHeight: 100)
+                            .frame(maxWidth: .infinity, maxHeight: 100)
                             .clipShape(.rect(cornerRadius: 6))
                             .accessibilityLabel("Saved reference")
                         Toggle("Show Reference", isOn: $store.visible)
-                        Picker("Comparison", selection: $store.mode) {
-                            ForEach(MonitorReferenceStore.Mode.allCases, id: \.self) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
+                            .font(MonitorTheme.font(12))
+                            .tint(MonitorTheme.accent)
+                            .padding(.vertical, 8)
+                        MonitorSettingsInlineRow(
+                            title: "Comparison", showTopDivider: false, stacked: true
+                        ) {
+                            MonitorSegmentedControl(
+                                options: MonitorReferenceStore.Mode.allCases,
+                                selection: $store.mode, title: \.rawValue
+                            )
+                            .buttonStyle(MonitorSettingsButtonStyle())
                         }
-                        .pickerStyle(.segmented)
                         if store.mode == .blend {
-                            Slider(value: $store.blend, in: 0...1) { Text("Reference opacity") }
-                                .accessibilityValue("\(Int(store.blend * 100)) percent")
+                            MonitorSettingsInlineRow(title: "Reference opacity", stacked: true) {
+                                MonitorSettingsPercentSlider(
+                                    value: Binding(
+                                        get: { Int((store.blend * 100).rounded()) },
+                                        set: { store.blend = Double($0) / 100 }), range: 0...100
+                                )
+                                .accessibilityLabel("Reference opacity")
+                            }
+                        } else {
+                            MonitorSettingsInlineRow(title: "Reference side", stacked: true) {
+                                MonitorSegmentedControl(
+                                    options: [false, true],
+                                    selection: $store.referenceOnRight,
+                                    title: { $0 ? "Right" : "Left" }
+                                )
+                                .buttonStyle(MonitorSettingsButtonStyle())
+                            }
                         }
                         if store.visible, canCapture, !matches {
                             Text(
                                 "Reference framing differs. Match the source aspect and desqueeze, or replace the reference."
                             )
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .font(MonitorTheme.font(12)).foregroundStyle(MonitorTheme.secondary)
+                            .padding(.bottom, 8)
                         }
                     }
                     MonitorReferenceSaveButton(
@@ -84,10 +96,11 @@
                         title: store.saved == nil ? "Save Live Frame" : "Replace Reference",
                         enabled: canCapture, capture: capture
                     )
-                    .buttonStyle(.borderedProminent)
+                    .font(MonitorTheme.font(13, weight: .semibold))
+                    .buttonStyle(.bordered)
                 }
-                .padding(16).frame(width: 272)
-                .presentationCompactAdaptation(.popover)
+                .tint(MonitorTheme.accent)
+                .environment(\.monitorSegmentedAppearance, .inspector)
             }
         }
     }
@@ -188,14 +201,19 @@
                             raster(saved.image)
                                 .opacity(store.mode == .blend ? store.blend : 1)
                                 .mask {
-                                    let mask = store.mode == .split ? split : visible
+                                    let mask =
+                                        store.mode == .blend
+                                        ? visible
+                                        : MonitorReferenceLayout.splitRect(
+                                            in: visible, fraction: store.divider,
+                                            clockwiseTurns: clockwiseTurns,
+                                            referenceOnRight: store.referenceOnRight)
                                     Rectangle().frame(width: mask.width, height: mask.height)
                                         .position(x: mask.midX, y: mask.midY)
                                 }
                                 .allowsHitTesting(false)
                                 .accessibilityHidden(true)
                             if store.mode == .split { divider(visible: visible, split: split) }
-                            indicator(visible)
                         }
                         .frame(width: reader.size.width, height: reader.size.height)
                         .coordinateSpace(name: "monitor-reference-divider")
@@ -203,24 +221,6 @@
                     }
                 }
             }
-        }
-
-        private func indicator(_ visible: CGRect) -> some View {
-            let turn = ((clockwiseTurns % 4) + 4) % 4
-            let position: CGPoint
-            switch turn {
-            case 1: position = CGPoint(x: visible.minX + 16, y: visible.maxY - 48)
-            case 2: position = CGPoint(x: visible.maxX - 48, y: visible.maxY - 16)
-            case 3: position = CGPoint(x: visible.maxX - 16, y: visible.minY + 48)
-            default: position = CGPoint(x: visible.minX + 48, y: visible.minY + 16)
-            }
-            return Text("Reference on")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(.black.opacity(0.75), in: Capsule())
-                .rotationEffect(.degrees(-90 * Double(clockwiseTurns)))
-                .position(position).allowsHitTesting(false)
         }
 
         private func raster(_ image: CGImage) -> some View {

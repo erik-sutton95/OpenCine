@@ -2688,6 +2688,7 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLiveBo
 	public static final fun cameraPowerReading (Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPowerReading;
 	public static final fun cameraPowerReading (Lcom/opencapture/opencine/core/PowerStatus;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPowerReading;
 	public static synthetic fun cameraPowerReading$default (Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;ILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPowerReading;
+	public static final fun getLocalMonitorOperatorPaletteAction ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun monitorOperatorChromeEditable (Landroidx/compose/ui/Modifier;Lcom/opencapture/opencine/appkit/MonitorDisplaySection;Landroidx/compose/runtime/Composer;I)Landroidx/compose/ui/Modifier;
 }
 
@@ -2916,6 +2917,14 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorMotion
 	public fun <init> (Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;)V
 	public final fun getControls ()Lkotlin/jvm/functions/Function4;
 	public final fun getEditor ()Lkotlin/jvm/functions/Function4;
+}
+
+public final class com/opencapture/opencine/cameracontrols/MonitorOperatorPaletteAction {
+	public static final field $stable I
+	public fun <init> (Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPaletteItem;ZLkotlin/jvm/functions/Function2;)V
+	public final fun getItem ()Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPaletteItem;
+	public final fun getOpensOptionsOnTap ()Z
+	public final fun getOptions ()Lkotlin/jvm/functions/Function2;
 }
 
 public final class com/opencapture/opencine/cameracontrols/MonitorOperatorPaletteItem {

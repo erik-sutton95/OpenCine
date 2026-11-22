@@ -33,6 +33,12 @@ import kotlin.math.roundToInt
 
 enum class MonitorReferenceMode { BLEND, SPLIT }
 
+enum class MonitorReferenceSide { LEFT, RIGHT }
+
+internal fun MonitorReferenceSide.clip(visible: Rect, divider: Float): Rect =
+    if (this == MonitorReferenceSide.LEFT) Rect(visible.left, visible.top, divider, visible.bottom)
+    else Rect(divider, visible.top, visible.right, visible.bottom)
+
 /** Only matching display apertures may share the comparison rectangle, within rounding error. */
 fun monitorReferenceMatches(savedAspect: Float, liveAspect: Float): Boolean =
     savedAspect.isFinite() && liveAspect.isFinite() && savedAspect > 0f && liveAspect > 0f &&
@@ -61,6 +67,7 @@ fun MonitorReferenceOverlay(
     mirrorY: Boolean = false,
     modifier: Modifier = Modifier,
     interactive: Boolean = true,
+    splitSide: MonitorReferenceSide = MonitorReferenceSide.LEFT,
 ) {
     val nowSplit by rememberUpdatedState(split)
     val updateSplit by rememberUpdatedState(onSplit)
@@ -71,9 +78,9 @@ fun MonitorReferenceOverlay(
         val visible = imagePlacement.intersect(Rect(Offset.Zero, well))
         if (visible.width <= 0f || visible.height <= 0f) return@BoxWithConstraints
         val divider = visible.left + visible.width * split.coerceIn(0f, 1f)
+        val referenceBounds = if (mode == MonitorReferenceMode.SPLIT) splitSide.clip(visible, divider) else visible
         Canvas(Modifier.fillMaxSize()) {
-            clipRect(visible.left, visible.top,
-                if (mode == MonitorReferenceMode.SPLIT) divider else visible.right, visible.bottom) {
+            clipRect(referenceBounds.left, referenceBounds.top, referenceBounds.right, referenceBounds.bottom) {
                 scale(if (mirrorX) -1f else 1f, if (mirrorY) -1f else 1f, imagePlacement.center) {
                     drawImage(image,
                         dstOffset = IntOffset(imagePlacement.left.roundToInt(), imagePlacement.top.roundToInt()),

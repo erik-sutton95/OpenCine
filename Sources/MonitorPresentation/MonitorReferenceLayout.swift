@@ -8,10 +8,14 @@ public enum MonitorReferenceLayout {
             && abs(saved - live) <= max(saved, live) * 0.015
     }
 
-    /// The on-screen left side expressed in the unrotated picture's coordinate space.
-    public static func splitRect(in rect: CGRect, fraction: Double, clockwiseTurns: Int) -> CGRect {
-        let amount = min(1, max(0, fraction.isFinite ? fraction : 0.5))
-        switch ((clockwiseTurns % 4) + 4) % 4 {
+    /// The chosen on-screen side expressed in the unrotated picture's coordinate space.
+    public static func splitRect(
+        in rect: CGRect, fraction: Double, clockwiseTurns: Int, referenceOnRight: Bool = false
+    ) -> CGRect {
+        let left = min(1, max(0, fraction.isFinite ? fraction : 0.5))
+        let amount = referenceOnRight ? 1 - left : left
+        let turn = ((clockwiseTurns % 4) + 4) % 4
+        switch (turn + (referenceOnRight ? 2 : 0)) % 4 {
         case 1:
             return CGRect(
                 x: rect.minX, y: rect.maxY - rect.height * amount,

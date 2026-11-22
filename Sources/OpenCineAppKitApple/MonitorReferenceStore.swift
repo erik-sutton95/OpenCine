@@ -28,6 +28,7 @@
         public var mode: Mode = .blend
         public var blend = 0.5
         public var divider = 0.5
+        public var referenceOnRight = false
 
         public enum Mode: String, CaseIterable, Hashable {
             case blend = "Blend"

@@ -234,6 +234,7 @@ public final class com/opencapture/opencine/appkitnative/MonitorPlaybackFeedView
 
 public final class com/opencapture/opencine/appkitnative/MonitorReferenceControlsKt {
 	public static final fun MonitorReferenceControls (Lcom/opencapture/opencine/appkitnative/MonitorReferenceStore;ZLkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Ljava/lang/Float;ZZLandroidx/compose/runtime/Composer;II)V
+	public static final fun rememberMonitorReferencePaletteAction (Lcom/opencapture/opencine/appkitnative/MonitorReferenceStore;ZLjava/lang/Float;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;I)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPaletteAction;
 }
 
 public final class com/opencapture/opencine/appkitnative/MonitorReferenceStore {
@@ -244,6 +245,7 @@ public final class com/opencapture/opencine/appkitnative/MonitorReferenceStore {
 	public final fun getReference ()Lcom/opencapture/opencine/appkitnative/MonitorReferenceStore$Image;
 	public final fun getShown ()Z
 	public final fun getSplit ()F
+	public final fun getSplitSide ()Lcom/opencapture/monitorui/MonitorReferenceSide;
 	public final fun isBusy ()Z
 	public final fun isLoaded ()Z
 	public final fun load (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -252,6 +254,7 @@ public final class com/opencapture/opencine/appkitnative/MonitorReferenceStore {
 	public final fun setOpacity (F)V
 	public final fun setShown (Z)V
 	public final fun setSplit (F)V
+	public final fun setSplitSide (Lcom/opencapture/monitorui/MonitorReferenceSide;)V
 }
 
 public final class com/opencapture/opencine/appkitnative/MonitorReferenceStore$Image {

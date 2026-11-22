@@ -445,6 +445,7 @@ var MonitorReferenceStore.blend: Swift.Double
 var MonitorReferenceStore.divider: Swift.Double
 var MonitorReferenceStore.mode: MonitorReferenceStore.Mode
 var MonitorReferenceStore.notice: Swift.String?
+var MonitorReferenceStore.referenceOnRight: Swift.Bool
 var MonitorReferenceStore.saved: MonitorReferenceStill?
 var MonitorReferenceStore.saving: Swift.Bool
 var MonitorReferenceStore.visible: Swift.Bool

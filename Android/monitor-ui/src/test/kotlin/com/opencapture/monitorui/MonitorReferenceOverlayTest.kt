@@ -21,4 +21,14 @@ class MonitorReferenceOverlayTest {
         assertFalse(monitorReferenceMatches(16f / 9f, 9f / 16f))
         assertFalse(monitorReferenceMatches(16f / 9f, Float.NaN))
     }
+
+    @Test fun swappingSplitSidesKeepsTheSameDividerAndClipsInsideTheVisiblePicture() {
+        val visible = Rect(40f, 60f, 360f, 180f)
+        assertEquals(Rect(40f, 60f, 140f, 180f), MonitorReferenceSide.LEFT.clip(visible, 140f))
+        assertEquals(Rect(140f, 60f, 360f, 180f), MonitorReferenceSide.RIGHT.clip(visible, 140f))
+        assertEquals(0f, MonitorReferenceSide.LEFT.clip(visible, visible.left).width)
+        assertEquals(visible, MonitorReferenceSide.RIGHT.clip(visible, visible.left))
+        assertEquals(visible, MonitorReferenceSide.LEFT.clip(visible, visible.right))
+        assertEquals(0f, MonitorReferenceSide.RIGHT.clip(visible, visible.right).width)
+    }
 }

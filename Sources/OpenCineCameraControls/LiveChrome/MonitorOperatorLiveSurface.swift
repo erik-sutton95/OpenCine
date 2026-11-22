@@ -278,7 +278,7 @@ public struct MonitorOperatorLiveAudio {
     public let dashboard: AnyView?
     public let connection: AnyView?
     public let comparison: AnyView?
-    public let reference: AnyView?
+    public let reference: MonitorReferenceControls?
     public let resetFocus: (() -> Void)?
     public let feedMarks: AnyView?
     public let feedGestures: AnyView?
@@ -288,7 +288,7 @@ public struct MonitorOperatorLiveAudio {
     /// the shared waiting plate while the first frame is awaited.
     public let waiting: AnyView?
     public init(focusDrive: AnyView? = nil, dashboard: AnyView? = nil, connection: AnyView? = nil,
-        comparison: AnyView? = nil, reference: AnyView? = nil, resetFocus: (() -> Void)? = nil,
+        comparison: AnyView? = nil, reference: MonitorReferenceControls? = nil, resetFocus: (() -> Void)? = nil,
         feedMarks: AnyView? = nil, feedGestures: AnyView? = nil, focusControls: AnyView? = nil,
         motion: MonitorOperatorMotionViews? = nil, waiting: AnyView? = nil) {
         self.focusDrive = focusDrive; self.dashboard = dashboard; self.connection = connection
@@ -413,6 +413,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @State private var primarySizer = MonitorPortraitPrimarySizer()
     @State private var storageForm = 0
     @State private var expanded = false
+    @State private var referenceOptions = false
     @State private var lifecycle = MonitorInteractionLifecycle()
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
     @State private var compactTelemetryMinimumStatusTop: CGFloat = 0
@@ -480,6 +481,16 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var photo: Bool { facts.record.photo }
     private var recordEnabled: Bool { !facts.record.busy }
     private var tools: [MonitorAssistSelection] { facts.tools }
+    private var trayTools: [MonitorToolItem] {
+        var items = tools.map { MonitorToolItem(id: $0.rawValue, title: $0.rawValue,
+            enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || assists.signalOptions.offers($0),
+            accessibilityLabel: $0.title) }
+        if let reference = cameraViews.reference {
+            items.append(.init(id: MonitorReferenceControls.toolID, title: "REF",
+                enabled: reference.isActive, hasOptions: true, accessibilityLabel: "Reference"))
+        }
+        return items
+    }
     private var motionCovering: Bool { cameraViews.motion?.covering == true }
     private var captureSource: MonitorCaptureSourceIdentity {
         .init(camera: identity.camera, epoch: identity.epoch, monitor: identity.monitor,
@@ -490,7 +501,12 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var exposed: Bool { !covered && current(identity) }
     private var presentationAdmitted: Bool { exposed && !locked && editing == nil && session.interactive }
     private var admitted: Bool { presentationAdmitted && !readOnly }
-    private var transient: Bool { panel != nil || captureState.preview != nil || assist.configureTool != nil }
+    private var transient: Bool {
+        panel != nil || captureState.preview != nil || assist.configureTool != nil || referenceOptions
+    }
+    private var referenceOptionsPresented: Bool {
+        referenceOptions && presentationAdmitted && mounts(.toolBar) && cameraViews.reference != nil
+    }
     private var assistInspectorPresented: Bool {
         assist.configureTool != nil && presentationAdmitted && assistSource != nil && stores != nil
     }
@@ -516,7 +532,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 statusMounted: mounts(.statusBar) && commandHeader != .hidden, powerMounted: mounts(.batteries) && !usesCompactTelemetry,
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
-                panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
+                panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented && !referenceOptionsPresented),
             picture: { picture().opacity(facts.picture.waiting || command ? 0 : 1).transaction { $0.animation = nil } },
             assists: { feedMarks.opacity(facts.picture.waiting ? 0 : 1) },
             signal: {
@@ -562,10 +578,16 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .monitorHoldsRotation(locked: locked)
             .onChange(of: identity) { _, _ in
                 captureState.retire(); captureState.frames = [:]; dismiss(); session.finishEditing()
+                referenceOptions = false
             }
             .onChange(of: motionCovering) { _, covering in if covering { expanded = false } }
             // The dashboard replaces the picture: no popup or inspector survives entering it.
-            .onChange(of: command) { _, command in if command { dismiss(); assist.configureTool = nil } }
+            .onChange(of: command) { _, command in
+                if command { dismiss(); assist.configureTool = nil; referenceOptions = false }
+            }
+            .onChange(of: cameraViews.reference != nil) { _, available in
+                if !available { referenceOptions = false }
+            }
             .onChange(of: photo) { _, photo in if photo, assist.configureTool == .audioMeters { assist.configureTool = nil } }
             // A curve tool's inspector closes when the source curve becomes unknown.
             .onChange(of: assist.sourceCurveKnown) { _, _ in
@@ -578,7 +600,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         if transition.retireReadout { captureState.retire() }
         if transition.cameraReplaced { storageForm = 0 }
         if transition.collapseAssists { expanded = false }
-        if transition.dismissTransients { dismiss(); assist.configureTool = nil }
+        if transition.dismissTransients { dismiss(); assist.configureTool = nil; referenceOptions = false }
         assist.liveCovered = covered && editing == nil
     }
 
@@ -899,36 +921,42 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 }
                 .position(x: focusResetFrame.midX, y: focusResetFrame.midY)
             }
-            if !command, !locked, editing == nil, !facts.picture.waiting,
-                mounts(.toolBar), let reference = cameraViews.reference {
-                reference.position(x: layout.picture.midX,
-                    y: max(layout.picture.y + 26, live.safeArea.top + 32))
-                    .allowsHitTesting(presentationAdmitted)
-            }
             if !command, !locked, editing == nil, let comparison = cameraViews.comparison {
                 comparison.position(x: focusResetFrame.midX, y: focusResetFrame.midY - 50)
             }
         }
         if mounts(.toolBar), !command {
-            let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count, safeTop: safeArea.top)
-            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
-                enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || assists.signalOptions.offers($0),
-                accessibilityLabel: $0.title) }, layout: metrics,
+            let items = trayTools
+            let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: items.count, safeTop: safeArea.top)
+            MonitorAssistPalette(tools: items, layout: metrics,
                 usageSeed: assists.usageSeed, usage: assists.usage, expanded: $expanded,
-                onToggle: { id in
-                    if presentationAdmitted, let tool = tools.first(where: { $0.rawValue == id }) {
-                        assistSource?.haptics.selection()
-                        if presentationAdmitted { assists.toggle(tool) }
-                    }
-                }, onOptions: openOptions) { id in
+                onToggle: toggleTrayTool, onOptions: openOptions) { id in
                     if let tool = tools.first(where: { $0.rawValue == id })?.sharedTool { MonitorAssistToolGlyph(tool: tool, size: nil) }
                     else { MonitorIcon.image }
                 }.modifier(ChromeEditableModifier<Host>(section: .toolBar, mode: editing))
                 .opacity(locked ? 0.4 : 1).allowsHitTesting(!locked).position(x: frame.midX, y: frame.midY).zIndex(6)
         }
     }
+    private func toggleTrayTool(_ id: String) {
+        guard presentationAdmitted else { return }
+        if id == MonitorReferenceControls.toolID, let reference = cameraViews.reference {
+            assistSource?.haptics.selection()
+            if !reference.toggleIfReady() { openOptions(id) }
+        } else if let tool = tools.first(where: { $0.rawValue == id }) {
+            assistSource?.haptics.selection()
+            if presentationAdmitted { assists.toggle(tool) }
+        }
+    }
+
     private func openOptions(_ id: String) {
-        guard presentationAdmitted, let tool = tools.first(where: { $0.rawValue == id }) else { return }
+        guard presentationAdmitted else { return }
+        if id == MonitorReferenceControls.toolID, cameraViews.reference != nil {
+            dismiss()
+            assist.configureTool = nil
+            referenceOptions = true
+            return
+        }
+        guard let tool = tools.first(where: { $0.rawValue == id }) else { return }
         if let permitted = assistSource?.configurableTools, !permitted.contains(tool) {
             if let note = assistSource?.optionsUnavailableNotice { control.onNote(note) }
             return
@@ -947,7 +975,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @ViewBuilder private var instruments: some View {
         if assist.isVisible(.evMeter), let exposure = source.exposure {
             let footprint = MonitorAssistPaletteLayout.fieldMonitorFootprint(
-                layout, toolCount: tools.count, safeTop: safeArea.top, expanded: expanded)
+                layout, toolCount: trayTools.count, safeTop: safeArea.top, expanded: expanded)
             let frame = MonitorOperatorExposureGeometry.frame(in: meterFeed,
                 avoiding: mounts(.toolBar) ? footprint.cgRect : nil)
             let reading = facts.picture.recovering ? ExposureMeterReading(cameraValue: nil) : exposure()
@@ -1019,7 +1047,14 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         }
     }
     @ViewBuilder private var panelsChrome: some View {
-        if let tool = assist.configureTool, assistInspectorPresented, let assistSource, let stores {
+        if referenceOptionsPresented, let reference = cameraViews.reference {
+            MonitorInspector(title: "Reference",
+                viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height),
+                safeArea: .init(top: safeArea.top, leading: safeArea.leading, bottom: safeArea.bottom, trailing: safeArea.trailing),
+                hasNavigation: false, closeIdentifier: "monitor.reference.close",
+                onClose: { referenceOptions = false },
+                navigation: { EmptyView() }, content: { reference }, footer: { EmptyView() })
+        } else if let tool = assist.configureTool, assistInspectorPresented, let assistSource, let stores {
             let transfer = assistSource.readTransfer()
             MonitorOperatorAssistInspector(tool: tool, assist: assist, stores: stores, looks: assistSource.looks,
                 palette: Host.Palette.self, haptics: assistSource.haptics,
