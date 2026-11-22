@@ -408,7 +408,7 @@ class LunaBackend(
                     val cameraSocket = withContext(Dispatchers.IO) {
                         checkNotNull(setup).open().also { socket = it; it.tcpNoDelay = true; it.soTimeout = 10_000; it.connect(InetSocketAddress(host, CONTROL_PORT), 8_000) }
                     }
-                    runLive(cameraSocket, authBody, frameGeneration, serial) { live = true; onLive() }
+                    runLive(cameraSocket, authBody, frameGeneration, serial, station = network) { live = true; onLive() }
                 } catch (error: Exception) {
                     if (!live) {
                         if ((error as? LunaStationFailure)?.failure?.reason == ConnectionFailure.Reason.WrongCamera) {
@@ -449,7 +449,7 @@ class LunaBackend(
                 setup.open().also { socket = it; it.tcpNoDelay = true; it.soTimeout = 10_000; it.connect(InetSocketAddress(host, CONTROL_PORT), 8_000) }
             }
             try {
-                runLive(cameraSocket, authBody, frameGeneration, serial) { onLive(host, serial) }
+                runLive(cameraSocket, authBody, frameGeneration, serial, station = network) { onLive(host, serial) }
             } catch (failure: LunaStationFailure) {
                 if (failure.failure.reason == ConnectionFailure.Reason.WrongCamera) {
                     android.util.Log.i("LunaBackend", "luna: another camera answered on the setup's network; searching on")
@@ -702,9 +702,11 @@ class LunaBackend(
 
     /**
      * The control link and live session on [cameraSocket]. A camera whose serial is not
-     * [expectedSerial] is refused before anything else is sent to it (`wifi.serial-mismatch`).
+     * [expectedSerial] is refused before anything else is sent to it (`wifi.serial-mismatch`). On a
+     * Wi-Fi or hotspot setup ([station]) the camera is asked to stay on that network
+     * ([LunaStationKeepAlive]).
      */
-    private suspend fun runLive(cameraSocket: Socket, authBody: ByteArray, frameGeneration: Long, expectedSerial: String?, onLive: () -> Unit = {}): Unit = coroutineScope {
+    private suspend fun runLive(cameraSocket: Socket, authBody: ByteArray, frameGeneration: Long, expectedSerial: String?, station: LunaStationNetwork? = null, onLive: () -> Unit = {}): Unit = coroutineScope {
         lastVideoAt.set(android.os.SystemClock.elapsedRealtime())
         val channel = LunaChannel(
             send = { bytes -> withContext(Dispatchers.IO) { cameraSocket.getOutputStream().write(bytes); cameraSocket.getOutputStream().flush() } },
@@ -733,6 +735,7 @@ class LunaBackend(
             } catch (error: Exception) { channel.fail(error) }
         }
         var heartbeat: Job? = null
+        var keepAlive: Job? = null
         var watchdog: Job? = null
         var poll: Job? = null
         var anotherCamera = false
@@ -744,6 +747,9 @@ class LunaBackend(
             check(LunaWire.text(tcpInfo, 48) == "Insta360 Luna Ultra")
             LunaDeviceIdentity.mismatch(tcpInfo, expectedSerial)?.let { anotherCamera = true; throw LunaStationFailure(it) }
             check(LunaWire.number(channel.request(39, authBody), 1) == 0L) { "TCP identity was not authorized" }
+            if (station != null) keepAlive = launch {
+                LunaStationKeepAlive.run(station, send = { code, body -> channel.request(code, body) }, log = { android.util.Log.i("LunaBackend", it) })
+            }
             channel.request(15)
             setPhase(ConnectionPhase.LIVE)
             onLive()
@@ -797,7 +803,7 @@ class LunaBackend(
         } finally {
             // Another camera gets nothing beyond the identity read.
             if (!anotherCamera) withContext(NonCancellable) { withTimeoutOrNull(1_500) { runCatching { channel.request(2) } } }
-            poll?.cancel(); watchdog?.cancel(); heartbeat?.cancel(); cameraSocket.close(); receiver.cancel(); channel.close(); tcp = null
+            poll?.cancel(); watchdog?.cancel(); heartbeat?.cancel(); keepAlive?.cancel(); cameraSocket.close(); receiver.cancel(); channel.close(); tcp = null
             settingsRefresh?.cancel(); livePaused = false; mediaPausedBinding = null
             settings = null; device = null; capture = null; mode = LunaShootingMode.VIDEO; publish()
         }
