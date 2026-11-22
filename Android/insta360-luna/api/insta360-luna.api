@@ -489,6 +489,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationWire {
 	public static final field BUSY_SWITCHING I
 	public static final field INSTANCE Lcom/opencapture/opencine/insta360/luna/LunaStationWire;
 	public static final field JOIN_RESULT I
+	public static final field KEEP_ALIVE_INTERVAL_MS J
 	public static final field PHONE_INFO I
 	public static final field SET_AVAILABLE_WIFI I
 	public static final field SET_WIFI_CONNECTION_INFO I
@@ -499,6 +500,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationWire {
 	public final fun countryCode ([B)Ljava/lang/String;
 	public final fun join (Ljava/lang/String;Ljava/lang/String;)[B
 	public final fun joinResult ([B)Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult;
+	public final fun keepAlive (Ljava/lang/String;Ljava/lang/String;)[B
 	public final fun phoneInfo (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$Platform;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)[B
 	public final fun remember (Ljava/lang/String;Ljava/lang/String;)[B
 	public final fun wifiMode (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$Mode;Ljava/lang/String;)[B

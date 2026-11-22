@@ -66,6 +66,21 @@ object LunaStationWire {
     /** `SetAvailableWifi { WifiConnectionInfo { ssid, password } }`, sent after a successful join (215). */
     fun remember(ssid: String, password: String): ByteArray = info(ssid, password)
 
+    /**
+     * How often a camera on a Wi-Fi or hotspot setup is asked to join it again ([keepAlive]).
+     * Firmware v1.2.7 leaves the network about 60 s after a join.
+     */
+    const val KEEP_ALIVE_INTERVAL_MS = 30_000L
+
+    /**
+     * The join again (112, same network), over the control link on the setup's network, so plain
+     * like every request there (Swift `stationKeepAliveRequest`). Firmware v1.2.7 leaves a router or
+     * hotspot about 60 s after each join and goes back to its own access point; asking it to join
+     * the network it is on again restarts that time. It answers 200 and 8232 joined, and stays, with
+     * no gap in live view (2026-11-22, 45 s apart). Firmware 1.1.15 stayed without it.
+     */
+    fun keepAlive(ssid: String, password: String): ByteArray = info(ssid, password)
+
     private fun info(ssid: String, password: String): ByteArray {
         require(accepts(ssid, password)) { "The camera cannot join this network" }
         var info = LunaWire.blob(1, ssid.toByteArray())

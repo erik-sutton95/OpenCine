@@ -84,6 +84,16 @@ join the camera Wi-Fi.
   join, LAN control and H.264 preview with the lab tools on firmware 1.1.15 (2026-10-01); the
   app path and the hotspot route are untested on hardware. The Luna has no verified network
   scan, so the wizard runs with `cameraScansNetworks: false`.
+- Keep-alive on a setup's network (`LunaStationKeepAlive`, both platforms): firmware v1.2.7
+  (2026-11-17) leaves a router or hotspot about 60 s after each join, with or without a client,
+  and goes back to its own access point without rejoining. While the control link on a setup's
+  network is open, the join (112, same network, plain over TCP) is sent at once and then every
+  30 s; the camera answers 200 and 8232 joined and stays, with no gap in live view. Keeping
+  Bluetooth open, SET_NETWORK_CONFIG_ENABLE 218, SET_WIFI_SEIZE_ENABLE 85, WIFI_STATUS on and the
+  official app's own order (218, 220, 112, no 147 or 215) did not keep it there; the official app
+  only stays on a router while a cloud backup or livestream runs. Evidence: iPhone, Luna Ultra on
+  firmware 1.2.7, home router, 2026-11-22 (prototype at 45 s: no drop in 7 minutes where every
+  other run dropped at 60 s). Firmware 1.1.15 stayed without it; untested there with it.
 - Camera Wi-Fi checks the serial too: a link whose serial is not the one Bluetooth read fails
   with `wifi.serial-mismatch` on both platforms (Kotlin used to skip the check). Saved Wi-Fi
   without Bluetooth has no serial to check.
