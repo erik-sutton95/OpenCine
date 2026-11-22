@@ -94,6 +94,12 @@ join the camera Wi-Fi.
   only stays on a router while a cloud backup or livestream runs. Evidence: iPhone, Luna Ultra on
   firmware 1.2.7, home router, 2026-11-22 (prototype at 45 s: no drop in 7 minutes where every
   other run dropped at 60 s). Firmware 1.1.15 stayed without it; untested there with it.
+- Unanswered streamed writes: firmware 1.2.7 answers zoom SETs and SET_ANGLE in about 20 ms but
+  leaves about 2 in 100 unanswered (2026-11-22 capture: 2 of 95 zoom SETs had no reply at all). A
+  zoom write waits 1 s for its reply (`LunaCameraSession.Timing.writeTimeout`, both platforms), not
+  the link's 8 s (10 s on Android), so a pinch or preset ramp no longer freezes. A programmed move
+  (`MotionProgramSession`, both platforms) ends on an unaccepted target only when no later target
+  was accepted, and sends the final target once more.
 - Camera Wi-Fi checks the serial too: a link whose serial is not the one Bluetooth read fails
   with `wifi.serial-mismatch` on both platforms (Kotlin used to skip the check). Saved Wi-Fi
   without Bluetooth has no serial to check.

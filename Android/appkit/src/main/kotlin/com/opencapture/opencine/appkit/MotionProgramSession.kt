@@ -48,6 +48,8 @@ public class MotionProgramSession(
         var nextCommand = 0L
         var commandRevision = 0L
         var finalCommandPending = false
+        /** The latest target, in dispatch order ([nextCommand]), the camera accepted. */
+        var lastAccepted = 0L
     }
     private var active: Run? = null
     private var lifecycleRevision = 0L
@@ -133,12 +135,17 @@ public class MotionProgramSession(
             val target = run.source.motion.capabilities.target(pose)
             if (active !== run) return null
             if (target == null) { finish(run, Failure.INVALID_PROGRAM); return null }
-            dispatch(target, output.finished, run)
+            dispatch(target, output.finished, run, retry = true)
         }
         return if (output.finished) null else run.playback.nextDelay(run.timing.targetInterval)
     }
 
-    private fun dispatch(target: MotionTarget, final: Boolean, run: Run) {
+    /**
+     * A streamed target the camera does not accept ends the take only when no later target got
+     * through: a camera that drops the odd reply (Luna fw 1.2.7 leaves about 2 in 100 SETs
+     * unanswered) has already moved on to the next target. The final target is sent once more.
+     */
+    private fun dispatch(target: MotionTarget, final: Boolean, run: Run, retry: Boolean) {
         val command = ++run.nextCommand
         val revision = run.commandRevision
         // Start in order without blocking the target cadence on a reply's potentially long wait.
@@ -151,8 +158,14 @@ public class MotionProgramSession(
             if (!isActive || active !== run || run.commandRevision != revision) return@launch
             run.commands.remove(command)
             if (!admits(run) || !isActive || run.commandRevision != revision) return@launch
-            if (!accepted) finish(run, Failure.COMMAND_REJECTED)
-            else if (final) finish(run, null)
+            if (accepted) {
+                run.lastAccepted = maxOf(run.lastAccepted, command)
+                if (final) finish(run, null)
+            } else if (final && retry) {
+                dispatch(target, true, run, retry = false)
+            } else if (final || run.lastAccepted < command) {
+                finish(run, Failure.COMMAND_REJECTED)
+            }
         }
         if (!task.isCompleted && active === run) run.commands[command] = task
     }

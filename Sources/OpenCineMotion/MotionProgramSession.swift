@@ -43,6 +43,9 @@ public final class MotionProgramSession {
         var commands: [UUID: Task<Void, Never>] = [:]
         var commandRevision: UInt64 = 0
         var finalCommandPending = false
+        /// Dispatch order of the targets, and the latest one the camera accepted.
+        var dispatched: UInt64 = 0
+        var lastAccepted: UInt64 = 0
 
         init(source: Source, timing: MotionProgramTiming, playback: GimbalProgramPlayback) {
             self.source = source; self.timing = timing; self.playback = playback
@@ -146,14 +149,19 @@ public final class MotionProgramSession {
                 finish(run, failure: .invalidProgram)
                 return nil
             }
-            dispatch(target, final: output.finished, run: run)
+            dispatch(target, final: output.finished, retry: true, run: run)
         }
         return output.finished ? nil : run.playback.nextDelay(upTo: run.timing.targetInterval)
     }
 
-    private func dispatch(_ target: MotionTarget, final: Bool, run: Run) {
+    /// A streamed target the camera does not accept ends the take only when no later target got
+    /// through: a camera that drops the odd reply (Luna fw 1.2.7 leaves about 2 in 100 SETs
+    /// unanswered) has already moved on to the next target. The final target is sent once more.
+    private func dispatch(_ target: MotionTarget, final: Bool, retry: Bool, run: Run) {
         let command = UUID()
         let revision = run.commandRevision
+        run.dispatched &+= 1
+        let order = run.dispatched
         // Replies can take seconds; awaiting them here would replace the declared target cadence.
         run.commands[command] = Task { @MainActor [weak self, weak run] in
             guard let self, let run, self.active === run, !Task.isCancelled,
@@ -163,8 +171,14 @@ public final class MotionProgramSession {
             guard !Task.isCancelled, self.active === run, run.commandRevision == revision else { return }
             run.commands.removeValue(forKey: command)
             guard self.admits(run), !Task.isCancelled, run.commandRevision == revision else { return }
-            if !accepted { self.finish(run, failure: .commandRejected) }
-            else if final { self.finish(run, failure: nil) }
+            if accepted {
+                run.lastAccepted = max(run.lastAccepted, order)
+                if final { self.finish(run, failure: nil) }
+            } else if final, retry {
+                self.dispatch(target, final: true, retry: false, run: run)
+            } else if final || run.lastAccepted < order {
+                self.finish(run, failure: .commandRejected)
+            }
         }
     }
 
