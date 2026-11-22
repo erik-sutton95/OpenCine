@@ -31,4 +31,11 @@ class MonitorReferenceOverlayTest {
         assertEquals(visible, MonitorReferenceSide.LEFT.clip(visible, visible.right))
         assertEquals(0f, MonitorReferenceSide.RIGHT.clip(visible, visible.right).width)
     }
+
+    @Test fun comparisonModesUseIndependentClampedRasterOpacities() {
+        assertEquals(0.4f, MonitorReferenceMode.BLEND.rasterOpacity(blend = 0.4f, split = 0.8f))
+        assertEquals(0.8f, MonitorReferenceMode.SPLIT.rasterOpacity(blend = 0.4f, split = 0.8f))
+        assertEquals(0f, MonitorReferenceMode.SPLIT.rasterOpacity(blend = 0.4f, split = -0.1f))
+        assertEquals(1f, MonitorReferenceMode.SPLIT.rasterOpacity(blend = 0.4f, split = 1.1f))
+    }
 }

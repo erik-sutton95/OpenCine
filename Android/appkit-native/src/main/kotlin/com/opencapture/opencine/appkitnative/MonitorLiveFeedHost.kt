@@ -491,7 +491,7 @@ private fun <F : Any> MonitorLiveFeedBody(
                             else monitorReferenceRect(size, rawReferenceAspect, fill = false)?.translate(x, y)
                         }, mirrorX = liveViewFlip, mirrorY = flipV,
                         modifier = Modifier.frame(layout.onFeed).clipToBounds(), interactive = referenceActionsEnabled,
-                        splitSide = referenceStore.splitSide)
+                        splitSide = referenceStore.splitSide, splitOpacity = referenceStore.splitOpacity)
                 }
                 // Passive source geometry; this box draws and captures nothing.
                 Box(Modifier.frame(layout.onFeed).monitorBackdropSource(backdrop.source,

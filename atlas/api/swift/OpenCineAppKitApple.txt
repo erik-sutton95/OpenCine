@@ -448,6 +448,7 @@ var MonitorReferenceStore.notice: Swift.String?
 var MonitorReferenceStore.referenceOnRight: Swift.Bool
 var MonitorReferenceStore.saved: MonitorReferenceStill?
 var MonitorReferenceStore.saving: Swift.Bool
+var MonitorReferenceStore.splitOpacity: Swift.Double
 var MonitorReferenceStore.visible: Swift.Bool
 var MonitorRemoteShutter.isActive: Swift.Bool
 var MonitorRemoteShutter.onTrigger: (() -> Swift.Void)?

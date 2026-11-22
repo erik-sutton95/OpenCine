@@ -33,6 +33,9 @@ import kotlin.math.roundToInt
 
 enum class MonitorReferenceMode { BLEND, SPLIT }
 
+internal fun MonitorReferenceMode.rasterOpacity(blend: Float, split: Float): Float =
+    (if (this == MonitorReferenceMode.SPLIT) split else blend).coerceIn(0f, 1f)
+
 enum class MonitorReferenceSide { LEFT, RIGHT }
 
 internal fun MonitorReferenceSide.clip(visible: Rect, divider: Float): Rect =
@@ -68,6 +71,7 @@ fun MonitorReferenceOverlay(
     modifier: Modifier = Modifier,
     interactive: Boolean = true,
     splitSide: MonitorReferenceSide = MonitorReferenceSide.LEFT,
+    splitOpacity: Float = 1f,
 ) {
     val nowSplit by rememberUpdatedState(split)
     val updateSplit by rememberUpdatedState(onSplit)
@@ -85,7 +89,7 @@ fun MonitorReferenceOverlay(
                     drawImage(image,
                         dstOffset = IntOffset(imagePlacement.left.roundToInt(), imagePlacement.top.roundToInt()),
                         dstSize = IntSize(imagePlacement.width.roundToInt(), imagePlacement.height.roundToInt()),
-                        alpha = if (mode == MonitorReferenceMode.BLEND) opacity.coerceIn(0f, 1f) else 1f)
+                        alpha = mode.rasterOpacity(opacity, splitOpacity))
                 }
             }
             if (mode == MonitorReferenceMode.SPLIT) {

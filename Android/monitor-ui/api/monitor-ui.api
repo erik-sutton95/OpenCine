@@ -4302,7 +4302,7 @@ public final class com/opencapture/monitorui/MonitorReferenceMode : java/lang/En
 }
 
 public final class com/opencapture/monitorui/MonitorReferenceOverlayKt {
-	public static final fun MonitorReferenceOverlay (Landroidx/compose/ui/graphics/ImageBitmap;Lcom/opencapture/monitorui/MonitorReferenceMode;FFLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ZZLandroidx/compose/ui/Modifier;ZLcom/opencapture/monitorui/MonitorReferenceSide;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorReferenceOverlay (Landroidx/compose/ui/graphics/ImageBitmap;Lcom/opencapture/monitorui/MonitorReferenceMode;FFLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ZZLandroidx/compose/ui/Modifier;ZLcom/opencapture/monitorui/MonitorReferenceSide;FLandroidx/compose/runtime/Composer;III)V
 	public static final fun monitorReferenceMatches (FF)Z
 	public static final fun monitorReferenceRect-Pq9zytI (JFZ)Landroidx/compose/ui/geometry/Rect;
 }

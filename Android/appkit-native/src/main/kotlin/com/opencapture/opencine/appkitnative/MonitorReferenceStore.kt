@@ -36,6 +36,7 @@ class MonitorReferenceStore(context: Context) {
     var shown: Boolean by mutableStateOf(false)
     var mode: MonitorReferenceMode by mutableStateOf(MonitorReferenceMode.BLEND)
     var opacity: Float by mutableStateOf(0.5f)
+    var splitOpacity: Float by mutableStateOf(1f)
     var split: Float by mutableStateOf(0.5f)
     var splitSide: MonitorReferenceSide by mutableStateOf(MonitorReferenceSide.LEFT)
     var isBusy: Boolean by mutableStateOf(false)

@@ -51,7 +51,21 @@
             let selected = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "selected == true"), object: right)
             XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 3), .completed)
-            capture("SIMULATED-reference-assist-split-right")
+            let slider = inspector.sliders.firstMatch
+            for _ in 0..<3 where !slider.isHittable { inspector.swipeUp() }
+            XCTAssertTrue(slider.isHittable)
+            XCTAssertEqual(slider.value as? String, "100%")
+            slider.adjust(toNormalizedSliderPosition: 0.25)
+            let splitValue = try XCTUnwrap(slider.value as? String)
+            XCTAssertNotEqual(splitValue, "100%")
+            XCTAssertNotEqual(splitValue, "50%")
+
+            for _ in 0..<3 where !app.buttons["Blend"].isHittable { inspector.swipeDown() }
+            app.buttons["Blend"].tap()
+            XCTAssertEqual(slider.value as? String, "50%")
+            app.buttons["Split"].tap()
+            XCTAssertEqual(slider.value as? String, splitValue)
+            capture("SIMULATED-reference-assist-split-opacity")
             close.tap()
             XCTAssertFalse(app.staticTexts["Reference on"].exists)
         }

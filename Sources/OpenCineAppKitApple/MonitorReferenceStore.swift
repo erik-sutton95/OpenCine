@@ -27,6 +27,7 @@
         public var visible = false
         public var mode: Mode = .blend
         public var blend = 0.5
+        public var splitOpacity = 1.0
         public var divider = 0.5
         public var referenceOnRight = false
 

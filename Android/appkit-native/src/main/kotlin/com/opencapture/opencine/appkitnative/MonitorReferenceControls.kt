@@ -134,23 +134,23 @@ fun rememberMonitorReferencePaletteAction(
 
 @Composable
 private fun ReferenceModeOptions(store: MonitorReferenceStore) {
-    if (store.mode == MonitorReferenceMode.BLEND) {
-        MonitorSettingsInlineRow("Opacity", stacked = true) {
-            MonitorSettingsPercentSlider((store.opacity * 100).roundToInt(), 0..100) { store.opacity = it / 100f }
-        }
-    } else {
+    val isSplit = store.mode == MonitorReferenceMode.SPLIT
+    if (isSplit) {
         MonitorSettingsInlineRow("Reference side", stacked = true) {
             MonitorSettingsChoices(MonitorReferenceSide.entries, store.splitSide, accentSelection = true,
                 title = { if (it == MonitorReferenceSide.LEFT) "Left" else "Right" },
                 onSelect = { store.splitSide = it })
         }
     }
+    MonitorSettingsInlineRow("Opacity", stacked = true) {
+        val opacity = if (isSplit) store.splitOpacity else store.opacity
+        MonitorSettingsPercentSlider((opacity * 100).roundToInt(), 0..100) { percent ->
+            if (isSplit) store.splitOpacity = percent / 100f else store.opacity = percent / 100f
+        }
+    }
 }
 
 private fun MonitorReferenceStore.selectComparison(next: MonitorReferenceMode) {
-    if (mode != next) {
-        if (next == MonitorReferenceMode.BLEND) opacity = 0.5f else split = 0.5f
-    }
     mode = next
     shown = true
 }

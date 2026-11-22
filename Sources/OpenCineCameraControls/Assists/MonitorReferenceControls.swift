@@ -64,16 +64,7 @@
                             )
                             .buttonStyle(MonitorSettingsButtonStyle())
                         }
-                        if store.mode == .blend {
-                            MonitorSettingsInlineRow(title: "Reference opacity", stacked: true) {
-                                MonitorSettingsPercentSlider(
-                                    value: Binding(
-                                        get: { Int((store.blend * 100).rounded()) },
-                                        set: { store.blend = Double($0) / 100 }), range: 0...100
-                                )
-                                .accessibilityLabel("Reference opacity")
-                            }
-                        } else {
+                        if store.mode == .split {
                             MonitorSettingsInlineRow(title: "Reference side", stacked: true) {
                                 MonitorSegmentedControl(
                                     options: [false, true],
@@ -82,6 +73,16 @@
                                 )
                                 .buttonStyle(MonitorSettingsButtonStyle())
                             }
+                        }
+                        MonitorSettingsInlineRow(title: "Reference opacity", stacked: true) {
+                            let opacity = store.mode == .blend ? $store.blend : $store.splitOpacity
+                            MonitorSettingsPercentSlider(
+                                value: Binding(
+                                    get: { Int((opacity.wrappedValue * 100).rounded()) },
+                                    set: { opacity.wrappedValue = Double($0) / 100 }),
+                                range: 0...100
+                            )
+                            .accessibilityLabel("Reference opacity")
                         }
                         if store.visible, canCapture, !matches {
                             Text(
@@ -199,7 +200,7 @@
                             in: visible, fraction: store.divider, clockwiseTurns: clockwiseTurns)
                         ZStack(alignment: .topLeading) {
                             raster(saved.image)
-                                .opacity(store.mode == .blend ? store.blend : 1)
+                                .opacity(store.mode == .blend ? store.blend : store.splitOpacity)
                                 .mask {
                                     let mask =
                                         store.mode == .blend
