@@ -3,6 +3,7 @@ package com.opencapture.opencine.nikon
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -531,8 +533,8 @@ class SwiftCoreLiveFrameSource(
                         },
                     )
                 } catch (error: Throwable) {
+                    // Reported once, where the sharing loop catches it (see [sharedFrames]).
                     failPumpStart(generation)
-                    onFailurePhase("liveViewFailed")
                     throw error
                 }
                 if (completePumpStart(reservation)) {
@@ -569,6 +571,10 @@ class SwiftCoreLiveFrameSource(
                 delay(restartDelayMillis)
                 true
             }
+            // `retryWhen` returning false rethrows the pump end. An exhausted stream has
+            // already escalated above, so end it quietly: rethrown, it escaped the sharing
+            // coroutine and crashed the process (OPENZCINE-ANDROID-A).
+            .catch { cause -> if (cause !is LiveViewEndedException) throw cause }
 
     /**
      * The live picture, fanned out to every consumer; newest wins, and NOBODY waits.
@@ -598,7 +604,11 @@ class SwiftCoreLiveFrameSource(
                 onBufferOverflow = BufferOverflow.DROP_OLDEST,
             )
             .also { sink ->
-                sharingScope.launch {
+                // Last resort only: a failure the loop below does not catch is logged, never
+                // allowed to reach the default handler, which ends the process on Android.
+                val reportInsteadOfCrashing =
+                    CoroutineExceptionHandler { _, _ -> runCatching { onFailurePhase("liveViewFailed") } }
+                sharingScope.launch(reportInsteadOfCrashing) {
                     // The upstream is only collected while something downstream wants it, which is
                     // what `WhileSubscribed` bought before. `subscriptionCount` reproduces it
                     // exactly, and keeps the native pump from running for nobody.
@@ -606,7 +616,16 @@ class SwiftCoreLiveFrameSource(
                         .map { it > 0 }
                         .distinctUntilChanged()
                         .collectLatest { active ->
-                            if (active) upstream.collect { frame -> sink.tryEmit(frame) }
+                            if (!active) return@collectLatest
+                            try {
+                                upstream.collect { frame -> sink.tryEmit(frame) }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Throwable) {
+                                // A failed start (or any other pump failure) ends this stream only.
+                                // The loop stays alive so the next subscriber starts live view again.
+                                runCatching { onFailurePhase("liveViewFailed") }
+                            }
                         }
                 }
             }

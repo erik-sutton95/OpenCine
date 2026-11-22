@@ -209,7 +209,7 @@ internal interface SwiftCoreSessionBridge {
             listener: NikonNative.SessionListener,
         ) {
             NikonNative.sessionConnectUsb(
-                transport,
+                transport.containingThrows(),
                 host,
                 cameraNameHint,
                 connectionOwner,

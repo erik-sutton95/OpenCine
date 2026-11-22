@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -496,6 +497,77 @@ class SwiftCoreLiveFrameSourceTest {
         collector.cancelAndJoin()
         runCurrent()
         assertEquals(2, stops)
+    }
+
+    /**
+     * OPENZCINE-ANDROID-A: a pump that keeps ending (no session for the owner, a dead USB link)
+     * used to rethrow its end out of the sharing coroutine after the last restart, which crashed
+     * the process. The stream now escalates once and ends, so the session can reconnect.
+     */
+    @Test
+    fun `a pump that keeps ending escalates once and ends without crashing`() = runTest {
+        var starts = 0
+        var exhausted = 0
+        val failurePhases = mutableListOf<String>()
+        val source =
+            SwiftCoreLiveFrameSource(
+                available = { true },
+                start = { listener ->
+                    starts++
+                    listener.onEnded()
+                },
+                stop = {},
+                configurePreview = { true },
+                sharingScope = backgroundScope,
+                maxConsecutiveRestarts = 3,
+                onStreamExhausted = { exhausted++ },
+                onFailurePhase = failurePhases::add,
+                stopDispatcher = StandardTestDispatcher(testScheduler, name = "native-stop"),
+            )
+
+        val collector = launch { source.frames.collect() }
+        advanceTimeBy(10_000L)
+        runCurrent()
+
+        assertEquals(1, exhausted)
+        assertEquals(4, starts)
+        assertEquals(List(4) { "liveViewStalled" }, failurePhases)
+        collector.cancelAndJoin()
+    }
+
+    /** A start that throws must not crash the process or end live view for the session for good. */
+    @Test
+    fun `a failed start is reported and the next subscription starts live view again`() = runTest {
+        var starts = 0
+        val failurePhases = mutableListOf<String>()
+        lateinit var listener: NikonNative.LiveFrameListener
+        val source =
+            SwiftCoreLiveFrameSource(
+                available = { true },
+                start = {
+                    starts++
+                    if (starts == 1) throw IllegalStateException("native start failed")
+                    listener = it
+                },
+                stop = {},
+                configurePreview = { true },
+                sharingScope = backgroundScope,
+                onFailurePhase = failurePhases::add,
+                stopDispatcher = StandardTestDispatcher(testScheduler, name = "native-stop"),
+            )
+
+        val first = launch { source.frames.collect() }
+        runCurrent()
+        assertEquals(listOf("liveViewFailed"), failurePhases)
+        first.cancelAndJoin()
+        runCurrent()
+
+        val frame = async { source.frames.first() }
+        runCurrent()
+        assertEquals(2, starts)
+        listener.onFrame(byteArrayOf(4), 4L, false)
+        runCurrent()
+        assertContentEquals(byteArrayOf(4), frame.await().jpegData)
     }
 
     @Test

@@ -277,6 +277,44 @@ class MonitorOperatorLiveOwnerTest {
         assertFalse(requireNotNull(native.quick(LiveSheet.SHUTTER, host.status)).enabled)
     }
 
+    /**
+     * The scope placement is the safe area apps keep panels in, and an app requires it inside
+     * the viewport (field crash reports). Insets animate on other frames than the viewport
+     * size, and a first measure, rotation or split screen gives a viewport smaller than its
+     * insets; the placement then started outside the viewport and the app crashed. It is now
+     * intersected with the viewport, empty when nothing is left.
+     */
+    @Test fun scopePlacementStaysInsideTheViewportWhenInsetsOutgrowIt() {
+        val assist = MonitorAssistState()
+        val viewports = listOf(
+            MonitorOperatorViewport(0f, 0f, 47f, 0f, 59f, 34f, 1f, true),
+            MonitorOperatorViewport(100f, 40f, 120f, 30f, 60f, 20f, 1f, true),
+            MonitorOperatorViewport(40f, 100f, 30f, 30f, 120f, 20f, 1f, false),
+            // Fractional insets on a fractional width with no trailing inset: the far edge must not
+            // land one float step past the viewport.
+            MonitorOperatorViewport(411.42856f, 868.5714f, 33.333336f, 0f, 0.1f, 0f, 1f, false),
+        ) + (0..40).map { step ->
+            // An inset that animates in while the viewport is still collapsing.
+            MonitorOperatorViewport(844f - step * 20f, 390f - step * 9f, step * 7.3f, 0f, step * 3.7f, 21f, 1f, true)
+        }
+        for (viewport in viewports) {
+            val field = monitorOperatorFieldLayout(viewport, assist, { true }, PortraitFeedAspect.FIT_16X9,
+                16f / 9f, false)
+            assertInsideViewport(viewport, field.scopePlacement)
+            val live = monitorOperatorLiveLayout(viewport, assist, { true }, PortraitFeedAspect.FIT_16X9,
+                16f / 9f, false, MonitorJoystickSize.MEDIUM, true)
+            assertInsideViewport(viewport, live.scopePlacement)
+        }
+    }
+
+    private fun assertInsideViewport(viewport: MonitorOperatorViewport, placement: MonitorRect) {
+        val message = "$placement in ${viewport.width} x ${viewport.height}"
+        assertTrue(placement.width >= 0f && placement.height >= 0f, message)
+        assertTrue(placement.x >= 0f && placement.y >= 0f, message)
+        assertTrue(placement.x + placement.width <= viewport.width, message)
+        assertTrue(placement.y + placement.height <= viewport.height, message)
+    }
+
     @Test fun portraitFramingKeepsScopesAboveCaptureAndFloatsThemUnderTheAssistRail() {
         val assist = MonitorAssistState()
         val viewport = MonitorOperatorViewport(390f, 844f, 0f, 0f, 47f, 34f, 1f, true)
