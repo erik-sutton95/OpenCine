@@ -40,6 +40,7 @@ public final class MonitorFrameBaker: @unchecked Sendable {
         public let timeNs: Int64?
         public let unmanaged: Bool
         public let overlay: Bool
+        let referenceSource: MonitorReferencePixelSource?
         fileprivate let source: MonitorFrameBakeSource?
         fileprivate let epoch: UInt64
         fileprivate weak var owner: MonitorFrameBaker?
@@ -66,6 +67,7 @@ public final class MonitorFrameBaker: @unchecked Sendable {
         let timeNs: Int64?
         let epoch: UInt64
         let source: MonitorFrameBakeSource?
+        let referenceSource: MonitorReferencePixelSource?
     }
     private var pending: Request?
     private var epoch: UInt64 = 0
@@ -121,13 +123,26 @@ public final class MonitorFrameBaker: @unchecked Sendable {
         generation: Int = 0, timeNs: Int64? = nil, source: MonitorFrameBakeSource? = nil,
         onComplete: @escaping @Sendable () -> Void
     ) {
+        scheduleBake(
+            preparing: prepare, drawableSize: drawableSize, pixelFormat: pixelFormat,
+            unmanaged: unmanaged, overlay: overlay, generation: generation, timeNs: timeNs,
+            source: source, referenceSource: nil, onComplete: onComplete)
+    }
+
+    func scheduleBake(
+        preparing prepare: @escaping @Sendable () -> CIImage?, drawableSize: CGSize,
+        pixelFormat: MTLPixelFormat, unmanaged: Bool, overlay: Bool, generation: Int, timeNs: Int64?,
+        source: MonitorFrameBakeSource? = nil, referenceSource: MonitorReferencePixelSource?,
+        onComplete: @escaping @Sendable () -> Void
+    ) {
         guard drawableSize.width > 0, drawableSize.height > 0 else { return }
         lock.lock()
         guard !closed else { lock.unlock(); return }
         nextFrameID &+= 1
         pending = Request(prepare: prepare, drawableSize: drawableSize,
             pixelFormat: pixelFormat, unmanaged: unmanaged, overlay: overlay,
-            id: nextFrameID, generation: generation, timeNs: timeNs, epoch: epoch, source: source)
+            id: nextFrameID, generation: generation, timeNs: timeNs, epoch: epoch, source: source,
+            referenceSource: referenceSource)
         pendingDone = onComplete
         let start = !busy
         if start { busy = true }
@@ -255,7 +270,8 @@ public final class MonitorFrameBaker: @unchecked Sendable {
         let started = bake(
             image, drawableSize: request.drawableSize, pixelFormat: request.pixelFormat,
             unmanaged: request.unmanaged, overlay: request.overlay,
-            id: request.id, generation: request.generation, timeNs: request.timeNs, epoch: request.epoch, sourceLease: request.source
+            id: request.id, generation: request.generation, timeNs: request.timeNs, epoch: request.epoch,
+            sourceLease: request.source, referenceSource: request.referenceSource
         ) {
             done?()
         }
@@ -286,6 +302,7 @@ public final class MonitorFrameBaker: @unchecked Sendable {
     private func bake(
         _ source: CIImage, drawableSize: CGSize, pixelFormat: MTLPixelFormat,
         unmanaged: Bool, overlay: Bool, id: UInt64, generation: Int, timeNs: Int64?, epoch requestEpoch: UInt64, sourceLease: MonitorFrameBakeSource?,
+        referenceSource: MonitorReferencePixelSource?,
         finished: @escaping @Sendable () -> Void
     ) -> Bool {
         let extent = source.extent
@@ -325,7 +342,8 @@ public final class MonitorFrameBaker: @unchecked Sendable {
             colorSpace: destinationColorSpace)
         let completedFrame = Frame(texture: target, drawableSize: drawableSize,
             pixelFormat: pixelFormat, id: id, generation: generation, timeNs: timeNs,
-            unmanaged: unmanaged, overlay: overlay, source: sourceLease, epoch: requestEpoch, owner: self)
+            unmanaged: unmanaged, overlay: overlay, referenceSource: referenceSource,
+            source: sourceLease, epoch: requestEpoch, owner: self)
         commandBuffer.addCompletedHandler { [self] command in
             lock.lock()
             baking.remove(token)

@@ -21,6 +21,8 @@ import com.opencapture.monitorui.monitorBackdropSource
 import com.opencapture.opencine.media.FeedEffectsRenderPlan
 import com.opencapture.opencine.media.MonitorPlaybackItemToken
 import com.opencapture.opencine.runtime.InspectorPreviewPipeline
+import com.opencapture.opencine.runtime.MonitorCleanPictureFrame
+import com.opencapture.opencine.runtime.MonitorReferenceCapture
 import com.opencapture.opencine.runtime.MonitorPlaybackPictureOwner
 import com.opencapture.opencine.runtime.NativeGlesFeedSession
 import com.opencapture.opencine.runtime.ScopeSampleBus
@@ -48,6 +50,7 @@ fun MonitorPlaybackFeedView(
     sourceReady: Boolean,
     sourceAdmission: (MonitorPlaybackItemToken) -> Boolean,
     modifier: Modifier = Modifier,
+    referencePicture: MonitorReferenceCapture<MonitorCleanPictureFrame>? = null,
 ) {
     val context = LocalContext.current
     val pictureOwner = remember(picture, sourceIdentity) { picture.claimPicture() }
@@ -67,6 +70,7 @@ fun MonitorPlaybackFeedView(
                 letterboxSource = false,
                 notifySurfaceOnMain = true,
                 playback = true,
+                referencePicture = referencePicture,
             )
         }
     // Configure the actual existing runtime source synchronously, before queued SDK surfaces.

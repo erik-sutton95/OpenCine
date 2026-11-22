@@ -25,6 +25,14 @@ public class Media3PlaybackPort(public val player: ExoPlayer, scope: CoroutineSc
     private var token: MonitorPlaybackItemToken? = null
     private var preparation = ""
     private var listener: Player.Listener? = null
+    private var referenceFrames: Media3ReferenceFrames? = null
+
+    /** Optional reference receipts are enabled only by hosts that expose capture. */
+    public fun observeReferenceFrames(): Media3ReferenceFrames =
+        referenceFrames ?: Media3ReferenceFrames().also {
+            referenceFrames = it
+            it.attach(player)
+        }
     private var waiter: CompletableDeferred<MonitorPlaybackMetadata>? = null
     private var tick: Job? = null
     private var closed = false
@@ -84,6 +92,7 @@ public class Media3PlaybackPort(public val player: ExoPlayer, scope: CoroutineSc
         if (closed || (this.token != null && token.revision != 0L &&
                 (this.token?.owner != token.owner || token.revision < (this.token?.revision ?: 0)))) return
         this.token = token; retireObservers()
+        referenceFrames?.retire()
         if (closed || this.token != token) return
         val capturedPicture = pictureOwner
         pictureRetire?.invoke()
@@ -176,7 +185,8 @@ public class Media3PlaybackPort(public val player: ExoPlayer, scope: CoroutineSc
         if (closed || this.token != token || !admitted(token) || !seconds.isFinite() || seconds < 0) return false
         // Media3 has no AVPlayer tolerance/decoded-frame seek receipt. Keep its existing seekTo
         // admission, without reporting a decoded new frame or ACK-as-camera observation.
-        player.seekTo((seconds * 1000).toLong())
+        val target = (seconds * 1000).toLong()
+        referenceFrames?.seek(player, target) ?: player.seekTo(target)
         return !closed && this.token == token && admitted(token) && currentCoroutineContext().isActive
     }
     override fun setMuted(muted: Boolean, token: MonitorPlaybackItemToken) {

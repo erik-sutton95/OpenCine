@@ -90,9 +90,24 @@
         @ViewBuilder func lutPicker() -> LUTSheet
         /// Live streaming, when the app composes it: the Go live control over the picture.
         var liveStream: LiveStreamCoordinator? { get }
+        /// Opt-in continuity capture for the primary monitor.
+        var liveReference: MonitorLiveReferenceSource? { get }
+    }
+
+    /// Host-owned storage and capture, with the mirror state of the actual presented picture.
+    @MainActor public struct MonitorLiveReferenceSource {
+        let store: MonitorReferenceStore
+        let capture: () async -> CGImage?
+        let mirrored: () -> Bool
+
+        public init(store: MonitorReferenceStore, capture: @escaping () async -> CGImage?,
+            mirrored: @escaping () -> Bool) {
+            self.store = store; self.capture = capture; self.mirrored = mirrored
+        }
     }
 
     extension MonitorLiveScreenHost {
+        public var liveReference: MonitorLiveReferenceSource? { nil }
         public var liveStream: LiveStreamCoordinator? { nil }
     }
 
@@ -222,8 +237,8 @@
                 readLevel: { now, viewFlip in
                     model.liveLevelDisplay(model.session.liveLevelReading.mode(now: now, viewFlip: viewFlip))
                 },
-                pictureEV: model.livePictureEV
-            ) { MonitorOperatorLiveFeedPane<Host>()
+                pictureEV: model.livePictureEV, reference: referenceControl
+            ) { MonitorOperatorLiveFeedPane<Host>(viewportWidth: layout.onFeed.width)
             } preview: { model.inspectorPreview(tool: $0)
             } lookMenu: { model.lookMenu() }
             .environment(\.monitorZoomRulerOpen, interaction.zoomVisible)
@@ -284,6 +299,19 @@
             }
         }
 
+        private var referenceControl: AnyView? {
+            guard let source = model.liveReference else { return nil }
+            let effects = model.assist.effects
+            return AnyView(MonitorReferenceControls(store: source.store,
+                canCapture: !model.session.isFeedWarming && !model.session.feedRecovering,
+                displayAspect: referenceAspect(Double(model.session.pictureAspect), effects: effects)) {
+                    guard !model.session.isFeedWarming, !model.session.feedRecovering,
+                        model.shell.cover == nil, let image = await source.capture() else { return nil }
+                    return .init(image: image, displayAspect: referenceAspect(
+                        Double(image.width) / Double(image.height), effects: effects))
+                })
+        }
+
         private var zoomSource: MonitorOperatorZoomPresentation {
             MonitorOperatorZoomPresentation(maximum: model.session.zoomMax,
                 opticalStops: model.session.zoomStops.contains(3) ? [1, 3] : [1],
@@ -307,6 +335,8 @@
     /// HEVC + LUT/PEAK present. Isolated so 25 Hz decode / 5 Hz status cannot rebuild chrome.
     struct MonitorOperatorLiveFeedPane<Host: MonitorLiveScreenHost>: View {
         @Environment(Host.self) private var model
+        let viewportWidth: CGFloat
+        @State private var referenceMirror: Bool?
 
         private var liveEffects: MonitorFrameEffects {
             var fx = model.assist.effects.withFaceAF(model.session.wantsFaceAF)
@@ -324,8 +354,26 @@
                     colorMode: model.session.status.colorMode),
                 pictureFlip: model.livePictureViewFlip,
                 hdrDisplay: model.hdrDisplayActive,
-                qualification: { [weak session = model.session] in session?.nativeQualificationSnapshot }
+                qualification: { [weak session = model.session] in session?.nativeQualificationSnapshot },
+                onPictureMirror: model.liveReference == nil ? nil : { referenceMirror = $0 }
             )
+            .overlay {
+                if let reference = model.liveReference,
+                    !model.session.isFeedWarming, !model.session.feedRecovering {
+                    GeometryReader { geometry in
+                        let source = CGSize(width: model.session.pictureAspect, height: 1)
+                        let bounds = CGRect(origin: .zero, size: geometry.size)
+                        let visibleWidth = min(viewportWidth, bounds.width)
+                        let viewport = CGRect(x: (bounds.width - visibleWidth) / 2, y: 0,
+                            width: visibleWidth, height: bounds.height)
+                        MonitorReferenceOverlay(store: reference.store, imageRect: DesqueezeAssist.presentationRect(
+                            sourceSize: source, in: bounds, effects: liveEffects), viewport: viewport,
+                            displayAspect: referenceAspect(Double(source.width), effects: liveEffects),
+                            mirrorHorizontal: referenceMirror ?? reference.mirrored(), mirrorVertical: liveEffects.mirrorVertical,
+                            interactive: !model.operatorSession.locked && model.shell.cover == nil)
+                    }
+                }
+            }
             .onChange(of: model.assist.effects) { _, fx in
                 model.session.decoder.effects = fx.withFaceAF(model.session.wantsFaceAF)
             }

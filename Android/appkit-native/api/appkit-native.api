@@ -164,7 +164,7 @@ public final class com/opencapture/opencine/appkitnative/MonitorLiveFeedDisplay 
 }
 
 public final class com/opencapture/opencine/appkitnative/MonitorLiveFeedHostKt {
-	public static final fun MonitorLiveFeedHost (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedSource;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedOwners;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedDisplay;Lcom/opencapture/opencine/appkit/ShellModel$Cover;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun MonitorLiveFeedHost (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedSource;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedOwners;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedDisplay;Lcom/opencapture/opencine/appkit/ShellModel$Cover;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ZLkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 	public static final fun rememberMonitorBackdropFeed (Ljava/lang/Object;ZLandroidx/compose/runtime/Composer;II)Lcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;
 }
 
@@ -176,11 +176,11 @@ public final class com/opencapture/opencine/appkitnative/MonitorLiveFeedIntegrat
 	public final fun getCrashGuard ()Lcom/opencapture/opencine/runtime/VulkanCrashGuard;
 	public final fun getJournal ()Lkotlin/jvm/functions/Function4;
 	public final fun getPresentation ()Lkotlin/jvm/functions/Function1;
-	public final fun glesFeed (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;)Lcom/opencapture/opencine/runtime/NativeGlesFeedSession;
-	public static synthetic fun glesFeed$default (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/NativeGlesFeedSession;
+	public final fun glesFeed (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;)Lcom/opencapture/opencine/runtime/NativeGlesFeedSession;
+	public static synthetic fun glesFeed$default (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/NativeGlesFeedSession;
 	public final fun usesVulkan (Landroid/content/Context;)Z
-	public final fun vulkanFeed (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;)Lcom/opencapture/opencine/runtime/NativeVulkanFeedSession;
-	public static synthetic fun vulkanFeed$default (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/NativeVulkanFeedSession;
+	public final fun vulkanFeed (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;)Lcom/opencapture/opencine/runtime/NativeVulkanFeedSession;
+	public static synthetic fun vulkanFeed$default (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;ILjava/lang/Object;)Lcom/opencapture/opencine/runtime/NativeVulkanFeedSession;
 }
 
 public final class com/opencapture/opencine/appkitnative/MonitorLiveFeedOwners {
@@ -229,6 +229,46 @@ public final class com/opencapture/opencine/appkitnative/MonitorLiveFeedSource$D
 }
 
 public final class com/opencapture/opencine/appkitnative/MonitorPlaybackFeedViewKt {
-	public static final fun MonitorPlaybackFeedView (Lcom/opencapture/opencine/runtime/MonitorPlaybackPictureOwner;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZLcom/opencapture/monitorui/MonitorPlaybackZoom;IILcom/opencapture/opencine/media/MonitorPlaybackItemToken;ZLkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorPlaybackFeedView (Lcom/opencapture/opencine/runtime/MonitorPlaybackPictureOwner;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZLcom/opencapture/monitorui/MonitorPlaybackZoom;IILcom/opencapture/opencine/media/MonitorPlaybackItemToken;ZLkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;Landroidx/compose/runtime/Composer;III)V
+}
+
+public final class com/opencapture/opencine/appkitnative/MonitorReferenceControlsKt {
+	public static final fun MonitorReferenceControls (Lcom/opencapture/opencine/appkitnative/MonitorReferenceStore;ZLkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Ljava/lang/Float;ZZLandroidx/compose/runtime/Composer;II)V
+}
+
+public final class com/opencapture/opencine/appkitnative/MonitorReferenceStore {
+	public static final field $stable I
+	public fun <init> (Landroid/content/Context;)V
+	public final fun getMode ()Lcom/opencapture/monitorui/MonitorReferenceMode;
+	public final fun getOpacity ()F
+	public final fun getReference ()Lcom/opencapture/opencine/appkitnative/MonitorReferenceStore$Image;
+	public final fun getShown ()Z
+	public final fun getSplit ()F
+	public final fun isBusy ()Z
+	public final fun isLoaded ()Z
+	public final fun load (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun save (Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun setMode (Lcom/opencapture/monitorui/MonitorReferenceMode;)V
+	public final fun setOpacity (F)V
+	public final fun setShown (Z)V
+	public final fun setSplit (F)V
+}
+
+public final class com/opencapture/opencine/appkitnative/MonitorReferenceStore$Image {
+	public static final field $stable I
+	public fun <init> (Landroid/graphics/Bitmap;F)V
+	public final fun component1 ()Landroid/graphics/Bitmap;
+	public final fun component2 ()F
+	public final fun copy (Landroid/graphics/Bitmap;F)Lcom/opencapture/opencine/appkitnative/MonitorReferenceStore$Image;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/appkitnative/MonitorReferenceStore$Image;Landroid/graphics/Bitmap;FILjava/lang/Object;)Lcom/opencapture/opencine/appkitnative/MonitorReferenceStore$Image;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAspect ()F
+	public final fun getBitmap ()Landroid/graphics/Bitmap;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/appkitnative/MonitorReferenceStoreKt {
+	public static final fun getLocalMonitorReferenceStore ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 }
 

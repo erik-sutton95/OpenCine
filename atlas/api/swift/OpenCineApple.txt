@@ -290,6 +290,7 @@ func MonitorLiveVideoRuntime.prepareAfterForeground() -> ()
 func MonitorLiveVideoRuntime.preparePixelBufferSource(transfer: OpenCineMedia.MonitorTransfer) -> ()
 func MonitorLiveVideoRuntime.rebuildPresentation() -> Swift.Bool
 func MonitorLiveVideoRuntime.rebuildPresentationIfNeeded(referenceLossOnly: Swift.Bool) -> Swift.Bool
+func MonitorLiveVideoRuntime.referenceFrame() async -> CoreGraphics.CGImage?
 func MonitorLiveVideoRuntime.reset() -> ()
 func MonitorLiveVideoRuntime.setCleanPictureTap(_: MonitorCleanPictureTap?) -> ()
 func MonitorLiveVideoRuntime.submitDecodedFrame(_: CoreVideo.CVPixelBuffer, policy: MonitorAssistPolicy?, transfer: OpenCineMedia.MonitorTransfer?, isNewSourceFrame: Swift.Bool, generation: Swift.Int?, timeNs: Swift.Int64, source: MonitorVideoSourceToken?) -> ()
@@ -330,12 +331,15 @@ func MonitorPlaybackFeedHost.didMoveToWindow() -> ()
 func MonitorPlaybackFeedHost.layoutSubviews() -> ()
 func MonitorPlaybackFeedSession.attach(host: MonitorPlaybackFeedHost, player: AVFoundation.AVPlayer) -> ()
 func MonitorPlaybackFeedSession.backdropSource() -> CoreVideo.CVPixelBuffer?
+func MonitorPlaybackFeedSession.beginReferenceSeek() -> Swift.UInt64
 func MonitorPlaybackFeedSession.beginSourceChange() -> ()
 func MonitorPlaybackFeedSession.debugOnPullQueue(_: () -> Swift.Void) -> ()
 func MonitorPlaybackFeedSession.detach(host: MonitorPlaybackFeedHost) -> ()
+func MonitorPlaybackFeedSession.finishReferenceSeek(_: Swift.UInt64, completed: Swift.Bool) -> ()
 func MonitorPlaybackFeedSession.noteItemReady() -> ()
 func MonitorPlaybackFeedSession.outputMediaDataWillChange(_: AVFoundation.AVPlayerItemOutput) -> ()
 func MonitorPlaybackFeedSession.prepare(_: AVFoundation.AVPlayerItem) -> ()
+func MonitorPlaybackFeedSession.referenceFrame() async -> CoreGraphics.CGImage?
 func MonitorPlaybackFeedSession.reserveHostGeneration() -> Swift.Int
 func MonitorPlaybackFeedSession.setEffects(_: OpenCineMedia.MonitorFrameEffects, transfer: OpenCineMedia.MonitorTransfer, sampleBus: LiveFrameSampleBus) -> ()
 func MonitorPlaybackFeedSession.shutdown() -> ()
@@ -1010,6 +1014,7 @@ var MonitorPlaybackFeedHost.attachGeneration: Swift.Int
 var MonitorPlaybackFeedHost.onDrawableReady: (() -> Swift.Void)?
 var MonitorPlaybackFeedSession.debugBoundHost: MonitorPlaybackFeedHost?
 var MonitorPlaybackFeedSession.debugItemHasPresented: Swift.Bool
+var MonitorPlaybackFeedSession.referenceCaptureEnabled: Swift.Bool
 var MonitorPlaybackFeedSession.sourceAdmission: (() -> Swift.Bool)?
 var MonitorPlaybackFrameSource.feed: MonitorPlaybackFeedSession
 var MonitorPlaybackFrameSource.onItemChanged: ((AVFoundation.AVPlayerItem?) -> Swift.Void)?

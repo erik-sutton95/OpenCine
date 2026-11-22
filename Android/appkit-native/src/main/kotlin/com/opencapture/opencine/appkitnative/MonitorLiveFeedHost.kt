@@ -16,6 +16,7 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.PixelCopy
 import android.view.Surface
 import android.view.SurfaceView
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -45,9 +47,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect as ComposeRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -75,6 +81,9 @@ import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.monitorBackdropSource
 import com.opencapture.monitorui.monitorBottomInsetDp
 import com.opencapture.monitorui.monitorChromeScale
+import com.opencapture.monitorui.MonitorReferenceOverlay
+import com.opencapture.monitorui.monitorReferenceMatches
+import com.opencapture.monitorui.monitorReferenceRect
 import com.opencapture.monitorui.monitorLeadingInsetDp
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorBackdropActivation
@@ -90,6 +99,10 @@ import com.opencapture.opencine.runtime.InspectorPreviewPipeline
 import com.opencapture.opencine.runtime.MonitorCleanPictureTap
 import com.opencapture.opencine.runtime.MonitorDecoderTextureProgram
 import com.opencapture.opencine.runtime.MonitorHDRDisplay
+import com.opencapture.opencine.runtime.MonitorCleanPictureFrame
+import com.opencapture.opencine.runtime.MonitorReferenceCapture
+import com.opencapture.opencine.runtime.MonitorReferenceFrame
+import com.opencapture.opencine.runtime.referenceFrame
 import com.opencapture.opencine.runtime.MonitorSurfacePictureHost
 import com.opencapture.opencine.runtime.MonitorTexturePictureHost
 import com.opencapture.opencine.runtime.NativeBackdropFeed
@@ -102,7 +115,10 @@ import com.opencapture.opencine.vocabulary.ConnectionPhase
 import com.opencapture.opencine.vocabulary.SessionRecoveryUi
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
@@ -147,12 +163,13 @@ class MonitorLiveFeedIntegration(
         playback: Boolean = false,
         backdrop: MonitorBackdropFeed? = null,
         cleanPicture: MonitorCleanPictureTap? = null,
+        referencePicture: MonitorReferenceCapture<MonitorCleanPictureFrame>? = null,
     ): NativeGlesFeedSession = NativeGlesFeedSession(context, scopeBus, preview, glBackend, clipProfile,
         inferTransfer, options = { presentation(context) }, logTag = "OpcFeedFx",
         onDecoderSurface = onDecoderSurface, onGpuFailed = onGpuFailed, onFirstFrame = onFirstFrame,
         letterboxSource = letterboxSource, notifySurfaceOnMain = notifySurfaceOnMain,
         onFramePresented = { onFramePresented(it ?: 0) }, playback = playback, backdrop = backdrop?.native,
-        cleanPicture = cleanPicture)
+        cleanPicture = cleanPicture, referencePicture = referencePicture)
 
     fun vulkanFeed(
         context: Context,
@@ -164,6 +181,7 @@ class MonitorLiveFeedIntegration(
         onFramePresented: (Long) -> Unit = {},
         backdrop: MonitorBackdropFeed? = null,
         cleanPicture: MonitorCleanPictureTap? = null,
+        referencePicture: MonitorReferenceCapture<MonitorCleanPictureFrame>? = null,
     ): NativeVulkanFeedSession {
         val app = context.applicationContext
         return NativeVulkanFeedSession(context, scopeBus, clipProfile,
@@ -173,7 +191,7 @@ class MonitorLiveFeedIntegration(
             logTag = "OpcVulkan", preview = preview, onDecoderSurface = onDecoderSurface,
             onFirstFrame = onFirstFrame, onFailed = onFailed,
             onFramePresented = { onFramePresented(it ?: 0) }, backdrop = backdrop?.native,
-            cleanPicture = cleanPicture)
+            cleanPicture = cleanPicture, referencePicture = referencePicture)
     }
 }
 
@@ -269,11 +287,12 @@ public fun <F : Any> MonitorLiveFeedHost(
     cover: ShellModel.Cover?,
     onOperatorMenu: () -> Unit,
     onCover: (ShellModel.Cover?) -> Unit = {},
+    referenceActionsEnabled: Boolean = true,
     content: @Composable MonitorLiveFeedScope.() -> Unit,
 ) {
     MonitorLiveFeedBody(feed, source, cover, owners.assist, display.plan, owners.scopes, owners.preview,
         display.viewFlip, display.chromeSectionMounts, display.portraitFeedAspect, display.joystickSize,
-        display.hdrDisplay, display.valueCount, onOperatorMenu, onCover, content)
+        display.hdrDisplay, display.valueCount, onOperatorMenu, onCover, referenceActionsEnabled, content)
 }
 
 @Composable
@@ -293,6 +312,7 @@ private fun <F : Any> MonitorLiveFeedBody(
     valueCount: Int?,
     onOperatorMenu: () -> Unit,
     onCover: (ShellModel.Cover?) -> Unit = {},
+    referenceActionsEnabled: Boolean = true,
     content: @Composable MonitorLiveFeedScope.() -> Unit,
 ) {
     val context = LocalContext.current
@@ -319,6 +339,11 @@ private fun <F : Any> MonitorLiveFeedBody(
     val hasPicture by decoder.hasPicture.collectAsState()
     val identity = source.pictureIdentity
     val backdrop = rememberMonitorBackdropFeed(identity, enabled = cover == null && hasPicture)
+    val referenceStore = LocalMonitorReferenceStore.current
+    val referenceSource = remember(referenceStore) {
+        referenceStore?.let { MonitorReferenceCapture<MonitorCleanPictureFrame>() }
+    }
+    DisposableEffect(referenceSource, identity) { onDispose { referenceSource?.cancel() } }
 
     var vulkanFailed by remember { mutableStateOf(false) }
     val vulkanSession =
@@ -329,7 +354,7 @@ private fun <F : Any> MonitorLiveFeedBody(
                     onFirstFrame = { source.noteLiveFrame() },
                     onFailed = { vulkanFailed = true },
                     onFramePresented = { decoder.notePresented(it) },
-                    backdrop = backdrop, cleanPicture = feed.cleanPicture)
+                    backdrop = backdrop, cleanPicture = feed.cleanPicture, referencePicture = referenceSource)
             } else {
                 null
             }
@@ -407,6 +432,15 @@ private fun <F : Any> MonitorLiveFeedBody(
             MonitorHDRDisplay.apply(surface, enabled = hdrDisplay)
         }
         var glesTextureView by remember { mutableStateOf<TextureView?>(null) }
+        val directPictureAt = remember(identity) { AtomicLong(0) }
+        val rawReferenceAspect = if (useVulkan && !verticalPicture) 16f / 9f else decoder.pictureAspect.toFloat()
+        val referenceAspect = if (desqueezeVisible) pictureContent.width / pictureContent.height else rawReferenceAspect
+        val referenceReady = cover == null && hasPicture && !recovery.isRecovering && !source.isFeedRecovering
+        val readyNow by rememberUpdatedState(referenceReady)
+        val identityNow by rememberUpdatedState(identity)
+        val capturedReference = referenceStore?.reference?.takeIf {
+            referenceStore.shown && referenceReady && monitorReferenceMatches(it.aspect, referenceAspect)
+        }
         val wantsFaceDetect by source.wantsFaceDetect.collectAsState()
         var canvasOrigin by remember { mutableStateOf(Offset.Zero) }
         DisposableEffect(vulkanSession) {
@@ -437,11 +471,27 @@ private fun <F : Any> MonitorLiveFeedBody(
                     Box(Modifier.frame(layout.onFeed).clipToBounds()) {
                         GlesPicture(feed, source, liveViewFlip, flipV, desqueezeVisible, backdrop, scopeBus, preview,
                             sourceReady = hasPicture, sourceActive = scopeSourceActive, plan = plan,
-                            onTextureView = { glesTextureView = it },
+                            onTextureView = { glesTextureView = it; directPictureAt.set(0) },
+                            referencePicture = referenceSource,
+                            onDirectPicture = { if (referenceSource != null) directPictureAt.set(SystemClock.elapsedRealtime()) },
                             modifier = Modifier
                                 .offset((pictureContent.x - layout.onFeed.x).dp, (pictureContent.y - layout.onFeed.y).dp)
                                 .size(pictureContent.width.dp, pictureContent.height.dp))
                     }
+                }
+                if (capturedReference != null) {
+                    MonitorReferenceOverlay(capturedReference.bitmap.asImageBitmap(), referenceStore.mode,
+                        referenceStore.opacity, referenceStore.split, { referenceStore.split = it },
+                        imageRect = { well ->
+                            val scale = density.density
+                            val x = (pictureContent.x - layout.onFeed.x) * scale
+                            val y = (pictureContent.y - layout.onFeed.y) * scale
+                            val size = Size(pictureContent.width * scale, pictureContent.height * scale)
+                            if (desqueezeVisible) ComposeRect(Offset(x, y), size)
+                            else if (useVulkan) monitorReferenceRect(well, rawReferenceAspect, fill = true)
+                            else monitorReferenceRect(size, rawReferenceAspect, fill = false)?.translate(x, y)
+                        }, mirrorX = liveViewFlip, mirrorY = flipV,
+                        modifier = Modifier.frame(layout.onFeed).clipToBounds(), interactive = referenceActionsEnabled)
                 }
                 // Passive source geometry; this box draws and captures nothing.
                 Box(Modifier.frame(layout.onFeed).monitorBackdropSource(backdrop.source,
@@ -457,6 +507,27 @@ private fun <F : Any> MonitorLiveFeedBody(
             }
             MonitorLiveFeedScope(geometry, link, hasPicture, verticalPicture, liveViewFlip, recovery.isRecovering,
                 Modifier.onGloballyPositioned { if (!useVulkan) canvasOrigin = it.positionInRoot() }, picture).content()
+            if (referenceStore != null && referenceSource != null && cover == null) {
+                Box(Modifier.frame(layout.onFeed).padding(8.dp), contentAlignment = Alignment.BottomStart) {
+                    MonitorReferenceControls(referenceStore, referenceReady, capture = capture@{
+                        val snapshot = identity
+                        if (!readyNow || identityNow != snapshot) return@capture null
+                        val direct = directPictureAt.get().let { it > 0 && SystemClock.elapsedRealtime() - it <= 600 }
+                        val frame = if (!useVulkan && direct) {
+                            glesTextureView?.let { view ->
+                                if (!view.isAvailable || view.width < 2 || view.height < 2) null
+                                else view.getBitmap(960, maxOf(1, (960 / rawReferenceAspect).roundToInt()))
+                                    ?.let { MonitorReferenceFrame(it, referenceAspect) }
+                            }
+                        } else {
+                            referenceSource.capture()?.let { raw ->
+                                withContext(Dispatchers.Default) { raw.referenceFrame(referenceAspect) }
+                            }
+                        }
+                        frame?.takeIf { readyNow && identityNow == snapshot }
+                    }, live = true, liveAspect = referenceAspect, enabled = referenceActionsEnabled)
+                }
+            }
             LaunchedEffect(cover) {
                 assist.configureTool = null
                 onCover(cover)
@@ -513,9 +584,12 @@ private fun GlesPicture(
     sourceActive: Boolean,
     plan: FeedEffectsRenderPlan,
     onTextureView: (TextureView?) -> Unit,
+    referencePicture: MonitorReferenceCapture<MonitorCleanPictureFrame>?,
+    onDirectPicture: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textureViewOut = rememberUpdatedState(onTextureView)
+    val directPictureOut = rememberUpdatedState(onDirectPicture)
     val current by rememberUpdatedState(source)
     val context = LocalContext.current
     var gpuFailed by remember { mutableStateOf(false) }
@@ -526,7 +600,7 @@ private fun GlesPicture(
                 onGpuFailed = { gpuFailed = true },
                 onFirstFrame = { current.noteLiveFrame() },
                 onFramePresented = { current.decoder.notePresented(it) },
-                backdrop = backdrop, cleanPicture = feed.cleanPicture)
+                backdrop = backdrop, cleanPicture = feed.cleanPicture, referencePicture = referencePicture)
         }
     DisposableEffect(session) {
         onDispose {
@@ -549,7 +623,10 @@ private fun GlesPicture(
                     val program = if (gpuFailed) MonitorDecoderTextureProgram { current.attachSurface(it) } else session.pictureProgram
                     MonitorTexturePictureHost(viewContext, program = program,
                         updated = { view ->
-                            if (gpuFailed) view.surfaceTexture?.let { current.decoder.notePresented(it.timestamp) }
+                            if (gpuFailed) view.surfaceTexture?.let {
+                                current.decoder.notePresented(it.timestamp)
+                                directPictureOut.value()
+                            }
                             current.noteLiveFrame()
                         },
                         journal = { feed.journal("info", "feed", "surface", it) },

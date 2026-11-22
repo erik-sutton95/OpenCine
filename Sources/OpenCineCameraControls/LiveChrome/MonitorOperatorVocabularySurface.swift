@@ -107,12 +107,12 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
         orientation: MonitorDeviceOrientation, controlNote: Binding<String?>,
         headTracking: MonitorOperatorHeadTrackingSource? = nil,
         readLevel: ((TimeInterval, Bool) -> MonitorLevelDisplay)? = nil,
-        pictureEV: (() -> EvComp?)? = nil,
+        pictureEV: (() -> EvComp?)? = nil, reference: AnyView? = nil,
         @ViewBuilder picture: @escaping () -> Picture,
         @ViewBuilder preview: @escaping (MonitorAssistSelection) -> Preview,
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
         let accessories = MonitorOperatorLegacyAccessories(host: host, layout: layout, interaction: interaction,
-            source: source, zoom: zoom, focus: focus, headTracking: headTracking, orientation: orientation)
+            source: source, zoom: zoom, focus: focus, headTracking: headTracking, orientation: orientation, reference: reference)
         let presented = { host.captureSheet ?? interaction.topMenu.map { $0 == .color ? CaptureSheet.color : .resolution } }
         self.init(host: host, control: host.control, session: host.operatorSession, layout: layout,
             source: .init(
@@ -228,8 +228,10 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
     let headTracking: MonitorOperatorHeadTrackingSource?
     let orientation: MonitorDeviceOrientation
 
+    let reference: AnyView?
+
     var views: MonitorOperatorBodyViews {
-        .init(feedMarks: AnyView(MonitorOperatorLiveMarks(host: host, focus: focus, aspect: source.pictureAspect)),
+        .init(reference: reference, feedMarks: AnyView(MonitorOperatorLiveMarks(host: host, focus: focus, aspect: source.pictureAspect)),
             feedGestures: AnyView(MonitorOperatorFeedGestures(accessories: self)),
             focusControls: AnyView(MonitorOperatorFocusContent(accessories: self)),
             motion: .init(controls: AnyView(MonitorOperatorMotionContent(accessories: self, part: .controls)),

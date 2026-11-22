@@ -278,6 +278,7 @@ public struct MonitorOperatorLiveAudio {
     public let dashboard: AnyView?
     public let connection: AnyView?
     public let comparison: AnyView?
+    public let reference: AnyView?
     public let resetFocus: (() -> Void)?
     public let feedMarks: AnyView?
     public let feedGestures: AnyView?
@@ -287,11 +288,11 @@ public struct MonitorOperatorLiveAudio {
     /// the shared waiting plate while the first frame is awaited.
     public let waiting: AnyView?
     public init(focusDrive: AnyView? = nil, dashboard: AnyView? = nil, connection: AnyView? = nil,
-        comparison: AnyView? = nil, resetFocus: (() -> Void)? = nil,
+        comparison: AnyView? = nil, reference: AnyView? = nil, resetFocus: (() -> Void)? = nil,
         feedMarks: AnyView? = nil, feedGestures: AnyView? = nil, focusControls: AnyView? = nil,
         motion: MonitorOperatorMotionViews? = nil, waiting: AnyView? = nil) {
         self.focusDrive = focusDrive; self.dashboard = dashboard; self.connection = connection
-        self.comparison = comparison; self.resetFocus = resetFocus
+        self.comparison = comparison; self.reference = reference; self.resetFocus = resetFocus
         self.feedMarks = feedMarks; self.feedGestures = feedGestures; self.focusControls = focusControls
         self.motion = motion; self.waiting = waiting
     }
@@ -897,6 +898,12 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                     if admitted { focusReset() }
                 }
                 .position(x: focusResetFrame.midX, y: focusResetFrame.midY)
+            }
+            if !command, !locked, editing == nil, !facts.picture.waiting,
+                mounts(.toolBar), let reference = cameraViews.reference {
+                reference.position(x: layout.picture.midX,
+                    y: max(layout.picture.y + 26, live.safeArea.top + 32))
+                    .allowsHitTesting(presentationAdmitted)
             }
             if !command, !locked, editing == nil, let comparison = cameraViews.comparison {
                 comparison.position(x: focusResetFrame.midX, y: focusResetFrame.midY - 50)

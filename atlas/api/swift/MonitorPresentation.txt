@@ -337,6 +337,7 @@ enum MonitorReadoutEvent<SourceIdentity where SourceIdentity : Swift.Hashable, S
 enum MonitorReadoutInteraction.Outcome: Equatable, Sendable
 enum MonitorReadoutInteraction.Phase: Equatable, Hashable, Sendable
 enum MonitorReadoutTypography: Sendable
+enum MonitorReferenceLayout
 enum MonitorScopeCanvasSlot: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorScopeChromeAvoidance
 enum MonitorScopeSizing
@@ -1028,6 +1029,9 @@ static func MonitorPlaybackCopy.toggleValue(_: Swift.Bool) -> Swift.String
 static func MonitorPlaybackCopy.transport(reachedEnd: Swift.Bool, playing: Swift.Bool) -> Swift.String
 static func MonitorPlaybackZoom.boundPan(_: CoreFoundation.CGSize, frame: CoreFoundation.CGSize, scale: CoreGraphics.CGFloat, picture: CoreFoundation.CGSize?) -> CoreFoundation.CGSize
 static func MonitorReadoutTypography.valueSize(tablet: Swift.Bool) -> Swift.Double
+static func MonitorReferenceLayout.fraction(at: CoreFoundation.CGPoint, in: CoreFoundation.CGRect, clockwiseTurns: Swift.Int) -> Swift.Double
+static func MonitorReferenceLayout.matches(saved: Swift.Double, live: Swift.Double) -> Swift.Bool
+static func MonitorReferenceLayout.splitRect(in: CoreFoundation.CGRect, fraction: Swift.Double, clockwiseTurns: Swift.Int) -> CoreFoundation.CGRect
 static func MonitorScopeCanvasSlot.forSize(width: Swift.Double, height: Swift.Double) -> MonitorScopeCanvasSlot
 static func MonitorScopeChromeAvoidance.resolve(_: MonitorScopePoint, width: Swift.Double, height: Swift.Double, bottomExtent: Swift.Double, avoiding: [MonitorRect], gap: Swift.Double, clamp: (MonitorScopePoint) -> MonitorScopePoint) -> MonitorScopePoint
 static func MonitorScopePanelOptions.clampedScale(_: Swift.Double) -> Swift.Double

@@ -67,6 +67,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     var look: MonitorPlaybackLook<Look>? = nil
     var resolvedLookRequest: UUID?
     var scrubbing: Bool = false
+    var referenceSeeking = false
     var scrubPosition: Double = 0
     var closed: Bool = false
   }
@@ -77,7 +78,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   private enum Field: Equatable {
     case active, playlist, item, token, ready, nativeItemInstalled, loading, error,
       playRequested, reportedPlaying, reportedTransport, position, duration, metadata, reachedEnd, muted,
-      looping, conformTarget, look, scrubbing, scrubPosition, closed
+      looping, conformTarget, look, scrubbing, referenceSeeking, scrubPosition, closed
   }
 
   public var active: MonitorMediaRecord<Payload>? {
@@ -166,6 +167,15 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     access(keyPath: \.scrubbing)
     return snapshot.scrubbing
   }
+  /// Logical playback admission for reference capture. The native feed still verifies the
+  /// paused picture and current presentation owner at readback.
+  public var referenceFrameReady: Bool {
+    ready && !playRequested && !canPause && !scrubbing && !referenceSeeking
+  }
+  private var referenceSeeking: Bool {
+    access(keyPath: \.referenceSeeking)
+    return snapshot.referenceSeeking
+  }
   public var scrubPosition: Double {
     access(keyPath: \.scrubPosition)
     return snapshot.scrubPosition
@@ -215,6 +225,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       case .conformTarget: withMutation(keyPath: \.conformTarget) {}
       case .look: withMutation(keyPath: \.look) {}
       case .scrubbing: withMutation(keyPath: \.scrubbing) {}
+      case .referenceSeeking: withMutation(keyPath: \.referenceSeeking) {}
       case .scrubPosition: withMutation(keyPath: \.scrubPosition) {}
       case .closed: withMutation(keyPath: \.closed) {}
       }
@@ -393,7 +404,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
         [
           .token, .active, .playlist, .item, .ready, .nativeItemInstalled, .loading,
           .error, .reachedEnd, .position, .duration, .metadata, .conformTarget, .look,
-          .reportedPlaying, .reportedTransport, .playRequested, .scrubbing,
+          .reportedPlaying, .reportedTransport, .playRequested, .scrubbing, .referenceSeeking,
         ],
         { state in
           state.token = admitted
@@ -419,6 +430,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
           state.reportedTransport = nil
           state.playRequested = play
           state.scrubbing = false
+          state.referenceSeeking = false
         }), admit(admitted)
     else { return }
     native.retireItem(for: admitted)
@@ -745,8 +757,9 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     seekTask = nil
     guard
       publish(
-        [.position, .scrubPosition, .reachedEnd],
+        [.position, .scrubPosition, .reachedEnd, .referenceSeeking],
         {
+          $0.referenceSeeking = true
           $0.position = target
           $0.scrubPosition = target
           if $0.reachedEnd, target + seekEndClearance < ($0.duration ?? 0) { $0.reachedEnd = false }
@@ -757,7 +770,9 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       let completed = await self.native.seek(seconds: target, tolerance: 0, token: admitted)
       guard self.admit(admitted), !Task.isCancelled else { return }
       self.seekTask = nil
-      guard completed, self.presentationActive, self.sceneActive else { return }
+      guard self.publish([.referenceSeeking], { $0.referenceSeeking = false }),
+        completed, self.presentationActive, self.sceneActive
+      else { return }
       if resume { self.setPlaying(true, admitted: admitted, request: request) }
     }
   }
@@ -777,7 +792,10 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       native.pause(token: item)
     }
     guard admit(item), scrub?.token == admitted,
-      publish([.scrubbing], { $0.scrubbing = true })
+      publish([.scrubbing, .referenceSeeking], {
+        $0.scrubbing = true
+        $0.referenceSeeking = false
+      })
     else { return nil }
     return admit(item) && scrub?.token == admitted ? admitted : nil
   }
@@ -818,7 +836,10 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     else { return }
     let target = scrubPosition
     scrub = nil
-    guard publish([.scrubbing], { $0.scrubbing = false }), admit(admitted.item) else { return }
+    guard publish([.scrubbing, .referenceSeeking], {
+      $0.scrubbing = false
+      $0.referenceSeeking = true
+    }), admit(admitted.item) else { return }
     seek(to: target, resume: edit.resume, admitted: admitted.item)
   }
   public func cancelScrub(interrupted: Bool, admitted: MonitorPlaybackScrubToken? = nil) {
@@ -832,7 +853,10 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     scrub = nil
     seekTask?.cancel()
     seekTask = nil
-    guard publish([.scrubbing], { $0.scrubbing = false }), admit(admitted),
+    guard publish([.scrubbing, .referenceSeeking], {
+      $0.scrubbing = false
+      $0.referenceSeeking = false
+    }), admit(admitted),
       interrupted, let edit, edit.token.item == admitted, presentationActive, sceneActive
     else { return }
     seekTask = Task { [weak self] in
@@ -896,13 +920,14 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   public func close() {
     guard !closed else { return }
     let retired = MonitorPlaybackItemToken(owner: token.owner, revision: token.revision &+ 1)
-    publish([.closed, .token, .ready, .nativeItemInstalled, .loading, .scrubbing]) {
+    publish([.closed, .token, .ready, .nativeItemInstalled, .loading, .scrubbing, .referenceSeeking]) {
       $0.closed = true
       $0.token = retired
       $0.ready = false
       $0.nativeItemInstalled = false
       $0.loading = false
       $0.scrubbing = false
+      $0.referenceSeeking = false
     }
     admissionWatch = UUID()
     itemAdmission = nil

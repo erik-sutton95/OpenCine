@@ -89,11 +89,14 @@
         /// Outdoor HDR panel. Identity presents through Metal EDR.
         public var hdrDisplay: Bool
         public var qualification: (@MainActor () -> MonitorNativeQualificationSnapshot?)?
+        /// Observe the horizontal mirror after the native picture applies it.
+        public var onPictureMirror: (@MainActor (Bool) -> Void)?
 
         public init(
             decoder: App.Decoder, effects: MonitorFrameEffects, sampleBus: LiveFrameSampleBus,
             transfer: MonitorTransfer? = nil, pictureFlip: Bool = false, hdrDisplay: Bool = false,
-            qualification: (@MainActor () -> MonitorNativeQualificationSnapshot?)? = nil
+            qualification: (@MainActor () -> MonitorNativeQualificationSnapshot?)? = nil,
+            onPictureMirror: (@MainActor (Bool) -> Void)? = nil
         ) {
             self.decoder = decoder
             self.effects = effects
@@ -102,6 +105,7 @@
             self.pictureFlip = pictureFlip
             self.hdrDisplay = hdrDisplay
             self.qualification = qualification
+            self.onPictureMirror = onPictureMirror
         }
 
         public var body: some View {
@@ -115,7 +119,7 @@
                 transfer: transfer,
                 feedUpscaler: App.feedUpscaler.upscaler,
                 hdrDisplay: hdrDisplay,
-                qualification: qualification
+                qualification: qualification, onPictureMirror: onPictureMirror
             )
             .transaction { $0.animation = nil }
         }
@@ -139,12 +143,15 @@
         public var feedUpscaler: MonitorUpscaler
         public var hdrDisplay: Bool
         public var qualification: (@MainActor () -> MonitorNativeQualificationSnapshot?)?
+        /// Observe the horizontal mirror after the native picture applies it.
+        public var onPictureMirror: (@MainActor (Bool) -> Void)?
 
         public init(
             decoder: App.Decoder, effects: MonitorFrameEffects, assistMirror: Bool,
             flipVertical: Bool = false, pictureFlip: Bool, sampleBus: LiveFrameSampleBus,
             transfer: MonitorTransfer?, feedUpscaler: MonitorUpscaler, hdrDisplay: Bool,
-            qualification: (@MainActor () -> MonitorNativeQualificationSnapshot?)? = nil
+            qualification: (@MainActor () -> MonitorNativeQualificationSnapshot?)? = nil,
+            onPictureMirror: (@MainActor (Bool) -> Void)? = nil
         ) {
             self.decoder = decoder
             self.effects = effects
@@ -156,6 +163,7 @@
             self.feedUpscaler = feedUpscaler
             self.hdrDisplay = hdrDisplay
             self.qualification = qualification
+            self.onPictureMirror = onPictureMirror
         }
 
         public func makeUIView(context: Context) -> MonitorLiveDisplayLayerView<App> {
@@ -203,8 +211,9 @@
         }
 
         private func bindMirror(_ decoder: App.Decoder, view: MonitorLiveDisplayLayerView<App>) {
-            decoder.applyPictureMirror = { [weak view] mirrored in
+            decoder.applyPictureMirror = { [weak view, onPictureMirror] mirrored in
                 view?.setPictureMirrored(mirrored)
+                onPictureMirror?(mirrored)
             }
             decoder.assistMirror = assistMirror
             view.setPictureFlippedVertically(flipVertical)

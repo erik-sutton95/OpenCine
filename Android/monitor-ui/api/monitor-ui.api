@@ -4293,6 +4293,20 @@ public final class com/opencapture/monitorui/MonitorRect {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/opencapture/monitorui/MonitorReferenceMode : java/lang/Enum {
+	public static final field BLEND Lcom/opencapture/monitorui/MonitorReferenceMode;
+	public static final field SPLIT Lcom/opencapture/monitorui/MonitorReferenceMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorReferenceMode;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorReferenceMode;
+}
+
+public final class com/opencapture/monitorui/MonitorReferenceOverlayKt {
+	public static final fun MonitorReferenceOverlay (Landroidx/compose/ui/graphics/ImageBitmap;Lcom/opencapture/monitorui/MonitorReferenceMode;FFLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ZZLandroidx/compose/ui/Modifier;ZLandroidx/compose/runtime/Composer;II)V
+	public static final fun monitorReferenceMatches (FF)Z
+	public static final fun monitorReferenceRect-Pq9zytI (JFZ)Landroidx/compose/ui/geometry/Rect;
+}
+
 public final class com/opencapture/monitorui/MonitorScopeChrome : java/lang/Enum {
 	public static final field ASPECT_TOGGLE Lcom/opencapture/monitorui/MonitorScopeChrome;
 	public static final field Companion Lcom/opencapture/monitorui/MonitorScopeChrome$Companion;

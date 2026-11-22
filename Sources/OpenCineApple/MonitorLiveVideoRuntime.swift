@@ -79,7 +79,11 @@ open class MonitorLiveVideoRuntime {
         didSet { applyEffectsChange() }
     }
     private var effects: MonitorAssistPolicy { demand.assists }
-    private var needsDecodedSample: Bool { demand.needsDecodedSample }
+    private var needsDecodedSample: Bool { demand.needsDecodedSample || referenceCaptureNeedsDecode }
+
+    private var referenceCapture: UUID?
+    private var referenceCaptureNeedsDecode = false
+    private var lastReferenceSource: (buffer: CVPixelBuffer, generation: StreamGeneration, at: Date)?
     /// Last accepted source transfer. Provider wins when set. Decode sets it on every access
     /// unit; only a change pushes the policy (a push reads the assist settings again).
     public var incomingTransfer: MonitorTransfer? {
@@ -302,6 +306,64 @@ open class MonitorLiveVideoRuntime {
         displayedImageRemoved ? nil : lastDecodedBuffer
     }
 
+    /// Captures a clean live picture from the current source at monitor resolution. On the
+    /// compressed path, prefer the displayed pixels and briefly request the existing VT decoder
+    /// only if the display layer cannot supply them.
+    public func referenceFrame() async -> CGImage? {
+        guard let source = sourceToken, accepts(source), referenceCapture == nil,
+            !displayedImageRemoved, !awaitingIDR, !referenceRecoveryNeeded,
+            isRecentReferenceFrame(lastSourceFrameAt)
+        else { return nil }
+        let request = UUID()
+        referenceCapture = request
+        defer {
+            if referenceCapture == request {
+                referenceCaptureNeedsDecode = false
+                referenceCapture = nil
+            }
+        }
+
+        var buffer = currentReferenceBuffer(source: source)
+        if buffer == nil {
+            referenceCaptureNeedsDecode = true
+            applyEffectsChange()
+            let deadline = ContinuousClock.now.advanced(by: .milliseconds(1500))
+            while buffer == nil, ContinuousClock.now < deadline {
+                do { try await Task.sleep(for: .milliseconds(16)) } catch { return nil }
+                guard accepts(source), referenceCapture == request else { return nil }
+                buffer = currentReferenceBuffer(source: source)
+            }
+        }
+        guard let buffer, accepts(source), referenceCapture == request else { return nil }
+        let generation = vt.fence.generation
+        let image = await MonitorReferenceRaster.render(.init(buffer: buffer, seekRevision: 0))
+        guard !Task.isCancelled, accepts(source, generation: generation),
+            referenceCapture == request, !displayedImageRemoved, !referenceRecoveryNeeded
+        else { return nil }
+        return image
+    }
+
+    private func isRecentReferenceFrame(_ at: Date?) -> Bool {
+        guard let at else { return false }
+        return (0...0.5).contains(Date().timeIntervalSince(at))
+    }
+
+    private func currentReferenceBuffer(source: MonitorVideoSourceToken) -> CVPixelBuffer? {
+        guard accepts(source), !displayedImageRemoved, !awaitingIDR, !referenceRecoveryNeeded
+        else { return nil }
+        if let frame = lastReferenceSource, accepts(source, generation: frame.generation),
+            isRecentReferenceFrame(frame.at)
+        {
+            return frame.buffer
+        }
+        if #available(iOS 17.4, *), !usesPixelBufferDisplay, !displayLayer.isHidden,
+            isRecentReferenceFrame(lastSourceFrameAt)
+        {
+            return displayLayer.sampleBufferRenderer.displayedPixelBuffer()
+        }
+        return nil
+    }
+
     public var backdropPolicy: MonitorAssistPolicy {
         var result = effects
         result.image.clipByte = sampleSource?.exposureCeiling.clipByte(
@@ -379,6 +441,8 @@ open class MonitorLiveVideoRuntime {
         sampleSource = nil
         lastDecodedBuffer = nil
         lastDecodedTimeNs = 0
+        referenceCapture = nil
+        referenceCaptureNeedsDecode = false
         vt.dropFormat()
         ownedProcessedFeed?.invalidatePendingPresents()
         ownedProcessedFeed?.setOverlayChrome(false)
@@ -723,6 +787,7 @@ open class MonitorLiveVideoRuntime {
                     self.sampleBus?.noteDecodedFrame(publicationSource)
                 }
                 if presented && isNewSourceFrame {
+                    self.lastReferenceSource = (result.source, generation, sourceTime)
                     self.publishPreview(result)
                     guard self.accepts(source, generation: generation),
                         publicationSource?.isActive != false else { return }
@@ -770,6 +835,8 @@ open class MonitorLiveVideoRuntime {
         hardwareDecoderUnlocked = false
         lastDecodedBuffer = nil
         lastDecodedTimeNs = 0
+        referenceCapture = nil
+        referenceCaptureNeedsDecode = false
         lastPresentHealthLogAt = nil
         presentedPictureFlip = nil
         extraMirrorHold.reset()
@@ -1294,6 +1361,7 @@ open class MonitorLiveVideoRuntime {
         // The runtime fences successful callbacks before teardown can deliver its final output.
         vt.invalidateSession()
         hasSubmittedRandomAccess = false
+        lastReferenceSource = nil
     }
 
     private func rebuildVT(force: Bool = false) {

@@ -176,6 +176,34 @@ import Testing
         #expect(large < small * 20 + .milliseconds(20), "8 records: \(small), 8000 records: \(large)")
     }
 
+    @available(macOS 14, *) @Test func referenceCaptureWaitsForTheCurrentPausedSeek() async throws {
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("reference")
+        model.load(row, playlist: [row], play: false)
+        try #require(await eventually { port.preparations.count == 1 })
+        port.release(0)
+        try #require(await eventually { model.referenceFrameReady })
+
+        let edit = try #require(model.beginScrub())
+        #expect(!model.referenceFrameReady)
+        model.updateScrub(seconds: 23, admitted: edit)
+        try #require(await eventually { port.seeks.count == 1 })
+        model.commitScrub(admitted: edit)
+        try #require(await eventually { port.seeks.count == 2 })
+        port.finishSeek(0)
+        #expect(!model.referenceFrameReady)
+        port.finishSeek(1)
+        try #require(await eventually { model.referenceFrameReady })
+
+        model.setPlaying(true)
+        #expect(!model.referenceFrameReady)
+        model.setPlaying(false)
+        #expect(model.referenceFrameReady)
+        model.close()
+        #expect(!model.referenceFrameReady)
+    }
+
     @Test func pendingLoopSeekCompletionCannotOverrideOperatorPause() async {
         guard #available(macOS 14, *) else { return }
         let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)

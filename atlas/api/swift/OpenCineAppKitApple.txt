@@ -19,6 +19,8 @@ case LiveStreamCameraRelayEvent.listenFailed
 case LiveStreamCameraRelayEvent.lost
 case MonitorDeliveryPhotosSaver.SaveError.permissionDenied
 case MonitorDeliveryPhotosSaver.SaveError.saveFailed(Swift.String)
+case MonitorReferenceStore.Mode.blend
+case MonitorReferenceStore.Mode.split
 case StationNetworkSetupView.Page.choose
 case StationNetworkSetupView.Page.hotspot
 case StationNetworkSetupView.Page.networks
@@ -44,6 +46,7 @@ class MonitorLiveDisplayLayerView<App where App : MonitorLivePictureApp>: OpenCi
 class MonitorLiveFeedView<App where App : MonitorLivePictureApp>: OpenCineApple.MonitorPictureHost, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class MonitorPlaybackAssistSession: MonitorPlaybackAssistService, Observable, Sendable
 class MonitorPlaybackLayerView.Coordinator: Sendable
+class MonitorReferenceStore: Observable, Sendable
 class MonitorRemoteShutter: Sendable
 class MonitorScreenWakeOwner: Sendable
 class MonitorVideoBackdropRenderer: Sendable
@@ -54,6 +57,7 @@ enum LiveStreamCameraError: Equatable, Error, Sendable
 enum LiveStreamCameraRelayEvent: Equatable, Hashable, Sendable
 enum MonitorDeliveryPhotosSaver.SaveError: Error, LocalizedError, Sendable
 enum MonitorDeliveryPhotosSaver: Sendable
+enum MonitorReferenceStore.Mode: CaseIterable, Equatable, Hashable, RawRepresentable
 enum StationNetworkSetupView.Page: Equatable, Hashable
 enum WatcherJoinStatus: Equatable, Sendable
 extension Foundation.Name
@@ -152,6 +156,8 @@ func MonitorPlaybackAssistSession.synchronize(item: OpenCineMedia.MonitorPlaybac
 func MonitorPlaybackLayerView.makeCoordinator() -> MonitorPlaybackLayerView.Coordinator
 func MonitorPlaybackLayerView.makeUIView(context: MonitorPlaybackLayerView.Context) -> OpenCineApple.MonitorPlaybackFeedHost
 func MonitorPlaybackLayerView.updateUIView(_: OpenCineApple.MonitorPlaybackFeedHost, context: MonitorPlaybackLayerView.Context) -> ()
+func MonitorReferenceStore.dismissNotice() -> ()
+func MonitorReferenceStore.save(_: () async -> MonitorReferenceStill?) async -> ()
 func MonitorRemoteShutter.stop() -> ()
 func MonitorRemoteShutter.update(enabled: Swift.Bool, monitorPresented: Swift.Bool, liveViewFront: Swift.Bool, audioSessionAvailable: Swift.Bool) -> Swift.Bool
 func MonitorScreenWakeOwner.retire() -> ()
@@ -218,11 +224,13 @@ init MonitorLiveDisplayLayerView(_: AVFoundation.AVSampleBufferDisplayLayer)<App
 init MonitorLiveDisplayLayerView(coder: Foundation.NSCoder)<App where App : MonitorLivePictureApp>
 init MonitorLiveFeedView(coder: Foundation.NSCoder)<App where App : MonitorLivePictureApp>
 init MonitorLiveFeedView(frame: CoreFoundation.CGRect)<App where App : MonitorLivePictureApp>
-init MonitorLiveVideoRepresentable(decoder: App.Decoder, effects: OpenCineMedia.MonitorFrameEffects, assistMirror: Swift.Bool, flipVertical: Swift.Bool, pictureFlip: Swift.Bool, sampleBus: OpenCineApple.LiveFrameSampleBus, transfer: OpenCineMedia.MonitorTransfer?, feedUpscaler: OpenCineApple.MonitorUpscaler, hdrDisplay: Swift.Bool, qualification: (() -> OpenCineApple.MonitorNativeQualificationSnapshot?)?)<App where App : MonitorLivePictureApp>
-init MonitorLiveVideoView(decoder: App.Decoder, effects: OpenCineMedia.MonitorFrameEffects, sampleBus: OpenCineApple.LiveFrameSampleBus, transfer: OpenCineMedia.MonitorTransfer?, pictureFlip: Swift.Bool, hdrDisplay: Swift.Bool, qualification: (() -> OpenCineApple.MonitorNativeQualificationSnapshot?)?)<App where App : MonitorLivePictureApp>
+init MonitorLiveVideoRepresentable(decoder: App.Decoder, effects: OpenCineMedia.MonitorFrameEffects, assistMirror: Swift.Bool, flipVertical: Swift.Bool, pictureFlip: Swift.Bool, sampleBus: OpenCineApple.LiveFrameSampleBus, transfer: OpenCineMedia.MonitorTransfer?, feedUpscaler: OpenCineApple.MonitorUpscaler, hdrDisplay: Swift.Bool, qualification: (() -> OpenCineApple.MonitorNativeQualificationSnapshot?)?, onPictureMirror: ((Swift.Bool) -> Swift.Void)?)<App where App : MonitorLivePictureApp>
+init MonitorLiveVideoView(decoder: App.Decoder, effects: OpenCineMedia.MonitorFrameEffects, sampleBus: OpenCineApple.LiveFrameSampleBus, transfer: OpenCineMedia.MonitorTransfer?, pictureFlip: Swift.Bool, hdrDisplay: Swift.Bool, qualification: (() -> OpenCineApple.MonitorNativeQualificationSnapshot?)?, onPictureMirror: ((Swift.Bool) -> Swift.Void)?)<App where App : MonitorLivePictureApp>
 init MonitorPlaybackAssistSession(audioSession: OpenCineApple.MonitorPlaybackAudioSession, native: any OpenCineApple.MonitorPlaybackFrameSource, samples: OpenCineApple.LiveFrameSampleBus, projectEffects: (OpenCineMedia.MonitorFrameEffects) -> OpenCineMedia.MonitorFrameEffects, onTapFailure: (Swift.Int32) -> Swift.Void, onAudioFailure: (Swift.String) -> Swift.Void, audioOwnership: ((Swift.Bool) -> Swift.Void)?)
 init MonitorPlaybackAssistSession(native: any OpenCineApple.MonitorPlaybackFrameSource, samples: OpenCineApple.LiveFrameSampleBus, projectEffects: (OpenCineMedia.MonitorFrameEffects) -> OpenCineMedia.MonitorFrameEffects, onTapFailure: (Swift.Int32) -> Swift.Void, onAudioFailure: (Swift.String) -> Swift.Void)
 init MonitorPlaybackLayerView(player: AVFoundation.AVPlayer, session: OpenCineApple.MonitorPlaybackFeedSession, makeHost: () -> OpenCineApple.MonitorPlaybackFeedHost, qualificationItemToken: (() -> OpenCineMedia.MonitorPlaybackItemToken?)?, effects: OpenCineMedia.MonitorFrameEffects, transfer: OpenCineMedia.MonitorTransfer, sampleBus: OpenCineApple.LiveFrameSampleBus)
+init MonitorReferenceStill(image: CoreGraphics.CGImage, displayAspect: Swift.Double, orientation: UIKit.UIImage.Orientation)
+init MonitorReferenceStore(directory: Foundation.URL)
 init MonitorRemoteShutter(subsystem: Swift.String, category: Swift.String)
 init MonitorScreenWakeOwner(apply: (Swift.Bool) -> Swift.Void)
 init MonitorVideoBackdropConfiguration(source: Swift.ObjectIdentifier, generation: Swift.Int, effects: OpenCineMedia.MonitorFrameEffects, geometry: [CoreGraphics.CGFloat])
@@ -257,6 +265,9 @@ let MonitorInspectorImageSource.Snapshot.transfer: OpenCineMedia.MonitorTransfer
 let MonitorLiveDisplayLayerView.ciFeed: MonitorLiveFeedView<App>
 let MonitorLiveVideoRepresentable.decoder: App.Decoder
 let MonitorLiveVideoView.decoder: App.Decoder
+let MonitorReferenceStill.displayAspect: Swift.Double
+let MonitorReferenceStill.image: CoreGraphics.CGImage
+let MonitorReferenceStill.orientation: UIKit.UIImage.Orientation
 let MonitorRemoteShutter.log: os.Logger
 let MonitorVideoBackdropRenderer.Result.isUnchanged: Swift.Bool
 let MonitorVideoBackdropRenderer.Result.snapshot: MonitorUI.MonitorBackdropSnapshot?
@@ -318,6 +329,7 @@ struct MonitorInspectorImageSource: Sendable
 struct MonitorLiveVideoRepresentable<App where App : MonitorLivePictureApp>: Sendable, UIViewRepresentable, View
 struct MonitorLiveVideoView<App where App : MonitorLivePictureApp>: Sendable, View
 struct MonitorPlaybackLayerView: Sendable, UIViewRepresentable, View
+struct MonitorReferenceStill: Sendable
 struct MonitorVideoBackdropConfiguration: Equatable
 struct MonitorVideoBackdropRenderer.Result
 struct MultiviewCameraSettingsPanel<Link, Host where Link : OpenCineCore.MultiviewMemberLink, Host : MultiviewScreenHost, Link.Camera : Swift.Sendable>: Sendable, View
@@ -414,6 +426,7 @@ var MonitorLiveVideoRepresentable.effects: OpenCineMedia.MonitorFrameEffects
 var MonitorLiveVideoRepresentable.feedUpscaler: OpenCineApple.MonitorUpscaler
 var MonitorLiveVideoRepresentable.flipVertical: Swift.Bool
 var MonitorLiveVideoRepresentable.hdrDisplay: Swift.Bool
+var MonitorLiveVideoRepresentable.onPictureMirror: ((Swift.Bool) -> Swift.Void)?
 var MonitorLiveVideoRepresentable.pictureFlip: Swift.Bool
 var MonitorLiveVideoRepresentable.qualification: (() -> OpenCineApple.MonitorNativeQualificationSnapshot?)?
 var MonitorLiveVideoRepresentable.sampleBus: OpenCineApple.LiveFrameSampleBus
@@ -422,11 +435,19 @@ var MonitorLiveVideoSource.effects: OpenCineMedia.MonitorFrameEffects
 var MonitorLiveVideoView.body: some SwiftUI.View
 var MonitorLiveVideoView.effects: OpenCineMedia.MonitorFrameEffects
 var MonitorLiveVideoView.hdrDisplay: Swift.Bool
+var MonitorLiveVideoView.onPictureMirror: ((Swift.Bool) -> Swift.Void)?
 var MonitorLiveVideoView.pictureFlip: Swift.Bool
 var MonitorLiveVideoView.qualification: (() -> OpenCineApple.MonitorNativeQualificationSnapshot?)?
 var MonitorLiveVideoView.sampleBus: OpenCineApple.LiveFrameSampleBus
 var MonitorLiveVideoView.transfer: OpenCineMedia.MonitorTransfer?
 var MonitorPlaybackAssistSession.audioLevels: OpenCineMedia.MonitorAudioMeterLevels?
+var MonitorReferenceStore.blend: Swift.Double
+var MonitorReferenceStore.divider: Swift.Double
+var MonitorReferenceStore.mode: MonitorReferenceStore.Mode
+var MonitorReferenceStore.notice: Swift.String?
+var MonitorReferenceStore.saved: MonitorReferenceStill?
+var MonitorReferenceStore.saving: Swift.Bool
+var MonitorReferenceStore.visible: Swift.Bool
 var MonitorRemoteShutter.isActive: Swift.Bool
 var MonitorRemoteShutter.onTrigger: (() -> Swift.Void)?
 var MonitorVideoBackdropConfiguration.effects: OpenCineMedia.MonitorFrameEffects

@@ -6,10 +6,87 @@
     import OpenCineMedia
     import Testing
     import os
+    #if canImport(UIKit)
+        import UIKit
+    #endif
 
     /// Real native decode coverage. Polls wait for AVFoundation, not a portable policy clock.
     @MainActor @Suite(.serialized) struct MonitorAppleProgressivePlaybackTests {
         #if canImport(UIKit)
+            @Test(arguments: [false, true])
+            func pausedReferenceCapturesTheSettledFrameFromTheVisibleRenderer(processed: Bool)
+                async throws
+            {
+                let directory = try fixtureDirectory()
+                defer { try? FileManager.default.removeItem(at: directory) }
+                let url = directory.appendingPathComponent("SIMULATED-reference.mov")
+                try await writeMovie(at: url, rotate: true)
+                let feed = MonitorPlaybackFeedSession(configuration: .init(), hdrDisplay: { processed })
+                feed.referenceCaptureEnabled = true
+                let native = MonitorApplePlaybackOwner(feed: feed)
+                let token = MonitorPlaybackItemToken(owner: UUID(), revision: 0)
+                native.retireItem(for: token)
+                let viewport = CGRect(x: 0, y: 0, width: 280, height: 280)
+                let window = UIWindow(frame: viewport)
+                let root = UIViewController()
+                window.rootViewController = root
+                window.makeKeyAndVisible()
+                defer { window.isHidden = true; native.close(token: token) }
+                let picture = MonitorPictureHost(frame: viewport, options: { _ in .init() },
+                    logSubsystem: "opencine.reference-test")
+                let host = MonitorPlaybackFeedHost(frame: viewport, picture: picture)
+                root.view.addSubview(host)
+                feed.attach(host: host, player: native.player)
+                let samples = LiveFrameSampleBus()
+                feed.setEffects(.init(), transfer: .rec709, sampleBus: samples)
+                root.view.layoutIfNeeded()
+                host.layoutIfNeeded()
+                _ = try await native.prepare(
+                    .init(url: url, mimeType: "video/quicktime", sourceKey: "SIMULATED-reference"),
+                    token: token, readyTimeout: .seconds(8))
+                native.play(rate: 1, token: token)
+                let rendererReadyBy = ContinuousClock.now.advanced(by: .seconds(4))
+                while native.player.currentItem?.status == .readyToPlay,
+                    (processed ? !host.playerLayer.isHidden : !host.playerLayer.isReadyForDisplay),
+                    ContinuousClock.now < rendererReadyBy
+                {
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                try #require(processed ? host.playerLayer.isHidden : host.playerLayer.isReadyForDisplay,
+                    "The intended renderer must have presented before pausing")
+                native.pause(token: token)
+                try #require(await native.seek(seconds: 0.3, tolerance: 0, token: token))
+                let first = try #require(await feed.referenceFrame())
+                try #require(await native.seek(seconds: 3, tolerance: 0, token: token))
+                let second = try #require(await feed.referenceFrame())
+                if processed { #expect(host.playerLayer.isHidden) }
+                #expect(first.width == 96 && first.height == 128)
+                #expect(second.width == first.width && second.height == first.height)
+                let firstRed = try #require(referenceRed(first))
+                let secondRed = try #require(referenceRed(second))
+                // The fixture encodes red as frameIndex * 7, and both seek targets precede wrap.
+                #expect(firstRed < 55)
+                #expect(secondRed > 170)
+                native.retireItem(for: .init(owner: token.owner, revision: 1))
+                #expect(await feed.referenceFrame() == nil)
+            }
+
+            private func referenceRed(_ image: CGImage) -> UInt8? {
+                var pixel = [UInt8](repeating: 0, count: 4)
+                return pixel.withUnsafeMutableBytes { bytes in
+                    guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                        let context = CGContext(
+                            data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8,
+                            bytesPerRow: 4, space: space,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                    else { return nil }
+                    context.draw(image, in: CGRect(
+                        x: -image.width / 2, y: -image.height / 2,
+                        width: image.width, height: image.height))
+                    return bytes[0]
+                }
+            }
+
             @Test func actualPreparedOwnerPublishesNativeTimeRangeAndRejectsRetirementReentry()
                 async throws
             {
@@ -332,7 +409,7 @@
             return directory
         }
 
-        private func writeMovie(at url: URL) async throws {
+        private func writeMovie(at url: URL, rotate: Bool = false) async throws {
             let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
             writer.shouldOptimizeForNetworkUse = true
             let input = AVAssetWriterInput(
@@ -342,6 +419,9 @@
                     AVVideoHeightKey: 96,
                     AVVideoCompressionPropertiesKey: [AVVideoMaxKeyFrameIntervalKey: 1],
                 ])
+            if rotate {
+                input.transform = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 96, ty: 0)
+            }
             let adaptor = AVAssetWriterInputPixelBufferAdaptor(
                 assetWriterInput: input,
                 sourcePixelBufferAttributes: [

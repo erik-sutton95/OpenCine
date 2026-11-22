@@ -56,6 +56,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     initialChromeVisible: Boolean = true,
     loopAvailable: Boolean = true,
     interaction: MonitorPlaybackInteractionOptions = MonitorPlaybackInteractionOptions(),
+    referenceAction: @Composable () -> Unit = {},
     picture: @Composable (MonitorMediaPlaybackModel<P, L>, FeedEffectsRenderPlan, MonitorPlaybackPictureGeometry) -> Unit,
 ): Unit {
     val context = LocalContext.current
@@ -63,7 +64,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     MonitorOperatorPlaybackScreen(model, initial, assist, assists, usageStore, effects,
         cacheOriginal, deliveryPresented, operations, source, nativeAudio, close, share,
         modifier, initialRatingShadeOpen, signalOptions, availableAssistTools,
-        initialChromeVisible, loopAvailable, interaction, picture)
+        initialChromeVisible, loopAvailable, interaction, referenceAction, picture)
 }
 
 /** Same complete player, borrowing the application's already-deployed assist usage store. */
@@ -83,12 +84,13 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     initialChromeVisible: Boolean = true,
     loopAvailable: Boolean = true,
     interaction: MonitorPlaybackInteractionOptions = MonitorPlaybackInteractionOptions(),
+    referenceAction: @Composable () -> Unit = {},
     picture: @Composable (MonitorMediaPlaybackModel<P, L>, FeedEffectsRenderPlan, MonitorPlaybackPictureGeometry) -> Unit,
 ): Unit {
     MonitorOperatorPlaybackScreen(model, initial, assist, assists, usageStore, effects,
         cacheOriginal, deliveryPresented, operations, source, nativeAudio, close, share,
         modifier, initialRatingShadeOpen, signalOptions, availableAssistTools,
-        initialChromeVisible, loopAvailable, interaction,
+        initialChromeVisible, loopAvailable, interaction, referenceAction,
         picture = { owner, geometry -> picture(owner, effects, geometry) })
 }
 
@@ -109,6 +111,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     initialChromeVisible: Boolean = true,
     loopAvailable: Boolean = true,
     interaction: MonitorPlaybackInteractionOptions = MonitorPlaybackInteractionOptions(),
+    referenceAction: @Composable () -> Unit = {},
     picture: @Composable (MonitorMediaPlaybackModel<P, L>, MonitorPlaybackPictureGeometry) -> Unit,
 ): Unit {
     val owner by model.state.collectAsState()
@@ -273,6 +276,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
             OperatorPlaybackAssistOverlays(assist, assists, context.geometry, scopes, levels,
                 transfer, signalOptions, ::options, context.analysis, supportedTools)
     }, onChromeVisibilityChanged = {}, onAssistExpansionChanged = {}, headerActionAccessory = {
+        referenceAction()
         if (operations.rating != null)
             MonitorPlaybackRatingAnchor(owner.ratingStars, owner.ratingShadeOpen, model::ratingShadeOpen)
     })

@@ -24,6 +24,7 @@ class PhysicalNetworkUITestCase: SharedAppUITestCase, CVarArg, CustomDebugString
 class PhysicalReferenceAppTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalShootingModeTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class PhysicalVirtualJoystickTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
+class ReferenceFrameUIFlowTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class ScreenMatrix: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class ShareRoundTrip: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
 class ShareUIFlowTests: SharedAppUITestCase, CVarArg, CustomDebugStringConvertible, CustomStringConvertible, Equatable, Hashable
@@ -60,6 +61,7 @@ func PhysicalDesqueezeTests.setUpWithError() throws -> ()
 func PhysicalDesqueezeTests.tearDown() -> ()
 func PhysicalNetworkUITestCase.setUpWithError() throws -> ()
 func PhysicalNetworkUITestCase.tearDownWithError() throws -> ()
+func ReferenceFrameUIFlowTests.testSavePausedFrameAndReopenReference() -> ()
 func ScreenMatrix.setUp() -> ()
 func ScreenMatrix.tearDown() -> ()
 func ShareRoundTrip.setUp() -> ()

@@ -711,6 +711,36 @@ public final class com/opencapture/opencine/runtime/MonitorPreparedMovieExport {
 	public final fun getTransientExport ()Ljava/nio/file/Path;
 }
 
+public final class com/opencapture/opencine/runtime/MonitorReferenceCapture {
+	public fun <init> ()V
+	public final fun cancel ()V
+	public final fun capture (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun capture$default (Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun needsFrame (J)Z
+	public final fun offer (JLkotlin/jvm/functions/Function0;)V
+}
+
+public final class com/opencapture/opencine/runtime/MonitorReferenceCaptureKt {
+	public static final fun referenceFrame (Lcom/opencapture/opencine/runtime/MonitorCleanPictureFrame;F)Lcom/opencapture/opencine/runtime/MonitorReferenceFrame;
+	public static synthetic fun referenceFrame$default (Lcom/opencapture/opencine/runtime/MonitorCleanPictureFrame;FILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorReferenceFrame;
+}
+
+public final class com/opencapture/opencine/runtime/MonitorReferenceFrame {
+	public fun <init> (Landroid/graphics/Bitmap;FI)V
+	public synthetic fun <init> (Landroid/graphics/Bitmap;FIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Landroid/graphics/Bitmap;
+	public final fun component2 ()F
+	public final fun component3 ()I
+	public final fun copy (Landroid/graphics/Bitmap;FI)Lcom/opencapture/opencine/runtime/MonitorReferenceFrame;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/runtime/MonitorReferenceFrame;Landroid/graphics/Bitmap;FIILjava/lang/Object;)Lcom/opencapture/opencine/runtime/MonitorReferenceFrame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAspect ()F
+	public final fun getBitmap ()Landroid/graphics/Bitmap;
+	public final fun getRotationDegrees ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/opencapture/opencine/runtime/MonitorRelayHevcJpegDecoder {
 	public fun <init> ()V
 	public fun <init> (Lcom/opencapture/opencine/runtime/MonitorHevcJpegDecodePolicy;Lcom/opencapture/opencine/runtime/MonitorHevcJpegCodecFactory;Lkotlin/jvm/functions/Function3;)V
@@ -807,8 +837,8 @@ public abstract interface class com/opencapture/opencine/runtime/NativeGlProgram
 }
 
 public final class com/opencapture/opencine/runtime/NativeGlesFeedSession {
-	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/runtime/NativeBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;)V
-	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/runtime/NativeBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/runtime/NativeBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ZZLkotlin/jvm/functions/Function1;ZLcom/opencapture/opencine/runtime/NativeBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun attachDisplay (Landroid/graphics/SurfaceTexture;II)V
 	public final fun close ()V
 	public final fun configurePreviewSource (Ljava/lang/Object;ZZ)V
@@ -835,8 +865,8 @@ public final class com/opencapture/opencine/runtime/NativeVulkanFeedSession {
 	public static final field FACE_TAP_WIDTH I
 	public static final field SOURCE_H I
 	public static final field SOURCE_W I
-	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/runtime/NativeBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;)V
-	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/runtime/NativeBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/runtime/NativeBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;)V
+	public synthetic fun <init> (Landroid/content/Context;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/media/ScopeClipProfile;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Ljava/lang/String;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lcom/opencapture/opencine/runtime/NativeBackdropFeed;Lcom/opencapture/opencine/runtime/MonitorCleanPictureTap;Lcom/opencapture/opencine/runtime/MonitorReferenceCapture;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun attachWindow (Landroid/view/Surface;II)V
 	public final fun configureScopeSource (Ljava/lang/Object;ZZ)V
 	public final fun copyHistogram ()[I
