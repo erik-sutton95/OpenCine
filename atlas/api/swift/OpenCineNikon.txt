@@ -574,6 +574,7 @@ case USBICCSessionOpenDecision.adoptExisting
 case USBICCSessionOpenDecision.failStillOpenAfterRecycle
 case USBICCSessionOpenDecision.recycleThenOpen
 case USBICCSessionOpenDecision.requestOpen
+case USBICCSessionOpenDecision.waitForCardScan
 case USBICCSessionOpenDecision.waitForPrewarm
 case ZCameraBodyGeneration.one
 case ZCameraBodyGeneration.three
@@ -2072,7 +2073,7 @@ static func SubnetScanPlan.isOnLink(host: Swift.String, interface: LocalIPv4Inte
 static func SubnetScanPlan.prefixLength(netmask: Swift.String?) -> Swift.Int?
 static func USBCameraDeviceBrowser.hostKey(for: ImageCaptureCore.ICDevice) -> Swift.String
 static func USBHandshakeDiagnostic.from(stage: Swift.String) -> USBHandshakeDiagnostic?
-static func USBICCSessionOpenPolicy.decision(hasOpenSession: Swift.Bool, prewarmInFlight: Swift.Bool, recycleFirst: Swift.Bool, recycleCompleted: Swift.Bool) -> USBICCSessionOpenDecision
+static func USBICCSessionOpenPolicy.decision(hasOpenSession: Swift.Bool, prewarmInFlight: Swift.Bool, recycleFirst: Swift.Bool, recycleCompleted: Swift.Bool, cardScanRunning: Swift.Bool, waitedForCardScan: Swift.Bool) -> USBICCSessionOpenDecision
 static func WhiteBalanceKelvinPolicy.canFineAdjust(from: Swift.String, delta: Swift.Int) -> Swift.Bool
 static func WhiteBalanceKelvinPolicy.fineAdjust(from: Swift.String, delta: Swift.Int) -> Swift.String?
 static func WhiteBalanceKelvinPolicy.isInDocumentedRange(_: Swift.Int) -> Swift.Bool
@@ -2252,6 +2253,7 @@ static let WhiteBalanceTint.cellRange: Swift.ClosedRange<Swift.Int>
 static let WhiteBalanceTint.greenMagentaUnitsPerCell: Swift.Double
 static let ZCameraOperationPolicy.generation1FallbackOperations: Swift.Set<Swift.UInt16>
 static let ZCameraOperationPolicy.vendorCodesPropertyListParameter: Swift.UInt32
+static var CameraConnectionTimeout.usbSessionOpen: Swift.Duration
 static var MFDriveChannelBudget.worstCaseChannelSeconds: Swift.Double
 static var NikonMultiviewLink.polledProperties: [PTPPropertyCode]
 static var PTPIPInitiator.appGUID: Foundation.Data

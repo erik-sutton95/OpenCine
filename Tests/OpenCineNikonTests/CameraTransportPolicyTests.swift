@@ -353,6 +353,45 @@ struct USBICCSessionOpenPolicyTests {
             ) == .requestOpen)
     }
 
+    @Test("The stale-session retry waits for a running card scan instead of recycling it")
+    func retryWaitsForRunningCardScan() {
+        // OPENZCINE-IOS-16: recycling closes the ICC session, which throws the card scan away,
+        // and the fresh open starts the whole scan again.
+        #expect(
+            USBICCSessionOpenPolicy.decision(
+                hasOpenSession: true,
+                prewarmInFlight: false,
+                recycleFirst: true,
+                recycleCompleted: false,
+                cardScanRunning: true
+            ) == .waitForCardScan)
+    }
+
+    @Test("After waiting out the card scan the retry adopts the session it kept")
+    func retryAdoptsAfterCardScan() {
+        #expect(
+            USBICCSessionOpenPolicy.decision(
+                hasOpenSession: true,
+                prewarmInFlight: false,
+                recycleFirst: true,
+                recycleCompleted: false,
+                cardScanRunning: false,
+                waitedForCardScan: true
+            ) == .adoptExisting)
+    }
+
+    @Test("A first connect adopts an open session even while its card scan runs")
+    func firstConnectAdoptsDuringCardScan() {
+        #expect(
+            USBICCSessionOpenPolicy.decision(
+                hasOpenSession: true,
+                prewarmInFlight: false,
+                recycleFirst: false,
+                recycleCompleted: false,
+                cardScanRunning: true
+            ) == .adoptExisting)
+    }
+
     @Test("No open session and no pre-warm means a normal open")
     func requestOpenWhenIdle() {
         #expect(
