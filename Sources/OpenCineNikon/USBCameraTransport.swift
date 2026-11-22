@@ -354,12 +354,14 @@
         /// deliberately NOT waiting for the content-catalog "ready" signal, which for the ZR is the slow
         /// part of USB connect. ImageCaptureCore still enumerates the catalog in the background; the app
         /// ignores it.
-        public func open(timeout: Duration = .seconds(30), recycleFirst: Bool = false) async throws
-        {
+        public func open(
+            timeout: Duration = CameraConnectionTimeout.usbSessionOpen, recycleFirst: Bool = false
+        ) async throws {
             device.delegate = self
             USBCameraDeviceBrowser.shared.adoptSession(self)
             let waitStart = ContinuousClock.now
             var recycleCompleted = false
+            var waitedForCardScan = false
             while true {
                 try Task.checkCancellation()
                 if ContinuousClock.now - waitStart >= timeout {
@@ -370,13 +372,21 @@
                     prewarmInFlight: USBCameraDeviceBrowser.shared.isPrewarmOpenInFlight(
                         for: device),
                     recycleFirst: recycleFirst,
-                    recycleCompleted: recycleCompleted
+                    recycleCompleted: recycleCompleted,
+                    cardScanRunning: Self.isCardScanRunning(device),
+                    waitedForCardScan: waitedForCardScan
                 )
                 switch decision {
                 case .waitForPrewarm:
                     // Duplicate requestOpenSession is swallowed by ICC, so a connect started during
                     // attach-time pre-warm used to hang for the full timeout.
                     try await Task.sleep(for: .milliseconds(100))
+                case .waitForCardScan:
+                    // OPENZCINE-IOS-16: the first command failed while ICC was still reading a
+                    // full card. Recycling closes the session, which throws the scan away, and
+                    // the fresh open waits for the whole scan again.
+                    waitedForCardScan = true
+                    try await Task.sleep(for: .milliseconds(250))
                 case .recycleThenOpen:
                     // Retry path: the adopted session just failed its first command; it went stale
                     // while parked (camera sleep, ICC housekeeping). Close it for real, await the ack
@@ -412,6 +422,13 @@
                     return
                 }
             }
+        }
+
+        /// ICC is part way through enumerating the card of an open session. A scan that has not
+        /// reported progress yet (no card, or not started) does not count, so it never holds a
+        /// stale-session recycle back.
+        private static func isCardScanRunning(_ device: ICCameraDevice) -> Bool {
+            device.hasOpenSession && (1...99).contains(device.contentCatalogPercentCompleted)
         }
 
         public func executeTransaction(
