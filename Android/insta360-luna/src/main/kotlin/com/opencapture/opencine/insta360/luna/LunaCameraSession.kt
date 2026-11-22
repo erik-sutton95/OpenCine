@@ -73,6 +73,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlin.time.Duration
@@ -114,8 +115,16 @@ class LunaCameraSession internal constructor(
     /**
      * How long an acknowledged write may take to show in readback, and how often to ask.
      * ponytail: the app's former pin windows plus readback margin; tune on hardware.
+     * [writeTimeout]: how long a write to these keys waits for the camera's reply before its
+     * outcome is unknown (otherwise the channel's 10 s). Streamed writes that the next one
+     * replaces: Luna fw 1.2.7 answers zoom SETs in about 20 ms but leaves about 2 in 100
+     * unanswered, and the long wait froze a pinch or preset ramp (Swift `Timing.writeTimeout`).
      */
-    data class Timing(val settle: Map<SettingKey, Duration>, val readbackInterval: Duration) {
+    data class Timing(
+        val settle: Map<SettingKey, Duration>,
+        val readbackInterval: Duration,
+        val writeTimeout: Map<SettingKey, Duration> = emptyMap(),
+    ) {
         companion object {
             val LUNA = Timing(
                 mapOf(
@@ -123,6 +132,7 @@ class LunaCameraSession internal constructor(
                     SettingKey.WHITE_BALANCE to 6.seconds, SettingKey.RECORDING to 10.seconds,
                 ),
                 1.seconds,
+                mapOf(SettingKey.ZOOM to 1.seconds),
             )
         }
     }
@@ -481,7 +491,8 @@ class LunaCameraSession internal constructor(
             transition(operation, CommandStage.Sent)
         }
         try {
-            send(request)
+            val limit = timing.writeTimeout[key]
+            if (limit == null) send(request) else withTimeout(limit) { send(request) }
         } catch (refused: LunaRefused) {
             return synchronized(lock) { transition(operation, CommandStage.Rejected(CommandRejection.CameraRefused)) }
         } catch (cancelled: CancellationException) {

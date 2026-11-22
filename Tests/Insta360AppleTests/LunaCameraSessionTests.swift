@@ -343,6 +343,28 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(outcome.stage, .timedOut)
     }
 
+    /// Zoom SETs are streamed and the next replaces each one: Luna fw 1.2.7 leaves about 2 in 100
+    /// unanswered, so a zoom write waits 1 s for its reply, not the link's 8 s. Other keys keep it.
+    func testAZoomWriteWaitsOneSecondForItsReply() async {
+        var plain: [LunaRequest] = []
+        var timed: [(LunaRequest, Duration)] = []
+        let session = LunaCameraSession(
+            send: { plain.append($0); return Data() },
+            sendWithin: { timed.append(($0, $1)); throw CancellationError() },
+            functionMode: { LunaFunctionMode.normalVideo.rawValue },
+            readSettings: {}, readCapture: {})
+        session.configureLens(zoomDomain: 1...15)
+        session.linkChanged(.streaming, serial: nil)
+        let (_, zoom) = await submit(.set(.zoom(2)), to: session)
+        XCTAssertEqual(zoom.stage, .outcomeUnknown, "an unanswered zoom write is unknown, not refused")
+        XCTAssertEqual(timed.map(\.1), [.seconds(1)])
+        XCTAssertEqual(timed.first?.0.command, .setPhotographyOptions)
+        XCTAssertTrue(plain.isEmpty)
+        _ = await session.submit(
+            CameraCommand(.set(.whiteBalance(.auto)), preconditions: CommandPreconditions(session.current)))
+        XCTAssertEqual(plain.count, 1, "other keys keep the link's own wait")
+    }
+
     /// A 500 reply (`LunaCameraBackend.send` throws `cameraRejectedRequest`) is a refusal.
     func testCameraRefusalIsARejection() async {
         let refusing = LunaCameraSession(
