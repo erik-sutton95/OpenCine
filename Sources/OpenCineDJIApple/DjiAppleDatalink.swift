@@ -108,6 +108,8 @@
 
         /// Depacketize + video counters on the UDP queue. Main only hops complete AUs.
         nonisolated private let videoAssembler = SoftAPVideoAssembler()
+        /// Status datagrams for main: one hop per backlog, newest attitude push only.
+        nonisolated private let statusHops = StatusHopQueue()
         nonisolated private let ingressMetrics = OSAllocatedUnfairLock(initialState: FeedIngressMetrics())
         /// Session/socket snapshot for the 40 Hz ACK pump (UDP queue, not MainActor).
         nonisolated private let wire = OSAllocatedUnfairLock(initialState: WireState())
@@ -1655,6 +1657,7 @@
             // is scheduled on `q` immediately. `startReceiveLoop()` is MainActor-isolated - calling
             // it from the UDP callback hopped to main and froze the feed when the UI was busy.
             let assembler = videoAssembler
+            let statusHops = statusHops
             let handshake = handshakeAdmission
             let inbound = handshakeInbound
             let gate = videoGate
@@ -1805,11 +1808,10 @@
                     // Hand over the frames scanned here instead of rescanning on Main.
                     guard !frames.isEmpty || Self.carriesTelemetryCursor(bytes) else { return }
                     let mediaAdmission = self?.mediaIngress.capture()
-                    Task(priority: .high) { @MainActor in
-                        guard let self, !self.closed, self.udpGeneration == generation,
-                            self.conn === socket
-                        else { return }
-                        self.ingest(bytes, frames: frames, mediaAdmission: mediaAdmission)
+                    let hop = statusHops.offer(.init(bytes: bytes, frames: frames,
+                        mediaAdmission: mediaAdmission, generation: generation, socket: socket))
+                    if hop {
+                        Task(priority: .high) { @MainActor in self?.drainStatusHops() }
                     }
                 }
             )
@@ -1888,6 +1890,20 @@
                 if frame.cmdSet == 0, frame.cmdId == 0x27 { onMediaFrame?(frame, mediaAdmission) }
                 onStatusFrame?(frame)
             }
+        }
+
+        /// One hop drains every status datagram queued on the UDP queue, in arrival order. A
+        /// task per datagram let a backlog replay each attitude push on main.
+        private func drainStatusHops() {
+            let batch = statusHops.drain { isLiveStatus($0) }
+            // A status callback may close or replace the link; later datagrams check again.
+            for datagram in batch where isLiveStatus(datagram) {
+                ingest(datagram.bytes, frames: datagram.frames, mediaAdmission: datagram.mediaAdmission)
+            }
+        }
+
+        private func isLiveStatus(_ datagram: StatusHopQueue.Datagram) -> Bool {
+            !closed && udpGeneration == datagram.generation && conn === datagram.socket
         }
 
         /// Receive is the live-socket signal. One command write reject must not
