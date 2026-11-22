@@ -417,7 +417,7 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
                 guard current(mine) else { return }
                 arrived(frame, control)
                 if clock.now() >= nextPoll {
-                    await poll(transport, control, mine, recording: frame.isRecording)
+                    await poll(transport, control, mine, recording: frame.isRecording == true)
                     nextPoll = clock.now() + pollInterval
                 }
             } catch {
@@ -464,11 +464,14 @@ public final class NikonMultiviewLink<Transport: NikonMultiviewTransport>: Multi
         missedFrames = 0
         ladder.frameArrived()
         timecode = frame.timecode
-        recordReport = MultiviewRecordReport(recording: frame.isRecording, receivedAt: clock.date())
+        // A header without record state (Gen-1 bodies) is not a report of standby.
+        if let recording = frame.isRecording {
+            recordReport = MultiviewRecordReport(recording: recording, receivedAt: clock.date())
+        }
         control.update {
             $0.liveViewReady = true
-            $0.recording = frame.isRecording
-            $0.timecode = frame.timecode.running
+            if let recording = frame.isRecording { $0.recording = recording }
+            $0.timecode = frame.timecode?.running
         }
         if pictureHealth != .live {
             pictureHealth = .live

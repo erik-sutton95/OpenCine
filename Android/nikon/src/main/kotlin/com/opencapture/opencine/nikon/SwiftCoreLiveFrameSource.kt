@@ -161,7 +161,8 @@ class SwiftCoreLiveFrameSource(
      * mark itself Disconnected and [MonitorSessionRecovery] can reconnect.
      */
     private val maxConsecutiveRestarts: Int = 3,
-    private val onRecordingState: (Boolean) -> Unit = {},
+    /** Each accepted frame's header record state; `null` when the header does not carry it. */
+    private val onRecordingState: (Boolean?) -> Unit = {},
     /** Each accepted frame's header timecode, observed on the existing pump (no added demand). */
     private val onTimecode: (LiveFrameTimecode?) -> Unit = {},
     private val onCommandRoundTrip: () -> Unit = {},
@@ -247,10 +248,17 @@ class SwiftCoreLiveFrameSource(
                         private val frameRateEstimator = LiveFrameRateEstimator()
                         private var hasMeasuredPitch = false
                         private var hasMeasuredYaw = false
+                        private var headerHasRecordState = true
+                        private var headerHasTimecode = true
 
                         override fun onLevelValidity(hasPitch: Boolean, hasYaw: Boolean) {
                             hasMeasuredPitch = hasPitch
                             hasMeasuredYaw = hasYaw
+                        }
+
+                        override fun onHeaderValidity(hasRecordState: Boolean, hasTimecode: Boolean) {
+                            headerHasRecordState = hasRecordState
+                            headerHasTimecode = hasTimecode
                         }
 
                         override fun onFrame(
@@ -484,8 +492,12 @@ class SwiftCoreLiveFrameSource(
                             // brief glitches still get the three free restarts.
                             consecutivePumpEnds.set(0L)
                             onCommandRoundTrip()
-                            onRecordingState(isRecording)
-                            onTimecode(timecode)
+                            // A header too short to carry them reports neither: never standby
+                            // or a zero clock.
+                            val recording = isRecording.takeIf { headerHasRecordState }
+                            val reportedTimecode = timecode?.takeIf { headerHasTimecode }
+                            onRecordingState(recording)
+                            onTimecode(reportedTimecode)
                             val audioLevels =
                                 if (hasAudioLevels) {
                                     LiveAudioMeterLevels(
@@ -502,11 +514,11 @@ class SwiftCoreLiveFrameSource(
                                         LiveFrame(
                                             timestampNanos = timestampNanos,
                                             jpegData = jpeg,
-                                            isRecording = isRecording,
+                                            isRecording = recording,
                                             audioLevels = audioLevels,
                                             focus = focus,
                                             level = level,
-                                            timecode = timecode,
+                                            timecode = reportedTimecode,
                                             measuredFramesPerSecond =
                                                 frameRateEstimator.record(timestampNanos),
                                             rotation = rotation,
