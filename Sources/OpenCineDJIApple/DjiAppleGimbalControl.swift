@@ -68,9 +68,12 @@ import OpenCineMotion
     public private(set) var stickMapping = GimbalStickMapping()
     /// World level from the attitude quaternion. LEVEL polls it at 10 Hz.
     public private(set) var levelReading = LevelReading()
-    /// Last `0x04/0x05` hex + i16 dump (pitch-field hunt; payload is ~50 B).
-    public private(set) var lastAttitudeHex = ""
-    public private(set) var lastAttitudeDump = ""
+    /// Last `0x04/0x05` hex + i16 dump (pitch-field hunt; payload is ~50 B). Built when read:
+    /// formatting them on every attitude push kept the main actor busy for only the head
+    /// tracking diagnostics to read them.
+    public var lastAttitudeHex: String { lastAttitudePayload.map { Duml.hex($0, limit: 80) } ?? "" }
+    public var lastAttitudeDump: String { lastAttitudePayload.map(GimbalStick.attitudeAngleDump) ?? "" }
+    private var lastAttitudePayload: [UInt8]?
     public private(set) var stickHeld = false
     public private(set) var lastStickAt: Date?
     /// Last non-rest throw. Motion can pause HEVC.
@@ -792,8 +795,7 @@ import OpenCineMotion
                     ?? resolved
                 if mode != host.gimbalMode { host.gimbalMode = mode }
             }
-            lastAttitudeHex = Duml.hex(frame.payload, limit: 80)
-            lastAttitudeDump = GimbalStick.attitudeAngleDump(frame.payload)
+            lastAttitudePayload = frame.payload
             levelReading.ingest(frame.payload, now: uptime())
             judgeWorldLevelSnap()
             let wasTT180 = stickMapping.commanded180
