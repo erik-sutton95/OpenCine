@@ -189,6 +189,9 @@ import Testing
         clock.advance(.seconds(3)); #expect(await settle { motion.pending == 1 && clock.pending == 1 })
         clock.advance(.milliseconds(33)); #expect(await settle { motion.pending == 2 && clock.pending == 1 })
         motion.replyLast(true)
+        // A lost reply surfaces only at its timeout, long after the later acceptance is handled.
+        #expect(await settle { motion.returned == 1 })
+        for _ in 0..<200 { await Task.yield() }
         motion.reply(false)
         clock.advance(.milliseconds(33)); #expect(await settle { motion.pending == 1 && clock.pending == 1 })
         #expect(move.state.failure == nil && move.state.progress.running && move.state.operation != nil)
