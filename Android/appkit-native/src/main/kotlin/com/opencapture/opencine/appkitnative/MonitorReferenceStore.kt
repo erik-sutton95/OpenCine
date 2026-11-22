@@ -59,7 +59,11 @@ class MonitorReferenceStore(context: Context) {
     }
 
     /** Capture first and replace the old file only after a complete JPEG write. */
-    suspend fun save(capture: suspend () -> MonitorReferenceFrame?): Boolean {
+    suspend fun save(capture: suspend () -> MonitorReferenceFrame?): Boolean =
+        save(showOnSave = false, capture = capture)
+
+    /** A successful playback selection also arms it for the next visit to Live View. */
+    internal suspend fun save(showOnSave: Boolean, capture: suspend () -> MonitorReferenceFrame?): Boolean {
         if (isBusy) return false
         isBusy = true
         try {
@@ -84,6 +88,7 @@ class MonitorReferenceStore(context: Context) {
                         }.getOrNull()
                     } ?: return@withContext false
                     reference = image
+                    if (showOnSave) shown = true
                     true
                 }
             }

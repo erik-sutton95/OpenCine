@@ -25,8 +25,13 @@ class MonitorReferenceStoreTest {
             withContext(Dispatchers.Main) {
                 val original = MonitorReferenceStore(context)
                 val bitmap = Bitmap.createBitmap(160, 90, Bitmap.Config.ARGB_8888)
-                assertTrue(original.save { MonitorReferenceFrame(bitmap, 9f / 16f, 90) })
-                assertFalse(original.save { null })
+                assertFalse(original.save(showOnSave = true) { null })
+                assertFalse(original.shown)
+                assertTrue(original.save(showOnSave = true) { MonitorReferenceFrame(bitmap, 9f / 16f, 90) })
+                assertTrue(original.shown)
+                original.shown = false
+                assertFalse(original.save(showOnSave = true) { null })
+                assertFalse(original.shown)
                 val restarted = MonitorReferenceStore(context)
                 restarted.load()
                 val image = assertNotNull(restarted.reference)

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.widthIn
@@ -645,9 +646,19 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 cameraPanel(key, frame, top, state)
             }
             if (assistInspectorPresented && inspectingAction && action != null) {
+                val frame = MonitorInspectorPolicy.frame(layout.viewport.width, layout.viewport.height, trailing = true)
+                val top = if (frame.portrait) (layout.viewport.height - frame.height) / 2f else 0f
+                val overlapsRecordRow = layout.record.maxY > top && layout.record.y < top + frame.height
+                val inset = MonitorInspectorPolicy.edgeInset(frame.portrait, true, safeLeading, safeTrailing)
+                // The record controls stay above the inspector. Keep its options out of their rail.
+                val railPadding = if (overlapsRecordRow) {
+                    (layout.viewport.width - layout.record.x - inset).coerceAtLeast(0f)
+                } else 0f
                 MonitorInspector(action.item.title, layout.viewport.width, layout.viewport.height, closeInspector,
                     trailing = true, safeLeading = safeLeading, safeTrailing = safeTrailing,
-                    safeTop = safeTop, safeBottom = safeBottom, hasNavigation = false, content = action.options)
+                    safeTop = safeTop, safeBottom = safeBottom, hasNavigation = false) {
+                    Box(Modifier.fillMaxWidth().padding(end = railPadding.dp)) { action.options() }
+                }
             } else if (assistInspectorPresented) {
                 val configured = assist.configureTool
                 val preview: (@Composable () -> Unit)? =

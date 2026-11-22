@@ -169,7 +169,9 @@ private fun rememberReferenceSaveAction(
     var failed by remember { mutableStateOf(false) }
     fun save(request: suspend () -> MonitorReferenceFrame?) {
         scope.launch {
-            if (!admitted || !store.save { if (admitted) request() else null }) failed = true
+            if (!admitted || !store.save(showOnSave = !live) { if (admitted) request() else null }) {
+                failed = true
+            }
         }
     }
     replacement?.let { captured ->
