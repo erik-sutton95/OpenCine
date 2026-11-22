@@ -121,16 +121,20 @@ public final class LunaMemberLink: MultiviewMemberLink {
     }
 
     /// Luna's picture repair, once a second while the member publishes. A stalled picture on an
-    /// open link follows `LunaFeedStall` in place (keyframe, at most two live restarts); a stall it
-    /// gives up on, or a lost control link, is repaired by finding the camera again: a camera that
-    /// does not answer at its address is moved onto the network over Bluetooth (in the
-    /// coordinator's Bluetooth turn), then the coordinator rejoins it, LAN only.
+    /// open link follows `LunaFeedStall` in place (keyframe, at most two live restarts, none during
+    /// a take before the long recording bound); a stall it gives up on, or a lost control link, is
+    /// repaired by finding the camera again: a camera that does not answer at its address is moved
+    /// onto the network over Bluetooth (in the coordinator's Bluetooth turn), then the coordinator
+    /// rejoins it, LAN only.
     public func repair(_ context: MultiviewRepairContext) -> MultiviewRepairStep {
         guard previewing, let opened else { return .healthy }
         if port.isControlReady {
             let silence = silenceSeconds()
             let now = Self.seconds(clock.now())
-            switch stall.tick(silence: silence, now: now) {
+            // A recording camera is restarted only past the long recording bound: a restart
+            // mid-take can end the take (`LunaFeedStall`).
+            let recording = lunaSession.current.recording.value == .recording
+            switch stall.tick(silence: silence, now: now, recording: recording) {
             case .none:
                 let healthy = silence <= LunaFeedStall.keyframeAfter
                 context.observeHealth(healthy)
