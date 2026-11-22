@@ -115,7 +115,11 @@ fun rememberMonitorReferencePaletteAction(
                 }
                 MonitorSettingsActionPill(if (reference == null) "Save Live Frame" else "Replace Reference",
                     enabled = canCapture && store.isLoaded && !store.isBusy, onClick = save)
-                if (reference != null && !compatible) Text("Reference framing differs", color = MonitorPalette.muted)
+                if (reference != null && store.shown && !canCapture) {
+                    Text("Waiting for live picture", color = MonitorPalette.muted)
+                } else if (reference != null && !compatible) {
+                    Text("Reference framing differs", color = MonitorPalette.muted)
+                }
                 if (compatible) MonitorOptionGroup {
                     MonitorSettingsSwitchInlineRow("Show Reference", store.shown, showTopDivider = false) {
                         store.shown = !store.shown
