@@ -61,8 +61,13 @@ private class PerfCodec : MonitorMediaCatalogCodec<String> {
             orderKey = asset.filename, presentationKind = asset.kind))
 }
 
-private class PerfCursor(val pages: MutableList<MediaCatalogDelta>) : MediaCatalogCursor {
-    override suspend fun next(): MediaCatalogDelta? = if (pages.isEmpty()) null else pages.removeAt(0)
+/** Answers from memory without suspending, like the Nikon cursor over a cached card. */
+private class PerfCursor(val pages: MutableList<MediaCatalogDelta>, val served: () -> Unit = {}) : MediaCatalogCursor {
+    override suspend fun next(): MediaCatalogDelta? {
+        if (pages.isEmpty()) return null
+        served()
+        return pages.removeAt(0)
+    }
     override fun close() {}
 }
 
@@ -84,7 +89,14 @@ private class PerfBrowse(val assets: List<MediaAsset>) : CameraMediaBrowse {
     override var transfers: CameraMediaTransferService? = null
     override val deletion: CameraMediaDeleteService? = null
     override val heldBySource: Boolean? = null
-    override suspend fun catalog(): MediaCatalogCursor = PerfCursor(PerfCard.pages(assets))
+    /** Pages the cursor has served, and what runs as each is served. */
+    var pagesServed = 0
+        private set
+    var onServe: ((Int) -> Unit)? = null
+    override suspend fun catalog(): MediaCatalogCursor = PerfCursor(PerfCard.pages(assets)) {
+        pagesServed += 1
+        onServe?.invoke(pagesServed)
+    }
     override suspend fun close() {}
 }
 
@@ -131,6 +143,26 @@ class MonitorMediaLibraryPerformanceTest {
                 "the catalog was checkpointed ${fixture.codec.saves} times over ${PerfCard.PAGES} pages")
             assertTrue(fixture.scans.sum() <= PerfCard.COUNT * 2,
                 "listing scanned ${fixture.scans.sum()} cache records for ${PerfCard.COUNT} rows")
+        } finally { fixture.model.dispose(); owner.cancel(); fixture.root.deleteRecursively() }
+    }
+
+    /**
+     * OPENZCINE-IOS-1S, -17 (Swift twin `listingLetsOtherMainActorWorkRunBetweenPages`): a cached
+     * card's cursor answers without suspending, so the listing ran every page in one turn of its
+     * dispatcher. Work queued while one page is served runs before the next page is requested.
+     */
+    @Test fun listingLetsOtherWorkRunBetweenPages() = runTest {
+        val owner = Job(); val scope = CoroutineScope(owner + StandardTestDispatcher(testScheduler))
+        val fixture = fixture(scope)
+        var observed: Int? = null
+        fixture.browse.onServe = { served ->
+            if (served == 1) scope.launch { observed = fixture.browse.pagesServed }
+        }
+        try {
+            fixture.model.begin(); advanceUntilIdle()
+            assertEquals(PerfCard.COUNT, fixture.model.state.value.records.size)
+            val servedFirst = assertNotNull(observed, "the queued work never ran")
+            assertTrue(servedFirst <= 2, "queued work waited for $servedFirst of ${PerfCard.PAGES} pages")
         } finally { fixture.model.dispose(); owner.cancel(); fixture.root.deleteRecursively() }
     }
 
