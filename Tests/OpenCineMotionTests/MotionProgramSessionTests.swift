@@ -178,7 +178,7 @@ import Testing
         clock.advance(.seconds(100)); #expect(await settle { clock.pending == 0 })
         #expect(motion.moves.count == 1 && !move.state.progress.running && move.state.operation == nil)
     }
-    /// Luna fw 1.2.7 leaves about 2 in 100 SETs unanswered: a lost reply to a target the camera
+    /// A camera may leave about 2 in 100 SETs unanswered: a lost reply to a target the camera
     /// has already moved past (a later one was accepted) must not end a long take.
     @Test func anUnansweredTargetPastALaterAcceptedOneKeepsTheTakeRunning() async {
         let clock = ProgramClock(); let move = owner(clock); let motion = ProgramMotion()

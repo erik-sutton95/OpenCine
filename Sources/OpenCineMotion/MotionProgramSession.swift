@@ -155,7 +155,7 @@ public final class MotionProgramSession {
     }
 
     /// A streamed target the camera does not accept ends the take only when no later target got
-    /// through: a camera that drops the odd reply (Luna fw 1.2.7 leaves about 2 in 100 SETs
+    /// through: a camera that drops the odd reply (one leaves about 2 in 100 SETs
     /// unanswered) has already moved on to the next target. The final target is sent once more.
     private func dispatch(_ target: MotionTarget, final: Bool, retry: Bool, run: Run) {
         let command = UUID()

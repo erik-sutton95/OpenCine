@@ -178,7 +178,7 @@ class MotionProgramSessionTest {
         assertNull(move.state.value.operation)
     }
     /**
-     * Luna fw 1.2.7 leaves about 2 in 100 SETs unanswered: a lost reply to a target the camera has
+     * A camera may leave about 2 in 100 SETs unanswered: a lost reply to a target the camera has
      * already moved past (a later one was accepted) must not end a long take.
      */
     @Test fun anUnansweredTargetPastALaterAcceptedOneKeepsTheTakeRunning() = runTest {
