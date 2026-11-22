@@ -64,6 +64,7 @@ ICON_NAMES = [
     "lock-open",
     "maximize",
     "menu",
+    "mic",
     "minimize",
     "monitor",
     "mountain",

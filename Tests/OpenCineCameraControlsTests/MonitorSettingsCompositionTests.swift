@@ -2,6 +2,7 @@
 import MonitorPresentation
 @testable import MonitorUI
 import OpenCineAppKit
+import OpenCineAppKitApple
 import OpenCineApple
 import OpenCineCore
 import OpenCineHostedAccessibility
@@ -166,6 +167,18 @@ final class MonitorSettingsCompositionTests: XCTestCase {
             library: nil, cameraPresets: presets).sceneConfiguration(safeArea: EdgeInsets())
         XCTAssertEqual(scene.rows(.controls, library: false), [.cameraPresets, .safety])
         XCTAssertNil(presets.scope, "No camera connected: the card asks for one instead of listing presets")
+    }
+
+    func testVoiceControlCardIsOptInAndKeepsLensCapability() {
+        let configuration = typed(support: nil, information: nil)
+        let preferences = MonitorVoicePreferences(storage: storage)
+        XCTAssertFalse(configuration.rows(.controls, library: false).contains(.voiceControl))
+        let standard = configuration.withVoiceControl(preferences)
+        XCTAssertEqual(standard.rows(.controls, library: false), [.voiceControl, .safety])
+        XCTAssertEqual(standard.voiceControl?.supportsLens, false)
+        let withLens = standard.withVoiceControl(preferences, supportsLens: true)
+        XCTAssertEqual(withLens.voiceControl?.supportsLens, true)
+        XCTAssertFalse(withLens.withVoiceControl(nil).rows(.controls, library: false).contains(.voiceControl))
     }
 
     func testGyroCalibrateRowAppearsOnlyWhenProvided() {

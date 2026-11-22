@@ -539,6 +539,9 @@ public class MonitorControlModel(
     public suspend fun recordAndWait(start: Boolean?, admission: CommandDispatchAdmission): CommandReceipt? =
         beginRecord(start, null, admission)?.await()
 
+    internal suspend fun commitRecordAndWait(editor: RecordEditor, admission: CommandDispatchAdmission): CommandReceipt? =
+        if (canCommitRecord(editor)) beginRecord(!editor.recording, editor, admission)?.await() else null
+
     private fun record(start: Boolean?, approved: RecordEditor?) { beginRecord(start, approved) }
 
     private fun beginRecord(

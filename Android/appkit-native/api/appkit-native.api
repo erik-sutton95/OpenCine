@@ -232,3 +232,7 @@ public final class com/opencapture/opencine/appkitnative/MonitorPlaybackFeedView
 	public static final fun MonitorPlaybackFeedView (Lcom/opencapture/opencine/runtime/MonitorPlaybackPictureOwner;Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedIntegration;Lcom/opencapture/opencine/runtime/ScopeSampleBus;Lcom/opencapture/opencine/runtime/InspectorPreviewPipeline;Lcom/opencapture/opencine/appkitnative/MonitorBackdropFeed;Lcom/opencapture/opencine/media/FeedEffectsRenderPlan;ZZLcom/opencapture/monitorui/MonitorPlaybackZoom;IILcom/opencapture/opencine/media/MonitorPlaybackItemToken;ZLkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;III)V
 }
 
+public final class com/opencapture/opencine/appkitnative/MonitorVoiceControlKt {
+	public static final fun rememberMonitorVoiceTool (Lcom/opencapture/opencine/appkit/VoiceControlTarget;Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Lcom/opencapture/opencine/appkit/MonitorVoicePreferences;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function4;Landroidx/compose/runtime/Composer;I)Lcom/opencapture/opencine/appkit/MonitorVoiceTool;
+}
+

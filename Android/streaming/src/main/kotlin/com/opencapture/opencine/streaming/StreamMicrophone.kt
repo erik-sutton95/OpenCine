@@ -18,8 +18,11 @@ class StreamMicrophone(private val sampleRate: Int = 48_000, private val channel
     @Volatile private var running = false
 
     /** Starts capture; [onPcm] receives interleaved samples and the frame count. */
+    fun start(onPcm: (ShortArray, Int) -> Unit) = start(onCaptureEnded = {}, onPcm = onPcm)
+
+    /** Reports an unexpected audio read failure on the microphone thread. */
     @SuppressLint("MissingPermission")
-    fun start(onPcm: (ShortArray, Int) -> Unit) {
+    fun start(onCaptureEnded: () -> Unit, onPcm: (ShortArray, Int) -> Unit) {
         if (running) return
         val mask = if (channels == 2) AudioFormat.CHANNEL_IN_STEREO else AudioFormat.CHANNEL_IN_MONO
         val minimum = AudioRecord.getMinBufferSize(sampleRate, mask, AudioFormat.ENCODING_PCM_16BIT)
@@ -44,7 +47,10 @@ class StreamMicrophone(private val sampleRate: Int = 48_000, private val channel
             val buffer = ShortArray(block * channels)
             while (running) {
                 val read = created.read(buffer, 0, buffer.size)
-                if (read < 0) break
+                if (read < 0) {
+                    if (running) onCaptureEnded()
+                    break
+                }
                 if (read > 0) onPcm(buffer.copyOf(read), read / channels)
             }
         }, "opc.stream.mic").apply { isDaemon = true }.start()

@@ -41,6 +41,7 @@ import com.opencapture.opencine.appkit.MonitorDisplaySection
 import com.opencapture.opencine.appkit.MonitorInputAdmission
 import com.opencapture.opencine.appkit.MonitorInputBlock
 import com.opencapture.opencine.appkit.MonitorInteractionTransition
+import com.opencapture.opencine.appkit.MonitorVoiceTool
 import com.opencapture.opencine.appkit.ShellModel
 import com.opencapture.opencine.appkit.monitorChromeEditStroke
 import com.opencapture.opencine.appkit.offered
@@ -161,7 +162,8 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     source: MonitorOperatorLiveSource<String, MonitorOperatorLegacyCaptureIdentity>,
     assists: MonitorOperatorAssistSource, focus: MonitorOperatorFocusObservation,
     focusActions: MonitorOperatorFocusActions, nativeInputBlocked: (MonitorInputBlock) -> Unit,
-    modifier: Modifier = Modifier, picture: @Composable BoxScope.() -> Unit): Unit
+    modifier: Modifier = Modifier, voice: MonitorVoiceTool? = null,
+    picture: @Composable BoxScope.() -> Unit): Unit
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val layout = geometry.layout
     val zones = geometry.zones
@@ -239,7 +241,7 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
         motionCluster = motionCluster)
     MonitorOperatorLiveSurface(chrome.capture.control, session, geometry, source,
         MonitorOperatorLiveAssists(assists, palette, tools.toSet(), status.monitorTransfer, MonitorOperatorSignalOptions(),
-            usage, { usage = it; usageStore.value = it }, MONITOR_OPERATOR_USAGE_SEED),
+            usage, { usage = it; usageStore.value = it }, MONITOR_OPERATOR_USAGE_SEED, voice),
         native, modifier, portraitAspect = chrome.portraitAspect, setPortraitAspect = chrome.setPortraitAspect,
         transitionChanged = { transition ->
             if (transition.cameraReplaced) state.storageForm = 0

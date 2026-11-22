@@ -262,12 +262,14 @@ public struct MonitorOperatorLiveAudio {
     public let usage: Binding<MonitorToolUsage>
     public let usageSeed: [String: Int]
     public let toggle: (MonitorAssistSelection) -> Void
+    public let voice: MonitorVoiceTool?
     public init(scopes: MonitorOperatorLiveAssistSource?, tools: @escaping () -> [MonitorAssistSelection],
         rendered: @escaping () -> Set<MonitorAssistSelection>?,
         signalOptions: MonitorOperatorSignalOptions, usage: Binding<MonitorToolUsage>,
-        usageSeed: [String: Int], toggle: @escaping (MonitorAssistSelection) -> Void) {
+        usageSeed: [String: Int], toggle: @escaping (MonitorAssistSelection) -> Void, voice: MonitorVoiceTool? = nil) {
         self.scopes = scopes; self.tools = tools; self.rendered = rendered
         self.signalOptions = signalOptions; self.usage = usage; self.usageSeed = usageSeed; self.toggle = toggle
+        self.voice = voice
     }
 }
 
@@ -408,6 +410,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private let lookMenu: () -> LookMenu
     @Environment(\.dynamicTypeSize) private var primaryTypeSize
     @Environment(\.monitorZoomRulerOpen) private var zoomRulerOpen
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.displayScale) private var primaryDisplayScale
     @State private var primarySizer = MonitorPortraitPrimarySizer()
     @State private var storageForm = 0
@@ -479,6 +482,16 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var photo: Bool { facts.record.photo }
     private var recordEnabled: Bool { !facts.record.busy }
     private var tools: [MonitorAssistSelection] { facts.tools }
+    private var voiceTool: MonitorToolItem? {
+        guard let voice = assists.voice, voice.isAvailable else { return nil }
+        let armed = voice.control.armed
+        return .init(id: "voiceControl", title: "VOICE", enabled: armed, hasOptions: false,
+            available: scenePhase == .active && voice.canToggle,
+            accessibilityLabel: armed ? "Disarm voice control" : "Arm voice control",
+            accessibilityValue: voice.control.listening ? "Listening" : armed ? "Preparing" : "Off",
+            accessibilityIdentifier: "monitor.voiceControl")
+    }
+    private var toolCount: Int { tools.count + (voiceTool == nil ? 0 : 1) }
     private var motionCovering: Bool { cameraViews.motion?.covering == true }
     private var captureSource: MonitorCaptureSourceIdentity {
         .init(camera: identity.camera, epoch: identity.epoch, monitor: identity.monitor,
@@ -540,6 +553,15 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             cover: { EmptyView() }, recovery: { EmptyView() })
             .environment(host).environment(\.interfaceLocked, locked)
             .coordinateSpace(name: ChromeEditSpace.name).coordinateSpace(name: LiveCanvasSpace.name)
+            .overlay {
+                if mounts(.toolBar), !command, let voice = assists.voice, voice.isAvailable {
+                    voice.feedback
+                        .padding(.top, 52).padding(.trailing, 8)
+                        .frame(width: layout.picture.width, height: layout.picture.height, alignment: .topTrailing)
+                        .position(x: layout.picture.midX, y: layout.picture.midY)
+                        .allowsHitTesting(false)
+                }
+            }
             .overlayPreferenceValue(ChromeEditSectionBoundsKey<Section>.self) { boxes in
                 if let editing {
                     ChromeEditBadges<Host>(mode: editing, boxes: boxes, viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height))
@@ -903,18 +925,24 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             }
         }
         if mounts(.toolBar), !command {
-            let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count, safeTop: safeArea.top)
+            let voice = voiceTool
+            let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: toolCount, safeTop: safeArea.top)
             MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
                 enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || assists.signalOptions.offers($0),
-                accessibilityLabel: $0.title) }, layout: metrics,
+                accessibilityLabel: $0.title) }, layout: metrics, trailingTool: voice,
                 usageSeed: assists.usageSeed, usage: assists.usage, expanded: $expanded,
                 onToggle: { id in
+                    if id == voice?.id {
+                        if admitted, scenePhase == .active { assists.voice?.toggle() }
+                        return
+                    }
                     if presentationAdmitted, let tool = tools.first(where: { $0.rawValue == id }) {
                         assistSource?.haptics.selection()
                         if presentationAdmitted { assists.toggle(tool) }
                     }
                 }, onOptions: openOptions) { id in
-                    if let tool = tools.first(where: { $0.rawValue == id })?.sharedTool { MonitorAssistToolGlyph(tool: tool, size: nil) }
+                    if id == voice?.id { Image(systemName: voice?.enabled == true ? "mic.fill" : "mic") }
+                    else if let tool = tools.first(where: { $0.rawValue == id })?.sharedTool { MonitorAssistToolGlyph(tool: tool, size: nil) }
                     else { MonitorIcon.image }
                 }.modifier(ChromeEditableModifier<Host>(section: .toolBar, mode: editing))
                 .opacity(locked ? 0.4 : 1).allowsHitTesting(!locked).position(x: frame.midX, y: frame.midY).zIndex(6)
@@ -940,7 +968,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @ViewBuilder private var instruments: some View {
         if assist.isVisible(.evMeter), let exposure = source.exposure {
             let footprint = MonitorAssistPaletteLayout.fieldMonitorFootprint(
-                layout, toolCount: tools.count, safeTop: safeArea.top, expanded: expanded)
+                layout, toolCount: toolCount, safeTop: safeArea.top, expanded: expanded)
             let frame = MonitorOperatorExposureGeometry.frame(in: meterFeed,
                 avoiding: mounts(.toolBar) ? footprint.cgRect : nil)
             let reading = facts.picture.recovering ? ExposureMeterReading(cameraValue: nil) : exposure()

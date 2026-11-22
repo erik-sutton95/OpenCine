@@ -607,7 +607,7 @@ class PocketCameraSession(
             return CameraServices().plus(CameraMediaService::class, service)
         }
 
-    private var reportedCapture = CameraStatus()
+    @Volatile private var reportedCapture = CameraStatus()
 
     // Camera-reported values for the seam. [status] carries optimistic HUD values; these never do.
     private var reportedIsoIndex: Int? = null
@@ -3188,6 +3188,18 @@ class PocketCameraSession(
         }
     }
 
+    override val commandOwner: DjiCommandOwner? get() = datalink?.commandOwner
+
+    /** Optical camera selection from the body report, independent of the optimistic zoom UI. */
+    val voiceOpticalLens: OpticalLens? get() = reportedCapture.zoomLens.takeIf { hasDualOpticalLenses && it > 0 }?.let {
+        if (it >= CamFov.LENS_3X) OpticalLens.TELE else OpticalLens.WIDE
+    }
+
+    enum class OpticalLens { WIDE, TELE }
+
+    val hasDualOpticalLenses: Boolean get() =
+        connectedCamera?.model?.name?.replace(" ", "")?.contains("Pocket4P", ignoreCase = true) == true
+
     override fun controlState(): PocketControlState {
         val dl = datalink
         val status = _status.value
@@ -3272,7 +3284,13 @@ class PocketCameraSession(
      * Explicit start or stop; callers go through `control`, which checks the reported state
      * first. Pocket 3 TimeLapse `0x02/0x01`; else video record `0x02/0x02`.
      */
-    override fun setRecording(start: Boolean, onStage: ((ControlWireEvent) -> Unit)?) {
+    override fun setRecording(start: Boolean, onStage: ((ControlWireEvent) -> Unit)?) =
+        setRecordingAdmitted(start, null, onStage)
+
+    override fun setRecording(start: Boolean, admission: DjiCommandAdmission, onStage: ((ControlWireEvent) -> Unit)?) =
+        setRecordingAdmitted(start, admission, onStage)
+
+    private fun setRecordingAdmitted(start: Boolean, admission: DjiCommandAdmission?, onStage: ((ControlWireEvent) -> Unit)?) {
         val trigger =
             CaptureShutterPolicy.captureKind(_status.value.shootingMode, connectedCamera?.model?.name) ==
                 CaptureShutterPolicy.CaptureKind.SHUTTER_TRIGGER
@@ -3283,13 +3301,17 @@ class PocketCameraSession(
             if (trigger) (if (start) "TimeLapse" else "Stop") else if (start) "Record" else "Stop",
             onStage = onStage,
             expect = { reportedRecording == start },
+            admission = admission,
             onSettle = { _controlBusy.value = false },
         )
     }
 
     fun setEv(thirds: Int) = setEv(thirds, null)
 
-    private fun setEv(thirds: Int, onStage: ((ControlWireEvent) -> Unit)?) {
+    override fun writeExposureCompensation(value: EvComp, admission: DjiCommandAdmission, onStage: (ControlWireEvent) -> Unit) =
+        setEv(value.thirds, onStage, admission)
+
+    private fun setEv(thirds: Int, onStage: ((ControlWireEvent) -> Unit)?, admission: DjiCommandAdmission? = null) {
         val ev = EvComp.fromThirds(thirds)
         val previous = _status.value.evComp
         pinExpo(evComp = ev.rawValue)
@@ -3298,6 +3320,7 @@ class PocketCameraSession(
             DjiNative.CMD_SET_EV,
             "${ev.rawValue}",
             "EV",
+            admission = admission,
             coalesce = true,
             onStage = onStage,
             onFail = {
@@ -4112,7 +4135,13 @@ class PocketCameraSession(
         }
     }
 
-    override fun setIsoIndex(index: Int, onStage: ((ControlWireEvent) -> Unit)?) {
+    override fun setIsoIndex(index: Int, onStage: ((ControlWireEvent) -> Unit)?) =
+        setIsoIndexAdmitted(index, null, onStage)
+
+    override fun setIsoIndex(index: Int, admission: DjiCommandAdmission, onStage: ((ControlWireEvent) -> Unit)?) =
+        setIsoIndexAdmitted(index, admission, onStage)
+
+    private fun setIsoIndexAdmitted(index: Int, admission: DjiCommandAdmission?, onStage: ((ControlWireEvent) -> Unit)?) {
         val previous = _status.value.isoIndex
         pinExpo(isoIndex = index)
         _status.value = _status.value.copy(isoIndex = index)
@@ -4123,6 +4152,7 @@ class PocketCameraSession(
             coalesce = true,
             onStage = onStage,
             expect = { reportedIsoIndex == index },
+            admission = admission,
             onFail = {
                 if (_status.value.isoIndex == index) {
                     clearExpoPin(iso = true)
@@ -4132,10 +4162,19 @@ class PocketCameraSession(
         )
     }
 
+    override fun writeShutter(denominator: Int, admission: DjiCommandAdmission, onStage: (ControlWireEvent) -> Unit) {
+        if (!captureControlState().admitsShutterWrite(denominator)) {
+            onStage(ControlWireEvent.NOT_SENT)
+            return
+        }
+        setShutterDenom(denominator, onStage, ensureManual = false, admission = admission)
+    }
+
     fun setShutterDenom(denom: Int) = setShutterDenom(denom, null, ensureManual = true)
 
     private fun setShutterDenom(
         denom: Int, onStage: ((ControlWireEvent) -> Unit)?, ensureManual: Boolean,
+        admission: DjiCommandAdmission? = null,
     ) {
         formatPin?.shutterAngle = null
         if (ensureManual && _status.value.expoMode != CameraCommands.EXPO_MANUAL) {
@@ -4161,6 +4200,7 @@ class PocketCameraSession(
             DjiNative.CMD_SET_SHUTTER,
             "$denom",
             "1/$denom",
+            admission = admission,
             coalesce = true,
             onStage = onStage,
             onFail = {
@@ -4305,7 +4345,13 @@ class PocketCameraSession(
         if (exposureLockDecision("awbLockHolds", request.toString()) == "false") _awbLockKelvin.value = null
     }
 
-    override fun setWhiteBalanceAuto(tint: Int?, onStage: ((ControlWireEvent) -> Unit)?) {
+    override fun setWhiteBalanceAuto(tint: Int?, onStage: ((ControlWireEvent) -> Unit)?) =
+        setWhiteBalanceAutoAdmitted(tint, null, onStage)
+
+    override fun setWhiteBalanceAuto(tint: Int?, admission: DjiCommandAdmission, onStage: ((ControlWireEvent) -> Unit)?) =
+        setWhiteBalanceAutoAdmitted(tint, admission, onStage)
+
+    private fun setWhiteBalanceAutoAdmitted(tint: Int?, admission: DjiCommandAdmission?, onStage: ((ControlWireEvent) -> Unit)?) {
         _awbLockKelvin.value = null
         val previous = _status.value
         val next = (tint ?: _status.value.wbTint).coerceIn(-100, 100)
@@ -4325,6 +4371,7 @@ class PocketCameraSession(
             coalesce = true,
             onStage = onStage,
             expect = { reportedWhiteBalance == ReportedWhiteBalance(CameraCommands.WB_AUTO, 0, next) },
+            admission = admission,
             onFail = {
                 if (whiteBalancePin === requestPin) {
                     whiteBalancePin = null
@@ -4336,7 +4383,15 @@ class PocketCameraSession(
         )
     }
 
-    override fun setWhiteBalance(kelvin: Int, tint: Int, onStage: ((ControlWireEvent) -> Unit)?) {
+    override fun setWhiteBalance(kelvin: Int, tint: Int, onStage: ((ControlWireEvent) -> Unit)?) =
+        setWhiteBalanceAdmitted(kelvin, tint, null, onStage)
+
+    override fun setWhiteBalance(kelvin: Int, tint: Int, admission: DjiCommandAdmission, onStage: ((ControlWireEvent) -> Unit)?) =
+        setWhiteBalanceAdmitted(kelvin, tint, admission, onStage)
+
+    private fun setWhiteBalanceAdmitted(
+        kelvin: Int, tint: Int, admission: DjiCommandAdmission?, onStage: ((ControlWireEvent) -> Unit)?,
+    ) {
         val previous = _status.value
         val (k, t) = CameraCommands.clampWhiteBalanceCustom(kelvin, tint)
         // Custom from AWB Lock keeps the locked value; the camera is already there.
@@ -4363,6 +4418,7 @@ class PocketCameraSession(
             coalesce = true,
             onStage = onStage,
             expect = { reportedWhiteBalance == ReportedWhiteBalance(CameraCommands.WB_CUSTOM, k, t) },
+            admission = admission,
             onFail = {
                 if (whiteBalancePin === requestPin) {
                     whiteBalancePin = null
@@ -5872,9 +5928,11 @@ class PocketCameraSession(
         expect: (() -> Boolean)? = null,
         onFail: (() -> Unit)? = null,
         onSettle: ((Boolean) -> Unit)? = null,
+        admission: DjiCommandAdmission? = null,
     ) {
         val dl = datalink
-        if (!controlLeaseAllows() || dl == null || !endpointCommandAdmission.allows(dl.isClosed, dl.isRebuilding)) {
+        if (admission?.admits(dl?.commandOwner) == false || !controlLeaseAllows() || dl == null ||
+            !endpointCommandAdmission.allows(dl.isClosed, dl.isRebuilding)) {
             _controlNote.value = "not live"
             onStage?.invoke(ControlWireEvent.NOT_SENT)
             onFail?.invoke()
@@ -5892,9 +5950,10 @@ class PocketCameraSession(
                 name = name,
                 onFail = onFail,
                 onSettle = onSettle,
-                retransmits = retransmits,
+                retransmits = retransmits && admission == null,
                 onStage = onStage,
                 expect = expect,
+                admission = admission,
             )
         if (coalesce && inflight.containsKey(key)) {
             // Latest wins: the replaced request never reaches the wire.
@@ -5907,7 +5966,29 @@ class PocketCameraSession(
     private fun launchInflight(key: Int, send: InflightSend) {
         inflight[key] = send
         inflightPending.remove(key)?.takeIf { it !== send }?.onStage?.invoke(ControlWireEvent.NOT_SENT)
+        if (send.admission != null) {
+            transmit(send) { dispatched ->
+                scope.launch {
+                    if (inflight[key] !== send) return@launch
+                    if (dispatched) {
+                        noteCameraSet(send)
+                        startInflightWait(key, send)
+                    } else {
+                        inflight.remove(key)
+                        send.onStage?.invoke(ControlWireEvent.NOT_SENT)
+                        send.onFail?.invoke()
+                        send.onSettle?.invoke(false)
+                        inflightPending.remove(key)?.let { launchInflight(key, it) }
+                    }
+                }
+            }
+            return
+        }
         transmit(send)
+        startInflightWait(key, send)
+    }
+
+    private fun startInflightWait(key: Int, send: InflightSend) {
         send.onStage?.invoke(ControlWireEvent.SENT)
         if (send.retransmits) {
             scope.launch {
@@ -5924,19 +6005,27 @@ class PocketCameraSession(
         }
     }
 
-    private fun transmit(send: InflightSend) {
-        if (!controlLeaseAllows()) return
-        val dl = datalink ?: return
+    private fun transmit(send: InflightSend, onDispatched: ((Boolean) -> Unit)? = null) {
+        val dl = datalink
+        if (!controlLeaseAllows() || dl == null) {
+            onDispatched?.invoke(false)
+            return
+        }
         pairingHold.remove(DjiNative.waitKey(send.kind))
         try {
-            val sentAt = SystemClock.elapsedRealtime()
-            lastCameraSetAt = sentAt
-            controlLease?.noteSet(sentAt)
-            dl.sendCommand(send.kind, send.extra)
-            Log.i(TAG, "control: send ${send.name}")
+            if (onDispatched == null) noteCameraSet(send)
+            dl.sendCommand(send.kind, send.extra, send.admission, onDispatched)
         } catch (e: Exception) {
             Log.w(TAG, "control: send ${send.name} failed", e)
+            onDispatched?.invoke(false)
         }
+    }
+
+    private fun noteCameraSet(send: InflightSend) {
+        val sentAt = SystemClock.elapsedRealtime()
+        lastCameraSetAt = sentAt
+        controlLease?.noteSet(sentAt)
+        Log.i(TAG, "control: send ${send.name}")
     }
 
     private fun finishInflight(send: InflightSend, reply: DumlFrame) {
@@ -6133,6 +6222,7 @@ class PocketCameraSession(
         val onStage: ((ControlWireEvent) -> Unit)? = null,
         /** The camera reports the requested value. */
         val expect: (() -> Boolean)? = null,
+        val admission: DjiCommandAdmission? = null,
     )
 
     private class FrameWaiter(

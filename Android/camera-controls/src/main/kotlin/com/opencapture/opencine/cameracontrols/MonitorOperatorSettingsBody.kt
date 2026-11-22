@@ -40,6 +40,8 @@ import com.opencapture.opencine.appkit.MonitorDisplaySection
 import com.opencapture.opencine.appkit.MonitorOperatorDisplaySections
 import com.opencapture.opencine.appkit.MonitorOperatorPreferences
 import com.opencapture.opencine.appkit.MonitorOperatorSessionModel
+import com.opencapture.opencine.appkit.MonitorVoiceAction
+import com.opencapture.opencine.appkit.MonitorVoicePreferences
 
 /**
  * The picture tabs' content, which still has one owner per source: the View Assist cards (the
@@ -155,6 +157,7 @@ private fun MonitorOperatorSettingsRows(
         }
         MonitorSettingsTab.CONTROLS -> {
             SettingsCameraPresets(configuration.cameraPresets, configuration.feedback)
+            configuration.voicePreferences?.let { VoiceSettings(it, configuration.feedback) }
             SettingsGyro(configuration.gyro, configuration.feedback)
             SettingsControls(configuration.controls, configuration.feedback)
         }
@@ -177,6 +180,28 @@ private fun MonitorOperatorSettingsRows(
         }
         MonitorSettingsTab.STORAGE -> SettingsStorage(configuration)
         MonitorSettingsTab.SYSTEM -> SettingsSystem(configuration, openLegal)
+    }
+}
+
+@Composable
+private fun VoiceSettings(preferences: MonitorVoicePreferences, feedback: () -> Unit) {
+    MonitorSettingsRowCard("Voice Control") {
+        MonitorVoiceAction.entries.forEach { action ->
+            val (title, help) = when (action) {
+                MonitorVoiceAction.START -> "Start recording" to "“Camera, start” or “Camera, record”"
+                MonitorVoiceAction.STOP -> "Stop recording" to "“Camera, stop”"
+                MonitorVoiceAction.PRESET -> "Recall preset" to
+                    "“Camera, load next” or “Camera, load previous” follows the preset list. “Camera, load three” loads Preset 3."
+            }
+            MonitorSettingsSwitchInlineRow(
+                title, preferences.isEnabled(action), help,
+                showTopDivider = action != MonitorVoiceAction.START,
+                testTag = "monitor.settings.voice.${action.name.lowercase(java.util.Locale.ROOT)}",
+            ) {
+                feedback()
+                preferences.setEnabled(action, !preferences.isEnabled(action))
+            }
+        }
     }
 }
 

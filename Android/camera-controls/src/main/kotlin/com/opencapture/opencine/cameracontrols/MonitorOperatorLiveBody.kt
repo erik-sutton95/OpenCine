@@ -190,6 +190,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     renderedTools: Set<MonitorAssistTool>,
     signalOptions: MonitorOperatorSignalOptions = MonitorOperatorSignalOptions(),
     audioChannels: Pair<AudioMeterReading, AudioMeterReading>? = null,
+    trailingTool: MonitorOperatorPaletteItem? = null,
     aspect: MonitorOperatorAspectControl? = null, focusResetFrame: MonitorRect = layout.focusReset,
     cameraViews: MonitorOperatorBodyViews = MonitorOperatorBodyViews(),
     modifier: Modifier = Modifier, onCaptureFrame: (MonitorRect) -> Unit = {},
@@ -530,7 +531,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     LocalMonitorAssistExpansion provides paletteExpansion) { MonitorAssistPalette(palette,
                     layout.portrait, !interactive, { it.isOn }, { it.tool?.title ?: it.title },
                     { it.tool?.chipLabel ?: it.label }, hasOptions,
-                    onToggle = { if (interactive && currentSource()) it.toggle() },
+                    onToggle = { if (interactive && currentSource() && (it !== trailingTool || admitted)) it.toggle() },
                     onOptions = { if (interactive && currentSource()) { assist.configureTool = it.tool; reviewing = it.tool == null } },
                     glyph = { item, tint, decoration ->
                         val custom = item.glyph
@@ -542,9 +543,11 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                         null, Modifier.size(14.dp), MonitorPalette.muted) },
                     modifier = Modifier.descriptorFrame(layout.assists).then(edit(sections.assists)),
                     usageSeed = usageSeed, idOf = { it.id }, usage = usage, onUsageChange = setUsage,
+                    isAvailable = { it !== trailingTool || admitted },
                     collapseRevision = paletteRevision, accessibilityIdentifier = { it.accessibilityIdentifier },
                     // A value the open plate does not cover takes a touch, as on iOS; Back closes the plate.
                     passesOutsideTouches = true,
+                    trailingTool = trailingTool,
                     onBoundsInRootChanged = { bounds ->
                         paletteFrameChanged(bounds?.let { with(density) { MonitorRect(
                             (it.left - origin.x).toDp().value, (it.top - origin.y).toDp().value,

@@ -135,6 +135,30 @@ class MonitorAssistRevealInputTest {
         }
     }
 
+    @Test fun trailingToolOnlyAppearsAtTheEndOfTheExpandedPlate() {
+        ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
+            val probe = AssistRevealProbe()
+            composePalette(scenario, probe, portrait = false, trailingTool = "Voice control")
+            val voiceLabel = "Voice control, off"
+            assertTrue(LiveAccessibilityTree.awaitGone(voiceLabel))
+
+            tap(requireChevron(probe))
+            val voice = checkNotNull(LiveAccessibilityTree.await(voiceLabel))
+            val second = checkNotNull(LiveAccessibilityTree.await("False Color, off"))
+            val voiceBounds = android.graphics.Rect().also(voice::getBoundsInScreen)
+            val secondBounds = android.graphics.Rect().also(second::getBoundsInScreen)
+            assertTrue(voiceBounds.left > secondBounds.right)
+            LiveAccessibilityTree.click(voiceLabel)
+            scenario.onActivity {
+                assertEquals(listOf("Voice control"), probe.toolClicks)
+                assertEquals(0, probe.usageChanges)
+            }
+
+            tap(requireChevron(probe))
+            assertTrue(LiveAccessibilityTree.awaitGone(voiceLabel))
+        }
+    }
+
     @Test fun compactPlateLeavesTapsAboveTheCollapsedSlot() {
         ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
             val probe = AssistRevealProbe()
@@ -297,6 +321,8 @@ class MonitorAssistRevealInputTest {
         var above = Offset.Zero
         var aboveSize = IntSize.Zero
         var aboveClicks = 0
+        val toolClicks = mutableListOf<String>()
+        var usageChanges = 0
     }
 
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -306,6 +332,7 @@ class MonitorAssistRevealInputTest {
         probe: AssistRevealProbe,
         portrait: Boolean,
         values: ValuesProbe? = null,
+        trailingTool: String? = null,
     ) {
         scenario.onActivity { activity ->
             activity.setContent {
@@ -339,13 +366,14 @@ class MonitorAssistRevealInputTest {
                                 if (values != null) probe.expansion else null,
                         ) {
                             MonitorAssistPalette(
-                                tools = listOf(
+                                tools = if (trailingTool != null) listOf("Peaking", "False Color") else listOf(
                                     "Peaking", "False Color", "Zebra", "Waveform",
                                     "Parade", "Histogram", "Vectorscope", "Guides",
                                 ),
                                 portrait = portrait, locked = probe.locked, isOn = { false },
                                 title = { it }, label = { it }, hasOptions = { false },
-                                onToggle = {}, onOptions = {},
+                                onToggle = { probe.toolClicks += it }, onOptions = {},
+                                onUsageChange = { probe.usageChanges++ },
                                 glyph = { tool, _, modifier -> Text(tool.take(1), modifier) },
                                 chevron = { _, _ ->
                                     probe.chevronHost = LocalView.current
@@ -356,6 +384,7 @@ class MonitorAssistRevealInputTest {
                                 },
                                 passesOutsideTouches = values != null,
                                 onBoundsInRootChanged = { probe.plate = it },
+                                trailingTool = trailingTool,
                             )
                         }
                     }

@@ -106,7 +106,8 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
      * open plate is modal.
      */
     passesOutsideTouches: Boolean = false,
-    onBoundsInRootChanged: (Rect?) -> Unit = {}, collapseRevision: Long = 0L) {
+    onBoundsInRootChanged: (Rect?) -> Unit = {}, collapseRevision: Long = 0L,
+    trailingTool: T? = null) {
     val localExpanded = remember { mutableStateOf(false) }
     var expanded by (LocalMonitorAssistExpansion.current ?: localExpanded)
     var previousCollapseRevision by remember { mutableStateOf(collapseRevision) }
@@ -130,6 +131,7 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
         val byId = tools.associateBy(idOf)
         rankedIds.mapNotNull { byId[it] }
     }
+    val catalog = if (expanded && trailingTool != null) ranked + trailingTool else ranked
     LaunchedEffect(tools, usageSeed) {
         if (pinnedIds.isEmpty()) pinnedIds = liveRanked.map(idOf)
     }
@@ -148,7 +150,8 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     val iconSize = buttonSize * (29f / 54f)
     val expansionLane = MonitorLayoutPolicy.ASSIST_EXPANSION_BUTTON_WIDTH.dp
     val horizontalInsets = MonitorLayoutPolicy.ASSIST_HORIZONTAL_INSETS.dp
-    val columns = maxOf(1, (tools.size + 1) / 2)
+    val toolCount = tools.size + if (trailingTool == null) 0 else 1
+    val columns = maxOf(1, (toolCount + 1) / 2)
     val catalogWidth = buttonSize * columns + MonitorLayoutPolicy.ASSIST_SPACING.dp * maxOf(0, columns - 1) + horizontalInsets
     val available = MonitorLayoutPolicy.assistAvailableWidth(
         config.screenWidthDp.toFloat(), portrait, tablet).dp
@@ -156,7 +159,7 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     val compactH = if (portrait) buttonSize + 35.dp else buttonSize * 2 + (MonitorLayoutPolicy.ASSIST_SPACING + 8).dp
     val fullW = if (portrait) buttonSize + 8.dp else minOf(available, maxOf(buttonSize + horizontalInsets, catalogWidth))
     val fullH = if (portrait) minOf((config.screenHeightDp * .62f).dp,
-        buttonSize * tools.size + (maxOf(0, tools.size - 1) * MonitorLayoutPolicy.ASSIST_SPACING + 35).dp,
+        buttonSize * toolCount + (maxOf(0, toolCount - 1) * MonitorLayoutPolicy.ASSIST_SPACING + 35).dp,
         maxExpandedHeight?.dp?.coerceAtLeast(compactH) ?: Float.MAX_VALUE.dp) else buttonSize * 2 + 11.dp
     val reveal = if (portrait && dragging) scrub else progress.value
     val visibleW = compactW + (fullW - compactW) * reveal
@@ -219,12 +222,14 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
         val active = isOn(tool)
         val available = isAvailable(tool)
         val tint = if (active) MonitorPalette.accent else MonitorPalette.text
-        val shown = if (index < compactCount) 1f else extraOpacity
+        val isTrailing = trailingTool != null && tool == trailingTool
+        val shown = if (index < compactCount && !isTrailing) 1f else extraOpacity
+        val recordUsage = { if (!isTrailing) used(tool) }
         val identifier = accessibilityIdentifier(tool)
         Box(Modifier.size(buttonSize).graphicsLayer { alpha = shown * if (available) 1f else .4f }
             .clip(RoundedCornerShape(9.dp)).background(if (active) MonitorPalette.accent.copy(alpha = .13f) else Color.Transparent)
-            .combinedClickable(enabled = !locked && available && shown > 0.35f, onClick = { used(tool); onToggle(tool) },
-                onLongClick = if (hasOptions(tool)) { { used(tool); onOptions(tool); expanded = false } } else null)
+            .combinedClickable(enabled = !locked && available && shown > 0.35f, onClick = { recordUsage(); onToggle(tool) },
+                onLongClick = if (hasOptions(tool)) { { recordUsage(); onOptions(tool); expanded = false } } else null)
             .then(if (identifier != null) Modifier.testTag(identifier) else Modifier)
             .semantics {
                 role = Role.Button
@@ -371,7 +376,7 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
                     Column(Modifier.weight(1f, fill = true).monitorScrollFade(scrollState, depth = fade)
                         .verticalScroll(scrollState, enabled = expanded),
                         verticalArrangement = Arrangement.spacedBy(MonitorLayoutPolicy.ASSIST_SPACING.dp)) {
-                        ranked.forEachIndexed { index, tool -> key(tool, index) }
+                        catalog.forEachIndexed { index, tool -> key(tool, index) }
                     }
                 }
             } else {
@@ -384,7 +389,7 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
                             Column(verticalArrangement = Arrangement.spacedBy(MonitorLayoutPolicy.ASSIST_SPACING.dp)) {
                                 repeat(2) { row ->
                                     val index = MonitorAssistPaletteReveal.landscapeCellIndex(column, row)
-                                    if (index < ranked.size) key(ranked[index], index)
+                                    if (index < catalog.size) key(catalog[index], index)
                                     else Box(Modifier.size(buttonSize))
                                 }
                             }

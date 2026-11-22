@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSettingsPreset
 import com.opencapture.opencine.core.CameraSettingsPresetCodec
 import com.opencapture.opencine.core.CameraSettingsPresetRecall
@@ -14,6 +15,7 @@ import com.opencapture.opencine.core.CommandFailure
 import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
+import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
@@ -161,6 +163,9 @@ public class CameraSettingsPresetsModel(
     public val shell: ShellModel,
     private val admission: () -> CommandDispatchAdmission? = { null },
 ) {
+    private data class LastRecall(val session: CameraSessionID, val epoch: ControlEpoch, val id: String)
+    private var lastRecall: LastRecall? = null
+
     /** A recall is in flight. */
     public var recalling: Boolean by mutableStateOf(false)
         private set
@@ -185,7 +190,13 @@ public class CameraSettingsPresetsModel(
         get() = scope != null && shell.control.state.value.snapshot?.connection == ConnectionState.Ready && !recalling
 
     /** The name a new preset gets when the operator leaves it empty. */
-    public val suggestedName: String get() = "Preset ${presets.size + 1}"
+    public val suggestedName: String
+        get() {
+            val names = presets.map { it.name.lowercase() }.toSet()
+            var number = 1
+            while ("preset $number" in names) number++
+            return "Preset $number"
+        }
 
     /** Saves the camera's current values under [name] (trimmed; empty takes [suggestedName]). */
     public fun save(name: String): CameraSettingsPreset? {
@@ -206,15 +217,42 @@ public class CameraSettingsPresetsModel(
     }
 
     /** Recalls [preset] on the connected camera and reports the result in [message]. */
-    public suspend fun recall(preset: CameraSettingsPreset): CameraSettingsPresetRecall? {
+    public suspend fun recall(preset: CameraSettingsPreset): CameraSettingsPresetRecall? =
+        recall(preset, null)
+
+    internal suspend fun recallAdjacent(next: Boolean, admission: CommandDispatchAdmission): String {
+        val list = presets
+        if (list.isEmpty()) return CameraSettingsPresetCopy.EMPTY
+        val snapshot = shell.control.state.value.snapshot
+        val last = lastRecall?.takeIf { snapshot != null && it.session == snapshot.session && it.epoch == snapshot.epoch }
+        val previous = list.indexOfFirst { it.id == last?.id }
+        val index = if (previous < 0) {
+            if (next) 0 else list.lastIndex
+        } else {
+            previous + (if (next) 1 else -1)
+        }
+        val preset = list.getOrNull(index)
+            ?: return if (next) "Already at the last preset." else "Already at the first preset."
+        val result = recall(preset, admission) ?: return "Preset recall is unavailable."
+        return CameraSettingsPresetCopy.result(result)
+    }
+
+    internal suspend fun recall(preset: CameraSettingsPreset, admission: CommandDispatchAdmission?): CameraSettingsPresetRecall? {
         if (recalling) return null
         if (!canRecall) { message = CameraSettingsPresetCopy.CONNECT_FIRST; return null }
+        val snapshot = shell.control.state.value.snapshot
         recalling = true
         message = "Recalling ${preset.name}..."
         val result = try {
-            shell.control.recall(preset, admission())
+            shell.control.recall(preset, admission ?: this.admission())
         } finally {
             recalling = false
+        }
+        if (snapshot != null && result.failed.isEmpty() && result.entries.any {
+                it.outcome == CameraSettingsPresetRecall.Outcome.Applied ||
+                    it.outcome == CameraSettingsPresetRecall.Outcome.Unchanged
+            }) {
+            lastRecall = LastRecall(snapshot.session, snapshot.epoch, preset.id)
         }
         message = CameraSettingsPresetCopy.result(result)
         return result

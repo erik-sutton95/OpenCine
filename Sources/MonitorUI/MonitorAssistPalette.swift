@@ -31,6 +31,7 @@
     /// the clip and content shape keep collapsed hits on the compact plate.
     public struct MonitorAssistPalette<Icon: View>: View {
         private let tools: [MonitorToolItem]
+        private let trailingTool: MonitorToolItem?
         private let layout: MonitorAssistPaletteLayout
         private let usageSeed: [String: Int]
         private let onToggle: (String) -> Void
@@ -51,6 +52,7 @@
 
         public init(
             tools: [MonitorToolItem], layout: MonitorAssistPaletteLayout,
+            trailingTool: MonitorToolItem? = nil,
             usageSeed: [String: Int] = [:],
             usage: Binding<MonitorToolUsage>,
             expanded: Binding<Bool>, onToggle: @escaping (String) -> Void,
@@ -61,6 +63,7 @@
             @ViewBuilder icon: @escaping (String) -> Icon
         ) {
             self.tools = tools
+            self.trailingTool = trailingTool
             self.layout = layout
             self.usageSeed = usageSeed
             _usage = usage
@@ -154,11 +157,16 @@
         }
 
         private var displayTools: [MonitorToolItem] {
-            let frozen = expanded || dragging || progress > 0.02
-            return MonitorAssistPaletteReveal.pinnedOrder(
-                ranked: rankedIDs, pinned: pinnedIDs, frozen: frozen
+            orderedTools(frozen: expanded || dragging || progress > 0.02, pinned: pinnedIDs)
+        }
+
+        func orderedTools(frozen: Bool, pinned: [String]) -> [MonitorToolItem] {
+            let ordered = MonitorAssistPaletteReveal.pinnedOrder(
+                ranked: rankedIDs, pinned: pinned, frozen: frozen
             )
             .compactMap { id in tools.first { $0.id == id } }
+            if frozen, let trailingTool { return ordered + [trailingTool] }
+            return ordered
         }
 
         /// The landscape columns to lay out. Fully collapsed, only the compact cells: the lazy
@@ -412,7 +420,7 @@
 
         private func toggle(_ tool: MonitorToolItem) {
             guard tool.available else { return }
-            usage.recordUse(of: tool.id, seed: usageSeed)
+            if tool.id != trailingTool?.id { usage.recordUse(of: tool.id, seed: usageSeed) }
             onToggle(tool.id)
         }
 

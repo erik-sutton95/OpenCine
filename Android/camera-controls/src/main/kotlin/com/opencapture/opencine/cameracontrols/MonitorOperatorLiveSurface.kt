@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.opencapture.monitorui.LiveMonitorLayout
 import com.opencapture.monitorui.MonitorAssistTool
+import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorMaterial
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorToolUsageState
@@ -54,6 +55,7 @@ import com.opencapture.opencine.appkit.MonitorInteractionTransition
 import com.opencapture.opencine.appkit.MonitorOperatorCaptureInputs
 import com.opencapture.opencine.appkit.MonitorOperatorCaptureState
 import com.opencapture.opencine.appkit.MonitorOperatorSessionModel
+import com.opencapture.opencine.appkit.MonitorVoiceTool
 import com.opencapture.opencine.appkit.rememberPhoneBatteryReadout
 import com.opencapture.opencine.core.LocalVPNFilter
 import com.opencapture.opencine.media.MonitorTransfer
@@ -155,6 +157,7 @@ public class MonitorOperatorLiveAssists(
     public val rendered: Set<MonitorAssistTool>, public val transfer: MonitorTransfer?,
     public val signalOptions: MonitorOperatorSignalOptions, public val usage: MonitorToolUsageState,
     public val setUsage: (MonitorToolUsageState) -> Unit, public val usageSeed: Map<String, Int>,
+    public val voice: MonitorVoiceTool? = null,
 )
 
 /**
@@ -230,7 +233,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
             }
             views.waitingPicture?.invoke()
         }, feedback = {
-            OperatorToast(source.note, layout, MonitorDisplaySection.STATUS_BAR in mounted)
+            OperatorToast(source.note ?: assists.voice?.message, layout, MonitorDisplaySection.STATUS_BAR in mounted)
             views.feedback?.invoke(this)
         })
     val index = session.modes.indexOf(mode).takeIf { it >= 0 }
@@ -244,10 +247,20 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         mounted, host, session.editingMode, session.locked, { session.locked = it }, source.coverOpen,
         mode == MonitorDisplayMode.CLEAN, command, source.readOnly, source.picture.recovering, source.status,
         listOfNotNull(MonitorOperatorPowerReading(false, phone.percent, phone.externalPower), source.cameraBattery),
-        source.capture, {}, source.settings, source.media, { session.cycle() }, index, session.modes.size,
+        source.capture, {}, {
+            assists.voice?.pauseForSettings?.invoke()
+            source.settings()
+        }, source.media,
+        { session.cycle() }, index, session.modes.size,
         source.record.photo, source.record.confirm, !source.record.busy, onRecordConfirming = source.record.confirmingChanged,
         assist = assist, assists = assists.scopes,
         palette = assists.palette, usage = assists.usage, setUsage = assists.setUsage, usageSeed = assists.usageSeed,
+        trailingTool = assists.voice?.let { voice ->
+            MonitorOperatorPaletteItem("voiceControl", "Voice control", "VOICE", tool = null, isOn = voice.armed,
+                toggle = voice.toggle, hasOptions = false,
+                glyph = { tint, decoration -> MonitorIcon(MonitorIcon.MIC, null, decoration, tint) },
+                accessibilityIdentifier = "monitor.voiceControl")
+        },
         renderedTools = assists.rendered,
         signalOptions = assists.signalOptions, audioChannels = source.audio, aspect = aspect, focusResetFrame = layout.focusReset(views.motionCluster),
         cameraViews = bodyViews, chromeBoxes = boxes, audio = source.audioLevels,

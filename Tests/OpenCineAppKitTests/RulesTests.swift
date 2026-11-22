@@ -50,6 +50,7 @@ struct AppKitRules {
             "OpenCineStreaming", "OpenCineStreamingApple",
         ]
         let system: Set<String> = [
+            "AVFAudio", "CoreMedia", "Speech",
             "Foundation", "Observation", "Network", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
             "Metal", "MetalKit", "QuartzCore", "AVFoundation", "Photos",
             // The delivery share sheet's typed file items.
