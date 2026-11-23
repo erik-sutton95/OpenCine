@@ -208,6 +208,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     transitionChanged: (MonitorInteractionTransition) -> Unit = {},
     paletteFrameChanged: (MonitorRect?) -> Unit = {},
     captureState: MonitorOperatorCaptureState<K, N>? = null,
+    /** The open zoom ruler replaces the status block; it fades out and comes back unchanged. */
+    statusHidden: Boolean = false,
     picture: @Composable BoxScope.() -> Unit,
     cameraPanel: @Composable (K, MonitorRect, Boolean, MonitorOperatorCaptureState<K, N>) -> Unit,
     photoRelease: (@Composable (Boolean, Modifier) -> Unit)? = null,
@@ -352,7 +354,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         captureHidden = captureHidden, captureInteractive = panel == null || panel.top, locked = locked,
         popupInteractive = editing == null && interactionEnabled,
         capturePresented = panel != null || state.preview != null || inspecting, recovering = recovering,
-        statusInteractive = !assistInspectorPresented),
+        statusInteractive = !assistInspectorPresented, statusHidden = statusHidden),
         modifier, picture = picture,
         status = {
             val recording = status.recording()

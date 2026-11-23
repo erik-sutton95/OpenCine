@@ -46,10 +46,19 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     public struct Timing: Sendable {
         public var settle: [SettingKey: Duration]
         public var readbackInterval: Duration
+        /// How long a write to these keys waits for the camera's reply before its outcome is
+        /// unknown (otherwise the link's 8 s). Streamed writes that the next one replaces: Luna fw
+        /// 1.2.7 answers zoom SETs in about 20 ms but leaves about 2 in 100 unanswered, and an
+        /// 8 s wait froze a pinch or preset ramp (2026-11-22 capture).
+        public var writeTimeout: [SettingKey: Duration]
 
-        public init(settle: [SettingKey: Duration], readbackInterval: Duration) {
+        public init(
+            settle: [SettingKey: Duration], readbackInterval: Duration,
+            writeTimeout: [SettingKey: Duration] = [:]
+        ) {
             self.settle = settle
             self.readbackInterval = readbackInterval
+            self.writeTimeout = writeTimeout
         }
 
         public static let luna = Timing(
@@ -57,7 +66,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
                 .iso: .seconds(4), .shutter: .seconds(4), .whiteBalance: .seconds(6),
                 .recording: .seconds(10),
             ],
-            readbackInterval: .seconds(1))
+            readbackInterval: .seconds(1), writeTimeout: [.zoom: .seconds(1)])
     }
 
     public nonisolated let id: CameraSessionID
@@ -424,10 +433,17 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
                 framesPerSecond: reportedCadence.value, available: Self.shutterDenominators)
         } else { expectedShutter = nil }
         do {
+            let writeTimeout = timing.writeTimeout[key]
             if let admission {
                 guard let sendAdmitted else { throw LunaCommandAdmissionError.expired }
                 let epoch = current.epoch
-                _ = try await sendAdmitted(
+                let deliver: LunaAdmittedCommandSend =
+                    if let writeTimeout, let sendAdmittedWithin {
+                        { build, admission, didDispatch in
+                            try await sendAdmittedWithin(build, admission, writeTimeout, didDispatch)
+                        }
+                    } else { sendAdmitted }
+                _ = try await deliver(
                     { [self] in
                         try admission.require(owner: commandOwner)
                         guard !closed, current.epoch == epoch,
@@ -454,7 +470,11 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
                     })
             } else {
                 commitDispatch(command)
-                _ = try await send(request)
+                if let writeTimeout, let sendWithin {
+                    _ = try await sendWithin(request, writeTimeout)
+                } else {
+                    _ = try await send(request)
+                }
             }
         } catch let error as DeferredCommandRejection {
             return transition(operation, .rejected(error.rejection))

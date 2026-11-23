@@ -22,12 +22,16 @@
     }
 
     /// Tap a saved slot to go there; tap an empty slot or hold any slot to save the current zoom.
+    /// The ramp key opens the ramp popup (`onRampTap`), styled like the other camera popups.
     struct MonitorZoomPresetStrip: View {
+        static let slotShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+
         let controls: MonitorZoomPresetControls
         let maximum: Double
         let vertical: Bool
         let label: (Double) -> String
         let haptics: Bool
+        var onRampTap: () -> Void = {}
         @State private var savedTick = 0
 
         var body: some View {
@@ -49,9 +53,10 @@
                 .foregroundStyle(saved == nil ? MonitorTheme.secondary : MonitorTheme.text)
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .frame(width: 44, height: 44)
-                .monitorGlass(in: Circle(), density: .zoom)
+                .background(.white.opacity(0.08), in: Self.slotShape)
+                .overlay(Self.slotShape.stroke(.white.opacity(0.14), lineWidth: 1))
                 .opacity(saved != nil && target == nil ? 0.4 : 1)
-                .contentShape(Circle())
+                .contentShape(Self.slotShape)
                 .gesture(
                     LongPressGesture(minimumDuration: 0.5).exclusively(before: TapGesture())
                         .onEnded { gesture in
@@ -80,19 +85,7 @@
         }
 
         private var ramp: some View {
-            Menu {
-                ForEach(MonitorZoomPresets.rampChoices, id: \.self) { seconds in
-                    Button {
-                        controls.onRamp(seconds)
-                    } label: {
-                        if seconds == controls.presets.rampSeconds {
-                            Label(MonitorZoomPresets.rampLabel(seconds), systemImage: "checkmark")
-                        } else {
-                            Text(MonitorZoomPresets.rampLabel(seconds))
-                        }
-                    }
-                }
-            } label: {
+            Button(action: onRampTap) {
                 VStack(spacing: 1) {
                     Text("RAMP").font(MonitorTheme.font(8, weight: .semibold)).tracking(0.6)
                         .foregroundStyle(MonitorTheme.secondary)
@@ -102,11 +95,14 @@
                 }
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .frame(width: 44, height: 44)
-                .monitorGlass(in: Circle(), density: .zoom)
-                .contentShape(Circle())
+                .background(.white.opacity(0.08), in: Self.slotShape)
+                .overlay(Self.slotShape.stroke(.white.opacity(0.14), lineWidth: 1))
+                .contentShape(Self.slotShape)
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Preset zoom ramp")
             .accessibilityValue(MonitorZoomPresets.rampLabel(controls.presets.rampSeconds))
+            .accessibilityHint("Opens the ramp choices.")
             .accessibilityIdentifier("monitor.zoom.preset.ramp")
         }
 

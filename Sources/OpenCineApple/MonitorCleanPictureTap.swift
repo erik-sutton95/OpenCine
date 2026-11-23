@@ -60,8 +60,8 @@ public final class MonitorCleanPictureTap: @unchecked Sendable {
         }
     }
 
-    /// The clean picture of one frame, at the source size capped to `maxWidth` (and the monitor's
-    /// working width when a LUT is on), BGRA tagged Rec.709.
+    /// The clean picture of one frame, at the source size capped to `maxWidth` (also with a LUT on:
+    /// the monitor's narrower working width does not apply here), BGRA tagged Rec.709.
     func render(_ buffer: CVPixelBuffer, effects: MonitorImageEffects) -> CVPixelBuffer? {
         render(.buffer(buffer), effects: effects)
     }
@@ -91,7 +91,8 @@ public final class MonitorCleanPictureTap: @unchecked Sendable {
             identity = CIImage(cgImage: image)
             measure = hasLUT ? CIImage(cgImage: image, options: MonitorWorkingSpace.imageOptions) : identity
         }
-        let product = MonitorImageCompositor.applyProduct(to: measure, effects: look, display: identity)
+        let product = MonitorImageCompositor.applyProduct(
+            to: measure, effects: look, display: identity, workingWidth: CGFloat(maxWidth))
         var image = product.image
         let extent = image.extent
         guard extent.width >= 2, extent.height >= 2, extent.width.isFinite, extent.height.isFinite else { return nil }

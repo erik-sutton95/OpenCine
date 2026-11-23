@@ -70,9 +70,10 @@ import OpenCineGyro
     /// Publishes recording changes and every level reading at the host's monotonic timestamp.
     public func receive(frame: PTPLiveViewFrame, at timestamp: Double) {
         lastRecordingTimestamp = timestamp
-        if lastRecording != frame.isRecording {
-            lastRecording = frame.isRecording
-            sink?.receive(.recording(frame.isRecording, at: timestamp))
+        // A header without record state (Gen-1 bodies) leaves the last report standing.
+        if let recording = frame.isRecording, lastRecording != recording {
+            lastRecording = recording
+            sink?.receive(.recording(recording, at: timestamp))
         }
         sink?.receive(.level(NikonGyroCamera.cameraDown(from: frame.level), at: timestamp))
     }

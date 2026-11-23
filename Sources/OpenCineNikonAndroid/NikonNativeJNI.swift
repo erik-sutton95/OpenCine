@@ -1024,6 +1024,7 @@
         /// Additive callback level resolved from the Kotlin listener.
         let callback: LiveFrameCallback
         let onLevelValidity: jmethodID?
+        let onHeaderValidity: jmethodID?
         let onEnded: jmethodID
     }
 
@@ -1086,6 +1087,7 @@
             onFrame: onFrame,
             callback: callback,
             onLevelValidity: optionalInstanceMethod(env, cls, "onLevelValidity", "(ZZ)V"),
+            onHeaderValidity: optionalInstanceMethod(env, cls, "onHeaderValidity", "(ZZ)V"),
             onEnded: onEnded)
 
         /// Terminal path on the CALLING (JVM-owned) thread: report the end and
@@ -1178,9 +1180,14 @@
 
     private func pushLiveFrame(
         _ handle: LiveFrameListenerHandle, jpeg: Data, timestampNanos: Int64,
-        isRecording: Bool, audio: LiveAudioMeterWire, focus: LiveViewFocusWire,
-        level: LiveViewLevelWire, timecode: Timecode, rotation: jint
+        isRecording reportedRecording: Bool?, audio: LiveAudioMeterWire, focus: LiveViewFocusWire,
+        level: LiveViewLevelWire, timecode reportedTimecode: Timecode?, rotation: jint
     ) {
+        // A Gen-1 header carries neither: the listener hears so before the frame, whose
+        // placeholders it then ignores.
+        let isRecording = reportedRecording ?? false
+        let timecode =
+            reportedTimecode ?? Timecode(on: false, hour: 0, minute: 0, second: 0, frame: 0)
         // SAFETY: JavaVM handle and invoke table are JVM-provided and non-nil.
         let invoke = handle.vm.pointee!.pointee
         var envOut: UnsafeMutablePointer<JNIEnv?>?
@@ -1191,6 +1198,14 @@
         if let onLevelValidity = handle.onLevelValidity {
             var validity = [jvalue(z: level.hasPitch ? 1 : 0), jvalue(z: level.hasYaw ? 1 : 0)]
             fns.CallVoidMethodA!(env, handle.listener, onLevelValidity, &validity)
+            clearPendingJavaException(env)
+        }
+        if let onHeaderValidity = handle.onHeaderValidity {
+            var validity = [
+                jvalue(z: reportedRecording != nil ? 1 : 0),
+                jvalue(z: reportedTimecode != nil ? 1 : 0),
+            ]
+            fns.CallVoidMethodA!(env, handle.listener, onHeaderValidity, &validity)
             clearPendingJavaException(env)
         }
         guard let array = fns.NewByteArray!(env, jsize(jpeg.count)) else {

@@ -574,6 +574,7 @@ case USBICCSessionOpenDecision.adoptExisting
 case USBICCSessionOpenDecision.failStillOpenAfterRecycle
 case USBICCSessionOpenDecision.recycleThenOpen
 case USBICCSessionOpenDecision.requestOpen
+case USBICCSessionOpenDecision.waitForCardScan
 case USBICCSessionOpenDecision.waitForPrewarm
 case ZCameraBodyGeneration.one
 case ZCameraBodyGeneration.three
@@ -1242,7 +1243,7 @@ init PTPIPTransactionResult(operationResponse: PTPOperationResponse, data: Found
 init PTPLevelAngles(roll: Swift.Double, pitch: Swift.Double, yaw: Swift.Double, hasPitch: Swift.Bool, hasYaw: Swift.Bool)
 init PTPLiveViewAFBox(centerX: Swift.Int, centerY: Swift.Int, width: Swift.Int, height: Swift.Int)
 init PTPLiveViewFocusInfo(coordinateWidth: Swift.Int, coordinateHeight: Swift.Int, focusResult: PTPLiveViewFocusInfo.FocusResult, subjectDetectionActive: Swift.Bool, trackingAFActive: Swift.Bool, selectedBoxIndex: Swift.Int?, boxes: [PTPLiveViewAFBox])
-init PTPLiveViewFrame(jpeg: Foundation.Data, timecode: Timecode, focus: PTPLiveViewFocusInfo?, isRecording: Swift.Bool, level: PTPLevelAngles?, sound: PTPLiveViewSoundIndicator?, rotation: PTPLiveViewRotation)
+init PTPLiveViewFrame(jpeg: Foundation.Data, timecode: Timecode?, focus: PTPLiveViewFocusInfo?, isRecording: Swift.Bool?, level: PTPLevelAngles?, sound: PTPLiveViewSoundIndicator?, rotation: PTPLiveViewRotation)
 init PTPLiveViewSoundIndicator(peakLeft: Swift.Int, peakRight: Swift.Int, currentLeft: Swift.Int, currentRight: Swift.Int)
 init PTPObjectInfo(_: Foundation.Data) throws
 init PTPObjectSize(data: Foundation.Data) throws
@@ -1638,12 +1639,12 @@ let PTPLiveViewFocusInfo.selectedBoxIndex: Swift.Int?
 let PTPLiveViewFocusInfo.subjectDetectionActive: Swift.Bool
 let PTPLiveViewFocusInfo.trackingAFActive: Swift.Bool
 let PTPLiveViewFrame.focus: PTPLiveViewFocusInfo?
-let PTPLiveViewFrame.isRecording: Swift.Bool
+let PTPLiveViewFrame.isRecording: Swift.Bool?
 let PTPLiveViewFrame.jpeg: Foundation.Data
 let PTPLiveViewFrame.level: PTPLevelAngles?
 let PTPLiveViewFrame.rotation: PTPLiveViewRotation
 let PTPLiveViewFrame.sound: PTPLiveViewSoundIndicator?
-let PTPLiveViewFrame.timecode: Timecode
+let PTPLiveViewFrame.timecode: Timecode?
 let PTPLiveViewSoundIndicator.currentLeft: Swift.Int
 let PTPLiveViewSoundIndicator.currentRight: Swift.Int
 let PTPLiveViewSoundIndicator.peakLeft: Swift.Int
@@ -2025,10 +2026,10 @@ static func PTPLiveViewObject.focusInfo(from: Foundation.Data) -> PTPLiveViewFoc
 static func PTPLiveViewObject.frame(from: Foundation.Data) throws -> PTPLiveViewFrame
 static func PTPLiveViewObject.jpeg(from: Foundation.Data) throws -> Foundation.Data
 static func PTPLiveViewObject.levelAngles(from: Foundation.Data) -> PTPLevelAngles?
-static func PTPLiveViewObject.recordingState(from: Foundation.Data) -> Swift.Bool
+static func PTPLiveViewObject.recordingState(from: Foundation.Data) -> Swift.Bool?
 static func PTPLiveViewObject.rotation(from: Foundation.Data) -> PTPLiveViewRotation
 static func PTPLiveViewObject.soundIndicator(from: Foundation.Data) -> PTPLiveViewSoundIndicator?
-static func PTPLiveViewObject.timecode(from: Foundation.Data) -> Timecode
+static func PTPLiveViewObject.timecode(from: Foundation.Data) -> Timecode?
 static func PTPLiveViewSoundIndicator.decibels(segment: Swift.Int, floorDB: Swift.Double) -> Swift.Double
 static func PTPNikonEventList.parse(_: [Swift.UInt8]) -> [PTPEvent]
 static func PTPPropertyCode.isMonitoredChange(_: PTPPropertyCode) -> Swift.Bool
@@ -2072,7 +2073,7 @@ static func SubnetScanPlan.isOnLink(host: Swift.String, interface: LocalIPv4Inte
 static func SubnetScanPlan.prefixLength(netmask: Swift.String?) -> Swift.Int?
 static func USBCameraDeviceBrowser.hostKey(for: ImageCaptureCore.ICDevice) -> Swift.String
 static func USBHandshakeDiagnostic.from(stage: Swift.String) -> USBHandshakeDiagnostic?
-static func USBICCSessionOpenPolicy.decision(hasOpenSession: Swift.Bool, prewarmInFlight: Swift.Bool, recycleFirst: Swift.Bool, recycleCompleted: Swift.Bool) -> USBICCSessionOpenDecision
+static func USBICCSessionOpenPolicy.decision(hasOpenSession: Swift.Bool, prewarmInFlight: Swift.Bool, recycleFirst: Swift.Bool, recycleCompleted: Swift.Bool, cardScanRunning: Swift.Bool, waitedForCardScan: Swift.Bool) -> USBICCSessionOpenDecision
 static func WhiteBalanceKelvinPolicy.canFineAdjust(from: Swift.String, delta: Swift.Int) -> Swift.Bool
 static func WhiteBalanceKelvinPolicy.fineAdjust(from: Swift.String, delta: Swift.Int) -> Swift.String?
 static func WhiteBalanceKelvinPolicy.isInDocumentedRange(_: Swift.Int) -> Swift.Bool
@@ -2252,6 +2253,7 @@ static let WhiteBalanceTint.cellRange: Swift.ClosedRange<Swift.Int>
 static let WhiteBalanceTint.greenMagentaUnitsPerCell: Swift.Double
 static let ZCameraOperationPolicy.generation1FallbackOperations: Swift.Set<Swift.UInt16>
 static let ZCameraOperationPolicy.vendorCodesPropertyListParameter: Swift.UInt32
+static var CameraConnectionTimeout.usbSessionOpen: Swift.Duration
 static var MFDriveChannelBudget.worstCaseChannelSeconds: Swift.Double
 static var NikonMultiviewLink.polledProperties: [PTPPropertyCode]
 static var PTPIPInitiator.appGUID: Foundation.Data

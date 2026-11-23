@@ -209,7 +209,7 @@ internal interface SwiftCoreSessionBridge {
             listener: NikonNative.SessionListener,
         ) {
             NikonNative.sessionConnectUsb(
-                transport,
+                transport.containingThrows(),
                 host,
                 cameraNameHint,
                 connectionOwner,
@@ -541,6 +541,12 @@ class SwiftCoreCameraSession internal constructor(
      * stale live-view header for a few frames after accepting the operation.
      */
     @Volatile private var ignoreLiveRecordingStateUntilNanos: Long = 0L
+    /**
+     * False once a live-view header arrives without record state (first-generation Z bodies).
+     * Such a body reports recording only through its record events and, when none arrives
+     * during a command, the camera's OK to that command.
+     */
+    @Volatile private var liveHeaderReportsRecording = true
     /** Throttles LV hot-path RTT publishes (see [updateRoundTripMeasurement]). */
     @Volatile private var lastRoundTripPublishNanos: Long = 0L
 
@@ -572,7 +578,7 @@ class SwiftCoreCameraSession internal constructor(
             configurePreview = { request ->
                 connectionOwner?.let { core.configureLiveView(it, request) } ?: false
             },
-            onRecordingState = ::applyCameraRecordingState,
+            onRecordingState = ::applyLiveHeaderRecordingState,
             onTimecode = ::applyLiveTimecode,
             onCommandRoundTrip = { updateRoundTripMeasurement() },
             onStreamExhausted = ::markLiveViewStreamExhausted,
@@ -613,6 +619,7 @@ class SwiftCoreCameraSession internal constructor(
                             cameraRecordingEventVersion = 0L
                             _recordingState.value = CameraRecordingState.STANDBY
                             _reportedRecording.value = null
+                            liveHeaderReportsRecording = true
                             _liveTimecode.value = null
                             _cameraProperties.value = _cameraProperties.value.retainingCaptureMode()
                             _reportedCameraProperties.value = CameraPropertySnapshot()
@@ -632,6 +639,7 @@ class SwiftCoreCameraSession internal constructor(
                             cameraRecordingEventVersion = 0L
                             _recordingState.value = CameraRecordingState.STANDBY
                             _reportedRecording.value = null
+                            liveHeaderReportsRecording = true
                             _liveTimecode.value = null
                             stopPropertyRefresh(clearSnapshot = true)
                             _latestCommandRoundTripMilliseconds.value = null
@@ -807,6 +815,9 @@ class SwiftCoreCameraSession internal constructor(
                         _state.value is CameraSessionState.Connected
                 ) {
                     _recordingState.value = target
+                    // No header will ever say so on a first-generation body, and no record
+                    // event arrived: the camera's OK is its report.
+                    if (!liveHeaderReportsRecording) _reportedRecording.value = recording
                     ignoreLiveRecordingStateUntilNanos =
                         System.nanoTime() + RECORDING_READBACK_GRACE_NANOS
                 } else {
@@ -1135,6 +1146,7 @@ class SwiftCoreCameraSession internal constructor(
                     cameraRecordingEventVersion = 0L
                     _recordingState.value = CameraRecordingState.STANDBY
                     _reportedRecording.value = null
+                    liveHeaderReportsRecording = true
                     _liveTimecode.value = null
                     _cameraProperties.value = CameraPropertySnapshot()
                     _reportedCameraProperties.value = CameraPropertySnapshot()
@@ -1147,7 +1159,17 @@ class SwiftCoreCameraSession internal constructor(
         }
     }
 
-    /** Applies camera-authoritative record state from a decoded live-view frame. */
+    /**
+     * A live-view header's record state, or `null` when the header does not carry it. An
+     * unreported state changes nothing: it is not standby (OPENZCINE-IOS-1V).
+     */
+    private fun applyLiveHeaderRecordingState(recording: Boolean?) {
+        if (_state.value !is CameraSessionState.Connected) return
+        liveHeaderReportsRecording = recording != null
+        if (recording != null) applyCameraRecordingState(recording)
+    }
+
+    /** Applies camera-authoritative record state from a live-view header or a record event. */
     private fun applyCameraRecordingState(recording: Boolean, force: Boolean = false) {
         if (_state.value !is CameraSessionState.Connected) return
         // Kept even while [recordingState] defers to an app command below: this report is what
@@ -1251,6 +1273,7 @@ class SwiftCoreCameraSession internal constructor(
         cameraRecordingEventVersion = 0L
         _recordingState.value = CameraRecordingState.STANDBY
         _reportedRecording.value = null
+        liveHeaderReportsRecording = true
         _liveTimecode.value = null
         stopPropertyRefresh(clearSnapshot = true)
         _connectionProgress.value = CameraConnectionProgress(CameraConnectionPhase.FAILED, message)

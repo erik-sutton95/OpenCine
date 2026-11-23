@@ -94,6 +94,9 @@ public enum USBICCSessionOpenDecision: Equatable, Sendable {
     case adoptExisting
     /// The retry path: close the adopted session, then open fresh.
     case recycleThenOpen
+    /// The retry path met a session whose card scan is still running: closing it would throw the
+    /// scan away and start it again, so wait for the scan to finish and keep the session.
+    case waitForCardScan
     /// Recycle ran, but ICC still reports the session open — do not adopt the corpse.
     case failStillOpenAfterRecycle
     /// No open session; issue `requestOpenSession`.
@@ -102,16 +105,25 @@ public enum USBICCSessionOpenDecision: Equatable, Sendable {
 
 /// Pure decision table for the iOS USB transport's session-open path.
 public enum USBICCSessionOpenPolicy {
+    /// - Parameters:
+    ///   - cardScanRunning: ImageCaptureCore is still enumerating the card of the open session.
+    ///   - waitedForCardScan: this open already waited for that scan, so the session it kept is
+    ///     the one to use, not a stale one to recycle.
     public static func decision(
         hasOpenSession: Bool,
         prewarmInFlight: Bool,
         recycleFirst: Bool,
-        recycleCompleted: Bool
+        recycleCompleted: Bool,
+        cardScanRunning: Bool = false,
+        waitedForCardScan: Bool = false
     ) -> USBICCSessionOpenDecision {
         if prewarmInFlight, !hasOpenSession {
             return .waitForPrewarm
         }
-        if recycleFirst, hasOpenSession, !recycleCompleted {
+        if recycleFirst, hasOpenSession, !recycleCompleted, cardScanRunning {
+            return .waitForCardScan
+        }
+        if recycleFirst, hasOpenSession, !recycleCompleted, !waitedForCardScan {
             return .recycleThenOpen
         }
         if recycleFirst, hasOpenSession, recycleCompleted {

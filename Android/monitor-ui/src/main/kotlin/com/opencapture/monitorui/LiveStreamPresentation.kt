@@ -24,12 +24,50 @@ enum class LiveStreamKeyState { ABSENT, SAVED, UNAVAILABLE }
 /** Whether the connection route can reach the internet besides the camera link. */
 enum class LiveStreamEligibility { ALLOWED, CAMERA_WIFI, NO_CAMERA }
 
+/** Where the stream's picture size comes from. */
+enum class LiveStreamQualityKind {
+    /** The camera picture at its own size. */
+    SOURCE,
+
+    /** The camera picture scaled up: always named as upscaled. */
+    UPSCALED,
+
+    /** The camera's own encoded picture, relayed: standard color, no LUT. */
+    CAMERA,
+}
+
+/** While the stream carries the camera's own picture: one line under the Go live control. */
+enum class LiveStreamCameraStatus {
+    STARTING, LIVE, RECOVERING, LOST, NOT_RESPONDING;
+
+    /** The operator may ask the camera to start again (the outgoing stream stays up meanwhile). */
+    val offersRetry: Boolean get() = this == LOST || this == NOT_RESPONDING
+}
+
+/** A shared network the camera can join for its own stream, offered when there are several. */
+data class LiveStreamNetworkChoice(val id: String, val name: String)
+
 data class LiveStreamQuality(
     val width: Int,
     val height: Int,
     val framesPerSecond: Double,
     val videoBitrateBps: Int,
+    val kind: LiveStreamQualityKind = LiveStreamQualityKind.SOURCE,
 )
+
+/**
+ * One Quality choice on the settings card. An unavailable choice is listed but cannot be chosen;
+ * its reason shows under the row.
+ */
+data class LiveStreamQualityOption(
+    val id: String,
+    val title: String,
+    /** One line under the row while this choice is selected. */
+    val detail: String? = null,
+    val unavailableReason: String? = null,
+) {
+    val enabled: Boolean get() = unavailableReason == null
+}
 
 sealed interface LiveStreamEnd {
     data object Stopped : LiveStreamEnd
@@ -43,6 +81,12 @@ sealed interface LiveStreamEnd {
     data object Background : LiveStreamEnd
 
     data object MicrophoneDenied : LiveStreamEnd
+
+    /** The camera did not start publishing its own stream, after one retry. */
+    data object CameraDidNotStart : LiveStreamEnd
+
+    /** The camera stopped answering while it was asked to start or end its own stream. */
+    data object CameraNotResponding : LiveStreamEnd
 }
 
 sealed interface LiveStreamPhase {
@@ -69,7 +113,18 @@ data class LiveStreamStatusState(
     val sentBitrateBps: Int,
     val droppedGroups: Int,
     val health: LiveStreamHealth,
-)
+) {
+    /**
+     * The one caption under the live Go live control: quality, bitrate, drops when there are any,
+     * and link health, as `1080p · 6 Mbps · good`. The quality's number is its short side.
+     */
+    fun compactLine(quality: LiveStreamQuality?): String = listOfNotNull(
+        quality?.let { "${minOf(it.width, it.height)}p" },
+        LiveStreamCopy.bitrate(sentBitrateBps),
+        "$droppedGroups dropped".takeIf { droppedGroups > 0 },
+        LiveStreamCopy.health(health).lowercase(),
+    ).joinToString(" · ")
+}
 
 enum class LiveStreamWarning { HOT, LOW_BATTERY }
 
@@ -131,6 +186,14 @@ object LiveStreamCopy {
     fun pillStopLabel(service: String) = "Stop the stream to $service"
 
     fun startTitle(service: String) = "Go live on $service?"
+    /** The start confirmation for [quality]: the camera's own picture is described as it goes out. */
+    fun startMessage(quality: LiveStreamQuality?, plain: Boolean): String {
+        if (quality?.kind != LiveStreamQualityKind.CAMERA) return startMessage(quality(quality), plain)
+        val first = "${quality(quality)}. The camera's own picture goes out in standard color, without the monitor " +
+            "LUT, with the camera's sound. Camera recording is separate."
+        return if (plain) "$first\n\n$PLAIN_WARNING" else first
+    }
+
     fun startMessage(quality: String, plain: Boolean): String {
         val first = "$quality. The camera picture goes out with the monitor LUT; assists and controls do not. " +
             "Camera recording is separate."
@@ -156,7 +219,24 @@ object LiveStreamCopy {
             "Could not reach the streaming server. Check this phone's internet connection, then go live again."
         LiveStreamEnd.Background -> "The stream ended when the app left the screen."
         LiveStreamEnd.MicrophoneDenied -> "Allow microphone access in Settings to go live."
+        LiveStreamEnd.CameraDidNotStart ->
+            "The camera did not start its stream. Try again, or choose Camera feed in the live stream settings."
+        LiveStreamEnd.CameraNotResponding ->
+            "The camera stopped responding. Hold its power button about 10 seconds to restart it, then go live again."
     }
+
+    fun cameraStatus(status: LiveStreamCameraStatus): String = when (status) {
+        LiveStreamCameraStatus.STARTING -> "Starting the camera's stream."
+        LiveStreamCameraStatus.LIVE -> "1080p from camera. Assists, scopes and camera controls are off in this mode."
+        LiveStreamCameraStatus.RECOVERING -> "The camera's stream stopped. Trying again."
+        LiveStreamCameraStatus.LOST -> "The camera's stream did not come back."
+        LiveStreamCameraStatus.NOT_RESPONDING ->
+            "The camera is not responding. Hold its power button about 10 seconds to restart it."
+    }
+
+    const val CAMERA_RETRY = "Retry"
+
+    fun startOnNetwork(name: String) = "Go live over $name"
 
     fun warning(warning: LiveStreamWarning): String = when (warning) {
         LiveStreamWarning.HOT -> "The phone is hot. The stream continues; give it air or shade."
@@ -178,12 +258,23 @@ object LiveStreamCopy {
     }
 
     const val QUALITY_UNKNOWN = "Set from the camera when you go live."
+    const val QUALITY_CAMERA_FEED = "Camera feed"
+    const val QUALITY_UPSCALED = "1080p upscaled"
+    const val QUALITY_UPSCALED_DETAIL = "The camera feed scaled up to 1080p, with your LUT."
+    const val QUALITY_CAMERA = "1080p from camera"
+    const val QUALITY_CAMERA_DETAIL = "Sharper picture, encoded by the camera, standard color, no LUT."
+    const val QUALITY_CAMERA_NEEDS_NETWORK = "Save a shared network in the camera's Wi-Fi setup to use this."
 
     fun quality(quality: LiveStreamQuality?): String {
         quality ?: return QUALITY_UNKNOWN
         val vertical = quality.height > quality.width
         val short = minOf(quality.width, quality.height)
-        val shape = if (vertical) "${short}p vertical" else "${short}p"
+        val upscaled = when (quality.kind) {
+            LiveStreamQualityKind.SOURCE -> ""
+            LiveStreamQualityKind.UPSCALED -> " upscaled"
+            LiveStreamQualityKind.CAMERA -> " from camera"
+        }
+        val shape = (if (vertical) "${short}p vertical" else "${short}p") + upscaled
         return "$shape, ${framesPerSecond(quality.framesPerSecond)} fps, ${bitrate(quality.videoBitrateBps)}"
     }
 
@@ -288,7 +379,20 @@ data class LiveStreamState(
     val phase: LiveStreamPhase = LiveStreamPhase.Idle,
     val status: LiveStreamStatusState? = null,
     val warnings: Set<LiveStreamWarning> = emptySet(),
+    /** The Quality choices for the connected source; a picker shows with two or more. */
+    val qualityOptions: List<LiveStreamQualityOption> = emptyList(),
+    val selectedQualityId: String = "cameraFeed",
+    /** While the stream carries the camera's own picture. */
+    val cameraStatus: LiveStreamCameraStatus? = null,
+    /** With two or more, the start confirmation offers one button per network, hotspot first. */
+    val networkChoices: List<LiveStreamNetworkChoice> = emptyList(),
 ) {
+    val showsQualityPicker: Boolean get() = qualityOptions.size > 1
+    val selectedQuality: LiveStreamQualityOption? get() = qualityOptions.firstOrNull { it.id == selectedQualityId }
+
+    /** Under the Quality row: why the selected choice is unavailable, or its one-line detail. */
+    val qualityDetail: String? get() = selectedQuality?.let { it.unavailableReason ?: it.detail }
+
     val selected: LiveStreamServiceOption? get() = services.firstOrNull { it.id == selectedServiceId } ?: services.firstOrNull()
 
     /** The server is plain `rtmp://` on a service that accepts it: the stream travels unencrypted. */
@@ -316,6 +420,15 @@ interface LiveStreamActions {
     fun removeKey()
 
     fun setShowOnMonitor(show: Boolean)
+
+    /** Chooses a Quality option by id; ignored while a stream runs or for an unknown id. */
+    fun selectQuality(id: String) {}
+
+    /** Starts over the network [id] after the operator confirmed (one of [LiveStreamState.networkChoices]). */
+    fun goLive(network: String) = goLive()
+
+    /** Asks the camera to start its own stream again while the outgoing stream stays up. */
+    fun retryCamera() {}
 
     /** Starts after the operator confirmed. */
     fun goLive()

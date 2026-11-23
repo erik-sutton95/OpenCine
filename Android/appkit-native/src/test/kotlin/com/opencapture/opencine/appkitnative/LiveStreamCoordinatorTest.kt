@@ -5,6 +5,7 @@ import com.opencapture.monitorui.LiveStreamEligibility
 import com.opencapture.monitorui.LiveStreamEnd
 import com.opencapture.monitorui.LiveStreamKeyState
 import com.opencapture.monitorui.LiveStreamPhase
+import com.opencapture.monitorui.LiveStreamQualityKind
 import com.opencapture.monitorui.LiveStreamWarning
 import com.opencapture.opencine.streaming.FakeStreamingNative
 import com.opencapture.opencine.streaming.StreamCatalog
@@ -74,15 +75,19 @@ class LiveStreamCoordinatorTest {
     private var micDenied = false
     private var micRunning = false
     private var warningsCallback: ((Set<StreamDeviceWarning>) -> Unit)? = null
+    private var source: LiveStreamSource? = LiveStreamSource(1280, 720, 30, 1)
+    private val requests = mutableListOf<LiveStreamRequest>()
     private val settings = object : LiveStreamSettings {
         override var selectedServiceId: String? = null
         override var showOnMonitor: Boolean = true
+        override var selectedQualityId: String? = null
     }
 
     private fun TestScope.coordinator() = LiveStreamCoordinator(
         catalog = StreamCatalog(native), keys = keys, settings = settings, route = { route },
-        source = { LiveStreamSource(1280, 720, 30, 1) },
+        source = { source },
         publisherFactory = { request ->
+            requests += request
             StreamPublisher(native, request.format, request.presetId, request.enteredServerUrl, request.streamKey,
                 request.crop, null, Video(), null,
                 connect = { _, _, _ -> Connection().also { connections += it } },
@@ -233,5 +238,78 @@ class LiveStreamCoordinatorTest {
         stream.removeKey()
         assertEquals("twitch", stream.state.value.selected?.id)
         assertEquals(LiveStreamKeyState.SAVED, stream.state.value.keyState)
+    }
+
+    @Test
+    fun upscaledChoiceStreams1920x1080() = runTest(UnconfinedTestDispatcher()) {
+        keys.save("live_key", null, "twitch")
+        val stream = coordinator()
+        assertEquals(listOf("cameraFeed", "upscaled1080p"), stream.state.value.qualityOptions.map { it.id })
+        assertEquals("cameraFeed", stream.state.value.selectedQualityId)
+        stream.selectQuality("upscaled1080p")
+        val quality = stream.state.value.quality!!
+        assertEquals(LiveStreamQualityKind.UPSCALED, quality.kind)
+        assertEquals(1920, quality.width)
+        assertEquals("upscaled1080p", settings.selectedQualityId)
+        stream.goLive()
+        assertEquals(1920, requests.last().format.width)
+        assertEquals("upscaled1080p", native.lastChoice)
+    }
+
+    @Test
+    fun rememberedChoiceFallsBackWhenNotOffered() = runTest(UnconfinedTestDispatcher()) {
+        keys.save("live_key", null, "twitch")
+        val stream = coordinator()
+        stream.selectQuality("upscaled1080p")
+        source = LiveStreamSource(1920, 1080, 30, 1)
+        stream.refresh()
+        assertEquals(listOf("cameraFeed"), stream.state.value.qualityOptions.map { it.id })
+        assertEquals("cameraFeed", stream.state.value.selectedQualityId)
+        assertEquals(LiveStreamQualityKind.SOURCE, stream.state.value.quality?.kind)
+        stream.goLive()
+        assertEquals("cameraFeed", native.lastChoice)
+        stream.stop()
+        source = LiveStreamSource(1280, 720, null, null)
+        val again = coordinator()
+        assertEquals("upscaled1080p", again.state.value.selectedQualityId)
+        again.selectQuality("nope")
+        assertEquals("upscaled1080p", again.state.value.selectedQualityId)
+    }
+
+    /** Android keeps 1080p from camera hidden until its hardware pass: never listed, never streamed. */
+    @Test
+    fun cameraChoiceIsNeverOfferedOnAndroidYet() = runTest(UnconfinedTestDispatcher()) {
+        keys.save("live_key", null, "twitch")
+        val stream = coordinator()
+        stream.selectQuality("camera1080p")
+        assertEquals(listOf("cameraFeed", "upscaled1080p"), stream.state.value.qualityOptions.map { it.id })
+        assertEquals("cameraFeed", stream.state.value.selectedQualityId)
+        stream.goLive()
+        assertEquals("cameraFeed", native.lastChoice)
+    }
+
+    @Test
+    fun qualityIsLockedWhileLive() = runTest(UnconfinedTestDispatcher()) {
+        val stream = liveCoordinator()
+        stream.selectQuality("upscaled1080p")
+        assertEquals("cameraFeed", stream.state.value.selectedQualityId)
+        assertEquals(1280, stream.state.value.quality?.width)
+    }
+
+    @Test
+    fun aRunningStreamKeepsItsQualityUntilItStops() = runTest(UnconfinedTestDispatcher()) {
+        keys.save("live_key", null, "twitch")
+        val stream = coordinator()
+        stream.selectQuality("upscaled1080p")
+        stream.goLive()
+        connections.last().onEvent(StreamConnectionEvent.Opened)
+        runCurrent()
+        source = LiveStreamSource(1920, 1080, 30, 1)
+        stream.refresh()
+        assertEquals(LiveStreamQualityKind.UPSCALED, stream.state.value.quality?.kind)
+        assertEquals("upscaled1080p", stream.state.value.selectedQualityId)
+        stream.stop()
+        assertEquals(LiveStreamQualityKind.SOURCE, stream.state.value.quality?.kind)
+        assertEquals("cameraFeed", stream.state.value.selectedQualityId)
     }
 }

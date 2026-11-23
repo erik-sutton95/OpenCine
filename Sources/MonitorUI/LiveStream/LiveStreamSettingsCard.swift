@@ -11,12 +11,15 @@ public struct LiveStreamSettingsActions {
     public var saveKey: (String) -> Void
     public var removeKey: () -> Void
     public var setShowOnMonitor: (Bool) -> Void
+    /// Chooses a Quality option by id.
+    public var selectQuality: (String) -> Void
 
     public init(
         selectService: @escaping (String) -> Void, setServer: @escaping (String) -> Void,
         saveKey: @escaping (String) -> Void, removeKey: @escaping () -> Void,
-        setShowOnMonitor: @escaping (Bool) -> Void
+        setShowOnMonitor: @escaping (Bool) -> Void, selectQuality: @escaping (String) -> Void = { _ in }
     ) {
+        self.selectQuality = selectQuality
         self.selectService = selectService
         self.setServer = setServer
         self.saveKey = saveKey
@@ -55,10 +58,20 @@ public struct LiveStreamSettingsCard: View {
             if let problem = state.problem {
                 warning(problem.text).accessibilityIdentifier("monitor.livestream.serverProblem")
             }
-            MonitorSettingsInlineRow(title: LiveStreamCopy.qualityTitle) {
+            if state.showsQualityPicker {
+                qualityPickerRow
                 Text(state.qualityLine).font(MonitorTheme.font(12, weight: .semibold))
-                    .foregroundStyle(MonitorTheme.secondary).multilineTextAlignment(.trailing)
+                    .foregroundStyle(MonitorTheme.secondary).frame(maxWidth: .infinity, alignment: .trailing)
                     .accessibilityIdentifier("monitor.livestream.quality")
+                if let detail = state.qualityDetail {
+                    note(detail).accessibilityIdentifier("monitor.livestream.qualityDetail")
+                }
+            } else {
+                MonitorSettingsInlineRow(title: LiveStreamCopy.qualityTitle) {
+                    Text(state.qualityLine).font(MonitorTheme.font(12, weight: .semibold))
+                        .foregroundStyle(MonitorTheme.secondary).multilineTextAlignment(.trailing)
+                        .accessibilityIdentifier("monitor.livestream.quality")
+                }
             }
             if let vertical = state.verticalNote {
                 note(vertical).accessibilityIdentifier("monitor.livestream.verticalNote")
@@ -104,6 +117,30 @@ public struct LiveStreamSettingsCard: View {
             .accessibilityLabel(LiveStreamCopy.serviceTitle)
             .accessibilityValue(state.selected?.name ?? "")
             .accessibilityIdentifier("monitor.livestream.service")
+        }
+    }
+
+    /// The Quality choices, as the service row's menu; an unavailable choice is listed disabled.
+    private var qualityPickerRow: some View {
+        MonitorSettingsInlineRow(title: LiveStreamCopy.qualityTitle) {
+            Menu {
+                ForEach(state.qualityOptions) { option in
+                    Button(option.title) { feedback(); actions.selectQuality(option.id) }
+                        .disabled(!option.isEnabled)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(state.selectedQuality?.title ?? "").font(MonitorTheme.font(12, weight: .semibold))
+                    MonitorIcon.chevronDown.frame(width: 11, height: 11)
+                }
+                .foregroundStyle(MonitorTheme.accent)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(MonitorTheme.accent.opacity(0.16), in: Capsule())
+            }
+            .disabled(state.isLocked)
+            .accessibilityLabel(LiveStreamCopy.qualityTitle)
+            .accessibilityValue(state.selectedQuality?.title ?? "")
+            .accessibilityIdentifier("monitor.livestream.qualityChoice")
         }
     }
 

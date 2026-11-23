@@ -15,7 +15,7 @@ Swift source of truth for every string below: `Sources/MonitorPresentation/LiveS
 | Surface | Where | Shown when |
 |---|---|---|
 | Live stream card | Settings, Sharing tab, after the feed sharing rows | The app composes streaming (always, in the three camera apps) |
-| Go live control | Over the monitor picture, top center, inside the picture | A stream key is saved for the selected service and "Go live button on the monitor" is on, or a stream is running |
+| Go live control | Top right, hanging under the status row (the timecode block) at its trailing edge (`LiveStreamOverlayPlacement.anchor`); with the status row off, the same top trailing corner. Hidden, still mounted, while the zoom ruler is open | A stream key is saved for the selected service and "Go live button on the monitor" is on, or a stream is running |
 | Status readout | Under the Go live control | Connecting, live or reconnecting |
 | Notice | Under the Go live control | After a stream ends for a reason other than the operator's stop, or start fails |
 | Warning | Under the status readout | While live and the phone is hot or its battery is low |
@@ -30,7 +30,7 @@ The shared screens own placement; an app only hands over its coordinator.
 | Surface | SwiftUI | Compose |
 |---|---|---|
 | Live stream card | `MonitorOperatorSettingsConfiguration.withLiveStream(coordinator)`: the shared settings screen renders the card as the Sharing tab's `liveStream` row. `nil` (or not calling it) leaves the row out | The shared operator setup or settings screen takes the same optional slot; an app passes its coordinator or nothing |
-| Monitor controls | `LiveStreamMonitorOverlay(coordinator:)`, a plain view. The shared live screen places it from `MonitorOperatorLiveScreen.liveStream`; an app that draws its own picture (OpenZCine) places the same view over that picture, top center | A plain composable over the coordinator's state, with no dependency on the monitor feed host's scope, so an app that draws its own picture can place it |
+| Monitor controls | `LiveStreamMonitorOverlay(coordinator:)`, a plain view. The shared live screen places it from `MonitorOperatorLiveScreen.liveStream`; an app that draws its own picture (OpenZCine) places the same view at `LiveStreamOverlayPlacement.anchor` and passes `hidden` while its zoom ruler is open | A plain composable over the coordinator's state, with no dependency on the monitor feed host's scope, so an app that draws its own picture can place it |
 | Lifecycle and Live pill | `.liveStreamLifecycle(coordinator)` once at the app root: background end, heat and battery warnings, and the Live pill | The same once at the app root |
 
 The monitor overlay reports when it is on screen and off screen (SwiftUI: on appear and on
@@ -60,10 +60,18 @@ permission gate (activity result). A `false` answer ends the start with `microph
   An app that states its route as Core's `RouteKind` maps it with the engine's
   `StreamConnectionRoute(_ kind: RouteKind)` (camera access point is the one blocked route).
 - `LiveStreamMonitorState`: the control, service name, quality, `encrypted`, status, end and warning.
-- `LiveStreamQuality`: `width`, `height`, `framesPerSecond`, `videoBitrateBps`.
+- `LiveStreamQuality`: `width`, `height`, `framesPerSecond`, `videoBitrateBps`, `kind`
+  (`LiveStreamQualityKind`: `source`, `upscaled`, `camera`).
+- `LiveStreamQualityOption`: `id`, `title`, `detail`, `unavailableReason` (an option with a reason is
+  listed but cannot be chosen). The settings state carries `qualityOptions` and `selectedQualityID`
+  (Kotlin `selectedQualityId`); the ids are the engine's `StreamQualityChoice` raw values
+  (`cameraFeed`, `upscaled1080p`, `camera1080p`).
+- `LiveStreamCameraStatus`: `starting`, `live`, `recovering`, `lost`, `notResponding` (while the
+  stream carries the camera's own picture); `LiveStreamNetworkChoice`: `id`, `name`. The monitor
+  state carries `cameraStatus` and `networkChoices`.
 - `LiveStreamPhase`: `idle`, `connecting`, `live`, `reconnecting(attempt)`, `ended(LiveStreamEnd)`.
 - `LiveStreamEnd`: `stopped`, `refused(reason)`, `gaveUp`, `unreachable`, `background`,
-  `microphoneDenied`.
+  `microphoneDenied`, `cameraDidNotStart`, `cameraNotResponding`.
 - `LiveStreamHealth`: `good`, `congested`, `offline`.
 - `LiveStreamStatusState`: `phase`, `elapsedSeconds`, `sentBitrateBps`, `droppedGroups`, `health`.
 - `LiveStreamWarning`: `hot`, `lowBattery`.
@@ -82,6 +90,7 @@ Card title: `Live stream`. Rows in order:
 | | saved: value `Saved` and a `Remove` pill | `monitor.livestream.key.saved`, `monitor.livestream.key.remove` | Remove asks once (below) |
 | | unavailable: note | `monitor.livestream.key.unavailable` | No Save, no Remove |
 | Quality | Value | `monitor.livestream.quality` | Vertical services add the vertical note (`monitor.livestream.verticalNote`) |
+| | With two or more choices: a picker of the choice titles, then the value, then the selected choice's detail or unavailable reason as a note | `monitor.livestream.qualityChoice`, `monitor.livestream.qualityDetail` | Locked while a stream runs |
 | Go live button on the monitor | Switch, default on | `monitor.livestream.showOnMonitor` | |
 | Eligibility | Note, only when not `allowed` | `monitor.livestream.eligibility` | The long reason |
 | Locked | Note, only while connecting, live or reconnecting | `monitor.livestream.lockedWhileLive` | Service, server and key are disabled while a stream runs |
@@ -120,7 +129,28 @@ Stop confirmation: title `End the stream?`, message
 `Viewers see the stream end. Camera recording is not affected.`, buttons `End stream`
 (destructive) and `Keep streaming` (cancel).
 
-Starting or stopping never sends a camera command.
+With the `1080p from camera` choice the start message is
+`<quality>. The camera's own picture goes out in standard color, without the monitor LUT, with the camera's sound. Camera recording is separate.`
+When two or more shared networks are saved, the confirmation offers one button per network instead
+of `Go live`: `Go live over <network>`, the phone's hotspot first.
+
+Starting or stopping never sends a camera command, except with `1080p from camera`: the camera is
+told to publish its own stream on start, and to end it on stop, on every failure and when the app
+leaves the screen.
+
+## Camera stream status (`1080p from camera`)
+
+Under the status readout, identifier `monitor.livestream.cameraStatus`, while the stream carries the
+camera's own picture. `Retry` (`monitor.livestream.cameraRetry`) asks the camera to start again; the
+outgoing stream stays up on the slate meanwhile, and ending it stays the operator's action.
+
+| Status | Copy | Retry |
+|---|---|---|
+| `starting` | `Starting the camera's stream.` | |
+| `live` | `1080p from camera. Assists, scopes and camera controls are off in this mode.` | |
+| `recovering` | `The camera's stream stopped. Trying again.` | |
+| `lost` | `The camera's stream did not come back.` | yes |
+| `notResponding` | `The camera is not responding. Hold its power button about 10 seconds to restart it.` | yes |
 
 ## Live pill (app root)
 
@@ -165,6 +195,8 @@ Identifier `monitor.livestream.notice`, dismiss button `Dismiss` (`monitor.lives
 | `unreachable` | `Could not reach the streaming server. Check this phone's internet connection, then go live again.` | |
 | `background` | `The stream ended when the app left the screen.` | `Restart stream` (`monitor.livestream.restart`), starts at once with the same settings, no confirmation |
 | `microphoneDenied` | `Allow microphone access in Settings to go live.` | |
+| `cameraDidNotStart` | `The camera did not start its stream. Try again, or choose Camera feed in the live stream settings.` | |
+| `cameraNotResponding` | `The camera stopped responding. Hold its power button about 10 seconds to restart it, then go live again.` | |
 | `stopped` | no notice | |
 
 ## Warnings (while live)
@@ -188,6 +220,19 @@ Identifier `monitor.livestream.warning`. The stream never stops for these.
 `<height>p, <fps> fps, <bitrate>`; fps is a whole number unless fractional (`29.97`); bitrate as in
 the status readout. Example: `720p, 30 fps, 3 Mbps`. A vertical output names its short side:
 `720p vertical, 30 fps, 3 Mbps`. Before a camera is connected: `Set from the camera when you go live.`
+
+Quality choices, offered for the connected source (the remembered choice applies only while it is
+offered; otherwise the stream uses Camera feed):
+
+| Choice id | Title | Detail | Offered when |
+|---|---|---|---|
+| `cameraFeed` | `Camera feed` | none | always |
+| `upscaled1080p` | `1080p upscaled` | `The camera feed scaled up to 1080p, with your LUT.` | the source's short side is below 1080 |
+| `camera1080p` | `1080p from camera` | `Sharper picture, encoded by the camera, standard color, no LUT.` | the host declares that the selected camera can publish its own stream; listed unavailable, with `Save a shared network in the camera's Wi-Fi setup to use this.`, while no shared network is saved |
+
+An upscaled output always says so in its line: `1080p upscaled, 30 fps, 6 Mbps` (vertical:
+`1080p vertical upscaled, ...`); the start confirmation uses the same line. The camera's own
+picture reads `1080p from camera, 30 fps, 6 Mbps`.
 
 Vertical note: `This service takes a vertical picture: the stream is a 9:16 center crop of the camera picture, about <w> pixels wide from a <h>p feed before scaling.`
 (`<w>` is the source height times 9 / 16, rounded down; `405` from 720p.)

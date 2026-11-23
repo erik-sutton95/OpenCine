@@ -74,6 +74,8 @@ public final class LunaCameraBackend: CameraBackend {
     private var counter = LunaRequestCounter()
     private var heartbeat: Task<Void, Never>?
     private var statusPoll: Task<Void, Never>?
+    /// Asks a camera on a Wi-Fi or hotspot setup to stay there (`LunaStationKeepAlive`).
+    private var stationKeepAlive: Task<Void, Never>?
     private var generation = 0
     /// When the current connect first held its camera network address.
     private var reachableAt: ContinuousClock.Instant?
@@ -269,6 +271,7 @@ public final class LunaCameraBackend: CameraBackend {
                         })
                 }
                 controlOpen = true
+                startStationKeepAlive(network, token: token)
                 if let serial = deviceInformation?.serial, !serial.isEmpty {
                     stationHosts[camera.id] = LunaStationHost(
                         network: network.ssid, hotspot: network.hotspot, host: cameraHost, serial: serial)
@@ -759,6 +762,8 @@ public final class LunaCameraBackend: CameraBackend {
     private func closeControlLink() {
         heartbeat?.cancel()
         heartbeat = nil
+        stationKeepAlive?.cancel()
+        stationKeepAlive = nil
         tcp.disconnect()
         failPending(CancellationError())
         isTCP = false
@@ -791,6 +796,8 @@ public final class LunaCameraBackend: CameraBackend {
         heartbeat = nil
         statusPoll?.cancel()
         statusPoll = nil
+        stationKeepAlive?.cancel()
+        stationKeepAlive = nil
         if liveStartAttempted,
             let frame = try? LunaProtocol.stopLiveRequest.plainFrame(
                 identifier: counter.nextIdentifier(), sequence: counter.nextSequence())
@@ -1062,6 +1069,23 @@ public final class LunaCameraBackend: CameraBackend {
     public static let settingTypes: [UInt32] = [
         6, 7, 18, 20, 21, 24, 31, 33, 35, 39, 40, 43, 46, 53, 72, 73, 91, 92, 93, 100, 104,
     ]
+
+    /// While the control link on a setup's network is open, the camera is asked to stay on it.
+    private func startStationKeepAlive(_ network: LunaStationNetwork, token: Int) {
+        stationKeepAlive?.cancel()
+        let keepAlive = LunaStationKeepAlive(
+            send: { [weak self] request in
+                guard let self else { throw CancellationError() }
+                _ = try await self.send(request)
+            },
+            clock: clock,
+            isCurrent: { [weak self] in
+                guard let self else { return false }
+                return token == self.generation && self.isTCP
+            },
+            log: { [weak self] in self?.onLog?($0) })
+        stationKeepAlive = Task { await keepAlive.run(network) }
+    }
 
     private func startStatusPoll(token: Int) {
         statusPoll?.cancel()

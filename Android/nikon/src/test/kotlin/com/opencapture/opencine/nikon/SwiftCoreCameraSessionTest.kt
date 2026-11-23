@@ -771,6 +771,45 @@ class SwiftCoreCameraSessionTest {
         )
     }
 
+    /**
+     * OPENZCINE-IOS-1V: a Z 6 (first generation) has no record state in its 512-byte header. Its
+     * frames must not report standby mid-take, or the next press starts instead of stopping;
+     * the camera's OK to the record command (or a record event) is what reports the take.
+     */
+    @Test
+    fun `a first-generation body's record state comes from its record command, not its header`() = runTest {
+        val bridge = FakeBridge()
+        val session = quietSession(bridge)
+        val connecting = async { session.connect() }
+        runCurrent()
+        bridge.listeners.single().onConnected("Z 6", "NIKON Z 6", "6001234")
+        connecting.await()
+        val feed = launch(Dispatchers.Default) { session.liveFrames.frames.collect {} }
+        assertTrue(bridge.liveViewStarted.await(5, TimeUnit.SECONDS))
+        val live = checkNotNull(bridge.liveListener)
+        fun gen1Frame(timestamp: Long) {
+            live.onHeaderValidity(hasRecordState = false, hasTimecode = false)
+            live.onFrame(byteArrayOf(1), timestamp, false)
+        }
+
+        gen1Frame(1L)
+        assertNull(session.reportedRecording.value, "a header without record state is not standby")
+
+        session.setRecording(true)
+        assertEquals(true, session.reportedRecording.value, "the camera's OK reports the take")
+        gen1Frame(2L)
+        assertEquals(true, session.reportedRecording.value)
+        assertEquals(CameraRecordingState.RECORDING, session.recordingState.value)
+
+        // The body stops on its own: its record event is the report.
+        bridge.eventListeners.single().onEvent(0xC108, 11, longArrayOf())
+        assertEquals(false, session.reportedRecording.value)
+        gen1Frame(3L)
+        assertEquals(false, session.reportedRecording.value)
+        assertEquals(CameraRecordingState.STANDBY, session.recordingState.value)
+        feed.cancel()
+    }
+
     @Test
     fun `camera events preserve raw property data and authoritatively update recording`() = runTest {
         val bridge = FakeBridge()

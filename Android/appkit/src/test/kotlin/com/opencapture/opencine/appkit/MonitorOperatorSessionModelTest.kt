@@ -40,6 +40,18 @@ class MonitorOperatorSessionModelTest {
         assertTrue(!display.live.railMedia && display.clean.railMedia)
     }
 
+    @Test fun zoomDialOpenClearsOnLockAndRetire() = runTest {
+        val (model) = fixture()
+        model.synchronize("SIMULATED-first")
+        model.zoomDialOpen = true
+        model.locked = true
+        assertFalse(model.zoomDialOpen, "The lock closes the zoom ruler, so hidden chrome comes back")
+        model.locked = false
+        model.zoomDialOpen = true
+        model.close()
+        assertFalse(model.zoomDialOpen, "A retired monitor never keeps chrome hidden")
+    }
+
     @Test fun commandReceiptRetiresSynchronouslyOnLockOrOwnerReplacementOnly() = runTest {
         val (model) = fixture()
         model.synchronize("SIMULATED-first")

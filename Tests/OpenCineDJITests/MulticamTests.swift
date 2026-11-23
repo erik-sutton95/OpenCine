@@ -15,7 +15,10 @@ struct MulticamTests {
         #expect(
             MulticamStationPolicy.decision(reply: [0, 1], allowMissingQuery: true)
                 == .alreadyStation)
-        for reply: [UInt8] in [[], [0], [0xff], [1, 0xff], [0xe0, 0]] {
+        let rejected: [[UInt8]] = [
+            [], [0], [0xff], [1, 0xff], [0xe0, 0], [1, 8], [0, 8, 0], [0, 0, 0],
+        ]
+        for reply in rejected {
             #expect(
                 MulticamStationPolicy.decision(reply: reply, allowMissingQuery: true) == .reject)
         }
@@ -24,6 +27,22 @@ struct MulticamTests {
         #expect(MulticamStationPolicy.acceptsSetter([0, 0], missingQuery: false))
         for reply: [UInt8] in [[], [0xe0], [0, 0, 0], [0, 1]] {
             #expect(!MulticamStationPolicy.acceptsSetter(reply, missingQuery: true))
+        }
+    }
+
+    /// Pocket 4 Pro answered the role getter with `00 08` on 2026-11-21. An unrecognized
+    /// two-byte `00 xx` role tries the STA switch once, like AP, and still needs the readback.
+    @Test func unrecognizedTwoByteRoleTriesTheStationSwitch() {
+        for allowMissingQuery in [false, true] {
+            #expect(
+                MulticamStationPolicy.decision(reply: [0, 8], allowMissingQuery: allowMissingQuery)
+                    == .setAndVerify)
+            #expect(
+                MulticamStationPolicy.decision(reply: [0, 0], allowMissingQuery: allowMissingQuery)
+                    == .setAndVerify)
+            #expect(
+                MulticamStationPolicy.decision(reply: [0, 1], allowMissingQuery: allowMissingQuery)
+                    == .alreadyStation)
         }
     }
 
@@ -188,6 +207,46 @@ struct MulticamSupportTests {
         #expect(outcome == .joined)
         #expect(camera.sent == [0xe1, 0x39, 0x48, 0x39, 0x47, 0x47])
         #expect(probes == 0)
+    }
+
+    @MainActor @Test func stationJoinSwitchesAnUnrecognizedRoleAndWaitsForStation() async throws {
+        let camera = StationScript([
+            0x39: [[0, 8], [0, 8], [0, 1]], 0x48: [[0, 0]], 0x47: [[0, 0]],
+        ])
+        var lines: [String] = []
+        let outcome = try await StationJoin(
+            model: pocket4(), ssid: "Rig Phone", password: "secret", hotspot: false
+        ).run(
+            identity: [0, 4, 0x41, 0x42], exchange: camera.exchange,
+            send: { camera.sent.append($0.cmdId) }, next: { 1 }, status: { _ in },
+            hotspotReady: { false }, verifyOnNetwork: { false }, log: { lines.append($0) },
+            sleep: { _ in })
+        #expect(outcome == .joined)
+        #expect(camera.sent == [0xe1, 0x39, 0x48, 0x39, 0x39, 0x47])
+        #expect(lines.contains { $0.contains("00 08") && $0.contains("unrecognized") })
+    }
+
+    @MainActor @Test func stationJoinFailsWhenAnUnrecognizedRoleNeverReachesStation() async {
+        let stuck = StationScript([0x39: Array(repeating: [0, 8], count: 7), 0x48: [[0, 0]]])
+        await #expect(throws: StationJoin.Failure.roleStarting) {
+            _ = try await StationJoin(
+                model: pocket4(), ssid: "Rig Phone", password: "p", hotspot: false
+            ).run(
+                identity: [0, 4, 0x41, 0x42], exchange: stuck.exchange, send: { _ in },
+                next: { 1 }, status: { _ in }, hotspotReady: { false },
+                verifyOnNetwork: { false }, sleep: { _ in })
+        }
+        #expect(!stuck.sent.contains(0x47))
+        // Any other readback is not a transition toward station role.
+        let drifted = StationScript([0x39: [[0, 8], [0, 2]], 0x48: [[0, 0]]])
+        await #expect(throws: StationJoin.Failure.rejected) {
+            _ = try await StationJoin(
+                model: pocket4(), ssid: "Rig Phone", password: "p", hotspot: false
+            ).run(
+                identity: [0, 4, 0x41, 0x42], exchange: drifted.exchange, send: { _ in },
+                next: { 1 }, status: { _ in }, hotspotReady: { false },
+                verifyOnNetwork: { false }, sleep: { _ in })
+        }
     }
 
     @MainActor @Test func stationJoinProbesExistingStationOnlyWhenAsked() async throws {

@@ -62,11 +62,38 @@ interface StreamingNativeApi {
         connected: IntArray,
     ): String?
 
+    /**
+     * The output format JSON for a go-live with the operator's quality choice (a
+     * [StreamQualityChoice.wireName]), or null for an unknown preset or choice. The default
+     * answers the camera feed choice only, for an implementation that predates the choice.
+     */
+    fun formatFor(
+        presetId: String,
+        width: Int,
+        height: Int,
+        fpsNum: Int,
+        fpsDen: Int,
+        connected: IntArray,
+        choice: String,
+    ): String? = if (choice == StreamQualityChoice.CAMERA_FEED.wireName) {
+        format(presetId, width, height, fpsNum, fpsDen, connected)
+    } else {
+        null
+    }
+
     /** JSON `{"ok":true,"tls":bool}` or `{"error":name}`, for a preset as in [create]. */
     fun checkDestination(presetId: String, enteredServerUrl: String, streamKey: String): String
 
     /** Whether a stream may start on a `StreamConnectionRoute` named by its case name. */
     fun canStream(route: String): Boolean
+
+    /** A receive session that accepts only [token] as the stream key; returns its owner id. */
+    fun receiverCreate(token: String): String = throw UnsupportedOperationException("receiver")
+
+    /** Bytes from the publisher; the reply [RtmpReceiveReply.decode] reads. */
+    fun receiverFeed(owner: String, bytes: ByteArray): ByteArray = throw UnsupportedOperationException("receiver")
+
+    fun receiverClose(owner: String): Unit = throw UnsupportedOperationException("receiver")
 }
 
 /**
@@ -148,7 +175,23 @@ object StreamingNative : StreamingNativeApi {
         connected: IntArray,
     ): String?
 
+    external override fun formatFor(
+        presetId: String,
+        width: Int,
+        height: Int,
+        fpsNum: Int,
+        fpsDen: Int,
+        connected: IntArray,
+        choice: String,
+    ): String?
+
     external override fun checkDestination(presetId: String, enteredServerUrl: String, streamKey: String): String
 
     external override fun canStream(route: String): Boolean
+
+    external override fun receiverCreate(token: String): String
+
+    external override fun receiverFeed(owner: String, bytes: ByteArray): ByteArray
+
+    external override fun receiverClose(owner: String)
 }

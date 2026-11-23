@@ -1,23 +1,21 @@
 package com.opencapture.monitorui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -37,13 +35,24 @@ class MonitorZoomPresetControls(
     val onRamp: (Double) -> Unit,
 )
 
-/** Tap a saved slot to go there; tap an empty slot or hold any slot to save the current zoom. */
+/** The preset slots' and ramp key's shape inside the zoom panel. */
+private val SlotShape = RoundedCornerShape(10.dp)
+
+/** A rounded square key on the zoom panel: a light fill and a hairline stroke, no glass. */
+private fun Modifier.presetKey(): Modifier =
+    size(44.dp).clip(SlotShape).background(Color.White.copy(alpha = .08f), SlotShape)
+        .border(1.dp, Color.White.copy(alpha = .14f), SlotShape)
+
+/**
+ * Tap a saved slot to go there; tap an empty slot or hold any slot to save the current zoom.
+ * The ramp key opens the ramp popup ([onRampTap]), styled like the other camera popups.
+ */
 @Composable
 internal fun MonitorZoomPresetStrip(controls: MonitorZoomPresetControls, maximum: Double, vertical: Boolean,
-    label: (Double) -> String, onSaved: () -> Unit, modifier: Modifier = Modifier) {
+    label: (Double) -> String, onSaved: () -> Unit, modifier: Modifier = Modifier, onRampTap: () -> Unit = {}) {
     val content: @Composable () -> Unit = {
         repeat(MonitorZoomPresets.SLOT_COUNT) { index -> PresetSlot(controls, index, maximum, label, onSaved) }
-        PresetRamp(controls)
+        PresetRamp(controls, onRampTap)
     }
     if (vertical) {
         Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
@@ -58,8 +67,7 @@ private fun PresetSlot(controls: MonitorZoomPresetControls, index: Int, maximum:
     val saved = controls.presets.slots[index]
     val target = controls.presets.target(index, maximum)
     val save = { controls.onSave(index); onSaved() }
-    Box(Modifier.size(44.dp).alpha(if (saved != null && target == null) .4f else 1f)
-        .monitorMaterial(MonitorMaterial.Zoom, CircleShape)
+    Box(Modifier.alpha(if (saved != null && target == null) .4f else 1f).presetKey()
         .testTag("monitor.zoom.preset.${index + 1}")
         .combinedClickable(onClick = { if (saved == null) save() else controls.onSelect(index) }, onLongClick = save)
         .semantics {
@@ -78,24 +86,16 @@ private fun PresetSlot(controls: MonitorZoomPresetControls, index: Int, maximum:
 }
 
 @Composable
-private fun PresetRamp(controls: MonitorZoomPresetControls) {
-    var open by remember { mutableStateOf(false) }
+private fun PresetRamp(controls: MonitorZoomPresetControls, onTap: () -> Unit) {
     val current = MonitorZoomPresets.rampLabel(controls.presets.rampSeconds)
-    Box(Modifier.size(44.dp).monitorMaterial(MonitorMaterial.Zoom, CircleShape)
+    Box(Modifier.presetKey()
         .testTag("monitor.zoom.preset.ramp")
-        .combinedClickable(onClick = { open = true })
-        .semantics { contentDescription = "Preset zoom ramp, $current" },
+        .combinedClickable(onClick = onTap)
+        .semantics { contentDescription = "Preset zoom ramp, $current. Opens the ramp choices" },
         contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("RAMP", color = MonitorPalette.secondary, style = MonitorTypography.text(8f, FontWeight.SemiBold))
             Text(current, color = MonitorPalette.text, style = MonitorTypography.readout(11f, FontWeight.Bold), maxLines = 1)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            MonitorZoomPresets.RAMP_CHOICES.forEach { seconds ->
-                val text = MonitorZoomPresets.rampLabel(seconds)
-                DropdownMenuItem(text = { Text(if (seconds == controls.presets.rampSeconds) "$text  ✓" else text) },
-                    onClick = { open = false; controls.onRamp(seconds) })
-            }
         }
     }
 }

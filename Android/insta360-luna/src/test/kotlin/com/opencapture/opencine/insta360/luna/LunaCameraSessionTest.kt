@@ -84,17 +84,20 @@ internal class FakeLuna(
     /** A stored value changes this long after its SET is acknowledged. */
     @Volatile var applyDelay: Duration = Duration.ZERO
     @Volatile var silent = false
+    /** Requests get no reply at all, as Luna fw 1.2.7 does for about 2 in 100 zoom SETs. */
+    @Volatile var unanswered = false
     @Volatile var refuses = false
     val sent = mutableListOf<LunaControl.Request>()
     private var lastApply: Job? = null
     lateinit var session: LunaCameraSession
 
     fun makeSession(settle: Duration = 5.seconds,
-        backendCapabilities: () -> Set<CameraCapability>? = { null }): LunaCameraSession {
+        backendCapabilities: () -> Set<CameraCapability>? = { null },
+        writeTimeout: Map<SettingKey, Duration> = emptyMap()): LunaCameraSession {
         session = LunaCameraSession(
             send = ::receive, functionMode = { LunaControl.FUNCTION_MODE_VIDEO },
             readSettings = { reportSettings() }, readCapture = { reportCapture() }, scope = scope,
-            timing = LunaCameraSession.Timing(SettingKey.entries.associateWith { settle }, 40.milliseconds),
+            timing = LunaCameraSession.Timing(SettingKey.entries.associateWith { settle }, 40.milliseconds, writeTimeout),
             now = now, backendCapabilities = backendCapabilities,
         )
         return session
@@ -102,8 +105,9 @@ internal class FakeLuna(
 
     /** A live session that has heard every report once. */
     fun connectedSession(settle: Duration = 5.seconds, serial: String = "LUNA-TEST",
-        backendCapabilities: () -> Set<CameraCapability>? = { null }): LunaCameraSession {
-        makeSession(settle, backendCapabilities)
+        backendCapabilities: () -> Set<CameraCapability>? = { null },
+        writeTimeout: Map<SettingKey, Duration> = emptyMap()): LunaCameraSession {
+        makeSession(settle, backendCapabilities, writeTimeout)
         session.linkChanged(LinkPhase.LIVE, serial)
         reportDevice(); reportSettings(); reportCapture()
         return session
@@ -111,6 +115,7 @@ internal class FakeLuna(
 
     suspend fun receive(request: LunaControl.Request): ByteArray {
         synchronized(lock) { sent += request }
+        if (unanswered) kotlinx.coroutines.awaitCancellation()
         if (refuses) throw LunaRefused(request.code)
         if (ignoresWrites) return ByteArray(0)
         if (applyDelay == Duration.ZERO) {
@@ -416,6 +421,22 @@ class LunaCameraSessionTest {
         val session = camera.connectedSession(settle = 600.milliseconds)
         camera.silent = true
         assertEquals(CommandStage.TimedOut, session.run(CameraCommandIntent.Set(SettingValue.WhiteBalance(WhiteBalanceValue.Auto))).second.stage)
+    }
+
+    /**
+     * Zoom SETs are streamed and the next replaces each one: Luna fw 1.2.7 leaves about 2 in 100
+     * unanswered, so a zoom write waits a short time for its reply, not the channel's 10 s.
+     */
+    @Test fun anUnansweredZoomWriteEndsAfterItsWriteTimeout() = runBlocking {
+        assertEquals(1.seconds, LunaCameraSession.Timing.LUNA.writeTimeout[SettingKey.ZOOM])
+        val camera = FakeLuna(scope)
+        val session = camera.connectedSession(writeTimeout = mapOf(SettingKey.ZOOM to 200.milliseconds))
+        session.configureLens(1.0..4.0)
+        camera.unanswered = true
+        val started = System.nanoTime()
+        val (_, outcome) = session.run(CameraCommandIntent.Set(SettingValue.Zoom(2.0)))
+        assertEquals(CommandStage.OutcomeUnknown, outcome.stage)
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 5_000, "the zoom write gave up well before the channel's wait")
     }
 
     @Test fun cameraRefusalIsARejection() = runBlocking {

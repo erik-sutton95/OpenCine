@@ -145,7 +145,7 @@ func LunaConnectPort.startScan() async throws -> ()
 func LunaConnectPort.stationPassword(for: Swift.String, hotspot: Swift.Bool) -> Swift.String?
 func LunaConnectPort.stopScan() -> ()
 func LunaFeedStall.restartFinished() -> ()
-func LunaFeedStall.tick(silence: Foundation.TimeInterval, now: Foundation.TimeInterval) -> LunaFeedStall.Action
+func LunaFeedStall.tick(silence: Foundation.TimeInterval, now: Foundation.TimeInterval, recording: Swift.Bool) -> LunaFeedStall.Action
 func LunaFrameTimecode.note(frameClock: Swift.UInt64, arrival: Swift.Double, timeZoneSeconds: Swift.Int) -> OpenCineCore.CameraTimecodeReading?
 func LunaFrameTimecode.note(frameClock: Swift.UInt64, arrival: Swift.Double, timeZoneSeconds: Swift.Int, fps: Swift.Int) -> OpenCineCore.CameraTimecode?
 func LunaFrameTimecode.reset() -> ()
@@ -217,7 +217,7 @@ init CameraInformation(model: Swift.String, firmware: Swift.String?, sourceLabel
 init CameraMediaAsset(id: Swift.String, filename: Swift.String, bytes: Swift.UInt64?, durationSeconds: Swift.Double?, capturedAt: Foundation.Date?, resolution: Swift.String?, framesPerSecond: Swift.Double?, isPhoto: Swift.Bool, canDelete: Swift.Bool)
 init LunaCameraBackend(useExistingNetwork: Swift.Bool, configuration: LunaIntegrationConfiguration, mediaIO: (any LunaMediaIO)?, hotspot: OpenCineCore.CameraHotspotHost?)
 init LunaCameraSession(send: (Insta360Protocol.LunaRequest) async throws -> Foundation.Data, sendWithin: ((Insta360Protocol.LunaRequest, Swift.Duration) async throws -> Foundation.Data)?, functionMode: () -> Swift.UInt32, readSettings: () async -> Swift.Void, readCapture: () async -> Swift.Void, sendAdmitted: LunaAdmittedCommandSend?, sendAdmittedWithin: LunaAdmittedCommandSendWithin?, timing: LunaCameraSession.Timing, backendCapabilities: () -> CameraCapabilities?, now: () -> OpenCineCore.MonotonicInstant)
-init LunaCameraSession.Timing(settle: [OpenCineCore.SettingKey : Swift.Duration], readbackInterval: Swift.Duration)
+init LunaCameraSession.Timing(settle: [OpenCineCore.SettingKey : Swift.Duration], readbackInterval: Swift.Duration, writeTimeout: [OpenCineCore.SettingKey : Swift.Duration])
 init LunaColorMode(gammaLabel: Swift.String?)
 init LunaCommandAdmission(owner: LunaCommandOwner, isCurrent: () -> Swift.Bool)
 init LunaCommandOwner()
@@ -315,6 +315,8 @@ static let LunaCameraSession.unsupported: Swift.Set<OpenCineCore.SettingKey>
 static let LunaFeedStall.escalateAfter: Foundation.TimeInterval
 static let LunaFeedStall.keyframeAfter: Foundation.TimeInterval
 static let LunaFeedStall.maximumRestarts: Swift.Int
+static let LunaFeedStall.recordingEscalateAfter: Foundation.TimeInterval
+static let LunaFeedStall.recordingRestartAfter: Foundation.TimeInterval
 static let LunaFeedStall.restartAfter: Foundation.TimeInterval
 static let LunaFeedStall.restartSpacing: Foundation.TimeInterval
 static let LunaFrameTimecode.frameLatencySeconds: Swift.Double
@@ -393,6 +395,7 @@ var LunaCameraBackend.session: LunaCameraSession?
 var LunaCameraBackend.stationHostsInUse: (() -> Swift.Set<Swift.String>)?
 var LunaCameraSession.Timing.readbackInterval: Swift.Duration
 var LunaCameraSession.Timing.settle: [OpenCineCore.SettingKey : Swift.Duration]
+var LunaCameraSession.Timing.writeTimeout: [OpenCineCore.SettingKey : Swift.Duration]
 var LunaCameraSession.admitsControl: Swift.Bool
 var LunaCameraSession.current: OpenCineCore.CameraSnapshot
 var LunaCameraSession.recordingProfile: OpenCineCore.ObservedValue<Swift.String>

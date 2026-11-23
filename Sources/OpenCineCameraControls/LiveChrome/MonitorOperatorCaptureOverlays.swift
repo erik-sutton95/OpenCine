@@ -91,10 +91,9 @@ public struct MonitorOperatorZoomDial<Host: LiveChromeHost>: View {
 
     public var body: some View {
         MonitorZoomDial(viewport: layout.viewport, safeArea: layout.safeArea,
-            attachment: (layout.presentation?.portrait ?? (layout.viewport.height > layout.viewport.width)) ? .bottom : .trailing,
-            bottomClearance: 0, isPresented: interaction.zoomVisible,
+            bottomClearance: clearance.bottom, topClearance: clearance.top,
+            isPresented: interaction.zoomVisible,
             scale: MonitorZoomScale(minimum: 1, maximum: source.maximum),
-            marks: Array(Set([1, 1.5, 2, 4, 6, 9] + host.zoomStops)).sorted(),
             opticalStops: source.opticalStops, caption: source.caption,
             value: Binding(get: { source.readValue() }, set: {
                 host.updateZoomPinch(magnification: $0 / max(1, gestureOrigin))
@@ -113,10 +112,37 @@ public struct MonitorOperatorZoomDial<Host: LiveChromeHost>: View {
                 var next = presets
                 next.setRamp(seconds)
                 store(next)
-            }))
+            }), rampPlacement: rampPlacement)
             .frame(width: layout.viewport.width, height: layout.viewport.height, alignment: .topLeading)
             .onAppear { presets = host.zoomPresetStore.presets }
             .onDisappear { stopRamp() }
+    }
+
+    /// Portrait: from under the status row to above the capture bar. Landscape: edge to edge
+    /// inside the safe area.
+    private var clearance: (top: CGFloat, bottom: CGFloat) {
+        let portrait = layout.presentation?.portrait ?? (layout.viewport.height > layout.viewport.width)
+        let edge: CGFloat = 12
+        guard portrait else {
+            return (max(layout.safeArea.top, edge), max(layout.safeArea.bottom, edge))
+        }
+        let top = layout.topDeck.height > 1 ? layout.topDeck.maxY + 8 : layout.safeArea.top + edge
+        let floors = [layout.capture, layout.rail].filter { $0.height > 1 }.map(\.minY)
+        let bottom = layout.showsBottomBars && !floors.isEmpty
+            ? layout.viewport.height - (floors.min()! - edge) : layout.safeArea.bottom + edge
+        return (top, bottom)
+    }
+
+    /// The camera value popups' own placement (`MonitorCapturePopupContainer`), from the bottom.
+    private var rampPlacement: MonitorCapturePopupLayout? {
+        guard let field = layout.presentation else { return nil }
+        let safe = MonitorSafeArea(top: layout.safeArea.top, leading: layout.safeArea.leading,
+            bottom: layout.safeArea.bottom, trailing: layout.safeArea.trailing)
+        return MonitorCapturePopupLayout(viewportWidth: field.viewport.width,
+            viewportHeight: field.viewport.height, tablet: field.tablet, safeArea: safe,
+            bottomBoundary: field.portrait ? field.system.y - 12 : field.viewport.height,
+            ceiling: max(8, safe.top + 4), edge: .bottom,
+            topBoundary: field.portrait ? field.status.maxY + 6 : 0)
     }
 
     private func store(_ next: MonitorZoomPresets) {

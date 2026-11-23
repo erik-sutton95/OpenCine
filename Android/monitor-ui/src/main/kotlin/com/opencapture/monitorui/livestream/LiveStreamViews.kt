@@ -51,14 +51,21 @@ import com.opencapture.monitorui.LiveStreamCopy
 import com.opencapture.monitorui.LiveStreamEligibility
 import com.opencapture.monitorui.LiveStreamEnd
 import com.opencapture.monitorui.LiveStreamKeyState
+import com.opencapture.monitorui.LiveStreamHealth
 import com.opencapture.monitorui.LiveStreamPhase
+import com.opencapture.monitorui.LiveStreamQuality
+import com.opencapture.monitorui.LiveStreamQualityOption
 import com.opencapture.monitorui.LiveStreamServiceOption
 import com.opencapture.monitorui.LiveStreamState
 import com.opencapture.monitorui.LiveStreamStatusState
+import com.opencapture.monitorui.MonitorIcon
+import com.opencapture.monitorui.MonitorMaterial
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.isRunning
 import com.opencapture.monitorui.liveStreamPillState
+import com.opencapture.monitorui.monitorMaterial
+import com.opencapture.monitorui.monitorReadoutShadow
 import com.opencapture.monitorui.settings.MonitorSettingsActionPill
 import com.opencapture.monitorui.settings.MonitorSettingsChoices
 import com.opencapture.monitorui.settings.MonitorSettingsInlineRow
@@ -81,6 +88,10 @@ object LiveStreamIds {
     const val KEY_REMOVE = "monitor.livestream.key.remove"
     const val KEY_UNAVAILABLE = "monitor.livestream.key.unavailable"
     const val QUALITY = "monitor.livestream.quality"
+    const val QUALITY_CHOICE = "monitor.livestream.qualityChoice"
+    const val QUALITY_DETAIL = "monitor.livestream.qualityDetail"
+    const val CAMERA_STATUS = "monitor.livestream.cameraStatus"
+    const val CAMERA_RETRY = "monitor.livestream.cameraRetry"
     const val VERTICAL_NOTE = "monitor.livestream.verticalNote"
     const val SHOW_ON_MONITOR = "monitor.livestream.showOnMonitor"
     const val ELIGIBILITY = "monitor.livestream.eligibility"
@@ -128,8 +139,22 @@ fun LiveStreamSettingsCard(state: LiveStreamState, actions: LiveStreamActions) {
         }
         state.problem?.let { Note(it, LiveStreamIds.SERVER_PROBLEM, MonitorPalette.recording) }
         KeyRow(state, running, actions, onRemove = { removing = true })
-        MonitorSettingsInlineRow(LiveStreamCopy.QUALITY) {
+        val chosenQuality = state.selectedQuality
+        if (state.showsQualityPicker && chosenQuality != null) {
+            MonitorSettingsInlineRow(LiveStreamCopy.QUALITY, stacked = true) {
+                Box(Modifier.alpha(if (running) 0.45f else 1f)) {
+                    MonitorSettingsChoices(state.qualityOptions, chosenQuality, compact = true, fillWidth = true,
+                        testTag = LiveStreamIds.QUALITY_CHOICE, title = LiveStreamQualityOption::title) {
+                        if (!running && it.enabled) actions.selectQuality(it.id)
+                    }
+                }
+            }
             Box(Modifier.testTag(LiveStreamIds.QUALITY)) { MonitorSettingsValueText(LiveStreamCopy.quality(state.quality)) }
+            state.qualityDetail?.let { Note(it, LiveStreamIds.QUALITY_DETAIL, MonitorPalette.muted) }
+        } else {
+            MonitorSettingsInlineRow(LiveStreamCopy.QUALITY) {
+                Box(Modifier.testTag(LiveStreamIds.QUALITY)) { MonitorSettingsValueText(LiveStreamCopy.quality(state.quality)) }
+            }
         }
         if (selected.vertical) {
             Note(LiveStreamCopy.verticalNote(state.sourceHeight ?: 720), LiveStreamIds.VERTICAL_NOTE, MonitorPalette.muted)
@@ -276,9 +301,11 @@ fun liveStreamControlLook(state: LiveStreamState): LiveStreamControlLook {
 }
 
 /**
- * The Go live control with its status readout, notice and warning, for the top center of the
- * monitor picture. [onStart] runs after the start confirmation (composition may ask for the
- * microphone first); it defaults to [LiveStreamActions.goLive].
+ * The Go live control with its one-line status, notice and warnings, end aligned so it hangs
+ * under the monitor's status row (see `LiveStreamOverlayPlacement`). Idle it is a glass "Go live"
+ * capsule; live a red capsule with the elapsed time and a stop glyph (tapping asks the same stop
+ * confirmation), with `1080p · 6 Mbps · good` under it. [onStart] runs after the start
+ * confirmation (composition may ask for the microphone first); it defaults to [LiveStreamActions.goLive].
  */
 @Composable
 fun LiveStreamMonitorControls(
@@ -289,14 +316,23 @@ fun LiveStreamMonitorControls(
 ) {
     var confirmingStart by remember { mutableStateOf(false) }
     var confirmingStop by remember { mutableStateOf(false) }
-    Column(modifier.widthIn(max = 320.dp), horizontalAlignment = Alignment.CenterHorizontally,
+    Column(modifier.widthIn(max = 260.dp), horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (state.showsControl) {
-            GoLiveControl(liveStreamControlLook(state)) {
+            GoLiveControl(liveStreamControlLook(state), stops = state.phase.isRunning) {
                 if (state.phase.isRunning) confirmingStop = true else confirmingStart = true
             }
         }
-        if (state.phase.isRunning) state.status?.let { StatusReadout(it) }
+        if (state.phase.isRunning) state.status?.let { StatusLine(it, state.quality) }
+        state.cameraStatus?.let { camera ->
+            Bubble(Modifier.testTag(LiveStreamIds.CAMERA_STATUS)) {
+                Text(LiveStreamCopy.cameraStatus(camera), style = noteStyle, color = MonitorPalette.text)
+                if (camera.offersRetry) {
+                    MonitorSettingsActionPill(LiveStreamCopy.CAMERA_RETRY,
+                        modifier = Modifier.testTag(LiveStreamIds.CAMERA_RETRY), onClick = actions::retryCamera)
+                }
+            }
+        }
         val ended = state.phase as? LiveStreamPhase.Ended
         state.notice?.let { notice ->
             Bubble(Modifier.testTag(LiveStreamIds.NOTICE)) {
@@ -324,8 +360,20 @@ fun LiveStreamMonitorControls(
     if (confirmingStart) {
         AlertDialog(onDismissRequest = { confirmingStart = false },
             title = { Text(LiveStreamCopy.startTitle(service)) },
-            text = { Text(LiveStreamCopy.startMessage(LiveStreamCopy.quality(state.quality), state.plainServer)) },
-            confirmButton = { TextButton(onClick = { confirmingStart = false; onStart() }) { Text(LiveStreamCopy.GO_LIVE) } },
+            text = { Text(LiveStreamCopy.startMessage(state.quality, state.plainServer)) },
+            confirmButton = {
+                if (state.networkChoices.size > 1) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        for (network in state.networkChoices) {
+                            TextButton(onClick = { confirmingStart = false; actions.goLive(network.id) }) {
+                                Text(LiveStreamCopy.startOnNetwork(network.name))
+                            }
+                        }
+                    }
+                } else {
+                    TextButton(onClick = { confirmingStart = false; onStart() }) { Text(LiveStreamCopy.GO_LIVE) }
+                }
+            },
             dismissButton = { TextButton(onClick = { confirmingStart = false }) { Text(LiveStreamCopy.CANCEL) } })
     }
     if (confirmingStop) {
@@ -342,10 +390,11 @@ fun LiveStreamMonitorControls(
 }
 
 @Composable
-private fun GoLiveControl(look: LiveStreamControlLook, onTap: () -> Unit) {
+private fun GoLiveControl(look: LiveStreamControlLook, stops: Boolean, onTap: () -> Unit) {
     val shape = CircleShape
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
+    val ink = if (look.live) Color.White else if (look.enabled) MonitorPalette.text else MonitorPalette.muted
+    Column(horizontalAlignment = Alignment.End) {
+        Row(
             Modifier
                 .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                 .testTag(LiveStreamIds.GO_LIVE)
@@ -355,37 +404,52 @@ private fun GoLiveControl(look: LiveStreamControlLook, onTap: () -> Unit) {
                     if (look.enabled) onClick(label = look.hint) { onTap(); true } else disabled()
                 }
                 .clickable(enabled = look.enabled, onClick = onTap),
-            contentAlignment = Alignment.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
         ) {
-            Text(
-                look.title,
-                style = MonitorTypography.readout(13f, FontWeight.SemiBold),
-                color = if (look.live) Color.White else if (look.enabled) MonitorPalette.text else MonitorPalette.muted,
-                modifier = Modifier
-                    .background(if (look.live) MonitorPalette.recording else MonitorPalette.background.copy(alpha = 0.72f), shape)
+            Row(
+                (if (look.live) Modifier.background(MonitorPalette.recording, shape)
+                else Modifier.monitorMaterial(MonitorMaterial.Compact, shape))
                     .border(1.dp, if (look.live) MonitorPalette.recording else MonitorPalette.border, shape)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            )
+                    .padding(start = 12.dp, end = if (stops) 4.dp else 14.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                if (!look.live) MonitorIcon(MonitorIcon.RADIO, null, Modifier.size(15.dp), ink)
+                Text(look.title, style = MonitorTypography.readout(13f, FontWeight.SemiBold), color = ink,
+                    maxLines = 1, modifier = Modifier.padding(vertical = 4.dp))
+                // The inline stop: part of the one control, so it asks the same stop confirmation.
+                if (stops) Box(Modifier.size(26.dp).background(Color.White.copy(alpha = if (look.live) .22f else .12f), shape),
+                    contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(9.dp).background(ink, RoundedCornerShape(2.dp)))
+                }
+            }
         }
         look.caption?.let { Text(it, style = noteStyle, color = MonitorPalette.muted) }
     }
 }
 
+/** The one muted line under the live control: quality, bitrate, drops and link health. */
 @Composable
-private fun StatusReadout(status: LiveStreamStatusState) {
+private fun StatusLine(status: LiveStreamStatusState, quality: LiveStreamQuality?) {
     val label = LiveStreamCopy.statusLabel(status)
+    val dot = when (status.health) {
+        LiveStreamHealth.GOOD -> Color(0xFF4CD964)
+        LiveStreamHealth.CONGESTED -> warningColor
+        LiveStreamHealth.OFFLINE -> MonitorPalette.recording
+    }
     Row(
         Modifier
             .testTag(LiveStreamIds.STATUS)
             .clearAndSetSemantics { contentDescription = label }
-            .background(MonitorPalette.background.copy(alpha = 0.72f), CircleShape)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(end = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        for (part in listOf(LiveStreamCopy.elapsed(status.elapsedSeconds), LiveStreamCopy.bitrate(status.sentBitrateBps),
-            LiveStreamCopy.dropped(status.droppedGroups), LiveStreamCopy.health(status.health))) {
-            Text(part, style = MonitorTypography.readout(11.5f, FontWeight.Medium), color = MonitorPalette.secondary)
-        }
+        Box(Modifier.size(6.dp).background(dot, CircleShape))
+        Text(status.compactLine(quality), style = MonitorTypography.readout(10.5f, FontWeight.SemiBold),
+            color = MonitorPalette.secondary.copy(alpha = .82f), maxLines = 1,
+            modifier = Modifier.monitorReadoutShadow())
     }
 }
 

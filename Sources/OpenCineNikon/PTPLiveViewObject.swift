@@ -3,8 +3,8 @@ import Foundation
 /// A decoded Nikon `GetLiveViewImageEx` object.
 public struct PTPLiveViewFrame: Equatable, Sendable {
     public init(
-        jpeg: Data, timecode: Timecode, focus: PTPLiveViewFocusInfo? = nil,
-        isRecording: Bool = false, level: PTPLevelAngles? = nil,
+        jpeg: Data, timecode: Timecode?, focus: PTPLiveViewFocusInfo? = nil,
+        isRecording: Bool? = nil, level: PTPLevelAngles? = nil,
         sound: PTPLiveViewSoundIndicator? = nil,
         rotation: PTPLiveViewRotation = .landscape
     ) {
@@ -18,13 +18,17 @@ public struct PTPLiveViewFrame: Equatable, Sendable {
     }
 
     public let jpeg: Data
-    public let timecode: Timecode  // from the frame header
+    /// The header's movie timecode, or `nil` when the header is too short to carry it (Gen-1
+    /// bodies: Z 5, Z 6, Z 7, Z 50). `on` is false while the body runs no timecode.
+    public let timecode: Timecode?
     /// AF / subject-detection boxes parsed from the header, for drawing the camera's focus and
     /// face/eye tracking frames over the feed. `nil` when the header is too short to parse.
     public let focus: PTPLiveViewFocusInfo?
     /// Whether the body is recording — header byte 828 (0 = live view, 1 = recording). The camera is
-    /// the source of truth, so this catches a recording started on the body itself.
-    public let isRecording: Bool
+    /// the source of truth, so this catches a recording started on the body itself. `nil` when the
+    /// header is too short to carry it (Gen-1 bodies): unknown, never standby. Those bodies report
+    /// recording through their record events (0xC10A / 0xC108 / 0xC105) instead.
+    public let isRecording: Bool?
     /// The camera's virtual-horizon angles (degrees), or nil when the body reports them unreliable.
     public let level: PTPLevelAngles?
     /// The camera's stereo sound-level indicator, or nil when the header is too short to carry it.
@@ -379,8 +383,9 @@ public enum PTPLiveViewObject {
     /// from it, so the hot path pays a single ≤1 KB copy per frame.
     ///
     /// Gen-1 bodies (Z5/Z6/Z7/Z50) use a 512-byte header; fields at offsets 824–852 (sound,
-    /// record state, rotation, level angles) are Gen-3 additions and are not present. Capping at
-    /// 512 causes those parsers to return their safe defaults rather than reading JPEG data.
+    /// record state, timecode, rotation, level angles) are Gen-3 additions and are not present.
+    /// Capping at 512 makes those parsers report nothing (or their safe defaults) rather than
+    /// reading JPEG data.
     private static func headerBytes(from liveViewObject: Data) -> [UInt8] {
         let len =
             liveViewObject.count > headerLengthGen1 + 1
@@ -390,15 +395,14 @@ public enum PTPLiveViewObject {
         return Array(liveViewObject.prefix(len))
     }
 
-    /// Decodes movie timecode from the LiveViewObject header.
-    public static func timecode(from liveViewObject: Data) -> Timecode {
+    /// Decodes movie timecode from the LiveViewObject header, or `nil` when the header is too
+    /// short to carry it (Gen-1 bodies): no timecode, never a zero clock.
+    public static func timecode(from liveViewObject: Data) -> Timecode? {
         timecode(fromHeader: headerBytes(from: liveViewObject))
     }
 
-    private static func timecode(fromHeader bytes: [UInt8]) -> Timecode {
-        guard bytes.count >= 836 else {
-            return Timecode(on: false, hour: 0, minute: 0, second: 0, frame: 0)
-        }
+    private static func timecode(fromHeader bytes: [UInt8]) -> Timecode? {
+        guard bytes.count >= 836 else { return nil }
         return Timecode(
             on: bytes[831] == 1,
             hour: Int(bytes[832]),
@@ -433,12 +437,13 @@ public enum PTPLiveViewObject {
 
     /// Movie-recording state from the header (byte 828): `true` while the body is recording. The
     /// camera is the source of truth, so this reflects a recording started on the body itself.
-    public static func recordingState(from liveViewObject: Data) -> Bool {
+    /// `nil` when the header is too short to carry it (Gen-1 bodies): unknown, not standby.
+    public static func recordingState(from liveViewObject: Data) -> Bool? {
         recordingState(fromHeader: headerBytes(from: liveViewObject))
     }
 
-    private static func recordingState(fromHeader bytes: [UInt8]) -> Bool {
-        guard bytes.count > HeaderOffset.recordState else { return false }
+    private static func recordingState(fromHeader bytes: [UInt8]) -> Bool? {
+        guard bytes.count > HeaderOffset.recordState else { return nil }
         return bytes[HeaderOffset.recordState] == 1
     }
 

@@ -1032,6 +1032,10 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                     try checkpoint()
                 case .everyPages, .listingCompleteOrNonCancelFailure: break
                 }
+                // A cursor over cached rows answers without suspending, so without this the
+                // whole card lists in one main-actor turn (OPENZCINE-IOS-1S, -17). The loop's
+                // admission check runs again before the next page is applied.
+                await Task.yield()
             }
             if catalogPersistence != .eachDelta, uncheckpointedPages > 0 {
                 try checkpoint()

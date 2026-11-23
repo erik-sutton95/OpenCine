@@ -95,4 +95,39 @@ import OpenCineStreaming
         #expect(StreamConnectionRoute(.captureDevice) == .captureCard)
         #expect(RouteKind.allCases.filter { StreamConnectionRoute.canStream(StreamConnectionRoute($0)) }.count == 4)
     }
+
+    @Test func upscaledChoiceGivesThe1080Tier() {
+        let landscape = StreamOutputFormat.resolve(
+            selected: p720, connected: [], preset: capped(4_500_000), choice: .upscaled1080p)
+        #expect(landscape.width == 1920 && landscape.height == 1080)
+        #expect(landscape.videoBitrateBps == 4_500_000)
+        #expect(landscape.frameRate == Rational(25, 1))
+        let open = StreamOutputFormat.resolve(selected: p720, connected: [], preset: .custom, choice: .upscaled1080p)
+        #expect(open.videoBitrateBps == 6_000_000)
+        let vertical = StreamOutputFormat.resolve(
+            selected: p720, connected: [], preset: capped(nil, aspect: .portrait9x16), choice: .upscaled1080p)
+        #expect(vertical.width == 1080 && vertical.height == 1920)
+        let feed = StreamOutputFormat.resolve(selected: p720, connected: [], preset: .custom, choice: .cameraFeed)
+        #expect(feed.width == 1280)
+    }
+
+    @Test func upscaledIsOfferedOnlyBelow1080() {
+        #expect(StreamQualityChoice.offered(for: p720) == [.cameraFeed, .upscaled1080p])
+        #expect(StreamQualityChoice.offered(for: fourByThree) == [.cameraFeed, .upscaled1080p])
+        #expect(StreamQualityChoice.offered(for: StreamSourceFormat(width: 720, height: 1280, frameRate: nil))
+            == [.cameraFeed, .upscaled1080p])
+        #expect(StreamQualityChoice.offered(for: p1080) == [.cameraFeed])
+        #expect(StreamQualityChoice.offered(for: nil) == [.cameraFeed])
+    }
+
+    /// The host offers the camera's own stream; the source size never does, and it is a 1080 output.
+    @Test func cameraChoiceComesFromTheHostAndIs1080() {
+        #expect(StreamQualityChoice(rawValue: "camera1080p") == .camera1080p)
+        #expect(!StreamQualityChoice.offered(for: p720).contains(.camera1080p))
+        #expect(!StreamQualityChoice.offered(for: p1080).contains(.camera1080p))
+        let camera = StreamOutputFormat.resolve(
+            selected: StreamSourceFormat(width: 1920, height: 1080, frameRate: Rational(25, 1)), connected: [],
+            preset: .custom, choice: .camera1080p)
+        #expect(camera.width == 1920 && camera.height == 1080 && camera.videoBitrateBps == 6_000_000)
+    }
 }

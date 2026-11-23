@@ -7,7 +7,6 @@ import android.util.Log
 import android.view.Surface
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -25,7 +24,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.opencapture.monitorui.LiveStreamOverlayPlacement
 import com.opencapture.monitorui.isRunning
+import com.opencapture.monitorui.monitorChromeHidden
 import com.opencapture.opencine.cameracontrols.MonitorSettingsLiveStreamSource
 import com.opencapture.monitorui.livestream.LiveStreamMonitorControls
 import com.opencapture.monitorui.livestream.LiveStreamRootPill
@@ -69,6 +70,9 @@ private class PreferencesLiveStreamSettings(context: Context, file: String) : Li
     override var showOnMonitor: Boolean
         get() = preferences.getBoolean("live-stream.show-on-monitor", true)
         set(value) { preferences.edit().putBoolean("live-stream.show-on-monitor", value).apply() }
+    override var selectedQualityId: String?
+        get() = preferences.getString("live-stream.quality", null)
+        set(value) { preferences.edit().putString("live-stream.quality", value).apply() }
 }
 
 /** Builds an app's live stream coordinator. Every argument but the context is a host value. */
@@ -153,13 +157,17 @@ fun LiveStreamHostEffects(coordinator: LiveStreamCoordinator) {
 }
 
 /**
- * The Go live control, status, notice and warnings, aligned to the top center of [modifier]'s box
- * (an app places that box over its monitor picture). Confirming a start asks for the microphone
+ * The Go live control, status, notice and warnings, hanging from the top end of [modifier]'s box:
+ * an app places that box so its top end corner is at `LiveStreamOverlayPlacement.anchor`, under
+ * the monitor's status row (the gaps are in the anchor). Confirming a start asks for the microphone
  * through the shared permission gate when the app does not hold it yet: the start runs once it is
  * granted; a refusal still goes through the coordinator, which ends with the microphone notice.
+ * [hidden] fades the control out while another control replaces it (the open zoom ruler, pass
+ * `session.zoomDialOpen`); it stays on screen for the coordinator, so the root pill stays away
+ * and a running stream is untouched.
  */
 @Composable
-fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = Modifier) {
+fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = Modifier, hidden: Boolean = false) {
     val state by coordinator.state.collectAsState()
     var startWhenGranted by remember { mutableStateOf(false) }
     val microphone = rememberPermissionGate(
@@ -191,7 +199,7 @@ fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = M
         onDispose { coordinator.monitorControlsGone() }
     }
     Box(modifier) {
-        LiveStreamMonitorControls(state, coordinator, Modifier.align(Alignment.TopCenter).padding(top = 10.dp)) {
+        LiveStreamMonitorControls(state, coordinator, Modifier.align(Alignment.TopEnd).monitorChromeHidden(hidden)) {
             if (microphone.granted) {
                 coordinator.goLive()
             } else {
@@ -202,11 +210,13 @@ fun LiveStreamOverlay(coordinator: LiveStreamCoordinator, modifier: Modifier = M
     }
 }
 
-/** [LiveStreamOverlay] over the shared live host's picture. */
+/** [LiveStreamOverlay] in the shared live host, under the trailing end of the status row. */
 @Composable
-fun MonitorLiveFeedScope.LiveStreamOverlay(coordinator: LiveStreamCoordinator) {
-    val feed = geometry.layout.onFeed
-    LiveStreamOverlay(coordinator, Modifier.offset(feed.x.dp, feed.y.dp).size(feed.width.dp, feed.height.dp))
+fun MonitorLiveFeedScope.LiveStreamOverlay(coordinator: LiveStreamCoordinator, hidden: Boolean = false) {
+    val layout = geometry.layout
+    val anchor = LiveStreamOverlayPlacement.anchor(layout.topDeck, layout.viewportWidth, layout.safeTop, layout.safeTrailing)
+    LiveStreamOverlay(coordinator, Modifier.offset(0.dp, anchor.y.dp)
+        .size(anchor.x.coerceAtLeast(0f).dp, (layout.viewportHeight - anchor.y).coerceAtLeast(0f).dp), hidden)
 }
 
 /**

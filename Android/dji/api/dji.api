@@ -690,6 +690,47 @@ public final class com/opencapture/opencine/dji/DjiCameraSessionAdapter$Companio
 	public final fun whiteBalance (Lcom/opencapture/opencine/dji/ReportedWhiteBalance;)Lcom/opencapture/opencine/core/WhiteBalanceValue;
 }
 
+public abstract class com/opencapture/opencine/dji/DjiCameraStreamError : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraStreamError$ConfigureRefused : com/opencapture/opencine/dji/DjiCameraStreamError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getReply ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraStreamError$JoinRefused : com/opencapture/opencine/dji/DjiCameraStreamError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getReply ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraStreamError$NoReply : com/opencapture/opencine/dji/DjiCameraStreamError {
+	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraStreamError$PrepareRefused : com/opencapture/opencine/dji/DjiCameraStreamError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getReply ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraStreamError$StartRefused : com/opencapture/opencine/dji/DjiCameraStreamError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getReply ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraStreamPublisher {
+	public static final field BITRATE_KBPS I
+	public static final field Companion Lcom/opencapture/opencine/dji/DjiCameraStreamPublisher$Companion;
+	public fun <init> (Lcom/opencapture/opencine/dji/DjiLivestreamLink;ZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lcom/opencapture/opencine/dji/StationJoin$Policy;)V
+	public synthetic fun <init> (Lcom/opencapture/opencine/dji/DjiLivestreamLink;ZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lcom/opencapture/opencine/dji/StationJoin$Policy;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun end (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun start (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/DjiCameraStreamPublisher$Companion {
+	public final fun redacted (Ljava/lang/String;)Ljava/lang/String;
+}
+
 public final class com/opencapture/opencine/dji/DjiCaptureCapabilityProfile {
 	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiCaptureCapabilityProfile;
 	public final fun controls (Lcom/opencapture/opencine/vocabulary/CameraModel;)Ljava/util/Map;
@@ -822,6 +863,11 @@ public final class com/opencapture/opencine/dji/DjiIntegration$Companion {
 	public final fun steps (Lcom/opencapture/opencine/core/SavedRoute;)Ljava/util/List;
 }
 
+public abstract interface class com/opencapture/opencine/dji/DjiLivestreamLink {
+	public abstract fun closeAndWait (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun exchange (ILjava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public final class com/opencapture/opencine/dji/DjiLog {
 	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiLog;
 	public final fun getSink ()Lkotlin/jvm/functions/Function4;
@@ -862,6 +908,10 @@ public final class com/opencapture/opencine/dji/DjiNative {
 	public static final field CMD_GIMBAL_INIT I
 	public static final field CMD_GIMBAL_RECENTER I
 	public static final field CMD_GIMBAL_STICK I
+	public static final field CMD_LIVESTREAM_CONFIGURE I
+	public static final field CMD_LIVESTREAM_END I
+	public static final field CMD_LIVESTREAM_PREPARE I
+	public static final field CMD_LIVESTREAM_START I
 	public static final field CMD_LIVE_VIEW_ENABLE I
 	public static final field CMD_MEDIA_LIST I
 	public static final field CMD_MEDIA_LIST_TRIGGER I
@@ -983,6 +1033,11 @@ public final class com/opencapture/opencine/dji/DjiStationCommissioner : com/ope
 	public fun restoreAccessPoint (Lcom/opencapture/opencine/core/StationCameraRecord;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun scanNetworks (Lcom/opencapture/opencine/vocabulary/FoundCamera;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public synthetic fun scanNetworks (Ljava/lang/Object;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/opencapture/opencine/dji/DjiStreamPublishing {
+	public static final field INSTANCE Lcom/opencapture/opencine/dji/DjiStreamPublishing;
+	public final fun capability (Lcom/opencapture/opencine/vocabulary/CameraModel;)Lcom/opencapture/opencine/core/CameraStreamPublishing;
 }
 
 public final class com/opencapture/opencine/dji/DumlCodec {
@@ -1677,6 +1732,12 @@ public final class com/opencapture/opencine/dji/MultiviewFailure$Timeout : com/o
 
 public final class com/opencapture/opencine/dji/MultiviewFailure$Unavailable : com/opencapture/opencine/dji/MultiviewFailure {
 	public fun <init> ()V
+}
+
+public final class com/opencapture/opencine/dji/MultiviewLivestreamLink : com/opencapture/opencine/dji/DjiLivestreamLink {
+	public fun <init> (Lcom/opencapture/opencine/dji/MultiviewProvisioner;)V
+	public fun closeAndWait (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun exchange (ILjava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class com/opencapture/opencine/dji/MultiviewNetworkKt {

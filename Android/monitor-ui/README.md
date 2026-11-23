@@ -87,9 +87,11 @@ their own notices.
 - `MonitorPlaybackHeader`, `MonitorPlaybackFooter`, `MonitorMetadataDrawer`:
   responsive chrome around the caller's existing native player. The footer
   stacks when the actual viewport cannot fit the centered transport and options.
-- `MonitorZoomDisc`: a logarithmic edge-mounted half-disc, legal maximum,
-  optical stops, captions and existing gesture callbacks supplied by the camera
-  adapter. Its foreground slot keeps Record accessible above the dial.
+- `MonitorZoomRuler`: one panel on the trailing edge holding the current zoom,
+  the presets, the ramp key and a vertical ruler that behaves like the other
+  setting dials: the scale slides under a fixed center line, a drag moves the
+  zoom smoothly with a haptic at each 0.1x tick (`MonitorZoomRulerScale`), and
+  the ramp key opens the host's camera value popup.
 - `MonitorImagePreview`: presentation of a caller-supplied bounded native image;
   no subscription, decoding or shader ownership in the UI module.
 - `MonitorSlider`, `MonitorSwitchGraphic`, `MonitorOptionGroup`: lightweight
