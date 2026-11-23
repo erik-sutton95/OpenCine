@@ -480,6 +480,14 @@ class SwiftCoreCameraSession internal constructor(
     val connectionOwner: Long?
         get() = synchronized(attemptLock) { activeConnectionOwner }
 
+    internal fun noteMediaModeReleased(owner: Long) {
+        synchronized(attemptLock) {
+            if (activeConnectionOwner != owner) return
+            swiftLiveFrames.noteMediaModeReleased()
+        }
+        phaseLogger("liveViewMediaReleased", "")
+    }
+
     private val _recordingState = MutableStateFlow(CameraRecordingState.STANDBY)
     override val recordingState: StateFlow<CameraRecordingState> = _recordingState.asStateFlow()
 
@@ -560,13 +568,7 @@ class SwiftCoreCameraSession internal constructor(
         evIndicatorFastPolling = active
     }
 
-    /**
-     * Live-view frames from the Swift core's pump. Collect only while the
-     * session is [CameraSessionState.Connected]; collection starts live view
-     * on the camera and cancelling it sends `EndLiveView` (never leave the
-     * body streaming to a hidden feed; the heat-audit rule).
-     */
-    val liveFrames: LiveFrameSource =
+    private val swiftLiveFrames =
         SwiftCoreLiveFrameSource(
             available = { core.isAvailable },
             start = { listener ->
@@ -584,6 +586,14 @@ class SwiftCoreCameraSession internal constructor(
             onStreamExhausted = ::markLiveViewStreamExhausted,
             onFailurePhase = { phase -> phaseLogger(phase, "") },
         )
+
+    /**
+     * Live-view frames from the Swift core's pump. Collect only while the
+     * session is [CameraSessionState.Connected]; collection starts live view
+     * on the camera and cancelling it sends `EndLiveView` (never leave the
+     * body streaming to a hidden feed; the heat-audit rule).
+     */
+    val liveFrames: LiveFrameSource = swiftLiveFrames
 
     /**
      * Connects and suspends until the session is [CameraSessionState.Connected]
@@ -624,7 +634,7 @@ class SwiftCoreCameraSession internal constructor(
                             _cameraProperties.value = _cameraProperties.value.retainingCaptureMode()
                             _reportedCameraProperties.value = CameraPropertySnapshot()
                             _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
-                            (liveFrames as? SwiftCoreLiveFrameSource)?.noteSessionConnected()
+                            swiftLiveFrames.noteSessionConnected()
                             updateRoundTripMeasurement()
                             startEventStream(attempt)
                             if (automaticallyRefreshProperties) {

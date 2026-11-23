@@ -2229,6 +2229,7 @@ public final class com/opencapture/monitorui/MonitorImagePreviewKt {
 
 public final class com/opencapture/monitorui/MonitorInspectorKt {
 	public static final fun MonitorInspector (Ljava/lang/String;FFLkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;ZFFFFZLkotlin/jvm/functions/Function2;ZLjava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
+	public static final fun getLocalMonitorInspectorBackgroundControls ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun getLocalMonitorInspectorHelp ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 }
 
@@ -4291,6 +4292,29 @@ public final class com/opencapture/monitorui/MonitorRect {
 	public final fun intersects (Lcom/opencapture/monitorui/MonitorRect;)Z
 	public final fun isEmpty ()Z
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorReferenceMode : java/lang/Enum {
+	public static final field BLEND Lcom/opencapture/monitorui/MonitorReferenceMode;
+	public static final field SPLIT Lcom/opencapture/monitorui/MonitorReferenceMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorReferenceMode;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorReferenceMode;
+}
+
+public final class com/opencapture/monitorui/MonitorReferenceOverlayKt {
+	public static final fun MonitorReferenceOverlay (Landroidx/compose/ui/graphics/ImageBitmap;Lcom/opencapture/monitorui/MonitorReferenceMode;FFLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ZZLandroidx/compose/ui/Modifier;ZLcom/opencapture/monitorui/MonitorReferenceSide;FLandroidx/compose/runtime/Composer;III)V
+	public static final fun MonitorReferenceSplitHandle (FLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+	public static final fun monitorReferenceMatches (FF)Z
+	public static final fun monitorReferenceRect-Pq9zytI (JFZ)Landroidx/compose/ui/geometry/Rect;
+}
+
+public final class com/opencapture/monitorui/MonitorReferenceSide : java/lang/Enum {
+	public static final field LEFT Lcom/opencapture/monitorui/MonitorReferenceSide;
+	public static final field RIGHT Lcom/opencapture/monitorui/MonitorReferenceSide;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorReferenceSide;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorReferenceSide;
 }
 
 public final class com/opencapture/monitorui/MonitorScopeChrome : java/lang/Enum {

@@ -277,13 +277,16 @@
             let request = preparation
             let target = CMTime(seconds: seconds, preferredTimescale: 600)
             let tolerance = CMTime(seconds: max(0, tolerance), preferredTimescale: 600)
+            let referenceSeek = feed.beginReferenceSeek()
             let completed = await withCheckedContinuation { continuation in
                 player.seek(to: target, toleranceBefore: tolerance, toleranceAfter: tolerance) {
                     completed in
                     continuation.resume(returning: completed)
                 }
             }
-            return current(token, request: request) && !Task.isCancelled && completed
+            let accepted = current(token, request: request) && completed
+            feed.finishReferenceSeek(referenceSeek, completed: accepted)
+            return accepted && !Task.isCancelled
         }
         public func setMuted(_ muted: Bool, token: MonitorPlaybackItemToken) {
             guard !closed, admitsSource(), self.token == token else { return }

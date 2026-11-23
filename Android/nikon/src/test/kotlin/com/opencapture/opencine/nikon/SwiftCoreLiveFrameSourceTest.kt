@@ -615,6 +615,42 @@ class SwiftCoreLiveFrameSourceTest {
     }
 
     @Test
+    fun `media release wakes a rejected preview without changing its request`() = runTest {
+        var mediaOwnsCamera = false
+        var starts = 0
+        val source =
+            SwiftCoreLiveFrameSource(
+                available = { true },
+                start = { listener ->
+                    starts++
+                    listener.onFrame(byteArrayOf(1), starts.toLong(), false)
+                },
+                stop = {},
+                configurePreview = { !mediaOwnsCamera },
+                sharingScope = backgroundScope,
+            )
+        val first = async { source.currentStreamFrames.first() }
+        runCurrent()
+        assertEquals(1L, first.await().timestampNanos)
+        runCurrent()
+
+        mediaOwnsCamera = true
+        val resumed = async { source.currentStreamFrames.first() }
+        runCurrent()
+        assertIs<SwiftLiveViewPreviewState.Rejected>(source.previewState.value)
+        assertFalse(resumed.isCompleted)
+        assertEquals(1, starts)
+
+        mediaOwnsCamera = false
+        source.noteMediaModeReleased()
+        runCurrent()
+
+        assertTrue(resumed.isCompleted)
+        assertEquals(2L, resumed.await().timestampNanos)
+        assertEquals(SwiftLiveViewPreviewState.Applied(SwiftLiveViewRequest.DEFAULT), source.previewState.value)
+    }
+
+    @Test
     fun `rejected changed preview restores the prior confirmed request before restarting`() = runTest {
         val rejectedRequest = SwiftLiveViewRequest(1, 3, 49_500_000L)
         val configured = mutableListOf<SwiftLiveViewRequest>()

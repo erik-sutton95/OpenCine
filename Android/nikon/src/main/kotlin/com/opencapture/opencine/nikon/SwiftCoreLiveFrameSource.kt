@@ -199,6 +199,11 @@ class SwiftCoreLiveFrameSource(
     private val nextStreamGeneration = AtomicLong(0L)
     private val activeStreamGeneration = AtomicLong(0L)
 
+    internal fun noteMediaModeReleased() {
+        // A preview request that Media refused can now be applied without changing its settings.
+        previewUpdates.trySend(Unit)
+    }
+
     /** Current requested preview policy, retained for the next stream start. */
     val previewRequest: SwiftLiveViewRequest
         get() = synchronized(previewRequestLock) { requestedPreview }
@@ -722,6 +727,7 @@ class SwiftCoreLiveFrameSource(
                     true
                 }
             if (!rejected) continue
+            onFailurePhase("liveViewPreviewRejected")
             previewUpdates.receive()
         }
     }

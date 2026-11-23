@@ -191,6 +191,12 @@
     @MainActor private var transfer = MonitorTransfer.rec709
     /// pullQueue-owned. Main must not read or write it, and must not wait on pullQueue.
     private var lastBuffer: CVPixelBuffer?
+    private var lastReferenceSource: MonitorReferencePixelSource?
+    /// Opt-in before playback starts so processed presents can retain their matching clean buffer.
+    @MainActor public var referenceCaptureEnabled = false
+    @MainActor private var referenceSeekRevision: UInt64 = 0
+    @MainActor private var referenceSeekPending = false
+    @MainActor private var referenceSeekSettled = true
     @MainActor private var lastBackdropBuffer: CVPixelBuffer?
     @MainActor private var lastOverlayOnly = false
     @MainActor private var lastUnmanagedBake = false
@@ -279,12 +285,16 @@
       boundItem?.remove(output)
       boundItem = nil
       sourceFence.retire()
+      referenceSeekRevision &+= 1
+      referenceSeekPending = false
+      referenceSeekSettled = true
       // Clear after an admitted pull, on its queue. Never block Main on the
       // pull: it calls AVFoundation and Core Image, and a sync here hung
       // clip changes until the watchdog killed the app. New-item pulls queue behind this;
       // engine completions are asynchronous and are rejected by the item epoch.
       pullQueue.async { [weak self] in
         self?.lastBuffer = nil
+        self?.lastReferenceSource = nil
         self?.pendingKick = false
         self?.loggedRaster = false
       }
@@ -362,7 +372,8 @@
             guard let self, self.sourceFence.accepts(snapshot.epoch),
               let buffer = self.lastBuffer
             else { return }
-            self.submit(buffer, timeNs: 0, snapshot: snapshot)
+            self.submit(buffer, timeNs: 0, snapshot: snapshot,
+              referenceSource: self.lastReferenceSource)
           }
         }
       }
@@ -441,7 +452,10 @@
       stopLink()
       boundItem?.remove(output)
       boundItem = nil
-      pullQueue.async { [weak self] in self?.lastBuffer = nil }
+      pullQueue.async { [weak self] in
+        self?.lastBuffer = nil
+        self?.lastReferenceSource = nil
+      }
       lastBackdropBuffer = nil
       sampleBus?.closeSource(sampleSource)
       sampleSource = nil
@@ -488,6 +502,113 @@
       return lastBackdropBuffer
     }
 
+    /// Fences capture and pre-seek bakes before the native owner moves the playhead.
+    @MainActor
+    public func beginReferenceSeek() -> UInt64 {
+      referenceSeekRevision &+= 1
+      referenceSeekPending = true
+      referenceSeekSettled = false
+      return referenceSeekRevision
+    }
+
+    /// Completes only the still-current seek. A rejected seek has no settled frame to capture.
+    @MainActor
+    public func finishReferenceSeek(_ revision: UInt64, completed: Bool) {
+      guard !closed, referenceSeekPending, revision == referenceSeekRevision else { return }
+      referenceSeekPending = false
+      referenceSeekSettled = completed
+      if referenceCaptureEnabled, completed {
+        schedulePull(force: true)
+      }
+    }
+
+    /// Captures the clean version of the paused picture on the current native host.
+    @MainActor
+    public func referenceFrame() async -> CGImage? {
+      guard referenceCaptureEnabled, referenceSeekSettled, !closed, admitsSource(),
+        let item = boundItem, let player, let host, host.window != nil,
+        player.currentItem === item, player.timeControlStatus == .paused, player.rate == 0,
+        item.status == .readyToPlay
+      else { return nil }
+      let time = player.currentTime()
+      let epoch = itemEpoch
+      let revision = referenceSeekRevision
+      func isCurrent() -> Bool {
+        !Task.isCancelled && referenceCaptureEnabled && !closed && admitsSource()
+          && self.host === host && boundItem === item && player.currentItem === item
+          && host.window != nil && player.timeControlStatus == .paused && player.rate == 0
+          && referenceSeekSettled && referenceSeekRevision == revision && itemEpoch == epoch
+          && CMTimeCompare(time, player.currentTime()) == 0
+      }
+
+      guard time.isNumeric,
+        let track = item.tracks.first(where: {
+          $0.isEnabled && $0.assetTrack?.mediaType == .video
+        })?.assetTrack,
+        let transform = try? await track.load(.preferredTransform), isCurrent()
+      else { return nil }
+
+      let deadline = ContinuousClock.now.advanced(by: .milliseconds(400))
+      while isCurrent() {
+        if let source = await currentReferenceSource(
+          host: host, time: time, epoch: epoch, revision: revision
+        ), isCurrent() {
+          let image = await MonitorReferenceRaster.render(source, transform: transform)
+          return isCurrent() ? image : nil
+        }
+        guard ContinuousClock.now < deadline else { return nil }
+        do { try await Task.sleep(for: .milliseconds(16)) } catch { return nil }
+      }
+      return nil
+    }
+
+    @MainActor private func currentReferenceSource(
+      host: MonitorPlaybackFeedHost, time: CMTime, epoch: UInt64, revision: UInt64
+    ) async -> MonitorReferencePixelSource? {
+      if host.playerLayer.isHidden {
+        guard host.ciFeed.owns(pictureOwnership), host.ciFeed.hasPresentedFrame,
+          !host.ciFeed.lastPresentWasOverlay,
+          let source = host.ciFeed.lastPresentedReferenceSource, source.seekRevision == revision
+        else { return nil }
+        return source
+      }
+      guard host.playerLayer.isReadyForDisplay else { return nil }
+      let displayed: MonitorReferencePixelSource?
+      if #available(iOS 26.0, *) {
+        displayed = host.playerLayer.displayedReadOnlyPixelBuffer()?.withUnsafeBuffer {
+          MonitorReferencePixelSource(buffer: $0, seekRevision: revision)
+        }
+      } else {
+        displayed = host.playerLayer.displayedPixelBuffer().map {
+          MonitorReferencePixelSource(buffer: $0, seekRevision: revision)
+        }
+      }
+      if let displayed { return displayed }
+
+      // Some renderers cannot expose the ready layer's pixels. Ask the existing, attached
+      // video output for the same settled playhead. This is an exact item-time read on the
+      // same player, not a second decoder or an approximate thumbnail seek.
+      let source: MonitorReferencePixelSource? = await withCheckedContinuation { continuation in
+        pullQueue.async { [self] in
+          guard sourceFence.accepts(epoch) else { continuation.resume(returning: nil); return }
+          if #available(iOS 26.0, *) {
+            let sample = output.pixelBufferAndDisplayTime(forItemTime: time)
+            let source = sample.itemTimeForDisplay.isNumeric
+              ? sample.pixelBuffer?.withUnsafeBuffer {
+                MonitorReferencePixelSource(buffer: $0, seekRevision: revision)
+              } : nil
+            continuation.resume(returning: source)
+          } else {
+            var displayTime = CMTime.invalid
+            let buffer = output.copyPixelBuffer(forItemTime: time, itemTimeForDisplay: &displayTime)
+            continuation.resume(returning: displayTime.isNumeric
+              ? buffer.map { .init(buffer: $0, seekRevision: revision) } : nil)
+          }
+        }
+      }
+      return !host.playerLayer.isHidden && host.playerLayer.isReadyForDisplay ? source : nil
+    }
+
     @MainActor private func stopLink() {
       displayLink?.invalidate()
       displayLink = nil
@@ -518,12 +639,15 @@
       let transfer: MonitorTransfer
       let publicationSource: LiveFrameSampleBus.Source?
       let hdrDisplay: Bool
+      let referenceSeekRevision: UInt64?
     }
     @MainActor private func pullSnapshot() -> PullSnapshot? {
       guard !closed, admitsSource(), let boundItem else { return nil }
       return .init(
         epoch: itemEpoch, item: boundItem, player: player, effects: effects,
-        transfer: transfer, publicationSource: sampleSource, hdrDisplay: hdrDisplay())
+        transfer: transfer, publicationSource: sampleSource, hdrDisplay: hdrDisplay(),
+        referenceSeekRevision: referenceCaptureEnabled && referenceSeekSettled
+          ? referenceSeekRevision : nil)
     }
     @MainActor private func schedulePull(force: Bool) {
       guard let snapshot = pullSnapshot() else { return }
@@ -545,7 +669,10 @@
       else { return }
       let time = outputTime(item: snapshot.item, player: snapshot.player)
       let timeNs = Self.timeNs(time)
-      if time.isNumeric, output.hasNewPixelBuffer(forItemTime: time),
+      let needsSettledReference = snapshot.referenceSeekRevision.map {
+        lastReferenceSource?.seekRevision != $0
+      } ?? false
+      if time.isNumeric, output.hasNewPixelBuffer(forItemTime: time) || needsSettledReference,
         let buffer = output.copyPixelBuffer(forItemTime: time, itemTimeForDisplay: nil)
       {
         let working = workingRaster.prepared(buffer)
@@ -560,7 +687,10 @@
         }
         guard sourceFence.markBuffer(epoch: snapshot.epoch) else { return }
         lastBuffer = working
-        submit(working, timeNs: timeNs, snapshot: snapshot)
+        lastReferenceSource = snapshot.referenceSeekRevision.map {
+          .init(buffer: buffer, seekRevision: $0)
+        }
+        submit(working, timeNs: timeNs, snapshot: snapshot, referenceSource: lastReferenceSource)
         Task { @MainActor [weak self] in
           guard let self, self.admitsSource(), self.sourceFence.accepts(snapshot.epoch)
           else { return }
@@ -569,7 +699,7 @@
         return
       }
       if let lastBuffer, force {
-        submit(lastBuffer, timeNs: timeNs, snapshot: snapshot)
+        submit(lastBuffer, timeNs: timeNs, snapshot: snapshot, referenceSource: lastReferenceSource)
         return
       }
       // Output added after decode has started (or the item is parked) holds
@@ -591,13 +721,25 @@
           else { return }
           // Item replacement is Main-owned too. Validate and issue the native action on
           // that actor so retirement cannot land between admission and seek on another queue.
-          player.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero) {
-            [weak self] _ in
-            guard let self, self.sourceFence.accepts(snapshot.epoch) else { return }
+          if self.referenceSeekPending {
             self.pullQueue.async { [weak self] in
               guard let self, self.sourceFence.accepts(snapshot.epoch) else { return }
               self.pendingKick = false
-              self.pull(force: true, snapshot: snapshot)
+            }
+            return
+          }
+          let revision = self.beginReferenceSeek()
+          player.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero) {
+            [weak self] completed in
+            Task { @MainActor [weak self] in
+              // A look revision can retire a bake while the seek still belongs to the same item.
+              // Resolve the captured seek and re-pull with the current look after that change.
+              guard let self, !self.closed, self.admitsSource(),
+                self.boundItem === snapshot.item, player.currentItem === snapshot.item
+              else { return }
+              self.pullQueue.async { [weak self] in self?.pendingKick = false }
+              self.finishReferenceSeek(revision, completed: completed)
+              if !self.referenceCaptureEnabled { self.schedulePull(force: true) }
             }
           }
         }
@@ -614,7 +756,10 @@
       return item?.currentTime() ?? player?.currentTime() ?? .zero
     }
 
-    private func submit(_ buffer: CVPixelBuffer, timeNs: Int64, snapshot: PullSnapshot) {
+    private func submit(
+      _ buffer: CVPixelBuffer, timeNs: Int64, snapshot: PullSnapshot,
+      referenceSource: MonitorReferencePixelSource?
+    ) {
       // Only enqueue engine work while this source is admitted. Retirement takes the same
       // short lock before enqueueing reset, so old sampling cannot follow the new reset.
       sourceFence.withCurrent(snapshot.epoch) {
@@ -625,7 +770,7 @@
           Task { @MainActor [weak self] in
             self?.present(
               result, sourceEpoch: snapshot.epoch,
-              publicationSource: snapshot.publicationSource)
+              publicationSource: snapshot.publicationSource, referenceSource: referenceSource)
           }
         }
       }
@@ -641,7 +786,8 @@
     @MainActor
     private func present(
       _ result: MonitorAssistEngine.Result, sourceEpoch: UInt64,
-      publicationSource: LiveFrameSampleBus.Source?
+      publicationSource: LiveFrameSampleBus.Source?,
+      referenceSource: MonitorReferencePixelSource?
     ) {
       guard !closed, admitsSource(), boundItem != nil, sourceEpoch == itemEpoch else {
         return
@@ -663,7 +809,9 @@
       let feed = host.ciFeed
       if hdrDisplay(), !effects.needsGPUFeed {
         let identity = CIImage(cvPixelBuffer: result.source)
-        if feed.display(identity, unmanaged: false, overlay: false, timeNs: result.timeNs) {
+        if feed.display(identity, unmanaged: false, timeNs: result.timeNs,
+          referenceSource: referenceSource)
+        {
           return
         }
       }
@@ -693,9 +841,10 @@
         overlay: false, unmanagedBake: result.unmanagedBake)
       let painted =
         feed.display(
-          result.output, unmanaged: unmanaged, overlay: false, timeNs: result.timeNs)
+          result.output, unmanaged: unmanaged, timeNs: result.timeNs,
+          referenceSource: referenceSource)
         || feed.display(
-          result.identity, unmanaged: false, overlay: false, timeNs: result.timeNs)
+          result.identity, unmanaged: false, timeNs: result.timeNs, referenceSource: referenceSource)
       if !painted {
         feed.setOverlayChrome(false)
         feed.isHidden = true

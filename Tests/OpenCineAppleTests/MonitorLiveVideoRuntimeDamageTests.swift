@@ -97,6 +97,27 @@
             #expect(runtime.vtRebuildCount == rebuilds, "Sequence admission never invents a rebuild")
         }
 
+        @Test func cleanReferenceUsesTheCurrentDecodedSource() async throws {
+            let runtime = MonitorLiveVideoRuntime()
+            let original = try #require(runtime.sourceToken)
+            defer { runtime.close() }
+            runtime.preparePixelBufferSource(transfer: .rec709)
+
+            var pixels: CVPixelBuffer?
+            try #require(CVPixelBufferCreate(
+                kCFAllocatorDefault, 80, 48, kCVPixelFormatType_32BGRA,
+                [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &pixels) == kCVReturnSuccess)
+            let buffer = try #require(pixels)
+            runtime.submitDecodedFrame(buffer, source: original)
+            try await waitUntil { runtime.sourcePresentations > 0 }
+            let frame = try #require(await runtime.referenceFrame())
+            #expect(frame.width == 80 && frame.height == 48)
+
+            runtime.reset()
+            runtime.submitDecodedFrame(buffer, source: original)
+            #expect(await runtime.referenceFrame() == nil)
+        }
+
         /// SIMULATED source replacement while native submission returns its old error.
         @Test func synchronousBadDataCannotPublishIntoAReplacementSource() async throws {
             let gop = try SyntheticHevcGOP.encode()

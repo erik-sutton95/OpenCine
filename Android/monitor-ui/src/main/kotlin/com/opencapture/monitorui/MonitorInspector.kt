@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -43,6 +44,10 @@ import kotlin.math.min
 
 /** Null keeps normal settings help badges; inspectors opt into inline help. */
 val LocalMonitorInspectorHelp = staticCompositionLocalOf<Boolean?> { null }
+
+/** Optional controls above outside-tap dismissal and below the inspector itself. */
+val LocalMonitorInspectorBackgroundControls =
+    staticCompositionLocalOf<(@Composable BoxScope.() -> Unit)?> { null }
 
 /** Viewport policy for the shared assist/gimbal inspector. Shells do not recompute this. */
 object MonitorInspectorPolicy {
@@ -106,7 +111,12 @@ fun MonitorInspector(
     footer: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
-    val frame = MonitorInspectorPolicy.frame(viewportWidth, viewportHeight, trailing)
+    val backgroundControls = LocalMonitorInspectorBackgroundControls.current
+    val standardFrame = MonitorInspectorPolicy.frame(viewportWidth, viewportHeight, trailing)
+    // Leave the centre of the picture reachable when the split handle is in use.
+    val frame = if (backgroundControls != null && !standardFrame.portrait) {
+        standardFrame.copy(width = min(standardFrame.width, viewportWidth * .46f))
+    } else standardFrame
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
     val reveal by animateFloatAsState(
@@ -126,8 +136,10 @@ fun MonitorInspector(
     val edge = MonitorInspectorPolicy.edgeInset(frame.portrait, trailing, safeLeading, safeTrailing)
     val padTop = if (frame.portrait && trailing) 4f else max(4f, safeTop)
     val padBottom = if (frame.portrait && trailing) 4f else max(4f, safeBottom)
-    Box(modifier.fillMaxSize().pointerInput(onDismiss) { detectTapGestures { onDismiss() } }
-        .semantics { contentDescription = "Dismiss $title"; role = Role.Button }) {
+    Box(modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().pointerInput(onDismiss) { detectTapGestures { onDismiss() } }
+            .semantics { contentDescription = "Dismiss $title"; role = Role.Button })
+        backgroundControls?.invoke(this)
         Box(
             Modifier.align(alignment).width(frame.width.dp).height(frame.height.dp)
                 .clip(GenericShape { size, _ ->

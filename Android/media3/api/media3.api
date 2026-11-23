@@ -36,6 +36,7 @@ public final class com/opencapture/opencine/media3/Media3PlaybackPort : com/open
 	public fun getOnEvent ()Lkotlin/jvm/functions/Function2;
 	public final fun getPlayer ()Landroidx/media3/exoplayer/ExoPlayer;
 	public final fun getSourceAdmission ()Lkotlin/jvm/functions/Function1;
+	public final fun observeReferenceFrames ()Lcom/opencapture/opencine/media3/Media3ReferenceFrames;
 	public fun pause (Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;)V
 	public fun play (DLcom/opencapture/opencine/media/MonitorPlaybackItemToken;)V
 	public fun prepare-5_5nbZA (Lcom/opencapture/opencine/media/MonitorPlaybackItem;Lcom/opencapture/opencine/media/MonitorPlaybackItemToken;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -46,5 +47,33 @@ public final class com/opencapture/opencine/media3/Media3PlaybackPort : com/open
 	public fun setMuted (ZLcom/opencapture/opencine/media/MonitorPlaybackItemToken;)V
 	public fun setOnEvent (Lkotlin/jvm/functions/Function2;)V
 	public final fun setSourceAdmission (Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class com/opencapture/opencine/media3/Media3ReferenceFrames {
+	public fun <init> ()V
+	public final fun attach (Landroidx/media3/exoplayer/ExoPlayer;)V
+	public final fun isCurrent (Landroidx/media3/exoplayer/ExoPlayer;Lcom/opencapture/opencine/media3/Media3ReferenceFrames$Snapshot;)Z
+	public final fun paused (Landroidx/media3/exoplayer/ExoPlayer;)Lcom/opencapture/opencine/media3/Media3ReferenceFrames$Snapshot;
+	public final fun retire ()V
+	public final fun seek (Landroidx/media3/exoplayer/ExoPlayer;J)V
+}
+
+public final class com/opencapture/opencine/media3/Media3ReferenceFrames$Frame {
+	public fun <init> (JJ)V
+	public final fun component1 ()J
+	public final fun component2 ()J
+	public final fun copy (JJ)Lcom/opencapture/opencine/media3/Media3ReferenceFrames$Frame;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/media3/Media3ReferenceFrames$Frame;JJILjava/lang/Object;)Lcom/opencapture/opencine/media3/Media3ReferenceFrames$Frame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPresentationUs ()J
+	public final fun getReleaseNs ()J
+	public fun hashCode ()I
+	public final fun matches (J)Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/media3/Media3ReferenceFrames$Snapshot {
+	public final fun frame (J)Lcom/opencapture/opencine/media3/Media3ReferenceFrames$Frame;
+	public final fun getRevision ()J
 }
 

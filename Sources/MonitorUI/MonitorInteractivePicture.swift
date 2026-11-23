@@ -24,6 +24,7 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
     private let focus: MonitorPictureFocusInteraction?
     private let swipe: ((MonitorPlaybackChromeSwipe) -> Void)?
     private let picture: (CGFloat) -> Picture
+    private let pictureOverlay: ((MonitorPlaybackZoom) -> AnyView)?
     /// The canvas the picture may cover once zoomed, and the picture's unzoomed frame in it.
     private let stage: (canvas: CGSize, feed: CGRect)?
     /// The picture's spoken name; a named staged picture offers Zoom in, Zoom out and Reset zoom.
@@ -55,10 +56,12 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
         enabled: Bool = true, focus: MonitorPictureFocusInteraction? = nil,
         swipe: ((MonitorPlaybackChromeSwipe) -> Void)? = nil,
         presentationScale: CGSize,
+        pictureOverlay: ((MonitorPlaybackZoom) -> AnyView)? = nil,
         @ViewBuilder picture: @escaping (CGFloat) -> Picture) {
         self.source = source; self.size = size; self.enabled = enabled
         self.focus = focus; self.swipe = swipe; self.picture = picture
         self.presentationScale = presentationScale
+        self.pictureOverlay = pictureOverlay
         stage = nil; pictureLabel = nil
         _zoom = State(initialValue: MonitorPlaybackZoom(maximumScale: maximumZoom))
     }
@@ -76,6 +79,7 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
         self.focus = nil; self.swipe = swipe; self.picture = picture
         presentationScale = CGSize(width: 1, height: 1)
         stage = (canvas, feed); pictureLabel = accessibilityLabel
+        pictureOverlay = nil
         _zoom = State(initialValue: MonitorPlaybackZoom(maximumScale: maximumZoom))
     }
     /// The unzoomed picture the zoom bounds against: its feed frame on a stage, else the view.
@@ -138,6 +142,7 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
                     withAnimation(.easeOut(duration: 0.16)) { lockProgress = 0 }
                 }
             }
+            .overlay { pictureOverlay?(transform) }
             .onChange(of: focus?.locked) { _, _ in lockProgress = 0 }
             .onChange(of: source) { _, _ in retire(reset: true) }
             .onChange(of: enabled) { _, active in if !active { retire(reset: false) } }

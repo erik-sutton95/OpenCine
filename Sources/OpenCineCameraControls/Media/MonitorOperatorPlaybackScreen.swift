@@ -34,6 +34,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
     private let lookMenu: () -> LookMenu
     private let onGeometry: (MonitorPlaybackPictureGeometry) -> Void
     private let onShareButtonFrame: (CGRect) -> Void
+    private let referenceAction: ((MonitorMediaPlaybackModel<Payload, Look>) -> AnyView)?
     private let initialRatingShadeOpen: Bool
     private let signalOptions: MonitorOperatorSignalOptions
     private let availableAssistTools: Set<MonitorAssistSelection>?
@@ -63,6 +64,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         signalOptions: MonitorOperatorSignalOptions = .init(), availableAssistTools: Set<MonitorAssistSelection>? = nil,
         initialChromeVisible: Bool = true, loopAvailable: Bool = true,
         interaction: MonitorPlaybackInteractionOptions = .init(), paradeIntensityScale: Double = 1,
+        referenceAction: ((MonitorMediaPlaybackModel<Payload, Look>) -> AnyView)? = nil,
         @ViewBuilder picture: @escaping (MonitorMediaPlaybackModel<Payload, Look>, MonitorFrameEffects) -> Picture,
         @ViewBuilder preview: @escaping (MonitorAssistSelection) -> Preview,
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
@@ -77,6 +79,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         self.initialChromeVisible = initialChromeVisible; self.loopAvailable = loopAvailable
         self.interaction = interaction; self.paradeIntensityScale = paradeIntensityScale
         self.picture = picture; self.preview = preview; self.lookMenu = lookMenu
+        self.referenceAction = referenceAction
     }
 
     private var player: MonitorMediaPlaybackModel<Payload, Look>? { model.playback }
@@ -153,7 +156,12 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             onBarFrame: { barFrame = $0 },
             slots: .init(headerAccessory: { AnyView(ratingDetails(player)) },
                 onShareButtonFrame: onShareButtonFrame,
-                headerActionAccessory: { AnyView(ratingAnchor(player)) }),
+                headerActionAccessory: {
+                    AnyView(HStack(spacing: 8) {
+                        referenceAction?(player)
+                        ratingAnchor(player)
+                    })
+                }),
             picture: { picture(player, effects) },
             feedAssists: { rect in feedMarks(rect) },
             canvasAssists: { size, rect in canvasAssists(size, rect, player: player) },

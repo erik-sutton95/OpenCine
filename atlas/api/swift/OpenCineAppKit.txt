@@ -2536,6 +2536,7 @@ var MonitorMediaPlaybackModel.position: Swift.Double
 var MonitorMediaPlaybackModel.rate: Swift.Double
 var MonitorMediaPlaybackModel.reachedEnd: Swift.Bool
 var MonitorMediaPlaybackModel.ready: Swift.Bool
+var MonitorMediaPlaybackModel.referenceFrameReady: Swift.Bool
 var MonitorMediaPlaybackModel.reportedPlaying: Swift.Bool?
 var MonitorMediaPlaybackModel.reportedTransport: OpenCineMedia.MonitorPlaybackTransportState?
 var MonitorMediaPlaybackModel.scrubPosition: Swift.Double

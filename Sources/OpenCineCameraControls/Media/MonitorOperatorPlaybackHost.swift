@@ -85,12 +85,15 @@ public struct MonitorPlaybackPageOptions {
     public var availableAssistTools: Set<MonitorAssistSelection>?
     public var initialRatingShadeOpen: Bool
     public var initialChromeVisible: Bool
+    public var referenceStore: MonitorReferenceStore?
 
     public init(signalOptions: MonitorOperatorSignalOptions = .init(),
         availableAssistTools: Set<MonitorAssistSelection>? = nil,
-        initialRatingShadeOpen: Bool = false, initialChromeVisible: Bool = true) {
+        initialRatingShadeOpen: Bool = false, initialChromeVisible: Bool = true,
+        referenceStore: MonitorReferenceStore? = nil) {
         self.signalOptions = signalOptions; self.availableAssistTools = availableAssistTools
         self.initialRatingShadeOpen = initialRatingShadeOpen; self.initialChromeVisible = initialChromeVisible
+        self.referenceStore = referenceStore
     }
 }
 
@@ -186,6 +189,22 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
             }, initialRatingShadeOpen: options.initialRatingShadeOpen,
             signalOptions: options.signalOptions, availableAssistTools: options.availableAssistTools,
             initialChromeVisible: options.initialChromeVisible,
+            referenceAction: options.referenceStore.map { reference in
+                { playback in
+                    AnyView(MonitorReferenceSaveButton(store: reference, title: "Use as Reference",
+                        enabled: playback.referenceFrameReady && delivery == nil && !host.delivery.coversPlayback) {
+                            let token = playback.token
+                            guard owner.isCurrent(token), playback.referenceFrameReady,
+                                let native = presentation.native,
+                                let frame = await native.feed.referenceFrame(),
+                                owner.isCurrent(token), playback.referenceFrameReady
+                            else { return nil }
+                            let effects = presentation.projectEffects(host.assist.playbackEffects)
+                            return .init(image: frame, displayAspect: referenceAspect(
+                                Double(frame.width) / Double(frame.height), effects: effects))
+                        }.buttonStyle(.bordered).tint(MonitorTheme.accent))
+                }
+            },
             picture: { playback, effects in
                 nativePicture(presentation, playback: playback, effects: effects)
             }, preview: preview, lookMenu: lookMenu)

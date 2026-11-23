@@ -342,7 +342,7 @@ init MonitorInspectorTool(value: Value, title: Swift.String, label: Swift.String
 init MonitorInspectorWidth(preferred: CoreGraphics.CGFloat, fraction: CoreGraphics.CGFloat)
 init MonitorInteractivePicture(source: Source, canvas: CoreFoundation.CGSize, feed: CoreFoundation.CGRect, maximumZoom: CoreGraphics.CGFloat, enabled: Swift.Bool, swipe: ((MonitorPresentation.MonitorPlaybackChromeSwipe) -> Swift.Void)?, accessibilityLabel: Swift.String?, picture: (CoreGraphics.CGFloat) -> Picture)<Source, Picture where Source : Swift.Hashable, Picture : SwiftUI.View>
 init MonitorInteractivePicture(source: Source, size: CoreFoundation.CGSize, maximumZoom: CoreGraphics.CGFloat, enabled: Swift.Bool, focus: MonitorPictureFocusInteraction?, swipe: ((MonitorPresentation.MonitorPlaybackChromeSwipe) -> Swift.Void)?, picture: (CoreGraphics.CGFloat) -> Picture)<Source, Picture where Source : Swift.Hashable, Picture : SwiftUI.View>
-init MonitorInteractivePicture(source: Source, size: CoreFoundation.CGSize, maximumZoom: CoreGraphics.CGFloat, enabled: Swift.Bool, focus: MonitorPictureFocusInteraction?, swipe: ((MonitorPresentation.MonitorPlaybackChromeSwipe) -> Swift.Void)?, presentationScale: CoreFoundation.CGSize, picture: (CoreGraphics.CGFloat) -> Picture)<Source, Picture where Source : Swift.Hashable, Picture : SwiftUI.View>
+init MonitorInteractivePicture(source: Source, size: CoreFoundation.CGSize, maximumZoom: CoreGraphics.CGFloat, enabled: Swift.Bool, focus: MonitorPictureFocusInteraction?, swipe: ((MonitorPresentation.MonitorPlaybackChromeSwipe) -> Swift.Void)?, presentationScale: CoreFoundation.CGSize, pictureOverlay: ((MonitorPresentation.MonitorPlaybackZoom) -> SwiftUI.AnyView)?, picture: (CoreGraphics.CGFloat) -> Picture)<Source, Picture where Source : Swift.Hashable, Picture : SwiftUI.View>
 init MonitorJoystickSettings(size: MonitorMotionChoiceSetting, invertPan: MonitorMotionToggleSetting, invertTilt: MonitorMotionToggleSetting, deadZone: MonitorMotionIntegerSetting, response: MonitorMotionChoiceSetting, identifierPrefix: Swift.String)
 init MonitorLaunchSplashContent(compact: Swift.Bool, backdrop: () -> Backdrop, mark: (CoreGraphics.CGFloat) -> Mark, wordmark: (CoreGraphics.CGFloat) -> Wordmark)<Backdrop, Mark, Wordmark where Backdrop : SwiftUI.View, Mark : SwiftUI.View, Wordmark : SwiftUI.View>
 init MonitorLaunchSplashOverlay(isVisible: SwiftUI.Binding<Swift.Bool>, content: () -> Content)<Content where Content : SwiftUI.View>
@@ -1194,7 +1194,9 @@ var CamerasPage.scanning: Swift.Bool
 var EnvironmentValues.interfaceLocked: Swift.Bool
 var EnvironmentValues.monitorAdaptiveTelemetryPadding: Swift.Bool
 var EnvironmentValues.monitorHDRChromeGain: CoreGraphics.CGFloat
+var EnvironmentValues.monitorInspectorContentHeight: CoreGraphics.CGFloat?
 var EnvironmentValues.monitorInspectorHelp: Swift.Bool?
+var EnvironmentValues.monitorInspectorInteractiveBackground: Swift.Bool
 var EnvironmentValues.monitorPortraitPrimaryFit: MonitorPortraitPrimaryFit?
 var EnvironmentValues.monitorPresentationIsVisible: Swift.Bool
 var EnvironmentValues.monitorScopeObstacles: [CoreFoundation.CGRect]

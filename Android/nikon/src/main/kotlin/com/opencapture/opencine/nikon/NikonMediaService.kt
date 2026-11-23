@@ -52,7 +52,10 @@ public class NikonNativeMediaSource(
             override fun next(cursor: Long, maxObjects: Int): String? =
                 NikonNative.sessionNextMediaBrowsePage(cursor, maxObjects)
             override fun cancel(cursor: Long) = NikonNative.sessionCancelMediaBrowse(cursor)
-            override fun exit() = NikonNative.sessionExitMediaMode(source.owner)
+            override fun exit() {
+                NikonNative.sessionExitMediaMode(source.owner)
+                (native as? SwiftCoreCameraSession)?.noteMediaModeReleased(source.owner)
+            }
         }
 }
 

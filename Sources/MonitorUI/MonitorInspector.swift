@@ -38,6 +38,8 @@
         private let content: Content
         private let footer: Footer
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @Environment(\.monitorInspectorInteractiveBackground) private var interactiveBackground
+        @Environment(\.monitorInspectorContentHeight) private var contentHeight
         @State private var revealed = false
 
         public init(
@@ -69,7 +71,14 @@
         private var portrait: Bool { viewport.height > viewport.width }
         private var width: CGFloat { preferredWidth.resolved(viewportWidth: viewport.width) }
         private var height: CGFloat {
-            portrait && trailing ? min(viewport.height * 0.52, 620) : viewport.height
+            if let contentHeight {
+                return min(viewport.height, contentHeight + max(4, safeArea.top) + 4)
+            }
+            return portrait && trailing ? min(viewport.height * 0.52, 620) : viewport.height
+        }
+        private var bottomInset: CGFloat {
+            if portrait && trailing || (contentHeight != nil && height < viewport.height) { return 4 }
+            return max(4, safeArea.bottom)
         }
 
         /// Fixed columns prevent a selected menu's ideal width from expanding
@@ -84,9 +93,11 @@
                 alignment: trailing && portrait
                     ? .trailing : (trailing ? .topTrailing : .topLeading)
             ) {
-                Color.black.opacity(0.14).contentShape(Rectangle()).onTapGesture(perform: onClose)
-                    .accessibilityLabel("Dismiss \(title)")
-                    .accessibilityAddTraits(.isButton)
+                if !interactiveBackground {
+                    Color.black.opacity(0.14).contentShape(Rectangle()).onTapGesture(perform: onClose)
+                        .accessibilityLabel("Dismiss \(title)")
+                        .accessibilityAddTraits(.isButton)
+                }
                 VStack(spacing: 0) {
                     header.zIndex(1)
                     if portrait && hasNavigation {
@@ -121,7 +132,7 @@
                     .frame(maxHeight: .infinity)
                 }
                 .padding(.top, portrait && trailing ? 4 : max(4, safeArea.top))
-                .padding(.bottom, portrait && trailing ? 4 : max(4, safeArea.bottom))
+                .padding(.bottom, bottomInset)
                 .padding(
                     trailing ? .trailing : .leading,
                     portrait ? 0 : max(0, trailing ? safeArea.trailing : safeArea.leading)

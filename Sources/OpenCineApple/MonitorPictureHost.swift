@@ -41,6 +41,7 @@ open class MonitorPictureHost: UIView {
     public func claimOwnership() -> Ownership {
         invalidatePendingPresents()
         resetPresentDedup()
+        lastPresentedReferenceSource = nil
         let owner = Ownership()
         currentOwner = owner
         return owner
@@ -52,6 +53,7 @@ open class MonitorPictureHost: UIView {
         guard owns(owner) else { return }
         currentOwner = nil
         onPresented = nil
+        lastPresentedReferenceSource = nil
     }
 
     public override class var layerClass: AnyClass { CAMetalLayer.self }
@@ -72,6 +74,7 @@ open class MonitorPictureHost: UIView {
     /// Playback (and live LUT replace) adopt the metal picture after this fires.
     public var onPresented: (() -> Void)?
     public private(set) var lastPresentedTimeNs: Int64?
+    private(set) var lastPresentedReferenceSource: MonitorReferencePixelSource?
     private var lastPresentedBakeID: UInt64 = 0
     private let drawableQueue = DispatchQueue(label: "opv.feed-drawable", qos: .userInitiated)
     private var presentGeneration = 0
@@ -215,6 +218,7 @@ open class MonitorPictureHost: UIView {
         hasPresentedFrame = false
         lastPresentWasOverlay = false
         lastPresentedAt = nil
+        lastPresentedReferenceSource = nil
         setOverlayChrome(false)
         isHidden = true
     }
@@ -232,7 +236,17 @@ open class MonitorPictureHost: UIView {
     public func display(
         _ image: CIImage, unmanaged: Bool = true, overlay: Bool = false, timeNs: Int64? = nil
     ) -> Bool {
-        if FeedPresentPolicy.isDuplicateFrameTime(timeNs ?? 0, lastPresentedNs: lastPresentedTimeNs ?? 0) {
+        display(image, unmanaged: unmanaged, overlay: overlay, timeNs: timeNs, referenceSource: nil)
+    }
+
+    @discardableResult
+    func display(
+        _ image: CIImage, unmanaged: Bool, overlay: Bool = false, timeNs: Int64?,
+        referenceSource: MonitorReferencePixelSource?
+    ) -> Bool {
+        if referenceSource?.seekRevision == lastPresentedReferenceSource?.seekRevision,
+            FeedPresentPolicy.isDuplicateFrameTime(timeNs ?? 0, lastPresentedNs: lastPresentedTimeNs ?? 0)
+        {
             skippedDuplicates += 1
             return hasPresentedFrame
         }
@@ -253,8 +267,10 @@ open class MonitorPictureHost: UIView {
         let generation = presentGeneration
         if let baker {
             baker.scheduleBake(
-                image: image, drawableSize: size, pixelFormat: MonitorPresentationOptions.bakePixelFormat,
-                unmanaged: unmanaged, overlay: overlay, generation: generation, timeNs: timeNs
+                preparing: { image }, drawableSize: size,
+                pixelFormat: MonitorPresentationOptions.bakePixelFormat, unmanaged: unmanaged,
+                overlay: overlay, generation: generation, timeNs: timeNs,
+                referenceSource: referenceSource
             ) { [weak self] in
                 DispatchQueue.main.async { self?.presentLatestBake(generation: generation) }
             }
@@ -276,8 +292,9 @@ open class MonitorPictureHost: UIView {
         guard let frame = baker.acquireFrame(for: size, pixelFormat: MonitorPresentationOptions.bakePixelFormat)
         else { return }
         guard frame.generation == generation, frame.id > lastPresentedBakeID,
-            !FeedPresentPolicy.isDuplicateFrameTime(
-                frame.timeNs ?? 0, lastPresentedNs: lastPresentedTimeNs ?? 0)
+            frame.referenceSource?.seekRevision != lastPresentedReferenceSource?.seekRevision
+                || !FeedPresentPolicy.isDuplicateFrameTime(
+                    frame.timeNs ?? 0, lastPresentedNs: lastPresentedTimeNs ?? 0)
         else {
             skippedDuplicates += 1
             baker.releaseBakedTexture(frame.texture)
@@ -401,6 +418,7 @@ open class MonitorPictureHost: UIView {
         hasPresentedFrame = true
         lastPresentWasOverlay = overlay
         lastPresentedTimeNs = frame.timeNs
+        lastPresentedReferenceSource = frame.referenceSource
         lastPresentedAt = completedAt
         presentedFrames += 1
         presentationMetrics.notePresented(at: ProcessInfo.processInfo.systemUptime)

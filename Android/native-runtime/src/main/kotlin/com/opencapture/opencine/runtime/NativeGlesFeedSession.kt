@@ -62,6 +62,7 @@ class NativeGlesFeedSession(
     private val backdrop: NativeBackdropFeed? = null,
     /** Optional stream consumer of the identity picture; it reads back only while it wants frames. */
     private val cleanPicture: MonitorCleanPictureTap? = null,
+    private val referencePicture: MonitorReferenceCapture<MonitorCleanPictureFrame>? = null,
 ) {
     /** This feed's clip ceiling; never shared with another feed or playback. */
     private class Samples(val source: ScopeSampleBus.Source?, profile: ScopeClipProfile) {
@@ -159,6 +160,7 @@ class NativeGlesFeedSession(
         val w = width.coerceAtLeast(16)
         val h = height.coerceAtLeast(16)
         if (w == sourceWidth && h == sourceHeight) return
+        referencePicture?.cancel()
         previewSource.invalidate()
         resetScopeSource()
         preview.sourceChanged(scopeLifetime.ownedSource)
@@ -171,6 +173,7 @@ class NativeGlesFeedSession(
     @Synchronized fun configurePreviewSource(identity: Any, ready: Boolean, active: Boolean = true) {
         val changed = previewSource.configure(identity, ready && active)
         if (changed || scopeActive != active) {
+            referencePicture?.cancel()
             scopeActive = active
             resetScopeSource()
             preview.sourceChanged(scopeLifetime.ownedSource)
@@ -179,6 +182,7 @@ class NativeGlesFeedSession(
     }
 
     fun detachDisplay() {
+        referencePicture?.cancel()
         lifecycle.stop()
         preview.sourceChanged(scopeLifetime.ownedSource)
         setScopeAttached(false)
@@ -380,27 +384,8 @@ class NativeGlesFeedSession(
         }
         if (!tap.frameDue(System.nanoTime())) return
         try {
-            val (width, height) = FeedPresentPolicy.workingSize(srcW, srcH, tap.maxWidth)
-            val target = cleanTarget?.takeIf { it.width == width && it.height == height } ?: run {
-                cleanTarget?.release()
-                cleanTarget = null
-                SourceTarget.create(gl, width, height).also { cleanTarget = it }
-            }
-            val bytes = width * height * 4
-            val pixels = cleanPixels?.takeIf { it.capacity() == bytes }
-                ?: ByteBuffer.allocateDirect(bytes).order(ByteOrder.nativeOrder()).also { cleanPixels = it }
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, target.framebufferId)
-            GLES20.glViewport(0, 0, width, height)
-            oesCopy.draw(oesTexture, texMatrix, FeedPresentPolicy.downsampleSpread(srcW, width) / width,
-                FeedPresentPolicy.downsampleSpread(srcW, width) / height)
-            pixels.clear()
-            GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
-            gl.checkError()
-            val frame = tap.frameBuffer(bytes)
-            pixels.rewind()
-            pixels.get(frame)
-            tap.submit(MonitorCleanPictureFrame(width, height, frame, bottomUp = true), timeNs, currentPlan)
+            tap.submit(readCleanFrame(oesCopy, oesTexture, texMatrix, gl, srcW, srcH, tap.maxWidth, tap::frameBuffer),
+                timeNs, currentPlan)
         } catch (error: Exception) {
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
             cleanFailed = true
@@ -409,6 +394,39 @@ class NativeGlesFeedSession(
             cleanPixels = null
             Log.w(logTag, "clean picture readback failed; the monitor is unaffected", error)
         }
+    }
+
+    private fun readCleanFrame(
+        oesCopy: OesCopyGlProgram,
+        oesTexture: Int,
+        texMatrix: FloatArray,
+        gl: NativeGlBackend,
+        srcW: Int,
+        srcH: Int,
+        maxWidth: Int,
+        allocate: (Int) -> ByteArray,
+    ): MonitorCleanPictureFrame {
+        val (width, height) = FeedPresentPolicy.workingSize(srcW, srcH, maxWidth)
+        val target = cleanTarget?.takeIf { it.width == width && it.height == height } ?: run {
+            cleanTarget?.release()
+            cleanTarget = null
+            SourceTarget.create(gl, width, height).also { cleanTarget = it }
+        }
+        val bytes = width * height * 4
+        val pixels = cleanPixels?.takeIf { it.capacity() == bytes }
+            ?: ByteBuffer.allocateDirect(bytes).order(ByteOrder.nativeOrder()).also { cleanPixels = it }
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, target.framebufferId)
+        GLES20.glViewport(0, 0, width, height)
+        oesCopy.draw(oesTexture, texMatrix, FeedPresentPolicy.downsampleSpread(srcW, width) / width,
+            FeedPresentPolicy.downsampleSpread(srcW, width) / height)
+        pixels.clear()
+        GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+        gl.checkError()
+        val frame = allocate(bytes)
+        pixels.rewind()
+        pixels.get(frame)
+        return MonitorCleanPictureFrame(width, height, frame, bottomUp = true)
     }
 
     // GL thread only.
@@ -479,6 +497,7 @@ class NativeGlesFeedSession(
             var hasOesFrame = false
             var signaledFirstFrame = false
             var lastOesTimestampNs = 0L
+            var displayedTimestampNs: Long? = null
             // A held (paused, stalled) source is not redrawn: the 100 ms wake below only
             // retries tap consumers. New pictures, looks, sizes and upscaler changes present.
             var needsPresent = false
@@ -645,6 +664,7 @@ class NativeGlesFeedSession(
                             }
                         }) continue
                     if (lifecycle.isCurrent(generation) && previewSource.admits(sourceAdmission.get())) {
+                        displayedTimestampNs = lastOesTimestampNs
                         onFramePresented(lastOesTimestampNs.takeIf { it > 0 })
                     }
                     val presentedSourceEpoch = previewSource.captureEpoch()
@@ -677,6 +697,27 @@ class NativeGlesFeedSession(
                 )
                 if (newPicture) {
                     maybeTapClean(nextPlan, copy, oesTexture, texMatrix, gl, srcW, srcH, lastOesTimestampNs)
+                }
+                if ((playback || newPicture) && displayedTimestampNs == lastOesTimestampNs &&
+                    referencePicture?.needsFrame(lastOesTimestampNs) == true) {
+                    val referenceEpoch = previewSource.captureEpoch()
+                    if (!sourceCurrent(referenceEpoch)) continue
+                    referencePicture.offer(lastOesTimestampNs) {
+                        try {
+                            readCleanFrame(copy, oesTexture, texMatrix, gl, srcW, srcH, 1280, ::ByteArray)
+                                .takeIf { lifecycle.isCurrent(generation) && sourceCurrent(referenceEpoch) }
+                        } catch (error: Exception) {
+                            Log.w(logTag, "reference picture unavailable", error)
+                            null
+                        } finally {
+                            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+                            if (cleanPicture?.wantsFrames != true) {
+                                cleanTarget?.release()
+                                cleanTarget = null
+                                cleanPixels = null
+                            }
+                        }
+                    }
                 }
             }
         } catch (error: Exception) {
