@@ -34,6 +34,8 @@
         }
 
         var isActive: Bool { store.visible && matches }
+        var hasSavedReference: Bool { store.saved != nil }
+        var allowsDividerInteraction: Bool { isActive && store.mode == .split }
 
         /// A configured reference toggles from the tray. First use and mismatched framing open its options.
         func toggleIfReady() -> Bool {
@@ -51,10 +53,12 @@
                             .frame(maxWidth: .infinity, maxHeight: 100)
                             .clipShape(.rect(cornerRadius: 6))
                             .accessibilityLabel("Saved reference")
-                        Toggle("Show Reference", isOn: $store.visible)
-                            .font(MonitorTheme.font(12))
-                            .tint(MonitorTheme.accent)
-                            .padding(.vertical, 8)
+                        MonitorSettingsSwitchInlineRow(
+                            title: "Show Reference", showTopDivider: false, isOn: store.visible,
+                            identifier: "monitor.reference.visible"
+                        ) {
+                            store.visible.toggle()
+                        }
                         MonitorSettingsInlineRow(
                             title: "Comparison", showTopDivider: false, stacked: true
                         ) {
@@ -91,15 +95,25 @@
                             .font(MonitorTheme.font(12)).foregroundStyle(MonitorTheme.secondary)
                             .padding(.bottom, 8)
                         }
+                    } else {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("No reference saved")
+                                .font(MonitorTheme.font(13, weight: .semibold))
+                                .foregroundStyle(MonitorTheme.text)
+                            Text("Save a live frame or use a paused clip frame from Playback.")
+                                .font(MonitorTheme.font(12))
+                                .foregroundStyle(MonitorTheme.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     MonitorReferenceSaveButton(
                         store: store,
                         title: store.saved == nil ? "Save Live Frame" : "Replace Reference",
-                        enabled: canCapture, capture: capture
+                        enabled: canCapture, inInspector: true, capture: capture
                     )
-                    .font(MonitorTheme.font(13, weight: .semibold))
-                    .buttonStyle(.bordered)
+                    .padding(.top, 8)
                 }
+                .padding(.vertical, 12)
                 .tint(MonitorTheme.accent)
                 .environment(\.monitorSegmentedAppearance, .inspector)
             }
@@ -111,6 +125,7 @@
         private let store: MonitorReferenceStore
         private let title: String
         private let enabled: Bool
+        private let inInspector: Bool
         private let capture: @MainActor () async -> MonitorReferenceStill?
         @State private var confirmReplacement = false
 
@@ -118,17 +133,24 @@
             store: MonitorReferenceStore, title: String, enabled: Bool,
             capture: @escaping @MainActor () async -> MonitorReferenceStill?
         ) {
+            self.init(store: store, title: title, enabled: enabled, inInspector: false, capture: capture)
+        }
+
+        init(
+            store: MonitorReferenceStore, title: String, enabled: Bool, inInspector: Bool,
+            capture: @escaping @MainActor () async -> MonitorReferenceStill?
+        ) {
             self.store = store
             self.title = title
             self.enabled = enabled
+            self.inInspector = inInspector
             self.capture = capture
         }
 
         public var body: some View {
-            Button(title) {
-                if store.saved == nil { save() } else { confirmReplacement = true }
-            }
+            actionButton
             .disabled(!enabled || store.saving)
+            .accessibilityLabel(title)
             .accessibilityIdentifier("monitor.reference.capture")
             .accessibilityValue(
                 store.saving
@@ -154,6 +176,18 @@
             } message: {
                 Text(store.notice ?? "")
             }
+        }
+
+        @ViewBuilder private var actionButton: some View {
+            if inInspector {
+                MonitorSettingsActionPill(title: title, action: requestSave)
+            } else {
+                Button(title, action: requestSave)
+            }
+        }
+
+        private func requestSave() {
+            if store.saved == nil { save() } else { confirmReplacement = true }
         }
 
         private func save() {
@@ -245,11 +279,34 @@
             return Rectangle().fill(.white)
                 .frame(width: vertical ? 2 : visible.width, height: vertical ? visible.height : 2)
                 .shadow(color: .black, radius: 1)
+                .overlay {
+                    if interactive {
+                        Capsule().fill(.black.opacity(0.72))
+                            .overlay {
+                                Capsule().strokeBorder(.white, lineWidth: 1)
+                                MonitorIcon.chevronsUpDown.frame(width: 14, height: 14)
+                                    .foregroundStyle(.white)
+                                    .rotationEffect(.degrees(90))
+                            }
+                            .frame(width: 28, height: 22)
+                            .rotationEffect(vertical ? .zero : .degrees(90))
+                    }
+                }
                 .frame(width: vertical ? 44 : visible.width, height: vertical ? visible.height : 44)
+                .background {
+                    if interactive {
+                        GeometryReader { geometry in
+                            Color.clear.preference(
+                                key: MonitorReferenceDividerHitRectKey.self,
+                                value: geometry.frame(in: .named(LiveCanvasSpace.name)))
+                        }
+                        .allowsHitTesting(false)
+                    }
+                }
                 .contentShape(Rectangle())
-                .gesture(
+                .highPriorityGesture(
                     DragGesture(
-                        minimumDistance: 0, coordinateSpace: .named("monitor-reference-divider")
+                        minimumDistance: 4, coordinateSpace: .named("monitor-reference-divider")
                     )
                     .onChanged { value in
                         store.divider = MonitorReferenceLayout.fraction(
@@ -259,7 +316,9 @@
                 .allowsHitTesting(interactive)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Reference divider")
-                .accessibilityValue("\(Int(store.divider * 100)) percent")
+                .accessibilityIdentifier("monitor.reference.divider")
+                .accessibilityValue("\(Int((store.divider * 100).rounded())) percent")
+                .accessibilityHidden(!interactive)
                 .accessibilityAdjustableAction { direction in
                     guard interactive else { return }
                     switch direction {
@@ -269,6 +328,25 @@
                     }
                 }
                 .position(position)
+        }
+    }
+
+    struct MonitorReferenceDividerHitRectKey: PreferenceKey {
+        static let defaultValue: CGRect? = nil
+
+        static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
+            value = nextValue() ?? value
+        }
+    }
+
+    private struct MonitorReferenceDividerHitRectEnvironmentKey: EnvironmentKey {
+        static let defaultValue: CGRect? = nil
+    }
+
+    extension EnvironmentValues {
+        var monitorReferenceDividerHitRect: CGRect? {
+            get { self[MonitorReferenceDividerHitRectEnvironmentKey.self] }
+            set { self[MonitorReferenceDividerHitRectEnvironmentKey.self] = newValue }
         }
     }
 #endif

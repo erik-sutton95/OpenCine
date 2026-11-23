@@ -24,22 +24,7 @@
             launch(ReviewLaunch(screen: .live))
             rotate(.landscapeLeft)
 
-            let expand = app.buttons["monitor.assists.expand"]
-            XCTAssertTrue(expand.waitForExistence(timeout: 10))
-            expand.tap()
-            let reference = app.buttons["monitor.assist.REF"]
-            for _ in 0..<5 where !reference.isHittable {
-                let palette = app.scrollViews.allElementsBoundByIndex.first {
-                    $0.buttons.matching(
-                        NSPredicate(format: "identifier BEGINSWITH 'monitor.assist.'")
-                    ).count > 0
-                }
-                try XCTUnwrap(palette, "View Assist tray must be scrollable").swipeLeft()
-            }
-            XCTAssertTrue(reference.isHittable)
-            reference.press(forDuration: 0.6)
-            let close = app.buttons["monitor.reference.close"]
-            XCTAssertTrue(close.waitForExistence(timeout: 5))
+            let close = try openReferenceOptions()
             XCTAssertTrue(app.buttons["monitor.reference.capture"].exists)
             XCTAssertTrue(app.buttons["Blend"].exists)
             app.buttons["Split"].tap()
@@ -68,6 +53,61 @@
             capture("SIMULATED-reference-assist-split-opacity")
             close.tap()
             XCTAssertFalse(app.staticTexts["Reference on"].exists)
+        }
+
+        public func testDragSplitDividerThroughLiveChrome() throws {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            defer { XCUIDevice.shared.orientation = .portrait }
+            savePausedReference()
+            app.terminate()
+            launch(ReviewLaunch(screen: .live, state: "reference-split"))
+            rotate(.landscapeLeft)
+
+            let close = try openReferenceOptions()
+            app.buttons["Split"].tap()
+            app.buttons["monitor.reference.visible"].tap()
+            let divider = app.descendants(matching: .any)["monitor.reference.divider"]
+            XCTAssertTrue(divider.waitForExistence(timeout: 10))
+            XCTAssertEqual(divider.value as? String, "50 percent")
+
+            let center = CGVector(dx: 0.5, dy: 0.5)
+            let distance = app.frame.width * 0.16
+            var start = divider.coordinate(withNormalizedOffset: center)
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: distance, dy: 0)))
+            let moved = try dividerPercent(divider)
+            XCTAssertGreaterThan(moved, 55)
+            XCTAssertTrue(close.isHittable)
+
+            close.tap()
+            start = divider.coordinate(withNormalizedOffset: center)
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -distance, dy: 0)))
+            XCTAssertLessThan(try dividerPercent(divider), moved - 5)
+            capture("SIMULATED-reference-split-coordinate-drag")
+        }
+
+        private func openReferenceOptions() throws -> XCUIElement {
+            let expand = app.buttons["monitor.assists.expand"]
+            XCTAssertTrue(expand.waitForExistence(timeout: 10))
+            expand.tap()
+            let reference = app.buttons["monitor.assist.REF"]
+            for _ in 0..<5 where !reference.isHittable {
+                let palette = app.scrollViews.allElementsBoundByIndex.first {
+                    $0.buttons.matching(
+                        NSPredicate(format: "identifier BEGINSWITH 'monitor.assist.'")
+                    ).count > 0
+                }
+                try XCTUnwrap(palette, "View Assist tray must be scrollable").swipeLeft()
+            }
+            XCTAssertTrue(reference.isHittable)
+            reference.press(forDuration: 0.6)
+            let close = app.buttons["monitor.reference.close"]
+            XCTAssertTrue(close.waitForExistence(timeout: 5))
+            return close
+        }
+
+        private func dividerPercent(_ divider: XCUIElement) throws -> Int {
+            let value = try XCTUnwrap(divider.value as? String)
+            return try XCTUnwrap(Int(value.split(separator: " ").first ?? ""), value)
         }
 
         private func savePausedReference() {

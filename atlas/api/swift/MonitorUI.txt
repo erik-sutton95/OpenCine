@@ -1194,7 +1194,9 @@ var CamerasPage.scanning: Swift.Bool
 var EnvironmentValues.interfaceLocked: Swift.Bool
 var EnvironmentValues.monitorAdaptiveTelemetryPadding: Swift.Bool
 var EnvironmentValues.monitorHDRChromeGain: CoreGraphics.CGFloat
+var EnvironmentValues.monitorInspectorContentHeight: CoreGraphics.CGFloat?
 var EnvironmentValues.monitorInspectorHelp: Swift.Bool?
+var EnvironmentValues.monitorInspectorInteractiveBackground: Swift.Bool
 var EnvironmentValues.monitorPortraitPrimaryFit: MonitorPortraitPrimaryFit?
 var EnvironmentValues.monitorPresentationIsVisible: Swift.Bool
 var EnvironmentValues.monitorScopeObstacles: [CoreFoundation.CGRect]

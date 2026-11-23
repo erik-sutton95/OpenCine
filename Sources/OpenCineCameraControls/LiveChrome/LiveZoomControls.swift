@@ -106,6 +106,7 @@
         var cancel: CGRect
         var calibrate: CGRect
         var enabled: Bool
+        @Environment(\.monitorReferenceDividerHitRect) private var referenceDividerHitRect
         @State private var draftStart: CGPoint?
         @State private var draftEnd: CGPoint?
 
@@ -133,6 +134,7 @@
             let aeUnlockInFeed = aeUnlock.offsetBy(dx: -feed.minX, dy: -feed.minY)
             let cancelInFeed = cancel.offsetBy(dx: -feed.minX, dy: -feed.minY)
             let calibrateInFeed = calibrate.offsetBy(dx: -feed.minX, dy: -feed.minY)
+            let referenceDividerInFeed = referenceDividerHitRect?.offsetBy(dx: -feed.minX, dy: -feed.minY)
             ZStack {
                 Color.white.opacity(0.001)
                 if let start = draftStart, let end = draftEnd {
@@ -146,7 +148,7 @@
                     chipInFeed, stickInFeed, gimbalInFeed, resetInFeed, aeUnlockInFeed,
                     cancelInFeed,
                     calibrateInFeed,
-                ]),
+                ], referenceDivider: referenceDividerInFeed),
                 eoFill: true
             )
             .modifier(
@@ -183,6 +185,7 @@
     /// Feed pinch well with holes over the zoom chip and gimbal stick.
     private struct LiveZoomPinchHitShape: Shape {
         var holes: [CGRect]
+        var referenceDivider: CGRect?
 
         func path(in rect: CGRect) -> Path {
             var path = Path()
@@ -191,6 +194,7 @@
                 let cut = hole.insetBy(dx: -2, dy: -2).intersection(rect)
                 if !cut.isEmpty { path.addRect(cut) }
             }
+            if let referenceDivider { return path.subtracting(Path(referenceDivider), eoFill: true) }
             return path
         }
     }

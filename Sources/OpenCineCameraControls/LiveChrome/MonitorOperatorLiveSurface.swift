@@ -414,6 +414,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @State private var storageForm = 0
     @State private var expanded = false
     @State private var referenceOptions = false
+    @State private var referenceDividerHitRect: CGRect?
     @State private var lifecycle = MonitorInteractionLifecycle()
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
     @State private var compactTelemetryMinimumStatusTop: CGFloat = 0
@@ -557,6 +558,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             cover: { EmptyView() }, recovery: { EmptyView() })
             .environment(host).environment(\.interfaceLocked, locked)
             .coordinateSpace(name: ChromeEditSpace.name).coordinateSpace(name: LiveCanvasSpace.name)
+            .onPreferenceChange(MonitorReferenceDividerHitRectKey.self) { referenceDividerHitRect = $0 }
             .overlayPreferenceValue(ChromeEditSectionBoundsKey<Section>.self) { boxes in
                 if let editing {
                     ChromeEditBadges<Host>(mode: editing, boxes: boxes, viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height))
@@ -890,7 +892,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
     @ViewBuilder private var toolsChrome: some View {
         ZStack(alignment: .topLeading) {
-            if let gestures = cameraViews.feedGestures { gestures.allowsHitTesting(presentationAdmitted) }
+            if let gestures = cameraViews.feedGestures {
+                gestures.environment(\.monitorReferenceDividerHitRect, referenceDividerHitRect)
+                    .allowsHitTesting(presentationAdmitted)
+            }
             if !command { scopes }
             if let focus = cameraViews.focusControls { focus.allowsHitTesting(admitted).zIndex(4) }
             if !command { instruments }
@@ -1051,9 +1056,13 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             MonitorInspector(title: "Reference",
                 viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height),
                 safeArea: .init(top: safeArea.top, leading: safeArea.leading, bottom: safeArea.bottom, trailing: safeArea.trailing),
-                hasNavigation: false, closeIdentifier: "monitor.reference.close",
+                hasNavigation: false,
+                preferredWidth: layout.portrait ? .assist : .init(preferred: 420, fraction: 0.46),
+                closeIdentifier: "monitor.reference.close",
                 onClose: { referenceOptions = false },
                 navigation: { EmptyView() }, content: { reference }, footer: { EmptyView() })
+                .environment(\.monitorInspectorInteractiveBackground, reference.allowsDividerInteraction)
+                .environment(\.monitorInspectorContentHeight, reference.hasSavedReference ? nil : 182)
         } else if let tool = assist.configureTool, assistInspectorPresented, let assistSource, let stores {
             let transfer = assistSource.readTransfer()
             MonitorOperatorAssistInspector(tool: tool, assist: assist, stores: stores, looks: assistSource.looks,
