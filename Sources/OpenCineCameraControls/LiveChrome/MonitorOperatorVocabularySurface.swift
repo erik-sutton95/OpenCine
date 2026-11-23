@@ -296,17 +296,23 @@ private struct MonitorOperatorMotionContent<Host: LiveChromeHost & GimbalPanelHo
             ZoomChip<Host>(onOpenDial: openZoom)
                 .chromeEditable(.zoomChip, editing: a.editing, in: Host.self).liveModuleFrame(a.rect(a.cluster.zoom))
                 .opacity(a.capturePresented ? 0 : 1).allowsHitTesting(!a.locked && !a.capturePresented)
+                .monitorHiddenWhileZoom(interaction.zoomVisible)
+                // After the zoom fade, so a picker or the zoom dial still hides it from VoiceOver.
                 .accessibilityHidden(a.capturePresented || !a.visible || interaction.zoomMounted).zIndex(2)
         }
         if a.showsGimbal {
             LiveGimbalButton<Host, Host.Palette>().liveModuleFrame(a.rect(a.cluster.controls))
                 .opacity(a.capturePresented ? 0 : 1).allowsHitTesting(!a.locked && !a.capturePresented)
+                .monitorHiddenWhileZoom(interaction.zoomVisible)
+                // After the zoom fade, so a picker or the zoom dial still hides it from VoiceOver.
                 .accessibilityHidden(a.capturePresented || !a.visible || interaction.zoomMounted).zIndex(2)
             LiveGimbalStick<Host, Host.Palette>(enabled: !a.locked && !host.coverOpen && a.interactive && !a.capturePresented,
                 frame: a.rect(a.cluster.stick), feed: a.layout.feed)
                 .id("live-gimbal-stick").transaction(value: a.orientation) { $0.animation = nil }
                 .chromeEditable(.gimbalStick, editing: a.editing, in: Host.self).liveModuleFrame(a.rect(a.cluster.stick))
                 .opacity(a.capturePresented ? 0 : 1)
+                .monitorHiddenWhileZoom(interaction.zoomVisible)
+                // After the zoom fade, so a picker or the zoom dial still hides it from VoiceOver.
                 .accessibilityHidden(a.capturePresented || !a.visible || interaction.zoomMounted).zIndex(3)
         }
         if a.source.headTracking == true, let headTracking = a.headTracking, headTracking.enabled,
@@ -314,6 +320,8 @@ private struct MonitorOperatorMotionContent<Host: LiveChromeHost & GimbalPanelHo
             HeadTrackCalibrateButton<Host.Palette>(title: headTracking.title, onTap: headTracking.calibrate)
                 .liveModuleFrame(a.layout.gimbalCalibrate).opacity(a.capturePresented ? 0 : 1)
                 .allowsHitTesting(!a.capturePresented && !interaction.zoomMounted)
+                .monitorHiddenWhileZoom(interaction.zoomVisible)
+                // After the zoom fade, so a picker or the zoom dial still hides it from VoiceOver.
                 .accessibilityHidden(a.capturePresented || !a.visible || interaction.zoomMounted).zIndex(3)
         }
     }
@@ -335,7 +343,7 @@ private struct MonitorOperatorMotionContent<Host: LiveChromeHost & GimbalPanelHo
                 joystickBounds: host.chromeSectionMounts(.gimbalStick) && !a.capturePresented ? a.rect(a.cluster.stick) : .zero,
                 zoomBounds: a.source.zoom == true && host.chromeSectionMounts(.zoomChip) && !a.capturePresented ? a.rect(a.cluster.zoom) : .zero,
                 coveredByZoom: interaction.zoomMounted)
-                .opacity(interaction.zoomVisible ? 0.16 : 1)
+                .opacity(interaction.zoomVisible ? 0 : 1)
                 .animation(MonitorMotion.dim(reduceMotion), value: interaction.zoomVisible)
                 .allowsHitTesting(host.liveChromeInteractive && !interaction.zoomMounted)
         }

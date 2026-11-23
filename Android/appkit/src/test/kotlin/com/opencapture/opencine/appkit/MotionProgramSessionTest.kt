@@ -177,6 +177,61 @@ class MotionProgramSessionTest {
         assertEquals(1, motion.moves.size); assertFalse(move.state.value.progress.running)
         assertNull(move.state.value.operation)
     }
+    /**
+     * A camera may leave about 2 in 100 SETs unanswered: a lost reply to a target the camera has
+     * already moved past (a later one was accepted) must not end a long take.
+     */
+    @Test fun anUnansweredTargetPastALaterAcceptedOneKeepsTheTakeRunning() = runTest {
+        val clock = ProgramClock(); val move = owner(clock); val motion = ProgramMotion(); motion.delaysReplies = true
+        assertTrue(move.start(program(), MotionProgramSession.Source(motion) { true }, timing)); runCurrent()
+        motion.reply(true); runCurrent()
+        clock.advance(3.seconds); runCurrent(); assertEquals(1, motion.pending)
+        clock.advance(33.milliseconds); runCurrent(); assertEquals(2, motion.pending)
+        motion.replyLast(true); runCurrent()
+        motion.reply(false); runCurrent()
+        clock.advance(33.milliseconds); runCurrent(); assertEquals(1, motion.pending)
+        assertNull(move.state.value.failure); assertTrue(move.state.value.progress.running)
+        move.cancel(); while (motion.pending > 0) motion.reply(true)
+        clock.advance(100.seconds); runCurrent()
+    }
+
+    @Test fun anUnansweredTargetWithNothingLaterAcceptedEndsTheTake() = runTest {
+        val clock = ProgramClock(); val move = owner(clock); val motion = ProgramMotion(); motion.delaysReplies = true
+        assertTrue(move.start(program(), MotionProgramSession.Source(motion) { true }, timing)); runCurrent()
+        motion.reply(true); runCurrent()
+        clock.advance(3.seconds); runCurrent()
+        clock.advance(33.milliseconds); runCurrent(); assertEquals(2, motion.pending)
+        motion.reply(false); runCurrent()
+        assertEquals(MotionProgramSession.Failure.COMMAND_REJECTED, move.state.value.failure)
+        while (motion.pending > 0) motion.reply(true)
+        clock.advance(100.seconds); runCurrent()
+    }
+
+    @Test fun anUnansweredFinalTargetIsSentOnceMore() = runTest {
+        val clock = ProgramClock(); val move = owner(clock); val motion = ProgramMotion(); motion.delaysReplies = true
+        assertTrue(move.start(program(), MotionProgramSession.Source(motion) { true }, timing)); runCurrent()
+        motion.reply(true); runCurrent()
+        clock.advance(3.seconds); runCurrent(); motion.reply(true); runCurrent()
+        clock.advance(3.seconds); runCurrent(); assertEquals(1, motion.pending); assertEquals(0, clock.pending)
+        val count = motion.moves.size
+        motion.reply(false); runCurrent()
+        assertEquals(count + 1, motion.moves.size); assertEquals(20.0, motion.moves.last().yawDeg)
+        assertNull(move.state.value.failure)
+        motion.reply(true); runCurrent()
+        assertNull(move.state.value.operation); assertNull(move.state.value.failure)
+    }
+
+    @Test fun aFinalTargetUnansweredTwiceEndsTheTake() = runTest {
+        val clock = ProgramClock(); val move = owner(clock); val motion = ProgramMotion(); motion.delaysReplies = true
+        assertTrue(move.start(program(), MotionProgramSession.Source(motion) { true }, timing)); runCurrent()
+        motion.reply(true); runCurrent()
+        clock.advance(3.seconds); runCurrent(); motion.reply(true); runCurrent()
+        clock.advance(3.seconds); runCurrent(); assertEquals(1, motion.pending)
+        motion.reply(false); runCurrent(); assertEquals(1, motion.pending)
+        motion.reply(false); runCurrent()
+        assertEquals(MotionProgramSession.Failure.COMMAND_REJECTED, move.state.value.failure)
+    }
+
     @Test fun sourcePredicateReplacementDuringPulseReturningFalse() = runTest {
         predicateReplacementDuringPulse(returning = false)
     }
@@ -282,6 +337,7 @@ private class ProgramMotion : MotionService {
         return if (delaysReplies) suspendCoroutine { replies += it } else accepts
     }
     fun reply(accepted: Boolean) { replies.removeAt(0).resume(accepted) }
+    fun replyLast(accepted: Boolean) { replies.removeAt(replies.lastIndex).resume(accepted) }
     override suspend fun stick(pan: Double, tilt: Double): Boolean = true
     override suspend fun recenter(): Boolean = true
     override suspend fun stop(): Boolean { stops += 1; return true }

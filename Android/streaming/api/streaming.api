@@ -24,6 +24,161 @@ public final class com/opencapture/opencine/streaming/H264StreamEncoder$Companio
 	public final fun isAvailable ()Z
 }
 
+public final class com/opencapture/opencine/streaming/RtmpLocalReceiver {
+	public static final field Companion Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Companion;
+	public static final field MAX_CANDIDATES I
+	public fun <init> (ILjava/lang/String;Lcom/opencapture/opencine/streaming/StreamingNativeApi;JLkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (ILjava/lang/String;Lcom/opencapture/opencine/streaming/StreamingNativeApi;JLkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun start ()V
+	public final fun stop ()V
+}
+
+public final class com/opencapture/opencine/streaming/RtmpLocalReceiver$Companion {
+}
+
+public abstract interface class com/opencapture/opencine/streaming/RtmpLocalReceiver$Event {
+}
+
+public final class com/opencapture/opencine/streaming/RtmpLocalReceiver$Event$ListenFailed : com/opencapture/opencine/streaming/RtmpLocalReceiver$Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$ListenFailed;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$ListenFailed;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$ListenFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpLocalReceiver$Event$Listening : com/opencapture/opencine/streaming/RtmpLocalReceiver$Event {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$Listening;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$Listening;IILjava/lang/Object;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$Listening;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPort ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpLocalReceiver$Event$PublisherConnected : com/opencapture/opencine/streaming/RtmpLocalReceiver$Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$PublisherConnected;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$PublisherConnected;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$PublisherConnected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRemote ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpLocalReceiver$Event$PublisherDisconnected : com/opencapture/opencine/streaming/RtmpLocalReceiver$Event {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$PublisherDisconnected;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$PublisherDisconnected;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$PublisherDisconnected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public final fun getRemote ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpLocalReceiver$Event$Session : com/opencapture/opencine/streaming/RtmpLocalReceiver$Event {
+	public fun <init> (Lcom/opencapture/opencine/streaming/RtmpReceiveEvent;)V
+	public final fun component1 ()Lcom/opencapture/opencine/streaming/RtmpReceiveEvent;
+	public final fun copy (Lcom/opencapture/opencine/streaming/RtmpReceiveEvent;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$Session;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$Session;Lcom/opencapture/opencine/streaming/RtmpReceiveEvent;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/RtmpLocalReceiver$Event$Session;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEvent ()Lcom/opencapture/opencine/streaming/RtmpReceiveEvent;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/opencapture/opencine/streaming/RtmpReceiveEvent {
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$AudioConfig : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public fun <init> ([B)V
+	public final fun getAudioSpecificConfig ()[B
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$AudioFrame : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public fun <init> (J[B)V
+	public final fun getData ()[B
+	public final fun getTimestampMs ()J
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$Closed : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public static final field INSTANCE Lcom/opencapture/opencine/streaming/RtmpReceiveEvent$Closed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$Failed : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/opencapture/opencine/streaming/RtmpReceiveEvent$Failed;
+	public static synthetic fun copy$default (Lcom/opencapture/opencine/streaming/RtmpReceiveEvent$Failed;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/RtmpReceiveEvent$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$Publish : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public static final field INSTANCE Lcom/opencapture/opencine/streaming/RtmpReceiveEvent$Publish;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$Unpublished : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public static final field INSTANCE Lcom/opencapture/opencine/streaming/RtmpReceiveEvent$Unpublished;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$VideoConfig : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public fun <init> (ZZ[B)V
+	public final fun getEnhanced ()Z
+	public final fun getHevc ()Z
+	public final fun getRecord ()[B
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$VideoEnd : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public static final field INSTANCE Lcom/opencapture/opencine/streaming/RtmpReceiveEvent$VideoEnd;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveEvent$VideoFrame : com/opencapture/opencine/streaming/RtmpReceiveEvent {
+	public fun <init> (ZZJI[B)V
+	public final fun getCompositionMs ()I
+	public final fun getData ()[B
+	public final fun getDecodeMs ()J
+	public final fun getHevc ()Z
+	public final fun getKeyframe ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveReply {
+	public static final field Companion Lcom/opencapture/opencine/streaming/RtmpReceiveReply$Companion;
+	public fun <init> ([BLjava/util/List;)V
+	public final fun getClosed ()Z
+	public final fun getEvents ()Ljava/util/List;
+	public final fun getOutbound ()[B
+}
+
+public final class com/opencapture/opencine/streaming/RtmpReceiveReply$Companion {
+	public final fun decode ([B)Lcom/opencapture/opencine/streaming/RtmpReceiveReply;
+}
+
 public final class com/opencapture/opencine/streaming/SocketStreamConnection : com/opencapture/opencine/streaming/StreamConnection {
 	public fun <init> (Ljava/lang/String;IZI)V
 	public synthetic fun <init> (Ljava/lang/String;IZIILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -100,8 +255,8 @@ public final class com/opencapture/opencine/streaming/StreamCatalog {
 	public fun <init> (Lcom/opencapture/opencine/streaming/StreamingNativeApi;)V
 	public final fun canStream (Lcom/opencapture/opencine/streaming/StreamConnectionRoute;)Z
 	public final fun check (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamDestinationCheck;
-	public final fun format (Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
-	public static synthetic fun format$default (Lcom/opencapture/opencine/streaming/StreamCatalog;Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
+	public final fun format (Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/streaming/StreamQualityChoice;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
+	public static synthetic fun format$default (Lcom/opencapture/opencine/streaming/StreamCatalog;Ljava/lang/String;IILjava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;Lcom/opencapture/opencine/streaming/StreamQualityChoice;ILjava/lang/Object;)Lcom/opencapture/opencine/streaming/StreamOutputFormat;
 	public final fun presets ()Ljava/util/List;
 }
 
@@ -453,6 +608,22 @@ public final class com/opencapture/opencine/streaming/StreamPublisher {
 	public final fun submitAudio ([SI)V
 }
 
+public final class com/opencapture/opencine/streaming/StreamQualityChoice : java/lang/Enum {
+	public static final field CAMERA_1080P Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public static final field CAMERA_FEED Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public static final field Companion Lcom/opencapture/opencine/streaming/StreamQualityChoice$Companion;
+	public static final field UPSCALED_1080P Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWireName ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public static fun values ()[Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+}
+
+public final class com/opencapture/opencine/streaming/StreamQualityChoice$Companion {
+	public final fun fromWire (Ljava/lang/String;)Lcom/opencapture/opencine/streaming/StreamQualityChoice;
+	public final fun offered (Ljava/lang/Integer;Ljava/lang/Integer;)Ljava/util/List;
+}
+
 public final class com/opencapture/opencine/streaming/StreamRunReply {
 	public static final field Companion Lcom/opencapture/opencine/streaming/StreamRunReply$Companion;
 	public fun <init> (Ljava/util/List;Lcom/opencapture/opencine/streaming/StreamStatus;)V
@@ -581,6 +752,7 @@ public final class com/opencapture/opencine/streaming/StreamingNative : com/open
 	public fun connectionLost (Ljava/lang/String;J)[B
 	public fun create (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
 	public fun format (Ljava/lang/String;IIII[I)Ljava/lang/String;
+	public fun formatFor (Ljava/lang/String;IIII[ILjava/lang/String;)Ljava/lang/String;
 	public final fun isAvailable ()Z
 	public final fun load (Ljava/lang/String;)Z
 	public fun presets ()Ljava/lang/String;
@@ -589,6 +761,9 @@ public final class com/opencapture/opencine/streaming/StreamingNative : com/open
 	public fun publishVideo (Ljava/lang/String;[BZIIJ)[B
 	public fun publishVideoConfig (Ljava/lang/String;[B[BJ)[B
 	public fun received (Ljava/lang/String;[BJ)[B
+	public fun receiverClose (Ljava/lang/String;)V
+	public fun receiverCreate (Ljava/lang/String;)Ljava/lang/String;
+	public fun receiverFeed (Ljava/lang/String;[B)[B
 	public fun start (Ljava/lang/String;)[B
 	public fun stop (Ljava/lang/String;J)[B
 	public fun tick (Ljava/lang/String;J)[B
@@ -603,15 +778,26 @@ public abstract interface class com/opencapture/opencine/streaming/StreamingNati
 	public abstract fun connectionLost (Ljava/lang/String;J)[B
 	public abstract fun create (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Ljava/lang/String;
 	public abstract fun format (Ljava/lang/String;IIII[I)Ljava/lang/String;
+	public fun formatFor (Ljava/lang/String;IIII[ILjava/lang/String;)Ljava/lang/String;
 	public abstract fun presets ()Ljava/lang/String;
 	public abstract fun publishAudio (Ljava/lang/String;[BIJ)[B
 	public abstract fun publishAudioConfig (Ljava/lang/String;[BJ)[B
 	public abstract fun publishVideo (Ljava/lang/String;[BZIIJ)[B
 	public abstract fun publishVideoConfig (Ljava/lang/String;[B[BJ)[B
 	public abstract fun received (Ljava/lang/String;[BJ)[B
+	public fun receiverClose (Ljava/lang/String;)V
+	public fun receiverCreate (Ljava/lang/String;)Ljava/lang/String;
+	public fun receiverFeed (Ljava/lang/String;[B)[B
 	public abstract fun start (Ljava/lang/String;)[B
 	public abstract fun stop (Ljava/lang/String;J)[B
 	public abstract fun tick (Ljava/lang/String;J)[B
 	public abstract fun wrote (Ljava/lang/String;IJ)[B
+}
+
+public final class com/opencapture/opencine/streaming/StreamingNativeApi$DefaultImpls {
+	public static fun formatFor (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Ljava/lang/String;IIII[ILjava/lang/String;)Ljava/lang/String;
+	public static fun receiverClose (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Ljava/lang/String;)V
+	public static fun receiverCreate (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Ljava/lang/String;)Ljava/lang/String;
+	public static fun receiverFeed (Lcom/opencapture/opencine/streaming/StreamingNativeApi;Ljava/lang/String;[B)[B
 }
 

@@ -79,9 +79,11 @@
                     jvalue(l: array),
                     jvalue(i: jint(timeoutMilliseconds)),
                 ]
-                return Int(
-                    table(env).CallIntMethodA!(
-                        env, reference, writeBulkMethod, &arguments))
+                let written = table(env).CallIntMethodA!(
+                    env, reference, writeBulkMethod, &arguments)
+                // A throw is a failed write, never a byte count.
+                if clearPendingJavaException(env) { return nil }
+                return Int(written)
             }
         }
 
@@ -104,8 +106,11 @@
         func isClosed() -> Bool {
             invoke { env, reference in
                 var arguments = jvalue()
-                return table(env).CallBooleanMethodA!(
-                    env, reference, isClosedMethod, &arguments) != 0
+                let closed = table(env).CallBooleanMethodA!(
+                    env, reference, isClosedMethod, &arguments)
+                // A transport that cannot say whether it is open is treated as closed.
+                if clearPendingJavaException(env) { return true }
+                return closed != 0
             } ?? true
         }
 
@@ -121,6 +126,7 @@
                 let fns = table(env)
                 var arguments = jvalue()
                 fns.CallVoidMethodA!(env, reference, closeMethod, &arguments)
+                _ = clearPendingJavaException(env)
             }
             lock.lock()
             closeDelivered = true
@@ -139,12 +145,15 @@
                     jvalue(i: jint(maxBytes)),
                     jvalue(i: jint(timeoutMilliseconds)),
                 ]
-                guard
-                    let array = table(env).CallObjectMethodA!(
-                        env, reference, method, &arguments)
-                else {
+                let result = table(env).CallObjectMethodA!(
+                    env, reference, method, &arguments)
+                // Check before touching the result: no JNI call is legal while an exception
+                // is pending, and a throw is a failed read (the same as a null return).
+                if clearPendingJavaException(env) {
+                    if let result { table(env).DeleteLocalRef!(env, result) }
                     return nil
                 }
+                guard let array = result else { return nil }
                 defer { table(env).DeleteLocalRef!(env, array) }
                 return swiftBytes(env, array)
             }
@@ -219,7 +228,23 @@
                 }
             }
             guard let env = environment else { return nil }
-            return body(env)
+            let result = body(env)
+            // Last guard before this thread returns to Swift or detaches: ART hands an
+            // exception still pending at detach to the uncaught-exception handler, which ends
+            // the process, and any later JNI call on an attached thread aborts under CheckJNI.
+            // Covers what the endpoint calls above do not, such as a failed array allocation.
+            if clearPendingJavaException(env) { return nil }
+            return result
+        }
+
+        /// Clears a pending Java exception; true when there was one. The Kotlin transport
+        /// already turns its own throws into failure values (OPENZCINE-ANDROID-5); this keeps
+        /// an exception from any other source from crossing into Swift.
+        private func clearPendingJavaException(_ env: UnsafeMutablePointer<JNIEnv?>) -> Bool {
+            let fns = table(env)
+            guard fns.ExceptionCheck!(env) != 0 else { return false }
+            fns.ExceptionClear!(env)
+            return true
         }
     }
 

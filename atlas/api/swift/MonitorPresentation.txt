@@ -8,6 +8,11 @@ case CameraPairingCheck.State.complete
 case CameraPairingCheck.State.waiting
 case CameraPairingInstruction.Icon.camera
 case CameraPairingInstruction.Icon.phone
+case LiveStreamCameraStatus.live
+case LiveStreamCameraStatus.lost
+case LiveStreamCameraStatus.notResponding
+case LiveStreamCameraStatus.recovering
+case LiveStreamCameraStatus.starting
 case LiveStreamControlState.Tap.confirmStart
 case LiveStreamControlState.Tap.confirmStop
 case LiveStreamControlState.Tone.live
@@ -18,6 +23,8 @@ case LiveStreamEligibility.allowed
 case LiveStreamEligibility.cameraWiFi
 case LiveStreamEligibility.noCamera
 case LiveStreamEnd.background
+case LiveStreamEnd.cameraDidNotStart
+case LiveStreamEnd.cameraNotResponding
 case LiveStreamEnd.gaveUp
 case LiveStreamEnd.microphoneDenied
 case LiveStreamEnd.refused(Swift.String)
@@ -38,6 +45,9 @@ case LiveStreamProblem.emptyKey
 case LiveStreamProblem.invalidServer
 case LiveStreamProblem.keyLooksLikeURL
 case LiveStreamProblem.notRTMPS(Swift.Bool)
+case LiveStreamQualityKind.camera
+case LiveStreamQualityKind.source
+case LiveStreamQualityKind.upscaled
 case LiveStreamWarning.hot
 case LiveStreamWarning.lowBattery
 case MonitorAssistTool.audioMeters
@@ -228,6 +238,9 @@ case MonitorWaveformMode.luma
 case MonitorWaveformMode.rgb
 case MonitorZoomAttachment.bottom
 case MonitorZoomAttachment.trailing
+case MonitorZoomRulerTick.Kind.major
+case MonitorZoomRulerTick.Kind.mid
+case MonitorZoomRulerTick.Kind.minor
 case MultiviewPresentationLayout.Arrangement.centerStage
 case MultiviewPresentationLayout.Arrangement.grid
 case ReviewLaunch.Screen.cameras
@@ -251,6 +264,7 @@ case StartupLayoutProfile.wideLandscape
 enum CameraConnectStep.State: Equatable, Hashable, Sendable
 enum CameraPairingCheck.State: Equatable, Hashable, Sendable
 enum CameraPairingInstruction.Icon: Equatable, Hashable, Sendable
+enum LiveStreamCameraStatus: CaseIterable, Equatable, Hashable, Sendable
 enum LiveStreamControlState.Tap: Equatable, Hashable, Sendable
 enum LiveStreamControlState.Tone: Equatable, Hashable, Sendable
 enum LiveStreamCopy
@@ -258,8 +272,10 @@ enum LiveStreamEligibility: Equatable, Hashable, Sendable
 enum LiveStreamEnd: Equatable, Hashable, Sendable
 enum LiveStreamHealth: Equatable, Hashable, Sendable
 enum LiveStreamKeyState: Equatable, Hashable, Sendable
+enum LiveStreamOverlayPlacement
 enum LiveStreamPhase: Equatable, Hashable, Sendable
 enum LiveStreamProblem: Equatable, Hashable, Sendable
+enum LiveStreamQualityKind: Equatable, Hashable, Sendable
 enum LiveStreamWarning: Equatable, Hashable, Sendable
 enum MonitorAssistPaletteReveal: Sendable
 enum MonitorAssistTool: CaseIterable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
@@ -345,6 +361,7 @@ enum MonitorWatcherSetting: Equatable, Hashable, RawRepresentable, Sendable
 enum MonitorWaveformMode: CaseIterable, Decodable, Encodable, Equatable, Hashable, Identifiable, RawRepresentable, Sendable
 enum MonitorZoomAttachment: Equatable, Hashable, Sendable
 enum MonitorZoomCaption
+enum MonitorZoomRulerTick.Kind: Equatable, Hashable, Sendable
 enum MultiviewPresentationLayout.Arrangement: Equatable, Hashable, Sendable
 enum ReviewLaunch.Key
 enum ReviewLaunch.Screen: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
@@ -360,6 +377,7 @@ func FieldMonitorLayout.focusReset(motionCluster: Swift.Bool) -> MonitorRect
 func FieldMonitorLayout.scopeClearance(safeArea: MonitorSafeArea) -> MonitorSafeArea
 func FieldMonitorLayout.scopeObstacles(_: MonitorScopeChrome, motionCluster: Swift.Bool) -> [MonitorRect]
 func GimbalCluster.offsetBy(dx: Swift.Double, dy: Swift.Double) -> GimbalCluster
+func LiveStreamStatusState.compactLine(quality: LiveStreamQuality?) -> Swift.String
 func MonitorAssistCapabilities.isPhotographyOnly(_: MonitorAssistSelection) -> Swift.Bool
 func MonitorAssistCapabilities.offers(_: MonitorAssistSelection, photography: Swift.Bool) -> Swift.Bool
 func MonitorAssistPaletteLayout.anchored(leading: Swift.Double, bottom: Swift.Double) -> MonitorRect
@@ -452,14 +470,16 @@ func MonitorWatcherTapSource.admits(_: MonitorWatcherTapSource) -> Swift.Bool
 func MonitorZoomDrag.begin(at: Swift.Double) -> Swift.Bool
 func MonitorZoomDrag.cancel() -> Swift.Bool
 func MonitorZoomDrag.end() -> Swift.Bool
-func MonitorZoomGeometry.angle(x: Swift.Double, y: Swift.Double) -> Swift.Double
-func MonitorZoomGeometry.canStartZoom(x: Swift.Double, y: Swift.Double) -> Swift.Bool
-func MonitorZoomGeometry.contains(x: Swift.Double, y: Swift.Double) -> Swift.Bool
 func MonitorZoomPresets.save(_: Swift.Double, at: Swift.Int) -> ()
 func MonitorZoomPresets.setRamp(_: Swift.Double) -> ()
 func MonitorZoomPresets.target(at: Swift.Int, maximum: Swift.Double) -> Swift.Double?
-func MonitorZoomRadialGesture.angleDelta(x: Swift.Double, y: Swift.Double) -> Swift.Double?
-func MonitorZoomRadialGesture.rebase(x: Swift.Double, y: Swift.Double) -> ()
+func MonitorZoomRulerScale.clamped(_: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.dragged(from: Swift.Double, translation: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.offset(of: Swift.Double, center: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.quantized(_: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.tapped(atOffset: Swift.Double, center: Swift.Double) -> Swift.Double
+func MonitorZoomRulerScale.ticks(center: Swift.Double, halfSpan: Swift.Double) -> [MonitorZoomRulerTick]
+func MonitorZoomRulerScale.value(atOffset: Swift.Double, center: Swift.Double) -> Swift.Double
 func MonitorZoomScale.dialLabel(_: Swift.Double) -> Swift.String
 func MonitorZoomScale.dragged(from: Swift.Double, angleDelta: Swift.Double, current: Swift.Double?) -> Swift.Double
 func MonitorZoomScale.position(_: Swift.Double) -> Swift.Double
@@ -480,11 +500,14 @@ init CameraPresentationDetail(_: Swift.String, _: Swift.String)
 init CameraSetupChip(id: Swift.String, title: Swift.String, isActive: Swift.Bool, canForget: Swift.Bool, kind: Swift.String?)
 init FieldMonitorLayout(width: Swift.Double, height: Swift.Double, safeArea: MonitorSafeArea, sourceAspect: Swift.Double, fill: Swift.Bool, showsValues: Swift.Bool, topControlInset: Swift.Double, joystick: MonitorJoystickSize, valueCount: Swift.Int?)
 init LiveStreamControlState(phase: LiveStreamPhase, eligibility: LiveStreamEligibility, serviceName: Swift.String, elapsedSeconds: Swift.Int)
-init LiveStreamMonitorState(control: LiveStreamControlState, serviceName: Swift.String, quality: LiveStreamQuality?, encrypted: Swift.Bool, status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?)
+init LiveStreamMonitorState(control: LiveStreamControlState, serviceName: Swift.String, quality: LiveStreamQuality?, encrypted: Swift.Bool, status: LiveStreamStatusState?, end: LiveStreamEnd?, warning: LiveStreamWarning?, cameraStatus: LiveStreamCameraStatus?, networkChoices: [LiveStreamNetworkChoice])
+init LiveStreamNetworkChoice(id: Swift.String, name: Swift.String)
+init LiveStreamOverlayPlacement.Point(x: Swift.Double, y: Swift.Double)
 init LiveStreamPillState(phase: LiveStreamPhase, serviceName: Swift.String, elapsedSeconds: Swift.Int)
-init LiveStreamQuality(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double, videoBitrateBps: Swift.Int)
+init LiveStreamQuality(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double, videoBitrateBps: Swift.Int, kind: LiveStreamQualityKind)
+init LiveStreamQualityOption(id: Swift.String, title: Swift.String, detail: Swift.String?, unavailableReason: Swift.String?)
 init LiveStreamServiceOption(id: Swift.String, name: Swift.String, keyHint: Swift.String, needsServer: Swift.Bool, acceptsPlainServer: Swift.Bool, vertical: Swift.Bool)
-init LiveStreamSettingsState(services: [LiveStreamServiceOption], selectedID: Swift.String, server: Swift.String, key: LiveStreamKeyState, quality: LiveStreamQuality?, sourceHeight: Swift.Int?, eligibility: LiveStreamEligibility, showOnMonitor: Swift.Bool, phase: LiveStreamPhase, problem: LiveStreamProblem?)
+init LiveStreamSettingsState(services: [LiveStreamServiceOption], selectedID: Swift.String, server: Swift.String, key: LiveStreamKeyState, quality: LiveStreamQuality?, sourceHeight: Swift.Int?, eligibility: LiveStreamEligibility, showOnMonitor: Swift.Bool, phase: LiveStreamPhase, problem: LiveStreamProblem?, qualityOptions: [LiveStreamQualityOption], selectedQualityID: Swift.String)
 init LiveStreamStatusState(phase: LiveStreamPhase, elapsedSeconds: Swift.Int, sentBitrateBps: Swift.Int, droppedGroups: Swift.Int, health: LiveStreamHealth)
 init MonitorAssistCapabilities(photographyOnly: Swift.Set<MonitorAssistSelection>, levelStyles: [MonitorLevelStyle], unavailable: Swift.Set<MonitorAssistSelection>, videoOnly: Swift.Set<MonitorAssistSelection>)
 init MonitorAssistPaletteLayout(portrait: Swift.Bool, tablet: Swift.Bool, expanded: Swift.Bool, toolCount: Swift.Int, maximumWidth: Swift.Double, maximumHeight: Swift.Double)
@@ -583,10 +606,10 @@ init MonitorWatcherTapSource(source: Swift.String, revision: Swift.UInt64, canCo
 init MonitorWaveformOptions(from: any Swift.Decoder) throws
 init MonitorWaveformOptions(mode: MonitorWaveformMode, brightness: Swift.Int, guides: MonitorScopeGuides, scale: Swift.Double, hasCustomScale: Swift.Bool, storedCenter: MonitorScopeStoredCenter?, storedCenterPortrait: MonitorScopeStoredCenter?)
 init MonitorZoomDrag()
-init MonitorZoomGeometry(width: Swift.Double, height: Swift.Double, trailingInset: Swift.Double, bottomInset: Swift.Double, attachment: MonitorZoomAttachment)
 init MonitorZoomPresets(slots: [Swift.Double?], rampSeconds: Swift.Double)
 init MonitorZoomPresets(stored: Swift.String?)
-init MonitorZoomRadialGesture(geometry: MonitorZoomGeometry, startX: Swift.Double, startY: Swift.Double)
+init MonitorZoomRulerScale(minimum: Swift.Double, maximum: Swift.Double)
+init MonitorZoomRulerTick(value: Swift.Double, offset: Swift.Double, kind: MonitorZoomRulerTick.Kind)
 init MonitorZoomScale(minimum: Swift.Double, maximum: Swift.Double)
 init MonitorZoomTapStops(supported: [Swift.Double], extended: [Swift.Double])
 init MultiviewPresentationLayout(width: Swift.Double, height: Swift.Double, safeArea: MonitorSafeArea, arrangement: MultiviewPresentationLayout.Arrangement, selected: Swift.Int, topControlInset: Swift.Double)
@@ -858,10 +881,11 @@ let MonitorWatcherSettingValue.title: Swift.String
 let MonitorWatcherTapSource.canControl: Swift.Bool
 let MonitorWatcherTapSource.revision: Swift.UInt64
 let MonitorWatcherTapSource.source: Swift.String
-let MonitorZoomGeometry.attachment: MonitorZoomAttachment
-let MonitorZoomGeometry.edgeExtension: Swift.Double
-let MonitorZoomGeometry.radius: Swift.Double
-let MonitorZoomRadialGesture.isArmed: Swift.Bool
+let MonitorZoomRulerScale.maximum: Swift.Double
+let MonitorZoomRulerScale.minimum: Swift.Double
+let MonitorZoomRulerTick.kind: MonitorZoomRulerTick.Kind
+let MonitorZoomRulerTick.offset: Swift.Double
+let MonitorZoomRulerTick.value: Swift.Double
 let MonitorZoomScale.maximum: Swift.Double
 let MonitorZoomScale.minimum: Swift.Double
 let MonitorZoomTapStops.doubleTap: [Swift.Double]
@@ -910,7 +934,9 @@ static func LiveStreamCopy.removeMessage(service: Swift.String) -> Swift.String
 static func LiveStreamCopy.spokenBitrate(_: Swift.Int) -> Swift.String
 static func LiveStreamCopy.spokenElapsed(_: Swift.Int) -> Swift.String
 static func LiveStreamCopy.startMessage(quality: LiveStreamQuality?, encrypted: Swift.Bool) -> Swift.String
+static func LiveStreamCopy.startOnNetwork(_: Swift.String) -> Swift.String
 static func LiveStreamCopy.startTitle(service: Swift.String) -> Swift.String
+static func LiveStreamOverlayPlacement.anchor(status: MonitorRect, viewportWidth: Swift.Double, safeTop: Swift.Double, safeTrailing: Swift.Double) -> LiveStreamOverlayPlacement.Point
 static func MonitorAssistPaletteLayout.fieldMonitor(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double) -> (layout: MonitorAssistPaletteLayout, frame: MonitorRect)
 static func MonitorAssistPaletteLayout.fieldMonitorFootprint(_: FieldMonitorLayout, toolCount: Swift.Int, safeTop: Swift.Double, expanded: Swift.Bool) -> MonitorRect
 static func MonitorAssistPaletteReveal.compactToolCount(portrait: Swift.Bool) -> Swift.Int
@@ -1038,6 +1064,8 @@ static func MonitorWaveformOptions.clampedScale(_: Swift.Double) -> Swift.Double
 static func MonitorZoomCaption.isDigital(factor: Swift.Double, opticalStops: [Swift.Double]) -> Swift.Bool
 static func MonitorZoomCaption.label(factor: Swift.Double, opticalStops: [Swift.Double]) -> Swift.String
 static func MonitorZoomPresets.rampLabel(_: Swift.Double) -> Swift.String
+static func MonitorZoomRulerScale.readout(_: Swift.Double) -> Swift.String
+static func MonitorZoomRulerScale.tick(_: Swift.Double) -> Swift.Int
 static func MonitorZoomScale.minorTickPositions() -> [Swift.Double]
 static func StartupContentLayout.fit(viewportWidth: Swift.Double, viewportHeight: Swift.Double, safeArea: MonitorEdgeInsets) -> StartupContentLayout
 static func StartupDiscoveryPrimaryAction.resolve(hasSelectedCamera: Swift.Bool, isBusy: Swift.Bool, isKnownCamera: Swift.Bool) -> StartupDiscoveryPrimaryAction
@@ -1054,6 +1082,7 @@ static let GimbalCluster.gap: Swift.Double
 static let GimbalCluster.inset: Swift.Double
 static let GimbalCluster.stickSize: Swift.Double
 static let GimbalCluster.zoomSize: Swift.Double
+static let LiveStreamCopy.cameraRetry: Swift.String
 static let LiveStreamCopy.cancel: Swift.String
 static let LiveStreamCopy.cardTitle: Swift.String
 static let LiveStreamCopy.dismiss: Swift.String
@@ -1063,7 +1092,13 @@ static let LiveStreamCopy.lockedWhileLive: Swift.String
 static let LiveStreamCopy.paste: Swift.String
 static let LiveStreamCopy.pillStop: Swift.String
 static let LiveStreamCopy.plainWarning: Swift.String
+static let LiveStreamCopy.qualityCamera: Swift.String
+static let LiveStreamCopy.qualityCameraDetail: Swift.String
+static let LiveStreamCopy.qualityCameraFeed: Swift.String
+static let LiveStreamCopy.qualityCameraNeedsNetwork: Swift.String
 static let LiveStreamCopy.qualityTitle: Swift.String
+static let LiveStreamCopy.qualityUpscaled: Swift.String
+static let LiveStreamCopy.qualityUpscaledDetail: Swift.String
 static let LiveStreamCopy.remove: Swift.String
 static let LiveStreamCopy.removeTitle: Swift.String
 static let LiveStreamCopy.restart: Swift.String
@@ -1280,6 +1315,9 @@ static let MonitorWaveformOptions.defaultScale: Swift.Double
 static let MonitorWaveformOptions.scaleRange: Swift.ClosedRange<Swift.Double>
 static let MonitorZoomPresets.rampChoices: [Swift.Double]
 static let MonitorZoomPresets.slotCount: Swift.Int
+static let MonitorZoomRulerScale.pointsPerStep: Swift.Double
+static let MonitorZoomRulerScale.step: Swift.Double
+static let MonitorZoomRulerScale.wholeSnap: Swift.Double
 static let MonitorZoomScale.angularSpan: Swift.Double
 static let MonitorZoomScale.minorTickCount: Swift.Int
 static let MonitorZoomScale.tickIncrement: Swift.Double
@@ -1323,8 +1361,11 @@ struct FieldMonitorLayout: Equatable, Sendable
 struct GimbalCluster: Equatable, Sendable
 struct LiveStreamControlState: Equatable, Hashable, Sendable
 struct LiveStreamMonitorState: Equatable, Hashable, Sendable
+struct LiveStreamNetworkChoice: Equatable, Hashable, Identifiable, Sendable
+struct LiveStreamOverlayPlacement.Point: Equatable, Sendable
 struct LiveStreamPillState: Equatable, Hashable, Sendable
 struct LiveStreamQuality: Equatable, Hashable, Sendable
+struct LiveStreamQualityOption: Equatable, Hashable, Identifiable, Sendable
 struct LiveStreamServiceOption: Equatable, Hashable, Identifiable, Sendable
 struct LiveStreamSettingsState: Equatable, Hashable, Sendable
 struct LiveStreamStatusState: Equatable, Hashable, Sendable
@@ -1418,9 +1459,9 @@ struct MonitorWatcherSettingValue: Equatable, Identifiable, Sendable
 struct MonitorWatcherTapSource: Equatable, Hashable, Sendable
 struct MonitorWaveformOptions: Decodable, Encodable, Equatable, MonitorScopePanelOptions, Sendable
 struct MonitorZoomDrag: Equatable, Sendable
-struct MonitorZoomGeometry: Equatable, Sendable
 struct MonitorZoomPresets: Equatable, Sendable
-struct MonitorZoomRadialGesture
+struct MonitorZoomRulerScale: Equatable, Sendable
+struct MonitorZoomRulerTick: Equatable, Sendable
 struct MonitorZoomScale: Equatable, Sendable
 struct MonitorZoomTapStops: Equatable, Sendable
 struct MultiviewPresentationLayout: Equatable, Sendable
@@ -1502,6 +1543,8 @@ var GimbalCluster.controls: MonitorLayoutRegion
 var GimbalCluster.headTrack: MonitorLayoutRegion
 var GimbalCluster.stick: MonitorLayoutRegion
 var GimbalCluster.zoom: MonitorLayoutRegion
+var LiveStreamCameraStatus.offersRetry: Swift.Bool
+var LiveStreamCameraStatus.text: Swift.String
 var LiveStreamControlState.accessibilityHint: Swift.String
 var LiveStreamControlState.accessibilityLabel: Swift.String
 var LiveStreamControlState.caption: Swift.String?
@@ -1514,13 +1557,19 @@ var LiveStreamEligibility.reason: Swift.String?
 var LiveStreamEligibility.shortReason: Swift.String?
 var LiveStreamEnd.notice: Swift.String?
 var LiveStreamEnd.offersRestart: Swift.Bool
+var LiveStreamMonitorState.cameraStatus: LiveStreamCameraStatus?
 var LiveStreamMonitorState.control: LiveStreamControlState
 var LiveStreamMonitorState.encrypted: Swift.Bool
 var LiveStreamMonitorState.end: LiveStreamEnd?
+var LiveStreamMonitorState.networkChoices: [LiveStreamNetworkChoice]
 var LiveStreamMonitorState.quality: LiveStreamQuality?
 var LiveStreamMonitorState.serviceName: Swift.String
 var LiveStreamMonitorState.status: LiveStreamStatusState?
 var LiveStreamMonitorState.warning: LiveStreamWarning?
+var LiveStreamNetworkChoice.id: Swift.String
+var LiveStreamNetworkChoice.name: Swift.String
+var LiveStreamOverlayPlacement.Point.x: Swift.Double
+var LiveStreamOverlayPlacement.Point.y: Swift.Double
 var LiveStreamPhase.isRunning: Swift.Bool
 var LiveStreamPillState.accessibilityLabel: Swift.String
 var LiveStreamPillState.serviceName: Swift.String
@@ -1532,9 +1581,15 @@ var LiveStreamProblem.text: Swift.String
 var LiveStreamQuality.framesPerSecond: Swift.Double
 var LiveStreamQuality.height: Swift.Int
 var LiveStreamQuality.isVertical: Swift.Bool
+var LiveStreamQuality.kind: LiveStreamQualityKind
 var LiveStreamQuality.line: Swift.String
 var LiveStreamQuality.videoBitrateBps: Swift.Int
 var LiveStreamQuality.width: Swift.Int
+var LiveStreamQualityOption.detail: Swift.String?
+var LiveStreamQualityOption.id: Swift.String
+var LiveStreamQualityOption.isEnabled: Swift.Bool
+var LiveStreamQualityOption.title: Swift.String
+var LiveStreamQualityOption.unavailableReason: Swift.String?
 var LiveStreamServiceOption.acceptsPlainServer: Swift.Bool
 var LiveStreamServiceOption.id: Swift.String
 var LiveStreamServiceOption.keyHint: Swift.String
@@ -1553,15 +1608,20 @@ var LiveStreamSettingsState.phase: LiveStreamPhase
 var LiveStreamSettingsState.plainWarning: Swift.String
 var LiveStreamSettingsState.problem: LiveStreamProblem?
 var LiveStreamSettingsState.quality: LiveStreamQuality?
+var LiveStreamSettingsState.qualityDetail: Swift.String?
 var LiveStreamSettingsState.qualityLine: Swift.String
+var LiveStreamSettingsState.qualityOptions: [LiveStreamQualityOption]
 var LiveStreamSettingsState.selected: LiveStreamServiceOption?
 var LiveStreamSettingsState.selectedID: Swift.String
+var LiveStreamSettingsState.selectedQuality: LiveStreamQualityOption?
+var LiveStreamSettingsState.selectedQualityID: Swift.String
 var LiveStreamSettingsState.server: Swift.String
 var LiveStreamSettingsState.serverPlaceholder: Swift.String
 var LiveStreamSettingsState.services: [LiveStreamServiceOption]
 var LiveStreamSettingsState.showOnMonitor: Swift.Bool
 var LiveStreamSettingsState.showsMonitorControl: Swift.Bool
 var LiveStreamSettingsState.showsPlainWarning: Swift.Bool
+var LiveStreamSettingsState.showsQualityPicker: Swift.Bool
 var LiveStreamSettingsState.showsServer: Swift.Bool
 var LiveStreamSettingsState.sourceHeight: Swift.Int?
 var LiveStreamSettingsState.verticalNote: Swift.String?
@@ -1799,8 +1859,6 @@ var MonitorWaveformOptions.scale: Swift.Double
 var MonitorWaveformOptions.storedCenter: MonitorScopeStoredCenter?
 var MonitorWaveformOptions.storedCenterPortrait: MonitorScopeStoredCenter?
 var MonitorZoomDrag.anchor: Swift.Double?
-var MonitorZoomGeometry.height: Swift.Double
-var MonitorZoomGeometry.width: Swift.Double
 var MonitorZoomPresets.rampSeconds: Swift.Double
 var MonitorZoomPresets.slots: [Swift.Double?]
 var MonitorZoomPresets.stored: Swift.String

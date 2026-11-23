@@ -2,6 +2,7 @@ package com.opencapture.monitorui
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -26,6 +27,34 @@ class LiveStreamCopyTest {
         assertEquals("850 kbps", LiveStreamCopy.bitrate(850_000))
         assertEquals("3.1 megabits per second", LiveStreamCopy.spokenBitrate(3_100_000))
         assertEquals("850 kilobits per second", LiveStreamCopy.spokenBitrate(850_000))
+    }
+
+    @Test
+    fun upscaledQualityLineSaysUpscaled() {
+        val upscaled = LiveStreamQuality(1920, 1080, 30.0, 6_000_000, LiveStreamQualityKind.UPSCALED)
+        assertEquals("1080p upscaled, 30 fps, 6 Mbps", LiveStreamCopy.quality(upscaled))
+        assertEquals(
+            "1080p vertical upscaled, 30 fps, 6 Mbps",
+            LiveStreamCopy.quality(LiveStreamQuality(1080, 1920, 30.0, 6_000_000, LiveStreamQualityKind.UPSCALED)),
+        )
+        assertTrue(LiveStreamCopy.startMessage(LiveStreamCopy.quality(upscaled), plain = false).startsWith("1080p upscaled, 30 fps"))
+    }
+
+    @Test
+    fun qualityPickerShowsOnlyWithChoices() {
+        val feed = LiveStreamQualityOption("cameraFeed", LiveStreamCopy.QUALITY_CAMERA_FEED)
+        val upscaled = LiveStreamQualityOption("upscaled1080p", LiveStreamCopy.QUALITY_UPSCALED, LiveStreamCopy.QUALITY_UPSCALED_DETAIL)
+        assertFalse(LiveStreamState().showsQualityPicker)
+        assertFalse(LiveStreamState(qualityOptions = listOf(feed)).showsQualityPicker)
+        val both = LiveStreamState(qualityOptions = listOf(feed, upscaled))
+        assertTrue(both.showsQualityPicker)
+        assertNull(both.qualityDetail)
+        val chosen = both.copy(selectedQualityId = "upscaled1080p")
+        assertEquals("1080p upscaled", chosen.selectedQuality?.title)
+        assertEquals("The camera feed scaled up to 1080p, with your LUT.", chosen.qualityDetail)
+        val unavailable = LiveStreamQualityOption("x", "X", unavailableReason = "Not now.")
+        assertFalse(unavailable.enabled)
+        assertEquals("Not now.", LiveStreamState(qualityOptions = listOf(feed, unavailable), selectedQualityId = "x").qualityDetail)
     }
 
     @Test
@@ -105,5 +134,48 @@ class LiveStreamCopyTest {
         assertEquals("Stop the stream to Twitch", LiveStreamCopy.pillStopLabel("Twitch"))
         assertEquals(LiveStreamPillState(LiveStreamPhase.Connecting, "Twitch", 0),
             liveStreamPillState(idle.copy(phase = LiveStreamPhase.Connecting)))
+    }
+
+    @Test
+    fun cameraQualityLineAndStartMessageSayWhatGoesOut() {
+        val camera = LiveStreamQuality(1920, 1080, 30.0, 6_000_000, LiveStreamQualityKind.CAMERA)
+        assertEquals("1080p from camera, 30 fps, 6 Mbps", LiveStreamCopy.quality(camera))
+        assertEquals(
+            "1080p from camera, 30 fps, 6 Mbps. The camera's own picture goes out in standard color, without the " +
+                "monitor LUT, with the camera's sound. Camera recording is separate.",
+            LiveStreamCopy.startMessage(camera, plain = false),
+        )
+        assertEquals("1080p from camera", LiveStreamCopy.QUALITY_CAMERA)
+        assertEquals("Sharper picture, encoded by the camera, standard color, no LUT.", LiveStreamCopy.QUALITY_CAMERA_DETAIL)
+        assertEquals("Save a shared network in the camera's Wi-Fi setup to use this.", LiveStreamCopy.QUALITY_CAMERA_NEEDS_NETWORK)
+        assertEquals("Go live over es_iphone16", LiveStreamCopy.startOnNetwork("es_iphone16"))
+    }
+
+    @Test
+    fun cameraStatusLinesAndRetry() {
+        assertEquals("Starting the camera's stream.", LiveStreamCopy.cameraStatus(LiveStreamCameraStatus.STARTING))
+        assertEquals(
+            "1080p from camera. Assists, scopes and camera controls are off in this mode.",
+            LiveStreamCopy.cameraStatus(LiveStreamCameraStatus.LIVE),
+        )
+        assertEquals("The camera's stream stopped. Trying again.", LiveStreamCopy.cameraStatus(LiveStreamCameraStatus.RECOVERING))
+        assertEquals("The camera's stream did not come back.", LiveStreamCopy.cameraStatus(LiveStreamCameraStatus.LOST))
+        assertEquals(
+            "The camera is not responding. Hold its power button about 10 seconds to restart it.",
+            LiveStreamCopy.cameraStatus(LiveStreamCameraStatus.NOT_RESPONDING),
+        )
+        assertEquals(
+            listOf(LiveStreamCameraStatus.LOST, LiveStreamCameraStatus.NOT_RESPONDING),
+            LiveStreamCameraStatus.entries.filter { it.offersRetry },
+        )
+        assertEquals("Retry", LiveStreamCopy.CAMERA_RETRY)
+        assertEquals(
+            "The camera did not start its stream. Try again, or choose Camera feed in the live stream settings.",
+            LiveStreamCopy.notice(LiveStreamEnd.CameraDidNotStart),
+        )
+        assertEquals(
+            "The camera stopped responding. Hold its power button about 10 seconds to restart it, then go live again.",
+            LiveStreamCopy.notice(LiveStreamEnd.CameraNotResponding),
+        )
     }
 }

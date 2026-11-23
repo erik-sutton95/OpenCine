@@ -14,11 +14,14 @@ import Testing
         adapter.receive(frame: frame(recording: false), at: 1)
         adapter.receive(frame: frame(recording: false), at: 2)
         adapter.receive(frame: frame(recording: true), at: 3)
+        // A first-generation header carries no record state: the take is not reported stopped.
+        adapter.receive(frame: frame(recording: nil), at: 4)
 
         #expect(sink.events == [
             .recording(false, at: 1), .level(GyroVector3(x: -1, y: 0, z: 0), at: 1),
             .level(GyroVector3(x: -1, y: 0, z: 0), at: 2),
             .recording(true, at: 3), .level(GyroVector3(x: -1, y: 0, z: 0), at: 3),
+            .level(GyroVector3(x: -1, y: 0, z: 0), at: 4),
         ])
     }
 
@@ -150,7 +153,7 @@ import Testing
         #expect(weakSink == nil)
     }
 
-    private func frame(recording: Bool) -> PTPLiveViewFrame {
+    private func frame(recording: Bool?) -> PTPLiveViewFrame {
         PTPLiveViewFrame(
             jpeg: Data([1]), timecode: Timecode(on: false, hour: 0, minute: 0, second: 0, frame: 0),
             isRecording: recording, level: PTPLevelAngles(roll: 0, pitch: 0, yaw: 0))

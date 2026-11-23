@@ -70,6 +70,46 @@ struct DJIAppleConnectionRunTests {
             "open AP", "registered", "enable", "open returned"])
     }
 
+    /// Newer Pocket 4 / 4 Pro firmware reports `00 08` while its access point is up and never
+    /// `00 00`. A role that is not station and reads the same twice ends the restore poll; station
+    /// (`00 01`) keeps polling. The last role in each sequence repeats.
+    @Test(arguments: [
+        RoleSequence(roles: [[0, 8]], polls: 2),
+        RoleSequence(roles: [[0, 1], [0, 8]], polls: 3),
+        RoleSequence(roles: [[0, 8], [0, 0]], polls: 2),
+        RoleSequence(roles: [[0, 8], [0, 9]], polls: 3),
+        RoleSequence(roles: [[0, 0]], polls: 1),
+        RoleSequence(roles: [[0, 1]], polls: 15),
+        RoleSequence(roles: [[0xe0]], polls: 15),
+    ])
+    func restoreStopsPollingOnceTheRoleIsStableAndNotStation(sequence: RoleSequence) async {
+        let peer = Peer(); peer.restoring = true; peer.cached = true
+        defer { peer.owner.retire(); peer.exchange.stopBLEDrain(); peer.heartbeat.stop() }
+        var roles = sequence.roles
+        peer.onSend = { [unowned peer] frame in
+            guard frame.cmdSet == 7, frame.cmdId == 0x39 else { return false }
+            let role = roles.count > 1 ? roles.removeFirst() : roles[0]
+            peer.continuation?.yield(.init(sender: frame.receiver, receiver: frame.sender, seq: frame.seq,
+                flags: Duml.flagResponse, cmdSet: 7, cmdId: 0x39, payload: role))
+            return true
+        }
+        peer.owner.replace(target: peer.camera, setup: .cameraWiFi)
+        await peer.finished()
+        let polls = peer.trace.filter { $0 == "BLE 07/39" }.count
+        #expect(polls == sequence.polls)
+        // A settled poll joins at once; fifteen unsettled polls each pause a second.
+        let pauses = sequence.polls < 15 ? sequence.polls - 1 : 15
+        #expect(peer.trace.filter { $0 == "sleep 1.0" }.count == pauses)
+        #expect(peer.connected?.joinedSSID == peer.network)
+    }
+    struct RoleSequence: Sendable, CustomTestStringConvertible {
+        let roles: [[UInt8]]
+        let polls: Int
+        var testDescription: String {
+            roles.map { Duml.hex($0) }.joined(separator: ", ") + " -> \(polls) polls"
+        }
+    }
+
     @Test func cleanupObservationCannotCloseSynchronouslyAdoptedSuccessorEndpoint() async {
         let peer = Peer(); peer.cached = true
         defer { peer.owner.retire(); peer.exchange.stopBLEDrain(); peer.heartbeat.stop() }

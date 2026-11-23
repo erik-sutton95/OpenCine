@@ -80,9 +80,10 @@ open class MonitorLiveVideoRuntime {
     }
     private var effects: MonitorAssistPolicy { demand.assists }
     private var needsDecodedSample: Bool { demand.needsDecodedSample }
-    /// Last accepted source transfer. Provider wins when set.
+    /// Last accepted source transfer. Provider wins when set. Decode sets it on every access
+    /// unit; only a change pushes the policy (a push reads the assist settings again).
     public var incomingTransfer: MonitorTransfer? {
-        didSet { syncAssistPolicy() }
+        didSet { if incomingTransfer != oldValue { syncAssistPolicy() } }
     }
     /// Missing source status does not erase a previously accepted transfer.
     public func adoptIncomingTransfer(_ next: MonitorTransfer?) {

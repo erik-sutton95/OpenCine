@@ -71,10 +71,19 @@ enum MediaPerfCard {
     }
 }
 
+/// Answers from memory without suspending, like the Nikon cursor over a cached card.
 @MainActor private final class PerfCursor: MediaCatalogCursor {
     var pages: [MediaCatalogDelta]
-    init(_ pages: [MediaCatalogDelta]) { self.pages = pages }
-    func next() async -> MediaCatalogDelta? { pages.isEmpty ? nil : pages.removeFirst() }
+    let served: @MainActor () -> Void
+    init(_ pages: [MediaCatalogDelta], served: @escaping @MainActor () -> Void = {}) {
+        self.pages = pages
+        self.served = served
+    }
+    func next() async -> MediaCatalogDelta? {
+        guard !pages.isEmpty else { return nil }
+        served()
+        return pages.removeFirst()
+    }
     func close() {}
 }
 
@@ -104,8 +113,17 @@ enum MediaPerfCard {
     var deletion: (any CameraMediaDeleteService)? { nil }
     var heldBySource: Bool? { nil }
     let assets: [MediaAsset]
+    /// Pages the cursor has served, and what runs as each is served.
+    private(set) var pagesServed = 0
+    var onServe: (@MainActor (Int) -> Void)?
     init(_ assets: [MediaAsset]) { self.assets = assets }
-    func catalog() async -> any MediaCatalogCursor { PerfCursor(MediaPerfCard.pages(assets)) }
+    func catalog() async -> any MediaCatalogCursor {
+        PerfCursor(MediaPerfCard.pages(assets)) { [weak self] in
+            guard let self else { return }
+            pagesServed += 1
+            onServe?(pagesServed)
+        }
+    }
     func close() async {}
 }
 
@@ -114,6 +132,11 @@ enum MediaPerfCard {
     var sessionID: CameraSessionID { browse.binding.session }
     init(_ browse: PerfBrowse) { self.browse = browse }
     func openBrowse() async throws -> any CameraMediaBrowse { browse }
+}
+
+/// How many pages the cursor had served when other main-actor work got to run.
+@MainActor private final class PagesObserved {
+    var pages: Int?
 }
 
 /// Counts what the shared gallery would pay: every background cache scan's record count.
@@ -233,6 +256,25 @@ private func report(_ name: String, _ value: String) {
         #expect(fixture.codec.encodedRecords <= MediaPerfCard.count * 12,
             "checkpoints encoded \(fixture.codec.encodedRecords) records over \(pages) pages")
         // Wall time is reported, not asserted: a hosted runner runs other suites beside this one.
+    }
+
+    /// OPENZCINE-IOS-1S, -17: a cached card's cursor answers without suspending, so the listing
+    /// ran every page in one main-actor turn (4 to 7 s app hangs). Work queued while one page is
+    /// served must run before the next page is requested, not after the whole card.
+    @available(macOS 14, *)
+    @Test func listingLetsOtherMainActorWorkRunBetweenPages() async throws {
+        let fixture = PerfFixture()
+        defer { fixture.close() }
+        let browse = fixture.service.browse
+        let observed = PagesObserved()
+        browse.onServe = { served in
+            guard served == 1 else { return }
+            Task { @MainActor in observed.pages = browse.pagesServed }
+        }
+        try await fixture.list()
+        let pages = (MediaPerfCard.count + MediaPerfCard.pageSize - 1) / MediaPerfCard.pageSize
+        let servedFirst = try #require(observed.pages, "the queued work never ran")
+        #expect(servedFirst <= 2, "queued work waited for \(servedFirst) of \(pages) pages")
     }
 
     /// A transfer's progress ticks are not a catalog change: views that read the records or the

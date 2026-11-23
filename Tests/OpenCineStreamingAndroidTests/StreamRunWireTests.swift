@@ -196,6 +196,26 @@ import Testing
         #expect(created["owner"] is String)
     }
 
+    @Test func formatForPassesTheQualityChoice() throws {
+        let wire = StreamRunWire()
+        let upscaled = try json(
+            try #require(
+                wire.formatJSON(
+                    presetID: "twitch", selectedWidth: 1280, selectedHeight: 720, fpsNum: 30, fpsDen: 1,
+                    connected: [], choice: "upscaled1080p")))
+        #expect(upscaled["width"] as? Int == 1920)
+        #expect(
+            wire.formatJSON(
+                presetID: "twitch", selectedWidth: 1280, selectedHeight: 720, fpsNum: 30, fpsDen: 1, connected: [],
+                choice: "cameraFeed")
+                == wire.formatJSON(
+                    presetID: "twitch", selectedWidth: 1280, selectedHeight: 720, fpsNum: 30, fpsDen: 1, connected: []))
+        #expect(
+            wire.formatJSON(
+                presetID: "twitch", selectedWidth: 1280, selectedHeight: 720, fpsNum: 30, fpsDen: 1, connected: [],
+                choice: "nope") == nil)
+    }
+
     @Test func canStreamFollowsTheRoute() {
         let wire = StreamRunWire()
         #expect(["usbCable", "captureCard", "sharedWiFi", "deviceHotspot"].allSatisfy(wire.canStream(route:)))

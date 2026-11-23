@@ -84,10 +84,11 @@ final class CameraDeferredRenderingTests: XCTestCase {
         let result = await Task.detached {
             precondition(!Thread.isMainThread)
             _ = MonitorZoomDial.canvas(snapshot)
-            return (snapshot.marks.map(\.label), snapshot.position)
+            return (snapshot.labels.map(\.label), snapshot.center)
         }.value
-        XCTAssertEqual(result.0, ["1.0", "2.0", "4.0"])
-        XCTAssertEqual(result.1, MonitorZoomScale(minimum: 1, maximum: 4).position(2))
+        // The scale is centered on 2x and shows 1.73x either side on this 378 pt ruler.
+        XCTAssertEqual(result.0, ["1.0", "2.0", "3.0"])
+        XCTAssertEqual(result.1, 2)
         XCTAssertEqual(probe.valueReads, reads)
         XCTAssertEqual(probe.labelCalls, 3)
     }

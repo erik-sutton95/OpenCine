@@ -116,7 +116,8 @@ keeps only host values (names, DSN, Sentry project, CI secrets). On Android the 
   capture coordinator) depends on `OpenCineGyro` and Apple frameworks only, never on UI, an
   integration or an app.
 - `OpenCineStreaming` (the portable RTMPS publish engine: destination, AMF0, chunking, FLV,
-  the publish session, send queue, network policies, output rules and service presets) imports
+  the publish session, send queue, network policies, output rules and service presets, plus the
+  RTMP receive session for a camera that publishes its own stream to the phone) imports
   Foundation and Core only, opens no socket and names no manufacturer or app. Service names
   appear only as preset content. Platform shells add the TLS socket and encoders.
 - `OpenCineStreamingApple` (streaming's Apple shell: TLS socket, H.264 and AAC encoders, picture

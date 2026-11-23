@@ -31,6 +31,16 @@ struct CameraConnectionTimeoutTests {
         #expect((usb ?? 0) > (wifi ?? 0))
     }
 
+    @Test("The USB session open waits as long as the USB handshake phase allows")
+    func usbSessionOpenUsesTheHandshakeBudget() throws {
+        // OPENZCINE-IOS-16: a full CFexpress card keeps ImageCaptureCore enumerating before it
+        // answers the session open. The open gave up after 30 s although the phase allows 120 s.
+        let phase = try #require(
+            CameraConnectionTimeout.budgetSeconds(for: .handshaking, isUSB: true))
+        #expect(CameraConnectionTimeout.usbSessionOpen == .seconds(phase))
+        #expect(CameraConnectionTimeout.usbSessionOpen > .seconds(30))
+    }
+
     @Test("Timeout copy names the phase's actual failure and stays actionable")
     func timeoutCopy() {
         #expect(

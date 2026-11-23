@@ -27,9 +27,11 @@ struct LiveViewHeaderTests {
 
     @Test func recordStateByte() {
         #expect(
-            PTPLiveViewObject.recordingState(from: header(recState: 1, roll: 0, pitch: 0, yaw: 0)))
+            PTPLiveViewObject.recordingState(from: header(recState: 1, roll: 0, pitch: 0, yaw: 0))
+                == true)
         #expect(
-            !PTPLiveViewObject.recordingState(from: header(recState: 0, roll: 0, pitch: 0, yaw: 0)))
+            PTPLiveViewObject.recordingState(from: header(recState: 0, roll: 0, pitch: 0, yaw: 0))
+                == false)
     }
 
     @Test func levelAnglesDecode16_16() {
@@ -145,8 +147,47 @@ struct LiveViewHeaderTests {
         // All Gen-3-only fields must return their safe defaults because the parser should not
         // read past byte 512 when the JPEG SOI is present there.
         #expect(PTPLiveViewObject.rotation(from: obj) == .landscape)
-        #expect(!PTPLiveViewObject.recordingState(from: obj))
+        #expect(PTPLiveViewObject.recordingState(from: obj) == nil)
         #expect(PTPLiveViewObject.soundIndicator(from: obj) == nil)
         #expect(PTPLiveViewObject.levelAngles(from: obj) == nil)
+    }
+
+    /// A whole live-view object: `headerLength` header bytes, then a JPEG that starts with
+    /// `FF D8 FF`. Every byte of the JPEG is `0x01`, so a parser that reads a Gen-3 offset out of
+    /// a Gen-1 picture sees "recording" and a running timecode.
+    private func liveViewObject(headerLength: Int, header: (inout [UInt8]) -> Void = { _ in })
+        -> Data
+    {
+        var bytes = [UInt8](repeating: 0, count: headerLength)
+        header(&bytes)
+        bytes += [0xFF, 0xD8, 0xFF] + [UInt8](repeating: 0x01, count: 1_024)
+        return Data(bytes)
+    }
+
+    /// OPENZCINE-IOS-1V: a Z 6 (first generation) sends a 512-byte header with no record state
+    /// and no timecode. The frame must say "not reported", never "standby" or 00:00:00:00, or the
+    /// record button flips back to standby during a take.
+    @Test func gen1FrameReportsNoRecordStateAndNoTimecode() throws {
+        let frame = try PTPLiveViewObject.frame(from: liveViewObject(headerLength: 512))
+        #expect(frame.isRecording == nil)
+        #expect(frame.timecode == nil)
+        #expect(frame.jpeg.prefix(3) == Data([0xFF, 0xD8, 0xFF]))
+    }
+
+    /// Gen-3 bodies (ZR, Z 8, Z 6III) keep header-driven record state and timecode.
+    @Test func gen3FrameReportsRecordStateAndTimecode() throws {
+        let recording = try PTPLiveViewObject.frame(
+            from: liveViewObject(headerLength: 1_024) { bytes in
+                bytes[828] = 1
+                bytes[831] = 1
+                bytes[832...835] = [1, 2, 3, 4]
+            })
+        #expect(recording.isRecording == true)
+        #expect(recording.timecode == Timecode(on: true, hour: 1, minute: 2, second: 3, frame: 4))
+
+        let standby = try PTPLiveViewObject.frame(from: liveViewObject(headerLength: 1_024))
+        #expect(standby.isRecording == false)
+        #expect(standby.timecode?.on == false)
+        #expect(standby.timecode?.running == nil)
     }
 }

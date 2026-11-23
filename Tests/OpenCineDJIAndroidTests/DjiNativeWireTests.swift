@@ -457,6 +457,9 @@ struct MulticamWireTests {
             decide("stationDecision", #"{"reply":"0000","allowMissingQuery":false}"#)
                 == "setAndVerify")
         #expect(
+            decide("stationDecision", #"{"reply":"0008","allowMissingQuery":false}"#)
+                == "setAndVerify")
+        #expect(
             decide("stationDecision", #"{"reply":"e0","allowMissingQuery":true}"#)
                 == "setWithoutReadback")
         #expect(decide("stationDecision", #"{"reply":"e0","allowMissingQuery":false}"#) == "reject")
@@ -529,4 +532,47 @@ struct MulticamWireTests {
         DjiNativeWire.multiviewRecoveryDestroy(handle: handle)
         #expect(call("failed") == "")
     }
+
+    /// The livestream kinds put the same bytes on the wire as `LivestreamCommands`
+    /// (goldens in `Fixtures/dji-livestream-frames.tsv`).
+    @Test func livestreamKindsEncodeTheGoldens() throws {
+        let url = "rtmp://172.20.10.1:1935/live/abcd"
+        let cases: [(DjiNativeWire.CommandKind, String?, String)] = [
+            (.livestreamPrepare, nil, "prepare"),
+            (.livestreamStart, nil, "start"),
+            (.livestreamEnd, nil, "end"),
+            (.livestreamConfigure, "1\u{1f}\(url)\u{1f}hevc\u{1f}30\u{1f}6000", "configure-v01-hevc-30fps-6000kbps"),
+            (.livestreamConfigure, "1\u{1f}\(url)\u{1f}h264\u{1f}30\u{1f}6000", "configure-v01-avc-30fps-6000kbps"),
+            (.livestreamConfigure, "0\u{1f}\(url)\u{1f}h264\u{1f}25\u{1f}6000", "configure-v00-pocket3-25fps-6000kbps"),
+        ]
+        for (kind, extra, name) in cases {
+            let frame = try #require(DjiNativeWire.encodeCommand(kind: kind, seq: 7, extra: extra), "\(name)")
+            let golden = try #require(LivestreamGoldens.rows[name])
+            #expect(frame.receiver == 8 && frame.cmdSet == golden.set && frame.cmdId == golden.id, "\(name)")
+            #expect(frame.payload == golden.payload, "\(name)")
+        }
+        #expect(DjiNativeWire.encodeCommand(kind: .livestreamConfigure, seq: 7, extra: "1\u{1f}\(url)") == nil)
+        #expect(DjiNativeWire.encodeCommand(kind: .livestreamConfigure, seq: 7, extra: "1\u{1f}\(url)\u{1f}vp9\u{1f}30\u{1f}6000") == nil)
+    }
+}
+
+private enum LivestreamGoldens {
+    static let rows: [String: (set: UInt8, id: UInt8, payload: [UInt8])] = {
+        let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Fixtures/dji-livestream-frames.tsv").path
+        let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        var rows: [String: (UInt8, UInt8, [UInt8])] = [:]
+        for line in text.split(separator: "\n") where !line.hasPrefix("#") {
+            let f = line.components(separatedBy: "\t")
+            guard f.count == 4, let set = UInt8(f[1], radix: 16), let id = UInt8(f[2], radix: 16) else { continue }
+            var bytes: [UInt8] = []
+            var index = f[3].startIndex
+            while index < f[3].endIndex, let next = f[3].index(index, offsetBy: 2, limitedBy: f[3].endIndex) {
+                bytes.append(UInt8(f[3][index..<next], radix: 16) ?? 0)
+                index = next
+            }
+            rows[f[0]] = (set, id, bytes)
+        }
+        return rows
+    }()
 }

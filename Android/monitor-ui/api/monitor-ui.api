@@ -240,17 +240,39 @@ public final class com/opencapture/monitorui/LivePortraitMetrics {
 public abstract interface class com/opencapture/monitorui/LiveStreamActions {
 	public abstract fun dismissNotice ()V
 	public abstract fun goLive ()V
+	public fun goLive (Ljava/lang/String;)V
 	public abstract fun removeKey ()V
 	public abstract fun restart ()V
+	public fun retryCamera ()V
 	public abstract fun saveKey (Ljava/lang/String;)V
+	public fun selectQuality (Ljava/lang/String;)V
 	public abstract fun selectService (Ljava/lang/String;)V
 	public abstract fun setServer (Ljava/lang/String;)V
 	public abstract fun setShowOnMonitor (Z)V
 	public abstract fun stop ()V
 }
 
+public final class com/opencapture/monitorui/LiveStreamActions$DefaultImpls {
+	public static fun goLive (Lcom/opencapture/monitorui/LiveStreamActions;Ljava/lang/String;)V
+	public static fun retryCamera (Lcom/opencapture/monitorui/LiveStreamActions;)V
+	public static fun selectQuality (Lcom/opencapture/monitorui/LiveStreamActions;Ljava/lang/String;)V
+}
+
+public final class com/opencapture/monitorui/LiveStreamCameraStatus : java/lang/Enum {
+	public static final field LIVE Lcom/opencapture/monitorui/LiveStreamCameraStatus;
+	public static final field LOST Lcom/opencapture/monitorui/LiveStreamCameraStatus;
+	public static final field NOT_RESPONDING Lcom/opencapture/monitorui/LiveStreamCameraStatus;
+	public static final field RECOVERING Lcom/opencapture/monitorui/LiveStreamCameraStatus;
+	public static final field STARTING Lcom/opencapture/monitorui/LiveStreamCameraStatus;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getOffersRetry ()Z
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/LiveStreamCameraStatus;
+	public static fun values ()[Lcom/opencapture/monitorui/LiveStreamCameraStatus;
+}
+
 public final class com/opencapture/monitorui/LiveStreamCopy {
 	public static final field $stable I
+	public static final field CAMERA_RETRY Ljava/lang/String;
 	public static final field CANCEL Ljava/lang/String;
 	public static final field CARD_TITLE Ljava/lang/String;
 	public static final field CONNECTING Ljava/lang/String;
@@ -268,7 +290,13 @@ public final class com/opencapture/monitorui/LiveStreamCopy {
 	public static final field PLAIN_SERVER_WARNING Ljava/lang/String;
 	public static final field PLAIN_WARNING Ljava/lang/String;
 	public static final field QUALITY Ljava/lang/String;
+	public static final field QUALITY_CAMERA Ljava/lang/String;
+	public static final field QUALITY_CAMERA_DETAIL Ljava/lang/String;
+	public static final field QUALITY_CAMERA_FEED Ljava/lang/String;
+	public static final field QUALITY_CAMERA_NEEDS_NETWORK Ljava/lang/String;
 	public static final field QUALITY_UNKNOWN Ljava/lang/String;
+	public static final field QUALITY_UPSCALED Ljava/lang/String;
+	public static final field QUALITY_UPSCALED_DETAIL Ljava/lang/String;
 	public static final field RECONNECTING Ljava/lang/String;
 	public static final field REMOVE Ljava/lang/String;
 	public static final field REMOVE_TITLE Ljava/lang/String;
@@ -285,6 +313,7 @@ public final class com/opencapture/monitorui/LiveStreamCopy {
 	public static final field STOP_TITLE Ljava/lang/String;
 	public static final field STREAM_KEY Ljava/lang/String;
 	public final fun bitrate (I)Ljava/lang/String;
+	public final fun cameraStatus (Lcom/opencapture/monitorui/LiveStreamCameraStatus;)Ljava/lang/String;
 	public final fun connectingLabel (Ljava/lang/String;)Ljava/lang/String;
 	public final fun dropped (I)Ljava/lang/String;
 	public final fun elapsed (I)Ljava/lang/String;
@@ -304,7 +333,9 @@ public final class com/opencapture/monitorui/LiveStreamCopy {
 	public final fun removeMessage (Ljava/lang/String;)Ljava/lang/String;
 	public final fun spokenBitrate (I)Ljava/lang/String;
 	public final fun spokenElapsed (I)Ljava/lang/String;
+	public final fun startMessage (Lcom/opencapture/monitorui/LiveStreamQuality;Z)Ljava/lang/String;
 	public final fun startMessage (Ljava/lang/String;Z)Ljava/lang/String;
+	public final fun startOnNetwork (Ljava/lang/String;)Ljava/lang/String;
 	public final fun startTitle (Ljava/lang/String;)Ljava/lang/String;
 	public final fun statusLabel (Lcom/opencapture/monitorui/LiveStreamStatusState;)Ljava/lang/String;
 	public final fun verticalNote (I)Ljava/lang/String;
@@ -326,6 +357,22 @@ public abstract interface class com/opencapture/monitorui/LiveStreamEnd {
 public final class com/opencapture/monitorui/LiveStreamEnd$Background : com/opencapture/monitorui/LiveStreamEnd {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/opencapture/monitorui/LiveStreamEnd$Background;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/LiveStreamEnd$CameraDidNotStart : com/opencapture/monitorui/LiveStreamEnd {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/monitorui/LiveStreamEnd$CameraDidNotStart;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/LiveStreamEnd$CameraNotResponding : com/opencapture/monitorui/LiveStreamEnd {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/monitorui/LiveStreamEnd$CameraNotResponding;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -391,6 +438,40 @@ public final class com/opencapture/monitorui/LiveStreamKeyState : java/lang/Enum
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/LiveStreamKeyState;
 	public static fun values ()[Lcom/opencapture/monitorui/LiveStreamKeyState;
+}
+
+public final class com/opencapture/monitorui/LiveStreamNetworkChoice {
+	public static final field $stable I
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/monitorui/LiveStreamNetworkChoice;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamNetworkChoice;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamNetworkChoice;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/LiveStreamOverlayPlacement {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/opencapture/monitorui/LiveStreamOverlayPlacement;
+	public final fun anchor (Lcom/opencapture/monitorui/MonitorRect;FFF)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+}
+
+public final class com/opencapture/monitorui/LiveStreamOverlayPlacement$Point {
+	public static final field $stable I
+	public fun <init> (FF)V
+	public final fun component1 ()F
+	public final fun component2 ()F
+	public final fun copy (FF)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;FFILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamOverlayPlacement$Point;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getX ()F
+	public final fun getY ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class com/opencapture/monitorui/LiveStreamPhase {
@@ -467,18 +548,50 @@ public final class com/opencapture/monitorui/LiveStreamPresentationKt {
 
 public final class com/opencapture/monitorui/LiveStreamQuality {
 	public static final field $stable I
-	public fun <init> (IIDI)V
+	public fun <init> (IIDILcom/opencapture/monitorui/LiveStreamQualityKind;)V
+	public synthetic fun <init> (IIDILcom/opencapture/monitorui/LiveStreamQualityKind;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()I
 	public final fun component2 ()I
 	public final fun component3 ()D
 	public final fun component4 ()I
-	public final fun copy (IIDI)Lcom/opencapture/monitorui/LiveStreamQuality;
-	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamQuality;IIDIILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamQuality;
+	public final fun component5 ()Lcom/opencapture/monitorui/LiveStreamQualityKind;
+	public final fun copy (IIDILcom/opencapture/monitorui/LiveStreamQualityKind;)Lcom/opencapture/monitorui/LiveStreamQuality;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamQuality;IIDILcom/opencapture/monitorui/LiveStreamQualityKind;ILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamQuality;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getFramesPerSecond ()D
 	public final fun getHeight ()I
+	public final fun getKind ()Lcom/opencapture/monitorui/LiveStreamQualityKind;
 	public final fun getVideoBitrateBps ()I
 	public final fun getWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/LiveStreamQualityKind : java/lang/Enum {
+	public static final field CAMERA Lcom/opencapture/monitorui/LiveStreamQualityKind;
+	public static final field SOURCE Lcom/opencapture/monitorui/LiveStreamQualityKind;
+	public static final field UPSCALED Lcom/opencapture/monitorui/LiveStreamQualityKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/LiveStreamQualityKind;
+	public static fun values ()[Lcom/opencapture/monitorui/LiveStreamQualityKind;
+}
+
+public final class com/opencapture/monitorui/LiveStreamQualityOption {
+	public static final field $stable I
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/opencapture/monitorui/LiveStreamQualityOption;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamQualityOption;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamQualityOption;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public final fun getEnabled ()Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public final fun getUnavailableReason ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -508,12 +621,16 @@ public final class com/opencapture/monitorui/LiveStreamServiceOption {
 public final class com/opencapture/monitorui/LiveStreamState {
 	public static final field $stable I
 	public fun <init> ()V
-	public fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamKeyState;Lcom/opencapture/monitorui/LiveStreamQuality;Ljava/lang/Integer;ZLcom/opencapture/monitorui/LiveStreamEligibility;Lcom/opencapture/monitorui/LiveStreamPhase;Lcom/opencapture/monitorui/LiveStreamStatusState;Ljava/util/Set;)V
-	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamKeyState;Lcom/opencapture/monitorui/LiveStreamQuality;Ljava/lang/Integer;ZLcom/opencapture/monitorui/LiveStreamEligibility;Lcom/opencapture/monitorui/LiveStreamPhase;Lcom/opencapture/monitorui/LiveStreamStatusState;Ljava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamKeyState;Lcom/opencapture/monitorui/LiveStreamQuality;Ljava/lang/Integer;ZLcom/opencapture/monitorui/LiveStreamEligibility;Lcom/opencapture/monitorui/LiveStreamPhase;Lcom/opencapture/monitorui/LiveStreamStatusState;Ljava/util/Set;Ljava/util/List;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamCameraStatus;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamKeyState;Lcom/opencapture/monitorui/LiveStreamQuality;Ljava/lang/Integer;ZLcom/opencapture/monitorui/LiveStreamEligibility;Lcom/opencapture/monitorui/LiveStreamPhase;Lcom/opencapture/monitorui/LiveStreamStatusState;Ljava/util/Set;Ljava/util/List;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamCameraStatus;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/util/List;
 	public final fun component10 ()Lcom/opencapture/monitorui/LiveStreamPhase;
 	public final fun component11 ()Lcom/opencapture/monitorui/LiveStreamStatusState;
 	public final fun component12 ()Ljava/util/Set;
+	public final fun component13 ()Ljava/util/List;
+	public final fun component14 ()Ljava/lang/String;
+	public final fun component15 ()Lcom/opencapture/monitorui/LiveStreamCameraStatus;
+	public final fun component16 ()Ljava/util/List;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()Ljava/lang/String;
@@ -522,22 +639,29 @@ public final class com/opencapture/monitorui/LiveStreamState {
 	public final fun component7 ()Ljava/lang/Integer;
 	public final fun component8 ()Z
 	public final fun component9 ()Lcom/opencapture/monitorui/LiveStreamEligibility;
-	public final fun copy (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamKeyState;Lcom/opencapture/monitorui/LiveStreamQuality;Ljava/lang/Integer;ZLcom/opencapture/monitorui/LiveStreamEligibility;Lcom/opencapture/monitorui/LiveStreamPhase;Lcom/opencapture/monitorui/LiveStreamStatusState;Ljava/util/Set;)Lcom/opencapture/monitorui/LiveStreamState;
-	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamState;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamKeyState;Lcom/opencapture/monitorui/LiveStreamQuality;Ljava/lang/Integer;ZLcom/opencapture/monitorui/LiveStreamEligibility;Lcom/opencapture/monitorui/LiveStreamPhase;Lcom/opencapture/monitorui/LiveStreamStatusState;Ljava/util/Set;ILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamState;
+	public final fun copy (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamKeyState;Lcom/opencapture/monitorui/LiveStreamQuality;Ljava/lang/Integer;ZLcom/opencapture/monitorui/LiveStreamEligibility;Lcom/opencapture/monitorui/LiveStreamPhase;Lcom/opencapture/monitorui/LiveStreamStatusState;Ljava/util/Set;Ljava/util/List;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamCameraStatus;Ljava/util/List;)Lcom/opencapture/monitorui/LiveStreamState;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/LiveStreamState;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamKeyState;Lcom/opencapture/monitorui/LiveStreamQuality;Ljava/lang/Integer;ZLcom/opencapture/monitorui/LiveStreamEligibility;Lcom/opencapture/monitorui/LiveStreamPhase;Lcom/opencapture/monitorui/LiveStreamStatusState;Ljava/util/Set;Ljava/util/List;Ljava/lang/String;Lcom/opencapture/monitorui/LiveStreamCameraStatus;Ljava/util/List;ILjava/lang/Object;)Lcom/opencapture/monitorui/LiveStreamState;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCameraStatus ()Lcom/opencapture/monitorui/LiveStreamCameraStatus;
 	public final fun getEligibility ()Lcom/opencapture/monitorui/LiveStreamEligibility;
 	public final fun getKeyState ()Lcom/opencapture/monitorui/LiveStreamKeyState;
+	public final fun getNetworkChoices ()Ljava/util/List;
 	public final fun getNotice ()Ljava/lang/String;
 	public final fun getPhase ()Lcom/opencapture/monitorui/LiveStreamPhase;
 	public final fun getPlainServer ()Z
 	public final fun getProblem ()Ljava/lang/String;
 	public final fun getQuality ()Lcom/opencapture/monitorui/LiveStreamQuality;
+	public final fun getQualityDetail ()Ljava/lang/String;
+	public final fun getQualityOptions ()Ljava/util/List;
 	public final fun getSelected ()Lcom/opencapture/monitorui/LiveStreamServiceOption;
+	public final fun getSelectedQuality ()Lcom/opencapture/monitorui/LiveStreamQualityOption;
+	public final fun getSelectedQualityId ()Ljava/lang/String;
 	public final fun getSelectedServiceId ()Ljava/lang/String;
 	public final fun getServer ()Ljava/lang/String;
 	public final fun getServices ()Ljava/util/List;
 	public final fun getShowOnMonitor ()Z
 	public final fun getShowsControl ()Z
+	public final fun getShowsQualityPicker ()Z
 	public final fun getSourceHeight ()Ljava/lang/Integer;
 	public final fun getStatus ()Lcom/opencapture/monitorui/LiveStreamStatusState;
 	public final fun getWarnings ()Ljava/util/Set;
@@ -548,6 +672,7 @@ public final class com/opencapture/monitorui/LiveStreamState {
 public final class com/opencapture/monitorui/LiveStreamStatusState {
 	public static final field $stable I
 	public fun <init> (Lcom/opencapture/monitorui/LiveStreamPhase;IIILcom/opencapture/monitorui/LiveStreamHealth;)V
+	public final fun compactLine (Lcom/opencapture/monitorui/LiveStreamQuality;)Ljava/lang/String;
 	public final fun component1 ()Lcom/opencapture/monitorui/LiveStreamPhase;
 	public final fun component2 ()I
 	public final fun component3 ()I
@@ -869,6 +994,10 @@ public final class com/opencapture/monitorui/MonitorCaptureReadoutGroup : java/l
 public final class com/opencapture/monitorui/MonitorCardColumnsKt {
 	public static final fun MonitorCardColumns-djqs-MU (Landroidx/compose/ui/Modifier;FFLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 	public static final fun monitorFullWidthCard (Landroidx/compose/ui/Modifier;)Landroidx/compose/ui/Modifier;
+}
+
+public final class com/opencapture/monitorui/MonitorChromeHiddenKt {
+	public static final fun monitorChromeHidden (Landroidx/compose/ui/Modifier;ZLandroidx/compose/runtime/Composer;I)Landroidx/compose/ui/Modifier;
 }
 
 public final class com/opencapture/monitorui/MonitorChromeInputKt {
@@ -5303,14 +5432,6 @@ public final class com/opencapture/monitorui/MonitorZebraZone {
 	public final fun getThreshold ()I
 }
 
-public final class com/opencapture/monitorui/MonitorZoomAttachment : java/lang/Enum {
-	public static final field Bottom Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public static final field Trailing Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public static fun values ()[Lcom/opencapture/monitorui/MonitorZoomAttachment;
-}
-
 public final class com/opencapture/monitorui/MonitorZoomCaption {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/opencapture/monitorui/MonitorZoomCaption;
@@ -5318,36 +5439,25 @@ public final class com/opencapture/monitorui/MonitorZoomCaption {
 	public final fun label (DLjava/util/List;)Ljava/lang/String;
 }
 
-public final class com/opencapture/monitorui/MonitorZoomDiscKt {
-	public static final fun MonitorZoomDisc (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function1;FLcom/opencapture/monitorui/MonitorZoomAttachment;FLkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Landroidx/compose/runtime/Composer;III)V
-}
-
-public final class com/opencapture/monitorui/MonitorZoomGeometry {
+public final class com/opencapture/monitorui/MonitorZoomClearance {
 	public static final field $stable I
-	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomGeometry$Companion;
-	public fun <init> (FFLcom/opencapture/monitorui/MonitorZoomAttachment;)V
-	public synthetic fun <init> (FFLcom/opencapture/monitorui/MonitorZoomAttachment;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun angle (FF)D
-	public final fun canStartZoom (FF)Z
+	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomClearance$Companion;
+	public fun <init> ()V
+	public fun <init> (FF)V
+	public synthetic fun <init> (FFILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()F
 	public final fun component2 ()F
-	public final fun component3 ()Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public final fun contains (FF)Z
-	public final fun copy (FFLcom/opencapture/monitorui/MonitorZoomAttachment;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
-	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorZoomGeometry;FFLcom/opencapture/monitorui/MonitorZoomAttachment;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
+	public final fun copy (FF)Lcom/opencapture/monitorui/MonitorZoomClearance;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorZoomClearance;FFILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomClearance;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAttachment ()Lcom/opencapture/monitorui/MonitorZoomAttachment;
-	public final fun getEdgeExtension ()F
-	public final fun getHeight ()F
-	public final fun getRadius ()F
-	public final fun getWidth ()F
+	public final fun getBottom ()F
+	public final fun getTop ()F
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class com/opencapture/monitorui/MonitorZoomGeometry$Companion {
-	public final fun layout (FFFFLcom/opencapture/monitorui/MonitorZoomAttachment;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
-	public static synthetic fun layout$default (Lcom/opencapture/monitorui/MonitorZoomGeometry$Companion;FFFFLcom/opencapture/monitorui/MonitorZoomAttachment;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomGeometry;
+public final class com/opencapture/monitorui/MonitorZoomClearance$Companion {
+	public final fun forLayout (Lcom/opencapture/monitorui/LiveMonitorLayout;)Lcom/opencapture/monitorui/MonitorZoomClearance;
 }
 
 public final class com/opencapture/monitorui/MonitorZoomPresetControls {
@@ -5383,12 +5493,59 @@ public final class com/opencapture/monitorui/MonitorZoomPresets$Companion {
 	public final fun rampLabel (D)Ljava/lang/String;
 }
 
-public final class com/opencapture/monitorui/MonitorZoomRadialGesture {
+public final class com/opencapture/monitorui/MonitorZoomRulerKt {
+	public static final fun MonitorZoomRuler (DDLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lcom/opencapture/monitorui/MonitorZoomClearance;Lkotlin/jvm/functions/Function0;Lcom/opencapture/monitorui/MonitorZoomPresetControls;Ljava/lang/Double;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerScale {
 	public static final field $stable I
-	public fun <init> (Lcom/opencapture/monitorui/MonitorZoomGeometry;FF)V
-	public final fun angleDelta (FF)Ljava/lang/Double;
-	public final fun isArmed ()Z
-	public final fun rebase (FF)V
+	public static final field Companion Lcom/opencapture/monitorui/MonitorZoomRulerScale$Companion;
+	public static final field POINTS_PER_STEP D
+	public static final field STEP D
+	public static final field WHOLE_SNAP D
+	public fun <init> (DD)V
+	public final fun clamped (D)D
+	public final fun dragged (DD)D
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMaximum ()D
+	public final fun getMinimum ()D
+	public fun hashCode ()I
+	public final fun offsetOf (DD)D
+	public final fun quantized (D)D
+	public final fun tapped (DD)D
+	public final fun ticks (DD)Ljava/util/List;
+	public fun toString ()Ljava/lang/String;
+	public final fun valueAtOffset (DD)D
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerScale$Companion {
+	public final fun readout (D)Ljava/lang/String;
+	public final fun tick (D)I
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerTick {
+	public static final field $stable I
+	public fun <init> (DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun component3 ()Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public final fun copy (DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;)Lcom/opencapture/monitorui/MonitorZoomRulerTick;
+	public static synthetic fun copy$default (Lcom/opencapture/monitorui/MonitorZoomRulerTick;DDLcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;ILjava/lang/Object;)Lcom/opencapture/monitorui/MonitorZoomRulerTick;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public final fun getOffset ()D
+	public final fun getValue ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/opencapture/monitorui/MonitorZoomRulerTick$Kind : java/lang/Enum {
+	public static final field MAJOR Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static final field MID Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static final field MINOR Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
+	public static fun values ()[Lcom/opencapture/monitorui/MonitorZoomRulerTick$Kind;
 }
 
 public final class com/opencapture/monitorui/MonitorZoomScale {
@@ -5673,6 +5830,8 @@ public final class com/opencapture/monitorui/livestream/LiveStreamControlLook {
 
 public final class com/opencapture/monitorui/livestream/LiveStreamIds {
 	public static final field $stable I
+	public static final field CAMERA_RETRY Ljava/lang/String;
+	public static final field CAMERA_STATUS Ljava/lang/String;
 	public static final field ELIGIBILITY Ljava/lang/String;
 	public static final field GO_LIVE Ljava/lang/String;
 	public static final field INSTANCE Lcom/opencapture/monitorui/livestream/LiveStreamIds;
@@ -5690,6 +5849,8 @@ public final class com/opencapture/monitorui/livestream/LiveStreamIds {
 	public static final field PILL_STOP Ljava/lang/String;
 	public static final field PLAIN_WARNING Ljava/lang/String;
 	public static final field QUALITY Ljava/lang/String;
+	public static final field QUALITY_CHOICE Ljava/lang/String;
+	public static final field QUALITY_DETAIL Ljava/lang/String;
 	public static final field RESTART Ljava/lang/String;
 	public static final field SERVER Ljava/lang/String;
 	public static final field SERVER_PROBLEM Ljava/lang/String;

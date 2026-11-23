@@ -46,3 +46,51 @@ public sealed interface UsbPtpOpenResult {
         public val diagnosticPhase: String = "failed.usb",
     ) : UsbPtpOpenResult
 }
+
+/**
+ * The [UsbPtpTransport] handed to Swift over JNI. Its callers are native code: a Java exception
+ * thrown under an endpoint call (an OEM `bulkTransfer` has thrown `NegativeArraySizeException`,
+ * OPENZCINE-ANDROID-5) would come back to Swift still pending and end the process when the
+ * thread detaches. Each call here returns the transport's ordinary failure value instead:
+ * a negative write count, a null read, closed when the state cannot be read.
+ */
+internal fun UsbPtpTransport.containingThrows(): UsbPtpTransport =
+    this as? ThrowContainingUsbPtpTransport ?: ThrowContainingUsbPtpTransport(this)
+
+private class ThrowContainingUsbPtpTransport(private val transport: UsbPtpTransport) : UsbPtpTransport {
+    override fun writeBulk(bytes: ByteArray, timeoutMillis: Int): Int =
+        try {
+            transport.writeBulk(bytes, timeoutMillis)
+        } catch (_: Exception) {
+            -1
+        }
+
+    override fun readBulk(maxBytes: Int, timeoutMillis: Int): ByteArray? =
+        try {
+            transport.readBulk(maxBytes, timeoutMillis)
+        } catch (_: Exception) {
+            null
+        }
+
+    override fun readEvent(maxBytes: Int, timeoutMillis: Int): ByteArray? =
+        try {
+            transport.readEvent(maxBytes, timeoutMillis)
+        } catch (_: Exception) {
+            null
+        }
+
+    override fun isClosed(): Boolean =
+        try {
+            transport.isClosed()
+        } catch (_: Exception) {
+            true
+        }
+
+    override fun close() {
+        try {
+            transport.close()
+        } catch (_: Exception) {
+            // Closing is best effort; the claim is released with the connection either way.
+        }
+    }
+}
