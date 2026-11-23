@@ -52,8 +52,8 @@ public fun monitorOperatorLiveLayout(viewport: MonitorOperatorViewport, assist: 
     } else if (focusResetAvailable) {
         scopeTop = maxOf(scopeTop, layout.focusReset.maxY)
     }
-    val placement = MonitorRect(scopeLeft, scopeTop, maxOf(0f, scopeRight - scopeLeft),
-        maxOf(0f, minOf(scopeBottom, layout.viewportHeight) - scopeTop))
+    val placement = scopePlacementInside(layout.viewportWidth, layout.viewportHeight, scopeLeft, scopeTop,
+        scopeRight, scopeBottom)
     return MonitorOperatorLiveLayout(layout, zones, picture, placement, pictureAspect)
 }
 
@@ -79,7 +79,28 @@ public fun monitorOperatorFieldLayout(viewport: MonitorOperatorViewport, assist:
     val picture = if (desqueezed) layout.onFeed.fittedContent(assist.presentedAspect(pictureAspect)) else layout.onFeed
     val right = viewport.width - viewport.trailing
     val floor = if (field.portrait) field.system.y else viewport.height
-    val placement = MonitorRect(viewport.leading, viewport.top, maxOf(0f, right - viewport.leading),
-        maxOf(0f, floor - viewport.top))
+    val placement = scopePlacementInside(viewport.width, viewport.height, viewport.leading, viewport.top, right, floor)
     return MonitorOperatorLiveLayout(layout, null, picture, placement, pictureAspect)
+}
+
+/**
+ * The scope area [left, top, right, bottom] intersected with the viewport: apps keep panels inside it
+ * and require it inside the viewport. Insets animate on other frames than the viewport size, and a
+ * first measure, rotation or split screen can leave the viewport smaller than its insets, so an
+ * empty intersection is a zero-size rect at the nearest viewport edge, never one outside it.
+ */
+private fun scopePlacementInside(width: Float, height: Float, left: Float, top: Float, right: Float,
+    bottom: Float): MonitorRect {
+    val maxX = maxOf(0f, width)
+    val maxY = maxOf(0f, height)
+    val x = left.coerceIn(0f, maxX)
+    val y = top.coerceIn(0f, maxY)
+    return MonitorRect(x, y, spanWithin(x, right.coerceIn(x, maxX)), spanWithin(y, bottom.coerceIn(y, maxY)))
+}
+
+/** `end - start`, shortened by float steps when `start` plus it would round past `end`. */
+private fun spanWithin(start: Float, end: Float): Float {
+    var length = end - start
+    while (length > 0f && start + length > end) length = Math.nextDown(length)
+    return maxOf(0f, length)
 }

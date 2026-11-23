@@ -386,6 +386,7 @@ static func LunaProtocol.shootingModeRequest() throws -> LunaRequest
 static func LunaProtocol.startCaptureRequest(for: LunaShootingMode) throws -> LunaRequest
 static func LunaProtocol.stationJoinRequest(ssid: Swift.String, password: Swift.String) throws -> LunaRequest
 static func LunaProtocol.stationJoinResult(_: Foundation.Data) throws -> LunaStationJoinResult
+static func LunaProtocol.stationKeepAliveRequest(ssid: Swift.String, password: Swift.String) throws -> LunaRequest
 static func LunaProtocol.stationRememberRequest(ssid: Swift.String, password: Swift.String) throws -> LunaRequest
 static func LunaProtocol.statusRequest() throws -> LunaRequest
 static func LunaProtocol.stopCaptureRequest(for: LunaShootingMode) throws -> LunaRequest
@@ -450,6 +451,7 @@ static let LunaProtocol.shootingViewAccessState: Swift.UInt64
 static let LunaProtocol.startCaptureRequest: LunaRequest
 static let LunaProtocol.startLiveRequest: LunaRequest
 static let LunaProtocol.stationJoinResultCode: Swift.UInt16
+static let LunaProtocol.stationKeepAliveInterval: Swift.Duration
 static let LunaProtocol.stopCaptureRequest: LunaRequest
 static let LunaProtocol.stopLiveRequest: LunaRequest
 static let LunaProtocol.syncTimeAccurateCode: Swift.UInt16

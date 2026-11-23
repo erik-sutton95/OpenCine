@@ -457,6 +457,22 @@ struct NikonCameraSessionTests {
         #expect(driver.records == [true, false])
     }
 
+    /// OPENZCINE-IOS-1V: a first-generation body's header carries no record state. Unknown must
+    /// never satisfy a press: a stop during a take the body has not reported still reaches it.
+    @Test("An unreported record state is unknown: neither a start nor a stop is satisfied by it")
+    func unreportedRecordStateSatisfiesNoPress() {
+        var facts = Self.movieFacts()
+        facts.recording = nil
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        #expect(!session.refresh().recording.isKnown)
+        let stop = session.request(.stopRecording).operation
+        #expect(stage(session, stop) == .admitted)
+        session.operationDropped(stop)
+        #expect(session.request(.startRecording).stage == .admitted)
+        #expect(driver.records == [false, true])
+    }
+
     @Test("Leaving Auto ISO can write back the off-ladder value the camera parked on")
     func autoParkedISOIsWritable() {
         var facts = Self.movieFacts()

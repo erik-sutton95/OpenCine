@@ -34,7 +34,7 @@ class LiveFrameSourceTest {
 
         assertTrue(stripped.jpegData.isEmpty(), "a metadata consumer must not pin the pixels")
         assertEquals(1_234, stripped.timestampNanos)
-        assertTrue(stripped.isRecording)
+        assertEquals(true, stripped.isRecording)
         assertSame(audio, stripped.audioLevels)
         assertSame(timecode, stripped.timecode)
         assertEquals(24.97, stripped.measuredFramesPerSecond)

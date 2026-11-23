@@ -184,4 +184,81 @@ struct LiveStreamPresentationTests {
         let retry = LiveStreamPillState(phase: .reconnecting(attempt: 2), serviceName: "Service A", elapsedSeconds: 9)
         #expect(retry.title == "Reconnecting" && retry.accessibilityLabel == "Reconnecting to Service A, attempt 2")
     }
+
+    @Test func upscaledQualityLineSaysUpscaled() {
+        let upscaled = LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000,
+            kind: .upscaled)
+        #expect(upscaled.line == "1080p upscaled, 30 fps, 6 Mbps")
+        let vertical = LiveStreamQuality(width: 1080, height: 1920, framesPerSecond: 30, videoBitrateBps: 6_000_000,
+            kind: .upscaled)
+        #expect(vertical.line == "1080p vertical upscaled, 30 fps, 6 Mbps")
+        #expect(LiveStreamCopy.startMessage(quality: upscaled, encrypted: true).hasPrefix("1080p upscaled, 30 fps"))
+        let source = LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000)
+        #expect(source.line == "1080p, 30 fps, 6 Mbps")
+    }
+
+    @Test func qualityPickerShowsOnlyWithChoices() {
+        let feed = LiveStreamQualityOption(id: "cameraFeed", title: LiveStreamCopy.qualityCameraFeed)
+        let upscaled = LiveStreamQualityOption(id: "upscaled1080p", title: LiveStreamCopy.qualityUpscaled,
+            detail: LiveStreamCopy.qualityUpscaledDetail)
+        var state = Self.settings()
+        #expect(!state.showsQualityPicker)
+        state.qualityOptions = [feed]
+        #expect(!state.showsQualityPicker)
+        state.qualityOptions = [feed, upscaled]
+        #expect(state.showsQualityPicker)
+        #expect(state.qualityDetail == nil)
+        state.selectedQualityID = "upscaled1080p"
+        #expect(state.selectedQuality?.title == "1080p upscaled")
+        #expect(state.qualityDetail == "The camera feed scaled up to 1080p, with your LUT.")
+        let unavailable = LiveStreamQualityOption(id: "x", title: "X", unavailableReason: "Not now.")
+        #expect(!unavailable.isEnabled && feed.isEnabled)
+        state.qualityOptions = [feed, unavailable]
+        state.selectedQualityID = "x"
+        #expect(state.qualityDetail == "Not now.")
+    }
+
+    @Test func cameraQualityLineAndStartMessageSayWhatGoesOut() {
+        let camera = LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000,
+            kind: .camera)
+        #expect(camera.line == "1080p from camera, 30 fps, 6 Mbps")
+        #expect(LiveStreamCopy.startMessage(quality: camera, encrypted: true)
+            == "1080p from camera, 30 fps, 6 Mbps. The camera's own picture goes out in standard color, without the "
+            + "monitor LUT, with the camera's sound. Camera recording is separate.")
+        #expect(LiveStreamCopy.qualityCamera == "1080p from camera")
+        #expect(LiveStreamCopy.qualityCameraDetail == "Sharper picture, encoded by the camera, standard color, no LUT.")
+        #expect(LiveStreamCopy.qualityCameraNeedsNetwork
+            == "Save a shared network in the camera's Wi-Fi setup to use this.")
+        #expect(LiveStreamCopy.startOnNetwork("es_iphone16") == "Go live over es_iphone16")
+    }
+
+    @Test func cameraStatusLinesAndRetry() {
+        #expect(LiveStreamCameraStatus.starting.text == "Starting the camera's stream.")
+        #expect(LiveStreamCameraStatus.live.text
+            == "1080p from camera. Assists, scopes and camera controls are off in this mode.")
+        #expect(LiveStreamCameraStatus.recovering.text == "The camera's stream stopped. Trying again.")
+        #expect(LiveStreamCameraStatus.lost.text == "The camera's stream did not come back.")
+        #expect(LiveStreamCameraStatus.notResponding.text
+            == "The camera is not responding. Hold its power button about 10 seconds to restart it.")
+        #expect(LiveStreamCameraStatus.allCases.filter(\.offersRetry) == [.lost, .notResponding])
+        #expect(LiveStreamCopy.cameraRetry == "Retry")
+        #expect(LiveStreamEnd.cameraDidNotStart.notice
+            == "The camera did not start its stream. Try again, or choose Camera feed in the live stream settings.")
+        #expect(LiveStreamEnd.cameraNotResponding.notice
+            == "The camera stopped responding. Hold its power button about 10 seconds to restart it, then go live again.")
+        #expect(!LiveStreamEnd.cameraDidNotStart.offersRestart)
+    }
+
+    @Test func compactStatusLine() {
+        let live = LiveStreamStatusState(phase: .live, elapsedSeconds: 724, sentBitrateBps: 6_000_000,
+            droppedGroups: 0, health: .good)
+        let hd = LiveStreamQuality(width: 1920, height: 1080, framesPerSecond: 30, videoBitrateBps: 6_000_000)
+        #expect(live.compactLine(quality: hd) == "1080p · 6 Mbps · good")
+        var slow = live
+        slow.droppedGroups = 3
+        slow.health = .congested
+        #expect(slow.compactLine(quality: nil) == "6 Mbps · 3 dropped · slow network")
+        let vertical = LiveStreamQuality(width: 720, height: 1280, framesPerSecond: 30, videoBitrateBps: 3_000_000)
+        #expect(live.compactLine(quality: vertical) == "720p · 6 Mbps · good")
+    }
 }

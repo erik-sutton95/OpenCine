@@ -474,6 +474,15 @@ object NikonNative {
         fun onLevelValidity(hasPitch: Boolean, hasYaw: Boolean) {}
 
         /**
+         * Whether the immediately following frame's header carries the record state and the
+         * timecode. First-generation Z bodies (Z 5, Z 6, Z 7, Z 50) send a 512-byte header that
+         * has neither, so that frame's `isRecording` and timecode arguments are placeholders,
+         * not "standby" or 00:00:00:00. The native pump serializes this call with its frame
+         * callback. Older native libraries omit it, so listeners default to both present.
+         */
+        fun onHeaderValidity(hasRecordState: Boolean, hasTimecode: Boolean) {}
+
+        /**
          * Additive rich live-frame callback. The Swift facade prefers this
          * descriptor when it exists, while retaining [onFrame]'s established
          * descriptor as a safe fallback for older listeners.

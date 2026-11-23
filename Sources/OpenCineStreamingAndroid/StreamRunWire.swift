@@ -121,9 +121,11 @@ public final class StreamRunWire: @unchecked Sendable {
     /// the source does not state its rate. `connected` holds width and height pairs. `nil` for an
     /// unknown preset or a bad size.
     public func formatJSON(
-        presetID: String, selectedWidth: Int, selectedHeight: Int, fpsNum: Int, fpsDen: Int, connected: [Int32]
+        presetID: String, selectedWidth: Int, selectedHeight: Int, fpsNum: Int, fpsDen: Int, connected: [Int32],
+        choice: String = StreamQualityChoice.cameraFeed.rawValue
     ) -> String? {
-        guard let preset = (StreamServicePreset.all + [.custom]).first(where: { $0.id == presetID }),
+        guard let choice = StreamQualityChoice(rawValue: choice),
+            let preset = (StreamServicePreset.all + [.custom]).first(where: { $0.id == presetID }),
             selectedWidth > 0, selectedHeight > 0, connected.count.isMultiple(of: 2)
         else { return nil }
         let rate = fpsNum > 0 && fpsDen > 0 ? Rational(fpsNum, fpsDen) : nil
@@ -132,7 +134,7 @@ public final class StreamRunWire: @unchecked Sendable {
         }
         let format = StreamOutputFormat.resolve(
             selected: StreamSourceFormat(width: selectedWidth, height: selectedHeight, frameRate: rate),
-            connected: others, preset: preset)
+            connected: others, preset: preset, choice: choice)
         return Self.encodeFormat(format)
     }
 

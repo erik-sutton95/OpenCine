@@ -7,8 +7,8 @@ public final class com/opencapture/opencine/appkitnative/LiveStreamComposition {
 
 public final class com/opencapture/opencine/appkitnative/LiveStreamCompositionKt {
 	public static final fun LiveStreamHostEffects (Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/runtime/Composer;I)V
-	public static final fun LiveStreamOverlay (Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
-	public static final fun LiveStreamOverlay (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedScope;Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/runtime/Composer;I)V
+	public static final fun LiveStreamOverlay (Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/ui/Modifier;ZLandroidx/compose/runtime/Composer;II)V
+	public static final fun LiveStreamOverlay (Lcom/opencapture/opencine/appkitnative/MonitorLiveFeedScope;Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;ZLandroidx/compose/runtime/Composer;II)V
 	public static final fun LiveStreamRootIndicator (Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
 	public static final fun liveStreamSettingsSource (Lcom/opencapture/opencine/appkitnative/LiveStreamCoordinator;Landroidx/compose/runtime/Composer;I)Lcom/opencapture/opencine/cameracontrols/MonitorSettingsLiveStreamSource;
 }
@@ -22,13 +22,16 @@ public final class com/opencapture/opencine/appkitnative/LiveStreamCoordinator :
 	public final fun getShowsRootPill ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun goLive ()V
+	public fun goLive (Ljava/lang/String;)V
 	public final fun monitorControlsAppeared ()V
 	public final fun monitorControlsGone ()V
 	public final fun onBackground ()V
 	public final fun refresh ()V
 	public fun removeKey ()V
 	public fun restart ()V
+	public fun retryCamera ()V
 	public fun saveKey (Ljava/lang/String;)V
+	public fun selectQuality (Ljava/lang/String;)V
 	public fun selectService (Ljava/lang/String;)V
 	public fun setServer (Ljava/lang/String;)V
 	public fun setShowOnMonitor (Z)V
@@ -57,10 +60,17 @@ public final class com/opencapture/opencine/appkitnative/LiveStreamRequest {
 }
 
 public abstract interface class com/opencapture/opencine/appkitnative/LiveStreamSettings {
+	public fun getSelectedQualityId ()Ljava/lang/String;
 	public abstract fun getSelectedServiceId ()Ljava/lang/String;
 	public abstract fun getShowOnMonitor ()Z
+	public fun setSelectedQualityId (Ljava/lang/String;)V
 	public abstract fun setSelectedServiceId (Ljava/lang/String;)V
 	public abstract fun setShowOnMonitor (Z)V
+}
+
+public final class com/opencapture/opencine/appkitnative/LiveStreamSettings$DefaultImpls {
+	public static fun getSelectedQualityId (Lcom/opencapture/opencine/appkitnative/LiveStreamSettings;)Ljava/lang/String;
+	public static fun setSelectedQualityId (Lcom/opencapture/opencine/appkitnative/LiveStreamSettings;Ljava/lang/String;)V
 }
 
 public final class com/opencapture/opencine/appkitnative/LiveStreamSource {

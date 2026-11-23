@@ -105,8 +105,14 @@ func usbHandshakeDiagnosticPhase(stage: USBHandshakeStage, error: Error) -> Stri
 final class AndroidUSBPTPTransport: CameraTransport, @unchecked Sendable {
     let kind: CameraTransportKind = .usb
 
-    init(rawIO: any USBPTPRawIO) {
+    init(
+        rawIO: any USBPTPRawIO,
+        nowMilliseconds: @escaping @Sendable () -> UInt64 = {
+            PTPIPClientSession.monotonicNanoseconds() / 1_000_000
+        }
+    ) {
         self.rawIO = rawIO
+        self.nowMilliseconds = nowMilliseconds
     }
 
     func executeTransaction(
@@ -282,6 +288,7 @@ final class AndroidUSBPTPTransport: CameraTransport, @unchecked Sendable {
     }
 
     private let rawIO: any USBPTPRawIO
+    private let nowMilliseconds: @Sendable () -> UInt64
     private let transactionLock = NSLock()
     private let eventLock = NSLock()
     private let stateLock = NSLock()
@@ -366,11 +373,24 @@ final class AndroidUSBPTPTransport: CameraTransport, @unchecked Sendable {
     }
 
     private func readEventBytes(label: String, timeoutMilliseconds: Int) throws -> [UInt8] {
+        let start = nowMilliseconds()
         guard
             let bytes = rawIO.readEvent(
                 maxBytes: readChunkSize, timeoutMilliseconds: timeoutMilliseconds)
         else {
-            throw closedOrReadFailure(label)
+            let failure = closedOrReadFailure(label)
+            // Some Android USB stacks report an idle interrupt wait that ran out as an error
+            // (`requestWait` returning null) instead of a timeout. A failure that took the whole
+            // wait is that idle timeout, the rule OpenZCine #577 applies to bulk-in reads; only
+            // an early one is a link failure. Otherwise a sparse event pipe ends the session
+            // about one second after the drain starts (OPENZCINE-ANDROID-B, hypothesis).
+            if case .readFailed = failure,
+                nowMilliseconds() &- start
+                    >= UInt64(Swift.max(0, timeoutMilliseconds - eventTimeoutSlackMilliseconds))
+            {
+                throw AndroidUSBPTPTransportError.timeout(label)
+            }
+            throw failure
         }
         guard !bytes.isEmpty else { throw AndroidUSBPTPTransportError.timeout(label) }
         return bytes
@@ -393,6 +413,8 @@ final class AndroidUSBPTPTransport: CameraTransport, @unchecked Sendable {
     private let defaultTimeoutMilliseconds = 10_000
     /// Keep idle interrupt reads short so disconnect waits at most one cycle.
     private let eventTimeoutMilliseconds = 1_000
+    /// Kernel timer slack: an event wait that failed this close to its timeout timed out.
+    private let eventTimeoutSlackMilliseconds = 50
     /// One bulk read per frame instead of a dozen.
     ///
     /// At 16 KiB a ~150 KB preview frame took 7-13 sequential transfers, and the cost was never

@@ -489,6 +489,21 @@ struct DJIAppleGimbalControlTests {
         #expect(line.hasSuffix("mode=Follow modeFrom=app layout=49 model=-"))
     }
 
+    /// Head tracking diagnostics read the newest attitude push as hex and an angle dump; before
+    /// any push both are empty.
+    @Test func attitudeDiagnosticsDescribeTheNewestPush() {
+        let host = Host()
+        #expect(host.gimbal.lastAttitudeHex.isEmpty)
+        #expect(host.gimbal.lastAttitudeDump.isEmpty)
+        host.attitude(modeByte: 0x86)
+        host.attitude(modeByte: 0x46)
+        #expect(host.gimbal.lastAttitudeHex.hasPrefix("08 07 00 00 00 00 46 00"))
+        #expect(host.gimbal.lastAttitudeHex.split(separator: " ").count == 50)
+        #expect(host.gimbal.lastAttitudeDump.hasPrefix("n=50 @0=1800 "))
+        host.attitude(nativeTenth: 1744, pitchTenth: 56, count: 49)
+        #expect(host.gimbal.lastAttitudeDump.hasPrefix("n=49 @0=1744 "))
+    }
+
     @Test func levelWithoutAttitudeSaysSoAndSendsNothing() {
         let host = Host()
         host.gimbalDoubleTap = .level

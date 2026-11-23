@@ -41,19 +41,40 @@ public struct StreamOutputFormat: Hashable, Sendable {
     }
 }
 
+/// The operator's Quality choice. Raw values are stored in app preferences and cross the Android
+/// bridge, so they never change.
+public enum StreamQualityChoice: String, CaseIterable, Hashable, Sendable {
+    /// The camera picture at its own size (the default): the stream never pretends to more.
+    case cameraFeed
+    /// The camera picture scaled up to a 1080p output, named as upscaled wherever it is shown.
+    case upscaled1080p
+    /// The camera's own 1080p encoding, published to this device and relayed. Offered by the host
+    /// for a camera that declares `CameraStreamPublishing`, never from the source size alone.
+    case camera1080p
+
+    /// The choices that apply to a source: the camera feed always, the upscaled output only for a
+    /// known source whose short side is below 1080 lines.
+    public static func offered(for source: StreamSourceFormat?) -> [StreamQualityChoice] {
+        guard let source, min(source.width, source.height) < 1080 else { return [.cameraFeed] }
+        return [.cameraFeed, .upscaled1080p]
+    }
+}
+
 public extension StreamOutputFormat {
-    /// The output for a stream, set at go-live. The stream matches the source and never pretends
-    /// to more: the best connected source sets the size (1080p only from a real 1080p source),
-    /// the selected camera sets the frame rate, and the preset caps the bitrate and sets the shape.
+    /// The output for a stream, set at go-live. With the camera feed choice the stream matches
+    /// the source and never pretends to more: the best connected source sets the size (1080p only
+    /// from a real 1080p source). The upscaled choice takes the 1080p size from any source. The
+    /// selected camera sets the frame rate, and the preset caps the bitrate and sets the shape.
     static func resolve(
-        selected: StreamSourceFormat, connected: [StreamSourceFormat], preset: StreamServicePreset
+        selected: StreamSourceFormat, connected: [StreamSourceFormat], preset: StreamServicePreset,
+        choice: StreamQualityChoice = .cameraFeed
     ) -> StreamOutputFormat {
         // A source's lines are its short side, so an upright picture is not mistaken for a larger one.
         let bestHeight = ([selected] + connected).map { min($0.width, $0.height) }.max() ?? selected.height
         var width: Int
         var height: Int
         var bitrate: Int
-        if bestHeight >= 1080 {
+        if bestHeight >= 1080 || choice != .cameraFeed {
             (width, height, bitrate) = (1920, 1080, 6_000_000)
         } else if bestHeight >= 720 {
             (width, height, bitrate) = (1280, 720, 3_000_000)

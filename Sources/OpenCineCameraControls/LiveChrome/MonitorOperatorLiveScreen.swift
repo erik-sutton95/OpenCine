@@ -201,6 +201,9 @@
             }
         }
 
+        /// The Go live column's width; it hangs from the anchor's top trailing corner.
+        static var liveStreamWidth: CGFloat { 260 }
+
         private func canvas(_ layout: LiveMonitorLayout) -> some View {
             let capability = model.liveCapabilities
             return MonitorOperatorLiveSurface(host: model, layout: layout, interaction: interaction,
@@ -223,11 +226,17 @@
             ) { MonitorOperatorLiveFeedPane<Host>()
             } preview: { model.inspectorPreview(tool: $0)
             } lookMenu: { model.lookMenu() }
+            .environment(\.monitorZoomRulerOpen, interaction.zoomVisible)
             .overlay(alignment: .topLeading) {
                 if let stream = model.liveStream {
-                    LiveStreamMonitorOverlay(coordinator: stream)
-                        .frame(width: layout.onFeed.width)
-                        .offset(x: layout.onFeed.minX, y: layout.onFeed.minY)
+                    let anchor = LiveStreamOverlayPlacement.anchor(
+                        status: MonitorRect(x: layout.topDeck.minX, y: layout.topDeck.minY,
+                            width: layout.topDeck.width, height: layout.topDeck.height),
+                        viewportWidth: layout.viewport.width, safeTop: layout.safeArea.top,
+                        safeTrailing: layout.safeArea.trailing)
+                    LiveStreamMonitorOverlay(coordinator: stream, hidden: interaction.zoomVisible)
+                        .frame(width: Self.liveStreamWidth, alignment: .topTrailing)
+                        .offset(x: anchor.x - Self.liveStreamWidth, y: anchor.y)
                         .disabled(interfaceLocked)
                 }
             }

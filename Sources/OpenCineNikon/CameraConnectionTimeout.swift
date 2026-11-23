@@ -26,6 +26,15 @@ public enum CameraConnectionTimeout {
         }
     }
 
+    /// How long the USB transport's session open may wait: the whole USB handshake budget.
+    ///
+    /// ImageCaptureCore answers the session open only after enumerating the card, so a full card
+    /// needs more than the 30 s the open used to allow (OPENZCINE-IOS-16). The phase watchdog
+    /// still bounds the whole handshake.
+    public static var usbSessionOpen: Duration {
+        .seconds(budgetSeconds(for: .handshaking, isUSB: true) ?? 120)
+    }
+
     /// Operator-facing failure copy for a phase that ran out its budget.
     public static func timeoutMessage(phase: CameraConnectionPhase, deviceName: String) -> String {
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)

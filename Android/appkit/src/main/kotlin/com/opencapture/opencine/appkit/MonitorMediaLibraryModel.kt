@@ -534,6 +534,10 @@ public class MonitorMediaLibraryModel<P>(
                         if (pendingPages >= MonitorMediaCatalogPersistence.STANDARD_PAGES) checkpoint()
                     MonitorMediaCatalogPersistence.LISTING_COMPLETE_OR_NON_CANCEL_FAILURE -> Unit
                 }
+                // A cursor over cached rows answers without suspending, so without this the whole
+                // card lists in one dispatcher turn (OPENZCINE-IOS-1S, -17). The loop's admission
+                // check runs again before the next page is applied.
+                yield()
             }
             currentCoroutineContext().ensureActive()
             if (catalogPersistence != MonitorMediaCatalogPersistence.EACH_DELTA && pendingPages > 0) checkpoint()

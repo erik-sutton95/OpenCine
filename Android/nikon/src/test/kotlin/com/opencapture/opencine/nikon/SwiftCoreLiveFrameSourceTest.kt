@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -80,13 +81,63 @@ class SwiftCoreLiveFrameSourceTest {
 
         assertContentEquals(jpeg, frame.jpegData)
         assertEquals(7L, frame.timestampNanos)
-        assertTrue(frame.isRecording)
+        assertEquals(true, frame.isRecording)
         assertEquals(true, recordingState)
         assertEquals(-24.0, frame.audioLevels?.left?.levelDb)
         assertEquals(-6.0, frame.audioLevels?.left?.peakDb)
         assertEquals(-36.0, frame.audioLevels?.right?.levelDb)
         assertEquals(-18.0, frame.audioLevels?.right?.peakDb)
         assertEquals(false, frame.audioLevels?.isDebugFixture)
+    }
+
+    /**
+     * OPENZCINE-IOS-1V: a first-generation Z body's 512-byte header has no record state and no
+     * timecode. Its frame reports neither, rather than standby and an off zero clock.
+     */
+    @Test
+    fun `a header without record state or timecode reports neither`() = runTest {
+        lateinit var listener: NikonNative.LiveFrameListener
+        val reports = mutableListOf<Boolean?>()
+        val timecodes = mutableListOf<LiveFrameTimecode?>()
+        val source =
+            SwiftCoreLiveFrameSource(
+                available = { true },
+                start = { listener = it },
+                stop = {},
+                configurePreview = { true },
+                sharingScope = backgroundScope,
+                onRecordingState = { reports += it },
+                onTimecode = { timecodes += it },
+            )
+        fun frame(timestamp: Long, isRecording: Boolean, timecodeOn: Boolean) =
+            listener.onFrameWithRotation(
+                jpeg = byteArrayOf(1), timestampNanos = timestamp, isRecording = isRecording,
+                leftLevelDb = -60.0, leftPeakDb = -60.0, rightLevelDb = -60.0, rightPeakDb = -60.0,
+                hasAudioLevels = false, hasFocus = false, focusCoordinateWidth = 0,
+                focusCoordinateHeight = 0, focusResult = 0, subjectDetectionActive = false,
+                trackingAFActive = false, selectedBoxIndex = -1, focusBoxes = intArrayOf(),
+                hasLevel = false, levelRollDegrees = 0.0, levelPitchDegrees = 0.0,
+                levelYawDegrees = 0.0, timecodeOn = timecodeOn, timecodeHour = 1,
+                timecodeMinute = 2, timecodeSecond = 3, timecodeFrame = 4, rotation = 0,
+            )
+
+        val result = async { source.frames.take(2).toList() }
+        runCurrent()
+        listener.onHeaderValidity(hasRecordState = false, hasTimecode = false)
+        frame(timestamp = 1L, isRecording = false, timecodeOn = false)
+        runCurrent()
+        listener.onHeaderValidity(hasRecordState = true, hasTimecode = true)
+        frame(timestamp = 2L, isRecording = true, timecodeOn = true)
+        runCurrent()
+        val (gen1, gen3) = result.await()
+
+        assertNull(gen1.isRecording)
+        assertNull(gen1.timecode)
+        assertEquals(true, gen3.isRecording)
+        assertEquals(LiveFrameTimecode(on = true, hour = 1, minute = 2, second = 3, frame = 4), gen3.timecode)
+        assertEquals(listOf(null, true), reports)
+        // The first two reports are the two frames' (the stream's end then clears the clock).
+        assertEquals(listOf(null, gen3.timecode), timecodes.take(2))
     }
 
     @Test
@@ -442,10 +493,81 @@ class SwiftCoreLiveFrameSourceTest {
 
         assertEquals(1, frames.size)
         assertContentEquals(byteArrayOf(9), frames.single().jpegData)
-        assertTrue(frames.single().isRecording)
+        assertEquals(true, frames.single().isRecording)
         collector.cancelAndJoin()
         runCurrent()
         assertEquals(2, stops)
+    }
+
+    /**
+     * OPENZCINE-ANDROID-A: a pump that keeps ending (no session for the owner, a dead USB link)
+     * used to rethrow its end out of the sharing coroutine after the last restart, which crashed
+     * the process. The stream now escalates once and ends, so the session can reconnect.
+     */
+    @Test
+    fun `a pump that keeps ending escalates once and ends without crashing`() = runTest {
+        var starts = 0
+        var exhausted = 0
+        val failurePhases = mutableListOf<String>()
+        val source =
+            SwiftCoreLiveFrameSource(
+                available = { true },
+                start = { listener ->
+                    starts++
+                    listener.onEnded()
+                },
+                stop = {},
+                configurePreview = { true },
+                sharingScope = backgroundScope,
+                maxConsecutiveRestarts = 3,
+                onStreamExhausted = { exhausted++ },
+                onFailurePhase = failurePhases::add,
+                stopDispatcher = StandardTestDispatcher(testScheduler, name = "native-stop"),
+            )
+
+        val collector = launch { source.frames.collect() }
+        advanceTimeBy(10_000L)
+        runCurrent()
+
+        assertEquals(1, exhausted)
+        assertEquals(4, starts)
+        assertEquals(List(4) { "liveViewStalled" }, failurePhases)
+        collector.cancelAndJoin()
+    }
+
+    /** A start that throws must not crash the process or end live view for the session for good. */
+    @Test
+    fun `a failed start is reported and the next subscription starts live view again`() = runTest {
+        var starts = 0
+        val failurePhases = mutableListOf<String>()
+        lateinit var listener: NikonNative.LiveFrameListener
+        val source =
+            SwiftCoreLiveFrameSource(
+                available = { true },
+                start = {
+                    starts++
+                    if (starts == 1) throw IllegalStateException("native start failed")
+                    listener = it
+                },
+                stop = {},
+                configurePreview = { true },
+                sharingScope = backgroundScope,
+                onFailurePhase = failurePhases::add,
+                stopDispatcher = StandardTestDispatcher(testScheduler, name = "native-stop"),
+            )
+
+        val first = launch { source.frames.collect() }
+        runCurrent()
+        assertEquals(listOf("liveViewFailed"), failurePhases)
+        first.cancelAndJoin()
+        runCurrent()
+
+        val frame = async { source.frames.first() }
+        runCurrent()
+        assertEquals(2, starts)
+        listener.onFrame(byteArrayOf(4), 4L, false)
+        runCurrent()
+        assertContentEquals(byteArrayOf(4), frame.await().jpegData)
     }
 
     @Test

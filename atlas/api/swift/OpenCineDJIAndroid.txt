@@ -23,6 +23,10 @@ case DjiNativeWire.CommandKind.gimbalInit
 case DjiNativeWire.CommandKind.gimbalRecenter
 case DjiNativeWire.CommandKind.gimbalStick
 case DjiNativeWire.CommandKind.liveViewEnable
+case DjiNativeWire.CommandKind.livestreamConfigure
+case DjiNativeWire.CommandKind.livestreamEnd
+case DjiNativeWire.CommandKind.livestreamPrepare
+case DjiNativeWire.CommandKind.livestreamStart
 case DjiNativeWire.CommandKind.mediaList
 case DjiNativeWire.CommandKind.mediaListTrigger
 case DjiNativeWire.CommandKind.multicamJoin

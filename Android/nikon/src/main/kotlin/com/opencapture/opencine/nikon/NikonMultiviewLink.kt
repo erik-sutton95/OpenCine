@@ -534,7 +534,10 @@ public class NikonMultiviewLink<T : NikonMultiviewTransport>(
         missedFrames = 0
         ladder.frameArrived()
         timecode = frame.timecode
-        recordReport = MultiviewRecordReport(recording = frame.isRecording, receivedAtMillis = wallClock())
+        // A header without record state (first-generation bodies) is not a report of standby.
+        frame.isRecording?.let {
+            recordReport = MultiviewRecordReport(recording = it, receivedAtMillis = wallClock())
+        }
         transport.session.reportedCameraProperties.value.recordingTone?.let { tone = it }
         if (pictureHealth != PictureHealth.LIVE) {
             pictureHealth = PictureHealth.LIVE

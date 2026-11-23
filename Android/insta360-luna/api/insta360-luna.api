@@ -159,14 +159,17 @@ public final class com/opencapture/opencine/insta360/luna/LunaCameraSession$Comp
 
 public final class com/opencapture/opencine/insta360/luna/LunaCameraSession$Timing {
 	public static final field Companion Lcom/opencapture/opencine/insta360/luna/LunaCameraSession$Timing$Companion;
-	public synthetic fun <init> (Ljava/util/Map;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/Map;JLjava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/util/Map;JLjava/util/Map;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/util/Map;
 	public final fun component2-UwyO8pc ()J
-	public final fun copy-HG0u8IE (Ljava/util/Map;J)Lcom/opencapture/opencine/insta360/luna/LunaCameraSession$Timing;
-	public static synthetic fun copy-HG0u8IE$default (Lcom/opencapture/opencine/insta360/luna/LunaCameraSession$Timing;Ljava/util/Map;JILjava/lang/Object;)Lcom/opencapture/opencine/insta360/luna/LunaCameraSession$Timing;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun copy-8Mi8wO0 (Ljava/util/Map;JLjava/util/Map;)Lcom/opencapture/opencine/insta360/luna/LunaCameraSession$Timing;
+	public static synthetic fun copy-8Mi8wO0$default (Lcom/opencapture/opencine/insta360/luna/LunaCameraSession$Timing;Ljava/util/Map;JLjava/util/Map;ILjava/lang/Object;)Lcom/opencapture/opencine/insta360/luna/LunaCameraSession$Timing;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getReadbackInterval-UwyO8pc ()J
 	public final fun getSettle ()Ljava/util/Map;
+	public final fun getWriteTimeout ()Ljava/util/Map;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -224,13 +227,16 @@ public final class com/opencapture/opencine/insta360/luna/LunaFeedStall {
 	public static final field ESCALATE_AFTER D
 	public static final field KEYFRAME_AFTER D
 	public static final field MAXIMUM_RESTARTS I
+	public static final field RECORDING_ESCALATE_AFTER D
+	public static final field RECORDING_RESTART_AFTER D
 	public static final field RESTART_AFTER D
 	public static final field RESTART_SPACING D
 	public fun <init> ()V
 	public final fun getRestartInFlight ()Z
 	public final fun getRestarts ()I
 	public final fun restartFinished ()V
-	public final fun tick (DD)Lcom/opencapture/opencine/insta360/luna/LunaFeedStall$Action;
+	public final fun tick (DDZ)Lcom/opencapture/opencine/insta360/luna/LunaFeedStall$Action;
+	public static synthetic fun tick$default (Lcom/opencapture/opencine/insta360/luna/LunaFeedStall;DDZILjava/lang/Object;)Lcom/opencapture/opencine/insta360/luna/LunaFeedStall$Action;
 }
 
 public final class com/opencapture/opencine/insta360/luna/LunaFeedStall$Action : java/lang/Enum {
@@ -489,6 +495,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationWire {
 	public static final field BUSY_SWITCHING I
 	public static final field INSTANCE Lcom/opencapture/opencine/insta360/luna/LunaStationWire;
 	public static final field JOIN_RESULT I
+	public static final field KEEP_ALIVE_INTERVAL_MS J
 	public static final field PHONE_INFO I
 	public static final field SET_AVAILABLE_WIFI I
 	public static final field SET_WIFI_CONNECTION_INFO I
@@ -499,6 +506,7 @@ public final class com/opencapture/opencine/insta360/luna/LunaStationWire {
 	public final fun countryCode ([B)Ljava/lang/String;
 	public final fun join (Ljava/lang/String;Ljava/lang/String;)[B
 	public final fun joinResult ([B)Lcom/opencapture/opencine/insta360/luna/LunaStationWire$JoinResult;
+	public final fun keepAlive (Ljava/lang/String;Ljava/lang/String;)[B
 	public final fun phoneInfo (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$Platform;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)[B
 	public final fun remember (Ljava/lang/String;Ljava/lang/String;)[B
 	public final fun wifiMode (Lcom/opencapture/opencine/insta360/luna/LunaStationWire$Mode;Ljava/lang/String;)[B

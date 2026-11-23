@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorZoomCaption
+import com.opencapture.monitorui.MonitorZoomClearance
 import com.opencapture.monitorui.MonitorZoomPresetControls
 import com.opencapture.monitorui.MonitorZoomPresets
 import com.opencapture.monitorui.monitorReadoutShadow
@@ -95,6 +96,15 @@ fun LiveZoomChip(
     dialFactor: Double = factor,
     presets: MonitorZoomPresets? = null,
     onPresetsChange: (MonitorZoomPresets) -> Unit = {},
+    /** Space the zoom ruler keeps clear above and below it (the status row, the capture bar). */
+    clearance: MonitorZoomClearance = MonitorZoomClearance(),
+    /**
+     * Reports the zoom ruler opening (true) and closing (false, also on lock, rotation and
+     * disposal), so the host can hide the chrome the ruler replaces.
+     */
+    onDialOpenChange: (Boolean) -> Unit = {},
+    /** The live layout: the zoom panel's ramp key opens the camera value popup at its place. */
+    layout: com.opencapture.monitorui.LiveMonitorLayout? = null,
 ) {
     val haptics = LocalOperatorHaptics.current
     val interaction = remember { MutableInteractionSource() }
@@ -104,7 +114,12 @@ fun LiveZoomChip(
     var ramp by remember { mutableStateOf<Job?>(null) }
     var driven by remember { mutableStateOf<Double?>(null) }
     val current by rememberUpdatedState(dialFactor)
-    if (dialOpen && !locked && onDial != null) {
+    val shown = dialOpen && !locked && onDial != null
+    val reportOpen by rememberUpdatedState(onDialOpenChange)
+    val reported = remember { booleanArrayOf(false) }
+    LaunchedEffect(shown) { if (reported[0] != shown) { reported[0] = shown; reportOpen(shown) } }
+    DisposableEffect(Unit) { onDispose { if (reported[0]) { reported[0] = false; reportOpen(false) } } }
+    if (shown && onDial != null) {
         val end by rememberUpdatedState(onDialEnd)
         val drag by rememberUpdatedState(onDial)
         DisposableEffect(Unit) { onDispose { ramp?.cancel(); ramp = null; end() } }
@@ -135,7 +150,7 @@ fun LiveZoomChip(
                     onSave = { index -> onPresetsChange(saved.save(current, index)) },
                     onRamp = { seconds -> onPresetsChange(saved.withRamp(seconds)) })
             },
-            driven = driven)
+            driven = driven, clearance = clearance, layout = layout)
     }
     val orientation = LocalConfiguration.current.orientation
     LaunchedEffect(locked, orientation) { dialOpen = false }

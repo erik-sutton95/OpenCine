@@ -181,7 +181,8 @@ public data class LiveFrameTimecode(
  * @property timestampNanos Monotonic capture timestamp of the frame.
  * @property jpegData JPEG-encoded frame payload as delivered by the camera.
  * @property isRecording Whether the camera reported card recording in this
- *   frame's live-view header.
+ *   frame's live-view header, or `null` when the header does not carry it
+ *   (first-generation Z bodies send a 512-byte header without it).
  * @property audioLevels Camera-derived stereo meter values, or `null` when
  *   the live-view header did not contain a sound indicator.
  * @property focus Camera-derived AF and subject-detection data, or `null`
@@ -197,7 +198,7 @@ public data class LiveFrameTimecode(
 public open class LiveFrame(
     public val timestampNanos: Long,
     public val jpegData: ByteArray,
-    public val isRecording: Boolean = false,
+    public val isRecording: Boolean? = null,
     public val audioLevels: LiveAudioMeterLevels? = null,
     public val focus: LiveFocusInfo? = null,
     public val level: LiveCameraLevel? = null,

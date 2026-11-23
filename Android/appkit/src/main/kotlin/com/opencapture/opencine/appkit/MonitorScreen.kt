@@ -22,6 +22,7 @@ import androidx.compose.ui.zIndex
 import com.opencapture.monitorui.MonitorFieldLayout
 import com.opencapture.monitorui.MonitorRecordingBorder
 import com.opencapture.monitorui.MonitorRect
+import com.opencapture.monitorui.monitorChromeHidden
 
 /** Operator presentation state, separate from camera telemetry and native picture lifetime. */
 public data class MonitorScreenPresentation(
@@ -34,6 +35,8 @@ public data class MonitorScreenPresentation(
     public val panelsRaised: Boolean = false, public val recovering: Boolean = false,
     /** Keeps status telemetry mounted while excluding an occluded status slot from input and accessibility. */
     public val statusInteractive: Boolean = true,
+    /** Fades the status block out (still mounted) while another control replaces it, the open zoom ruler. */
+    public val statusHidden: Boolean = false,
 )
 
 /** Fixed picture/assist hosts and common chrome placement survive rotation and coverage. */
@@ -66,8 +69,9 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
             val statusFrame = if (layout.portrait) Modifier.offset(layout.status.x.dp, layout.status.y.dp).width(layout.status.width.dp)
                 else Modifier.frame(layout.status)
             val statusAccessibility = if (presentation.statusInteractive) commonAccessibility else Modifier.clearAndSetSemantics {}
-            Box(statusFrame.visible(commonVisible, dim).then(statusAccessibility)) {
-                status(commonInteractive && presentation.statusInteractive)
+            Box(statusFrame.visible(commonVisible, dim).then(statusAccessibility)
+                .monitorChromeHidden(presentation.statusHidden)) {
+                status(commonInteractive && presentation.statusInteractive && !presentation.statusHidden)
             }
         }
         if (presentation.powerMounted) Box(Modifier.frame(layout.telemetry).visible(commonVisible, dim).then(commonAccessibility),

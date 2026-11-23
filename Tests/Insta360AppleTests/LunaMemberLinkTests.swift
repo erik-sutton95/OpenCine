@@ -148,6 +148,34 @@ import Testing
         #expect(link.pictureHealth == .live)
     }
 
+    /// OPENINSTACINE-IOS-S: a record start can pause the encoder (Color Recovery), and restarting
+    /// live mid-take can end the take. A recording member only asks for keyframes until the long
+    /// recording bound.
+    @Test func aRecordingMembersStallLeavesTheTakeAlone() async throws {
+        let port = FakeLunaStationPort()
+        let link = try await Self.live(port)
+        port.camera.captureState = 1
+        port.camera.reportCapture()
+        await link.keepalive()
+        var statuses: [MultiviewLinkStatus] = []
+        link.onStatus = { statuses.append($0) }
+        for silence in [3.0, 7, 16, 29] {
+            port.secondsSinceVideo = silence
+            guard case .handled = link.repair(MultiviewRepairContext()) else {
+                Issue.record("a recording member only asks for keyframes at \(silence) s")
+                return
+            }
+        }
+        #expect(!port.steps.contains(.restartLive))
+        #expect(statuses.isEmpty)
+        port.secondsSinceVideo = 31
+        guard case .repair = link.repair(MultiviewRepairContext()) else {
+            Issue.record("video gone past the recording bound is repaired")
+            return
+        }
+        #expect(statuses == [.reconnecting])
+    }
+
     @Test func aRepairCancelledInItsBluetoothTurnReleasesTheTurn() async throws {
         let port = FakeLunaStationPort()
         let link = try await Self.live(port)

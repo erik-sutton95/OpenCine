@@ -75,8 +75,10 @@ public enum MonitorImageCompositor {
     /// Same graph as ``apply(to:effects:display:)``. `unmanagedBake` is true only
     /// when the output is a LUT cube product. Identity fallbacks stay managed -
     /// NSNull of Rec.709 HEVC is a black feed. False colour rides the overlay.
+    /// `workingWidth` replaces the monitor's working-width cap (the clean picture tap passes its
+    /// own output cap, so a 1080p source keeps its full width with a LUT on).
     public static func applyProduct(
-        to source: CIImage, effects: MonitorImageEffects, display: CIImage? = nil
+        to source: CIImage, effects: MonitorImageEffects, display: CIImage? = nil, workingWidth: CGFloat? = nil
     ) -> (image: CIImage, unmanagedBake: Bool) {
         // Downscale FIRST. The 3D cubes are resolution-independent; peaking and zebra
         // *want* display resolution. `FeedFrameBaker.bake` composes any further drawable
@@ -84,6 +86,7 @@ public enum MonitorImageCompositor {
         var measure = source
         var displayed = display
         let sourceWidth = source.extent.width
+        let maxWorkingWidth = workingWidth ?? Self.maxWorkingWidth
         if sourceWidth > maxWorkingWidth {
             let scale = maxWorkingWidth / sourceWidth
             let transform = CGAffineTransform(scaleX: scale, y: scale)

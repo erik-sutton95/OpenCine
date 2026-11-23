@@ -387,9 +387,10 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     }
 
     /// Publishes the header timecode per frame (A5-04). The common model observes the counter
-    /// apart from the rest of the snapshot, so only the clock re-renders.
-    func observeHeader(timecode: Timecode) {
-        let running = timecode.running
+    /// apart from the rest of the snapshot, so only the clock re-renders. A header without one
+    /// (Gen-1 bodies) reports none.
+    func observeHeader(timecode: Timecode?) {
+        let running = timecode?.running
         guard !closed, nikonControlFacts.timecode != running else { return }
         nikonControlFacts.timecode = running
         common.refresh()
