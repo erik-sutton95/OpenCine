@@ -3,6 +3,7 @@ package com.opencapture.opencine.appkitnative
 import com.opencapture.opencine.cameracontrols.FaceDetectionPump
 import com.opencapture.opencine.cameracontrols.LocalLiveCanvasOrigin
 import com.opencapture.opencine.cameracontrols.LocalMonitorOperatorPaletteAction
+import com.opencapture.opencine.cameracontrols.LocalMonitorOperatorReferenceHandle
 import com.opencapture.opencine.cameracontrols.MonitorLinkMeter
 import com.opencapture.opencine.cameracontrols.MonitorLinkObservation
 import com.opencapture.opencine.cameracontrols.MonitorOperatorLiveLayout
@@ -81,6 +82,8 @@ import com.opencapture.monitorui.monitorBackdropSource
 import com.opencapture.monitorui.monitorBottomInsetDp
 import com.opencapture.monitorui.monitorChromeScale
 import com.opencapture.monitorui.MonitorReferenceOverlay
+import com.opencapture.monitorui.MonitorReferenceMode
+import com.opencapture.monitorui.MonitorReferenceSplitHandle
 import com.opencapture.monitorui.monitorReferenceMatches
 import com.opencapture.monitorui.monitorReferenceRect
 import com.opencapture.monitorui.monitorLeadingInsetDp
@@ -440,6 +443,15 @@ private fun <F : Any> MonitorLiveFeedBody(
         val capturedReference = referenceStore?.reference?.takeIf {
             referenceStore.shown && referenceReady && monitorReferenceMatches(it.aspect, referenceAspect)
         }
+        val referenceRect: (Size) -> ComposeRect? = { well ->
+            val scale = density.density
+            val x = (pictureContent.x - layout.onFeed.x) * scale
+            val y = (pictureContent.y - layout.onFeed.y) * scale
+            val size = Size(pictureContent.width * scale, pictureContent.height * scale)
+            if (desqueezeVisible) ComposeRect(Offset(x, y), size)
+            else if (useVulkan) monitorReferenceRect(well, rawReferenceAspect, fill = true)
+            else monitorReferenceRect(size, rawReferenceAspect, fill = false)?.translate(x, y)
+        }
         val wantsFaceDetect by source.wantsFaceDetect.collectAsState()
         var canvasOrigin by remember { mutableStateOf(Offset.Zero) }
         DisposableEffect(vulkanSession) {
@@ -481,16 +493,8 @@ private fun <F : Any> MonitorLiveFeedBody(
                 if (capturedReference != null) {
                     MonitorReferenceOverlay(capturedReference.bitmap.asImageBitmap(), referenceStore.mode,
                         referenceStore.opacity, referenceStore.split, { referenceStore.split = it },
-                        imageRect = { well ->
-                            val scale = density.density
-                            val x = (pictureContent.x - layout.onFeed.x) * scale
-                            val y = (pictureContent.y - layout.onFeed.y) * scale
-                            val size = Size(pictureContent.width * scale, pictureContent.height * scale)
-                            if (desqueezeVisible) ComposeRect(Offset(x, y), size)
-                            else if (useVulkan) monitorReferenceRect(well, rawReferenceAspect, fill = true)
-                            else monitorReferenceRect(size, rawReferenceAspect, fill = false)?.translate(x, y)
-                        }, mirrorX = liveViewFlip, mirrorY = flipV,
-                        modifier = Modifier.frame(layout.onFeed).clipToBounds(), interactive = referenceActionsEnabled,
+                        imageRect = referenceRect, mirrorX = liveViewFlip, mirrorY = flipV,
+                        modifier = Modifier.frame(layout.onFeed).clipToBounds(), interactive = false,
                         splitSide = referenceStore.splitSide, splitOpacity = referenceStore.splitOpacity)
                 }
                 // Passive source geometry; this box draws and captures nothing.
@@ -525,7 +529,15 @@ private fun <F : Any> MonitorLiveFeedBody(
                     frame?.takeIf { readyNow && identityNow == snapshot }
                 })
             } else null
-            CompositionLocalProvider(LocalMonitorOperatorPaletteAction provides referenceAction) {
+            val referenceHandle: (@Composable BoxScope.() -> Unit)? =
+                if (capturedReference != null && referenceActionsEnabled && referenceStore.mode == MonitorReferenceMode.SPLIT) {
+                    {
+                        MonitorReferenceSplitHandle(referenceStore.split, { referenceStore.split = it },
+                            referenceRect, Modifier.frame(layout.onFeed).clipToBounds())
+                    }
+                } else null
+            CompositionLocalProvider(LocalMonitorOperatorPaletteAction provides referenceAction,
+                LocalMonitorOperatorReferenceHandle provides referenceHandle) {
                 MonitorLiveFeedScope(geometry, link, hasPicture, verticalPicture, liveViewFlip, recovery.isRecovering,
                     Modifier.onGloballyPositioned { if (!useVulkan) canvasOrigin = it.positionInRoot() }, picture).content()
             }

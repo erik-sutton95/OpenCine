@@ -2689,6 +2689,7 @@ public final class com/opencapture/opencine/cameracontrols/MonitorOperatorLiveBo
 	public static final fun cameraPowerReading (Lcom/opencapture/opencine/core/PowerStatus;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPowerReading;
 	public static synthetic fun cameraPowerReading$default (Lcom/opencapture/opencine/core/BatteryReading;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;ILjava/lang/Object;)Lcom/opencapture/opencine/cameracontrols/MonitorOperatorPowerReading;
 	public static final fun getLocalMonitorOperatorPaletteAction ()Landroidx/compose/runtime/ProvidableCompositionLocal;
+	public static final fun getLocalMonitorOperatorReferenceHandle ()Landroidx/compose/runtime/ProvidableCompositionLocal;
 	public static final fun monitorOperatorChromeEditable (Landroidx/compose/ui/Modifier;Lcom/opencapture/opencine/appkit/MonitorDisplaySection;Landroidx/compose/runtime/Composer;I)Landroidx/compose/ui/Modifier;
 }
 

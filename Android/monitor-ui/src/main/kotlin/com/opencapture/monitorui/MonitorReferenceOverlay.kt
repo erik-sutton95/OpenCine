@@ -73,9 +73,6 @@ fun MonitorReferenceOverlay(
     splitSide: MonitorReferenceSide = MonitorReferenceSide.LEFT,
     splitOpacity: Float = 1f,
 ) {
-    val nowSplit by rememberUpdatedState(split)
-    val updateSplit by rememberUpdatedState(onSplit)
-    val density = LocalDensity.current
     BoxWithConstraints(modifier) {
         val well = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         val imagePlacement = imageRect(well) ?: return@BoxWithConstraints
@@ -101,26 +98,52 @@ fun MonitorReferenceOverlay(
             }
         }
         if (mode == MonitorReferenceMode.SPLIT && interactive) {
-            val handleWidth = 40.dp
-            val handlePx = with(density) { handleWidth.toPx() }
-            Box(
-                Modifier.offset {
-                    IntOffset((divider - handlePx / 2f).coerceIn(0f, maxOf(well.width - handlePx, 0f)).roundToInt(),
-                        visible.top.roundToInt())
-                }.size(handleWidth, with(density) { visible.height.toDp() })
-                    .semantics {
-                        contentDescription = "Reference split"
-                        progressBarRangeInfo = ProgressBarRangeInfo(split, 0f..1f)
-                        setProgress { updateSplit(it.coerceIn(0f, 1f)); true }
-                    }.pointerInput(visible) {
-                        var value = 0.5f
-                        detectHorizontalDragGestures(onDragStart = { value = nowSplit }) { change, amount ->
-                            change.consume()
-                            value = (value + amount / visible.width).coerceIn(0f, 1f)
-                            updateSplit(value)
-                        }
-                    }
-            )
+            ReferenceSplitTarget(visible, well.width, split, onSplit)
         }
     }
+}
+
+/** Positions just the split touch target so the monitor can layer it above the focus gestures. */
+@Composable
+fun MonitorReferenceSplitHandle(
+    split: Float,
+    onSplit: (Float) -> Unit,
+    imageRect: (Size) -> Rect?,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier) {
+        val well = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        val visible = imageRect(well)?.intersect(Rect(Offset.Zero, well)) ?: return@BoxWithConstraints
+        if (visible.width > 0f && visible.height > 0f) {
+            ReferenceSplitTarget(visible, well.width, split, onSplit)
+        }
+    }
+}
+
+@Composable
+private fun ReferenceSplitTarget(visible: Rect, wellWidth: Float, split: Float, onSplit: (Float) -> Unit) {
+    val nowSplit by rememberUpdatedState(split)
+    val updateSplit by rememberUpdatedState(onSplit)
+    val density = LocalDensity.current
+    val handleWidth = 44.dp
+    val handlePx = with(density) { handleWidth.toPx() }
+    val divider = visible.left + visible.width * split.coerceIn(0f, 1f)
+    Box(
+        Modifier.offset {
+            IntOffset((divider - handlePx / 2f).coerceIn(0f, maxOf(wellWidth - handlePx, 0f)).roundToInt(),
+                visible.top.roundToInt())
+        }.size(handleWidth, with(density) { visible.height.toDp() })
+            .semantics {
+                contentDescription = "Reference split"
+                progressBarRangeInfo = ProgressBarRangeInfo(split, 0f..1f)
+                setProgress { updateSplit(it.coerceIn(0f, 1f)); true }
+            }.pointerInput(visible) {
+                var value = 0.5f
+                detectHorizontalDragGestures(onDragStart = { value = nowSplit }) { change, amount ->
+                    change.consume()
+                    value = (value + amount / visible.width).coerceIn(0f, 1f)
+                    updateSplit(value)
+                }
+            }
+    )
 }

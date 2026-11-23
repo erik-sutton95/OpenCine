@@ -141,6 +141,9 @@ public class MonitorOperatorPaletteAction(
 
 public val LocalMonitorOperatorPaletteAction = compositionLocalOf<MonitorOperatorPaletteAction?> { null }
 
+/** A split divider targets the picture but takes precedence over its focus gesture well. */
+public val LocalMonitorOperatorReferenceHandle = compositionLocalOf<(@Composable BoxScope.() -> Unit)?> { null }
+
 /** The portrait fit/fill key, placed and admitted by the surface. */
 internal class MonitorOperatorAspectControl(val frame: MonitorRect, val fills: Boolean, val change: () -> Unit)
 /** The source's focus recenter. The surface places it and admits the action. */
@@ -259,6 +262,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val admitted = interactive && !readOnly
     val linkMounted = status.fpsSection == null || status.fpsSection in mounted
     val action = LocalMonitorOperatorPaletteAction.current
+    val referenceHandle = LocalMonitorOperatorReferenceHandle.current
     val tools = if (action == null) palette else palette + action.item
     val hasOptions = { item: MonitorOperatorPaletteItem ->
         item === action?.item || item.hasOptions || signalOptions.offers(item.tool)
@@ -499,6 +503,9 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     onClick = cycleDisplay, onLongClick = null, onClickFeedback = { displayHaptics.selection() }) })
         }, tools = { accepts ->
             cameraViews.feedGestures?.invoke(this, accepts && interactive)
+            if (accepts && interactive && !command && !assistInspectorPresented && panel == null) {
+                referenceHandle?.invoke(this)
+            }
             if (command) cameraViews.dashboard?.let { dashboard ->
                 // A hardware slot cannot outlive its admission: input is refused here, whatever the slot does.
                 Box(Modifier.descriptorFrame(com.opencapture.monitorui.MonitorCommandDashboardLayout.frame(layout,
@@ -650,14 +657,18 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 val top = if (frame.portrait) (layout.viewport.height - frame.height) / 2f else 0f
                 val overlapsRecordRow = layout.record.maxY > top && layout.record.y < top + frame.height
                 val inset = MonitorInspectorPolicy.edgeInset(frame.portrait, true, safeLeading, safeTrailing)
-                // The record controls stay above the inspector. Keep its options out of their rail.
+                // System controls stay above the inspector. Keep its header and options out of their rail.
                 val railPadding = if (overlapsRecordRow) {
                     (layout.viewport.width - layout.record.x - inset).coerceAtLeast(0f)
                 } else 0f
-                MonitorInspector(action.item.title, layout.viewport.width, layout.viewport.height, closeInspector,
-                    trailing = true, safeLeading = safeLeading, safeTrailing = safeTrailing,
-                    safeTop = safeTop, safeBottom = safeBottom, hasNavigation = false) {
-                    Box(Modifier.fillMaxWidth().padding(end = railPadding.dp)) { action.options() }
+                CompositionLocalProvider(LocalMonitorInspectorBackgroundControls provides referenceHandle) {
+                    MonitorInspector(action.item.title, layout.viewport.width, layout.viewport.height, closeInspector,
+                        trailing = true, safeLeading = safeLeading, safeTrailing = safeTrailing + railPadding,
+                        safeTop = safeTop, safeBottom = safeBottom, hasNavigation = false) {
+                        Box(Modifier.fillMaxWidth().padding(end = if (frame.portrait) railPadding.dp else 0.dp)) {
+                            action.options()
+                        }
+                    }
                 }
             } else if (assistInspectorPresented) {
                 val configured = assist.configureTool
