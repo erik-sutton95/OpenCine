@@ -306,12 +306,18 @@
             return all.filter(isContentWindow)
         }
 
-        /// A window the module shows its camera in. A file panel or alert keeps its own place and size.
+        /// A window the module shows its camera in: a UIKit scene's own window. Every other window
+        /// keeps its own style, place and size: file panels, alerts, and the system's helper windows
+        /// such as the text input window, which turned into a stray set of window buttons when it was
+        /// given a title bar.
         nonisolated static func isContentWindow(_ window: NSObject) -> Bool {
             guard window.responds(to: NSSelectorFromString("setFrame:display:")) else { return false }
-            let name = NSStringFromClass(type(of: window))
-            return !name.contains("StatusBar") && !name.contains("Menu") && !name.contains("Panel")
-                && !name.contains("Alert")
+            if let sceneWindow = NSClassFromString("UINSWindow") {
+                return window.isKind(of: sceneWindow)
+            }
+            // Without that class, only windows the system made titled are scene windows.
+            let titled = 1
+            return (window.value(forKey: "styleMask") as? Int).map { $0 & titled != 0 } ?? false
         }
 
         static func setAccessoryActivationPolicy() {
