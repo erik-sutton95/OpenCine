@@ -362,6 +362,7 @@ public final class DjiAppleConnectionRun {
         let accepted = reply?.payload == [0] || reply?.payload == [0, 0]
         journal("wifi: restore camera access point accepted=\(accepted)"); try check(attempt)
         let started = try wall(attempt)
+        var previous: [UInt8]?
         for _ in 0..<15 {
             let role = try? await exchangeBLE(
                 MulticamCommands.wifiWorkMode(seq: nextStationSequence()), timeout: 4, attempt: attempt)
@@ -370,7 +371,8 @@ public final class DjiAppleConnectionRun {
             let elapsed = try wall(attempt) - started
             journal("wifi: camera role after restore \(hex ?? "no reply") at \(String(format: "%.1f", elapsed)) s")
             try check(attempt)
-            if role?.payload == [0, 0] { break }
+            if MulticamStationPolicy.accessPointRestored(previous: previous, current: role?.payload) { break }
+            previous = role?.payload
             try? await pause(.seconds(1), attempt: attempt)
         }
         try check(attempt)

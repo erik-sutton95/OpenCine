@@ -134,6 +134,21 @@ extension LunaProtocol {
             requiresEncryption: true)
     }
 
+    /// How often a camera on a Wi-Fi or hotspot setup is asked to join it again
+    /// (`stationKeepAliveRequest`). Firmware v1.2.7 leaves the network about 60 s after a join.
+    public static let stationKeepAliveInterval: Duration = .seconds(30)
+
+    /// The join again (`SetWifiConnectionInfo` 112, same network), over the control link on the
+    /// setup's network, so plain like every request there. Firmware v1.2.7 leaves a router or
+    /// hotspot about 60 s after each join and goes back to its own access point; asking it to join
+    /// the network it is on again restarts that time. It answers 200 and 8232 joined, and stays,
+    /// with no gap in live view (2026-11-22, 45 s apart). Firmware 1.1.15 stayed without it.
+    public static func stationKeepAliveRequest(ssid: String, password: String) throws -> LunaRequest {
+        LunaRequest(
+            command: .setWifiConnectionInfo, body: try stationInfo(ssid: ssid, password: password),
+            requiresEncryption: false)
+    }
+
     private static func stationInfo(ssid: String, password: String) throws -> Data {
         guard acceptsStationNetwork(ssid: ssid, password: password) else {
             throw LunaProtocolError.invalidField(1)

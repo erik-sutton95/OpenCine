@@ -26,6 +26,40 @@ struct USBPTPTransactionTransportTests {
         #expect(!raw.isClosed())
     }
 
+    /// Some Android USB stacks report an idle interrupt wait that ran out as an error instead of
+    /// a timeout. That failure took the whole wait, like the bulk-in reads classified in
+    /// OpenZCine #577, so it is an idle timeout: the session keeps draining events instead of
+    /// closing about one second after live view starts (OPENZCINE-ANDROID-B, hypothesis).
+    @Test func eventReadFailingAfterItsWholeWaitIsAnIdleTimeout() throws {
+        let event = PTPUSBContainer(
+            type: .event,
+            code: PTPEventCode.movieRecordStarted.rawValue,
+            transactionID: 7,
+            payload: Data()
+        )
+        let clock = ManualUSBClock()
+        let raw = TimedEventUSBPTPRawIO(
+            clock: clock, eventReads: [.failure(afterMilliseconds: nil), .bytes(event.serializedBytes)])
+        let transport = AndroidUSBPTPTransport(rawIO: raw, nowMilliseconds: clock.now)
+
+        #expect(throws: AndroidUSBPTPTransportError.timeout("the camera event")) {
+            try transport.nextEventSynchronously()
+        }
+        let received = try transport.nextEventSynchronously()
+        #expect(received.rawEventCode == PTPEventCode.movieRecordStarted.rawValue)
+    }
+
+    /// A failure well before the wait ran out is a real link failure and still ends the drain.
+    @Test func eventReadFailingEarlyIsStillALinkFailure() {
+        let clock = ManualUSBClock()
+        let raw = TimedEventUSBPTPRawIO(clock: clock, eventReads: [.failure(afterMilliseconds: 5)])
+        let transport = AndroidUSBPTPTransport(rawIO: raw, nowMilliseconds: clock.now)
+
+        #expect(throws: AndroidUSBPTPTransportError.readFailed("the camera event")) {
+            try transport.nextEventSynchronously()
+        }
+    }
+
     @Test func malformedDataPhaseNeverWritesAnAmbiguousUSBTransaction() throws {
         let raw = FakeUSBPTPRawIO()
         let transport = AndroidUSBPTPTransport(rawIO: raw)
@@ -372,4 +406,51 @@ private final class BlockingUSBPTPRawIO: USBPTPRawIO, @unchecked Sendable {
         }
         return true
     }
+}
+
+/// Monotonic milliseconds the test advances by hand; the raw I/O below spends its waits on it.
+private final class ManualUSBClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var milliseconds: UInt64 = 1_000
+
+    var now: @Sendable () -> UInt64 { { [self] in lock.withLock { milliseconds } } }
+
+    func advance(by delta: Int) {
+        lock.withLock { milliseconds += UInt64(delta) }
+    }
+}
+
+/// Event reads that fail after a set part of their wait (nil: the whole wait).
+private final class TimedEventUSBPTPRawIO: USBPTPRawIO, @unchecked Sendable {
+    enum EventRead {
+        case bytes([UInt8])
+        case failure(afterMilliseconds: Int?)
+    }
+
+    private let clock: ManualUSBClock
+    private var eventReads: [EventRead]
+
+    init(clock: ManualUSBClock, eventReads: [EventRead]) {
+        self.clock = clock
+        self.eventReads = eventReads
+    }
+
+    func writeBulk(_ bytes: [UInt8], timeoutMilliseconds _: Int) -> Int? { bytes.count }
+
+    func readBulk(maxBytes _: Int, timeoutMilliseconds _: Int) -> [UInt8]? { [] }
+
+    func readEvent(maxBytes _: Int, timeoutMilliseconds: Int) -> [UInt8]? {
+        guard !eventReads.isEmpty else { return [] }
+        switch eventReads.removeFirst() {
+        case .bytes(let bytes):
+            return bytes
+        case .failure(let afterMilliseconds):
+            clock.advance(by: afterMilliseconds ?? timeoutMilliseconds)
+            return nil
+        }
+    }
+
+    func isClosed() -> Bool { false }
+
+    func close() {}
 }

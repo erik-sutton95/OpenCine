@@ -178,6 +178,72 @@ import Testing
         clock.advance(.seconds(100)); #expect(await settle { clock.pending == 0 })
         #expect(motion.moves.count == 1 && !move.state.progress.running && move.state.operation == nil)
     }
+    /// A camera may leave about 2 in 100 SETs unanswered: a lost reply to a target the camera
+    /// has already moved past (a later one was accepted) must not end a long take.
+    @Test func anUnansweredTargetPastALaterAcceptedOneKeepsTheTakeRunning() async {
+        let clock = ProgramClock(); let move = owner(clock); let motion = ProgramMotion()
+        motion.delaysReplies = true
+        #expect(move.start(program(), source: .init(motion: motion, isCurrent: { true }), timing: timing))
+        #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        motion.reply(true)
+        clock.advance(.seconds(3)); #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        clock.advance(.milliseconds(33)); #expect(await settle { motion.pending == 2 && clock.pending == 1 })
+        motion.replyLast(true)
+        // A lost reply surfaces only at its timeout, long after the later acceptance is handled.
+        #expect(await settle { motion.returned == 1 })
+        for _ in 0..<200 { await Task.yield() }
+        motion.reply(false)
+        clock.advance(.milliseconds(33)); #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        #expect(move.state.failure == nil && move.state.progress.running && move.state.operation != nil)
+        move.cancel(); while motion.pending > 0 { motion.reply(true) }; clock.advance(.seconds(100))
+    }
+
+    @Test func anUnansweredTargetWithNothingLaterAcceptedEndsTheTake() async {
+        let clock = ProgramClock(); let move = owner(clock); let motion = ProgramMotion()
+        motion.delaysReplies = true
+        #expect(move.start(program(), source: .init(motion: motion, isCurrent: { true }), timing: timing))
+        #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        motion.reply(true)
+        clock.advance(.seconds(3)); #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        clock.advance(.milliseconds(33)); #expect(await settle { motion.pending == 2 && clock.pending == 1 })
+        motion.reply(false)
+        #expect(await settle { move.state.failure == .commandRejected })
+        while motion.pending > 0 { motion.reply(true) }; clock.advance(.seconds(100))
+    }
+
+    @Test func anUnansweredFinalTargetIsSentOnceMore() async {
+        let clock = ProgramClock(); let move = owner(clock); let motion = ProgramMotion()
+        motion.delaysReplies = true
+        #expect(move.start(program(), source: .init(motion: motion, isCurrent: { true }), timing: timing))
+        #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        motion.reply(true)
+        clock.advance(.seconds(3)); #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        motion.reply(true)
+        clock.advance(.seconds(3)); #expect(await settle { motion.pending == 1 && clock.pending == 0 })
+        let count = motion.moves.count
+        motion.reply(false)
+        #expect(await settle { motion.pending == 1 && motion.moves.count == count + 1 })
+        #expect(motion.moves.last?.yawDeg == 20 && move.state.failure == nil)
+        motion.reply(true)
+        #expect(await settle { move.state.operation == nil })
+        #expect(move.state.failure == nil)
+    }
+
+    @Test func aFinalTargetUnansweredTwiceEndsTheTake() async {
+        let clock = ProgramClock(); let move = owner(clock); let motion = ProgramMotion()
+        motion.delaysReplies = true
+        #expect(move.start(program(), source: .init(motion: motion, isCurrent: { true }), timing: timing))
+        #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        motion.reply(true)
+        clock.advance(.seconds(3)); #expect(await settle { motion.pending == 1 && clock.pending == 1 })
+        motion.reply(true)
+        clock.advance(.seconds(3)); #expect(await settle { motion.pending == 1 && clock.pending == 0 })
+        motion.reply(false)
+        #expect(await settle { motion.pending == 1 })
+        motion.reply(false)
+        #expect(await settle { move.state.failure == .commandRejected })
+    }
+
     @Test func sourcePredicateReplacementDuringPulseReturningFalse() async {
         await predicateReplacementDuringPulse(returning: false)
     }
@@ -292,6 +358,7 @@ import Testing
         return accepts
     }
     func reply(_ accepted: Bool) { replies.removeFirst().resume(returning: accepted) }
+    func replyLast(_ accepted: Bool) { replies.removeLast().resume(returning: accepted) }
     func stick(pan: Double, tilt: Double) async -> Bool { true }
     func recenter() async -> Bool { true }
     func stop() async -> Bool { stops += 1; return true }

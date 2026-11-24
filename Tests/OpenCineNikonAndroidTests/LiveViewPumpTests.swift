@@ -47,7 +47,8 @@ struct LiveViewPumpTests {
         #expect(frames.allSatisfy { $0.frame.jpeg.prefix(3) == Data([0xFF, 0xD8, 0xFF]) })
         // Pulled frames only ever move forward (each poll returns the newest),
         // and delivery timestamps are monotonic.
-        let counters = frames.map { FakeZRServer.frameCounter(of: $0.frame.timecode) }
+        let counters = frames.compactMap { $0.frame.timecode.map(FakeZRServer.frameCounter(of:)) }
+        #expect(counters.count == frames.count, "every ZR header carries its timecode")
         #expect(counters == counters.sorted())
         let timestamps = frames.map(\.timestampNanos)
         #expect(timestamps == timestamps.sorted())
@@ -99,8 +100,8 @@ struct LiveViewPumpTests {
 
         // Each ~150 ms stall spans ~15 source frames: deliveries must skip
         // ahead (latest-wins at the source), never replay a queued backlog.
-        let counters = collector.snapshot().map {
-            FakeZRServer.frameCounter(of: $0.frame.timecode)
+        let counters = collector.snapshot().compactMap {
+            $0.frame.timecode.map(FakeZRServer.frameCounter(of:))
         }
         #expect(counters == counters.sorted())
         #expect(zip(counters, counters.dropFirst()).contains { $1 - $0 > 1 })
@@ -136,7 +137,7 @@ struct LiveViewPumpTests {
             onFrame: { frame, timestamp in collector.record(frame, at: timestamp) },
             onEnded: { collector.markEnded() })
         try collector.waitForFrames(atLeast: 2)
-        #expect(!collector.snapshot().contains { $0.frame.isRecording })
+        #expect(!collector.snapshot().contains { $0.frame.isRecording != false })
 
         try session.startRecording()
         try collector.waitForRecordingState(true)

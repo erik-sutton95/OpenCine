@@ -134,6 +134,31 @@ class LunaMemberLinkTest {
         assertNull(link.recordReport)
     }
 
+    /**
+     * OPENINSTACINE-IOS-S: a record start can pause the encoder (Color Recovery), and the live link
+     * does not restart live mid-take before the long recording bound, so the tile does not read
+     * Reconnecting before then either.
+     */
+    @Test
+    fun aRecordingMembersStallLeavesTheTakeAlone() = runTest {
+        val port = FakeLunaStationPort(backgroundScope)
+        val link = live(port)
+        port.camera.captureState = 1
+        port.camera.reportCapture()
+        port.secondsSinceVideo = 0.5
+        link.keepalive()
+        val statuses = mutableListOf<MultiviewLinkStatus>()
+        link.onStatus = { statuses += it }
+        for (silence in listOf(3.0, 7.0, 16.0, 29.0)) {
+            port.secondsSinceVideo = silence
+            assertEquals(MultiviewRepairStep.Handled, link.repair(MultiviewRepairContext()))
+        }
+        assertTrue(statuses.isEmpty(), "a recording member's stall is not a reconnect yet")
+        port.secondsSinceVideo = 31.0
+        assertEquals(MultiviewRepairStep.Handled, link.repair(MultiviewRepairContext()))
+        assertEquals(listOf(MultiviewLinkStatus.RECONNECTING), statuses)
+    }
+
     @Test
     fun aStallRestartsLiveInPlace() = runTest {
         // Android's live link runs the stall ladder itself: the link only waits, never Bluetooth,

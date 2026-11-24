@@ -671,6 +671,7 @@ static func MulticamCommands.wifiWorkMode(seq: Swift.UInt16) -> Duml.Frame
 static func MulticamDiscovery.hosts(address: Swift.String, mask: Swift.String, excluding: Swift.Set<Swift.String>) -> [Swift.String]?
 static func MulticamJoinPolicy.decision(reply: [Swift.UInt8], attempt: Swift.Int) -> MulticamJoinPolicy.Decision
 static func MulticamStationPolicy.acceptsSetter(_: [Swift.UInt8], missingQuery: Swift.Bool) -> Swift.Bool
+static func MulticamStationPolicy.accessPointRestored(previous: [Swift.UInt8]?, current: [Swift.UInt8]?) -> Swift.Bool
 static func MulticamStationPolicy.decision(reply: [Swift.UInt8], allowMissingQuery: Swift.Bool) -> MulticamStationPolicy.Decision
 static func MulticamSupport.acceptsMissingRoleQuery(_: OpenCineCameraVocabulary.CameraModel, reply: [Swift.UInt8]) -> Swift.Bool
 static func MulticamSupport.appears(_: OpenCineCameraVocabulary.CameraModel) -> Swift.Bool

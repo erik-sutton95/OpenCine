@@ -1380,19 +1380,21 @@ class PocketCameraSession(
             .getOrNull()
         val accepted = reply?.contentEquals(byteArrayOf(0)) == true || reply?.contentEquals(byteArrayOf(0, 0)) == true
         DjiLog.log("info", "session", "wifi", "wifi: restore camera access point accepted=$accepted")
-        // Join only once `07/39` reports 00 00 (access point; 00 01 is station). iOS saw
+        // Join only once `07/39` reports the access point (AccessPointRestore). iOS saw
         // 0.2 to 2.4 s on a Pocket 4 Pro.
         val started = SystemClock.elapsedRealtime()
-        for (poll in 0 until 15) {
-            val role = runCatching { exchangeBle(DjiNative.CMD_MULTICAM_WIFI_WORK_MODE, timeoutMs = 4_000) }
-                .onFailure { if (it is kotlinx.coroutines.CancellationException && it !is TimeoutCancellationException) throw it }
-                .getOrNull()
-            DjiLog.log("info", "session", "wifi",
-                "wifi: camera role after restore ${role?.let(::hexBytes) ?: "no reply"} at " +
-                    "${"%.1f".format(Locale.US, (SystemClock.elapsedRealtime() - started) / 1000.0)} s")
-            if (role?.contentEquals(byteArrayOf(0, 0)) == true) break
-            delay(1_000)
-        }
+        AccessPointRestore.await(
+            read = {
+                val role = runCatching { exchangeBle(DjiNative.CMD_MULTICAM_WIFI_WORK_MODE, timeoutMs = 4_000) }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException && it !is TimeoutCancellationException) throw it }
+                    .getOrNull()
+                DjiLog.log("info", "session", "wifi",
+                    "wifi: camera role after restore ${role?.let(::hexBytes) ?: "no reply"} at " +
+                        "${"%.1f".format(Locale.US, (SystemClock.elapsedRealtime() - started) / 1000.0)} s")
+                role
+            },
+            pause = { delay(1_000) },
+        )
     }
 
     /**
