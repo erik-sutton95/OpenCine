@@ -2,8 +2,8 @@
     import CoreLocation
     import NetworkExtension
 
-    /// iOS names the current Wi-Fi to an app only with precise location permission (and the
-    /// Access WiFi Information entitlement). Asked in context, from Add setup › Wi-Fi
+    /// iOS (and a Mac Catalyst app) names the current Wi-Fi only with precise location permission
+    /// (and the Access WiFi Information entitlement). Asked in context, from Add setup › Wi-Fi
     /// or Multiview, never at launch. Location itself is never read.
     @MainActor public final class StationWiFiNameAccess: NSObject, CLLocationManagerDelegate {
         public static let shared = StationWiFiNameAccess()
@@ -60,7 +60,7 @@
         /// iOS withholds the network (no location permission, the simulator).
         @MainActor
         public static func currentNetwork(named ssid: String) async -> Bool? {
-            #if targetEnvironment(simulator) || targetEnvironment(macCatalyst)
+            #if targetEnvironment(simulator)
                 return nil
             #else
                 guard let network = await NEHotspotNetwork.fetchCurrent(), network.ssid == ssid

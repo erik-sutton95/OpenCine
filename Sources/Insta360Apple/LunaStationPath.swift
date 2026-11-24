@@ -191,9 +191,10 @@ enum LunaStationPath {
             phase: .joiningNetwork, actions: [.openSettings, .retry])
     }
 
-    /// This phone's Wi-Fi name; nil when iOS withholds it (no location permission) or off Wi-Fi.
+    /// This phone's (or Mac's) Wi-Fi name; nil when the system withholds it (no location
+    /// permission or Wi-Fi info entitlement) or off Wi-Fi.
     static func currentSSID() async -> String? {
-        #if os(iOS) && !targetEnvironment(macCatalyst) && !targetEnvironment(simulator)
+        #if os(iOS) && !targetEnvironment(simulator)
             await NEHotspotNetwork.fetchCurrent()?.ssid
         #else
             nil

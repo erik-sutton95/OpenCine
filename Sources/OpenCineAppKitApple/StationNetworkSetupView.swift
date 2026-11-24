@@ -123,6 +123,17 @@
                     $0.userInterfaceLevel = .elevated
                 }))
 
+        /// The device the words name. A computer opens on the network list: it offers no camera
+        /// Wi-Fi or hotspot (`StationSetupRoute.offered`), and the network is one it is on.
+        private var host: HostDevice { .current }
+        private var mac: Bool { host.isComputer }
+        private var root: Page { mac ? .networks : .choose }
+        private var networkHint: String {
+            mac
+                ? "The camera joins this network. This Mac must be on it too, by Wi-Fi or Ethernet."
+                : context.networkHint
+        }
+
         private var warning: Color { MonitorTheme.linkHealthColor(.watch) }
         private var good: Color { MonitorTheme.linkHealthColor(.stable) }
 
@@ -177,7 +188,7 @@
 
         private var wizard: some View {
             NavigationStack(path: $path) {
-                screen(.choose)
+                screen(root)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel", action: dismiss)
@@ -319,9 +330,12 @@
             if current != nil || access.undecided {
                 locationHint = nil
             } else if access.denied {
-                locationHint = "Allow Location to show this iPhone’s Wi-Fi"
+                locationHint = mac ? "Allow Location to show this Mac’s Wi-Fi" : "Allow Location to show this iPhone’s Wi-Fi"
             } else if access.approximateOnly {
-                locationHint = "Turn on Precise Location to show this iPhone’s Wi-Fi"
+                locationHint =
+                    mac
+                    ? "Turn on Precise Location to show this Mac’s Wi-Fi"
+                    : "Turn on Precise Location to show this iPhone’s Wi-Fi"
             } else {
                 locationHint = nil
             }
@@ -441,7 +455,8 @@
 
         private func choosePage(_ landscape: Bool) -> some View {
             AddSetupChooserView(
-                chooser: StationNetworkSetupRules.setupChooser(context: context),
+                chooser: StationNetworkSetupRules.setupChooser(
+                    context: context, routes: StationSetupRoute.offered(on: host, hostRoutes: StationSetupRoute.stationNetworks)),
                 onSelect: { open($0.kind == .infrastructureNetwork ? .networks : .hotspot) },
                 horizontal: landscape)
         }
@@ -463,10 +478,10 @@
             let known = VStack(alignment: .leading, spacing: 7) {
                 if !landscape {
                     Text("Choose the network").font(MonitorTheme.font(22, weight: .semibold))
-                    hint(context.networkHint).padding(.bottom, 8)
+                    hint(networkHint).padding(.bottom, 8)
                 }
                 if let currentSSID {
-                    sectionHeader("THIS IPHONE IS ON")
+                    sectionHeader(mac ? "THIS MAC IS ON" : "THIS IPHONE IS ON")
                         .accessibilityIdentifier("\(context.prefix).currentHeader")
                     group {
                         networkRow(
@@ -476,7 +491,7 @@
                             detailColor: good)
                     }
                 } else if let locationHint {
-                    sectionHeader("THIS IPHONE IS ON")
+                    sectionHeader(mac ? "THIS MAC IS ON" : "THIS IPHONE IS ON")
                         .accessibilityIdentifier("\(context.prefix).currentHeader")
                     group {
                         Button {
@@ -486,8 +501,9 @@
                         } label: {
                             row(
                                 icon: .wifi, title: locationHint,
-                                detail:
-                                    "Settings › \(brand.appName) › Location. Only the Wi-Fi name is used."
+                                detail: mac
+                                    ? "System Settings › Privacy & Security › Location Services. Only the Wi-Fi name is used."
+                                    : "Settings › \(brand.appName) › Location. Only the Wi-Fi name is used."
                             )
                         }
                         .buttonStyle(.plain)
@@ -495,7 +511,7 @@
                     }
                 }
                 if !savedNetworks.isEmpty {
-                    sectionHeader("SAVED ON THIS IPHONE").padding(.top, 6)
+                    sectionHeader(mac ? "SAVED ON THIS MAC" : "SAVED ON THIS IPHONE").padding(.top, 6)
                     group {
                         ForEach(Array(savedNetworks.enumerated()), id: \.element) { index, name in
                             if index > 0 { divider }
@@ -549,10 +565,12 @@
                     }
                 }
                 if landscape {
-                    hint(context.networkHint).padding(.top, 4)
+                    hint(networkHint).padding(.top, 4)
                 }
             }
-            return columns(side, spacing: 7, known, nearby)
+            // A Mac pairing a new camera has no camera link to scan with: only its own and saved
+            // networks, and Other network.
+            return columns(side, spacing: 7, known, Group { if !(mac && scan == nil) { nearby } })
         }
 
         private func networkRow(_ name: String, detail: String? = nil, detailColor: Color? = nil)
@@ -577,7 +595,8 @@
                     Text(ssid).font(MonitorTheme.font(16, weight: .semibold))
                     Text(
                         ssid == currentSSID
-                            ? "This iPhone’s current network" : "This iPhone joins it too"
+                            ? mac ? "This Mac’s current network" : "This iPhone’s current network"
+                            : mac ? "This Mac must be on it, by Wi-Fi or Ethernet" : "This iPhone joins it too"
                     )
                     .font(MonitorTheme.font(11.5)).foregroundStyle(MonitorTheme.muted)
                 }
@@ -609,7 +628,10 @@
                 if let note = StationNetworkSetupRules.passwordNote(password, secured: secured) {
                     hint(note).accessibilityIdentifier("\(context.prefix).passwordNote")
                 }
-                hint("Saved in this iPhone’s Keychain. Multiview can reuse it.")
+                hint(
+                    mac
+                        ? "Saved in this Mac’s Keychain. Every camera you add joins it."
+                        : "Saved in this iPhone’s Keychain. Multiview can reuse it.")
             }
             .task(id: ssid) {
                 let lookup = services.networkSecured ?? StationNetworkSecurity.currentNetwork(named:)
