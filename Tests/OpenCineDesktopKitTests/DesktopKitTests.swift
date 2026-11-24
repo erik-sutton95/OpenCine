@@ -108,6 +108,30 @@ import Testing
         }
     }
 
+    @Test func tabAndWindowMessagesRoundTrip() throws {
+        let frame = WindowFrame(x: 10, y: 20, width: 1280, height: 800)
+        let dock: [DockMessage] = [
+            .tabs(
+                [
+                    DockTab(id: "a", displayName: "A", state: .live),
+                    DockTab(id: "b", displayName: "B", state: .stopped),
+                ], selectedID: "a",
+                notice: DockNotice(text: "Turn on camera driver", opensDriverSettings: true)),
+            .tabs([], selectedID: nil, notice: nil),
+            .place(frame: frame),
+        ]
+        let module: [ModuleMessage] = [
+            .selectTab(id: "b"), .windowFrame(frame, final: true), .windowFrame(frame, final: false),
+            .shown, .closeRequested,
+        ]
+        var dockWire = try dock.reduce(Data()) { $0 + (try LengthPrefixedJSON.encode($1)) }
+        var moduleWire = try module.reduce(Data()) { $0 + (try LengthPrefixedJSON.encode($1)) }
+        let dockReceived: [DockMessage] = try LengthPrefixedJSON.decodeAll(&dockWire)
+        let moduleReceived: [ModuleMessage] = try LengthPrefixedJSON.decodeAll(&moduleWire)
+        #expect(dockReceived == dock)
+        #expect(moduleReceived == module)
+    }
+
     @Test func oversizedMessageThrows() {
         var buffer = Data([0xFF, 0xFF, 0xFF, 0xFF, 0x00])
         #expect(throws: LengthPrefixedJSONError.messageTooLarge) {

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct WindowFrame: Codable, Equatable, Sendable {
+public struct WindowFrame: Codable, Hashable, Sendable {
     public var x: Double
     public var y: Double
     public var width: Double
@@ -14,6 +14,62 @@ public struct WindowFrame: Codable, Equatable, Sendable {
     }
 }
 
+extension WindowFrame {
+    /// The frame to open at, given the visible frames of the attached screens: `self` while at least
+    /// 100 by 100 points of it lie on one screen, otherwise a default-sized frame (no larger than the
+    /// screen) centred on the first screen. With no screens known, `self`.
+    public func fitted(onto screens: [WindowFrame], defaultWidth: Double, defaultHeight: Double)
+        -> WindowFrame
+    {
+        guard let main = screens.first else { return self }
+        let minimumVisible = 100.0
+        for screen in screens {
+            let overlapWidth = min(x + width, screen.x + screen.width) - max(x, screen.x)
+            let overlapHeight = min(y + height, screen.y + screen.height) - max(y, screen.y)
+            if overlapWidth >= minimumVisible, overlapHeight >= minimumVisible { return self }
+        }
+        let fittedWidth = min(defaultWidth, main.width)
+        let fittedHeight = min(defaultHeight, main.height)
+        return WindowFrame(
+            x: main.x + (main.width - fittedWidth) / 2, y: main.y + (main.height - fittedHeight) / 2,
+            width: fittedWidth, height: fittedHeight)
+    }
+}
+
+/// One camera tab as every module's tab bar draws it.
+public struct DockTab: Codable, Hashable, Sendable {
+    public enum State: Codable, Hashable, Sendable {
+        case idle
+        case connecting
+        case live
+        case failed
+        /// Not running: the tab offers a restart.
+        case stopped
+    }
+
+    public var id: String
+    public var displayName: String
+    public var state: State
+
+    public init(id: String, displayName: String, state: State) {
+        self.id = id
+        self.displayName = displayName
+        self.state = state
+    }
+}
+
+/// A line at the trailing end of the tab bar, such as the driver needing approval.
+public struct DockNotice: Codable, Hashable, Sendable {
+    public var text: String
+    /// Clicking it opens the system settings where the camera driver is turned on.
+    public var opensDriverSettings: Bool
+
+    public init(text: String, opensDriverSettings: Bool) {
+        self.text = text
+        self.opensDriverSettings = opensDriverSettings
+    }
+}
+
 public enum ModuleStatus: Codable, Equatable, Sendable {
     case idle
     case connecting
@@ -22,16 +78,29 @@ public enum ModuleStatus: Codable, Equatable, Sendable {
 }
 
 /// From the dock to a module.
-public enum DockMessage: Codable, Equatable, Sendable {
+public enum DockMessage: Codable, Hashable, Sendable {
+    /// Bring the window in front at `frame`; the module answers `shown` once it is on screen.
     case show(frame: WindowFrame)
+    /// Keep the hidden window at `frame`, without bringing it in.
+    case place(frame: WindowFrame)
     case hide
     case quit
+    /// What the tab bar shows: every tab, the selected one and an optional notice.
+    case tabs([DockTab], selectedID: String?, notice: DockNotice?)
 }
 
 /// From a module to the dock.
 public enum ModuleMessage: Codable, Equatable, Sendable {
     case ready(moduleID: String)
     case status(ModuleStatus)
+    /// The owner clicked a tab in this module's tab bar.
+    case selectTab(id: String)
+    /// The visible window moved or resized; `final` once the change has settled.
+    case windowFrame(WindowFrame, final: Bool)
+    /// The window is on screen after a `show`.
+    case shown
+    /// The owner clicked the window's close button.
+    case closeRequested
 }
 
 public enum LengthPrefixedJSONError: Error, Equatable, Sendable {
