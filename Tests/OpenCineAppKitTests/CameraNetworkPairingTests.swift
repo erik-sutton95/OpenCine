@@ -28,7 +28,8 @@ import Testing
         if let network { choice.save(.init(network: network)) }
         let passwords = Passwords()
         let pairing = CameraNetworkPairing(
-            store: choice, password: { passwords.byNetwork[$0] }, currentNetwork: { current })
+            store: choice, password: { passwords.byNetwork[$0] },
+            savePassword: { passwords.byNetwork[$0.ssid] = $0.password }, currentNetwork: { current })
         return (model, fake, pairing, passwords, choice)
     }
 
@@ -70,9 +71,9 @@ import Testing
         await pairing.pair(try await sighting(model, fake), in: model)
         #expect(pairing.asking == .init(suggested: "Studio"))
         #expect(fake.attempts.isEmpty, "nothing connects before the network is chosen")
-        passwords.byNetwork["Studio"] = "pass1234"
         pairing.chose(StationNetwork(ssid: "Studio", password: "pass1234", hotspot: false), in: model)
         #expect(pairing.asking == nil && pairing.network == "Studio" && store.load() == .init(network: "Studio"))
+        #expect(passwords.byNetwork["Studio"] == "pass1234", "the password is kept for the next pairing")
         #expect(await eventually { !fake.attempts.isEmpty })
         guard case .addRoute(_, let draft) = fake.attempts[0].target else { Issue.record("not an added setup"); return }
         #expect(draft == RouteDraft(kind: .infrastructureNetwork, network: "Studio", secret: "pass1234"))
@@ -101,8 +102,9 @@ import Testing
 
     @available(macOS 14, *)
     @Test func changeAppliesToTheNextPairingOnly() async throws {
-        let (model, fake, pairing, passwords, store) = setup(network: "Studio")
-        passwords.byNetwork = ["Studio": "pass1234", "Venue": "venue123"]
+        // The Mac reads another Wi-Fi name: the next pairing must still reuse the changed network.
+        let (model, fake, pairing, passwords, store) = setup(current: "Other", network: "Studio")
+        passwords.byNetwork = ["Studio": "pass1234"]
         #expect(pairing.network == "Studio")
         pairing.change()
         #expect(pairing.asking == .init(suggested: "Studio"))
@@ -112,7 +114,8 @@ import Testing
         await pairing.pair(try await sighting(model, fake), in: model)
         #expect(await eventually { !fake.attempts.isEmpty })
         guard case .addRoute(_, let draft) = fake.attempts[0].target else { Issue.record("not an added setup"); return }
-        #expect(draft.network == "Venue")
+        #expect(pairing.asking == nil, "the password typed on Change network is kept")
+        #expect(draft == RouteDraft(kind: .infrastructureNetwork, network: "Venue", secret: "venue123"))
         pairing.cancel()
         #expect(pairing.asking == nil)
     }

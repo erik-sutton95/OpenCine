@@ -27,18 +27,21 @@ public final class CameraNetworkPairing {
 
     @ObservationIgnored private let store: CameraNetworkStore
     @ObservationIgnored private let password: (String) -> String?
+    @ObservationIgnored private let savePassword: (StationNetwork) -> Void
     @ObservationIgnored private let currentNetwork: () async -> String?
     /// The sighting a first pairing connects once its network is chosen.
     @ObservationIgnored private var pending: CamerasModel.Sighting?
 
-    /// `password` is the app's saved password for a network (nil when gone); `currentNetwork` the
-    /// computer's Wi-Fi name, nil when unknown (Ethernet, no permission).
+    /// `password` is the app's saved password for a network (nil when gone) and `savePassword`
+    /// keeps one in the app's store; `currentNetwork` the computer's Wi-Fi name, nil when unknown
+    /// (Ethernet, no permission).
     public init(
         store: CameraNetworkStore, password: @escaping (String) -> String?,
-        currentNetwork: @escaping () async -> String?
+        savePassword: @escaping (StationNetwork) -> Void, currentNetwork: @escaping () async -> String?
     ) {
         self.store = store
         self.password = password
+        self.savePassword = savePassword
         self.currentNetwork = currentNetwork
         network = store.load()?.network
     }
@@ -63,8 +66,10 @@ public final class CameraNetworkPairing {
         asking = Ask(suggested: network)
     }
 
-    /// The network page confirmed `choice`: remember it and connect any camera waiting for it.
+    /// The network page confirmed `choice`: remember it with its password (a Change network
+    /// connects nothing, so the integration would never see it) and connect any camera waiting.
     public func chose(_ choice: StationNetwork, in model: CamerasModel) {
+        savePassword(choice)
         store.save(CameraNetworkChoice(network: choice.ssid))
         network = choice.ssid
         asking = nil

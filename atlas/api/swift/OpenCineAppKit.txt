@@ -983,7 +983,7 @@ init AppShell(model: ShellModel, brand: ShellBrand, actions: ShellActions, safeA
 init AppShell(model: ShellModel, brand: ShellBrand, actions: ShellActions, safeArea: ((SwiftUI.GeometryProxy) -> SwiftUI.EdgeInsets)?, pairingFlow: IntegrationPairingFlow?, coverPresentation: ShellCoverPresentation, monitor: (ShellModel.Monitor) -> Monitor, page: (ShellModel.Cover) -> Page)<Monitor, Page, PrePage where Monitor : SwiftUI.View, Page : SwiftUI.View, PrePage == SwiftUI.EmptyView>
 init BodyRecordsV0(integration: OpenCineCore.IntegrationID, dates: BodyRecordsV0.Dates)
 init CameraNetworkChoice(network: Swift.String)
-init CameraNetworkPairing(store: CameraNetworkStore, password: (Swift.String) -> Swift.String?, currentNetwork: () async -> Swift.String?)
+init CameraNetworkPairing(store: CameraNetworkStore, password: (Swift.String) -> Swift.String?, savePassword: (OpenCineCore.StationNetwork) -> Swift.Void, currentNetwork: () async -> Swift.String?)
 init CameraNetworkPairing.Ask(suggested: Swift.String?)
 init CameraNetworkStore(defaults: Foundation.UserDefaults, key: Swift.String)
 init CameraSettingsPresetStore(storage: Foundation.UserDefaults, prefix: Swift.String)
