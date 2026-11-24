@@ -2,6 +2,7 @@
 import Foundation
 import OpenCineDJI
 import CoreBluetooth
+import OpenCineCore
 
 extension DjiAppleDatalink: DjiAppleConnectionEndpoint {}
 
@@ -29,6 +30,13 @@ extension DjiAppleConnectionTransport {
                 currentSSID: { await DjiAppleWiFiJoiner.currentSSID(host: host) },
                 candidates: { try await DjiAppleNetworkDiscovery().candidates(excluding: [], hotspot: $0) },
                 subnetSize: { hotspot in
+                    #if targetEnvironment(macCatalyst)
+                        if !hotspot {
+                            return DjiAppleSharedWiFiPath.stationInterfaces().reduce(0) {
+                                $0 + HostInterfacePick.sweepHosts($1).count
+                            }
+                        }
+                    #endif
                     guard let address = DjiAppleSharedWiFiPath.address(hotspot: hotspot),
                         let mask = DjiAppleSharedWiFiPath.netmask(hotspot: hotspot) else { return nil }
                     return MulticamDiscovery.hosts(address: address, mask: mask)?.count

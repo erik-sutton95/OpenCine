@@ -390,7 +390,12 @@ public final class DjiAppleConnectionRun {
             attempt.path.joinedSSID = nil; try pathChanged(attempt)
         }
         if !hotspot {
-            try stage(.joiningWiFi, text: "Joining \(network.ssid) on this iPhone", attempt: attempt)
+            #if targetEnvironment(macCatalyst)
+                let joining = "Checking this Mac is on a network"
+            #else
+                let joining = "Joining \(network.ssid) on this iPhone"
+            #endif
+            try stage(.joiningWiFi, text: joining, attempt: attempt)
             let address = try await transport.network.joinHost(network.ssid, network.password)
             try check(attempt)
             guard address != nil else { throw Failure.hostWiFi(network.ssid) }

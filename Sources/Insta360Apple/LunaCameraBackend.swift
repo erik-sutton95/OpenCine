@@ -523,7 +523,7 @@ public final class LunaCameraBackend: CameraBackend {
     /// Whether a Luna answers its control port at `host` on `network` (a greeting probe, as the
     /// station search sends): no session, no request. False when this phone is not on `network`.
     public func probeStation(_ host: String, on network: LunaStationNetwork) async -> Bool {
-        guard let local = LunaStationPath.address(hotspot: network.hotspot) else { return false }
+        guard let local = LunaStationPath.address(hotspot: network.hotspot, toward: host) else { return false }
         return await LunaStationPath.probe(host, local: local.address) == .camera
     }
 
@@ -547,7 +547,8 @@ public final class LunaCameraBackend: CameraBackend {
                 eventHandler?(.note("Reconnecting to the camera on “\(network.ssid)”…"))
                 let local = try await joinStation(network, token: token)
                 try validate(token)
-                return local.address
+                // A Mac on several networks dials the known host from the one that holds it.
+                return LunaStationPath.address(hotspot: network.hotspot, toward: known.host)?.address ?? local.address
             },
             probe: { host, local in await LunaStationPath.probe(host, local: local) },
             open: { host, serial, local in
@@ -585,12 +586,14 @@ public final class LunaCameraBackend: CameraBackend {
         eventHandler?(.note("Finding the camera on “\(network.ssid)”…"))
         // Several cameras may share the network: a host whose serial is not this camera's is
         // closed and skipped, and the search goes on.
+        // A Mac on Wi-Fi and Ethernet searches both, the joined network first.
+        let networks = [local] + LunaStationPath.stationAddresses(hotspot: network.hotspot).filter { $0 != local }
         guard
             try await LunaStationPath.findRequestedCamera(
-                on: local, preferred: moved.address ?? preferred, budget: .seconds(60),
+                on: networks, preferred: moved.address ?? preferred, budget: .seconds(60),
                 excluding: stationHostsHeld,
                 isCurrent: { [weak self] in self?.generation == token },
-                open: { host in
+                open: { host, localAddress in
                     try validate(token)
                     cameraHost = host
                     noteReachable(token)
@@ -598,7 +601,7 @@ public final class LunaCameraBackend: CameraBackend {
                     do {
                         try await openControl(
                             token: token, identity: identity, expectedSerial: moved.serial,
-                            localAddress: local.address)
+                            localAddress: localAddress)
                     } catch let failure as ConnectionFailure where failure.reason == .wrongCamera {
                         onLog?("luna: another camera answered on the setup's network; searching on")
                         closeControlLink()
@@ -608,10 +611,18 @@ public final class LunaCameraBackend: CameraBackend {
                 }) != nil
         else {
             throw ConnectionFailure.luna(
-                .notFound, "station.camera-not-found",
-                "The camera joined “\(network.ssid)”, but this phone could not find it there. Check that the network lets its devices reach each other, then connect again.",
+                .notFound, "station.camera-not-found", Self.cameraNotFoundMessage(network),
                 phase: .joiningNetwork)
         }
+    }
+
+    /// The station search ran out of time: the camera joined but this device never found it.
+    static func cameraNotFoundMessage(_ network: LunaStationNetwork) -> String {
+        #if targetEnvironment(macCatalyst)
+            StationCopy.notFoundOnNetwork("“\(network.ssid)”", host: .mac)
+        #else
+            "The camera joined “\(network.ssid)”, but this phone could not find it there. Check that the network lets its devices reach each other, then connect again."
+        #endif
     }
 
     /// This phone on the setup's network, through the app's hotspot owner when it has one.

@@ -53,7 +53,7 @@
         }
         private func stationAddress() -> String? {
             stationLocalAddress?(stationHotspot)
-                ?? DjiAppleSharedWiFiPath.address(hotspot: stationHotspot)
+                ?? DjiAppleSharedWiFiPath.address(hotspot: stationHotspot, toward: stationHost)
         }
         private let port: UInt16
         private let tcpPoke: Bool

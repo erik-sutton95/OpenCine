@@ -2,8 +2,10 @@
 import Darwin
 import Foundation
 import NetworkExtension
+import OpenCineCore
 
-/// Current Wi-Fi IPv4 path for cameras joined to the operator's network.
+/// Current Wi-Fi IPv4 path for cameras joined to the operator's network. On a Mac that path is any
+/// Wi-Fi or Ethernet interface on a private network (`HostInterfacePick`), not only `en0`.
 @MainActor
 public enum DjiAppleSharedWiFiPath {
     public static func validAddress(_ value: String) -> Bool {
@@ -13,9 +15,25 @@ public enum DjiAppleSharedWiFiPath {
         return first > 0 && first < 224 && first != 127
     }
 
+    /// A Mac with no interface on a private network: nothing for the camera to join with it.
+    public struct HostNotOnNetwork: LocalizedError, Equatable {
+        public var errorDescription: String? { StationCopy.noStationNetwork }
+    }
+
     /// Joins this device to the operator's network and waits for its IPv4 address.
-    /// Shared by Multiview and a saved camera's Wi-Fi setup.
+    /// Shared by Multiview and a saved camera's Wi-Fi setup. A Mac never joins: it is already on
+    /// the network by Wi-Fi or Ethernet, so this returns its address there or throws
+    /// `HostNotOnNetwork`.
     public static func joinHost(ssid: String, password: String) async throws -> String? {
+        #if targetEnvironment(macCatalyst)
+            guard let address = address() else { throw HostNotOnNetwork() }
+            return address
+        #else
+            return try await joinPhone(ssid: ssid, password: password)
+        #endif
+    }
+
+    private static func joinPhone(ssid: String, password: String) async throws -> String? {
         if await DjiAppleWiFiJoiner.currentSSID() != ssid {
             let config =
                 password.isEmpty
@@ -52,10 +70,34 @@ public enum DjiAppleSharedWiFiPath {
     }
 
     public static func address(hotspot: Bool = false) -> String? {
-        interfaceAddress(netmask: false, hotspot: hotspot)
+        #if targetEnvironment(macCatalyst)
+            if !hotspot { return stationInterfaces().first?.ipv4 }
+        #endif
+        return interfaceAddress(netmask: false, hotspot: hotspot)
     }
     public static func netmask(hotspot: Bool = false) -> String? {
-        interfaceAddress(netmask: true, hotspot: hotspot)
+        #if targetEnvironment(macCatalyst)
+            if !hotspot { return stationInterfaces().first?.netmask }
+        #endif
+        return interfaceAddress(netmask: true, hotspot: hotspot)
+    }
+
+    /// This device's address on the network that holds `host` (the camera): on a Mac on several
+    /// networks, the interface on the camera's subnet; elsewhere `address(hotspot:)`.
+    public static func address(hotspot: Bool, toward host: String?) -> String? {
+        #if targetEnvironment(macCatalyst)
+            if !hotspot, let host,
+                let iface = HostInterfacePick.interface(reaching: host, in: stationInterfaces())
+            {
+                return iface.ipv4
+            }
+        #endif
+        return address(hotspot: hotspot)
+    }
+
+    /// The Mac's interfaces on a private network, the default route's first.
+    public static func stationInterfaces() -> [HostInterface] {
+        HostInterfacePick.stationInterfaces(HostInterfaces.current())
     }
 
     private static func interfaceAddress(netmask: Bool, hotspot: Bool) -> String? {

@@ -160,6 +160,8 @@ case MultiviewTool.camera
 case MultiviewTool.fit
 case MultiviewTool.layout
 case MultiviewTool.lut
+case PairingNetworkStep.ask(Swift.String?)
+case PairingNetworkStep.reuse(Swift.String)
 case ProblemReportImage.ImageFailure.tooLarge
 case ProblemReportImage.ImageFailure.unreadable
 case ProblemReporting.Failure.invalid
@@ -260,6 +262,7 @@ class ReliabilityReportingURLProtocol: Foundation.URLProtocol, CVarArg, CustomDe
 class SavedCamerasStore: Sendable
 class ShellModel: Observable, Sendable
 enum BodyRecordsV0.Dates: Equatable, Hashable, Sendable
+enum CameraNetworkMemory
 enum CameraSettingsPresetCopy
 enum CameraSettingsPresetScope
 enum CamerasMapping: Sendable
@@ -325,6 +328,7 @@ enum MultiviewStageJournal
 enum MultiviewStageLayout: CaseIterable, Decodable, Encodable, Equatable, Hashable, RawRepresentable, Sendable
 enum MultiviewTally
 enum MultiviewTool: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
+enum PairingNetworkStep: Equatable, Sendable
 enum ProblemReportImage.ImageFailure: Equatable, Error, Hashable, LocalizedError, Sendable
 enum ProblemReporting.Failure: Error, LocalizedError, Sendable
 enum ReliabilityEnvironment: CaseIterable, Equatable, Hashable, RawRepresentable, Sendable
@@ -351,6 +355,7 @@ extension MonitorPresentation.MonitorAudioStoredCenter
 extension MonitorPresentation.MonitorFalseColorReferencePositions
 extension MonitorPresentation.MonitorRect
 extension MonitorPresentation.MonitorScopePoint
+extension OpenCineCore.HostDevice
 extension OpenCineCore.MultiviewRepairResult
 extension OpenCineMedia.MonitorTimecodeFormat
 extension SwiftUICore.EnvironmentValues
@@ -358,6 +363,8 @@ extension SwiftUICore.View
 func AddSetupChooser.select(_: Swift.String, onSelect: (AddSetupOption) -> Swift.Void) -> Swift.Bool
 func BodyRecordsV0.cameras(in: Foundation.Data) -> [OpenCineCore.LegacyCamera]?
 func BodyRecordsV0.patched(_: Foundation.Data?, to: [OpenCineCore.SavedCamera]) -> Foundation.Data?
+func CameraNetworkStore.load() -> CameraNetworkChoice?
+func CameraNetworkStore.save(_: CameraNetworkChoice) -> ()
 func CameraSettingsPresetStore.delete(id: Swift.String, scope: Swift.String) -> ()
 func CameraSettingsPresetStore.presets(scope: Swift.String) -> [OpenCineCore.CameraSettingsPreset]
 func CameraSettingsPresetStore.save(_: OpenCineCore.CameraSettingsPreset, scope: Swift.String) -> ()
@@ -969,6 +976,8 @@ init AppIntegration(_: any OpenCineCore.CameraIntegration, slots: IntegrationSlo
 init AppShell(model: ShellModel, brand: ShellBrand, actions: ShellActions, safeArea: ((SwiftUI.GeometryProxy) -> SwiftUI.EdgeInsets)?, extraNearby: [MonitorPresentation.CameraListItem], pairingFlow: IntegrationPairingFlow?, coverPresentation: ShellCoverPresentation, prePage: (SwiftUI.EdgeInsets) -> PrePage?, monitor: (ShellModel.Monitor) -> Monitor, page: (ShellModel.Cover) -> Page)<Monitor, Page, PrePage where Monitor : SwiftUI.View, Page : SwiftUI.View, PrePage : SwiftUI.View>
 init AppShell(model: ShellModel, brand: ShellBrand, actions: ShellActions, safeArea: ((SwiftUI.GeometryProxy) -> SwiftUI.EdgeInsets)?, pairingFlow: IntegrationPairingFlow?, coverPresentation: ShellCoverPresentation, monitor: (ShellModel.Monitor) -> Monitor, page: (ShellModel.Cover) -> Page)<Monitor, Page, PrePage where Monitor : SwiftUI.View, Page : SwiftUI.View, PrePage == SwiftUI.EmptyView>
 init BodyRecordsV0(integration: OpenCineCore.IntegrationID, dates: BodyRecordsV0.Dates)
+init CameraNetworkChoice(network: Swift.String)
+init CameraNetworkStore(defaults: Foundation.UserDefaults, key: Swift.String)
 init CameraSettingsPresetStore(storage: Foundation.UserDefaults, prefix: Swift.String)
 init CameraSettingsPresetsModel(store: CameraSettingsPresetStore, shell: ShellModel, admission: () -> OpenCineCore.CommandDispatchAdmission?)
 init CamerasModel(integrations: [AppIntegration], store: SavedCamerasStore, routePolicy: CamerasModel.RoutePolicy)
@@ -1630,6 +1639,7 @@ protocol MonitorMediaFavoritesStore<Self : AnyObject, Self : Swift.Sendable>: Se
 protocol MultiviewHost<Self : AnyObject>
 protocol ReliabilityReportingCancellable<Self : AnyObject>
 protocol ReliabilityReportingSink<Self : AnyObject, Self : Swift.Sendable>: Sendable
+static func CameraNetworkMemory.step(saved: CameraNetworkChoice?, hasPassword: (Swift.String) -> Swift.Bool, currentNetwork: Swift.String?) -> PairingNetworkStep
 static func CameraSettingsPresetCopy.failure(_: OpenCineCore.CommandStage) -> Swift.String
 static func CameraSettingsPresetCopy.result(_: OpenCineCore.CameraSettingsPresetRecall) -> Swift.String
 static func CameraSettingsPresetCopy.skip(_: OpenCineCore.CameraSettingsPresetSkip) -> Swift.String
@@ -1646,7 +1656,7 @@ static func CamerasMapping.paired(_: CamerasModel) -> [MonitorPresentation.Camer
 static func CamerasMapping.pairing(_: CamerasModel) -> MonitorPresentation.CameraPairingPresentation
 static func CamerasMapping.steps(_: CamerasModel.Attempt) -> [MonitorPresentation.CameraConnectStep]
 static func CamerasMapping.title(of: OpenCineCore.SavedRoute) -> Swift.String
-static func CamerasMapping.wizard(_: CamerasModel, _: PairingWizard) -> MonitorPresentation.CameraPairingPresentation
+static func CamerasMapping.wizard(_: CamerasModel, _: PairingWizard, host: OpenCineCore.HostDevice, stationNetwork: Swift.String?) -> MonitorPresentation.CameraPairingPresentation
 static func DiagnosticsDevice.machineIdentifier(environment: [Swift.String : Swift.String]) -> Swift.String
 static func DiagnosticsDevice.version(_: Foundation.OperatingSystemVersion) -> Swift.String
 static func FeedIncidentOrigin.isAutomationLaunch(_: [Swift.String : Swift.String]) -> Swift.Bool
@@ -1764,6 +1774,8 @@ static func StationNetworkSetupRules.passwordNote(_: Swift.String, secured: Swif
 static func StationNetworkSetupRules.phoneNetworks(_: [Swift.String]) -> [Swift.String]
 static func StationNetworkSetupRules.security(of: Swift.String, saved: [OpenCineCore.StationNetwork], current: Swift.Bool?) -> Swift.Bool?
 static func StationNetworkSetupRules.setupChooser(context: StationNetworkSetupContext, routes: [StationSetupRoute], notice: AddSetupNotice?) -> AddSetupChooser
+static func StationSetupRoute.newCameraRoute(on: OpenCineCore.HostDevice) -> OpenCineCore.RouteKind
+static func StationSetupRoute.offered(on: OpenCineCore.HostDevice, hostRoutes: [StationSetupRoute]) -> [StationSetupRoute]
 static func StoredData.userDefaults(_: Foundation.UserDefaults, key: Swift.String) -> StoredData
 static let CameraSettingsPresetCopy.connectFirst: Swift.String
 static let CameraSettingsPresetCopy.empty: Swift.String
@@ -1847,6 +1859,7 @@ static let ReliabilityReportingPrivacy.metricAttributeAllowlist: Swift.Set<Swift
 static let ReliabilityReportingPrivacy.shapes: [Swift.String : Swift.String]
 static let ReliabilityReportingPrivacy.tagAllowlist: Swift.Set<Swift.String>
 static let StationSetupRoute.stationNetworks: [StationSetupRoute]
+static var HostDevice.current: OpenCineCore.HostDevice
 static var MonitorAssistState.cleanViewDefaultPinnedTools: Swift.Set<MonitorPresentation.MonitorAssistSelection>
 static var MonitorTransferRates.tick: Swift.Duration
 static var ProblemReportImage.transferRepresentation: some CoreTransferable.TransferRepresentation
@@ -1861,6 +1874,8 @@ struct AddSetupOption: Equatable, Identifiable, Sendable
 struct AppIntegration
 struct AppShell<Monitor, Page, PrePage where Monitor : SwiftUI.View, Page : SwiftUI.View, PrePage : SwiftUI.View>: Sendable, View
 struct BodyRecordsV0: LegacySavedCameraCodec, Sendable
+struct CameraNetworkChoice: Decodable, Encodable, Equatable, Sendable
+struct CameraNetworkStore
 struct CamerasModel.Attempt
 struct CamerasModel.Failure
 struct CamerasModel.Sighting: Equatable, Hashable, Identifiable
@@ -2075,6 +2090,7 @@ var AppShell.body: some SwiftUI.View
 var BodyRecordsV0.dates: BodyRecordsV0.Dates
 var BodyRecordsV0.heldExtras: Swift.Set<Swift.String>
 var BodyRecordsV0.integration: OpenCineCore.IntegrationID
+var CameraNetworkChoice.network: Swift.String
 var CameraSettingsPresetStore.revision: Swift.Int
 var CameraSettingsPresetsModel.canRecall: Swift.Bool
 var CameraSettingsPresetsModel.canSave: Swift.Bool
