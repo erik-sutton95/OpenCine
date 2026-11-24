@@ -155,6 +155,7 @@ enum MonitorWorkingSpace
 enum ReviewClip
 enum StationConfiguredNetworks
 enum StationNetworkSecurity
+enum UVCCaptureSelection
 enum UVCVideoSourceState: Equatable, Sendable
 enum VideoToolboxDecoder.Output: Sendable
 extension OpenCineMedia.MonitorFrameEffects
@@ -381,6 +382,8 @@ func SharedWiFiPath.join(_: OpenCineCore.StationNetwork) async throws -> Swift.S
 func SharedWiFiPath.netmask(hotspot: Swift.Bool) -> Swift.String?
 func StationWiFiNameAccess.locationManagerDidChangeAuthorization(_: CoreLocation.CLLocationManager) -> ()
 func StationWiFiNameAccess.request() async -> ()
+func UVCCaptureMode.matches(width: Swift.Int, height: Swift.Int, minimumRate: Swift.Double, maximumRate: Swift.Double) -> Swift.Bool
+func UVCVideoSource.captureOutput(_: AVFoundation.AVCaptureOutput, didDrop: CoreMedia.CMSampleBuffer, from: AVFoundation.AVCaptureConnection) -> ()
 func UVCVideoSource.captureOutput(_: AVFoundation.AVCaptureOutput, didOutput: CoreMedia.CMSampleBuffer, from: AVFoundation.AVCaptureConnection) -> ()
 func UVCVideoSource.start() async -> ()
 func UVCVideoSource.stop() -> ()
@@ -483,7 +486,8 @@ init SharedNetworkStore(storage: any SharedNetworkStorage)
 init SharedNetworkStore.Network(from: any Swift.Decoder) throws
 init SharedNetworkStore.Network(ssid: Swift.String, password: Swift.String, hotspot: Swift.Bool)
 init SharedWiFiPath()
-init UVCVideoSource(stream: OpenCineCore.StreamID, queueLabel: Swift.String, logSubsystem: Swift.String, onStateChange: (UVCVideoSourceState) -> Swift.Void)
+init UVCCaptureMode(width: Swift.Int, height: Swift.Int, framesPerSecond: Swift.Double)
+init UVCVideoSource(stream: OpenCineCore.StreamID, queueLabel: Swift.String, logSubsystem: Swift.String, selectedDeviceID: Swift.String?, requestedMode: UVCCaptureMode?, onStateChange: (UVCVideoSourceState) -> Swift.Void)
 init VideoToolboxDecoder(stream: OpenCineCore.StreamID, hooks: VideoToolboxDecoder.Hooks)
 init VideoToolboxDecoder.Hooks(shouldRebuildSession: (Darwin.OSStatus) -> Swift.Bool, journal: (Swift.String) -> Swift.Void, logSubsystem: Swift.String)
 let CaptureCalibration.blueDifference: CaptureChannelCurve
@@ -581,6 +585,9 @@ let MonitorVideoPictureContainer.displayLayer: AVFoundation.AVSampleBufferDispla
 let MonitorVideoPictureContainer.processedPicture: MonitorPictureHost
 let MonitorVideoSourceToken.generation: OpenCineCore.StreamGeneration
 let MonitorVideoSourceToken.stream: OpenCineCore.StreamID
+let UVCCaptureMode.framesPerSecond: Swift.Double
+let UVCCaptureMode.height: Swift.Int
+let UVCCaptureMode.width: Swift.Int
 let UVCVideoSource.fence: DecodedFrameFence
 let UVCVideoSource.frames: _Concurrency.AsyncStream<DecodedFrameLease>
 let VideoToolboxDecoder.displayLayer: AVFoundation.AVSampleBufferDisplayLayer
@@ -657,6 +664,8 @@ static func ReviewClip.write(to: Foundation.URL) throws -> ()
 static func SharedWiFiPath.validAddress(_: Swift.String) -> Swift.Bool
 static func StationConfiguredNetworks.ssids() -> [Swift.String]
 static func StationNetworkSecurity.currentNetwork(named: Swift.String) -> Swift.Bool?
+static func UVCCaptureSelection.deviceID(available: [Swift.String], preferred: Swift.String?, requiresExplicitSelection: Swift.Bool) -> Swift.String?
+static func UVCCaptureSelection.isCaptureHardware(modelID: Swift.String) -> Swift.Bool
 static func UVCVideoSource.isBroadcastShaped(_: CoreMedia.CMVideoDimensions) -> Swift.Bool
 static func VideoToolboxDecoder.isPresentable(_: CoreMedia.CMSampleBuffer) -> Swift.Bool
 static func VideoToolboxDecoder.isPresentable(_: CoreVideo.CVPixelBuffer) -> Swift.Bool
@@ -693,6 +702,7 @@ static var MonitorWorkingSpace.displayContextOptions: [CoreImage.CIContextOption
 static var MonitorWorkingSpace.displayImageOptions: [CoreImage.CIImageOption : Any]
 static var MonitorWorkingSpace.imageOptions: [CoreImage.CIImageOption : Any]
 static var UVCVideoSource.attachedDeviceName: Swift.String?
+static var UVCVideoSource.availableCaptureDevices: [(id: Swift.String, name: Swift.String)]
 static var UVCVideoSource.isDocumentedHardware: Swift.Bool
 static var UVCVideoSource.isSupportedHardware: Swift.Bool
 struct CaptureCalibration: Equatable, Sendable
@@ -749,6 +759,8 @@ struct MonitorWebDownloadView.Configuration
 struct MonitorZebraSpec: Equatable, Sendable
 struct SharedNetworkStore.Network: Decodable, Encodable, Equatable, Hashable, Sendable
 struct SharedNetworkStore: Sendable
+struct UVCCaptureMode: Equatable, Sendable
+struct UVCVideoSource.Statistics: Equatable, Sendable
 struct VideoToolboxDecoder.Hooks: Sendable
 typealias MonitorHostClock = OpenCineCore.HostClock
 typealias MonitorInspectorImageRenderer.Clock = () -> Swift.UInt64
@@ -1069,8 +1081,12 @@ var SharedNetworkStore.Network.ssid: Swift.String
 var StationWiFiNameAccess.approximateOnly: Swift.Bool
 var StationWiFiNameAccess.denied: Swift.Bool
 var StationWiFiNameAccess.undecided: Swift.Bool
+var UVCVideoSource.Statistics.captureDropped: Swift.UInt64
+var UVCVideoSource.Statistics.captured: Swift.UInt64
+var UVCVideoSource.Statistics.consumerReplaced: Swift.UInt64
 var UVCVideoSource.captureDeviceIdentity: CaptureDeviceIdentity?
 var UVCVideoSource.onSignalColorimetry: ((Swift.String) -> Swift.Void)?
+var UVCVideoSource.statistics: UVCVideoSource.Statistics
 var UVCVideoSourceState.isStreaming: Swift.Bool
 var VideoToolboxDecoder.Hooks.journal: (Swift.String) -> Swift.Void
 var VideoToolboxDecoder.Hooks.logSubsystem: Swift.String
