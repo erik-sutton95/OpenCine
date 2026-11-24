@@ -33,11 +33,13 @@
 ### Task 1: Host device words and route choice (OpenCineAppKit)
 
 **Files:**
+
 - Create: `Sources/OpenCineAppKit/HostDevice.swift`
 - Modify: `Sources/OpenCineAppKit/StationNetworkSetup.swift` (route list helper), `Sources/OpenCineAppKit/PairingWizard.swift` (step 3 copy)
 - Test: `Tests/OpenCineAppKitTests/HostDeviceTests.swift` (new), and the existing pairing wizard and station setup test files
 
 **Interfaces:**
+
 - Produces:
   - `public enum HostDevice: Sendable, Equatable { case iPhone, iPad, mac; public static var current: HostDevice { get }; public var thisDevice: String /* "this iPhone" | "this iPad" | "this Mac" */; public var isComputer: Bool }`
   - `extension StationSetupRoute { public static func offered(on host: HostDevice, hostRoutes: [StationSetupRoute]) -> [StationSetupRoute] }`: on `.mac` it returns only `.infrastructureNetwork` (plus any host route not of kind `.cameraAccessPoint` or `.phoneHotspot`); otherwise `hostRoutes` unchanged.
@@ -81,10 +83,12 @@
 ### Task 2: Camera network memory (OpenCineAppKit)
 
 **Files:**
+
 - Create: `Sources/OpenCineAppKit/CameraNetworkMemory.swift`
 - Test: `Tests/OpenCineAppKitTests/CameraNetworkMemoryTests.swift`
 
 **Interfaces:**
+
 - Produces:
   - `public struct CameraNetworkChoice: Codable, Equatable, Sendable { public var network: String; public init(network: String) }`
   - `public enum PairingNetworkStep: Equatable, Sendable { case ask(suggested: String?); case reuse(network: String) }`
@@ -117,11 +121,13 @@
 ### Task 3: Interface pick (OpenCineApple, logic in OpenCineCore)
 
 **Files:**
+
 - Create: `Sources/OpenCineCore/HostInterfacePick.swift` (pure), `Sources/OpenCineApple/HostInterfaces.swift` (reads the system)
 - Modify: `Sources/OpenCineDJIApple/DjiAppleSharedWiFiPath.swift`, `Sources/OpenCineDJIApple/DjiAppleConnectionTransport+Native.swift`, the DJI discovery candidates, `Sources/Insta360Apple/LunaStationPath.swift` (en0 uses), `Sources/OpenCineApple/SharedWiFiPath.swift`
 - Test: `Tests/OpenCineCoreTests/HostInterfacePickTests.swift`
 
 **Interfaces:**
+
 - Produces:
   - `public struct HostInterface: Equatable, Sendable { public var name: String; public var ipv4: String; public var prefixLength: Int; public var isUp: Bool; public var carriesDefaultRoute: Bool }`
   - `public enum HostInterfacePick { public static func stationInterfaces(_ all: [HostInterface]) -> [HostInterface] }`. It keeps up interfaces with a private IPv4 (10/8, 172.16/12, 192.168/16). It drops loopback, link-local 169.254/16, and names starting `utun`, `ipsec`, `awdl`, `llw`, `bridge`, `anpi`, `ap`, `gif`, `stf`. Order: the default route interface first, then by name.
@@ -158,11 +164,13 @@ let ethernet = HostInterface(name: "en0", ipv4: "192.168.1.21", prefixLength: 24
 ### Task 4: Pocket and Insta Mac pairing (app repos)
 
 **Files (each app):**
+
 - Pocket: `ios/OpenPocketCine/StartupChrome.swift`, `AppRoot.swift` (pairing wiring), `AddSetupView.swift`, `CameraSession.swift`, `ios/OpenPocketCine/OpenPocketCine-Mac.entitlements`
 - Insta: `ios/OpenInstaCine/CamerasExperience.swift`, `AppRoot.swift`, `AddSetupView.swift`, `ios/OpenInstaCine/OpenInstaCine-Mac.entitlements`
 - OpenCine: `Sources/OpenCineAppKitApple/StationNetworkSetupView.swift` (use `HostDevice` words; on Mac, label the current-network section "THIS MAC IS ON" and the saved section "SAVED ON THIS MAC"), `Sources/Insta360Apple/LunaStationPath.swift` and `Sources/OpenCineApple/StationWiFiSystem.swift` (let `fetchCurrent` run on Catalyst)
 
 **Interfaces:**
+
 - Consumes: Tasks 1 to 3.
 - Behaviour on Mac:
   1. Continue on a sighting computes `CameraNetworkMemory.step(...)`. The app's Keychain store supplies `hasPassword`; `currentNetwork` comes from `fetchCurrent`, or nil.
